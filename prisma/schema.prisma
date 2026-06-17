@@ -17,6 +17,17 @@ enum BusinessDay {
   SUNDAY
 }
 
+enum WorkflowArea {
+  INVENTORY
+  ADVERTISING
+  MARKETING
+  SALES
+  ADMIN
+  COLLECTIONS
+  SHOP
+  GENERAL_MANAGER
+}
+
 // Placeholder model for the v0.1.0 foundation migration.
 // Domain models are intentionally deferred to later milestones.
 model BootstrapMarker {
@@ -62,6 +73,7 @@ model Role {
   updatedAt   DateTime   @updatedAt
   userRoles   UserRole[]
   roleDuties  RoleDuty[]
+  templates   TaskTemplate[]
 }
 
 model Duty {
@@ -73,6 +85,7 @@ model Duty {
   updatedAt    DateTime   @updatedAt
   userDuties   UserDuty[]
   roleDuties   RoleDuty[]
+  templates    TaskTemplate[]
 }
 
 model UserRole {
@@ -115,5 +128,26 @@ model AppSetting {
   businessDays        BusinessDay[]
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
+}
+
+model TaskTemplate {
+  id                      String       @id @default(cuid())
+  title                   String
+  description             String?
+  workflowArea            WorkflowArea
+  defaultDueTime          String
+  requiresManagerApproval Boolean      @default(false)
+  isActive                Boolean      @default(true)
+  roleId                  String?
+  dutyId                  String?
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+  role                    Role?        @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  duty                    Duty?        @relation(fields: [dutyId], references: [id], onDelete: SetNull)
+
+  @@index([workflowArea])
+  @@index([roleId])
+  @@index([dutyId])
+  @@index([isActive])
 }
 

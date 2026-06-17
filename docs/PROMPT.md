@@ -1,181 +1,186 @@
-# Task: DB-017 — Add Settings API and Manager Edit Flow
+# Task: DB-018 Add task template schema
 
-Read `docs/AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, and the relevant existing files first.
+Read `docs/AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, and relevant Prisma/server files first.
 
 ## Goal
 
-Implement DB-017: add settings read/update behavior with manager-only protection.
+Implement the database schema foundation for task templates.
 
-Managers should be able to view and safely update the app’s daily board generation settings from the app UI.
+Task templates define reusable daily task generation rules. They will later be used by the daily board generation service to create role-based and duty-based tasks for each business day.
 
-This task should build on DB-016, which should already have added the settings schema and storage for:
-
-* `dailyGenerationTime`
-* `timezone`
-* `businessDays`
+This task should only add the schema, migration, and minimal seed/test support needed for task templates. Do not build template CRUD, daily generation, board UI, or recommendation logic yet.
 
 ## Current behavior
 
-DB-016 should provide database-backed app settings storage, but there is not yet a complete manager-facing API and edit flow for viewing and updating those settings.
+The app has or is expected to have foundational identity, role, duty, app settings, and manager settings flow work from earlier issues.
 
-Settings may exist in the database, but managers cannot yet reliably edit them through the app.
+There is not yet a `TaskTemplate` model that can represent daily work templates tied to roles, duties, workflow areas, due times, and manager approval requirements.
 
 ## Desired behavior
 
-Add a settings API and manager edit flow that allows a manager to:
+Add a `TaskTemplate` model to the Prisma schema that supports the MVP daily generation workflow.
 
-1. View the current generation settings.
-2. Edit the daily generation time.
-3. Edit the timezone.
-4. Edit the business days.
-5. Save changes through a protected server-side path.
-6. See clear loading, success, validation, and error states.
+The model should support:
 
-The settings flow must be manager-only. Staff users should not be able to update settings, even if they attempt to call the API directly.
+* A required title.
+* An optional description.
+* A workflow area/category for the task.
+* A default due time used when generated tasks are created.
+* A manager approval requirement flag.
+* Optional role association for role-based default templates.
+* Optional duty association for duty-based/custom-duty templates.
+* An active/inactive flag.
+* Standard created/updated timestamps.
+* Stable relationships to existing `Role` and `Duty` models if those models already exist.
 
-## Important dependency check
+The schema should allow templates to represent:
 
-Before implementing, verify whether DB-016 is complete.
+1. Role-based daily work.
+2. Duty-based daily work.
+3. Active templates used by future generation logic.
+4. Inactive templates that should not generate future tasks.
+5. Templates requiring manager approval before completion.
 
-DB-016 should already include:
+## Suggested model shape
 
-* An `AppSetting` or equivalent settings model
-* Storage for daily generation time
-* Storage for timezone
-* Storage for business days
-* Server-side access to settings
+Use the existing naming/style conventions in `prisma/schema.prisma`. Adjust names only if the existing codebase has already established different conventions.
 
-If DB-016 is missing or incomplete, do not quietly rebuild the entire settings schema inside this task. Stop and report what is missing, then propose the smallest prerequisite fix.
+Suggested fields:
 
-## Expected API behavior
+```prisma
+model TaskTemplate {
+  id                      String   @id @default(cuid())
+  title                   String
+  description             String?
+  workflowArea            WorkflowArea
+  defaultDueTime          String
+  requiresManagerApproval Boolean  @default(false)
+  isActive                Boolean  @default(true)
 
-Use the existing project patterns for API routes or server actions.
+  roleId                  String?
+  role                    Role?    @relation(fields: [roleId], references: [id], onDelete: SetNull)
 
-Add or complete these capabilities:
+  dutyId                  String?
+  duty                    Duty?    @relation(fields: [dutyId], references: [id], onDelete: SetNull)
 
-* `GET /api/settings`
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 
-  * Returns the current app settings.
-  * Requires an authenticated user.
-  * Staff may be allowed to read settings only if the existing policy design permits it, but manager-only read is acceptable for this MVP.
-  * Do not expose sensitive data.
+  @@index([workflowArea])
+  @@index([roleId])
+  @@index([dutyId])
+  @@index([isActive])
+}
+```
 
-* `PATCH /api/settings`
+If a `WorkflowArea` enum does not already exist, add one that covers the MVP workflow areas:
 
-  * Updates generation settings.
-  * Requires manager permission.
-  * Validates all input server-side.
-  * Returns the updated settings.
-  * Rejects invalid values with clear validation errors.
-  * Rejects non-manager attempts with a consistent permission error.
+```prisma
+enum WorkflowArea {
+  INVENTORY
+  ADVERTISING
+  MARKETING
+  SALES
+  ADMIN
+  COLLECTIONS
+  SHOP
+  GENERAL_MANAGER
+}
+```
 
-## Validation rules
+If a similar enum already exists, reuse it instead of creating a duplicate.
 
-Validate settings server-side.
+## Important design notes
 
-Minimum validation:
+* `defaultDueTime` may be stored as a string such as `"09:00"` or another existing project-standard time format. Do not overbuild timezone behavior in this issue. Timezone/generation settings belong to the settings work.
+* Do not create generated `Task` records in this issue.
+* Do not create `BoardDay`, `Task`, or `GenerationRun` in this issue unless they already exist and need only relationship wiring.
+* Do not implement API routes or UI for managing templates. That belongs to DB-019.
+* Do not implement daily generation logic. That begins in later DB-022/DB-023 work.
+* Keep this change database/schema-focused and reviewable.
 
-* `dailyGenerationTime` is required.
-* `dailyGenerationTime` must be a valid 24-hour time value, such as `09:00`.
-* `timezone` is required.
-* `timezone` must be a valid IANA timezone string if the project already has a validation helper for that. If not, use a practical minimal validation and leave a clear TODO only if necessary.
-* `businessDays` is required.
-* `businessDays` must be a non-empty list of valid weekday values.
-* Monday through Saturday should be supported for the MVP.
-* Avoid accepting malformed or duplicate business days.
+## Seed data
 
-Do not rely on UI-only validation. The server must enforce the rules.
+If the project already has a seed file and role/duty seed data, add a small set of realistic task templates for local development.
 
-## Expected UI behavior
+Seed examples may include:
 
-Add or complete a manager settings page or section, likely under:
+* Inventory Manager: Review inventory status.
+* Inventory Manager: Check vehicles ready for photos/listing.
+* Mechanic: Update repair status.
+* Marketing/Advertisement Manager: Confirm listings are complete.
+* Salesperson: Review sales follow-up tasks.
+* General Manager: Review blocked tasks.
+* General Manager: Review tasks marked Ready for Review.
 
-* `src/app/settings`
-* or the existing authenticated app shell if a settings route already exists.
+Use existing seeded role/duty identifiers or lookup by name. Do not hardcode IDs unless the current seed pattern already does that.
 
-The UI should let a manager:
+If seed data cannot safely be added because earlier role/duty seeds are missing, document that in the summary and leave a clear TODO comment only if the repo already uses TODOs for unfinished seed dependencies.
 
-* See the current daily generation time.
-* Select or edit the timezone.
-* Select business days.
-* Save changes.
-* See a success message after saving.
-* See validation errors when input is invalid.
-* See a permission or access message if a non-manager reaches the page.
+## Validation / constraints
 
-Keep the UI simple and consistent with the existing app style. Do not over-polish or redesign unrelated layout.
+Add reasonable database-level constraints and indexes without overengineering.
 
-## Permission requirements
+Required:
 
-Use existing server-side policy helpers from DB-014 if available.
+* `title` must be required.
+* `workflowArea` must be required.
+* `defaultDueTime` must be required.
+* `requiresManagerApproval` should default to `false`.
+* `isActive` should default to `true`.
+* `roleId` and `dutyId` should be optional.
+* Add indexes that support later generation queries by active templates, role, duty, and workflow area.
 
-Manager users can:
+Optional, only if easy and consistent with existing architecture:
 
-* View settings.
-* Update settings.
+* Add a schema-level uniqueness rule to prevent obvious duplicate active templates for the same role/duty/title combination. Avoid fragile uniqueness if nullable fields would cause Prisma/PostgreSQL edge cases.
 
-Staff users cannot:
+## Tests
 
-* Update generation settings.
-* Bypass the UI by calling the update endpoint directly.
+Add or update tests where appropriate for the current project setup.
 
-If policy helpers do not yet exist, do not create a large permissions refactor. Add the smallest compatible manager-only check using the existing auth/session structure, and note any follow-up work needed.
+Minimum test expectations:
 
-## Activity/event behavior
+* Prisma/schema validation passes.
+* Migration can be generated/applied.
+* Seed data can run if templates are added to seeds.
+* If the project has database tests, add a simple test proving a template can be created with:
 
-Do not build the full activity feed in this task unless it already exists.
+  * workflow area
+  * default due time
+  * optional role or duty
+  * manager approval flag
+  * active flag
 
-If an activity/event logging helper already exists, log a simple settings-updated event.
-
-If activity events are not implemented yet, do not add the full activity event schema. Leave this for the later activity milestone.
+Do not add a large test framework or new dependency just for this issue.
 
 ## Constraints
 
-* Keep the change minimal and scoped to DB-017.
-* Follow the existing architecture and file patterns.
-* Do not rewrite unrelated auth, settings, dashboard, or layout code.
-* Do not add new dependencies unless clearly necessary.
+* Keep the change minimal.
+* Follow existing architecture and naming patterns.
+* Do not add new dependencies unless necessary.
+* Do not rewrite unrelated files.
 * Preserve existing behavior.
-* Keep business rules server-side.
-* Keep permission checks server-side.
-* Add or update tests where appropriate.
-* Do not implement DB-018 or task template work.
-* Do not implement daily board generation logic in this task.
-* Do not implement scheduled cron behavior in this task.
-
-## Suggested implementation approach
-
-1. Inspect the existing settings model/storage from DB-016.
-2. Identify existing auth/session and manager policy helpers.
-3. Add or complete a settings repository/service if the architecture already uses repositories/services.
-4. Add settings read/update API behavior.
-5. Add server-side validation.
-6. Add manager-only permission enforcement.
-7. Add a simple settings UI form.
-8. Add tests for:
-
-   * Manager can read settings.
-   * Manager can update settings.
-   * Staff cannot update settings.
-   * Invalid generation time is rejected.
-   * Invalid business days are rejected.
-9. Run the relevant checks.
+* Keep business rules ready for server-side use later.
+* Do not build DB-019 CRUD in this issue.
+* Do not build board generation logic in this issue.
+* Do not build template UI in this issue.
+* Update docs only if the implemented schema differs meaningfully from `docs/ARCHITECTURE.md`.
 
 ## Done when
 
-* Managers can view current generation settings in the app.
-* Managers can update daily generation time, timezone, and business days.
-* Non-manager users cannot update settings through the API or server action.
-* Invalid settings input is rejected server-side.
-* UI shows loading, success, validation error, and permission/error states where applicable.
-* Relevant tests pass.
-* Typecheck and lint pass if available.
-* No unrelated files were changed.
-* Any docs are updated only if behavior, setup, or architecture changed.
+* `TaskTemplate` exists in the Prisma schema.
+* The schema supports role-based and duty-based daily work templates.
+* The schema supports workflow area, default due time, manager approval requirement, and active/inactive status.
+* A migration exists and applies cleanly.
+* Seed data is added if safe based on existing seeded roles/duties.
+* Relevant tests, Prisma validation, typecheck, and lint commands pass, or any skipped checks are clearly explained.
+* No unrelated code or UI changes are included.
 * Summarize:
 
   * Files changed
-  * Behavior added
-  * Validation added
-  * Tests run
-  * Anything not verified
+  * Schema/model added
+  * Migration created
+  * Seed data added or skipped
+  * Tests/checks run
+  * Any remaining work for DB-019
