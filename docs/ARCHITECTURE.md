@@ -1,0 +1,792 @@
+# Time Motor Sales Dispatch Board - Architecture
+
+**Document:** Architecture  
+**Version:** v0.1.0 draft  
+**Last updated:** 2026-06-16  
+**Status:** Planned - pre-implementation  
+**Source documents:** `docs/PRODUCT_SPEC.md`, `docs/MVP_SCOPE.md`, `docs/The Guide To Vibe Coding.md`
+
+---
+
+## 1. Purpose
+
+This document defines the target technical architecture for the Time Motor Sales Dispatch Board MVP.
+
+The MVP is a responsive internal web app that generates a daily team dispatch board from staff roles, duties, and task templates. The manager can review and adjust assignments, staff can update their own tasks, and the whole team can see the state of the day through the board and activity feed.
+
+Because this project is currently documentation-first, this architecture describes the planned structure. It should be updated whenever the implementation meaningfully changes.
+
+---
+
+## 2. Architecture Principles
+
+| Principle | Architectural choice |
+| --- | --- |
+| Daily workflow first | Build the daily dispatch board before deeper dealership systems. |
+| Manager remains in control | Recommendations explain who should handle a task, but the manager can override them. |
+| Low-friction staff updates | Status changes, blocker reasons, and comments should be quick from mobile or desktop. |
+| Visibility over complexity | Show work, blockers, review needs, and activity before adding advanced scoring. |
+| Simple, explainable automation | Daily generation and recommendations should be deterministic and easy to inspect. |
+| No required third-party integrations in MVP | Vehicle/customer references stay as text fields until integrations are justified. |
+| Small vertical slices | Build database, service, API, UI, and tests one workflow at a time. |
+
+---
+
+## 3. Recommended Stack
+
+The MVP should use a single web application architecture unless implementation constraints later justify a split frontend/backend.
+
+| Layer | Recommended choice | Notes |
+| --- | --- | --- |
+| Web framework | Next.js with React and TypeScript | Supports responsive UI, API routes/server actions, and future PWA work. |
+| Styling | Tailwind CSS or project-local CSS modules | Choose one during scaffold and keep it consistent. |
+| Database | PostgreSQL | Durable relational fit for users, roles, duties, tasks, events, and generation runs. |
+| ORM | Prisma | Clear migrations, type-safe data access, and easy seed data. |
+| Auth | App-owned email/password auth or Auth.js | Staff login is required; keep authorization rules server-side. |
+| Background scheduling | Platform cron plus manual trigger | Daily generation should run automatically and be manually retryable. |
+| Live updates | Short polling first, optional Server-Sent Events later | MVP must show real app events; transport can stay simple initially. |
+| Testing | Unit, integration, and browser-level workflow tests | Focus on generation, permissions, status transitions, and board visibility. |
+
+### Stack Decision Notes
+
+- Do not build a native mobile app in the MVP.
+- Do not require DealerCenter, Asana, CRM, SMS, email, or Google Workspace integrations in v0.1.0.
+- Keep the app PWA-ready, but do not treat PWA install support as an MVP blocker unless the team explicitly promotes it.
+
+---
+
+## 4. High-Level System
+
+```text
+Browser
+  - Manager dashboard
+  - Staff task view
+  - Full team board
+  - Activity feed
+        |
+        v
+Web App / App Server
+  - Auth and authorization
+  - Task and board APIs
+  - Daily generation service
+  - Assignment recommendation service
+  - Activity logging service
+        |
+        v
+PostgreSQL
+  - Users, roles, duties
+  - Task templates
+  - Daily boards and tasks
+  - Comments and activity events
+  - Settings and generation runs
+        ^
+        |
+Scheduler
+  - Runs daily board generation at configured time
+  - Can be retried manually by manager
+```
+
+The first implementation should prefer a single deployable app. If the app later grows into multiple services, preserve the same service boundaries: auth, board generation, recommendations, tasks, comments, and activity logging.
+
+---
+
+## 5. Target Repository Structure
+
+```text
+Dispatch Board/
+  docs/
+    PRODUCT_SPEC.md
+    MVP_SCOPE.md
+    ARCHITECTURE.md
+    ROADMAP.md
+    SETUP.md
+  prisma/
+    schema.prisma
+    migrations/
+    seed.ts
+  src/
+    app/
+      login/
+      board/
+      tasks/
+      settings/
+      api/
+    components/
+      layout/
+      ui/
+    features/
+      activity/
+      assignments/
+      auth/
+      board/
+      duties/
+      tasks/
+      users/
+    server/
+      auth/
+      db/
+      policies/
+      repositories/
+      services/
+      validation/
+    tests/
+      unit/
+      integration/
+      e2e/
+  package.json
+  README.md
+```
+
+### Structure Rules
+
+- `src/app` owns routes and page composition.
+- `src/features` owns user-facing feature components and feature-specific client logic.
+- `src/server/services` owns business workflows such as daily board generation and assignment recommendation.
+- `src/server/repositories` owns database reads/writes.
+- `src/server/policies` owns permission checks.
+- `src/server/validation` owns request and domain validation.
+- Do not put business rules only in UI components. Server-side rules are the source of truth.
+
+---
+
+## 6. Core Domain Model
+
+### User
+
+Represents a staff member or manager.
+
+Key fields:
+
+- `id`
+- `name`
+- `email`
+- `passwordHash` or auth provider identifier
+- `isActive`
+- `createdAt`
+- `updatedAt`
+
+Relationships:
+
+- Many roles through `UserRole`
+- Many custom duties through `UserDuty`
+- Many assigned tasks
+- Many created tasks
+
+### Role
+
+Represents a job role or responsibility area.
+
+Initial roles:
+
+- General Manager
+- Inventory Manager
+- Mechanic
+- Salesperson
+- Office Manager
+- Marketing/Advertisement Manager
+- Collections
+
+Users can have multiple roles.
+
+### Duty
+
+Represents a responsibility that can generate tasks.
+
+Examples:
+
+- Review inventory status
+- Check vehicles ready for photos
+- Follow up with assigned leads
+- Update repair status
+
+Duties may be assigned directly to a user or used as role defaults.
+
+### TaskTemplate
+
+Defines reusable daily task generation rules.
+
+Key fields:
+
+- `id`
+- `title`
+- `description`
+- `workflowArea`
+- `defaultDueTime`
+- `requiresManagerApproval`
+- `roleId` optional
+- `dutyId` optional
+- `isActive`
+
+Templates are the source for generated daily tasks.
+
+### BoardDay
+
+Represents a single business day's board.
+
+Key fields:
+
+- `id`
+- `date`
+- `generationStatus`
+- `generatedAt`
+- `generatedBy` optional
+
+There should be one board per business date.
+
+### Task
+
+Represents a generated or manually created work item.
+
+Required fields:
+
+- `id`
+- `boardDayId`
+- `title`
+- `description`
+- `assignedUserId`
+- `recommendedUserId` optional
+- `status`
+- `dueAt`
+- `createdByUserId`
+- `createdAt`
+- `updatedAt`
+- `requiresManagerApproval`
+
+Optional text references:
+
+- `vehicleReference`
+- `customerReference`
+
+Source fields:
+
+- `sourceType`: `template`, `manager`, or `staff`
+- `sourceTemplateId` optional
+- `sourceDutyId` optional
+- `workflowArea`
+
+Blocking and review fields:
+
+- `blockerReason`
+- `readyForReviewAt`
+- `completedAt`
+- `reviewedByUserId`
+
+### TaskComment
+
+Represents a staff or manager update on a task.
+
+Key fields:
+
+- `id`
+- `taskId`
+- `authorUserId`
+- `body`
+- `createdAt`
+
+### ActivityEvent
+
+Represents the real activity feed.
+
+Key fields:
+
+- `id`
+- `boardDayId`
+- `actorUserId` optional for system events
+- `taskId` optional
+- `eventType`
+- `message`
+- `metadata` JSON
+- `createdAt`
+
+Activity events should be written by services when important state changes happen. The feed should not be assembled from UI-only state.
+
+### AppSetting
+
+Stores configurable app settings.
+
+Initial settings:
+
+- `dailyGenerationTime`
+- `timezone`
+- `businessDays`
+
+Saturday should use the same board rules as weekdays. Sunday behavior can be configured later; for MVP planning, treat Monday through Saturday as business days unless the manager configures otherwise.
+
+### GenerationRun
+
+Tracks each automatic or manual board generation attempt.
+
+Key fields:
+
+- `id`
+- `boardDate`
+- `startedAt`
+- `finishedAt`
+- `status`
+- `triggeredBy`: `scheduled` or `manual`
+- `triggeredByUserId` optional
+- `summary` JSON
+- `errorMessage` optional
+
+---
+
+## 7. Important Constraints and Indexes
+
+The database should protect the workflow from duplicate daily generation.
+
+Recommended constraints:
+
+- Unique active user emails.
+- Unique role names.
+- Unique board date.
+- Unique generated task per `boardDayId`, `sourceTemplateId`, and `assignedUserId` when `sourceTemplateId` is present.
+- `dueAt` required for every task.
+- `blockerReason` required when status is `Blocked`.
+- `assignedUserId` required for every task unless the task is explicitly marked as needing manager review before assignment.
+
+Recommended indexes:
+
+- `Task(boardDayId, status)`
+- `Task(boardDayId, assignedUserId)`
+- `Task(boardDayId, workflowArea)`
+- `ActivityEvent(boardDayId, createdAt)`
+- `GenerationRun(boardDate, startedAt)`
+
+---
+
+## 8. Task Status Model
+
+MVP statuses:
+
+- `Not Started`
+- `In Progress`
+- `Blocked`
+- `Waiting on Parts`
+- `Waiting on Approval`
+- `Ready for Review`
+- `Completed`
+
+### Status Rules
+
+- Staff can update their own assigned tasks.
+- Staff cannot edit or reassign another staff member's task unless a future permission grants it.
+- Moving a task to `Blocked` requires a blocker reason.
+- Tasks that require manager approval move to `Ready for Review` before `Completed`.
+- Tasks that do not require manager approval may be completed directly by the assigned staff member.
+- Managers can move review-required tasks from `Ready for Review` to `Completed` or back to `In Progress`.
+- Every status change should create an `ActivityEvent`.
+
+---
+
+## 9. Permissions
+
+### Manager
+
+Managers can:
+
+- View the full board.
+- Create, edit, assign, and reassign tasks.
+- Accept or override recommendations.
+- Manage users, roles, duties, and templates.
+- Trigger daily board generation manually.
+- Configure generation time.
+- Review and complete approval-required tasks.
+- View the full activity feed.
+
+### Staff
+
+Staff can:
+
+- Log in.
+- View the full team board.
+- View and update their own tasks.
+- Create their own tasks with due times.
+- Add comments to their own tasks.
+- Mark their own tasks as blocked with a required reason.
+- Move eligible tasks to `Ready for Review` or `Completed`.
+
+### Server-Side Policy Rule
+
+All task mutations must pass through server-side permission checks. UI controls can hide unavailable actions, but the server must enforce the rule.
+
+---
+
+## 10. Daily Board Generation
+
+Daily generation is the central MVP workflow.
+
+### Triggering
+
+The board should generate once per business day at the configured time. The manager can also trigger generation manually.
+
+### Generation Flow
+
+```text
+Start generation for date
+  |
+  v
+Load active users
+  |
+  v
+For each user:
+  - Load custom duties
+  - If no custom duties, load role default duties
+  - Load active task templates for those duties
+  - Recommend assignee using duty/role/template matching
+  - Create missing tasks for the board date
+  - Skip duplicates already created for same user/date/template
+  |
+  v
+Create activity event: Daily board generated
+  |
+  v
+Record generation run summary
+```
+
+### Idempotency
+
+Generation must be safe to retry.
+
+If generation runs twice for the same date, it should not create duplicate generated tasks. Manual tasks should never be deleted or overwritten by generation.
+
+### Failure Handling
+
+- A failed generation should record a `GenerationRun` with `status = failed`.
+- The manager should see that generation failed.
+- Manual retry should use the same idempotent generation logic.
+
+---
+
+## 11. Assignment Recommendation Service
+
+The assignment recommendation service should be simple and explainable.
+
+Recommendation order:
+
+1. Direct user duty match.
+2. Role match.
+3. Task template owner.
+4. Department or workflow area match.
+5. Manager review needed if no clear match exists.
+
+Each recommendation should store:
+
+- Recommended user, if found.
+- Reason code.
+- Short explanation suitable for the UI.
+- Whether manager review is needed.
+
+The service should not make high-stakes decisions automatically. Manager override must always be available.
+
+Deferred recommendation features:
+
+- Capacity limits.
+- Complex workload balancing.
+- Profit-based scoring.
+- Sales urgency scoring.
+- Aged inventory scoring.
+- AI-only final assignment.
+
+---
+
+## 12. Activity Feed
+
+The activity feed should be event-backed from day one.
+
+Required event types:
+
+- Daily board generated
+- Task created
+- Task assigned
+- Assignment recommendation made
+- Assignment changed
+- Due time changed
+- Status changed
+- Task marked Blocked
+- Blocker reason added
+- Task marked Waiting on Parts
+- Task marked Waiting on Approval
+- Task marked Ready for Review
+- Manager approved completion
+- Task completed
+- Comment/update added
+
+### Feed Behavior
+
+- The feed should default to today's board.
+- Newest events should be easy to see.
+- Events should include who performed the action when applicable.
+- System actions such as daily generation should be clearly labeled.
+- The feed can refresh by polling in the MVP. Real-time streaming can be added later if needed.
+
+---
+
+## 13. API Surface
+
+Exact route names can change during implementation, but the MVP should expose these capabilities.
+
+### Auth
+
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `GET /api/auth/me`
+
+### Board
+
+- `GET /api/board/today`
+- `GET /api/board/:date`
+- `POST /api/board/generate`
+
+### Tasks
+
+- `POST /api/tasks`
+- `GET /api/tasks/:id`
+- `PATCH /api/tasks/:id`
+- `POST /api/tasks/:id/status`
+- `POST /api/tasks/:id/comments`
+- `POST /api/tasks/:id/assign`
+- `POST /api/tasks/:id/complete`
+- `POST /api/tasks/:id/reopen`
+
+### Users, Roles, and Duties
+
+- `GET /api/users`
+- `POST /api/users`
+- `PATCH /api/users/:id`
+- `GET /api/roles`
+- `GET /api/duties`
+- `POST /api/duties`
+- `PATCH /api/duties/:id`
+
+### Templates and Settings
+
+- `GET /api/task-templates`
+- `POST /api/task-templates`
+- `PATCH /api/task-templates/:id`
+- `GET /api/settings`
+- `PATCH /api/settings`
+
+### Activity
+
+- `GET /api/activity?date=YYYY-MM-DD`
+
+### API Rules
+
+- Validate all input server-side.
+- Require due time for created tasks.
+- Require blocker reason for `Blocked`.
+- Return permission errors consistently.
+- Log activity events in the same service operation that changes state.
+
+---
+
+## 14. Frontend Architecture
+
+### Primary Views
+
+1. Login
+2. Today's Board
+3. Task Detail
+4. Staff Task View
+5. Manager Controls
+6. Duties and Templates Settings
+7. Activity Feed
+
+### Today's Board
+
+The board should support grouping by:
+
+- Assigned user
+- Status
+- Workflow area
+
+MVP workflow areas:
+
+- Inventory
+- Advertising
+- Marketing
+- Sales
+- Admin
+- Collections basic/manual tasks
+
+### Manager Controls
+
+Manager-facing UI should prioritize:
+
+- Creating tasks.
+- Accepting or overriding recommendations.
+- Reassigning work.
+- Reviewing blocked tasks.
+- Reviewing `Ready for Review` tasks.
+- Triggering generation manually.
+
+### Staff Experience
+
+Staff-facing UI should prioritize:
+
+- Seeing today's assigned tasks quickly.
+- Updating status.
+- Adding a comment/update.
+- Creating their own task.
+- Marking a task blocked with a reason.
+
+### Responsive Requirements
+
+- Desktop should show board, filters, and activity feed efficiently.
+- Tablet should keep the full board usable.
+- Mobile should prioritize "my tasks", quick status updates, task detail, and activity feed access.
+- Staff should not need a native mobile app for MVP usage.
+
+---
+
+## 15. Validation and Business Rules
+
+Validation should live close to server service entry points.
+
+Required validation:
+
+- Task title is required.
+- Due time is required for every task.
+- Assigned user is required unless manager review is explicitly needed.
+- Blocker reason is required for `Blocked`.
+- Staff-created tasks must be assigned to the creating staff member unless a manager changes assignment.
+- Only managers can reassign tasks in the MVP.
+- Only managers can complete approval-required tasks.
+- Generated tasks must reference their template for duplicate prevention.
+
+---
+
+## 16. Testing Strategy
+
+Build tests around the workflows most likely to break daily operations.
+
+### Unit Tests
+
+- Daily board generation from custom duties.
+- Daily board generation from role defaults.
+- Duplicate prevention.
+- Assignment recommendation priority order.
+- Status transition rules.
+- Permission policy checks.
+
+### Integration Tests
+
+- Create manual task with due time.
+- Reject task creation without due time.
+- Reject `Blocked` without blocker reason.
+- Staff cannot edit another staff member's task.
+- Manager can override recommendation.
+- Review-required task moves through `Ready for Review` before `Completed`.
+- Activity events are created with task changes.
+
+### End-to-End Tests
+
+- Manager opens app and sees today's generated board.
+- Staff logs in, updates own task, and adds a comment.
+- Staff marks task blocked and the manager sees it.
+- Manager approves a `Ready for Review` task.
+- Manual generation retry does not duplicate generated tasks.
+
+---
+
+## 17. Seed Data
+
+Seed data should make local development useful immediately.
+
+Initial seed data:
+
+- One manager user.
+- Several staff users across day-one roles.
+- Role default duties.
+- Task templates for inventory, advertising, marketing, sales, and manager review.
+- Configured daily generation time.
+- Example board with tasks for local testing, if useful.
+
+Never seed real customer data, real passwords, or sensitive dealership records.
+
+---
+
+## 18. Security and Privacy
+
+The MVP is an internal business tool, but it still handles staff activity and possible customer/vehicle references.
+
+Rules:
+
+- Hash passwords if app-owned auth is used.
+- Store only the minimum customer/vehicle text needed for task context.
+- Do not store full customer records in the MVP.
+- Do not store a full vehicle database in the MVP.
+- Protect manager-only actions server-side.
+- Avoid committing `.env` files, local databases, credentials, or production exports.
+
+---
+
+## 19. Deferred Architecture
+
+The MVP should leave room for these future additions without building them now:
+
+- Progressive Web App install support.
+- DealerCenter or DMS integration.
+- Asana import/export or migration.
+- Google Workspace integration.
+- CRM or lead source integration.
+- Inventory/listing feeds.
+- Email or SMS notifications.
+- Advanced reporting and analytics.
+- Staff capacity planning.
+- Deep collections workflow.
+- Deep documentation workflow.
+- Deep compliance workflow.
+
+---
+
+## 20. Development Workflow for Codex
+
+Following `docs/The Guide To Vibe Coding.md`, implementation should happen in small, reviewable tasks.
+
+Recommended order:
+
+1. Project scaffold.
+2. Core database schema and migrations.
+3. Auth and role model.
+4. Duties and task templates.
+5. Daily board generation service.
+6. Task board API and UI.
+7. Staff status updates and blocker validation.
+8. Activity feed.
+9. Assignment recommendation service.
+10. Manager review and overrides.
+11. Responsive polish and reliability.
+
+Each implementation task should define:
+
+- Goal.
+- Relevant files.
+- Constraints.
+- Done criteria.
+- Tests to run.
+
+After meaningful changes, update this document so it remains a living architecture record rather than a stale plan.
+
+---
+
+## 21. Current Implementation Status
+
+Because this document is being created before the app scaffold, all implementation areas are currently planned.
+
+| Area | Status |
+| --- | --- |
+| Web app scaffold | Not started |
+| Database schema | Not started |
+| Auth | Not started |
+| Roles and duties | Not started |
+| Task templates | Not started |
+| Daily board generation | Not started |
+| Assignment recommendations | Not started |
+| Task board UI | Not started |
+| Staff status updates | Not started |
+| Manager review workflow | Not started |
+| Activity feed | Not started |
+| Tests | Not started |
+| Deployment | Not started |
+
