@@ -1,211 +1,181 @@
-# Task: DB-016 — Add app settings schema and storage
+# Task: DB-017 — Add Settings API and Manager Edit Flow
 
-Read `docs/AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, and relevant existing files first.
+Read `docs/AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, and the relevant existing files first.
 
 ## Goal
 
-Implement DB-016: add persistent app settings storage for daily board generation.
+Implement DB-017: add settings read/update behavior with manager-only protection.
 
-Create the database-backed settings foundation needed for future daily generation work. The settings must store:
+Managers should be able to view and safely update the app’s daily board generation settings from the app UI.
 
-* Daily generation time
-* Timezone
-* Business days
+This task should build on DB-016, which should already have added the settings schema and storage for:
 
-The settings must be available to server-side code through a small repository/service helper.
+* `dailyGenerationTime`
+* `timezone`
+* `businessDays`
 
 ## Current behavior
 
-The app does not yet have a persistent settings model for daily generation configuration.
+DB-016 should provide database-backed app settings storage, but there is not yet a complete manager-facing API and edit flow for viewing and updating those settings.
 
-Daily generation will eventually need to know:
-
-* What time the board should generate
-* What timezone the app should use
-* Which days count as business days
-
-There may already be Prisma, seed, auth, roles, duties, and policy code from earlier roadmap issues. Inspect the current repo before editing.
+Settings may exist in the database, but managers cannot yet reliably edit them through the app.
 
 ## Desired behavior
 
-Add a database-backed `AppSetting` model, migration, seed default, and server-side access helper.
+Add a settings API and manager edit flow that allows a manager to:
 
-After this issue:
+1. View the current generation settings.
+2. Edit the daily generation time.
+3. Edit the timezone.
+4. Edit the business days.
+5. Save changes through a protected server-side path.
+6. See clear loading, success, validation, and error states.
 
-* Prisma has an `AppSetting` model or equivalent existing-pattern settings model.
-* The model stores `dailyGenerationTime`, `timezone`, and `businessDays`.
-* Default settings are seeded idempotently.
-* Server code can load the current generation settings without direct database access from feature code.
-* Validation exists close to the server/helper layer so invalid settings do not leak into future generation logic.
-* The work remains limited to DB-016.
+The settings flow must be manager-only. Staff users should not be able to update settings, even if they attempt to call the API directly.
 
-## Important scope boundary
+## Important dependency check
 
-Do not implement DB-017 in this task.
+Before implementing, verify whether DB-016 is complete.
 
-Specifically, do not add:
+DB-016 should already include:
 
-* Settings API routes
-* Manager settings UI
-* Manager edit form
-* Route-level settings permissions
-* Full scheduled generation logic
-* Board generation logic
-* Task template schema
-* BoardDay, Task, or GenerationRun schema
+* An `AppSetting` or equivalent settings model
+* Storage for daily generation time
+* Storage for timezone
+* Storage for business days
+* Server-side access to settings
 
-This issue is only the settings schema and server-side storage foundation.
+If DB-016 is missing or incomplete, do not quietly rebuild the entire settings schema inside this task. Stop and report what is missing, then propose the smallest prerequisite fix.
 
-## Implementation guidance
+## Expected API behavior
 
-Start by inspecting the existing codebase and patterns:
+Use the existing project patterns for API routes or server actions.
 
-* `prisma/schema.prisma`
-* `prisma/seed.ts` or existing seed files
-* `src/server/db`
-* `src/server/repositories`
-* `src/server/services`
-* `src/server/validation`
-* existing tests under `src/tests`
+Add or complete these capabilities:
 
-If Prisma or the app scaffold is missing, stop and report the blocker instead of recreating earlier roadmap issues.
+* `GET /api/settings`
 
-### Suggested Prisma shape
+  * Returns the current app settings.
+  * Requires an authenticated user.
+  * Staff may be allowed to read settings only if the existing policy design permits it, but manager-only read is acceptable for this MVP.
+  * Do not expose sensitive data.
 
-Follow existing project conventions first. If there is no existing convention, prefer a simple single-row settings model.
+* `PATCH /api/settings`
 
-Suggested model concept:
+  * Updates generation settings.
+  * Requires manager permission.
+  * Validates all input server-side.
+  * Returns the updated settings.
+  * Rejects invalid values with clear validation errors.
+  * Rejects non-manager attempts with a consistent permission error.
 
-```prisma
-enum BusinessDay {
-  MONDAY
-  TUESDAY
-  WEDNESDAY
-  THURSDAY
-  FRIDAY
-  SATURDAY
-  SUNDAY
-}
+## Validation rules
 
-model AppSetting {
-  id                  String        @id
-  dailyGenerationTime String
-  timezone            String
-  businessDays        BusinessDay[]
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
-}
-```
+Validate settings server-side.
 
-Use an id such as `"global"` or `"default"` through the seed/repository layer to keep this as a single app-wide settings record.
+Minimum validation:
 
-If the existing project uses UUIDs, cuid IDs, JSON settings, or a different convention, follow the existing convention while preserving the same business meaning.
+* `dailyGenerationTime` is required.
+* `dailyGenerationTime` must be a valid 24-hour time value, such as `09:00`.
+* `timezone` is required.
+* `timezone` must be a valid IANA timezone string if the project already has a validation helper for that. If not, use a practical minimal validation and leave a clear TODO only if necessary.
+* `businessDays` is required.
+* `businessDays` must be a non-empty list of valid weekday values.
+* Monday through Saturday should be supported for the MVP.
+* Avoid accepting malformed or duplicate business days.
 
-### Default seed values
+Do not rely on UI-only validation. The server must enforce the rules.
 
-Add idempotent seed logic so a fresh database has one settings record.
+## Expected UI behavior
 
-Use these defaults unless the current repo already defines another default:
+Add or complete a manager settings page or section, likely under:
 
-* `dailyGenerationTime`: `"09:00"`
-* `timezone`: `"America/Chicago"`
-* `businessDays`: Monday through Saturday
+* `src/app/settings`
+* or the existing authenticated app shell if a settings route already exists.
 
-Sunday should not be included by default.
+The UI should let a manager:
 
-The seed must be safe to re-run without creating duplicate settings rows.
+* See the current daily generation time.
+* Select or edit the timezone.
+* Select business days.
+* Save changes.
+* See a success message after saving.
+* See validation errors when input is invalid.
+* See a permission or access message if a non-manager reaches the page.
 
-### Validation guidance
+Keep the UI simple and consistent with the existing app style. Do not over-polish or redesign unrelated layout.
 
-Add a small validation/normalization helper if no existing one exists.
+## Permission requirements
 
-Validate:
+Use existing server-side policy helpers from DB-014 if available.
 
-* `dailyGenerationTime` must be a valid 24-hour `HH:mm` string.
-* `timezone` must be a non-empty string.
-* `businessDays` must be a non-empty array.
-* `businessDays` must contain only allowed day values.
-* Duplicate business days should be removed or rejected consistently.
+Manager users can:
 
-Do not add a new dependency just for this unless the project already uses one or there is a strong reason.
+* View settings.
+* Update settings.
 
-### Server access helper
+Staff users cannot:
 
-Add a small repository/service layer so future generation code can load settings cleanly.
+* Update generation settings.
+* Bypass the UI by calling the update endpoint directly.
 
-Use existing patterns. If none exist yet, create something like:
+If policy helpers do not yet exist, do not create a large permissions refactor. Add the smallest compatible manager-only check using the existing auth/session structure, and note any follow-up work needed.
 
-* `src/server/repositories/appSettingsRepository.ts`
-* `src/server/services/appSettingsService.ts`
-* `src/server/validation/appSettingsValidation.ts`
+## Activity/event behavior
 
-Expected behavior:
+Do not build the full activity feed in this task unless it already exists.
 
-* `getAppSettings()` or `getGenerationSettings()` returns the app settings.
-* If settings are missing, the helper should either create defaults or throw a clear error, depending on the repo’s established pattern.
-* Prefer a safe `getOrCreateAppSettings()` helper if that matches current patterns.
+If an activity/event logging helper already exists, log a simple settings-updated event.
 
-Keep this server-only. Do not expose it through an API route yet.
+If activity events are not implemented yet, do not add the full activity event schema. Leave this for the later activity milestone.
 
 ## Constraints
 
-* Keep the change minimal and focused on DB-016.
-* Follow existing architecture and naming patterns.
-* Use Prisma/PostgreSQL patterns already established in the repo.
-* Do not add new dependencies unless necessary.
-* Do not rewrite unrelated files.
-* Do not change auth, roles, duties, board generation, task templates, activity feed, or UI.
-* Do not implement DB-017.
+* Keep the change minimal and scoped to DB-017.
+* Follow the existing architecture and file patterns.
+* Do not rewrite unrelated auth, settings, dashboard, or layout code.
+* Do not add new dependencies unless clearly necessary.
 * Preserve existing behavior.
-* Add or update tests where practical.
-* If a larger refactor seems necessary, stop and explain before making it.
+* Keep business rules server-side.
+* Keep permission checks server-side.
+* Add or update tests where appropriate.
+* Do not implement DB-018 or task template work.
+* Do not implement daily board generation logic in this task.
+* Do not implement scheduled cron behavior in this task.
 
-## Tests and checks
+## Suggested implementation approach
 
-Add tests based on what the repo currently supports.
+1. Inspect the existing settings model/storage from DB-016.
+2. Identify existing auth/session and manager policy helpers.
+3. Add or complete a settings repository/service if the architecture already uses repositories/services.
+4. Add settings read/update API behavior.
+5. Add server-side validation.
+6. Add manager-only permission enforcement.
+7. Add a simple settings UI form.
+8. Add tests for:
 
-At minimum, add unit tests for validation/default settings behavior if a test setup exists.
-
-If database integration tests already exist, add coverage that confirms:
-
-* The default settings record can be seeded or created.
-* Re-running seed or `getOrCreateAppSettings()` does not create duplicates.
-* Server code can read the stored settings.
-* Invalid generation times or empty business days are rejected by validation.
-
-Run the relevant available commands, such as:
-
-```bash
-npx prisma generate
-npx prisma migrate dev --name add_app_settings
-npm run lint
-npm run typecheck
-npm test
-```
-
-If a command cannot be run because of missing local database, missing env vars, or project setup limitations, clearly state what could not be verified and why.
-
-## Docs
-
-Update docs only if implementation details meaningfully differ from `docs/ARCHITECTURE.md`.
-
-If the roadmap status is normally updated per issue, mark only DB-016 as complete after implementation and successful checks. Do not mark DB-017 or any later issue complete.
+   * Manager can read settings.
+   * Manager can update settings.
+   * Staff cannot update settings.
+   * Invalid generation time is rejected.
+   * Invalid business days are rejected.
+9. Run the relevant checks.
 
 ## Done when
 
-* `AppSetting` or equivalent settings storage exists in Prisma.
-* A migration exists for the settings model.
-* Default settings are seeded idempotently.
-* Server-side code can load the settings for future daily generation work.
-* Daily generation time, timezone, and business days are represented clearly.
-* Business days default to Monday through Saturday.
-* No settings API or manager edit UI was added.
-* Relevant tests/checks were run or skipped with a clear reason.
-* The final response summarizes:
+* Managers can view current generation settings in the app.
+* Managers can update daily generation time, timezone, and business days.
+* Non-manager users cannot update settings through the API or server action.
+* Invalid settings input is rejected server-side.
+* UI shows loading, success, validation error, and permission/error states where applicable.
+* Relevant tests pass.
+* Typecheck and lint pass if available.
+* No unrelated files were changed.
+* Any docs are updated only if behavior, setup, or architecture changed.
+* Summarize:
 
   * Files changed
-  * Migration name
-  * Settings fields added
-  * Default seeded values
-  * Tests/checks run
-  * Any remaining gaps or blockers
+  * Behavior added
+  * Validation added
+  * Tests run
+  * Anything not verified

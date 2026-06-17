@@ -73,6 +73,21 @@ export function normalizeAppSettings(input: AppSettingsInput): NormalizedAppSett
   };
 }
 
+export function isAppSettingsInput(value: unknown): value is AppSettingsInput {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+
+  return (
+    typeof candidate.dailyGenerationTime === "string" &&
+    typeof candidate.timezone === "string" &&
+    Array.isArray(candidate.businessDays) &&
+    candidate.businessDays.every((day) => typeof day === "string")
+  );
+}
+
 export function getDefaultAppSettings() {
   return {
     id: DEFAULT_APP_SETTINGS.id,

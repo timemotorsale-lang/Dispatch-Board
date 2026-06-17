@@ -231,6 +231,7 @@ a {
 }
 
 .auth-form,
+.settings-form,
 .field,
 .logout-stack {
   display: grid;
@@ -238,6 +239,10 @@ a {
 }
 
 .auth-form {
+  margin-top: 1.5rem;
+}
+
+.settings-form {
   margin-top: 1.5rem;
 }
 
@@ -263,6 +268,59 @@ a {
 .field input:focus {
   outline: 2px solid rgba(154, 52, 18, 0.24);
   outline-offset: 2px;
+}
+
+.field-hint {
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.settings-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.business-day-group {
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.business-day-group legend {
+  padding: 0 0.4rem;
+  font-weight: 700;
+}
+
+.checkbox-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.9rem;
+}
+
+.checkbox-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.checkbox-item input {
+  margin: 0;
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
 }
 
 .auth-submit {

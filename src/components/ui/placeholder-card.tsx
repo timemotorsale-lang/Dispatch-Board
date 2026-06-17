@@ -6,6 +6,7 @@ type PlaceholderCardProps = {
   note?: string;
   href?: string;
   ctaLabel?: string;
+  label?: string;
 };
 
 export function PlaceholderCard({
@@ -13,11 +14,12 @@ export function PlaceholderCard({
   description,
   note,
   href,
-  ctaLabel = "Open"
+  ctaLabel = "Open",
+  label = "App route"
 }: PlaceholderCardProps) {
   return (
     <article className="panel-card">
-      <strong>Placeholder route</strong>
+      <strong>{label}</strong>
       <h2>{title}</h2>
       <p>{description}</p>
       {note ? (

@@ -17,8 +17,8 @@ export function AppShell({ children, user }: AppShellProps) {
         <div className="shell-banner">
           <p>
             Signed in as <strong>{user.name}</strong> with {user.roles.join(", ")} access. The
-            board, task, and settings routes remain intentionally scoped placeholders until later
-            milestones add their real workflows.
+            board and task routes remain intentionally scoped placeholders while the settings route
+            now supports manager-only generation configuration.
           </p>
         </div>
         <div className="shell-content">{children}</div>
