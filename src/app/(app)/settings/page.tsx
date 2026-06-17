@@ -4,11 +4,12 @@ export default function SettingsPage() {
   return (
     <section className="page-stack">
       <div className="page-copy">
-        <span className="eyebrow">Settings placeholder</span>
+        <span className="eyebrow">Protected settings</span>
         <h1>Application settings</h1>
         <p>
           This route reserves the home for generation time, business-day rules, and app
-          configuration once settings are modeled in the database.
+          configuration once settings are modeled in the database, with manager-only actions ready
+          to plug into the new policy layer.
         </p>
       </div>
 

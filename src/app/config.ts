@@ -4,22 +4,22 @@ export const placeholderRoutes = [
   {
     href: "/login",
     title: "Login",
-    description: "Authentication placeholder for the v0.2.0 identity milestone."
+    description: "Staff and manager sign-in for the new session-based auth flow."
   },
   {
     href: "/board",
     title: "Board",
-    description: "Protected app shell placeholder for the daily dispatch board."
+    description: "Protected app shell for the daily dispatch board and later workflow slices."
   },
   {
     href: "/tasks",
     title: "Tasks",
-    description: "Task workflow placeholder for future manager and staff views."
+    description: "Protected task workflow surface for future manager and staff views."
   },
   {
     href: "/settings",
     title: "Settings",
-    description: "Configuration placeholder for generation time and app settings."
+    description: "Protected settings surface for future generation time and app configuration."
   }
 ] as const;
 

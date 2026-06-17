@@ -4,11 +4,11 @@ export default function TasksPage() {
   return (
     <section className="page-stack">
       <div className="page-copy">
-        <span className="eyebrow">Tasks placeholder</span>
+        <span className="eyebrow">Protected tasks</span>
         <h1>Task workflow surface</h1>
         <p>
           The task route is in place for upcoming manager and staff task flows, but no real task
-          CRUD or status logic is implemented in this milestone.
+          CRUD or status logic is implemented in this milestone beyond session-aware access.
         </p>
       </div>
 

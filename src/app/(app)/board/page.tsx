@@ -4,11 +4,11 @@ export default function BoardPage() {
   return (
     <section className="page-stack">
       <div className="page-copy">
-        <span className="eyebrow">Board placeholder</span>
+        <span className="eyebrow">Protected board</span>
         <h1>Dispatch board shell</h1>
         <p>
-          This route establishes the future manager and staff board surface without claiming the
-          real workflow exists yet.
+          This route now requires a valid session before loading, while the real board workflow
+          remains reserved for the next milestones.
         </p>
       </div>
 
@@ -20,8 +20,8 @@ export default function BoardPage() {
         />
         <PlaceholderCard
           title="Protected shell"
-          description="This layout is intentionally marked as a placeholder until real auth and permissions exist."
-          note="Auth work begins in v0.2.0."
+          description="Authentication is active here now, and later board APIs can reuse the same server-side user and policy helpers."
+          note="Auth work landed in v0.2.0."
         />
       </div>
     </section>
