@@ -1,21 +1,43 @@
 import Link from "next/link";
 
-import { APP_NAME, placeholderRoutes } from "@/app/config";
+import { APP_NAME } from "@/app/config";
+import { LogoutButton } from "@/features/auth/logout-button";
+import type { AuthenticatedUser } from "@/server/auth/store";
 
-export function SiteHeader() {
+type SiteHeaderProps = {
+  user: AuthenticatedUser;
+};
+
+const authenticatedRoutes = [
+  {
+    href: "/board",
+    title: "Board"
+  },
+  {
+    href: "/tasks",
+    title: "Tasks"
+  },
+  {
+    href: "/settings",
+    title: "Settings"
+  }
+] as const;
+
+export function SiteHeader({ user }: SiteHeaderProps) {
   return (
     <header className="site-header">
       <div>
         <strong>{APP_NAME}</strong>
-        <span>Foundation shell for upcoming dispatch workflows.</span>
+        <span>{user.email}</span>
       </div>
       <nav className="site-nav" aria-label="Primary">
         <Link href="/">Home</Link>
-        {placeholderRoutes.map((route) => (
+        {authenticatedRoutes.map((route) => (
           <Link key={route.href} href={route.href}>
             {route.title}
           </Link>
         ))}
+        <LogoutButton />
       </nav>
     </header>
   );

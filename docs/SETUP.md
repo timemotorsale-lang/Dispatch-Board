@@ -1,6 +1,6 @@
 # Setup
 
-This project is the v0.1.0 foundation for the Time Motor Sales Dispatch Board.
+This project now includes the v0.2.0 identity, roles, and permissions foundation for the Time Motor Sales Dispatch Board.
 
 ## Prerequisites
 
@@ -40,13 +40,39 @@ npm run db:migrate:deploy
 npm run db:generate
 ```
 
-4. Run the baseline seed command:
+4. Run the seed command:
 
 ```bash
 npm run db:seed
 ```
 
-The current seed only creates a baseline marker record. Real staff, duty, and task seed data will be added in later milestones.
+The seed now creates:
+
+- Day-one roles
+- Starter duties and role default duties
+- Local development manager and staff users
+- Direct user duty assignments
+
+## Local development login accounts
+
+All seeded local users share this password:
+
+```text
+dispatch123!
+```
+
+Seeded accounts:
+
+- `morgan.manager@local.test` — General Manager
+- `riley.inventory@local.test` — Inventory Manager
+- `casey.mechanic@local.test` — Mechanic
+- `jordan.sales@local.test` — Salesperson
+- `avery.ops@local.test` — Office Manager + Marketing/Advertisement Manager
+- `quinn.collections@local.test` — Collections
+
+Inactive test account:
+
+- `jamie.inactive@local.test` — Salesperson, blocked from login
 
 ## Local development
 
@@ -56,7 +82,7 @@ Start the app:
 npm run dev
 ```
 
-The home page should render a minimal foundation screen for the Time Motor Sales Dispatch Board along with placeholder routes for `login`, `board`, `tasks`, and `settings`.
+The home page should render the current identity milestone overview, and `board`, `tasks`, and `settings` should redirect to `login` until you sign in with a seeded account.
 
 ## Quality commands
 

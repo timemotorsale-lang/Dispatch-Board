@@ -1,250 +1,302 @@
-# Task: Implement v0.1.0 — Project Foundation
+# Task: Implement v0.2.0 — Identity, Roles, and Permissions
 
-Read `docs/AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, and relevant files first.
+Read `docs/AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/DEFAULT_PROMPT.md`, and relevant existing source files first.
 
 ## Goal
 
-Implement the v0.1.0 Project Foundation milestone for the Time Motor Sales Dispatch Board.
+Implement **v0.2.0 — Identity, roles, and permissions** for the Time Motor Sales Dispatch Board.
 
-This milestone should establish the basic web app scaffold, database baseline, source folder structure, local development workflow, quality commands, and setup documentation.
+This milestone should create the foundation that all later workflows depend on:
 
-The goal is not to build the full Dispatch Board workflow yet. The goal is to create a clean, stable foundation that later milestones can build on safely.
+* User modeling
+* Session/auth persistence
+* Login/logout
+* Login UI
+* Protected routes
+* Role modeling
+* Duty modeling
+* User-role assignments
+* User-duty assignments
+* Server-side permission helpers
+* Auth and permission tests
+
+This work corresponds to roadmap items **DB-008 through DB-015**.
 
 ## Current behavior
 
-The repository is currently documentation-first and pre-implementation.
+The project foundation should already exist from v0.1.0:
 
-The app scaffold does not exist yet, or is not complete enough to support feature development.
+* Next.js + TypeScript app scaffold
+* Prisma/PostgreSQL baseline
+* Repository structure
+* App shell / protected-app placeholder
+* Basic lint, typecheck, and test setup
+* Setup docs
+
+There is not yet a complete identity, role, duty, or permission system.
+
+If the v0.1.0 foundation is missing or incomplete, stop and report what prerequisite is missing before implementing v0.2.0.
 
 ## Desired behavior
 
-Create the first working project foundation so that:
+After this milestone:
 
-* The app boots locally.
-* A minimal page renders successfully.
-* The repository follows the planned architecture.
-* Prisma and PostgreSQL baseline wiring exist.
-* A fresh local database can run migrations and seed commands.
-* Basic app shell and route placeholders exist.
-* Lint, typecheck, and test commands are available.
-* Setup documentation explains how to install, configure, run, migrate, seed, test, and develop the app.
+1. Seeded users can log in and log out.
+2. Private app routes are protected from unauthenticated access.
+3. Users have one or more roles.
+4. Users can have direct duties.
+5. Roles can have default duties, or an equivalent structure that supports role-based default duties later.
+6. Day-one roles exist in seed data:
 
-## Scope
+   * General Manager
+   * Inventory Manager
+   * Mechanic
+   * Salesperson
+   * Office Manager
+   * Marketing/Advertisement Manager
+   * Collections
+7. Server-side policy helpers exist for manager-only and staff self-service actions.
+8. Permission rules are reusable by later APIs and services.
+9. Tests cover login basics, route protection, and core manager/staff permission behavior.
 
-Implement only v0.1.0 from `docs/ROADMAP.md`.
+## Implementation scope
 
-Include these roadmap tasks:
+Implement the following roadmap items:
 
-### DB-001 — Initialize Next.js + TypeScript app
+### DB-008 — Add user and session schema
 
-Create the base app scaffold, package manifest, and initial scripts.
+Create or update Prisma models for:
 
-Acceptance criteria:
+* `User`
+* `Session`, or the equivalent session persistence required by the chosen auth approach
+* `Role`
+* `Duty`
+* `UserRole`
+* `UserDuty`
+* Role default duty assignment, such as `RoleDuty`, if needed to support role-based default duties cleanly
 
-* The project starts locally.
-* The app renders a minimal page.
-* TypeScript is configured.
-* The project has clear `dev`, `build`, `start`, `lint`, `typecheck`, and `test` scripts where practical.
+User fields should include at minimum:
 
-### DB-002 — Create repository and source folder layout
+* `id`
+* `name`
+* `email`
+* `passwordHash` or auth-provider equivalent
+* `isActive`
+* `createdAt`
+* `updatedAt`
 
-Add the planned folder structure from `docs/ARCHITECTURE.md`.
+Use a unique constraint for active user emails if practical within the current Prisma/database setup.
 
-Required structure:
+Do not store plain-text passwords.
 
-```text
-docs/
-prisma/
-src/
-  app/
-  components/
-  features/
-  server/
-  tests/
-```
+Prefer existing project dependencies. If password hashing requires a new dependency, explain why. If practical, use Node built-in crypto utilities instead of adding a new package.
 
-Also create reasonable placeholder subfolders where helpful:
+### DB-009 — Implement login and logout endpoints
 
-```text
-src/components/layout/
-src/components/ui/
-src/features/activity/
-src/features/assignments/
-src/features/auth/
-src/features/board/
-src/features/duties/
-src/features/tasks/
-src/features/users/
-src/server/auth/
-src/server/db/
-src/server/policies/
-src/server/repositories/
-src/server/services/
-src/server/validation/
-src/tests/unit/
-src/tests/integration/
-src/tests/e2e/
-```
+Add login/logout behavior using the existing project architecture.
 
-Acceptance criteria:
+Preferred API surface, unless the current app structure clearly favors server actions:
 
-* The repo matches the target layout from `docs/ARCHITECTURE.md`.
-* Placeholder files are used only where necessary to keep empty folders in version control.
-* Do not add business logic yet.
+* `POST /api/auth/login`
+* `POST /api/auth/logout`
+* `GET /api/auth/me`
 
-### DB-003 — Add PostgreSQL and Prisma baseline
+Requirements:
 
-Configure Prisma and PostgreSQL connection wiring.
+* Login verifies email and password.
+* Login rejects inactive users.
+* Login creates a secure server-side session or equivalent.
+* Logout clears the session.
+* `me` returns the authenticated user with role/duty summary, excluding sensitive fields.
+* Auth errors should be clear but should not leak whether the email or password was specifically wrong.
 
-Acceptance criteria:
+Use secure cookie settings appropriate for local development and production:
 
-* `prisma/schema.prisma` exists.
-* Prisma is configured for PostgreSQL.
-* A safe example env file exists, such as `.env.example`, showing required variables without real secrets.
-* The real `.env` file is not committed.
-* A reusable Prisma client entrypoint exists, likely under `src/server/db/`.
+* HTTP-only
+* SameSite protection
+* Secure in production
+* Reasonable expiration
 
-### DB-004 — Add first migration and seed entrypoints
+### DB-010 — Build login page and auth form flow
 
-Create initial migration workflow and seed command wiring.
+Create the login page and form flow.
 
-Acceptance criteria:
+Requirements:
 
-* A fresh local database can run Prisma migration commands.
-* A seed entrypoint exists, even if it only logs that seed data will be added in later milestones.
-* The seed command is wired in `package.json`.
-* Do not seed real customer, vehicle, staff, or password data in this milestone.
+* Users can enter email and password.
+* Successful login redirects into the authenticated app area.
+* Failed login shows a clear user-facing error.
+* Loading/submitting state is visible.
+* The form should be simple, responsive, and consistent with the existing app shell.
+* Do not over-polish; keep this milestone focused on identity and permissions.
 
-### DB-005 — Add shared app shell and route groups
+### DB-011 — Add session-aware route protection
 
-Create the initial root layout, route structure, and placeholder shell.
+Protect authenticated app routes.
 
-Acceptance criteria:
+Requirements:
 
-* The app has a stable root layout.
-* The home page or default route clearly identifies the app as “Time Motor Sales Dispatch Board.”
-* Create placeholder route areas for future app sections where appropriate, such as:
+* Unauthenticated users cannot access private routes.
+* Unauthenticated users are redirected to login.
+* Authenticated users are not trapped on the login page after successful login.
+* Route protection should be server-side where practical.
+* Do not rely only on client-side hiding.
 
-  * login
-  * board
-  * tasks
-  * settings
-* Do not implement real auth yet.
-* Do not implement real board/task functionality yet.
-* Any protected-app shell should be clearly marked as a placeholder until auth exists.
+Follow the existing route structure from v0.1.0. If the route grouping is not clear, choose a simple structure and document it.
 
-### DB-006 — Add baseline lint, typecheck, and test setup
+### DB-012 — Add roles schema and seed data
 
-Configure baseline quality commands.
+Seed the day-one roles:
 
-Acceptance criteria:
+* General Manager
+* Inventory Manager
+* Mechanic
+* Salesperson
+* Office Manager
+* Marketing/Advertisement Manager
+* Collections
 
-* Developers can run lint.
-* Developers can run typecheck.
-* Developers can run at least one baseline test command.
-* Include at least one simple example test that proves the test runner is wired correctly.
-* Avoid overbuilding the test setup. Keep it minimal and maintainable.
+Seed at least:
 
-### DB-007 — Write setup and environment docs
+* One manager user
+* Several staff users across the day-one roles
 
-Add `docs/SETUP.md` with local setup instructions.
+Use fake local-development users only. Do not seed real customer data, production credentials, or sensitive dealership records.
 
-Acceptance criteria:
+Document the local development login credentials in `docs/SETUP.md` or the appropriate setup document.
 
-* A new developer can set up and launch the project from the documentation.
-* Include:
+### DB-013 — Add duties and user-role assignments
 
-  * prerequisites
-  * install command
-  * environment variable setup
-  * PostgreSQL/database setup notes
-  * Prisma migration command
-  * seed command
-  * dev server command
-  * lint/typecheck/test commands
-  * troubleshooting notes for common setup issues
-* Update `README.md` if needed so it points to `docs/SETUP.md`.
+Model duties and user assignments.
 
-## Architecture constraints
+Requirements:
 
-* Use Next.js with React and TypeScript.
-* Use PostgreSQL and Prisma for database baseline.
-* Prefer one deployable web app.
-* Keep the app responsive-ready, but do not spend this milestone on UI polish.
-* Do not add live third-party integrations.
-* Do not implement DealerCenter, Asana, Google Workspace, SMS, email, CRM, payroll, HR, or accounting integrations.
-* Do not implement the full domain schema yet unless Prisma requires a minimal placeholder.
-* Do not build auth, roles, duties, daily board generation, task CRUD, activity feed, recommendations, or manager review workflows in this milestone.
-* Keep business logic out of UI components.
-* Keep future server-side business logic paths ready under `src/server/`.
-* Do not commit secrets, real `.env` files, local databases, caches, or generated build output.
+* A user can have multiple roles.
+* A user can have custom direct duties.
+* Roles can support default duties, either through a `RoleDuty` join model or an equivalent clean approach.
+* Seed realistic starter duties for the MVP areas:
+
+  * Inventory
+  * Advertising
+  * Marketing
+  * Sales
+  * Mechanic / shop
+  * Office/admin
+  * General manager review
+
+Do not implement full daily board generation in this milestone. Only create the identity, role, and duty foundation needed for later generation.
+
+### DB-014 — Implement server-side policy helpers
+
+Create reusable permission helpers in the server-side policy layer.
+
+Preferred location:
+
+* `src/server/policies`
+
+Add helpers for at least:
+
+* Require authenticated user
+* Determine whether a user is a manager
+* Manager-only actions
+* Staff self-service actions
+* Whether a staff user can update their own assigned work
+* Whether a manager can manage users, roles, duties, assignments, settings, and review workflows
+* Whether a user can view the full board
+
+Important rule:
+
+UI may hide unavailable actions, but server-side policies must be the source of truth.
+
+If task models do not exist yet, make task-related policy helpers pure and future-ready by accepting minimal inputs such as:
+
+* actor user
+* assigned user id
+* requires manager approval flag
+* requested action
+
+Do not create the full task workflow in this milestone.
+
+### DB-015 — Add auth and permission tests
+
+Add or update tests using the existing project test setup.
+
+Cover at minimum:
+
+* Valid seeded user can log in.
+* Invalid credentials fail.
+* Inactive user cannot log in.
+* Logout clears the session.
+* Unauthenticated user cannot access protected routes.
+* Authenticated user can access protected routes.
+* Manager policy allows manager-only actions.
+* Staff policy rejects manager-only actions.
+* Staff can pass self-service checks for their own work.
+* Staff cannot pass self-service checks for another staff member’s work.
+* Multiple roles per user are supported.
+* Direct user duties are supported.
+
+If browser-level tests are not practical yet, add unit/integration tests around the available auth and policy layers and clearly explain what was not tested.
+
+## Constraints
+
+* Keep the change minimal and scoped to v0.2.0.
+* Follow the existing architecture and source layout.
+* Do not rewrite unrelated files.
+* Do not implement daily board generation yet.
+* Do not implement full task board workflow yet.
+* Do not implement activity feed yet.
+* Do not implement assignment recommendation logic yet, except for any role/duty fields needed later.
+* Do not add third-party integrations.
+* Do not add payroll, HR, timeclock, CRM, DealerCenter, Asana, SMS, email, or Google Workspace functionality.
+* Keep business rules and permission checks server-side.
+* Do not commit `.env` files, local databases, secrets, real passwords, generated caches, or build artifacts.
+* Add dependencies only if necessary and explain why.
+* Preserve existing tests and behavior from v0.1.0.
 
 ## Implementation guidance
 
-Start by inspecting the repository.
+Before coding:
 
-Before editing, briefly report:
+1. Inspect the current repository structure.
+2. Confirm which v0.1.0 pieces already exist.
+3. Identify the relevant files for Prisma schema, seed data, auth/server code, route structure, login UI, tests, and setup docs.
+4. Briefly plan the implementation in small steps.
+5. Then implement the smallest complete vertical slice for v0.2.0.
 
-1. Whether a Next.js app already exists.
-2. What package manager appears to be used, if any.
-3. Whether `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, and `docs/AGENTS.md` exist.
-4. The safest implementation plan for DB-001 through DB-007.
+Suggested implementation order:
 
-Then implement the milestone in the smallest practical set of changes.
-
-Use sensible defaults if the repo is empty or pre-implementation:
-
-* Next.js App Router
-* TypeScript
-* Tailwind CSS only if it is already selected or easy to add cleanly during scaffold
-* Prisma with PostgreSQL
-* Vitest or another lightweight test setup compatible with the stack
-* ESLint and TypeScript checks
-
-If a major dependency decision is unclear, choose the most standard option for the stack and explain the choice in the final summary.
+1. Schema and migrations for user/session/role/duty relationships.
+2. Seed data for manager, staff, roles, and starter duties.
+3. Password hashing/session helpers.
+4. Login/logout/me endpoints or server actions.
+5. Login page and form behavior.
+6. Route protection.
+7. Server-side policy helpers.
+8. Tests.
+9. Documentation updates.
 
 ## Done when
 
-* The app can be started locally and renders a minimal foundation page.
-* The planned source folders exist.
-* Prisma is installed and configured for PostgreSQL.
-* `.env.example` documents required environment variables.
-* A migration workflow exists.
-* A seed entrypoint exists.
-* The root layout and placeholder app routes exist.
-* Lint, typecheck, and test commands are available.
-* At least one baseline test passes.
-* `docs/SETUP.md` exists and explains how to run the app.
-* `README.md` is updated if needed.
-* No future milestone behavior is falsely presented as complete.
+* Prisma schema includes the needed identity, role, duty, and session models.
+* Migrations are created and work against a fresh local database.
+* Seed data creates usable local development users, roles, and duties.
+* A seeded manager user can log in and log out.
+* A seeded staff user can log in and log out.
+* Bad credentials show a clear failure message.
+* Protected routes reject unauthenticated users.
+* Server-side permission helpers exist and are reusable by later milestones.
+* Manager-only permissions are enforced by policy helpers.
+* Staff self-service boundaries are enforced by policy helpers.
+* Tests cover auth, route protection, and core permission rules.
+* Relevant lint/typecheck/test commands pass, or any skipped checks are clearly explained.
+* `docs/SETUP.md`, `README.md`, or other relevant docs are updated with local auth setup and seed login instructions.
+* `docs/ARCHITECTURE.md` is updated only if implementation meaningfully differs from the planned architecture.
 * No unrelated files are changed.
+* Summarize:
 
-## Verification
-
-After implementation, run the relevant commands that exist in the project, such as:
-
-```bash
-npm run lint
-npm run typecheck
-npm test
-npm run build
-```
-
-Also run Prisma validation or migration checks if practical, such as:
-
-```bash
-npx prisma validate
-```
-
-If any command cannot be run because of the local environment, explain exactly why.
-
-## Final response required from Codex
-
-When finished, summarize:
-
-1. Files changed.
-2. Foundation behavior added.
-3. Database/Prisma setup added.
-4. Commands run and results.
-5. Anything not verified.
-6. Remaining work for v0.2.0.
+  * Files changed
+  * Behavior added
+  * Tests run
+  * Any commands that failed or were skipped
+  * Any remaining follow-up work for v0.3.0
