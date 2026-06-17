@@ -7,6 +7,16 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum BusinessDay {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
 // Placeholder model for the v0.1.0 foundation migration.
 // Domain models are intentionally deferred to later milestones.
 model BootstrapMarker {
@@ -96,5 +106,14 @@ model RoleDuty {
 
   @@id([roleId, dutyId])
   @@index([dutyId])
+}
+
+model AppSetting {
+  id                  String        @id
+  dailyGenerationTime String
+  timezone            String
+  businessDays        BusinessDay[]
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 }
 

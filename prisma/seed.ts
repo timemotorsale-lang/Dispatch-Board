@@ -6,14 +6,27 @@ import {
   developmentUserDefinitions
 } from "../src/server/auth/dev-seed-data";
 import { hashPassword } from "../src/server/auth/password";
+import { getDefaultAppSettings } from "../src/server/validation/app-settings";
 
 const prisma = new PrismaClient();
 
 async function main() {
+  const defaultAppSettings = getDefaultAppSettings();
+
   await prisma.bootstrapMarker.upsert({
     where: { label: "foundation-seed" },
     update: {},
     create: { label: "foundation-seed" }
+  });
+
+  await prisma.appSetting.upsert({
+    where: { id: defaultAppSettings.id },
+    update: {
+      dailyGenerationTime: defaultAppSettings.dailyGenerationTime,
+      timezone: defaultAppSettings.timezone,
+      businessDays: defaultAppSettings.businessDays
+    },
+    create: defaultAppSettings
   });
 
   for (const roleDefinition of dayOneRoleDefinitions) {
