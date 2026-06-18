@@ -1,206 +1,186 @@
-# Task: DB-022 Build generation input loading logic
+# Task: DB-023 Build idempotent task creation flow
 
-Read `docs/AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/DEFAULT_PROMPT.md`, and the relevant existing service/repository/schema/test files first.
+Read `docs/AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/DEFAULT_PROMPT.md`, and the relevant generation/schema/service files first.
 
 ## Goal
 
-Implement DB-022: build the generation input loading logic for the daily board generation workflow.
+Implement the DB-023 daily generation task creation flow.
 
-The service should load the data needed to decide what work should be considered during daily generation for a selected business date.
+The generation service should create only missing generated tasks for a board date while preserving all existing manual tasks and making retries safe.
 
-This task should prepare generation inputs only. Do not create tasks yet.
+This issue is part of `v0.3.0 - Daily generation core`.
 
 ## Current behavior
 
-The project now has the earlier daily generation foundation pieces planned or implemented:
+The project should already have, or is expected to have from DB-020 through DB-022:
 
-- App settings schema/storage
-- Task template schema
-- Task template CRUD
-- Board, task, and generation-run schema
-- Task constraints and duplicate-prevention indexes
+- `BoardDay`, `Task`, and `GenerationRun` schema/models.
+- Duplicate-prevention constraints and useful indexes.
+- Task template schema and CRUD.
+- Generation input loading logic that can load active users, custom duties, role defaults, and active task templates for a target date.
 
-However, the generation service does not yet have a focused input-loading layer that can:
-
-- Load active users
-- Determine each user’s custom duties
-- Fall back to role default duties when a user has no custom duties
-- Load active templates connected to those duties or roles
-- Return a structured, testable input model for later task creation
+However, the app does not yet have the actual idempotent task creation flow that turns generation inputs into persisted daily tasks.
 
 ## Desired behavior
 
-Add a server-side generation input loader that can be called by the future daily generation flow.
+Add server-side generation creation logic that:
 
-The loader should accept a business date and return a structured result containing:
-
-- The requested board date
-- Active users eligible for generation
-- Each user’s roles
-- Each user’s direct/custom duties
-- Whether the user used custom duties or role-default duties
-- The resolved duties that should be considered for that user
-- Active task templates connected to those resolved duties and/or user roles
-- Enough template context for DB-023 to create generated tasks later
-- Clear warnings or empty arrays when a user has no eligible duties/templates
-
-Expected high-level rule:
-
-1. Load active users.
-2. For each active user, load custom/direct duties.
-3. If the user has custom duties, use those duties.
-4. If the user has no custom duties, load role default duties based on the user’s active roles.
-5. Load active task templates for the resolved duties and/or active user roles.
-6. Deduplicate duties and templates so multi-role users do not produce duplicate template candidates.
-7. Return a deterministic, sorted result that is easy to test.
-8. Do not create `Task` records in this issue.
+1. Gets or creates the `BoardDay` for the target business date.
+2. Uses the DB-022 generation input loading logic instead of reimplementing duty/template loading.
+3. Builds generated task candidates from the loaded users, duties, role defaults, and task templates.
+4. Creates only generated tasks that do not already exist for the same board/date/template/user combination.
+5. Skips existing generated tasks on retry.
+6. Never deletes, overwrites, or modifies manual tasks.
+7. Never overwrites existing generated tasks that staff or managers may have already updated during the day.
+8. Preserves source tracking on generated tasks:
+  - `sourceType` should identify the task as generated from a template.
+  - `sourceTemplateId` must be set.
+  - `sourceDutyId` should be set when available.
+  - `workflowArea` should come from the template.
+9. Sets required task fields consistently:
+  - title
+  - description/notes if available
+  - board day
+  - assigned user
+  - recommended user if available from existing logic
+  - status, defaulting to `Not Started`
+  - due time calculated from board date plus template default due time
+  - created-by system/generation user if the schema supports it
+  - `requiresManagerApproval`
+10. Returns a useful summary object from the creation service, such as:
+  - board date
+  - board day id
+  - total candidates considered
+  - created task count
+  - skipped existing task count
+  - created task ids or lightweight created task references
 
 ## Important scope boundary
 
-Do not implement DB-023 in this task.
+Do not implement the rest of the generation milestone in this issue.
 
-This means:
+Do not build:
 
-- Do not create generated tasks.
-- Do not write duplicate-prevention task creation logic.
-- Do not overwrite manual tasks.
-- Do not create the full manual generation trigger.
-- Do not build scheduled generation.
-- Do not build recommendation scoring beyond preserving enough context for the future recommendation service.
-- Do not create activity events unless the existing architecture already has a very small internal logging helper required by current patterns. Activity event emission is a later task.
+- DB-024 generation-run started/completed/failed persistence, except for minimal compatibility if existing code already expects a summary return.
+- DB-025 manual generation UI.
+- DB-026 scheduled cron entrypoint.
+- DB-041 or DB-042 activity event schema/event emission.
+- Assignment recommendation matching rules beyond using any already-existing recommendation or input data.
+- Board UI or task detail UI.
 
-## Architecture constraints
+If one of those pieces is missing, leave a clear TODO or note for the later roadmap issue instead of expanding this task.
 
-- Keep business logic server-side.
-- Prefer files under `src/server/services` and `src/server/repositories`.
-- Reuse existing repository/service patterns if they already exist.
-- Do not bury generation rules in UI components.
-- Do not add a new dependency unless absolutely necessary.
-- Do not rename existing Prisma models, enums, or fields unless the existing implementation is clearly broken and you explain why first.
-- Keep the change minimal and focused on DB-022.
-- Preserve existing behavior and tests.
-- Add or update tests for the new input-loading behavior.
+## Implementation guidance
 
-## Suggested implementation guidance
+Use the existing architecture patterns.
 
-Inspect the existing Prisma schema and adapt names to what already exists.
+Likely areas to inspect:
 
-Prefer a shape similar to this, adjusted to the actual codebase:
+- `prisma/schema.prisma`
+- `src/server/services`
+- `src/server/repositories`
+- `src/server/validation`
+- `src/tests`
+- Any generation input loader created in DB-022
 
-```ts
-type GenerationInput = {
-  boardDate: string;
-  users: GenerationInputUser[];
-  warnings: GenerationInputWarning[];
-};
+Suggested implementation shape:
 
-type GenerationInputUser = {
-  userId: string;
-  userName: string;
-  roleIds: string[];
-  roleNames: string[];
-  dutySource: "custom" | "role_default" | "none";
-  duties: GenerationInputDuty[];
-  templates: GenerationInputTemplate[];
-};
+1. Add or extend a daily generation service function, for example:
+  ```ts
+  createMissingGeneratedTasksForDate(date, options)
 
-type GenerationInputDuty = {
-  dutyId: string;
-  title: string;
-  source: "custom" | "role_default";
-  roleId?: string | null;
-};
+  ```
+  or integrate this into the existing generation service if one already exists.
+2. Add repository helpers only if needed, for example:
+  - `getOrCreateBoardDay(date)`
+  - `findExistingGeneratedTaskKeys(boardDayId)`
+  - `createGeneratedTasks(candidates)`
+  - `createGeneratedTasksIdempotently(...)`
+3. Prefer a database transaction around:
+  - board day upsert/find-or-create
+  - existing generated task lookup
+  - missing task creation
+4. Prefer the existing unique constraint from DB-021 as the final protection against duplicate generated tasks.
+5. If Prisma `createMany({ skipDuplicates: true })` is appropriate for the current schema/database, use it. If the app needs created task IDs returned, use a safe alternative pattern:
+  - pre-read existing keys
+  - create missing rows
+  - re-read created rows by deterministic keys
+  - still rely on the database unique constraint for race safety
+6. Handle retry/concurrency carefully:
+  - Re-running the service for the same date should not throw just because tasks already exist.
+  - Concurrent generation attempts should not create duplicates.
+  - Unique constraint conflicts caused by another concurrent run should be treated as “already exists” where practical, not as a fatal generation failure.
+7. Use deterministic duplicate keys. The expected duplicate identity is:
+  ```text
+  boardDayId + sourceTemplateId + assignedUserId
 
-type GenerationInputTemplate = {
-  templateId: string;
-  title: string;
-  description?: string | null;
-  workflowArea: string;
-  defaultDueTime: string;
-  requiresManagerApproval: boolean;
-  roleId?: string | null;
-  dutyId?: string | null;
-};
-
-type GenerationInputWarning = {
-  userId?: string;
-  code: string;
-  message: string;
-};
-
-```
-
-The exact type names can differ if the project already has conventions.
-
-Recommended files, adjusted to current project structure:
-
-- `src/server/services/generation-inputs.ts`
-- `src/server/repositories/generation-inputs-repository.ts`
-- `src/server/services/generation-inputs.test.ts` or matching existing test location
-
-The service should be easy for the future generation service to call, for example:
-
-```ts
-loadGenerationInputsForDate(boardDate: string): Promise<GenerationInput>
-
-```
-
-or, if the app uses dependency injection for tests:
-
-```ts
-loadGenerationInputsForDate({
-  boardDate,
-  db,
-}: {
-  boardDate: string;
-  db?: PrismaClient;
-}): Promise<GenerationInput>
-
-```
+  ```
+  If the existing schema uses a different name or compound unique key from DB-021, follow the existing schema.
+8. Do not treat manual tasks as duplicates. Manual tasks may have similar titles, users, or due times, but they must remain separate because they do not have the same generated-template identity.
+9. Do not overwrite existing generated tasks. If a generated task already exists and a template changed later, leave the existing task untouched for that board date.
+10. If the current schema cannot safely represent generated-task duplicate prevention, stop and report the missing prerequisite instead of making a broad schema redesign. Make only the smallest schema adjustment if absolutely necessary and explain why.
 
 ## Business rules to preserve
 
-- Only active users are included.
-- Inactive users are excluded.
-- Inactive templates are excluded.
-- Inactive duties are excluded if the schema supports duty activity status.
-- A user with direct/custom duties should use those custom duties.
-- A user with no direct/custom duties should fall back to role default duties.
-- A user with multiple roles should not receive duplicate duty/template candidates.
-- Role overlap is allowed; do not assume a staff member has only one role.
-- The loader should not fail the whole generation input load just because one user has no eligible templates. Return a warning or empty template list for that user.
-- Keep output deterministic by sorting users, duties, and templates in a stable order.
+- There is one `BoardDay` per business date.
+- Daily generation must be idempotent and safe to retry.
+- Manual tasks must never be deleted or overwritten by daily generation.
+- Generated tasks must retain template references for duplicate prevention.
+- Every task must have a due time.
+- Server-side services are the source of truth.
+- Keep automation deterministic and manager-review friendly.
 
-## Tests to add or update
+## Tests
 
-Add focused tests for the input loader.
+Add focused tests for DB-023 behavior only.
 
-Cover at least:
+Do not try to complete the full DB-027 test suite yet, but add enough coverage to prove this issue works.
 
-1. Active users are loaded and inactive users are ignored.
-2. A user with custom duties uses those custom duties.
-3. A user with custom duties does not fall back to role default duties.
-4. A user without custom duties falls back to role default duties.
-5. Active templates for resolved duties are returned.
-6. Inactive templates are ignored.
-7. Multi-role users do not produce duplicate duties or duplicate template candidates.
-8. A user with no matching duties/templates is returned with an empty list and/or warning instead of causing the whole loader to fail.
-9. The output ordering is stable enough for predictable tests.
-10. Existing task/template/board constraints still pass.
+Test cases should cover:
 
-Use the project’s existing test runner and test style. If there is not enough test infrastructure yet, add the smallest practical test setup consistent with the current repo.
+1. First run creates generated tasks for the date.
+2. Second run for the same date creates zero duplicate generated tasks.
+3. Manual tasks on the same board are preserved and are not modified.
+4. Existing generated tasks are not overwritten on retry.
+5. If one generated task already exists and another candidate is missing, the service creates only the missing one.
+6. Due times are populated from the template default due time.
+7. Generated tasks retain `sourceTemplateId`, `sourceDutyId` when available, `sourceType`, and `workflowArea`.
+8. Concurrent or repeated calls do not create duplicate rows, as much as the current test setup can reasonably verify.
+
+Use the existing test framework and patterns. If tests cannot be run, explain exactly why.
+
+## Constraints
+
+- Keep the change minimal and scoped to DB-023.
+- Follow the existing architecture.
+- Reuse the DB-022 input loading logic.
+- Do not add new dependencies unless clearly necessary.
+- Do not rewrite unrelated files.
+- Do not build UI.
+- Do not build cron/scheduled generation.
+- Do not implement full generation-run failure recording yet.
+- Do not implement activity feed persistence yet.
+- Preserve existing behavior.
+- Add or update tests where appropriate.
+- Keep business logic in server services/repositories, not UI components.
+- Use clear names that future DB-024 through DB-027 work can build on.
 
 ## Done when
 
-- A generation input-loading service exists and can be called with a board date.
-- The service returns active users, resolved duties, and active template candidates.
-- Custom duties and role-default fallback behavior work correctly.
-- The loader does not create tasks.
-- The loader does not implement DB-023, DB-024, DB-025, DB-026, or DB-045.
-- Unit tests cover custom duties, role defaults, inactive records, deduplication, and empty/warning states.
-- Existing tests still pass.
-- Typecheck and lint pass if available.
-- The change is small, reviewable, and scoped to DB-022.
-- Any meaningful architecture or setup change is documented.
-- Summarize files changed, behavior added, tests run, and any remaining work.
+- A server-side idempotent task creation flow exists for daily board generation.
+- A board day is found or created for the requested date.
+- Generated task candidates are created from the existing input loading logic.
+- Only missing generated tasks are inserted.
+- Re-running generation for the same date does not duplicate generated tasks.
+- Manual tasks are not deleted, modified, or treated as duplicates.
+- Existing generated tasks are not overwritten on retry.
+- The service returns a useful creation summary.
+- Focused tests cover duplicate prevention, manual-task preservation, and retry behavior.
+- Relevant checks pass, such as:
+  - `npm test`
+  - `npm run typecheck`
+  - `npm run lint`
+  - `npx prisma validate`
+- If any check cannot be run, summarize what was not verified and why.
+- Summarize files changed, behavior added, and tests run.
 
