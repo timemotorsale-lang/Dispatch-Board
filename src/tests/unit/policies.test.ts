@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   canManageAssignments,
+  canManageBoardGeneration,
   canManageDuties,
   canManageRoles,
   canManageSettings,
@@ -25,6 +26,7 @@ describe("permission policies", () => {
     expect(canManageRoles(manager)).toBe(true);
     expect(canManageDuties(manager)).toBe(true);
     expect(canManageAssignments(manager)).toBe(true);
+    expect(canManageBoardGeneration(manager)).toBe(true);
     expect(canManageSettings(manager)).toBe(true);
     expect(canManageTaskTemplates(manager)).toBe(true);
     expect(canReviewWorkflows(manager)).toBe(true);
@@ -39,6 +41,7 @@ describe("permission policies", () => {
     expect(canManageRoles(staffUser)).toBe(false);
     expect(canManageDuties(staffUser)).toBe(false);
     expect(canManageAssignments(staffUser)).toBe(false);
+    expect(canManageBoardGeneration(staffUser)).toBe(false);
     expect(canManageSettings(staffUser)).toBe(false);
     expect(canManageTaskTemplates(staffUser)).toBe(false);
     expect(canReviewWorkflows(staffUser)).toBe(false);

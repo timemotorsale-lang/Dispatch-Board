@@ -50,6 +50,10 @@ export function canManageSettings(user: AuthenticatedUser | null) {
   return isManager(user);
 }
 
+export function canManageBoardGeneration(user: AuthenticatedUser | null) {
+  return isManager(user);
+}
+
 export function canManageTaskTemplates(user: AuthenticatedUser | null) {
   return isManager(user);
 }

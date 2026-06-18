@@ -323,6 +323,11 @@ a {
   align-items: center;
 }
 
+.pill-action {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #eff6ff;
+}
+
 .auth-submit {
   margin-top: 0.25rem;
 }
@@ -340,6 +345,205 @@ code {
   border-radius: 0.4rem;
   background: rgba(255, 255, 255, 0.8);
   font-family: "Courier New", Courier, monospace;
+}
+
+.board-page {
+  gap: 1.5rem;
+}
+
+.board-hero {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1.25rem;
+}
+
+.board-hero-copy {
+  display: grid;
+  gap: 0.8rem;
+  max-width: 42rem;
+}
+
+.board-toolbar {
+  display: grid;
+  gap: 0.85rem;
+  align-content: start;
+  justify-items: start;
+  min-width: min(100%, 320px);
+}
+
+.board-date-field {
+  min-width: min(100%, 240px);
+}
+
+.board-generate-button {
+  min-width: 11rem;
+}
+
+.board-feedback {
+  margin-top: 0;
+  max-width: 26rem;
+}
+
+.board-summary-grid {
+  margin-top: 0;
+}
+
+.board-stat-card h2 {
+  margin-bottom: 0.35rem;
+}
+
+.board-content-grid {
+  display: grid;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.board-table-card {
+  min-width: 0;
+}
+
+.board-section-heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.85rem;
+  margin-bottom: 1.2rem;
+}
+
+.board-section-heading p {
+  max-width: 24rem;
+}
+
+.board-table {
+  display: grid;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.board-table-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1.1fr) 0.8fr 0.9fr 0.8fr;
+  gap: 0.9rem;
+  align-items: center;
+  padding: 0.95rem 1rem;
+  background: rgba(255, 255, 255, 0.72);
+  border-bottom: 1px solid var(--line);
+}
+
+.board-table-row:last-child {
+  border-bottom: 0;
+}
+
+.board-table-row-head {
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.board-task-cell {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.board-task-cell strong,
+.board-task-cell small {
+  overflow-wrap: anywhere;
+}
+
+.board-task-cell small,
+.board-status-copy,
+.board-status-meta,
+.board-status-list dt {
+  color: var(--muted);
+}
+
+.board-status-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.board-status-stack {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.board-status-topline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.status-badge-success {
+  background: rgba(22, 163, 74, 0.12);
+  color: #166534;
+}
+
+.status-badge-danger {
+  background: rgba(220, 38, 38, 0.12);
+  color: #991b1b;
+}
+
+.status-badge-muted {
+  background: rgba(71, 85, 105, 0.12);
+  color: #334155;
+}
+
+.board-status-summary {
+  margin-top: 0;
+}
+
+.board-status-list {
+  display: grid;
+  gap: 0.85rem;
+  margin: 0;
+}
+
+.board-status-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.board-status-list div:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.board-status-list dt,
+.board-status-list dd {
+  margin: 0;
+}
+
+.board-status-list dd {
+  font-weight: 700;
+}
+
+.board-empty-state {
+  margin-top: 0;
+}
+
+@media (min-width: 980px) {
+  .board-content-grid {
+    grid-template-columns: minmax(0, 1.9fr) minmax(280px, 0.9fr);
+  }
 }
 
 @media (max-width: 720px) {
@@ -361,6 +565,30 @@ code {
 
   .logout-stack {
     justify-items: stretch;
+  }
+
+  .board-table-row {
+    grid-template-columns: 1fr;
+  }
+
+  .board-table-row-head {
+    display: none;
+  }
+
+  .board-table-row > span,
+  .board-task-cell {
+    display: grid;
+    gap: 0.15rem;
+  }
+
+  .board-table-row > span::before,
+  .board-task-cell::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
   }
 }
 
