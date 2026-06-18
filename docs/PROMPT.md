@@ -1,151 +1,206 @@
-# Task: DB-021 Add task constraints and indexes
+# Task: DB-022 Build generation input loading logic
 
-Read `docs/AGENTS.md`, `docs/ROADMAP.md`, `docs/ARCHITECTURE.md`, `docs/DEFAULT_PROMPT.md`, `prisma/schema.prisma`, the latest Prisma migrations, seed files, and any existing schema tests before editing.
+Read `docs/AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/DEFAULT_PROMPT.md`, and the relevant existing service/repository/schema/test files first.
 
 ## Goal
 
-Implement DB-021: add the database constraints and indexes needed to protect the daily dispatch workflow from duplicate generated tasks and to support common board, task, activity, and generation queries.
+Implement DB-022: build the generation input loading logic for the daily board generation workflow.
 
-This task should harden the schema created in DB-020. Do not implement DB-022 generation input loading, DB-023 idempotent task creation service logic, or any board UI/API work in this task.
+The service should load the data needed to decide what work should be considered during daily generation for a selected business date.
+
+This task should prepare generation inputs only. Do not create tasks yet.
 
 ## Current behavior
 
-DB-020 should already have the core `BoardDay`, `Task`, and `GenerationRun` schema/models.
+The project now has the earlier daily generation foundation pieces planned or implemented:
 
-However, the database may not yet fully enforce:
+- App settings schema/storage
+- Task template schema
+- Task template CRUD
+- Board, task, and generation-run schema
+- Task constraints and duplicate-prevention indexes
 
-- One board per business date.
-- Duplicate prevention for generated template tasks.
-- Required due time on every task.
-- Required blocker reason when a task is blocked.
-- Required assignment unless the task is explicitly marked for manager review.
-- Fast common queries for board tasks, activity feed, and generation runs.
+However, the generation service does not yet have a focused input-loading layer that can:
+
+- Load active users
+- Determine each user’s custom duties
+- Fall back to role default duties when a user has no custom duties
+- Load active templates connected to those duties or roles
+- Return a structured, testable input model for later task creation
 
 ## Desired behavior
 
-Add or verify the following constraints and indexes in the database layer.
+Add a server-side generation input loader that can be called by the future daily generation flow.
 
-### Required constraints
+The loader should accept a business date and return a structured result containing:
 
-1. `BoardDay.date` must be unique.
-  - There should only be one board per business date.
-2. Generated task duplicate prevention must be enforced.
-  - There should be only one generated task for the same:
-    - `boardDayId`
-    - `sourceTemplateId`
-    - `assignedUserId`
-  - This applies when `sourceTemplateId` is present.
-  - Manual, manager-created, or staff-created tasks with no `sourceTemplateId` must not be blocked from having similar titles, due times, or assignees.
-3. `Task.dueAt` must be required.
-  - Every task must have a due time.
-4. `Task.blockerReason` must be required when task status is `Blocked`.
-  - Prefer a DB-level check constraint if it can be added cleanly with the current Prisma/PostgreSQL setup.
-  - Use the actual enum/status value already used in the schema.
-  - Do not invent a new status model.
-5. `Task.assignedUserId` must be required unless the existing schema already has an explicit manager-review/unassigned state.
-  - Do not invent new fields just to satisfy this rule.
-  - If the current schema allows manager-review tasks without an assigned user, add the safest minimal DB constraint possible based on the existing fields.
-  - If the schema does not contain enough information to enforce this at the DB layer, document the limitation in the implementation summary and leave endpoint-level enforcement for the later workflow tasks.
-6. User email and role name uniqueness should be verified.
-  - If the current schema already enforces these, do not duplicate them.
-  - If not, add the minimal uniqueness constraints consistent with the existing auth and role model.
-  - If “unique active user emails” requires a partial index and the current schema supports inactive users, choose the least risky approach and explain it.
+- The requested board date
+- Active users eligible for generation
+- Each user’s roles
+- Each user’s direct/custom duties
+- Whether the user used custom duties or role-default duties
+- The resolved duties that should be considered for that user
+- Active task templates connected to those resolved duties and/or user roles
+- Enough template context for DB-023 to create generated tasks later
+- Clear warnings or empty arrays when a user has no eligible duties/templates
 
-### Required indexes
+Expected high-level rule:
 
-Add or verify these indexes:
+1. Load active users.
+2. For each active user, load custom/direct duties.
+3. If the user has custom duties, use those duties.
+4. If the user has no custom duties, load role default duties based on the user’s active roles.
+5. Load active task templates for the resolved duties and/or active user roles.
+6. Deduplicate duties and templates so multi-role users do not produce duplicate template candidates.
+7. Return a deterministic, sorted result that is easy to test.
+8. Do not create `Task` records in this issue.
 
-- `Task(boardDayId, status)`
-- `Task(boardDayId, assignedUserId)`
-- `Task(boardDayId, workflowArea)`
-- `ActivityEvent(boardDayId, createdAt)` if `ActivityEvent` already exists
-- `GenerationRun(boardDate, startedAt)`
+## Important scope boundary
 
-If `ActivityEvent` has not been created yet, do not create the full activity-event schema in this task unless it already belongs to the current implemented baseline. In that case, skip that index and clearly report that it belongs with DB-041.
+Do not implement DB-023 in this task.
 
-## Important Prisma/PostgreSQL guidance
+This means:
 
-- Inspect the current Prisma schema before choosing the exact implementation.
-- Prefer Prisma-native `@unique`, `@@unique`, and `@@index` where they accurately express the rule.
-- If Prisma cannot express a needed PostgreSQL check constraint, partial unique index, or expression index, use a raw SQL migration carefully and minimally.
-- Be explicit about PostgreSQL `NULL` behavior in unique indexes.
-  - Do not accidentally allow duplicate generated tasks because a nullable field is part of a unique constraint.
-  - If `assignedUserId` or `sourceTemplateId` is nullable, choose the safest approach and explain the tradeoff in the final summary.
-- Do not add new dependencies.
-- Do not redesign the domain model.
-- Do not rename existing models or fields unless the current schema is clearly inconsistent with the architecture and you explain why first.
-- Avoid broad rewrites.
+- Do not create generated tasks.
+- Do not write duplicate-prevention task creation logic.
+- Do not overwrite manual tasks.
+- Do not create the full manual generation trigger.
+- Do not build scheduled generation.
+- Do not build recommendation scoring beyond preserving enough context for the future recommendation service.
+- Do not create activity events unless the existing architecture already has a very small internal logging helper required by current patterns. Activity event emission is a later task.
 
-## Implementation guidance
+## Architecture constraints
 
-1. Inspect the current schema and migrations.
-2. Identify which constraints/indexes already exist.
-3. Add only the missing constraints/indexes.
-4. Create a new Prisma migration.
-5. Add raw SQL inside the migration only when Prisma cannot express the constraint safely.
-6. Run Prisma format/validate.
-7. Update or add tests where practical.
-8. Confirm seed data still works.
-9. Do not change UI components.
-10. Do not implement generation logic yet.
+- Keep business logic server-side.
+- Prefer files under `src/server/services` and `src/server/repositories`.
+- Reuse existing repository/service patterns if they already exist.
+- Do not bury generation rules in UI components.
+- Do not add a new dependency unless absolutely necessary.
+- Do not rename existing Prisma models, enums, or fields unless the existing implementation is clearly broken and you explain why first.
+- Keep the change minimal and focused on DB-022.
+- Preserve existing behavior and tests.
+- Add or update tests for the new input-loading behavior.
 
-## Suggested tests
+## Suggested implementation guidance
 
-Add tests only where the current test infrastructure supports them. Prefer integration/schema-level tests if available.
+Inspect the existing Prisma schema and adapt names to what already exists.
 
-Test these cases if practical:
+Prefer a shape similar to this, adjusted to the actual codebase:
 
-1. Creating two `BoardDay` records with the same date is rejected.
-2. Creating two generated tasks with the same `boardDayId`, `sourceTemplateId`, and `assignedUserId` is rejected.
-3. Creating multiple manual tasks with no `sourceTemplateId` is still allowed.
-4. Creating a task without `dueAt` is rejected.
-5. Creating or updating a blocked task without `blockerReason` is rejected if the DB-level check was implemented.
-6. Existing seed data still migrates and loads cleanly.
+```ts
+type GenerationInput = {
+  boardDate: string;
+  users: GenerationInputUser[];
+  warnings: GenerationInputWarning[];
+};
 
-## Commands to run
+type GenerationInputUser = {
+  userId: string;
+  userName: string;
+  roleIds: string[];
+  roleNames: string[];
+  dutySource: "custom" | "role_default" | "none";
+  duties: GenerationInputDuty[];
+  templates: GenerationInputTemplate[];
+};
 
-Run the relevant commands that exist in the repo. Likely commands include:
+type GenerationInputDuty = {
+  dutyId: string;
+  title: string;
+  source: "custom" | "role_default";
+  roleId?: string | null;
+};
 
-```bash
-npm run lint
-npm run typecheck
-npm test
-npx prisma format
-npx prisma validate
-npx prisma migrate dev
-npx prisma generate
+type GenerationInputTemplate = {
+  templateId: string;
+  title: string;
+  description?: string | null;
+  workflowArea: string;
+  defaultDueTime: string;
+  requiresManagerApproval: boolean;
+  roleId?: string | null;
+  dutyId?: string | null;
+};
+
+type GenerationInputWarning = {
+  userId?: string;
+  code: string;
+  message: string;
+};
 
 ```
 
-If any command does not exist or cannot run in the current environment, report that clearly.
+The exact type names can differ if the project already has conventions.
 
-## Constraints
+Recommended files, adjusted to current project structure:
 
-- Keep the change minimal.
-- Follow the existing architecture.
-- Do not add new dependencies.
-- Do not rewrite unrelated files.
-- Preserve existing behavior.
-- Do not implement DB-022, DB-023, activity feed UI/API, board UI/API, or status-update endpoints.
-- Do not create placeholder production behavior.
-- Do not mark planned features as complete unless actually implemented.
-- Update docs only if a real architecture/constraint limitation must be documented.
+- `src/server/services/generation-inputs.ts`
+- `src/server/repositories/generation-inputs-repository.ts`
+- `src/server/services/generation-inputs.test.ts` or matching existing test location
+
+The service should be easy for the future generation service to call, for example:
+
+```ts
+loadGenerationInputsForDate(boardDate: string): Promise<GenerationInput>
+
+```
+
+or, if the app uses dependency injection for tests:
+
+```ts
+loadGenerationInputsForDate({
+  boardDate,
+  db,
+}: {
+  boardDate: string;
+  db?: PrismaClient;
+}): Promise<GenerationInput>
+
+```
+
+## Business rules to preserve
+
+- Only active users are included.
+- Inactive users are excluded.
+- Inactive templates are excluded.
+- Inactive duties are excluded if the schema supports duty activity status.
+- A user with direct/custom duties should use those custom duties.
+- A user with no direct/custom duties should fall back to role default duties.
+- A user with multiple roles should not receive duplicate duty/template candidates.
+- Role overlap is allowed; do not assume a staff member has only one role.
+- The loader should not fail the whole generation input load just because one user has no eligible templates. Return a warning or empty template list for that user.
+- Keep output deterministic by sorting users, duties, and templates in a stable order.
+
+## Tests to add or update
+
+Add focused tests for the input loader.
+
+Cover at least:
+
+1. Active users are loaded and inactive users are ignored.
+2. A user with custom duties uses those custom duties.
+3. A user with custom duties does not fall back to role default duties.
+4. A user without custom duties falls back to role default duties.
+5. Active templates for resolved duties are returned.
+6. Inactive templates are ignored.
+7. Multi-role users do not produce duplicate duties or duplicate template candidates.
+8. A user with no matching duties/templates is returned with an empty list and/or warning instead of causing the whole loader to fail.
+9. The output ordering is stable enough for predictable tests.
+10. Existing task/template/board constraints still pass.
+
+Use the project’s existing test runner and test style. If there is not enough test infrastructure yet, add the smallest practical test setup consistent with the current repo.
 
 ## Done when
 
-- `BoardDay.date` uniqueness is enforced.
-- Generated-task duplicate prevention is enforced without blocking manual tasks.
-- Required task due time is enforced by the schema.
-- Blocked-task blocker reason is enforced at the DB layer if safely possible, or the limitation is clearly documented.
-- Assignment-required behavior is enforced at the DB layer if safely possible, or the limitation is clearly documented.
-- Required indexes are added or verified.
-- A migration is created and applies cleanly.
-- Existing seed data still works.
-- Relevant tests/checks pass, or skipped checks are clearly explained.
-- The final response summarizes:
-  - Files changed
-  - Constraints added
-  - Indexes added
-  - Tests/checks run
-  - Any limitations or follow-up needed
+- A generation input-loading service exists and can be called with a board date.
+- The service returns active users, resolved duties, and active template candidates.
+- Custom duties and role-default fallback behavior work correctly.
+- The loader does not create tasks.
+- The loader does not implement DB-023, DB-024, DB-025, DB-026, or DB-045.
+- Unit tests cover custom duties, role defaults, inactive records, deduplication, and empty/warning states.
+- Existing tests still pass.
+- Typecheck and lint pass if available.
+- The change is small, reviewable, and scoped to DB-022.
+- Any meaningful architecture or setup change is documented.
+- Summarize files changed, behavior added, tests run, and any remaining work.
 
