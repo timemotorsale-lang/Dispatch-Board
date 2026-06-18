@@ -19,8 +19,10 @@ type ManualBoardGenerationResponse = {
 };
 
 type BoardToolbarProps = {
-  initialBoardDate: string;
+  boardDate: string;
   isManager: boolean;
+  onBoardDateChange(boardDate: string): void;
+  onBoardRefreshRequested(): void;
 };
 
 type FeedbackState =
@@ -43,10 +45,7 @@ function buildBoardUrl(boardDate: string) {
 function buildSuccessMessage(payload: ManualBoardGenerationResponse) {
   const createdTaskCount = payload.createdTaskCount ?? 0;
   const skippedTaskCount = payload.skippedExistingTaskCount ?? 0;
-  const summaryParts = [
-    `${createdTaskCount} tasks created`,
-    `${skippedTaskCount} duplicates skipped`
-  ];
+  const summaryParts = [`${createdTaskCount} tasks created`, `${skippedTaskCount} duplicates skipped`];
 
   return {
     message: "Board generated.",
@@ -54,15 +53,23 @@ function buildSuccessMessage(payload: ManualBoardGenerationResponse) {
   };
 }
 
-export function BoardToolbar({ initialBoardDate, isManager }: BoardToolbarProps) {
+export function BoardToolbar({
+  boardDate,
+  isManager,
+  onBoardDateChange,
+  onBoardRefreshRequested
+}: BoardToolbarProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [boardDate, setBoardDate] = useState(initialBoardDate);
   const [feedback, setFeedback] = useState<FeedbackState>(null);
 
   function handleDateChange(nextBoardDate: string) {
-    setBoardDate(nextBoardDate);
+    if (!nextBoardDate) {
+      return;
+    }
+
     setFeedback(null);
+    onBoardDateChange(nextBoardDate);
     router.replace(buildBoardUrl(nextBoardDate));
   }
 
@@ -97,7 +104,7 @@ export function BoardToolbar({ initialBoardDate, isManager }: BoardToolbarProps)
           message: "Generation failed.",
           detail
         });
-        router.refresh();
+        onBoardRefreshRequested();
         return;
       }
 
@@ -117,7 +124,7 @@ export function BoardToolbar({ initialBoardDate, isManager }: BoardToolbarProps)
         message: nextFeedback.message,
         detail: nextFeedback.detail
       });
-      router.refresh();
+      onBoardRefreshRequested();
     });
   }
 
@@ -134,14 +141,23 @@ export function BoardToolbar({ initialBoardDate, isManager }: BoardToolbarProps)
       </label>
 
       {isManager ? (
-        <button className="pill pill-action board-generate-button" disabled={isPending} onClick={handleGenerate} type="button">
+        <button
+          className="pill pill-action board-generate-button"
+          disabled={isPending}
+          onClick={handleGenerate}
+          type="button"
+        >
           {isPending ? "Generating..." : "Generate Board"}
         </button>
       ) : null}
 
       {feedback ? (
         <div
-          className={feedback.tone === "error" ? "notice notice-danger board-feedback" : "notice board-feedback"}
+          className={
+            feedback.tone === "error"
+              ? "notice notice-danger board-feedback"
+              : "notice board-feedback"
+          }
           role={feedback.tone === "error" ? "alert" : "status"}
         >
           <p>

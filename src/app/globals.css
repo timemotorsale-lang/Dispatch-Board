@@ -393,6 +393,10 @@ code {
   margin-bottom: 0.35rem;
 }
 
+.board-stat-card-copy {
+  min-height: 2.6rem;
+}
+
 .board-content-grid {
   display: grid;
   gap: 1.25rem;
@@ -457,13 +461,98 @@ code {
 }
 
 .board-task-cell small,
+.board-assignee-meta,
 .board-status-copy,
 .board-status-meta,
 .board-status-list dt {
   color: var(--muted);
 }
 
+.board-inline-state {
+  margin-top: 0;
+}
+
+.board-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.board-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.08);
+  color: #1d4ed8;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.board-reference-list,
+.board-task-alert {
+  display: block;
+}
+
+.board-task-alert {
+  color: #b91c1c;
+  font-weight: 700;
+}
+
+.board-assignee-cell {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.board-assignee-cell strong {
+  overflow-wrap: anywhere;
+}
+
+.board-status-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.board-status-chip-default {
+  background: rgba(71, 85, 105, 0.12);
+  color: #334155;
+}
+
+.board-status-chip-danger {
+  background: rgba(220, 38, 38, 0.12);
+  color: #991b1b;
+}
+
+.board-status-chip-warning {
+  background: rgba(249, 115, 22, 0.14);
+  color: #9a3412;
+}
+
+.board-status-chip-review {
+  background: rgba(124, 58, 237, 0.12);
+  color: #6d28d9;
+}
+
+.board-status-chip-success {
+  background: rgba(22, 163, 74, 0.12);
+  color: #166534;
+}
+
+.board-panel-stack {
+  display: grid;
+  gap: 1.25rem;
+}
+
 .board-status-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.board-rail-card {
   display: grid;
   gap: 1rem;
 }
@@ -538,6 +627,40 @@ code {
 
 .board-empty-state {
   margin-top: 0;
+}
+
+.board-activity-list {
+  display: grid;
+  gap: 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.board-activity-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.board-activity-item:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.board-activity-item p {
+  margin-top: 0.25rem;
+}
+
+.board-activity-dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-top: 0.35rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #2563eb, #0f172a);
 }
 
 @media (min-width: 980px) {
