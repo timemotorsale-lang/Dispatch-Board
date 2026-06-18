@@ -1,5 +1,8 @@
 import {
   BoardGenerationStatus,
+  GenerationRunStatus,
+  GenerationTriggerType,
+  Prisma,
   TaskSourceType,
   TaskStatus,
   WorkflowArea
@@ -8,6 +11,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   createMissingGeneratedTasksForDate,
+  getGenerationRunFailureContext,
+  listGenerationRunsForDate,
   type CreateMissingGeneratedTasksDependencies
 } from "@/server/services/generation-tasks";
 import type { GenerationInput } from "@/server/services/generation-inputs";
@@ -39,6 +44,18 @@ type StoredTask = {
   workflowArea: WorkflowArea;
   createdAt: Date;
   updatedAt: Date;
+};
+
+type StoredGenerationRun = {
+  id: string;
+  boardDate: Date;
+  startedAt: Date;
+  finishedAt: Date | null;
+  status: GenerationRunStatus;
+  triggeredBy: GenerationTriggerType;
+  triggeredByUserId: string | null;
+  summary: Prisma.JsonValue;
+  errorMessage: string | null;
 };
 
 function createGenerationInput(): GenerationInput {
@@ -127,18 +144,37 @@ function createGenerationInput(): GenerationInput {
   };
 }
 
+function createNowSequence(...timestamps: string[]) {
+  let index = 0;
+
+  return () => {
+    const timestamp = timestamps[Math.min(index, timestamps.length - 1)];
+
+    index += 1;
+
+    return new Date(timestamp);
+  };
+}
+
+function compareDatesDescending(left: Date, right: Date) {
+  return right.getTime() - left.getTime();
+}
+
 function createGenerationTasksHarness(
   generationInput = createGenerationInput(),
   options: {
     boardDays?: StoredBoardDay[];
     tasks?: StoredTask[];
+    generationRuns?: StoredGenerationRun[];
     beforeCreateTask?: (task: Pick<StoredTask, "boardDayId" | "assignedUserId" | "sourceTemplateId">) => void;
   } = {}
 ) {
   let boardDayCounter = 1;
   let taskCounter = 1;
+  let generationRunCounter = 1;
   let boardDays = [...(options.boardDays ?? [])];
   let tasks = [...(options.tasks ?? [])];
+  let generationRuns = [...(options.generationRuns ?? [])];
 
   const repository: NonNullable<CreateMissingGeneratedTasksDependencies["repository"]> = {
     async getOrCreateBoardDay(boardDate) {
@@ -174,6 +210,14 @@ function createGenerationTasksHarness(
           sourceTemplateId: task.sourceTemplateId,
           assignedUserId: task.assignedUserId
         }));
+    },
+
+    async countManualTasks(boardDayId) {
+      return tasks.filter(
+        (task) =>
+          task.boardDayId === boardDayId &&
+          (task.sourceType === TaskSourceType.MANAGER || task.sourceType === TaskSourceType.STAFF)
+      ).length;
     },
 
     async createGeneratedTask(input) {
@@ -225,6 +269,65 @@ function createGenerationTasksHarness(
         sourceDutyId: createdTask.sourceDutyId,
         workflowArea: createdTask.workflowArea
       };
+    },
+
+    async startGenerationRun(input) {
+      const generationRun: StoredGenerationRun = {
+        id: `generation-run-${generationRunCounter++}`,
+        boardDate: new Date(`${input.boardDate}T00:00:00.000Z`),
+        startedAt: input.startedAt,
+        finishedAt: null,
+        status: GenerationRunStatus.RUNNING,
+        triggeredBy: input.triggeredBy,
+        triggeredByUserId: input.triggeredByUserId,
+        summary: input.summary as Prisma.JsonValue,
+        errorMessage: null
+      };
+
+      generationRuns = [...generationRuns, generationRun];
+
+      return generationRun;
+    },
+
+    async completeGenerationRun(input) {
+      const generationRun = generationRuns.find((candidate) => candidate.id === input.id);
+
+      if (!generationRun) {
+        throw new Error(`Unknown generation run ${input.id}.`);
+      }
+
+      generationRun.finishedAt = input.finishedAt;
+      generationRun.status = GenerationRunStatus.SUCCEEDED;
+      generationRun.summary = input.summary as Prisma.JsonValue;
+      generationRun.errorMessage = null;
+
+      return generationRun;
+    },
+
+    async failGenerationRun(input) {
+      const generationRun = generationRuns.find((candidate) => candidate.id === input.id);
+
+      if (!generationRun) {
+        throw new Error(`Unknown generation run ${input.id}.`);
+      }
+
+      generationRun.finishedAt = input.finishedAt;
+      generationRun.status = GenerationRunStatus.FAILED;
+      generationRun.summary = input.summary as Prisma.JsonValue;
+      generationRun.errorMessage = input.errorMessage;
+
+      return generationRun;
+    },
+
+    async listGenerationRunsForDate(boardDate) {
+      const boardDateKey = new Date(`${boardDate}T00:00:00.000Z`).toISOString().slice(0, 10);
+
+      return generationRuns
+        .filter((run) => run.boardDate.toISOString().slice(0, 10) === boardDateKey)
+        .sort(
+          (left, right) =>
+            compareDatesDescending(left.startedAt, right.startedAt) || right.id.localeCompare(left.id)
+        );
     }
   };
 
@@ -236,6 +339,9 @@ function createGenerationTasksHarness(
     },
     readTasks() {
       return tasks;
+    },
+    readGenerationRuns() {
+      return generationRuns;
     },
     createBoardDay(boardDate: string) {
       const boardDay: StoredBoardDay = {
@@ -256,16 +362,21 @@ function createGenerationTasksHarness(
 }
 
 describe("generation tasks service", () => {
-  it("creates generated tasks for the first run and returns a useful summary", async () => {
+  it("creates a generation run, completes it, and returns a useful success summary", async () => {
     const harness = createGenerationTasksHarness();
 
     const result = await createMissingGeneratedTasksForDate(
       "2026-06-17",
       { createdByUserId: "  user-manager  " },
-      harness
+      {
+        ...harness,
+        now: createNowSequence("2026-06-17T08:00:00.000Z", "2026-06-17T08:00:05.000Z")
+      }
     );
 
     expect(result).toMatchObject({
+      generationRunId: "generation-run-1",
+      generationRunStatus: GenerationRunStatus.SUCCEEDED,
       boardDate: "2026-06-17",
       totalCandidatesConsidered: 2,
       createdTaskCount: 2,
@@ -326,16 +437,50 @@ describe("generation tasks service", () => {
         workflowArea: WorkflowArea.SALES
       })
     ]);
+
+    expect(harness.readGenerationRuns()).toEqual([
+      expect.objectContaining({
+        id: "generation-run-1",
+        boardDate: new Date("2026-06-17T00:00:00.000Z"),
+        startedAt: new Date("2026-06-17T08:00:00.000Z"),
+        finishedAt: new Date("2026-06-17T08:00:05.000Z"),
+        status: GenerationRunStatus.SUCCEEDED,
+        triggeredBy: GenerationTriggerType.MANUAL,
+        triggeredByUserId: "user-manager",
+        errorMessage: null,
+        summary: {
+          boardDate: "2026-06-17",
+          boardDayId: result.boardDayId,
+          triggeredBy: "manual",
+          triggeredByUserId: "user-manager",
+          usersConsidered: 2,
+          templatesConsidered: 2,
+          tasksCreated: 2,
+          tasksSkippedAsDuplicates: 0,
+          manualTasksPreserved: 0,
+          tasksAlreadyExisting: 0,
+          durationMs: 5000
+        }
+      })
+    ]);
   });
 
-  it("skips duplicate generated tasks on a second run for the same board date", async () => {
+  it("creates a separate completed generation run on retry without duplicating generated tasks", async () => {
     const harness = createGenerationTasksHarness();
 
-    const firstRun = await createMissingGeneratedTasksForDate("2026-06-17", undefined, harness);
-    const secondRun = await createMissingGeneratedTasksForDate("2026-06-17", undefined, harness);
+    const firstRun = await createMissingGeneratedTasksForDate("2026-06-17", undefined, {
+      ...harness,
+      now: createNowSequence("2026-06-17T08:00:00.000Z", "2026-06-17T08:00:02.000Z")
+    });
+    const secondRun = await createMissingGeneratedTasksForDate("2026-06-17", undefined, {
+      ...harness,
+      now: createNowSequence("2026-06-17T09:00:00.000Z", "2026-06-17T09:00:03.000Z")
+    });
 
     expect(secondRun.boardDayId).toBe(firstRun.boardDayId);
     expect(secondRun).toMatchObject({
+      generationRunId: "generation-run-2",
+      generationRunStatus: GenerationRunStatus.SUCCEEDED,
       totalCandidatesConsidered: 2,
       createdTaskCount: 0,
       skippedExistingTaskCount: 2
@@ -343,9 +488,21 @@ describe("generation tasks service", () => {
     expect(secondRun.createdTasks).toEqual([]);
     expect(harness.readBoardDays()).toHaveLength(1);
     expect(harness.readTasks()).toHaveLength(2);
+    expect(harness.readGenerationRuns()).toHaveLength(2);
+    expect(harness.readGenerationRuns().map((run) => run.status)).toEqual([
+      GenerationRunStatus.SUCCEEDED,
+      GenerationRunStatus.SUCCEEDED
+    ]);
+    expect(harness.readGenerationRuns()[1].summary).toEqual(
+      expect.objectContaining({
+        tasksCreated: 0,
+        tasksSkippedAsDuplicates: 2,
+        tasksAlreadyExisting: 2
+      })
+    );
   });
 
-  it("preserves manual tasks on the same board and does not treat them as duplicates", async () => {
+  it("preserves manual tasks on retries and records the preserved count in the completed run summary", async () => {
     const harness = createGenerationTasksHarness();
     const boardDay = harness.createBoardDay("2026-06-17");
     const manualTask: StoredTask = {
@@ -371,7 +528,10 @@ describe("generation tasks service", () => {
       tasks: [manualTask]
     });
 
-    const result = await createMissingGeneratedTasksForDate("2026-06-17", undefined, manualHarness);
+    const result = await createMissingGeneratedTasksForDate("2026-06-17", undefined, {
+      ...manualHarness,
+      now: createNowSequence("2026-06-17T08:00:00.000Z", "2026-06-17T08:00:04.000Z")
+    });
 
     expect(result).toMatchObject({
       createdTaskCount: 2,
@@ -392,6 +552,11 @@ describe("generation tasks service", () => {
       ])
     );
     expect(manualHarness.readTasks()).toHaveLength(3);
+    expect(manualHarness.readGenerationRuns()[0].summary).toEqual(
+      expect.objectContaining({
+        manualTasksPreserved: 1
+      })
+    );
   });
 
   it("does not overwrite existing generated tasks and only creates missing candidates", async () => {
@@ -420,7 +585,10 @@ describe("generation tasks service", () => {
       tasks: [existingGeneratedTask]
     });
 
-    const result = await createMissingGeneratedTasksForDate("2026-06-17", undefined, existingHarness);
+    const result = await createMissingGeneratedTasksForDate("2026-06-17", undefined, {
+      ...existingHarness,
+      now: createNowSequence("2026-06-17T08:00:00.000Z", "2026-06-17T08:00:03.000Z")
+    });
 
     expect(result).toMatchObject({
       totalCandidatesConsidered: 2,
@@ -496,7 +664,10 @@ describe("generation tasks service", () => {
       }
     });
 
-    const result = await createMissingGeneratedTasksForDate("2026-06-17", undefined, concurrentHarness);
+    const result = await createMissingGeneratedTasksForDate("2026-06-17", undefined, {
+      ...concurrentHarness,
+      now: createNowSequence("2026-06-17T08:00:00.000Z", "2026-06-17T08:00:03.000Z")
+    });
 
     expect(result).toMatchObject({
       totalCandidatesConsidered: 2,
@@ -506,12 +677,134 @@ describe("generation tasks service", () => {
     expect(concurrentHarness.readTasks().filter((task) => task.sourceType === TaskSourceType.TEMPLATE)).toHaveLength(2);
   });
 
+  it("records a failed generation run when input loading throws and keeps the run persisted", async () => {
+    const harness = createGenerationTasksHarness();
+
+    const thrownError = await createMissingGeneratedTasksForDate("2026-06-17", undefined, {
+      repository: harness.repository,
+      loadGenerationInputs: async () => {
+        throw new Error("Input loading failed during preparation.");
+      },
+      now: createNowSequence("2026-06-17T08:00:00.000Z", "2026-06-17T08:00:04.000Z")
+    }).catch((error) => error);
+
+    expect(thrownError).toBeInstanceOf(Error);
+    expect(getGenerationRunFailureContext(thrownError)).toEqual({
+      generationRunId: "generation-run-1",
+      generationRunStatus: GenerationRunStatus.FAILED,
+      safeErrorMessage: "Input loading failed during preparation."
+    });
+    expect(harness.readGenerationRuns()).toEqual([
+      expect.objectContaining({
+        id: "generation-run-1",
+        finishedAt: new Date("2026-06-17T08:00:04.000Z"),
+        status: GenerationRunStatus.FAILED,
+        errorMessage: "Input loading failed during preparation.",
+        summary: {
+          boardDate: "2026-06-17",
+          triggeredBy: "scheduled",
+          triggeredByUserId: null,
+          phase: "loading_inputs",
+          durationMs: 4000,
+          errorName: "Error",
+          boardDayId: null,
+          usersConsidered: 0,
+          templatesConsidered: 0,
+          tasksCreated: 0,
+          tasksSkippedAsDuplicates: 0,
+          tasksAlreadyExisting: 0,
+          manualTasksPreserved: null
+        }
+      })
+    ]);
+    expect(harness.readTasks()).toHaveLength(0);
+  });
+
+  it("records a failed generation run when task creation throws after the run has started", async () => {
+    const harness = createGenerationTasksHarness(createGenerationInput(), {
+      beforeCreateTask(task) {
+        if (task.sourceTemplateId === "template-sales-duty") {
+          throw new Error("Task insert failed for the sales template.");
+        }
+      }
+    });
+
+    const thrownError = await createMissingGeneratedTasksForDate("2026-06-17", undefined, {
+      ...harness,
+      now: createNowSequence("2026-06-17T08:00:00.000Z", "2026-06-17T08:00:06.000Z")
+    }).catch((error) => error);
+
+    expect(getGenerationRunFailureContext(thrownError)).toEqual({
+      generationRunId: "generation-run-1",
+      generationRunStatus: GenerationRunStatus.FAILED,
+      safeErrorMessage: "Task insert failed for the sales template."
+    });
+    expect(harness.readGenerationRuns()[0]).toEqual(
+      expect.objectContaining({
+        status: GenerationRunStatus.FAILED,
+        errorMessage: "Task insert failed for the sales template.",
+        summary: expect.objectContaining({
+          phase: "creating_tasks",
+          boardDayId: "board-day-1",
+          usersConsidered: 2,
+          templatesConsidered: 2,
+          tasksCreated: 1,
+          tasksSkippedAsDuplicates: 0,
+          tasksAlreadyExisting: 0,
+          manualTasksPreserved: 0
+        })
+      })
+    );
+    expect(harness.readTasks()).toEqual([
+      expect.objectContaining({
+        sourceTemplateId: "template-inventory"
+      })
+    ]);
+  });
+
+  it("lists generation runs for a board date with the most recent attempt first", async () => {
+    const harness = createGenerationTasksHarness();
+
+    await createMissingGeneratedTasksForDate("2026-06-17", undefined, {
+      ...harness,
+      now: createNowSequence("2026-06-17T08:00:00.000Z", "2026-06-17T08:00:01.000Z")
+    });
+    await createMissingGeneratedTasksForDate(
+      "2026-06-17",
+      { triggeredBy: "manual", triggeredByUserId: "user-manager", createdByUserId: "user-manager" },
+      {
+        ...harness,
+        now: createNowSequence("2026-06-17T09:00:00.000Z", "2026-06-17T09:00:02.000Z")
+      }
+    );
+
+    const runs = await listGenerationRunsForDate("2026-06-17", harness.repository);
+
+    expect(runs).toEqual([
+      expect.objectContaining({
+        id: "generation-run-2",
+        boardDate: "2026-06-17",
+        status: GenerationRunStatus.SUCCEEDED,
+        triggeredBy: GenerationTriggerType.MANUAL,
+        triggeredByUserId: "user-manager"
+      }),
+      expect.objectContaining({
+        id: "generation-run-1",
+        boardDate: "2026-06-17",
+        status: GenerationRunStatus.SUCCEEDED,
+        triggeredBy: GenerationTriggerType.SCHEDULED,
+        triggeredByUserId: null
+      })
+    ]);
+  });
+
   it("rejects invalid board dates and invalid template due times", async () => {
     const invalidDateHarness = createGenerationTasksHarness();
 
     await expect(
       createMissingGeneratedTasksForDate("06/17/2026", undefined, invalidDateHarness)
     ).rejects.toThrow(/YYYY-MM-DD/);
+    expect(invalidDateHarness.readGenerationRuns()).toEqual([]);
 
     const invalidDueTimeHarness = createGenerationTasksHarness({
       ...createGenerationInput(),
@@ -528,8 +821,16 @@ describe("generation tasks service", () => {
       ]
     });
 
-    await expect(
-      createMissingGeneratedTasksForDate("2026-06-17", undefined, invalidDueTimeHarness)
-    ).rejects.toThrow(/defaultDueTime/);
+    const thrownError = await createMissingGeneratedTasksForDate("2026-06-17", undefined, {
+      ...invalidDueTimeHarness,
+      now: createNowSequence("2026-06-17T08:00:00.000Z", "2026-06-17T08:00:02.000Z")
+    }).catch((error) => error);
+
+    expect(thrownError).toBeInstanceOf(Error);
+    expect(getGenerationRunFailureContext(thrownError)).toEqual({
+      generationRunId: "generation-run-1",
+      generationRunStatus: GenerationRunStatus.FAILED,
+      safeErrorMessage: "Task template defaultDueTime must use HH:mm format."
+    });
   });
 });

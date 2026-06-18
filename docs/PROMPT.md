@@ -1,186 +1,248 @@
-# Task: DB-023 Build idempotent task creation flow
+# Task: DB-024 — Record generation runs and failure outcomes
 
-Read `docs/AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/DEFAULT_PROMPT.md`, and the relevant generation/schema/service files first.
+Read `docs/AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, and the relevant generation, board, task, repository, Prisma, and test files first.
 
 ## Goal
 
-Implement the DB-023 daily generation task creation flow.
+Implement DB-024 from `docs/ROADMAP.md`:
 
-The generation service should create only missing generated tasks for a board date while preserving all existing manual tasks and making retries safe.
+Persist every daily board generation attempt as a `GenerationRun`, including started, completed, and failed outcomes, with useful summaries and error messages.
 
-This issue is part of `v0.3.0 - Daily generation core`.
+The generation workflow must make it clear whether a generation attempt succeeded or failed, and failure states must be visible and retryable instead of silently ignored.
 
 ## Current behavior
 
-The project should already have, or is expected to have from DB-020 through DB-022:
+DB-020 through DB-023 should already provide the foundation for:
 
-- `BoardDay`, `Task`, and `GenerationRun` schema/models.
-- Duplicate-prevention constraints and useful indexes.
-- Task template schema and CRUD.
-- Generation input loading logic that can load active users, custom duties, role defaults, and active task templates for a target date.
+- `BoardDay`, `Task`, and `GenerationRun` schema support.
+- Task constraints and duplicate-prevention indexes.
+- Generation input loading.
+- Idempotent generated task creation.
+- Retry-safe generation that does not duplicate generated tasks.
+- Manual tasks being preserved during generation retries.
 
-However, the app does not yet have the actual idempotent task creation flow that turns generation inputs into persisted daily tasks.
+However, generation attempts are not yet fully tracked as durable lifecycle records. A generation may create tasks, skip duplicates, or fail, but the app does not yet consistently persist a clear `GenerationRun` record with:
+
+- Start time.
+- Finish time.
+- Final status.
+- Trigger source.
+- Triggering user when manual.
+- Summary counts.
+- Failure message when applicable.
 
 ## Desired behavior
 
-Add server-side generation creation logic that:
+Every generation attempt should create and update a `GenerationRun` record.
 
-1. Gets or creates the `BoardDay` for the target business date.
-2. Uses the DB-022 generation input loading logic instead of reimplementing duty/template loading.
-3. Builds generated task candidates from the loaded users, duties, role defaults, and task templates.
-4. Creates only generated tasks that do not already exist for the same board/date/template/user combination.
-5. Skips existing generated tasks on retry.
-6. Never deletes, overwrites, or modifies manual tasks.
-7. Never overwrites existing generated tasks that staff or managers may have already updated during the day.
-8. Preserves source tracking on generated tasks:
-  - `sourceType` should identify the task as generated from a template.
-  - `sourceTemplateId` must be set.
-  - `sourceDutyId` should be set when available.
-  - `workflowArea` should come from the template.
-9. Sets required task fields consistently:
-  - title
-  - description/notes if available
-  - board day
-  - assigned user
-  - recommended user if available from existing logic
-  - status, defaulting to `Not Started`
-  - due time calculated from board date plus template default due time
-  - created-by system/generation user if the schema supports it
-  - `requiresManagerApproval`
-10. Returns a useful summary object from the creation service, such as:
-  - board date
-  - board day id
-  - total candidates considered
-  - created task count
-  - skipped existing task count
-  - created task ids or lightweight created task references
+### Required run lifecycle
 
-## Important scope boundary
+When daily board generation starts:
 
-Do not implement the rest of the generation milestone in this issue.
+1. Create a `GenerationRun` record immediately.
+2. Set:
+  - `boardDate`
+  - `startedAt`
+  - `status = started` or the existing equivalent enum/value
+  - `triggeredBy = manual` or `scheduled`
+  - `triggeredByUserId` when available
+  - initial `summary` if useful, such as requested date and trigger context
 
-Do not build:
+When generation completes successfully:
 
-- DB-024 generation-run started/completed/failed persistence, except for minimal compatibility if existing code already expects a summary return.
-- DB-025 manual generation UI.
-- DB-026 scheduled cron entrypoint.
-- DB-041 or DB-042 activity event schema/event emission.
-- Assignment recommendation matching rules beyond using any already-existing recommendation or input data.
-- Board UI or task detail UI.
+1. Update the same `GenerationRun`.
+2. Set:
+  - `status = completed` or the existing equivalent enum/value
+  - `finishedAt`
+  - `summary` JSON with useful counts and references
 
-If one of those pieces is missing, leave a clear TODO or note for the later roadmap issue instead of expanding this task.
+The success summary should include as many of these as are available from the existing generation flow:
 
-## Implementation guidance
+- `boardDate`
+- `boardDayId`
+- `triggeredBy`
+- `triggeredByUserId`
+- `usersConsidered`
+- `templatesConsidered`
+- `tasksCreated`
+- `tasksSkippedAsDuplicates`
+- `manualTasksPreserved`
+- `tasksAlreadyExisting`
+- `durationMs`
 
-Use the existing architecture patterns.
+When generation fails:
 
-Likely areas to inspect:
+1. Update the same `GenerationRun`.
+2. Set:
+  - `status = failed` or the existing equivalent enum/value
+  - `finishedAt`
+  - `errorMessage`
+  - failure `summary` JSON with safe diagnostic context
 
-- `prisma/schema.prisma`
-- `src/server/services`
-- `src/server/repositories`
-- `src/server/validation`
-- `src/tests`
-- Any generation input loader created in DB-022
+The failure summary should include useful non-sensitive information such as:
 
-Suggested implementation shape:
+- `boardDate`
+- `triggeredBy`
+- `triggeredByUserId`
+- `phase` if the code can identify where the failure occurred
+- `durationMs`
+- `errorName`
+- any reliable partial counts available before failure
 
-1. Add or extend a daily generation service function, for example:
-  ```ts
-  createMissingGeneratedTasksForDate(date, options)
+Do not store full stack traces, secrets, environment values, raw database connection strings, or sensitive customer data in `errorMessage` or `summary`.
 
-  ```
-  or integrate this into the existing generation service if one already exists.
-2. Add repository helpers only if needed, for example:
-  - `getOrCreateBoardDay(date)`
-  - `findExistingGeneratedTaskKeys(boardDayId)`
-  - `createGeneratedTasks(candidates)`
-  - `createGeneratedTasksIdempotently(...)`
-3. Prefer a database transaction around:
-  - board day upsert/find-or-create
-  - existing generated task lookup
-  - missing task creation
-4. Prefer the existing unique constraint from DB-021 as the final protection against duplicate generated tasks.
-5. If Prisma `createMany({ skipDuplicates: true })` is appropriate for the current schema/database, use it. If the app needs created task IDs returned, use a safe alternative pattern:
-  - pre-read existing keys
-  - create missing rows
-  - re-read created rows by deterministic keys
-  - still rely on the database unique constraint for race safety
-6. Handle retry/concurrency carefully:
-  - Re-running the service for the same date should not throw just because tasks already exist.
-  - Concurrent generation attempts should not create duplicates.
-  - Unique constraint conflicts caused by another concurrent run should be treated as “already exists” where practical, not as a fatal generation failure.
-7. Use deterministic duplicate keys. The expected duplicate identity is:
-  ```text
-  boardDayId + sourceTemplateId + assignedUserId
+## Important implementation guidance
 
-  ```
-  If the existing schema uses a different name or compound unique key from DB-021, follow the existing schema.
-8. Do not treat manual tasks as duplicates. Manual tasks may have similar titles, users, or due times, but they must remain separate because they do not have the same generated-template identity.
-9. Do not overwrite existing generated tasks. If a generated task already exists and a template changed later, leave the existing task untouched for that board date.
-10. If the current schema cannot safely represent generated-task duplicate prevention, stop and report the missing prerequisite instead of making a broad schema redesign. Make only the smallest schema adjustment if absolutely necessary and explain why.
+### 1. Do not lose failed run records because of a rolled-back transaction
 
-## Business rules to preserve
+Be careful with transaction boundaries.
 
-- There is one `BoardDay` per business date.
-- Daily generation must be idempotent and safe to retry.
-- Manual tasks must never be deleted or overwritten by daily generation.
-- Generated tasks must retain template references for duplicate prevention.
-- Every task must have a due time.
-- Server-side services are the source of truth.
-- Keep automation deterministic and manager-review friendly.
+If the existing generation service wraps task creation in a transaction, do not create the initial `GenerationRun` inside the same transaction if a later failure would roll it back.
 
-## Tests
+Preferred pattern:
 
-Add focused tests for DB-023 behavior only.
+1. Create the `GenerationRun` before the main generation transaction.
+2. Run the generation workflow.
+3. On success, update the run to completed.
+4. On failure, catch the error and update the run to failed outside the failed transaction.
+5. Re-throw the original error or return the existing failure result shape, depending on the current service pattern.
 
-Do not try to complete the full DB-027 test suite yet, but add enough coverage to prove this issue works.
+A failed generation attempt must leave a durable failed `GenerationRun`.
 
-Test cases should cover:
+### 2. Preserve the DB-023 idempotent task creation behavior
 
-1. First run creates generated tasks for the date.
-2. Second run for the same date creates zero duplicate generated tasks.
-3. Manual tasks on the same board are preserved and are not modified.
-4. Existing generated tasks are not overwritten on retry.
-5. If one generated task already exists and another candidate is missing, the service creates only the missing one.
-6. Due times are populated from the template default due time.
-7. Generated tasks retain `sourceTemplateId`, `sourceDutyId` when available, `sourceType`, and `workflowArea`.
-8. Concurrent or repeated calls do not create duplicate rows, as much as the current test setup can reasonably verify.
+This task must not weaken retry safety.
 
-Use the existing test framework and patterns. If tests cannot be run, explain exactly why.
+Re-running generation for the same date should still:
+
+- Create only missing generated tasks.
+- Skip duplicates.
+- Preserve manual tasks.
+- Avoid overwriting existing generated tasks unless existing code intentionally supports updates.
+- Create a new `GenerationRun` for each attempt, even when tasks are skipped as duplicates.
+
+Multiple generation runs for the same date are allowed and expected. The run history should show each attempt.
+
+### 3. Add generation-run repository/service helpers
+
+Follow the existing architecture and naming conventions. If repository/service patterns already exist, use them.
+
+Add or complete helpers similar to:
+
+- `startGenerationRun(...)`
+- `completeGenerationRun(...)`
+- `failGenerationRun(...)`
+- `listGenerationRunsForDate(...)` or equivalent read helper if needed for manager inspection
+
+Do not create unnecessary abstractions. Keep the implementation minimal and aligned with the current project patterns.
+
+### 4. Manager inspection
+
+DB-024 acceptance criteria says managers can inspect whether a generation attempt succeeded or failed.
+
+Implement the smallest backend read path needed for this stage.
+
+Acceptable options, depending on current project structure:
+
+- A repository/service function that returns generation runs for a date.
+- A manager-only API/server action if generation-related backend routes already exist.
+- If the app has no API surface yet for this area, do not build a UI; add the service/repository read path and tests.
+
+Do not implement the DB-025 manual generation UI or UI feedback in this task unless a tiny API adjustment is necessary to expose the persisted result.
+
+### 5. Keep failure behavior honest
+
+Do not silently swallow generation failures.
+
+If the existing generation function throws on failure, preserve that behavior after recording the failed run.
+
+If the existing generation function returns a typed result, return a failure result that includes the `generationRunId` and safe failure message.
+
+Either way, callers should be able to tell:
+
+- Which run was created.
+- Whether it completed or failed.
+- What safe error message was recorded.
+
+### 6. Use existing schema when possible
+
+`GenerationRun` should already exist from DB-020.
+
+Use the existing fields if present:
+
+- `id`
+- `boardDate`
+- `startedAt`
+- `finishedAt`
+- `status`
+- `triggeredBy`
+- `triggeredByUserId`
+- `summary`
+- `errorMessage`
+
+If any required field is missing, add the smallest Prisma schema/migration change needed to support the architecture. Do not redesign unrelated models.
+
+If the project already has enum names or status casing, follow the existing style instead of inventing a second convention.
 
 ## Constraints
 
-- Keep the change minimal and scoped to DB-023.
-- Follow the existing architecture.
-- Reuse the DB-022 input loading logic.
-- Do not add new dependencies unless clearly necessary.
-- Do not rewrite unrelated files.
-- Do not build UI.
-- Do not build cron/scheduled generation.
-- Do not implement full generation-run failure recording yet.
-- Do not implement activity feed persistence yet.
-- Preserve existing behavior.
-- Add or update tests where appropriate.
-- Keep business logic in server services/repositories, not UI components.
-- Use clear names that future DB-024 through DB-027 work can build on.
+- Keep the change minimal and scoped to DB-024.
+- Do not rewrite the generation service broadly.
+- Do not implement DB-025 UI controls.
+- Do not implement scheduled generation from DB-026.
+- Do not implement activity event schema or activity feed features from DB-041/DB-042 unless they already exist and the current generation service already depends on them.
+- Do not add new dependencies unless absolutely necessary.
+- Preserve existing auth, policy, task creation, template, board, and idempotency behavior.
+- Keep business logic server-side.
+- Use Prisma and existing repository/service patterns.
+- Update docs only if behavior, commands, or architecture details changed.
+- Do not commit `.env`, local databases, generated build output, caches, or secrets.
+
+## Tests to add or update
+
+Add focused tests around generation run recording.
+
+At minimum, cover:
+
+1. Successful generation creates a `GenerationRun` and updates it to completed.
+2. Completed run includes `startedAt`, `finishedAt`, `status`, `triggeredBy`, and useful summary counts.
+3. Failed generation creates a `GenerationRun` and updates it to failed with `finishedAt` and `errorMessage`.
+4. Failed run remains persisted even if task creation/input loading throws.
+5. Retrying generation for the same date creates a separate `GenerationRun` but does not duplicate generated tasks.
+6. Manual tasks remain preserved during retries.
+7. Manager inspection/read helper returns the recent runs for a board date, if a read helper/API is added.
+
+Use the existing test framework and test style. If integration tests require database setup that is not available yet, add the most practical unit/service tests and clearly explain what could not be verified.
+
+## Suggested implementation steps
+
+1. Inspect the current generation service from DB-022 and DB-023.
+2. Inspect the current `GenerationRun` Prisma model and generated client types.
+3. Identify the existing result shape returned by daily generation.
+4. Add small repository/service helpers for generation run lifecycle updates.
+5. Wrap the generation entrypoint with run start/completion/failure recording.
+6. Ensure failure recording happens outside any transaction that may roll back.
+7. Add a manager inspection read helper or route only if it fits the current app structure.
+8. Add or update tests.
+9. Run relevant checks.
+10. Summarize files changed, behavior added, and tests run.
 
 ## Done when
 
-- A server-side idempotent task creation flow exists for daily board generation.
-- A board day is found or created for the requested date.
-- Generated task candidates are created from the existing input loading logic.
-- Only missing generated tasks are inserted.
-- Re-running generation for the same date does not duplicate generated tasks.
-- Manual tasks are not deleted, modified, or treated as duplicates.
-- Existing generated tasks are not overwritten on retry.
-- The service returns a useful creation summary.
-- Focused tests cover duplicate prevention, manual-task preservation, and retry behavior.
-- Relevant checks pass, such as:
-  - `npm test`
-  - `npm run typecheck`
-  - `npm run lint`
-  - `npx prisma validate`
-- If any check cannot be run, summarize what was not verified and why.
-- Summarize files changed, behavior added, and tests run.
+- Every generation attempt creates a durable `GenerationRun`.
+- Successful attempts are marked completed with `finishedAt` and a useful summary.
+- Failed attempts are marked failed with `finishedAt`, safe `errorMessage`, and safe failure summary.
+- A failed generation does not disappear due to a rolled-back transaction.
+- Retrying generation still does not create duplicate generated tasks.
+- Manual tasks are still preserved.
+- Managers/backend read paths can inspect generation run outcomes for a board date.
+- Relevant tests pass.
+- Typecheck and lint pass if available.
+- No unrelated files are changed.
+- Any skipped checks are named with a clear reason.
+- The final response summarizes:
+  - Files changed
+  - Behavior added
+  - Tests/checks run
+  - Any remaining work for DB-025 or DB-026
 

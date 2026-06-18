@@ -1,8 +1,17 @@
-import { Prisma, PrismaClient, type BoardDay, TaskSourceType, TaskStatus } from "@prisma/client";
+import {
+  GenerationRunStatus,
+  Prisma,
+  PrismaClient,
+  TaskSourceType,
+  TaskStatus,
+  type BoardDay,
+  type GenerationRun,
+  type GenerationTriggerType
+} from "@prisma/client";
 
 import { prisma } from "@/server/db/client";
 
-type GenerationTasksDatabase = Pick<PrismaClient, "boardDay" | "task">;
+type GenerationTasksDatabase = Pick<PrismaClient, "boardDay" | "generationRun" | "task">;
 
 const generatedTaskIdentitySelect = {
   id: true,
@@ -22,6 +31,7 @@ const createdGeneratedTaskSelect = {
 } satisfies Prisma.TaskSelect;
 
 export type BoardDayRecord = BoardDay;
+export type GenerationRunRecord = GenerationRun;
 
 export type ExistingGeneratedTaskRecord = Prisma.TaskGetPayload<{
   select: typeof generatedTaskIdentitySelect;
@@ -45,10 +55,36 @@ export type CreateGeneratedTaskInput = {
   workflowArea: CreatedGeneratedTaskRecord["workflowArea"];
 };
 
+export type StartGenerationRunInput = {
+  boardDate: string;
+  startedAt: Date;
+  triggeredBy: GenerationTriggerType;
+  triggeredByUserId: string | null;
+  summary: Prisma.InputJsonValue;
+};
+
+export type CompleteGenerationRunInput = {
+  id: string;
+  finishedAt: Date;
+  summary: Prisma.InputJsonValue;
+};
+
+export type FailGenerationRunInput = {
+  id: string;
+  finishedAt: Date;
+  summary: Prisma.InputJsonValue;
+  errorMessage: string;
+};
+
 export type GenerationTasksRepository = {
   getOrCreateBoardDay(boardDate: string): Promise<BoardDayRecord>;
   listExistingGeneratedTasks(boardDayId: string): Promise<ExistingGeneratedTaskRecord[]>;
+  countManualTasks(boardDayId: string): Promise<number>;
   createGeneratedTask(input: CreateGeneratedTaskInput): Promise<CreatedGeneratedTaskRecord | null>;
+  startGenerationRun(input: StartGenerationRunInput): Promise<GenerationRunRecord>;
+  completeGenerationRun(input: CompleteGenerationRunInput): Promise<GenerationRunRecord>;
+  failGenerationRun(input: FailGenerationRunInput): Promise<GenerationRunRecord>;
+  listGenerationRunsForDate(boardDate: string): Promise<GenerationRunRecord[]>;
 };
 
 function toBoardDateValue(boardDate: string) {
@@ -82,6 +118,17 @@ export function createGenerationTasksRepository(
       });
     },
 
+    async countManualTasks(boardDayId) {
+      return database.task.count({
+        where: {
+          boardDayId,
+          sourceType: {
+            in: [TaskSourceType.MANAGER, TaskSourceType.STAFF]
+          }
+        }
+      });
+    },
+
     async createGeneratedTask(input) {
       try {
         return await database.task.create({
@@ -110,6 +157,56 @@ export function createGenerationTasksRepository(
 
         throw error;
       }
+    },
+
+    async startGenerationRun(input) {
+      return database.generationRun.create({
+        data: {
+          boardDate: toBoardDateValue(input.boardDate),
+          startedAt: input.startedAt,
+          status: GenerationRunStatus.RUNNING,
+          triggeredBy: input.triggeredBy,
+          triggeredByUserId: input.triggeredByUserId,
+          summary: input.summary
+        }
+      });
+    },
+
+    async completeGenerationRun(input) {
+      return database.generationRun.update({
+        where: {
+          id: input.id
+        },
+        data: {
+          finishedAt: input.finishedAt,
+          status: GenerationRunStatus.SUCCEEDED,
+          summary: input.summary,
+          errorMessage: null
+        }
+      });
+    },
+
+    async failGenerationRun(input) {
+      return database.generationRun.update({
+        where: {
+          id: input.id
+        },
+        data: {
+          finishedAt: input.finishedAt,
+          status: GenerationRunStatus.FAILED,
+          summary: input.summary,
+          errorMessage: input.errorMessage
+        }
+      });
+    },
+
+    async listGenerationRunsForDate(boardDate) {
+      return database.generationRun.findMany({
+        where: {
+          boardDate: toBoardDateValue(boardDate)
+        },
+        orderBy: [{ startedAt: "desc" }, { id: "desc" }]
+      });
     }
   };
 }
