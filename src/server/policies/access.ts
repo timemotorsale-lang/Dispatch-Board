@@ -50,6 +50,10 @@ export function canManageSettings(user: AuthenticatedUser | null) {
   return isManager(user);
 }
 
+export function canManageTaskTemplates(user: AuthenticatedUser | null) {
+  return isManager(user);
+}
+
 export function canReviewWorkflows(user: AuthenticatedUser | null) {
   return isManager(user);
 }

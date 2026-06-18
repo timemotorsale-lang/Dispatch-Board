@@ -5,6 +5,7 @@ import {
   canManageDuties,
   canManageRoles,
   canManageSettings,
+  canManageTaskTemplates,
   canManageUsers,
   canReviewWorkflows,
   canUpdateAssignedWork,
@@ -25,6 +26,7 @@ describe("permission policies", () => {
     expect(canManageDuties(manager)).toBe(true);
     expect(canManageAssignments(manager)).toBe(true);
     expect(canManageSettings(manager)).toBe(true);
+    expect(canManageTaskTemplates(manager)).toBe(true);
     expect(canReviewWorkflows(manager)).toBe(true);
   });
 
@@ -38,6 +40,7 @@ describe("permission policies", () => {
     expect(canManageDuties(staffUser)).toBe(false);
     expect(canManageAssignments(staffUser)).toBe(false);
     expect(canManageSettings(staffUser)).toBe(false);
+    expect(canManageTaskTemplates(staffUser)).toBe(false);
     expect(canReviewWorkflows(staffUser)).toBe(false);
   });
 
