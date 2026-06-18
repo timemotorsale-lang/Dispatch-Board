@@ -1,4 +1,5 @@
 import {
+  BusinessDay,
   BoardGenerationStatus,
   GenerationRunStatus,
   GenerationTriggerType,
@@ -11,7 +12,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   getLatestGenerationStatusForDate,
-  triggerManualBoardGeneration
+  triggerManualBoardGeneration,
+  triggerScheduledBoardGeneration
 } from "@/server/services/board-generation";
 import type { GenerationTasksRepository } from "@/server/services/generation-tasks";
 import type { GenerationInput } from "@/server/services/generation-inputs";
@@ -110,6 +112,28 @@ function createNowSequence(...timestamps: string[]) {
     index += 1;
 
     return new Date(timestamp);
+  };
+}
+
+function createGenerationSettings(
+  overrides: Partial<{
+    dailyGenerationTime: string;
+    timezone: string;
+    businessDays: BusinessDay[];
+  }> = {}
+) {
+  return {
+    dailyGenerationTime: "09:00",
+    timezone: "America/Chicago",
+    businessDays: [
+      BusinessDay.MONDAY,
+      BusinessDay.TUESDAY,
+      BusinessDay.WEDNESDAY,
+      BusinessDay.THURSDAY,
+      BusinessDay.FRIDAY,
+      BusinessDay.SATURDAY
+    ],
+    ...overrides
   };
 }
 
@@ -367,5 +391,112 @@ describe("board generation service", () => {
       triggeredBy: "manual",
       errorMessage: "Template insert failed."
     });
+  });
+
+  it("runs scheduled generation through the shared workflow using the configured timezone and records a scheduled run", async () => {
+    const harness = createGenerationTasksRepositoryHarness();
+
+    const result = await triggerScheduledBoardGeneration({
+      repository: harness.repository,
+      loadGenerationInputs: harness.loadGenerationInputs,
+      getGenerationSettings: async () =>
+        createGenerationSettings({
+          timezone: "America/Chicago"
+        }),
+      now: createNowSequence("2026-06-17T15:00:00.000Z", "2026-06-17T15:00:04.000Z")
+    });
+
+    expect(result).toMatchObject({
+      status: "success",
+      boardDate: "2026-06-17",
+      generationRunId: "generation-run-1",
+      createdTaskCount: 1,
+      skippedExistingTaskCount: 0,
+      errorMessage: null,
+      summary: "1 tasks created • 0 duplicates skipped • 0 manual tasks preserved"
+    });
+    expect(result.latestGeneration).toMatchObject({
+      generationRunId: "generation-run-1",
+      status: "success",
+      triggeredBy: "scheduled",
+      createdTaskCount: 1
+    });
+    expect(harness.readGenerationRuns()).toEqual([
+      expect.objectContaining({
+        id: "generation-run-1",
+        status: GenerationRunStatus.SUCCEEDED,
+        triggeredBy: GenerationTriggerType.SCHEDULED,
+        triggeredByUserId: null,
+        summary: expect.objectContaining({
+          triggeredBy: "scheduled",
+          triggeredByUserId: null
+        })
+      })
+    ]);
+  });
+
+  it("skips scheduled generation on a non-business day without creating a run", async () => {
+    const harness = createGenerationTasksRepositoryHarness();
+
+    const result = await triggerScheduledBoardGeneration({
+      repository: harness.repository,
+      loadGenerationInputs: harness.loadGenerationInputs,
+      getGenerationSettings: async () =>
+        createGenerationSettings({
+          businessDays: [
+            BusinessDay.MONDAY,
+            BusinessDay.TUESDAY,
+            BusinessDay.WEDNESDAY,
+            BusinessDay.THURSDAY,
+            BusinessDay.FRIDAY,
+            BusinessDay.SATURDAY
+          ]
+        }),
+      now: createNowSequence("2026-06-21T15:00:00.000Z")
+    });
+
+    expect(result).toEqual({
+      status: "skipped",
+      boardDate: "2026-06-21",
+      generationRunId: null,
+      createdTaskCount: 0,
+      skippedExistingTaskCount: 0,
+      alreadyExistingTaskCount: null,
+      summary: "Skipped scheduled generation because sunday is not configured as a business day.",
+      errorMessage: null,
+      latestGeneration: null
+    });
+    expect(harness.readGenerationRuns()).toHaveLength(0);
+  });
+
+  it("keeps manual retries working after a scheduled run creates the board for that date", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const harness = createGenerationTasksRepositoryHarness();
+
+    const scheduledResult = await triggerScheduledBoardGeneration({
+      repository: harness.repository,
+      loadGenerationInputs: harness.loadGenerationInputs,
+      getGenerationSettings: async () => createGenerationSettings(),
+      now: createNowSequence("2026-06-17T15:00:00.000Z", "2026-06-17T15:00:03.000Z")
+    });
+    const manualResult = await triggerManualBoardGeneration(manager, "2026-06-17", {
+      repository: harness.repository,
+      loadGenerationInputs: harness.loadGenerationInputs,
+      now: createNowSequence("2026-06-17T16:00:00.000Z", "2026-06-17T16:00:02.000Z")
+    });
+
+    expect(scheduledResult.status).toBe("success");
+    expect(manualResult).toMatchObject({
+      status: "success",
+      boardDate: "2026-06-17",
+      createdTaskCount: 0,
+      skippedExistingTaskCount: 1
+    });
+    expect(harness.readGenerationRuns()).toHaveLength(2);
+    expect(harness.readGenerationRuns().map((run) => run.triggeredBy)).toEqual([
+      GenerationTriggerType.SCHEDULED,
+      GenerationTriggerType.MANUAL
+    ]);
   });
 });

@@ -1,181 +1,223 @@
-# Task: DB-025 Add manual generation trigger and UI feedback
+# Task: DB-026 Add scheduled generation entrypoint & DB-027 Add generation service tests
 
-Read `docs/AGENTS.md`, `docs/ROADMAP.md`, `docs/ARCHITECTURE.md`, `docs/DEFAULT_PROMPT.md`, and the relevant existing generation, board, auth, policy, and UI files first.
+Read `docs/AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/DEFAULT_PROMPT.md`, and the relevant generation, settings, board, API, and test files first.
 
-Also inspect `UI_REFERENCE.png` before changing UI code. If the image is stored under `docs/images/UI_REFERENCE.png`, use that path. If it is elsewhere in the repo, locate it and use it as visual guidance.
+This is a follow-through task after the daily generation core and manual generation trigger work. Before editing, inspect the existing implementation for DB-022 through DB-025 and identify:
+
+1. The current daily generation service entrypoint.
+2. The current manual generation route/action from DB-025.
+3. The current `GenerationRun` recording logic.
+4. The current test framework and test data helpers.
+5. Any existing deployment/platform cron conventions.
+
+Do not make code changes until you understand those pieces.
 
 ## Goal
 
-Implement DB-025: add a manager-only manual daily board generation trigger and clear UI feedback for success, failure, loading, and latest generation status.
+Implement:
 
-A manager should be able to trigger generation from the app UI, see that generation is running, see the result clearly, and retry safely if generation failed.
+- DB-026: a scheduled generation entrypoint that can be called by platform cron or a scheduled job.
+- DB-027: automated generation service tests that protect the core generation workflow from regressions.
 
-This task should connect to the existing idempotent generation flow and `GenerationRun` recording from earlier DB-022 through DB-024 work. Do not create a separate or duplicate generation path.
+The scheduled entrypoint must call the same idempotent generation service used by the manual generation trigger. Do not create a second generation path.
 
 ## Current behavior
 
-The prior daily generation core should already support:
+The app already has or should now have:
 
-- Loading generation inputs.
-- Creating only missing generated tasks.
-- Preserving manual tasks.
-- Recording generation runs and failure outcomes.
+- Settings for daily generation time, timezone, and business days.
+- Task templates and duty/role-based generation inputs.
+- BoardDay, Task, and GenerationRun persistence.
+- Idempotent task creation.
+- Manual manager-triggered generation with UI feedback.
+- Generation run recording for success and failure outcomes.
 
-However, the app does not yet have a manager-facing UI control for manually triggering generation and showing the result clearly.
+However, scheduled generation is not yet exposed as a safe cron/scheduled entrypoint, and the generation service does not yet have sufficient tests covering the most important generation scenarios.
 
 ## Desired behavior
 
-Add a manual generation experience with these behaviors:
+### DB-026 Scheduled generation entrypoint
 
-1. Manager-only generation action
-  - Add a manager-only control to trigger daily board generation.
-  - The control should generate the board for the currently selected board date, defaulting to today.
-  - Staff users must not see or be able to use this control.
-  - The server must enforce manager-only access even if a staff user calls the endpoint manually.
-2. API / server action behavior
-  - Reuse the existing daily generation service.
-  - Use the same idempotent generation logic from DB-023.
-  - Use the existing `GenerationRun` recording behavior from DB-024.
-  - Return a useful response containing:
-    - status: success or failed
-    - board date
-    - number of tasks created, skipped, or already existing if available
-    - generation run id if available
-    - summary if available
-    - error message if failed
-  - Do not silently swallow errors.
-3. UI loading state
-  - When the manager clicks the manual generation control, show that generation is in progress.
-  - Disable repeated clicks while the request is pending.
-  - Use clear button text such as `Generating...`.
-  - Prevent double-click duplicate requests from creating duplicate tasks.
-4. UI success state
-  - After success, show a clear confirmation message.
-  - Include a short summary such as:
-    - `Board generated`
-    - `X tasks created`
-    - `Y duplicates skipped`
-    - `Last generated at [time]`
-  - Refresh or revalidate the current board view so newly generated tasks appear without requiring a full manual page refresh.
-5. UI failure state
-  - If generation fails, show an honest error state.
-  - Include a concise failure message from the server when safe.
-  - Include a retry option.
-  - Do not show success if the generation run failed.
-  - If there is a latest failed `GenerationRun`, surface it clearly enough for the manager to understand that the board may not be current.
-6. Latest generation status
-  - Show the latest generation status for the selected board date if the data already exists.
-  - At minimum, display:
-    - last generation status
-    - triggered manually or scheduled if available
-    - last generated/attempted time
-    - task summary or failure message if available
-  - Keep this compact. It should support the manager without cluttering the board.
-7. Activity/event behavior
-  - If activity event infrastructure already exists, record or display an appropriate event for manual generation.
-  - If activity event infrastructure does not exist yet, do not build the full activity system in this task. Keep the implementation focused on DB-025 and rely on `GenerationRun` feedback for now.
+Add a scheduled generation entrypoint that:
 
-## Visual guidance from mockups
+1. Can be called by the app’s deployment scheduler or platform cron.
+2. Uses the same generation service path as the manual generation trigger.
+3. Resolves the board date using the configured timezone.
+4. Respects configured business days if that behavior already exists.
+5. Runs generation for the intended business date.
+6. Records `GenerationRun.triggeredBy = scheduled`.
+7. Does not require or impersonate a manager user.
+8. Uses `triggeredByUserId = null` or the existing system-user convention if one already exists.
+9. Returns a clear structured response with:
+  - board date
+  - status
+  - run id if available
+  - tasks created
+  - tasks skipped or duplicates avoided
+  - failure message when applicable
+10. Is safe to retry without creating duplicate generated tasks.
+11. Does not delete, overwrite, or mutate manual tasks.
+12. Records failure outcomes through the existing `GenerationRun` failure logic.
 
-Use `UI_REFERENCE.png` as the visual direction for this implementation.
+If the route is publicly reachable, protect it with a server-only secret such as `CRON_SECRET` or the project’s existing equivalent. Use the existing project convention if one already exists.
 
-Match the spirit of the mockup, not necessarily every pixel:
+Suggested route shape, unless the app already has a better convention:
 
-- Preserve the app name: `Time Motor Sales Dispatch Board`.
-- Keep the left sidebar structure and clean enterprise dashboard feel.
-- Place the primary manual generation action in the top action bar near the date selector, similar to the mockup’s blue `Generate Board` button.
-- Keep `Create Task` as a separate action if it already exists or is represented in the current UI.
-- Use a clean, high-contrast primary button for `Generate Board`.
-- Pair the button with the selected board date so it is obvious which date will be generated.
-- Use compact feedback near the button or in a nearby status card, not a large disruptive modal unless existing UI patterns already use modals.
-- Preserve the KPI/card dashboard style where present.
-- Keep the main board table as the center of attention.
-- Preserve the right-side rail concept for attention items, appointments, or activity if those surfaces already exist.
-- If the right rail exists, generation status can appear as a compact card or recent system activity item.
-- Avoid clutter. The generation control should feel like a manager command button, not a full settings screen.
-- Ensure the layout remains usable on desktop, tablet, and mobile.
-- On mobile, the generation button can collapse into a manager actions menu if space is limited.
-- Do not introduce horizontal overflow.
+```text
+GET or POST /api/cron/generate-board
+
+```
+
+or:
+
+```text
+src/app/api/cron/generate-board/route.ts
+
+```
+
+Use the project’s existing Next.js route/action style. Do not introduce a new server framework.
+
+If deployment platform config already exists, wire the scheduled entrypoint into that config. If no deployment platform has been chosen yet, do not invent a large deployment setup. Add only the secured entrypoint and update setup/docs with a short note explaining how a platform cron should call it.
+
+### DB-027 Generation service tests
+
+Add or expand tests for the generation service and scheduled entrypoint.
+
+Cover at minimum:
+
+1. Custom duties generate the expected daily tasks.
+2. Role defaults are used when a user has no custom duties.
+3. Re-running generation for the same date does not duplicate generated tasks.
+4. Manual tasks on the same board date are preserved.
+5. Generated tasks retain template references for duplicate prevention.
+6. Successful generation records a completed `GenerationRun`.
+7. Failed generation records a failed `GenerationRun` with an error message.
+8. Manual and scheduled generation both call the same core generation service.
+9. Scheduled generation records `triggeredBy = scheduled`.
+10. The scheduled endpoint rejects unauthorized calls if a cron secret is required.
+11. The scheduled endpoint returns a clear success or failure response.
+12. Existing manual generation behavior from DB-025 still works.
+
+Use the existing test runner and test patterns. Do not add a new test framework unless the repository has no viable test setup and the change is necessary.
 
 ## Implementation guidance
 
-Suggested approach:
+Prefer this structure unless the existing codebase already has stronger conventions:
 
-1. Inspect current implementation
-  - Locate the existing generation service from DB-022/DB-023.
-  - Locate the `GenerationRun` model/repository/service from DB-024.
-  - Locate manager policy helpers from DB-014.
-  - Locate current board page/layout/components.
-  - Locate current API/server-action patterns.
-2. Add or complete the manual trigger route/action
-  - Prefer the architecture route if it already exists: `POST /api/board/generate`.
-  - If the project uses server actions instead of API routes, follow the existing pattern.
-  - Validate the requested date.
-  - Require an authenticated manager.
-  - Call the existing generation service with `triggeredBy = manual` and the current manager user id.
-  - Return structured JSON or action state for the UI.
-3. Add UI control
-  - Add the `Generate Board` control to the manager-facing board header/top action area.
-  - Use the selected board date.
-  - Show loading, success, and error states.
-  - Disable the button while pending.
-  - Revalidate or refresh the board data after success.
-4. Add latest generation status display
-  - Fetch latest `GenerationRun` for the current board date if available.
-  - Display compact manager-facing status.
-  - Keep it readable and unobtrusive.
-5. Tests
-  - Add or update tests for:
-    - manager can trigger generation
-    - staff cannot trigger generation
-    - manual retry does not duplicate generated tasks
-    - failed generation returns a visible failure state or structured error
-    - UI disables repeated clicks while generation is pending if UI testing infrastructure exists
-  - If full browser testing is not practical yet, add unit/integration coverage around the server action/API and document the manual UI test steps.
+```text
+src/server/services/
+  daily-generation.ts
+  generation-runs.ts
+
+src/app/api/board/generate/
+  route.ts
+
+src/app/api/cron/generate-board/
+  route.ts
+
+src/tests/unit/
+  daily-generation.test.ts
+
+src/tests/integration/
+  scheduled-generation.test.ts
+
+```
+
+Keep the core generation workflow in a server service, not in route handlers.
+
+The manual route and scheduled route should both call the same function, for example:
+
+```ts
+generateDailyBoard({
+  boardDate,
+  triggeredBy: "manual" | "scheduled",
+  triggeredByUserId?: string | null
+})
+
+```
+
+The exact function name can follow the existing code.
+
+The scheduled route should be thin:
+
+1. Validate cron authorization if needed.
+2. Resolve date/timezone/settings.
+3. Call the existing generation service.
+4. Return structured JSON.
+5. Let the service handle idempotency and generation run recording.
+
+Do not duplicate task creation logic inside the route.
+
+## Visual guidance from `UI_REFERENCE.png`
+
+This task is mostly backend and tests. Do not redesign the board UI.
+
+If any DB-025 generation feedback UI must be touched because of this task, preserve the visual direction from `UI_REFERENCE.png`:
+
+- Keep the top action area clean and compact.
+- Preserve the primary “Generate Board” control pattern.
+- Keep generation status feedback visible but not visually loud.
+- Use concise status language like “Generated”, “Failed”, “Retry available”, or “Scheduled”.
+- Do not clutter the dashboard with cron/debug details.
+- Keep the right-side activity/feed pattern clean if scheduled generation creates visible system events.
+- Preserve the enterprise-level spacing, compact KPI cards, left sidebar, top controls, and right activity rail style.
+- Avoid horizontal overflow and avoid enlarging controls unnecessarily.
+
+Do not add a new cron management screen unless the existing settings UI already has a natural place for a small scheduled generation status note.
 
 ## Constraints
 
-- Keep the change minimal and scoped to DB-025.
-- Do not implement scheduled generation; that belongs to DB-026.
-- Do not build the full activity feed if DB-041 through DB-044 are not implemented yet.
-- Do not rewrite unrelated board UI, task UI, auth, schema, or generation logic.
-- Do not create a second generation service.
-- Do not bypass server-side permission checks.
-- Do not make staff-only users able to trigger generation.
-- Do not delete or overwrite manual tasks during generation.
-- Do not add new dependencies unless absolutely necessary.
-- Preserve existing tests and behavior.
-- Follow existing project styling and component patterns.
-- Keep the UI clean, responsive, and aligned with `UI_REFERENCE.png`.
+- Keep the change minimal and scoped to DB-026 and DB-027.
+- Do not rewrite unrelated generation, board, settings, auth, or UI code.
+- Do not add new dependencies unless necessary.
+- Do not introduce live third-party integrations.
+- Do not build advanced scheduling management UI.
+- Do not create a separate generation implementation for cron.
+- Do not bypass existing server-side policies or validation.
+- Do not expose an unauthenticated public generation endpoint without secret protection.
+- Preserve DB-025 manual generation behavior.
+- Preserve idempotency and duplicate-prevention guarantees.
+- Preserve manual tasks.
+- Preserve existing tests.
+- Add tests for new behavior and important existing generation behavior.
+- Update docs only where setup, cron usage, environment variables, or architecture behavior changed.
 
 ## Edge cases to handle
 
-- Manager clicks `Generate Board` repeatedly.
-- Generation succeeds but creates zero new tasks because the board was already generated.
-- Generation partially or fully fails and records a failed run.
-- Selected date is missing or invalid.
-- Staff user attempts to access the trigger directly.
-- Board date already exists.
-- Manual tasks already exist on the board.
-- Slow request / pending state.
-- Page refresh after a generation attempt.
+- Scheduled endpoint called twice for the same date.
+- Scheduled endpoint called after manual generation already ran.
+- Manual generation called after scheduled generation already ran.
+- No active users.
+- User has custom duties.
+- User has no custom duties but has role defaults.
+- Template inactive.
+- Generation service throws midway.
+- Missing or invalid cron secret.
+- Missing settings or timezone fallback.
+- Non-business day behavior if business-day logic exists.
+- Existing manual task on the board date.
+- Existing generated task with the same board, template, and assigned user.
 
 ## Done when
 
-- A manager can trigger board generation manually from the UI.
-- Staff cannot see or use the manual generation control.
-- Server-side authorization rejects non-manager generation attempts.
-- The UI shows loading, success, and failure feedback clearly.
-- The UI shows latest generation status for the selected board date when available.
-- Successful generation refreshes or revalidates the board data.
-- Re-running generation for the same date does not duplicate generated tasks.
-- Failed generation is visible and retryable.
-- The visual placement and styling follow `UI_REFERENCE.png` closely enough to preserve the clean enterprise dispatch-board feel.
-- Relevant tests pass, or any skipped tests are explained clearly.
-- Lint/typecheck/test commands are run if available.
-- The final response summarizes:
+- A scheduled/cron-safe entrypoint exists.
+- The scheduled entrypoint calls the same idempotent generation service as manual generation.
+- Scheduled generation records `GenerationRun.triggeredBy = scheduled`.
+- Scheduled generation can be retried safely.
+- Manual tasks are not deleted or overwritten.
+- Duplicate generated tasks are not created.
+- Failures record failed generation runs.
+- Unauthorized scheduled calls are rejected if the route is protected by a cron secret.
+- Generation service tests cover custom duties, role defaults, duplicate prevention, manual-task preservation, and failure recording.
+- Tests also cover scheduled entrypoint behavior where practical.
+- Existing manual generation behavior still works.
+- Relevant unit/integration tests pass.
+- Typecheck and lint pass if available.
+- Docs are updated if a cron route, env variable, or setup instruction was added.
+- Summarize:
   - files changed
-  - behavior added
+  - scheduled entrypoint added
+  - tests added
   - tests/checks run
-  - any remaining limitations or follow-up work
+  - any behavior intentionally left for a later roadmap item
 

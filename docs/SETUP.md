@@ -18,11 +18,13 @@ npm install
 
 1. Copy `.env.example` to `.env`.
 2. Update `DATABASE_URL` for your local PostgreSQL instance.
+3. Set `CRON_SECRET` to a long random value before exposing the scheduled generation route.
 
 Example:
 
 ```env
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/dispatch_board?schema=public"
+CRON_SECRET="replace-with-a-long-random-secret"
 ```
 
 ## Database setup
@@ -83,6 +85,17 @@ npm run dev
 ```
 
 The home page should render the current identity milestone overview, and `board`, `tasks`, and `settings` should redirect to `login` until you sign in with a seeded account.
+
+## Scheduled generation
+
+The app now exposes a secured scheduled-generation endpoint at `/api/cron/generate-board`.
+
+Call it with either:
+
+- `Authorization: Bearer <CRON_SECRET>`
+- `x-cron-secret: <CRON_SECRET>`
+
+Use your deployment platform's scheduler or cron job to call that endpoint at the desired local time. The route resolves the board date from the configured app timezone and skips non-business days that are not enabled in settings.
 
 ## Quality commands
 
