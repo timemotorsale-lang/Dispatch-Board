@@ -195,7 +195,7 @@ model TaskTemplate {
 
 model BoardDay {
   id                String                @id @default(cuid())
-  date              DateTime              @db.Date
+  date              DateTime              @unique @db.Date
   generationStatus  BoardGenerationStatus @default(NOT_STARTED)
   generatedAt       DateTime?
   generatedByUserId String?
@@ -235,6 +235,11 @@ model Task {
   reviewedByUser          User?          @relation("TaskReviewedByUser", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
   sourceTemplate          TaskTemplate?  @relation("TaskSourceTemplate", fields: [sourceTemplateId], references: [id], onDelete: SetNull)
   sourceDuty              Duty?          @relation("TaskSourceDuty", fields: [sourceDutyId], references: [id], onDelete: SetNull)
+
+  @@unique([boardDayId, sourceTemplateId, assignedUserId])
+  @@index([boardDayId, status])
+  @@index([boardDayId, assignedUserId])
+  @@index([boardDayId, workflowArea])
 }
 
 model GenerationRun {
@@ -248,4 +253,6 @@ model GenerationRun {
   summary           Json
   errorMessage      String?
   triggeredByUser   User?                 @relation("GenerationRunTriggeredByUser", fields: [triggeredByUserId], references: [id], onDelete: SetNull)
+
+  @@index([boardDate, startedAt])
 }
