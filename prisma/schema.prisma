@@ -7,6 +7,61 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum BusinessDay {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum WorkflowArea {
+  INVENTORY
+  ADVERTISING
+  MARKETING
+  SALES
+  ADMIN
+  COLLECTIONS
+  SHOP
+  GENERAL_MANAGER
+}
+
+enum BoardGenerationStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  GENERATED
+  FAILED
+}
+
+enum TaskStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  BLOCKED
+  WAITING_ON_PARTS
+  WAITING_ON_APPROVAL
+  READY_FOR_REVIEW
+  COMPLETED
+}
+
+enum TaskSourceType {
+  TEMPLATE
+  MANAGER
+  STAFF
+}
+
+enum GenerationRunStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum GenerationTriggerType {
+  SCHEDULED
+  MANUAL
+}
+
 // Placeholder model for the v0.1.0 foundation migration.
 // Domain models are intentionally deferred to later milestones.
 model BootstrapMarker {
@@ -17,16 +72,22 @@ model BootstrapMarker {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  name         String
-  email        String    @unique
-  passwordHash String
-  isActive     Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  sessions     Session[]
-  userRoles    UserRole[]
-  userDuties   UserDuty[]
+  id                      String          @id @default(cuid())
+  name                    String
+  email                   String          @unique
+  passwordHash            String
+  isActive                Boolean         @default(true)
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  sessions                Session[]
+  userRoles               UserRole[]
+  userDuties              UserDuty[]
+  generatedBoardDays      BoardDay[]      @relation("BoardDayGeneratedByUser")
+  assignedTasks           Task[]          @relation("TaskAssignedUser")
+  recommendedTasks        Task[]          @relation("TaskRecommendedUser")
+  createdTasks            Task[]          @relation("TaskCreatedByUser")
+  reviewedTasks           Task[]          @relation("TaskReviewedByUser")
+  triggeredGenerationRuns GenerationRun[] @relation("GenerationRunTriggeredByUser")
 
   @@index([isActive])
 }
@@ -45,24 +106,27 @@ model Session {
 }
 
 model Role {
-  id          String     @id @default(cuid())
-  name        String     @unique
+  id          String         @id @default(cuid())
+  name        String         @unique
   description String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
   userRoles   UserRole[]
   roleDuties  RoleDuty[]
+  templates   TaskTemplate[]
 }
 
 model Duty {
-  id           String     @id @default(cuid())
-  name         String     @unique
+  id           String         @id @default(cuid())
+  name         String         @unique
   workflowArea String
   description  String?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
   userDuties   UserDuty[]
   roleDuties   RoleDuty[]
+  templates    TaskTemplate[]
+  sourceTasks  Task[]         @relation("TaskSourceDuty")
 }
 
 model UserRole {
@@ -98,3 +162,97 @@ model RoleDuty {
   @@index([dutyId])
 }
 
+model AppSetting {
+  id                  String        @id
+  dailyGenerationTime String
+  timezone            String
+  businessDays        BusinessDay[]
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+}
+
+model TaskTemplate {
+  id                      String       @id @default(cuid())
+  title                   String
+  description             String?
+  workflowArea            WorkflowArea
+  defaultDueTime          String
+  requiresManagerApproval Boolean      @default(false)
+  isActive                Boolean      @default(true)
+  roleId                  String?
+  dutyId                  String?
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+  role                    Role?        @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  duty                    Duty?        @relation(fields: [dutyId], references: [id], onDelete: SetNull)
+  sourceTasks             Task[]       @relation("TaskSourceTemplate")
+
+  @@index([workflowArea])
+  @@index([roleId])
+  @@index([dutyId])
+  @@index([isActive])
+}
+
+model BoardDay {
+  id                String                @id @default(cuid())
+  date              DateTime              @unique @db.Date
+  generationStatus  BoardGenerationStatus @default(NOT_STARTED)
+  generatedAt       DateTime?
+  generatedByUserId String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  generatedByUser   User?                 @relation("BoardDayGeneratedByUser", fields: [generatedByUserId], references: [id], onDelete: SetNull)
+  tasks             Task[]
+}
+
+model Task {
+  id                      String         @id @default(cuid())
+  boardDayId              String
+  title                   String
+  description             String         @default("")
+  assignedUserId          String
+  recommendedUserId       String?
+  status                  TaskStatus     @default(NOT_STARTED)
+  dueAt                   DateTime
+  createdByUserId         String?
+  requiresManagerApproval Boolean        @default(false)
+  vehicleReference        String?
+  customerReference       String?
+  sourceType              TaskSourceType
+  sourceTemplateId        String?
+  sourceDutyId            String?
+  workflowArea            WorkflowArea
+  blockerReason           String?
+  readyForReviewAt        DateTime?
+  completedAt             DateTime?
+  reviewedByUserId        String?
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+  boardDay                BoardDay       @relation(fields: [boardDayId], references: [id], onDelete: Cascade)
+  assignedUser            User           @relation("TaskAssignedUser", fields: [assignedUserId], references: [id], onDelete: Restrict)
+  recommendedUser         User?          @relation("TaskRecommendedUser", fields: [recommendedUserId], references: [id], onDelete: SetNull)
+  createdByUser           User?          @relation("TaskCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  reviewedByUser          User?          @relation("TaskReviewedByUser", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  sourceTemplate          TaskTemplate?  @relation("TaskSourceTemplate", fields: [sourceTemplateId], references: [id], onDelete: SetNull)
+  sourceDuty              Duty?          @relation("TaskSourceDuty", fields: [sourceDutyId], references: [id], onDelete: SetNull)
+
+  @@unique([boardDayId, sourceTemplateId, assignedUserId])
+  @@index([boardDayId, status])
+  @@index([boardDayId, assignedUserId])
+  @@index([boardDayId, workflowArea])
+}
+
+model GenerationRun {
+  id                String                @id @default(cuid())
+  boardDate         DateTime              @db.Date
+  startedAt         DateTime              @default(now())
+  finishedAt        DateTime?
+  status            GenerationRunStatus   @default(RUNNING)
+  triggeredBy       GenerationTriggerType
+  triggeredByUserId String?
+  summary           Json
+  errorMessage      String?
+  triggeredByUser   User?                 @relation("GenerationRunTriggeredByUser", fields: [triggeredByUserId], references: [id], onDelete: SetNull)
+
+  @@index([boardDate, startedAt])
+}

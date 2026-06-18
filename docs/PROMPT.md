@@ -1,302 +1,223 @@
-# Task: Implement v0.2.0 — Identity, Roles, and Permissions
+# Task: DB-026 Add scheduled generation entrypoint & DB-027 Add generation service tests
 
-Read `docs/AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/DEFAULT_PROMPT.md`, and relevant existing source files first.
+Read `docs/AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/DEFAULT_PROMPT.md`, and the relevant generation, settings, board, API, and test files first.
+
+This is a follow-through task after the daily generation core and manual generation trigger work. Before editing, inspect the existing implementation for DB-022 through DB-025 and identify:
+
+1. The current daily generation service entrypoint.
+2. The current manual generation route/action from DB-025.
+3. The current `GenerationRun` recording logic.
+4. The current test framework and test data helpers.
+5. Any existing deployment/platform cron conventions.
+
+Do not make code changes until you understand those pieces.
 
 ## Goal
 
-Implement **v0.2.0 — Identity, roles, and permissions** for the Time Motor Sales Dispatch Board.
+Implement:
 
-This milestone should create the foundation that all later workflows depend on:
+- DB-026: a scheduled generation entrypoint that can be called by platform cron or a scheduled job.
+- DB-027: automated generation service tests that protect the core generation workflow from regressions.
 
-* User modeling
-* Session/auth persistence
-* Login/logout
-* Login UI
-* Protected routes
-* Role modeling
-* Duty modeling
-* User-role assignments
-* User-duty assignments
-* Server-side permission helpers
-* Auth and permission tests
-
-This work corresponds to roadmap items **DB-008 through DB-015**.
+The scheduled entrypoint must call the same idempotent generation service used by the manual generation trigger. Do not create a second generation path.
 
 ## Current behavior
 
-The project foundation should already exist from v0.1.0:
+The app already has or should now have:
 
-* Next.js + TypeScript app scaffold
-* Prisma/PostgreSQL baseline
-* Repository structure
-* App shell / protected-app placeholder
-* Basic lint, typecheck, and test setup
-* Setup docs
+- Settings for daily generation time, timezone, and business days.
+- Task templates and duty/role-based generation inputs.
+- BoardDay, Task, and GenerationRun persistence.
+- Idempotent task creation.
+- Manual manager-triggered generation with UI feedback.
+- Generation run recording for success and failure outcomes.
 
-There is not yet a complete identity, role, duty, or permission system.
-
-If the v0.1.0 foundation is missing or incomplete, stop and report what prerequisite is missing before implementing v0.2.0.
+However, scheduled generation is not yet exposed as a safe cron/scheduled entrypoint, and the generation service does not yet have sufficient tests covering the most important generation scenarios.
 
 ## Desired behavior
 
-After this milestone:
+### DB-026 Scheduled generation entrypoint
 
-1. Seeded users can log in and log out.
-2. Private app routes are protected from unauthenticated access.
-3. Users have one or more roles.
-4. Users can have direct duties.
-5. Roles can have default duties, or an equivalent structure that supports role-based default duties later.
-6. Day-one roles exist in seed data:
+Add a scheduled generation entrypoint that:
 
-   * General Manager
-   * Inventory Manager
-   * Mechanic
-   * Salesperson
-   * Office Manager
-   * Marketing/Advertisement Manager
-   * Collections
-7. Server-side policy helpers exist for manager-only and staff self-service actions.
-8. Permission rules are reusable by later APIs and services.
-9. Tests cover login basics, route protection, and core manager/staff permission behavior.
+1. Can be called by the app’s deployment scheduler or platform cron.
+2. Uses the same generation service path as the manual generation trigger.
+3. Resolves the board date using the configured timezone.
+4. Respects configured business days if that behavior already exists.
+5. Runs generation for the intended business date.
+6. Records `GenerationRun.triggeredBy = scheduled`.
+7. Does not require or impersonate a manager user.
+8. Uses `triggeredByUserId = null` or the existing system-user convention if one already exists.
+9. Returns a clear structured response with:
+  - board date
+  - status
+  - run id if available
+  - tasks created
+  - tasks skipped or duplicates avoided
+  - failure message when applicable
+10. Is safe to retry without creating duplicate generated tasks.
+11. Does not delete, overwrite, or mutate manual tasks.
+12. Records failure outcomes through the existing `GenerationRun` failure logic.
 
-## Implementation scope
+If the route is publicly reachable, protect it with a server-only secret such as `CRON_SECRET` or the project’s existing equivalent. Use the existing project convention if one already exists.
 
-Implement the following roadmap items:
+Suggested route shape, unless the app already has a better convention:
 
-### DB-008 — Add user and session schema
+```text
+GET or POST /api/cron/generate-board
 
-Create or update Prisma models for:
+```
 
-* `User`
-* `Session`, or the equivalent session persistence required by the chosen auth approach
-* `Role`
-* `Duty`
-* `UserRole`
-* `UserDuty`
-* Role default duty assignment, such as `RoleDuty`, if needed to support role-based default duties cleanly
+or:
 
-User fields should include at minimum:
+```text
+src/app/api/cron/generate-board/route.ts
 
-* `id`
-* `name`
-* `email`
-* `passwordHash` or auth-provider equivalent
-* `isActive`
-* `createdAt`
-* `updatedAt`
+```
 
-Use a unique constraint for active user emails if practical within the current Prisma/database setup.
+Use the project’s existing Next.js route/action style. Do not introduce a new server framework.
 
-Do not store plain-text passwords.
+If deployment platform config already exists, wire the scheduled entrypoint into that config. If no deployment platform has been chosen yet, do not invent a large deployment setup. Add only the secured entrypoint and update setup/docs with a short note explaining how a platform cron should call it.
 
-Prefer existing project dependencies. If password hashing requires a new dependency, explain why. If practical, use Node built-in crypto utilities instead of adding a new package.
+### DB-027 Generation service tests
 
-### DB-009 — Implement login and logout endpoints
-
-Add login/logout behavior using the existing project architecture.
-
-Preferred API surface, unless the current app structure clearly favors server actions:
-
-* `POST /api/auth/login`
-* `POST /api/auth/logout`
-* `GET /api/auth/me`
-
-Requirements:
-
-* Login verifies email and password.
-* Login rejects inactive users.
-* Login creates a secure server-side session or equivalent.
-* Logout clears the session.
-* `me` returns the authenticated user with role/duty summary, excluding sensitive fields.
-* Auth errors should be clear but should not leak whether the email or password was specifically wrong.
-
-Use secure cookie settings appropriate for local development and production:
-
-* HTTP-only
-* SameSite protection
-* Secure in production
-* Reasonable expiration
-
-### DB-010 — Build login page and auth form flow
-
-Create the login page and form flow.
-
-Requirements:
-
-* Users can enter email and password.
-* Successful login redirects into the authenticated app area.
-* Failed login shows a clear user-facing error.
-* Loading/submitting state is visible.
-* The form should be simple, responsive, and consistent with the existing app shell.
-* Do not over-polish; keep this milestone focused on identity and permissions.
-
-### DB-011 — Add session-aware route protection
-
-Protect authenticated app routes.
-
-Requirements:
-
-* Unauthenticated users cannot access private routes.
-* Unauthenticated users are redirected to login.
-* Authenticated users are not trapped on the login page after successful login.
-* Route protection should be server-side where practical.
-* Do not rely only on client-side hiding.
-
-Follow the existing route structure from v0.1.0. If the route grouping is not clear, choose a simple structure and document it.
-
-### DB-012 — Add roles schema and seed data
-
-Seed the day-one roles:
-
-* General Manager
-* Inventory Manager
-* Mechanic
-* Salesperson
-* Office Manager
-* Marketing/Advertisement Manager
-* Collections
-
-Seed at least:
-
-* One manager user
-* Several staff users across the day-one roles
-
-Use fake local-development users only. Do not seed real customer data, production credentials, or sensitive dealership records.
-
-Document the local development login credentials in `docs/SETUP.md` or the appropriate setup document.
-
-### DB-013 — Add duties and user-role assignments
-
-Model duties and user assignments.
-
-Requirements:
-
-* A user can have multiple roles.
-* A user can have custom direct duties.
-* Roles can support default duties, either through a `RoleDuty` join model or an equivalent clean approach.
-* Seed realistic starter duties for the MVP areas:
-
-  * Inventory
-  * Advertising
-  * Marketing
-  * Sales
-  * Mechanic / shop
-  * Office/admin
-  * General manager review
-
-Do not implement full daily board generation in this milestone. Only create the identity, role, and duty foundation needed for later generation.
-
-### DB-014 — Implement server-side policy helpers
-
-Create reusable permission helpers in the server-side policy layer.
-
-Preferred location:
-
-* `src/server/policies`
-
-Add helpers for at least:
-
-* Require authenticated user
-* Determine whether a user is a manager
-* Manager-only actions
-* Staff self-service actions
-* Whether a staff user can update their own assigned work
-* Whether a manager can manage users, roles, duties, assignments, settings, and review workflows
-* Whether a user can view the full board
-
-Important rule:
-
-UI may hide unavailable actions, but server-side policies must be the source of truth.
-
-If task models do not exist yet, make task-related policy helpers pure and future-ready by accepting minimal inputs such as:
-
-* actor user
-* assigned user id
-* requires manager approval flag
-* requested action
-
-Do not create the full task workflow in this milestone.
-
-### DB-015 — Add auth and permission tests
-
-Add or update tests using the existing project test setup.
+Add or expand tests for the generation service and scheduled entrypoint.
 
 Cover at minimum:
 
-* Valid seeded user can log in.
-* Invalid credentials fail.
-* Inactive user cannot log in.
-* Logout clears the session.
-* Unauthenticated user cannot access protected routes.
-* Authenticated user can access protected routes.
-* Manager policy allows manager-only actions.
-* Staff policy rejects manager-only actions.
-* Staff can pass self-service checks for their own work.
-* Staff cannot pass self-service checks for another staff member’s work.
-* Multiple roles per user are supported.
-* Direct user duties are supported.
+1. Custom duties generate the expected daily tasks.
+2. Role defaults are used when a user has no custom duties.
+3. Re-running generation for the same date does not duplicate generated tasks.
+4. Manual tasks on the same board date are preserved.
+5. Generated tasks retain template references for duplicate prevention.
+6. Successful generation records a completed `GenerationRun`.
+7. Failed generation records a failed `GenerationRun` with an error message.
+8. Manual and scheduled generation both call the same core generation service.
+9. Scheduled generation records `triggeredBy = scheduled`.
+10. The scheduled endpoint rejects unauthorized calls if a cron secret is required.
+11. The scheduled endpoint returns a clear success or failure response.
+12. Existing manual generation behavior from DB-025 still works.
 
-If browser-level tests are not practical yet, add unit/integration tests around the available auth and policy layers and clearly explain what was not tested.
-
-## Constraints
-
-* Keep the change minimal and scoped to v0.2.0.
-* Follow the existing architecture and source layout.
-* Do not rewrite unrelated files.
-* Do not implement daily board generation yet.
-* Do not implement full task board workflow yet.
-* Do not implement activity feed yet.
-* Do not implement assignment recommendation logic yet, except for any role/duty fields needed later.
-* Do not add third-party integrations.
-* Do not add payroll, HR, timeclock, CRM, DealerCenter, Asana, SMS, email, or Google Workspace functionality.
-* Keep business rules and permission checks server-side.
-* Do not commit `.env` files, local databases, secrets, real passwords, generated caches, or build artifacts.
-* Add dependencies only if necessary and explain why.
-* Preserve existing tests and behavior from v0.1.0.
+Use the existing test runner and test patterns. Do not add a new test framework unless the repository has no viable test setup and the change is necessary.
 
 ## Implementation guidance
 
-Before coding:
+Prefer this structure unless the existing codebase already has stronger conventions:
 
-1. Inspect the current repository structure.
-2. Confirm which v0.1.0 pieces already exist.
-3. Identify the relevant files for Prisma schema, seed data, auth/server code, route structure, login UI, tests, and setup docs.
-4. Briefly plan the implementation in small steps.
-5. Then implement the smallest complete vertical slice for v0.2.0.
+```text
+src/server/services/
+  daily-generation.ts
+  generation-runs.ts
 
-Suggested implementation order:
+src/app/api/board/generate/
+  route.ts
 
-1. Schema and migrations for user/session/role/duty relationships.
-2. Seed data for manager, staff, roles, and starter duties.
-3. Password hashing/session helpers.
-4. Login/logout/me endpoints or server actions.
-5. Login page and form behavior.
-6. Route protection.
-7. Server-side policy helpers.
-8. Tests.
-9. Documentation updates.
+src/app/api/cron/generate-board/
+  route.ts
+
+src/tests/unit/
+  daily-generation.test.ts
+
+src/tests/integration/
+  scheduled-generation.test.ts
+
+```
+
+Keep the core generation workflow in a server service, not in route handlers.
+
+The manual route and scheduled route should both call the same function, for example:
+
+```ts
+generateDailyBoard({
+  boardDate,
+  triggeredBy: "manual" | "scheduled",
+  triggeredByUserId?: string | null
+})
+
+```
+
+The exact function name can follow the existing code.
+
+The scheduled route should be thin:
+
+1. Validate cron authorization if needed.
+2. Resolve date/timezone/settings.
+3. Call the existing generation service.
+4. Return structured JSON.
+5. Let the service handle idempotency and generation run recording.
+
+Do not duplicate task creation logic inside the route.
+
+## Visual guidance from `UI_REFERENCE.png`
+
+This task is mostly backend and tests. Do not redesign the board UI.
+
+If any DB-025 generation feedback UI must be touched because of this task, preserve the visual direction from `UI_REFERENCE.png`:
+
+- Keep the top action area clean and compact.
+- Preserve the primary “Generate Board” control pattern.
+- Keep generation status feedback visible but not visually loud.
+- Use concise status language like “Generated”, “Failed”, “Retry available”, or “Scheduled”.
+- Do not clutter the dashboard with cron/debug details.
+- Keep the right-side activity/feed pattern clean if scheduled generation creates visible system events.
+- Preserve the enterprise-level spacing, compact KPI cards, left sidebar, top controls, and right activity rail style.
+- Avoid horizontal overflow and avoid enlarging controls unnecessarily.
+
+Do not add a new cron management screen unless the existing settings UI already has a natural place for a small scheduled generation status note.
+
+## Constraints
+
+- Keep the change minimal and scoped to DB-026 and DB-027.
+- Do not rewrite unrelated generation, board, settings, auth, or UI code.
+- Do not add new dependencies unless necessary.
+- Do not introduce live third-party integrations.
+- Do not build advanced scheduling management UI.
+- Do not create a separate generation implementation for cron.
+- Do not bypass existing server-side policies or validation.
+- Do not expose an unauthenticated public generation endpoint without secret protection.
+- Preserve DB-025 manual generation behavior.
+- Preserve idempotency and duplicate-prevention guarantees.
+- Preserve manual tasks.
+- Preserve existing tests.
+- Add tests for new behavior and important existing generation behavior.
+- Update docs only where setup, cron usage, environment variables, or architecture behavior changed.
+
+## Edge cases to handle
+
+- Scheduled endpoint called twice for the same date.
+- Scheduled endpoint called after manual generation already ran.
+- Manual generation called after scheduled generation already ran.
+- No active users.
+- User has custom duties.
+- User has no custom duties but has role defaults.
+- Template inactive.
+- Generation service throws midway.
+- Missing or invalid cron secret.
+- Missing settings or timezone fallback.
+- Non-business day behavior if business-day logic exists.
+- Existing manual task on the board date.
+- Existing generated task with the same board, template, and assigned user.
 
 ## Done when
 
-* Prisma schema includes the needed identity, role, duty, and session models.
-* Migrations are created and work against a fresh local database.
-* Seed data creates usable local development users, roles, and duties.
-* A seeded manager user can log in and log out.
-* A seeded staff user can log in and log out.
-* Bad credentials show a clear failure message.
-* Protected routes reject unauthenticated users.
-* Server-side permission helpers exist and are reusable by later milestones.
-* Manager-only permissions are enforced by policy helpers.
-* Staff self-service boundaries are enforced by policy helpers.
-* Tests cover auth, route protection, and core permission rules.
-* Relevant lint/typecheck/test commands pass, or any skipped checks are clearly explained.
-* `docs/SETUP.md`, `README.md`, or other relevant docs are updated with local auth setup and seed login instructions.
-* `docs/ARCHITECTURE.md` is updated only if implementation meaningfully differs from the planned architecture.
-* No unrelated files are changed.
-* Summarize:
+- A scheduled/cron-safe entrypoint exists.
+- The scheduled entrypoint calls the same idempotent generation service as manual generation.
+- Scheduled generation records `GenerationRun.triggeredBy = scheduled`.
+- Scheduled generation can be retried safely.
+- Manual tasks are not deleted or overwritten.
+- Duplicate generated tasks are not created.
+- Failures record failed generation runs.
+- Unauthorized scheduled calls are rejected if the route is protected by a cron secret.
+- Generation service tests cover custom duties, role defaults, duplicate prevention, manual-task preservation, and failure recording.
+- Tests also cover scheduled entrypoint behavior where practical.
+- Existing manual generation behavior still works.
+- Relevant unit/integration tests pass.
+- Typecheck and lint pass if available.
+- Docs are updated if a cron route, env variable, or setup instruction was added.
+- Summarize:
+  - files changed
+  - scheduled entrypoint added
+  - tests added
+  - tests/checks run
+  - any behavior intentionally left for a later roadmap item
 
-  * Files changed
-  * Behavior added
-  * Tests run
-  * Any commands that failed or were skipped
-  * Any remaining follow-up work for v0.3.0

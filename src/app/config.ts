@@ -19,7 +19,7 @@ export const placeholderRoutes = [
   {
     href: "/settings",
     title: "Settings",
-    description: "Protected settings surface for future generation time and app configuration."
+    description: "Protected manager settings for generation time, timezone, and business-day rules."
   }
 ] as const;
 

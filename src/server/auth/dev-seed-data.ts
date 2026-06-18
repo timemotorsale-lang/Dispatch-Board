@@ -144,3 +144,91 @@ export const developmentUserDefinitions = [
     directDutyNames: ["Follow up with assigned leads"]
   }
 ] as const;
+
+export type DayOneTaskTemplateDefinition = {
+  title: string;
+  description?: string;
+  workflowArea:
+    | "INVENTORY"
+    | "ADVERTISING"
+    | "MARKETING"
+    | "SALES"
+    | "ADMIN"
+    | "COLLECTIONS"
+    | "SHOP"
+    | "GENERAL_MANAGER";
+  defaultDueTime: string;
+  requiresManagerApproval: boolean;
+  isActive: boolean;
+  roleName?: string;
+  dutyName?: string;
+};
+
+export const dayOneTaskTemplateDefinitions: readonly DayOneTaskTemplateDefinition[] = [
+  {
+    title: "Review inventory status",
+    description: "Review the inventory pipeline and flag units that need movement or attention.",
+    workflowArea: "INVENTORY",
+    defaultDueTime: "09:00",
+    requiresManagerApproval: false,
+    isActive: true,
+    roleName: "Inventory Manager"
+  },
+  {
+    title: "Check vehicles ready for photos and listing",
+    description: "Confirm which vehicles are ready for photos, merchandising, and listing prep.",
+    workflowArea: "ADVERTISING",
+    defaultDueTime: "10:00",
+    requiresManagerApproval: false,
+    isActive: true,
+    dutyName: "Check vehicles ready for photos"
+  },
+  {
+    title: "Update repair status",
+    description: "Update repair progress and identify anything blocked in the shop workflow.",
+    workflowArea: "SHOP",
+    defaultDueTime: "11:00",
+    requiresManagerApproval: false,
+    isActive: true,
+    roleName: "Mechanic",
+    dutyName: "Review repair and diagnosis queue"
+  },
+  {
+    title: "Confirm listings are complete",
+    description: "Check active listings and confirm the latest merchandising work is complete.",
+    workflowArea: "ADVERTISING",
+    defaultDueTime: "13:00",
+    requiresManagerApproval: false,
+    isActive: true,
+    roleName: "Marketing/Advertisement Manager",
+    dutyName: "Update online advertising tasks"
+  },
+  {
+    title: "Review sales follow-up tasks",
+    description: "Review the open sales follow-up queue and make sure active leads have next steps.",
+    workflowArea: "SALES",
+    defaultDueTime: "15:00",
+    requiresManagerApproval: false,
+    isActive: true,
+    roleName: "Salesperson",
+    dutyName: "Follow up with assigned leads"
+  },
+  {
+    title: "Review blocked tasks",
+    description: "Review blocked items that need manager attention or a decision to move forward.",
+    workflowArea: "GENERAL_MANAGER",
+    defaultDueTime: "16:00",
+    requiresManagerApproval: true,
+    isActive: true,
+    roleName: "General Manager"
+  },
+  {
+    title: "Review tasks marked Ready for Review",
+    description: "Review work that staff have marked ready for approval before final completion.",
+    workflowArea: "GENERAL_MANAGER",
+    defaultDueTime: "16:30",
+    requiresManagerApproval: true,
+    isActive: true,
+    roleName: "General Manager"
+  }
+];
