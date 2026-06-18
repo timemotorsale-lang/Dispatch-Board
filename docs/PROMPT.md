@@ -1,173 +1,224 @@
-# Task: DB-019 Add Task Template CRUD
+# Task: DB-020 Add Board, Task, And Generation-Run Schema
 
-Read `docs/AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/DEFAULT_PROMPT.md`, and the relevant existing code first.
+Read `docs/AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/prompts/DEFAULT_PROMPT.md`, and the relevant existing schema/migration files first.
 
 ## Goal
 
-Implement DB-019: Add task template CRUD.
+Implement DB-020: Add board, task, and generation-run schema.
 
-Build the server-side create, list, update, and deactivate/archive flows for `TaskTemplate` records so managers can manage active task templates without direct database edits.
+Extend the Prisma schema and migration history so the app can represent:
 
-This should build on DB-018, which should already have added the `TaskTemplate` schema and migration.
+- one `BoardDay` per business date
+- generated and manual `Task` records tied to a board
+- `GenerationRun` records that capture each generation attempt
 
-## Current behavior
+This should build on the existing schema work already completed for users, roles, duties, settings, and task templates.
 
-Task template schema should exist from DB-018, but managers do not yet have application-level CRUD flows for creating, listing, editing, or deactivating task templates.
+## Current Behavior
 
-Task templates are not yet manageable through the app/server API.
+The current Prisma schema already includes:
 
-## Desired behavior
+- auth/session models
+- role and duty assignment models
+- `AppSetting`
+- `TaskTemplate`
 
-Managers can manage task templates through server-side application flows.
+The schema does not yet include the daily board entities needed for generated work:
+
+- no `BoardDay` model
+- no `Task` model
+- no `GenerationRun` model
+
+As a result, the database cannot yet represent a generated board for a specific date, the tasks on that board, or the audit trail of generation attempts.
+
+## Desired Behavior
+
+Add the core Prisma models and relations needed for the daily generation workflow.
 
 Implement:
 
-1. List task templates
+1. `BoardDay` model
 
-   * Return active templates by default.
-   * Support an option/query to include inactive templates if practical.
-   * Include useful related data such as linked role and duty names when available.
-   * Sort predictably, preferably by workflow area, title, or created date according to existing project patterns.
+   - Represents a single business day board.
+   - Includes the core fields called for by the architecture, such as:
+     - `id`
+     - `date`
+     - `generationStatus`
+     - `generatedAt`
+     - `generatedByUserId` optional
+     - timestamps if consistent with existing schema patterns
+   - Relates to the user who triggered/generated the board when applicable.
+   - Relates to board tasks.
 
-2. Create task template
+2. `Task` model
 
-   * Manager-only.
-   * Validate required fields.
-   * Create a new active template.
-   * Support the DB-018 fields already defined on `TaskTemplate`, such as:
+   - Represents generated or manual work items.
+   - Includes the architecture-required fields needed by later task, board, and review workflows, including:
+     - `id`
+     - `boardDayId`
+     - `title`
+     - `description`
+     - `assignedUserId`
+     - `recommendedUserId` optional
+     - `status`
+     - `dueAt`
+     - `createdByUserId`
+     - `requiresManagerApproval`
+     - `vehicleReference` optional
+     - `customerReference` optional
+     - `sourceType`
+     - `sourceTemplateId` optional
+     - `sourceDutyId` optional
+     - `workflowArea`
+     - `blockerReason` optional
+     - `readyForReviewAt` optional
+     - `completedAt` optional
+     - `reviewedByUserId` optional
+     - `createdAt`
+     - `updatedAt`
+   - Includes the core relations needed for future work:
+     - board day
+     - assigned user
+     - recommended user
+     - creator user
+     - reviewer user
+     - source task template
+     - source duty
 
-     * `title`
-     * `description`
-     * `workflowArea`
-     * `defaultDueTime`
-     * `requiresManagerApproval`
-     * optional `roleId`
-     * optional `dutyId`
-     * `isActive`
+3. `GenerationRun` model
 
-3. Update task template
+   - Represents each automatic or manual generation attempt.
+   - Includes the architecture-required fields, such as:
+     - `id`
+     - `boardDate`
+     - `startedAt`
+     - `finishedAt` optional
+     - `status`
+     - `triggeredBy`
+     - `triggeredByUserId` optional
+     - `summary` JSON
+     - `errorMessage` optional
+   - Relates to the user who manually triggered the run when applicable.
 
-   * Manager-only.
-   * Allow editing core template fields.
-   * Preserve existing template IDs so future generated tasks can continue referencing the template.
-   * Do not break future duplicate-prevention logic.
-   * Validate role and duty references if supplied.
+## Schema Design Expectations
 
-4. Deactivate/archive task template
+Follow `docs/ARCHITECTURE.md` closely, but adapt field names carefully when Prisma or existing repo conventions make a slightly different naming choice more consistent.
 
-   * Prefer a soft delete by setting `isActive = false`.
-   * Do not hard delete templates by default, because generated tasks may later reference template IDs.
-   * If the existing architecture already has a delete pattern, follow it only if it preserves historical references safely.
+Recommended enums to add if they do not already exist:
 
-## Suggested API surface
+- board generation status enum for `BoardDay`
+- task status enum for `Task`
+- task source type enum for `Task`
+- generation run status enum for `GenerationRun`
+- generation trigger type enum for `GenerationRun`
 
-Use the existing project conventions. If API routes are being used, implement or extend:
+Use enums instead of free-form strings when the allowed values are already defined clearly by the architecture.
 
-* `GET /api/task-templates`
-* `POST /api/task-templates`
-* `PATCH /api/task-templates/:id`
+Use the architecture's MVP task statuses:
 
-For deactivation, choose the smallest consistent option:
+- `Not Started`
+- `In Progress`
+- `Blocked`
+- `Waiting on Parts`
+- `Waiting on Approval`
+- `Ready for Review`
+- `Completed`
 
-* Either `PATCH /api/task-templates/:id` with `{ isActive: false }`
-* Or a dedicated endpoint only if the project already uses that pattern.
+Map them into Prisma enum-safe names while preserving clear meaning.
 
-Do not add a new UI unless there is already a minimal manager settings/templates surface that can be safely wired without broad changes. This issue is primarily server-side CRUD plus tests.
+## Architecture Requirements
 
-## Architecture requirements
+Keep this issue focused on core schema and migration work.
 
-Follow the existing repository structure.
+Follow the existing repository structure and project conventions:
 
-Prefer:
+- Prisma schema changes in `prisma/schema.prisma`
+- migration files in `prisma/migrations`
+- seed updates only if they are needed to keep development workable after the schema change
 
-* Repository/data access logic in `src/server/repositories`
-* Business workflow logic in `src/server/services`
-* Permission checks in `src/server/policies`
-* Validation in `src/server/validation`
-* API route handlers or server actions in the existing route/action pattern
-
-Do not put business rules only inside UI components.
-
-## Permission rules
-
-* Only managers can create, update, or deactivate task templates.
-* Non-manager staff should not be able to mutate templates.
-* Listing templates should follow the existing permission approach. If the app currently treats templates as manager-only settings data, make list manager-only too.
-* Enforce permissions server-side. UI hiding is not enough.
-
-## Validation rules
-
-Validate inputs server-side.
-
-At minimum:
-
-* `title` is required and cannot be blank.
-* `workflowArea` is required and must match the existing enum/allowed values if one exists.
-* `defaultDueTime` is required and must be a valid time format according to the existing schema.
-* `requiresManagerApproval` must be boolean.
-* `roleId`, if supplied, must reference an existing role.
-* `dutyId`, if supplied, must reference an existing duty.
-* `isActive`, if supplied on update, must be boolean.
-* Reject unknown or unsafe fields rather than blindly spreading request bodies into Prisma.
-
-If DB-018 already created enums or validation helpers, reuse them.
+This issue is primarily a database modeling task. Do not expand into full generation services, board APIs, task APIs, or UI unless a very small supporting change is truly required.
 
 ## Constraints
 
-* Keep the change minimal and scoped to DB-019.
-* Do not redesign the task template schema unless DB-018 is clearly incomplete or broken.
-* Do not implement daily generation yet.
-* Do not implement board/task schemas from DB-020.
-* Do not build assignment recommendation logic yet.
-* Do not add third-party dependencies unless necessary.
-* Do not rewrite unrelated auth, settings, board, or task code.
-* Preserve existing behavior.
-* Use existing auth/session and manager policy helpers from DB-014 if present.
-* If manager policy helpers are missing, use the closest existing permission pattern and note the gap clearly.
-* If DB-018 was not implemented, stop and report what is missing before making broad schema changes.
+- Keep the change minimal and scoped to DB-020.
+- Build on the existing `TaskTemplate` and auth-related schema instead of redesigning earlier work.
+- Do not implement DB-019 task template CRUD if it is still incomplete.
+- Do not implement DB-021 indexes/constraints beyond what is unavoidably required for a valid initial schema slice.
+- Do not build the generation service yet.
+- Do not build board read APIs, task mutation APIs, or UI flows yet.
+- Do not add `TaskComment` or `ActivityEvent` unless the schema cannot compile cleanly without a placeholder relation strategy. Those belong to later roadmap items.
+- Do not add third-party dependencies unless necessary.
+- Do not rewrite unrelated auth, settings, board shell, or task template code.
+- Preserve existing behavior.
 
-## Tests
+## Relationship Rules
 
-Add or update tests according to the existing test setup.
+Model the core relationships so future issues can build on them cleanly:
 
-Cover at least:
+- A `BoardDay` has many `Task` records.
+- A `Task` belongs to one `BoardDay`.
+- A `Task` may reference:
+  - one assigned user
+  - one recommended user
+  - one creator user
+  - one reviewer user
+  - one source task template
+  - one source duty
+- A `GenerationRun` may reference one triggering user.
+- User relations must be named clearly to avoid Prisma relation ambiguity.
 
-1. Manager can list task templates.
-2. Manager can create a valid task template.
-3. Manager can update a task template.
-4. Manager can deactivate/archive a task template.
-5. Staff/non-manager cannot create, update, or deactivate templates.
-6. Invalid create/update payloads are rejected.
-7. Invalid `roleId` or `dutyId` references are rejected if those relationships exist.
-8. Inactive templates are excluded from default list results if that behavior is implemented.
+Make relation names explicit anywhere the same two models connect in multiple ways.
 
-Use unit tests for service/validation logic and integration tests for API behavior if the project already has those patterns.
+## Validation Through Schema
 
-## Manual verification
+For DB-020, add the fields and nullability needed to support the architecture, but avoid over-encoding later business rules too early.
 
-After implementation, verify the app still boots and run the relevant commands available in the repo, such as:
+Examples:
 
-* `npm run lint`
-* `npm run typecheck`
-* `npm test`
+- `dueAt` should be required for tasks.
+- `requiresManagerApproval` should be stored on tasks.
+- `assignedUserId` should stay aligned with the architecture's expectation that tasks normally have an assignee.
+- `blockerReason`, `readyForReviewAt`, `completedAt`, and `reviewedByUserId` should be nullable for now.
+
+Prefer deferring complex partial unique indexes, conditional constraints, and status-dependent database checks to DB-021 or later unless they are already trivial and clearly safe.
+
+## Migration Expectations
+
+Create a real Prisma migration for the schema change.
+
+Make sure:
+
+- the schema formats and generates successfully
+- the migration reflects the new models and enums
+- the resulting Prisma client types are usable by later service work
+
+If a migration cannot be created in this environment, update the schema and explain exactly what still needs to be generated.
+
+## Tests And Verification
+
+Run the relevant available checks after making the schema change.
+
+At minimum, try the commands that fit this repo:
+
+- `npm run lint`
+- `npm run typecheck`
+- `npm test`
+- Prisma format/generate or migration commands if available in the scripts or local setup
 
 If any command does not exist or cannot run, state that clearly in the final summary.
 
-## Done when
+## Done When
 
-* Managers can list active task templates without direct database edits.
-* Managers can create task templates through the server/API flow.
-* Managers can update task templates through the server/API flow.
-* Managers can deactivate/archive task templates safely.
-* Staff/non-manager mutation attempts are rejected server-side.
-* Input validation is enforced server-side.
-* Relevant tests pass.
-* The change is scoped and reviewable.
-* No unrelated files are changed.
-* Docs are updated only if the actual API behavior, setup, or architecture changed.
-* Final response summarizes:
-
-  * Files changed
-  * Behavior added
-  * Tests/checks run
-  * Any known limitations or follow-up work
+- `BoardDay`, `Task`, and `GenerationRun` exist in `prisma/schema.prisma`.
+- Required supporting enums and relations are present and clearly named.
+- The schema can represent one board per date, generated/manual tasks, and generation attempts.
+- A Prisma migration has been added for the new schema, or the exact blocker is documented.
+- Existing schema behavior is preserved outside the new models.
+- Relevant checks are run and reported.
+- The change is scoped and reviewable.
+- No unrelated files are changed unless a small required follow-up such as seed typing or generated client compatibility is necessary.
+- Final response summarizes:
+  - files changed
+  - schema/models added
+  - checks run
+  - any known follow-up work, especially DB-021 constraints and DB-022 through DB-024 workflow implementation
