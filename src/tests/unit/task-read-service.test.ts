@@ -43,7 +43,21 @@ function createTaskReadRepository(): TaskReadRepository {
           name: "Morgan Manager",
           email: "morgan.manager@local.test"
         },
-        reviewedByUser: null
+        reviewedByUser: null,
+        comments: [
+          {
+            id: "comment-1",
+            taskId: "task-1",
+            authorUserId: "user-manager",
+            body: "Call logged with lender.\nWaiting on approval.",
+            createdAt: new Date("2026-06-18T14:15:00.000Z"),
+            authorUser: {
+              id: "user-manager",
+              name: "Morgan Manager",
+              email: "morgan.manager@local.test"
+            }
+          }
+        ]
       };
     }
   };
@@ -85,7 +99,21 @@ describe("task read service", () => {
         name: "Morgan Manager",
         email: "morgan.manager@local.test"
       },
-      reviewedByUser: null
+      reviewedByUser: null,
+      comments: [
+        {
+          id: "comment-1",
+          taskId: "task-1",
+          authorUserId: "user-manager",
+          body: "Call logged with lender.\nWaiting on approval.",
+          createdAt: "2026-06-18T14:15:00.000Z",
+          author: {
+            id: "user-manager",
+            name: "Morgan Manager",
+            email: "morgan.manager@local.test"
+          }
+        }
+      ]
     });
   });
 

@@ -12,6 +12,15 @@ type TaskReadUserSummary = {
   email?: string;
 };
 
+export type TaskCommentReadModel = {
+  id: string;
+  taskId: string;
+  authorUserId: string;
+  body: string;
+  createdAt: string;
+  author: TaskReadUserSummary;
+};
+
 export type TaskReadModel = {
   id: string;
   boardDayId: string;
@@ -34,6 +43,7 @@ export type TaskReadModel = {
   recommendedUser: TaskReadUserSummary | null;
   createdByUser: TaskReadUserSummary | null;
   reviewedByUser: TaskReadUserSummary | null;
+  comments: TaskCommentReadModel[];
 };
 
 function normalizeTaskId(taskId: string) {
@@ -96,7 +106,19 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
     },
     recommendedUser: toUserSummary(task.recommendedUser),
     createdByUser: toUserSummary(task.createdByUser),
-    reviewedByUser: toUserSummary(task.reviewedByUser)
+    reviewedByUser: toUserSummary(task.reviewedByUser),
+    comments: task.comments.map((comment) => ({
+      id: comment.id,
+      taskId: comment.taskId,
+      authorUserId: comment.authorUserId,
+      body: comment.body.trim(),
+      createdAt: comment.createdAt.toISOString(),
+      author: {
+        id: comment.authorUser.id,
+        name: comment.authorUser.name,
+        email: comment.authorUser.email || undefined
+      }
+    }))
   };
 }
 

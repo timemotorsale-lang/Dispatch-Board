@@ -53,6 +53,25 @@ const taskReadSelect = {
       name: true,
       email: true
     }
+  },
+  comments: {
+    orderBy: {
+      createdAt: "asc"
+    },
+    select: {
+      id: true,
+      taskId: true,
+      authorUserId: true,
+      body: true,
+      createdAt: true,
+      authorUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      }
+    }
   }
 } satisfies Prisma.TaskSelect;
 

@@ -1,12 +1,18 @@
 # Task
 
-DB-037 — Build staff-focused task view
+Implement DB-038 (Add task comments API) and DB-039 (Add task comments UI)
 
 # Goal
 
-Create a streamlined staff-focused “My Tasks” experience for the Time Motor Sales Dispatch Board so a logged-in staff member can quickly find, open, and update their own assigned tasks during the workday.
+Add a simple, reliable task comments/update workflow so staff and managers can read and add task-specific updates from the task detail view.
 
-This task should make the app more usable for staff without expanding scope into comments, activity feed, recommendations, or manager review UI.
+Comments should persist in the database, attach to the correct task and author, and appear in the task detail UI with clear author and timestamp context.
+
+# Classification
+
+Full vertical slice.
+
+Reason: This task spans persistence/read model, API/server action behavior, permission checks, validation, UI integration, and tests.
 
 # Context
 
@@ -14,320 +20,346 @@ Read these first:
 
 - `docs/AGENTS.md`
 
-- `docs/ROADMAP.md`
-
 - `docs/ARCHITECTURE.md`
+
+- `docs/ROADMAP.md`
 
 - `docs/PRODUCT_SPEC.md`
 
 - `docs/MVP_SCOPE.md`
 
-- Existing auth/session files
+- Existing task API, task detail, policy, validation, repository, and UI files
 
-- Existing board/task API or server action files
+- Existing Prisma schema and migrations
 
-- Existing board UI files from DB-028 through DB-036
+- `UI_REFERENCE.png` or `docs/images/UI_REFERENCE.png` if present
 
-- Existing task detail/status update files
+Relevant roadmap items:
 
-- `UI_REFERENCE.png` for layout, spacing, left navigation, enterprise-level visual direction, and the “My Tasks” navigation concept
+- DB-038: Add task comments API
 
-Roadmap context:
+  - Implement comment creation and retrieval for task updates.
 
-- This is in `v0.4.0 - Board and task workflow`.
+  - Task comments persist and are attached to the correct task and author.
 
-- Earlier tasks should already provide:
+- DB-039: Add task comments UI
 
-  - Board read API
+  - Surface task comments in the task detail view with basic author and timestamp context.
 
-  - Initial board page
+  - Staff and managers can read and add task comments from the app.
 
-  - Board grouping/filtering controls
+Relevant product rules:
 
-  - Manual task creation API/UI
+- Staff can add comments/updates to their own tasks.
 
-  - Task detail endpoint/read model
+- Managers can oversee the full board and task activity.
 
-  - Staff status update endpoint
+- Keep updates low friction, especially on mobile.
 
-  - Blocker-reason validation
-
-  - Approval-required status rules
-
-Staff-facing product intent:
-
-- Staff should be able to log in, see their assigned work, update status, mark blockers with a reason, and complete eligible tasks.
-
-- Staff can see the full board elsewhere, but this view should be optimized around their own assigned tasks.
-
-- Mobile should prioritize “my tasks,” quick status changes, blocker updates, and task detail access.
+- Keep permission checks server-side. UI controls may hide actions, but the server must enforce the rule.
 
 # Current behavior
 
-The app has or should have the main board and task update foundations, but staff do not yet have a dedicated, simplified “My Tasks” surface.
+The app has or should have:
 
-Staff likely need to use the full board to find their own work, which is inefficient on mobile and creates clutter.
+- Board and task workflow from DB-028 through DB-037.
+
+- A task detail read path from DB-033.
+
+- Staff status update and validation flows from DB-034 through DB-036.
+
+- Staff-focused task view from DB-037.
+
+Task comments may not yet be implemented. Inspect the current code before making assumptions.
 
 # Desired behavior
 
-Implement a dedicated staff-focused task view.
+## API / server behavior
 
-Preferred route:
+Implement task comment creation and retrieval using the existing project patterns.
 
-- Use the existing app routing conventions.
+Use the existing route/server-action style already used for tasks. Prefer the architecture route if appropriate:
 
-- If a sidebar/nav route already exists for “My Tasks,” wire it to this screen.
+- `POST /api/tasks/:id/comments`
 
-- If not, create a route such as `/my-tasks` or the closest route that matches the current app structure.
+For retrieval, use the existing task detail read model if that is the cleanest pattern. Otherwise add a dedicated comments read route consistent with the codebase, such as:
 
-- Do not break the main Dispatch Board route.
+- `GET /api/tasks/:id/comments`
 
-The “My Tasks” view should:
+The final result must provide a reliable way for the task detail UI to load comments.
 
-1. Load the current authenticated user.
+Each comment should include:
 
-2. Load today’s board data using the existing board/task read path where practical.
+- `id`
 
-3. Show only tasks assigned to the current user by default.
+- `taskId`
 
-4. Provide a simple way to open the full Dispatch Board.
+- `authorUserId`
 
-5. Display tasks in a mobile-friendly card/list format rather than forcing a dense table on small screens.
+- author display data needed by the UI, usually name and email if already exposed elsewhere
 
-6. Support desktop and tablet layouts while keeping the page simpler than the main board.
+- `body`
 
-7. Include clear loading, empty, and error states.
+- `createdAt`
 
-Each task item/card should show the most important information:
+## Data model
 
-- Task title
+If `TaskComment` already exists, reuse it.
 
-- Current status
+If it does not exist, add it following the architecture:
 
-- Due time or time left
+- `id`
 
-- Workflow area/stage
+- `taskId`
 
-- Vehicle/customer reference when present
+- `authorUserId`
 
-- Requires manager approval badge when applicable
+- `body`
 
-- Blocker reason when status is `Blocked`
+- `createdAt`
 
-- Simple next action button when obvious, such as:
+Add relations to `Task` and `User` if needed.
 
-  - Start
+Add useful indexes if consistent with existing Prisma style:
 
-  - Update
+- comments by `taskId`
 
-  - Resolve blocker
+- comments ordered by `createdAt`
 
-  - Ready for Review
+Do not create unrelated activity-feed schema in this task unless it already exists.
 
-  - Complete
+## Permissions
 
-  - Open
+Server-side rules must enforce:
 
-Add practical staff filters/chips:
+- Authenticated users only.
 
-- All
+- Managers may read and add comments on any task they can access.
 
-- Open
+- Staff may read task comments for tasks visible to them under the current board/task visibility rules.
 
-- Due soon
+- Staff may add comments only to their own assigned tasks unless an existing policy already allows broader staff updates.
 
-- Blocked / Waiting
+- Staff must not be able to add comments to another staff member’s task by calling the API directly.
 
-- Ready for Review
+- Return consistent permission errors using existing app conventions.
 
-- Completed
+Important: reuse existing policy helpers where possible. Do not duplicate role logic inside UI components.
 
-Keep filters simple. Do not build saved views or advanced search in this task.
+## Validation
 
-Status update behavior:
+For comment creation:
 
-- Staff should be able to update their own assigned tasks through the existing status update endpoint/server action.
+- `body` is required.
 
-- Use the existing server-side validation from DB-034 through DB-036.
+- Trim leading/trailing whitespace.
 
-- If a staff member marks a task as `Blocked`, require blocker reason input before submitting.
+- Reject empty or whitespace-only comments.
 
-- If a task requires manager approval, do not allow staff to directly complete it from the UI. The UI should route them to `Ready for Review` instead.
+- Add a reasonable max length, preferably matching existing validation conventions. If none exists, use 2,000 characters.
 
-- If the server rejects a transition, show a clear error message and keep the task visible.
+- Preserve line breaks if the UI supports them.
 
-- Do not weaken server-side permission rules in the UI.
+- Do not render user-entered HTML as HTML.
 
-Task opening behavior:
+## Optional activity integration
 
-- Each task should open the existing task detail route or task detail surface from DB-033.
+The roadmap has dedicated future work for activity events, so do not build the full activity event system here.
 
-- Do not create a separate duplicate task detail system.
+However, if an `ActivityEvent` model/service/helper already exists in the current branch, emit a lightweight `COMMENT_ADDED` or equivalent event from the same server operation that creates the comment.
 
-- Reuse existing task detail components if they exist.
+If activity infrastructure does not exist yet, leave it alone and do not create a placeholder production-facing fake feed.
+
+# UI behavior
+
+Add a comments/updates section to the task detail view.
+
+The UI should show:
+
+- Section title such as `Updates` or `Comments`
+
+- Empty state: `No updates yet.`
+
+- Existing comments ordered oldest-to-newest or newest-to-oldest, whichever matches the current app pattern
+
+- Author name
+
+- Timestamp in a readable format
+
+- Comment body
+
+- A textarea/input for adding a new update
+
+- Submit button with loading state
+
+- Validation error when the comment is empty
+
+- Server error message when save fails
+
+After a successful submit:
+
+- Clear the input.
+
+- Show the new comment without requiring a full browser refresh.
+
+- Keep the user in the same task detail view.
+
+Staff who are not allowed to comment should not see an active comment form, but the server must still enforce the restriction.
 
 # Visual guidance from mockup
 
-Use `UI_REFERENCE.png` as the visual direction, but keep this task functional-first.
+Use the existing Time Motor Sales Dispatch Board visual direction.
 
-Important guidance:
+For the comments UI:
 
-- The left sidebar should include “My Tasks” as a first-class navigation item.
+- Keep it simple and enterprise-clean.
 
-- The staff view should feel like a simplified version of the main board, not a separate app.
+- Treat comments as operational updates, not a social chat.
 
-- Preserve the clean enterprise look: clear spacing, crisp cards, readable badges, and obvious next actions.
+- Avoid visual clutter.
 
-- Avoid clutter. Staff should not need to scan the full manager dashboard to know what to do next.
+- Use compact spacing and readable hierarchy.
 
-- On mobile, prioritize task cards, status actions, due time, and blocker controls.
+- Make the textarea easy to use on mobile.
+
+- Keep important task actions visible.
+
+- Do not let the comments section crowd out the status/update controls.
 
 - Avoid horizontal overflow.
 
-Do not over-polish beyond what is needed for a usable staff workflow. Visual refinement can continue in later polish tasks.
-
-# Implementation guidance
-
-Before coding, inspect the current implementation and briefly identify:
-
-1. Existing route structure.
-
-2. Existing auth/session helper.
-
-3. Existing board/task fetch path.
-
-4. Existing status update action/API.
-
-5. Existing shared UI components that should be reused.
-
-6. Any missing pieces that block this task.
-
-Then implement the smallest useful vertical slice.
-
-Suggested approach:
-
-1. Add a `My Tasks` route/page using the existing app shell.
-
-2. Reuse existing board/task data loading instead of creating a new API unless the current code clearly needs a small dedicated helper.
-
-3. Filter tasks by `assignedUserId === currentUser.id`.
-
-4. Add staff-focused task list/card components under the existing feature/component structure.
-
-5. Add quick status update controls that call the existing status update endpoint/action.
-
-6. Add blocker reason input flow for blocked status.
-
-7. Respect approval-required rules in the UI, but rely on the server as the source of truth.
-
-8. Add loading, empty, and error states.
-
-9. Wire the sidebar/nav “My Tasks” item to this route.
-
-10. Add or update tests where the current test setup supports it.
+- Match existing card, panel, border, typography, and button patterns.
 
 # Constraints
 
-- Keep the change minimal and reviewable.
+- Keep the change scoped to DB-038 and DB-039.
+
+- Do not rewrite the board layout.
+
+- Do not redesign the full task detail view beyond what comments require.
+
+- Do not add notifications, rich text, mentions, attachments, editing, deleting, reactions, or threaded replies.
 
 - Do not add new dependencies unless absolutely necessary.
 
-- Do not change database schema for this task.
+- Do not weaken existing task status, blocker, approval, or permission rules.
 
-- Do not implement task comments API or task comments UI; those belong to DB-038 and DB-039.
+- Do not expose sensitive user fields in comment author data.
 
-- Do not implement activity feed changes; those belong to v0.5.0 tasks.
+- Do not seed real customer or dealership-sensitive data.
 
-- Do not implement manager review queue UI; that belongs to DB-048.
+- Preserve existing behavior and tests.
 
-- Do not rewrite the main board page unless a tiny shared-component extraction is clearly justified.
+# Implementation guidance
 
-- Do not add fake/mock production data.
+Suggested order:
 
-- Preserve existing behavior for managers and the main board.
+1. Inspect current task detail API/read model and task UI.
 
-- Keep permission enforcement server-side.
+2. Inspect Prisma schema for `TaskComment`.
 
-- Avoid horizontal overflow and dense desktop-only table assumptions.
+3. Add or reuse `TaskComment` persistence.
 
-- If a larger refactor seems necessary, stop and explain it before making that refactor.
+4. Add repository/service functions:
 
-# Acceptance criteria
+   - list comments for a task
 
-The task is complete when:
+   - create comment for a task
 
-- A logged-in staff member can open “My Tasks.”
+5. Add validation and permission checks close to the server entry point.
 
-- The view shows today’s tasks assigned to that staff member by default.
+6. Expose comment creation and retrieval through existing API/server-action conventions.
 
-- Tasks show status, due time, workflow area, and vehicle/customer references when available.
+7. Include comments in the task detail UI.
 
-- Staff can quickly open a task detail view from the list.
+8. Add loading, empty, and error states.
 
-- Staff can update allowed statuses from this view.
+9. Add tests for API/service behavior and UI behavior where practical.
 
-- Blocked status requires a blocker reason before submit.
+10. Run relevant checks.
 
-- Approval-required tasks cannot be directly completed by staff from the UI.
+# Tests to add or update
 
-- Non-approval-required tasks can be completed by staff when allowed by the server.
+Add tests for:
 
-- Server rejection errors are displayed clearly.
+- Creating a comment attaches it to the correct task.
 
-- Empty state is useful when the staff member has no assigned tasks.
+- Creating a comment attaches the current authenticated user as author.
 
-- Loading and error states are handled.
+- Empty or whitespace-only comment is rejected.
 
-- The page works on desktop, tablet, and phone-sized screens.
+- Over-length comment is rejected.
 
-- Existing board behavior still works.
+- Staff can comment on their own assigned task.
 
-# Tests / checks
+- Staff cannot comment on another user’s task.
 
-Run the relevant commands available in the repo, such as:
+- Manager can comment on a task.
 
-- `npm run lint`
+- Task detail/comment retrieval returns comments with author and timestamp context.
 
-- `npm run typecheck`
+- UI shows empty state when no comments exist.
 
-- `npm test`
+- UI displays existing comments.
 
-- Any existing component, integration, or e2e tests related to board/task/status behavior
+- UI can submit a new valid comment and show it afterward.
 
-Add tests where practical for:
+Use existing test style and factories/seed helpers. Do not invent a separate test framework.
 
-- Staff sees only their own assigned tasks in My Tasks.
+# Manual verification
 
-- Staff can trigger an allowed status update.
+After implementation, manually verify:
 
-- Blocked requires blocker reason.
+1. Log in as manager.
 
-- Approval-required task shows Ready for Review instead of direct Complete.
+2. Open a task detail view.
 
-- Empty state renders when no tasks are assigned.
+3. Add a comment.
 
-If any test/check cannot be run, clearly state why.
+4. Confirm the comment appears with manager name and timestamp.
+
+5. Log in as assigned staff.
+
+6. Open one of that staff user’s tasks.
+
+7. Add a comment.
+
+8. Confirm it appears without page refresh.
+
+9. Try to comment on another staff member’s task if the UI allows access.
+
+10. Confirm the server rejects the unauthorized mutation.
+
+11. Try submitting a blank comment.
+
+12. Confirm validation appears and no comment is created.
+
+13. Check mobile-size viewport for usability and no horizontal overflow.
 
 # Done when
 
-- The staff-focused task view works with real app data.
+- DB-038 behavior works: comments can be created and retrieved through the app’s server/API path.
 
-- The implementation is scoped to DB-037.
+- DB-039 behavior works: task detail view shows comments with author and timestamp and supports adding a new comment.
 
-- No unrelated files are changed.
+- Comments persist in the database and are attached to the correct task and author.
 
-- Existing task and board behavior is preserved.
+- Server-side permissions are enforced.
 
-- Relevant tests/checks pass or skipped checks are explained.
+- Validation rejects blank comments.
 
-- Any necessary docs or navigation notes are updated.
+- UI handles loading, empty, submitting, validation, and failure states.
 
-- The final Codex summary includes:
+- Relevant tests pass.
+
+- Typecheck/lint/test commands are run, or any skipped command is clearly explained.
+
+- The final response summarizes:
 
   - Files changed
 
   - Behavior added
 
-  - Tests/checks run
+  - Tests run
 
-  - Known limitations or follow-up work
+  - Any known limitations or follow-up work

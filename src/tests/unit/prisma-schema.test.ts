@@ -22,6 +22,7 @@ describe("prisma schema constraints", () => {
     const schema = await readFile(schemaPath, "utf8");
     const boardDayModel = getModelBlock(schema, "BoardDay");
     const taskModel = getModelBlock(schema, "Task");
+    const taskCommentModel = getModelBlock(schema, "TaskComment");
     const generationRunModel = getModelBlock(schema, "GenerationRun");
 
     expect(boardDayModel).toMatch(/date\s+DateTime\s+@unique\s+@db\.Date/);
@@ -32,6 +33,12 @@ describe("prisma schema constraints", () => {
     expect(taskModel).toMatch(/@@index\(\[boardDayId,\s*status\]\)/);
     expect(taskModel).toMatch(/@@index\(\[boardDayId,\s*assignedUserId\]\)/);
     expect(taskModel).toMatch(/@@index\(\[boardDayId,\s*workflowArea\]\)/);
+
+    expect(taskCommentModel).toMatch(/taskId\s+String\b/);
+    expect(taskCommentModel).toMatch(/authorUserId\s+String\b/);
+    expect(taskCommentModel).toMatch(/body\s+String\b/);
+    expect(taskCommentModel).toMatch(/@@index\(\[taskId\]\)/);
+    expect(taskCommentModel).toMatch(/@@index\(\[taskId,\s*createdAt\]\)/);
 
     expect(generationRunModel).toMatch(/@@index\(\[boardDate,\s*startedAt\]\)/);
   });

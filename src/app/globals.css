@@ -265,6 +265,18 @@ a {
   font: inherit;
 }
 
+.field textarea {
+  width: 100%;
+  min-height: 7.5rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--ink);
+  font: inherit;
+  resize: vertical;
+}
+
 .field select {
   width: 100%;
   padding: 0.85rem 1rem;
@@ -276,6 +288,7 @@ a {
 }
 
 .field input:focus,
+.field textarea:focus,
 .field select:focus {
   outline: 2px solid rgba(154, 52, 18, 0.24);
   outline-offset: 2px;
@@ -1014,6 +1027,63 @@ code {
 
 .task-detail-grid {
   margin-top: 0;
+}
+
+.task-comments-card,
+.task-comments-form,
+.task-comments-list,
+.task-comment-card {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.task-comments-header,
+.task-comment-meta,
+.task-comments-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: baseline;
+}
+
+.task-comments-header p,
+.task-comments-helper-copy,
+.task-comments-readonly-copy {
+  margin: 0;
+  color: var(--board-muted);
+}
+
+.task-comments-empty-state {
+  margin: 0;
+}
+
+.task-comment-card {
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.task-comment-meta strong {
+  color: var(--board-copy);
+}
+
+.task-comment-meta span {
+  color: var(--board-muted);
+  font-size: 0.88rem;
+}
+
+.task-comment-body {
+  margin: 0;
+  color: var(--board-copy);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.task-comments-actions {
+  align-items: center;
 }
 
 .task-detail-list {

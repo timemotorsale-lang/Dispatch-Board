@@ -24,8 +24,8 @@ export default function TasksPage() {
 
       <PlaceholderCard
         title="Task detail now live"
-        description="Use My Tasks or the board to open a real task detail page. Broader task editing and comments are still intentionally deferred."
-        note="Comments and manager review queue stay out of scope for DB-037."
+        description="Use My Tasks or the board to open a real task detail page with workflow context and task updates."
+        note="Broader task editing and the manager review queue still expand from here in later slices."
       />
     </section>
   );

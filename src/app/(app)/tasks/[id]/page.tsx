@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { TaskCommentsPanel } from "@/features/tasks/task-comments-panel";
+import { canUpdateAssignedWork } from "@/server/policies/access";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { getTaskReadModelById } from "@/server/services/task-read";
 
@@ -35,6 +37,13 @@ export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
   if (!task) {
     notFound();
   }
+
+  const canComment = canUpdateAssignedWork({
+    actor: user,
+    assignedUserId: task.assignedUser.id,
+    requiresManagerApproval: task.requiresManagerApproval,
+    requestedAction: "comment"
+  });
 
   return (
     <section className="page-stack board-page task-detail-page">
@@ -132,6 +141,8 @@ export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
           </div>
         </dl>
       </article>
+
+      <TaskCommentsPanel canComment={canComment} initialComments={task.comments} taskId={task.id} />
     </section>
   );
 }
