@@ -1,195 +1,177 @@
-I am working on the `v0.4.0 - Board and task workflow` branch for the Time Motor Sales Dispatch Board.
-
-Create a focused Codex implementation prompt for these roadmap items:
-
-- `DB-031 Add manual task creation API`
-- `DB-032 Add manual task creation UI`
-- `DB-033 Add task detail endpoint and read model`
-- `DB-034 Add staff status update endpoint`
-
-Use these project files as context:
-
-- `docs/ROADMAP.md`
-- `docs/ARCHITECTURE.md`
-- `docs/AGENTS.md`
-- `docs/PRODUCT_SPEC.md`
-- `docs/MVP_SCOPE.md`
-- `docs/DEFAULT_PROMPT.md` if useful
-- `UI_REFERENCE.png` when the task touches board layout, task creation UI, task detail UI, staff update controls, spacing, workflow visibility, or manager/staff daily-use experience
-
-Before writing the Codex prompt, briefly classify this combined work as one of these:
-
-1. API/backend work
-2. UI work
-3. Full vertical slice
-4. Validation/policy work
-5. Test-only work
-6. Follow-up bug fix or polish
-
-Include a one-sentence reason for the classification.
-
-Then make a judgment call: should these four roadmap items be implemented together as one Codex task, or split into smaller Codex prompts? Be honest. If the combined task is too large, recommend a split plan first. If it is reasonable as one vertical slice, continue with one implementation prompt.
-
-Generate a concise Codex prompt with these sections:
-
 # Task
 
-Use the exact roadmap IDs and titles:
-
-`DB-031 Add manual task creation API`  
-`DB-032 Add manual task creation UI`  
-`DB-033 Add task detail endpoint and read model`  
-`DB-034 Add staff status update endpoint`
+Implement DB-035 — Enforce blocker-reason validation
 
 # Goal
 
-State the specific outcome for this slice:
+Require a blocker reason whenever a task is moved to `Blocked`.
 
-- Managers can create manual tasks from the app.
-- Manual task creation validates required fields, especially title, assigned user, due time, status, workflow area, and optional vehicle/customer references.
-- The app can load a single task detail read model reliably.
-- Staff can update the status of their own assigned tasks through validated server logic.
-- Server-side permissions and validation remain the source of truth.
+The server must reject any status transition to `Blocked` when the request does not include a meaningful blocker reason. This validation must apply regardless of whether the request comes from the staff status update endpoint, a manager update path, a server action, or any shared task mutation service.
 
 # Context
 
-Tell Codex to read the required docs before editing:
+Read these files first:
 
 - `docs/AGENTS.md`
-- `docs/ARCHITECTURE.md`
-- `docs/ROADMAP.md`
-- `docs/MVP_SCOPE.md`
-- Relevant existing files in `src/app`, `src/features/board`, `src/features/tasks`, `src/server/repositories`, `src/server/services`, `src/server/policies`, and `src/server/validation`
 
-Mention that this follows DB-028, DB-029, and DB-030, so Codex should preserve the existing board read API, initial board page, grouping/filtering controls, and current UI direction.
+- `docs/ROADMAP.md`
+
+- `docs/ARCHITECTURE.md`
+
+- `docs/PRODUCT_SPEC.md`
+
+- `docs/MVP_SCOPE.md`
+
+- Relevant task/status API, service, validation, repository, and policy files
+
+Relevant product rules:
+
+- Staff may update their own assigned tasks.
+
+- Staff may mark tasks as `Blocked`, but a blocker reason is required.
+
+- `Blocked` tasks need immediate manager visibility later through the board and activity feed.
+
+- Server-side business rules are the source of truth.
+
+- UI controls may help guide the user, but the server must enforce the rule.
+
+- DB-035 acceptance criteria: the server rejects blocked transitions that do not include a reason.
 
 # Current behavior
 
-Describe the expected current baseline:
+DB-034 should already have introduced a staff status update endpoint or server mutation for updating task status.
 
-- The board can show real board data.
-- The board may already support grouping/filtering.
-- Managers and staff can view the board.
-- Manual task creation, single task detail loading, and staff status updates are not yet fully implemented.
-
-Tell Codex to verify the actual current behavior from the codebase before editing and not assume planned features are already complete.
+The current implementation may allow a task to move to `Blocked` without a blocker reason, or may only enforce the rule in the UI.
 
 # Desired behavior
 
-Include these requirements:
+When a task status is changed to `Blocked`:
 
-## Manual task creation API
+1. The request must include a blocker reason.
 
-- Add or complete the server/API path for creating manual tasks.
-- Require a task title.
-- Require due time.
-- Require assigned user unless the existing domain model explicitly supports manager-review-needed unassigned tasks.
-- Support workflow area.
-- Support description/notes if the model has it.
-- Support optional vehicle/customer text fields.
-- Set source type as manager/manual or equivalent based on the existing schema.
-- Apply manager-only permission for manager-created tasks unless the existing policy already supports staff-created self-tasks.
-- Do not allow manual task creation to interfere with generated-task duplicate prevention.
-- Create an activity event if activity event infrastructure already exists; if it does not exist yet, leave a clear TODO or use the existing project pattern without inventing a half-built activity subsystem.
+2. The blocker reason must be a non-empty string after trimming whitespace.
 
-## Manual task creation UI
+3. The blocker reason should be persisted on the task.
 
-- Add manager-facing task creation controls to the board or task surface using the existing UI structure.
-- Keep the UI simple, clean, and aligned with `UI_REFERENCE.png`.
-- Prefer a compact form, drawer, modal, or board-level action that does not clutter the dispatch board.
-- Show validation errors clearly.
-- Show success/failure feedback.
-- Refresh or update the board after task creation.
-- Preserve grouping/filtering behavior.
+4. The server should return a clear validation error if the reason is missing or blank.
 
-## Task detail endpoint and read model
+5. Existing permission rules must still apply.
 
-- Add or complete a single task detail read endpoint/server action.
-- Return all fields needed for task detail UI, including title, description, status, due time, assigned user, recommended user if available, workflow area, vehicle/customer references, source information, blocker reason, review fields, timestamps, and any existing comments/activity fields only if already supported.
-- Enforce that authenticated users can view tasks according to the existing board visibility rules.
-- Keep the read model stable and typed.
+6. Existing allowed status transition rules must still apply.
 
-## Staff status update endpoint
+7. Updating a task to any status other than `Blocked` should not require a blocker reason.
 
-- Add or complete a validated status update server path for tasks.
-- Staff can update only their own assigned tasks.
-- Managers can update tasks according to existing manager policy.
-- Use allowed MVP statuses:
-  - Not Started
-  - In Progress
-  - Blocked
-  - Waiting on Parts
-  - Waiting on Approval
-  - Ready for Review
-  - Completed
-- Do not fully implement DB-035 or DB-036 beyond what is necessary for DB-034 unless the existing code already makes those validations easy and directly related.
-- If moving to Blocked currently requires a blocker reason due to existing shared validation, preserve that behavior.
-- If approval-required completion rules are not yet implemented, avoid pretending they are complete; leave a clear note that DB-036 will finish that rule.
-
-# Visual guidance from mockup
-
-Use `UI_REFERENCE.png` as the visual direction for task creation and task detail surfaces.
-
-Priorities:
-
-- Keep the Time Motor Sales Dispatch Board clean and enterprise-level.
-- Preserve the board as the main operational command center.
-- Do not clutter the board with too many always-visible controls.
-- Make the create-task action easy for managers to find.
-- Make status updates fast for staff.
-- Keep the right-side activity rail or existing activity/feed placeholder visible if already present.
-- Preserve responsive behavior.
-- Avoid horizontal overflow.
-- Use existing components and styling patterns before adding new ones.
-
-# Constraints
-
-- Keep the change minimal and reviewable.
-- Do not rewrite unrelated board, auth, generation, settings, or layout code.
-- Follow existing project architecture and naming patterns.
-- Keep business rules server-side.
-- UI hiding is not enough; enforce permissions in the server path.
-- Do not add new dependencies unless clearly necessary.
-- Do not implement future roadmap items broadly.
-- Do not build a full customer database or vehicle database; use optional text references only.
-- Preserve generated tasks and duplicate-prevention behavior.
-- Preserve existing tests.
-- Add or update tests where appropriate.
+8. Do not remove an existing blocker reason unless the current codebase already has a deliberate rule for clearing it.
 
 # Implementation guidance
 
-Ask Codex to:
+Inspect the current task status update flow before editing.
 
-1. Inspect existing board/task API, repository, service, policy, and validation patterns.
-2. Identify the smallest set of files needed.
-3. Implement the server-side task creation and task detail read model first.
-4. Add the staff status update endpoint with permission checks.
-5. Add manager-facing task creation UI.
-6. Wire the UI to refresh the board or update local state after task creation.
-7. Keep task detail UI minimal unless a detail screen/surface already exists.
-8. Add integration/unit tests for:
-  - successful manager manual task creation
-  - rejected task creation without due time
-  - rejected task creation without required assignment/title
-  - staff can update own assigned task status
-  - staff cannot update another staff member’s task
-  - task detail read returns the expected shape
+Prefer placing the validation in the shared server-side status update path, not only inside a route handler. The goal is to prevent bypasses if more than one endpoint or server action can change task status.
+
+Suggested approach:
+
+1. Find the existing status update endpoint or server action from DB-034.
+
+2. Find any shared task validation or domain validation module.
+
+3. Add or update validation so `status === "Blocked"` requires a trimmed blocker reason.
+
+4. Ensure the validated blocker reason is saved with the task.
+
+5. Return a consistent validation error response, following the project’s existing API error pattern.
+
+6. Add regression tests for missing, blank, and valid blocker reasons.
+
+7. If the UI already has status controls for `Blocked`, make only the minimal change needed to send the blocker reason and display the validation error clearly.
+
+8. Do not build the full activity feed yet unless it already exists and the current status update service already emits events.
+
+# Constraints
+
+- Keep the change minimal and focused on DB-035.
+
+- Do not implement DB-036 approval-required status rules.
+
+- Do not implement DB-038/DB-039 task comments.
+
+- Do not implement DB-041/DB-044 activity feed work unless existing code already has event helpers that must be preserved.
+
+- Do not add new dependencies unless absolutely necessary.
+
+- Do not rewrite unrelated task, board, auth, or UI code.
+
+- Preserve existing status update behavior for non-Blocked statuses.
+
+- Preserve staff self-update permission rules from DB-034.
+
+- Keep validation server-side.
+
+- Follow existing project patterns for validation, errors, repositories, and tests.
+
+# Edge cases to cover
+
+- Status update to `Blocked` with no blocker reason is rejected.
+
+- Status update to `Blocked` with `""` is rejected.
+
+- Status update to `Blocked` with only spaces is rejected.
+
+- Status update to `Blocked` with a valid reason succeeds.
+
+- A staff user still cannot update another staff member’s task.
+
+- A non-Blocked status update does not require blocker reason.
+
+- Existing tests for task creation, board read, and staff status updates still pass.
+
+# Tests
+
+Add or update tests in the most appropriate existing test location.
+
+Prioritize integration tests around the status update endpoint or server action.
+
+Recommended test cases:
+
+1. `PATCH/POST status update -> Blocked` without reason returns validation error.
+
+2. `PATCH/POST status update -> Blocked` with blank reason returns validation error.
+
+3. `PATCH/POST status update -> Blocked` with valid reason succeeds and persists `blockerReason`.
+
+4. Updating to `In Progress`, `Waiting on Parts`, `Waiting on Approval`, `Ready for Review`, or `Completed` does not require blocker reason unless another existing rule requires it.
+
+5. Permission enforcement still prevents staff from updating tasks they do not own.
+
+Run the relevant checks available in the repo, such as:
+
+- `npm test`
+
+- `npm run typecheck`
+
+- `npm run lint`
+
+If any command does not exist or cannot be run, state that clearly in the final summary.
 
 # Done when
 
-- `DB-031` manual task creation API works with required validation.
-- `DB-032` managers can create manual tasks from the app without direct API calls.
-- `DB-033` the app can load an individual task detail read model reliably.
-- `DB-034` staff can update only their own assigned task status through validated server logic.
-- Errors are shown clearly in the UI.
-- The board updates after manual task creation.
-- Existing board grouping/filtering behavior still works.
-- Relevant tests pass.
-- Typecheck/lint pass if available.
-- No unrelated files are changed.
-- Codex summarizes:
-  - files changed
-  - behavior added
-  - tests run
-  - any known gaps deferred to DB-035, DB-036, DB-038, DB-039, or DB-040
+- The server rejects `Blocked` transitions without a meaningful blocker reason.
 
+- Valid `Blocked` transitions save the blocker reason.
+
+- Existing staff status update permissions still work.
+
+- Relevant regression tests are added or updated.
+
+- Relevant tests/typecheck/lint pass, or any skipped checks are clearly explained.
+
+- The final response summarizes:
+
+  - Files changed
+
+  - Behavior added
+
+  - Tests run
+
+  - Any remaining risks or follow-up work
