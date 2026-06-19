@@ -128,6 +128,31 @@ describe("task status route", () => {
     });
   });
 
+  it("maps approval-transition validation failures to a 400 response", async () => {
+    mocks.updateTaskStatus.mockRejectedValue(
+      new Error("Approval-required tasks must move through Ready for Review before Completed.")
+    );
+
+    const response = await POST(
+      new Request("http://localhost/api/tasks/task-1/status", {
+        method: "POST",
+        body: JSON.stringify({
+          status: "COMPLETED"
+        })
+      }),
+      {
+        params: Promise.resolve({
+          id: "task-1"
+        })
+      }
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Approval-required tasks must move through Ready for Review before Completed."
+    });
+  });
+
   it("maps permission failures to a 403 response", async () => {
     mocks.updateTaskStatus.mockRejectedValue(
       new Error("You do not have permission to update this task.")

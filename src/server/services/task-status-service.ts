@@ -1,7 +1,7 @@
 import { TaskStatus } from "@prisma/client";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
-import { canUpdateAssignedWork } from "@/server/policies/access";
+import { canUpdateAssignedWork, isManager } from "@/server/policies/access";
 import {
   createTaskStatusRepository,
   type TaskStatusRepository
@@ -17,6 +17,9 @@ export type TaskStatusUpdateResult = {
   blockerReason: string | null;
   updatedAt: string;
 };
+
+const approvalRequiredCompletionError =
+  "Approval-required tasks must move through Ready for Review before Completed.";
 
 function normalizeTaskId(taskId: string) {
   const normalizedTaskId = taskId.trim();
@@ -45,7 +48,7 @@ function assertCanUpdateTaskStatus(
     requiresManagerApproval: boolean;
   },
   nextStatus: TaskStatus
-) {
+): AuthenticatedUser {
   if (!user) {
     throw new Error("Authentication required.");
   }
@@ -60,9 +63,47 @@ function assertCanUpdateTaskStatus(
   ) {
     throw new Error("You do not have permission to update this task.");
   }
+
+  return user;
 }
 
-function buildTaskStatusUpdateData(input: NormalizedTaskStatusUpdateInput) {
+function assertValidTaskStatusTransition(
+  user: AuthenticatedUser,
+  task: {
+    status: TaskStatus;
+    requiresManagerApproval: boolean;
+  },
+  nextStatus: TaskStatus
+) {
+  if (
+    task.requiresManagerApproval &&
+    nextStatus === TaskStatus.COMPLETED &&
+    task.status !== TaskStatus.READY_FOR_REVIEW
+  ) {
+    throw new Error(approvalRequiredCompletionError);
+  }
+
+  if (
+    task.requiresManagerApproval &&
+    task.status === TaskStatus.READY_FOR_REVIEW &&
+    nextStatus === TaskStatus.IN_PROGRESS &&
+    !isManager(user)
+  ) {
+    throw new Error("You do not have permission to update this task.");
+  }
+}
+
+function buildTaskStatusUpdateData(
+  user: AuthenticatedUser,
+  task: {
+    status: TaskStatus;
+    requiresManagerApproval: boolean;
+  },
+  input: NormalizedTaskStatusUpdateInput
+) {
+  const now = new Date();
+  const managerReviewerId = task.requiresManagerApproval ? user.id : null;
+
   if (input.status === TaskStatus.BLOCKED) {
     if (!input.blockerReason) {
       throw new Error("Blocked tasks require a blocker reason.");
@@ -70,12 +111,43 @@ function buildTaskStatusUpdateData(input: NormalizedTaskStatusUpdateInput) {
 
     return {
       status: input.status,
-      blockerReason: input.blockerReason
+      blockerReason: input.blockerReason,
+      ...(task.status === TaskStatus.READY_FOR_REVIEW
+        ? {
+            readyForReviewAt: null
+          }
+        : {}),
+      completedAt: null,
+      reviewedByUserId: null
+    };
+  }
+
+  if (input.status === TaskStatus.READY_FOR_REVIEW) {
+    return {
+      status: input.status,
+      readyForReviewAt: now,
+      completedAt: null,
+      reviewedByUserId: null
+    };
+  }
+
+  if (input.status === TaskStatus.COMPLETED) {
+    return {
+      status: input.status,
+      completedAt: now,
+      reviewedByUserId: managerReviewerId
     };
   }
 
   return {
-    status: input.status
+    status: input.status,
+    ...(task.status === TaskStatus.READY_FOR_REVIEW
+      ? {
+          readyForReviewAt: null
+        }
+      : {}),
+    completedAt: null,
+    reviewedByUserId: null
   };
 }
 
@@ -107,11 +179,12 @@ export async function updateTaskStatus(
     throw new Error("Task not found.");
   }
 
-  assertCanUpdateTaskStatus(user, task, normalizedInput.status);
+  const authenticatedUser = assertCanUpdateTaskStatus(user, task, normalizedInput.status);
+  assertValidTaskStatusTransition(authenticatedUser, task, normalizedInput.status);
 
   const updatedTask = await repository.updateTaskStatus(
     normalizedTaskId,
-    buildTaskStatusUpdateData(normalizedInput)
+    buildTaskStatusUpdateData(authenticatedUser, task, normalizedInput)
   );
 
   return toTaskStatusUpdateResult(updatedTask);

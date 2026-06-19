@@ -1,5 +1,5 @@
 import { TaskStatus } from "@prisma/client";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   updateTaskStatus,
@@ -13,6 +13,9 @@ type StoredTask = {
   requiresManagerApproval: boolean;
   status: TaskStatus;
   blockerReason: string | null;
+  readyForReviewAt: Date | null;
+  completedAt: Date | null;
+  reviewedByUserId: string | null;
   updatedAt: Date;
 };
 
@@ -23,6 +26,9 @@ function createStoredTask(overrides: Partial<StoredTask> = {}): StoredTask {
     requiresManagerApproval: false,
     status: TaskStatus.IN_PROGRESS,
     blockerReason: null,
+    readyForReviewAt: null,
+    completedAt: null,
+    reviewedByUserId: null,
     updatedAt: new Date("2026-06-18T15:00:00.000Z"),
     ...overrides
   };
@@ -36,7 +42,16 @@ function createTaskStatusRepository(initialTasks: StoredTask[] = [createStoredTa
       async findTaskById(taskId: string) {
         return tasks.find((task) => task.id === taskId) ?? null;
       },
-      async updateTaskStatus(taskId: string, data: { status: TaskStatus; blockerReason?: string }) {
+      async updateTaskStatus(
+        taskId: string,
+        data: {
+          status: TaskStatus;
+          blockerReason?: string;
+          readyForReviewAt?: Date | null;
+          completedAt?: Date | null;
+          reviewedByUserId?: string | null;
+        }
+      ) {
         const taskIndex = tasks.findIndex((task) => task.id === taskId);
 
         if (taskIndex === -1) {
@@ -48,6 +63,16 @@ function createTaskStatusRepository(initialTasks: StoredTask[] = [createStoredTa
           status: data.status,
           blockerReason:
             data.blockerReason !== undefined ? data.blockerReason : tasks[taskIndex].blockerReason,
+          readyForReviewAt:
+            data.readyForReviewAt !== undefined
+              ? data.readyForReviewAt
+              : tasks[taskIndex].readyForReviewAt,
+          completedAt:
+            data.completedAt !== undefined ? data.completedAt : tasks[taskIndex].completedAt,
+          reviewedByUserId:
+            data.reviewedByUserId !== undefined
+              ? data.reviewedByUserId
+              : tasks[taskIndex].reviewedByUserId,
           updatedAt: new Date("2026-06-18T15:30:00.000Z")
         };
 
@@ -63,6 +88,15 @@ function createTaskStatusRepository(initialTasks: StoredTask[] = [createStoredTa
 }
 
 describe("task status service", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-18T15:30:00.000Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("allows staff to block their own task when they provide a meaningful blocker reason", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
@@ -86,14 +120,21 @@ describe("task status service", () => {
     });
     expect(readTask()).toMatchObject({
       status: TaskStatus.BLOCKED,
-      blockerReason: "Waiting on lender paperwork."
+      blockerReason: "Waiting on lender paperwork.",
+      readyForReviewAt: null,
+      completedAt: null,
+      reviewedByUserId: null
     });
   });
 
-  it("rejects blocked updates when the blocker reason is missing", async () => {
+  it("rejects blocked updates when the blocker reason is missing for approval-required tasks", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
-    const { repository } = createTaskStatusRepository();
+    const { repository } = createTaskStatusRepository([
+      createStoredTask({
+        requiresManagerApproval: true
+      })
+    ]);
 
     await expect(
       updateTaskStatus(
@@ -150,7 +191,9 @@ describe("task status service", () => {
     });
     expect(readTask()).toMatchObject({
       status: TaskStatus.IN_PROGRESS,
-      blockerReason: "Waiting on photos"
+      blockerReason: "Waiting on photos",
+      completedAt: null,
+      reviewedByUserId: null
     });
   });
 
@@ -176,7 +219,7 @@ describe("task status service", () => {
     ).rejects.toThrow(/permission/);
   });
 
-  it("preserves approval-required completion rules for staff users", async () => {
+  it("rejects staff users who try to directly complete an approval-required task", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
     const { repository } = createTaskStatusRepository([
@@ -195,5 +238,168 @@ describe("task status service", () => {
         repository
       )
     ).rejects.toThrow(/permission/);
+  });
+
+  it("allows staff to move approval-required tasks to ready for review", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+    const { repository, readTask } = createTaskStatusRepository([
+      createStoredTask({
+        requiresManagerApproval: true
+      })
+    ]);
+
+    const result = await updateTaskStatus(
+      staffUser,
+      "task-1",
+      {
+        status: "READY_FOR_REVIEW"
+      },
+      repository
+    );
+
+    expect(result).toMatchObject({
+      status: TaskStatus.READY_FOR_REVIEW,
+      blockerReason: null
+    });
+    expect(readTask()).toMatchObject({
+      status: TaskStatus.READY_FOR_REVIEW,
+      readyForReviewAt: new Date("2026-06-18T15:30:00.000Z"),
+      completedAt: null,
+      reviewedByUserId: null
+    });
+  });
+
+  it("allows managers to complete approval-required tasks from ready for review", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const managerUser = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository, readTask } = createTaskStatusRepository([
+      createStoredTask({
+        requiresManagerApproval: true,
+        status: TaskStatus.READY_FOR_REVIEW,
+        readyForReviewAt: new Date("2026-06-18T15:15:00.000Z")
+      })
+    ]);
+
+    const result = await updateTaskStatus(
+      managerUser,
+      "task-1",
+      {
+        status: "COMPLETED"
+      },
+      repository
+    );
+
+    expect(result).toMatchObject({
+      status: TaskStatus.COMPLETED
+    });
+    expect(readTask()).toMatchObject({
+      status: TaskStatus.COMPLETED,
+      readyForReviewAt: new Date("2026-06-18T15:15:00.000Z"),
+      completedAt: new Date("2026-06-18T15:30:00.000Z"),
+      reviewedByUserId: managerUser?.id ?? null
+    });
+  });
+
+  it("rejects managers who try to complete approval-required tasks before ready for review", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const managerUser = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createTaskStatusRepository([
+      createStoredTask({
+        requiresManagerApproval: true,
+        status: TaskStatus.IN_PROGRESS
+      })
+    ]);
+
+    await expect(
+      updateTaskStatus(
+        managerUser,
+        "task-1",
+        {
+          status: "COMPLETED"
+        },
+        repository
+      )
+    ).rejects.toThrow("Approval-required tasks must move through Ready for Review before Completed.");
+  });
+
+  it("allows managers to send ready-for-review tasks back to in progress", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const managerUser = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository, readTask } = createTaskStatusRepository([
+      createStoredTask({
+        requiresManagerApproval: true,
+        status: TaskStatus.READY_FOR_REVIEW,
+        readyForReviewAt: new Date("2026-06-18T15:15:00.000Z"),
+        completedAt: new Date("2026-06-18T15:20:00.000Z"),
+        reviewedByUserId: "user-morgan.manager@local.test"
+      })
+    ]);
+
+    const result = await updateTaskStatus(
+      managerUser,
+      "task-1",
+      {
+        status: "IN_PROGRESS"
+      },
+      repository
+    );
+
+    expect(result).toMatchObject({
+      status: TaskStatus.IN_PROGRESS
+    });
+    expect(readTask()).toMatchObject({
+      status: TaskStatus.IN_PROGRESS,
+      readyForReviewAt: null,
+      completedAt: null,
+      reviewedByUserId: null
+    });
+  });
+
+  it("rejects staff users who try to send ready-for-review tasks back to in progress", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+    const { repository } = createTaskStatusRepository([
+      createStoredTask({
+        requiresManagerApproval: true,
+        status: TaskStatus.READY_FOR_REVIEW,
+        readyForReviewAt: new Date("2026-06-18T15:15:00.000Z")
+      })
+    ]);
+
+    await expect(
+      updateTaskStatus(
+        staffUser,
+        "task-1",
+        {
+          status: "IN_PROGRESS"
+        },
+        repository
+      )
+    ).rejects.toThrow(/permission/);
+  });
+
+  it("allows staff to directly complete non-approval-required tasks assigned to them", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+    const { repository, readTask } = createTaskStatusRepository();
+
+    const result = await updateTaskStatus(
+      staffUser,
+      "task-1",
+      {
+        status: "COMPLETED"
+      },
+      repository
+    );
+
+    expect(result).toMatchObject({
+      status: TaskStatus.COMPLETED
+    });
+    expect(readTask()).toMatchObject({
+      status: TaskStatus.COMPLETED,
+      completedAt: new Date("2026-06-18T15:30:00.000Z"),
+      reviewedByUserId: null
+    });
   });
 });

@@ -25,6 +25,7 @@ function getTaskStatusErrorStatus(message: string) {
   if (
     message === "Task id is required." ||
     message === "Blocked tasks require a blocker reason." ||
+    message === "Approval-required tasks must move through Ready for Review before Completed." ||
     message === "Task status payload must be an object." ||
     message.startsWith("Task status updates require") ||
     message.startsWith("Task status updates contain")

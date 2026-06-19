@@ -1,177 +1,187 @@
 # Task
 
-Implement DB-035 — Enforce blocker-reason validation
+DB-036 — Enforce approval-required status rules
 
 # Goal
 
-Require a blocker reason whenever a task is moved to `Blocked`.
+Implement the server-side task status rules for tasks where `requiresManagerApproval = true`.
 
-The server must reject any status transition to `Blocked` when the request does not include a meaningful blocker reason. This validation must apply regardless of whether the request comes from the staff status update endpoint, a manager update path, a server action, or any shared task mutation service.
+Approval-required tasks must pass through `Ready for Review` before they can become `Completed`, and staff must not be able to directly complete approval-required tasks.
 
 # Context
 
-Read these files first:
+Read these first:
 
 - `docs/AGENTS.md`
 
-- `docs/ROADMAP.md`
-
 - `docs/ARCHITECTURE.md`
 
-- `docs/PRODUCT_SPEC.md`
+- `docs/ROADMAP.md`
 
 - `docs/MVP_SCOPE.md`
 
-- Relevant task/status API, service, validation, repository, and policy files
+- Existing task status update endpoint/service from DB-034
+
+- Existing blocker validation implementation from DB-035
+
+- Existing task policy, validation, repository, and test files
 
 Relevant product rules:
 
-- Staff may update their own assigned tasks.
+- Staff can update their own assigned tasks through allowed transitions.
 
-- Staff may mark tasks as `Blocked`, but a blocker reason is required.
+- Staff cannot update other staff members’ tasks.
 
-- `Blocked` tasks need immediate manager visibility later through the board and activity feed.
+- `Blocked` still requires a blocker reason.
 
-- Server-side business rules are the source of truth.
+- Tasks with `requiresManagerApproval = true` must move to `Ready for Review` before `Completed`.
 
-- UI controls may help guide the user, but the server must enforce the rule.
+- Tasks with `requiresManagerApproval = false` may be completed directly by the assigned staff member.
 
-- DB-035 acceptance criteria: the server rejects blocked transitions that do not include a reason.
+- Managers can complete approval-required tasks only after the task is already `Ready for Review`.
+
+- Managers can send a `Ready for Review` task back to `In Progress`.
+
+- Keep all enforcement server-side. UI may hide unavailable options, but the API/service must be the source of truth.
 
 # Current behavior
 
-DB-034 should already have introduced a staff status update endpoint or server mutation for updating task status.
+The status update flow exists, and DB-035 should already reject `Blocked` transitions without a blocker reason.
 
-The current implementation may allow a task to move to `Blocked` without a blocker reason, or may only enforce the rule in the UI.
+The approval-required completion flow is not fully enforced yet. A staff user may still be able to move an approval-required task directly to `Completed`, or the code may not consistently require `Ready for Review` first.
 
 # Desired behavior
 
-When a task status is changed to `Blocked`:
+Implement these rules in the existing status update service/API:
 
-1. The request must include a blocker reason.
+## For approval-required tasks
 
-2. The blocker reason must be a non-empty string after trimming whitespace.
+When `task.requiresManagerApproval === true`:
 
-3. The blocker reason should be persisted on the task.
+1. Assigned staff may move the task to `Ready for Review`.
 
-4. The server should return a clear validation error if the reason is missing or blank.
+2. Assigned staff may not move the task directly to `Completed`.
 
-5. Existing permission rules must still apply.
+3. Manager may move the task from `Ready for Review` to `Completed`.
 
-6. Existing allowed status transition rules must still apply.
+4. Manager may move the task from `Ready for Review` back to `In Progress`.
 
-7. Updating a task to any status other than `Blocked` should not require a blocker reason.
+5. Manager should not skip the review gate by moving an approval-required task directly from `Not Started`, `In Progress`, `Blocked`, `Waiting on Parts`, or `Waiting on Approval` to `Completed`.
 
-8. Do not remove an existing blocker reason unless the current codebase already has a deliberate rule for clearing it.
+6. When moved to `Ready for Review`, set `readyForReviewAt` if the field exists.
+
+7. When manager completes the task, set `completedAt` and `reviewedByUserId` if those fields exist.
+
+8. When sent back to `In Progress`, clear completion fields if needed and follow existing timestamp conventions.
+
+## For non-approval-required tasks
+
+When `task.requiresManagerApproval === false`:
+
+1. Assigned staff may move their own task directly to `Completed`.
+
+2. Completion should set `completedAt` if that is already part of the task model/service pattern.
+
+3. Existing manager behavior should remain valid unless it conflicts with current server-side policies.
 
 # Implementation guidance
 
-Inspect the current task status update flow before editing.
+- Reuse the existing status update endpoint/service instead of creating a parallel workflow.
 
-Prefer placing the validation in the shared server-side status update path, not only inside a route handler. The goal is to prevent bypasses if more than one endpoint or server action can change task status.
+- Prefer a centralized status-transition validator/helper if one already exists.
 
-Suggested approach:
+- If validation is currently inline in the route/server action, move only the minimum necessary logic into a small helper if that improves clarity.
 
-1. Find the existing status update endpoint or server action from DB-034.
+- Use the existing status enum/constants rather than duplicating status strings.
 
-2. Find any shared task validation or domain validation module.
+- Return errors using the project’s existing API/error conventions.
 
-3. Add or update validation so `status === "Blocked"` requires a trimmed blocker reason.
+- Keep DB-035 behavior intact: `Blocked` must still require a blocker reason.
 
-4. Ensure the validated blocker reason is saved with the task.
+- Do not build the DB-048 review queue UI in this task.
 
-5. Return a consistent validation error response, following the project’s existing API error pattern.
+- Do not implement the full activity feed schema if DB-041 is not already implemented. If activity logging helpers already exist, preserve/use the existing pattern for status changes without expanding the scope.
 
-6. Add regression tests for missing, blank, and valid blocker reasons.
+- Do not redesign the board UI. If the existing UI exposes invalid status options, make the smallest possible adjustment to hide/disable invalid options or surface the server error clearly.
 
-7. If the UI already has status controls for `Blocked`, make only the minimal change needed to send the blocker reason and display the validation error clearly.
+# Expected transition examples
 
-8. Do not build the full activity feed yet unless it already exists and the current status update service already emits events.
+These should pass:
+
+- Staff assigned to an approval-required task moves it from `In Progress` to `Ready for Review`.
+
+- Manager moves an approval-required task from `Ready for Review` to `Completed`.
+
+- Manager moves an approval-required task from `Ready for Review` back to `In Progress`.
+
+- Staff assigned to a non-approval-required task moves it from `In Progress` to `Completed`.
+
+These should fail:
+
+- Staff assigned to an approval-required task moves it directly to `Completed`.
+
+- Staff tries to complete another staff member’s task.
+
+- Manager tries to complete an approval-required task before it is `Ready for Review`.
+
+- Any user moves a task to `Blocked` without a blocker reason.
+
+# Tests
+
+Add or update focused tests for the status update service/API.
+
+Cover at least:
+
+1. Staff cannot directly complete an approval-required task.
+
+2. Staff can move an approval-required task to `Ready for Review`.
+
+3. Manager can complete an approval-required task from `Ready for Review`.
+
+4. Manager cannot complete an approval-required task before `Ready for Review`.
+
+5. Manager can send a `Ready for Review` task back to `In Progress`.
+
+6. Staff can directly complete a non-approval-required task assigned to them.
+
+7. Existing self-update permission rule still prevents staff from updating someone else’s task.
+
+8. Existing blocker-reason validation still works with approval-required and non-approval-required tasks.
 
 # Constraints
 
-- Keep the change minimal and focused on DB-035.
+- Keep the change minimal and reviewable.
 
-- Do not implement DB-036 approval-required status rules.
+- Follow existing architecture and naming patterns.
 
-- Do not implement DB-038/DB-039 task comments.
-
-- Do not implement DB-041/DB-044 activity feed work unless existing code already has event helpers that must be preserved.
+- Keep permission checks and business rules server-side.
 
 - Do not add new dependencies unless absolutely necessary.
 
 - Do not rewrite unrelated task, board, auth, or UI code.
 
-- Preserve existing status update behavior for non-Blocked statuses.
+- Do not implement DB-037, DB-040, DB-041, DB-048, or DB-049.
 
-- Preserve staff self-update permission rules from DB-034.
+- Preserve existing tests and update only those affected by this behavior.
 
-- Keep validation server-side.
-
-- Follow existing project patterns for validation, errors, repositories, and tests.
-
-# Edge cases to cover
-
-- Status update to `Blocked` with no blocker reason is rejected.
-
-- Status update to `Blocked` with `""` is rejected.
-
-- Status update to `Blocked` with only spaces is rejected.
-
-- Status update to `Blocked` with a valid reason succeeds.
-
-- A staff user still cannot update another staff member’s task.
-
-- A non-Blocked status update does not require blocker reason.
-
-- Existing tests for task creation, board read, and staff status updates still pass.
-
-# Tests
-
-Add or update tests in the most appropriate existing test location.
-
-Prioritize integration tests around the status update endpoint or server action.
-
-Recommended test cases:
-
-1. `PATCH/POST status update -> Blocked` without reason returns validation error.
-
-2. `PATCH/POST status update -> Blocked` with blank reason returns validation error.
-
-3. `PATCH/POST status update -> Blocked` with valid reason succeeds and persists `blockerReason`.
-
-4. Updating to `In Progress`, `Waiting on Parts`, `Waiting on Approval`, `Ready for Review`, or `Completed` does not require blocker reason unless another existing rule requires it.
-
-5. Permission enforcement still prevents staff from updating tasks they do not own.
-
-Run the relevant checks available in the repo, such as:
-
-- `npm test`
-
-- `npm run typecheck`
-
-- `npm run lint`
-
-If any command does not exist or cannot be run, state that clearly in the final summary.
+- If schema fields like `readyForReviewAt`, `completedAt`, or `reviewedByUserId` do not exist yet, inspect the current schema and use the closest existing fields. Do not create a broad migration unless the current model cannot represent the rule.
 
 # Done when
 
-- The server rejects `Blocked` transitions without a meaningful blocker reason.
+- Approval-required tasks cannot be directly completed by staff.
 
-- Valid `Blocked` transitions save the blocker reason.
+- Approval-required tasks must pass through `Ready for Review` before `Completed`.
 
-- Existing staff status update permissions still work.
+- Managers can complete approval-required tasks only from `Ready for Review`.
 
-- Relevant regression tests are added or updated.
+- Non-approval-required tasks can still be completed directly by assigned staff.
 
-- Relevant tests/typecheck/lint pass, or any skipped checks are clearly explained.
+- Existing blocker-reason validation still works.
 
-- The final response summarizes:
+- Existing staff self-update restrictions still work.
 
-  - Files changed
+- Relevant tests pass.
 
-  - Behavior added
+- Typecheck/lint pass if available.
 
-  - Tests run
-
-  - Any remaining risks or follow-up work
+- Summarize files changed, behavior added, and tests run.
