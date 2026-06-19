@@ -1,240 +1,195 @@
-# Task: DB-030 — Add board grouping and filtering controls using the approved UI reference mockup
+I am working on the `v0.4.0 - Board and task workflow` branch for the Time Motor Sales Dispatch Board.
 
-Read these files first:
+Create a focused Codex implementation prompt for these roadmap items:
+
+- `DB-031 Add manual task creation API`
+- `DB-032 Add manual task creation UI`
+- `DB-033 Add task detail endpoint and read model`
+- `DB-034 Add staff status update endpoint`
+
+Use these project files as context:
+
+- `docs/ROADMAP.md`
+- `docs/ARCHITECTURE.md`
+- `docs/AGENTS.md`
+- `docs/PRODUCT_SPEC.md`
+- `docs/MVP_SCOPE.md`
+- `docs/DEFAULT_PROMPT.md` if useful
+- `UI_REFERENCE.png` when the task touches board layout, task creation UI, task detail UI, staff update controls, spacing, workflow visibility, or manager/staff daily-use experience
+
+Before writing the Codex prompt, briefly classify this combined work as one of these:
+
+1. API/backend work
+2. UI work
+3. Full vertical slice
+4. Validation/policy work
+5. Test-only work
+6. Follow-up bug fix or polish
+
+Include a one-sentence reason for the classification.
+
+Then make a judgment call: should these four roadmap items be implemented together as one Codex task, or split into smaller Codex prompts? Be honest. If the combined task is too large, recommend a split plan first. If it is reasonable as one vertical slice, continue with one implementation prompt.
+
+Generate a concise Codex prompt with these sections:
+
+# Task
+
+Use the exact roadmap IDs and titles:
+
+`DB-031 Add manual task creation API`  
+`DB-032 Add manual task creation UI`  
+`DB-033 Add task detail endpoint and read model`  
+`DB-034 Add staff status update endpoint`
+
+# Goal
+
+State the specific outcome for this slice:
+
+- Managers can create manual tasks from the app.
+- Manual task creation validates required fields, especially title, assigned user, due time, status, workflow area, and optional vehicle/customer references.
+- The app can load a single task detail read model reliably.
+- Staff can update the status of their own assigned tasks through validated server logic.
+- Server-side permissions and validation remain the source of truth.
+
+# Context
+
+Tell Codex to read the required docs before editing:
 
 - `docs/AGENTS.md`
 - `docs/ARCHITECTURE.md`
 - `docs/ROADMAP.md`
-- `docs/DEFAULT_PROMPT.md`
-- The current board-related source files
-- The approved UI reference mockup, expected at `docs/images/UI_REFERENCE.png` or the closest existing `UI_REFERENCE.png` file in the repo
+- `docs/MVP_SCOPE.md`
+- Relevant existing files in `src/app`, `src/features/board`, `src/features/tasks`, `src/server/repositories`, `src/server/services`, `src/server/policies`, and `src/server/validation`
 
-If the UI reference mockup cannot be found, stop and report that before making visual layout changes.
+Mention that this follows DB-028, DB-029, and DB-030, so Codex should preserve the existing board read API, initial board page, grouping/filtering controls, and current UI direction.
 
-## Goal
+# Current behavior
 
-Implement **DB-030 — Add board grouping and filtering controls** for the Time Motor Sales Dispatch Board.
+Describe the expected current baseline:
 
-The board must support switching between these grouping modes:
+- The board can show real board data.
+- The board may already support grouping/filtering.
+- Managers and staff can view the board.
+- Manual task creation, single task detail loading, and staff status updates are not yet fully implemented.
 
-1. Assigned user
-2. Status
-3. Workflow area
+Tell Codex to verify the actual current behavior from the codebase before editing and not assume planned features are already complete.
 
-Also add practical board filtering controls that help managers and staff quickly narrow the board without losing visibility of tasks.
+# Desired behavior
 
-Important: Codex has started creating the app with its own UI direction. For this task, update the board UI to follow the approved mockup instead of continuing with an invented Codex layout.
+Include these requirements:
 
-Keep this task **functional first, visual refinement second**. The grouping/filtering behavior must work reliably before polishing small visual details.
+## Manual task creation API
 
-## Current behavior
+- Add or complete the server/API path for creating manual tasks.
+- Require a task title.
+- Require due time.
+- Require assigned user unless the existing domain model explicitly supports manager-review-needed unassigned tasks.
+- Support workflow area.
+- Support description/notes if the model has it.
+- Support optional vehicle/customer text fields.
+- Set source type as manager/manual or equivalent based on the existing schema.
+- Apply manager-only permission for manager-created tasks unless the existing policy already supports staff-created self-tasks.
+- Do not allow manual task creation to interfere with generated-task duplicate prevention.
+- Create an activity event if activity event infrastructure already exists; if it does not exist yet, leave a clear TODO or use the existing project pattern without inventing a half-built activity subsystem.
 
-The app currently has an initial board page from earlier v0.4.0 work. Codex may have created a UI layout that does not match the approved mockup.
+## Manual task creation UI
 
-Before changing code:
+- Add manager-facing task creation controls to the board or task surface using the existing UI structure.
+- Keep the UI simple, clean, and aligned with `UI_REFERENCE.png`.
+- Prefer a compact form, drawer, modal, or board-level action that does not clutter the dispatch board.
+- Show validation errors clearly.
+- Show success/failure feedback.
+- Refresh or update the board after task creation.
+- Preserve grouping/filtering behavior.
 
-1. Inspect the current board page.
-2. Identify the board route, board components, task card components, board data loading, current grouping/filter state if any, and existing tests.
-3. Identify what behavior already works and must be preserved.
-4. Confirm whether grouping/filtering should happen client-side from the current board read model or server-side through existing API/query params.
+## Task detail endpoint and read model
 
-Do not rewrite the board from scratch unless the current structure is unusable. Prefer adapting the existing implementation.
+- Add or complete a single task detail read endpoint/server action.
+- Return all fields needed for task detail UI, including title, description, status, due time, assigned user, recommended user if available, workflow area, vehicle/customer references, source information, blocker reason, review fields, timestamps, and any existing comments/activity fields only if already supported.
+- Enforce that authenticated users can view tasks according to the existing board visibility rules.
+- Keep the read model stable and typed.
 
-## Desired behavior
+## Staff status update endpoint
 
-The board page should allow the user to switch grouping modes without losing task visibility.
+- Add or complete a validated status update server path for tasks.
+- Staff can update only their own assigned tasks.
+- Managers can update tasks according to existing manager policy.
+- Use allowed MVP statuses:
+  - Not Started
+  - In Progress
+  - Blocked
+  - Waiting on Parts
+  - Waiting on Approval
+  - Ready for Review
+  - Completed
+- Do not fully implement DB-035 or DB-036 beyond what is necessary for DB-034 unless the existing code already makes those validations easy and directly related.
+- If moving to Blocked currently requires a blocker reason due to existing shared validation, preserve that behavior.
+- If approval-required completion rules are not yet implemented, avoid pretending they are complete; leave a clear note that DB-036 will finish that rule.
 
-### Required grouping modes
+# Visual guidance from mockup
 
-Add a clear board control for:
+Use `UI_REFERENCE.png` as the visual direction for task creation and task detail surfaces.
 
-- **Group by Assignee**
-- **Group by Status**
-- **Group by Workflow Area**
+Priorities:
 
-Each mode should render task groups/columns/sections based on the selected grouping.
+- Keep the Time Motor Sales Dispatch Board clean and enterprise-level.
+- Preserve the board as the main operational command center.
+- Do not clutter the board with too many always-visible controls.
+- Make the create-task action easy for managers to find.
+- Make status updates fast for staff.
+- Keep the right-side activity rail or existing activity/feed placeholder visible if already present.
+- Preserve responsive behavior.
+- Avoid horizontal overflow.
+- Use existing components and styling patterns before adding new ones.
 
-### Grouping behavior
+# Constraints
 
-- Grouping by assignee should show tasks under assigned staff members.
-- Grouping by status should show tasks under statuses such as Not Started, In Progress, Blocked, Waiting on Parts, Waiting on Approval, Ready for Review, and Completed.
-- Grouping by workflow area should show tasks under areas such as Inventory, Advertising, Marketing, Sales, Admin, and Collections/basic manual work.
-- Tasks with missing or unknown grouping values should still appear under an “Unassigned,” “No Status,” or “Other” group instead of disappearing.
-- Switching grouping modes should not mutate task data.
-- Switching grouping modes should not reset the board date.
-- Switching grouping modes should not permanently hide tasks.
-- Empty groups may be hidden unless the current UI pattern makes empty groups useful.
-
-### Filtering controls
-
-Add filtering controls that fit the current data model and board read model.
-
-Preferred filters:
-
-- Status
-- Assignee
-- Workflow area
-- Search text, if task title/description/vehicle/customer text is available in the board data
-
-Filtering behavior:
-
-- Filters should be easy to clear.
-- A “Clear filters” action should reset all filters back to the default all-visible state.
-- Filters should work together predictably.
-- When filters produce no results, show a useful empty state such as: “No tasks match these filters.”
-- Filtering should not delete or mutate task records.
-- Filtering should not interfere with future task editing or status updates.
-
-### Task visibility requirement
-
-DB-030 is not done unless the board can switch between planned grouping modes while preserving visibility of all matching tasks.
-
-No task should disappear unless it is intentionally filtered out.
-
-## Visual guidance from mockup
-
-Use the approved UI reference mockup as the visual source of truth for the board screen.
-
-The UI should move away from Codex’s self-created layout and toward the mockup direction.
-
-Apply the mockup guidance to:
-
-- Overall enterprise-level clean layout
-- Left navigation/sidebar
-- Board header and daily board context
-- Board controls near the header
-- Grouping and filtering controls
-- Compact task card hierarchy
-- Clear status/priority/metadata treatment
-- Reduced clutter
-- Right-side Today’s Activity Feed rail when viewport width allows
-- Responsive fallback for tablet and mobile
-
-Preserve the app name exactly as:
-
-**Time Motor Sales Dispatch Board**
-
-Use the mockup as guidance, not as permission to overbuild the UI. The goal is to align the current board page with the approved direction while keeping this task scoped to DB-030.
-
-### Layout expectations
-
-On desktop:
-
-- Keep a left sidebar/navigation area if the app already has one.
-- Keep the main board area central and easy to scan.
-- Place grouping/filtering controls near the board title/header.
-- Keep task cards compact.
-- Keep Today’s Activity Feed visible as a right-side rail if the current implementation already has activity data or a placeholder rail.
-- Avoid oversized controls and excessive spacing.
-
-On tablet:
-
-- The board should remain readable and usable.
-- Controls may wrap cleanly.
-- The activity rail may move below or collapse if needed.
-
-On mobile:
-
-- Prioritize “my tasks,” quick scanning, and grouped sections.
-- Filters/grouping controls should remain usable without horizontal overflow.
-- The right rail should not force the layout off-screen.
-
-## Scope constraints
-
-- Keep the change focused on DB-030.
-- Do not implement DB-031 or DB-032 manual task creation unless minimal existing buttons need to remain wired.
-- Do not implement task detail, staff status updates, comments, review approvals, or activity feed persistence as part of this task.
-- Do not add new database models.
-- Do not change Prisma schema unless the existing board read model cannot support grouping/filtering and you explain why first.
-- Do not add new dependencies unless clearly necessary and justified.
-- Do not rewrite unrelated routes, auth, generation services, settings, or task mutation logic.
-- Preserve existing board data loading.
-- Preserve existing permissions.
+- Keep the change minimal and reviewable.
+- Do not rewrite unrelated board, auth, generation, settings, or layout code.
+- Follow existing project architecture and naming patterns.
+- Keep business rules server-side.
+- UI hiding is not enough; enforce permissions in the server path.
+- Do not add new dependencies unless clearly necessary.
+- Do not implement future roadmap items broadly.
+- Do not build a full customer database or vehicle database; use optional text references only.
+- Preserve generated tasks and duplicate-prevention behavior.
 - Preserve existing tests.
-- Use existing design/components/patterns where practical, but update the board page to align with the approved mockup.
+- Add or update tests where appropriate.
 
-## Implementation guidance
+# Implementation guidance
 
-Recommended approach:
+Ask Codex to:
 
-1. Inspect the current board implementation.
-2. Locate the board route/page and board feature components.
-3. Locate the task card component or create a small board-specific card only if needed.
-4. Locate the board read model shape.
-5. Add a small typed grouping/filtering helper if one does not already exist.
-6. Add client-side grouping/filtering first if the current board dataset is already loaded and not paginated.
-7. If board data is paginated or too large for client-only filtering, extend the existing board API minimally with query params.
-8. Add UI controls for grouping and filtering near the board header.
-9. Update the board layout to follow `UI_REFERENCE.png`.
-10. Add empty/loading/error states if the current board surface lacks them.
-11. Add or update tests for grouping/filter behavior.
-12. Run relevant checks.
+1. Inspect existing board/task API, repository, service, policy, and validation patterns.
+2. Identify the smallest set of files needed.
+3. Implement the server-side task creation and task detail read model first.
+4. Add the staff status update endpoint with permission checks.
+5. Add manager-facing task creation UI.
+6. Wire the UI to refresh the board or update local state after task creation.
+7. Keep task detail UI minimal unless a detail screen/surface already exists.
+8. Add integration/unit tests for:
+  - successful manager manual task creation
+  - rejected task creation without due time
+  - rejected task creation without required assignment/title
+  - staff can update own assigned task status
+  - staff cannot update another staff member’s task
+  - task detail read returns the expected shape
 
-Suggested grouping helper behavior:
+# Done when
 
-- Input: list of tasks, selected group mode, selected filters, search text.
-- Output: ordered groups with group label, group key, task count, and filtered tasks.
-- Unknown values should map to a safe fallback group.
-- The helper should be unit-testable if the project has unit tests set up.
-
-Suggested group ordering:
-
-- Status: Not Started, In Progress, Blocked, Waiting on Parts, Waiting on Approval, Ready for Review, Completed, Other
-- Workflow area: Inventory, Advertising, Marketing, Sales, Admin, Collections, Other
-- Assignee: active users/alphabetical if user metadata exists; otherwise grouped by assigned user name or ID with Unassigned last
-
-## Edge cases to handle
-
-Test or manually verify:
-
-- No board exists for the selected date.
-- Board exists but has no tasks.
-- Tasks exist with missing assignee.
-- Tasks exist with missing workflow area.
-- Filters return zero tasks.
-- Clearing filters restores all tasks.
-- Search is case-insensitive if search is implemented.
-- Switching grouping modes preserves active filters unless there is a strong UX reason to reset them.
-- Mobile viewport does not horizontally overflow.
-- Existing task cards still show key information such as title, assignee, status, due time, workflow area, and vehicle/customer reference when available.
-
-## Done when
-
-- DB-030 grouping modes work:
-  - Assigned user
-  - Status
-  - Workflow area
-- Board filtering controls work and can be cleared.
-- Switching grouping modes does not lose task visibility.
-- Unknown/missing group values do not cause tasks to disappear.
-- The board UI is updated to follow the approved `UI_REFERENCE.png` mockup direction.
-- The board remains responsive on desktop, tablet, and mobile.
-- Loading, empty, and error states are present or existing ones are preserved.
-- Existing board data loading still works.
-- Existing behavior from DB-028 and DB-029 is preserved.
-- Relevant tests are added or updated where practical.
-- Relevant lint/typecheck/test commands are run.
+- `DB-031` manual task creation API works with required validation.
+- `DB-032` managers can create manual tasks from the app without direct API calls.
+- `DB-033` the app can load an individual task detail read model reliably.
+- `DB-034` staff can update only their own assigned task status through validated server logic.
+- Errors are shown clearly in the UI.
+- The board updates after manual task creation.
+- Existing board grouping/filtering behavior still works.
+- Relevant tests pass.
+- Typecheck/lint pass if available.
 - No unrelated files are changed.
-- The final summary includes:
-  - Files changed
-  - Behavior added
-  - UI changes made from the mockup
-  - Tests/checks run
-  - Any checks that could not be run
-  - Remaining risks or follow-up recommendations
+- Codex summarizes:
+  - files changed
+  - behavior added
+  - tests run
+  - any known gaps deferred to DB-035, DB-036, DB-038, DB-039, or DB-040
 
-## Final self-review before finishing
-
-Before reporting done, review your own diff for:
-
-1. Unrelated edits
-2. Broken board data loading
-3. Task visibility regressions
-4. Filter reset bugs
-5. Responsive overflow
-6. Missing empty states
-7. UI drift away from the approved mockup
-8. Unnecessary new abstractions
-9. Missing tests where tests were practical
-
-Fix only issues directly related to DB-030.
