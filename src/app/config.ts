@@ -12,9 +12,14 @@ export const placeholderRoutes = [
     description: "Protected app shell for the daily dispatch board and later workflow slices."
   },
   {
+    href: "/my-tasks",
+    title: "My Tasks",
+    description: "Staff-focused assigned-work view with quick status updates and mobile-friendly cards."
+  },
+  {
     href: "/tasks",
     title: "Tasks",
-    description: "Protected task workflow surface for future manager and staff views."
+    description: "Shared task routes, including the task detail surface used by My Tasks and the board."
   },
   {
     href: "/settings",

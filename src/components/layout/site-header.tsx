@@ -10,6 +10,10 @@ type SiteHeaderProps = {
 
 const authenticatedRoutes = [
   {
+    href: "/my-tasks",
+    title: "My Tasks"
+  },
+  {
     href: "/board",
     title: "Board"
   },

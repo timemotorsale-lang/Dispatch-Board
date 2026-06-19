@@ -906,6 +906,130 @@ code {
   background: linear-gradient(135deg, #2563eb, #0f172a);
 }
 
+.my-tasks-page {
+  gap: 1.25rem;
+}
+
+.my-tasks-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.my-tasks-generated-copy {
+  margin: 0;
+  color: var(--board-muted);
+}
+
+.my-task-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.my-task-card {
+  display: grid;
+  gap: 1rem;
+  border-color: var(--board-line);
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: var(--board-shadow);
+}
+
+.my-task-topline,
+.my-task-heading-row,
+.my-task-actions,
+.task-detail-list div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.my-task-copy {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.my-task-copy h2 {
+  margin: 0;
+  color: var(--board-copy);
+  font-size: 1.2rem;
+  overflow-wrap: anywhere;
+}
+
+.my-task-meta-grid {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.my-task-meta-grid div,
+.task-detail-list {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.my-task-meta-grid span,
+.task-detail-list dt {
+  color: var(--board-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.my-task-meta-grid strong,
+.task-detail-list dd {
+  margin: 0;
+  color: var(--board-copy);
+}
+
+.my-task-meta-grid small {
+  color: var(--board-muted);
+}
+
+.my-task-action-grid {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.my-task-blocker-field input {
+  min-height: 3.2rem;
+}
+
+.my-task-inline-notice {
+  margin-top: 0;
+}
+
+.my-task-readonly-row p {
+  margin: 0;
+  color: var(--board-muted);
+}
+
+.my-tasks-empty-card h2 {
+  margin-top: 0;
+}
+
+.task-detail-grid {
+  margin-top: 0;
+}
+
+.task-detail-list {
+  margin: 0;
+}
+
+.task-detail-list div {
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.task-detail-list div:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
 @media (min-width: 980px) {
   .board-content-grid {
     grid-template-columns: minmax(0, 1.9fr) minmax(280px, 0.9fr);
@@ -948,6 +1072,10 @@ code {
 
   .board-group-grid {
     grid-template-columns: 1fr;
+  }
+
+  .my-tasks-hero-actions > * {
+    width: 100%;
   }
 }
 

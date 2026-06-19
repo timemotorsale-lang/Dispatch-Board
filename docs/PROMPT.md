@@ -1,12 +1,12 @@
 # Task
 
-DB-036 — Enforce approval-required status rules
+DB-037 — Build staff-focused task view
 
 # Goal
 
-Implement the server-side task status rules for tasks where `requiresManagerApproval = true`.
+Create a streamlined staff-focused “My Tasks” experience for the Time Motor Sales Dispatch Board so a logged-in staff member can quickly find, open, and update their own assigned tasks during the workday.
 
-Approval-required tasks must pass through `Ready for Review` before they can become `Completed`, and staff must not be able to directly complete approval-required tasks.
+This task should make the app more usable for staff without expanding scope into comments, activity feed, recommendations, or manager review UI.
 
 # Context
 
@@ -14,174 +14,320 @@ Read these first:
 
 - `docs/AGENTS.md`
 
+- `docs/ROADMAP.md`
+
 - `docs/ARCHITECTURE.md`
 
-- `docs/ROADMAP.md`
+- `docs/PRODUCT_SPEC.md`
 
 - `docs/MVP_SCOPE.md`
 
-- Existing task status update endpoint/service from DB-034
+- Existing auth/session files
 
-- Existing blocker validation implementation from DB-035
+- Existing board/task API or server action files
 
-- Existing task policy, validation, repository, and test files
+- Existing board UI files from DB-028 through DB-036
 
-Relevant product rules:
+- Existing task detail/status update files
 
-- Staff can update their own assigned tasks through allowed transitions.
+- `UI_REFERENCE.png` for layout, spacing, left navigation, enterprise-level visual direction, and the “My Tasks” navigation concept
 
-- Staff cannot update other staff members’ tasks.
+Roadmap context:
 
-- `Blocked` still requires a blocker reason.
+- This is in `v0.4.0 - Board and task workflow`.
 
-- Tasks with `requiresManagerApproval = true` must move to `Ready for Review` before `Completed`.
+- Earlier tasks should already provide:
 
-- Tasks with `requiresManagerApproval = false` may be completed directly by the assigned staff member.
+  - Board read API
 
-- Managers can complete approval-required tasks only after the task is already `Ready for Review`.
+  - Initial board page
 
-- Managers can send a `Ready for Review` task back to `In Progress`.
+  - Board grouping/filtering controls
 
-- Keep all enforcement server-side. UI may hide unavailable options, but the API/service must be the source of truth.
+  - Manual task creation API/UI
+
+  - Task detail endpoint/read model
+
+  - Staff status update endpoint
+
+  - Blocker-reason validation
+
+  - Approval-required status rules
+
+Staff-facing product intent:
+
+- Staff should be able to log in, see their assigned work, update status, mark blockers with a reason, and complete eligible tasks.
+
+- Staff can see the full board elsewhere, but this view should be optimized around their own assigned tasks.
+
+- Mobile should prioritize “my tasks,” quick status changes, blocker updates, and task detail access.
 
 # Current behavior
 
-The status update flow exists, and DB-035 should already reject `Blocked` transitions without a blocker reason.
+The app has or should have the main board and task update foundations, but staff do not yet have a dedicated, simplified “My Tasks” surface.
 
-The approval-required completion flow is not fully enforced yet. A staff user may still be able to move an approval-required task directly to `Completed`, or the code may not consistently require `Ready for Review` first.
+Staff likely need to use the full board to find their own work, which is inefficient on mobile and creates clutter.
 
 # Desired behavior
 
-Implement these rules in the existing status update service/API:
+Implement a dedicated staff-focused task view.
 
-## For approval-required tasks
+Preferred route:
 
-When `task.requiresManagerApproval === true`:
+- Use the existing app routing conventions.
 
-1. Assigned staff may move the task to `Ready for Review`.
+- If a sidebar/nav route already exists for “My Tasks,” wire it to this screen.
 
-2. Assigned staff may not move the task directly to `Completed`.
+- If not, create a route such as `/my-tasks` or the closest route that matches the current app structure.
 
-3. Manager may move the task from `Ready for Review` to `Completed`.
+- Do not break the main Dispatch Board route.
 
-4. Manager may move the task from `Ready for Review` back to `In Progress`.
+The “My Tasks” view should:
 
-5. Manager should not skip the review gate by moving an approval-required task directly from `Not Started`, `In Progress`, `Blocked`, `Waiting on Parts`, or `Waiting on Approval` to `Completed`.
+1. Load the current authenticated user.
 
-6. When moved to `Ready for Review`, set `readyForReviewAt` if the field exists.
+2. Load today’s board data using the existing board/task read path where practical.
 
-7. When manager completes the task, set `completedAt` and `reviewedByUserId` if those fields exist.
+3. Show only tasks assigned to the current user by default.
 
-8. When sent back to `In Progress`, clear completion fields if needed and follow existing timestamp conventions.
+4. Provide a simple way to open the full Dispatch Board.
 
-## For non-approval-required tasks
+5. Display tasks in a mobile-friendly card/list format rather than forcing a dense table on small screens.
 
-When `task.requiresManagerApproval === false`:
+6. Support desktop and tablet layouts while keeping the page simpler than the main board.
 
-1. Assigned staff may move their own task directly to `Completed`.
+7. Include clear loading, empty, and error states.
 
-2. Completion should set `completedAt` if that is already part of the task model/service pattern.
+Each task item/card should show the most important information:
 
-3. Existing manager behavior should remain valid unless it conflicts with current server-side policies.
+- Task title
+
+- Current status
+
+- Due time or time left
+
+- Workflow area/stage
+
+- Vehicle/customer reference when present
+
+- Requires manager approval badge when applicable
+
+- Blocker reason when status is `Blocked`
+
+- Simple next action button when obvious, such as:
+
+  - Start
+
+  - Update
+
+  - Resolve blocker
+
+  - Ready for Review
+
+  - Complete
+
+  - Open
+
+Add practical staff filters/chips:
+
+- All
+
+- Open
+
+- Due soon
+
+- Blocked / Waiting
+
+- Ready for Review
+
+- Completed
+
+Keep filters simple. Do not build saved views or advanced search in this task.
+
+Status update behavior:
+
+- Staff should be able to update their own assigned tasks through the existing status update endpoint/server action.
+
+- Use the existing server-side validation from DB-034 through DB-036.
+
+- If a staff member marks a task as `Blocked`, require blocker reason input before submitting.
+
+- If a task requires manager approval, do not allow staff to directly complete it from the UI. The UI should route them to `Ready for Review` instead.
+
+- If the server rejects a transition, show a clear error message and keep the task visible.
+
+- Do not weaken server-side permission rules in the UI.
+
+Task opening behavior:
+
+- Each task should open the existing task detail route or task detail surface from DB-033.
+
+- Do not create a separate duplicate task detail system.
+
+- Reuse existing task detail components if they exist.
+
+# Visual guidance from mockup
+
+Use `UI_REFERENCE.png` as the visual direction, but keep this task functional-first.
+
+Important guidance:
+
+- The left sidebar should include “My Tasks” as a first-class navigation item.
+
+- The staff view should feel like a simplified version of the main board, not a separate app.
+
+- Preserve the clean enterprise look: clear spacing, crisp cards, readable badges, and obvious next actions.
+
+- Avoid clutter. Staff should not need to scan the full manager dashboard to know what to do next.
+
+- On mobile, prioritize task cards, status actions, due time, and blocker controls.
+
+- Avoid horizontal overflow.
+
+Do not over-polish beyond what is needed for a usable staff workflow. Visual refinement can continue in later polish tasks.
 
 # Implementation guidance
 
-- Reuse the existing status update endpoint/service instead of creating a parallel workflow.
+Before coding, inspect the current implementation and briefly identify:
 
-- Prefer a centralized status-transition validator/helper if one already exists.
+1. Existing route structure.
 
-- If validation is currently inline in the route/server action, move only the minimum necessary logic into a small helper if that improves clarity.
+2. Existing auth/session helper.
 
-- Use the existing status enum/constants rather than duplicating status strings.
+3. Existing board/task fetch path.
 
-- Return errors using the project’s existing API/error conventions.
+4. Existing status update action/API.
 
-- Keep DB-035 behavior intact: `Blocked` must still require a blocker reason.
+5. Existing shared UI components that should be reused.
 
-- Do not build the DB-048 review queue UI in this task.
+6. Any missing pieces that block this task.
 
-- Do not implement the full activity feed schema if DB-041 is not already implemented. If activity logging helpers already exist, preserve/use the existing pattern for status changes without expanding the scope.
+Then implement the smallest useful vertical slice.
 
-- Do not redesign the board UI. If the existing UI exposes invalid status options, make the smallest possible adjustment to hide/disable invalid options or surface the server error clearly.
+Suggested approach:
 
-# Expected transition examples
+1. Add a `My Tasks` route/page using the existing app shell.
 
-These should pass:
+2. Reuse existing board/task data loading instead of creating a new API unless the current code clearly needs a small dedicated helper.
 
-- Staff assigned to an approval-required task moves it from `In Progress` to `Ready for Review`.
+3. Filter tasks by `assignedUserId === currentUser.id`.
 
-- Manager moves an approval-required task from `Ready for Review` to `Completed`.
+4. Add staff-focused task list/card components under the existing feature/component structure.
 
-- Manager moves an approval-required task from `Ready for Review` back to `In Progress`.
+5. Add quick status update controls that call the existing status update endpoint/action.
 
-- Staff assigned to a non-approval-required task moves it from `In Progress` to `Completed`.
+6. Add blocker reason input flow for blocked status.
 
-These should fail:
+7. Respect approval-required rules in the UI, but rely on the server as the source of truth.
 
-- Staff assigned to an approval-required task moves it directly to `Completed`.
+8. Add loading, empty, and error states.
 
-- Staff tries to complete another staff member’s task.
+9. Wire the sidebar/nav “My Tasks” item to this route.
 
-- Manager tries to complete an approval-required task before it is `Ready for Review`.
-
-- Any user moves a task to `Blocked` without a blocker reason.
-
-# Tests
-
-Add or update focused tests for the status update service/API.
-
-Cover at least:
-
-1. Staff cannot directly complete an approval-required task.
-
-2. Staff can move an approval-required task to `Ready for Review`.
-
-3. Manager can complete an approval-required task from `Ready for Review`.
-
-4. Manager cannot complete an approval-required task before `Ready for Review`.
-
-5. Manager can send a `Ready for Review` task back to `In Progress`.
-
-6. Staff can directly complete a non-approval-required task assigned to them.
-
-7. Existing self-update permission rule still prevents staff from updating someone else’s task.
-
-8. Existing blocker-reason validation still works with approval-required and non-approval-required tasks.
+10. Add or update tests where the current test setup supports it.
 
 # Constraints
 
 - Keep the change minimal and reviewable.
 
-- Follow existing architecture and naming patterns.
-
-- Keep permission checks and business rules server-side.
-
 - Do not add new dependencies unless absolutely necessary.
 
-- Do not rewrite unrelated task, board, auth, or UI code.
+- Do not change database schema for this task.
 
-- Do not implement DB-037, DB-040, DB-041, DB-048, or DB-049.
+- Do not implement task comments API or task comments UI; those belong to DB-038 and DB-039.
 
-- Preserve existing tests and update only those affected by this behavior.
+- Do not implement activity feed changes; those belong to v0.5.0 tasks.
 
-- If schema fields like `readyForReviewAt`, `completedAt`, or `reviewedByUserId` do not exist yet, inspect the current schema and use the closest existing fields. Do not create a broad migration unless the current model cannot represent the rule.
+- Do not implement manager review queue UI; that belongs to DB-048.
+
+- Do not rewrite the main board page unless a tiny shared-component extraction is clearly justified.
+
+- Do not add fake/mock production data.
+
+- Preserve existing behavior for managers and the main board.
+
+- Keep permission enforcement server-side.
+
+- Avoid horizontal overflow and dense desktop-only table assumptions.
+
+- If a larger refactor seems necessary, stop and explain it before making that refactor.
+
+# Acceptance criteria
+
+The task is complete when:
+
+- A logged-in staff member can open “My Tasks.”
+
+- The view shows today’s tasks assigned to that staff member by default.
+
+- Tasks show status, due time, workflow area, and vehicle/customer references when available.
+
+- Staff can quickly open a task detail view from the list.
+
+- Staff can update allowed statuses from this view.
+
+- Blocked status requires a blocker reason before submit.
+
+- Approval-required tasks cannot be directly completed by staff from the UI.
+
+- Non-approval-required tasks can be completed by staff when allowed by the server.
+
+- Server rejection errors are displayed clearly.
+
+- Empty state is useful when the staff member has no assigned tasks.
+
+- Loading and error states are handled.
+
+- The page works on desktop, tablet, and phone-sized screens.
+
+- Existing board behavior still works.
+
+# Tests / checks
+
+Run the relevant commands available in the repo, such as:
+
+- `npm run lint`
+
+- `npm run typecheck`
+
+- `npm test`
+
+- Any existing component, integration, or e2e tests related to board/task/status behavior
+
+Add tests where practical for:
+
+- Staff sees only their own assigned tasks in My Tasks.
+
+- Staff can trigger an allowed status update.
+
+- Blocked requires blocker reason.
+
+- Approval-required task shows Ready for Review instead of direct Complete.
+
+- Empty state renders when no tasks are assigned.
+
+If any test/check cannot be run, clearly state why.
 
 # Done when
 
-- Approval-required tasks cannot be directly completed by staff.
+- The staff-focused task view works with real app data.
 
-- Approval-required tasks must pass through `Ready for Review` before `Completed`.
+- The implementation is scoped to DB-037.
 
-- Managers can complete approval-required tasks only from `Ready for Review`.
+- No unrelated files are changed.
 
-- Non-approval-required tasks can still be completed directly by assigned staff.
+- Existing task and board behavior is preserved.
 
-- Existing blocker-reason validation still works.
+- Relevant tests/checks pass or skipped checks are explained.
 
-- Existing staff self-update restrictions still work.
+- Any necessary docs or navigation notes are updated.
 
-- Relevant tests pass.
+- The final Codex summary includes:
 
-- Typecheck/lint pass if available.
+  - Files changed
 
-- Summarize files changed, behavior added, and tests run.
+  - Behavior added
+
+  - Tests/checks run
+
+  - Known limitations or follow-up work
