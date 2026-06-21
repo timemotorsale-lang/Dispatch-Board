@@ -151,7 +151,7 @@ describe("task status service", () => {
   it("rejects blocked updates when the blocker reason is blank", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
-    const { repository } = createTaskStatusRepository();
+    const { repository, readTask } = createTaskStatusRepository();
 
     await expect(
       updateTaskStatus(
@@ -164,6 +164,10 @@ describe("task status service", () => {
         repository
       )
     ).rejects.toThrow(/blocker reason/);
+    expect(readTask()).toMatchObject({
+      status: TaskStatus.IN_PROGRESS,
+      blockerReason: null
+    });
   });
 
   it("does not require a blocker reason for non-blocked updates and preserves any existing reason", async () => {
@@ -201,7 +205,7 @@ describe("task status service", () => {
     const { usersByEmail } = await createTestAuthStore();
     const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
     const otherStaffUser = usersByEmail.get("casey.mechanic@local.test") ?? null;
-    const { repository } = createTaskStatusRepository([
+    const { repository, readTask } = createTaskStatusRepository([
       createStoredTask({
         assignedUserId: otherStaffUser?.id ?? "user-casey.mechanic@local.test"
       })
@@ -217,6 +221,39 @@ describe("task status service", () => {
         repository
       )
     ).rejects.toThrow(/permission/);
+    expect(readTask()).toMatchObject({
+      status: TaskStatus.IN_PROGRESS,
+      assignedUserId: otherStaffUser?.id ?? "user-casey.mechanic@local.test"
+    });
+  });
+
+  it("allows managers to update tasks assigned to other staff members", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const managerUser = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const otherStaffUser = usersByEmail.get("casey.mechanic@local.test") ?? null;
+    const { repository, readTask } = createTaskStatusRepository([
+      createStoredTask({
+        assignedUserId: otherStaffUser?.id ?? "user-casey.mechanic@local.test",
+        status: TaskStatus.NOT_STARTED
+      })
+    ]);
+
+    const result = await updateTaskStatus(
+      managerUser,
+      "task-1",
+      {
+        status: "IN_PROGRESS"
+      },
+      repository
+    );
+
+    expect(result).toMatchObject({
+      status: TaskStatus.IN_PROGRESS
+    });
+    expect(readTask()).toMatchObject({
+      status: TaskStatus.IN_PROGRESS,
+      assignedUserId: otherStaffUser?.id ?? "user-casey.mechanic@local.test"
+    });
   });
 
   it("rejects staff users who try to directly complete an approval-required task", async () => {
