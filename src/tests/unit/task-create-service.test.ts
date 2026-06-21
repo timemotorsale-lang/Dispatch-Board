@@ -43,7 +43,7 @@ function createTaskCreateRepositoryHarness(
       return [...tasks];
     },
     repository: {
-      async createTask(input) {
+      async createTaskWithActivityEvent(input) {
         const boardDay = boardDays.find((candidateBoardDay) => candidateBoardDay.id === input.boardDayId);
 
         if (!boardDay) {

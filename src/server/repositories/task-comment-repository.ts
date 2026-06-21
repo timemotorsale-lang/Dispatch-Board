@@ -1,11 +1,12 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import { ActivityEventType, Prisma, PrismaClient } from "@prisma/client";
 
 import { prisma } from "@/server/db/client";
 
-type TaskCommentDatabase = Pick<PrismaClient, "task" | "taskComment">;
+type TaskCommentDatabase = Pick<PrismaClient, "task" | "taskComment" | "activityEvent" | "$transaction">;
 
 const taskCommentTaskSelect = {
   id: true,
+  boardDayId: true,
   assignedUserId: true,
   requiresManagerApproval: true
 } satisfies Prisma.TaskSelect;
@@ -36,7 +37,7 @@ export type TaskCommentRecord = Prisma.TaskCommentGetPayload<{
 export type TaskCommentRepository = {
   findTaskById(taskId: string): Promise<TaskCommentTaskRecord | null>;
   listCommentsForTask(taskId: string): Promise<TaskCommentRecord[]>;
-  createComment(taskId: string, authorUserId: string, body: string): Promise<TaskCommentRecord>;
+  createCommentWithActivityEvent(taskId: string, authorUserId: string, body: string): Promise<TaskCommentRecord>;
 };
 
 export function createTaskCommentRepository(
@@ -64,14 +65,19 @@ export function createTaskCommentRepository(
       });
     },
 
-    async createComment(taskId, authorUserId, body) {
-      return database.taskComment.create({
+    async createCommentWithActivityEvent(taskId, authorUserId, body) {
+      return database.$transaction(async (transaction) => {
+        const task = await transaction.task.findUniqueOrThrow({ where: { id: taskId }, select: { boardDayId: true } });
+        const comment = await transaction.taskComment.create({
         data: {
           taskId,
           authorUserId,
           body
         },
         select: taskCommentSelect
+        });
+        await transaction.activityEvent.create({ data: { boardDayId: task.boardDayId, actorUserId: authorUserId, taskId, eventType: ActivityEventType.COMMENT_ADDED, message: "Comment added", metadata: { commentId: comment.id, authorUserId, preview: body.slice(0, 120) } } });
+        return comment;
       });
     }
   };

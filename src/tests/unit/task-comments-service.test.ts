@@ -54,6 +54,7 @@ function createTaskCommentRepositoryHarness(): TaskCommentRepository {
       "task-1",
       {
         id: "task-1",
+        boardDayId: "board-day-1",
         assignedUserId: "user-jordan.sales@local.test",
         requiresManagerApproval: false
       }
@@ -62,6 +63,7 @@ function createTaskCommentRepositoryHarness(): TaskCommentRepository {
       "task-2",
       {
         id: "task-2",
+        boardDayId: "board-day-1",
         assignedUserId: "user-casey.mechanic@local.test",
         requiresManagerApproval: true
       }
@@ -79,7 +81,7 @@ function createTaskCommentRepositoryHarness(): TaskCommentRepository {
         .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
     },
 
-    async createComment(taskId, authorUserId, body) {
+    async createCommentWithActivityEvent(taskId, authorUserId, body) {
       const authorUser = authorsById.get(authorUserId);
 
       if (!authorUser) {

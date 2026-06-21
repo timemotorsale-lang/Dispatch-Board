@@ -1,8 +1,8 @@
-import { Prisma, PrismaClient, type BoardDay } from "@prisma/client";
+import { ActivityEventType, Prisma, PrismaClient, type BoardDay } from "@prisma/client";
 
 import { prisma } from "@/server/db/client";
 
-type TaskCreateDatabase = Pick<PrismaClient, "boardDay" | "task" | "user">;
+type TaskCreateDatabase = Pick<PrismaClient, "boardDay" | "task" | "user" | "activityEvent" | "$transaction">;
 
 const taskCreateAssigneeSelect = {
   id: true,
@@ -83,7 +83,7 @@ export type CreateTaskRecordInput = {
 };
 
 export type TaskCreateRepository = {
-  createTask(input: CreateTaskRecordInput): Promise<CreatedTaskRecord>;
+  createTaskWithActivityEvent(input: CreateTaskRecordInput): Promise<CreatedTaskRecord>;
   findAssignedUserById(userId: string): Promise<TaskCreateAssignedUserRecord | null>;
   getOrCreateBoardDay(boardDate: string): Promise<BoardDay>;
 };
@@ -96,8 +96,9 @@ export function createTaskCreateRepository(
   database: TaskCreateDatabase = prisma
 ): TaskCreateRepository {
   return {
-    async createTask(input) {
-      return database.task.create({
+    async createTaskWithActivityEvent(input) {
+      return database.$transaction(async (transaction) => {
+        const task = await transaction.task.create({
         data: {
           assignedUserId: input.assignedUserId,
           ...(input.blockerReason ? { blockerReason: input.blockerReason } : {}),
@@ -119,6 +120,27 @@ export function createTaskCreateRepository(
           workflowArea: input.workflowArea
         },
         select: createdTaskSelect
+        });
+
+        await transaction.activityEvent.create({
+          data: {
+            boardDayId: input.boardDayId,
+            actorUserId: input.createdByUserId,
+            taskId: task.id,
+            eventType: ActivityEventType.TASK_CREATED,
+            message: `Task created: ${input.title}`,
+            metadata: {
+              title: input.title,
+              assignedUserId: input.assignedUserId,
+              sourceType: "MANAGER",
+              workflowArea: input.workflowArea,
+              dueAt: input.dueAt.toISOString(),
+              requiresManagerApproval: input.requiresManagerApproval
+            }
+          }
+        });
+
+        return task;
       });
     },
 

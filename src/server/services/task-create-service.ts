@@ -162,7 +162,7 @@ export async function createManualTask(
 
   const boardDay = await repository.getOrCreateBoardDay(normalizedInput.boardDate);
   const workflowFields = buildManualTaskWorkflowFields(authenticatedUser, normalizedInput);
-  const task = await repository.createTask({
+  const task = await repository.createTaskWithActivityEvent({
     assignedUserId: normalizedInput.assignedUserId,
     ...(workflowFields.blockerReason ? { blockerReason: workflowFields.blockerReason } : {}),
     boardDayId: boardDay.id,

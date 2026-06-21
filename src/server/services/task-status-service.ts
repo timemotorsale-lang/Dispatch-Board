@@ -182,8 +182,13 @@ export async function updateTaskStatus(
   const authenticatedUser = assertCanUpdateTaskStatus(user, task, normalizedInput.status);
   assertValidTaskStatusTransition(authenticatedUser, task, normalizedInput.status);
 
-  const updatedTask = await repository.updateTaskStatus(
+  if (task.status === normalizedInput.status) {
+    return toTaskStatusUpdateResult(task);
+  }
+
+  const updatedTask = await repository.updateTaskStatusWithActivityEvents(
     normalizedTaskId,
+    authenticatedUser.id,
     buildTaskStatusUpdateData(authenticatedUser, task, normalizedInput)
   );
 

@@ -9,6 +9,7 @@ import { createTestAuthStore } from "@/tests/support/auth-test-store";
 
 type StoredTask = {
   id: string;
+  boardDayId: string;
   assignedUserId: string;
   requiresManagerApproval: boolean;
   status: TaskStatus;
@@ -22,6 +23,7 @@ type StoredTask = {
 function createStoredTask(overrides: Partial<StoredTask> = {}): StoredTask {
   return {
     id: "task-1",
+    boardDayId: "board-day-1",
     assignedUserId: "user-jordan.sales@local.test",
     requiresManagerApproval: false,
     status: TaskStatus.IN_PROGRESS,
@@ -42,8 +44,9 @@ function createTaskStatusRepository(initialTasks: StoredTask[] = [createStoredTa
       async findTaskById(taskId: string) {
         return tasks.find((task) => task.id === taskId) ?? null;
       },
-      async updateTaskStatus(
+      async updateTaskStatusWithActivityEvents(
         taskId: string,
+        _actorUserId: string,
         data: {
           status: TaskStatus;
           blockerReason?: string;
@@ -199,6 +202,20 @@ describe("task status service", () => {
       completedAt: null,
       reviewedByUserId: null
     });
+  });
+
+  it("does not persist or emit activity for a no-op status update", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+    const { repository, readTask } = createTaskStatusRepository();
+    const update = vi.spyOn(repository, "updateTaskStatusWithActivityEvents");
+
+    await expect(
+      updateTaskStatus(staffUser, "task-1", { status: "IN_PROGRESS" }, repository)
+    ).resolves.toMatchObject({ status: TaskStatus.IN_PROGRESS });
+
+    expect(update).not.toHaveBeenCalled();
+    expect(readTask()?.updatedAt).toEqual(new Date("2026-06-18T15:00:00.000Z"));
   });
 
   it("rejects staff users who try to update another user's task", async () => {

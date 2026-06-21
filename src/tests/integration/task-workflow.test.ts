@@ -191,7 +191,7 @@ function createWorkflowHarness(authUsers: AuthenticatedUser[]) {
       boardDays.push(boardDay);
       return boardDay;
     },
-    async createTask(input) {
+    async createTaskWithActivityEvent(input) {
       const now = new Date();
       const task: WorkflowTask = {
         id: `task-${tasks.length + 1}`,
@@ -225,7 +225,7 @@ function createWorkflowHarness(authUsers: AuthenticatedUser[]) {
     async findTaskById(taskId) {
       return tasks.find((task) => task.id === taskId) ?? null;
     },
-    async updateTaskStatus(taskId, data) {
+    async updateTaskStatusWithActivityEvents(taskId, _actorUserId, data) {
       const task = getTask(taskId);
 
       task.status = data.status;
@@ -274,8 +274,9 @@ function createWorkflowHarness(authUsers: AuthenticatedUser[]) {
       const task = tasks.find((candidate) => candidate.id === taskId);
 
       return task
-        ? {
+          ? {
             id: task.id,
+            boardDayId: task.boardDayId,
             assignedUserId: task.assignedUserId,
             requiresManagerApproval: task.requiresManagerApproval
           }
@@ -287,7 +288,7 @@ function createWorkflowHarness(authUsers: AuthenticatedUser[]) {
         .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime())
         .map(commentRecord);
     },
-    async createComment(taskId, authorUserId, body) {
+    async createCommentWithActivityEvent(taskId, authorUserId, body) {
       const comment: WorkflowComment = {
         id: `comment-${comments.length + 1}`,
         taskId,

@@ -1,11 +1,12 @@
-import { Prisma, PrismaClient, TaskStatus } from "@prisma/client";
+import { ActivityEventType, Prisma, PrismaClient, TaskStatus } from "@prisma/client";
 
 import { prisma } from "@/server/db/client";
 
-type TaskStatusDatabase = Pick<PrismaClient, "task">;
+type TaskStatusDatabase = Pick<PrismaClient, "task" | "activityEvent" | "$transaction">;
 
 const taskStatusSelect = {
   id: true,
+  boardDayId: true,
   assignedUserId: true,
   requiresManagerApproval: true,
   status: true,
@@ -30,8 +31,19 @@ export type TaskStatusUpdateData = {
 
 export type TaskStatusRepository = {
   findTaskById(taskId: string): Promise<TaskStatusRecord | null>;
-  updateTaskStatus(taskId: string, data: TaskStatusUpdateData): Promise<TaskStatusRecord>;
+  updateTaskStatusWithActivityEvents(taskId: string, actorUserId: string, data: TaskStatusUpdateData): Promise<TaskStatusRecord>;
 };
+
+function specificEventType(status: TaskStatus) {
+  const eventTypes: Partial<Record<TaskStatus, ActivityEventType>> = {
+    BLOCKED: ActivityEventType.TASK_BLOCKED,
+    WAITING_ON_PARTS: ActivityEventType.TASK_WAITING_ON_PARTS,
+    WAITING_ON_APPROVAL: ActivityEventType.TASK_WAITING_ON_APPROVAL,
+    READY_FOR_REVIEW: ActivityEventType.TASK_READY_FOR_REVIEW,
+    COMPLETED: ActivityEventType.TASK_COMPLETED
+  };
+  return eventTypes[status];
+}
 
 export function createTaskStatusRepository(database: TaskStatusDatabase = prisma): TaskStatusRepository {
   return {
@@ -44,8 +56,10 @@ export function createTaskStatusRepository(database: TaskStatusDatabase = prisma
       });
     },
 
-    async updateTaskStatus(taskId, data) {
-      return database.task.update({
+    async updateTaskStatusWithActivityEvents(taskId, actorUserId, data) {
+      return database.$transaction(async (transaction) => {
+        const previous = await transaction.task.findUniqueOrThrow({ where: { id: taskId }, select: taskStatusSelect });
+        const task = await transaction.task.update({
         where: {
           id: taskId
         },
@@ -59,6 +73,24 @@ export function createTaskStatusRepository(database: TaskStatusDatabase = prisma
             : {})
         },
         select: taskStatusSelect
+        });
+        const metadata = {
+          previousStatus: previous.status,
+          newStatus: task.status,
+          blockerReason: task.status === TaskStatus.BLOCKED ? task.blockerReason : null,
+          readyForReviewAt: task.readyForReviewAt?.toISOString() ?? null,
+          completedAt: task.completedAt?.toISOString() ?? null,
+          reviewedByUserId: task.reviewedByUserId
+        };
+        await transaction.activityEvent.create({ data: { boardDayId: task.boardDayId, actorUserId, taskId, eventType: ActivityEventType.STATUS_CHANGED, message: `Status changed from ${previous.status} to ${task.status}`, metadata } });
+        const lifecycleType = specificEventType(task.status);
+        if (lifecycleType) {
+          await transaction.activityEvent.create({ data: { boardDayId: task.boardDayId, actorUserId, taskId, eventType: lifecycleType, message: task.status === TaskStatus.READY_FOR_REVIEW ? "Task marked Ready for Review" : task.status === TaskStatus.COMPLETED ? "Task completed" : `Task marked ${task.status}`, metadata } });
+        }
+        if (task.status === TaskStatus.COMPLETED && task.requiresManagerApproval) {
+          await transaction.activityEvent.create({ data: { boardDayId: task.boardDayId, actorUserId, taskId, eventType: ActivityEventType.MANAGER_APPROVED_COMPLETION, message: "Manager approved task completion", metadata } });
+        }
+        return task;
       });
     }
   };

@@ -115,7 +115,7 @@ export async function createTaskComment(
   const task = await requireTaskForComments(repository, normalizedTaskId);
   const authenticatedUser = assertCanCommentOnTask(user, task);
 
-  const comment = await repository.createComment(
+  const comment = await repository.createCommentWithActivityEvent(
     normalizedTaskId,
     authenticatedUser.id,
     normalizedInput.body
