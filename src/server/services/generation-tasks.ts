@@ -379,10 +379,23 @@ export async function createMissingGeneratedTasksForDate(
       durationMs
     };
 
-    await repository.completeGenerationRun({
+    await repository.completeGenerationRunWithActivityEvent({
       id: generationRun.id,
       finishedAt,
-      summary: completedSummary
+      summary: completedSummary,
+      boardDayId: boardDay.id,
+      actorUserId: triggerMetadata.triggeredByUserId,
+      metadata: {
+        boardDate: normalizedBoardDate,
+        triggeredBy: toSummaryTrigger(triggerMetadata.triggeredBy),
+        generationRunId: generationRun.id,
+        tasksCreated,
+        tasksSkippedAsDuplicates,
+        tasksAlreadyExisting,
+        manualTasksPreserved,
+        usersConsidered,
+        templatesConsidered
+      }
     });
 
     return {

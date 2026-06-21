@@ -62,6 +62,24 @@ enum GenerationTriggerType {
   MANUAL
 }
 
+enum ActivityEventType {
+  DAILY_BOARD_GENERATED
+  TASK_CREATED
+  TASK_ASSIGNED
+  ASSIGNMENT_RECOMMENDATION_MADE
+  ASSIGNMENT_CHANGED
+  DUE_TIME_CHANGED
+  STATUS_CHANGED
+  TASK_BLOCKED
+  BLOCKER_REASON_ADDED
+  TASK_WAITING_ON_PARTS
+  TASK_WAITING_ON_APPROVAL
+  TASK_READY_FOR_REVIEW
+  MANAGER_APPROVED_COMPLETION
+  TASK_COMPLETED
+  COMMENT_ADDED
+}
+
 // Placeholder model for the v0.1.0 foundation migration.
 // Domain models are intentionally deferred to later milestones.
 model BootstrapMarker {
@@ -87,7 +105,9 @@ model User {
   recommendedTasks        Task[]          @relation("TaskRecommendedUser")
   createdTasks            Task[]          @relation("TaskCreatedByUser")
   reviewedTasks           Task[]          @relation("TaskReviewedByUser")
+  authoredTaskComments    TaskComment[]   @relation("TaskCommentAuthorUser")
   triggeredGenerationRuns GenerationRun[] @relation("GenerationRunTriggeredByUser")
+  activityEvents          ActivityEvent[] @relation("ActivityEventActor")
 
   @@index([isActive])
 }
@@ -203,19 +223,20 @@ model BoardDay {
   updatedAt         DateTime              @updatedAt
   generatedByUser   User?                 @relation("BoardDayGeneratedByUser", fields: [generatedByUserId], references: [id], onDelete: SetNull)
   tasks             Task[]
+  activityEvents    ActivityEvent[]
 }
 
 model Task {
-  id                      String         @id @default(cuid())
+  id                      String          @id @default(cuid())
   boardDayId              String
   title                   String
-  description             String         @default("")
+  description             String          @default("")
   assignedUserId          String
   recommendedUserId       String?
-  status                  TaskStatus     @default(NOT_STARTED)
+  status                  TaskStatus      @default(NOT_STARTED)
   dueAt                   DateTime
   createdByUserId         String?
-  requiresManagerApproval Boolean        @default(false)
+  requiresManagerApproval Boolean         @default(false)
   vehicleReference        String?
   customerReference       String?
   sourceType              TaskSourceType
@@ -226,20 +247,52 @@ model Task {
   readyForReviewAt        DateTime?
   completedAt             DateTime?
   reviewedByUserId        String?
-  createdAt               DateTime       @default(now())
-  updatedAt               DateTime       @updatedAt
-  boardDay                BoardDay       @relation(fields: [boardDayId], references: [id], onDelete: Cascade)
-  assignedUser            User           @relation("TaskAssignedUser", fields: [assignedUserId], references: [id], onDelete: Restrict)
-  recommendedUser         User?          @relation("TaskRecommendedUser", fields: [recommendedUserId], references: [id], onDelete: SetNull)
-  createdByUser           User?          @relation("TaskCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  reviewedByUser          User?          @relation("TaskReviewedByUser", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
-  sourceTemplate          TaskTemplate?  @relation("TaskSourceTemplate", fields: [sourceTemplateId], references: [id], onDelete: SetNull)
-  sourceDuty              Duty?          @relation("TaskSourceDuty", fields: [sourceDutyId], references: [id], onDelete: SetNull)
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  boardDay                BoardDay        @relation(fields: [boardDayId], references: [id], onDelete: Cascade)
+  assignedUser            User            @relation("TaskAssignedUser", fields: [assignedUserId], references: [id], onDelete: Restrict)
+  recommendedUser         User?           @relation("TaskRecommendedUser", fields: [recommendedUserId], references: [id], onDelete: SetNull)
+  createdByUser           User?           @relation("TaskCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  reviewedByUser          User?           @relation("TaskReviewedByUser", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  sourceTemplate          TaskTemplate?   @relation("TaskSourceTemplate", fields: [sourceTemplateId], references: [id], onDelete: SetNull)
+  sourceDuty              Duty?           @relation("TaskSourceDuty", fields: [sourceDutyId], references: [id], onDelete: SetNull)
+  activityEvents          ActivityEvent[]
+  comments                TaskComment[]
 
   @@unique([boardDayId, sourceTemplateId, assignedUserId])
   @@index([boardDayId, status])
   @@index([boardDayId, assignedUserId])
   @@index([boardDayId, workflowArea])
+}
+
+model ActivityEvent {
+  id          String            @id @default(cuid())
+  boardDayId  String
+  actorUserId String?
+  taskId      String?
+  eventType   ActivityEventType
+  message     String
+  metadata    Json              @default("{}")
+  createdAt   DateTime          @default(now())
+  boardDay    BoardDay          @relation(fields: [boardDayId], references: [id], onDelete: Cascade)
+  actorUser   User?             @relation("ActivityEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  task        Task?             @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([boardDayId, createdAt])
+  @@index([taskId])
+}
+
+model TaskComment {
+  id           String   @id @default(cuid())
+  taskId       String
+  authorUserId String
+  body         String
+  createdAt    DateTime @default(now())
+  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorUser   User     @relation("TaskCommentAuthorUser", fields: [authorUserId], references: [id], onDelete: Restrict)
+
+  @@index([taskId])
+  @@index([taskId, createdAt])
 }
 
 model GenerationRun {

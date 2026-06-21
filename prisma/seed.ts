@@ -34,7 +34,10 @@ async function main() {
     await prisma.role.upsert({
       where: { name: roleDefinition.name },
       update: { description: roleDefinition.description },
-      create: roleDefinition
+      create: {
+        name: roleDefinition.name,
+        description: roleDefinition.description
+      }
     });
   }
 

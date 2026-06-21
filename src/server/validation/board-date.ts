@@ -16,3 +16,19 @@ export function normalizeBoardDate(boardDate: string) {
 
   return normalizedBoardDate;
 }
+
+function getDatePart(parts: Intl.DateTimeFormatPart[], type: "year" | "month" | "day") {
+  return parts.find((part) => part.type === type)?.value ?? "";
+}
+
+export function getBoardDateInTimeZone(now: Date, timeZone: string) {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  });
+  const parts = formatter.formatToParts(now);
+
+  return `${getDatePart(parts, "year")}-${getDatePart(parts, "month")}-${getDatePart(parts, "day")}`;
+}

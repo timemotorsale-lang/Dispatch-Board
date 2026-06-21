@@ -1,4 +1,5 @@
 import {
+  ActivityEventType,
   BoardGenerationStatus,
   GenerationRunStatus,
   GenerationTriggerType,
@@ -175,6 +176,7 @@ function createGenerationTasksHarness(
   let boardDays = [...(options.boardDays ?? [])];
   let tasks = [...(options.tasks ?? [])];
   let generationRuns = [...(options.generationRuns ?? [])];
+  const activityEvents: Array<Record<string, unknown>> = [];
 
   const repository: NonNullable<CreateMissingGeneratedTasksDependencies["repository"]> = {
     async getOrCreateBoardDay(boardDate) {
@@ -304,6 +306,28 @@ function createGenerationTasksHarness(
       return generationRun;
     },
 
+    async completeGenerationRunWithActivityEvent(input) {
+      const generationRun = generationRuns.find((candidate) => candidate.id === input.id);
+
+      if (!generationRun) {
+        throw new Error(`Unknown generation run ${input.id}.`);
+      }
+
+      generationRun.finishedAt = input.finishedAt;
+      generationRun.status = GenerationRunStatus.SUCCEEDED;
+      generationRun.summary = input.summary as Prisma.JsonValue;
+      generationRun.errorMessage = null;
+      activityEvents.push({
+        boardDayId: input.boardDayId,
+        actorUserId: input.actorUserId,
+        eventType: ActivityEventType.DAILY_BOARD_GENERATED,
+        message: "Daily board generated",
+        metadata: input.metadata
+      });
+
+      return generationRun;
+    },
+
     async failGenerationRun(input) {
       const generationRun = generationRuns.find((candidate) => candidate.id === input.id);
 
@@ -342,6 +366,9 @@ function createGenerationTasksHarness(
     },
     readGenerationRuns() {
       return generationRuns;
+    },
+    readActivityEvents() {
+      return activityEvents;
     },
     createBoardDay(boardDate: string) {
       const boardDay: StoredBoardDay = {
@@ -463,6 +490,25 @@ describe("generation tasks service", () => {
         }
       })
     ]);
+    expect(harness.readActivityEvents()).toEqual([
+      {
+        boardDayId: result.boardDayId,
+        actorUserId: "user-manager",
+        eventType: ActivityEventType.DAILY_BOARD_GENERATED,
+        message: "Daily board generated",
+        metadata: {
+          boardDate: "2026-06-17",
+          triggeredBy: "manual",
+          generationRunId: "generation-run-1",
+          tasksCreated: 2,
+          tasksSkippedAsDuplicates: 0,
+          tasksAlreadyExisting: 0,
+          manualTasksPreserved: 0,
+          usersConsidered: 2,
+          templatesConsidered: 2
+        }
+      }
+    ]);
   });
 
   it("creates a separate completed generation run on retry without duplicating generated tasks", async () => {
@@ -498,6 +544,17 @@ describe("generation tasks service", () => {
         tasksCreated: 0,
         tasksSkippedAsDuplicates: 2,
         tasksAlreadyExisting: 2
+      })
+    );
+    expect(harness.readActivityEvents()).toHaveLength(2);
+    expect(harness.readActivityEvents()[1]).toEqual(
+      expect.objectContaining({
+        eventType: ActivityEventType.DAILY_BOARD_GENERATED,
+        metadata: expect.objectContaining({
+          generationRunId: "generation-run-2",
+          tasksCreated: 0,
+          tasksSkippedAsDuplicates: 2
+        })
       })
     );
   });

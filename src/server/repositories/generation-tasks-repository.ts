@@ -1,4 +1,5 @@
 import {
+  ActivityEventType,
   GenerationRunStatus,
   Prisma,
   PrismaClient,
@@ -11,7 +12,10 @@ import {
 
 import { prisma } from "@/server/db/client";
 
-type GenerationTasksDatabase = Pick<PrismaClient, "boardDay" | "generationRun" | "task">;
+type GenerationTasksDatabase = Pick<
+  PrismaClient,
+  "boardDay" | "generationRun" | "task" | "activityEvent" | "$transaction"
+>;
 
 const generatedTaskIdentitySelect = {
   id: true,
@@ -69,6 +73,12 @@ export type CompleteGenerationRunInput = {
   summary: Prisma.InputJsonValue;
 };
 
+export type CompleteGenerationRunWithActivityEventInput = CompleteGenerationRunInput & {
+  boardDayId: string;
+  actorUserId: string | null;
+  metadata: Prisma.InputJsonValue;
+};
+
 export type FailGenerationRunInput = {
   id: string;
   finishedAt: Date;
@@ -83,6 +93,9 @@ export type GenerationTasksRepository = {
   createGeneratedTask(input: CreateGeneratedTaskInput): Promise<CreatedGeneratedTaskRecord | null>;
   startGenerationRun(input: StartGenerationRunInput): Promise<GenerationRunRecord>;
   completeGenerationRun(input: CompleteGenerationRunInput): Promise<GenerationRunRecord>;
+  completeGenerationRunWithActivityEvent(
+    input: CompleteGenerationRunWithActivityEventInput
+  ): Promise<GenerationRunRecord>;
   failGenerationRun(input: FailGenerationRunInput): Promise<GenerationRunRecord>;
   listGenerationRunsForDate(boardDate: string): Promise<GenerationRunRecord[]>;
 };
@@ -183,6 +196,34 @@ export function createGenerationTasksRepository(
           summary: input.summary,
           errorMessage: null
         }
+      });
+    },
+
+    async completeGenerationRunWithActivityEvent(input) {
+      return database.$transaction(async (transaction) => {
+        const run = await transaction.generationRun.update({
+          where: {
+            id: input.id
+          },
+          data: {
+            finishedAt: input.finishedAt,
+            status: GenerationRunStatus.SUCCEEDED,
+            summary: input.summary,
+            errorMessage: null
+          }
+        });
+
+        await transaction.activityEvent.create({
+          data: {
+            boardDayId: input.boardDayId,
+            actorUserId: input.actorUserId,
+            eventType: ActivityEventType.DAILY_BOARD_GENERATED,
+            message: "Daily board generated",
+            metadata: input.metadata
+          }
+        });
+
+        return run;
       });
     },
 

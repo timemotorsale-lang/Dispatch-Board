@@ -277,6 +277,21 @@ function createGenerationTasksRepositoryHarness(
       return generationRun;
     },
 
+    async completeGenerationRunWithActivityEvent(input) {
+      const generationRun = generationRuns.find((candidate) => candidate.id === input.id);
+
+      if (!generationRun) {
+        throw new Error(`Unknown generation run ${input.id}.`);
+      }
+
+      generationRun.finishedAt = input.finishedAt;
+      generationRun.status = GenerationRunStatus.SUCCEEDED;
+      generationRun.summary = input.summary as Prisma.JsonValue;
+      generationRun.errorMessage = null;
+
+      return generationRun;
+    },
+
     async failGenerationRun(input) {
       const generationRun = generationRuns.find((candidate) => candidate.id === input.id);
 
