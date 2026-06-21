@@ -46,24 +46,27 @@ export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
   });
 
   return (
-    <section className="page-stack board-page task-detail-page">
-      <div className="panel-card board-hero board-hero-shell">
-        <div className="board-hero-copy">
+    <section className="page-stack dashboard-page board-page task-detail-page">
+      <div className="dashboard-page-header">
+        <div className="dashboard-page-copy">
           <span className="eyebrow">Task detail</span>
           <h1>{task.title}</h1>
           <p>Single-task context for the existing workflow without duplicating the board.</p>
-          <div className="board-hero-meta">
-            <span className="board-hero-date">{formatStatusLabel(task.status)}</span>
+          <div className="board-page-meta">
+            <span className="board-page-date-pill">{formatStatusLabel(task.status)}</span>
             <span className="status-badge status-badge-muted">{formatStatusLabel(task.workflowArea)}</span>
           </div>
         </div>
-        <div className="my-tasks-hero-actions">
-          <Link className="pill pill-secondary" href="/my-tasks">
-            Back to My Tasks
-          </Link>
-          <Link className="pill pill-primary" href={`/board?date=${encodeURIComponent(task.boardDate)}`}>
-            Open board
-          </Link>
+
+        <div className="board-toolbar">
+          <div className="board-toolbar-actions">
+            <Link className="pill pill-secondary" href="/my-tasks">
+              Back to My Tasks
+            </Link>
+            <Link className="pill pill-primary" href={`/board?date=${encodeURIComponent(task.boardDate)}`}>
+              Open board
+            </Link>
+          </div>
         </div>
       </div>
 

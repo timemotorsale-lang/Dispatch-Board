@@ -2,6 +2,7 @@ import { BoardScreen } from "@/features/board/board-screen";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { isManager } from "@/server/policies/access";
 import { getGenerationSettings } from "@/server/services/app-settings-service";
+import { listActiveUserSummaries } from "@/server/services/user-summary";
 import { getBoardDateInTimeZone, normalizeBoardDate } from "@/server/validation/board-date";
 
 type BoardPageProps = {
@@ -44,9 +45,11 @@ export default async function BoardPage({ searchParams }: BoardPageProps) {
   const settings = await getGenerationSettings();
   const todayBoardDate = getBoardDateInTimeZone(new Date(), settings.timezone);
   const { boardDate, errorMessage } = resolveSelectedBoardDate(requestedBoardDate, todayBoardDate);
+  const assignableUsers = manager ? await listActiveUserSummaries() : [];
 
   return (
     <BoardScreen
+      assignableUsers={assignableUsers}
       initialBoardDate={boardDate}
       initialDateError={errorMessage}
       isManager={manager}

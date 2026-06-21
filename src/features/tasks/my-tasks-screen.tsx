@@ -346,16 +346,17 @@ export function MyTasksScreen({
   }
 
   return (
-    <section className="page-stack board-page my-tasks-page">
-      <div className="panel-card board-hero board-hero-shell">
-        <div className="board-hero-copy">
+    <section className="page-stack dashboard-page board-page my-tasks-page">
+      <div className="dashboard-page-header">
+        <div className="dashboard-page-copy">
           <span className="eyebrow">Staff task view</span>
           <h1>My Tasks</h1>
           <p>
-            {userName}, this is your streamlined work list for {formatBoardDateLabel(boardDate)}. Stay in your own lane here, and jump to the full board when you need wider context.
+            {userName}, this is your streamlined work list for {formatBoardDateLabel(boardDate)}.
+            Stay focused here, then jump to the full board when you need wider daily context.
           </p>
-          <div className="board-hero-meta">
-            <span className="board-hero-date">{formatBoardDateLabel(boardDate)}</span>
+          <div className="board-page-meta">
+            <span className="board-page-date-pill">{formatBoardDateLabel(boardDate)}</span>
             <span className={getGenerationStatusTone(generationStatus)}>
               {generationStatus ? formatStatusLabel(generationStatus) : "Board not generated"}
             </span>
@@ -364,13 +365,16 @@ export function MyTasksScreen({
             <p className="my-tasks-generated-copy">Board generated {formatDateTime(generatedAt)}.</p>
           ) : null}
         </div>
-        <div className="my-tasks-hero-actions">
-          <Link className="pill pill-primary" href={fullBoardHref}>
-            Open full board
-          </Link>
-          <button className="pill pill-secondary" onClick={() => window.location.reload()} type="button">
-            Refresh
-          </button>
+
+        <div className="board-toolbar my-tasks-toolbar">
+          <div className="board-toolbar-actions">
+            <Link className="pill pill-primary" href={fullBoardHref}>
+              Open full board
+            </Link>
+            <button className="pill pill-secondary" onClick={() => window.location.reload()} type="button">
+              Refresh
+            </button>
+          </div>
         </div>
       </div>
 
@@ -448,23 +452,62 @@ export function MyTasksScreen({
             </div>
           </div>
 
-          {visibleTasks.length === 0 ? (
-            <div className="notice board-empty-state" role="status">
-              <p>No tasks match this filter right now.</p>
-            </div>
-          ) : (
-            <div className="my-task-list">
-              {visibleTasks.map((task) => (
-                <TaskCard
-                  key={task.id}
-                  isManager={isManager}
-                  now={now}
-                  onTaskUpdated={handleTaskUpdated}
-                  task={task}
-                />
-              ))}
-            </div>
-          )}
+          <div className="board-content-grid my-tasks-content-grid">
+            <article className="panel-card board-main-card">
+              <div className="board-section-heading">
+                <div>
+                  <strong>Assigned work</strong>
+                  <h3>Your task list</h3>
+                </div>
+                <p>Keep updates quick, clear blockers fast, and open task detail when you need more context.</p>
+              </div>
+
+              {visibleTasks.length === 0 ? (
+                <div className="notice board-empty-state" role="status">
+                  <p>No tasks match this filter right now.</p>
+                </div>
+              ) : (
+                <div className="my-task-list">
+                  {visibleTasks.map((task) => (
+                    <TaskCard
+                      key={task.id}
+                      isManager={isManager}
+                      now={now}
+                      onTaskUpdated={handleTaskUpdated}
+                      task={task}
+                    />
+                  ))}
+                </div>
+              )}
+            </article>
+
+            <aside className="board-panel-stack">
+              <section className="panel-card board-rail-card">
+                <div className="board-section-heading">
+                  <div>
+                    <strong>Focus now</strong>
+                    <h3>Quick scan</h3>
+                  </div>
+                  <p>Your most important counts stay visible beside the list.</p>
+                </div>
+
+                <ul className="board-attention-list">
+                  <li className="board-attention-item">
+                    <span>Open work</span>
+                    <strong>{getActiveTaskCount(tasks)}</strong>
+                  </li>
+                  <li className="board-attention-item">
+                    <span>Blocked</span>
+                    <strong>{getBlockedTaskCount(tasks)}</strong>
+                  </li>
+                  <li className="board-attention-item">
+                    <span>Ready for review</span>
+                    <strong>{getReadyForReviewCount(tasks)}</strong>
+                  </li>
+                </ul>
+              </section>
+            </aside>
+          </div>
         </>
       ) : null}
     </section>

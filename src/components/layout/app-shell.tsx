@@ -1,8 +1,12 @@
+"use client";
+
 import type { ReactNode } from "react";
+import { useState } from "react";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 
-import { SiteHeader } from "./site-header";
+import { AppSidebar } from "./app-sidebar";
+import { AppTopbar } from "./app-topbar";
 
 type AppShellProps = {
   children: ReactNode;
@@ -10,20 +14,18 @@ type AppShellProps = {
 };
 
 export function AppShell({ children, user }: AppShellProps) {
+  const [navigationOpen, setNavigationOpen] = useState(false);
+
   return (
-    <main className="page-shell">
-      <div className="shell-frame">
-        <SiteHeader user={user} />
-        <div className="shell-banner">
-          <p>
-            Signed in as <strong>{user.name}</strong> with {user.roles.join(", ")} access. The
-            board now includes a dedicated My Tasks view for staff-friendly daily updates while the
-            full board stays available for wider coordination.
-          </p>
-        </div>
-        <div className="shell-content">{children}</div>
+    <div className="app-frame">
+      <AppSidebar isOpen={navigationOpen} onClose={() => setNavigationOpen(false)} user={user} />
+      {navigationOpen ? (
+        <button className="sidebar-scrim" aria-label="Close navigation" onClick={() => setNavigationOpen(false)} />
+      ) : null}
+      <div className="app-workspace">
+        <AppTopbar onMenuOpen={() => setNavigationOpen(true)} user={user} />
+        <main className="app-content">{children}</main>
       </div>
-    </main>
+    </div>
   );
 }
-
