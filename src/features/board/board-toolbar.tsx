@@ -1,8 +1,13 @@
 "use client";
 
+import { TaskStatus, WorkflowArea } from "@prisma/client";
 import { useState, useTransition } from "react";
 
 import { useRouter } from "next/navigation";
+
+import type { ActiveUserSummary } from "@/server/services/user-summary";
+
+import { formatBoardEnumLabel } from "./board-grouping";
 
 type ManualBoardGenerationResponse = {
   status: "success" | "failed";
@@ -18,9 +23,19 @@ type ManualBoardGenerationResponse = {
   } | null;
 };
 
+type ManualTaskCreateResponse = {
+  task: {
+    id: string;
+    title: string;
+  };
+};
+
 type BoardToolbarProps = {
-  initialBoardDate: string;
+  assignableUsers: ActiveUserSummary[];
+  boardDate: string;
   isManager: boolean;
+  onBoardDateChange(boardDate: string): void;
+  onBoardRefreshRequested(): void;
 };
 
 type FeedbackState =
@@ -36,40 +51,118 @@ type FeedbackState =
     }
   | null;
 
-function buildBoardUrl(boardDate: string) {
-  return `/board?date=${encodeURIComponent(boardDate)}`;
+type TaskFormState = {
+  assignedUserId: string;
+  blockerReason: string;
+  customerReference: string;
+  description: string;
+  dueTime: string;
+  requiresManagerApproval: boolean;
+  status: TaskStatus;
+  title: string;
+  vehicleReference: string;
+  workflowArea: WorkflowArea;
+};
+
+const taskStatusOptions: TaskStatus[] = [
+  TaskStatus.NOT_STARTED,
+  TaskStatus.IN_PROGRESS,
+  TaskStatus.BLOCKED,
+  TaskStatus.WAITING_ON_PARTS,
+  TaskStatus.WAITING_ON_APPROVAL,
+  TaskStatus.READY_FOR_REVIEW,
+  TaskStatus.COMPLETED
+];
+
+const workflowAreaOptions: WorkflowArea[] = [
+  WorkflowArea.INVENTORY,
+  WorkflowArea.ADVERTISING,
+  WorkflowArea.MARKETING,
+  WorkflowArea.SALES,
+  WorkflowArea.ADMIN,
+  WorkflowArea.COLLECTIONS,
+  WorkflowArea.SHOP,
+  WorkflowArea.GENERAL_MANAGER
+];
+
+function createInitialTaskFormState(assignableUsers: ActiveUserSummary[]): TaskFormState {
+  return {
+    assignedUserId: assignableUsers[0]?.id ?? "",
+    blockerReason: "",
+    customerReference: "",
+    description: "",
+    dueTime: "09:00",
+    requiresManagerApproval: false,
+    status: TaskStatus.NOT_STARTED,
+    title: "",
+    vehicleReference: "",
+    workflowArea: WorkflowArea.INVENTORY
+  };
 }
 
 function buildSuccessMessage(payload: ManualBoardGenerationResponse) {
   const createdTaskCount = payload.createdTaskCount ?? 0;
   const skippedTaskCount = payload.skippedExistingTaskCount ?? 0;
-  const summaryParts = [
-    `${createdTaskCount} tasks created`,
-    `${skippedTaskCount} duplicates skipped`
-  ];
+  const summaryParts = [`${createdTaskCount} tasks created`, `${skippedTaskCount} duplicates skipped`];
 
   return {
     message: "Board generated.",
-    detail: payload.summary ?? summaryParts.join(" • ")
+    detail: payload.summary ?? summaryParts.join(" | ")
   };
 }
 
-export function BoardToolbar({ initialBoardDate, isManager }: BoardToolbarProps) {
+function toDueAtIso(boardDate: string, dueTime: string) {
+  return new Date(`${boardDate}T${dueTime}:00`).toISOString();
+}
+
+function buildBoardUrl(boardDate: string) {
+  return `/board?date=${encodeURIComponent(boardDate)}`;
+}
+
+export function BoardToolbar({
+  assignableUsers,
+  boardDate,
+  isManager,
+  onBoardDateChange,
+  onBoardRefreshRequested
+}: BoardToolbarProps) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const [boardDate, setBoardDate] = useState(initialBoardDate);
+  const [isGeneratePending, startGenerateTransition] = useTransition();
+  const [isTaskPending, startTaskTransition] = useTransition();
   const [feedback, setFeedback] = useState<FeedbackState>(null);
+  const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
+  const [taskFormState, setTaskFormState] = useState<TaskFormState>(() =>
+    createInitialTaskFormState(assignableUsers)
+  );
 
   function handleDateChange(nextBoardDate: string) {
-    setBoardDate(nextBoardDate);
+    if (!nextBoardDate) {
+      return;
+    }
+
     setFeedback(null);
+    onBoardDateChange(nextBoardDate);
     router.replace(buildBoardUrl(nextBoardDate));
+  }
+
+  function resetTaskForm() {
+    setTaskFormState(createInitialTaskFormState(assignableUsers));
+  }
+
+  function closeTaskModal() {
+    setIsCreateTaskOpen(false);
+    resetTaskForm();
+  }
+
+  function openTaskModal() {
+    resetTaskForm();
+    setIsCreateTaskOpen(true);
   }
 
   function handleGenerate() {
     setFeedback(null);
 
-    startTransition(async () => {
+    startGenerateTransition(async () => {
       const response = await fetch("/api/board/generate", {
         method: "POST",
         headers: {
@@ -97,7 +190,7 @@ export function BoardToolbar({ initialBoardDate, isManager }: BoardToolbarProps)
           message: "Generation failed.",
           detail
         });
-        router.refresh();
+        onBoardRefreshRequested();
         return;
       }
 
@@ -117,37 +210,330 @@ export function BoardToolbar({ initialBoardDate, isManager }: BoardToolbarProps)
         message: nextFeedback.message,
         detail: nextFeedback.detail
       });
-      router.refresh();
+      onBoardRefreshRequested();
     });
   }
 
+  function handleCreateTaskSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setFeedback(null);
+
+    startTaskTransition(async () => {
+      const response = await fetch("/api/tasks", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          assignedUserId: taskFormState.assignedUserId,
+          ...(taskFormState.blockerReason.trim()
+            ? { blockerReason: taskFormState.blockerReason.trim() }
+            : {}),
+          boardDate,
+          ...(taskFormState.customerReference.trim()
+            ? { customerReference: taskFormState.customerReference.trim() }
+            : {}),
+          description: taskFormState.description.trim(),
+          dueAt: toDueAtIso(boardDate, taskFormState.dueTime),
+          requiresManagerApproval: taskFormState.requiresManagerApproval,
+          status: taskFormState.status,
+          title: taskFormState.title.trim(),
+          ...(taskFormState.vehicleReference.trim()
+            ? { vehicleReference: taskFormState.vehicleReference.trim() }
+            : {}),
+          workflowArea: taskFormState.workflowArea
+        })
+      });
+
+      const payload = (await response.json().catch(() => null)) as
+        | (ManualTaskCreateResponse & { error?: string })
+        | { error?: string }
+        | null;
+
+      if (!response.ok || !payload || !("task" in payload) || !payload.task) {
+        setFeedback({
+          tone: "error",
+          message: "Task creation failed.",
+          detail: payload?.error ?? "Unable to create the task right now."
+        });
+        return;
+      }
+
+      setFeedback({
+        tone: "success",
+        message: "Task created.",
+        detail: `${payload.task.title} was added to ${boardDate}.`
+      });
+      closeTaskModal();
+      onBoardRefreshRequested();
+    });
+  }
+
+  const isPending = isGeneratePending || isTaskPending;
+  const needsBlockerReason = taskFormState.status === TaskStatus.BLOCKED;
+  const canCreateTask = Boolean(
+    taskFormState.title.trim() &&
+      taskFormState.assignedUserId &&
+      taskFormState.dueTime &&
+      (!needsBlockerReason || taskFormState.blockerReason.trim())
+  );
+
   return (
     <div className="board-toolbar">
-      <label className="field board-date-field">
-        <span>Board date</span>
-        <input
-          name="boardDate"
-          type="date"
-          value={boardDate}
-          onChange={(event) => handleDateChange(event.target.value)}
-        />
-      </label>
+      <div className="board-toolbar-row">
+        <label className="field board-date-field">
+          <span>Board date</span>
+          <input
+            name="boardDate"
+            type="date"
+            value={boardDate}
+            onChange={(event) => handleDateChange(event.target.value)}
+          />
+        </label>
 
-      {isManager ? (
-        <button className="pill pill-action board-generate-button" disabled={isPending} onClick={handleGenerate} type="button">
-          {isPending ? "Generating..." : "Generate Board"}
-        </button>
-      ) : null}
+        <div className="board-toolbar-actions">
+          <button
+            className="pill pill-secondary"
+            disabled={isPending}
+            onClick={onBoardRefreshRequested}
+            type="button"
+          >
+            Refresh
+          </button>
+
+          {isManager ? (
+            <>
+              <button
+                className="pill pill-secondary"
+                disabled={isTaskPending}
+                onClick={openTaskModal}
+                type="button"
+              >
+                Create Task
+              </button>
+              <button
+                className="pill pill-action board-generate-button"
+                disabled={isGeneratePending}
+                onClick={handleGenerate}
+                type="button"
+              >
+                {isGeneratePending ? "Generating..." : "Generate Board"}
+              </button>
+            </>
+          ) : null}
+        </div>
+      </div>
 
       {feedback ? (
         <div
-          className={feedback.tone === "error" ? "notice notice-danger board-feedback" : "notice board-feedback"}
+          className={
+            feedback.tone === "error"
+              ? "notice notice-danger board-feedback"
+              : "notice board-feedback"
+          }
           role={feedback.tone === "error" ? "alert" : "status"}
         >
           <p>
             <strong>{feedback.message}</strong>
             {feedback.detail ? ` ${feedback.detail}` : ""}
           </p>
+        </div>
+      ) : null}
+
+      {isManager && isCreateTaskOpen ? (
+        <div className="board-modal-backdrop" role="presentation">
+          <section
+            aria-labelledby="create-task-title"
+            aria-modal="true"
+            className="board-modal"
+            role="dialog"
+          >
+            <div className="board-modal-header">
+              <div>
+                <strong>Manager action</strong>
+                <h2 id="create-task-title">Create task for {boardDate}</h2>
+              </div>
+              <button className="pill pill-secondary" onClick={closeTaskModal} type="button">
+                Close
+              </button>
+            </div>
+
+            <form className="board-task-form" onSubmit={handleCreateTaskSubmit}>
+              <div className="board-task-form-grid">
+                <label className="field board-task-form-span-2">
+                  <span>Title</span>
+                  <input
+                    required
+                    value={taskFormState.title}
+                    onChange={(event) =>
+                      setTaskFormState((currentState) => ({
+                        ...currentState,
+                        title: event.target.value
+                      }))
+                    }
+                  />
+                </label>
+
+                <label className="field">
+                  <span>Assigned to</span>
+                  <select
+                    required
+                    value={taskFormState.assignedUserId}
+                    onChange={(event) =>
+                      setTaskFormState((currentState) => ({
+                        ...currentState,
+                        assignedUserId: event.target.value
+                      }))
+                    }
+                  >
+                    {assignableUsers.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="field">
+                  <span>Due time</span>
+                  <input
+                    required
+                    type="time"
+                    value={taskFormState.dueTime}
+                    onChange={(event) =>
+                      setTaskFormState((currentState) => ({
+                        ...currentState,
+                        dueTime: event.target.value
+                      }))
+                    }
+                  />
+                </label>
+
+                <label className="field">
+                  <span>Workflow area</span>
+                  <select
+                    value={taskFormState.workflowArea}
+                    onChange={(event) =>
+                      setTaskFormState((currentState) => ({
+                        ...currentState,
+                        workflowArea: event.target.value as WorkflowArea
+                      }))
+                    }
+                  >
+                    {workflowAreaOptions.map((workflowArea) => (
+                      <option key={workflowArea} value={workflowArea}>
+                        {formatBoardEnumLabel(workflowArea)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="field">
+                  <span>Status</span>
+                  <select
+                    value={taskFormState.status}
+                    onChange={(event) =>
+                      setTaskFormState((currentState) => ({
+                        ...currentState,
+                        status: event.target.value as TaskStatus
+                      }))
+                    }
+                  >
+                    {taskStatusOptions.map((status) => (
+                      <option key={status} value={status}>
+                        {formatBoardEnumLabel(status)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="field board-task-form-span-2">
+                  <span>Description</span>
+                  <textarea
+                    value={taskFormState.description}
+                    onChange={(event) =>
+                      setTaskFormState((currentState) => ({
+                        ...currentState,
+                        description: event.target.value
+                      }))
+                    }
+                  />
+                </label>
+
+                <label className="field">
+                  <span>Vehicle reference</span>
+                  <input
+                    value={taskFormState.vehicleReference}
+                    onChange={(event) =>
+                      setTaskFormState((currentState) => ({
+                        ...currentState,
+                        vehicleReference: event.target.value
+                      }))
+                    }
+                  />
+                </label>
+
+                <label className="field">
+                  <span>Customer reference</span>
+                  <input
+                    value={taskFormState.customerReference}
+                    onChange={(event) =>
+                      setTaskFormState((currentState) => ({
+                        ...currentState,
+                        customerReference: event.target.value
+                      }))
+                    }
+                  />
+                </label>
+
+                {needsBlockerReason ? (
+                  <label className="field board-task-form-span-2">
+                    <span>Blocker reason</span>
+                    <input
+                      required
+                      value={taskFormState.blockerReason}
+                      onChange={(event) =>
+                        setTaskFormState((currentState) => ({
+                          ...currentState,
+                          blockerReason: event.target.value
+                        }))
+                      }
+                    />
+                    <small className="field-hint">
+                      Blocked tasks require a reason before they can be created.
+                    </small>
+                  </label>
+                ) : null}
+              </div>
+
+              <label className="board-inline-checkbox">
+                <input
+                  checked={taskFormState.requiresManagerApproval}
+                  type="checkbox"
+                  onChange={(event) =>
+                    setTaskFormState((currentState) => ({
+                      ...currentState,
+                      requiresManagerApproval: event.target.checked
+                    }))
+                  }
+                />
+                <span>Requires manager approval before completion</span>
+              </label>
+
+              <div className="board-modal-actions">
+                <button className="pill pill-secondary" onClick={closeTaskModal} type="button">
+                  Cancel
+                </button>
+                <button
+                  className="pill pill-primary"
+                  disabled={!canCreateTask || isTaskPending}
+                  type="submit"
+                >
+                  {isTaskPending ? "Creating..." : "Create task"}
+                </button>
+              </div>
+            </form>
+          </section>
         </div>
       ) : null}
     </div>

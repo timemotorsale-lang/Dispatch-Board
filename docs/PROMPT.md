@@ -1,223 +1,243 @@
-# Task: DB-026 Add scheduled generation entrypoint & DB-027 Add generation service tests
+# Task
 
-Read `docs/AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/DEFAULT_PROMPT.md`, and the relevant generation, settings, board, API, and test files first.
+Implement DB-040 — Add board and task workflow tests
 
-This is a follow-through task after the daily generation core and manual generation trigger work. Before editing, inspect the existing implementation for DB-022 through DB-025 and identify:
+# Goal
 
-1. The current daily generation service entrypoint.
-2. The current manual generation route/action from DB-025.
-3. The current `GenerationRun` recording logic.
-4. The current test framework and test data helpers.
-5. Any existing deployment/platform cron conventions.
+Add automated tests that protect the v0.4.0 board and task workflow after DB-028 through DB-039.
 
-Do not make code changes until you understand those pieces.
+This is a test-focused task. The goal is not to redesign the UI or add new product features. The goal is to lock in the existing board/task behavior so regressions are caught early.
 
-## Goal
+# Required context
 
-Implement:
+Read these first:
 
-- DB-026: a scheduled generation entrypoint that can be called by platform cron or a scheduled job.
-- DB-027: automated generation service tests that protect the core generation workflow from regressions.
+- `docs/AGENTS.md`
+- `docs/ARCHITECTURE.md`
+- `docs/ROADMAP.md`
+- `docs/PRODUCT_SPEC.md`
+- `docs/MVP_SCOPE.md`
+- Existing test setup and test helpers
+- Existing task, board, auth, policy, validation, API, and UI files related to DB-028 through DB-039
 
-The scheduled entrypoint must call the same idempotent generation service used by the manual generation trigger. Do not create a second generation path.
+Relevant roadmap item:
 
-## Current behavior
+- `DB-040 — Add board and task workflow tests`
+- Scope: cover task creation, due-time validation, self-update rules, blocker rules, and review-required transitions.
+- Acceptance: the main board and task workflow is protected by automated tests.
 
-The app already has or should now have:
+# Classification
 
-- Settings for daily generation time, timezone, and business days.
-- Task templates and duty/role-based generation inputs.
-- BoardDay, Task, and GenerationRun persistence.
-- Idempotent task creation.
-- Manual manager-triggered generation with UI feedback.
-- Generation run recording for success and failure outcomes.
+Test-only work.
 
-However, scheduled generation is not yet exposed as a safe cron/scheduled entrypoint, and the generation service does not yet have sufficient tests covering the most important generation scenarios.
+Reason: DB-040 should primarily add or improve tests around already-built board and task workflows. Only make small production-code changes if they are necessary testability fixes or if an existing behavior is clearly wrong according to the implemented DB-031 through DB-039 rules.
 
-## Desired behavior
+# Current behavior
 
-### DB-026 Scheduled generation entrypoint
+The board and task workflow has been implemented across the v0.4.0 tasks:
 
-Add a scheduled generation entrypoint that:
+- Board read API and board page
+- Grouping/filtering controls
+- Manual task creation API and UI
+- Task detail endpoint/read model
+- Staff status update endpoint
+- Blocker-reason validation
+- Approval-required status rules
+- Staff-focused task view
+- Task comments API and UI
 
-1. Can be called by the app’s deployment scheduler or platform cron.
-2. Uses the same generation service path as the manual generation trigger.
-3. Resolves the board date using the configured timezone.
-4. Respects configured business days if that behavior already exists.
-5. Runs generation for the intended business date.
-6. Records `GenerationRun.triggeredBy = scheduled`.
-7. Does not require or impersonate a manager user.
-8. Uses `triggeredByUserId = null` or the existing system-user convention if one already exists.
-9. Returns a clear structured response with:
-  - board date
-  - status
-  - run id if available
-  - tasks created
-  - tasks skipped or duplicates avoided
-  - failure message when applicable
-10. Is safe to retry without creating duplicate generated tasks.
-11. Does not delete, overwrite, or mutate manual tasks.
-12. Records failure outcomes through the existing `GenerationRun` failure logic.
+However, the full board/task workflow needs stronger automated test protection.
 
-If the route is publicly reachable, protect it with a server-only secret such as `CRON_SECRET` or the project’s existing equivalent. Use the existing project convention if one already exists.
+# Desired behavior
 
-Suggested route shape, unless the app already has a better convention:
+Add tests that verify the core workflow rules:
 
-```text
-GET or POST /api/cron/generate-board
+## Manual task creation
 
-```
+Cover at least:
 
-or:
+1. Manager can create a valid manual task with required fields.
+2. Task creation requires a title.
+3. Task creation requires a due time.
+4. Task creation requires an assigned user unless the existing implementation explicitly supports manager-review-needed/unassigned tasks.
+5. Staff-created tasks, if supported, are assigned to the creating staff user unless manager behavior explicitly changes assignment.
+6. Created tasks appear in the board or task read model using the existing API/read path.
 
-```text
-src/app/api/cron/generate-board/route.ts
+## Due-time validation
 
-```
+Cover at least:
 
-Use the project’s existing Next.js route/action style. Do not introduce a new server framework.
+1. Creating a task without `dueAt` or due time fails.
+2. Creating a task with malformed due time fails if validation exists.
+3. Valid due time persists and is returned by the task/board read model.
 
-If deployment platform config already exists, wire the scheduled entrypoint into that config. If no deployment platform has been chosen yet, do not invent a large deployment setup. Add only the secured entrypoint and update setup/docs with a short note explaining how a platform cron should call it.
+## Self-update and permission rules
 
-### DB-027 Generation service tests
+Cover at least:
 
-Add or expand tests for the generation service and scheduled entrypoint.
+1. Staff can update the status of their own assigned task.
+2. Staff cannot update another staff member’s assigned task.
+3. Staff cannot reassign another user’s task.
+4. Manager can update/reassign tasks according to existing manager permissions.
+5. Unauthorized or unauthenticated requests are rejected if the project has route/session test helpers.
 
-Cover at minimum:
+## Blocker rules
 
-1. Custom duties generate the expected daily tasks.
-2. Role defaults are used when a user has no custom duties.
-3. Re-running generation for the same date does not duplicate generated tasks.
-4. Manual tasks on the same board date are preserved.
-5. Generated tasks retain template references for duplicate prevention.
-6. Successful generation records a completed `GenerationRun`.
-7. Failed generation records a failed `GenerationRun` with an error message.
-8. Manual and scheduled generation both call the same core generation service.
-9. Scheduled generation records `triggeredBy = scheduled`.
-10. The scheduled endpoint rejects unauthorized calls if a cron secret is required.
-11. The scheduled endpoint returns a clear success or failure response.
-12. Existing manual generation behavior from DB-025 still works.
+Cover at least:
 
-Use the existing test runner and test patterns. Do not add a new test framework unless the repository has no viable test setup and the change is necessary.
+1. Staff can move their own task to `Blocked` when a blocker reason is provided.
+2. Moving a task to `Blocked` without a blocker reason fails.
+3. The blocker reason persists and is returned by the task/board read model.
+4. Existing status remains unchanged after a failed blocked transition.
 
-## Implementation guidance
+## Review-required transitions
 
-Prefer this structure unless the existing codebase already has stronger conventions:
+Cover at least:
 
-```text
-src/server/services/
-  daily-generation.ts
-  generation-runs.ts
+1. A task with `requiresManagerApproval = true` cannot be directly completed by staff.
+2. Staff can move a review-required task to `Ready for Review`.
+3. Manager can complete a review-required task from `Ready for Review`.
+4. Manager can send a `Ready for Review` task back to `In Progress` if that behavior exists.
+5. A task with `requiresManagerApproval = false` can be completed directly by the assigned staff member if that is the implemented rule.
 
-src/app/api/board/generate/
-  route.ts
+## Comments workflow, if existing test helpers make it practical
 
-src/app/api/cron/generate-board/
-  route.ts
+Because DB-038 and DB-039 were completed before DB-040, include at least one smoke/regression test that verifies:
 
-src/tests/unit/
-  daily-generation.test.ts
+1. Staff or manager can add a comment to a task they are allowed to access.
+2. Comments are returned with the correct task and author context.
 
-src/tests/integration/
-  scheduled-generation.test.ts
+Do not expand this into a full activity feed test suite. Event-backed visibility belongs more heavily to DB-041 through DB-049 unless the current implementation already emits events from these actions.
 
-```
+# Test level guidance
 
-Keep the core generation workflow in a server service, not in route handlers.
+Prefer the smallest reliable test layer for each behavior.
 
-The manual route and scheduled route should both call the same function, for example:
+Use the project’s existing test stack and patterns. Do not introduce a new test framework unless the current setup cannot cover the required behavior.
 
-```ts
-generateDailyBoard({
-  boardDate,
-  triggeredBy: "manual" | "scheduled",
-  triggeredByUserId?: string | null
-})
+Suggested split:
 
-```
+## Unit tests
 
-The exact function name can follow the existing code.
+Use unit tests for pure service, policy, or validation functions, especially:
 
-The scheduled route should be thin:
+- status transition validation
+- blocker reason validation
+- approval-required transition rules
+- permission/policy helpers
 
-1. Validate cron authorization if needed.
-2. Resolve date/timezone/settings.
-3. Call the existing generation service.
-4. Return structured JSON.
-5. Let the service handle idempotency and generation run recording.
+## Integration tests
 
-Do not duplicate task creation logic inside the route.
+Use integration tests for API/server action behavior, especially:
 
-## Visual guidance from `UI_REFERENCE.png`
+- manual task creation
+- due-time validation
+- staff self-update rules
+- staff cannot mutate another staff member’s task
+- blocker validation
+- review-required completion flow
+- task comments persistence if implemented
 
-This task is mostly backend and tests. Do not redesign the board UI.
+## E2E/browser tests
 
-If any DB-025 generation feedback UI must be touched because of this task, preserve the visual direction from `UI_REFERENCE.png`:
+Only add browser-level tests if the project already has a working E2E setup.
 
-- Keep the top action area clean and compact.
-- Preserve the primary “Generate Board” control pattern.
-- Keep generation status feedback visible but not visually loud.
-- Use concise status language like “Generated”, “Failed”, “Retry available”, or “Scheduled”.
-- Do not clutter the dashboard with cron/debug details.
-- Keep the right-side activity/feed pattern clean if scheduled generation creates visible system events.
-- Preserve the enterprise-level spacing, compact KPI cards, left sidebar, top controls, and right activity rail style.
-- Avoid horizontal overflow and avoid enlarging controls unnecessarily.
+If E2E is available, add one high-value smoke test:
 
-Do not add a new cron management screen unless the existing settings UI already has a natural place for a small scheduled generation status note.
+- Manager logs in, opens today’s board, creates a manual task, sees it on the board.
+- Staff logs in, opens “my tasks” or task detail, updates own task status.
+- Staff attempts a blocked status without reason and sees a validation error.
+- Staff submits blocker reason successfully or moves review-required task to `Ready for Review`.
 
-## Constraints
+Keep browser tests minimal and resilient. Prefer accessible labels/roles over brittle class selectors. Add `data-testid` only when necessary, and keep those additions small.
 
-- Keep the change minimal and scoped to DB-026 and DB-027.
-- Do not rewrite unrelated generation, board, settings, auth, or UI code.
-- Do not add new dependencies unless necessary.
-- Do not introduce live third-party integrations.
-- Do not build advanced scheduling management UI.
-- Do not create a separate generation implementation for cron.
-- Do not bypass existing server-side policies or validation.
-- Do not expose an unauthenticated public generation endpoint without secret protection.
-- Preserve DB-025 manual generation behavior.
-- Preserve idempotency and duplicate-prevention guarantees.
-- Preserve manual tasks.
-- Preserve existing tests.
-- Add tests for new behavior and important existing generation behavior.
-- Update docs only where setup, cron usage, environment variables, or architecture behavior changed.
+# Seed/test data requirements
 
-## Edge cases to handle
+Use existing factories, seed helpers, or test database setup if available.
 
-- Scheduled endpoint called twice for the same date.
-- Scheduled endpoint called after manual generation already ran.
-- Manual generation called after scheduled generation already ran.
-- No active users.
-- User has custom duties.
-- User has no custom duties but has role defaults.
-- Template inactive.
-- Generation service throws midway.
-- Missing or invalid cron secret.
-- Missing settings or timezone fallback.
-- Non-business day behavior if business-day logic exists.
-- Existing manual task on the board date.
-- Existing generated task with the same board, template, and assigned user.
+Create or reuse test fixtures for:
 
-## Done when
+- one manager user
+- at least two staff users
+- one board day
+- one staff-assigned task
+- one task assigned to another staff user
+- one review-required task
+- one non-review-required task
 
-- A scheduled/cron-safe entrypoint exists.
-- The scheduled entrypoint calls the same idempotent generation service as manual generation.
-- Scheduled generation records `GenerationRun.triggeredBy = scheduled`.
-- Scheduled generation can be retried safely.
-- Manual tasks are not deleted or overwritten.
-- Duplicate generated tasks are not created.
-- Failures record failed generation runs.
-- Unauthorized scheduled calls are rejected if the route is protected by a cron secret.
-- Generation service tests cover custom duties, role defaults, duplicate prevention, manual-task preservation, and failure recording.
-- Tests also cover scheduled entrypoint behavior where practical.
-- Existing manual generation behavior still works.
-- Relevant unit/integration tests pass.
-- Typecheck and lint pass if available.
-- Docs are updated if a cron route, env variable, or setup instruction was added.
-- Summarize:
+Do not use real customer data, real vehicle data, real passwords, or production-like secrets.
+
+# Constraints
+
+- Keep this task focused on tests.
+- Do not redesign the UI.
+- Do not change visual layout to match `UI_REFERENCE.png`; this task is not UI polish.
+- Do not add new product features.
+- Do not rewrite task, board, auth, or validation architecture.
+- Do not introduce new dependencies unless absolutely necessary; explain why first.
+- Follow existing test patterns, naming conventions, fixtures, and helper utilities.
+- Keep business-rule assertions server-side where possible.
+- Avoid snapshot tests for complex UI unless the project already uses them intentionally.
+- Do not make broad production-code changes to satisfy tests. If implementation appears missing or contradictory, stop and report the gap before changing behavior.
+- If a small production-code fix is required because the existing behavior violates DB-031 through DB-039 acceptance criteria, keep the fix minimal and add a regression test.
+
+# Implementation guidance
+
+Before editing:
+
+1. Inspect existing tests and test commands in `package.json`.
+2. Identify whether the project uses Vitest, Jest, Playwright, React Testing Library, or another stack.
+3. Identify existing test database/reset helpers.
+4. Identify the implemented API/server action names for:
+   - task creation
+   - task status update
+   - task detail/read model
+   - board read API
+   - task comments
+5. Identify existing auth/session test helpers for manager and staff users.
+6. Write a brief implementation plan before making changes.
+
+Then implement tests in the appropriate locations, likely under:
+
+- `src/tests/unit`
+- `src/tests/integration`
+- `src/tests/e2e`
+
+or the actual existing test folders if the repository differs.
+
+# Suggested test names
+
+Use names close to these, adjusted to existing conventions:
+
+- `creates a manual task with required fields`
+- `rejects manual task creation without a due time`
+- `rejects manual task creation without a title`
+- `allows staff to update their own assigned task status`
+- `rejects staff status updates for another staff member task`
+- `requires blocker reason when moving a task to Blocked`
+- `preserves previous status after failed blocked transition`
+- `moves review-required staff work to Ready for Review before completion`
+- `rejects staff direct completion for review-required tasks`
+- `allows manager to complete a Ready for Review task`
+- `allows assigned staff to complete non-review-required tasks`
+- `adds and reads task comments with author context`
+
+# Done when
+
+- Tests cover DB-040’s required workflow areas:
+  - task creation
+  - due-time validation
+  - self-update rules
+  - blocker rules
+  - review-required transitions
+- Relevant tests pass locally.
+- Lint/typecheck pass if available.
+- Existing tests still pass.
+- No unrelated files are changed.
+- Any production-code changes are minimal, justified, and directly related to making the tested behavior correct.
+- The final summary includes:
   - files changed
-  - scheduled entrypoint added
   - tests added
-  - tests/checks run
-  - any behavior intentionally left for a later roadmap item
-
+  - commands run
+  - whether any checks failed or could not be run
+  - any behavior gaps found but not changed

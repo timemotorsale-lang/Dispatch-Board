@@ -9,7 +9,7 @@ describe("app foundation config", () => {
 
   it("keeps the placeholder route set in place", () => {
     expect(placeholderRoutes.map((route) => route.href)).toEqual(
-      expect.arrayContaining(["/login", "/board", "/tasks", "/settings"])
+      expect.arrayContaining(["/login", "/board", "/my-tasks", "/tasks", "/settings"])
     );
   });
 });

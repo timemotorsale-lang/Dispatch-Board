@@ -81,6 +81,32 @@ describe("permission policies", () => {
     ).toBe(false);
   });
 
+  it("keeps reassignment manager-only", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+    const otherStaffUser = usersByEmail.get("casey.mechanic@local.test") ?? null;
+
+    expect(staffUser).not.toBeNull();
+    expect(otherStaffUser).not.toBeNull();
+    expect(
+      canUpdateAssignedWork({
+        actor: staffUser,
+        assignedUserId: otherStaffUser!.id,
+        requiresManagerApproval: false,
+        requestedAction: "reassign"
+      })
+    ).toBe(false);
+    expect(
+      canUpdateAssignedWork({
+        actor: manager,
+        assignedUserId: otherStaffUser!.id,
+        requiresManagerApproval: false,
+        requestedAction: "reassign"
+      })
+    ).toBe(true);
+  });
+
   it("allows any authenticated user to view the full board", async () => {
     const { usersByEmail } = await createTestAuthStore();
 

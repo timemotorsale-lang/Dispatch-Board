@@ -87,6 +87,7 @@ model User {
   recommendedTasks        Task[]          @relation("TaskRecommendedUser")
   createdTasks            Task[]          @relation("TaskCreatedByUser")
   reviewedTasks           Task[]          @relation("TaskReviewedByUser")
+  authoredTaskComments    TaskComment[]   @relation("TaskCommentAuthorUser")
   triggeredGenerationRuns GenerationRun[] @relation("GenerationRunTriggeredByUser")
 
   @@index([isActive])
@@ -235,11 +236,25 @@ model Task {
   reviewedByUser          User?          @relation("TaskReviewedByUser", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
   sourceTemplate          TaskTemplate?  @relation("TaskSourceTemplate", fields: [sourceTemplateId], references: [id], onDelete: SetNull)
   sourceDuty              Duty?          @relation("TaskSourceDuty", fields: [sourceDutyId], references: [id], onDelete: SetNull)
+  comments                TaskComment[]
 
   @@unique([boardDayId, sourceTemplateId, assignedUserId])
   @@index([boardDayId, status])
   @@index([boardDayId, assignedUserId])
   @@index([boardDayId, workflowArea])
+}
+
+model TaskComment {
+  id           String   @id @default(cuid())
+  taskId       String
+  authorUserId String
+  body         String
+  createdAt    DateTime @default(now())
+  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorUser   User     @relation("TaskCommentAuthorUser", fields: [authorUserId], references: [id], onDelete: Restrict)
+
+  @@index([taskId])
+  @@index([taskId, createdAt])
 }
 
 model GenerationRun {
