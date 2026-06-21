@@ -1,91 +1,116 @@
 # Task
 
-DB-043 Add activity feed API
+DB-044 — Build activity feed UI
 
 # Goal
 
-Implement the backend/API read path for the event-backed activity feed so the board can load activity events for today or a selected board date.
+Build the user-facing Activity Feed UI for the Time Motor Sales Dispatch Board so managers and staff can quickly see what changed today, who changed it, and when it happened.
 
-This task should expose date-based retrieval for `ActivityEvent` records created by DB-041 and DB-042. The feed API should return events in a stable, UI-ready shape with actor, task, event type, message, timestamp, and metadata context.
+This task should consume the activity feed API from DB-043. Do not redesign the whole board or rewrite activity persistence. This is a focused UI slice.
 
 # Context
 
 Read these first:
 
 - `docs/AGENTS.md`
-- `docs/ARCHITECTURE.md`
 - `docs/ROADMAP.md`
-- Existing activity/event files from DB-041 and DB-042
-- Existing board/date API patterns from DB-028
-- Existing auth/session and policy helpers
-- Existing test patterns for API routes or server services
+- `docs/ARCHITECTURE.md`
+- `docs/PRODUCT_SPEC.md`
+- `docs/MVP_SCOPE.md`
+- `README.md` if present
+- Existing activity API/client code from DB-043
+- Existing board page/layout code
+- Existing UI components, fetch helpers, hooks, and tests
+- `UI_REFERENCE.png` for visual guidance
 
-Relevant product/architecture rules:
+Relevant roadmap sequence:
 
-- The activity feed must be event-backed, not inferred from UI state.
-- Important state changes should create `ActivityEvent` records.
-- The activity feed should default to today’s board and support selected board dates.
-- Activity events should include who performed the action when applicable.
-- System actions such as daily generation should be clearly labeled.
-- MVP refresh can use polling; do not build streaming/SSE in this task.
-- Planned API surface includes `GET /api/activity?date=YYYY-MM-DD`.
-- Keep permission checks server-side.
+- DB-041 added activity event schema and persistence.
+- DB-042 emitted events for generation and task lifecycle.
+- DB-043 added activity feed API.
+- DB-044 should now build the UI that displays those events.
 
-# Current behavior
+# Product behavior
 
-DB-041 should have added the `ActivityEvent` schema and persistence helpers.
+The activity feed should help the team understand what changed today without asking everyone for updates.
 
-DB-042 should have started emitting activity events for generation and task lifecycle operations.
+The feed should show events such as:
 
-However, there is not yet a dedicated read API that the board/activity feed UI can call to load events for a selected board date.
+- Daily board generated
+- Task created
+- Task assigned or reassigned
+- Due time changed
+- Status changed
+- Task blocked
+- Waiting on parts
+- Waiting on approval
+- Ready for review
+- Task completed
+- Comment/update added
 
-# Desired behavior
+Each visible event should clearly show:
 
-Add an authenticated activity feed API endpoint.
+- Actor name, or `System` for system-generated events
+- Event type or human-readable action label
+- Event message/details
+- Relative time or readable timestamp
+- Related task context when available
+- Clear visual distinction for important events like blocked, waiting on approval, ready for review, and completed
 
-Preferred route:
+# UI guidance from mockup
 
-- `GET /api/activity?date=YYYY-MM-DD`
+Use `UI_REFERENCE.png` as the visual guide.
 
-If the current app uses a different API route convention, follow the existing convention but preserve the same capability.
+The reference shows a right-side rail titled `Live Activity Feed` with:
 
-The endpoint should:
+- A compact event list
+- Event icon/status indicator
+- Time on the left
+- Event title/action
+- Supporting task or vehicle context
+- Actor name
+- An `All Events` filter dropdown
+- A `View full activity` link
 
-1. Require an authenticated user.
-2. Accept an optional `date` query parameter in `YYYY-MM-DD` format.
-3. If `date` is omitted, default to today using the app’s existing board/date helper or configured timezone behavior.
-4. Find the `BoardDay` for that date.
-5. Return an empty event list if the board date exists but has no activity events.
-6. Return an empty event list if no board exists for that date, unless the existing board API pattern returns a typed not-found response. Prefer consistency with existing board read API behavior.
-7. Return events newest-first by `createdAt`, with a stable secondary order by `id` if needed.
-8. Include enough related data for DB-044 activity feed UI without additional N+1 calls.
+Match that direction closely, but adapt to the existing implemented UI structure.
 
-# Response shape
+Do not create a cluttered notification center. Keep the activity rail clean, scannable, and enterprise-level.
 
-Return a JSON response similar to this, adapting names to existing project conventions:
+# Desired implementation
 
-```ts
-{
-  date: "2026-06-21",
-  boardDayId: "board_day_id_or_null",
-  events: [
-    {
-      id: "event_id",
-      eventType: "TASK_STATUS_CHANGED",
-      message: "Walter moved Oil Change to In Progress",
-      createdAt: "2026-06-21T14:35:00.000Z",
-      actor: {
-        id: "user_id",
-        name: "Walter",
-        email: "walter@example.com"
-      } | null,
-      task: {
-        id: "task_id",
-        title: "Oil Change",
-        status: "In Progress",
-        workflowArea: "Inventory"
-      } | null,
-      metadata: {}
-    }
-  ]
-}
+Implement a reusable activity feed UI, preferably in a feature-owned location such as:
+
+- `src/features/activity/ActivityFeedPanel.tsx`
+- `src/features/activity/ActivityFeedItem.tsx`
+- `src/features/activity/activityTypes.ts`
+- or the closest existing project pattern
+
+The UI should:
+
+1. Load activity events for the selected board date using the DB-043 API.
+2. Render events newest-first unless the API already returns a specific order.
+3. Display actor, event/action, task context, and time clearly.
+4. Include loading, empty, and error states.
+5. Include a retry action for failed loading.
+6. Include a compact filter control if practical:
+   - `All Events`
+   - `Tasks`
+   - `Status Changes`
+   - `Blocked`
+   - `Comments`
+   - `System`
+7. Use short polling only if there is already a project pattern for polling or refresh intervals. If not, add a simple low-risk refresh strategy only if it stays minimal.
+8. Keep mobile responsive:
+   - On desktop/tablet, show the feed as a right rail if the board layout supports it.
+   - On smaller screens, stack the feed below the board or make it accessible without horizontal overflow.
+9. If the sidebar already has an `Activity Feed` navigation item, make sure it does not lead to a broken page. Either:
+   - connect it to a simple full activity page using the same component, or
+   - keep the implementation scoped and explain why the page should be a follow-up.
+10. Do not expose raw JSON metadata directly to users.
+
+# Current assumptions
+
+Assume DB-043 already exposes a date-based activity API, likely similar to:
+
+```text
+GET /api/activity?date=YYYY-MM-DD

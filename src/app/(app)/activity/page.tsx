@@ -1,12 +1,4 @@
-import { PlaceholderRoutePage } from "@/components/ui/placeholder-route-page";
-
-export default function ActivityPage() {
-  return (
-    <PlaceholderRoutePage
-      description="The app shell now includes a first-class activity destination, even though the event-backed feed itself is still scheduled for a later implementation slice."
-      eyebrow="Activity"
-      note="The board's right rail will reserve space for activity visibility without pretending live event data already exists. This page keeps the navigation complete in the meantime."
-      title="Activity Feed"
-    />
-  );
-}
+import { ActivityFeedPanel } from "@/features/activity/activity-feed-panel";
+import { getGenerationSettings } from "@/server/services/app-settings-service";
+import { getBoardDateInTimeZone, normalizeBoardDate } from "@/server/validation/board-date";
+export default async function ActivityPage({ searchParams }: { searchParams?: Promise<{ date?: string | string[] }> }) { const settings = await getGenerationSettings(); const today = getBoardDateInTimeZone(new Date(), settings.timezone); const params = searchParams ? await searchParams : undefined; const requested = Array.isArray(params?.date) ? params.date[0] : params?.date; let boardDate = today; try { if (requested) boardDate = normalizeBoardDate(requested); } catch { boardDate = today; } return <section className="activity-page"><div className="activity-page-heading"><p className="section-kicker">Operations history</p><h1>Activity Feed</h1><p>See what changed, who changed it, and when it happened.</p></div><ActivityFeedPanel boardDate={boardDate} full /></section>; }

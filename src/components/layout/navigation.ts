@@ -22,7 +22,7 @@ export const navigationGroups: NavigationGroup[] = [
       { href: "/customers", title: "Customers", description: "Customer visibility.", icon: UserRound, placeholder: true },
       { href: "/appointments", title: "Appointments", description: "Upcoming appointments.", icon: CalendarDays, placeholder: true },
       { href: "/manager-review", title: "Manager Review", description: "Approval and attention queue.", icon: ClipboardCheck, placeholder: true },
-      { href: "/activity", title: "Activity Feed", description: "Today’s operating updates.", icon: Activity, placeholder: true }
+      { href: "/activity", title: "Activity Feed", description: "Today’s operating updates.", icon: Activity }
     ]
   },
   {
