@@ -43,6 +43,9 @@ function createBoardReadRepositoryHarness(options: {
         name: string;
         email: string;
       } | null;
+      recommendationReasonCode?: string | null;
+      recommendationReasonText?: string | null;
+      recommendationReviewNeeded?: boolean;
       vehicleReference?: string | null;
       customerReference?: string | null;
       blockerReason?: string | null;
@@ -77,6 +80,9 @@ function createBoardReadRepositoryHarness(options: {
         completedAt: task.completedAt ? new Date(task.completedAt) : null,
         assignedUser: task.assignedUser,
         recommendedUser: task.recommendedUser ?? null
+        ,recommendationReasonCode: task.recommendationReasonCode ?? null
+        ,recommendationReasonText: task.recommendationReasonText ?? null
+        ,recommendationReviewNeeded: task.recommendationReviewNeeded ?? false
       }))
     ])
   );

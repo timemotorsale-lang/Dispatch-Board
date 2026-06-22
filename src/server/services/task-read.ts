@@ -41,6 +41,9 @@ export type TaskReadModel = {
   updatedAt: string;
   assignedUser: TaskReadUserSummary;
   recommendedUser: TaskReadUserSummary | null;
+  recommendationReasonCode: string | null;
+  recommendationReasonText: string | null;
+  recommendationReviewNeeded: boolean;
   createdByUser: TaskReadUserSummary | null;
   reviewedByUser: TaskReadUserSummary | null;
   comments: TaskCommentReadModel[];
@@ -105,6 +108,9 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
       email: task.assignedUser.email || undefined
     },
     recommendedUser: toUserSummary(task.recommendedUser),
+    recommendationReasonCode: task.recommendationReasonCode,
+    recommendationReasonText: normalizeOptionalText(task.recommendationReasonText),
+    recommendationReviewNeeded: task.recommendationReviewNeeded,
     createdByUser: toUserSummary(task.createdByUser),
     reviewedByUser: toUserSummary(task.reviewedByUser),
     comments: task.comments.map((comment) => ({

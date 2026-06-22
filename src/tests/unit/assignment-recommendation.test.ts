@@ -37,7 +37,8 @@ describe("assignment recommendation", () => {
       recommendedUserId: "user-duty",
       reasonCode: "DIRECT_DUTY_MATCH",
       reasonPath: ["Checked direct user duty match"],
-      managerReviewNeeded: false
+      reasonText: "Recommended because this user has a direct duty match.",
+      reviewNeeded: false
     });
   });
 
@@ -65,7 +66,8 @@ describe("assignment recommendation", () => {
     expect(result).toMatchObject({
       recommendedUserId: null,
       reasonCode: "MANAGER_REVIEW_NEEDED",
-      managerReviewNeeded: true
+      reasonText: "Manager review needed because no eligible staff match was found.",
+      reviewNeeded: true
     });
     expect(result.reasonPath).toHaveLength(5);
   });

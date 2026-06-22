@@ -35,6 +35,9 @@ type StoredTask = {
   description: string;
   assignedUserId: string;
   recommendedUserId: string | null;
+  recommendationReasonCode?: string | null;
+  recommendationReasonText?: string | null;
+  recommendationReviewNeeded?: boolean;
   status: TaskStatus;
   dueAt: Date;
   createdByUserId: string | null;
@@ -247,6 +250,9 @@ function createGenerationTasksHarness(
         description: input.description,
         assignedUserId: input.assignedUserId,
         recommendedUserId: input.recommendedUserId,
+        recommendationReasonCode: input.recommendationReasonCode,
+        recommendationReasonText: input.recommendationReasonText,
+        recommendationReviewNeeded: input.recommendationReviewNeeded,
         status: TaskStatus.NOT_STARTED,
         dueAt: input.dueAt,
         createdByUserId: input.createdByUserId,
@@ -266,6 +272,9 @@ function createGenerationTasksHarness(
         title: createdTask.title,
         assignedUserId: createdTask.assignedUserId,
         recommendedUserId: createdTask.recommendedUserId,
+        recommendationReasonCode: createdTask.recommendationReasonCode ?? null,
+        recommendationReasonText: createdTask.recommendationReasonText ?? null,
+        recommendationReviewNeeded: createdTask.recommendationReviewNeeded ?? false,
         dueAt: createdTask.dueAt,
         sourceTemplateId: createdTask.sourceTemplateId,
         sourceDutyId: createdTask.sourceDutyId,
@@ -416,6 +425,9 @@ describe("generation tasks service", () => {
         title: "Review inventory status",
         assignedUserId: "user-inventory",
         recommendedUserId: "user-inventory",
+        recommendationReasonCode: "ROLE_MATCH",
+        recommendationReasonText: "Recommended because this user's role matches the task template.",
+        recommendationReviewNeeded: false,
         dueAt: new Date("2026-06-17T09:00:00.000Z"),
         sourceTemplateId: "template-inventory",
         sourceDutyId: "duty-inventory",
@@ -426,6 +438,9 @@ describe("generation tasks service", () => {
         title: "Follow up with assigned leads",
         assignedUserId: "user-sales",
         recommendedUserId: "user-sales",
+        recommendationReasonCode: "DIRECT_DUTY_MATCH",
+        recommendationReasonText: "Recommended because this user has a direct duty match.",
+        recommendationReviewNeeded: false,
         dueAt: new Date("2026-06-17T15:30:00.000Z"),
         sourceTemplateId: "template-sales-duty",
         sourceDutyId: "duty-sales",

@@ -38,6 +38,9 @@ function createTaskReadRepository(): TaskReadRepository {
           email: "jordan.sales@local.test"
         },
         recommendedUser: null,
+        recommendationReasonCode: null,
+        recommendationReasonText: null,
+        recommendationReviewNeeded: false,
         createdByUser: {
           id: "user-manager",
           name: "Morgan Manager",
@@ -94,6 +97,9 @@ describe("task read service", () => {
         email: "jordan.sales@local.test"
       },
       recommendedUser: null,
+      recommendationReasonCode: null,
+      recommendationReasonText: null,
+      recommendationReviewNeeded: false,
       createdByUser: {
         id: "user-manager",
         name: "Morgan Manager",

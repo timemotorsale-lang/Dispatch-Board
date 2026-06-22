@@ -18,6 +18,7 @@ import {
   type GenerationInputWarning
 } from "@/server/services/generation-inputs";
 import { normalizeBoardDate } from "@/server/validation/board-date";
+import { recommendAssignment } from "@/server/services/assignment-recommendation";
 
 export type { GenerationTasksRepository } from "@/server/repositories/generation-tasks-repository";
 
@@ -38,6 +39,9 @@ export type CreatedGeneratedTaskReference = {
   title: string;
   assignedUserId: string;
   recommendedUserId: string | null;
+  recommendationReasonCode: string;
+  recommendationReasonText: string;
+  recommendationReviewNeeded: boolean;
   dueAt: Date;
   sourceTemplateId: string | null;
   sourceDutyId: string | null;
@@ -250,21 +254,41 @@ function buildGeneratedTaskCandidates(
 ) {
   const createdByUserId = normalizeCreatedByUserId(options.createdByUserId);
 
+  const candidates = generationInput.users.map((user) => ({
+    userId: user.userId,
+    userName: user.userName,
+    isActive: true,
+    roleIds: user.roles.map((role) => role.roleId),
+    directDutyIds: user.directDuties.map((duty) => duty.dutyId),
+    workflowAreas: user.resolvedDuties.map((duty) => duty.workflowArea.toUpperCase())
+  }));
+
   return generationInput.users.flatMap<GeneratedTaskCandidate>((user) =>
-    user.templates.map((template) => ({
+    user.templates.map((template) => {
+      const recommendation = recommendAssignment({
+        dutyId: template.dutyId,
+        roleId: template.roleId,
+        workflowArea: template.workflowArea,
+        candidates
+      });
+
+      return ({
       identityKey: buildGeneratedTaskIdentityKey(boardDayId, template.templateId, user.userId),
       boardDayId,
       title: template.title,
       description: template.description ?? "",
       assignedUserId: user.userId,
-      recommendedUserId: user.userId,
+      recommendedUserId: recommendation.recommendedUserId,
+      recommendationReasonCode: recommendation.reasonCode,
+      recommendationReasonText: recommendation.reasonText,
+      recommendationReviewNeeded: recommendation.reviewNeeded,
       dueAt: toDueAt(boardDate, template.defaultDueTime),
       createdByUserId,
       requiresManagerApproval: template.requiresManagerApproval,
       sourceTemplateId: template.templateId,
       sourceDutyId: template.dutyId,
       workflowArea: template.workflowArea
-    }))
+    });})
   );
 }
 
@@ -274,6 +298,9 @@ function toCreatedTaskReference(task: CreatedGeneratedTaskRecord): CreatedGenera
     title: task.title,
     assignedUserId: task.assignedUserId,
     recommendedUserId: task.recommendedUserId,
+    recommendationReasonCode: task.recommendationReasonCode!,
+    recommendationReasonText: task.recommendationReasonText!,
+    recommendationReviewNeeded: task.recommendationReviewNeeded,
     dueAt: task.dueAt,
     sourceTemplateId: task.sourceTemplateId,
     sourceDutyId: task.sourceDutyId,

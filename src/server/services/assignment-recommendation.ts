@@ -29,8 +29,8 @@ export type RecommendationResult = {
   recommendedUserId: string | null;
   reasonCode: RecommendationReasonCode;
   reasonPath: string[];
-  explanation: string;
-  managerReviewNeeded: boolean;
+  reasonText: string;
+  reviewNeeded: boolean;
 };
 
 function normalize(value: string | null | undefined) {
@@ -102,10 +102,13 @@ export function recommendAssignment(context: RecommendationContext): Recommendat
         recommendedUserId: match.userId,
         reasonCode: rule.code,
         reasonPath,
-        explanation: `${match.userName || match.userId} is recommended by the ${rule.code
-          .toLowerCase()
-          .replaceAll("_", " ")} rule.`,
-        managerReviewNeeded: false
+        reasonText: {
+          DIRECT_DUTY_MATCH: "Recommended because this user has a direct duty match.",
+          ROLE_MATCH: "Recommended because this user's role matches the task template.",
+          TEMPLATE_OWNER_MATCH: "Recommended because this user owns the task template.",
+          WORKFLOW_AREA_MATCH: "Recommended because this user's duties match the workflow area."
+        }[rule.code],
+        reviewNeeded: false
       };
     }
   }
@@ -115,7 +118,7 @@ export function recommendAssignment(context: RecommendationContext): Recommendat
     recommendedUserId: null,
     reasonCode: "MANAGER_REVIEW_NEEDED",
     reasonPath,
-    explanation: "No active staff member clearly matches this task. A manager should choose the assignee.",
-    managerReviewNeeded: true
+    reasonText: "Manager review needed because no eligible staff match was found.",
+    reviewNeeded: true
   };
 }

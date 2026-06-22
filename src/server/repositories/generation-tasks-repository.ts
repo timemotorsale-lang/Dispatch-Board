@@ -28,6 +28,9 @@ const createdGeneratedTaskSelect = {
   title: true,
   assignedUserId: true,
   recommendedUserId: true,
+  recommendationReasonCode: true,
+  recommendationReasonText: true,
+  recommendationReviewNeeded: true,
   dueAt: true,
   sourceTemplateId: true,
   sourceDutyId: true,
@@ -51,6 +54,9 @@ export type CreateGeneratedTaskInput = {
   description: string;
   assignedUserId: string;
   recommendedUserId: string | null;
+  recommendationReasonCode: string;
+  recommendationReasonText: string;
+  recommendationReviewNeeded: boolean;
   dueAt: Date;
   createdByUserId: string | null;
   requiresManagerApproval: boolean;
@@ -151,6 +157,9 @@ export function createGenerationTasksRepository(
             description: input.description,
             assignedUserId: input.assignedUserId,
             recommendedUserId: input.recommendedUserId,
+            recommendationReasonCode: input.recommendationReasonCode,
+            recommendationReasonText: input.recommendationReasonText,
+            recommendationReviewNeeded: input.recommendationReviewNeeded,
             status: TaskStatus.NOT_STARTED,
             dueAt: input.dueAt,
             createdByUserId: input.createdByUserId,

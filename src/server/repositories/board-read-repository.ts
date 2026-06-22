@@ -38,7 +38,10 @@ const boardTaskSelect = {
       name: true,
       email: true
     }
-  }
+  },
+  recommendationReasonCode: true,
+  recommendationReasonText: true,
+  recommendationReviewNeeded: true
 } satisfies Prisma.TaskSelect;
 
 export type BoardReadBoardDayRecord = Prisma.BoardDayGetPayload<{

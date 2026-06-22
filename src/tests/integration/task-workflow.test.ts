@@ -155,6 +155,9 @@ function createWorkflowHarness(authUsers: AuthenticatedUser[]) {
       },
       assignedUser: requireValue(userSummary(task.assignedUserId), "Assignee is required."),
       recommendedUser: userSummary(task.recommendedUserId),
+      recommendationReasonCode: null,
+      recommendationReasonText: null,
+      recommendationReviewNeeded: false,
       createdByUser: userSummary(task.createdByUserId),
       reviewedByUser: userSummary(task.reviewedByUserId),
       comments: comments
@@ -265,6 +268,9 @@ function createWorkflowHarness(authUsers: AuthenticatedUser[]) {
           completedAt: task.completedAt,
           assignedUser: requireValue(userSummary(task.assignedUserId), "Assignee is required."),
           recommendedUser: userSummary(task.recommendedUserId)
+          ,recommendationReasonCode: null
+          ,recommendationReasonText: null
+          ,recommendationReviewNeeded: false
         }));
     }
   };
