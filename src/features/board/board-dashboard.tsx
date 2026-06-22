@@ -5,6 +5,7 @@ import Link from "next/link";
 import { formatBoardEnumLabel, type BoardFilters, type BoardGroupMode, type BoardPresentation } from "./board-grouping";
 import type { BoardReadModel, BoardReadTask } from "@/server/services/board-read";
 import { ActivityFeedPanel } from "@/features/activity/activity-feed-panel";
+import { ReviewQueue } from "./review-queue";
 
 type Task = Omit<BoardReadTask, "assignedUser"> & { assignedUser: BoardReadTask["assignedUser"] | null };
 
@@ -109,10 +110,11 @@ export function TaskBoard({ presentation, boardDate }: { presentation: BoardPres
 
 function count(tasks: Task[], status: string) { return tasks.filter((task) => task.status === status).length; }
 
-export function OperationalRail({ tasks, boardDate }: { tasks: Task[]; boardDate: string }) {
+export function OperationalRail({ tasks, boardDate, isManager, onReviewChanged }: { tasks: Task[]; boardDate: string; isManager: boolean; onReviewChanged(): void }) {
   const attention = [{ label: "Blocked", detail: "Tasks are blocked", status: "BLOCKED", tone: "red" }, { label: "Waiting on Parts", detail: "Work waiting on parts", status: "WAITING_ON_PARTS", tone: "orange" }, { label: "Waiting on Approval", detail: "Awaiting manager approval", status: "WAITING_ON_APPROVAL", tone: "amber" }, { label: "Ready for Review", detail: "Ready for manager review", status: "READY_FOR_REVIEW", tone: "purple" }];
   const upcoming = [...tasks].filter((task) => task.status !== "COMPLETED").sort((a, b) => +new Date(a.dueAt) - +new Date(b.dueAt)).slice(0, 4);
   return <aside className="operations-rail">
+    {isManager ? <ReviewQueue tasks={tasks as BoardReadTask[]} onChanged={onReviewChanged} /> : null}
     <section className="rail-card"><header><h2>Needs Attention</h2><Link href="/manager-review">View all</Link></header><div className="attention-list">{attention.map((item) => <div className={`attention-row attention-${item.tone}`} key={item.status}><span className="attention-dot">!</span><div><strong>{item.label}</strong><small>{item.detail}</small></div><b>{count(tasks, item.status)}</b></div>)}</div></section>
     <section className="rail-card"><header><h2>Due Next</h2><span>Today</span></header><div className="due-list">{upcoming.length ? upcoming.map((task) => <Link href={`/tasks/${task.id}`} key={task.id}><time>{formatTime(task.dueAt)}</time><span><strong>{task.title}</strong><small>{task.assignedUser?.name ?? "Unassigned"}</small></span></Link>) : <p className="rail-empty">No upcoming work.</p>}</div></section>
     <ActivityFeedPanel boardDate={boardDate} />

@@ -94,7 +94,7 @@ export function BoardScreen({ assignableUsers, initialBoardDate, todayBoardDate,
           <BoardControls board={board} filters={filters} groupMode={groupMode} presentation={presentation} onClear={() => setFilters(DEFAULT_BOARD_FILTERS)} onFilterChange={setFilter} onGroupChange={setGroupMode} />
           <TaskBoard boardDate={loadState.date} presentation={presentation} />
         </div>
-        <OperationalRail boardDate={loadState.date} tasks={presentation.filteredTasks} />
+        <OperationalRail boardDate={loadState.date} isManager={isManager} onReviewChanged={() => { setLoadState({ status: "loading", date: selectedBoardDate }); setReloadCount((count) => count + 1); }} tasks={board.tasks} />
       </div>
     </> : null}
   </section>;
