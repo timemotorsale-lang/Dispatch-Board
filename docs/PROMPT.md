@@ -1,199 +1,189 @@
 # Task
 
-DB-048 — Add review queue and approval UI
+DB-049 Add review and visibility tests
 
 # Goal
 
-Add a manager-facing review queue to the Time Motor Sales Dispatch Board that surfaces tasks in `Ready for Review` and lets managers approve completion or return the task back to `In Progress`.
+Add automated test coverage for the v0.5.0 review, recommendation, override, and activity visibility workflows so regressions are caught before the MVP moves into reliability and release-readiness work.
 
-This should make manager review work visible, fast, and trustworthy without cluttering the board.
+This is primarily a test-only task. Do not redesign UI, change schemas, or add new product features unless a small fix is directly required because the existing intended behavior from DB-041 through DB-048 is broken.
 
 # Context
 
-Read these files first:
+Read these first:
 
 - `docs/AGENTS.md`
-- `docs/ARCHITECTURE.md`
 - `docs/ROADMAP.md`
-- `docs/PRODUCT_SPEC.md`
+- `docs/ARCHITECTURE.md`
 - `docs/MVP_SCOPE.md`
-- Existing board/task/activity/recommendation files
-- `UI_REFERENCE.png` or the project mockup image under `docs/images` if present
+- Existing test setup and test helpers
+- Existing implementation files for:
+  - activity events
+  - activity feed API/read model
+  - recommendation matching
+  - recommendation reason persistence
+  - manager reassignment / override endpoint
+  - review queue / approval workflow
+  - task status transitions
+  - permission policies
 
-Relevant product rules:
+Roadmap context:
 
-- Tasks that require manager approval must pass through `Ready for Review` before `Completed`.
-- Managers can review and complete approval-required tasks.
-- Managers can return review-required tasks back to `In Progress`.
-- Staff should not be able to complete approval-required tasks directly.
-- Important state changes should create `ActivityEvent` records.
-- UI should stay clean, responsive, and aligned with the approved board mockup.
+- DB-041 added activity event schema and persistence.
+- DB-042 emitted events for generation and task lifecycle.
+- DB-043 added activity feed API.
+- DB-044 added activity feed UI.
+- DB-045 implemented recommendation matching rules.
+- DB-046 persisted recommendation reason codes and text.
+- DB-047 added manager reassignment and override endpoint.
+- DB-048 added review queue and approval UI.
+- DB-049 must now protect those workflows with automated tests.
 
-# Current behavior
+# Classification
 
-The app already has the board/task workflow, approval-required status rules, activity feed, recommendation logic, recommendation persistence, and manager reassignment/override behavior from prior tasks.
+Test-only work.
 
-However, managers do not yet have a dedicated review queue UI that clearly shows `Ready for Review` tasks and provides direct approval/reopen actions.
+Reason: this task should add regression coverage for already implemented review and visibility behavior, not expand the feature set.
 
-# Desired behavior
+# Required test coverage
 
-Implement a manager-facing review queue surface.
+Add focused tests at the appropriate level based on the current project structure. Prefer unit tests for pure service logic and integration tests for API/server action behavior.
 
-The review queue should:
+## 1. Activity event creation tests
 
-- Show tasks for the selected board date where `status = Ready for Review`.
-- Prioritize tasks that have `requiresManagerApproval = true`.
-- Be visible to managers.
-- Be hidden, disabled, or read-only for staff based on existing auth/policy patterns.
-- Display a clear count of items waiting for review.
-- Show each review task with enough context to decide quickly:
-  - title
-  - assigned staff member
-  - due time
-  - workflow area
-  - current status
-  - vehicle/customer reference if present
-  - latest useful update/comment if already available in the read model
-  - ready-for-review timestamp if available
-- Provide two manager actions:
-  - Approve / Mark Completed
-  - Return to In Progress / Reopen
-- After an action succeeds:
-  - update the task status in the UI
-  - remove the task from the review queue if it is no longer `Ready for Review`
-  - refresh or update the board data
-  - allow the activity feed to show the resulting event if activity refresh is already implemented
-- Show loading, empty, and error states.
+Cover that important review and visibility actions create durable `ActivityEvent` records.
 
-# UI placement guidance
+Test at least these cases where the implementation supports them:
 
-Use the existing board layout and the approved mockup direction.
+- Task status changes create activity events.
+- Moving a task to `Ready for Review` creates an activity event.
+- Manager approval/completion creates an activity event.
+- Manager reopening or returning a review task to `In Progress` creates an activity event.
+- Assignment recommendation creation or persistence creates an activity event if that is part of the implemented behavior.
+- Manager assignment override/reassignment creates an activity event.
+- Comment/update creation creates an activity event if already implemented from DB-038 through DB-042.
+- Activity events are tied to the correct `boardDayId`, `taskId`, actor, event type, and useful metadata/message.
 
-Preferred placement:
+## 2. Recommendation order tests
 
-- Add the review queue as a manager control surface on the main board page.
-- If the app already has a right-side activity rail, place the review queue near manager controls or above/beside the activity feed without making the rail crowded.
-- If the app has a task detail drawer/panel, allow approve/reopen actions there too when a manager opens a `Ready for Review` task.
-- Keep the queue visually compact: count, cards/rows, primary approve action, secondary reopen action.
-- Avoid creating a separate full page unless the existing architecture already points that way.
+Cover the recommendation priority order from the project docs:
 
-Visual principles:
+1. Direct user duty match
+2. Role match
+3. Task template owner
+4. Workflow-area match
+5. Manager review needed if no clear match exists
 
-- Clean enterprise-level layout.
-- Strong scanability.
-- Minimal clutter.
-- No horizontal overflow.
-- Responsive behavior for desktop, tablet, and mobile.
-- Mobile may collapse the review queue into a section, drawer, accordion, or tab as long as manager actions remain easy to access.
+Tests should verify:
 
-# Implementation guidance
+- A direct duty match beats a role match.
+- A role match beats template owner or workflow-area fallback.
+- Template owner is used when duty/role match is unavailable.
+- Workflow-area fallback is used only after stronger matches fail.
+- No eligible match returns a manager-review-needed result.
+- Recommendation output includes the persisted reason code and a short human-readable explanation.
 
-Before editing, inspect the current codebase and identify:
+## 3. Manager override / reassignment tests
 
-1. How board data is loaded.
-2. How tasks are represented in the frontend read model.
-3. Whether `POST /api/tasks/:id/complete` and `POST /api/tasks/:id/reopen` or equivalent server actions already exist.
-4. How manager/staff role checks are exposed to the UI.
-5. How activity feed refresh currently works.
-6. Existing shared UI components that should be reused.
+Cover the manager reassignment and override workflow from DB-047.
 
-Then implement the smallest clean vertical slice.
+Test at least:
 
-Expected implementation shape, adjusted to existing patterns:
+- Manager can accept a recommendation and assign the recommended user.
+- Manager can override the recommended user with another valid staff member.
+- Override persists the assigned user separately from the recommended user/reason when the model supports both.
+- Override creates the correct activity event.
+- Staff users cannot reassign or override another user’s task.
+- Invalid assignee IDs or inactive users are rejected consistently.
+- Existing task fields unrelated to assignment are preserved.
 
-- Add or extend a review queue component under the relevant feature folder, likely:
-  - `src/features/tasks/`
-  - `src/features/board/`
-  - or `src/features/review/` if that pattern already exists.
-- Reuse existing task card, button, badge, user, status, and loading/error components where possible.
-- Use the existing board API/read model if it already includes enough task data.
-- If the current board read model does not expose enough fields for the review queue, extend it minimally.
-- Do not create duplicate task-fetching logic if board data already contains the tasks.
-- Use existing complete/reopen endpoints or server actions.
-- If those endpoints do not exist, stop and report what is missing instead of rebuilding DB-036 or broad backend behavior.
-- Do not re-implement approval rules in the UI only. The server must remain the source of truth.
-- Add optimistic UI only if the current app already uses that pattern. Otherwise use simple pending states.
+## 4. Manager approval behavior tests
 
-# Required manager actions
+Cover the review-required workflow from DB-036 and DB-048.
 
-Approve / Mark Completed:
+Test at least:
 
-- Only managers can perform this action.
-- Only enabled when the task is `Ready for Review`.
-- Calls the existing completion path.
-- On success, task becomes `Completed`.
-- UI reflects the completed state and removes it from the queue.
+- Staff cannot directly complete a task that requires manager approval.
+- Staff can move their own approval-required task to `Ready for Review`.
+- Manager can complete a `Ready for Review` task.
+- Manager can return/reopen a `Ready for Review` task to `In Progress`.
+- Approval completion records `completedAt` and `reviewedByUserId` where those fields exist.
+- Approval/reopen actions create activity events.
+- Staff cannot approve someone else’s review-required task.
+- A non-review-required task can still be completed through the existing allowed path.
 
-Return to In Progress / Reopen:
+## 5. Activity feed visibility tests
 
-- Only managers can perform this action.
-- Only enabled when the task is `Ready for Review`.
-- Calls the existing reopen path.
-- On success, task becomes `In Progress`.
-- UI reflects the reopened state and removes it from the queue.
+Cover the date-based visibility/read path from DB-043 and DB-044 if the API/read model exists.
 
-# Edge cases
+Test at least:
 
-Handle these cases gracefully:
-
-- No tasks are currently ready for review.
-- Board has not been generated or no board data exists for selected date.
-- A task action fails because another user already changed the status.
-- A staff user views the board.
-- A manager double-clicks an approval action.
-- Slow network or pending request.
-- The selected board date changes.
-- Activity feed exists but does not immediately refresh.
+- Activity feed returns events for the selected board date.
+- Activity feed does not leak events from another board date.
+- Events include enough display context for actor, task, event type/message, and timestamp.
+- Ordering is deterministic, preferably newest-first if that is the implemented behavior.
+- Manager can view the full activity feed.
+- Staff can view the full activity feed if current MVP permissions allow full-board transparency.
+- Unauthorized users cannot access the feed.
 
 # Constraints
 
-- Keep the change scoped to DB-048.
-- Do not redesign the whole board.
-- Do not rewrite unrelated components.
-- Do not add new dependencies unless absolutely necessary.
-- Do not bypass server-side permission checks.
-- Do not create fake/dummy data in production-facing UI.
-- Preserve existing board, task detail, comments, recommendation, reassignment, and activity behavior.
-- Follow existing architecture and naming conventions.
-- Keep UI aligned with the approved mockup/reference image.
-- Avoid horizontal overflow.
-- Support desktop, tablet, and mobile layouts.
+- Keep the change focused on tests and small direct fixes only.
+- Do not add broad refactors.
+- Do not change the schema unless the current implementation is missing something required by already-completed DB-041 through DB-048; if schema changes appear necessary, stop and explain before implementing.
+- Do not introduce new dependencies unless the existing test stack cannot reasonably cover the behavior.
+- Reuse existing seed/test factories/helpers instead of creating duplicate setup patterns.
+- Keep business-rule assertions server-side. Do not only test UI hiding.
+- Preserve existing tests.
+- Do not change visual design or layout.
+- Do not implement DB-050 or later reliability/polish work.
+- If a required behavior is not implemented yet, add a clearly named skipped or pending test only if the project’s test conventions already allow that; otherwise report the gap instead of pretending it is covered.
 
-# Tests / checks
+# Implementation guidance
 
-Add or update tests where appropriate for this task, but do not duplicate the broader DB-049 review and visibility test suite.
-
-At minimum, cover what is practical in the current test setup:
-
-- Review queue renders `Ready for Review` tasks for a manager.
-- Empty state appears when there are no review tasks.
-- Staff users do not see manager-only approval controls, or controls are disabled/read-only according to existing policy/UI pattern.
-- Approve action calls the correct complete endpoint/action.
-- Reopen action calls the correct reopen endpoint/action.
-- Pending/error states are handled.
-
-Run the relevant commands available in the repo, such as:
-
-- `npm run lint`
-- `npm run typecheck`
-- `npm test`
-- targeted component or integration tests if available
-
-If any command cannot be run, clearly explain why.
+1. Inspect the current test framework and scripts in `package.json`.
+2. Identify existing test helpers, database setup, seed/factory utilities, and auth/session mocking patterns.
+3. Add the smallest useful test files, likely under one or more of:
+   - `src/tests/unit/`
+   - `src/tests/integration/`
+   - `src/server/**/__tests__/`
+   - existing project-specific test folders
+4. Prefer service-level tests for:
+   - recommendation priority order
+   - activity event logging helpers
+   - approval status transition rules
+5. Prefer integration tests for:
+   - manager override/reassignment endpoint or server action
+   - manager approval/reopen endpoint or server action
+   - activity feed API/read model
+   - permission enforcement
+6. Use realistic but minimal fixtures:
+   - one manager
+   - two or three staff users
+   - at least one duty
+   - at least one role
+   - one board day
+   - one approval-required task
+   - one non-approval-required task
+   - one task with a recommendation
+7. Make test names business-readable, for example:
+   - `recommends direct duty match before role match`
+   - `staff cannot complete approval-required task directly`
+   - `manager override creates assignment changed activity event`
+   - `activity feed is scoped to selected board date`
 
 # Done when
 
-- Managers can see a clear review queue of `Ready for Review` tasks.
-- Managers can approve a review task and mark it completed from the UI.
-- Managers can return a review task back to `In Progress` from the UI.
-- Staff cannot use manager-only approval controls.
-- The queue updates after successful actions.
-- Loading, empty, pending, and error states are present.
-- UI remains responsive and consistent with the approved Dispatch Board design.
-- Existing board/task/activity behavior is preserved.
-- Relevant tests/checks pass or any gaps are clearly reported.
-- Summarize:
-  - files changed
-  - behavior added
-  - tests/checks run
-  - any follow-up work for DB-049
+- Tests cover event creation, recommendation order, override flow, and manager approval behavior.
+- Permission-sensitive paths are tested for both allowed and rejected users.
+- Activity feed visibility is tested by board date and authorization.
+- Relevant existing tests still pass.
+- Typecheck and lint pass if available.
+- Any small behavior fixes required by the new tests are scoped, explained, and directly related to DB-049.
+- No unrelated UI, schema, dependency, or architecture changes are included.
+- The final response summarizes:
+  - test files added or changed
+  - behaviors covered
+  - any bugs found and fixed
+  - commands run
+  - any checks that could not be run and why

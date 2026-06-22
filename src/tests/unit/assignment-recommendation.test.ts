@@ -53,6 +53,31 @@ describe("assignment recommendation", () => {
     });
   });
 
+  it("prefers role over template owner and workflow-area matches", () => {
+    const result = recommendAssignment({
+      roleId: "role-sales",
+      templateOwnerUserId: "user-duty",
+      workflowArea: "SALES",
+      candidates
+    });
+
+    expect(result).toMatchObject({
+      recommendedUserId: "user-role",
+      reasonCode: "ROLE_MATCH",
+      reasonText: expect.stringContaining("role")
+    });
+  });
+
+  it("prefers template owner over workflow-area fallback", () => {
+    expect(
+      recommendAssignment({
+        templateOwnerUserId: "user-role",
+        workflowArea: "SALES",
+        candidates
+      })
+    ).toMatchObject({ recommendedUserId: "user-role", reasonCode: "TEMPLATE_OWNER_MATCH" });
+  });
+
   it("uses name then id as a deterministic tie-break", () => {
     const result = recommendAssignment({ workflowArea: "SALES", candidates: [...candidates].reverse() });
     expect(result.recommendedUserId).toBe("user-duty");
