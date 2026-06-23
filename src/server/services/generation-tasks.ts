@@ -18,6 +18,7 @@ import {
   type GenerationInput,
   type GenerationInputWarning
 } from "@/server/services/generation-inputs";
+import { recommendAssignment } from "@/server/services/assignment-recommendation";
 import { normalizeBoardDate } from "@/server/validation/board-date";
 
 export type { GenerationTasksRepository } from "@/server/repositories/generation-tasks-repository";
@@ -252,20 +253,28 @@ function buildGeneratedTaskCandidates(
   const createdByUserId = normalizeCreatedByUserId(options.createdByUserId);
 
   return generationInput.users.flatMap<GeneratedTaskCandidate>((user) =>
-    user.templates.map((template) => ({
-      identityKey: buildGeneratedTaskIdentityKey(boardDayId, template.templateId, user.userId),
-      boardDayId,
-      title: template.title,
-      description: template.description ?? "",
-      assignedUserId: user.userId,
-      recommendedUserId: user.userId,
-      dueAt: toDueAt(boardDate, template.defaultDueTime),
-      createdByUserId,
-      requiresManagerApproval: template.requiresManagerApproval,
-      sourceTemplateId: template.templateId,
-      sourceDutyId: template.dutyId,
-      workflowArea: template.workflowArea
-    }))
+    user.templates.map((template) => {
+      const recommendation = recommendAssignment({
+        users: generationInput.users,
+        template,
+        templateOwnerUserId: user.userId
+      });
+
+      return {
+        identityKey: buildGeneratedTaskIdentityKey(boardDayId, template.templateId, user.userId),
+        boardDayId,
+        title: template.title,
+        description: template.description ?? "",
+        assignedUserId: user.userId,
+        recommendedUserId: recommendation.recommendedUserId,
+        dueAt: toDueAt(boardDate, template.defaultDueTime),
+        createdByUserId,
+        requiresManagerApproval: template.requiresManagerApproval,
+        sourceTemplateId: template.templateId,
+        sourceDutyId: template.dutyId,
+        workflowArea: template.workflowArea
+      };
+    })
   );
 }
 
