@@ -1,4 +1,5 @@
 import {
+  ActivityEventType,
   GenerationRunStatus,
   Prisma,
   PrismaClient,
@@ -11,7 +12,7 @@ import {
 
 import { prisma } from "@/server/db/client";
 
-type GenerationTasksDatabase = Pick<PrismaClient, "boardDay" | "generationRun" | "task">;
+type GenerationTasksDatabase = Pick<PrismaClient, "activityEvent" | "boardDay" | "generationRun" | "task">;
 
 const generatedTaskIdentitySelect = {
   id: true,
@@ -24,6 +25,9 @@ const createdGeneratedTaskSelect = {
   title: true,
   assignedUserId: true,
   recommendedUserId: true,
+  recommendationReasonCode: true,
+  recommendationReasonText: true,
+  recommendationReviewNeeded: true,
   dueAt: true,
   sourceTemplateId: true,
   sourceDutyId: true,
@@ -47,6 +51,9 @@ export type CreateGeneratedTaskInput = {
   description: string;
   assignedUserId: string;
   recommendedUserId: string | null;
+  recommendationReasonCode: string | null;
+  recommendationReasonText: string | null;
+  recommendationReviewNeeded: boolean;
   dueAt: Date;
   createdByUserId: string | null;
   requiresManagerApproval: boolean;
@@ -77,6 +84,14 @@ export type FailGenerationRunInput = {
 };
 
 export type GenerationTasksRepository = {
+  createActivityEvent(input: {
+    actorUserId: string | null;
+    boardDayId: string;
+    eventType: ActivityEventType;
+    message: string;
+    metadata: Prisma.InputJsonValue;
+    taskId: string | null;
+  }): Promise<void>;
   getOrCreateBoardDay(boardDate: string): Promise<BoardDayRecord>;
   listExistingGeneratedTasks(boardDayId: string): Promise<ExistingGeneratedTaskRecord[]>;
   countManualTasks(boardDayId: string): Promise<number>;
@@ -95,6 +110,12 @@ export function createGenerationTasksRepository(
   database: GenerationTasksDatabase = prisma
 ): GenerationTasksRepository {
   return {
+    async createActivityEvent(input) {
+      await database.activityEvent.create({
+        data: input
+      });
+    },
+
     async getOrCreateBoardDay(boardDate) {
       return database.boardDay.upsert({
         where: {
@@ -138,6 +159,9 @@ export function createGenerationTasksRepository(
             description: input.description,
             assignedUserId: input.assignedUserId,
             recommendedUserId: input.recommendedUserId,
+            recommendationReasonCode: input.recommendationReasonCode,
+            recommendationReasonText: input.recommendationReasonText,
+            recommendationReviewNeeded: input.recommendationReviewNeeded,
             status: TaskStatus.NOT_STARTED,
             dueAt: input.dueAt,
             createdByUserId: input.createdByUserId,

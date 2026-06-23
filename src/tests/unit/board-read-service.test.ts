@@ -43,6 +43,9 @@ function createBoardReadRepositoryHarness(options: {
         name: string;
         email: string;
       } | null;
+      recommendationReasonCode?: string | null;
+      recommendationReasonText?: string | null;
+      recommendationReviewNeeded?: boolean | null;
       vehicleReference?: string | null;
       customerReference?: string | null;
       blockerReason?: string | null;
@@ -70,6 +73,9 @@ function createBoardReadRepositoryHarness(options: {
         workflowArea: task.workflowArea ?? WorkflowArea.SALES,
         sourceType: task.sourceType ?? TaskSourceType.TEMPLATE,
         requiresManagerApproval: task.requiresManagerApproval ?? false,
+        recommendationReasonCode: task.recommendationReasonCode ?? null,
+        recommendationReasonText: task.recommendationReasonText ?? null,
+        recommendationReviewNeeded: task.recommendationReviewNeeded ?? null,
         vehicleReference: task.vehicleReference ?? null,
         customerReference: task.customerReference ?? null,
         blockerReason: task.blockerReason ?? null,
@@ -157,6 +163,9 @@ describe("board read service", () => {
               name: "Jordan Sales",
               email: "jordan.sales@local.test"
             },
+            recommendationReasonCode: "DIRECT_DUTY_MATCH",
+            recommendationReasonText: "Jordan Sales is recommended because they have the direct duty for this template.",
+            recommendationReviewNeeded: false,
             customerReference: "Taylor R.",
             status: TaskStatus.IN_PROGRESS
           },
@@ -210,7 +219,10 @@ describe("board read service", () => {
               id: "user-sales",
               name: "Jordan Sales",
               email: "jordan.sales@local.test"
-            }
+            },
+            recommendationReasonCode: "DIRECT_DUTY_MATCH",
+            recommendationReasonText: "Jordan Sales is recommended because they have the direct duty for this template.",
+            recommendationReviewNeeded: false
           },
           {
             id: "task-2",

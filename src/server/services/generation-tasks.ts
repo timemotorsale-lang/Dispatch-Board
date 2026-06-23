@@ -1,4 +1,5 @@
 import {
+  ActivityEventType,
   GenerationRunStatus,
   GenerationTriggerType,
   type GenerationRun,
@@ -17,6 +18,7 @@ import {
   type GenerationInput,
   type GenerationInputWarning
 } from "@/server/services/generation-inputs";
+import { recommendAssignment } from "@/server/services/assignment-recommendation";
 import { normalizeBoardDate } from "@/server/validation/board-date";
 
 export type { GenerationTasksRepository } from "@/server/repositories/generation-tasks-repository";
@@ -38,6 +40,9 @@ export type CreatedGeneratedTaskReference = {
   title: string;
   assignedUserId: string;
   recommendedUserId: string | null;
+  recommendationReasonCode: string | null;
+  recommendationReasonText: string | null;
+  recommendationReviewNeeded: boolean;
   dueAt: Date;
   sourceTemplateId: string | null;
   sourceDutyId: string | null;
@@ -251,20 +256,31 @@ function buildGeneratedTaskCandidates(
   const createdByUserId = normalizeCreatedByUserId(options.createdByUserId);
 
   return generationInput.users.flatMap<GeneratedTaskCandidate>((user) =>
-    user.templates.map((template) => ({
-      identityKey: buildGeneratedTaskIdentityKey(boardDayId, template.templateId, user.userId),
-      boardDayId,
-      title: template.title,
-      description: template.description ?? "",
-      assignedUserId: user.userId,
-      recommendedUserId: user.userId,
-      dueAt: toDueAt(boardDate, template.defaultDueTime),
-      createdByUserId,
-      requiresManagerApproval: template.requiresManagerApproval,
-      sourceTemplateId: template.templateId,
-      sourceDutyId: template.dutyId,
-      workflowArea: template.workflowArea
-    }))
+    user.templates.map((template) => {
+      const recommendation = recommendAssignment({
+        users: generationInput.users,
+        template,
+        templateOwnerUserId: user.userId
+      });
+
+      return {
+        identityKey: buildGeneratedTaskIdentityKey(boardDayId, template.templateId, user.userId),
+        boardDayId,
+        title: template.title,
+        description: template.description ?? "",
+        assignedUserId: user.userId,
+        recommendedUserId: recommendation.recommendedUserId,
+        recommendationReasonCode: recommendation.reasonCode,
+        recommendationReasonText: recommendation.explanation,
+        recommendationReviewNeeded: recommendation.managerReviewNeeded,
+        dueAt: toDueAt(boardDate, template.defaultDueTime),
+        createdByUserId,
+        requiresManagerApproval: template.requiresManagerApproval,
+        sourceTemplateId: template.templateId,
+        sourceDutyId: template.dutyId,
+        workflowArea: template.workflowArea
+      };
+    })
   );
 }
 
@@ -274,6 +290,9 @@ function toCreatedTaskReference(task: CreatedGeneratedTaskRecord): CreatedGenera
     title: task.title,
     assignedUserId: task.assignedUserId,
     recommendedUserId: task.recommendedUserId,
+    recommendationReasonCode: task.recommendationReasonCode,
+    recommendationReasonText: task.recommendationReasonText,
+    recommendationReviewNeeded: task.recommendationReviewNeeded ?? false,
     dueAt: task.dueAt,
     sourceTemplateId: task.sourceTemplateId,
     sourceDutyId: task.sourceDutyId,
@@ -383,6 +402,25 @@ export async function createMissingGeneratedTasksForDate(
       id: generationRun.id,
       finishedAt,
       summary: completedSummary
+    });
+
+    await repository.createActivityEvent({
+      actorUserId: triggerMetadata.triggeredByUserId,
+      boardDayId: boardDay.id,
+      eventType: ActivityEventType.DAILY_BOARD_GENERATED,
+      message: "Daily board generated",
+      metadata: {
+        boardDate: normalizedBoardDate,
+        duplicatesSkipped: tasksSkippedAsDuplicates,
+        generationRunId: generationRun.id,
+        manualTasksPreserved,
+        tasksAlreadyExisting,
+        tasksCreated,
+        templatesConsidered,
+        triggeredBy: toSummaryTrigger(triggerMetadata.triggeredBy),
+        usersConsidered
+      },
+      taskId: null
     });
 
     return {

@@ -1,243 +1,189 @@
 # Task
 
-Implement DB-040 — Add board and task workflow tests
+DB-049 Add review and visibility tests
 
 # Goal
 
-Add automated tests that protect the v0.4.0 board and task workflow after DB-028 through DB-039.
+Add automated test coverage for the v0.5.0 review, recommendation, override, and activity visibility workflows so regressions are caught before the MVP moves into reliability and release-readiness work.
 
-This is a test-focused task. The goal is not to redesign the UI or add new product features. The goal is to lock in the existing board/task behavior so regressions are caught early.
+This is primarily a test-only task. Do not redesign UI, change schemas, or add new product features unless a small fix is directly required because the existing intended behavior from DB-041 through DB-048 is broken.
 
-# Required context
+# Context
 
 Read these first:
 
 - `docs/AGENTS.md`
-- `docs/ARCHITECTURE.md`
 - `docs/ROADMAP.md`
-- `docs/PRODUCT_SPEC.md`
+- `docs/ARCHITECTURE.md`
 - `docs/MVP_SCOPE.md`
 - Existing test setup and test helpers
-- Existing task, board, auth, policy, validation, API, and UI files related to DB-028 through DB-039
+- Existing implementation files for:
+  - activity events
+  - activity feed API/read model
+  - recommendation matching
+  - recommendation reason persistence
+  - manager reassignment / override endpoint
+  - review queue / approval workflow
+  - task status transitions
+  - permission policies
 
-Relevant roadmap item:
+Roadmap context:
 
-- `DB-040 — Add board and task workflow tests`
-- Scope: cover task creation, due-time validation, self-update rules, blocker rules, and review-required transitions.
-- Acceptance: the main board and task workflow is protected by automated tests.
+- DB-041 added activity event schema and persistence.
+- DB-042 emitted events for generation and task lifecycle.
+- DB-043 added activity feed API.
+- DB-044 added activity feed UI.
+- DB-045 implemented recommendation matching rules.
+- DB-046 persisted recommendation reason codes and text.
+- DB-047 added manager reassignment and override endpoint.
+- DB-048 added review queue and approval UI.
+- DB-049 must now protect those workflows with automated tests.
 
 # Classification
 
 Test-only work.
 
-Reason: DB-040 should primarily add or improve tests around already-built board and task workflows. Only make small production-code changes if they are necessary testability fixes or if an existing behavior is clearly wrong according to the implemented DB-031 through DB-039 rules.
+Reason: this task should add regression coverage for already implemented review and visibility behavior, not expand the feature set.
 
-# Current behavior
+# Required test coverage
 
-The board and task workflow has been implemented across the v0.4.0 tasks:
+Add focused tests at the appropriate level based on the current project structure. Prefer unit tests for pure service logic and integration tests for API/server action behavior.
 
-- Board read API and board page
-- Grouping/filtering controls
-- Manual task creation API and UI
-- Task detail endpoint/read model
-- Staff status update endpoint
-- Blocker-reason validation
-- Approval-required status rules
-- Staff-focused task view
-- Task comments API and UI
+## 1. Activity event creation tests
 
-However, the full board/task workflow needs stronger automated test protection.
+Cover that important review and visibility actions create durable `ActivityEvent` records.
 
-# Desired behavior
+Test at least these cases where the implementation supports them:
 
-Add tests that verify the core workflow rules:
+- Task status changes create activity events.
+- Moving a task to `Ready for Review` creates an activity event.
+- Manager approval/completion creates an activity event.
+- Manager reopening or returning a review task to `In Progress` creates an activity event.
+- Assignment recommendation creation or persistence creates an activity event if that is part of the implemented behavior.
+- Manager assignment override/reassignment creates an activity event.
+- Comment/update creation creates an activity event if already implemented from DB-038 through DB-042.
+- Activity events are tied to the correct `boardDayId`, `taskId`, actor, event type, and useful metadata/message.
 
-## Manual task creation
+## 2. Recommendation order tests
 
-Cover at least:
+Cover the recommendation priority order from the project docs:
 
-1. Manager can create a valid manual task with required fields.
-2. Task creation requires a title.
-3. Task creation requires a due time.
-4. Task creation requires an assigned user unless the existing implementation explicitly supports manager-review-needed/unassigned tasks.
-5. Staff-created tasks, if supported, are assigned to the creating staff user unless manager behavior explicitly changes assignment.
-6. Created tasks appear in the board or task read model using the existing API/read path.
+1. Direct user duty match
+2. Role match
+3. Task template owner
+4. Workflow-area match
+5. Manager review needed if no clear match exists
 
-## Due-time validation
+Tests should verify:
 
-Cover at least:
+- A direct duty match beats a role match.
+- A role match beats template owner or workflow-area fallback.
+- Template owner is used when duty/role match is unavailable.
+- Workflow-area fallback is used only after stronger matches fail.
+- No eligible match returns a manager-review-needed result.
+- Recommendation output includes the persisted reason code and a short human-readable explanation.
 
-1. Creating a task without `dueAt` or due time fails.
-2. Creating a task with malformed due time fails if validation exists.
-3. Valid due time persists and is returned by the task/board read model.
+## 3. Manager override / reassignment tests
 
-## Self-update and permission rules
+Cover the manager reassignment and override workflow from DB-047.
 
-Cover at least:
+Test at least:
 
-1. Staff can update the status of their own assigned task.
-2. Staff cannot update another staff member’s assigned task.
-3. Staff cannot reassign another user’s task.
-4. Manager can update/reassign tasks according to existing manager permissions.
-5. Unauthorized or unauthenticated requests are rejected if the project has route/session test helpers.
+- Manager can accept a recommendation and assign the recommended user.
+- Manager can override the recommended user with another valid staff member.
+- Override persists the assigned user separately from the recommended user/reason when the model supports both.
+- Override creates the correct activity event.
+- Staff users cannot reassign or override another user’s task.
+- Invalid assignee IDs or inactive users are rejected consistently.
+- Existing task fields unrelated to assignment are preserved.
 
-## Blocker rules
+## 4. Manager approval behavior tests
 
-Cover at least:
+Cover the review-required workflow from DB-036 and DB-048.
 
-1. Staff can move their own task to `Blocked` when a blocker reason is provided.
-2. Moving a task to `Blocked` without a blocker reason fails.
-3. The blocker reason persists and is returned by the task/board read model.
-4. Existing status remains unchanged after a failed blocked transition.
+Test at least:
 
-## Review-required transitions
+- Staff cannot directly complete a task that requires manager approval.
+- Staff can move their own approval-required task to `Ready for Review`.
+- Manager can complete a `Ready for Review` task.
+- Manager can return/reopen a `Ready for Review` task to `In Progress`.
+- Approval completion records `completedAt` and `reviewedByUserId` where those fields exist.
+- Approval/reopen actions create activity events.
+- Staff cannot approve someone else’s review-required task.
+- A non-review-required task can still be completed through the existing allowed path.
 
-Cover at least:
+## 5. Activity feed visibility tests
 
-1. A task with `requiresManagerApproval = true` cannot be directly completed by staff.
-2. Staff can move a review-required task to `Ready for Review`.
-3. Manager can complete a review-required task from `Ready for Review`.
-4. Manager can send a `Ready for Review` task back to `In Progress` if that behavior exists.
-5. A task with `requiresManagerApproval = false` can be completed directly by the assigned staff member if that is the implemented rule.
+Cover the date-based visibility/read path from DB-043 and DB-044 if the API/read model exists.
 
-## Comments workflow, if existing test helpers make it practical
+Test at least:
 
-Because DB-038 and DB-039 were completed before DB-040, include at least one smoke/regression test that verifies:
-
-1. Staff or manager can add a comment to a task they are allowed to access.
-2. Comments are returned with the correct task and author context.
-
-Do not expand this into a full activity feed test suite. Event-backed visibility belongs more heavily to DB-041 through DB-049 unless the current implementation already emits events from these actions.
-
-# Test level guidance
-
-Prefer the smallest reliable test layer for each behavior.
-
-Use the project’s existing test stack and patterns. Do not introduce a new test framework unless the current setup cannot cover the required behavior.
-
-Suggested split:
-
-## Unit tests
-
-Use unit tests for pure service, policy, or validation functions, especially:
-
-- status transition validation
-- blocker reason validation
-- approval-required transition rules
-- permission/policy helpers
-
-## Integration tests
-
-Use integration tests for API/server action behavior, especially:
-
-- manual task creation
-- due-time validation
-- staff self-update rules
-- staff cannot mutate another staff member’s task
-- blocker validation
-- review-required completion flow
-- task comments persistence if implemented
-
-## E2E/browser tests
-
-Only add browser-level tests if the project already has a working E2E setup.
-
-If E2E is available, add one high-value smoke test:
-
-- Manager logs in, opens today’s board, creates a manual task, sees it on the board.
-- Staff logs in, opens “my tasks” or task detail, updates own task status.
-- Staff attempts a blocked status without reason and sees a validation error.
-- Staff submits blocker reason successfully or moves review-required task to `Ready for Review`.
-
-Keep browser tests minimal and resilient. Prefer accessible labels/roles over brittle class selectors. Add `data-testid` only when necessary, and keep those additions small.
-
-# Seed/test data requirements
-
-Use existing factories, seed helpers, or test database setup if available.
-
-Create or reuse test fixtures for:
-
-- one manager user
-- at least two staff users
-- one board day
-- one staff-assigned task
-- one task assigned to another staff user
-- one review-required task
-- one non-review-required task
-
-Do not use real customer data, real vehicle data, real passwords, or production-like secrets.
+- Activity feed returns events for the selected board date.
+- Activity feed does not leak events from another board date.
+- Events include enough display context for actor, task, event type/message, and timestamp.
+- Ordering is deterministic, preferably newest-first if that is the implemented behavior.
+- Manager can view the full activity feed.
+- Staff can view the full activity feed if current MVP permissions allow full-board transparency.
+- Unauthorized users cannot access the feed.
 
 # Constraints
 
-- Keep this task focused on tests.
-- Do not redesign the UI.
-- Do not change visual layout to match `UI_REFERENCE.png`; this task is not UI polish.
-- Do not add new product features.
-- Do not rewrite task, board, auth, or validation architecture.
-- Do not introduce new dependencies unless absolutely necessary; explain why first.
-- Follow existing test patterns, naming conventions, fixtures, and helper utilities.
-- Keep business-rule assertions server-side where possible.
-- Avoid snapshot tests for complex UI unless the project already uses them intentionally.
-- Do not make broad production-code changes to satisfy tests. If implementation appears missing or contradictory, stop and report the gap before changing behavior.
-- If a small production-code fix is required because the existing behavior violates DB-031 through DB-039 acceptance criteria, keep the fix minimal and add a regression test.
+- Keep the change focused on tests and small direct fixes only.
+- Do not add broad refactors.
+- Do not change the schema unless the current implementation is missing something required by already-completed DB-041 through DB-048; if schema changes appear necessary, stop and explain before implementing.
+- Do not introduce new dependencies unless the existing test stack cannot reasonably cover the behavior.
+- Reuse existing seed/test factories/helpers instead of creating duplicate setup patterns.
+- Keep business-rule assertions server-side. Do not only test UI hiding.
+- Preserve existing tests.
+- Do not change visual design or layout.
+- Do not implement DB-050 or later reliability/polish work.
+- If a required behavior is not implemented yet, add a clearly named skipped or pending test only if the project’s test conventions already allow that; otherwise report the gap instead of pretending it is covered.
 
 # Implementation guidance
 
-Before editing:
-
-1. Inspect existing tests and test commands in `package.json`.
-2. Identify whether the project uses Vitest, Jest, Playwright, React Testing Library, or another stack.
-3. Identify existing test database/reset helpers.
-4. Identify the implemented API/server action names for:
-   - task creation
-   - task status update
-   - task detail/read model
-   - board read API
-   - task comments
-5. Identify existing auth/session test helpers for manager and staff users.
-6. Write a brief implementation plan before making changes.
-
-Then implement tests in the appropriate locations, likely under:
-
-- `src/tests/unit`
-- `src/tests/integration`
-- `src/tests/e2e`
-
-or the actual existing test folders if the repository differs.
-
-# Suggested test names
-
-Use names close to these, adjusted to existing conventions:
-
-- `creates a manual task with required fields`
-- `rejects manual task creation without a due time`
-- `rejects manual task creation without a title`
-- `allows staff to update their own assigned task status`
-- `rejects staff status updates for another staff member task`
-- `requires blocker reason when moving a task to Blocked`
-- `preserves previous status after failed blocked transition`
-- `moves review-required staff work to Ready for Review before completion`
-- `rejects staff direct completion for review-required tasks`
-- `allows manager to complete a Ready for Review task`
-- `allows assigned staff to complete non-review-required tasks`
-- `adds and reads task comments with author context`
+1. Inspect the current test framework and scripts in `package.json`.
+2. Identify existing test helpers, database setup, seed/factory utilities, and auth/session mocking patterns.
+3. Add the smallest useful test files, likely under one or more of:
+   - `src/tests/unit/`
+   - `src/tests/integration/`
+   - `src/server/**/__tests__/`
+   - existing project-specific test folders
+4. Prefer service-level tests for:
+   - recommendation priority order
+   - activity event logging helpers
+   - approval status transition rules
+5. Prefer integration tests for:
+   - manager override/reassignment endpoint or server action
+   - manager approval/reopen endpoint or server action
+   - activity feed API/read model
+   - permission enforcement
+6. Use realistic but minimal fixtures:
+   - one manager
+   - two or three staff users
+   - at least one duty
+   - at least one role
+   - one board day
+   - one approval-required task
+   - one non-approval-required task
+   - one task with a recommendation
+7. Make test names business-readable, for example:
+   - `recommends direct duty match before role match`
+   - `staff cannot complete approval-required task directly`
+   - `manager override creates assignment changed activity event`
+   - `activity feed is scoped to selected board date`
 
 # Done when
 
-- Tests cover DB-040’s required workflow areas:
-  - task creation
-  - due-time validation
-  - self-update rules
-  - blocker rules
-  - review-required transitions
-- Relevant tests pass locally.
-- Lint/typecheck pass if available.
-- Existing tests still pass.
-- No unrelated files are changed.
-- Any production-code changes are minimal, justified, and directly related to making the tested behavior correct.
-- The final summary includes:
-  - files changed
-  - tests added
+- Tests cover event creation, recommendation order, override flow, and manager approval behavior.
+- Permission-sensitive paths are tested for both allowed and rejected users.
+- Activity feed visibility is tested by board date and authorization.
+- Relevant existing tests still pass.
+- Typecheck and lint pass if available.
+- Any small behavior fixes required by the new tests are scoped, explained, and directly related to DB-049.
+- No unrelated UI, schema, dependency, or architecture changes are included.
+- The final response summarizes:
+  - test files added or changed
+  - behaviors covered
+  - any bugs found and fixed
   - commands run
-  - whether any checks failed or could not be run
-  - any behavior gaps found but not changed
+  - any checks that could not be run and why

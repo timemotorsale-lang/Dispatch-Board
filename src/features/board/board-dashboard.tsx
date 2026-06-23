@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
-import { AlertCircle, CalendarDays, CheckCircle2, ChevronRight, CircleUserRound, Clock3, Layers3, Search, ShieldAlert, UsersRound } from "lucide-react";
+import { AlertCircle, CalendarDays, CheckCircle2, ChevronRight, CircleUserRound, Layers3, Search, ShieldAlert, UsersRound } from "lucide-react";
 import Link from "next/link";
 
+import { ActivityFeedPanel } from "@/features/activity/activity-feed-panel";
+import { ReviewQueue } from "@/features/board/review-queue";
 import { formatBoardEnumLabel, type BoardFilters, type BoardGroupMode, type BoardPresentation } from "./board-grouping";
 import type { BoardReadModel, BoardReadTask } from "@/server/services/board-read";
 
@@ -108,12 +110,13 @@ export function TaskBoard({ presentation, boardDate }: { presentation: BoardPres
 
 function count(tasks: Task[], status: string) { return tasks.filter((task) => task.status === status).length; }
 
-export function OperationalRail({ tasks }: { tasks: Task[] }) {
+export function OperationalRail({ boardDate, isManager, onReviewActionComplete, tasks }: { boardDate: string; isManager: boolean; onReviewActionComplete(): void; tasks: Task[] }) {
   const attention = [{ label: "Blocked", detail: "Tasks are blocked", status: "BLOCKED", tone: "red" }, { label: "Waiting on Parts", detail: "Work waiting on parts", status: "WAITING_ON_PARTS", tone: "orange" }, { label: "Waiting on Approval", detail: "Awaiting manager approval", status: "WAITING_ON_APPROVAL", tone: "amber" }, { label: "Ready for Review", detail: "Ready for manager review", status: "READY_FOR_REVIEW", tone: "purple" }];
   const upcoming = [...tasks].filter((task) => task.status !== "COMPLETED").sort((a, b) => +new Date(a.dueAt) - +new Date(b.dueAt)).slice(0, 4);
   return <aside className="operations-rail">
     <section className="rail-card"><header><h2>Needs Attention</h2><Link href="/manager-review">View all</Link></header><div className="attention-list">{attention.map((item) => <div className={`attention-row attention-${item.tone}`} key={item.status}><span className="attention-dot">!</span><div><strong>{item.label}</strong><small>{item.detail}</small></div><b>{count(tasks, item.status)}</b></div>)}</div></section>
+    <ReviewQueue isManager={isManager} onReviewActionComplete={onReviewActionComplete} tasks={tasks} />
     <section className="rail-card"><header><h2>Due Next</h2><span>Today</span></header><div className="due-list">{upcoming.length ? upcoming.map((task) => <Link href={`/tasks/${task.id}`} key={task.id}><time>{formatTime(task.dueAt)}</time><span><strong>{task.title}</strong><small>{task.assignedUser?.name ?? "Unassigned"}</small></span></Link>) : <p className="rail-empty">No upcoming work.</p>}</div></section>
-    <section className="rail-card"><header><h2>Today&apos;s Activity</h2><span>Live feed</span></header><div className="activity-placeholder"><Clock3 size={20} /><strong>Activity feed coming next</strong><p>Task events are not persisted yet. This space is ready for the event-backed feed without showing fabricated activity.</p></div><Link className="rail-footer-link" href="/activity">Open activity view <ChevronRight size={15} /></Link></section>
+    <ActivityFeedPanel boardDate={boardDate} compact poll />
   </aside>;
 }

@@ -1,11 +1,12 @@
-import { Prisma, PrismaClient, TaskStatus } from "@prisma/client";
+import { ActivityEventType, Prisma, PrismaClient, TaskStatus } from "@prisma/client";
 
 import { prisma } from "@/server/db/client";
 
-type TaskStatusDatabase = Pick<PrismaClient, "task">;
+type TaskStatusDatabase = Pick<PrismaClient, "activityEvent" | "task">;
 
 const taskStatusSelect = {
   id: true,
+  boardDayId: true,
   assignedUserId: true,
   requiresManagerApproval: true,
   status: true,
@@ -29,12 +30,26 @@ export type TaskStatusUpdateData = {
 };
 
 export type TaskStatusRepository = {
+  createActivityEvent(input: {
+    actorUserId: string | null;
+    boardDayId: string;
+    eventType: ActivityEventType;
+    message: string;
+    metadata: Prisma.InputJsonValue;
+    taskId: string | null;
+  }): Promise<void>;
   findTaskById(taskId: string): Promise<TaskStatusRecord | null>;
   updateTaskStatus(taskId: string, data: TaskStatusUpdateData): Promise<TaskStatusRecord>;
 };
 
 export function createTaskStatusRepository(database: TaskStatusDatabase = prisma): TaskStatusRepository {
   return {
+    async createActivityEvent(input) {
+      await database.activityEvent.create({
+        data: input
+      });
+    },
+
     async findTaskById(taskId) {
       return database.task.findUnique({
         where: {

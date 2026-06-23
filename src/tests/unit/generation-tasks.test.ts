@@ -1,5 +1,6 @@
 import {
   BoardGenerationStatus,
+  ActivityEventType,
   GenerationRunStatus,
   GenerationTriggerType,
   Prisma,
@@ -34,6 +35,9 @@ type StoredTask = {
   description: string;
   assignedUserId: string;
   recommendedUserId: string | null;
+  recommendationReasonCode: string | null;
+  recommendationReasonText: string | null;
+  recommendationReviewNeeded: boolean | null;
   status: TaskStatus;
   dueAt: Date;
   createdByUserId: string | null;
@@ -56,6 +60,15 @@ type StoredGenerationRun = {
   triggeredByUserId: string | null;
   summary: Prisma.JsonValue;
   errorMessage: string | null;
+};
+
+type StoredActivityEvent = {
+  actorUserId: string | null;
+  boardDayId: string;
+  eventType: ActivityEventType;
+  message: string;
+  metadata: Prisma.InputJsonValue;
+  taskId: string | null;
 };
 
 function createGenerationInput(): GenerationInput {
@@ -175,8 +188,13 @@ function createGenerationTasksHarness(
   let boardDays = [...(options.boardDays ?? [])];
   let tasks = [...(options.tasks ?? [])];
   let generationRuns = [...(options.generationRuns ?? [])];
+  let activityEvents: StoredActivityEvent[] = [];
 
   const repository: NonNullable<CreateMissingGeneratedTasksDependencies["repository"]> = {
+    async createActivityEvent(input) {
+      activityEvents = [...activityEvents, input];
+    },
+
     async getOrCreateBoardDay(boardDate) {
       const boardDateValue = new Date(`${boardDate}T00:00:00.000Z`);
       const existingBoardDay = boardDays.find(
@@ -245,6 +263,9 @@ function createGenerationTasksHarness(
         description: input.description,
         assignedUserId: input.assignedUserId,
         recommendedUserId: input.recommendedUserId,
+        recommendationReasonCode: input.recommendationReasonCode,
+        recommendationReasonText: input.recommendationReasonText,
+        recommendationReviewNeeded: input.recommendationReviewNeeded,
         status: TaskStatus.NOT_STARTED,
         dueAt: input.dueAt,
         createdByUserId: input.createdByUserId,
@@ -264,6 +285,9 @@ function createGenerationTasksHarness(
         title: createdTask.title,
         assignedUserId: createdTask.assignedUserId,
         recommendedUserId: createdTask.recommendedUserId,
+        recommendationReasonCode: createdTask.recommendationReasonCode,
+        recommendationReasonText: createdTask.recommendationReasonText,
+        recommendationReviewNeeded: createdTask.recommendationReviewNeeded,
         dueAt: createdTask.dueAt,
         sourceTemplateId: createdTask.sourceTemplateId,
         sourceDutyId: createdTask.sourceDutyId,
@@ -343,6 +367,9 @@ function createGenerationTasksHarness(
     readGenerationRuns() {
       return generationRuns;
     },
+    readActivityEvents() {
+      return activityEvents;
+    },
     createBoardDay(boardDate: string) {
       const boardDay: StoredBoardDay = {
         id: `board-day-${boardDayCounter++}`,
@@ -389,6 +416,9 @@ describe("generation tasks service", () => {
         title: "Review inventory status",
         assignedUserId: "user-inventory",
         recommendedUserId: "user-inventory",
+        recommendationReasonCode: "ROLE_MATCH",
+        recommendationReasonText: "Avery Inventory is recommended because their role matches this template.",
+        recommendationReviewNeeded: false,
         dueAt: new Date("2026-06-17T09:00:00.000Z"),
         sourceTemplateId: "template-inventory",
         sourceDutyId: "duty-inventory",
@@ -399,6 +429,9 @@ describe("generation tasks service", () => {
         title: "Follow up with assigned leads",
         assignedUserId: "user-sales",
         recommendedUserId: "user-sales",
+        recommendationReasonCode: "DIRECT_DUTY_MATCH",
+        recommendationReasonText: "Jordan Sales is recommended because they have the direct duty for this template.",
+        recommendationReviewNeeded: false,
         dueAt: new Date("2026-06-17T15:30:00.000Z"),
         sourceTemplateId: "template-sales-duty",
         sourceDutyId: "duty-sales",
@@ -413,6 +446,9 @@ describe("generation tasks service", () => {
         description: "Check stale and ready-for-sale units.",
         assignedUserId: "user-inventory",
         recommendedUserId: "user-inventory",
+        recommendationReasonCode: "ROLE_MATCH",
+        recommendationReasonText: "Avery Inventory is recommended because their role matches this template.",
+        recommendationReviewNeeded: false,
         status: TaskStatus.NOT_STARTED,
         dueAt: new Date("2026-06-17T09:00:00.000Z"),
         createdByUserId: "user-manager",
@@ -427,6 +463,9 @@ describe("generation tasks service", () => {
         description: "",
         assignedUserId: "user-sales",
         recommendedUserId: "user-sales",
+        recommendationReasonCode: "DIRECT_DUTY_MATCH",
+        recommendationReasonText: "Jordan Sales is recommended because they have the direct duty for this template.",
+        recommendationReviewNeeded: false,
         status: TaskStatus.NOT_STARTED,
         dueAt: new Date("2026-06-17T15:30:00.000Z"),
         createdByUserId: "user-manager",
@@ -463,6 +502,26 @@ describe("generation tasks service", () => {
         }
       })
     ]);
+    expect(harness.readActivityEvents()).toEqual([
+      {
+        actorUserId: "user-manager",
+        boardDayId: result.boardDayId,
+        eventType: ActivityEventType.DAILY_BOARD_GENERATED,
+        message: "Daily board generated",
+        metadata: {
+          boardDate: "2026-06-17",
+          duplicatesSkipped: 0,
+          generationRunId: "generation-run-1",
+          manualTasksPreserved: 0,
+          tasksAlreadyExisting: 0,
+          tasksCreated: 2,
+          templatesConsidered: 2,
+          triggeredBy: "manual",
+          usersConsidered: 2
+        },
+        taskId: null
+      }
+    ]);
   });
 
   it("creates a separate completed generation run on retry without duplicating generated tasks", async () => {
@@ -489,6 +548,15 @@ describe("generation tasks service", () => {
     expect(harness.readBoardDays()).toHaveLength(1);
     expect(harness.readTasks()).toHaveLength(2);
     expect(harness.readGenerationRuns()).toHaveLength(2);
+    expect(harness.readActivityEvents()).toHaveLength(2);
+    expect(harness.readActivityEvents()[1]).toMatchObject({
+      eventType: ActivityEventType.DAILY_BOARD_GENERATED,
+      metadata: expect.objectContaining({
+        tasksCreated: 0,
+        duplicatesSkipped: 2,
+        tasksAlreadyExisting: 2
+      })
+    });
     expect(harness.readGenerationRuns().map((run) => run.status)).toEqual([
       GenerationRunStatus.SUCCEEDED,
       GenerationRunStatus.SUCCEEDED
@@ -512,6 +580,9 @@ describe("generation tasks service", () => {
       description: "Manager-created follow-up.",
       assignedUserId: "user-inventory",
       recommendedUserId: null,
+      recommendationReasonCode: null,
+      recommendationReasonText: null,
+      recommendationReviewNeeded: null,
       status: TaskStatus.IN_PROGRESS,
       dueAt: new Date("2026-06-17T08:45:00.000Z"),
       createdByUserId: "user-manager",
@@ -569,6 +640,9 @@ describe("generation tasks service", () => {
       description: "Manager edited this generated task.",
       assignedUserId: "user-inventory",
       recommendedUserId: "user-inventory",
+      recommendationReasonCode: "ROLE_MATCH",
+      recommendationReasonText: "Original explanation should be preserved.",
+      recommendationReviewNeeded: false,
       status: TaskStatus.IN_PROGRESS,
       dueAt: new Date("2026-06-17T10:15:00.000Z"),
       createdByUserId: "user-manager",
@@ -647,6 +721,9 @@ describe("generation tasks service", () => {
           description: "",
           assignedUserId: "user-sales",
           recommendedUserId: "user-sales",
+          recommendationReasonCode: "DIRECT_DUTY_MATCH",
+          recommendationReasonText: "Jordan Sales is recommended because they have the direct duty for this template.",
+          recommendationReviewNeeded: false,
           status: TaskStatus.NOT_STARTED,
           dueAt: new Date("2026-06-17T15:30:00.000Z"),
           createdByUserId: null,

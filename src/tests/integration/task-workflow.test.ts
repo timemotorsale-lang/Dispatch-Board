@@ -51,6 +51,9 @@ type WorkflowTask = {
   description: string;
   assignedUserId: string;
   recommendedUserId: string | null;
+  recommendationReasonCode: string | null;
+  recommendationReasonText: string | null;
+  recommendationReviewNeeded: boolean | null;
   status: TaskStatus;
   dueAt: Date;
   createdByUserId: string;
@@ -155,6 +158,9 @@ function createWorkflowHarness(authUsers: AuthenticatedUser[]) {
       },
       assignedUser: requireValue(userSummary(task.assignedUserId), "Assignee is required."),
       recommendedUser: userSummary(task.recommendedUserId),
+      recommendationReasonCode: task.recommendationReasonCode,
+      recommendationReasonText: task.recommendationReasonText,
+      recommendationReviewNeeded: task.recommendationReviewNeeded,
       createdByUser: userSummary(task.createdByUserId),
       reviewedByUser: userSummary(task.reviewedByUserId),
       comments: comments
@@ -165,6 +171,7 @@ function createWorkflowHarness(authUsers: AuthenticatedUser[]) {
   }
 
   const createRepository: TaskCreateRepository = {
+    async createActivityEvent() {},
     async findAssignedUserById(userId) {
       return users.get(userId) ?? null;
     },
@@ -200,6 +207,9 @@ function createWorkflowHarness(authUsers: AuthenticatedUser[]) {
         description: input.description,
         assignedUserId: input.assignedUserId,
         recommendedUserId: null,
+        recommendationReasonCode: null,
+        recommendationReasonText: null,
+        recommendationReviewNeeded: null,
         status: input.status,
         dueAt: input.dueAt,
         createdByUserId: input.createdByUserId,
@@ -222,6 +232,7 @@ function createWorkflowHarness(authUsers: AuthenticatedUser[]) {
   };
 
   const statusRepository: TaskStatusRepository = {
+    async createActivityEvent() {},
     async findTaskById(taskId) {
       return tasks.find((task) => task.id === taskId) ?? null;
     },
@@ -264,18 +275,23 @@ function createWorkflowHarness(authUsers: AuthenticatedUser[]) {
           readyForReviewAt: task.readyForReviewAt,
           completedAt: task.completedAt,
           assignedUser: requireValue(userSummary(task.assignedUserId), "Assignee is required."),
-          recommendedUser: userSummary(task.recommendedUserId)
+          recommendedUser: userSummary(task.recommendedUserId),
+          recommendationReasonCode: task.recommendationReasonCode,
+          recommendationReasonText: task.recommendationReasonText,
+          recommendationReviewNeeded: task.recommendationReviewNeeded
         }));
     }
   };
 
   const commentRepository: TaskCommentRepository = {
+    async createActivityEvent() {},
     async findTaskById(taskId) {
       const task = tasks.find((candidate) => candidate.id === taskId);
 
       return task
         ? {
             id: task.id,
+            boardDayId: task.boardDayId,
             assignedUserId: task.assignedUserId,
             requiresManagerApproval: task.requiresManagerApproval
           }
