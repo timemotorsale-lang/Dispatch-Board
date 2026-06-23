@@ -151,6 +151,8 @@ function createGenerationTasksRepositoryHarness(
   const generationRuns: StoredGenerationRun[] = [];
 
   const repository: GenerationTasksRepository = {
+    async createActivityEvent() {},
+
     async getOrCreateBoardDay(boardDate) {
       const existingBoardDay = boardDays.find(
         (candidate) => candidate.date.toISOString().slice(0, 10) === boardDate

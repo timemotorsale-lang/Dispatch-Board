@@ -1,4 +1,4 @@
-import { TaskSourceType, TaskStatus, WorkflowArea } from "@prisma/client";
+import { ActivityEventType, Prisma, TaskSourceType, TaskStatus, WorkflowArea } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -24,14 +24,25 @@ type StoredTask = CreateTaskRecordInput & {
   updatedAt: Date;
 };
 
+type StoredActivityEvent = {
+  actorUserId: string | null;
+  boardDayId: string;
+  eventType: ActivityEventType;
+  message: string;
+  metadata: Prisma.InputJsonValue;
+  taskId: string | null;
+};
+
 function createTaskCreateRepositoryHarness(
   users: TaskCreateAssignedUserRecord[]
 ): {
   readBoardDays(): StoredBoardDay[];
+  readActivityEvents(): StoredActivityEvent[];
   readTasks(): StoredTask[];
   repository: TaskCreateRepository;
 } {
   const boardDays: StoredBoardDay[] = [];
+  const activityEvents: StoredActivityEvent[] = [];
   const tasks: StoredTask[] = [];
   const usersById = new Map(users.map((user) => [user.id, user]));
 
@@ -39,10 +50,17 @@ function createTaskCreateRepositoryHarness(
     readBoardDays() {
       return [...boardDays];
     },
+    readActivityEvents() {
+      return [...activityEvents];
+    },
     readTasks() {
       return [...tasks];
     },
     repository: {
+      async createActivityEvent(input) {
+        activityEvents.push(input);
+      },
+
       async createTask(input) {
         const boardDay = boardDays.find((candidateBoardDay) => candidateBoardDay.id === input.boardDayId);
 
@@ -160,7 +178,7 @@ describe("task create service", () => {
       const { usersByEmail } = await createTestAuthStore();
       const managerUser = usersByEmail.get("morgan.manager@local.test") ?? null;
       const assignee = usersByEmail.get("jordan.sales@local.test");
-      const { repository, readBoardDays, readTasks } = createTaskCreateRepositoryHarness(
+      const { repository, readActivityEvents, readBoardDays, readTasks } = createTaskCreateRepositoryHarness(
         [...usersByEmail.values()].map((user) => ({
           id: user.id,
           name: user.name,
@@ -228,6 +246,23 @@ describe("task create service", () => {
         sourceType: TaskSourceType.MANAGER,
         title: "Review hot lead"
       });
+      expect(readActivityEvents()).toEqual([
+        {
+          actorUserId: managerUser?.id ?? "",
+          boardDayId: "board-day-1",
+          eventType: ActivityEventType.TASK_CREATED,
+          message: "Task created: Review hot lead",
+          metadata: {
+            assignedUserId: assignee?.id,
+            dueAt: "2026-06-18T17:00:00.000Z",
+            requiresManagerApproval: true,
+            sourceType: TaskSourceType.MANAGER,
+            title: "Review hot lead",
+            workflowArea: WorkflowArea.SALES
+          },
+          taskId: "task-1"
+        }
+      ]);
     } finally {
       vi.useRealTimers();
     }

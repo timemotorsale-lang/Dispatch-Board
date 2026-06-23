@@ -1,4 +1,5 @@
 import {
+  ActivityEventType,
   GenerationRunStatus,
   Prisma,
   PrismaClient,
@@ -11,7 +12,7 @@ import {
 
 import { prisma } from "@/server/db/client";
 
-type GenerationTasksDatabase = Pick<PrismaClient, "boardDay" | "generationRun" | "task">;
+type GenerationTasksDatabase = Pick<PrismaClient, "activityEvent" | "boardDay" | "generationRun" | "task">;
 
 const generatedTaskIdentitySelect = {
   id: true,
@@ -77,6 +78,14 @@ export type FailGenerationRunInput = {
 };
 
 export type GenerationTasksRepository = {
+  createActivityEvent(input: {
+    actorUserId: string | null;
+    boardDayId: string;
+    eventType: ActivityEventType;
+    message: string;
+    metadata: Prisma.InputJsonValue;
+    taskId: string | null;
+  }): Promise<void>;
   getOrCreateBoardDay(boardDate: string): Promise<BoardDayRecord>;
   listExistingGeneratedTasks(boardDayId: string): Promise<ExistingGeneratedTaskRecord[]>;
   countManualTasks(boardDayId: string): Promise<number>;
@@ -95,6 +104,12 @@ export function createGenerationTasksRepository(
   database: GenerationTasksDatabase = prisma
 ): GenerationTasksRepository {
   return {
+    async createActivityEvent(input) {
+      await database.activityEvent.create({
+        data: input
+      });
+    },
+
     async getOrCreateBoardDay(boardDate) {
       return database.boardDay.upsert({
         where: {

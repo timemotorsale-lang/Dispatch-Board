@@ -1,10 +1,24 @@
+import { ActivityEventType, Prisma } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
 import type { TaskCommentRepository } from "@/server/repositories/task-comment-repository";
 import { createTaskComment, listTaskComments } from "@/server/services/task-comments";
 import { createTestAuthStore } from "@/tests/support/auth-test-store";
 
-function createTaskCommentRepositoryHarness(): TaskCommentRepository {
+type StoredActivityEvent = {
+  actorUserId: string | null;
+  boardDayId: string;
+  eventType: ActivityEventType;
+  message: string;
+  metadata: Prisma.InputJsonValue;
+  taskId: string | null;
+};
+
+function createTaskCommentRepositoryHarness(): {
+  readActivityEvents(): StoredActivityEvent[];
+  repository: TaskCommentRepository;
+} {
+  const activityEvents: StoredActivityEvent[] = [];
   const comments = [
     {
       id: "comment-2",
@@ -54,6 +68,7 @@ function createTaskCommentRepositoryHarness(): TaskCommentRepository {
       "task-1",
       {
         id: "task-1",
+        boardDayId: "board-day-1",
         assignedUserId: "user-jordan.sales@local.test",
         requiresManagerApproval: false
       }
@@ -62,6 +77,7 @@ function createTaskCommentRepositoryHarness(): TaskCommentRepository {
       "task-2",
       {
         id: "task-2",
+        boardDayId: "board-day-1",
         assignedUserId: "user-casey.mechanic@local.test",
         requiresManagerApproval: true
       }
@@ -69,35 +85,44 @@ function createTaskCommentRepositoryHarness(): TaskCommentRepository {
   ]);
 
   return {
-    async findTaskById(taskId) {
-      return tasks.get(taskId) ?? null;
+    readActivityEvents() {
+      return [...activityEvents];
     },
+    repository: {
+      async createActivityEvent(input) {
+        activityEvents.push(input);
+      },
 
-    async listCommentsForTask(taskId) {
-      return comments
-        .filter((comment) => comment.taskId === taskId)
-        .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
-    },
+      async findTaskById(taskId) {
+        return tasks.get(taskId) ?? null;
+      },
 
-    async createComment(taskId, authorUserId, body) {
-      const authorUser = authorsById.get(authorUserId);
+      async listCommentsForTask(taskId) {
+        return comments
+          .filter((comment) => comment.taskId === taskId)
+          .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
+      },
 
-      if (!authorUser) {
-        throw new Error(`Missing author for ${authorUserId}.`);
+      async createComment(taskId, authorUserId, body) {
+        const authorUser = authorsById.get(authorUserId);
+
+        if (!authorUser) {
+          throw new Error(`Missing author for ${authorUserId}.`);
+        }
+
+        const comment = {
+          id: `comment-${comments.length + 1}`,
+          taskId,
+          authorUserId,
+          body,
+          createdAt: new Date("2026-06-18T15:00:00.000Z"),
+          authorUser
+        };
+
+        comments.push(comment);
+
+        return comment;
       }
-
-      const comment = {
-        id: `comment-${comments.length + 1}`,
-        taskId,
-        authorUserId,
-        body,
-        createdAt: new Date("2026-06-18T15:00:00.000Z"),
-        authorUser
-      };
-
-      comments.push(comment);
-
-      return comment;
     }
   };
 }
@@ -107,7 +132,8 @@ describe("task comments service", () => {
     const { usersByEmail } = await createTestAuthStore();
     const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
 
-    const comments = await listTaskComments(staffUser, "task-1", createTaskCommentRepositoryHarness());
+    const { repository } = createTaskCommentRepositoryHarness();
+    const comments = await listTaskComments(staffUser, "task-1", repository);
 
     expect(comments).toEqual([
       {
@@ -141,13 +167,15 @@ describe("task comments service", () => {
     const { usersByEmail } = await createTestAuthStore();
     const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
 
+    const { readActivityEvents, repository } = createTaskCommentRepositoryHarness();
+
     const comment = await createTaskComment(
       staffUser,
       "task-1",
       {
         body: "  Contacted customer.\nWaiting on return call.  "
       },
-      createTaskCommentRepositoryHarness()
+      repository
     );
 
     expect(comment).toEqual({
@@ -162,6 +190,20 @@ describe("task comments service", () => {
         email: "jordan.sales@local.test"
       }
     });
+    expect(readActivityEvents()).toEqual([
+      {
+        actorUserId: "user-jordan.sales@local.test",
+        boardDayId: "board-day-1",
+        eventType: ActivityEventType.COMMENT_ADDED,
+        message: "Comment added",
+        metadata: {
+          authorUserId: "user-jordan.sales@local.test",
+          commentId: "comment-3",
+          preview: "Contacted customer. Waiting on return call."
+        },
+        taskId: "task-1"
+      }
+    ]);
   });
 
   it("rejects empty and whitespace-only comments", async () => {
@@ -175,7 +217,7 @@ describe("task comments service", () => {
         {
           body: "   "
         },
-        createTaskCommentRepositoryHarness()
+        createTaskCommentRepositoryHarness().repository
       )
     ).rejects.toThrow("Task comments require a comment body.");
   });
@@ -191,7 +233,7 @@ describe("task comments service", () => {
         {
           body: "x".repeat(2001)
         },
-        createTaskCommentRepositoryHarness()
+        createTaskCommentRepositoryHarness().repository
       )
     ).rejects.toThrow("Task comments must be 2000 characters or fewer.");
   });
@@ -207,7 +249,7 @@ describe("task comments service", () => {
         {
           body: "Own task update."
         },
-        createTaskCommentRepositoryHarness()
+        createTaskCommentRepositoryHarness().repository
       )
     ).resolves.toMatchObject({
       taskId: "task-1",
@@ -221,7 +263,7 @@ describe("task comments service", () => {
         {
           body: "Trying to update another staff task."
         },
-        createTaskCommentRepositoryHarness()
+        createTaskCommentRepositoryHarness().repository
       )
     ).rejects.toThrow("You do not have permission to comment on this task.");
   });
@@ -237,7 +279,7 @@ describe("task comments service", () => {
         {
           body: "Manager review note."
         },
-        createTaskCommentRepositoryHarness()
+        createTaskCommentRepositoryHarness().repository
       )
     ).resolves.toMatchObject({
       taskId: "task-2",

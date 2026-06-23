@@ -165,6 +165,7 @@ function createWorkflowHarness(authUsers: AuthenticatedUser[]) {
   }
 
   const createRepository: TaskCreateRepository = {
+    async createActivityEvent() {},
     async findAssignedUserById(userId) {
       return users.get(userId) ?? null;
     },
@@ -222,6 +223,7 @@ function createWorkflowHarness(authUsers: AuthenticatedUser[]) {
   };
 
   const statusRepository: TaskStatusRepository = {
+    async createActivityEvent() {},
     async findTaskById(taskId) {
       return tasks.find((task) => task.id === taskId) ?? null;
     },
@@ -270,12 +272,14 @@ function createWorkflowHarness(authUsers: AuthenticatedUser[]) {
   };
 
   const commentRepository: TaskCommentRepository = {
+    async createActivityEvent() {},
     async findTaskById(taskId) {
       const task = tasks.find((candidate) => candidate.id === taskId);
 
       return task
         ? {
             id: task.id,
+            boardDayId: task.boardDayId,
             assignedUserId: task.assignedUserId,
             requiresManagerApproval: task.requiresManagerApproval
           }

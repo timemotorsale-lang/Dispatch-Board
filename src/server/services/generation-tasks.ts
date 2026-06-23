@@ -1,4 +1,5 @@
 import {
+  ActivityEventType,
   GenerationRunStatus,
   GenerationTriggerType,
   type GenerationRun,
@@ -383,6 +384,25 @@ export async function createMissingGeneratedTasksForDate(
       id: generationRun.id,
       finishedAt,
       summary: completedSummary
+    });
+
+    await repository.createActivityEvent({
+      actorUserId: triggerMetadata.triggeredByUserId,
+      boardDayId: boardDay.id,
+      eventType: ActivityEventType.DAILY_BOARD_GENERATED,
+      message: "Daily board generated",
+      metadata: {
+        boardDate: normalizedBoardDate,
+        duplicatesSkipped: tasksSkippedAsDuplicates,
+        generationRunId: generationRun.id,
+        manualTasksPreserved,
+        tasksAlreadyExisting,
+        tasksCreated,
+        templatesConsidered,
+        triggeredBy: toSummaryTrigger(triggerMetadata.triggeredBy),
+        usersConsidered
+      },
+      taskId: null
     });
 
     return {

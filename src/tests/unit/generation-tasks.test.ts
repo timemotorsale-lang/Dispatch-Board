@@ -1,5 +1,6 @@
 import {
   BoardGenerationStatus,
+  ActivityEventType,
   GenerationRunStatus,
   GenerationTriggerType,
   Prisma,
@@ -56,6 +57,15 @@ type StoredGenerationRun = {
   triggeredByUserId: string | null;
   summary: Prisma.JsonValue;
   errorMessage: string | null;
+};
+
+type StoredActivityEvent = {
+  actorUserId: string | null;
+  boardDayId: string;
+  eventType: ActivityEventType;
+  message: string;
+  metadata: Prisma.InputJsonValue;
+  taskId: string | null;
 };
 
 function createGenerationInput(): GenerationInput {
@@ -175,8 +185,13 @@ function createGenerationTasksHarness(
   let boardDays = [...(options.boardDays ?? [])];
   let tasks = [...(options.tasks ?? [])];
   let generationRuns = [...(options.generationRuns ?? [])];
+  let activityEvents: StoredActivityEvent[] = [];
 
   const repository: NonNullable<CreateMissingGeneratedTasksDependencies["repository"]> = {
+    async createActivityEvent(input) {
+      activityEvents = [...activityEvents, input];
+    },
+
     async getOrCreateBoardDay(boardDate) {
       const boardDateValue = new Date(`${boardDate}T00:00:00.000Z`);
       const existingBoardDay = boardDays.find(
@@ -343,6 +358,9 @@ function createGenerationTasksHarness(
     readGenerationRuns() {
       return generationRuns;
     },
+    readActivityEvents() {
+      return activityEvents;
+    },
     createBoardDay(boardDate: string) {
       const boardDay: StoredBoardDay = {
         id: `board-day-${boardDayCounter++}`,
@@ -463,6 +481,26 @@ describe("generation tasks service", () => {
         }
       })
     ]);
+    expect(harness.readActivityEvents()).toEqual([
+      {
+        actorUserId: "user-manager",
+        boardDayId: result.boardDayId,
+        eventType: ActivityEventType.DAILY_BOARD_GENERATED,
+        message: "Daily board generated",
+        metadata: {
+          boardDate: "2026-06-17",
+          duplicatesSkipped: 0,
+          generationRunId: "generation-run-1",
+          manualTasksPreserved: 0,
+          tasksAlreadyExisting: 0,
+          tasksCreated: 2,
+          templatesConsidered: 2,
+          triggeredBy: "manual",
+          usersConsidered: 2
+        },
+        taskId: null
+      }
+    ]);
   });
 
   it("creates a separate completed generation run on retry without duplicating generated tasks", async () => {
@@ -489,6 +527,15 @@ describe("generation tasks service", () => {
     expect(harness.readBoardDays()).toHaveLength(1);
     expect(harness.readTasks()).toHaveLength(2);
     expect(harness.readGenerationRuns()).toHaveLength(2);
+    expect(harness.readActivityEvents()).toHaveLength(2);
+    expect(harness.readActivityEvents()[1]).toMatchObject({
+      eventType: ActivityEventType.DAILY_BOARD_GENERATED,
+      metadata: expect.objectContaining({
+        tasksCreated: 0,
+        duplicatesSkipped: 2,
+        tasksAlreadyExisting: 2
+      })
+    });
     expect(harness.readGenerationRuns().map((run) => run.status)).toEqual([
       GenerationRunStatus.SUCCEEDED,
       GenerationRunStatus.SUCCEEDED
