@@ -1,12 +1,46 @@
-import { PlaceholderRoutePage } from "@/components/ui/placeholder-route-page";
+import { ActivityFeedPanel } from "@/features/activity/activity-feed-panel";
+import { getGenerationSettings } from "@/server/services/app-settings-service";
+import { getBoardDateInTimeZone, normalizeBoardDate } from "@/server/validation/board-date";
 
-export default function ActivityPage() {
+type ActivityPageProps = {
+  searchParams?: Promise<{
+    date?: string | string[];
+  }>;
+};
+
+function resolveActivityDate(rawDate: string | undefined, fallbackDate: string) {
+  if (!rawDate) return { date: fallbackDate, error: null };
+
+  try {
+    return { date: normalizeBoardDate(rawDate), error: null };
+  } catch {
+    return {
+      date: fallbackDate,
+      error: "The requested activity date was invalid, so activity has been reset to today."
+    };
+  }
+}
+
+export default async function ActivityPage({ searchParams }: ActivityPageProps) {
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const requestedDate = Array.isArray(resolvedSearchParams?.date)
+    ? resolvedSearchParams?.date[0]
+    : resolvedSearchParams?.date;
+  const settings = await getGenerationSettings();
+  const todayBoardDate = getBoardDateInTimeZone(new Date(), settings.timezone);
+  const { date, error } = resolveActivityDate(requestedDate, todayBoardDate);
+
   return (
-    <PlaceholderRoutePage
-      description="The app shell now includes a first-class activity destination, even though the event-backed feed itself is still scheduled for a later implementation slice."
-      eyebrow="Activity"
-      note="The board's right rail will reserve space for activity visibility without pretending live event data already exists. This page keeps the navigation complete in the meantime."
-      title="Activity Feed"
-    />
+    <section className="activity-page dashboard-page page-stack">
+      <header className="dashboard-page-header">
+        <div className="dashboard-page-copy">
+          <span className="eyebrow">Activity</span>
+          <h1>Activity Feed</h1>
+          <p>Today&apos;s board changes, task updates, blockers, approvals, and comments in one place.</p>
+        </div>
+      </header>
+      {error ? <div className="board-notice board-notice-danger">{error}</div> : null}
+      <ActivityFeedPanel boardDate={date} showFullLink={false} title="Live Activity Feed" />
+    </section>
   );
 }

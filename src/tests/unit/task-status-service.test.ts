@@ -214,7 +214,7 @@ describe("task status service", () => {
   it("does not require a blocker reason for non-blocked updates and preserves any existing reason", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
-    const { repository, readTask } = createTaskStatusRepository([
+    const { repository, readActivityEvents, readTask } = createTaskStatusRepository([
       createStoredTask({
         status: TaskStatus.BLOCKED,
         blockerReason: "Waiting on photos"
