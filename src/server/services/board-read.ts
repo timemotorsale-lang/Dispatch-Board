@@ -30,6 +30,9 @@ export type BoardReadTask = {
   requiresManagerApproval: boolean;
   assignedUser: BoardReadUserSummary;
   recommendedUser: BoardReadUserSummary | null;
+  recommendationReasonCode: string | null;
+  recommendationReasonText: string | null;
+  recommendationReviewNeeded: boolean;
   vehicleReference: string | null;
   customerReference: string | null;
   blockerReason: string | null;
@@ -106,6 +109,9 @@ function toTaskSummary(task: BoardReadTaskRecord): BoardReadTask {
       email: task.assignedUser.email || undefined
     },
     recommendedUser: toUserSummary(task.recommendedUser),
+    recommendationReasonCode: normalizeOptionalText(task.recommendationReasonCode),
+    recommendationReasonText: normalizeOptionalText(task.recommendationReasonText),
+    recommendationReviewNeeded: task.recommendationReviewNeeded ?? false,
     vehicleReference: normalizeOptionalText(task.vehicleReference),
     customerReference: normalizeOptionalText(task.customerReference),
     blockerReason: normalizeOptionalText(task.blockerReason),

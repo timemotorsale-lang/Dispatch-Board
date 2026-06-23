@@ -40,6 +40,9 @@ export type CreatedGeneratedTaskReference = {
   title: string;
   assignedUserId: string;
   recommendedUserId: string | null;
+  recommendationReasonCode: string | null;
+  recommendationReasonText: string | null;
+  recommendationReviewNeeded: boolean;
   dueAt: Date;
   sourceTemplateId: string | null;
   sourceDutyId: string | null;
@@ -267,6 +270,9 @@ function buildGeneratedTaskCandidates(
         description: template.description ?? "",
         assignedUserId: user.userId,
         recommendedUserId: recommendation.recommendedUserId,
+        recommendationReasonCode: recommendation.reasonCode,
+        recommendationReasonText: recommendation.explanation,
+        recommendationReviewNeeded: recommendation.managerReviewNeeded,
         dueAt: toDueAt(boardDate, template.defaultDueTime),
         createdByUserId,
         requiresManagerApproval: template.requiresManagerApproval,
@@ -284,6 +290,9 @@ function toCreatedTaskReference(task: CreatedGeneratedTaskRecord): CreatedGenera
     title: task.title,
     assignedUserId: task.assignedUserId,
     recommendedUserId: task.recommendedUserId,
+    recommendationReasonCode: task.recommendationReasonCode,
+    recommendationReasonText: task.recommendationReasonText,
+    recommendationReviewNeeded: task.recommendationReviewNeeded ?? false,
     dueAt: task.dueAt,
     sourceTemplateId: task.sourceTemplateId,
     sourceDutyId: task.sourceDutyId,

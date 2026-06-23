@@ -50,6 +50,9 @@ describe("prisma schema constraints", () => {
     expect(boardDayModel).toMatch(/date\s+DateTime\s+@unique\s+@db\.Date/);
 
     expect(taskModel).toMatch(/assignedUserId\s+String\b/);
+    expect(taskModel).toMatch(/recommendationReasonCode\s+String\?/);
+    expect(taskModel).toMatch(/recommendationReasonText\s+String\?/);
+    expect(taskModel).toMatch(/recommendationReviewNeeded\s+Boolean\?/);
     expect(taskModel).toMatch(/dueAt\s+DateTime\b/);
     expect(taskModel).toMatch(/@@unique\(\[boardDayId,\s*sourceTemplateId,\s*assignedUserId\]\)/);
     expect(taskModel).toMatch(/@@index\(\[boardDayId,\s*status\]\)/);
@@ -91,5 +94,13 @@ describe("prisma schema constraints", () => {
       /CREATE INDEX "ActivityEvent_boardDayId_createdAt_idx" ON "ActivityEvent"\("boardDayId", "createdAt"\)/
     );
     expect(combinedSql).toMatch(/ON DELETE SET NULL/);
+  });
+
+  it("adds the DB-046 task recommendation explanation migration", async () => {
+    const combinedSql = await readMigrationSqlContents();
+
+    expect(combinedSql).toMatch(/ADD COLUMN "recommendationReasonCode" TEXT/);
+    expect(combinedSql).toMatch(/ADD COLUMN "recommendationReasonText" TEXT/);
+    expect(combinedSql).toMatch(/ADD COLUMN "recommendationReviewNeeded" BOOLEAN/);
   });
 });

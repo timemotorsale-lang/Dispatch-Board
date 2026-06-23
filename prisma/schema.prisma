@@ -227,37 +227,40 @@ model BoardDay {
 }
 
 model Task {
-  id                      String         @id @default(cuid())
-  boardDayId              String
-  title                   String
-  description             String         @default("")
-  assignedUserId          String
-  recommendedUserId       String?
-  status                  TaskStatus     @default(NOT_STARTED)
-  dueAt                   DateTime
-  createdByUserId         String?
-  requiresManagerApproval Boolean        @default(false)
-  vehicleReference        String?
-  customerReference       String?
-  sourceType              TaskSourceType
-  sourceTemplateId        String?
-  sourceDutyId            String?
-  workflowArea            WorkflowArea
-  blockerReason           String?
-  readyForReviewAt        DateTime?
-  completedAt             DateTime?
-  reviewedByUserId        String?
-  createdAt               DateTime       @default(now())
-  updatedAt               DateTime       @updatedAt
-  boardDay                BoardDay       @relation(fields: [boardDayId], references: [id], onDelete: Cascade)
-  assignedUser            User           @relation("TaskAssignedUser", fields: [assignedUserId], references: [id], onDelete: Restrict)
-  recommendedUser         User?          @relation("TaskRecommendedUser", fields: [recommendedUserId], references: [id], onDelete: SetNull)
-  createdByUser           User?          @relation("TaskCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  reviewedByUser          User?          @relation("TaskReviewedByUser", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
-  sourceTemplate          TaskTemplate?  @relation("TaskSourceTemplate", fields: [sourceTemplateId], references: [id], onDelete: SetNull)
-  sourceDuty              Duty?          @relation("TaskSourceDuty", fields: [sourceDutyId], references: [id], onDelete: SetNull)
-  comments                TaskComment[]
-  activityEvents          ActivityEvent[]
+  id                         String          @id @default(cuid())
+  boardDayId                 String
+  title                      String
+  description                String          @default("")
+  assignedUserId             String
+  recommendedUserId          String?
+  recommendationReasonCode   String?
+  recommendationReasonText   String?
+  recommendationReviewNeeded Boolean?
+  status                     TaskStatus      @default(NOT_STARTED)
+  dueAt                      DateTime
+  createdByUserId            String?
+  requiresManagerApproval    Boolean         @default(false)
+  vehicleReference           String?
+  customerReference          String?
+  sourceType                 TaskSourceType
+  sourceTemplateId           String?
+  sourceDutyId               String?
+  workflowArea               WorkflowArea
+  blockerReason              String?
+  readyForReviewAt           DateTime?
+  completedAt                DateTime?
+  reviewedByUserId           String?
+  createdAt                  DateTime        @default(now())
+  updatedAt                  DateTime        @updatedAt
+  boardDay                   BoardDay        @relation(fields: [boardDayId], references: [id], onDelete: Cascade)
+  assignedUser               User            @relation("TaskAssignedUser", fields: [assignedUserId], references: [id], onDelete: Restrict)
+  recommendedUser            User?           @relation("TaskRecommendedUser", fields: [recommendedUserId], references: [id], onDelete: SetNull)
+  createdByUser              User?           @relation("TaskCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  reviewedByUser             User?           @relation("TaskReviewedByUser", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  sourceTemplate             TaskTemplate?   @relation("TaskSourceTemplate", fields: [sourceTemplateId], references: [id], onDelete: SetNull)
+  sourceDuty                 Duty?           @relation("TaskSourceDuty", fields: [sourceDutyId], references: [id], onDelete: SetNull)
+  comments                   TaskComment[]
+  activityEvents             ActivityEvent[]
 
   @@unique([boardDayId, sourceTemplateId, assignedUserId])
   @@index([boardDayId, status])
