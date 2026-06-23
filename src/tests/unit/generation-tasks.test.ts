@@ -465,6 +465,61 @@ describe("generation tasks service", () => {
     ]);
   });
 
+  it("returns generation warnings and succeeds cleanly when there are no task candidates", async () => {
+    const harness = createGenerationTasksHarness({
+      boardDate: "2026-06-17",
+      users: [
+        {
+          userId: "user-empty",
+          userName: "No Match",
+          userEmail: "no.match@local.test",
+          roles: [],
+          directDuties: [],
+          dutySource: "none",
+          resolvedDuties: [],
+          templates: []
+        }
+      ],
+      warnings: [
+        {
+          userId: "user-empty",
+          code: "USER_HAS_NO_ELIGIBLE_DUTIES",
+          message: "No Match has no custom duties or role default duties available for generation."
+        }
+      ]
+    });
+
+    const result = await createMissingGeneratedTasksForDate("2026-06-17", undefined, {
+      ...harness,
+      now: createNowSequence("2026-06-17T08:00:00.000Z", "2026-06-17T08:00:01.000Z")
+    });
+
+    expect(result).toMatchObject({
+      generationRunStatus: GenerationRunStatus.SUCCEEDED,
+      totalCandidatesConsidered: 0,
+      createdTaskCount: 0,
+      skippedExistingTaskCount: 0,
+      warnings: [
+        {
+          userId: "user-empty",
+          code: "USER_HAS_NO_ELIGIBLE_DUTIES"
+        }
+      ]
+    });
+    expect(result.createdTasks).toEqual([]);
+    expect(harness.readGenerationRuns()[0]).toEqual(
+      expect.objectContaining({
+        status: GenerationRunStatus.SUCCEEDED,
+        summary: expect.objectContaining({
+          usersConsidered: 1,
+          templatesConsidered: 0,
+          tasksCreated: 0,
+          tasksSkippedAsDuplicates: 0
+        })
+      })
+    );
+  });
+
   it("creates a separate completed generation run on retry without duplicating generated tasks", async () => {
     const harness = createGenerationTasksHarness();
 

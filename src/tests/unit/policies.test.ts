@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  assertAuthenticatedUser,
   canManageAssignments,
   canManageBoardGeneration,
   canManageDuties,
@@ -17,6 +18,10 @@ import {
 import { createTestAuthStore } from "@/tests/support/auth-test-store";
 
 describe("permission policies", () => {
+  it("throws a consistent authentication error when a user is required", () => {
+    expect(() => assertAuthenticatedUser(null)).toThrow("Authentication required.");
+  });
+
   it("allows manager-only actions for manager users", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
@@ -63,6 +68,24 @@ describe("permission policies", () => {
     ).toBe(true);
   });
 
+  it("allows managers to pass staff self-service checks for another user's work", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+
+    expect(manager).not.toBeNull();
+    expect(staffUser).not.toBeNull();
+    expect(canUseStaffSelfService(manager, staffUser!.id)).toBe(true);
+    expect(
+      canUpdateAssignedWork({
+        actor: manager,
+        assignedUserId: staffUser!.id,
+        requiresManagerApproval: true,
+        requestedAction: "complete"
+      })
+    ).toBe(true);
+  });
+
   it("rejects staff self-service checks for another user's work", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
@@ -105,6 +128,37 @@ describe("permission policies", () => {
         requestedAction: "reassign"
       })
     ).toBe(true);
+  });
+
+  it("lets staff comment on or update their own approval-required tasks but not complete them", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+
+    expect(staffUser).not.toBeNull();
+    expect(
+      canUpdateAssignedWork({
+        actor: staffUser,
+        assignedUserId: staffUser!.id,
+        requiresManagerApproval: true,
+        requestedAction: "comment"
+      })
+    ).toBe(true);
+    expect(
+      canUpdateAssignedWork({
+        actor: staffUser,
+        assignedUserId: staffUser!.id,
+        requiresManagerApproval: true,
+        requestedAction: "status"
+      })
+    ).toBe(true);
+    expect(
+      canUpdateAssignedWork({
+        actor: staffUser,
+        assignedUserId: staffUser!.id,
+        requiresManagerApproval: true,
+        requestedAction: "complete"
+      })
+    ).toBe(false);
   });
 
   it("allows any authenticated user to view the full board", async () => {

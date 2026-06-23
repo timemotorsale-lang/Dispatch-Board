@@ -262,6 +262,57 @@ describe("generation inputs service", () => {
     ]);
   });
 
+  it("deduplicates repeated direct duty assignments for the same user", async () => {
+    const directDuty = createDuty({
+      id: "duty-custom",
+      name: "Handle VIP follow-ups",
+      workflowArea: "Sales"
+    });
+    const repository = createGenerationInputsRepository({
+      users: [
+        createUser({
+          id: "user-custom",
+          name: "Casey Custom",
+          email: "casey.custom@local.test",
+          userDuties: [
+            createUserDuty(directDuty, { userId: "user-custom" }),
+            createUserDuty(directDuty, {
+              userId: "user-custom",
+              assignedAt: new Date("2026-06-17T09:16:00.000Z")
+            })
+          ]
+        })
+      ],
+      templates: [
+        createTemplate({
+          id: "template-custom-duty",
+          title: "Handle VIP follow-up tasks",
+          roleId: null,
+          role: null,
+          dutyId: "duty-custom",
+          duty: { id: "duty-custom", name: "Handle VIP follow-ups" }
+        })
+      ]
+    });
+
+    const result = await loadGenerationInputsForDate("2026-06-17", repository);
+
+    expect(result.users[0].directDuties).toEqual([
+      {
+        dutyId: "duty-custom",
+        title: "Handle VIP follow-ups",
+        workflowArea: "Sales",
+        source: "custom",
+        roleIds: [],
+        roleNames: []
+      }
+    ]);
+    expect(result.users[0].resolvedDuties).toHaveLength(1);
+    expect(result.users[0].templates.map((template) => template.templateId)).toEqual([
+      "template-custom-duty"
+    ]);
+  });
+
   it("falls back to role default duties when a user has no custom duties", async () => {
     const roleDefaultDuty = createDuty({
       id: "duty-marketing",
@@ -439,6 +490,60 @@ describe("generation inputs service", () => {
         userId: "user-empty",
         code: "USER_HAS_NO_ELIGIBLE_TEMPLATES",
         message: "No Match has no active task templates connected to the resolved duties or active roles."
+      }
+    ]);
+  });
+
+  it("keeps role-based templates for users with active roles even when they have no resolved duties", async () => {
+    const repository = createGenerationInputsRepository({
+      users: [
+        createUser({
+          id: "user-role-only",
+          name: "Riley Role",
+          email: "riley.role@local.test",
+          userRoles: [
+            createUserRole(
+              createRole({
+                id: "role-admin",
+                name: "Office Manager",
+                roleDuties: []
+              }),
+              { userId: "user-role-only" }
+            )
+          ],
+          userDuties: []
+        })
+      ],
+      templates: [
+        createTemplate({
+          id: "template-role-only",
+          title: "Review admin queue",
+          workflowArea: WorkflowArea.ADMIN,
+          roleId: "role-admin",
+          role: {
+            id: "role-admin",
+            name: "Office Manager"
+          },
+          dutyId: null,
+          duty: null
+        })
+      ]
+    });
+
+    const result = await loadGenerationInputsForDate("2026-06-17", repository);
+
+    expect(result.users[0]).toMatchObject({
+      dutySource: "none",
+      resolvedDuties: []
+    });
+    expect(result.users[0].templates.map((template) => template.templateId)).toEqual([
+      "template-role-only"
+    ]);
+    expect(result.warnings).toEqual([
+      {
+        userId: "user-role-only",
+        code: "USER_HAS_NO_ELIGIBLE_DUTIES",
+        message: "Riley Role has no custom duties or role default duties available for generation."
       }
     ]);
   });

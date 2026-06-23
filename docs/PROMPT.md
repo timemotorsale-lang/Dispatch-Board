@@ -1,20 +1,12 @@
 # Task
 
-DB-052 Add loading, empty, and error states
+DB-053 Add unit tests for core services
 
 # Goal
 
-Harden the Dispatch Board UI so users can clearly tell when the app is loading, has no data to show, or encountered a recoverable error.
+Expand unit test coverage for the Dispatch Board core server services so service-level regressions are caught before broader workflow, API, or browser-level tests run.
 
-Focus on the core surfaces already built:
-
-- Today's Board / date-based board page
-- Staff "My Tasks" view
-- Task detail view
-- Manual generation trigger/status surface
-- Activity feed
-- Review queue / manager visibility surfaces if present
-- Any shared board/task data-fetching components that currently render broken, blank, or misleading UI during loading/failure states
+This is a test-only reliability task. Do not add new user-facing behavior.
 
 # Context
 
@@ -23,190 +15,134 @@ Read these files first:
 - `docs/AGENTS.md`
 - `docs/ARCHITECTURE.md`
 - `docs/ROADMAP.md`
-- `docs/PRODUCT_SPEC.md`
-- `docs/MVP_SCOPE.md`
-- Existing board, task, activity, generation, and review UI files
-- Existing tests for board/task/review/activity workflows
-- `docs/images/UI_REFERENCE.png` or the current UI reference image if present in the repo
+- Existing test setup and test utilities
+- Existing service, policy, validation, and repository files under `src/server`
+- Existing unit tests under `src/tests/unit` or the current project test directory
 
-DB-052 belongs to `v0.6.0 - Reliability and release readiness`.
+Relevant roadmap intent:
 
-The roadmap scope is:
+- DB-053 belongs to v0.6.0 Reliability and release readiness.
+- Scope: expand unit coverage for policies, generation helpers, and recommendation rules.
+- Acceptance: service-level regressions are caught before full workflow tests run.
 
-> Add loading, empty, and error states.
+Core behavior to protect:
 
-Acceptance criteria:
-
-> Users can tell when the app is loading, empty, or failing instead of seeing broken UI.
-
-Architecture expectations:
-
-- Use the existing Next.js / React / TypeScript patterns.
-- Keep business rules server-side.
-- Do not change permission rules, task status rules, recommendation logic, generation logic, or activity persistence.
-- The activity feed is event-backed and should not be faked from UI-only state.
-- Failure states should be visible and retryable when reasonable.
+- Daily board generation helper logic
+- Duplicate-prevention helper behavior
+- Manual-task preservation assumptions
+- Generation summary/failure helper behavior, if implemented
+- Assignment recommendation priority order
+- Recommendation reason codes and explanation text
+- Manager/staff policy helpers
+- Status transition rules
+- Approval-required completion rules
+- Blocked status requiring blocker reason
 
 # Current behavior
 
-Some UI surfaces may currently show one or more of these problems:
-
-- Blank space while data is loading
-- Broken layout if the board has no tasks
-- Empty activity feed without explanation
-- Task detail surfaces that fail unclearly when the task cannot be found or cannot be loaded
-- Generation controls that do not clearly show pending, failed, or retryable states
-- Error messages that are too technical, too hidden, or inconsistent
-- Repeated loading/error UI implemented differently across features
+The app already has core services and workflow tests from earlier roadmap items. Some service behavior may already be covered by integration or workflow tests, but DB-053 should add focused unit tests that are faster, narrower, and easier to diagnose.
 
 # Desired behavior
 
-Implement consistent, honest UI states across the app.
+Add focused unit tests for the most important core service units without rewriting the services.
 
-## Loading states
+Prioritize tests around:
 
-Add lightweight loading states where data is being fetched or an action is pending.
+1. Policy helpers
+   - Manager permissions are allowed for manager-only actions.
+   - Staff users are denied manager-only actions.
+   - Staff users can act on their own assigned tasks where allowed.
+   - Staff users cannot mutate another staff member’s task.
+   - Permission failures are explicit and consistent with existing project patterns.
 
-Cover at least:
+2. Status and validation helpers
+   - Moving to `Blocked` requires a meaningful blocker reason.
+   - Non-blocked status changes do not require blocker reasons.
+   - Approval-required tasks cannot be directly completed by staff.
+   - Approval-required tasks can move to `Ready for Review`.
+   - Managers can complete approval-required tasks when the task is ready for review.
+   - No-op or invalid transitions behave according to existing service rules.
 
-- Board data loading
-- Task detail loading
-- Staff task list loading
-- Activity feed loading
-- Manual generation request pending
-- Review queue loading if present
+3. Generation helpers
+   - Custom duties are preferred when a user has direct duties.
+   - Role defaults are used when a user has no custom duties.
+   - Duplicate generated tasks are skipped.
+   - Manual tasks are not overwritten, deleted, or treated as generated duplicates.
+   - Generation helper summaries count created/skipped/failure outcomes correctly where those helpers exist.
 
-Use existing visual language. Prefer simple skeletons, muted cards, spinners, or inline pending messages based on current project patterns. Do not introduce a new UI library.
-
-## Empty states
-
-Add useful empty states when a request succeeds but there is nothing to show.
-
-Cover at least:
-
-- No board exists for the selected date
-- Board exists but has no tasks
-- No tasks match the current filters/grouping
-- Staff user has no assigned tasks
-- No activity events for the selected date
-- No tasks waiting for review
-- Task comments empty if the comments surface exists
-
-Empty states should explain what happened and, where appropriate, offer a next action:
-
-- Manager: generate today's board, create a task, clear filters
-- Staff: no assigned tasks yet, check full board, create own task if that feature exists
-- Activity feed: no activity has been recorded yet
-- Review queue: no tasks are ready for review
-
-## Error states
-
-Add user-facing error states for failed requests and failed actions.
-
-Cover at least:
-
-- Board fetch failure
-- Task detail fetch failure
-- Activity fetch failure
-- Manual generation failure
-- Status update / task action failure if currently silent
-- Task not found or unavailable
-- Unauthorized/forbidden responses if currently displayed poorly
-
-Error states should:
-
-- Use plain language
-- Avoid exposing stack traces or raw server internals
-- Preserve the surrounding layout when possible
-- Include a retry action where practical
-- Keep the user oriented: what failed, what they can try next, and whether work may still be saved
-
-# Implementation guidance
-
-1. Inspect existing data-fetching and server action patterns before editing.
-2. Identify shared opportunities first:
-   - If the app already has shared UI primitives, reuse them.
-   - If not, add small reusable components only if they reduce duplication, such as:
-     - `LoadingState`
-     - `EmptyState`
-     - `ErrorState`
-     - `InlinePendingState`
-   - Keep these components simple and project-local.
-3. Do not redesign the app. This is reliability polish, not a structural UI rewrite.
-4. Preserve the current visual direction from the reference mockup:
-   - Clean operational dashboard feel
-   - Clear board areas
-   - Readable task cards
-   - Activity rail/feed remains easy to scan
-   - No horizontal overflow
-5. Make retry actions call the existing fetch/mutation path rather than duplicating business logic.
-6. Make action-level pending states prevent accidental repeated clicks where appropriate, especially manual generation and task status updates.
-7. Keep error handling close to the relevant UI boundary, but do not swallow server errors silently.
-8. If a route-level `loading.tsx`, `error.tsx`, or `not-found.tsx` is appropriate in the current Next.js structure, add it narrowly for the relevant route only.
-9. Add or update tests only where the existing test setup supports it without a broad test architecture change.
+4. Recommendation rules
+   - Direct user duty match wins before role match.
+   - Role match wins before template owner or workflow-area fallback.
+   - Template owner fallback works when duty/role match is absent.
+   - Workflow-area fallback works when higher-priority matches are absent.
+   - No clear match returns manager-review-needed output.
+   - Recommendation output includes the expected reason code and readable explanation.
 
 # Constraints
 
-- Keep the patch minimal and reviewable.
-- Do not add dependencies unless absolutely necessary.
-- Do not rewrite the board layout or task workflow.
-- Do not change database schema unless you find a direct, unavoidable reason; explain first if so.
-- Do not change server-side business rules.
-- Do not change authorization behavior.
-- Do not remove existing functionality.
-- Do not introduce fake placeholder data in production-facing states.
-- Do not hide real failures by treating errors as empty states.
-- Preserve responsive behavior on mobile, tablet, and desktop.
-- Avoid horizontal overflow.
-- Follow existing styling conventions.
+- Keep this task test-focused.
+- Do not change production behavior unless a new test exposes a clear bug directly related to DB-053.
+- If a production fix is needed, keep it minimal and explain the root cause.
+- Do not refactor broad service architecture.
+- Do not rename public APIs, routes, schema fields, or service exports unless absolutely necessary.
+- Do not add new dependencies unless the existing test stack cannot reasonably support the needed tests.
+- Prefer existing test utilities, factories, fixtures, and mocks.
+- If useful, add small local test helpers/factories inside the test directory.
+- Keep tests deterministic; avoid real time, real network, or unnecessary database dependence.
+- Unit tests should mock repositories or use in-memory fixtures where practical.
+- Do not create brittle tests that depend on incidental wording, except where reason codes or user-facing explanation text are part of the expected contract.
+- Preserve all existing tests.
 
-# Edge cases to handle
+# Implementation guidance
 
-Test the UI manually against these cases where possible:
+Work in this order:
 
-- Slow board request
-- Board API returns no board for selected date
-- Board exists with zero tasks
-- Filters produce zero visible tasks
-- Staff user has no assigned tasks
-- Activity feed returns zero events
-- Activity feed request fails
-- Task detail request fails
-- Task is missing/not found
-- Manual generation succeeds
-- Manual generation fails
-- Manual generation is clicked repeatedly while pending
-- Status update or comment submission fails
-- Mobile viewport still remains readable
+1. Inspect the current test framework and existing test file naming conventions.
+2. Identify the core service/policy/helper modules that already exist.
+3. Create a short plan listing the specific unit test files to add or expand.
+4. Add focused tests in the existing style.
+5. Prefer table-driven tests where they make status transitions or recommendation ordering clearer.
+6. Run the relevant unit tests.
+7. Run the full test suite if practical.
+8. Run typecheck/lint if available.
 
-# Tests
+Suggested test file targets, adjusted to match the actual repo structure:
 
-Add or update tests where practical based on the current setup.
+- `src/tests/unit/policies.test.ts`
+- `src/tests/unit/task-status-service.test.ts`
+- `src/tests/unit/generation-service.test.ts`
+- `src/tests/unit/recommendation-service.test.ts`
 
-Prefer focused tests such as:
+Only use these exact filenames if they match the project’s existing conventions. Otherwise follow the existing naming pattern.
 
-- Board page renders loading, empty, and error states
-- Activity feed renders empty and error states
-- Task detail handles missing/not-found task state
-- Manual generation button shows pending state and failure feedback
-- Filtered board empty state appears when filters hide all tasks
+# Edge cases to include
 
-If the current testing setup does not make a specific UI state easy to test, do not create a large new testing framework in this task. Instead, add the most valuable low-friction tests and clearly report what remains manual.
+Include at least several of these where applicable to the implemented code:
+
+- Empty duties list
+- User with multiple roles
+- Inactive user ignored by generation/recommendation inputs if that rule exists
+- Missing template owner
+- Multiple eligible recommendation candidates
+- Existing generated task for same board/date/template/user
+- Existing manual task for same user/date/title
+- Blank blocker reason
+- Whitespace-only blocker reason
+- Staff attempting manager-only approval
+- Manager approving task not ready for review, if the current rules reject that case
 
 # Done when
 
-- Board, task, generation, and activity surfaces no longer show blank or broken UI during loading, empty, or failed states.
-- Empty states use helpful operational copy and appropriate next actions.
-- Error states are visible, plain-language, and retryable where practical.
-- Pending states prevent confusing duplicate actions where relevant.
-- Mobile, tablet, and desktop layouts remain usable.
-- Existing workflows still work.
-- Relevant tests pass.
-- Lint/typecheck pass if available.
-- No unrelated files were changed.
-- Summarize:
-  - Files changed
-  - UI states added
-  - Tests run
-  - Manual checks performed
-  - Any remaining gaps
+- DB-053 has meaningful unit coverage for core services, not only superficial import tests.
+- Policy, generation helper, status transition, and recommendation behavior are covered where those modules exist.
+- Existing tests still pass.
+- New tests fail for realistic regressions in service behavior.
+- No unrelated UI, API, schema, or styling changes are included.
+- Any production-code changes are minimal, directly justified by failing tests, and explained.
+- The final Codex summary includes:
+  - Files added or changed
+  - Test cases added
+  - Any bugs discovered
+  - Any production fixes made, if any
+  - Commands run and results
+  - Anything not verified
