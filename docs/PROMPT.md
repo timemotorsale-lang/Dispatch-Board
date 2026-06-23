@@ -1,165 +1,132 @@
-# Task
+# Task: DB-051 Improve tablet and desktop board layout
 
-DB-050 Improve mobile staff task experience
+Read `docs/AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, and the relevant board/activity UI files before editing.
 
-# Goal
+Use the existing UI reference image if present, likely at `docs/images/UI_REFERENCE.png` or `UI_REFERENCE.png`, as visual guidance for board structure, spacing, dashboard feel, activity rail, and manager workflow.
 
-Refine the existing staff-facing task experience so a staff member can comfortably use the Dispatch Board from a phone-sized viewport during a normal workday.
+## Goal
 
-This task should improve fast reading, quick status changes, blocker updates, and comments on mobile without changing the underlying task workflow rules.
+Improve the tablet and desktop layout of the Dispatch Board so the main board, grouping controls, manager actions, and Today’s Activity Feed are easier to scan and use on larger screens.
 
-# Context
+This is a responsive UI polish task, not a backend/schema task.
 
-Read these files first:
+## Current behavior
 
-- `docs/AGENTS.md`
-- `docs/ROADMAP.md`
-- `docs/ARCHITECTURE.md`
-- `docs/PRODUCT_SPEC.md`
-- `docs/MVP_SCOPE.md`
-- Existing staff task view files
-- Existing task detail files
-- Existing task status/comment UI files
-- Existing board/task API or server-action files only as needed
-- `docs/images/UI_REFERENCE.png` or the project UI reference image if present
+The board works functionally, but the larger-screen experience needs refinement:
 
-Roadmap item:
+- Board spacing and density may not be optimized for tablet or desktop.
+- Grouping/filter controls may feel cramped, scattered, or visually heavy.
+- Today’s Activity Feed may not remain visible or useful enough on larger screens.
+- The layout may not fully match the approved mockup/reference structure.
+- The page may use space inefficiently on desktop or feel awkward on tablet.
 
-- `DB-050 Improve mobile staff task experience`
-- Scope: refine the mobile task view for fast reading, status changes, and comments.
-- Acceptance criteria: staff can update tasks comfortably from a phone-sized viewport.
+## Desired behavior
 
-Product/UX direction:
+Improve the board page layout for these breakpoints:
 
-- Mobile should prioritize:
-  - My tasks
-  - Quick status changes
-  - Task detail
-  - Blocker updates
-  - Comments
-  - Activity/feed access when available
-- Staff updates must stay low-friction.
-- The MVP is a responsive web app, not a native mobile app.
-- Preserve the existing server-side permission and validation rules.
+- Tablet: approximately 768px–1024px wide
+- Desktop: approximately 1280px and wider
+- Large desktop: approximately 1440px and wider
 
-# Current behavior to inspect
+The improved layout should:
 
-Before editing, inspect the current implementation and identify:
+1. Keep the full board readable and usable on tablet.
+2. Use desktop width efficiently without making task cards too stretched.
+3. Keep grouping controls visible, compact, and easy to understand.
+4. Make Today’s Activity Feed visible and useful on desktop, preferably as a right-side rail or persistent panel if the current structure supports it.
+5. Avoid horizontal overflow at all supported widths.
+6. Preserve the existing mobile experience from DB-050.
+7. Preserve all existing task actions, grouping modes, filters, status updates, comments, review actions, assignment controls, and activity-feed behavior.
+8. Better align the structure with the approved mockup/reference image.
 
-1. Where the staff “my tasks” page/view is implemented.
-2. Where task cards or task rows are rendered.
-3. Where task detail is rendered.
-4. Where status changes are submitted.
-5. Where blocker reason input appears.
-6. Where comments are displayed and added.
-7. Whether the layout has horizontal overflow or cramped controls at phone widths.
+## Implementation guidance
 
-Do not make code changes until you have identified the relevant files and written a short implementation plan.
+Before changing code:
 
-# Desired behavior
+1. Inspect the current board route/page composition.
+2. Identify the board layout components, task card components, grouping/filter controls, manager controls, and activity feed components.
+3. Identify existing responsive classes/styles and where tablet/desktop behavior is controlled.
+4. Briefly state the implementation plan before editing.
 
-At mobile widths, the staff task experience should feel like a focused daily work app:
+Focus the implementation on layout and styling:
 
-1. Staff can quickly see their own tasks first.
-2. Each task card should clearly show:
-   - Title
-   - Status
-   - Due time
-   - Workflow area or source, if available
-   - Vehicle/customer reference, if available
-   - Blocker/review state when relevant
-3. Primary actions should be easy to tap:
-   - Start / move to In Progress
-   - Mark Blocked
-   - Mark Waiting on Parts
-   - Mark Waiting on Approval
-   - Mark Ready for Review
-   - Complete when allowed
-   - Add comment/update
-4. Blocked status must still require a blocker reason.
-5. Approval-required tasks must still route through Ready for Review.
-6. Comments should be readable and easy to add without hunting through the page.
-7. Mobile layout must avoid horizontal scrolling.
-8. Important actions should remain visible without requiring the user to understand the full desktop board layout.
-9. Desktop and tablet layouts should not regress.
+- Prefer editing existing board/layout components instead of creating unnecessary new abstractions.
+- Use the project’s existing styling approach.
+- Do not add a new UI library.
+- Do not change API contracts, data models, task mutation logic, permissions, or activity event logic.
+- Keep board state and grouping behavior unchanged.
+- Do not remove visible information that managers need to run the day.
+- Do not bury important controls behind menus unless they are secondary controls.
+- Make the grouping/filter toolbar wrap cleanly on tablet.
+- Keep important manager actions reachable without excessive scrolling.
+- Keep task cards compact but readable.
+- Use consistent spacing, panel sizing, borders, and typography.
+- Prefer a clear desktop structure such as:
+  - Header / board summary area
+  - Grouping and filter toolbar
+  - Main board content
+  - Activity/review visibility area
+- On desktop, avoid the activity feed disappearing below the fold if a side rail is practical.
+- On tablet, avoid forcing a narrow three-column layout if it makes the board unreadable.
 
-# Implementation guidance
+## Suggested files to inspect
 
-Prefer a focused responsive refinement over a broad redesign.
+Actual file names may differ, but check likely areas such as:
 
-Suggested approach:
+- `src/app/board/**`
+- `src/features/board/**`
+- `src/features/activity/**`
+- `src/features/tasks/**`
+- `src/components/layout/**`
+- `src/components/ui/**`
+- existing CSS/Tailwind class usage
+- any existing tests for board, activity feed, or responsive behavior
 
-1. Inspect the current staff task components and reuse existing components where possible.
-2. Add or refine mobile-specific layout behavior using the project’s existing styling system.
-3. Consider a mobile-first task card layout:
-   - Compact task summary
-   - Clear status badge
-   - Due time near the top
-   - One primary status action area
-   - Secondary actions grouped or collapsed if space is tight
-4. Keep form controls large enough for phone use.
-5. Make comments and blocker reason inputs easy to reach from the task detail or task card.
-6. Avoid duplicating business logic in the UI.
-7. Keep status transition rules enforced by the existing server action/API.
-8. Avoid adding a new dependency unless absolutely necessary.
-9. Use the UI reference image for general structure, spacing, and visual direction, but do not force a pixel-perfect rewrite if it risks breaking existing functionality.
+## Constraints
 
-# Constraints
+- Preserve existing functionality.
+- Preserve existing mobile behavior.
+- Avoid unnecessary new components.
+- Avoid broad rewrites.
+- Avoid horizontal overflow.
+- Do not add dependencies unless absolutely necessary.
+- Do not change server-side business logic.
+- Do not change database schema.
+- Do not invent new product behavior outside DB-051.
+- Keep the patch focused and reviewable.
+- If a larger frontend refactor seems necessary, stop and explain why before doing it.
 
-- Keep the change scoped to DB-050.
-- Do not build a native mobile app.
-- Do not add PWA install behavior in this task.
-- Do not redesign the whole desktop board.
-- Do not change task status rules.
-- Do not weaken permission checks.
-- Do not bypass blocker-reason validation.
-- Do not allow staff to edit or reassign other staff members’ tasks.
-- Do not introduce unrelated backend/schema changes.
-- Do not add new dependencies unless you explain why first.
-- Preserve existing tests and existing desktop/tablet behavior.
-- Avoid horizontal overflow at common mobile widths.
+## Tests and verification
 
-# Suggested viewport checks
+Run the relevant checks available in the project, such as:
 
-Manually inspect or test at these widths if the project tooling allows:
-
-- 375px wide
-- 390px wide
-- 414px wide
-- 768px wide
-- Desktop width already used by the app
-
-# Tests / checks
-
-Run the relevant available commands, such as:
-
-- `npm test`
-- `npm run typecheck`
 - `npm run lint`
+- `npm run typecheck`
+- `npm test`
+- any existing component or e2e tests for the board
 
-If the project has browser or component tests for the staff task view, add or update focused coverage for mobile behavior where practical.
+If browser/e2e tooling exists, verify the board at these viewport sizes:
 
-At minimum, verify:
+- 768x1024
+- 1024x768
+- 1280x800
+- 1440x900
 
-1. Staff can view their own tasks on a phone-sized viewport.
-2. Staff can update an allowed status.
-3. Blocked still requires a blocker reason.
-4. Approval-required tasks still cannot be completed directly by staff.
-5. Staff can add a comment/update.
-6. No horizontal overflow appears on the staff task view or task detail page.
-7. Desktop/tablet board layout is not broken.
+If automated viewport testing does not exist, manually inspect these sizes and summarize what was checked.
 
-# Done when
+## Done when
 
-- DB-050 acceptance criteria are met.
-- Staff can update tasks comfortably from a phone-sized viewport.
-- The mobile staff task view is faster to scan and easier to act on.
-- Comments and blocker updates are easy to use on mobile.
-- Existing status, blocker, approval, and permission rules still work.
+- The board is readable and usable on tablet and desktop.
+- Grouping/filter controls remain visible and do not overflow.
+- Today’s Activity Feed has improved visibility on larger screens.
+- Task cards remain compact, readable, and scannable.
+- Existing task, grouping, filtering, review, assignment, comment, and activity-feed behavior still works.
+- Mobile behavior from DB-050 is not regressed.
 - No unrelated files were changed.
-- Relevant tests/checks pass, or any skipped check is clearly explained.
+- Relevant checks pass, or any skipped check is clearly explained.
 - Summarize:
   - Files changed
-  - Mobile UX improvements made
+  - Layout improvements made
+  - Viewports tested
   - Tests/checks run
-  - Any remaining limitations
+  - Any remaining UI polish risks
