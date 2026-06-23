@@ -340,6 +340,22 @@ export function BoardToolbar({
         </div>
       ) : null}
 
+      {!feedback && isGeneratePending ? (
+        <div className="notice board-feedback" role="status">
+          <p>
+            <strong>Generating board...</strong> This can take a moment. Repeated clicks are disabled until the run finishes.
+          </p>
+        </div>
+      ) : null}
+
+      {!feedback && isTaskPending ? (
+        <div className="notice board-feedback" role="status">
+          <p>
+            <strong>Creating task...</strong> Your task is being saved to the selected board date.
+          </p>
+        </div>
+      ) : null}
+
       {isManager && isCreateTaskOpen ? (
         <div className="board-modal-backdrop" role="presentation">
           <section

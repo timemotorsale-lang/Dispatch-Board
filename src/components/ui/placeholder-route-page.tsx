@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { EmptyStateCard } from "@/components/ui/state-card";
 
 type PlaceholderRoutePageProps = {
   eyebrow: string;
@@ -24,17 +24,15 @@ export function PlaceholderRoutePage({
       </div>
 
       <article className="panel-card placeholder-route-card">
-        <strong>Planned surface</strong>
-        <h2>Not implemented yet</h2>
-        <p>{note}</p>
-        <div className="hero-actions">
-          <Link className="pill pill-primary" href="/board">
-            Open board
-          </Link>
-          <Link className="pill pill-secondary" href="/my-tasks">
-            Open My Tasks
-          </Link>
-        </div>
+        <EmptyStateCard
+          actions={[
+            { href: "/board", label: "Open board" },
+            { href: "/my-tasks", label: "Open My Tasks", tone: "secondary" }
+          ]}
+          eyebrow="Planned surface"
+          message={note}
+          title="Not implemented yet"
+        />
       </article>
     </section>
   );

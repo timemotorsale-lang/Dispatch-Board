@@ -28,7 +28,8 @@ describe("task comments panel", () => {
       <TaskCommentsPanel canComment initialComments={[]} taskId="task-1" />
     );
 
-    expect(markup).toContain("No updates yet.");
+    expect(markup).toContain("No comments on this task");
+    expect(markup).toContain("Task updates will appear here");
     expect(markup).toContain("Add update");
     expect(markup).toContain("Plain text only. Line breaks are preserved.");
   });

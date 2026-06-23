@@ -2,13 +2,19 @@ import type { ReactNode } from "react";
 import { AlertCircle, CalendarDays, CheckCircle2, ChevronRight, CircleUserRound, Clock3, Layers3, Search, ShieldAlert, UsersRound } from "lucide-react";
 import Link from "next/link";
 
+import { EmptyStateCard } from "@/components/ui/state-card";
 import { formatBoardEnumLabel, type BoardFilters, type BoardGroupMode, type BoardPresentation } from "./board-grouping";
 import type { BoardReadModel, BoardReadTask } from "@/server/services/board-read";
 
 type Task = Omit<BoardReadTask, "assignedUser"> & { assignedUser: BoardReadTask["assignedUser"] | null };
 
 export function formatBoardDate(boardDate: string, short = false) {
-  return new Intl.DateTimeFormat("en-US", short ? { weekday: "short", month: "short", day: "numeric" } : { weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(new Date(`${boardDate}T00:00:00.000Z`));
+  return new Intl.DateTimeFormat(
+    "en-US",
+    short
+      ? { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }
+      : { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }
+  ).format(new Date(`${boardDate}T00:00:00.000Z`));
 }
 
 function formatTime(value: string) {
@@ -97,8 +103,51 @@ function TaskCard({ task }: { task: Task }) {
   return <article className="mobile-task-card"><header><div><strong>{task.title}</strong><span>{task.vehicleReference || task.customerReference || formatBoardEnumLabel(task.workflowArea)}</span></div><span className={statusClass(task.status)}>{formatBoardEnumLabel(task.status)}</span></header><dl><div><dt>Assigned</dt><dd>{task.assignedUser?.name ?? "Unassigned"}</dd></div><div><dt>Due</dt><dd>{formatTime(task.dueAt)} · {timeLeft(task.dueAt)}</dd></div><div><dt>Urgency</dt><dd className={taskUrgency.className}>{taskUrgency.label}</dd></div></dl>{task.blockerReason ? <p className="blocker-inline"><AlertCircle size={15} /> {task.blockerReason}</p> : null}<Link className="row-action" href={`/tasks/${task.id}`}>{task.status === "READY_FOR_REVIEW" ? "Review" : "Update"}</Link></article>;
 }
 
-export function TaskBoard({ presentation, boardDate }: { presentation: BoardPresentation; boardDate: string }) {
-  if (!presentation.filteredTasks.length) return <section className="task-board empty-board"><h2>No tasks match this view</h2><p>Adjust the filters to bring work back into view.</p></section>;
+export function TaskBoard({
+  boardDate,
+  isFiltered,
+  isManager,
+  presentation,
+  taskCount
+}: {
+  boardDate: string;
+  isFiltered: boolean;
+  isManager: boolean;
+  presentation: BoardPresentation;
+  taskCount: number;
+}) {
+  if (!presentation.filteredTasks.length) {
+    if (taskCount === 0) {
+      return (
+        <section className="task-board empty-board">
+          <EmptyStateCard
+            eyebrow="Board empty"
+            message={
+              isManager
+                ? "This board exists, but no tasks have been created for it yet. Generate the board again or add a manual task to get the day moving."
+                : "This board exists, but no work has been added yet. A manager can generate the board or create the first task."
+            }
+            title={`No tasks on ${formatBoardDate(boardDate, true)}`}
+          />
+        </section>
+      );
+    }
+
+    return (
+      <section className="task-board empty-board">
+        <EmptyStateCard
+          eyebrow="Filters applied"
+          message={
+            isFiltered
+              ? "No tasks match the current filters. Clear or widen the filters to bring work back into view."
+              : "No tasks are visible in this view right now."
+          }
+          title="No tasks match this view"
+        />
+      </section>
+    );
+  }
+
   return <section className="task-board"><header className="task-board-header"><div><span>Board tasks</span><h2>{formatBoardDate(boardDate, true)}</h2></div><small>{presentation.filteredTasks.length} tasks visible</small></header>
     <div className="desktop-task-table"><table><thead><tr><th>Item / Details</th><th>Workflow / Type</th><th>Assigned To</th><th>Status</th><th>Due / Time Left</th><th>Urgency</th><th>Next Action</th></tr></thead>{presentation.groups.map((group) => <tbody key={group.key}><tr className="table-group-row"><td colSpan={7}>{group.label}<span>{group.taskCount}</span></td></tr>{group.tasks.map((task) => { const taskUrgency = urgency(task); return <tr key={task.id} className="task-row"><td><strong>{task.title}</strong><span>{task.vehicleReference || task.customerReference || task.description || "No reference"}</span>{task.vehicleReference && task.customerReference ? <small>Customer: {task.customerReference}</small> : null}</td><td><span className="workflow-chip">{formatBoardEnumLabel(task.workflowArea)}</span><small>{formatBoardEnumLabel(task.sourceType)}</small></td><td><span className="assignee"><span className="mini-avatar">{task.assignedUser?.name[0] ?? "?"}</span>{task.assignedUser?.name ?? "Unassigned"}</span></td><td><span className={statusClass(task.status)}>{formatBoardEnumLabel(task.status)}</span></td><td><strong>{formatTime(task.dueAt)}</strong><small>{timeLeft(task.dueAt)}</small></td><td><span className={taskUrgency.className}>↑ {taskUrgency.label}</span></td><td><Link className="row-action" href={`/tasks/${task.id}`}>{task.status === "READY_FOR_REVIEW" ? "Review" : task.status === "BLOCKED" ? "Resolve" : "Update"}</Link></td></tr>; })}</tbody>)}</table></div>
     <div className="mobile-task-list">{presentation.groups.map((group) => <section key={group.key}><h3>{group.label}<span>{group.taskCount}</span></h3>{group.tasks.map((task) => <TaskCard key={task.id} task={task} />)}</section>)}</div>

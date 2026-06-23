@@ -230,6 +230,85 @@ textarea {
   background: rgba(254, 242, 242, 0.95);
 }
 
+.state-card {
+  display: grid;
+  gap: 1rem;
+  padding: 1.35rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+.state-card-danger {
+  border-color: rgba(220, 38, 38, 0.18);
+  background: rgba(254, 242, 242, 0.95);
+}
+
+.state-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 16px;
+  background: rgba(37, 99, 235, 0.12);
+  color: var(--brand-strong);
+}
+
+.state-card-danger .state-card-icon {
+  background: var(--danger-soft);
+  color: #991b1b;
+}
+
+.state-card-copy {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.state-card-copy h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.state-card-copy p {
+  max-width: 50rem;
+}
+
+.state-card-eyebrow {
+  color: var(--brand-strong);
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.state-card-danger .state-card-eyebrow {
+  color: #991b1b;
+}
+
+.state-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.state-card-spinner {
+  animation: state-card-spin 0.8s linear infinite;
+}
+
+.state-action-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+@keyframes state-card-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .auth-form,
 .settings-form,
 .field,

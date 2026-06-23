@@ -4,6 +4,7 @@ import Link from "next/link";
 import { TaskStatus } from "@prisma/client";
 import { useState } from "react";
 
+import { EmptyStateCard, ErrorStateCard } from "@/components/ui/state-card";
 import {
   filterMyTasks,
   getAllowedMyTaskStatuses,
@@ -36,7 +37,8 @@ function formatBoardDateLabel(boardDate: string) {
   return new Intl.DateTimeFormat("en-US", {
     month: "long",
     day: "numeric",
-    year: "numeric"
+    year: "numeric",
+    timeZone: "UTC"
   }).format(new Date(`${boardDate}T00:00:00.000Z`));
 }
 
@@ -442,25 +444,30 @@ export function MyTasksScreen({
       </div>
 
       {errorMessage ? (
-        <div className="notice notice-danger" role="alert">
-          <p>{errorMessage}</p>
-        </div>
+        <ErrorStateCard
+          actions={[{ label: "Refresh", onClick: () => window.location.reload() }]}
+          eyebrow="My Tasks unavailable"
+          message={`${errorMessage} Your previous work may still be saved.`}
+          title="Couldn't load your task list"
+        />
       ) : null}
 
       {!boardExists ? (
-        <div className="panel-card my-tasks-empty-card">
-          <strong>No board yet</strong>
-          <h2>Today&apos;s board has not been generated.</h2>
-          <p>Once the board exists, your assigned tasks will appear here automatically.</p>
-        </div>
+        <EmptyStateCard
+          actions={[{ href: fullBoardHref, label: "Open full board", tone: "secondary" }]}
+          eyebrow="No board yet"
+          message="Once the board exists, your assigned tasks will appear here automatically."
+          title="Today's board has not been generated"
+        />
       ) : null}
 
       {boardExists && tasks.length === 0 ? (
-        <div className="panel-card my-tasks-empty-card">
-          <strong>All clear</strong>
-          <h2>No tasks are assigned to you right now.</h2>
-          <p>Check the full board if you need broader context or want to confirm whether work was reassigned.</p>
-        </div>
+        <EmptyStateCard
+          actions={[{ href: fullBoardHref, label: "Check full board" }]}
+          eyebrow="All clear"
+          message="Check the full board if you need broader context or want to confirm whether work was reassigned."
+          title="No tasks are assigned to you right now"
+        />
       ) : null}
 
       {boardExists && tasks.length > 0 ? (
@@ -503,9 +510,11 @@ export function MyTasksScreen({
               </div>
 
               {visibleTasks.length === 0 ? (
-                <div className="notice board-empty-state" role="status">
-                  <p>No tasks match this filter right now.</p>
-                </div>
+                <EmptyStateCard
+                  eyebrow="Filter result"
+                  message="No tasks match this filter right now. Choose a different filter to bring work back into view."
+                  title="Nothing matches this task filter"
+                />
               ) : (
                 <div className="my-task-list">
                   {visibleTasks.map((task) => (
