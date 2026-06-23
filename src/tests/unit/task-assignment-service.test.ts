@@ -246,21 +246,74 @@ describe("task assignment service", () => {
       id: overrideUser?.id,
       name: overrideUser?.name
     });
+    expect(result).toMatchObject({
+      recommendedUser: {
+        id: "user-casey.mechanic@local.test",
+        name: "Casey Mechanic",
+        email: "casey.mechanic@local.test"
+      },
+      recommendationReasonCode: "ROLE_MATCH",
+      recommendationReasonText:
+        "Casey Mechanic is recommended because their role matches this template.",
+      recommendationReviewNeeded: false
+    });
     expect(readTask()).toMatchObject({
-      assignedUserId: overrideUser?.id
+      assignedUserId: overrideUser?.id,
+      recommendedUserId: "user-casey.mechanic@local.test",
+      recommendationReasonCode: "ROLE_MATCH",
+      recommendationReasonText:
+        "Casey Mechanic is recommended because their role matches this template.",
+      recommendationReviewNeeded: false,
+      title: "Inspect trade-in"
     });
     expect(readActivityEvents()).toMatchObject([
       {
+        actorUserId: managerUser?.id,
+        boardDayId: "board-day-1",
         eventType: ActivityEventType.ASSIGNMENT_CHANGED,
         message: `Recommendation overridden: assigned to ${overrideUser?.name}`,
         metadata: {
           assignedUserId: overrideUser?.id,
           mode: "override",
           previousAssignedUserId: "user-jordan.sales@local.test",
-          reason: "Better workload fit."
-        }
+          reason: "Better workload fit.",
+          recommendationReasonCode: "ROLE_MATCH",
+          recommendedUserId: "user-casey.mechanic@local.test"
+        },
+        taskId: "task-1"
       }
     ]);
+  });
+
+  it("rejects unknown assignees without changing the task or writing activity", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const managerUser = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { readActivityEvents, readTask, repository } = createAssignmentRepositoryHarness(
+      createAssignmentTask(),
+      [...usersByEmail.values()].map((user) => ({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        isActive: user.isActive
+      }))
+    );
+
+    await expect(
+      assignTask(
+        managerUser,
+        "task-1",
+        {
+          assignedUserId: "user-missing",
+          mode: "override"
+        },
+        repository
+      )
+    ).rejects.toThrow("Assigned user not found.");
+
+    expect(readTask()).toMatchObject({
+      assignedUserId: "user-jordan.sales@local.test"
+    });
+    expect(readActivityEvents()).toHaveLength(0);
   });
 
   it("lets managers reassign an already assigned task", async () => {

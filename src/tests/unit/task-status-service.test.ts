@@ -425,7 +425,7 @@ describe("task status service", () => {
   it("allows managers to send ready-for-review tasks back to in progress", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const managerUser = usersByEmail.get("morgan.manager@local.test") ?? null;
-    const { repository, readTask } = createTaskStatusRepository([
+    const { repository, readActivityEvents, readTask } = createTaskStatusRepository([
       createStoredTask({
         requiresManagerApproval: true,
         status: TaskStatus.READY_FOR_REVIEW,
@@ -453,6 +453,22 @@ describe("task status service", () => {
       completedAt: null,
       reviewedByUserId: null
     });
+    expect(readActivityEvents()).toEqual([
+      {
+        actorUserId: managerUser?.id ?? null,
+        boardDayId: "board-day-1",
+        eventType: ActivityEventType.STATUS_CHANGED,
+        message: "Status changed from Ready for Review to In Progress",
+        metadata: {
+          completedAt: null,
+          newStatus: TaskStatus.IN_PROGRESS,
+          previousStatus: TaskStatus.READY_FOR_REVIEW,
+          readyForReviewAt: null,
+          reviewedByUserId: null
+        },
+        taskId: "task-1"
+      }
+    ]);
   });
 
   it("rejects staff users who try to send ready-for-review tasks back to in progress", async () => {
@@ -481,7 +497,7 @@ describe("task status service", () => {
   it("allows staff to directly complete non-approval-required tasks assigned to them", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
-    const { repository, readTask } = createTaskStatusRepository();
+    const { repository, readActivityEvents, readTask } = createTaskStatusRepository();
 
     const result = await updateTaskStatus(
       staffUser,
@@ -500,5 +516,15 @@ describe("task status service", () => {
       completedAt: new Date("2026-06-18T15:30:00.000Z"),
       reviewedByUserId: null
     });
+    expect(readActivityEvents()).toMatchObject([
+      {
+        eventType: ActivityEventType.STATUS_CHANGED,
+        message: "Status changed from In Progress to Completed"
+      },
+      {
+        eventType: ActivityEventType.TASK_COMPLETED,
+        message: "Task marked Completed"
+      }
+    ]);
   });
 });

@@ -39,6 +39,7 @@ function createActivityFeedRepositoryHarness(options: {
     }>
   >;
 } = {}) {
+  const listedBoardDayIds: string[] = [];
   const boardDays =
     options.boardDays?.map((boardDay) => ({
       id: boardDay.id,
@@ -74,11 +75,15 @@ function createActivityFeedRepositoryHarness(options: {
       );
     },
     async listActivityEventsForBoardDay(boardDayId) {
+      listedBoardDayIds.push(boardDayId);
       return eventsByBoardDayId.get(boardDayId) ?? [];
     }
   };
 
   return {
+    readListedBoardDayIds() {
+      return [...listedBoardDayIds];
+    },
     repository
   };
 }
@@ -209,6 +214,52 @@ describe("activity feed service", () => {
       boardDayId: null,
       events: []
     });
+    expect(harness.readListedBoardDayIds()).toHaveLength(0);
+  });
+
+  it("scopes activity events to the selected board date only", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const harness = createActivityFeedRepositoryHarness({
+      boardDays: [
+        {
+          id: "board-day-selected",
+          date: "2026-06-21"
+        },
+        {
+          id: "board-day-other",
+          date: "2026-06-22"
+        }
+      ],
+      eventsByBoardDayId: {
+        "board-day-selected": [
+          {
+            id: "activity-event-selected",
+            message: "Selected day event",
+            createdAt: "2026-06-21T15:00:00.000Z"
+          }
+        ],
+        "board-day-other": [
+          {
+            id: "activity-event-other",
+            message: "Other day event",
+            createdAt: "2026-06-22T15:00:00.000Z"
+          }
+        ]
+      }
+    });
+
+    const result = await getActivityFeedForDate(manager, "2026-06-21", {
+      repository: harness.repository
+    });
+
+    expect(harness.readListedBoardDayIds()).toEqual(["board-day-selected"]);
+    expect(result.events).toEqual([
+      expect.objectContaining({
+        id: "activity-event-selected",
+        message: "Selected day event"
+      })
+    ]);
   });
 
   it("rejects invalid feed dates before querying events", async () => {
