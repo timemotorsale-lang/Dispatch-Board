@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   filterMyTasks,
   getAllowedMyTaskStatuses,
+  getPrimaryMyTaskStatusActions,
   getTasksAssignedToUser
 } from "@/features/tasks/my-tasks-helpers";
 import type { BoardReadTask } from "@/server/services/board-read";
@@ -90,5 +91,19 @@ describe("my tasks helpers", () => {
 
     expect(options.map((option) => option.value)).toContain(TaskStatus.READY_FOR_REVIEW);
     expect(options.map((option) => option.value)).not.toContain(TaskStatus.COMPLETED);
+  });
+
+  it("builds mobile quick actions without the task's current status", () => {
+    const actions = getPrimaryMyTaskStatusActions(
+      {
+        status: TaskStatus.IN_PROGRESS,
+        requiresManagerApproval: false
+      },
+      false
+    );
+
+    expect(actions.map((action) => action.value)).not.toContain(TaskStatus.IN_PROGRESS);
+    expect(actions.map((action) => action.value)).toContain(TaskStatus.BLOCKED);
+    expect(actions.map((action) => action.value)).toContain(TaskStatus.COMPLETED);
   });
 });

@@ -89,7 +89,7 @@ export function TaskCommentsPanel({
   }
 
   return (
-    <article className="panel-card task-comments-card">
+    <article className="panel-card task-comments-card" id="task-updates">
       <div className="task-comments-header">
         <div>
           <strong>Updates</strong>

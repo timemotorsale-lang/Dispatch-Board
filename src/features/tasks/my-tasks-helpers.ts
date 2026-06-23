@@ -139,6 +139,15 @@ export function getAllowedMyTaskStatuses(
   return options;
 }
 
+export function getPrimaryMyTaskStatusActions(
+  task: Pick<BoardReadTask, "status" | "requiresManagerApproval">,
+  actorIsManager: boolean
+) {
+  return getAllowedMyTaskStatuses(task, actorIsManager).filter(
+    (statusOption) => statusOption.value !== task.status
+  );
+}
+
 export function getTaskActionLabel(
   nextStatus: TaskStatus,
   currentStatus: TaskStatus,

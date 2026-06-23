@@ -8,6 +8,7 @@ import {
   filterMyTasks,
   getAllowedMyTaskStatuses,
   getMyTasksFilterOptions,
+  getPrimaryMyTaskStatusActions,
   getTaskActionLabel,
   type MyTasksFilter
 } from "@/features/tasks/my-tasks-helpers";
@@ -141,6 +142,7 @@ function TaskCard({ isManager, now, onTaskUpdated, task }: TaskCardProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const hasStatusChoices = allowedStatuses.length > 0;
+  const primaryStatusActions = getPrimaryMyTaskStatusActions(task, isManager);
   const buttonLabel = getTaskActionLabel(
     selectedStatus,
     task.status as TaskStatus,
@@ -196,6 +198,15 @@ function TaskCard({ isManager, now, onTaskUpdated, task }: TaskCardProps) {
     }
   }
 
+  function handleQuickAction(status: TaskStatus) {
+    setSelectedStatus(status);
+    setErrorMessage(null);
+
+    if (status !== TaskStatus.BLOCKED) {
+      void submitStatusUpdate({ status });
+    }
+  }
+
   return (
     <article className="panel-card my-task-card">
       <div className="my-task-topline">
@@ -206,9 +217,14 @@ function TaskCard({ isManager, now, onTaskUpdated, task }: TaskCardProps) {
           </div>
           {task.description ? <p>{task.description}</p> : null}
         </div>
-        <Link className="pill pill-secondary" href={`/tasks/${task.id}`}>
-          Open
-        </Link>
+        <div className="my-task-card-links">
+          <Link className="pill pill-secondary" href={`/tasks/${task.id}`}>
+            Detail
+          </Link>
+          <Link className="pill pill-muted" href={`/tasks/${task.id}#task-updates`}>
+            Update
+          </Link>
+        </div>
       </div>
 
       <div className="my-task-meta-grid">
@@ -242,6 +258,30 @@ function TaskCard({ isManager, now, onTaskUpdated, task }: TaskCardProps) {
 
       {hasStatusChoices ? (
         <div className="my-task-action-grid">
+          {primaryStatusActions.length > 0 ? (
+            <div className="my-task-quick-actions" aria-label={`Quick status actions for ${task.title}`}>
+              {primaryStatusActions.map((statusOption) => (
+                <button
+                  className={
+                    statusOption.value === selectedStatus
+                      ? "my-task-action-chip my-task-action-chip-active"
+                      : "my-task-action-chip"
+                  }
+                  disabled={isSubmitting}
+                  key={statusOption.value}
+                  onClick={() => handleQuickAction(statusOption.value)}
+                  type="button"
+                >
+                  {getTaskActionLabel(
+                    statusOption.value,
+                    task.status as TaskStatus,
+                    task.requiresManagerApproval
+                  )}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
           <label className="field">
             <span>Next action</span>
             <select
