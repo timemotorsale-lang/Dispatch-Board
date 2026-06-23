@@ -62,6 +62,24 @@ enum GenerationTriggerType {
   MANUAL
 }
 
+enum ActivityEventType {
+  DAILY_BOARD_GENERATED
+  TASK_CREATED
+  TASK_ASSIGNED
+  ASSIGNMENT_RECOMMENDATION_MADE
+  ASSIGNMENT_CHANGED
+  DUE_TIME_CHANGED
+  STATUS_CHANGED
+  TASK_BLOCKED
+  BLOCKER_REASON_ADDED
+  TASK_WAITING_ON_PARTS
+  TASK_WAITING_ON_APPROVAL
+  TASK_READY_FOR_REVIEW
+  MANAGER_APPROVED_COMPLETION
+  TASK_COMPLETED
+  COMMENT_ADDED
+}
+
 // Placeholder model for the v0.1.0 foundation migration.
 // Domain models are intentionally deferred to later milestones.
 model BootstrapMarker {
@@ -89,6 +107,7 @@ model User {
   reviewedTasks           Task[]          @relation("TaskReviewedByUser")
   authoredTaskComments    TaskComment[]   @relation("TaskCommentAuthorUser")
   triggeredGenerationRuns GenerationRun[] @relation("GenerationRunTriggeredByUser")
+  activityEvents          ActivityEvent[] @relation("ActivityEventActorUser")
 
   @@index([isActive])
 }
@@ -204,6 +223,7 @@ model BoardDay {
   updatedAt         DateTime              @updatedAt
   generatedByUser   User?                 @relation("BoardDayGeneratedByUser", fields: [generatedByUserId], references: [id], onDelete: SetNull)
   tasks             Task[]
+  activityEvents    ActivityEvent[]
 }
 
 model Task {
@@ -237,6 +257,7 @@ model Task {
   sourceTemplate          TaskTemplate?  @relation("TaskSourceTemplate", fields: [sourceTemplateId], references: [id], onDelete: SetNull)
   sourceDuty              Duty?          @relation("TaskSourceDuty", fields: [sourceDutyId], references: [id], onDelete: SetNull)
   comments                TaskComment[]
+  activityEvents          ActivityEvent[]
 
   @@unique([boardDayId, sourceTemplateId, assignedUserId])
   @@index([boardDayId, status])
@@ -255,6 +276,24 @@ model TaskComment {
 
   @@index([taskId])
   @@index([taskId, createdAt])
+}
+
+model ActivityEvent {
+  id          String            @id @default(cuid())
+  boardDayId  String
+  actorUserId String?
+  taskId      String?
+  eventType   ActivityEventType
+  message     String
+  metadata    Json              @default("{}")
+  createdAt   DateTime          @default(now())
+  boardDay    BoardDay          @relation(fields: [boardDayId], references: [id], onDelete: Cascade)
+  actorUser   User?             @relation("ActivityEventActorUser", fields: [actorUserId], references: [id], onDelete: SetNull)
+  task        Task?             @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([boardDayId, createdAt])
+  @@index([taskId])
+  @@index([actorUserId])
 }
 
 model GenerationRun {
