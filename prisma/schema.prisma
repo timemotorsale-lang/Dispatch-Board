@@ -88,6 +88,7 @@ model User {
   createdTasks            Task[]          @relation("TaskCreatedByUser")
   reviewedTasks           Task[]          @relation("TaskReviewedByUser")
   authoredTaskComments    TaskComment[]   @relation("TaskCommentAuthorUser")
+  activityEvents          ActivityEvent[]
   triggeredGenerationRuns GenerationRun[] @relation("GenerationRunTriggeredByUser")
 
   @@index([isActive])
@@ -203,6 +204,7 @@ model BoardDay {
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
   generatedByUser   User?                 @relation("BoardDayGeneratedByUser", fields: [generatedByUserId], references: [id], onDelete: SetNull)
+  activityEvents    ActivityEvent[]
   tasks             Task[]
 }
 
@@ -236,6 +238,7 @@ model Task {
   reviewedByUser          User?          @relation("TaskReviewedByUser", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
   sourceTemplate          TaskTemplate?  @relation("TaskSourceTemplate", fields: [sourceTemplateId], references: [id], onDelete: SetNull)
   sourceDuty              Duty?          @relation("TaskSourceDuty", fields: [sourceDutyId], references: [id], onDelete: SetNull)
+  activityEvents          ActivityEvent[]
   comments                TaskComment[]
 
   @@unique([boardDayId, sourceTemplateId, assignedUserId])
@@ -255,6 +258,23 @@ model TaskComment {
 
   @@index([taskId])
   @@index([taskId, createdAt])
+}
+
+model ActivityEvent {
+  id          String   @id @default(cuid())
+  boardDayId  String
+  actorUserId String?
+  taskId      String?
+  eventType   String
+  message     String
+  metadata    Json
+  createdAt   DateTime @default(now())
+  boardDay    BoardDay  @relation(fields: [boardDayId], references: [id], onDelete: Cascade)
+  actorUser   User?     @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  task        Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([boardDayId, createdAt])
+  @@index([taskId])
 }
 
 model GenerationRun {

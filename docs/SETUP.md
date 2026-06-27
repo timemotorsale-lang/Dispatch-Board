@@ -103,9 +103,15 @@ Use your deployment platform's scheduler or cron job to call that endpoint at th
 npm run lint
 npm run typecheck
 npm test
+npx playwright install chromium
+npm run test:e2e
 npm run build
 npm run db:validate
 ```
+
+The end-to-end workflow test resets board, task, comment, activity, generation-run,
+and session data in the configured database before it runs. Use a dedicated local
+test database if you need to preserve development data.
 
 ## Troubleshooting
 

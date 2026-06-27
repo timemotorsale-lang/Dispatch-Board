@@ -1,174 +1,116 @@
 # Task
 
-DB-054 Add integration tests for API and validation
+Implement DB-055 — Add end-to-end tests for daily workflow
 
 # Goal
 
-Add integration tests that exercise API/server-action behavior at the route or request boundary, focusing on authentication, authorization, validation, and common mutation failure cases.
+Add browser-level end-to-end coverage for the main Time Motor Sales Dispatch Board daily workflow.
 
-This task should harden the existing API behavior without changing production behavior unless a test reveals a clear bug that must be fixed minimally.
+The tests should prove that the MVP can be used in a real daily flow:
 
-# Context
+1. Manager logs in.
+2. Manager opens today’s board.
+3. Manager triggers or verifies daily board generation.
+4. Generated tasks appear without duplicates.
+5. Staff logs in and updates their own task.
+6. Staff adds a comment/update.
+7. Staff marks a task as Blocked with a blocker reason.
+8. Manager sees the blocked task and related activity.
+9. Staff moves an approval-required task to Ready for Review.
+10. Manager approves or completes the review-required task.
+11. Today’s Activity Feed shows the important workflow events.
 
-Read these first:
+# Classification
+
+Test-only work.
+
+This task should primarily add end-to-end tests and test setup. Do not redesign UI, change business rules, or refactor production workflows unless a tiny testability change is required.
+
+# Read first
+
+Read these files before editing:
 
 - `docs/AGENTS.md`
 - `docs/ARCHITECTURE.md`
 - `docs/ROADMAP.md`
-- `docs/PRODUCT_SPEC.md`
 - `docs/MVP_SCOPE.md`
-- Existing integration test setup under `src/tests/integration` if present
-- Existing API route/server-action files under `src/app/api`, `src/server`, and related feature folders
-- Existing unit tests from DB-053, especially policy, task status, generation, and recommendation tests
+- `docs/PRODUCT_SPEC.md`
+- `docs/SETUP.md` if it exists
+- `README.md`
+- `package.json`
+- Existing test files under `src/tests/`
+- Existing auth, board, generation, task, review, and activity files
 
-Relevant roadmap item:
-
-- `DB-054 Add integration tests for API and validation`
-- Scope: cover route-level auth, validation, and common mutation failures.
-- Acceptance: API behavior stays consistent under expected failure cases.
-
-Relevant architecture expectations:
-
-- Validate all API input server-side.
-- Require due time for created tasks.
-- Require blocker reason when moving a task to `Blocked`.
-- Return permission errors consistently.
-- Staff can update their own assigned tasks but cannot mutate another staff member’s task.
-- Only managers can reassign tasks, override recommendations, and complete approval-required tasks.
-- Important task changes should create activity events.
+Also inspect the existing app routes and test setup before choosing where to place the E2E tests.
 
 # Current behavior
 
-The project already has unit-level coverage for core services from DB-053.
+The project should already have unit and integration coverage for core services, API validation, permissions, generation, status transitions, review, and visibility from earlier tasks.
 
-However, unit tests alone do not prove that the actual API/request boundaries enforce the same rules. DB-054 should verify that callers cannot bypass validation or permissions by hitting the API layer directly.
+However, the main daily workflow is not yet protected by browser-level tests that exercise the app like a real manager or staff member.
 
 # Desired behavior
 
-Add focused integration tests for the existing API/server-action boundaries. Prefer testing through the same request helpers, route handlers, or server action entrypoints that the app uses in production.
+Add end-to-end tests that run against the app in a browser and cover the main daily workflow.
 
-Cover the most important failure and success paths that prove API behavior is stable:
+Prefer the existing browser test framework if one already exists.
 
-1. Auth / route-level access
-   - Unauthenticated requests to protected mutation endpoints are rejected.
-   - Staff requests to manager-only endpoints are rejected.
-   - Manager requests to manager-only endpoints succeed when input is valid.
+If no E2E framework exists, add the smallest practical Playwright setup as a dev dependency and explain why it is needed.
 
-2. Manual task creation validation
-   - Creating a manual task with valid required fields succeeds.
-   - Creating a manual task without a due time is rejected.
-   - Creating a manual task without a title is rejected.
-   - Staff-created tasks cannot assign work to someone else unless existing production rules explicitly allow it.
+# Scope
 
-3. Status update validation
-   - Staff can update their own assigned task through the API.
-   - Staff cannot update another staff member’s task.
-   - Moving a task to `Blocked` without a meaningful blocker reason is rejected.
-   - Moving a task to `Blocked` with a meaningful blocker reason succeeds.
-   - Approval-required tasks cannot be completed directly by staff.
-   - Approval-required tasks can move to `Ready for Review` through the expected path.
+## In scope
 
-4. Manager review and assignment mutations
-   - Manager can reassign a task or override a recommendation through the API.
-   - Staff cannot reassign tasks or override recommendations.
-   - Manager can complete a review-required task from `Ready for Review`.
-   - Invalid review transitions return a clear error.
+- E2E test configuration if missing.
+- A deterministic E2E test database/setup/reset approach.
+- Test helpers for logging in as manager and staff.
+- Test helpers for navigating to today’s board, triggering generation, finding task cards, updating status, adding comments, and checking the activity feed.
+- Browser-level tests for the daily workflow.
+- Minimal accessibility labels or `data-testid` attributes only where selectors would otherwise be brittle.
+- Package scripts such as `test:e2e` if missing.
+- Setup documentation updates for running E2E tests.
 
-5. Comments and activity, if the endpoints already exist
-   - Adding a valid task comment persists the comment.
-   - Empty or blank comments are rejected.
-   - Successful mutations that are expected to emit activity events actually create activity records.
-   - Failed validation/permission requests should not create activity events.
+## Out of scope
 
-6. Board/generation/activity read endpoints, if practical with existing helpers
-   - Board read endpoint rejects unauthenticated access if protected by the app.
-   - Activity feed endpoint validates date input if date filtering exists.
-   - Manual generation endpoint requires manager permission.
-
-# Constraints
-
-- Keep this as a test-focused task.
-- Do not redesign API routes, auth, services, validation, policies, or database schema.
-- Do not rewrite existing unit tests from DB-053.
-- Do not add new dependencies unless the current test setup cannot reasonably exercise route handlers; explain the need before adding anything.
-- Prefer existing test utilities, factories, seeded users, Prisma test setup, and helper patterns.
-- Keep test data isolated and deterministic.
-- Clean up test data between tests using the project’s existing pattern.
-- Use stable dates and explicit test users so tests do not depend on the current day unless the existing helper requires it.
-- Assert response status/error shape consistently with existing API conventions.
-- Avoid brittle assertions on full response payloads when only status/error behavior matters.
-- Do not weaken validation or permission checks just to make tests pass.
-- If a production bug is discovered, make the smallest possible fix and add the regression test that proves it.
+- Do not redesign UI.
+- Do not change the visual layout except for harmless testability/accessibility attributes.
+- Do not rewrite auth, task, board, generation, review, or activity services.
+- Do not replace existing test frameworks.
+- Do not add third-party integrations.
+- Do not hide or weaken real failures just to make tests pass.
+- Do not make broad production fixes in this test-only issue.
 
 # Implementation guidance
 
-Before editing, inspect the current test infrastructure and answer these questions in your own plan:
+## 1. Inspect first
 
-1. What integration test pattern already exists?
-2. Are API routes tested through `Request`/route handlers, server actions, or service wrappers?
-3. How are authenticated manager and staff users simulated?
-4. How is the test database seeded or reset?
-5. Which endpoints already exist and which ones should not be tested yet because they are not implemented?
+Before editing, identify:
 
-Then implement the smallest useful integration suite.
+- Existing test framework and scripts.
+- Existing seed/test data strategy.
+- Existing seeded manager and staff credentials.
+- Existing routes for login, board, task detail, staff task view, review queue, generation, and activity feed.
+- Existing stable selectors or accessible labels.
+- Any current E2E or integration test helpers that can be reused.
 
-Suggested file locations, adjusted to match the actual repo:
+Then implement the smallest test setup that fits the current repository.
 
-- `src/tests/integration/auth-api.test.ts`
-- `src/tests/integration/tasks-api.test.ts`
-- `src/tests/integration/task-status-api.test.ts`
-- `src/tests/integration/manager-actions-api.test.ts`
-- `src/tests/integration/activity-api.test.ts`
+## 2. Test framework
 
-Use fewer files if the existing project style prefers one integration file per workflow.
+Use the existing E2E framework if present.
 
-Prefer these test groups:
+If no browser-level test framework exists, use Playwright with minimal configuration:
 
-## Task creation API
+- Add `@playwright/test` as a dev dependency.
+- Add `playwright.config.ts`.
+- Configure the app base URL from environment variables when possible.
+- Configure `webServer` to start the local dev or production preview server if the repo has a reliable command.
+- Keep browser matrix minimal at first, likely Chromium only, unless the repo already supports more.
 
-- rejects unauthenticated create task request
-- allows manager to create task with title, assignment, due time, and workflow area
-- rejects missing title
-- rejects missing due time
-- rejects staff-created task assigned to another user, if that is currently prohibited by production rules
+Add scripts such as:
 
-## Task status API
-
-- rejects unauthenticated status update
-- allows staff to update own task to `In Progress`
-- rejects staff updating another user’s task
-- rejects `Blocked` without blocker reason
-- accepts `Blocked` with blocker reason
-- rejects staff direct completion of approval-required task
-- accepts `Ready for Review` for approval-required task
-
-## Manager actions API
-
-- rejects staff reassignment/override request
-- allows manager reassignment/override request
-- allows manager completion of `Ready for Review` approval-required task
-- rejects invalid manager transition if applicable
-
-## Comments/activity API
-
-- rejects blank comment
-- persists valid comment
-- creates activity event for successful comment or status change
-- does not create activity event when validation fails
-
-# Done when
-
-- DB-054 integration tests are added under the existing test structure.
-- Tests exercise API/request boundaries, not just isolated service functions.
-- Tests cover route-level auth, validation failures, permission failures, and important successful mutations.
-- Existing DB-053 unit tests still pass.
-- The relevant integration test command passes.
-- Typecheck and lint pass if available.
-- No unrelated production behavior is changed.
-- Any necessary minimal production fix is explained clearly.
-- Summarize:
-  - Files changed
-  - Integration scenarios added
-  - Production fixes, if any
-  - Commands run
-  - Any endpoints intentionally skipped because they are not implemented yet
+```json
+{
+  "test:e2e": "playwright test",
+  "test:e2e:ui": "playwright test --ui"
+}

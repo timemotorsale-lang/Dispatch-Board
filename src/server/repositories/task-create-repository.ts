@@ -83,6 +83,7 @@ export type CreateTaskRecordInput = {
 };
 
 export type TaskCreateRepository = {
+  supportsActivityEvents?: boolean;
   createTask(input: CreateTaskRecordInput): Promise<CreatedTaskRecord>;
   findAssignedUserById(userId: string): Promise<TaskCreateAssignedUserRecord | null>;
   getOrCreateBoardDay(boardDate: string): Promise<BoardDay>;
@@ -96,6 +97,7 @@ export function createTaskCreateRepository(
   database: TaskCreateDatabase = prisma
 ): TaskCreateRepository {
   return {
+    supportsActivityEvents: true,
     async createTask(input) {
       return database.task.create({
         data: {

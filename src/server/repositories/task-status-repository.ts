@@ -6,6 +6,8 @@ type TaskStatusDatabase = Pick<PrismaClient, "task">;
 
 const taskStatusSelect = {
   id: true,
+  boardDayId: true,
+  title: true,
   assignedUserId: true,
   requiresManagerApproval: true,
   status: true,
@@ -20,6 +22,20 @@ export type TaskStatusRecord = Prisma.TaskGetPayload<{
   select: typeof taskStatusSelect;
 }>;
 
+export type TaskStatusLookupRecord = {
+  id: string;
+  assignedUserId: string;
+  requiresManagerApproval: boolean;
+  status: TaskStatus;
+  blockerReason: string | null;
+  readyForReviewAt: Date | null;
+  completedAt: Date | null;
+  reviewedByUserId: string | null;
+  updatedAt: Date;
+  boardDayId?: string;
+  title?: string;
+};
+
 export type TaskStatusUpdateData = {
   status: TaskStatus;
   blockerReason?: string;
@@ -29,12 +45,14 @@ export type TaskStatusUpdateData = {
 };
 
 export type TaskStatusRepository = {
-  findTaskById(taskId: string): Promise<TaskStatusRecord | null>;
-  updateTaskStatus(taskId: string, data: TaskStatusUpdateData): Promise<TaskStatusRecord>;
+  supportsActivityEvents?: boolean;
+  findTaskById(taskId: string): Promise<TaskStatusLookupRecord | null>;
+  updateTaskStatus(taskId: string, data: TaskStatusUpdateData): Promise<TaskStatusLookupRecord>;
 };
 
 export function createTaskStatusRepository(database: TaskStatusDatabase = prisma): TaskStatusRepository {
   return {
+    supportsActivityEvents: true,
     async findTaskById(taskId) {
       return database.task.findUnique({
         where: {

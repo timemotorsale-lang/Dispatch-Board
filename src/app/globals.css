@@ -1504,7 +1504,7 @@ code {
 .board-hero .board-toolbar-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
 .board-hero .pill { min-height: 38px; padding: 0 13px; border-radius: 6px; font-size: 10px; font-weight: 700; white-space: nowrap; }
 .board-hero .pill-action { color: #fff; background: #075ad9; border-color: #075ad9; box-shadow: 0 6px 15px rgba(7,90,217,.18); }
-.board-hero .board-feedback { position: fixed; top: 86px; right: 20px; z-index: 50; max-width: 360px; padding: 10px 14px; border-radius: 7px; }
+.board-hero .board-feedback { position: fixed; right: 20px; bottom: 20px; z-index: 50; max-width: 360px; padding: 10px 14px; border-radius: 7px; pointer-events: none; }
 
 .metric-strip { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 8px; }
 .metric-card { display: grid; grid-template-columns: 36px minmax(0,1fr); align-items: start; gap: 9px; min-height: 88px; padding: 12px; background: #fff; border: 1px solid #e2e7ef; border-radius: 7px; box-shadow: 0 3px 12px rgba(27,45,72,.035); }

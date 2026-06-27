@@ -1,4 +1,5 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { recordBoardActivityEvent } from "@/server/services/activity-feed";
 import { canUpdateAssignedWork } from "@/server/policies/access";
 import {
   createTaskCommentRepository,
@@ -120,6 +121,19 @@ export async function createTaskComment(
     authenticatedUser.id,
     normalizedInput.body
   );
+
+  if (repository.supportsActivityEvents && task.boardDayId && task.title) {
+    await recordBoardActivityEvent({
+      boardDayId: task.boardDayId,
+      actorUserId: authenticatedUser.id,
+      taskId: normalizedTaskId,
+      eventType: "task.comment_added",
+      message: `${authenticatedUser.name} added an update to ${task.title}.`,
+      metadata: {
+        taskTitle: task.title
+      }
+    });
+  }
 
   return toTaskCommentModel(comment);
 }

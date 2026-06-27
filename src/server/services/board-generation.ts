@@ -3,6 +3,7 @@ import { BusinessDay, GenerationRunStatus } from "@prisma/client";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { canManageBoardGeneration } from "@/server/policies/access";
 import { createGenerationTasksRepository } from "@/server/repositories/generation-tasks-repository";
+import { recordBoardActivityEvent } from "@/server/services/activity-feed";
 import {
   getGenerationSettings,
   type GenerationSettings
@@ -215,6 +216,23 @@ async function runBoardGenerationForDate(
       }
     );
     const latestGeneration = await getLatestGenerationStatusForDate(normalizedBoardDate, repository);
+
+    if (repository.supportsActivityEvents) {
+      await recordBoardActivityEvent({
+        boardDayId: result.boardDayId,
+        actorUserId: options.triggeredByUserId,
+        eventType: "board.generated",
+        message:
+          options.triggeredBy === "manual"
+            ? `Board generated manually for ${normalizedBoardDate}.`
+            : `Board generated automatically for ${normalizedBoardDate}.`,
+        metadata: {
+          createdTaskCount: result.createdTaskCount,
+          skippedExistingTaskCount: result.skippedExistingTaskCount,
+          triggeredBy: options.triggeredBy
+        }
+      });
+    }
 
     return {
       status: "success",

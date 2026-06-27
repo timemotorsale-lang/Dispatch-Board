@@ -2,8 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { TaskCommentsPanel } from "@/features/tasks/task-comments-panel";
+import { TaskStatusPanel } from "@/features/tasks/task-status-panel";
 import { canUpdateAssignedWork } from "@/server/policies/access";
 import { requireCurrentUser } from "@/server/auth/current-user";
+import { isManager } from "@/server/policies/access";
 import { getTaskReadModelById } from "@/server/services/task-read";
 
 function formatStatusLabel(status: string) {
@@ -44,6 +46,7 @@ export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
     requiresManagerApproval: task.requiresManagerApproval,
     requestedAction: "comment"
   });
+  const canUpdateStatus = isManager(user) || user.id === task.assignedUser.id;
 
   return (
     <section className="page-stack dashboard-page board-page task-detail-page">
@@ -145,6 +148,7 @@ export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
         </dl>
       </article>
 
+      <TaskStatusPanel actorIsManager={isManager(user)} canUpdate={canUpdateStatus} task={task} />
       <TaskCommentsPanel canComment={canComment} initialComments={task.comments} taskId={task.id} />
     </section>
   );

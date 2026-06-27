@@ -2,6 +2,7 @@ import { TaskStatus } from "@prisma/client";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { canUpdateAssignedWork, isManager } from "@/server/policies/access";
+import { recordBoardActivityEvent } from "@/server/services/activity-feed";
 import {
   createTaskStatusRepository,
   type TaskStatusRepository
@@ -151,6 +152,36 @@ function buildTaskStatusUpdateData(
   };
 }
 
+function buildTaskStatusActivityMessage(
+  actor: AuthenticatedUser,
+  task: {
+    title?: string;
+    requiresManagerApproval: boolean;
+  },
+  nextStatus: TaskStatus,
+  blockerReason?: string | null
+) {
+  const taskTitle = task.title ?? "this task";
+
+  if (nextStatus === TaskStatus.BLOCKED) {
+    return `${actor.name} marked ${taskTitle} blocked${blockerReason ? `: ${blockerReason}` : "."}`;
+  }
+
+  if (nextStatus === TaskStatus.READY_FOR_REVIEW) {
+    return `${actor.name} marked ${taskTitle} ready for review.`;
+  }
+
+  if (nextStatus === TaskStatus.COMPLETED && task.requiresManagerApproval) {
+    return `${actor.name} approved completion for ${taskTitle}.`;
+  }
+
+  if (nextStatus === TaskStatus.COMPLETED) {
+    return `${actor.name} completed ${taskTitle}.`;
+  }
+
+  return `${actor.name} updated ${taskTitle} to ${nextStatus.toLowerCase().replace(/_/g, " ")}.`;
+}
+
 function toTaskStatusUpdateResult(task: {
   id: string;
   status: TaskStatus;
@@ -186,6 +217,25 @@ export async function updateTaskStatus(
     normalizedTaskId,
     buildTaskStatusUpdateData(authenticatedUser, task, normalizedInput)
   );
+
+  if (repository.supportsActivityEvents && task.boardDayId) {
+    await recordBoardActivityEvent({
+      boardDayId: task.boardDayId,
+      actorUserId: authenticatedUser.id,
+      taskId: normalizedTaskId,
+      eventType: `task.${normalizedInput.status.toLowerCase()}`,
+      message: buildTaskStatusActivityMessage(
+        authenticatedUser,
+        task,
+        normalizedInput.status,
+        normalizedInput.blockerReason ?? null
+      ),
+      metadata: {
+        nextStatus: normalizedInput.status,
+        previousStatus: task.status
+      }
+    });
+  }
 
   return toTaskStatusUpdateResult(updatedTask);
 }

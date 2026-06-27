@@ -6,6 +6,8 @@ type TaskCommentDatabase = Pick<PrismaClient, "task" | "taskComment">;
 
 const taskCommentTaskSelect = {
   id: true,
+  boardDayId: true,
+  title: true,
   assignedUserId: true,
   requiresManagerApproval: true
 } satisfies Prisma.TaskSelect;
@@ -29,12 +31,21 @@ export type TaskCommentTaskRecord = Prisma.TaskGetPayload<{
   select: typeof taskCommentTaskSelect;
 }>;
 
+export type TaskCommentTaskLookupRecord = {
+  id: string;
+  assignedUserId: string;
+  requiresManagerApproval: boolean;
+  boardDayId?: string;
+  title?: string;
+};
+
 export type TaskCommentRecord = Prisma.TaskCommentGetPayload<{
   select: typeof taskCommentSelect;
 }>;
 
 export type TaskCommentRepository = {
-  findTaskById(taskId: string): Promise<TaskCommentTaskRecord | null>;
+  supportsActivityEvents?: boolean;
+  findTaskById(taskId: string): Promise<TaskCommentTaskLookupRecord | null>;
   listCommentsForTask(taskId: string): Promise<TaskCommentRecord[]>;
   createComment(taskId: string, authorUserId: string, body: string): Promise<TaskCommentRecord>;
 };
@@ -43,6 +54,7 @@ export function createTaskCommentRepository(
   database: TaskCommentDatabase = prisma
 ): TaskCommentRepository {
   return {
+    supportsActivityEvents: true,
     async findTaskById(taskId) {
       return database.task.findUnique({
         where: {

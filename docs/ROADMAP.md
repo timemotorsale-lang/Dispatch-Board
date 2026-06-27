@@ -174,7 +174,7 @@ This repository does not have the app scaffold yet, so the most practical build 
 | DB-052 | [ ]    | Add loading, empty, and error states               | Cover core board, task, generation, and activity surfaces with honest UI states.  | Users can tell when the app is loading, empty, or failing instead of seeing broken UI. |
 | DB-053 | [ ]    | Add unit tests for core services                   | Expand unit coverage for policies, generation helpers, and recommendation rules.  | Service-level regressions are caught before full workflow tests run.                   |
 | DB-054 | [ ]    | Add integration tests for API and validation       | Cover route-level auth, validation, and common mutation failures.                 | API behavior stays consistent under expected failure cases.                            |
-| DB-055 | [ ]    | Add end-to-end tests for daily workflow            | Test login, generation, task updates, blockers, review, and activity visibility.  | The main daily workflow passes in browser-level testing.                               |
+| DB-055 | [x]    | Add end-to-end tests for daily workflow            | Test login, generation, task updates, blockers, review, and activity visibility.  | The main daily workflow passes in browser-level testing.                               |
 | DB-056 | [ ]    | Finalize README, setup docs, and release checklist | Finish project docs, local commands, environment guidance, and MVP release steps. | Another developer can set up, run, test, and understand the app from the docs.         |
 
 

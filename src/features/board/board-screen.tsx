@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { EmptyStateCard, ErrorStateCard, LoadingStateCard } from "@/components/ui/state-card";
+import type { ActivityFeedEvent } from "@/server/services/activity-feed";
 import type { BoardReadModel } from "@/server/services/board-read";
 import type { ActiveUserSummary } from "@/server/services/user-summary";
 
@@ -33,6 +34,7 @@ type BoardScreenProps = {
 };
 
 type BoardApiPayload = { date: string; board: BoardReadModel | null; error?: string };
+type ActivityApiPayload = { date: string; events: ActivityFeedEvent[]; error?: string };
 type BoardLoadState =
   | { status: "loading"; date: string }
   | { status: "ready"; date: string; board: BoardReadModel }
@@ -107,6 +109,7 @@ export function BoardScreen({
   const [reloadCount, setReloadCount] = useState(0);
   const [groupMode, setGroupMode] = useState<BoardGroupMode>("assignee");
   const [filters, setFilters] = useState<BoardFilters>(DEFAULT_BOARD_FILTERS);
+  const [activityEvents, setActivityEvents] = useState<ActivityFeedEvent[]>([]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -156,6 +159,33 @@ export function BoardScreen({
 
     return () => controller.abort();
   }, [reloadCount, selectedBoardDate, todayBoardDate]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadActivity() {
+      try {
+        const response = await fetch(`/api/activity?date=${encodeURIComponent(selectedBoardDate)}`, {
+          signal: controller.signal
+        });
+        const payload = (await response.json().catch(() => null)) as ActivityApiPayload | null;
+
+        if (controller.signal.aborted || !response.ok || !payload) {
+          return;
+        }
+
+        setActivityEvents(payload.events);
+      } catch {
+        if (!controller.signal.aborted) {
+          setActivityEvents([]);
+        }
+      }
+    }
+
+    void loadActivity();
+
+    return () => controller.abort();
+  }, [reloadCount, selectedBoardDate]);
 
   const board = loadState.status === "ready" ? loadState.board : null;
   const presentation = board ? getBoardPresentation(board.tasks, groupMode, filters) : null;
@@ -239,7 +269,7 @@ export function BoardScreen({
                 taskCount={board.taskCount}
               />
             </div>
-            <OperationalRail tasks={presentation.filteredTasks} />
+            <OperationalRail recentActivity={activityEvents} tasks={presentation.filteredTasks} />
           </div>
         </>
       ) : null}

@@ -77,6 +77,7 @@ export type FailGenerationRunInput = {
 };
 
 export type GenerationTasksRepository = {
+  supportsActivityEvents?: boolean;
   getOrCreateBoardDay(boardDate: string): Promise<BoardDayRecord>;
   listExistingGeneratedTasks(boardDayId: string): Promise<ExistingGeneratedTaskRecord[]>;
   countManualTasks(boardDayId: string): Promise<number>;
@@ -95,6 +96,7 @@ export function createGenerationTasksRepository(
   database: GenerationTasksDatabase = prisma
 ): GenerationTasksRepository {
   return {
+    supportsActivityEvents: true,
     async getOrCreateBoardDay(boardDate) {
       return database.boardDay.upsert({
         where: {
