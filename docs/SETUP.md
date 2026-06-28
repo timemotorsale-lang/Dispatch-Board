@@ -1,12 +1,13 @@
 # Setup
 
-This project now includes the v0.2.0 identity, roles, and permissions foundation for the Time Motor Sales Dispatch Board.
+This guide is for setting up the Time Motor Sales Dispatch Board locally for development, testing, and MVP verification.
 
 ## Prerequisites
 
 - Node.js 24 or newer
 - npm 11 or newer
 - PostgreSQL 15 or newer
+- Chromium available for Playwright end-to-end tests
 
 ## Install dependencies
 
@@ -14,11 +15,11 @@ This project now includes the v0.2.0 identity, roles, and permissions foundation
 npm install
 ```
 
-## Environment variables
+## Environment setup
 
 1. Copy `.env.example` to `.env`.
-2. Update `DATABASE_URL` for your local PostgreSQL instance.
-3. Set `CRON_SECRET` to a long random value before exposing the scheduled generation route.
+2. Update the values for your local machine.
+3. Do not commit `.env` or any real secrets.
 
 Example:
 
@@ -27,10 +28,28 @@ DATABASE_URL="postgresql://postgres:postgres@localhost:5432/dispatch_board?schem
 CRON_SECRET="replace-with-a-long-random-secret"
 ```
 
+### Required variables
+
+- `DATABASE_URL`
+  Points Prisma and the app at your PostgreSQL database.
+- `CRON_SECRET`
+  Protects the scheduled generation endpoint at `/api/cron/generate-board`.
+
+### Optional local test variables
+
+- `PLAYWRIGHT_BASE_URL`
+  Overrides the default local E2E URL of `http://127.0.0.1:3000`.
+
 ## Database setup
 
-1. Create a local PostgreSQL database named `dispatch_board`.
-2. Run the initial Prisma migration:
+1. Create a local PostgreSQL database. The examples in this repo use `dispatch_board`.
+2. Apply migrations:
+
+```bash
+npm run db:migrate
+```
+
+If you want to apply already-checked-in migrations without creating a new local migration, use:
 
 ```bash
 npm run db:migrate:deploy
@@ -42,22 +61,23 @@ npm run db:migrate:deploy
 npm run db:generate
 ```
 
-4. Run the seed command:
+4. Seed local development data:
 
 ```bash
 npm run db:seed
 ```
 
-The seed now creates:
+5. Optional validation check:
 
-- Day-one roles
-- Starter duties and role default duties
-- Local development manager and staff users
-- Direct user duty assignments
+```bash
+npm run db:validate
+```
 
-## Local development login accounts
+## Seeded local users
 
-All seeded local users share this password:
+The development seed creates day-one roles, duties, task templates, app settings, and local users.
+
+All active seeded users share this local-only password:
 
 ```text
 dispatch123!
@@ -65,58 +85,166 @@ dispatch123!
 
 Seeded accounts:
 
-- `morgan.manager@local.test` — General Manager
-- `riley.inventory@local.test` — Inventory Manager
-- `casey.mechanic@local.test` — Mechanic
-- `jordan.sales@local.test` — Salesperson
-- `avery.ops@local.test` — Office Manager + Marketing/Advertisement Manager
-- `quinn.collections@local.test` — Collections
+- `morgan.manager@local.test` - General Manager
+- `riley.inventory@local.test` - Inventory Manager
+- `casey.mechanic@local.test` - Mechanic
+- `jordan.sales@local.test` - Salesperson
+- `avery.ops@local.test` - Office Manager and Marketing/Advertisement Manager
+- `quinn.collections@local.test` - Collections
 
-Inactive test account:
+Inactive seeded account:
 
-- `jamie.inactive@local.test` — Salesperson, blocked from login
+- `jamie.inactive@local.test` - Salesperson
 
-## Local development
+## Run the app
 
-Start the app:
+Start the development server:
 
 ```bash
 npm run dev
 ```
 
-The home page should render the current identity milestone overview, and `board`, `tasks`, and `settings` should redirect to `login` until you sign in with a seeded account.
+Local URL:
+
+- [http://127.0.0.1:3000](http://127.0.0.1:3000)
+
+Current local workflow highlights:
+
+- `/login` supports the seeded local accounts.
+- `/board` shows the current board workflow surface.
+- `/my-tasks` gives staff a focused view of their own tasks.
+- `/tasks/[id]` shows task details, status updates, and comments.
+- `/activity` shows today's event-backed activity feed.
+- `/settings` allows managers to change generation time, timezone, and business days.
 
 ## Scheduled generation
 
-The app now exposes a secured scheduled-generation endpoint at `/api/cron/generate-board`.
+The app exposes a protected scheduled-generation route at:
 
-Call it with either:
+- `/api/cron/generate-board`
+
+Provide either of these headers:
 
 - `Authorization: Bearer <CRON_SECRET>`
 - `x-cron-secret: <CRON_SECRET>`
 
-Use your deployment platform's scheduler or cron job to call that endpoint at the desired local time. The route resolves the board date from the configured app timezone and skips non-business days that are not enabled in settings.
+The route uses the configured app timezone and skips days that are not enabled in app settings.
 
-## Quality commands
+## Quality and verification commands
+
+Install:
+
+```bash
+npm install
+```
+
+Development:
+
+```bash
+npm run dev
+```
+
+Build:
+
+```bash
+npm run build
+```
+
+Lint:
 
 ```bash
 npm run lint
+```
+
+Typecheck:
+
+```bash
 npm run typecheck
+```
+
+Unit and integration tests:
+
+```bash
 npm test
+```
+
+End-to-end tests:
+
+```bash
 npx playwright install chromium
 npm run test:e2e
-npm run build
+```
+
+Useful database commands:
+
+```bash
+npm run db:migrate
+npm run db:migrate:deploy
+npm run db:generate
+npm run db:seed
 npm run db:validate
 ```
 
-The end-to-end workflow test resets board, task, comment, activity, generation-run,
-and session data in the configured database before it runs. Use a dedicated local
-test database if you need to preserve development data.
+## Reset local database safely
+
+If you need a clean local database:
+
+1. Stop the app and test runners.
+2. Drop or recreate only your local development database.
+3. Re-run:
+
+```bash
+npm run db:migrate
+npm run db:generate
+npm run db:seed
+```
+
+Do not point destructive local reset steps at a shared or production database.
 
 ## Troubleshooting
 
-- If `npm` is blocked by PowerShell execution policy, use `npm.cmd` from PowerShell instead.
-- If Prisma commands fail, confirm `.env` exists and `DATABASE_URL` points to a reachable PostgreSQL database.
-- If migrations fail on a fresh database, make sure the target database exists before running the deploy command.
-- If the Prisma client appears stale after schema changes, run `npm run db:generate` again.
+### Database connection fails
 
+- Confirm PostgreSQL is running.
+- Confirm the database named in `DATABASE_URL` exists.
+- Recheck username, password, host, port, and schema in `.env`.
+
+### Prisma client is missing or stale
+
+Run:
+
+```bash
+npm run db:generate
+```
+
+### Port 3000 is already in use
+
+- Stop the other local server using port `3000`, or
+- Run the app on a different port and set `PLAYWRIGHT_BASE_URL` if you also plan to run E2E tests against it.
+
+### Tests fail because the database is not migrated or seeded
+
+Run:
+
+```bash
+npm run db:migrate
+npm run db:generate
+npm run db:seed
+```
+
+### Playwright browser dependencies are missing
+
+Run:
+
+```bash
+npx playwright install chromium
+```
+
+### Scheduled generation returns unauthorized
+
+- Confirm `CRON_SECRET` is set in `.env`.
+- Confirm the request sends either the bearer token or the `x-cron-secret` header.
+
+### PowerShell blocks npm execution
+
+If PowerShell policy gets in the way, use `npm.cmd` instead of `npm` for local commands.
