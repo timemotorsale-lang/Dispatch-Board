@@ -1231,6 +1231,43 @@ code {
   margin: 0;
 }
 
+.manager-review-card {
+  border: 1px solid rgba(109, 40, 217, 0.12);
+}
+
+.manager-review-note {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 18px;
+  background: rgba(248, 250, 252, 0.92);
+}
+
+.manager-review-note span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.manager-review-note p {
+  margin: 0;
+  color: var(--ink);
+}
+
+.manager-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.manager-review-notice {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
 .my-tasks-content-grid {
   grid-template-columns: minmax(0, 1.6fr) minmax(260px, 0.8fr);
 }

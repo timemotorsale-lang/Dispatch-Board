@@ -154,7 +154,7 @@ This repository does not have the app scaffold yet, so the most practical build 
 | DB-045 | [ ]    | Implement recommendation matching rules        | Add direct-duty, role, template, and workflow-area recommendation order.                       | The service returns the expected recommended user and reason path.   |
 | DB-046 | [x]    | Persist recommendation reason codes and text   | Store explanation data alongside recommendation output for later UI display.                   | Recommendation results include a human-readable explanation.         |
 | DB-047 | [x]    | Add manager reassignment and override endpoint | Let managers accept or override recommendations and reassign tasks safely.                     | Managers can change assignments without bypassing server-side rules. |
-| DB-048 | [ ]    | Add review queue and approval UI               | Surface `Ready for Review` tasks and allow managers to approve or reopen them.                 | Managers can complete or return review-required tasks from the UI.   |
+| DB-048 | [x]    | Add review queue and approval UI               | Surface `Ready for Review` tasks and allow managers to approve or reopen them.                 | Managers can complete or return review-required tasks from the UI.   |
 | DB-049 | [ ]    | Add review and visibility tests                | Cover event creation, recommendation order, override flow, and manager approval behavior.      | Review and visibility workflows are protected by automated tests.    |
 
 

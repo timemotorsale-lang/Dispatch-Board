@@ -161,7 +161,8 @@ test("manager and staff can complete the daily dispatch workflow", async ({ page
   const blockedTaskRow = page.getByRole("row").filter({ hasText: generatedSalesTask!.title });
   await expect(blockedTaskRow.getByText("Blocked", { exact: true })).toBeVisible();
 
-  await page.goto(`/tasks/${approvalTask!.id}`);
+  await page.goto("/manager-review");
+  await expect(page.getByRole("heading", { name: "Manager Review" })).toBeVisible();
   await page.getByRole("button", { name: "Approve completion" }).click();
   await expect.poll(async () => {
     const payload = await readTodayBoard(page);

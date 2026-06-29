@@ -70,8 +70,7 @@ export const navigationGroups: NavigationGroup[] = [
         href: "/manager-review",
         title: "Manager Review",
         description: "Approval and attention queue.",
-        icon: ClipboardCheck,
-        placeholder: true
+        icon: ClipboardCheck
       },
       {
         href: "/activity",
