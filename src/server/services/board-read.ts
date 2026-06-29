@@ -19,6 +19,11 @@ type BoardReadUserSummary = {
   email?: string;
 };
 
+type BoardReadRecommendation = {
+  reasonCode: string;
+  explanation: string;
+};
+
 export type BoardReadTask = {
   id: string;
   title: string;
@@ -30,6 +35,7 @@ export type BoardReadTask = {
   requiresManagerApproval: boolean;
   assignedUser: BoardReadUserSummary;
   recommendedUser: BoardReadUserSummary | null;
+  recommendation: BoardReadRecommendation | null;
   vehicleReference: string | null;
   customerReference: string | null;
   blockerReason: string | null;
@@ -91,6 +97,14 @@ function toUserSummary(
 }
 
 function toTaskSummary(task: BoardReadTaskRecord): BoardReadTask {
+  const recommendation =
+    task.recommendationReasonCode && task.recommendationExplanation
+      ? {
+          reasonCode: task.recommendationReasonCode,
+          explanation: task.recommendationExplanation
+        }
+      : null;
+
   return {
     id: task.id,
     title: task.title,
@@ -106,6 +120,7 @@ function toTaskSummary(task: BoardReadTaskRecord): BoardReadTask {
       email: task.assignedUser.email || undefined
     },
     recommendedUser: toUserSummary(task.recommendedUser),
+    recommendation,
     vehicleReference: normalizeOptionalText(task.vehicleReference),
     customerReference: normalizeOptionalText(task.customerReference),
     blockerReason: normalizeOptionalText(task.blockerReason),

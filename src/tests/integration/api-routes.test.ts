@@ -116,6 +116,8 @@ type WorkflowTask = {
   description: string;
   assignedUserId: string;
   recommendedUserId: string | null;
+  recommendationReasonCode: string | null;
+  recommendationExplanation: string | null;
   status: TaskStatus;
   dueAt: Date;
   createdByUserId: string | null;
@@ -262,6 +264,8 @@ function createRouteHarness(authUsers: AuthenticatedUser[]) {
         description: input.description,
         assignedUserId: input.assignedUserId,
         recommendedUserId: null,
+        recommendationReasonCode: null,
+        recommendationExplanation: null,
         status: input.status,
         dueAt: input.dueAt,
         createdByUserId: input.createdByUserId,
@@ -381,7 +385,9 @@ function createRouteHarness(authUsers: AuthenticatedUser[]) {
           readyForReviewAt: task.readyForReviewAt,
           completedAt: task.completedAt,
           assignedUser: requireValue(userSummary(task.assignedUserId), "Assignee is required."),
-          recommendedUser: userSummary(task.recommendedUserId)
+          recommendedUser: userSummary(task.recommendedUserId),
+          recommendationReasonCode: task.recommendationReasonCode,
+          recommendationExplanation: task.recommendationExplanation
         }));
     }
   };
@@ -427,6 +433,8 @@ function createRouteHarness(authUsers: AuthenticatedUser[]) {
         description: input.description,
         assignedUserId: input.assignedUserId,
         recommendedUserId: input.recommendedUserId,
+        recommendationReasonCode: input.recommendationReasonCode,
+        recommendationExplanation: input.recommendationExplanation,
         status: TaskStatus.NOT_STARTED,
         dueAt: input.dueAt,
         createdByUserId: input.createdByUserId,
@@ -452,6 +460,8 @@ function createRouteHarness(authUsers: AuthenticatedUser[]) {
         title: task.title,
         assignedUserId: task.assignedUserId,
         recommendedUserId: task.recommendedUserId,
+        recommendationReasonCode: task.recommendationReasonCode,
+        recommendationExplanation: task.recommendationExplanation,
         dueAt: task.dueAt,
         sourceTemplateId: task.sourceTemplateId,
         sourceDutyId: task.sourceDutyId,
@@ -535,6 +545,8 @@ function createRouteHarness(authUsers: AuthenticatedUser[]) {
         description: "",
         assignedUserId: input.assignedUserId,
         recommendedUserId: null,
+        recommendationReasonCode: null,
+        recommendationExplanation: null,
         status: input.status ?? TaskStatus.NOT_STARTED,
         dueAt,
         createdByUserId: null,

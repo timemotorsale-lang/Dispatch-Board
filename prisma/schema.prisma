@@ -215,6 +215,8 @@ model Task {
   description             String         @default("")
   assignedUserId          String
   recommendedUserId       String?
+  recommendationReasonCode String?
+  recommendationExplanation String?
   status                  TaskStatus     @default(NOT_STARTED)
   dueAt                   DateTime
   createdByUserId         String?

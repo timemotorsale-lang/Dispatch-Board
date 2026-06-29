@@ -28,6 +28,8 @@ describe("prisma schema constraints", () => {
     expect(boardDayModel).toMatch(/date\s+DateTime\s+@unique\s+@db\.Date/);
 
     expect(taskModel).toMatch(/assignedUserId\s+String\b/);
+    expect(taskModel).toMatch(/recommendationReasonCode\s+String\?/);
+    expect(taskModel).toMatch(/recommendationExplanation\s+String\?/);
     expect(taskModel).toMatch(/dueAt\s+DateTime\b/);
     expect(taskModel).toMatch(/@@unique\(\[boardDayId,\s*sourceTemplateId,\s*assignedUserId\]\)/);
     expect(taskModel).toMatch(/@@index\(\[boardDayId,\s*status\]\)/);

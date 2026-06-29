@@ -63,6 +63,7 @@ const boardPayload = {
           email: "riley.inventory@local.test"
         },
         recommendedUser: null,
+        recommendation: null,
         vehicleReference: null,
         customerReference: null,
         blockerReason: null,

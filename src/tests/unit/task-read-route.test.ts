@@ -59,6 +59,7 @@ describe("task read route", () => {
         email: "jordan.sales@local.test"
       },
       recommendedUser: null,
+      recommendation: null,
       createdByUser: {
         id: "user-morgan.manager@local.test",
         name: "Morgan Manager",

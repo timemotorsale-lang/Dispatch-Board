@@ -40,6 +40,8 @@ const taskReadSelect = {
       email: true
     }
   },
+  recommendationReasonCode: true,
+  recommendationExplanation: true,
   createdByUser: {
     select: {
       id: true,

@@ -36,6 +36,8 @@ type StoredTask = {
   description: string;
   assignedUserId: string;
   recommendedUserId: string | null;
+  recommendationReasonCode: string | null;
+  recommendationExplanation: string | null;
   status: TaskStatus;
   dueAt: Date;
   createdByUserId: string | null;
@@ -218,6 +220,8 @@ function createGenerationTasksRepositoryHarness(
         description: input.description,
         assignedUserId: input.assignedUserId,
         recommendedUserId: input.recommendedUserId,
+        recommendationReasonCode: input.recommendationReasonCode,
+        recommendationExplanation: input.recommendationExplanation,
         status: TaskStatus.NOT_STARTED,
         dueAt: input.dueAt,
         createdByUserId: input.createdByUserId,
@@ -237,6 +241,8 @@ function createGenerationTasksRepositoryHarness(
         title: createdTask.title,
         assignedUserId: createdTask.assignedUserId,
         recommendedUserId: createdTask.recommendedUserId,
+        recommendationReasonCode: createdTask.recommendationReasonCode,
+        recommendationExplanation: createdTask.recommendationExplanation,
         dueAt: createdTask.dueAt,
         sourceTemplateId: createdTask.sourceTemplateId,
         sourceDutyId: createdTask.sourceDutyId,

@@ -38,6 +38,8 @@ export type CreatedGeneratedTaskReference = {
   title: string;
   assignedUserId: string;
   recommendedUserId: string | null;
+  recommendationReasonCode: string | null;
+  recommendationExplanation: string | null;
   dueAt: Date;
   sourceTemplateId: string | null;
   sourceDutyId: string | null;
@@ -71,6 +73,11 @@ export type GenerationRunSummary = Pick<
 
 type GeneratedTaskCandidate = CreateGeneratedTaskInput & {
   identityKey: string;
+};
+
+type RecommendationDetails = {
+  reasonCode: string | null;
+  explanation: string | null;
 };
 
 type NormalizedTriggerMetadata = {
@@ -156,6 +163,34 @@ function normalizeTriggerMetadata(options: CreateMissingGeneratedTasksOptions): 
 
 function toSummaryTrigger(triggeredBy: GenerationTriggerType): "manual" | "scheduled" {
   return triggeredBy === GenerationTriggerType.MANUAL ? "manual" : "scheduled";
+}
+
+function buildRecommendationDetails(template: GenerationInput["users"][number]["templates"][number]) {
+  if (template.matchedByDuty && template.dutyId && template.dutyName) {
+    if (template.roleId && template.roleName) {
+      return {
+        reasonCode: "ROLE_DEFAULT_DUTY_MATCH",
+        explanation: `Recommended because this task matches the ${template.dutyName} duty provided by the ${template.roleName} role.`
+      } satisfies RecommendationDetails;
+    }
+
+    return {
+      reasonCode: "DIRECT_DUTY_MATCH",
+      explanation: `Recommended because this task matches the direct duty ${template.dutyName}.`
+    } satisfies RecommendationDetails;
+  }
+
+  if (template.matchedByRole && template.roleName) {
+    return {
+      reasonCode: "ROLE_MATCH",
+      explanation: `Recommended because this task template is tied to the ${template.roleName} role.`
+    } satisfies RecommendationDetails;
+  }
+
+  return {
+    reasonCode: null,
+    explanation: null
+  } satisfies RecommendationDetails;
 }
 
 function toSafeErrorMessage(error: unknown) {
@@ -251,20 +286,26 @@ function buildGeneratedTaskCandidates(
   const createdByUserId = normalizeCreatedByUserId(options.createdByUserId);
 
   return generationInput.users.flatMap<GeneratedTaskCandidate>((user) =>
-    user.templates.map((template) => ({
-      identityKey: buildGeneratedTaskIdentityKey(boardDayId, template.templateId, user.userId),
-      boardDayId,
-      title: template.title,
-      description: template.description ?? "",
-      assignedUserId: user.userId,
-      recommendedUserId: user.userId,
-      dueAt: toDueAt(boardDate, template.defaultDueTime),
-      createdByUserId,
-      requiresManagerApproval: template.requiresManagerApproval,
-      sourceTemplateId: template.templateId,
-      sourceDutyId: template.dutyId,
-      workflowArea: template.workflowArea
-    }))
+    user.templates.map((template) => {
+      const recommendation = buildRecommendationDetails(template);
+
+      return {
+        identityKey: buildGeneratedTaskIdentityKey(boardDayId, template.templateId, user.userId),
+        boardDayId,
+        title: template.title,
+        description: template.description ?? "",
+        assignedUserId: user.userId,
+        recommendedUserId: user.userId,
+        recommendationReasonCode: recommendation.reasonCode,
+        recommendationExplanation: recommendation.explanation,
+        dueAt: toDueAt(boardDate, template.defaultDueTime),
+        createdByUserId,
+        requiresManagerApproval: template.requiresManagerApproval,
+        sourceTemplateId: template.templateId,
+        sourceDutyId: template.dutyId,
+        workflowArea: template.workflowArea
+      };
+    })
   );
 }
 
@@ -274,6 +315,8 @@ function toCreatedTaskReference(task: CreatedGeneratedTaskRecord): CreatedGenera
     title: task.title,
     assignedUserId: task.assignedUserId,
     recommendedUserId: task.recommendedUserId,
+    recommendationReasonCode: task.recommendationReasonCode,
+    recommendationExplanation: task.recommendationExplanation,
     dueAt: task.dueAt,
     sourceTemplateId: task.sourceTemplateId,
     sourceDutyId: task.sourceDutyId,

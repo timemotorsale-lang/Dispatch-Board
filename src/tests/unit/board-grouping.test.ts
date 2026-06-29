@@ -30,6 +30,7 @@ function createTask(id: string, overrides: BoardTaskOverrides = {}): GroupableBo
       name: `User ${id}`
     },
     recommendedUser: null,
+    recommendation: null,
     vehicleReference: null,
     customerReference: null,
     blockerReason: null,

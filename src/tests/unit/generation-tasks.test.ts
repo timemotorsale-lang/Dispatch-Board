@@ -34,6 +34,8 @@ type StoredTask = {
   description: string;
   assignedUserId: string;
   recommendedUserId: string | null;
+  recommendationReasonCode: string | null;
+  recommendationExplanation: string | null;
   status: TaskStatus;
   dueAt: Date;
   createdByUserId: string | null;
@@ -245,6 +247,8 @@ function createGenerationTasksHarness(
         description: input.description,
         assignedUserId: input.assignedUserId,
         recommendedUserId: input.recommendedUserId,
+        recommendationReasonCode: input.recommendationReasonCode,
+        recommendationExplanation: input.recommendationExplanation,
         status: TaskStatus.NOT_STARTED,
         dueAt: input.dueAt,
         createdByUserId: input.createdByUserId,
@@ -264,6 +268,8 @@ function createGenerationTasksHarness(
         title: createdTask.title,
         assignedUserId: createdTask.assignedUserId,
         recommendedUserId: createdTask.recommendedUserId,
+        recommendationReasonCode: createdTask.recommendationReasonCode,
+        recommendationExplanation: createdTask.recommendationExplanation,
         dueAt: createdTask.dueAt,
         sourceTemplateId: createdTask.sourceTemplateId,
         sourceDutyId: createdTask.sourceDutyId,
@@ -389,6 +395,9 @@ describe("generation tasks service", () => {
         title: "Review inventory status",
         assignedUserId: "user-inventory",
         recommendedUserId: "user-inventory",
+        recommendationReasonCode: "ROLE_DEFAULT_DUTY_MATCH",
+        recommendationExplanation:
+          "Recommended because this task matches the Review inventory status duty provided by the Inventory Manager role.",
         dueAt: new Date("2026-06-17T09:00:00.000Z"),
         sourceTemplateId: "template-inventory",
         sourceDutyId: "duty-inventory",
@@ -399,6 +408,9 @@ describe("generation tasks service", () => {
         title: "Follow up with assigned leads",
         assignedUserId: "user-sales",
         recommendedUserId: "user-sales",
+        recommendationReasonCode: "DIRECT_DUTY_MATCH",
+        recommendationExplanation:
+          "Recommended because this task matches the direct duty Follow up with assigned leads.",
         dueAt: new Date("2026-06-17T15:30:00.000Z"),
         sourceTemplateId: "template-sales-duty",
         sourceDutyId: "duty-sales",
@@ -413,6 +425,9 @@ describe("generation tasks service", () => {
         description: "Check stale and ready-for-sale units.",
         assignedUserId: "user-inventory",
         recommendedUserId: "user-inventory",
+        recommendationReasonCode: "ROLE_DEFAULT_DUTY_MATCH",
+        recommendationExplanation:
+          "Recommended because this task matches the Review inventory status duty provided by the Inventory Manager role.",
         status: TaskStatus.NOT_STARTED,
         dueAt: new Date("2026-06-17T09:00:00.000Z"),
         createdByUserId: "user-manager",
@@ -427,6 +442,9 @@ describe("generation tasks service", () => {
         description: "",
         assignedUserId: "user-sales",
         recommendedUserId: "user-sales",
+        recommendationReasonCode: "DIRECT_DUTY_MATCH",
+        recommendationExplanation:
+          "Recommended because this task matches the direct duty Follow up with assigned leads.",
         status: TaskStatus.NOT_STARTED,
         dueAt: new Date("2026-06-17T15:30:00.000Z"),
         createdByUserId: "user-manager",
@@ -567,6 +585,8 @@ describe("generation tasks service", () => {
       description: "Manager-created follow-up.",
       assignedUserId: "user-inventory",
       recommendedUserId: null,
+      recommendationReasonCode: null,
+      recommendationExplanation: null,
       status: TaskStatus.IN_PROGRESS,
       dueAt: new Date("2026-06-17T08:45:00.000Z"),
       createdByUserId: "user-manager",
@@ -624,6 +644,9 @@ describe("generation tasks service", () => {
       description: "Manager edited this generated task.",
       assignedUserId: "user-inventory",
       recommendedUserId: "user-inventory",
+      recommendationReasonCode: "ROLE_DEFAULT_DUTY_MATCH",
+      recommendationExplanation:
+        "Recommended because this task matches the Review inventory status duty provided by the Inventory Manager role.",
       status: TaskStatus.IN_PROGRESS,
       dueAt: new Date("2026-06-17T10:15:00.000Z"),
       createdByUserId: "user-manager",
@@ -702,6 +725,9 @@ describe("generation tasks service", () => {
           description: "",
           assignedUserId: "user-sales",
           recommendedUserId: "user-sales",
+          recommendationReasonCode: "DIRECT_DUTY_MATCH",
+          recommendationExplanation:
+            "Recommended because this task matches the direct duty Follow up with assigned leads.",
           status: TaskStatus.NOT_STARTED,
           dueAt: new Date("2026-06-17T15:30:00.000Z"),
           createdByUserId: null,

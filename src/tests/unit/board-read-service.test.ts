@@ -43,6 +43,8 @@ function createBoardReadRepositoryHarness(options: {
         name: string;
         email: string;
       } | null;
+      recommendationReasonCode?: string | null;
+      recommendationExplanation?: string | null;
       vehicleReference?: string | null;
       customerReference?: string | null;
       blockerReason?: string | null;
@@ -76,7 +78,9 @@ function createBoardReadRepositoryHarness(options: {
         readyForReviewAt: task.readyForReviewAt ? new Date(task.readyForReviewAt) : null,
         completedAt: task.completedAt ? new Date(task.completedAt) : null,
         assignedUser: task.assignedUser,
-        recommendedUser: task.recommendedUser ?? null
+        recommendedUser: task.recommendedUser ?? null,
+        recommendationReasonCode: task.recommendationReasonCode ?? null,
+        recommendationExplanation: task.recommendationExplanation ?? null
       }))
     ])
   );
@@ -157,6 +161,9 @@ describe("board read service", () => {
               name: "Jordan Sales",
               email: "jordan.sales@local.test"
             },
+            recommendationReasonCode: "DIRECT_DUTY_MATCH",
+            recommendationExplanation:
+              "Recommended because this task matches the direct duty Follow up with assigned leads.",
             customerReference: "Taylor R.",
             status: TaskStatus.IN_PROGRESS
           },
@@ -206,6 +213,11 @@ describe("board read service", () => {
             id: "task-1",
             title: "Follow up with hot lead",
             customerReference: "Taylor R.",
+            recommendation: {
+              reasonCode: "DIRECT_DUTY_MATCH",
+              explanation:
+                "Recommended because this task matches the direct duty Follow up with assigned leads."
+            },
             recommendedUser: {
               id: "user-sales",
               name: "Jordan Sales",

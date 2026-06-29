@@ -24,6 +24,7 @@ function createTask(id: string, overrides: Partial<GroupableBoardTask> = {}): Gr
       name: `User ${id}`
     },
     recommendedUser: null,
+    recommendation: null,
     vehicleReference: null,
     customerReference: null,
     blockerReason: null,
