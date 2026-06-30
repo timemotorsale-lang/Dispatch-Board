@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { TaskStatus } from "@prisma/client";
-import { useState } from "react";
+import { startTransition, useState } from "react";
 
 import { EmptyStateCard, ErrorStateCard } from "@/components/ui/state-card";
+import { useLiveRefresh } from "@/hooks/use-live-refresh";
 import {
   filterMyTasks,
   getAllowedMyTaskStatuses,
@@ -367,11 +369,53 @@ export function MyTasksScreen({
   nowIso,
   userName
 }: MyTasksScreenProps) {
+  const router = useRouter();
   const [activeFilter, setActiveFilter] = useState<MyTasksFilter>("all");
   const [tasks, setTasks] = useState(initialTasks);
   const now = new Date(nowIso);
   const filterOptions = getMyTasksFilterOptions(tasks, now);
   const visibleTasks = filterMyTasks(tasks, activeFilter, now);
+  const summaryCards: Array<{
+    description: string;
+    filter: MyTasksFilter;
+    title: string;
+    value: number;
+  }> = [
+    {
+      description: "Tasks assigned to you on today's board.",
+      filter: "all",
+      title: "Assigned today",
+      value: tasks.length
+    },
+    {
+      description: "Everything still in flight or waiting on you today.",
+      filter: "open",
+      title: "Open work",
+      value: getActiveTaskCount(tasks)
+    },
+    {
+      description: "Tasks that need a blocker cleared before they can move.",
+      filter: "blockedWaiting",
+      title: "Blocked",
+      value: getBlockedTaskCount(tasks)
+    },
+    {
+      description: "Approval-ready work that may need a manager next.",
+      filter: "readyForReview",
+      title: "Ready for review",
+      value: getReadyForReviewCount(tasks)
+    }
+  ];
+
+  function refreshTasks() {
+    startTransition(() => {
+      router.refresh();
+    });
+  }
+
+  useLiveRefresh(() => {
+    refreshTasks();
+  });
 
   function handleTaskUpdated(taskId: string, update: { status: TaskStatus; blockerReason: string | null }) {
     setTasks((currentTasks) =>
@@ -406,6 +450,7 @@ export function MyTasksScreen({
           {generatedAt ? (
             <p className="my-tasks-generated-copy">Board generated {formatDateTime(generatedAt)}.</p>
           ) : null}
+          <p className="my-tasks-generated-copy">Auto-refreshes every 30 seconds while this tab is open.</p>
         </div>
 
         <div className="board-toolbar my-tasks-toolbar">
@@ -413,7 +458,7 @@ export function MyTasksScreen({
             <Link className="pill pill-primary" href={fullBoardHref}>
               Open full board
             </Link>
-            <button className="pill pill-secondary" onClick={() => window.location.reload()} type="button">
+            <button className="pill pill-secondary" onClick={refreshTasks} type="button">
               Refresh
             </button>
           </div>
@@ -421,31 +466,28 @@ export function MyTasksScreen({
       </div>
 
       <div className="panel-grid board-summary-grid">
-        <article className="panel-card board-stat-card">
-          <strong>Assigned today</strong>
-          <h2>{tasks.length}</h2>
-          <p className="board-stat-card-copy">Tasks assigned to you on today&apos;s board.</p>
-        </article>
-        <article className="panel-card board-stat-card">
-          <strong>Open work</strong>
-          <h2>{getActiveTaskCount(tasks)}</h2>
-          <p className="board-stat-card-copy">Everything still in flight or waiting on you today.</p>
-        </article>
-        <article className="panel-card board-stat-card">
-          <strong>Blocked</strong>
-          <h2>{getBlockedTaskCount(tasks)}</h2>
-          <p className="board-stat-card-copy">Tasks that need a blocker cleared before they can move.</p>
-        </article>
-        <article className="panel-card board-stat-card">
-          <strong>Ready for review</strong>
-          <h2>{getReadyForReviewCount(tasks)}</h2>
-          <p className="board-stat-card-copy">Approval-ready work that may need a manager next.</p>
-        </article>
+        {summaryCards.map((card) => (
+          <button
+            aria-pressed={activeFilter === card.filter}
+            className={
+              activeFilter === card.filter
+                ? "panel-card board-stat-card my-task-summary-card my-task-summary-card-active"
+                : "panel-card board-stat-card my-task-summary-card"
+            }
+            key={card.title}
+            onClick={() => setActiveFilter(card.filter)}
+            type="button"
+          >
+            <strong>{card.title}</strong>
+            <h2>{card.value}</h2>
+            <p className="board-stat-card-copy">{card.description}</p>
+          </button>
+        ))}
       </div>
 
       {errorMessage ? (
         <ErrorStateCard
-          actions={[{ label: "Refresh", onClick: () => window.location.reload() }]}
+          actions={[{ label: "Refresh", onClick: refreshTasks }]}
           eyebrow="My Tasks unavailable"
           message={`${errorMessage} Your previous work may still be saved.`}
           title="Couldn't load your task list"
@@ -478,7 +520,7 @@ export function MyTasksScreen({
                 <strong>Task filters</strong>
                 <h2>Keep your list focused</h2>
               </div>
-              <p>Use the simple chips below to focus on what needs your attention next.</p>
+              <p>Click a summary card or use the chips below to focus on what needs your attention next.</p>
             </div>
 
             <div className="board-quick-filters" aria-label="My task filters">

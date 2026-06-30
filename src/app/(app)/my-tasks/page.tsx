@@ -34,5 +34,20 @@ export default async function MyTasksPage() {
       error instanceof Error ? error.message : "Unable to load your tasks right now.";
   }
 
-  return <MyTasksScreen {...screenProps} />;
+  const screenKey = JSON.stringify({
+    boardDate: screenProps.boardDate,
+    boardExists: screenProps.boardExists,
+    generatedAt: screenProps.generatedAt,
+    generationStatus: screenProps.generationStatus,
+    errorMessage: screenProps.errorMessage,
+    tasks: screenProps.initialTasks.map((task) => ({
+      id: task.id,
+      status: task.status,
+      blockerReason: task.blockerReason,
+      dueAt: task.dueAt,
+      title: task.title
+    }))
+  });
+
+  return <MyTasksScreen key={screenKey} {...screenProps} />;
 }

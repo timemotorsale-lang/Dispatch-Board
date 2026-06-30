@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { EmptyStateCard, ErrorStateCard, LoadingStateCard } from "@/components/ui/state-card";
+import { useLiveRefresh } from "@/hooks/use-live-refresh";
 import type { ActivityFeedEvent } from "@/server/services/activity-feed";
 import type { BoardReadModel } from "@/server/services/board-read";
 import type { ActiveUserSummary } from "@/server/services/user-summary";
@@ -192,13 +193,29 @@ export function BoardScreen({
   const isFiltered = hasActiveBoardFilters(filters);
 
   function requestBoardReload() {
-    setLoadState({ status: "loading", date: selectedBoardDate });
-    setReloadCount((count) => count + 1);
+    let shouldReload = false;
+
+    setLoadState((currentState) => {
+      if (currentState.status === "loading") {
+        return currentState;
+      }
+
+      shouldReload = true;
+      return { status: "loading", date: selectedBoardDate };
+    });
+
+    if (shouldReload) {
+      setReloadCount((count) => count + 1);
+    }
   }
 
   function setFilter<Key extends keyof BoardFilters>(key: Key, value: BoardFilters[Key]) {
     setFilters((current) => ({ ...current, [key]: value }));
   }
+
+  useLiveRefresh(() => {
+    requestBoardReload();
+  });
 
   return (
     <section className="dispatch-board-page">
@@ -220,6 +237,7 @@ export function BoardScreen({
       />
 
       {initialDateError ? <div className="board-notice board-notice-danger">{initialDateError}</div> : null}
+      <div className="board-notice">Auto-refreshes every 30 seconds while this tab is open.</div>
 
       {loadState.status === "error" ? (
         <ErrorStateCard

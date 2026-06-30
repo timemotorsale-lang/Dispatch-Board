@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { TaskStatus } from "@prisma/client";
-import { useState } from "react";
+import { startTransition, useState } from "react";
 
 import { EmptyStateCard, ErrorStateCard } from "@/components/ui/state-card";
+import { useLiveRefresh } from "@/hooks/use-live-refresh";
 import type { BoardReadTask } from "@/server/services/board-read";
 
 type ManagerReviewScreenProps = {
@@ -237,10 +239,21 @@ export function ManagerReviewScreen({
   generationStatus,
   initialTasks
 }: ManagerReviewScreenProps) {
+  const router = useRouter();
   const [tasks, setTasks] = useState(initialTasks);
   const [lastActionMessage, setLastActionMessage] = useState<string | null>(null);
   const now = new Date();
   const oldestTask = getOldestReviewTask(tasks);
+
+  function refreshQueue() {
+    startTransition(() => {
+      router.refresh();
+    });
+  }
+
+  useLiveRefresh(() => {
+    refreshQueue();
+  });
 
   function handleTaskRemoved(taskId: string) {
     setTasks((currentTasks) => currentTasks.filter((task) => task.id !== taskId));
@@ -266,6 +279,7 @@ export function ManagerReviewScreen({
           {generatedAt ? (
             <p className="my-tasks-generated-copy">Board generated {formatDateTime(generatedAt)}.</p>
           ) : null}
+          <p className="my-tasks-generated-copy">Auto-refreshes every 30 seconds while this tab is open.</p>
         </div>
 
         <div className="board-toolbar my-tasks-toolbar">
@@ -273,7 +287,7 @@ export function ManagerReviewScreen({
             <Link className="pill pill-primary" href={fullBoardHref}>
               Open full board
             </Link>
-            <button className="pill pill-secondary" onClick={() => window.location.reload()} type="button">
+            <button className="pill pill-secondary" onClick={refreshQueue} type="button">
               Refresh
             </button>
           </div>
@@ -306,7 +320,7 @@ export function ManagerReviewScreen({
 
       {errorMessage ? (
         <ErrorStateCard
-          actions={[{ label: "Refresh", onClick: () => window.location.reload() }]}
+          actions={[{ label: "Refresh", onClick: refreshQueue }]}
           eyebrow="Review queue unavailable"
           message={`${errorMessage} Existing board data may still be available elsewhere in the app.`}
           title="Couldn't load the manager review queue"

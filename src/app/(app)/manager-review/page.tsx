@@ -52,5 +52,20 @@ export default async function ManagerReviewPage() {
       error instanceof Error ? error.message : "Unable to load the manager review queue right now.";
   }
 
-  return <ManagerReviewScreen {...screenProps} />;
+  const screenKey = JSON.stringify({
+    boardDate: screenProps.boardDate,
+    boardExists: screenProps.boardExists,
+    generatedAt: screenProps.generatedAt,
+    generationStatus: screenProps.generationStatus,
+    errorMessage: screenProps.errorMessage,
+    tasks: screenProps.initialTasks.map((task) => ({
+      id: task.id,
+      status: task.status,
+      readyForReviewAt: task.readyForReviewAt,
+      dueAt: task.dueAt,
+      title: task.title
+    }))
+  });
+
+  return <ManagerReviewScreen key={screenKey} {...screenProps} />;
 }
