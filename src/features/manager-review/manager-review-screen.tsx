@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { TaskStatus } from "@prisma/client";
-import { startTransition, useState } from "react";
+import { useState, useTransition } from "react";
 
 import { EmptyStateCard, ErrorStateCard } from "@/components/ui/state-card";
 import { useLiveRefresh } from "@/hooks/use-live-refresh";
@@ -72,6 +72,10 @@ function getGenerationStatusTone(generationStatus: string | null) {
   }
 
   return "status-badge status-badge-muted";
+}
+
+function getLiveStatusTone(isRefreshing: boolean) {
+  return isRefreshing ? "status-badge status-badge-muted" : "status-badge status-badge-success";
 }
 
 function getReviewAgeCopy(readyForReviewAt: string | null, now: Date) {
@@ -240,13 +244,15 @@ export function ManagerReviewScreen({
   initialTasks
 }: ManagerReviewScreenProps) {
   const router = useRouter();
-  const [tasks, setTasks] = useState(initialTasks);
+  const [isRefreshPending, startRefreshTransition] = useTransition();
+  const [removedTaskIds, setRemovedTaskIds] = useState<Record<string, true>>({});
   const [lastActionMessage, setLastActionMessage] = useState<string | null>(null);
+  const tasks = initialTasks.filter((task) => !removedTaskIds[task.id]);
   const now = new Date();
   const oldestTask = getOldestReviewTask(tasks);
 
   function refreshQueue() {
-    startTransition(() => {
+    startRefreshTransition(() => {
       router.refresh();
     });
   }
@@ -256,7 +262,10 @@ export function ManagerReviewScreen({
   });
 
   function handleTaskRemoved(taskId: string) {
-    setTasks((currentTasks) => currentTasks.filter((task) => task.id !== taskId));
+    setRemovedTaskIds((currentRemovedTaskIds) => ({
+      ...currentRemovedTaskIds,
+      [taskId]: true
+    }));
     setLastActionMessage("The review queue has been updated.");
   }
 
@@ -275,11 +284,14 @@ export function ManagerReviewScreen({
             <span className={getGenerationStatusTone(generationStatus)}>
               {generationStatus ? formatStatusLabel(generationStatus) : "Board not generated"}
             </span>
+            <span className={getLiveStatusTone(isRefreshPending)}>
+              {isRefreshPending ? "Updating..." : "Live"}
+            </span>
           </div>
           {generatedAt ? (
             <p className="my-tasks-generated-copy">Board generated {formatDateTime(generatedAt)}.</p>
           ) : null}
-          <p className="my-tasks-generated-copy">Auto-refreshes every 30 seconds while this tab is open.</p>
+          <p className="my-tasks-generated-copy">Refreshes when you return to this tab or click Refresh.</p>
         </div>
 
         <div className="board-toolbar my-tasks-toolbar">

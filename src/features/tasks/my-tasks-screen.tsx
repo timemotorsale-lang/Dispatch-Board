@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { TaskStatus } from "@prisma/client";
-import { startTransition, useState } from "react";
+import { useState, useTransition } from "react";
 
 import { EmptyStateCard, ErrorStateCard } from "@/components/ui/state-card";
 import { useLiveRefresh } from "@/hooks/use-live-refresh";
@@ -33,6 +33,11 @@ type MyTasksScreenProps = {
 type StatusUpdatePayload = {
   status: TaskStatus;
   blockerReason?: string;
+};
+
+type TaskOverride = {
+  blockerReason: string | null;
+  status: TaskStatus;
 };
 
 function formatBoardDateLabel(boardDate: string) {
@@ -98,6 +103,10 @@ function getGenerationStatusTone(generationStatus: string | null) {
   }
 
   return "status-badge status-badge-muted";
+}
+
+function getLiveStatusTone(isRefreshing: boolean) {
+  return isRefreshing ? "status-badge status-badge-muted" : "status-badge status-badge-success";
 }
 
 function getDueCopy(dueAt: string, now: Date) {
@@ -370,8 +379,17 @@ export function MyTasksScreen({
   userName
 }: MyTasksScreenProps) {
   const router = useRouter();
+  const [isRefreshPending, startRefreshTransition] = useTransition();
   const [activeFilter, setActiveFilter] = useState<MyTasksFilter>("all");
-  const [tasks, setTasks] = useState(initialTasks);
+  const [taskOverrides, setTaskOverrides] = useState<Record<string, TaskOverride>>({});
+  const tasks = initialTasks.map((task) =>
+    taskOverrides[task.id]
+      ? {
+          ...task,
+          ...taskOverrides[task.id]
+        }
+      : task
+  );
   const now = new Date(nowIso);
   const filterOptions = getMyTasksFilterOptions(tasks, now);
   const visibleTasks = filterMyTasks(tasks, activeFilter, now);
@@ -408,7 +426,7 @@ export function MyTasksScreen({
   ];
 
   function refreshTasks() {
-    startTransition(() => {
+    startRefreshTransition(() => {
       router.refresh();
     });
   }
@@ -418,17 +436,10 @@ export function MyTasksScreen({
   });
 
   function handleTaskUpdated(taskId: string, update: { status: TaskStatus; blockerReason: string | null }) {
-    setTasks((currentTasks) =>
-      currentTasks.map((task) =>
-        task.id === taskId
-          ? {
-              ...task,
-              status: update.status,
-              blockerReason: update.blockerReason
-            }
-          : task
-      )
-    );
+    setTaskOverrides((currentOverrides) => ({
+      ...currentOverrides,
+      [taskId]: update
+    }));
   }
 
   return (
@@ -446,11 +457,14 @@ export function MyTasksScreen({
             <span className={getGenerationStatusTone(generationStatus)}>
               {generationStatus ? formatStatusLabel(generationStatus) : "Board not generated"}
             </span>
+            <span className={getLiveStatusTone(isRefreshPending)}>
+              {isRefreshPending ? "Updating..." : "Live"}
+            </span>
           </div>
           {generatedAt ? (
             <p className="my-tasks-generated-copy">Board generated {formatDateTime(generatedAt)}.</p>
           ) : null}
-          <p className="my-tasks-generated-copy">Auto-refreshes every 30 seconds while this tab is open.</p>
+          <p className="my-tasks-generated-copy">Refreshes when you return to this tab or click Refresh.</p>
         </div>
 
         <div className="board-toolbar my-tasks-toolbar">

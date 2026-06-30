@@ -61,19 +61,32 @@ export function MetricStrip({ metrics }: { metrics: Metric[] }) {
   return <section className="metric-strip">{metrics.map((metric) => { const Icon = metricIcons[metric.icon]; return <article className={`metric-card metric-${metric.tone}`} key={metric.label}><div className="metric-icon"><Icon size={20} /></div><div><span>{metric.label}</span><strong>{metric.value}</strong><small>{metric.detail}</small></div></article>; })}</section>;
 }
 
-export function OperationsStrip({ tasks }: { tasks: Task[] }) {
-  const people = new Map<string, number>();
+export function OperationsStrip({
+  activeAssigneeId,
+  onAssigneeSelect,
+  tasks
+}: {
+  activeAssigneeId: string;
+  onAssigneeSelect(assigneeId: string): void;
+  tasks: Task[];
+}) {
+  const people = new Map<string, { count: number; id: string }>();
   const workflow = new Map<string, number>();
   for (const task of tasks) {
     const owner = task.assignedUser?.name ?? "Unassigned";
-    people.set(owner, (people.get(owner) ?? 0) + 1);
+    const ownerId = task.assignedUser?.id ?? "unassigned";
+    const currentOwner = people.get(owner);
+    people.set(owner, {
+      count: (currentOwner?.count ?? 0) + 1,
+      id: currentOwner?.id ?? ownerId
+    });
     workflow.set(task.workflowArea, (workflow.get(task.workflowArea) ?? 0) + 1);
   }
-  const team = [...people.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+  const team = [...people.entries()].sort((a, b) => b[1].count - a[1].count).slice(0, 4);
   const flow = [...workflow.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   const referenced = tasks.filter((task) => task.customerReference || task.vehicleReference).length;
   return <section className="operations-strip">
-    <article><header><span><UsersRound size={16} /> Team load</span><small>{people.size} owners</small></header><div className="team-load">{team.map(([name, count]) => <div key={name}><span className="mini-avatar">{name[0]}</span><span>{name.split(" ")[0]}<strong>{count}</strong></span></div>)}</div></article>
+    <article><header><span><UsersRound size={16} /> Team load</span><small>{people.size} owners</small></header><div className="team-load">{team.map(([name, owner]) => <button aria-pressed={activeAssigneeId === owner.id} className={activeAssigneeId === owner.id ? "team-load-chip team-load-chip-active" : "team-load-chip"} key={name} onClick={() => onAssigneeSelect(owner.id)} type="button"><span className="mini-avatar">{name[0]}</span><span>{name.split(" ")[0]}<strong>{owner.count}</strong></span></button>)}</div></article>
     <article><header><span><Layers3 size={16} /> Workflow flow</span><small>Current board</small></header><div className="flow-list">{flow.map(([name, count], index) => <div key={name}><span>{formatBoardEnumLabel(name)}</span><strong>{count}</strong>{index < flow.length - 1 ? <ChevronRight size={14} /> : null}</div>)}</div></article>
     <article><header><span><CalendarDays size={16} /> Customer / vehicle context</span><small>Visibility</small></header><div className="context-count"><strong>{referenced}</strong><span>tasks include a customer or vehicle reference</span></div></article>
   </section>;

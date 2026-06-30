@@ -1600,8 +1600,11 @@ code {
 .operations-strip header > span { display: inline-flex; align-items: center; gap: 5px; color: #1e293b; font-size: 9px; font-weight: 800; }
 .operations-strip header small { color: #1558c9; font-size: 8px; }
 .team-load { display: flex; gap: 13px; overflow: hidden; }
-.team-load > div { display: flex; align-items: center; gap: 5px; min-width: 0; }
-.team-load > div > span:last-child { display: grid; color: #374151; font-size: 8px; }
+.team-load-chip { display: flex; align-items: center; gap: 5px; min-width: 0; padding: 0; color: inherit; background: transparent; border: 0; cursor: pointer; }
+.team-load-chip > span:last-child { display: grid; color: #374151; font-size: 8px; text-align: left; }
+.team-load-chip:focus-visible { outline: 2px solid #1558c9; outline-offset: 3px; border-radius: 999px; }
+.team-load-chip-active .mini-avatar { background: linear-gradient(145deg,#0f6ae8,#0a3e92); box-shadow: 0 0 0 2px rgba(21,88,201,.16); }
+.team-load-chip-active > span:last-child { color: #1558c9; }
 .team-load strong { color: #111827; font-size: 12px; }
 .mini-avatar { display: inline-grid; place-items: center; width: 24px; height: 24px; flex: 0 0 auto; color: #fff; background: linear-gradient(145deg,#ba734a,#4d2e26); border-radius: 50%; font-size: 8px; font-weight: 800; }
 .flow-list { display: flex; align-items: center; justify-content: space-between; gap: 5px; overflow: hidden; }

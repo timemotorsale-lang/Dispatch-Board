@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { EmptyStateCard, ErrorStateCard, LoadingStateCard } from "@/components/ui/state-card";
 import { useLiveRefresh } from "@/hooks/use-live-refresh";
@@ -95,6 +95,10 @@ function createMetrics(board: BoardReadModel): Metric[] {
   ];
 }
 
+function getLiveStatusTone(isRefreshing: boolean) {
+  return isRefreshing ? "status-badge status-badge-muted" : "status-badge status-badge-success";
+}
+
 export function BoardScreen({
   assignableUsers,
   initialBoardDate,
@@ -107,10 +111,17 @@ export function BoardScreen({
     status: "loading",
     date: initialBoardDate
   });
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [reloadCount, setReloadCount] = useState(0);
   const [groupMode, setGroupMode] = useState<BoardGroupMode>("assignee");
   const [filters, setFilters] = useState<BoardFilters>(DEFAULT_BOARD_FILTERS);
   const [activityEvents, setActivityEvents] = useState<ActivityFeedEvent[]>([]);
+  const loadStateRef = useRef<BoardLoadState>(loadState);
+  const refreshModeRef = useRef<"blocking" | "silent">("blocking");
+
+  useEffect(() => {
+    loadStateRef.current = loadState;
+  }, [loadState]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -127,6 +138,10 @@ export function BoardScreen({
         }
 
         if (response.status === 404 && payload) {
+          setIsRefreshing(false);
+          if (refreshModeRef.current === "silent" && loadStateRef.current.status === "ready") {
+            return;
+          }
           setLoadState({
             status: "empty",
             date: payload.date,
@@ -136,6 +151,10 @@ export function BoardScreen({
         }
 
         if (!response.ok || !payload?.board) {
+          setIsRefreshing(false);
+          if (refreshModeRef.current === "silent" && loadStateRef.current.status === "ready") {
+            return;
+          }
           setLoadState({
             status: "error",
             date: selectedBoardDate,
@@ -144,9 +163,15 @@ export function BoardScreen({
           return;
         }
 
+        setIsRefreshing(false);
+        refreshModeRef.current = "blocking";
         setLoadState({ status: "ready", date: payload.date, board: payload.board });
       } catch (error) {
         if (!controller.signal.aborted) {
+          setIsRefreshing(false);
+          if (refreshModeRef.current === "silent" && loadStateRef.current.status === "ready") {
+            return;
+          }
           setLoadState({
             status: "error",
             date: selectedBoardDate,
@@ -192,8 +217,9 @@ export function BoardScreen({
   const presentation = board ? getBoardPresentation(board.tasks, groupMode, filters) : null;
   const isFiltered = hasActiveBoardFilters(filters);
 
-  function requestBoardReload() {
+  function requestBoardReload(mode: "blocking" | "silent" = "silent") {
     let shouldReload = false;
+    refreshModeRef.current = mode;
 
     setLoadState((currentState) => {
       if (currentState.status === "loading") {
@@ -201,16 +227,25 @@ export function BoardScreen({
       }
 
       shouldReload = true;
-      return { status: "loading", date: selectedBoardDate };
+      return mode === "blocking" ? { status: "loading", date: selectedBoardDate } : currentState;
     });
 
     if (shouldReload) {
+      setIsRefreshing(mode === "silent");
       setReloadCount((count) => count + 1);
     }
   }
 
   function setFilter<Key extends keyof BoardFilters>(key: Key, value: BoardFilters[Key]) {
     setFilters((current) => ({ ...current, [key]: value }));
+  }
+
+  function handleAssigneeSelect(assigneeId: string) {
+    setGroupMode("assignee");
+    setFilters((current) => ({
+      ...current,
+      assigneeId: current.assigneeId === assigneeId ? "" : assigneeId
+    }));
   }
 
   useLiveRefresh(() => {
@@ -223,21 +258,27 @@ export function BoardScreen({
         boardDate={loadState.date}
         status={board?.generationStatus}
         toolbar={
-          <BoardToolbar
-            assignableUsers={assignableUsers}
-            boardDate={selectedBoardDate}
-            isManager={isManager}
-            onBoardDateChange={(date) => {
-              setSelectedBoardDate(date);
-              setLoadState({ status: "loading", date });
-            }}
-            onBoardRefreshRequested={requestBoardReload}
-          />
+          <>
+            <span className={getLiveStatusTone(isRefreshing)}>
+              {isRefreshing ? "Updating..." : "Live"}
+            </span>
+            <BoardToolbar
+              assignableUsers={assignableUsers}
+              boardDate={selectedBoardDate}
+              isManager={isManager}
+              onBoardDateChange={(date) => {
+                setSelectedBoardDate(date);
+                refreshModeRef.current = "blocking";
+                setIsRefreshing(false);
+                setLoadState({ status: "loading", date });
+              }}
+              onBoardRefreshRequested={requestBoardReload}
+            />
+          </>
         }
       />
 
       {initialDateError ? <div className="board-notice board-notice-danger">{initialDateError}</div> : null}
-      <div className="board-notice">Auto-refreshes every 30 seconds while this tab is open.</div>
 
       {loadState.status === "error" ? (
         <ErrorStateCard
@@ -267,7 +308,11 @@ export function BoardScreen({
       {board && presentation ? (
         <>
           <MetricStrip metrics={createMetrics(board)} />
-          <OperationsStrip tasks={board.tasks} />
+          <OperationsStrip
+            activeAssigneeId={filters.assigneeId}
+            onAssigneeSelect={handleAssigneeSelect}
+            tasks={board.tasks}
+          />
           <div className="board-and-rail">
             <div className="board-primary-column">
               <BoardControls

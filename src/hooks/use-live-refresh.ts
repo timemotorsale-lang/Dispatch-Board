@@ -1,29 +1,24 @@
 "use client";
 
-import { useEffect, useEffectEvent } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 
-type UseLiveRefreshOptions = {
-  intervalMs?: number;
-};
-
-export function useLiveRefresh(
-  onRefresh: () => void,
-  options: UseLiveRefreshOptions = {}
-) {
-  const { intervalMs = 30000 } = options;
+export function useLiveRefresh(onRefresh: () => void) {
+  const lastRefreshAtRef = useRef(0);
   const runRefresh = useEffectEvent(() => {
     if (document.visibilityState !== "visible" || !navigator.onLine) {
       return;
     }
 
+    const now = Date.now();
+    if (now - lastRefreshAtRef.current < 1000) {
+      return;
+    }
+
+    lastRefreshAtRef.current = now;
     onRefresh();
   });
 
   useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      runRefresh();
-    }, intervalMs);
-
     function handleVisibilityChange() {
       if (document.visibilityState === "visible") {
         runRefresh();
@@ -38,9 +33,8 @@ export function useLiveRefresh(
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      window.clearInterval(intervalId);
       window.removeEventListener("focus", handleFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [intervalMs]);
+  }, []);
 }
