@@ -1,11 +1,28 @@
-import { PlaceholderRoutePage } from "@/components/ui/placeholder-route-page";
+import { MvpRoutePage } from "@/components/ui/mvp-route-page";
 
 export default function CustomersPage() {
   return (
-    <PlaceholderRoutePage
-      description="Customer visibility is planned, but the current MVP still treats customer context as lightweight task references instead of a full customer module."
+    <MvpRoutePage
+      description="Customer context is already part of the live dispatch workflow through task references and comments. This route now explains that scope clearly instead of presenting a not-implemented page."
       eyebrow="Customers"
-      note="Use the board and task detail pages for customer reference text today. This route stays in the shell so the approved navigation structure remains intact."
+      primaryAction={{ href: "/board", label: "Open board" }}
+      secondaryAction={{ href: "/activity", label: "Open activity feed" }}
+      sections={[
+        {
+          title: "Customer context stays attached to the work",
+          description:
+            "Use customer reference text, comments, and assignment history on tasks when the team needs quick customer-aware coordination without leaving the board workflow.",
+          links: [
+            { href: "/tasks", label: "Task routes", description: "Task detail and updates." },
+            { href: "/activity", label: "Activity feed", description: "Who changed what." }
+          ]
+        },
+        {
+          title: "Why there is no full customer module yet",
+          description:
+            "The MVP avoids becoming a CRM replacement. It keeps customer data lightweight so dispatch coordination remains the priority."
+        }
+      ]}
       title="Customers"
     />
   );

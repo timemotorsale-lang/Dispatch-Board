@@ -18,7 +18,6 @@ export type NavigationItem = {
   description: string;
   icon: LucideIcon;
   badge?: string;
-  placeholder?: boolean;
 };
 
 export type NavigationGroup = { label: string; items: NavigationItem[] };
@@ -49,22 +48,19 @@ export const navigationGroups: NavigationGroup[] = [
         href: "/vehicles",
         title: "Vehicles",
         description: "Vehicle coordination.",
-        icon: Car,
-        placeholder: true
+        icon: Car
       },
       {
         href: "/customers",
         title: "Customers",
         description: "Customer visibility.",
-        icon: UserRound,
-        placeholder: true
+        icon: UserRound
       },
       {
         href: "/appointments",
         title: "Appointments",
         description: "Upcoming appointments.",
-        icon: CalendarDays,
-        placeholder: true
+        icon: CalendarDays
       },
       {
         href: "/manager-review",
@@ -87,15 +83,13 @@ export const navigationGroups: NavigationGroup[] = [
         href: "/staff",
         title: "Team",
         description: "Staff and responsibilities.",
-        icon: Users,
-        placeholder: true
+        icon: Users
       },
       {
         href: "/reports",
         title: "Reports / Insights",
         description: "Operating reports.",
-        icon: Wrench,
-        placeholder: true
+        icon: Wrench
       }
     ]
   },

@@ -202,7 +202,7 @@ describe("generation inputs service", () => {
     });
   });
 
-  it("uses a user's custom duties without falling back to role default duties", async () => {
+  it("uses a user's custom duties without falling back to role-default templates", async () => {
     const directDuty = createDuty({
       id: "duty-custom",
       name: "Handle VIP follow-ups",
@@ -257,8 +257,7 @@ describe("generation inputs service", () => {
       "Follow up with assigned leads"
     );
     expect(result.users[0].templates.map((template) => template.templateId)).toEqual([
-      "template-custom-duty",
-      "template-role"
+      "template-custom-duty"
     ]);
   });
 
@@ -494,38 +493,56 @@ describe("generation inputs service", () => {
     ]);
   });
 
-  it("keeps role-based templates for users with active roles even when they have no resolved duties", async () => {
+  it("falls back to role-default templates when a user has custom duties but no active custom-duty templates", async () => {
     const repository = createGenerationInputsRepository({
       users: [
         createUser({
-          id: "user-role-only",
-          name: "Riley Role",
-          email: "riley.role@local.test",
+          id: "user-fallback",
+          name: "Riley Fallback",
+          email: "riley.fallback@local.test",
           userRoles: [
             createUserRole(
               createRole({
                 id: "role-admin",
                 name: "Office Manager",
-                roleDuties: []
+                roleDuties: [
+                  createRoleDuty(
+                    "role-admin",
+                    createDuty({
+                      id: "duty-admin",
+                      name: "Review office/admin support tasks",
+                      workflowArea: "OfficeFrontDesk"
+                    })
+                  )
+                ]
               }),
-              { userId: "user-role-only" }
+              { userId: "user-fallback" }
             )
           ],
-          userDuties: []
+          userDuties: [
+            createUserDuty(
+              createDuty({
+                id: "duty-custom",
+                name: "Handle VIP follow-ups",
+                workflowArea: "Sales"
+              }),
+              { userId: "user-fallback" }
+            )
+          ]
         })
       ],
       templates: [
         createTemplate({
-          id: "template-role-only",
-          title: "Review admin queue",
+          id: "template-admin-duty",
+          title: "Review office/admin support tasks",
           workflowArea: WorkflowArea.ADMIN,
-          roleId: "role-admin",
-          role: {
-            id: "role-admin",
-            name: "Office Manager"
-          },
-          dutyId: null,
-          duty: null
+          roleId: null,
+          role: null,
+          dutyId: "duty-admin",
+          duty: {
+            id: "duty-admin",
+            name: "Review office/admin support tasks"
+          }
         })
       ]
     });
@@ -533,19 +550,18 @@ describe("generation inputs service", () => {
     const result = await loadGenerationInputsForDate("2026-06-17", repository);
 
     expect(result.users[0]).toMatchObject({
-      dutySource: "none",
-      resolvedDuties: []
+      dutySource: "role_default"
     });
     expect(result.users[0].templates.map((template) => template.templateId)).toEqual([
-      "template-role-only"
+      "template-admin-duty"
     ]);
-    expect(result.warnings).toEqual([
+    expect(result.users[0].resolvedDuties).toMatchObject([
       {
-        userId: "user-role-only",
-        code: "USER_HAS_NO_ELIGIBLE_DUTIES",
-        message: "Riley Role has no custom duties or role default duties available for generation."
+        dutyId: "duty-admin",
+        source: "role_default"
       }
     ]);
+    expect(result.warnings).toEqual([]);
   });
 
   it("returns a deterministic ordering for users, duties, and templates", async () => {

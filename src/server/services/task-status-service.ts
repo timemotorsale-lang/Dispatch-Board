@@ -212,6 +212,7 @@ export async function updateTaskStatus(
 
   const authenticatedUser = assertCanUpdateTaskStatus(user, task, normalizedInput.status);
   assertValidTaskStatusTransition(authenticatedUser, task, normalizedInput.status);
+  const previousStatus = task.status;
 
   const updatedTask = await repository.updateTaskStatus(
     normalizedTaskId,
@@ -232,7 +233,7 @@ export async function updateTaskStatus(
       ),
       metadata: {
         nextStatus: normalizedInput.status,
-        previousStatus: task.status
+        previousStatus
       }
     });
   }

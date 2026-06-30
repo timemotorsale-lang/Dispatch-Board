@@ -85,4 +85,4 @@ The MVP intentionally does not include:
 
 ## Release notes for the current repo state
 
-As of this documentation pass, the codebase includes the board foundation, seeded auth, settings, activity feed, task detail/comments/status flows, and automated tests. A dedicated manager review workspace and some non-core routes are still partial or placeholder surfaces, so MVP release sign-off should confirm the current task workflow is sufficient without those later UI refinements.
+As of this documentation pass, the codebase includes the board foundation, seeded auth, settings, activity feed, task detail/comments/status flows, manager review, and automated tests. Non-core shell routes now act as MVP guidance pages instead of dead-end placeholders, so release sign-off can focus on whether the live board workflow is sufficient for daily use.

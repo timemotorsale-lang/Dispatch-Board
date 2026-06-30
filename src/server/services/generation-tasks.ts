@@ -165,9 +165,12 @@ function toSummaryTrigger(triggeredBy: GenerationTriggerType): "manual" | "sched
   return triggeredBy === GenerationTriggerType.MANUAL ? "manual" : "scheduled";
 }
 
-function buildRecommendationDetails(template: GenerationInput["users"][number]["templates"][number]) {
+function buildRecommendationDetails(
+  user: GenerationInput["users"][number],
+  template: GenerationInput["users"][number]["templates"][number]
+) {
   if (template.matchedByDuty && template.dutyId && template.dutyName) {
-    if (template.roleId && template.roleName) {
+    if (user.dutySource === "role_default" && template.roleId && template.roleName) {
       return {
         reasonCode: "ROLE_DEFAULT_DUTY_MATCH",
         explanation: `Recommended because this task matches the ${template.dutyName} duty provided by the ${template.roleName} role.`
@@ -287,7 +290,7 @@ function buildGeneratedTaskCandidates(
 
   return generationInput.users.flatMap<GeneratedTaskCandidate>((user) =>
     user.templates.map((template) => {
-      const recommendation = buildRecommendationDetails(template);
+      const recommendation = buildRecommendationDetails(user, template);
 
       return {
         identityKey: buildGeneratedTaskIdentityKey(boardDayId, template.templateId, user.userId),

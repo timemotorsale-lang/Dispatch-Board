@@ -51,7 +51,6 @@ export function AppSidebar({ isOpen, onClose, user }: AppSidebarProps) {
                     <Icon aria-hidden="true" size={18} strokeWidth={1.8} />
                     <span>{item.title}</span>
                     {item.badge ? <small className="sidebar-badge">{item.badge}</small> : null}
-                    {item.placeholder ? <small className="sidebar-soon">Soon</small> : null}
                   </Link>
                 );
               })}

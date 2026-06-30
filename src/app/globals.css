@@ -1231,6 +1231,17 @@ code {
   margin: 0;
 }
 
+.mvp-route-card {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.mvp-route-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
 .manager-review-card {
   border: 1px solid rgba(109, 40, 217, 0.12);
 }
@@ -1495,7 +1506,6 @@ code {
 .sidebar-link:hover { color: #fff; background: rgba(255,255,255,.06); }
 .sidebar-link-active { color: #fff; background: linear-gradient(135deg, #145ad8, #0d4ab7); box-shadow: 0 8px 22px rgba(0,73,190,.25); }
 .sidebar-badge { display: grid; place-items: center; min-width: 19px; height: 19px; padding: 0 5px; color: #fff; background: #ef233c; border-radius: 999px; font-size: 9px; font-weight: 800; }
-.sidebar-soon { display: none; }
 .sidebar-account { position: relative; display: grid; grid-template-columns: 34px minmax(0,1fr) auto; align-items: center; gap: 8px; margin-top: auto; padding: 10px 8px 34px; border: 1px solid rgba(255,255,255,.11); border-radius: 8px; background: rgba(2,10,21,.3); }
 .sidebar-account-copy { display: grid; min-width: 0; }
 .sidebar-account-copy strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
