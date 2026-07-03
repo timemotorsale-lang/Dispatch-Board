@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { TaskStatus } from "@prisma/client";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 
 import { EmptyStateCard, ErrorStateCard } from "@/components/ui/state-card";
 import { useLiveRefresh } from "@/hooks/use-live-refresh";
 import {
   filterMyTasks,
   getAllowedMyTaskStatuses,
+  getMyTasksFilterLabel,
   getMyTasksFilterOptions,
   getPrimaryMyTaskStatusActions,
   getTaskActionLabel,
@@ -382,6 +383,7 @@ export function MyTasksScreen({
   const [isRefreshPending, startRefreshTransition] = useTransition();
   const [activeFilter, setActiveFilter] = useState<MyTasksFilter>("all");
   const [taskOverrides, setTaskOverrides] = useState<Record<string, TaskOverride>>({});
+  const taskListRef = useRef<HTMLElement | null>(null);
   const tasks = initialTasks.map((task) =>
     taskOverrides[task.id]
       ? {
@@ -393,6 +395,7 @@ export function MyTasksScreen({
   const now = new Date(nowIso);
   const filterOptions = getMyTasksFilterOptions(tasks, now);
   const visibleTasks = filterMyTasks(tasks, activeFilter, now);
+  const activeFilterLabel = getMyTasksFilterLabel(activeFilter);
   const summaryCards: Array<{
     description: string;
     filter: MyTasksFilter;
@@ -442,6 +445,15 @@ export function MyTasksScreen({
     }));
   }
 
+  function handleFilterSelect(filter: MyTasksFilter) {
+    setActiveFilter((currentFilter) =>
+      currentFilter === filter && filter !== "all" ? "all" : filter
+    );
+    requestAnimationFrame(() => {
+      taskListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
   return (
     <section className="page-stack dashboard-page board-page my-tasks-page">
       <div className="dashboard-page-header">
@@ -489,7 +501,7 @@ export function MyTasksScreen({
                 : "panel-card board-stat-card my-task-summary-card"
             }
             key={card.title}
-            onClick={() => setActiveFilter(card.filter)}
+            onClick={() => handleFilterSelect(card.filter)}
             type="button"
           >
             <strong>{card.title}</strong>
@@ -546,7 +558,7 @@ export function MyTasksScreen({
                       ? "board-filter-pill board-filter-pill-active"
                       : "board-filter-pill"
                   }
-                  onClick={() => setActiveFilter(filterOption.value)}
+                  onClick={() => handleFilterSelect(filterOption.value)}
                   type="button"
                 >
                   {filterOption.label}
@@ -556,13 +568,20 @@ export function MyTasksScreen({
           </div>
 
           <div className="board-content-grid my-tasks-content-grid">
-            <article className="panel-card board-main-card">
+            <article className="panel-card board-main-card" ref={taskListRef}>
               <div className="board-section-heading">
                 <div>
                   <strong>Assigned work</strong>
                   <h3>Your task list</h3>
                 </div>
                 <p>Keep updates quick, clear blockers fast, and open task detail when you need more context.</p>
+              </div>
+
+              <div className="my-tasks-filter-feedback" role="status">
+                <strong>{activeFilterLabel}</strong>
+                <span>
+                  {visibleTasks.length} {visibleTasks.length === 1 ? "task" : "tasks"} showing
+                </span>
               </div>
 
               {visibleTasks.length === 0 ? (

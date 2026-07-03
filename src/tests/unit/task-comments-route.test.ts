@@ -19,7 +19,7 @@ import { GET, POST } from "@/app/api/tasks/[id]/comments/route";
 
 const staffUser = {
   id: "user-jordan.sales@local.test",
-  name: "Jordan Sales",
+  name: "Baraka Sales",
   email: "jordan.sales@local.test",
   isActive: true,
   roles: ["Salesperson"],
@@ -46,7 +46,7 @@ describe("task comments route", () => {
         createdAt: "2026-06-18T14:30:00.000Z",
         author: {
           id: "user-jordan.sales@local.test",
-          name: "Jordan Sales",
+          name: "Baraka Sales",
           email: "jordan.sales@local.test"
         }
       }
@@ -69,7 +69,7 @@ describe("task comments route", () => {
           createdAt: "2026-06-18T14:30:00.000Z",
           author: {
             id: "user-jordan.sales@local.test",
-            name: "Jordan Sales",
+            name: "Baraka Sales",
             email: "jordan.sales@local.test"
           }
         }
@@ -87,7 +87,7 @@ describe("task comments route", () => {
       createdAt: "2026-06-18T15:00:00.000Z",
       author: {
         id: "user-jordan.sales@local.test",
-        name: "Jordan Sales",
+        name: "Baraka Sales",
         email: "jordan.sales@local.test"
       }
     });
@@ -116,7 +116,7 @@ describe("task comments route", () => {
         createdAt: "2026-06-18T15:00:00.000Z",
         author: {
           id: "user-jordan.sales@local.test",
-          name: "Jordan Sales",
+          name: "Baraka Sales",
           email: "jordan.sales@local.test"
         }
       }

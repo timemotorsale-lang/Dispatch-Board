@@ -475,6 +475,66 @@ describe("board generation service", () => {
     expect(harness.readGenerationRuns()).toHaveLength(0);
   });
 
+  it("skips scheduled generation before the configured local generation time", async () => {
+    const harness = createGenerationTasksRepositoryHarness();
+
+    const result = await triggerScheduledBoardGeneration({
+      repository: harness.repository,
+      loadGenerationInputs: harness.loadGenerationInputs,
+      getGenerationSettings: async () =>
+        createGenerationSettings({
+          dailyGenerationTime: "09:00",
+          timezone: "America/Chicago"
+        }),
+      now: createNowSequence("2026-06-17T13:45:00.000Z")
+    });
+
+    expect(result).toEqual({
+      status: "skipped",
+      boardDate: "2026-06-17",
+      generationRunId: null,
+      createdTaskCount: 0,
+      skippedExistingTaskCount: 0,
+      alreadyExistingTaskCount: null,
+      summary:
+        "Skipped scheduled generation because America/Chicago has not reached the configured daily generation time of 09:00.",
+      errorMessage: null,
+      latestGeneration: null
+    });
+    expect(harness.readGenerationRuns()).toHaveLength(0);
+  });
+
+  it("skips later scheduled attempts after the board is already generated for the day", async () => {
+    const harness = createGenerationTasksRepositoryHarness();
+
+    const firstResult = await triggerScheduledBoardGeneration({
+      repository: harness.repository,
+      loadGenerationInputs: harness.loadGenerationInputs,
+      getGenerationSettings: async () => createGenerationSettings(),
+      now: createNowSequence("2026-06-17T15:00:00.000Z", "2026-06-17T15:00:04.000Z")
+    });
+    const secondResult = await triggerScheduledBoardGeneration({
+      repository: harness.repository,
+      loadGenerationInputs: harness.loadGenerationInputs,
+      getGenerationSettings: async () => createGenerationSettings(),
+      now: createNowSequence("2026-06-17T15:15:00.000Z")
+    });
+
+    expect(firstResult.status).toBe("success");
+    expect(secondResult).toMatchObject({
+      status: "skipped",
+      boardDate: "2026-06-17",
+      generationRunId: "generation-run-1",
+      summary: "Skipped scheduled generation because the board for 2026-06-17 is already generated."
+    });
+    expect(secondResult.latestGeneration).toMatchObject({
+      generationRunId: "generation-run-1",
+      status: "success",
+      triggeredBy: "scheduled"
+    });
+    expect(harness.readGenerationRuns()).toHaveLength(1);
+  });
+
   it("keeps manual retries working after a scheduled run creates the board for that date", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const manager = usersByEmail.get("morgan.manager@local.test") ?? null;

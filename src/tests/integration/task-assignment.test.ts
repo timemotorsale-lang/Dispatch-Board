@@ -300,7 +300,7 @@ describe("task assignment integration", () => {
       },
       recommendedUser: {
         id: "user-jordan.sales@local.test",
-        name: "Jordan Sales"
+        name: "Baraka Sales"
       },
       recommendation: {
         reasonCode: "DIRECT_DUTY_MATCH",
@@ -316,7 +316,7 @@ describe("task assignment integration", () => {
       },
       recommendedUser: {
         id: "user-jordan.sales@local.test",
-        name: "Jordan Sales"
+        name: "Baraka Sales"
       },
       recommendation: {
         reasonCode: "DIRECT_DUTY_MATCH",

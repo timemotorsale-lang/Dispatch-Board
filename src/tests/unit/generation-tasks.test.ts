@@ -1,4 +1,4 @@
-﻿import {
+import {
   BoardGenerationStatus,
   GenerationRunStatus,
   GenerationTriggerType,
@@ -100,7 +100,7 @@ function createGenerationInput(): GenerationInput {
       },
       {
         userId: "user-sales",
-        userName: "Jordan Sales",
+        userName: "Baraka Sales",
         userEmail: "jordan.sales@local.test",
         roles: [{ roleId: "role-sales", roleName: "Salesperson" }],
         directDuties: [

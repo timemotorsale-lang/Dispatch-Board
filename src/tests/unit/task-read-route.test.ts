@@ -17,7 +17,7 @@ import { GET } from "@/app/api/tasks/[id]/route";
 
 const staffUser = {
   id: "user-jordan.sales@local.test",
-  name: "Jordan Sales",
+  name: "Baraka Sales",
   email: "jordan.sales@local.test",
   isActive: true,
   roles: ["Salesperson"],
@@ -55,14 +55,14 @@ describe("task read route", () => {
       updatedAt: "2026-06-18T15:20:00.000Z",
       assignedUser: {
         id: "user-jordan.sales@local.test",
-        name: "Jordan Sales",
+        name: "Baraka Sales",
         email: "jordan.sales@local.test"
       },
       recommendedUser: null,
       recommendation: null,
       createdByUser: {
         id: "user-morgan.manager@local.test",
-        name: "Morgan Manager",
+        name: "Eli Manager",
         email: "morgan.manager@local.test"
       },
       reviewedByUser: null,

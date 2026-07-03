@@ -272,7 +272,7 @@ export const dayOneRoleDefinitions = [
 
 export const developmentUserDefinitions = [
   {
-    name: "Morgan Manager",
+    name: "Eli Manager",
     email: "morgan.manager@local.test",
     password: SHARED_DEVELOPMENT_PASSWORD,
     isActive: true,
@@ -280,7 +280,7 @@ export const developmentUserDefinitions = [
     directDutyNames: []
   },
   {
-    name: "Riley Inventory",
+    name: "Brock Inventory",
     email: "riley.inventory@local.test",
     password: SHARED_DEVELOPMENT_PASSWORD,
     isActive: true,
@@ -288,7 +288,7 @@ export const developmentUserDefinitions = [
     directDutyNames: []
   },
   {
-    name: "Casey Mechanic",
+    name: "Walter Mechanic",
     email: "casey.mechanic@local.test",
     password: SHARED_DEVELOPMENT_PASSWORD,
     isActive: true,
@@ -301,7 +301,7 @@ export const developmentUserDefinitions = [
     ]
   },
   {
-    name: "Jordan Sales",
+    name: "Baraka Sales",
     email: "jordan.sales@local.test",
     password: SHARED_DEVELOPMENT_PASSWORD,
     isActive: true,
@@ -309,7 +309,7 @@ export const developmentUserDefinitions = [
     directDutyNames: []
   },
   {
-    name: "Avery Ops",
+    name: "Ancilla Ops",
     email: "avery.ops@local.test",
     password: SHARED_DEVELOPMENT_PASSWORD,
     isActive: true,
@@ -317,7 +317,7 @@ export const developmentUserDefinitions = [
     directDutyNames: []
   },
   {
-    name: "Quinn Collections",
+    name: "Eva Collections",
     email: "quinn.collections@local.test",
     password: SHARED_DEVELOPMENT_PASSWORD,
     isActive: true,

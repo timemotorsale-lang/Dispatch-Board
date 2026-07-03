@@ -17,7 +17,7 @@ import { POST } from "@/app/api/tasks/route";
 
 const managerUser = {
   id: "user-morgan.manager@local.test",
-  name: "Morgan Manager",
+  name: "Eli Manager",
   email: "morgan.manager@local.test",
   isActive: true,
   roles: ["General Manager"],
@@ -55,12 +55,12 @@ describe("task create route", () => {
       updatedAt: "2026-06-18T15:30:00.000Z",
       assignedUser: {
         id: "user-jordan.sales@local.test",
-        name: "Jordan Sales",
+        name: "Baraka Sales",
         email: "jordan.sales@local.test"
       },
       createdByUser: {
         id: "user-morgan.manager@local.test",
-        name: "Morgan Manager",
+        name: "Eli Manager",
         email: "morgan.manager@local.test"
       },
       reviewedByUser: null

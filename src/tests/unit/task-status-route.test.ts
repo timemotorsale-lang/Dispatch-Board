@@ -17,7 +17,7 @@ import { PATCH, POST } from "@/app/api/tasks/[id]/status/route";
 
 const staffUser = {
   id: "user-jordan.sales@local.test",
-  name: "Jordan Sales",
+  name: "Baraka Sales",
   email: "jordan.sales@local.test",
   isActive: true,
   roles: ["Salesperson"],

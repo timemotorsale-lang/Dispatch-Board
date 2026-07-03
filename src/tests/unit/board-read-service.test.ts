@@ -1,4 +1,4 @@
-﻿import {
+import {
   BoardGenerationStatus,
   BusinessDay,
   TaskSourceType,
@@ -153,12 +153,12 @@ describe("board read service", () => {
             sourceType: TaskSourceType.TEMPLATE,
             assignedUser: {
               id: "user-sales",
-              name: "Jordan Sales",
+              name: "Baraka Sales",
               email: "jordan.sales@local.test"
             },
             recommendedUser: {
               id: "user-sales",
-              name: "Jordan Sales",
+              name: "Baraka Sales",
               email: "jordan.sales@local.test"
             },
             recommendationReasonCode: "DIRECT_DUTY_MATCH",
@@ -177,7 +177,7 @@ describe("board read service", () => {
             requiresManagerApproval: true,
             assignedUser: {
               id: "user-ops",
-              name: "Avery Ops",
+              name: "Ancilla Ops",
               email: "avery.ops@local.test"
             },
             vehicleReference: "2019 Camry",
@@ -220,7 +220,7 @@ describe("board read service", () => {
             },
             recommendedUser: {
               id: "user-sales",
-              name: "Jordan Sales",
+              name: "Baraka Sales",
               email: "jordan.sales@local.test"
             }
           },

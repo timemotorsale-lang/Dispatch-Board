@@ -134,7 +134,7 @@ describe("activity feed service", () => {
             createdAt: "2026-06-21T15:00:00.000Z",
             actorUser: {
               id: "user-sales",
-              name: "Jordan Sales",
+              name: "Baraka Sales",
               email: "jordan.sales@local.test"
             },
             task: {
@@ -173,7 +173,7 @@ describe("activity feed service", () => {
           createdAt: "2026-06-21T15:00:00.000Z",
           actor: {
             id: "user-sales",
-            name: "Jordan Sales",
+            name: "Baraka Sales",
             email: "jordan.sales@local.test"
           },
           task: {

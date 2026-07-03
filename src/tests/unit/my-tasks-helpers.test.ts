@@ -1,9 +1,10 @@
-﻿import { TaskStatus } from "@prisma/client";
+import { TaskStatus } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
 import {
   filterMyTasks,
   getAllowedMyTaskStatuses,
+  getMyTasksFilterLabel,
   getPrimaryMyTaskStatusActions,
   getTasksAssignedToUser
 } from "@/features/tasks/my-tasks-helpers";
@@ -21,7 +22,7 @@ function createTask(overrides: Partial<BoardReadTask> = {}): BoardReadTask {
     requiresManagerApproval: false,
     assignedUser: {
       id: "user-1",
-      name: "Jordan Sales",
+      name: "Baraka Sales",
       email: "jordan.sales@local.test"
     },
     recommendedUser: null,
@@ -42,7 +43,7 @@ describe("my tasks helpers", () => {
         id: "task-1",
         assignedUser: {
           id: "user-1",
-          name: "Jordan Sales",
+          name: "Baraka Sales",
           email: "jordan.sales@local.test"
         }
       }),
@@ -50,7 +51,7 @@ describe("my tasks helpers", () => {
         id: "task-2",
         assignedUser: {
           id: "user-2",
-          name: "Casey Mechanic",
+          name: "Walter Mechanic",
           email: "casey.mechanic@local.test"
         }
       })
@@ -106,5 +107,11 @@ describe("my tasks helpers", () => {
     expect(actions.map((action) => action.value)).not.toContain(TaskStatus.IN_PROGRESS);
     expect(actions.map((action) => action.value)).toContain(TaskStatus.BLOCKED);
     expect(actions.map((action) => action.value)).toContain(TaskStatus.COMPLETED);
+  });
+
+  it("returns stable user-facing labels for task filters", () => {
+    expect(getMyTasksFilterLabel("all")).toBe("Assigned today");
+    expect(getMyTasksFilterLabel("blockedWaiting")).toBe("Blocked / waiting");
+    expect(getMyTasksFilterLabel("readyForReview")).toBe("Ready for review");
   });
 });

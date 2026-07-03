@@ -1,4 +1,4 @@
-﻿import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getCurrentUser: vi.fn(),
@@ -17,7 +17,7 @@ import { PATCH, POST } from "@/app/api/tasks/[id]/assignment/route";
 
 const managerUser = {
   id: "user-morgan.manager@local.test",
-  name: "Morgan Manager",
+  name: "Eli Manager",
   email: "morgan.manager@local.test",
   isActive: true,
   roles: ["General Manager"],
@@ -39,12 +39,12 @@ describe("task assignment route", () => {
       id: "task-1",
       assignedUser: {
         id: "user-casey.mechanic@local.test",
-        name: "Casey Mechanic",
+        name: "Walter Mechanic",
         email: "casey.mechanic@local.test"
       },
       recommendedUser: {
         id: "user-jordan.sales@local.test",
-        name: "Jordan Sales",
+        name: "Baraka Sales",
         email: "jordan.sales@local.test"
       },
       recommendation: {
@@ -75,12 +75,12 @@ describe("task assignment route", () => {
         id: "task-1",
         assignedUser: {
           id: "user-casey.mechanic@local.test",
-          name: "Casey Mechanic",
+          name: "Walter Mechanic",
           email: "casey.mechanic@local.test"
         },
         recommendedUser: {
           id: "user-jordan.sales@local.test",
-          name: "Jordan Sales",
+          name: "Baraka Sales",
           email: "jordan.sales@local.test"
         },
         recommendation: {
@@ -98,7 +98,7 @@ describe("task assignment route", () => {
       id: "task-1",
       assignedUser: {
         id: "user-casey.mechanic@local.test",
-        name: "Casey Mechanic",
+        name: "Walter Mechanic",
         email: "casey.mechanic@local.test"
       },
       recommendedUser: null,
@@ -126,7 +126,7 @@ describe("task assignment route", () => {
         id: "task-1",
         assignedUser: {
           id: "user-casey.mechanic@local.test",
-          name: "Casey Mechanic",
+          name: "Walter Mechanic",
           email: "casey.mechanic@local.test"
         },
         recommendedUser: null,

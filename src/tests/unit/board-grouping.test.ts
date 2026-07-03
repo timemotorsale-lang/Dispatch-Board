@@ -118,6 +118,7 @@ describe("board grouping helper", () => {
     ];
 
     const result = getBoardPresentation(tasks, "workflowArea", {
+      metricFilter: "",
       status: "IN_PROGRESS",
       assigneeId: "user-walter",
       workflowArea: "INVENTORY",
@@ -184,5 +185,34 @@ describe("board grouping helper", () => {
         label: "Shop"
       }
     ]);
+  });
+
+  it("supports metric-driven stuck and manager review filtering", () => {
+    const tasks = [
+      createTask("blocked", {
+        status: "BLOCKED"
+      }),
+      createTask("parts", {
+        status: "WAITING_ON_PARTS"
+      }),
+      createTask("review", {
+        status: "READY_FOR_REVIEW"
+      }),
+      createTask("done", {
+        status: "COMPLETED"
+      })
+    ];
+
+    const stuckResult = getBoardPresentation(tasks, "status", {
+      ...DEFAULT_BOARD_FILTERS,
+      metricFilter: "stuck"
+    });
+    const managerResult = getBoardPresentation(tasks, "status", {
+      ...DEFAULT_BOARD_FILTERS,
+      metricFilter: "needs_manager"
+    });
+
+    expect(stuckResult.filteredTasks.map((task) => task.id)).toEqual(["blocked", "parts"]);
+    expect(managerResult.filteredTasks.map((task) => task.id)).toEqual(["review"]);
   });
 });

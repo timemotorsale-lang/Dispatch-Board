@@ -20,7 +20,7 @@ import { GET as getBoardForToday } from "@/app/api/board/today/route";
 
 const managerUser = {
   id: "user-manager",
-  name: "Morgan Manager",
+  name: "Eli Manager",
   email: "morgan.manager@local.test",
   isActive: true,
   roles: ["General Manager"],
@@ -59,7 +59,7 @@ const boardPayload = {
         requiresManagerApproval: false,
         assignedUser: {
           id: "user-inventory",
-          name: "Riley Inventory",
+          name: "Brock Inventory",
           email: "riley.inventory@local.test"
         },
         recommendedUser: null,

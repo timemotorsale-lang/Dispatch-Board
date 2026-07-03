@@ -1,4 +1,4 @@
-﻿import { TaskSourceType } from "@prisma/client";
+import { TaskSourceType } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -56,8 +56,8 @@ function createTask(overrides: Partial<StoredTask> = {}): StoredTask {
 function createTaskAssignmentRepository(
   initialTasks: StoredTask[] = [createTask()],
   initialUsers: StoredUser[] = [
-    createUser("user-jordan.sales@local.test", "Jordan Sales", "jordan.sales@local.test"),
-    createUser("user-casey.mechanic@local.test", "Casey Mechanic", "casey.mechanic@local.test")
+    createUser("user-jordan.sales@local.test", "Baraka Sales", "jordan.sales@local.test"),
+    createUser("user-casey.mechanic@local.test", "Walter Mechanic", "casey.mechanic@local.test")
   ]
 ) {
   let tasks = initialTasks.map((task) => ({ ...task }));
@@ -164,12 +164,12 @@ describe("task assignment service", () => {
       id: "task-1",
       assignedUser: {
         id: "user-casey.mechanic@local.test",
-        name: "Casey Mechanic",
+        name: "Walter Mechanic",
         email: "casey.mechanic@local.test"
       },
       recommendedUser: {
         id: "user-jordan.sales@local.test",
-        name: "Jordan Sales",
+        name: "Baraka Sales",
         email: "jordan.sales@local.test"
       },
       recommendation: {
@@ -206,10 +206,10 @@ describe("task assignment service", () => {
     const { usersByEmail } = await createTestAuthStore();
     const managerUser = usersByEmail.get("morgan.manager@local.test") ?? null;
     const { repository } = createTaskAssignmentRepository(undefined, [
-      createUser("user-jordan.sales@local.test", "Jordan Sales", "jordan.sales@local.test"),
+      createUser("user-jordan.sales@local.test", "Baraka Sales", "jordan.sales@local.test"),
       createUser(
         "user-casey.mechanic@local.test",
-        "Casey Mechanic",
+        "Walter Mechanic",
         "casey.mechanic@local.test",
         false
       )
