@@ -23,13 +23,48 @@ type TeamMemberFormState = {
   isActive: boolean;
 };
 
-const initialFormState: TeamMemberFormState = {
+type RoleFormState = {
+  name: string;
+  description: string;
+  dutyIds: string[];
+};
+
+type DutyFormState = {
+  name: string;
+  workflowArea: string;
+  description: string;
+};
+
+const workflowAreaOptions = [
+  { value: "INVENTORY", label: "Inventory" },
+  { value: "ADVERTISING", label: "Advertising" },
+  { value: "MARKETING", label: "Marketing" },
+  { value: "SALES", label: "Sales" },
+  { value: "ADMIN", label: "Admin" },
+  { value: "COLLECTIONS", label: "Collections" },
+  { value: "SHOP", label: "Shop" },
+  { value: "GENERAL_MANAGER", label: "General Manager" }
+] as const;
+
+const initialTeamMemberFormState: TeamMemberFormState = {
   name: "",
   email: "",
   password: "",
   roleIds: [],
   dutyIds: [],
   isActive: true
+};
+
+const initialRoleFormState: RoleFormState = {
+  name: "",
+  description: "",
+  dutyIds: []
+};
+
+const initialDutyFormState: DutyFormState = {
+  name: "",
+  workflowArea: "SALES",
+  description: ""
 };
 
 function formatCreatedAt(value: Date | string) {
@@ -55,14 +90,22 @@ export function TeamManagementPanel({
 }: TeamManagementPanelProps) {
   const [isPending, startTransition] = useTransition();
   const [users, setUsers] = useState(initialUsers);
-  const [formState, setFormState] = useState<TeamMemberFormState>(initialFormState);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
+  const [roleOptions, setRoleOptions] = useState(roles);
+  const [dutyOptions, setDutyOptions] = useState(duties);
+  const [teamMemberFormState, setTeamMemberFormState] = useState(initialTeamMemberFormState);
+  const [roleFormState, setRoleFormState] = useState(initialRoleFormState);
+  const [dutyFormState, setDutyFormState] = useState(initialDutyFormState);
+  const [teamMemberErrorMessage, setTeamMemberErrorMessage] = useState("");
+  const [teamMemberSuccessMessage, setTeamMemberSuccessMessage] = useState("");
+  const [roleErrorMessage, setRoleErrorMessage] = useState("");
+  const [roleSuccessMessage, setRoleSuccessMessage] = useState("");
+  const [dutyErrorMessage, setDutyErrorMessage] = useState("");
+  const [dutySuccessMessage, setDutySuccessMessage] = useState("");
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  function handleSubmitTeamMember(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setErrorMessage("");
-    setSuccessMessage("");
+    setTeamMemberErrorMessage("");
+    setTeamMemberSuccessMessage("");
 
     startTransition(async () => {
       const response = await fetch("/api/users", {
@@ -70,7 +113,7 @@ export function TeamManagementPanel({
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(formState)
+        body: JSON.stringify(teamMemberFormState)
       });
 
       const payload = (await response.json().catch(() => null)) as
@@ -81,7 +124,7 @@ export function TeamManagementPanel({
         | null;
 
       if (!response.ok || !payload?.user) {
-        setErrorMessage(payload?.error ?? "Unable to add the team member right now.");
+        setTeamMemberErrorMessage(payload?.error ?? "Unable to add the team member right now.");
         return;
       }
 
@@ -96,13 +139,293 @@ export function TeamManagementPanel({
           return left.name.localeCompare(right.name);
         })
       );
-      setFormState(initialFormState);
-      setSuccessMessage("Team member added.");
+      setTeamMemberFormState(initialTeamMemberFormState);
+      setTeamMemberSuccessMessage("Team member added.");
+    });
+  }
+
+  function handleSubmitRole(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setRoleErrorMessage("");
+    setRoleSuccessMessage("");
+
+    startTransition(async () => {
+      const response = await fetch("/api/roles", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(roleFormState)
+      });
+
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            error?: string;
+            role?: TeamManagementReferenceOption;
+          }
+        | null;
+
+      if (!response.ok || !payload?.role) {
+        setRoleErrorMessage(payload?.error ?? "Unable to add the role right now.");
+        return;
+      }
+
+      const createdRole = payload.role;
+
+      setRoleOptions((currentRoles) =>
+        [...currentRoles, createdRole].sort((left, right) => left.name.localeCompare(right.name))
+      );
+      setRoleFormState(initialRoleFormState);
+      setRoleSuccessMessage("Role added.");
+    });
+  }
+
+  function handleSubmitDuty(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setDutyErrorMessage("");
+    setDutySuccessMessage("");
+
+    startTransition(async () => {
+      const response = await fetch("/api/duties", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(dutyFormState)
+      });
+
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            error?: string;
+            duty?: TeamManagementDutyOption;
+          }
+        | null;
+
+      if (!response.ok || !payload?.duty) {
+        setDutyErrorMessage(payload?.error ?? "Unable to add the duty right now.");
+        return;
+      }
+
+      const createdDuty = payload.duty;
+
+      setDutyOptions((currentDuties) =>
+        [...currentDuties, createdDuty].sort((left, right) => left.name.localeCompare(right.name))
+      );
+      setDutyFormState(initialDutyFormState);
+      setDutySuccessMessage("Duty added.");
     });
   }
 
   return (
     <div className="settings-admin-grid">
+      <article className="panel-card">
+        <strong>Duty library</strong>
+        <h2>Create duty definitions</h2>
+        <p>
+          Duties represent responsibility units that can be assigned directly to staff or attached
+          as role defaults during board generation.
+        </p>
+
+        <form className="settings-form" onSubmit={handleSubmitDuty}>
+          <div className="settings-grid">
+            <label className="field">
+              <span>Duty name</span>
+              <input
+                name="duty-name"
+                type="text"
+                value={dutyFormState.name}
+                onChange={(event) =>
+                  setDutyFormState((current) => ({
+                    ...current,
+                    name: event.target.value
+                  }))
+                }
+                placeholder="Confirm lender document package"
+                required
+              />
+            </label>
+
+            <label className="field">
+              <span>Workflow area</span>
+              <select
+                value={dutyFormState.workflowArea}
+                onChange={(event) =>
+                  setDutyFormState((current) => ({
+                    ...current,
+                    workflowArea: event.target.value
+                  }))
+                }
+              >
+                {workflowAreaOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <label className="field">
+            <span>Description</span>
+            <input
+              name="duty-description"
+              type="text"
+              value={dutyFormState.description}
+              onChange={(event) =>
+                setDutyFormState((current) => ({
+                  ...current,
+                  description: event.target.value
+                }))
+              }
+              placeholder="Optional manager-facing description for this duty."
+            />
+          </label>
+
+          {dutyErrorMessage ? (
+            <div className="notice notice-danger" role="alert">
+              <p>{dutyErrorMessage}</p>
+            </div>
+          ) : null}
+
+          {dutySuccessMessage ? (
+            <div className="notice" role="status">
+              <p>{dutySuccessMessage}</p>
+            </div>
+          ) : null}
+
+          <div className="form-actions">
+            <button className="pill pill-primary" disabled={isPending} type="submit">
+              {isPending ? "Saving..." : "Add duty"}
+            </button>
+          </div>
+        </form>
+
+        <div className="team-roster-list">
+          {dutyOptions.map((duty) => (
+            <section className="team-roster-card" key={duty.id}>
+              <div className="team-roster-header">
+                <div>
+                  <h3>{duty.name}</h3>
+                  <p>{duty.description || "No description yet."}</p>
+                </div>
+                <span className="status-pill status-neutral">{duty.workflowArea}</span>
+              </div>
+            </section>
+          ))}
+        </div>
+      </article>
+
+      <article className="panel-card">
+        <strong>Role coverage</strong>
+        <h2>Create roles and default duties</h2>
+        <p>
+          Add a role definition and optionally attach default duties so daily generation has a clean
+          fallback when a staff member has no direct-duty overrides.
+        </p>
+
+        <form className="settings-form" onSubmit={handleSubmitRole}>
+          <div className="settings-grid">
+            <label className="field">
+              <span>Role name</span>
+              <input
+                name="role-name"
+                type="text"
+                value={roleFormState.name}
+                onChange={(event) =>
+                  setRoleFormState((current) => ({
+                    ...current,
+                    name: event.target.value
+                  }))
+                }
+                placeholder="Finance Manager"
+                required
+              />
+            </label>
+
+            <label className="field">
+              <span>Description</span>
+              <input
+                name="role-description"
+                type="text"
+                value={roleFormState.description}
+                onChange={(event) =>
+                  setRoleFormState((current) => ({
+                    ...current,
+                    description: event.target.value
+                  }))
+                }
+                placeholder="Owns finance workflow coverage."
+              />
+            </label>
+          </div>
+
+          <fieldset className="business-day-group">
+            <legend>Default duties for this role</legend>
+            <p className="field-hint">
+              These become role-default duties when a user on this role has no direct-duty overrides.
+            </p>
+            <div className="checkbox-list">
+              {dutyOptions.map((duty) => (
+                <label className="checkbox-item" key={`role-duty-${duty.id}`}>
+                  <input
+                    checked={roleFormState.dutyIds.includes(duty.id)}
+                    type="checkbox"
+                    value={duty.id}
+                    onChange={(event) =>
+                      setRoleFormState((current) => ({
+                        ...current,
+                        dutyIds: toggleSelection(current.dutyIds, duty.id, event.target.checked)
+                      }))
+                    }
+                  />
+                  <span>
+                    {duty.name}
+                    <small>{duty.workflowArea}</small>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          {roleErrorMessage ? (
+            <div className="notice notice-danger" role="alert">
+              <p>{roleErrorMessage}</p>
+            </div>
+          ) : null}
+
+          {roleSuccessMessage ? (
+            <div className="notice" role="status">
+              <p>{roleSuccessMessage}</p>
+            </div>
+          ) : null}
+
+          <div className="form-actions">
+            <button className="pill pill-primary" disabled={isPending} type="submit">
+              {isPending ? "Saving..." : "Add role"}
+            </button>
+          </div>
+        </form>
+
+        <div className="team-roster-list">
+          {roleOptions.map((role) => (
+            <section className="team-roster-card" key={role.id}>
+              <div className="team-roster-header">
+                <div>
+                  <h3>{role.name}</h3>
+                  <p>{role.description || "No description yet."}</p>
+                </div>
+              </div>
+              <dl className="team-roster-details">
+                <div>
+                  <dt>Default duties</dt>
+                  <dd>{role.dutyNames?.join(" • ") || "No default duties assigned"}</dd>
+                </div>
+              </dl>
+            </section>
+          ))}
+        </div>
+      </article>
+
       <article className="panel-card">
         <strong>Manager workflow</strong>
         <h2>Add staff, users, and role coverage</h2>
@@ -111,16 +434,16 @@ export function TeamManagementPanel({
           setup.
         </p>
 
-        <form className="settings-form" onSubmit={handleSubmit}>
+        <form className="settings-form" onSubmit={handleSubmitTeamMember}>
           <div className="settings-grid">
             <label className="field">
               <span>Full name</span>
               <input
                 name="name"
                 type="text"
-                value={formState.name}
+                value={teamMemberFormState.name}
                 onChange={(event) =>
-                  setFormState((current) => ({
+                  setTeamMemberFormState((current) => ({
                     ...current,
                     name: event.target.value
                   }))
@@ -135,9 +458,9 @@ export function TeamManagementPanel({
               <input
                 name="email"
                 type="email"
-                value={formState.email}
+                value={teamMemberFormState.email}
                 onChange={(event) =>
-                  setFormState((current) => ({
+                  setTeamMemberFormState((current) => ({
                     ...current,
                     email: event.target.value
                   }))
@@ -154,9 +477,9 @@ export function TeamManagementPanel({
               <input
                 name="password"
                 type="text"
-                value={formState.password}
+                value={teamMemberFormState.password}
                 onChange={(event) =>
-                  setFormState((current) => ({
+                  setTeamMemberFormState((current) => ({
                     ...current,
                     password: event.target.value
                   }))
@@ -169,10 +492,10 @@ export function TeamManagementPanel({
 
             <label className="checkbox-item checkbox-item-inline">
               <input
-                checked={formState.isActive}
+                checked={teamMemberFormState.isActive}
                 type="checkbox"
                 onChange={(event) =>
-                  setFormState((current) => ({
+                  setTeamMemberFormState((current) => ({
                     ...current,
                     isActive: event.target.checked
                   }))
@@ -184,18 +507,24 @@ export function TeamManagementPanel({
 
           <fieldset className="business-day-group">
             <legend>Roles</legend>
-            <p className="field-hint">Assign at least one role so board permissions and defaults stay clear.</p>
+            <p className="field-hint">
+              Assign at least one role so board permissions and defaults stay clear.
+            </p>
             <div className="checkbox-list">
-              {roles.map((role) => (
+              {roleOptions.map((role) => (
                 <label className="checkbox-item" key={role.id}>
                   <input
-                    checked={formState.roleIds.includes(role.id)}
+                    checked={teamMemberFormState.roleIds.includes(role.id)}
                     type="checkbox"
                     value={role.id}
                     onChange={(event) =>
-                      setFormState((current) => ({
+                      setTeamMemberFormState((current) => ({
                         ...current,
-                        roleIds: toggleSelection(current.roleIds, role.id, event.target.checked)
+                        roleIds: toggleSelection(
+                          current.roleIds,
+                          role.id,
+                          event.target.checked
+                        )
                       }))
                     }
                   />
@@ -211,16 +540,20 @@ export function TeamManagementPanel({
               Optional direct duties override pure role-default duty coverage during daily generation.
             </p>
             <div className="checkbox-list">
-              {duties.map((duty) => (
+              {dutyOptions.map((duty) => (
                 <label className="checkbox-item" key={duty.id}>
                   <input
-                    checked={formState.dutyIds.includes(duty.id)}
+                    checked={teamMemberFormState.dutyIds.includes(duty.id)}
                     type="checkbox"
                     value={duty.id}
                     onChange={(event) =>
-                      setFormState((current) => ({
+                      setTeamMemberFormState((current) => ({
                         ...current,
-                        dutyIds: toggleSelection(current.dutyIds, duty.id, event.target.checked)
+                        dutyIds: toggleSelection(
+                          current.dutyIds,
+                          duty.id,
+                          event.target.checked
+                        )
                       }))
                     }
                   />
@@ -233,15 +566,15 @@ export function TeamManagementPanel({
             </div>
           </fieldset>
 
-          {errorMessage ? (
+          {teamMemberErrorMessage ? (
             <div className="notice notice-danger" role="alert">
-              <p>{errorMessage}</p>
+              <p>{teamMemberErrorMessage}</p>
             </div>
           ) : null}
 
-          {successMessage ? (
+          {teamMemberSuccessMessage ? (
             <div className="notice" role="status">
-              <p>{successMessage}</p>
+              <p>{teamMemberSuccessMessage}</p>
             </div>
           ) : null}
 

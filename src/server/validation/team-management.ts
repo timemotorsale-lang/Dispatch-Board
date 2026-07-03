@@ -9,6 +9,18 @@ export type TeamMemberCreateInput = {
   isActive?: boolean;
 };
 
+export type ManagedRoleCreateInput = {
+  name: string;
+  description?: string;
+  dutyIds?: string[];
+};
+
+export type ManagedDutyCreateInput = {
+  name: string;
+  workflowArea: string;
+  description?: string;
+};
+
 export type NormalizedTeamMemberCreateInput = {
   name: string;
   email: string;
@@ -16,6 +28,18 @@ export type NormalizedTeamMemberCreateInput = {
   roleIds: string[];
   dutyIds: string[];
   isActive: boolean;
+};
+
+export type NormalizedManagedRoleCreateInput = {
+  name: string;
+  description: string | null;
+  dutyIds: string[];
+};
+
+export type NormalizedManagedDutyCreateInput = {
+  name: string;
+  workflowArea: string;
+  description: string | null;
 };
 
 function uniqueTrimmedIds(values: string[]) {
@@ -80,5 +104,79 @@ export function normalizeTeamMemberCreateInput(input: unknown): NormalizedTeamMe
     roleIds,
     dutyIds,
     isActive: input.isActive ?? true
+  };
+}
+
+export function isManagedRoleCreateInput(value: unknown): value is ManagedRoleCreateInput {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Partial<ManagedRoleCreateInput>;
+
+  return (
+    typeof candidate.name === "string" &&
+    (candidate.description === undefined || typeof candidate.description === "string") &&
+    (!candidate.dutyIds ||
+      (Array.isArray(candidate.dutyIds) &&
+        candidate.dutyIds.every((dutyId) => typeof dutyId === "string")))
+  );
+}
+
+export function normalizeManagedRoleCreateInput(input: unknown): NormalizedManagedRoleCreateInput {
+  if (!isManagedRoleCreateInput(input)) {
+    throw new Error("Role name is required.");
+  }
+
+  const name = input.name.trim();
+  const description = input.description?.trim() || null;
+  const dutyIds = uniqueTrimmedIds(input.dutyIds ?? []);
+
+  if (!name) {
+    throw new Error("Role name is required.");
+  }
+
+  return {
+    name,
+    description,
+    dutyIds
+  };
+}
+
+export function isManagedDutyCreateInput(value: unknown): value is ManagedDutyCreateInput {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Partial<ManagedDutyCreateInput>;
+
+  return (
+    typeof candidate.name === "string" &&
+    typeof candidate.workflowArea === "string" &&
+    (candidate.description === undefined || typeof candidate.description === "string")
+  );
+}
+
+export function normalizeManagedDutyCreateInput(input: unknown): NormalizedManagedDutyCreateInput {
+  if (!isManagedDutyCreateInput(input)) {
+    throw new Error("Duty name and workflow area are required.");
+  }
+
+  const name = input.name.trim();
+  const workflowArea = input.workflowArea.trim().toUpperCase();
+  const description = input.description?.trim() || null;
+
+  if (!name) {
+    throw new Error("Duty name is required.");
+  }
+
+  if (!workflowArea) {
+    throw new Error("Duty workflow area is required.");
+  }
+
+  return {
+    name,
+    workflowArea,
+    description
   };
 }

@@ -3,9 +3,15 @@ import { hashPassword } from "@/server/auth/password";
 import { canManageUsers } from "@/server/policies/access";
 import {
   createTeamManagementRepository,
+  type ManagedDutyRecord,
+  type ManagedRoleRecord,
   type ManagedUserRecord
 } from "@/server/repositories/team-management-repository";
-import { normalizeTeamMemberCreateInput } from "@/server/validation/team-management";
+import {
+  normalizeManagedDutyCreateInput,
+  normalizeManagedRoleCreateInput,
+  normalizeTeamMemberCreateInput
+} from "@/server/validation/team-management";
 
 export type TeamManagementRepository = ReturnType<typeof createTeamManagementRepository>;
 
@@ -22,6 +28,8 @@ export type ManagedTeamUser = {
 export type TeamManagementReferenceOption = {
   id: string;
   name: string;
+  description?: string | null;
+  dutyNames?: string[];
 };
 
 export type TeamManagementDutyOption = TeamManagementReferenceOption & {
@@ -43,6 +51,24 @@ function toManagedTeamUser(user: ManagedUserRecord): ManagedTeamUser {
     createdAt: user.createdAt,
     roles: user.userRoles.map((assignment) => assignment.role),
     duties: user.userDuties.map((assignment) => assignment.duty)
+  };
+}
+
+function toManagedRole(role: ManagedRoleRecord): TeamManagementReferenceOption {
+  return {
+    id: role.id,
+    name: role.name,
+    description: role.description,
+    dutyNames: role.roleDuties.map((assignment) => assignment.duty.name)
+  };
+}
+
+function toManagedDuty(duty: ManagedDutyRecord): TeamManagementDutyOption {
+  return {
+    id: duty.id,
+    name: duty.name,
+    workflowArea: duty.workflowArea,
+    description: duty.description
   };
 }
 
@@ -72,8 +98,8 @@ export async function getTeamManagementSnapshotForManager(
 
   return {
     users: users.map(toManagedTeamUser),
-    roles,
-    duties
+    roles: roles.map(toManagedRole),
+    duties: duties.map(toManagedDuty)
   };
 }
 
@@ -109,4 +135,36 @@ export async function createManagedTeamUser(
   });
 
   return toManagedTeamUser(createdUser);
+}
+
+export async function createManagedRole(
+  user: AuthenticatedUser | null,
+  input: unknown,
+  repository: TeamManagementRepository = createTeamManagementRepository()
+) {
+  assertCanManageTeam(user);
+
+  const normalizedInput = normalizeManagedRoleCreateInput(input);
+  const duties = normalizedInput.dutyIds.length > 0 ? await repository.findDutiesByIds(normalizedInput.dutyIds) : [];
+
+  if (duties.length !== normalizedInput.dutyIds.length) {
+    throw new Error("Every default duty must reference an existing duty.");
+  }
+
+  const createdRole = await repository.createRole(normalizedInput);
+
+  return toManagedRole(createdRole);
+}
+
+export async function createManagedDuty(
+  user: AuthenticatedUser | null,
+  input: unknown,
+  repository: TeamManagementRepository = createTeamManagementRepository()
+) {
+  assertCanManageTeam(user);
+
+  const normalizedInput = normalizeManagedDutyCreateInput(input);
+  const createdDuty = await repository.createDuty(normalizedInput);
+
+  return toManagedDuty(createdDuty);
 }
