@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getCurrentUser: vi.fn(),
   createManagedDuty: vi.fn(),
-  getTeamManagementSnapshotForManager: vi.fn()
+  getTeamManagementSnapshotForManager: vi.fn(),
+  updateManagedDuty: vi.fn()
 }));
 
 vi.mock("@/server/auth/current-user", () => ({
@@ -12,10 +13,12 @@ vi.mock("@/server/auth/current-user", () => ({
 
 vi.mock("@/server/services/team-management", () => ({
   createManagedDuty: mocks.createManagedDuty,
-  getTeamManagementSnapshotForManager: mocks.getTeamManagementSnapshotForManager
+  getTeamManagementSnapshotForManager: mocks.getTeamManagementSnapshotForManager,
+  updateManagedDuty: mocks.updateManagedDuty
 }));
 
 import { GET, POST } from "@/app/api/duties/route";
+import { PATCH } from "@/app/api/duties/[id]/route";
 
 const managerUser = {
   id: "user-manager",
@@ -89,6 +92,35 @@ describe("duties route", () => {
       duty: expect.objectContaining({
         id: "duty-lender",
         name: "Confirm lender document package"
+      })
+    });
+  });
+
+  it("updates an existing duty", async () => {
+    mocks.updateManagedDuty.mockResolvedValue({
+      id: "duty-lender",
+      name: "Confirm lender document package",
+      workflowArea: "FINANCE",
+      description: "Updated description"
+    });
+
+    const response = await PATCH(
+      new Request("http://localhost/api/duties/duty-lender", {
+        method: "PATCH",
+        body: JSON.stringify({
+          description: "Updated description"
+        })
+      }),
+      {
+        params: Promise.resolve({ id: "duty-lender" })
+      }
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      duty: expect.objectContaining({
+        id: "duty-lender",
+        description: "Updated description"
       })
     });
   });

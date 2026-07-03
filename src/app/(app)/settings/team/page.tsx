@@ -4,18 +4,24 @@ import { TeamManagementPanel } from "@/features/settings/team-management-panel";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { canManageSettings } from "@/server/policies/access";
 import { getTeamManagementSnapshotForManager } from "@/server/services/team-management";
+import { listTaskTemplatesForManager } from "@/server/services/task-template-service";
 
 async function loadTeamManagementPageData(user: Awaited<ReturnType<typeof requireCurrentUser>>) {
   try {
-    const snapshot = await getTeamManagementSnapshotForManager(user);
+    const [snapshot, templates] = await Promise.all([
+      getTeamManagementSnapshotForManager(user),
+      listTaskTemplatesForManager(user, { includeInactive: true })
+    ]);
 
     return {
       snapshot,
+      templates,
       errorMessage: ""
     };
   } catch (error) {
     return {
       snapshot: null,
+      templates: [],
       errorMessage:
         error instanceof Error ? error.message : "Unable to load team management right now."
     };
@@ -41,7 +47,7 @@ export default async function TeamManagementSettingsPage() {
     );
   }
 
-  const { snapshot, errorMessage } = await loadTeamManagementPageData(user);
+  const { snapshot, templates, errorMessage } = await loadTeamManagementPageData(user);
 
   if (!snapshot) {
     return (
@@ -83,6 +89,7 @@ export default async function TeamManagementSettingsPage() {
         duties={snapshot.duties}
         initialUsers={snapshot.users}
         roles={snapshot.roles}
+        templates={templates}
       />
     </section>
   );

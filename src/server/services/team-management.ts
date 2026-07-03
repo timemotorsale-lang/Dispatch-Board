@@ -9,8 +9,12 @@ import {
 } from "@/server/repositories/team-management-repository";
 import {
   normalizeManagedDutyCreateInput,
+  normalizeManagedDutyUpdateInput,
   normalizeManagedRoleCreateInput,
+  normalizeManagedRoleUpdateInput,
   normalizeTeamMemberCreateInput
+  ,
+  normalizeTeamMemberUpdateInput
 } from "@/server/validation/team-management";
 
 export type TeamManagementRepository = ReturnType<typeof createTeamManagementRepository>;
@@ -137,6 +141,47 @@ export async function createManagedTeamUser(
   return toManagedTeamUser(createdUser);
 }
 
+export async function updateManagedTeamUser(
+  user: AuthenticatedUser | null,
+  teamUserId: string,
+  input: unknown,
+  repository: TeamManagementRepository = createTeamManagementRepository()
+) {
+  assertCanManageTeam(user);
+
+  const normalizedTeamUserId = teamUserId.trim();
+
+  if (!normalizedTeamUserId) {
+    throw new Error("Team member id is required.");
+  }
+
+  const normalizedInput = normalizeTeamMemberUpdateInput(input);
+
+  if (normalizedInput.roleIds) {
+    const roles = await repository.findRolesByIds(normalizedInput.roleIds);
+
+    if (roles.length !== normalizedInput.roleIds.length) {
+      throw new Error("Every assigned role must reference an existing role.");
+    }
+  }
+
+  if (normalizedInput.dutyIds) {
+    const duties = await repository.findDutiesByIds(normalizedInput.dutyIds);
+
+    if (duties.length !== normalizedInput.dutyIds.length) {
+      throw new Error("Every assigned duty must reference an existing duty.");
+    }
+  }
+
+  const updatedUser = await repository.updateUser(normalizedTeamUserId, normalizedInput);
+
+  if (!updatedUser) {
+    throw new Error("Team member not found.");
+  }
+
+  return toManagedTeamUser(updatedUser);
+}
+
 export async function createManagedRole(
   user: AuthenticatedUser | null,
   input: unknown,
@@ -156,6 +201,39 @@ export async function createManagedRole(
   return toManagedRole(createdRole);
 }
 
+export async function updateManagedRole(
+  user: AuthenticatedUser | null,
+  roleId: string,
+  input: unknown,
+  repository: TeamManagementRepository = createTeamManagementRepository()
+) {
+  assertCanManageTeam(user);
+
+  const normalizedRoleId = roleId.trim();
+
+  if (!normalizedRoleId) {
+    throw new Error("Role id is required.");
+  }
+
+  const normalizedInput = normalizeManagedRoleUpdateInput(input);
+
+  if (normalizedInput.dutyIds) {
+    const duties = await repository.findDutiesByIds(normalizedInput.dutyIds);
+
+    if (duties.length !== normalizedInput.dutyIds.length) {
+      throw new Error("Every default duty must reference an existing duty.");
+    }
+  }
+
+  const updatedRole = await repository.updateRole(normalizedRoleId, normalizedInput);
+
+  if (!updatedRole) {
+    throw new Error("Role not found.");
+  }
+
+  return toManagedRole(updatedRole);
+}
+
 export async function createManagedDuty(
   user: AuthenticatedUser | null,
   input: unknown,
@@ -167,4 +245,28 @@ export async function createManagedDuty(
   const createdDuty = await repository.createDuty(normalizedInput);
 
   return toManagedDuty(createdDuty);
+}
+
+export async function updateManagedDuty(
+  user: AuthenticatedUser | null,
+  dutyId: string,
+  input: unknown,
+  repository: TeamManagementRepository = createTeamManagementRepository()
+) {
+  assertCanManageTeam(user);
+
+  const normalizedDutyId = dutyId.trim();
+
+  if (!normalizedDutyId) {
+    throw new Error("Duty id is required.");
+  }
+
+  const normalizedInput = normalizeManagedDutyUpdateInput(input);
+  const updatedDuty = await repository.updateDuty(normalizedDutyId, normalizedInput);
+
+  if (!updatedDuty) {
+    throw new Error("Duty not found.");
+  }
+
+  return toManagedDuty(updatedDuty);
 }

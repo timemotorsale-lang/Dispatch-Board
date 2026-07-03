@@ -4,7 +4,10 @@ import { Prisma as PrismaNamespace } from "@prisma/client";
 import { prisma } from "@/server/db/client";
 import type {
   NormalizedManagedDutyCreateInput,
+  NormalizedManagedDutyUpdateInput,
   NormalizedManagedRoleCreateInput,
+  NormalizedManagedRoleUpdateInput,
+  NormalizedTeamMemberUpdateInput,
   NormalizedTeamMemberCreateInput
 } from "@/server/validation/team-management";
 
@@ -161,6 +164,52 @@ export function createTeamManagementRepository(database: TeamManagementDatabase 
       }
     },
 
+    async updateUser(id: string, input: NormalizedTeamMemberUpdateInput): Promise<ManagedUserRecord | null> {
+      try {
+        return await database.user.update({
+          where: { id },
+          data: {
+            ...(input.name !== undefined ? { name: input.name } : {}),
+            ...(input.email !== undefined ? { email: input.email } : {}),
+            ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+            ...(input.roleIds
+              ? {
+                  userRoles: {
+                    deleteMany: {},
+                    create: input.roleIds.map((roleId) => ({ roleId }))
+                  }
+                }
+              : {}),
+            ...(input.dutyIds
+              ? {
+                  userDuties: {
+                    deleteMany: {},
+                    create: input.dutyIds.map((dutyId) => ({ dutyId }))
+                  }
+                }
+              : {})
+          },
+          select: managedUserSelect
+        });
+      } catch (error) {
+        if (
+          error instanceof PrismaNamespace.PrismaClientKnownRequestError &&
+          error.code === "P2025"
+        ) {
+          return null;
+        }
+
+        if (
+          error instanceof PrismaNamespace.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          throw new Error("A user with that email already exists.");
+        }
+
+        throw error;
+      }
+    },
+
     async createRole(input: NormalizedManagedRoleCreateInput): Promise<ManagedRoleRecord> {
       try {
         return await database.role.create({
@@ -187,6 +236,43 @@ export function createTeamManagementRepository(database: TeamManagementDatabase 
       }
     },
 
+    async updateRole(id: string, input: NormalizedManagedRoleUpdateInput): Promise<ManagedRoleRecord | null> {
+      try {
+        return await database.role.update({
+          where: { id },
+          data: {
+            ...(input.name !== undefined ? { name: input.name } : {}),
+            ...(input.description !== undefined ? { description: input.description } : {}),
+            ...(input.dutyIds
+              ? {
+                  roleDuties: {
+                    deleteMany: {},
+                    create: input.dutyIds.map((dutyId) => ({ dutyId }))
+                  }
+                }
+              : {})
+          },
+          select: managedRoleSelect
+        });
+      } catch (error) {
+        if (
+          error instanceof PrismaNamespace.PrismaClientKnownRequestError &&
+          error.code === "P2025"
+        ) {
+          return null;
+        }
+
+        if (
+          error instanceof PrismaNamespace.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          throw new Error("A role with that name already exists.");
+        }
+
+        throw error;
+      }
+    },
+
     async createDuty(input: NormalizedManagedDutyCreateInput): Promise<ManagedDutyRecord> {
       try {
         return await database.duty.create({
@@ -198,6 +284,32 @@ export function createTeamManagementRepository(database: TeamManagementDatabase 
           select: managedDutySelect
         });
       } catch (error) {
+        if (
+          error instanceof PrismaNamespace.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          throw new Error("A duty with that name already exists.");
+        }
+
+        throw error;
+      }
+    },
+
+    async updateDuty(id: string, input: NormalizedManagedDutyUpdateInput): Promise<ManagedDutyRecord | null> {
+      try {
+        return await database.duty.update({
+          where: { id },
+          data: input,
+          select: managedDutySelect
+        });
+      } catch (error) {
+        if (
+          error instanceof PrismaNamespace.PrismaClientKnownRequestError &&
+          error.code === "P2025"
+        ) {
+          return null;
+        }
+
         if (
           error instanceof PrismaNamespace.PrismaClientKnownRequestError &&
           error.code === "P2002"

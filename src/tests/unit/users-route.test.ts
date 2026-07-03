@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getCurrentUser: vi.fn(),
   createManagedTeamUser: vi.fn(),
-  getTeamManagementSnapshotForManager: vi.fn()
+  getTeamManagementSnapshotForManager: vi.fn(),
+  updateManagedTeamUser: vi.fn()
 }));
 
 vi.mock("@/server/auth/current-user", () => ({
@@ -12,10 +13,12 @@ vi.mock("@/server/auth/current-user", () => ({
 
 vi.mock("@/server/services/team-management", () => ({
   createManagedTeamUser: mocks.createManagedTeamUser,
-  getTeamManagementSnapshotForManager: mocks.getTeamManagementSnapshotForManager
+  getTeamManagementSnapshotForManager: mocks.getTeamManagementSnapshotForManager,
+  updateManagedTeamUser: mocks.updateManagedTeamUser
 }));
 
 import { GET, POST } from "@/app/api/users/route";
+import { PATCH } from "@/app/api/users/[id]/route";
 
 const managerUser = {
   id: "user-manager",
@@ -110,5 +113,40 @@ describe("users route", () => {
       error: "Name, email, password, and at least one role are required."
     });
     expect(mocks.createManagedTeamUser).not.toHaveBeenCalled();
+  });
+
+  it("updates an existing managed team user", async () => {
+    mocks.updateManagedTeamUser.mockResolvedValue({
+      id: "user-alex",
+      name: "Alex Staff",
+      email: "alex.staff@local.test",
+      isActive: false,
+      createdAt: new Date("2026-07-03T12:00:00.000Z"),
+      roles: [{ id: "role-sales", name: "Salesperson" }],
+      duties: []
+    });
+
+    const response = await PATCH(
+      new Request("http://localhost/api/users/user-alex", {
+        method: "PATCH",
+        body: JSON.stringify({
+          isActive: false
+        })
+      }),
+      {
+        params: Promise.resolve({ id: "user-alex" })
+      }
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      user: expect.objectContaining({
+        id: "user-alex",
+        isActive: false
+      })
+    });
+    expect(mocks.updateManagedTeamUser).toHaveBeenCalledWith(managerUser, "user-alex", {
+      isActive: false
+    });
   });
 });
