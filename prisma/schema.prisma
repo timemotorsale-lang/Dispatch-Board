@@ -1,4 +1,4 @@
-generator client {
+﻿generator client {
   provider = "prisma-client-js"
 }
 
@@ -62,24 +62,6 @@ enum GenerationTriggerType {
   MANUAL
 }
 
-enum ActivityEventType {
-  DAILY_BOARD_GENERATED
-  TASK_CREATED
-  TASK_ASSIGNED
-  ASSIGNMENT_RECOMMENDATION_MADE
-  ASSIGNMENT_CHANGED
-  DUE_TIME_CHANGED
-  STATUS_CHANGED
-  TASK_BLOCKED
-  BLOCKER_REASON_ADDED
-  TASK_WAITING_ON_PARTS
-  TASK_WAITING_ON_APPROVAL
-  TASK_READY_FOR_REVIEW
-  MANAGER_APPROVED_COMPLETION
-  TASK_COMPLETED
-  COMMENT_ADDED
-}
-
 // Placeholder model for the v0.1.0 foundation migration.
 // Domain models are intentionally deferred to later milestones.
 model BootstrapMarker {
@@ -108,7 +90,6 @@ model User {
   authoredTaskComments    TaskComment[]   @relation("TaskCommentAuthorUser")
   activityEvents          ActivityEvent[]
   triggeredGenerationRuns GenerationRun[] @relation("GenerationRunTriggeredByUser")
-  activityEvents          ActivityEvent[] @relation("ActivityEventActorUser")
 
   @@index([isActive])
 }
@@ -225,11 +206,9 @@ model BoardDay {
   generatedByUser   User?                 @relation("BoardDayGeneratedByUser", fields: [generatedByUserId], references: [id], onDelete: SetNull)
   activityEvents    ActivityEvent[]
   tasks             Task[]
-  activityEvents    ActivityEvent[]
 }
 
 model Task {
-<<<<<<< HEAD
   id                      String         @id @default(cuid())
   boardDayId              String
   title                   String
@@ -263,42 +242,6 @@ model Task {
   sourceDuty              Duty?          @relation("TaskSourceDuty", fields: [sourceDutyId], references: [id], onDelete: SetNull)
   activityEvents          ActivityEvent[]
   comments                TaskComment[]
-=======
-  id                         String          @id @default(cuid())
-  boardDayId                 String
-  title                      String
-  description                String          @default("")
-  assignedUserId             String
-  recommendedUserId          String?
-  recommendationReasonCode   String?
-  recommendationReasonText   String?
-  recommendationReviewNeeded Boolean?
-  status                     TaskStatus      @default(NOT_STARTED)
-  dueAt                      DateTime
-  createdByUserId            String?
-  requiresManagerApproval    Boolean         @default(false)
-  vehicleReference           String?
-  customerReference          String?
-  sourceType                 TaskSourceType
-  sourceTemplateId           String?
-  sourceDutyId               String?
-  workflowArea               WorkflowArea
-  blockerReason              String?
-  readyForReviewAt           DateTime?
-  completedAt                DateTime?
-  reviewedByUserId           String?
-  createdAt                  DateTime        @default(now())
-  updatedAt                  DateTime        @updatedAt
-  boardDay                   BoardDay        @relation(fields: [boardDayId], references: [id], onDelete: Cascade)
-  assignedUser               User            @relation("TaskAssignedUser", fields: [assignedUserId], references: [id], onDelete: Restrict)
-  recommendedUser            User?           @relation("TaskRecommendedUser", fields: [recommendedUserId], references: [id], onDelete: SetNull)
-  createdByUser              User?           @relation("TaskCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  reviewedByUser             User?           @relation("TaskReviewedByUser", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
-  sourceTemplate             TaskTemplate?   @relation("TaskSourceTemplate", fields: [sourceTemplateId], references: [id], onDelete: SetNull)
-  sourceDuty                 Duty?           @relation("TaskSourceDuty", fields: [sourceDutyId], references: [id], onDelete: SetNull)
-  comments                   TaskComment[]
-  activityEvents             ActivityEvent[]
->>>>>>> main
 
   @@unique([boardDayId, sourceTemplateId, assignedUserId])
   @@index([boardDayId, status])
@@ -320,7 +263,6 @@ model TaskComment {
 }
 
 model ActivityEvent {
-<<<<<<< HEAD
   id          String   @id @default(cuid())
   boardDayId  String
   actorUserId String?
@@ -335,23 +277,6 @@ model ActivityEvent {
 
   @@index([boardDayId, createdAt])
   @@index([taskId])
-=======
-  id          String            @id @default(cuid())
-  boardDayId  String
-  actorUserId String?
-  taskId      String?
-  eventType   ActivityEventType
-  message     String
-  metadata    Json              @default("{}")
-  createdAt   DateTime          @default(now())
-  boardDay    BoardDay          @relation(fields: [boardDayId], references: [id], onDelete: Cascade)
-  actorUser   User?             @relation("ActivityEventActorUser", fields: [actorUserId], references: [id], onDelete: SetNull)
-  task        Task?             @relation(fields: [taskId], references: [id], onDelete: SetNull)
-
-  @@index([boardDayId, createdAt])
-  @@index([taskId])
-  @@index([actorUserId])
->>>>>>> main
 }
 
 model GenerationRun {

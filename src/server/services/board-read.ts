@@ -1,4 +1,4 @@
-import { TaskSourceType, TaskStatus } from "@prisma/client";
+﻿import { TaskSourceType, TaskStatus } from "@prisma/client";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { canViewFullBoard } from "@/server/policies/access";
@@ -35,13 +35,7 @@ export type BoardReadTask = {
   requiresManagerApproval: boolean;
   assignedUser: BoardReadUserSummary;
   recommendedUser: BoardReadUserSummary | null;
-<<<<<<< HEAD
   recommendation: BoardReadRecommendation | null;
-=======
-  recommendationReasonCode: string | null;
-  recommendationReasonText: string | null;
-  recommendationReviewNeeded: boolean;
->>>>>>> main
   vehicleReference: string | null;
   customerReference: string | null;
   blockerReason: string | null;
@@ -126,13 +120,7 @@ function toTaskSummary(task: BoardReadTaskRecord): BoardReadTask {
       email: task.assignedUser.email || undefined
     },
     recommendedUser: toUserSummary(task.recommendedUser),
-<<<<<<< HEAD
     recommendation,
-=======
-    recommendationReasonCode: normalizeOptionalText(task.recommendationReasonCode),
-    recommendationReasonText: normalizeOptionalText(task.recommendationReasonText),
-    recommendationReviewNeeded: task.recommendationReviewNeeded ?? false,
->>>>>>> main
     vehicleReference: normalizeOptionalText(task.vehicleReference),
     customerReference: normalizeOptionalText(task.customerReference),
     blockerReason: normalizeOptionalText(task.blockerReason),

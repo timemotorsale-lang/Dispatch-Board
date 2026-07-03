@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_BOARD_FILTERS,
@@ -30,13 +30,7 @@ function createTask(id: string, overrides: BoardTaskOverrides = {}): GroupableBo
       name: `User ${id}`
     },
     recommendedUser: null,
-<<<<<<< HEAD
     recommendation: null,
-=======
-    recommendationReasonCode: null,
-    recommendationReasonText: null,
-    recommendationReviewNeeded: false,
->>>>>>> main
     vehicleReference: null,
     customerReference: null,
     blockerReason: null,

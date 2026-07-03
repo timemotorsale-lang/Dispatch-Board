@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 
@@ -240,7 +240,6 @@ export function BoardScreen({
     setFilters((current) => ({ ...current, [key]: value }));
   }
 
-<<<<<<< HEAD
   function handleAssigneeSelect(assigneeId: string) {
     setGroupMode("assignee");
     setFilters((current) => ({
@@ -339,24 +338,4 @@ export function BoardScreen({
       ) : null}
     </section>
   );
-=======
-  return <section className="dispatch-board-page">
-    <BoardHero boardDate={loadState.date} status={board?.generationStatus} toolbar={<BoardToolbar assignableUsers={assignableUsers} boardDate={selectedBoardDate} isManager={isManager} onBoardDateChange={(date) => { setSelectedBoardDate(date); setLoadState({ status: "loading", date }); }} onBoardRefreshRequested={() => { setLoadState({ status: "loading", date: selectedBoardDate }); setReloadCount((count) => count + 1); }} />} />
-    {initialDateError ? <div className="board-notice board-notice-danger">{initialDateError}</div> : null}
-    {loadState.status === "error" ? <div className="board-notice board-notice-danger">{loadState.message}</div> : null}
-    {loadState.status === "loading" ? <div className="board-loading"><span /><p>Loading the dispatch board for {formatBoardDate(loadState.date)}…</p></div> : null}
-    {loadState.status === "empty" ? <div className="board-empty"><h2>No board for {formatBoardDate(loadState.date)}</h2><p>{loadState.message} {isManager ? "Generate the board or create a manual task to begin." : "A manager can generate it when ready."}</p></div> : null}
-    {board && presentation ? <>
-      <MetricStrip metrics={createMetrics(board)} />
-      <OperationsStrip tasks={board.tasks} />
-      <div className="board-and-rail">
-        <div className="board-primary-column">
-          <BoardControls board={board} filters={filters} groupMode={groupMode} presentation={presentation} onClear={() => setFilters(DEFAULT_BOARD_FILTERS)} onFilterChange={setFilter} onGroupChange={setGroupMode} />
-          <TaskBoard boardDate={loadState.date} presentation={presentation} />
-        </div>
-        <OperationalRail boardDate={loadState.date} isManager={isManager} onReviewActionComplete={() => setReloadCount((count) => count + 1)} tasks={presentation.filteredTasks} />
-      </div>
-    </> : null}
-  </section>;
->>>>>>> main
 }

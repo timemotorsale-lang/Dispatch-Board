@@ -1,4 +1,4 @@
-import { ActivityEventType, TaskStatus } from "@prisma/client";
+﻿import { TaskStatus } from "@prisma/client";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { canUpdateAssignedWork, isManager } from "@/server/policies/access";
@@ -17,16 +17,6 @@ export type TaskStatusUpdateResult = {
   status: TaskStatus;
   blockerReason: string | null;
   updatedAt: string;
-};
-
-const taskStatusLabels: Record<TaskStatus, string> = {
-  [TaskStatus.NOT_STARTED]: "Not Started",
-  [TaskStatus.IN_PROGRESS]: "In Progress",
-  [TaskStatus.BLOCKED]: "Blocked",
-  [TaskStatus.WAITING_ON_PARTS]: "Waiting on Parts",
-  [TaskStatus.WAITING_ON_APPROVAL]: "Waiting on Approval",
-  [TaskStatus.READY_FOR_REVIEW]: "Ready for Review",
-  [TaskStatus.COMPLETED]: "Completed"
 };
 
 const approvalRequiredCompletionError =
@@ -206,103 +196,6 @@ function toTaskStatusUpdateResult(task: {
   };
 }
 
-function getSpecificStatusEventType(
-  previousStatus: TaskStatus,
-  nextStatus: TaskStatus,
-  requiresManagerApproval: boolean
-) {
-  if (nextStatus === TaskStatus.BLOCKED) {
-    return ActivityEventType.TASK_BLOCKED;
-  }
-
-  if (nextStatus === TaskStatus.WAITING_ON_PARTS) {
-    return ActivityEventType.TASK_WAITING_ON_PARTS;
-  }
-
-  if (nextStatus === TaskStatus.WAITING_ON_APPROVAL) {
-    return ActivityEventType.TASK_WAITING_ON_APPROVAL;
-  }
-
-  if (nextStatus === TaskStatus.READY_FOR_REVIEW) {
-    return ActivityEventType.TASK_READY_FOR_REVIEW;
-  }
-
-  if (nextStatus === TaskStatus.COMPLETED) {
-    return requiresManagerApproval && previousStatus === TaskStatus.READY_FOR_REVIEW
-      ? ActivityEventType.MANAGER_APPROVED_COMPLETION
-      : ActivityEventType.TASK_COMPLETED;
-  }
-
-  return null;
-}
-
-function buildStatusChangedMessage(previousStatus: TaskStatus, nextStatus: TaskStatus) {
-  return `Status changed from ${taskStatusLabels[previousStatus]} to ${taskStatusLabels[nextStatus]}`;
-}
-
-async function recordStatusActivityEvents(
-  repository: TaskStatusRepository,
-  actorUserId: string,
-  previousTask: {
-    boardDayId: string;
-    id: string;
-    requiresManagerApproval: boolean;
-    status: TaskStatus;
-  },
-  updatedTask: {
-    blockerReason: string | null;
-    completedAt: Date | null;
-    readyForReviewAt: Date | null;
-    reviewedByUserId: string | null;
-    status: TaskStatus;
-  }
-) {
-  if (previousTask.status === updatedTask.status) {
-    return;
-  }
-
-  const metadata = {
-    ...(updatedTask.status === TaskStatus.BLOCKED
-      ? {
-          blockerReason: updatedTask.blockerReason?.trim() ?? null
-        }
-      : {}),
-    completedAt: updatedTask.completedAt?.toISOString() ?? null,
-    newStatus: updatedTask.status,
-    previousStatus: previousTask.status,
-    readyForReviewAt: updatedTask.readyForReviewAt?.toISOString() ?? null,
-    reviewedByUserId: updatedTask.reviewedByUserId
-  };
-
-  await repository.createActivityEvent({
-    actorUserId,
-    boardDayId: previousTask.boardDayId,
-    eventType: ActivityEventType.STATUS_CHANGED,
-    message: buildStatusChangedMessage(previousTask.status, updatedTask.status),
-    metadata,
-    taskId: previousTask.id
-  });
-
-  const specificEventType = getSpecificStatusEventType(
-    previousTask.status,
-    updatedTask.status,
-    previousTask.requiresManagerApproval
-  );
-
-  if (!specificEventType) {
-    return;
-  }
-
-  await repository.createActivityEvent({
-    actorUserId,
-    boardDayId: previousTask.boardDayId,
-    eventType: specificEventType,
-    message: `Task marked ${taskStatusLabels[updatedTask.status]}`,
-    metadata,
-    taskId: previousTask.id
-  });
-}
-
 export async function updateTaskStatus(
   user: AuthenticatedUser | null,
   taskId: string,
@@ -326,7 +219,6 @@ export async function updateTaskStatus(
     buildTaskStatusUpdateData(authenticatedUser, task, normalizedInput)
   );
 
-<<<<<<< HEAD
   if (repository.supportsActivityEvents && task.boardDayId) {
     await recordBoardActivityEvent({
       boardDayId: task.boardDayId,
@@ -345,9 +237,6 @@ export async function updateTaskStatus(
       }
     });
   }
-=======
-  await recordStatusActivityEvents(repository, authenticatedUser.id, task, updatedTask);
->>>>>>> main
 
   return toTaskStatusUpdateResult(updatedTask);
 }

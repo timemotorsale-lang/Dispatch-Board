@@ -1,4 +1,4 @@
-import { ActivityEventType, TaskSourceType, TaskStatus } from "@prisma/client";
+﻿import { TaskSourceType, TaskStatus } from "@prisma/client";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { canManageAssignments } from "@/server/policies/access";
@@ -185,7 +185,6 @@ export async function createManualTask(
     workflowArea: normalizedInput.workflowArea
   });
 
-<<<<<<< HEAD
   if (repository.supportsActivityEvents) {
     await recordBoardActivityEvent({
       boardDayId: boardDay.id,
@@ -200,23 +199,6 @@ export async function createManualTask(
       }
     });
   }
-=======
-  await repository.createActivityEvent({
-    actorUserId: authenticatedUser.id,
-    boardDayId: boardDay.id,
-    eventType: ActivityEventType.TASK_CREATED,
-    message: `Task created: ${task.title}`,
-    metadata: {
-      assignedUserId: normalizedInput.assignedUserId,
-      dueAt: normalizedInput.dueAt.toISOString(),
-      requiresManagerApproval: normalizedInput.requiresManagerApproval,
-      sourceType: TaskSourceType.MANAGER,
-      title: task.title,
-      workflowArea: normalizedInput.workflowArea
-    },
-    taskId: task.id
-  });
->>>>>>> main
 
   return toManualTaskCreateResult(task);
 }

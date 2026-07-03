@@ -1,4 +1,4 @@
-import {
+﻿import {
   BoardGenerationStatus,
   BusinessDay,
   TaskSourceType,
@@ -44,12 +44,7 @@ function createBoardReadRepositoryHarness(options: {
         email: string;
       } | null;
       recommendationReasonCode?: string | null;
-<<<<<<< HEAD
       recommendationExplanation?: string | null;
-=======
-      recommendationReasonText?: string | null;
-      recommendationReviewNeeded?: boolean | null;
->>>>>>> main
       vehicleReference?: string | null;
       customerReference?: string | null;
       blockerReason?: string | null;
@@ -77,9 +72,6 @@ function createBoardReadRepositoryHarness(options: {
         workflowArea: task.workflowArea ?? WorkflowArea.SALES,
         sourceType: task.sourceType ?? TaskSourceType.TEMPLATE,
         requiresManagerApproval: task.requiresManagerApproval ?? false,
-        recommendationReasonCode: task.recommendationReasonCode ?? null,
-        recommendationReasonText: task.recommendationReasonText ?? null,
-        recommendationReviewNeeded: task.recommendationReviewNeeded ?? null,
         vehicleReference: task.vehicleReference ?? null,
         customerReference: task.customerReference ?? null,
         blockerReason: task.blockerReason ?? null,
@@ -170,13 +162,8 @@ describe("board read service", () => {
               email: "jordan.sales@local.test"
             },
             recommendationReasonCode: "DIRECT_DUTY_MATCH",
-<<<<<<< HEAD
             recommendationExplanation:
               "Recommended because this task matches the direct duty Follow up with assigned leads.",
-=======
-            recommendationReasonText: "Jordan Sales is recommended because they have the direct duty for this template.",
-            recommendationReviewNeeded: false,
->>>>>>> main
             customerReference: "Taylor R.",
             status: TaskStatus.IN_PROGRESS
           },
@@ -235,10 +222,7 @@ describe("board read service", () => {
               id: "user-sales",
               name: "Jordan Sales",
               email: "jordan.sales@local.test"
-            },
-            recommendationReasonCode: "DIRECT_DUTY_MATCH",
-            recommendationReasonText: "Jordan Sales is recommended because they have the direct duty for this template.",
-            recommendationReviewNeeded: false
+            }
           },
           {
             id: "task-2",

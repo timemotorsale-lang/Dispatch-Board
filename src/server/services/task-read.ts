@@ -1,4 +1,4 @@
-import type { AuthenticatedUser } from "@/server/auth/store";
+﻿import type { AuthenticatedUser } from "@/server/auth/store";
 import {
   createTaskReadRepository,
   type TaskReadRecord,
@@ -46,13 +46,7 @@ export type TaskReadModel = {
   updatedAt: string;
   assignedUser: TaskReadUserSummary;
   recommendedUser: TaskReadUserSummary | null;
-<<<<<<< HEAD
   recommendation: TaskReadRecommendation | null;
-=======
-  recommendationReasonCode: string | null;
-  recommendationReasonText: string | null;
-  recommendationReviewNeeded: boolean;
->>>>>>> main
   createdByUser: TaskReadUserSummary | null;
   reviewedByUser: TaskReadUserSummary | null;
   comments: TaskCommentReadModel[];
@@ -125,13 +119,7 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
       email: task.assignedUser.email || undefined
     },
     recommendedUser: toUserSummary(task.recommendedUser),
-<<<<<<< HEAD
     recommendation,
-=======
-    recommendationReasonCode: normalizeOptionalText(task.recommendationReasonCode),
-    recommendationReasonText: normalizeOptionalText(task.recommendationReasonText),
-    recommendationReviewNeeded: task.recommendationReviewNeeded ?? false,
->>>>>>> main
     createdByUser: toUserSummary(task.createdByUser),
     reviewedByUser: toUserSummary(task.reviewedByUser),
     comments: task.comments.map((comment) => ({

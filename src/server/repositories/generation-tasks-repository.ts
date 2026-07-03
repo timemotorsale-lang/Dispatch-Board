@@ -1,5 +1,4 @@
-import {
-  ActivityEventType,
+﻿import {
   GenerationRunStatus,
   Prisma,
   PrismaClient,
@@ -12,7 +11,7 @@ import {
 
 import { prisma } from "@/server/db/client";
 
-type GenerationTasksDatabase = Pick<PrismaClient, "activityEvent" | "boardDay" | "generationRun" | "task">;
+type GenerationTasksDatabase = Pick<PrismaClient, "boardDay" | "generationRun" | "task">;
 
 const generatedTaskIdentitySelect = {
   id: true,
@@ -26,12 +25,7 @@ const createdGeneratedTaskSelect = {
   assignedUserId: true,
   recommendedUserId: true,
   recommendationReasonCode: true,
-<<<<<<< HEAD
   recommendationExplanation: true,
-=======
-  recommendationReasonText: true,
-  recommendationReviewNeeded: true,
->>>>>>> main
   dueAt: true,
   sourceTemplateId: true,
   sourceDutyId: true,
@@ -56,12 +50,7 @@ export type CreateGeneratedTaskInput = {
   assignedUserId: string;
   recommendedUserId: string | null;
   recommendationReasonCode: string | null;
-<<<<<<< HEAD
   recommendationExplanation: string | null;
-=======
-  recommendationReasonText: string | null;
-  recommendationReviewNeeded: boolean;
->>>>>>> main
   dueAt: Date;
   createdByUserId: string | null;
   requiresManagerApproval: boolean;
@@ -92,18 +81,7 @@ export type FailGenerationRunInput = {
 };
 
 export type GenerationTasksRepository = {
-<<<<<<< HEAD
   supportsActivityEvents?: boolean;
-=======
-  createActivityEvent(input: {
-    actorUserId: string | null;
-    boardDayId: string;
-    eventType: ActivityEventType;
-    message: string;
-    metadata: Prisma.InputJsonValue;
-    taskId: string | null;
-  }): Promise<void>;
->>>>>>> main
   getOrCreateBoardDay(boardDate: string): Promise<BoardDayRecord>;
   listExistingGeneratedTasks(boardDayId: string): Promise<ExistingGeneratedTaskRecord[]>;
   countManualTasks(boardDayId: string): Promise<number>;
@@ -122,16 +100,7 @@ export function createGenerationTasksRepository(
   database: GenerationTasksDatabase = prisma
 ): GenerationTasksRepository {
   return {
-<<<<<<< HEAD
     supportsActivityEvents: true,
-=======
-    async createActivityEvent(input) {
-      await database.activityEvent.create({
-        data: input
-      });
-    },
-
->>>>>>> main
     async getOrCreateBoardDay(boardDate) {
       return database.boardDay.upsert({
         where: {
@@ -176,12 +145,7 @@ export function createGenerationTasksRepository(
             assignedUserId: input.assignedUserId,
             recommendedUserId: input.recommendedUserId,
             recommendationReasonCode: input.recommendationReasonCode,
-<<<<<<< HEAD
             recommendationExplanation: input.recommendationExplanation,
-=======
-            recommendationReasonText: input.recommendationReasonText,
-            recommendationReviewNeeded: input.recommendationReviewNeeded,
->>>>>>> main
             status: TaskStatus.NOT_STARTED,
             dueAt: input.dueAt,
             createdByUserId: input.createdByUserId,
