@@ -37,7 +37,12 @@ type StoredTask = {
   assignedUserId: string;
   recommendedUserId: string | null;
   recommendationReasonCode: string | null;
+<<<<<<< HEAD
   recommendationExplanation: string | null;
+=======
+  recommendationReasonText: string | null;
+  recommendationReviewNeeded: boolean | null;
+>>>>>>> main
   status: TaskStatus;
   dueAt: Date;
   createdByUserId: string | null;
@@ -153,6 +158,8 @@ function createGenerationTasksRepositoryHarness(
   const generationRuns: StoredGenerationRun[] = [];
 
   const repository: GenerationTasksRepository = {
+    async createActivityEvent() {},
+
     async getOrCreateBoardDay(boardDate) {
       const existingBoardDay = boardDays.find(
         (candidate) => candidate.date.toISOString().slice(0, 10) === boardDate
@@ -221,7 +228,12 @@ function createGenerationTasksRepositoryHarness(
         assignedUserId: input.assignedUserId,
         recommendedUserId: input.recommendedUserId,
         recommendationReasonCode: input.recommendationReasonCode,
+<<<<<<< HEAD
         recommendationExplanation: input.recommendationExplanation,
+=======
+        recommendationReasonText: input.recommendationReasonText,
+        recommendationReviewNeeded: input.recommendationReviewNeeded,
+>>>>>>> main
         status: TaskStatus.NOT_STARTED,
         dueAt: input.dueAt,
         createdByUserId: input.createdByUserId,
@@ -242,7 +254,12 @@ function createGenerationTasksRepositoryHarness(
         assignedUserId: createdTask.assignedUserId,
         recommendedUserId: createdTask.recommendedUserId,
         recommendationReasonCode: createdTask.recommendationReasonCode,
+<<<<<<< HEAD
         recommendationExplanation: createdTask.recommendationExplanation,
+=======
+        recommendationReasonText: createdTask.recommendationReasonText,
+        recommendationReviewNeeded: createdTask.recommendationReviewNeeded,
+>>>>>>> main
         dueAt: createdTask.dueAt,
         sourceTemplateId: createdTask.sourceTemplateId,
         sourceDutyId: createdTask.sourceDutyId,

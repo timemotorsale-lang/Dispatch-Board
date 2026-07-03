@@ -52,7 +52,12 @@ type WorkflowTask = {
   assignedUserId: string;
   recommendedUserId: string | null;
   recommendationReasonCode: string | null;
+<<<<<<< HEAD
   recommendationExplanation: string | null;
+=======
+  recommendationReasonText: string | null;
+  recommendationReviewNeeded: boolean | null;
+>>>>>>> main
   status: TaskStatus;
   dueAt: Date;
   createdByUserId: string;
@@ -158,7 +163,12 @@ function createWorkflowHarness(authUsers: AuthenticatedUser[]) {
       assignedUser: requireValue(userSummary(task.assignedUserId), "Assignee is required."),
       recommendedUser: userSummary(task.recommendedUserId),
       recommendationReasonCode: task.recommendationReasonCode,
+<<<<<<< HEAD
       recommendationExplanation: task.recommendationExplanation,
+=======
+      recommendationReasonText: task.recommendationReasonText,
+      recommendationReviewNeeded: task.recommendationReviewNeeded,
+>>>>>>> main
       createdByUser: userSummary(task.createdByUserId),
       reviewedByUser: userSummary(task.reviewedByUserId),
       comments: comments
@@ -169,6 +179,7 @@ function createWorkflowHarness(authUsers: AuthenticatedUser[]) {
   }
 
   const createRepository: TaskCreateRepository = {
+    async createActivityEvent() {},
     async findAssignedUserById(userId) {
       return users.get(userId) ?? null;
     },
@@ -205,7 +216,12 @@ function createWorkflowHarness(authUsers: AuthenticatedUser[]) {
         assignedUserId: input.assignedUserId,
         recommendedUserId: null,
         recommendationReasonCode: null,
+<<<<<<< HEAD
         recommendationExplanation: null,
+=======
+        recommendationReasonText: null,
+        recommendationReviewNeeded: null,
+>>>>>>> main
         status: input.status,
         dueAt: input.dueAt,
         createdByUserId: input.createdByUserId,
@@ -228,6 +244,7 @@ function createWorkflowHarness(authUsers: AuthenticatedUser[]) {
   };
 
   const statusRepository: TaskStatusRepository = {
+    async createActivityEvent() {},
     async findTaskById(taskId) {
       return tasks.find((task) => task.id === taskId) ?? null;
     },
@@ -272,18 +289,25 @@ function createWorkflowHarness(authUsers: AuthenticatedUser[]) {
           assignedUser: requireValue(userSummary(task.assignedUserId), "Assignee is required."),
           recommendedUser: userSummary(task.recommendedUserId),
           recommendationReasonCode: task.recommendationReasonCode,
+<<<<<<< HEAD
           recommendationExplanation: task.recommendationExplanation
+=======
+          recommendationReasonText: task.recommendationReasonText,
+          recommendationReviewNeeded: task.recommendationReviewNeeded
+>>>>>>> main
         }));
     }
   };
 
   const commentRepository: TaskCommentRepository = {
+    async createActivityEvent() {},
     async findTaskById(taskId) {
       const task = tasks.find((candidate) => candidate.id === taskId);
 
       return task
         ? {
             id: task.id,
+            boardDayId: task.boardDayId,
             assignedUserId: task.assignedUserId,
             requiresManagerApproval: task.requiresManagerApproval
           }

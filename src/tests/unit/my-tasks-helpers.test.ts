@@ -25,7 +25,13 @@ function createTask(overrides: Partial<BoardReadTask> = {}): BoardReadTask {
       email: "jordan.sales@local.test"
     },
     recommendedUser: null,
+<<<<<<< HEAD
     recommendation: null,
+=======
+    recommendationReasonCode: null,
+    recommendationReasonText: null,
+    recommendationReviewNeeded: false,
+>>>>>>> main
     vehicleReference: null,
     customerReference: null,
     blockerReason: null,

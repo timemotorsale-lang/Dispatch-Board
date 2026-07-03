@@ -1,3 +1,5 @@
+import { ActivityEventType } from "@prisma/client";
+
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { recordBoardActivityEvent } from "@/server/services/activity-feed";
 import { canUpdateAssignedWork } from "@/server/policies/access";
@@ -77,6 +79,12 @@ function toTaskCommentModel(comment: TaskCommentRecord): TaskCommentModel {
   };
 }
 
+function buildCommentPreview(body: string) {
+  const preview = body.replace(/\s+/g, " ").trim();
+
+  return preview.length > 120 ? `${preview.slice(0, 117)}...` : preview;
+}
+
 async function requireTaskForComments(
   repository: TaskCommentRepository,
   taskId: string
@@ -122,6 +130,7 @@ export async function createTaskComment(
     normalizedInput.body
   );
 
+<<<<<<< HEAD
   if (repository.supportsActivityEvents && task.boardDayId && task.title) {
     await recordBoardActivityEvent({
       boardDayId: task.boardDayId,
@@ -134,6 +143,20 @@ export async function createTaskComment(
       }
     });
   }
+=======
+  await repository.createActivityEvent({
+    actorUserId: authenticatedUser.id,
+    boardDayId: task.boardDayId,
+    eventType: ActivityEventType.COMMENT_ADDED,
+    message: "Comment added",
+    metadata: {
+      authorUserId: authenticatedUser.id,
+      commentId: comment.id,
+      preview: buildCommentPreview(comment.body)
+    },
+    taskId: normalizedTaskId
+  });
+>>>>>>> main
 
   return toTaskCommentModel(comment);
 }

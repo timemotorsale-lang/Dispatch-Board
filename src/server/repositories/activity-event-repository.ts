@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { Prisma, PrismaClient } from "@prisma/client";
 
 import { prisma } from "@/server/db/client";
@@ -29,22 +30,48 @@ const activityEventSelect = {
       date: true
     }
   }
+=======
+import { ActivityEventType, Prisma, PrismaClient } from "@prisma/client";
+
+import { prisma } from "@/server/db/client";
+
+type ActivityEventDatabase = Pick<PrismaClient | Prisma.TransactionClient, "activityEvent">;
+
+const activityEventSelect = {
+  id: true,
+  boardDayId: true,
+  actorUserId: true,
+  taskId: true,
+  eventType: true,
+  message: true,
+  metadata: true,
+  createdAt: true
+>>>>>>> main
 } satisfies Prisma.ActivityEventSelect;
 
 export type ActivityEventRecord = Prisma.ActivityEventGetPayload<{
   select: typeof activityEventSelect;
 }>;
 
+<<<<<<< HEAD
 export type ActivityEventCreateInput = {
   boardDayId: string;
   actorUserId?: string | null;
   taskId?: string | null;
   eventType: string;
+=======
+export type CreateActivityEventInput = {
+  boardDayId: string;
+  actorUserId?: string | null;
+  taskId?: string | null;
+  eventType: ActivityEventType;
+>>>>>>> main
   message: string;
   metadata?: Prisma.InputJsonValue;
 };
 
 export type ActivityEventRepository = {
+<<<<<<< HEAD
   createActivityEvent(input: ActivityEventCreateInput): Promise<ActivityEventRecord>;
   findBoardDayByDate(boardDate: string): Promise<{ id: string; date: Date } | null>;
   listActivityEventsForBoardDay(boardDayId: string, limit?: number): Promise<ActivityEventRecord[]>;
@@ -54,6 +81,11 @@ function toBoardDateValue(boardDate: string) {
   return new Date(`${boardDate}T00:00:00.000Z`);
 }
 
+=======
+  createActivityEvent(input: CreateActivityEventInput): Promise<ActivityEventRecord>;
+};
+
+>>>>>>> main
 export function createActivityEventRepository(
   database: ActivityEventDatabase = prisma
 ): ActivityEventRepository {
@@ -70,6 +102,7 @@ export function createActivityEventRepository(
         },
         select: activityEventSelect
       });
+<<<<<<< HEAD
     },
 
     async findBoardDayByDate(boardDate) {
@@ -93,6 +126,8 @@ export function createActivityEventRepository(
         take: limit,
         select: activityEventSelect
       });
+=======
+>>>>>>> main
     }
   };
 }

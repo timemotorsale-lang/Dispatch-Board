@@ -1,13 +1,16 @@
-import { Prisma, PrismaClient, TaskStatus } from "@prisma/client";
+import { ActivityEventType, Prisma, PrismaClient, TaskStatus } from "@prisma/client";
 
 import { prisma } from "@/server/db/client";
 
-type TaskStatusDatabase = Pick<PrismaClient, "task">;
+type TaskStatusDatabase = Pick<PrismaClient, "activityEvent" | "task">;
 
 const taskStatusSelect = {
   id: true,
   boardDayId: true,
+<<<<<<< HEAD
   title: true,
+=======
+>>>>>>> main
   assignedUserId: true,
   requiresManagerApproval: true,
   status: true,
@@ -45,14 +48,36 @@ export type TaskStatusUpdateData = {
 };
 
 export type TaskStatusRepository = {
+<<<<<<< HEAD
   supportsActivityEvents?: boolean;
   findTaskById(taskId: string): Promise<TaskStatusLookupRecord | null>;
   updateTaskStatus(taskId: string, data: TaskStatusUpdateData): Promise<TaskStatusLookupRecord>;
+=======
+  createActivityEvent(input: {
+    actorUserId: string | null;
+    boardDayId: string;
+    eventType: ActivityEventType;
+    message: string;
+    metadata: Prisma.InputJsonValue;
+    taskId: string | null;
+  }): Promise<void>;
+  findTaskById(taskId: string): Promise<TaskStatusRecord | null>;
+  updateTaskStatus(taskId: string, data: TaskStatusUpdateData): Promise<TaskStatusRecord>;
+>>>>>>> main
 };
 
 export function createTaskStatusRepository(database: TaskStatusDatabase = prisma): TaskStatusRepository {
   return {
+<<<<<<< HEAD
     supportsActivityEvents: true,
+=======
+    async createActivityEvent(input) {
+      await database.activityEvent.create({
+        data: input
+      });
+    },
+
+>>>>>>> main
     async findTaskById(taskId) {
       return database.task.findUnique({
         where: {

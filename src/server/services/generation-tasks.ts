@@ -1,4 +1,5 @@
 import {
+  ActivityEventType,
   GenerationRunStatus,
   GenerationTriggerType,
   type GenerationRun,
@@ -17,6 +18,7 @@ import {
   type GenerationInput,
   type GenerationInputWarning
 } from "@/server/services/generation-inputs";
+import { recommendAssignment } from "@/server/services/assignment-recommendation";
 import { normalizeBoardDate } from "@/server/validation/board-date";
 
 export type { GenerationTasksRepository } from "@/server/repositories/generation-tasks-repository";
@@ -39,7 +41,12 @@ export type CreatedGeneratedTaskReference = {
   assignedUserId: string;
   recommendedUserId: string | null;
   recommendationReasonCode: string | null;
+<<<<<<< HEAD
   recommendationExplanation: string | null;
+=======
+  recommendationReasonText: string | null;
+  recommendationReviewNeeded: boolean;
+>>>>>>> main
   dueAt: Date;
   sourceTemplateId: string | null;
   sourceDutyId: string | null;
@@ -290,7 +297,15 @@ function buildGeneratedTaskCandidates(
 
   return generationInput.users.flatMap<GeneratedTaskCandidate>((user) =>
     user.templates.map((template) => {
+<<<<<<< HEAD
       const recommendation = buildRecommendationDetails(user, template);
+=======
+      const recommendation = recommendAssignment({
+        users: generationInput.users,
+        template,
+        templateOwnerUserId: user.userId
+      });
+>>>>>>> main
 
       return {
         identityKey: buildGeneratedTaskIdentityKey(boardDayId, template.templateId, user.userId),
@@ -298,9 +313,16 @@ function buildGeneratedTaskCandidates(
         title: template.title,
         description: template.description ?? "",
         assignedUserId: user.userId,
+<<<<<<< HEAD
         recommendedUserId: user.userId,
         recommendationReasonCode: recommendation.reasonCode,
         recommendationExplanation: recommendation.explanation,
+=======
+        recommendedUserId: recommendation.recommendedUserId,
+        recommendationReasonCode: recommendation.reasonCode,
+        recommendationReasonText: recommendation.explanation,
+        recommendationReviewNeeded: recommendation.managerReviewNeeded,
+>>>>>>> main
         dueAt: toDueAt(boardDate, template.defaultDueTime),
         createdByUserId,
         requiresManagerApproval: template.requiresManagerApproval,
@@ -319,7 +341,12 @@ function toCreatedTaskReference(task: CreatedGeneratedTaskRecord): CreatedGenera
     assignedUserId: task.assignedUserId,
     recommendedUserId: task.recommendedUserId,
     recommendationReasonCode: task.recommendationReasonCode,
+<<<<<<< HEAD
     recommendationExplanation: task.recommendationExplanation,
+=======
+    recommendationReasonText: task.recommendationReasonText,
+    recommendationReviewNeeded: task.recommendationReviewNeeded ?? false,
+>>>>>>> main
     dueAt: task.dueAt,
     sourceTemplateId: task.sourceTemplateId,
     sourceDutyId: task.sourceDutyId,
@@ -429,6 +456,25 @@ export async function createMissingGeneratedTasksForDate(
       id: generationRun.id,
       finishedAt,
       summary: completedSummary
+    });
+
+    await repository.createActivityEvent({
+      actorUserId: triggerMetadata.triggeredByUserId,
+      boardDayId: boardDay.id,
+      eventType: ActivityEventType.DAILY_BOARD_GENERATED,
+      message: "Daily board generated",
+      metadata: {
+        boardDate: normalizedBoardDate,
+        duplicatesSkipped: tasksSkippedAsDuplicates,
+        generationRunId: generationRun.id,
+        manualTasksPreserved,
+        tasksAlreadyExisting,
+        tasksCreated,
+        templatesConsidered,
+        triggeredBy: toSummaryTrigger(triggerMetadata.triggeredBy),
+        usersConsidered
+      },
+      taskId: null
     });
 
     return {

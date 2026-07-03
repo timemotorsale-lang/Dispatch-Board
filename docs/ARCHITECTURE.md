@@ -245,6 +245,9 @@ Required fields:
 - `description`
 - `assignedUserId`
 - `recommendedUserId` optional
+- `recommendationReasonCode` optional
+- `recommendationReasonText` optional
+- `recommendationReviewNeeded` optional
 - `status`
 - `dueAt`
 - `createdByUserId`

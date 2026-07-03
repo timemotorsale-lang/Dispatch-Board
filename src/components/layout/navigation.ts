@@ -26,6 +26,7 @@ export const navigationGroups: NavigationGroup[] = [
   {
     label: "",
     items: [
+<<<<<<< HEAD
       {
         href: "/board",
         title: "Dispatch Board",
@@ -74,6 +75,16 @@ export const navigationGroups: NavigationGroup[] = [
         description: "Today's operating updates.",
         icon: Activity
       }
+=======
+      { href: "/board", title: "Dispatch Board", description: "Daily operations and team visibility.", icon: Gauge },
+      { href: "/my-tasks", title: "My Tasks", description: "Your assigned work for today.", icon: ClipboardCheck },
+      { href: "/tasks", title: "Tasks", description: "Shared task workflow.", icon: ListChecks },
+      { href: "/vehicles", title: "Vehicles", description: "Vehicle coordination.", icon: Car, placeholder: true },
+      { href: "/customers", title: "Customers", description: "Customer visibility.", icon: UserRound, placeholder: true },
+      { href: "/appointments", title: "Appointments", description: "Upcoming appointments.", icon: CalendarDays, placeholder: true },
+      { href: "/manager-review", title: "Manager Review", description: "Approval and attention queue.", icon: ClipboardCheck, placeholder: true },
+      { href: "/activity", title: "Activity Feed", description: "Today’s operating updates.", icon: Activity }
+>>>>>>> main
     ]
   },
   {

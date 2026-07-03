@@ -1,4 +1,4 @@
-import { TaskStatus } from "@prisma/client";
+import { ActivityEventType, Prisma, TaskStatus } from "@prisma/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -9,6 +9,7 @@ import { createTestAuthStore } from "@/tests/support/auth-test-store";
 
 type StoredTask = {
   id: string;
+  boardDayId: string;
   assignedUserId: string;
   requiresManagerApproval: boolean;
   status: TaskStatus;
@@ -19,9 +20,19 @@ type StoredTask = {
   updatedAt: Date;
 };
 
+type StoredActivityEvent = {
+  actorUserId: string | null;
+  boardDayId: string;
+  eventType: ActivityEventType;
+  message: string;
+  metadata: Prisma.InputJsonValue;
+  taskId: string | null;
+};
+
 function createStoredTask(overrides: Partial<StoredTask> = {}): StoredTask {
   return {
     id: "task-1",
+    boardDayId: "board-day-1",
     assignedUserId: "user-jordan.sales@local.test",
     requiresManagerApproval: false,
     status: TaskStatus.IN_PROGRESS,
@@ -36,9 +47,14 @@ function createStoredTask(overrides: Partial<StoredTask> = {}): StoredTask {
 
 function createTaskStatusRepository(initialTasks: StoredTask[] = [createStoredTask()]) {
   let tasks = initialTasks.map((task) => ({ ...task }));
+  const activityEvents: StoredActivityEvent[] = [];
 
   return {
     repository: {
+      async createActivityEvent(input: StoredActivityEvent) {
+        activityEvents.push(input);
+      },
+
       async findTaskById(taskId: string) {
         return tasks.find((task) => task.id === taskId) ?? null;
       },
@@ -83,6 +99,9 @@ function createTaskStatusRepository(initialTasks: StoredTask[] = [createStoredTa
     },
     readTask(taskId = "task-1") {
       return tasks.find((task) => task.id === taskId) ?? null;
+    },
+    readActivityEvents() {
+      return [...activityEvents];
     }
   };
 }
@@ -100,7 +119,7 @@ describe("task status service", () => {
   it("allows staff to block their own task when they provide a meaningful blocker reason", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
-    const { repository, readTask } = createTaskStatusRepository();
+    const { repository, readActivityEvents, readTask } = createTaskStatusRepository();
 
     const result = await updateTaskStatus(
       staffUser,
@@ -125,6 +144,27 @@ describe("task status service", () => {
       completedAt: null,
       reviewedByUserId: null
     });
+    expect(readActivityEvents()).toMatchObject([
+      {
+        actorUserId: staffUser?.id,
+        boardDayId: "board-day-1",
+        eventType: ActivityEventType.STATUS_CHANGED,
+        message: "Status changed from In Progress to Blocked",
+        metadata: {
+          blockerReason: "Waiting on lender paperwork.",
+          completedAt: null,
+          newStatus: TaskStatus.BLOCKED,
+          previousStatus: TaskStatus.IN_PROGRESS,
+          readyForReviewAt: null,
+          reviewedByUserId: null
+        },
+        taskId: "task-1"
+      },
+      {
+        eventType: ActivityEventType.TASK_BLOCKED,
+        message: "Task marked Blocked"
+      }
+    ]);
   });
 
   it("rejects blocked updates when the blocker reason is missing for approval-required tasks", async () => {
@@ -151,7 +191,7 @@ describe("task status service", () => {
   it("rejects blocked updates when the blocker reason is blank", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
-    const { repository, readTask } = createTaskStatusRepository();
+    const { repository, readActivityEvents, readTask } = createTaskStatusRepository();
 
     await expect(
       updateTaskStatus(
@@ -168,12 +208,13 @@ describe("task status service", () => {
       status: TaskStatus.IN_PROGRESS,
       blockerReason: null
     });
+    expect(readActivityEvents()).toHaveLength(0);
   });
 
   it("does not require a blocker reason for non-blocked updates and preserves any existing reason", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
-    const { repository, readTask } = createTaskStatusRepository([
+    const { repository, readActivityEvents, readTask } = createTaskStatusRepository([
       createStoredTask({
         status: TaskStatus.BLOCKED,
         blockerReason: "Waiting on photos"
@@ -199,6 +240,7 @@ describe("task status service", () => {
       completedAt: null,
       reviewedByUserId: null
     });
+    expect(readActivityEvents()).toHaveLength(1);
   });
 
   it("clears ready-for-review metadata when a manager blocks a review-required task", async () => {
@@ -333,7 +375,7 @@ describe("task status service", () => {
   it("allows staff to move approval-required tasks to ready for review", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
-    const { repository, readTask } = createTaskStatusRepository([
+    const { repository, readActivityEvents, readTask } = createTaskStatusRepository([
       createStoredTask({
         requiresManagerApproval: true
       })
@@ -358,12 +400,22 @@ describe("task status service", () => {
       completedAt: null,
       reviewedByUserId: null
     });
+    expect(readActivityEvents()).toMatchObject([
+      {
+        eventType: ActivityEventType.STATUS_CHANGED,
+        message: "Status changed from In Progress to Ready for Review"
+      },
+      {
+        eventType: ActivityEventType.TASK_READY_FOR_REVIEW,
+        message: "Task marked Ready for Review"
+      }
+    ]);
   });
 
   it("allows managers to complete approval-required tasks from ready for review", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const managerUser = usersByEmail.get("morgan.manager@local.test") ?? null;
-    const { repository, readTask } = createTaskStatusRepository([
+    const { repository, readActivityEvents, readTask } = createTaskStatusRepository([
       createStoredTask({
         requiresManagerApproval: true,
         status: TaskStatus.READY_FOR_REVIEW,
@@ -389,6 +441,16 @@ describe("task status service", () => {
       completedAt: new Date("2026-06-18T15:30:00.000Z"),
       reviewedByUserId: managerUser?.id ?? null
     });
+    expect(readActivityEvents()).toMatchObject([
+      {
+        eventType: ActivityEventType.STATUS_CHANGED,
+        message: "Status changed from Ready for Review to Completed"
+      },
+      {
+        eventType: ActivityEventType.MANAGER_APPROVED_COMPLETION,
+        message: "Task marked Completed"
+      }
+    ]);
   });
 
   it("rejects managers who try to complete approval-required tasks before ready for review", async () => {
@@ -416,7 +478,7 @@ describe("task status service", () => {
   it("allows managers to send ready-for-review tasks back to in progress", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const managerUser = usersByEmail.get("morgan.manager@local.test") ?? null;
-    const { repository, readTask } = createTaskStatusRepository([
+    const { repository, readActivityEvents, readTask } = createTaskStatusRepository([
       createStoredTask({
         requiresManagerApproval: true,
         status: TaskStatus.READY_FOR_REVIEW,
@@ -444,6 +506,22 @@ describe("task status service", () => {
       completedAt: null,
       reviewedByUserId: null
     });
+    expect(readActivityEvents()).toEqual([
+      {
+        actorUserId: managerUser?.id ?? null,
+        boardDayId: "board-day-1",
+        eventType: ActivityEventType.STATUS_CHANGED,
+        message: "Status changed from Ready for Review to In Progress",
+        metadata: {
+          completedAt: null,
+          newStatus: TaskStatus.IN_PROGRESS,
+          previousStatus: TaskStatus.READY_FOR_REVIEW,
+          readyForReviewAt: null,
+          reviewedByUserId: null
+        },
+        taskId: "task-1"
+      }
+    ]);
   });
 
   it("rejects staff users who try to send ready-for-review tasks back to in progress", async () => {
@@ -472,7 +550,7 @@ describe("task status service", () => {
   it("allows staff to directly complete non-approval-required tasks assigned to them", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
-    const { repository, readTask } = createTaskStatusRepository();
+    const { repository, readActivityEvents, readTask } = createTaskStatusRepository();
 
     const result = await updateTaskStatus(
       staffUser,
@@ -491,5 +569,15 @@ describe("task status service", () => {
       completedAt: new Date("2026-06-18T15:30:00.000Z"),
       reviewedByUserId: null
     });
+    expect(readActivityEvents()).toMatchObject([
+      {
+        eventType: ActivityEventType.STATUS_CHANGED,
+        message: "Status changed from In Progress to Completed"
+      },
+      {
+        eventType: ActivityEventType.TASK_COMPLETED,
+        message: "Task marked Completed"
+      }
+    ]);
   });
 });

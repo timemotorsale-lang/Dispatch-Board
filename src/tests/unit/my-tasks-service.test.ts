@@ -37,6 +37,9 @@ function createBoardReadRepositoryHarness(): BoardReadRepository {
           blockerReason: null,
           readyForReviewAt: null,
           completedAt: null,
+          recommendationReasonCode: null,
+          recommendationReasonText: null,
+          recommendationReviewNeeded: null,
           assignedUser: {
             id: "user-jordan.sales@local.test",
             name: "Jordan Sales",
@@ -60,6 +63,9 @@ function createBoardReadRepositoryHarness(): BoardReadRepository {
           blockerReason: "Waiting on parts",
           readyForReviewAt: null,
           completedAt: null,
+          recommendationReasonCode: null,
+          recommendationReasonText: null,
+          recommendationReviewNeeded: null,
           assignedUser: {
             id: "user-casey.mechanic@local.test",
             name: "Casey Mechanic",
