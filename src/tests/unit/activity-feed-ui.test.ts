@@ -33,7 +33,7 @@ const feed: ActivityFeedModel = {
       createdAt: "2026-06-22T15:10:00.000Z",
       actor: {
         id: "user-sales",
-        name: "Jordan Sales",
+        name: "Baraka Sales",
         email: "jordan.sales@local.test"
       },
       task: {

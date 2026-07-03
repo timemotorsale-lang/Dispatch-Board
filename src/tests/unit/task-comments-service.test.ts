@@ -28,7 +28,7 @@ function createTaskCommentRepositoryHarness(): {
       createdAt: new Date("2026-06-18T14:30:00.000Z"),
       authorUser: {
         id: "user-jordan.sales@local.test",
-        name: "Jordan Sales",
+        name: "Baraka Sales",
         email: "jordan.sales@local.test"
       }
     },
@@ -40,7 +40,7 @@ function createTaskCommentRepositoryHarness(): {
       createdAt: new Date("2026-06-18T14:00:00.000Z"),
       authorUser: {
         id: "user-morgan.manager@local.test",
-        name: "Morgan Manager",
+        name: "Eli Manager",
         email: "morgan.manager@local.test"
       }
     }
@@ -59,7 +59,7 @@ function createTaskCommentRepositoryHarness(): {
 
   authorsById.set("user-casey.mechanic@local.test", {
     id: "user-casey.mechanic@local.test",
-    name: "Casey Mechanic",
+    name: "Walter Mechanic",
     email: "casey.mechanic@local.test"
   });
 
@@ -144,7 +144,7 @@ describe("task comments service", () => {
         createdAt: "2026-06-18T14:00:00.000Z",
         author: {
           id: "user-morgan.manager@local.test",
-          name: "Morgan Manager",
+          name: "Eli Manager",
           email: "morgan.manager@local.test"
         }
       },
@@ -156,7 +156,7 @@ describe("task comments service", () => {
         createdAt: "2026-06-18T14:30:00.000Z",
         author: {
           id: "user-jordan.sales@local.test",
-          name: "Jordan Sales",
+          name: "Baraka Sales",
           email: "jordan.sales@local.test"
         }
       }
@@ -186,7 +186,7 @@ describe("task comments service", () => {
       createdAt: "2026-06-18T15:00:00.000Z",
       author: {
         id: "user-jordan.sales@local.test",
-        name: "Jordan Sales",
+        name: "Baraka Sales",
         email: "jordan.sales@local.test"
       }
     });

@@ -90,7 +90,7 @@ function createUser(
 
   return {
     id: userId,
-    name: "Jordan Sales",
+    name: "Baraka Sales",
     email: "jordan.sales@local.test",
     passwordHash: "hashed-password",
     isActive: true,
@@ -322,7 +322,7 @@ describe("generation inputs service", () => {
       users: [
         createUser({
           id: "user-role-default",
-          name: "Avery Ops",
+          name: "Ancilla Ops",
           email: "avery.ops@local.test",
           userRoles: [
             createUserRole(

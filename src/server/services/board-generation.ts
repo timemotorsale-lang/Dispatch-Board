@@ -88,6 +88,10 @@ const weekdayByIndex = [
   BusinessDay.SATURDAY
 ] as const;
 
+function getTimePart(parts: Intl.DateTimeFormatPart[], type: "hour" | "minute") {
+  return parts.find((part) => part.type === type)?.value ?? "";
+}
+
 function readSummaryObject(summary: GenerationRunSummary["summary"]): GenerationRunSummaryObject | null {
   if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
     return null;
@@ -185,6 +189,36 @@ function getBoardDateInTimeZone(now: Date, timeZone: string) {
   const parts = formatter.formatToParts(now);
 
   return `${getDatePart(parts, "year")}-${getDatePart(parts, "month")}-${getDatePart(parts, "day")}`;
+}
+
+function getMinutesSinceMidnightInTimeZone(now: Date, timeZone: string) {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  });
+  const parts = formatter.formatToParts(now);
+  const hours = Number.parseInt(getTimePart(parts, "hour"), 10);
+  const minutes = Number.parseInt(getTimePart(parts, "minute"), 10);
+
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+    throw new Error(`Unable to resolve local time in ${timeZone}.`);
+  }
+
+  return hours * 60 + minutes;
+}
+
+function parseDailyGenerationTime(dailyGenerationTime: string) {
+  const [hoursText, minutesText] = dailyGenerationTime.split(":");
+  const hours = Number.parseInt(hoursText ?? "", 10);
+  const minutes = Number.parseInt(minutesText ?? "", 10);
+
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+    throw new Error(`Invalid daily generation time "${dailyGenerationTime}".`);
+  }
+
+  return hours * 60 + minutes;
 }
 
 function getBusinessDayForBoardDate(boardDate: string) {
@@ -310,7 +344,8 @@ export async function triggerScheduledBoardGeneration(
   const now = dependencies.now ?? (() => new Date());
   const loadSettings = dependencies.getGenerationSettings ?? getGenerationSettings;
   const settings = await loadSettings();
-  const boardDate = getBoardDateInTimeZone(now(), settings.timezone);
+  const scheduledAttemptedAt = now();
+  const boardDate = getBoardDateInTimeZone(scheduledAttemptedAt, settings.timezone);
   const boardBusinessDay = getBusinessDayForBoardDate(boardDate);
 
   if (!settings.businessDays.includes(boardBusinessDay)) {
@@ -324,6 +359,45 @@ export async function triggerScheduledBoardGeneration(
       summary: `Skipped scheduled generation because ${boardBusinessDay.toLowerCase()} is not configured as a business day.`,
       errorMessage: null,
       latestGeneration: null
+    };
+  }
+
+  const latestGeneration = await getLatestGenerationStatusForDate(
+    boardDate,
+    dependencies.repository ?? createGenerationTasksRepository()
+  );
+
+  if (latestGeneration?.status === "success") {
+    return {
+      status: "skipped",
+      boardDate,
+      generationRunId: latestGeneration.generationRunId,
+      createdTaskCount: latestGeneration.createdTaskCount,
+      skippedExistingTaskCount: latestGeneration.skippedExistingTaskCount,
+      alreadyExistingTaskCount: latestGeneration.alreadyExistingTaskCount,
+      summary: `Skipped scheduled generation because the board for ${boardDate} is already generated.`,
+      errorMessage: null,
+      latestGeneration
+    };
+  }
+
+  const currentLocalMinutes = getMinutesSinceMidnightInTimeZone(
+    scheduledAttemptedAt,
+    settings.timezone
+  );
+  const configuredGenerationMinutes = parseDailyGenerationTime(settings.dailyGenerationTime);
+
+  if (currentLocalMinutes < configuredGenerationMinutes) {
+    return {
+      status: "skipped",
+      boardDate,
+      generationRunId: latestGeneration?.generationRunId ?? null,
+      createdTaskCount: latestGeneration?.createdTaskCount ?? 0,
+      skippedExistingTaskCount: latestGeneration?.skippedExistingTaskCount ?? 0,
+      alreadyExistingTaskCount: latestGeneration?.alreadyExistingTaskCount ?? null,
+      summary: `Skipped scheduled generation because ${settings.timezone} has not reached the configured daily generation time of ${settings.dailyGenerationTime}.`,
+      errorMessage: null,
+      latestGeneration
     };
   }
 

@@ -16,7 +16,7 @@ const existingComments = [
     createdAt: "2026-06-18T14:00:00.000Z",
     author: {
       id: "user-manager",
-      name: "Morgan Manager",
+      name: "Eli Manager",
       email: "morgan.manager@local.test"
     }
   }
@@ -39,7 +39,7 @@ describe("task comments panel", () => {
       <TaskCommentsPanel canComment={false} initialComments={existingComments} taskId="task-1" />
     );
 
-    expect(markup).toContain("Morgan Manager");
+    expect(markup).toContain("Eli Manager");
     expect(markup).toContain("First update");
     expect(markup).toContain("Only the assigned staff member or a manager can add updates");
   });
@@ -54,7 +54,7 @@ describe("task comments panel", () => {
         createdAt: "2026-06-18T14:30:00.000Z",
         author: {
           id: "user-staff",
-          name: "Jordan Sales",
+          name: "Baraka Sales",
           email: "jordan.sales@local.test"
         }
       })
@@ -68,7 +68,7 @@ describe("task comments panel", () => {
         createdAt: "2026-06-18T14:30:00.000Z",
         author: {
           id: "user-staff",
-          name: "Jordan Sales",
+          name: "Baraka Sales",
           email: "jordan.sales@local.test"
         }
       }

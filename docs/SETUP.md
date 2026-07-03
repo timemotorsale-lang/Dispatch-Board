@@ -128,7 +128,28 @@ Provide either of these headers:
 - `Authorization: Bearer <CRON_SECRET>`
 - `x-cron-secret: <CRON_SECRET>`
 
-The route uses the configured app timezone and skips days that are not enabled in app settings.
+The route uses the configured app timezone, waits until the configured `dailyGenerationTime`, and skips days that are not enabled in app settings.
+
+### Vercel cron setup
+
+This repo now includes [vercel.json](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/vercel.json), which schedules `/api/cron/generate-board` every 15 minutes in production.
+
+Why every 15 minutes instead of once per day:
+
+- The manager-controlled generation time lives in app settings, not in `vercel.json`.
+- The scheduled route now checks the configured timezone and `dailyGenerationTime` before generating.
+- Once a board has already been generated for the day, later cron pings skip cleanly instead of creating duplicate scheduled runs.
+
+Production checklist for auto-generation:
+
+1. Deploy the app with `vercel.json` included.
+2. Set `CRON_SECRET` in the deployment environment.
+3. Set the desired generation time, timezone, and business days in `/settings`.
+4. Confirm the first production day by checking the board and activity feed after the configured local generation time.
+
+### Non-Vercel hosting
+
+If you deploy somewhere other than Vercel, configure any scheduler to call `/api/cron/generate-board` at least every 15 minutes with one of the supported secret headers. The route itself handles timezone checks, business-day checks, and duplicate-safe generation.
 
 ## Quality and verification commands
 

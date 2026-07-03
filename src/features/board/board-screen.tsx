@@ -50,7 +50,13 @@ function statusCount(board: BoardReadModel, status: string) {
 }
 
 function hasActiveBoardFilters(filters: BoardFilters) {
-  return Boolean(filters.status || filters.assigneeId || filters.workflowArea || filters.searchText.trim());
+  return Boolean(
+    filters.metricFilter ||
+      filters.status ||
+      filters.assigneeId ||
+      filters.workflowArea ||
+      filters.searchText.trim()
+  );
 }
 
 function createMetrics(board: BoardReadModel): Metric[] {
@@ -62,35 +68,40 @@ function createMetrics(board: BoardReadModel): Metric[] {
       value: active,
       detail: `${board.taskCount} total tasks`,
       tone: "blue",
-      icon: "active"
+      icon: "active",
+      metricKey: "active"
     },
     {
       label: "Stuck",
       value: statusCount(board, "BLOCKED") + statusCount(board, "WAITING_ON_PARTS"),
       detail: "Needs attention",
       tone: "red",
-      icon: "stuck"
+      icon: "stuck",
+      metricKey: "stuck"
     },
     {
       label: "Needs Manager",
       value: statusCount(board, "WAITING_ON_APPROVAL") + statusCount(board, "READY_FOR_REVIEW"),
       detail: "Approvals & reviews",
       tone: "orange",
-      icon: "manager"
+      icon: "manager",
+      metricKey: "needs_manager"
     },
     {
       label: "Ready for Review",
       value: statusCount(board, "READY_FOR_REVIEW"),
       detail: "Manager action",
       tone: "purple",
-      icon: "review"
+      icon: "review",
+      metricKey: "ready_for_review"
     },
     {
       label: "Completed Today",
       value: statusCount(board, "COMPLETED"),
       detail: "Finished work",
       tone: "green",
-      icon: "done"
+      icon: "done",
+      metricKey: "completed"
     }
   ];
 }
@@ -118,6 +129,7 @@ export function BoardScreen({
   const [activityEvents, setActivityEvents] = useState<ActivityFeedEvent[]>([]);
   const loadStateRef = useRef<BoardLoadState>(loadState);
   const refreshModeRef = useRef<"blocking" | "silent">("blocking");
+  const boardPrimaryRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     loadStateRef.current = loadState;
@@ -240,6 +252,21 @@ export function BoardScreen({
     setFilters((current) => ({ ...current, [key]: value }));
   }
 
+  function handleMetricSelect(metricKey: Metric["metricKey"]) {
+    setGroupMode(metricKey ? "status" : "assignee");
+    setFilters((current) => ({
+      ...current,
+      metricFilter: current.metricFilter === metricKey ? "" : metricKey,
+      status: "",
+      assigneeId: "",
+      workflowArea: "",
+      searchText: ""
+    }));
+    requestAnimationFrame(() => {
+      boardPrimaryRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
   function handleAssigneeSelect(assigneeId: string) {
     setGroupMode("assignee");
     setFilters((current) => ({
@@ -307,14 +334,18 @@ export function BoardScreen({
 
       {board && presentation ? (
         <>
-          <MetricStrip metrics={createMetrics(board)} />
+          <MetricStrip
+            activeMetricKey={filters.metricFilter}
+            metrics={createMetrics(board)}
+            onMetricSelect={handleMetricSelect}
+          />
           <OperationsStrip
             activeAssigneeId={filters.assigneeId}
             onAssigneeSelect={handleAssigneeSelect}
             tasks={board.tasks}
           />
           <div className="board-and-rail">
-            <div className="board-primary-column">
+            <div className="board-primary-column" ref={boardPrimaryRef}>
               <BoardControls
                 board={board}
                 filters={filters}

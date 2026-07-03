@@ -112,7 +112,7 @@ test("manager and staff can complete the daily dispatch workflow", async ({ page
 
   await page.getByRole("button", { name: "Create Task" }).click();
   await page.getByLabel("Title").fill(approvalTaskTitle);
-  await page.getByLabel("Assigned to").selectOption({ label: "Jordan Sales" });
+  await page.getByLabel("Assigned to").selectOption({ label: "Baraka Sales" });
   await page.getByLabel("Due time").fill("17:30");
   await page.getByLabel("Workflow area").selectOption("SALES");
   await page.getByLabel("Requires manager approval before completion").check();

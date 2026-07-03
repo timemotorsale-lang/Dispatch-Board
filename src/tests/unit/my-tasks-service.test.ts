@@ -42,7 +42,7 @@ function createBoardReadRepositoryHarness(): BoardReadRepository {
           recommendationReviewNeeded: null,
           assignedUser: {
             id: "user-jordan.sales@local.test",
-            name: "Jordan Sales",
+            name: "Baraka Sales",
             email: "jordan.sales@local.test"
           },
           recommendedUser: null,
@@ -68,7 +68,7 @@ function createBoardReadRepositoryHarness(): BoardReadRepository {
           recommendationReviewNeeded: null,
           assignedUser: {
             id: "user-casey.mechanic@local.test",
-            name: "Casey Mechanic",
+            name: "Walter Mechanic",
             email: "casey.mechanic@local.test"
           },
           recommendedUser: null,

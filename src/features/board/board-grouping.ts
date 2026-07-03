@@ -3,6 +3,7 @@ import type { BoardReadTask } from "@/server/services/board-read";
 export type BoardGroupMode = "assignee" | "status" | "workflowArea";
 
 export type BoardFilters = {
+  metricFilter: "" | "active" | "stuck" | "needs_manager" | "ready_for_review" | "completed";
   status: string;
   assigneeId: string;
   workflowArea: string;
@@ -61,6 +62,7 @@ const FALLBACK_STATUS_KEY = "other-status";
 const FALLBACK_WORKFLOW_KEY = "other-workflow";
 
 export const DEFAULT_BOARD_FILTERS: BoardFilters = {
+  metricFilter: "",
   status: "",
   assigneeId: "",
   workflowArea: "",
@@ -138,6 +140,34 @@ function getSearchHaystack(task: BoardTaskLike) {
 }
 
 function matchesFilters(task: BoardTaskLike, filters: BoardFilters) {
+  if (filters.metricFilter === "active" && task.status === "COMPLETED") {
+    return false;
+  }
+
+  if (
+    filters.metricFilter === "stuck" &&
+    task.status !== "BLOCKED" &&
+    task.status !== "WAITING_ON_PARTS"
+  ) {
+    return false;
+  }
+
+  if (
+    filters.metricFilter === "needs_manager" &&
+    task.status !== "WAITING_ON_APPROVAL" &&
+    task.status !== "READY_FOR_REVIEW"
+  ) {
+    return false;
+  }
+
+  if (filters.metricFilter === "ready_for_review" && task.status !== "READY_FOR_REVIEW") {
+    return false;
+  }
+
+  if (filters.metricFilter === "completed" && task.status !== "COMPLETED") {
+    return false;
+  }
+
   if (filters.status && task.status !== filters.status) {
     return false;
   }

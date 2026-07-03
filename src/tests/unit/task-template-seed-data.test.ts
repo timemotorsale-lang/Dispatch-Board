@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  developmentUserDefinitions,
   dayOneDutyDefinitions,
   dayOneRoleDefinitions,
   dayOneTaskTemplateDefinitions
@@ -95,6 +96,19 @@ describe("task template seed definitions", () => {
           title: "Complete repair report for completed repair",
           isActive: false
         })
+      ])
+    );
+  });
+
+  it("aligns the seeded day-one staff names to the role duty reference", () => {
+    expect(developmentUserDefinitions.map((userDefinition) => userDefinition.name)).toEqual(
+      expect.arrayContaining([
+        "Eli Manager",
+        "Brock Inventory",
+        "Walter Mechanic",
+        "Baraka Sales",
+        "Ancilla Ops",
+        "Eva Collections"
       ])
     );
   });

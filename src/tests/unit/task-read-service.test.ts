@@ -1,4 +1,4 @@
-﻿import { TaskStatus } from "@prisma/client";
+import { TaskStatus } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
 import type { TaskReadRepository } from "@/server/repositories/task-read-repository";
@@ -34,7 +34,7 @@ function createTaskReadRepository(): TaskReadRepository {
         },
         assignedUser: {
           id: "user-sales",
-          name: "Jordan Sales",
+          name: "Baraka Sales",
           email: "jordan.sales@local.test"
         },
         recommendedUser: null,
@@ -42,7 +42,7 @@ function createTaskReadRepository(): TaskReadRepository {
         recommendationExplanation: null,
         createdByUser: {
           id: "user-manager",
-          name: "Morgan Manager",
+          name: "Eli Manager",
           email: "morgan.manager@local.test"
         },
         reviewedByUser: null,
@@ -55,7 +55,7 @@ function createTaskReadRepository(): TaskReadRepository {
             createdAt: new Date("2026-06-18T14:15:00.000Z"),
             authorUser: {
               id: "user-manager",
-              name: "Morgan Manager",
+              name: "Eli Manager",
               email: "morgan.manager@local.test"
             }
           }
@@ -92,14 +92,14 @@ describe("task read service", () => {
       updatedAt: "2026-06-18T15:00:00.000Z",
       assignedUser: {
         id: "user-sales",
-        name: "Jordan Sales",
+        name: "Baraka Sales",
         email: "jordan.sales@local.test"
       },
       recommendedUser: null,
       recommendation: null,
       createdByUser: {
         id: "user-manager",
-        name: "Morgan Manager",
+        name: "Eli Manager",
         email: "morgan.manager@local.test"
       },
       reviewedByUser: null,
@@ -112,7 +112,7 @@ describe("task read service", () => {
           createdAt: "2026-06-18T14:15:00.000Z",
           author: {
             id: "user-manager",
-            name: "Morgan Manager",
+            name: "Eli Manager",
             email: "morgan.manager@local.test"
           }
         }

@@ -15,6 +15,15 @@ export type MyTasksFilterOption = {
   label: string;
 };
 
+const MY_TASKS_FILTER_LABELS: Record<MyTasksFilter, string> = {
+  all: "Assigned today",
+  open: "Open work",
+  dueSoon: "Due soon",
+  blockedWaiting: "Blocked / waiting",
+  readyForReview: "Ready for review",
+  completed: "Completed"
+};
+
 export function getTasksAssignedToUser(tasks: BoardReadTask[], userId: string) {
   return tasks.filter((task) => task.assignedUser.id === userId);
 }
@@ -93,6 +102,10 @@ export function getMyTasksFilterOptions(tasks: BoardReadTask[], now: Date): MyTa
       label: `Completed (${tasks.filter((task) => task.status === TaskStatus.COMPLETED).length})`
     }
   ];
+}
+
+export function getMyTasksFilterLabel(filter: MyTasksFilter) {
+  return MY_TASKS_FILTER_LABELS[filter];
 }
 
 function createStatusOption(value: TaskStatus, label?: string) {

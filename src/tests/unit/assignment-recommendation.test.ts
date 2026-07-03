@@ -7,7 +7,7 @@ import type { GenerationInputTemplate, GenerationInputUser } from "@/server/serv
 function createUser(overrides: Partial<GenerationInputUser> = {}): GenerationInputUser {
   return {
     userId: "user-sales",
-    userName: "Jordan Sales",
+    userName: "Baraka Sales",
     userEmail: "jordan.sales@local.test",
     roles: [],
     directDuties: [],
@@ -233,13 +233,13 @@ describe("assignment recommendation service", () => {
       users: [
         createUser({
           userId: "user-z",
-          userName: "Jordan Sales",
+          userName: "Baraka Sales",
           userEmail: "z.jordan@local.test",
           roles: [{ roleId: "role-sales", roleName: "Salesperson" }]
         }),
         createUser({
           userId: "user-a",
-          userName: "Jordan Sales",
+          userName: "Baraka Sales",
           userEmail: "a.jordan@local.test",
           roles: [{ roleId: "role-sales", roleName: "Salesperson" }]
         }),

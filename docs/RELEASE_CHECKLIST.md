@@ -10,6 +10,7 @@ Use this checklist before calling the Dispatch Board MVP release-ready.
 - [ ] Local and production `DATABASE_URL` values are kept separate.
 - [ ] Build and runtime expectations are clear for the deployment target.
 - [ ] `CRON_SECRET` is configured anywhere the scheduled generation route will run.
+- [ ] The deployment scheduler is enabled for `/api/cron/generate-board` in the chosen hosting environment.
 
 ## 2. Database readiness
 
@@ -29,6 +30,7 @@ Use this checklist before calling the Dispatch Board MVP release-ready.
 - [ ] A manager can open the board.
 - [ ] A staff user can open My Tasks and a task detail page.
 - [ ] Manual board generation works from the board surface.
+- [ ] Scheduled board generation runs automatically after the configured local generation time.
 - [ ] No obvious loading, empty, or error-state gaps block the main board, task, settings, or activity views.
 
 ## 4. Core MVP workflow verification

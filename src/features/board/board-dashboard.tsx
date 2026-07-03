@@ -6,6 +6,7 @@ import { EmptyStateCard } from "@/components/ui/state-card";
 import { formatBoardEnumLabel, type BoardFilters, type BoardGroupMode, type BoardPresentation } from "./board-grouping";
 import type { ActivityFeedEvent } from "@/server/services/activity-feed";
 import type { BoardReadModel, BoardReadTask } from "@/server/services/board-read";
+import type { ActiveUserSummary } from "@/server/services/user-summary";
 
 type Task = Omit<BoardReadTask, "assignedUser"> & { assignedUser: BoardReadTask["assignedUser"] | null };
 
@@ -45,6 +46,18 @@ function urgency(task: Task) {
   return { label: "Normal", className: "urgency-low" };
 }
 
+function getRecommendationSummary(task: Task) {
+  if (task.recommendedUser) {
+    return `Recommended: ${task.recommendedUser.name}`;
+  }
+
+  if (task.recommendation) {
+    return task.recommendation.explanation;
+  }
+
+  return null;
+}
+
 export function BoardHero({ boardDate, status, toolbar }: { boardDate: string; status?: string; toolbar: ReactNode }) {
   return (
     <section className="board-hero">
@@ -54,11 +67,67 @@ export function BoardHero({ boardDate, status, toolbar }: { boardDate: string; s
   );
 }
 
-export type Metric = { label: string; value: number; detail: string; tone: string; icon: "active" | "stuck" | "manager" | "review" | "done" };
+export type Metric = {
+  label: string;
+  value: number;
+  detail: string;
+  tone: string;
+  icon: "active" | "stuck" | "manager" | "review" | "done";
+  metricKey: "" | "active" | "stuck" | "needs_manager" | "ready_for_review" | "completed";
+};
 const metricIcons = { active: Layers3, stuck: AlertCircle, manager: CircleUserRound, review: ShieldAlert, done: CheckCircle2 };
 
-export function MetricStrip({ metrics }: { metrics: Metric[] }) {
-  return <section className="metric-strip">{metrics.map((metric) => { const Icon = metricIcons[metric.icon]; return <article className={`metric-card metric-${metric.tone}`} key={metric.label}><div className="metric-icon"><Icon size={20} /></div><div><span>{metric.label}</span><strong>{metric.value}</strong><small>{metric.detail}</small></div></article>; })}</section>;
+export function MetricStrip({
+  activeMetricKey,
+  metrics,
+  onMetricSelect
+}: {
+  activeMetricKey: Metric["metricKey"];
+  metrics: Metric[];
+  onMetricSelect(metricKey: Metric["metricKey"]): void;
+}) {
+  return <section className="metric-strip">{metrics.map((metric) => { const Icon = metricIcons[metric.icon]; const isActive = activeMetricKey === metric.metricKey; return <button aria-pressed={isActive} className={isActive ? `metric-card metric-${metric.tone} metric-card-active` : `metric-card metric-${metric.tone}`} key={metric.label} onClick={() => onMetricSelect(metric.metricKey)} type="button"><div className="metric-icon"><Icon size={20} /></div><div><span>{metric.label}</span><strong>{metric.value}</strong><small>{metric.detail}</small></div></button>; })}</section>;
+}
+
+function getDutySourceLabel(dutySource: ActiveUserSummary["dutySource"]) {
+  if (dutySource === "custom") return "Custom duties";
+  if (dutySource === "role_default") return "Role defaults";
+  return "No duties";
+}
+
+export function StaffDutyStrip({ staff }: { staff: ActiveUserSummary[] }) {
+  if (!staff.length) {
+    return null;
+  }
+
+  return (
+    <section className="operations-strip operations-strip-single">
+      <article className="staff-duty-panel">
+        <header>
+          <span><UsersRound size={16} /> Staff and duties</span>
+          <small>{staff.length} active staff</small>
+        </header>
+        <div className="staff-duty-grid">
+          {staff.map((person) => (
+            <div className="staff-duty-card" key={person.id}>
+              <span className="mini-avatar">{person.name[0]}</span>
+              <div className="staff-duty-copy">
+                <p className="staff-duty-name">{person.name}</p>
+                <strong>{person.roles.join(" / ") || "No role"}</strong>
+                <p className="staff-duty-preview">
+                  {person.dutyPreview.slice(0, 2).join(" • ") || "No duties assigned"}
+                </p>
+                <p className="staff-duty-meta">
+                  {getDutySourceLabel(person.dutySource)}
+                  {person.dutyCount > 2 ? ` • +${person.dutyCount - 2} more` : ""}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </article>
+    </section>
+  );
 }
 
 export function OperationsStrip({
@@ -114,7 +183,8 @@ export function BoardControls({ board, filters, groupMode, presentation, onFilte
 
 function TaskCard({ task }: { task: Task }) {
   const taskUrgency = urgency(task);
-  return <article className="mobile-task-card"><header><div><strong>{task.title}</strong><span>{task.vehicleReference || task.customerReference || formatBoardEnumLabel(task.workflowArea)}</span></div><span className={statusClass(task.status)}>{formatBoardEnumLabel(task.status)}</span></header><dl><div><dt>Assigned</dt><dd>{task.assignedUser?.name ?? "Unassigned"}</dd></div><div><dt>Due</dt><dd>{formatTime(task.dueAt)} · {timeLeft(task.dueAt)}</dd></div><div><dt>Urgency</dt><dd className={taskUrgency.className}>{taskUrgency.label}</dd></div></dl>{task.blockerReason ? <p className="blocker-inline"><AlertCircle size={15} /> {task.blockerReason}</p> : null}<Link className="row-action" href={`/tasks/${task.id}`}>{task.status === "READY_FOR_REVIEW" ? "Review" : "Update"}</Link></article>;
+  const recommendationSummary = getRecommendationSummary(task);
+  return <article className="mobile-task-card"><header><div><strong>{task.title}</strong><span>{task.vehicleReference || task.customerReference || formatBoardEnumLabel(task.workflowArea)}</span></div><span className={statusClass(task.status)}>{formatBoardEnumLabel(task.status)}</span></header><dl><div><dt>Assigned</dt><dd>{task.assignedUser?.name ?? "Unassigned"}</dd></div><div><dt>Due</dt><dd>{formatTime(task.dueAt)} · {timeLeft(task.dueAt)}</dd></div><div><dt>Urgency</dt><dd className={taskUrgency.className}>{taskUrgency.label}</dd></div></dl>{recommendationSummary ? <p className="blocker-inline"><CircleUserRound size={15} /> {recommendationSummary}</p> : null}{task.blockerReason ? <p className="blocker-inline"><AlertCircle size={15} /> {task.blockerReason}</p> : null}<Link className="row-action" href={`/tasks/${task.id}`}>{task.status === "READY_FOR_REVIEW" ? "Review" : "Update"}</Link></article>;
 }
 
 export function TaskBoard({
@@ -163,7 +233,7 @@ export function TaskBoard({
   }
 
   return <section className="task-board"><header className="task-board-header"><div><span>Board tasks</span><h2>{formatBoardDate(boardDate, true)}</h2></div><small>{presentation.filteredTasks.length} tasks visible</small></header>
-    <div className="desktop-task-table"><table><thead><tr><th>Item / Details</th><th>Workflow / Type</th><th>Assigned To</th><th>Status</th><th>Due / Time Left</th><th>Urgency</th><th>Next Action</th></tr></thead>{presentation.groups.map((group) => <tbody key={group.key}><tr className="table-group-row"><td colSpan={7}>{group.label}<span>{group.taskCount}</span></td></tr>{group.tasks.map((task) => { const taskUrgency = urgency(task); return <tr key={task.id} className="task-row"><td><strong>{task.title}</strong><span>{task.vehicleReference || task.customerReference || task.description || "No reference"}</span>{task.vehicleReference && task.customerReference ? <small>Customer: {task.customerReference}</small> : null}</td><td><span className="workflow-chip">{formatBoardEnumLabel(task.workflowArea)}</span><small>{formatBoardEnumLabel(task.sourceType)}</small></td><td><span className="assignee"><span className="mini-avatar">{task.assignedUser?.name[0] ?? "?"}</span>{task.assignedUser?.name ?? "Unassigned"}</span></td><td><span className={statusClass(task.status)}>{formatBoardEnumLabel(task.status)}</span></td><td><strong>{formatTime(task.dueAt)}</strong><small>{timeLeft(task.dueAt)}</small></td><td><span className={taskUrgency.className}>↑ {taskUrgency.label}</span></td><td><Link className="row-action" href={`/tasks/${task.id}`}>{task.status === "READY_FOR_REVIEW" ? "Review" : task.status === "BLOCKED" ? "Resolve" : "Update"}</Link></td></tr>; })}</tbody>)}</table></div>
+    <div className="desktop-task-table"><table><thead><tr><th>Item / Details</th><th>Workflow / Type</th><th>Assigned To</th><th>Status</th><th>Due / Time Left</th><th>Urgency</th><th>Next Action</th></tr></thead>{presentation.groups.map((group) => <tbody key={group.key}><tr className="table-group-row"><td colSpan={7}>{group.label}<span>{group.taskCount}</span></td></tr>{group.tasks.map((task) => { const taskUrgency = urgency(task); const recommendationSummary = getRecommendationSummary(task); return <tr key={task.id} className="task-row"><td><strong>{task.title}</strong><span>{task.vehicleReference || task.customerReference || task.description || "No reference"}</span>{task.vehicleReference && task.customerReference ? <small>Customer: {task.customerReference}</small> : null}</td><td><span className="workflow-chip">{formatBoardEnumLabel(task.workflowArea)}</span><small>{formatBoardEnumLabel(task.sourceType)}</small></td><td><span className="assignee"><span className="mini-avatar">{task.assignedUser?.name[0] ?? "?"}</span>{task.assignedUser?.name ?? "Unassigned"}</span>{recommendationSummary ? <small>{recommendationSummary}</small> : null}</td><td><span className={statusClass(task.status)}>{formatBoardEnumLabel(task.status)}</span></td><td><strong>{formatTime(task.dueAt)}</strong><small>{timeLeft(task.dueAt)}</small></td><td><span className={taskUrgency.className}>↑ {taskUrgency.label}</span></td><td><Link className="row-action" href={`/tasks/${task.id}`}>{task.status === "READY_FOR_REVIEW" ? "Review" : task.status === "BLOCKED" ? "Resolve" : "Update"}</Link></td></tr>; })}</tbody>)}</table></div>
     <div className="mobile-task-list">{presentation.groups.map((group) => <section key={group.key}><h3>{group.label}<span>{group.taskCount}</span></h3>{group.tasks.map((task) => <TaskCard key={task.id} task={task} />)}</section>)}</div>
     <footer className="task-board-footer"><span>Showing {presentation.filteredTasks.length} of {presentation.filteredTasks.length} items</span><div><button disabled type="button">‹</button><button className="active" type="button">1</button><button disabled type="button">›</button></div></footer>
   </section>;

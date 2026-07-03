@@ -23,7 +23,7 @@ function createTaskCreateRepositoryHarness() {
       async findAssignedUserById(userId: string) {
         return {
           id: userId,
-          name: "Jordan Sales",
+          name: "Baraka Sales",
           email: "jordan.sales@local.test",
           isActive: true
         };
@@ -77,12 +77,12 @@ function createTaskCreateRepositoryHarness() {
           },
           assignedUser: {
             id: input.assignedUserId,
-            name: "Jordan Sales",
+            name: "Baraka Sales",
             email: "jordan.sales@local.test"
           },
           createdByUser: {
             id: input.createdByUserId,
-            name: "Morgan Manager",
+            name: "Eli Manager",
             email: "morgan.manager@local.test"
           },
           reviewedByUser: null
@@ -105,12 +105,12 @@ function createTaskAssignmentRepositoryHarness() {
           recommendedUserId: "user-jordan.sales@local.test",
           assignedUser: {
             id: "user-jordan.sales@local.test",
-            name: "Jordan Sales",
+            name: "Baraka Sales",
             email: "jordan.sales@local.test"
           },
           recommendedUser: {
             id: "user-jordan.sales@local.test",
-            name: "Jordan Sales",
+            name: "Baraka Sales",
             email: "jordan.sales@local.test"
           },
           recommendationReasonCode: "DIRECT_DUTY_MATCH",
@@ -124,7 +124,7 @@ function createTaskAssignmentRepositoryHarness() {
       async findAssignableUserById(userId: string) {
         return {
           id: userId,
-          name: "Casey Mechanic",
+          name: "Walter Mechanic",
           email: "casey.mechanic@local.test",
           isActive: true
         };
@@ -143,12 +143,12 @@ function createTaskAssignmentRepositoryHarness() {
           sourceTemplateId: null,
           assignedUser: {
             id: "user-casey.mechanic@local.test",
-            name: "Casey Mechanic",
+            name: "Walter Mechanic",
             email: "casey.mechanic@local.test"
           },
           recommendedUser: {
             id: "user-jordan.sales@local.test",
-            name: "Jordan Sales",
+            name: "Baraka Sales",
             email: "jordan.sales@local.test"
           },
           recommendationReasonCode: "DIRECT_DUTY_MATCH",
@@ -248,10 +248,10 @@ describe("task activity events", () => {
       actorUserId: managerUser?.id ?? null,
       boardDayId: "board-day-1",
       eventType: "task.created",
-      message: "Morgan Manager created Review hot lead for Jordan Sales.",
+      message: "Eli Manager created Review hot lead for Baraka Sales.",
       metadata: {
         assignedUserId: assignee?.id ?? "",
-        assignedUserName: "Jordan Sales",
+        assignedUserName: "Baraka Sales",
         requiresManagerApproval: true
       },
       taskId: "task-1"
@@ -277,14 +277,14 @@ describe("task activity events", () => {
       boardDayId: "board-day-1",
       eventType: "task.reassigned",
       message:
-        "Morgan Manager reassigned Review sales follow-up tasks from Jordan Sales to Casey Mechanic, overriding the recommendation for Jordan Sales.",
+        "Eli Manager reassigned Review sales follow-up tasks from Baraka Sales to Walter Mechanic, overriding the recommendation for Baraka Sales.",
       metadata: {
         nextAssignedUserId: "user-casey.mechanic@local.test",
-        nextAssignedUserName: "Casey Mechanic",
+        nextAssignedUserName: "Walter Mechanic",
         previousAssignedUserId: "user-jordan.sales@local.test",
-        previousAssignedUserName: "Jordan Sales",
+        previousAssignedUserName: "Baraka Sales",
         recommendedUserId: "user-jordan.sales@local.test",
-        recommendedUserName: "Jordan Sales"
+        recommendedUserName: "Baraka Sales"
       },
       taskId: "task-1"
     });
@@ -308,7 +308,7 @@ describe("task activity events", () => {
       actorUserId: staffUser?.id ?? null,
       boardDayId: "board-day-1",
       eventType: "task.ready_for_review",
-      message: "Jordan Sales marked Review sold vehicle prep ready for review.",
+      message: "Baraka Sales marked Review sold vehicle prep ready for review.",
       metadata: {
         nextStatus: TaskStatus.READY_FOR_REVIEW,
         previousStatus: TaskStatus.IN_PROGRESS
@@ -338,7 +338,7 @@ describe("task activity events", () => {
       actorUserId: managerUser?.id ?? null,
       boardDayId: "board-day-1",
       eventType: "task.completed",
-      message: "Morgan Manager approved completion for Review sold vehicle prep.",
+      message: "Eli Manager approved completion for Review sold vehicle prep.",
       metadata: {
         nextStatus: TaskStatus.COMPLETED,
         previousStatus: TaskStatus.READY_FOR_REVIEW

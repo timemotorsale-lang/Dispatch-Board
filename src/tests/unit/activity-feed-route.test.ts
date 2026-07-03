@@ -19,7 +19,7 @@ import { GET } from "@/app/api/activity/route";
 
 const managerUser = {
   id: "user-manager",
-  name: "Morgan Manager",
+  name: "Eli Manager",
   email: "morgan.manager@local.test",
   isActive: true,
   roles: ["General Manager"],
@@ -41,7 +41,7 @@ const feedPayload = {
       createdAt: "2026-06-21T16:00:00.000Z",
       actor: {
         id: "user-sales",
-        name: "Jordan Sales",
+        name: "Baraka Sales",
         email: "jordan.sales@local.test"
       },
       task: {

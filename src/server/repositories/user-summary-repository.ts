@@ -7,7 +7,37 @@ type UserSummaryDatabase = Pick<PrismaClient, "user">;
 const activeUserSummarySelect = {
   id: true,
   name: true,
-  email: true
+  email: true,
+  userRoles: {
+    select: {
+      role: {
+        select: {
+          id: true,
+          name: true,
+          roleDuties: {
+            select: {
+              duty: {
+                select: {
+                  id: true,
+                  name: true
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  userDuties: {
+    select: {
+      duty: {
+        select: {
+          id: true,
+          name: true
+        }
+      }
+    }
+  }
 } satisfies Prisma.UserSelect;
 
 export type ActiveUserSummaryRecord = Prisma.UserGetPayload<{
