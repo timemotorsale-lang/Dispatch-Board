@@ -12,6 +12,11 @@ type TaskReadUserSummary = {
   email?: string;
 };
 
+type TaskReadRecommendation = {
+  reasonCode: string;
+  explanation: string;
+};
+
 export type TaskCommentReadModel = {
   id: string;
   taskId: string;
@@ -41,9 +46,13 @@ export type TaskReadModel = {
   updatedAt: string;
   assignedUser: TaskReadUserSummary;
   recommendedUser: TaskReadUserSummary | null;
+<<<<<<< HEAD
+  recommendation: TaskReadRecommendation | null;
+=======
   recommendationReasonCode: string | null;
   recommendationReasonText: string | null;
   recommendationReviewNeeded: boolean;
+>>>>>>> main
   createdByUser: TaskReadUserSummary | null;
   reviewedByUser: TaskReadUserSummary | null;
   comments: TaskCommentReadModel[];
@@ -84,6 +93,14 @@ function toUserSummary(
 }
 
 function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
+  const recommendation =
+    task.recommendationReasonCode && task.recommendationExplanation
+      ? {
+          reasonCode: task.recommendationReasonCode,
+          explanation: task.recommendationExplanation
+        }
+      : null;
+
   return {
     id: task.id,
     boardDayId: task.boardDay.id,
@@ -108,9 +125,13 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
       email: task.assignedUser.email || undefined
     },
     recommendedUser: toUserSummary(task.recommendedUser),
+<<<<<<< HEAD
+    recommendation,
+=======
     recommendationReasonCode: normalizeOptionalText(task.recommendationReasonCode),
     recommendationReasonText: normalizeOptionalText(task.recommendationReasonText),
     recommendationReviewNeeded: task.recommendationReviewNeeded ?? false,
+>>>>>>> main
     createdByUser: toUserSummary(task.createdByUser),
     reviewedByUser: toUserSummary(task.reviewedByUser),
     comments: task.comments.map((comment) => ({

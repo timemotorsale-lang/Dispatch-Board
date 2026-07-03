@@ -1,6 +1,7 @@
 import { ActivityEventType } from "@prisma/client";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { recordBoardActivityEvent } from "@/server/services/activity-feed";
 import { canUpdateAssignedWork } from "@/server/policies/access";
 import {
   createTaskCommentRepository,
@@ -129,6 +130,20 @@ export async function createTaskComment(
     normalizedInput.body
   );
 
+<<<<<<< HEAD
+  if (repository.supportsActivityEvents && task.boardDayId && task.title) {
+    await recordBoardActivityEvent({
+      boardDayId: task.boardDayId,
+      actorUserId: authenticatedUser.id,
+      taskId: normalizedTaskId,
+      eventType: "task.comment_added",
+      message: `${authenticatedUser.name} added an update to ${task.title}.`,
+      metadata: {
+        taskTitle: task.title
+      }
+    });
+  }
+=======
   await repository.createActivityEvent({
     actorUserId: authenticatedUser.id,
     boardDayId: task.boardDayId,
@@ -141,6 +156,7 @@ export async function createTaskComment(
     },
     taskId: normalizedTaskId
   });
+>>>>>>> main
 
   return toTaskCommentModel(comment);
 }

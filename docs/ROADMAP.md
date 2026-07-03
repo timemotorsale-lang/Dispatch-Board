@@ -152,9 +152,9 @@ This repository does not have the app scaffold yet, so the most practical build 
 | DB-043 | [ ]    | Add activity feed API                          | Expose date-based activity feed retrieval for the board.                                       | The app can load activity events for a selected board date.          |
 | DB-044 | [ ]    | Build activity feed UI                         | Create the activity feed surface with clear actor, event, and time context.                    | Users can see what changed today and who changed it.                 |
 | DB-045 | [ ]    | Implement recommendation matching rules        | Add direct-duty, role, template, and workflow-area recommendation order.                       | The service returns the expected recommended user and reason path.   |
-| DB-046 | [ ]    | Persist recommendation reason codes and text   | Store explanation data alongside recommendation output for later UI display.                   | Recommendation results include a human-readable explanation.         |
-| DB-047 | [ ]    | Add manager reassignment and override endpoint | Let managers accept or override recommendations and reassign tasks safely.                     | Managers can change assignments without bypassing server-side rules. |
-| DB-048 | [ ]    | Add review queue and approval UI               | Surface `Ready for Review` tasks and allow managers to approve or reopen them.                 | Managers can complete or return review-required tasks from the UI.   |
+| DB-046 | [x]    | Persist recommendation reason codes and text   | Store explanation data alongside recommendation output for later UI display.                   | Recommendation results include a human-readable explanation.         |
+| DB-047 | [x]    | Add manager reassignment and override endpoint | Let managers accept or override recommendations and reassign tasks safely.                     | Managers can change assignments without bypassing server-side rules. |
+| DB-048 | [x]    | Add review queue and approval UI               | Surface `Ready for Review` tasks and allow managers to approve or reopen them.                 | Managers can complete or return review-required tasks from the UI.   |
 | DB-049 | [ ]    | Add review and visibility tests                | Cover event creation, recommendation order, override flow, and manager approval behavior.      | Review and visibility workflows are protected by automated tests.    |
 
 
@@ -174,7 +174,7 @@ This repository does not have the app scaffold yet, so the most practical build 
 | DB-052 | [ ]    | Add loading, empty, and error states               | Cover core board, task, generation, and activity surfaces with honest UI states.  | Users can tell when the app is loading, empty, or failing instead of seeing broken UI. |
 | DB-053 | [ ]    | Add unit tests for core services                   | Expand unit coverage for policies, generation helpers, and recommendation rules.  | Service-level regressions are caught before full workflow tests run.                   |
 | DB-054 | [ ]    | Add integration tests for API and validation       | Cover route-level auth, validation, and common mutation failures.                 | API behavior stays consistent under expected failure cases.                            |
-| DB-055 | [ ]    | Add end-to-end tests for daily workflow            | Test login, generation, task updates, blockers, review, and activity visibility.  | The main daily workflow passes in browser-level testing.                               |
+| DB-055 | [x]    | Add end-to-end tests for daily workflow            | Test login, generation, task updates, blockers, review, and activity visibility.  | The main daily workflow passes in browser-level testing.                               |
 | DB-056 | [ ]    | Finalize README, setup docs, and release checklist | Finish project docs, local commands, environment guidance, and MVP release steps. | Another developer can set up, run, test, and understand the app from the docs.         |
 
 

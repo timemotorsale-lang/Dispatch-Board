@@ -37,6 +37,11 @@ function createTaskReadRepository(): TaskReadRepository {
           name: "Jordan Sales",
           email: "jordan.sales@local.test"
         },
+<<<<<<< HEAD
+        recommendedUser: null,
+        recommendationReasonCode: null,
+        recommendationExplanation: null,
+=======
         recommendedUser: {
           id: "user-sales",
           name: "Jordan Sales",
@@ -45,6 +50,7 @@ function createTaskReadRepository(): TaskReadRepository {
         recommendationReasonCode: "ROLE_MATCH",
         recommendationReasonText: "Jordan Sales is recommended because their role matches this template.",
         recommendationReviewNeeded: false,
+>>>>>>> main
         createdByUser: {
           id: "user-manager",
           name: "Morgan Manager",
@@ -100,6 +106,10 @@ describe("task read service", () => {
         name: "Jordan Sales",
         email: "jordan.sales@local.test"
       },
+<<<<<<< HEAD
+      recommendedUser: null,
+      recommendation: null,
+=======
       recommendedUser: {
         id: "user-sales",
         name: "Jordan Sales",
@@ -108,6 +118,7 @@ describe("task read service", () => {
       recommendationReasonCode: "ROLE_MATCH",
       recommendationReasonText: "Jordan Sales is recommended because their role matches this template.",
       recommendationReviewNeeded: false,
+>>>>>>> main
       createdByUser: {
         id: "user-manager",
         name: "Morgan Manager",

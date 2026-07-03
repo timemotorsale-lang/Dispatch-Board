@@ -51,8 +51,12 @@ describe("prisma schema constraints", () => {
 
     expect(taskModel).toMatch(/assignedUserId\s+String\b/);
     expect(taskModel).toMatch(/recommendationReasonCode\s+String\?/);
+<<<<<<< HEAD
+    expect(taskModel).toMatch(/recommendationExplanation\s+String\?/);
+=======
     expect(taskModel).toMatch(/recommendationReasonText\s+String\?/);
     expect(taskModel).toMatch(/recommendationReviewNeeded\s+Boolean\?/);
+>>>>>>> main
     expect(taskModel).toMatch(/dueAt\s+DateTime\b/);
     expect(taskModel).toMatch(/@@unique\(\[boardDayId,\s*sourceTemplateId,\s*assignedUserId\]\)/);
     expect(taskModel).toMatch(/@@index\(\[boardDayId,\s*status\]\)/);

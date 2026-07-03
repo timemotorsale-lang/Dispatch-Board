@@ -1,3 +1,6 @@
+<<<<<<< HEAD
+export { PATCH, POST } from "../assignment/route";
+=======
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
@@ -63,3 +66,4 @@ export async function POST(request: Request, context: TaskAssignmentRouteContext
     );
   }
 }
+>>>>>>> main

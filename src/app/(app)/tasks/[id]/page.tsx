@@ -1,10 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { TaskAssignmentPanel } from "@/features/tasks/task-assignment-panel";
 import { TaskCommentsPanel } from "@/features/tasks/task-comments-panel";
+import { TaskStatusPanel } from "@/features/tasks/task-status-panel";
 import { canUpdateAssignedWork } from "@/server/policies/access";
 import { requireCurrentUser } from "@/server/auth/current-user";
+import { isManager } from "@/server/policies/access";
 import { getTaskReadModelById } from "@/server/services/task-read";
+import { listActiveUserSummaries } from "@/server/services/user-summary";
 
 function formatStatusLabel(status: string) {
   return status
@@ -44,6 +48,9 @@ export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
     requiresManagerApproval: task.requiresManagerApproval,
     requestedAction: "comment"
   });
+  const actorIsManager = isManager(user);
+  const canUpdateStatus = actorIsManager || user.id === task.assignedUser.id;
+  const assignableUsers = actorIsManager ? await listActiveUserSummaries() : [];
 
   return (
     <section className="page-stack dashboard-page board-page task-detail-page">
@@ -145,6 +152,8 @@ export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
         </dl>
       </article>
 
+      <TaskStatusPanel actorIsManager={actorIsManager} canUpdate={canUpdateStatus} task={task} />
+      {actorIsManager ? <TaskAssignmentPanel assignableUsers={assignableUsers} task={task} /> : null}
       <TaskCommentsPanel canComment={canComment} initialComments={task.comments} taskId={task.id} />
     </section>
   );

@@ -1,14 +1,8 @@
+import { LoadingStateCard } from "@/components/ui/state-card";
+
 export default function LoadingBoardPage() {
   return (
     <section className="page-stack board-page">
-      <div className="panel-card board-hero">
-        <div className="board-hero-copy">
-          <span className="eyebrow">Dispatch board</span>
-          <h1>Loading board</h1>
-          <p>Preparing the selected board view.</p>
-        </div>
-      </div>
-
       <div className="panel-grid board-summary-grid">
         <article className="panel-card board-stat-card">
           <strong>Selected date</strong>
@@ -32,9 +26,11 @@ export default function LoadingBoardPage() {
         </article>
       </div>
 
-      <div className="panel-card">
-        <p>Loading board data.</p>
-      </div>
+      <LoadingStateCard
+        eyebrow="Dispatch board"
+        message="Preparing the selected board view and loading today's operational totals."
+        title="Loading board"
+      />
     </section>
   );
 }

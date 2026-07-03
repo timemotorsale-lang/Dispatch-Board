@@ -68,8 +68,6 @@ type PreparedGenerationUser = {
   roles: GenerationInputRole[];
   directDuties: GenerationInputDuty[];
   roleDefaultDuties: GenerationInputDuty[];
-  dutySource: GenerationInputDutySource;
-  resolvedDuties: GenerationInputDuty[];
 };
 
 function compareText(left: string, right: string) {
@@ -204,8 +202,6 @@ function prepareGenerationUser(user: GenerationUserRecord): PreparedGenerationUs
   const roles = toRoles(user);
   const directDuties = toDirectDuties(user);
   const roleDefaultDuties = toRoleDefaultDuties(user);
-  const dutySource: GenerationInputDutySource =
-    directDuties.length > 0 ? "custom" : roleDefaultDuties.length > 0 ? "role_default" : "none";
 
   return {
     userId: user.id,
@@ -213,9 +209,7 @@ function prepareGenerationUser(user: GenerationUserRecord): PreparedGenerationUs
     userEmail: user.email,
     roles,
     directDuties,
-    roleDefaultDuties,
-    dutySource,
-    resolvedDuties: dutySource === "custom" ? directDuties : roleDefaultDuties
+    roleDefaultDuties
   };
 }
 
@@ -242,21 +236,65 @@ function toGenerationTemplate(
 
 function buildUserTemplates(user: PreparedGenerationUser, templates: GenerationTemplateRecord[]) {
   const activeRoleIds = new Set(user.roles.map((role) => role.roleId));
-  const resolvedDutyIds = new Set(user.resolvedDuties.map((duty) => duty.dutyId));
-  const templateMap = new Map<string, GenerationInputTemplate>();
+  const directDutyIds = new Set(user.directDuties.map((duty) => duty.dutyId));
+  const roleDefaultDutyIds = new Set(user.roleDefaultDuties.map((duty) => duty.dutyId));
 
-  for (const template of templates) {
-    const matchedByRole = template.roleId ? activeRoleIds.has(template.roleId) : false;
-    const matchedByDuty = template.dutyId ? resolvedDutyIds.has(template.dutyId) : false;
+  const collectTemplates = ({
+    dutyIds,
+    allowRoleMatches
+  }: {
+    dutyIds: Set<string>;
+    allowRoleMatches: boolean;
+  }) => {
+    const templateMap = new Map<string, GenerationInputTemplate>();
 
-    if (!matchedByRole && !matchedByDuty) {
-      continue;
+    for (const template of templates) {
+      const matchedByRole = allowRoleMatches && template.roleId ? activeRoleIds.has(template.roleId) : false;
+      const matchedByDuty = template.dutyId ? dutyIds.has(template.dutyId) : false;
+
+      if (!matchedByRole && !matchedByDuty) {
+        continue;
+      }
+
+      templateMap.set(template.id, toGenerationTemplate(template, matchedByRole, matchedByDuty));
     }
 
-    templateMap.set(template.id, toGenerationTemplate(template, matchedByRole, matchedByDuty));
+    return sortTemplates([...templateMap.values()]);
+  };
+
+  if (directDutyIds.size > 0) {
+    const directTemplates = collectTemplates({
+      dutyIds: directDutyIds,
+      allowRoleMatches: false
+    });
+
+    if (directTemplates.length > 0) {
+      return {
+        dutySource: "custom" as const,
+        resolvedDuties: user.directDuties,
+        templates: directTemplates
+      };
+    }
   }
 
-  return sortTemplates([...templateMap.values()]);
+  if (roleDefaultDutyIds.size > 0) {
+    const roleDefaultTemplates = collectTemplates({
+      dutyIds: roleDefaultDutyIds,
+      allowRoleMatches: true
+    });
+
+    return {
+      dutySource: "role_default" as const,
+      resolvedDuties: user.roleDefaultDuties,
+      templates: roleDefaultTemplates
+    };
+  }
+
+  return {
+    dutySource: "none" as const,
+    resolvedDuties: [] as GenerationInputDuty[],
+    templates: [] as GenerationInputTemplate[]
+  };
 }
 
 export async function loadGenerationInputsForDate(
@@ -276,7 +314,7 @@ export async function loadGenerationInputsForDate(
 
   const candidateRoleIds = uniqueSorted(users.flatMap((user) => user.roles.map((role) => role.roleId)));
   const candidateDutyIds = uniqueSorted(
-    users.flatMap((user) => user.resolvedDuties.map((duty) => duty.dutyId))
+    users.flatMap((user) => [...user.directDuties, ...user.roleDefaultDuties].map((duty) => duty.dutyId))
   );
   const templates = (await repository.listTemplatesForGeneration({
     roleIds: candidateRoleIds,
@@ -292,9 +330,10 @@ export async function loadGenerationInputsForDate(
 
   const warnings: GenerationInputWarning[] = [];
   const generationUsers: GenerationInputUser[] = users.map((user) => {
-    const userTemplates = buildUserTemplates(user, templates);
+    const resolvedGenerationData = buildUserTemplates(user, templates);
+    const userTemplates = resolvedGenerationData.templates;
 
-    if (user.resolvedDuties.length === 0) {
+    if (resolvedGenerationData.resolvedDuties.length === 0) {
       warnings.push({
         userId: user.userId,
         code: "USER_HAS_NO_ELIGIBLE_DUTIES",
@@ -316,8 +355,8 @@ export async function loadGenerationInputsForDate(
       userEmail: user.userEmail,
       roles: user.roles,
       directDuties: user.directDuties,
-      dutySource: user.dutySource,
-      resolvedDuties: user.resolvedDuties,
+      dutySource: resolvedGenerationData.dutySource,
+      resolvedDuties: resolvedGenerationData.resolvedDuties,
       templates: userTemplates
     };
   });

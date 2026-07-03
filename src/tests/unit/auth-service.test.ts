@@ -28,7 +28,7 @@ describe("auth service", () => {
 
     expect(result.user.email).toBe("morgan.manager@local.test");
     expect(result.user.roles).toEqual(["General Manager"]);
-    expect(result.user.duties.all).toContain("Review blockers and approvals");
+    expect(result.user.duties.all).toContain("Review today's dispatch board");
     expect("passwordHash" in result.user).toBe(false);
   });
 
@@ -136,7 +136,7 @@ describe("auth service", () => {
   it("supports direct user duties in the authenticated summary", async () => {
     const { store } = await createTestAuthStore();
     const result = await loginWithPassword(store, {
-      email: "riley.inventory@local.test",
+      email: "casey.mechanic@local.test",
       password: SHARED_DEVELOPMENT_PASSWORD
     });
 
@@ -146,8 +146,8 @@ describe("auth service", () => {
       return;
     }
 
-    expect(result.user.duties.direct).toContain("Review inventory status");
-    expect(result.user.duties.all).toContain("Check vehicles ready for photos");
+    expect(result.user.duties.direct).toContain("Review assigned repair and diagnostic tasks");
+    expect(result.user.duties.all).toContain("Move finished repair work to Ready for Review");
   });
 
   it("normalizes email addresses for auth lookups", () => {

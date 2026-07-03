@@ -36,8 +36,12 @@ type StoredTask = {
   assignedUserId: string;
   recommendedUserId: string | null;
   recommendationReasonCode: string | null;
+<<<<<<< HEAD
+  recommendationExplanation: string | null;
+=======
   recommendationReasonText: string | null;
   recommendationReviewNeeded: boolean | null;
+>>>>>>> main
   status: TaskStatus;
   dueAt: Date;
   createdByUserId: string | null;
@@ -264,8 +268,12 @@ function createGenerationTasksHarness(
         assignedUserId: input.assignedUserId,
         recommendedUserId: input.recommendedUserId,
         recommendationReasonCode: input.recommendationReasonCode,
+<<<<<<< HEAD
+        recommendationExplanation: input.recommendationExplanation,
+=======
         recommendationReasonText: input.recommendationReasonText,
         recommendationReviewNeeded: input.recommendationReviewNeeded,
+>>>>>>> main
         status: TaskStatus.NOT_STARTED,
         dueAt: input.dueAt,
         createdByUserId: input.createdByUserId,
@@ -286,8 +294,12 @@ function createGenerationTasksHarness(
         assignedUserId: createdTask.assignedUserId,
         recommendedUserId: createdTask.recommendedUserId,
         recommendationReasonCode: createdTask.recommendationReasonCode,
+<<<<<<< HEAD
+        recommendationExplanation: createdTask.recommendationExplanation,
+=======
         recommendationReasonText: createdTask.recommendationReasonText,
         recommendationReviewNeeded: createdTask.recommendationReviewNeeded,
+>>>>>>> main
         dueAt: createdTask.dueAt,
         sourceTemplateId: createdTask.sourceTemplateId,
         sourceDutyId: createdTask.sourceDutyId,
@@ -416,9 +428,15 @@ describe("generation tasks service", () => {
         title: "Review inventory status",
         assignedUserId: "user-inventory",
         recommendedUserId: "user-inventory",
+<<<<<<< HEAD
+        recommendationReasonCode: "ROLE_DEFAULT_DUTY_MATCH",
+        recommendationExplanation:
+          "Recommended because this task matches the Review inventory status duty provided by the Inventory Manager role.",
+=======
         recommendationReasonCode: "ROLE_MATCH",
         recommendationReasonText: "Avery Inventory is recommended because their role matches this template.",
         recommendationReviewNeeded: false,
+>>>>>>> main
         dueAt: new Date("2026-06-17T09:00:00.000Z"),
         sourceTemplateId: "template-inventory",
         sourceDutyId: "duty-inventory",
@@ -430,8 +448,13 @@ describe("generation tasks service", () => {
         assignedUserId: "user-sales",
         recommendedUserId: "user-sales",
         recommendationReasonCode: "DIRECT_DUTY_MATCH",
+<<<<<<< HEAD
+        recommendationExplanation:
+          "Recommended because this task matches the direct duty Follow up with assigned leads.",
+=======
         recommendationReasonText: "Jordan Sales is recommended because they have the direct duty for this template.",
         recommendationReviewNeeded: false,
+>>>>>>> main
         dueAt: new Date("2026-06-17T15:30:00.000Z"),
         sourceTemplateId: "template-sales-duty",
         sourceDutyId: "duty-sales",
@@ -446,9 +469,15 @@ describe("generation tasks service", () => {
         description: "Check stale and ready-for-sale units.",
         assignedUserId: "user-inventory",
         recommendedUserId: "user-inventory",
+<<<<<<< HEAD
+        recommendationReasonCode: "ROLE_DEFAULT_DUTY_MATCH",
+        recommendationExplanation:
+          "Recommended because this task matches the Review inventory status duty provided by the Inventory Manager role.",
+=======
         recommendationReasonCode: "ROLE_MATCH",
         recommendationReasonText: "Avery Inventory is recommended because their role matches this template.",
         recommendationReviewNeeded: false,
+>>>>>>> main
         status: TaskStatus.NOT_STARTED,
         dueAt: new Date("2026-06-17T09:00:00.000Z"),
         createdByUserId: "user-manager",
@@ -464,8 +493,13 @@ describe("generation tasks service", () => {
         assignedUserId: "user-sales",
         recommendedUserId: "user-sales",
         recommendationReasonCode: "DIRECT_DUTY_MATCH",
+<<<<<<< HEAD
+        recommendationExplanation:
+          "Recommended because this task matches the direct duty Follow up with assigned leads.",
+=======
         recommendationReasonText: "Jordan Sales is recommended because they have the direct duty for this template.",
         recommendationReviewNeeded: false,
+>>>>>>> main
         status: TaskStatus.NOT_STARTED,
         dueAt: new Date("2026-06-17T15:30:00.000Z"),
         createdByUserId: "user-manager",
@@ -522,6 +556,61 @@ describe("generation tasks service", () => {
         taskId: null
       }
     ]);
+  });
+
+  it("returns generation warnings and succeeds cleanly when there are no task candidates", async () => {
+    const harness = createGenerationTasksHarness({
+      boardDate: "2026-06-17",
+      users: [
+        {
+          userId: "user-empty",
+          userName: "No Match",
+          userEmail: "no.match@local.test",
+          roles: [],
+          directDuties: [],
+          dutySource: "none",
+          resolvedDuties: [],
+          templates: []
+        }
+      ],
+      warnings: [
+        {
+          userId: "user-empty",
+          code: "USER_HAS_NO_ELIGIBLE_DUTIES",
+          message: "No Match has no custom duties or role default duties available for generation."
+        }
+      ]
+    });
+
+    const result = await createMissingGeneratedTasksForDate("2026-06-17", undefined, {
+      ...harness,
+      now: createNowSequence("2026-06-17T08:00:00.000Z", "2026-06-17T08:00:01.000Z")
+    });
+
+    expect(result).toMatchObject({
+      generationRunStatus: GenerationRunStatus.SUCCEEDED,
+      totalCandidatesConsidered: 0,
+      createdTaskCount: 0,
+      skippedExistingTaskCount: 0,
+      warnings: [
+        {
+          userId: "user-empty",
+          code: "USER_HAS_NO_ELIGIBLE_DUTIES"
+        }
+      ]
+    });
+    expect(result.createdTasks).toEqual([]);
+    expect(harness.readGenerationRuns()[0]).toEqual(
+      expect.objectContaining({
+        status: GenerationRunStatus.SUCCEEDED,
+        summary: expect.objectContaining({
+          usersConsidered: 1,
+          templatesConsidered: 0,
+          tasksCreated: 0,
+          tasksSkippedAsDuplicates: 0
+        })
+      })
+    );
   });
 
   it("creates a separate completed generation run on retry without duplicating generated tasks", async () => {
@@ -581,8 +670,12 @@ describe("generation tasks service", () => {
       assignedUserId: "user-inventory",
       recommendedUserId: null,
       recommendationReasonCode: null,
+<<<<<<< HEAD
+      recommendationExplanation: null,
+=======
       recommendationReasonText: null,
       recommendationReviewNeeded: null,
+>>>>>>> main
       status: TaskStatus.IN_PROGRESS,
       dueAt: new Date("2026-06-17T08:45:00.000Z"),
       createdByUserId: "user-manager",
@@ -640,9 +733,15 @@ describe("generation tasks service", () => {
       description: "Manager edited this generated task.",
       assignedUserId: "user-inventory",
       recommendedUserId: "user-inventory",
+<<<<<<< HEAD
+      recommendationReasonCode: "ROLE_DEFAULT_DUTY_MATCH",
+      recommendationExplanation:
+        "Recommended because this task matches the Review inventory status duty provided by the Inventory Manager role.",
+=======
       recommendationReasonCode: "ROLE_MATCH",
       recommendationReasonText: "Original explanation should be preserved.",
       recommendationReviewNeeded: false,
+>>>>>>> main
       status: TaskStatus.IN_PROGRESS,
       dueAt: new Date("2026-06-17T10:15:00.000Z"),
       createdByUserId: "user-manager",
@@ -722,8 +821,13 @@ describe("generation tasks service", () => {
           assignedUserId: "user-sales",
           recommendedUserId: "user-sales",
           recommendationReasonCode: "DIRECT_DUTY_MATCH",
+<<<<<<< HEAD
+          recommendationExplanation:
+            "Recommended because this task matches the direct duty Follow up with assigned leads.",
+=======
           recommendationReasonText: "Jordan Sales is recommended because they have the direct duty for this template.",
           recommendationReviewNeeded: false,
+>>>>>>> main
           status: TaskStatus.NOT_STARTED,
           dueAt: new Date("2026-06-17T15:30:00.000Z"),
           createdByUserId: null,

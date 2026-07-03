@@ -52,8 +52,12 @@ type WorkflowTask = {
   assignedUserId: string;
   recommendedUserId: string | null;
   recommendationReasonCode: string | null;
+<<<<<<< HEAD
+  recommendationExplanation: string | null;
+=======
   recommendationReasonText: string | null;
   recommendationReviewNeeded: boolean | null;
+>>>>>>> main
   status: TaskStatus;
   dueAt: Date;
   createdByUserId: string;
@@ -159,8 +163,12 @@ function createWorkflowHarness(authUsers: AuthenticatedUser[]) {
       assignedUser: requireValue(userSummary(task.assignedUserId), "Assignee is required."),
       recommendedUser: userSummary(task.recommendedUserId),
       recommendationReasonCode: task.recommendationReasonCode,
+<<<<<<< HEAD
+      recommendationExplanation: task.recommendationExplanation,
+=======
       recommendationReasonText: task.recommendationReasonText,
       recommendationReviewNeeded: task.recommendationReviewNeeded,
+>>>>>>> main
       createdByUser: userSummary(task.createdByUserId),
       reviewedByUser: userSummary(task.reviewedByUserId),
       comments: comments
@@ -208,8 +216,12 @@ function createWorkflowHarness(authUsers: AuthenticatedUser[]) {
         assignedUserId: input.assignedUserId,
         recommendedUserId: null,
         recommendationReasonCode: null,
+<<<<<<< HEAD
+        recommendationExplanation: null,
+=======
         recommendationReasonText: null,
         recommendationReviewNeeded: null,
+>>>>>>> main
         status: input.status,
         dueAt: input.dueAt,
         createdByUserId: input.createdByUserId,
@@ -277,8 +289,12 @@ function createWorkflowHarness(authUsers: AuthenticatedUser[]) {
           assignedUser: requireValue(userSummary(task.assignedUserId), "Assignee is required."),
           recommendedUser: userSummary(task.recommendedUserId),
           recommendationReasonCode: task.recommendationReasonCode,
+<<<<<<< HEAD
+          recommendationExplanation: task.recommendationExplanation
+=======
           recommendationReasonText: task.recommendationReasonText,
           recommendationReviewNeeded: task.recommendationReviewNeeded
+>>>>>>> main
         }));
     }
   };

@@ -1,12 +1,56 @@
-import { PlaceholderRoutePage } from "@/components/ui/placeholder-route-page";
+import type { ComponentProps } from "react";
 
-export default function ManagerReviewPage() {
-  return (
-    <PlaceholderRoutePage
-      description="Manager review remains an important part of the approved mockup, but the dedicated review queue UI has not been built yet."
-      eyebrow="Manager review"
-      note="Approval-required tasks are still preserved by backend rules and surfaced on the board. This route reserves the future home for a fuller manager review workspace."
-      title="Manager Review"
-    />
-  );
+import { ManagerReviewScreen } from "@/features/manager-review/manager-review-screen";
+import { requireCurrentUser } from "@/server/auth/current-user";
+import { canReviewWorkflows } from "@/server/policies/access";
+import { getManagerReviewViewModelForToday } from "@/server/services/manager-review";
+
+export default async function ManagerReviewPage() {
+  const user = await requireCurrentUser();
+
+  if (!canReviewWorkflows(user)) {
+    return (
+      <section className="page-stack dashboard-page">
+        <div className="dashboard-page-header">
+          <div className="dashboard-page-copy">
+            <span className="eyebrow">Protected review queue</span>
+            <h1>Manager Review</h1>
+            <p>
+              This queue is reserved for managers because approval-required tasks can only be
+              completed or reopened by a manager.
+            </p>
+          </div>
+        </div>
+
+        <div className="notice notice-danger" role="alert">
+          <p>Manager access is required to review approval-ready tasks.</p>
+        </div>
+      </section>
+    );
+  }
+
+  const screenProps: ComponentProps<typeof ManagerReviewScreen> = {
+    boardDate: new Date().toISOString().slice(0, 10),
+    boardExists: false,
+    errorMessage: null,
+    fullBoardHref: "/board",
+    generatedAt: null,
+    generationStatus: null,
+    initialTasks: []
+  };
+
+  try {
+    const reviewQueue = await getManagerReviewViewModelForToday(user);
+    screenProps.boardDate = reviewQueue.date;
+    screenProps.boardExists = reviewQueue.boardExists;
+    screenProps.fullBoardHref = `/board?date=${encodeURIComponent(reviewQueue.date)}`;
+    screenProps.generatedAt = reviewQueue.generatedAt;
+    screenProps.generationStatus = reviewQueue.generationStatus;
+    screenProps.initialTasks = reviewQueue.tasks;
+  } catch (error) {
+    screenProps.errorMessage =
+      error instanceof Error ? error.message : "Unable to load the manager review queue right now.";
+  }
+
+  return <ManagerReviewScreen {...screenProps} />;
 }

@@ -2,15 +2,25 @@ import type { ReactNode } from "react";
 import { AlertCircle, CalendarDays, CheckCircle2, ChevronRight, CircleUserRound, Layers3, Search, ShieldAlert, UsersRound } from "lucide-react";
 import Link from "next/link";
 
+<<<<<<< HEAD
+import { EmptyStateCard } from "@/components/ui/state-card";
+=======
 import { ActivityFeedPanel } from "@/features/activity/activity-feed-panel";
 import { ReviewQueue } from "@/features/board/review-queue";
+>>>>>>> main
 import { formatBoardEnumLabel, type BoardFilters, type BoardGroupMode, type BoardPresentation } from "./board-grouping";
+import type { ActivityFeedEvent } from "@/server/services/activity-feed";
 import type { BoardReadModel, BoardReadTask } from "@/server/services/board-read";
 
 type Task = Omit<BoardReadTask, "assignedUser"> & { assignedUser: BoardReadTask["assignedUser"] | null };
 
 export function formatBoardDate(boardDate: string, short = false) {
-  return new Intl.DateTimeFormat("en-US", short ? { weekday: "short", month: "short", day: "numeric" } : { weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(new Date(`${boardDate}T00:00:00.000Z`));
+  return new Intl.DateTimeFormat(
+    "en-US",
+    short
+      ? { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }
+      : { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }
+  ).format(new Date(`${boardDate}T00:00:00.000Z`));
 }
 
 function formatTime(value: string) {
@@ -56,19 +66,32 @@ export function MetricStrip({ metrics }: { metrics: Metric[] }) {
   return <section className="metric-strip">{metrics.map((metric) => { const Icon = metricIcons[metric.icon]; return <article className={`metric-card metric-${metric.tone}`} key={metric.label}><div className="metric-icon"><Icon size={20} /></div><div><span>{metric.label}</span><strong>{metric.value}</strong><small>{metric.detail}</small></div></article>; })}</section>;
 }
 
-export function OperationsStrip({ tasks }: { tasks: Task[] }) {
-  const people = new Map<string, number>();
+export function OperationsStrip({
+  activeAssigneeId,
+  onAssigneeSelect,
+  tasks
+}: {
+  activeAssigneeId: string;
+  onAssigneeSelect(assigneeId: string): void;
+  tasks: Task[];
+}) {
+  const people = new Map<string, { count: number; id: string }>();
   const workflow = new Map<string, number>();
   for (const task of tasks) {
     const owner = task.assignedUser?.name ?? "Unassigned";
-    people.set(owner, (people.get(owner) ?? 0) + 1);
+    const ownerId = task.assignedUser?.id ?? "unassigned";
+    const currentOwner = people.get(owner);
+    people.set(owner, {
+      count: (currentOwner?.count ?? 0) + 1,
+      id: currentOwner?.id ?? ownerId
+    });
     workflow.set(task.workflowArea, (workflow.get(task.workflowArea) ?? 0) + 1);
   }
-  const team = [...people.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+  const team = [...people.entries()].sort((a, b) => b[1].count - a[1].count).slice(0, 4);
   const flow = [...workflow.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   const referenced = tasks.filter((task) => task.customerReference || task.vehicleReference).length;
   return <section className="operations-strip">
-    <article><header><span><UsersRound size={16} /> Team load</span><small>{people.size} owners</small></header><div className="team-load">{team.map(([name, count]) => <div key={name}><span className="mini-avatar">{name[0]}</span><span>{name.split(" ")[0]}<strong>{count}</strong></span></div>)}</div></article>
+    <article><header><span><UsersRound size={16} /> Team load</span><small>{people.size} owners</small></header><div className="team-load">{team.map(([name, owner]) => <button aria-pressed={activeAssigneeId === owner.id} className={activeAssigneeId === owner.id ? "team-load-chip team-load-chip-active" : "team-load-chip"} key={name} onClick={() => onAssigneeSelect(owner.id)} type="button"><span className="mini-avatar">{name[0]}</span><span>{name.split(" ")[0]}<strong>{owner.count}</strong></span></button>)}</div></article>
     <article><header><span><Layers3 size={16} /> Workflow flow</span><small>Current board</small></header><div className="flow-list">{flow.map(([name, count], index) => <div key={name}><span>{formatBoardEnumLabel(name)}</span><strong>{count}</strong>{index < flow.length - 1 ? <ChevronRight size={14} /> : null}</div>)}</div></article>
     <article><header><span><CalendarDays size={16} /> Customer / vehicle context</span><small>Visibility</small></header><div className="context-count"><strong>{referenced}</strong><span>tasks include a customer or vehicle reference</span></div></article>
   </section>;
@@ -99,8 +122,51 @@ function TaskCard({ task }: { task: Task }) {
   return <article className="mobile-task-card"><header><div><strong>{task.title}</strong><span>{task.vehicleReference || task.customerReference || formatBoardEnumLabel(task.workflowArea)}</span></div><span className={statusClass(task.status)}>{formatBoardEnumLabel(task.status)}</span></header><dl><div><dt>Assigned</dt><dd>{task.assignedUser?.name ?? "Unassigned"}</dd></div><div><dt>Due</dt><dd>{formatTime(task.dueAt)} · {timeLeft(task.dueAt)}</dd></div><div><dt>Urgency</dt><dd className={taskUrgency.className}>{taskUrgency.label}</dd></div></dl>{task.blockerReason ? <p className="blocker-inline"><AlertCircle size={15} /> {task.blockerReason}</p> : null}<Link className="row-action" href={`/tasks/${task.id}`}>{task.status === "READY_FOR_REVIEW" ? "Review" : "Update"}</Link></article>;
 }
 
-export function TaskBoard({ presentation, boardDate }: { presentation: BoardPresentation; boardDate: string }) {
-  if (!presentation.filteredTasks.length) return <section className="task-board empty-board"><h2>No tasks match this view</h2><p>Adjust the filters to bring work back into view.</p></section>;
+export function TaskBoard({
+  boardDate,
+  isFiltered,
+  isManager,
+  presentation,
+  taskCount
+}: {
+  boardDate: string;
+  isFiltered: boolean;
+  isManager: boolean;
+  presentation: BoardPresentation;
+  taskCount: number;
+}) {
+  if (!presentation.filteredTasks.length) {
+    if (taskCount === 0) {
+      return (
+        <section className="task-board empty-board">
+          <EmptyStateCard
+            eyebrow="Board empty"
+            message={
+              isManager
+                ? "This board exists, but no tasks have been created for it yet. Generate the board again or add a manual task to get the day moving."
+                : "This board exists, but no work has been added yet. A manager can generate the board or create the first task."
+            }
+            title={`No tasks on ${formatBoardDate(boardDate, true)}`}
+          />
+        </section>
+      );
+    }
+
+    return (
+      <section className="task-board empty-board">
+        <EmptyStateCard
+          eyebrow="Filters applied"
+          message={
+            isFiltered
+              ? "No tasks match the current filters. Clear or widen the filters to bring work back into view."
+              : "No tasks are visible in this view right now."
+          }
+          title="No tasks match this view"
+        />
+      </section>
+    );
+  }
+
   return <section className="task-board"><header className="task-board-header"><div><span>Board tasks</span><h2>{formatBoardDate(boardDate, true)}</h2></div><small>{presentation.filteredTasks.length} tasks visible</small></header>
     <div className="desktop-task-table"><table><thead><tr><th>Item / Details</th><th>Workflow / Type</th><th>Assigned To</th><th>Status</th><th>Due / Time Left</th><th>Urgency</th><th>Next Action</th></tr></thead>{presentation.groups.map((group) => <tbody key={group.key}><tr className="table-group-row"><td colSpan={7}>{group.label}<span>{group.taskCount}</span></td></tr>{group.tasks.map((task) => { const taskUrgency = urgency(task); return <tr key={task.id} className="task-row"><td><strong>{task.title}</strong><span>{task.vehicleReference || task.customerReference || task.description || "No reference"}</span>{task.vehicleReference && task.customerReference ? <small>Customer: {task.customerReference}</small> : null}</td><td><span className="workflow-chip">{formatBoardEnumLabel(task.workflowArea)}</span><small>{formatBoardEnumLabel(task.sourceType)}</small></td><td><span className="assignee"><span className="mini-avatar">{task.assignedUser?.name[0] ?? "?"}</span>{task.assignedUser?.name ?? "Unassigned"}</span></td><td><span className={statusClass(task.status)}>{formatBoardEnumLabel(task.status)}</span></td><td><strong>{formatTime(task.dueAt)}</strong><small>{timeLeft(task.dueAt)}</small></td><td><span className={taskUrgency.className}>↑ {taskUrgency.label}</span></td><td><Link className="row-action" href={`/tasks/${task.id}`}>{task.status === "READY_FOR_REVIEW" ? "Review" : task.status === "BLOCKED" ? "Resolve" : "Update"}</Link></td></tr>; })}</tbody>)}</table></div>
     <div className="mobile-task-list">{presentation.groups.map((group) => <section key={group.key}><h3>{group.label}<span>{group.taskCount}</span></h3>{group.tasks.map((task) => <TaskCard key={task.id} task={task} />)}</section>)}</div>
@@ -110,13 +176,28 @@ export function TaskBoard({ presentation, boardDate }: { presentation: BoardPres
 
 function count(tasks: Task[], status: string) { return tasks.filter((task) => task.status === status).length; }
 
+<<<<<<< HEAD
+function formatActivityTimestamp(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
+export function OperationalRail({ recentActivity, tasks }: { recentActivity: ActivityFeedEvent[]; tasks: Task[] }) {
+=======
 export function OperationalRail({ boardDate, isManager, onReviewActionComplete, tasks }: { boardDate: string; isManager: boolean; onReviewActionComplete(): void; tasks: Task[] }) {
+>>>>>>> main
   const attention = [{ label: "Blocked", detail: "Tasks are blocked", status: "BLOCKED", tone: "red" }, { label: "Waiting on Parts", detail: "Work waiting on parts", status: "WAITING_ON_PARTS", tone: "orange" }, { label: "Waiting on Approval", detail: "Awaiting manager approval", status: "WAITING_ON_APPROVAL", tone: "amber" }, { label: "Ready for Review", detail: "Ready for manager review", status: "READY_FOR_REVIEW", tone: "purple" }];
   const upcoming = [...tasks].filter((task) => task.status !== "COMPLETED").sort((a, b) => +new Date(a.dueAt) - +new Date(b.dueAt)).slice(0, 4);
   return <aside className="operations-rail">
     <section className="rail-card"><header><h2>Needs Attention</h2><Link href="/manager-review">View all</Link></header><div className="attention-list">{attention.map((item) => <div className={`attention-row attention-${item.tone}`} key={item.status}><span className="attention-dot">!</span><div><strong>{item.label}</strong><small>{item.detail}</small></div><b>{count(tasks, item.status)}</b></div>)}</div></section>
     <ReviewQueue isManager={isManager} onReviewActionComplete={onReviewActionComplete} tasks={tasks} />
     <section className="rail-card"><header><h2>Due Next</h2><span>Today</span></header><div className="due-list">{upcoming.length ? upcoming.map((task) => <Link href={`/tasks/${task.id}`} key={task.id}><time>{formatTime(task.dueAt)}</time><span><strong>{task.title}</strong><small>{task.assignedUser?.name ?? "Unassigned"}</small></span></Link>) : <p className="rail-empty">No upcoming work.</p>}</div></section>
+<<<<<<< HEAD
+    <section className="rail-card"><header><h2>Today&apos;s Activity</h2><span>Live feed</span></header>{recentActivity.length ? <div className="due-list">{recentActivity.slice(0, 5).map((event) => <Link href={event.task ? `/tasks/${event.task.id}` : "/activity"} key={event.id}><time>{formatActivityTimestamp(event.createdAt)}</time><span><strong>{event.message}</strong><small>{event.actor?.name ?? "System"}</small></span></Link>)}</div> : <div className="activity-placeholder"><Clock3 size={20} /><strong>No activity yet</strong><p>Generation, status changes, and task updates will start appearing here as the day moves.</p></div>}<Link className="rail-footer-link" href="/activity">Open activity view <ChevronRight size={15} /></Link></section>
+=======
     <ActivityFeedPanel boardDate={boardDate} compact poll />
+>>>>>>> main
   </aside>;
 }

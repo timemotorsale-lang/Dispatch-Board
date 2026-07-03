@@ -202,7 +202,7 @@ describe("generation inputs service", () => {
     });
   });
 
-  it("uses a user's custom duties without falling back to role default duties", async () => {
+  it("uses a user's custom duties without falling back to role-default templates", async () => {
     const directDuty = createDuty({
       id: "duty-custom",
       name: "Handle VIP follow-ups",
@@ -257,8 +257,58 @@ describe("generation inputs service", () => {
       "Follow up with assigned leads"
     );
     expect(result.users[0].templates.map((template) => template.templateId)).toEqual([
-      "template-custom-duty",
-      "template-role"
+      "template-custom-duty"
+    ]);
+  });
+
+  it("deduplicates repeated direct duty assignments for the same user", async () => {
+    const directDuty = createDuty({
+      id: "duty-custom",
+      name: "Handle VIP follow-ups",
+      workflowArea: "Sales"
+    });
+    const repository = createGenerationInputsRepository({
+      users: [
+        createUser({
+          id: "user-custom",
+          name: "Casey Custom",
+          email: "casey.custom@local.test",
+          userDuties: [
+            createUserDuty(directDuty, { userId: "user-custom" }),
+            createUserDuty(directDuty, {
+              userId: "user-custom",
+              assignedAt: new Date("2026-06-17T09:16:00.000Z")
+            })
+          ]
+        })
+      ],
+      templates: [
+        createTemplate({
+          id: "template-custom-duty",
+          title: "Handle VIP follow-up tasks",
+          roleId: null,
+          role: null,
+          dutyId: "duty-custom",
+          duty: { id: "duty-custom", name: "Handle VIP follow-ups" }
+        })
+      ]
+    });
+
+    const result = await loadGenerationInputsForDate("2026-06-17", repository);
+
+    expect(result.users[0].directDuties).toEqual([
+      {
+        dutyId: "duty-custom",
+        title: "Handle VIP follow-ups",
+        workflowArea: "Sales",
+        source: "custom",
+        roleIds: [],
+        roleNames: []
+      }
+    ]);
+    expect(result.users[0].resolvedDuties).toHaveLength(1);
+    expect(result.users[0].templates.map((template) => template.templateId)).toEqual([
+      "template-custom-duty"
     ]);
   });
 
@@ -441,6 +491,77 @@ describe("generation inputs service", () => {
         message: "No Match has no active task templates connected to the resolved duties or active roles."
       }
     ]);
+  });
+
+  it("falls back to role-default templates when a user has custom duties but no active custom-duty templates", async () => {
+    const repository = createGenerationInputsRepository({
+      users: [
+        createUser({
+          id: "user-fallback",
+          name: "Riley Fallback",
+          email: "riley.fallback@local.test",
+          userRoles: [
+            createUserRole(
+              createRole({
+                id: "role-admin",
+                name: "Office Manager",
+                roleDuties: [
+                  createRoleDuty(
+                    "role-admin",
+                    createDuty({
+                      id: "duty-admin",
+                      name: "Review office/admin support tasks",
+                      workflowArea: "OfficeFrontDesk"
+                    })
+                  )
+                ]
+              }),
+              { userId: "user-fallback" }
+            )
+          ],
+          userDuties: [
+            createUserDuty(
+              createDuty({
+                id: "duty-custom",
+                name: "Handle VIP follow-ups",
+                workflowArea: "Sales"
+              }),
+              { userId: "user-fallback" }
+            )
+          ]
+        })
+      ],
+      templates: [
+        createTemplate({
+          id: "template-admin-duty",
+          title: "Review office/admin support tasks",
+          workflowArea: WorkflowArea.ADMIN,
+          roleId: null,
+          role: null,
+          dutyId: "duty-admin",
+          duty: {
+            id: "duty-admin",
+            name: "Review office/admin support tasks"
+          }
+        })
+      ]
+    });
+
+    const result = await loadGenerationInputsForDate("2026-06-17", repository);
+
+    expect(result.users[0]).toMatchObject({
+      dutySource: "role_default"
+    });
+    expect(result.users[0].templates.map((template) => template.templateId)).toEqual([
+      "template-admin-duty"
+    ]);
+    expect(result.users[0].resolvedDuties).toMatchObject([
+      {
+        dutyId: "duty-admin",
+        source: "role_default"
+      }
+    ]);
+    expect(result.warnings).toEqual([]);
   });
 
   it("returns a deterministic ordering for users, duties, and templates", async () => {

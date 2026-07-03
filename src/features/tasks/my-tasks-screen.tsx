@@ -1,13 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { TaskStatus } from "@prisma/client";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 
+import { EmptyStateCard, ErrorStateCard } from "@/components/ui/state-card";
+import { useLiveRefresh } from "@/hooks/use-live-refresh";
 import {
   filterMyTasks,
   getAllowedMyTaskStatuses,
   getMyTasksFilterOptions,
+  getPrimaryMyTaskStatusActions,
   getTaskActionLabel,
   type MyTasksFilter
 } from "@/features/tasks/my-tasks-helpers";
@@ -31,11 +35,17 @@ type StatusUpdatePayload = {
   blockerReason?: string;
 };
 
+type TaskOverride = {
+  blockerReason: string | null;
+  status: TaskStatus;
+};
+
 function formatBoardDateLabel(boardDate: string) {
   return new Intl.DateTimeFormat("en-US", {
     month: "long",
     day: "numeric",
-    year: "numeric"
+    year: "numeric",
+    timeZone: "UTC"
   }).format(new Date(`${boardDate}T00:00:00.000Z`));
 }
 
@@ -95,6 +105,10 @@ function getGenerationStatusTone(generationStatus: string | null) {
   return "status-badge status-badge-muted";
 }
 
+function getLiveStatusTone(isRefreshing: boolean) {
+  return isRefreshing ? "status-badge status-badge-muted" : "status-badge status-badge-success";
+}
+
 function getDueCopy(dueAt: string, now: Date) {
   const minutesUntilDue = Math.round((new Date(dueAt).getTime() - now.getTime()) / 60000);
 
@@ -141,6 +155,7 @@ function TaskCard({ isManager, now, onTaskUpdated, task }: TaskCardProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const hasStatusChoices = allowedStatuses.length > 0;
+  const primaryStatusActions = getPrimaryMyTaskStatusActions(task, isManager);
   const buttonLabel = getTaskActionLabel(
     selectedStatus,
     task.status as TaskStatus,
@@ -196,6 +211,15 @@ function TaskCard({ isManager, now, onTaskUpdated, task }: TaskCardProps) {
     }
   }
 
+  function handleQuickAction(status: TaskStatus) {
+    setSelectedStatus(status);
+    setErrorMessage(null);
+
+    if (status !== TaskStatus.BLOCKED) {
+      void submitStatusUpdate({ status });
+    }
+  }
+
   return (
     <article className="panel-card my-task-card">
       <div className="my-task-topline">
@@ -206,9 +230,14 @@ function TaskCard({ isManager, now, onTaskUpdated, task }: TaskCardProps) {
           </div>
           {task.description ? <p>{task.description}</p> : null}
         </div>
-        <Link className="pill pill-secondary" href={`/tasks/${task.id}`}>
-          Open
-        </Link>
+        <div className="my-task-card-links">
+          <Link className="pill pill-secondary" href={`/tasks/${task.id}`}>
+            Detail
+          </Link>
+          <Link className="pill pill-muted" href={`/tasks/${task.id}#task-updates`}>
+            Update
+          </Link>
+        </div>
       </div>
 
       <div className="my-task-meta-grid">
@@ -242,6 +271,30 @@ function TaskCard({ isManager, now, onTaskUpdated, task }: TaskCardProps) {
 
       {hasStatusChoices ? (
         <div className="my-task-action-grid">
+          {primaryStatusActions.length > 0 ? (
+            <div className="my-task-quick-actions" aria-label={`Quick status actions for ${task.title}`}>
+              {primaryStatusActions.map((statusOption) => (
+                <button
+                  className={
+                    statusOption.value === selectedStatus
+                      ? "my-task-action-chip my-task-action-chip-active"
+                      : "my-task-action-chip"
+                  }
+                  disabled={isSubmitting}
+                  key={statusOption.value}
+                  onClick={() => handleQuickAction(statusOption.value)}
+                  type="button"
+                >
+                  {getTaskActionLabel(
+                    statusOption.value,
+                    task.status as TaskStatus,
+                    task.requiresManagerApproval
+                  )}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
           <label className="field">
             <span>Next action</span>
             <select
@@ -325,24 +378,68 @@ export function MyTasksScreen({
   nowIso,
   userName
 }: MyTasksScreenProps) {
+  const router = useRouter();
+  const [isRefreshPending, startRefreshTransition] = useTransition();
   const [activeFilter, setActiveFilter] = useState<MyTasksFilter>("all");
-  const [tasks, setTasks] = useState(initialTasks);
+  const [taskOverrides, setTaskOverrides] = useState<Record<string, TaskOverride>>({});
+  const tasks = initialTasks.map((task) =>
+    taskOverrides[task.id]
+      ? {
+          ...task,
+          ...taskOverrides[task.id]
+        }
+      : task
+  );
   const now = new Date(nowIso);
   const filterOptions = getMyTasksFilterOptions(tasks, now);
   const visibleTasks = filterMyTasks(tasks, activeFilter, now);
+  const summaryCards: Array<{
+    description: string;
+    filter: MyTasksFilter;
+    title: string;
+    value: number;
+  }> = [
+    {
+      description: "Tasks assigned to you on today's board.",
+      filter: "all",
+      title: "Assigned today",
+      value: tasks.length
+    },
+    {
+      description: "Everything still in flight or waiting on you today.",
+      filter: "open",
+      title: "Open work",
+      value: getActiveTaskCount(tasks)
+    },
+    {
+      description: "Tasks that need a blocker cleared before they can move.",
+      filter: "blockedWaiting",
+      title: "Blocked",
+      value: getBlockedTaskCount(tasks)
+    },
+    {
+      description: "Approval-ready work that may need a manager next.",
+      filter: "readyForReview",
+      title: "Ready for review",
+      value: getReadyForReviewCount(tasks)
+    }
+  ];
+
+  function refreshTasks() {
+    startRefreshTransition(() => {
+      router.refresh();
+    });
+  }
+
+  useLiveRefresh(() => {
+    refreshTasks();
+  });
 
   function handleTaskUpdated(taskId: string, update: { status: TaskStatus; blockerReason: string | null }) {
-    setTasks((currentTasks) =>
-      currentTasks.map((task) =>
-        task.id === taskId
-          ? {
-              ...task,
-              status: update.status,
-              blockerReason: update.blockerReason
-            }
-          : task
-      )
-    );
+    setTaskOverrides((currentOverrides) => ({
+      ...currentOverrides,
+      [taskId]: update
+    }));
   }
 
   return (
@@ -360,10 +457,14 @@ export function MyTasksScreen({
             <span className={getGenerationStatusTone(generationStatus)}>
               {generationStatus ? formatStatusLabel(generationStatus) : "Board not generated"}
             </span>
+            <span className={getLiveStatusTone(isRefreshPending)}>
+              {isRefreshPending ? "Updating..." : "Live"}
+            </span>
           </div>
           {generatedAt ? (
             <p className="my-tasks-generated-copy">Board generated {formatDateTime(generatedAt)}.</p>
           ) : null}
+          <p className="my-tasks-generated-copy">Refreshes when you return to this tab or click Refresh.</p>
         </div>
 
         <div className="board-toolbar my-tasks-toolbar">
@@ -371,7 +472,7 @@ export function MyTasksScreen({
             <Link className="pill pill-primary" href={fullBoardHref}>
               Open full board
             </Link>
-            <button className="pill pill-secondary" onClick={() => window.location.reload()} type="button">
+            <button className="pill pill-secondary" onClick={refreshTasks} type="button">
               Refresh
             </button>
           </div>
@@ -379,48 +480,50 @@ export function MyTasksScreen({
       </div>
 
       <div className="panel-grid board-summary-grid">
-        <article className="panel-card board-stat-card">
-          <strong>Assigned today</strong>
-          <h2>{tasks.length}</h2>
-          <p className="board-stat-card-copy">Tasks assigned to you on today&apos;s board.</p>
-        </article>
-        <article className="panel-card board-stat-card">
-          <strong>Open work</strong>
-          <h2>{getActiveTaskCount(tasks)}</h2>
-          <p className="board-stat-card-copy">Everything still in flight or waiting on you today.</p>
-        </article>
-        <article className="panel-card board-stat-card">
-          <strong>Blocked</strong>
-          <h2>{getBlockedTaskCount(tasks)}</h2>
-          <p className="board-stat-card-copy">Tasks that need a blocker cleared before they can move.</p>
-        </article>
-        <article className="panel-card board-stat-card">
-          <strong>Ready for review</strong>
-          <h2>{getReadyForReviewCount(tasks)}</h2>
-          <p className="board-stat-card-copy">Approval-ready work that may need a manager next.</p>
-        </article>
+        {summaryCards.map((card) => (
+          <button
+            aria-pressed={activeFilter === card.filter}
+            className={
+              activeFilter === card.filter
+                ? "panel-card board-stat-card my-task-summary-card my-task-summary-card-active"
+                : "panel-card board-stat-card my-task-summary-card"
+            }
+            key={card.title}
+            onClick={() => setActiveFilter(card.filter)}
+            type="button"
+          >
+            <strong>{card.title}</strong>
+            <h2>{card.value}</h2>
+            <p className="board-stat-card-copy">{card.description}</p>
+          </button>
+        ))}
       </div>
 
       {errorMessage ? (
-        <div className="notice notice-danger" role="alert">
-          <p>{errorMessage}</p>
-        </div>
+        <ErrorStateCard
+          actions={[{ label: "Refresh", onClick: refreshTasks }]}
+          eyebrow="My Tasks unavailable"
+          message={`${errorMessage} Your previous work may still be saved.`}
+          title="Couldn't load your task list"
+        />
       ) : null}
 
       {!boardExists ? (
-        <div className="panel-card my-tasks-empty-card">
-          <strong>No board yet</strong>
-          <h2>Today&apos;s board has not been generated.</h2>
-          <p>Once the board exists, your assigned tasks will appear here automatically.</p>
-        </div>
+        <EmptyStateCard
+          actions={[{ href: fullBoardHref, label: "Open full board", tone: "secondary" }]}
+          eyebrow="No board yet"
+          message="Once the board exists, your assigned tasks will appear here automatically."
+          title="Today's board has not been generated"
+        />
       ) : null}
 
       {boardExists && tasks.length === 0 ? (
-        <div className="panel-card my-tasks-empty-card">
-          <strong>All clear</strong>
-          <h2>No tasks are assigned to you right now.</h2>
-          <p>Check the full board if you need broader context or want to confirm whether work was reassigned.</p>
-        </div>
+        <EmptyStateCard
+          actions={[{ href: fullBoardHref, label: "Check full board" }]}
+          eyebrow="All clear"
+          message="Check the full board if you need broader context or want to confirm whether work was reassigned."
+          title="No tasks are assigned to you right now"
+        />
       ) : null}
 
       {boardExists && tasks.length > 0 ? (
@@ -431,7 +534,7 @@ export function MyTasksScreen({
                 <strong>Task filters</strong>
                 <h2>Keep your list focused</h2>
               </div>
-              <p>Use the simple chips below to focus on what needs your attention next.</p>
+              <p>Click a summary card or use the chips below to focus on what needs your attention next.</p>
             </div>
 
             <div className="board-quick-filters" aria-label="My task filters">
@@ -463,9 +566,11 @@ export function MyTasksScreen({
               </div>
 
               {visibleTasks.length === 0 ? (
-                <div className="notice board-empty-state" role="status">
-                  <p>No tasks match this filter right now.</p>
-                </div>
+                <EmptyStateCard
+                  eyebrow="Filter result"
+                  message="No tasks match this filter right now. Choose a different filter to bring work back into view."
+                  title="Nothing matches this task filter"
+                />
               ) : (
                 <div className="my-task-list">
                   {visibleTasks.map((task) => (

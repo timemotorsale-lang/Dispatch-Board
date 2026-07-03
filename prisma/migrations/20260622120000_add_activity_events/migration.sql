@@ -1,3 +1,6 @@
+<<<<<<< HEAD
+-- No-op migration placeholder. The activity events schema is added by a later migration.
+=======
 CREATE TYPE "ActivityEventType" AS ENUM (
   'DAILY_BOARD_GENERATED',
   'TASK_CREATED',
@@ -52,3 +55,4 @@ ADD CONSTRAINT "ActivityEvent_taskId_fkey"
 FOREIGN KEY ("taskId") REFERENCES "Task"("id")
 ON DELETE SET NULL
 ON UPDATE CASCADE;
+>>>>>>> main

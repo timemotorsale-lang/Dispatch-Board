@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { EmptyStateCard, ErrorStateCard } from "@/components/ui/state-card";
 import type { TaskCommentReadModel } from "@/server/services/task-read";
 
 type TaskCommentsPanelProps = {
@@ -89,7 +90,7 @@ export function TaskCommentsPanel({
   }
 
   return (
-    <article className="panel-card task-comments-card">
+    <article className="panel-card task-comments-card" id="task-updates">
       <div className="task-comments-header">
         <div>
           <strong>Updates</strong>
@@ -99,9 +100,11 @@ export function TaskCommentsPanel({
       </div>
 
       {comments.length === 0 ? (
-        <div className="notice task-comments-empty-state" role="status">
-          <p>No updates yet.</p>
-        </div>
+        <EmptyStateCard
+          eyebrow="No updates yet"
+          message="Task updates will appear here as the assigned staff member or a manager adds progress notes."
+          title="No comments on this task"
+        />
       ) : (
         <div className="task-comments-list">
           {comments.map((comment) => (
@@ -152,9 +155,10 @@ export function TaskCommentsPanel({
       )}
 
       {errorMessage ? (
-        <div className="notice notice-danger" role="alert">
-          <p>{errorMessage}</p>
-        </div>
+        <ErrorStateCard
+          message={`${errorMessage} Your draft is still on this screen.`}
+          title="Couldn't save this update"
+        />
       ) : null}
     </article>
   );

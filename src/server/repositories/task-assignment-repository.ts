@@ -1,8 +1,16 @@
+<<<<<<< HEAD
+import { Prisma, PrismaClient, TaskSourceType } from "@prisma/client";
+
+import { prisma } from "@/server/db/client";
+
+type TaskAssignmentDatabase = Pick<PrismaClient, "task" | "user">;
+=======
 import { ActivityEventType, Prisma, PrismaClient } from "@prisma/client";
 
 import { prisma } from "@/server/db/client";
 
 type TaskAssignmentDatabase = Pick<PrismaClient, "activityEvent" | "task" | "user">;
+>>>>>>> main
 
 const taskAssignmentUserSelect = {
   id: true,
@@ -13,14 +21,24 @@ const taskAssignmentUserSelect = {
 
 const taskAssignmentSelect = {
   id: true,
+<<<<<<< HEAD
+  title: true,
+=======
+>>>>>>> main
   boardDayId: true,
   assignedUserId: true,
   recommendedUserId: true,
   recommendationReasonCode: true,
+<<<<<<< HEAD
+  recommendationExplanation: true,
+  sourceTemplateId: true,
+  sourceType: true,
+=======
   recommendationReasonText: true,
   recommendationReviewNeeded: true,
   sourceTemplateId: true,
   title: true,
+>>>>>>> main
   updatedAt: true,
   assignedUser: {
     select: {
@@ -38,6 +56,13 @@ const taskAssignmentSelect = {
   }
 } satisfies Prisma.TaskSelect;
 
+<<<<<<< HEAD
+const generatedTaskConflictSelect = {
+  id: true
+} satisfies Prisma.TaskSelect;
+
+=======
+>>>>>>> main
 export type TaskAssignmentUserRecord = Prisma.UserGetPayload<{
   select: typeof taskAssignmentUserSelect;
 }>;
@@ -46,6 +71,22 @@ export type TaskAssignmentRecord = Prisma.TaskGetPayload<{
   select: typeof taskAssignmentSelect;
 }>;
 
+<<<<<<< HEAD
+export type TaskAssignmentConflictRecord = Prisma.TaskGetPayload<{
+  select: typeof generatedTaskConflictSelect;
+}>;
+
+export type TaskAssignmentRepository = {
+  supportsActivityEvents?: boolean;
+  findTaskById(taskId: string): Promise<TaskAssignmentRecord | null>;
+  findAssignableUserById(userId: string): Promise<TaskAssignmentUserRecord | null>;
+  findGeneratedAssignmentConflict(input: {
+    boardDayId: string;
+    sourceTemplateId: string;
+    assignedUserId: string;
+    excludeTaskId: string;
+  }): Promise<TaskAssignmentConflictRecord | null>;
+=======
 export type TaskAssignmentRepository = {
   createActivityEvent(input: {
     actorUserId: string | null;
@@ -63,6 +104,7 @@ export type TaskAssignmentRepository = {
   }): Promise<{ id: string } | null>;
   findTaskById(taskId: string): Promise<TaskAssignmentRecord | null>;
   findUserById(userId: string): Promise<TaskAssignmentUserRecord | null>;
+>>>>>>> main
   updateTaskAssignment(taskId: string, assignedUserId: string): Promise<TaskAssignmentRecord>;
 };
 
@@ -70,6 +112,9 @@ export function createTaskAssignmentRepository(
   database: TaskAssignmentDatabase = prisma
 ): TaskAssignmentRepository {
   return {
+<<<<<<< HEAD
+    supportsActivityEvents: true,
+=======
     async createActivityEvent(input) {
       await database.activityEvent.create({
         data: input
@@ -92,6 +137,7 @@ export function createTaskAssignmentRepository(
       });
     },
 
+>>>>>>> main
     async findTaskById(taskId) {
       return database.task.findUnique({
         where: {
@@ -101,7 +147,11 @@ export function createTaskAssignmentRepository(
       });
     },
 
+<<<<<<< HEAD
+    async findAssignableUserById(userId) {
+=======
     async findUserById(userId) {
+>>>>>>> main
       return database.user.findUnique({
         where: {
           id: userId
@@ -110,6 +160,24 @@ export function createTaskAssignmentRepository(
       });
     },
 
+<<<<<<< HEAD
+    async findGeneratedAssignmentConflict(input) {
+      return database.task.findFirst({
+        where: {
+          boardDayId: input.boardDayId,
+          sourceTemplateId: input.sourceTemplateId,
+          assignedUserId: input.assignedUserId,
+          sourceType: TaskSourceType.TEMPLATE,
+          NOT: {
+            id: input.excludeTaskId
+          }
+        },
+        select: generatedTaskConflictSelect
+      });
+    },
+
+=======
+>>>>>>> main
     async updateTaskAssignment(taskId, assignedUserId) {
       return database.task.update({
         where: {

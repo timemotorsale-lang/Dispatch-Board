@@ -1,8 +1,118 @@
 # Time Motor Sales Dispatch Board
 
-This repository now includes the identity foundation, daily generation core, manager-facing manual generation, and a task detail comments/update workflow for the Time Motor Sales Dispatch Board MVP.
+Time Motor Sales Dispatch Board is an internal responsive web app for assigning, recommending, tracking, and managing daily dealership duties.
 
-The project is a Next.js + TypeScript web app with a PostgreSQL + Prisma baseline, local development users, server-side session auth, protected routes, reusable permission helpers, idempotent board generation, generation-run tracking, and compact board feedback for manual retries.
+It is built for two kinds of users:
 
-Setup instructions live in [`docs/SETUP.md`](docs/SETUP.md).
+- Managers who need to generate the daily board, review assignments, spot blockers, and keep work moving.
+- Staff who need to see their work, update status, add comments, and report blockers quickly from desktop or mobile.
 
+This project is an internal operations tool. It is not a DealerCenter replacement, a CRM, an accounting system, or a full repair-order platform.
+
+## Core MVP workflow
+
+The MVP is centered on the daily dispatch workflow:
+
+- Daily dispatch board generation from seeded roles, duties, and task templates
+- Staff task updates with protected self-service permissions
+- Required blocker reasons for blocked work
+- Manager review support for approval-required tasks
+- Assignment recommendations with explanation data
+- Activity feed events for generation, task updates, blockers, comments, and review-ready work
+
+## Current status
+
+The repository already includes a working foundation for the MVP:
+
+- Session-based login/logout with seeded local users
+- Protected board, activity, settings, my-tasks, and task-detail routes
+- PostgreSQL + Prisma schema, migrations, and seed data
+- Daily board generation with duplicate prevention and generation-run tracking
+- Staff task status updates, blocker validation, comments, and activity events
+- Automated unit, integration, and end-to-end test coverage
+
+Some planned MVP surfaces are still partial or deferred in the current codebase, including a dedicated manager review workspace and several non-core placeholder routes.
+
+## Tech stack
+
+- Next.js App Router
+- React
+- TypeScript
+- PostgreSQL
+- Prisma
+- Server-side session auth
+- Vitest
+- Playwright
+
+## Quick start
+
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Copy the environment template and fill in local values:
+
+```bash
+copy .env.example .env
+```
+
+3. Create your local PostgreSQL database and apply migrations:
+
+```bash
+npm run db:migrate
+```
+
+4. Generate Prisma client and seed local development data:
+
+```bash
+npm run db:generate
+npm run db:seed
+```
+
+5. Start the app:
+
+```bash
+npm run dev
+```
+
+6. Open [http://127.0.0.1:3000](http://127.0.0.1:3000)
+
+For the full setup flow, environment details, troubleshooting, and testing notes, see [docs/SETUP.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/SETUP.md).
+
+## Quality commands
+
+Use the real repo scripts from `package.json`:
+
+```bash
+npm run lint
+npm run typecheck
+npm test
+npm run test:e2e
+npm run build
+```
+
+`npm test` runs the Vitest suite, which covers both unit and integration tests in this repo.
+
+## Project docs
+
+- Setup: [docs/SETUP.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/SETUP.md)
+- Architecture: [docs/ARCHITECTURE.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/ARCHITECTURE.md)
+- Roadmap: [docs/ROADMAP.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/ROADMAP.md)
+- MVP scope: [docs/MVP_SCOPE.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/MVP_SCOPE.md)
+- Release checklist: [docs/RELEASE_CHECKLIST.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/RELEASE_CHECKLIST.md)
+
+## MVP release boundary
+
+The MVP focuses on the daily dispatch board and broad inventory, advertising, marketing, sales, and basic collections-related workflows.
+
+Deferred after MVP:
+
+- Native mobile apps
+- DealerCenter or other DMS integrations
+- Asana integration
+- Google Workspace integration
+- Email or SMS notifications
+- Advanced AI-only assignment or capacity scoring
+- Full CRM, accounting, repair-order, or compliance replacement

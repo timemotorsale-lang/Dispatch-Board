@@ -41,8 +41,12 @@ export type CreatedGeneratedTaskReference = {
   assignedUserId: string;
   recommendedUserId: string | null;
   recommendationReasonCode: string | null;
+<<<<<<< HEAD
+  recommendationExplanation: string | null;
+=======
   recommendationReasonText: string | null;
   recommendationReviewNeeded: boolean;
+>>>>>>> main
   dueAt: Date;
   sourceTemplateId: string | null;
   sourceDutyId: string | null;
@@ -76,6 +80,11 @@ export type GenerationRunSummary = Pick<
 
 type GeneratedTaskCandidate = CreateGeneratedTaskInput & {
   identityKey: string;
+};
+
+type RecommendationDetails = {
+  reasonCode: string | null;
+  explanation: string | null;
 };
 
 type NormalizedTriggerMetadata = {
@@ -161,6 +170,37 @@ function normalizeTriggerMetadata(options: CreateMissingGeneratedTasksOptions): 
 
 function toSummaryTrigger(triggeredBy: GenerationTriggerType): "manual" | "scheduled" {
   return triggeredBy === GenerationTriggerType.MANUAL ? "manual" : "scheduled";
+}
+
+function buildRecommendationDetails(
+  user: GenerationInput["users"][number],
+  template: GenerationInput["users"][number]["templates"][number]
+) {
+  if (template.matchedByDuty && template.dutyId && template.dutyName) {
+    if (user.dutySource === "role_default" && template.roleId && template.roleName) {
+      return {
+        reasonCode: "ROLE_DEFAULT_DUTY_MATCH",
+        explanation: `Recommended because this task matches the ${template.dutyName} duty provided by the ${template.roleName} role.`
+      } satisfies RecommendationDetails;
+    }
+
+    return {
+      reasonCode: "DIRECT_DUTY_MATCH",
+      explanation: `Recommended because this task matches the direct duty ${template.dutyName}.`
+    } satisfies RecommendationDetails;
+  }
+
+  if (template.matchedByRole && template.roleName) {
+    return {
+      reasonCode: "ROLE_MATCH",
+      explanation: `Recommended because this task template is tied to the ${template.roleName} role.`
+    } satisfies RecommendationDetails;
+  }
+
+  return {
+    reasonCode: null,
+    explanation: null
+  } satisfies RecommendationDetails;
 }
 
 function toSafeErrorMessage(error: unknown) {
@@ -257,11 +297,15 @@ function buildGeneratedTaskCandidates(
 
   return generationInput.users.flatMap<GeneratedTaskCandidate>((user) =>
     user.templates.map((template) => {
+<<<<<<< HEAD
+      const recommendation = buildRecommendationDetails(user, template);
+=======
       const recommendation = recommendAssignment({
         users: generationInput.users,
         template,
         templateOwnerUserId: user.userId
       });
+>>>>>>> main
 
       return {
         identityKey: buildGeneratedTaskIdentityKey(boardDayId, template.templateId, user.userId),
@@ -269,10 +313,16 @@ function buildGeneratedTaskCandidates(
         title: template.title,
         description: template.description ?? "",
         assignedUserId: user.userId,
+<<<<<<< HEAD
+        recommendedUserId: user.userId,
+        recommendationReasonCode: recommendation.reasonCode,
+        recommendationExplanation: recommendation.explanation,
+=======
         recommendedUserId: recommendation.recommendedUserId,
         recommendationReasonCode: recommendation.reasonCode,
         recommendationReasonText: recommendation.explanation,
         recommendationReviewNeeded: recommendation.managerReviewNeeded,
+>>>>>>> main
         dueAt: toDueAt(boardDate, template.defaultDueTime),
         createdByUserId,
         requiresManagerApproval: template.requiresManagerApproval,
@@ -291,8 +341,12 @@ function toCreatedTaskReference(task: CreatedGeneratedTaskRecord): CreatedGenera
     assignedUserId: task.assignedUserId,
     recommendedUserId: task.recommendedUserId,
     recommendationReasonCode: task.recommendationReasonCode,
+<<<<<<< HEAD
+    recommendationExplanation: task.recommendationExplanation,
+=======
     recommendationReasonText: task.recommendationReasonText,
     recommendationReviewNeeded: task.recommendationReviewNeeded ?? false,
+>>>>>>> main
     dueAt: task.dueAt,
     sourceTemplateId: task.sourceTemplateId,
     sourceDutyId: task.sourceDutyId,

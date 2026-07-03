@@ -243,6 +243,59 @@ describe("task status service", () => {
     expect(readActivityEvents()).toHaveLength(1);
   });
 
+  it("clears ready-for-review metadata when a manager blocks a review-required task", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const managerUser = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository, readTask } = createTaskStatusRepository([
+      createStoredTask({
+        requiresManagerApproval: true,
+        status: TaskStatus.READY_FOR_REVIEW,
+        readyForReviewAt: new Date("2026-06-18T15:15:00.000Z"),
+        completedAt: new Date("2026-06-18T15:20:00.000Z"),
+        reviewedByUserId: "user-morgan.manager@local.test"
+      })
+    ]);
+
+    const result = await updateTaskStatus(
+      managerUser,
+      "task-1",
+      {
+        status: "BLOCKED",
+        blockerReason: " Waiting on final manager sign-off details. "
+      },
+      repository
+    );
+
+    expect(result).toMatchObject({
+      status: TaskStatus.BLOCKED,
+      blockerReason: "Waiting on final manager sign-off details."
+    });
+    expect(readTask()).toMatchObject({
+      status: TaskStatus.BLOCKED,
+      blockerReason: "Waiting on final manager sign-off details.",
+      readyForReviewAt: null,
+      completedAt: null,
+      reviewedByUserId: null
+    });
+  });
+
+  it("rejects blank task ids before loading the task", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+    const { repository } = createTaskStatusRepository();
+
+    await expect(
+      updateTaskStatus(
+        staffUser,
+        "   ",
+        {
+          status: "IN_PROGRESS"
+        },
+        repository
+      )
+    ).rejects.toThrow("Task id is required.");
+  });
+
   it("rejects staff users who try to update another user's task", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;

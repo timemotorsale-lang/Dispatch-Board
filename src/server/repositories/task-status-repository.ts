@@ -7,6 +7,10 @@ type TaskStatusDatabase = Pick<PrismaClient, "activityEvent" | "task">;
 const taskStatusSelect = {
   id: true,
   boardDayId: true,
+<<<<<<< HEAD
+  title: true,
+=======
+>>>>>>> main
   assignedUserId: true,
   requiresManagerApproval: true,
   status: true,
@@ -21,6 +25,20 @@ export type TaskStatusRecord = Prisma.TaskGetPayload<{
   select: typeof taskStatusSelect;
 }>;
 
+export type TaskStatusLookupRecord = {
+  id: string;
+  assignedUserId: string;
+  requiresManagerApproval: boolean;
+  status: TaskStatus;
+  blockerReason: string | null;
+  readyForReviewAt: Date | null;
+  completedAt: Date | null;
+  reviewedByUserId: string | null;
+  updatedAt: Date;
+  boardDayId?: string;
+  title?: string;
+};
+
 export type TaskStatusUpdateData = {
   status: TaskStatus;
   blockerReason?: string;
@@ -30,6 +48,11 @@ export type TaskStatusUpdateData = {
 };
 
 export type TaskStatusRepository = {
+<<<<<<< HEAD
+  supportsActivityEvents?: boolean;
+  findTaskById(taskId: string): Promise<TaskStatusLookupRecord | null>;
+  updateTaskStatus(taskId: string, data: TaskStatusUpdateData): Promise<TaskStatusLookupRecord>;
+=======
   createActivityEvent(input: {
     actorUserId: string | null;
     boardDayId: string;
@@ -40,16 +63,21 @@ export type TaskStatusRepository = {
   }): Promise<void>;
   findTaskById(taskId: string): Promise<TaskStatusRecord | null>;
   updateTaskStatus(taskId: string, data: TaskStatusUpdateData): Promise<TaskStatusRecord>;
+>>>>>>> main
 };
 
 export function createTaskStatusRepository(database: TaskStatusDatabase = prisma): TaskStatusRepository {
   return {
+<<<<<<< HEAD
+    supportsActivityEvents: true,
+=======
     async createActivityEvent(input) {
       await database.activityEvent.create({
         data: input
       });
     },
 
+>>>>>>> main
     async findTaskById(taskId) {
       return database.task.findUnique({
         where: {

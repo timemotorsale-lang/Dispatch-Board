@@ -45,7 +45,9 @@ function createBoardReadRepositoryHarness(): BoardReadRepository {
             name: "Jordan Sales",
             email: "jordan.sales@local.test"
           },
-          recommendedUser: null
+          recommendedUser: null,
+          recommendationReasonCode: null,
+          recommendationExplanation: null
         },
         {
           id: "task-2",
@@ -69,7 +71,9 @@ function createBoardReadRepositoryHarness(): BoardReadRepository {
             name: "Casey Mechanic",
             email: "casey.mechanic@local.test"
           },
-          recommendedUser: null
+          recommendedUser: null,
+          recommendationReasonCode: null,
+          recommendationExplanation: null
         }
       ];
     }

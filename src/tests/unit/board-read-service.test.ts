@@ -44,8 +44,12 @@ function createBoardReadRepositoryHarness(options: {
         email: string;
       } | null;
       recommendationReasonCode?: string | null;
+<<<<<<< HEAD
+      recommendationExplanation?: string | null;
+=======
       recommendationReasonText?: string | null;
       recommendationReviewNeeded?: boolean | null;
+>>>>>>> main
       vehicleReference?: string | null;
       customerReference?: string | null;
       blockerReason?: string | null;
@@ -82,7 +86,9 @@ function createBoardReadRepositoryHarness(options: {
         readyForReviewAt: task.readyForReviewAt ? new Date(task.readyForReviewAt) : null,
         completedAt: task.completedAt ? new Date(task.completedAt) : null,
         assignedUser: task.assignedUser,
-        recommendedUser: task.recommendedUser ?? null
+        recommendedUser: task.recommendedUser ?? null,
+        recommendationReasonCode: task.recommendationReasonCode ?? null,
+        recommendationExplanation: task.recommendationExplanation ?? null
       }))
     ])
   );
@@ -164,8 +170,13 @@ describe("board read service", () => {
               email: "jordan.sales@local.test"
             },
             recommendationReasonCode: "DIRECT_DUTY_MATCH",
+<<<<<<< HEAD
+            recommendationExplanation:
+              "Recommended because this task matches the direct duty Follow up with assigned leads.",
+=======
             recommendationReasonText: "Jordan Sales is recommended because they have the direct duty for this template.",
             recommendationReviewNeeded: false,
+>>>>>>> main
             customerReference: "Taylor R.",
             status: TaskStatus.IN_PROGRESS
           },
@@ -215,6 +226,11 @@ describe("board read service", () => {
             id: "task-1",
             title: "Follow up with hot lead",
             customerReference: "Taylor R.",
+            recommendation: {
+              reasonCode: "DIRECT_DUTY_MATCH",
+              explanation:
+                "Recommended because this task matches the direct duty Follow up with assigned leads."
+            },
             recommendedUser: {
               id: "user-sales",
               name: "Jordan Sales",
