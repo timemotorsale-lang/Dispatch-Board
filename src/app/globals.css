@@ -386,6 +386,135 @@ textarea {
   margin-top: 0.9rem;
 }
 
+.checkbox-item-inline {
+  align-self: end;
+  min-height: 3rem;
+}
+
+.checkbox-item small {
+  display: block;
+  margin-top: 0.2rem;
+  color: #6b7280;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.settings-admin-grid,
+.settings-summary-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.settings-admin-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.settings-summary-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 1rem;
+}
+
+.settings-summary-card {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem;
+  background: linear-gradient(180deg, #fbfdff 0%, #f5f8fd 100%);
+  border: 1px solid #dce5f1;
+  border-radius: 1rem;
+}
+
+.settings-summary-card span {
+  color: #4f5f76;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.settings-summary-card strong {
+  color: #132238;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.settings-summary-card small {
+  color: #617189;
+  font-size: 0.83rem;
+  line-height: 1.45;
+}
+
+.settings-checklist {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.settings-checklist p {
+  margin: 0;
+  padding: 0.9rem 1rem;
+  background: #f7f9fc;
+  border: 1px solid #e0e7f0;
+  border-radius: 0.9rem;
+}
+
+.team-roster-list {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+
+.team-roster-card {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+  background: #fbfdff;
+  border: 1px solid #dee7f1;
+  border-radius: 1rem;
+}
+
+.team-roster-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.9rem;
+}
+
+.team-roster-header h3,
+.team-roster-header p,
+.team-roster-meta,
+.team-roster-details dt,
+.team-roster-details dd {
+  margin: 0;
+}
+
+.team-roster-header h3 {
+  color: #132238;
+  font-size: 1.05rem;
+}
+
+.team-roster-header p,
+.team-roster-meta,
+.team-roster-details dt {
+  color: #66758a;
+  font-size: 0.84rem;
+}
+
+.team-roster-details {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.team-roster-details div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.team-roster-details dd {
+  color: #1d2c41;
+  font-size: 0.94rem;
+  line-height: 1.45;
+}
+
 .checkbox-item,
 .board-inline-checkbox {
   display: inline-flex;
@@ -1696,9 +1825,10 @@ code {
   .metric-strip { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; }.metric-card { min-width: 158px; scroll-snap-align: start; }
   .operations-strip { grid-template-columns: 1fr; }.operations-strip article:last-child { grid-column: auto; }.flow-list { justify-content: flex-start; overflow-x: auto; }.team-load { overflow-x: auto; }
   .staff-duty-grid { grid-template-columns: 1fr; }
+  .settings-admin-grid,.settings-summary-grid { grid-template-columns: 1fr; }
   .filter-row { grid-template-columns: 1fr 1fr; }.board-search { grid-column: 1 / -1; }.clear-filter { min-height: 34px; }
   .desktop-task-table { display: none; }.mobile-task-list { display: grid; gap: 12px; padding: 12px; background: #f6f8fb; }.mobile-task-list > section { display: grid; gap: 8px; }.mobile-task-list h3 { display: flex; align-items: center; justify-content: space-between; margin: 0; color: #344257; font-size: 12px; text-transform: uppercase; }.mobile-task-list h3 span { display: grid; place-items: center; width: 24px; height: 24px; color: #075ad9; background: #e5efff; border-radius: 50%; }.mobile-task-card { display: grid; gap: 12px; padding: 14px; background: #fff; border: 1px solid #e1e7ef; border-radius: 10px; }.mobile-task-card header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }.mobile-task-card header > div { display: grid; }.mobile-task-card header strong { color: #162235; font-size: 15px; }.mobile-task-card header div span { margin-top: 4px; color: #6a788c; font-size: 12px; }.mobile-task-card dl { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin: 0; }.mobile-task-card dl div { display: grid; }.mobile-task-card dt { color: #7a8798; font-size: 10px; text-transform: uppercase; }.mobile-task-card dd { margin: 3px 0 0; color: #2f3e52; font-size: 12px; }.blocker-inline { display: flex; align-items: center; gap: 7px; margin: 0; padding: 9px; color: #c71d34; background: #fff1f3; border-radius: 8px; font-size: 12px; line-height: 1.45; }.mobile-task-card .row-action { justify-self: start; }.operations-rail { grid-template-columns: 1fr; }
-}
+  }
 
 @media (max-width: 430px) {
   .board-hero .board-toolbar-actions { grid-template-columns: 1fr; }.filter-row { grid-template-columns: 1fr; }.board-search { grid-column: auto; }.mobile-task-card dl { grid-template-columns: 1fr 1fr; }
