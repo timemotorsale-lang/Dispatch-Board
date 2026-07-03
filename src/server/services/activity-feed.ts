@@ -131,3 +131,18 @@ export async function listActivityFeedEventsForToday(
 
   return listActivityFeedEventsForDate(user, boardDate, dependencies);
 }
+
+export async function getActivityFeedForDate(
+  user: AuthenticatedUser | null,
+  boardDate: string,
+  dependencies: ActivityFeedDependencies = {}
+) {
+  return listActivityFeedEventsForDate(user, boardDate, dependencies);
+}
+
+export async function getActivityFeedForToday(
+  user: AuthenticatedUser | null,
+  dependencies: ActivityFeedTodayDependencies = {}
+) {
+  return listActivityFeedEventsForToday(user, dependencies);
+}

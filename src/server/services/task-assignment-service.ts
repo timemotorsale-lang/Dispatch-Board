@@ -175,3 +175,12 @@ export async function updateTaskAssignment(
 
   return toTaskAssignmentResult(updatedTask);
 }
+
+export async function assignTask(
+  user: AuthenticatedUser | null,
+  taskId: string,
+  input: unknown,
+  repository: TaskAssignmentRepository = createTaskAssignmentRepository()
+) {
+  return updateTaskAssignment(user, taskId, input, repository);
+}
