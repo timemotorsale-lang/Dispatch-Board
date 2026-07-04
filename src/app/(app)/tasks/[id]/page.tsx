@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { TaskActivityPanel } from "@/features/tasks/task-activity-panel";
 import { TaskAssignmentPanel } from "@/features/tasks/task-assignment-panel";
 import { TaskCommentsPanel } from "@/features/tasks/task-comments-panel";
 import { TaskStatusPanel } from "@/features/tasks/task-status-panel";
@@ -26,6 +27,13 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
+function formatCriteriaMode(value: string) {
+  return value
+    .toLowerCase()
+    .replaceAll("_", " ")
+    .replace(/^\w/, (match) => match.toUpperCase());
+}
+
 type TaskDetailPageProps = {
   params: Promise<{
     id: string;
@@ -45,6 +53,10 @@ export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
   const actorIsManager = isManager(user);
   const canUpdateStatus = actorIsManager || user.id === task.assignedUser.id;
   const assignableUsers = actorIsManager ? await listActiveUserSummaries() : [];
+  const checklistLabels = new Map(task.checklistItems.map((item) => [item.key, item.label]));
+  const updateFieldLabels = new Map(task.requiredUpdateFields.map((field) => [field.key, field.label]));
+  const showManagerReviewSection =
+    task.requiresManagerApproval || Boolean(task.readyForReviewAt) || Boolean(task.reviewedByUser);
 
   return (
     <section className="page-stack dashboard-page board-page task-detail-page">
@@ -119,6 +131,108 @@ export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
         </article>
       </div>
 
+      <div className="panel-grid task-detail-grid">
+        <article className="panel-card">
+          <strong>SOP guide</strong>
+          <h2>Checklist and completion</h2>
+          {task.checklistItems.length === 0 && !task.completionCriteria ? (
+            <p className="task-comments-readonly-copy">
+              No checklist or completion criteria were captured on this task snapshot.
+            </p>
+          ) : (
+            <div className="task-detail-section-stack">
+              {task.checklistItems.length > 0 ? (
+                <section className="task-detail-guidance-card">
+                  <div className="task-detail-guidance-header">
+                    <strong>SOP checklist</strong>
+                    <span>{task.checklistItems.length} item(s)</span>
+                  </div>
+                  <ul className="task-detail-checklist">
+                    {task.checklistItems.map((item) => (
+                      <li key={item.key}>
+                        <div>
+                          <span>{item.label}</span>
+                          {item.required ? <small>Required</small> : <small>Optional</small>}
+                        </div>
+                        {item.description ? <p>{item.description}</p> : null}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
+
+              {task.completionCriteria ? (
+                <section className="task-detail-guidance-card">
+                  <div className="task-detail-guidance-header">
+                    <strong>Completion criteria</strong>
+                    <span>{formatCriteriaMode(task.completionCriteria.mode)}</span>
+                  </div>
+                  <dl className="task-detail-list">
+                    <div>
+                      <dt>Checklist items required</dt>
+                      <dd>
+                        {task.completionCriteria.requiredChecklistKeys.length > 0
+                          ? task.completionCriteria.requiredChecklistKeys
+                              .map((key) => checklistLabels.get(key) ?? key)
+                              .join(", ")
+                          : "None"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Update fields required</dt>
+                      <dd>
+                        {task.completionCriteria.requiredFieldKeys.length > 0
+                          ? task.completionCriteria.requiredFieldKeys
+                              .map((key) => updateFieldLabels.get(key) ?? key)
+                              .join(", ")
+                          : "None"}
+                      </dd>
+                    </div>
+                  </dl>
+                </section>
+              ) : null}
+            </div>
+          )}
+        </article>
+
+        {showManagerReviewSection ? (
+          <article className="panel-card">
+            <strong>Manager review</strong>
+            <h2>Approval and escalation</h2>
+            <dl className="task-detail-list">
+              <div>
+                <dt>Approval path</dt>
+                <dd>
+                  {task.requiresManagerApproval
+                    ? "Manager review is required before final completion."
+                    : "This task can complete without manager review."}
+                </dd>
+              </div>
+              <div>
+                <dt>Review rule</dt>
+                <dd>
+                  {task.approvalRules?.readyForReviewRequired
+                    ? "Must move through Ready for Review."
+                    : "No ready-for-review rule captured."}
+                </dd>
+              </div>
+              <div>
+                <dt>Ready for review</dt>
+                <dd>{task.readyForReviewAt ? formatDateTime(task.readyForReviewAt) : "Not yet"}</dd>
+              </div>
+              <div>
+                <dt>Reviewed by</dt>
+                <dd>{task.reviewedByUser?.name ?? "Not reviewed yet"}</dd>
+              </div>
+              <div>
+                <dt>Intelligence signal</dt>
+                <dd>{task.intelligenceSignalType ?? "None"}</dd>
+              </div>
+            </dl>
+          </article>
+        ) : null}
+      </div>
+
       <article className="panel-card">
         <strong>Timeline</strong>
         <h2>Workflow status</h2>
@@ -148,6 +262,7 @@ export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
 
       <TaskStatusPanel actorIsManager={actorIsManager} canUpdate={canUpdateStatus} task={task} />
       {actorIsManager ? <TaskAssignmentPanel assignableUsers={assignableUsers} task={task} /> : null}
+      <TaskActivityPanel events={task.activityHistory} />
       <TaskCommentsPanel canComment={canComment} initialComments={task.comments} taskId={task.id} />
     </section>
   );

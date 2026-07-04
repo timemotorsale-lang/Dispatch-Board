@@ -28,6 +28,25 @@ type TaskStatusResponse =
     }
   | null;
 
+function statusNeedsGuidedUpdateFields(status: TaskStatus) {
+  return status === TaskStatus.READY_FOR_REVIEW || status === TaskStatus.COMPLETED;
+}
+
+function isGuidedUpdateFieldComplete(
+  field: TaskReadModel["requiredUpdateFields"][number],
+  value: string | boolean | undefined
+) {
+  if (!field.required) {
+    return true;
+  }
+
+  if (typeof value === "boolean") {
+    return true;
+  }
+
+  return typeof value === "string" && value.trim().length > 0;
+}
+
 export function TaskStatusPanel({ actorIsManager, canUpdate, task }: TaskStatusPanelProps) {
   const [status, setStatus] = useState(task.status as TaskStatus);
   const [blockerReason, setBlockerReason] = useState(task.blockerReason ?? "");
@@ -57,6 +76,14 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, task }: TaskStatusP
   const needsBlockerReason = status === TaskStatus.BLOCKED;
   const trimmedBlockerReason = blockerReason.trim();
   const hasGuidedUpdateFields = task.requiredUpdateFields.length > 0;
+  const missingRequiredUpdateFields = task.requiredUpdateFields.filter(
+    (field) => field.required && !isGuidedUpdateFieldComplete(field, updateFieldValues[field.key])
+  );
+  const guidedUpdateFieldsCompleteCount = task.requiredUpdateFields.filter((field) =>
+    isGuidedUpdateFieldComplete(field, updateFieldValues[field.key])
+  ).length;
+  const shouldHighlightGuidedUpdates =
+    hasGuidedUpdateFields && statusNeedsGuidedUpdateFields(status);
   const canSubmit =
     canUpdate &&
     !isSubmitting &&
@@ -109,76 +136,133 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, task }: TaskStatusP
       ) : (
         <div className="my-task-action-grid">
           {hasGuidedUpdateFields ? (
-            <div className="task-detail-list">
-              <div>
-                <dt>Required updates</dt>
-                <dd>Complete these fields before marking the task ready for review or completed.</dd>
+            <section
+              className={
+                shouldHighlightGuidedUpdates
+                  ? "my-task-guided-update-panel my-task-guided-update-panel-active"
+                  : "my-task-guided-update-panel"
+              }
+            >
+              <div className="my-task-guided-update-header">
+                <div className="my-task-guided-update-copy">
+                  <strong>Required update form</strong>
+                  <p>Capture the required workflow details before sending this task forward.</p>
+                </div>
+                <div className="my-task-guided-update-progress">
+                  <span>
+                    {guidedUpdateFieldsCompleteCount} of {task.requiredUpdateFields.length} ready
+                  </span>
+                  {shouldHighlightGuidedUpdates && missingRequiredUpdateFields.length > 0 ? (
+                    <small>Needed for review or completion</small>
+                  ) : (
+                    <small>Saved on this task as you update it</small>
+                  )}
+                </div>
               </div>
-            </div>
-          ) : null}
 
-          {hasGuidedUpdateFields
-            ? task.requiredUpdateFields.map((field) => {
-                const value = updateFieldValues[field.key];
+              {shouldHighlightGuidedUpdates && missingRequiredUpdateFields.length > 0 ? (
+                <div className="my-task-guided-update-warning" role="status">
+                  Missing: {missingRequiredUpdateFields.map((field) => field.label).join(", ")}
+                </div>
+              ) : null}
 
-                if (field.type === "boolean") {
-                  return (
-                    <label className="field" key={field.key}>
-                      <span>{field.label}{field.required ? " *" : ""}</span>
-                      <select
-                        disabled={isSubmitting}
-                        value={typeof value === "boolean" ? String(value) : ""}
-                        onChange={(event) => {
-                          const nextValue = event.target.value;
-                          setUpdateFieldValues((current) => ({
-                            ...current,
-                            [field.key]: nextValue === "true"
-                          }));
-                          setErrorMessage(null);
-                        }}
+              <div className="my-task-guided-update-fields">
+                {task.requiredUpdateFields.map((field) => {
+                  const value = updateFieldValues[field.key];
+                  const isComplete = isGuidedUpdateFieldComplete(field, value);
+
+                  if (field.type === "boolean") {
+                    return (
+                      <label
+                        className={isComplete ? "field my-task-guided-field my-task-guided-field-complete" : "field my-task-guided-field"}
+                        key={field.key}
                       >
-                        <option value="">Select an option</option>
-                        <option value="true">Yes</option>
-                        <option value="false">No</option>
-                      </select>
-                    </label>
-                  );
-                }
+                        <span>{field.label}{field.required ? " *" : ""}</span>
+                        <select
+                          disabled={isSubmitting}
+                          value={typeof value === "boolean" ? String(value) : ""}
+                          onChange={(event) => {
+                            const nextValue = event.target.value;
+                            setUpdateFieldValues((current) => ({
+                              ...current,
+                              [field.key]: nextValue === "true"
+                            }));
+                            setErrorMessage(null);
+                          }}
+                        >
+                          <option value="">Select an option</option>
+                          <option value="true">Yes</option>
+                          <option value="false">No</option>
+                        </select>
+                        {field.helpText ? <small className="field-hint">{field.helpText}</small> : null}
+                      </label>
+                    );
+                  }
 
-                if (field.type === "single_select") {
-                  return (
-                    <label className="field" key={field.key}>
-                      <span>{field.label}{field.required ? " *" : ""}</span>
-                      <select
-                        disabled={isSubmitting}
-                        value={typeof value === "string" ? value : ""}
-                        onChange={(event) => {
-                          setUpdateFieldValues((current) => ({
-                            ...current,
-                            [field.key]: event.target.value
-                          }));
-                          setErrorMessage(null);
-                        }}
+                  if (field.type === "single_select") {
+                    return (
+                      <label
+                        className={isComplete ? "field my-task-guided-field my-task-guided-field-complete" : "field my-task-guided-field"}
+                        key={field.key}
                       >
-                        <option value="">Select an option</option>
-                        {(field.options ?? []).map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  );
-                }
+                        <span>{field.label}{field.required ? " *" : ""}</span>
+                        <select
+                          disabled={isSubmitting}
+                          value={typeof value === "string" ? value : ""}
+                          onChange={(event) => {
+                            setUpdateFieldValues((current) => ({
+                              ...current,
+                              [field.key]: event.target.value
+                            }));
+                            setErrorMessage(null);
+                          }}
+                        >
+                          <option value="">Select an option</option>
+                          {(field.options ?? []).map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                        {field.helpText ? <small className="field-hint">{field.helpText}</small> : null}
+                      </label>
+                    );
+                  }
 
-                if (field.type === "long_text") {
+                  if (field.type === "long_text") {
+                    return (
+                      <label
+                        className={isComplete ? "field my-task-guided-field my-task-guided-field-complete" : "field my-task-guided-field"}
+                        key={field.key}
+                      >
+                        <span>{field.label}{field.required ? " *" : ""}</span>
+                        <textarea
+                          disabled={isSubmitting}
+                          placeholder={field.helpText ?? undefined}
+                          rows={4}
+                          value={typeof value === "string" ? value : ""}
+                          onChange={(event) => {
+                            setUpdateFieldValues((current) => ({
+                              ...current,
+                              [field.key]: event.target.value
+                            }));
+                            setErrorMessage(null);
+                          }}
+                        />
+                        {field.helpText ? <small className="field-hint">{field.helpText}</small> : null}
+                      </label>
+                    );
+                  }
+
                   return (
-                    <label className="field" key={field.key}>
+                    <label
+                      className={isComplete ? "field my-task-guided-field my-task-guided-field-complete" : "field my-task-guided-field"}
+                      key={field.key}
+                    >
                       <span>{field.label}{field.required ? " *" : ""}</span>
-                      <textarea
+                      <input
                         disabled={isSubmitting}
                         placeholder={field.helpText ?? undefined}
-                        rows={4}
                         value={typeof value === "string" ? value : ""}
                         onChange={(event) => {
                           setUpdateFieldValues((current) => ({
@@ -188,29 +272,13 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, task }: TaskStatusP
                           setErrorMessage(null);
                         }}
                       />
+                      {field.helpText ? <small className="field-hint">{field.helpText}</small> : null}
                     </label>
                   );
-                }
-
-                return (
-                  <label className="field" key={field.key}>
-                    <span>{field.label}{field.required ? " *" : ""}</span>
-                    <input
-                      disabled={isSubmitting}
-                      placeholder={field.helpText ?? undefined}
-                      value={typeof value === "string" ? value : ""}
-                      onChange={(event) => {
-                        setUpdateFieldValues((current) => ({
-                          ...current,
-                          [field.key]: event.target.value
-                        }));
-                        setErrorMessage(null);
-                      }}
-                    />
-                  </label>
-                );
-              })
-            : null}
+                })}
+              </div>
+            </section>
+          ) : null}
 
           {quickActions.length > 0 ? (
             <div className="my-task-quick-actions" aria-label={`Quick status actions for ${task.title}`}>
@@ -256,7 +324,7 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, task }: TaskStatusP
           </label>
 
           {needsBlockerReason ? (
-            <label className="field">
+            <label className="field my-task-blocker-field">
               <span>Blocker reason</span>
               <input
                 disabled={isSubmitting}
@@ -267,6 +335,7 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, task }: TaskStatusP
                   setErrorMessage(null);
                 }}
               />
+              <small className="field-hint">A blocker reason is required before this update can be sent.</small>
             </label>
           ) : null}
 

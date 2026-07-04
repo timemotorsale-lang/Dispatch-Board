@@ -22,6 +22,24 @@ function createTaskReadRepository(): TaskReadRepository {
         sourceType: "MANAGER",
         requiresManagerApproval: true,
         templateSnapshot: {
+          checklistItems: [
+            {
+              key: "confirm_customer",
+              label: "Confirm customer details",
+              description: "Verify the contact record before calling.",
+              required: true
+            }
+          ],
+          completionCriteria: {
+            mode: "checklist_and_update_fields",
+            requiredChecklistKeys: ["confirm_customer"],
+            requiredFieldKeys: ["customer_name"]
+          },
+          approvalRules: {
+            mode: "manager_review",
+            readyForReviewRequired: true
+          },
+          intelligenceSignalType: "SALES_UPDATE",
           requiredUpdateFields: [
             {
               key: "customer_name",
@@ -60,6 +78,19 @@ function createTaskReadRepository(): TaskReadRepository {
           email: "morgan.manager@local.test"
         },
         reviewedByUser: null,
+        activityEvents: [
+          {
+            id: "event-1",
+            eventType: "COMMENT_ADDED",
+            message: "Jordan added a progress update.",
+            createdAt: new Date("2026-06-18T14:20:00.000Z"),
+            actorUser: {
+              id: "user-manager",
+              name: "Eli Manager",
+              email: "morgan.manager@local.test"
+            }
+          }
+        ],
         comments: [
           {
             id: "comment-1",
@@ -109,6 +140,24 @@ describe("task read service", () => {
       updateFieldValues: {
         customer_name: "Taylor R."
       },
+      checklistItems: [
+        {
+          key: "confirm_customer",
+          label: "Confirm customer details",
+          description: "Verify the contact record before calling.",
+          required: true
+        }
+      ],
+      completionCriteria: {
+        mode: "checklist_and_update_fields",
+        requiredChecklistKeys: ["confirm_customer"],
+        requiredFieldKeys: ["customer_name"]
+      },
+      approvalRules: {
+        mode: "manager_review",
+        readyForReviewRequired: true
+      },
+      intelligenceSignalType: "SALES_UPDATE",
       vehicleReference: "2019 Camry",
       customerReference: "Taylor R.",
       blockerReason: null,
@@ -129,6 +178,19 @@ describe("task read service", () => {
         email: "morgan.manager@local.test"
       },
       reviewedByUser: null,
+      activityHistory: [
+        {
+          id: "event-1",
+          eventType: "COMMENT_ADDED",
+          message: "Jordan added a progress update.",
+          createdAt: "2026-06-18T14:20:00.000Z",
+          actor: {
+            id: "user-manager",
+            name: "Eli Manager",
+            email: "morgan.manager@local.test"
+          }
+        }
+      ],
       comments: [
         {
           id: "comment-1",

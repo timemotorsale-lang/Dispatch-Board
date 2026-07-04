@@ -76,6 +76,24 @@ const taskReadSelect = {
         }
       }
     }
+  },
+  activityEvents: {
+    orderBy: {
+      createdAt: "desc"
+    },
+    select: {
+      id: true,
+      eventType: true,
+      message: true,
+      createdAt: true,
+      actorUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      }
+    }
   }
 } as const;
 
