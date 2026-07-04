@@ -22,6 +22,7 @@ type TaskStatusResponse =
         id: string;
         status: TaskStatus;
         blockerReason: string | null;
+        updateFieldValues?: Record<string, string | boolean>;
       };
       error?: string;
     }
@@ -30,6 +31,9 @@ type TaskStatusResponse =
 export function TaskStatusPanel({ actorIsManager, canUpdate, task }: TaskStatusPanelProps) {
   const [status, setStatus] = useState(task.status as TaskStatus);
   const [blockerReason, setBlockerReason] = useState(task.blockerReason ?? "");
+  const [updateFieldValues, setUpdateFieldValues] = useState<Record<string, string | boolean>>(
+    task.updateFieldValues ?? {}
+  );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const allowedStatuses = canUpdate
@@ -52,6 +56,7 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, task }: TaskStatusP
     : [];
   const needsBlockerReason = status === TaskStatus.BLOCKED;
   const trimmedBlockerReason = blockerReason.trim();
+  const hasGuidedUpdateFields = task.requiredUpdateFields.length > 0;
   const canSubmit =
     canUpdate &&
     !isSubmitting &&
@@ -70,7 +75,8 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, task }: TaskStatusP
         },
         body: JSON.stringify({
           status: nextStatus,
-          ...(nextStatus === TaskStatus.BLOCKED ? { blockerReason: trimmedBlockerReason } : {})
+          ...(nextStatus === TaskStatus.BLOCKED ? { blockerReason: trimmedBlockerReason } : {}),
+          ...(hasGuidedUpdateFields ? { updateFields: updateFieldValues } : {})
         })
       });
       const result = (await response.json().catch(() => null)) as TaskStatusResponse;
@@ -82,6 +88,7 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, task }: TaskStatusP
 
       setStatus(result.task.status);
       setBlockerReason(result.task.blockerReason ?? "");
+      setUpdateFieldValues(result.task.updateFieldValues ?? {});
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to update this task right now.");
     } finally {
@@ -101,6 +108,110 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, task }: TaskStatusP
         </p>
       ) : (
         <div className="my-task-action-grid">
+          {hasGuidedUpdateFields ? (
+            <div className="task-detail-list">
+              <div>
+                <dt>Required updates</dt>
+                <dd>Complete these fields before marking the task ready for review or completed.</dd>
+              </div>
+            </div>
+          ) : null}
+
+          {hasGuidedUpdateFields
+            ? task.requiredUpdateFields.map((field) => {
+                const value = updateFieldValues[field.key];
+
+                if (field.type === "boolean") {
+                  return (
+                    <label className="field" key={field.key}>
+                      <span>{field.label}{field.required ? " *" : ""}</span>
+                      <select
+                        disabled={isSubmitting}
+                        value={typeof value === "boolean" ? String(value) : ""}
+                        onChange={(event) => {
+                          const nextValue = event.target.value;
+                          setUpdateFieldValues((current) => ({
+                            ...current,
+                            [field.key]: nextValue === "true"
+                          }));
+                          setErrorMessage(null);
+                        }}
+                      >
+                        <option value="">Select an option</option>
+                        <option value="true">Yes</option>
+                        <option value="false">No</option>
+                      </select>
+                    </label>
+                  );
+                }
+
+                if (field.type === "single_select") {
+                  return (
+                    <label className="field" key={field.key}>
+                      <span>{field.label}{field.required ? " *" : ""}</span>
+                      <select
+                        disabled={isSubmitting}
+                        value={typeof value === "string" ? value : ""}
+                        onChange={(event) => {
+                          setUpdateFieldValues((current) => ({
+                            ...current,
+                            [field.key]: event.target.value
+                          }));
+                          setErrorMessage(null);
+                        }}
+                      >
+                        <option value="">Select an option</option>
+                        {(field.options ?? []).map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  );
+                }
+
+                if (field.type === "long_text") {
+                  return (
+                    <label className="field" key={field.key}>
+                      <span>{field.label}{field.required ? " *" : ""}</span>
+                      <textarea
+                        disabled={isSubmitting}
+                        placeholder={field.helpText ?? undefined}
+                        rows={4}
+                        value={typeof value === "string" ? value : ""}
+                        onChange={(event) => {
+                          setUpdateFieldValues((current) => ({
+                            ...current,
+                            [field.key]: event.target.value
+                          }));
+                          setErrorMessage(null);
+                        }}
+                      />
+                    </label>
+                  );
+                }
+
+                return (
+                  <label className="field" key={field.key}>
+                    <span>{field.label}{field.required ? " *" : ""}</span>
+                    <input
+                      disabled={isSubmitting}
+                      placeholder={field.helpText ?? undefined}
+                      value={typeof value === "string" ? value : ""}
+                      onChange={(event) => {
+                        setUpdateFieldValues((current) => ({
+                          ...current,
+                          [field.key]: event.target.value
+                        }));
+                        setErrorMessage(null);
+                      }}
+                    />
+                  </label>
+                );
+              })
+            : null}
+
           {quickActions.length > 0 ? (
             <div className="my-task-quick-actions" aria-label={`Quick status actions for ${task.title}`}>
               {quickActions.map((statusOption) => (

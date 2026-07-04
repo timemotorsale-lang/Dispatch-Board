@@ -1640,6 +1640,78 @@ code {
   gap: 0.85rem;
 }
 
+.my-task-guided-update-panel {
+  display: grid;
+  gap: 0.8rem;
+  padding: 0.95rem;
+  border: 1px solid #dbe5f1;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #f8fbff 0%, #fdfefe 100%);
+}
+
+.my-task-guided-update-panel-active {
+  border-color: #bfd5f7;
+  box-shadow: inset 0 0 0 1px rgba(21, 88, 201, 0.05);
+}
+
+.my-task-guided-update-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.my-task-guided-update-copy,
+.my-task-guided-update-progress {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.my-task-guided-update-copy strong,
+.my-task-guided-update-progress span {
+  color: #1558c9;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.my-task-guided-update-copy p,
+.my-task-guided-update-progress small {
+  margin: 0;
+  color: #5c6c82;
+  font-size: 0.83rem;
+  line-height: 1.45;
+}
+
+.my-task-guided-update-warning {
+  padding: 0.65rem 0.8rem;
+  border-radius: 10px;
+  background: #fff7e8;
+  border: 1px solid #f5ddb0;
+  color: #9a5a00;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.my-task-guided-update-fields {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.my-task-guided-field {
+  padding: 0.8rem;
+  border: 1px solid #e3eaf3;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.my-task-guided-field-complete {
+  border-color: #cde7d4;
+  background: #f4fbf6;
+}
+
 .my-task-card-links,
 .my-task-quick-actions {
   display: flex;
@@ -2153,6 +2225,8 @@ code {
 .my-tasks-page .board-controls-card { gap: 9px; }.my-tasks-page .board-filter-pill { min-height: 31px; padding: 0 11px; border-radius: 17px; font-size: 9px; }
 .my-tasks-page .my-task-card { gap: 10px; }.my-tasks-page .my-task-copy h2 { font-size: 14px; }.my-tasks-page .my-task-copy p { font-size: 10px; }.my-tasks-page .my-task-meta-grid { gap: 7px; }.my-tasks-page .my-task-meta-grid div { padding: 8px; background: #f7f9fc; border-radius: 5px; }.my-tasks-page .my-task-meta-grid span { font-size: 7px; }.my-tasks-page .my-task-meta-grid strong { font-size: 10px; }
 .my-tasks-page .field span,.task-detail-page .field span { font-size: 8px; }.my-tasks-page select,.my-tasks-page input,.task-detail-page textarea { border-radius: 5px; }
+.my-tasks-page .my-task-guided-update-copy strong,.my-tasks-page .my-task-guided-update-progress span { font-size: 8px; }
+.my-tasks-page .my-task-guided-update-copy p,.my-tasks-page .my-task-guided-update-progress small,.my-tasks-page .my-task-guided-update-warning { font-size: 10px; }
 .my-tasks-filter-feedback { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; background: #f4f8ff; border: 1px solid #d8e5fb; border-radius: 10px; }
 .my-tasks-filter-feedback strong { margin: 0; color: #1558c9; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
 .my-tasks-filter-feedback span { color: #526176; font-size: 10px; }
@@ -2173,6 +2247,7 @@ code {
   .my-tasks-filter-feedback { align-items: flex-start; flex-direction: column; }
   .my-task-quick-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
   .my-task-action-chip { width: 100%; padding: 0 0.55rem; font-size: 9px; }
+  .my-task-guided-update-header { display: grid; grid-template-columns: 1fr; }
   .task-detail-page .board-toolbar { width: 100%; }
   .task-detail-page .board-toolbar-actions { display: grid; grid-template-columns: 1fr 1fr; }
   .task-detail-page .board-toolbar-actions > * { width: 100%; }

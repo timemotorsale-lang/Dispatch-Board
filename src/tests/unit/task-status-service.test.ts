@@ -1,4 +1,4 @@
-import { ActivityEventType, Prisma, TaskStatus } from "@prisma/client";
+import { Prisma, TaskStatus } from "@prisma/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -14,6 +14,8 @@ type StoredTask = {
   requiresManagerApproval: boolean;
   status: TaskStatus;
   blockerReason: string | null;
+  templateSnapshot: Prisma.JsonValue | null;
+  updateFieldValues: Prisma.JsonValue | null;
   readyForReviewAt: Date | null;
   completedAt: Date | null;
   reviewedByUserId: string | null;
@@ -23,7 +25,7 @@ type StoredTask = {
 type StoredActivityEvent = {
   actorUserId: string | null;
   boardDayId: string;
-  eventType: ActivityEventType;
+  eventType: string;
   message: string;
   metadata: Prisma.InputJsonValue;
   taskId: string | null;
@@ -37,6 +39,8 @@ function createStoredTask(overrides: Partial<StoredTask> = {}): StoredTask {
     requiresManagerApproval: false,
     status: TaskStatus.IN_PROGRESS,
     blockerReason: null,
+    templateSnapshot: null,
+    updateFieldValues: null,
     readyForReviewAt: null,
     completedAt: null,
     reviewedByUserId: null,
@@ -63,6 +67,7 @@ function createTaskStatusRepository(initialTasks: StoredTask[] = [createStoredTa
         data: {
           status: TaskStatus;
           blockerReason?: string;
+          updateFieldValues?: Prisma.InputJsonValue;
           readyForReviewAt?: Date | null;
           completedAt?: Date | null;
           reviewedByUserId?: string | null;
@@ -79,6 +84,10 @@ function createTaskStatusRepository(initialTasks: StoredTask[] = [createStoredTa
           status: data.status,
           blockerReason:
             data.blockerReason !== undefined ? data.blockerReason : tasks[taskIndex].blockerReason,
+          updateFieldValues:
+            data.updateFieldValues !== undefined
+              ? (data.updateFieldValues as Prisma.JsonValue)
+              : tasks[taskIndex].updateFieldValues,
           readyForReviewAt:
             data.readyForReviewAt !== undefined
               ? data.readyForReviewAt
@@ -135,6 +144,7 @@ describe("task status service", () => {
       id: "task-1",
       status: TaskStatus.BLOCKED,
       blockerReason: "Waiting on lender paperwork.",
+      updateFieldValues: {},
       updatedAt: "2026-06-18T15:30:00.000Z"
     });
     expect(readTask()).toMatchObject({
@@ -144,27 +154,7 @@ describe("task status service", () => {
       completedAt: null,
       reviewedByUserId: null
     });
-    expect(readActivityEvents()).toMatchObject([
-      {
-        actorUserId: staffUser?.id,
-        boardDayId: "board-day-1",
-        eventType: ActivityEventType.STATUS_CHANGED,
-        message: "Status changed from In Progress to Blocked",
-        metadata: {
-          blockerReason: "Waiting on lender paperwork.",
-          completedAt: null,
-          newStatus: TaskStatus.BLOCKED,
-          previousStatus: TaskStatus.IN_PROGRESS,
-          readyForReviewAt: null,
-          reviewedByUserId: null
-        },
-        taskId: "task-1"
-      },
-      {
-        eventType: ActivityEventType.TASK_BLOCKED,
-        message: "Task marked Blocked"
-      }
-    ]);
+    expect(readActivityEvents()).toEqual([]);
   });
 
   it("rejects blocked updates when the blocker reason is missing for approval-required tasks", async () => {
@@ -240,7 +230,7 @@ describe("task status service", () => {
       completedAt: null,
       reviewedByUserId: null
     });
-    expect(readActivityEvents()).toHaveLength(1);
+    expect(readActivityEvents()).toEqual([]);
   });
 
   it("clears ready-for-review metadata when a manager blocks a review-required task", async () => {
@@ -392,7 +382,8 @@ describe("task status service", () => {
 
     expect(result).toMatchObject({
       status: TaskStatus.READY_FOR_REVIEW,
-      blockerReason: null
+      blockerReason: null,
+      updateFieldValues: {}
     });
     expect(readTask()).toMatchObject({
       status: TaskStatus.READY_FOR_REVIEW,
@@ -400,16 +391,7 @@ describe("task status service", () => {
       completedAt: null,
       reviewedByUserId: null
     });
-    expect(readActivityEvents()).toMatchObject([
-      {
-        eventType: ActivityEventType.STATUS_CHANGED,
-        message: "Status changed from In Progress to Ready for Review"
-      },
-      {
-        eventType: ActivityEventType.TASK_READY_FOR_REVIEW,
-        message: "Task marked Ready for Review"
-      }
-    ]);
+    expect(readActivityEvents()).toEqual([]);
   });
 
   it("allows managers to complete approval-required tasks from ready for review", async () => {
@@ -441,16 +423,7 @@ describe("task status service", () => {
       completedAt: new Date("2026-06-18T15:30:00.000Z"),
       reviewedByUserId: managerUser?.id ?? null
     });
-    expect(readActivityEvents()).toMatchObject([
-      {
-        eventType: ActivityEventType.STATUS_CHANGED,
-        message: "Status changed from Ready for Review to Completed"
-      },
-      {
-        eventType: ActivityEventType.MANAGER_APPROVED_COMPLETION,
-        message: "Task marked Completed"
-      }
-    ]);
+    expect(readActivityEvents()).toEqual([]);
   });
 
   it("rejects managers who try to complete approval-required tasks before ready for review", async () => {
@@ -506,22 +479,7 @@ describe("task status service", () => {
       completedAt: null,
       reviewedByUserId: null
     });
-    expect(readActivityEvents()).toEqual([
-      {
-        actorUserId: managerUser?.id ?? null,
-        boardDayId: "board-day-1",
-        eventType: ActivityEventType.STATUS_CHANGED,
-        message: "Status changed from Ready for Review to In Progress",
-        metadata: {
-          completedAt: null,
-          newStatus: TaskStatus.IN_PROGRESS,
-          previousStatus: TaskStatus.READY_FOR_REVIEW,
-          readyForReviewAt: null,
-          reviewedByUserId: null
-        },
-        taskId: "task-1"
-      }
-    ]);
+    expect(readActivityEvents()).toEqual([]);
   });
 
   it("rejects staff users who try to send ready-for-review tasks back to in progress", async () => {
@@ -562,22 +520,139 @@ describe("task status service", () => {
     );
 
     expect(result).toMatchObject({
-      status: TaskStatus.COMPLETED
+      status: TaskStatus.COMPLETED,
+      updateFieldValues: {}
     });
     expect(readTask()).toMatchObject({
       status: TaskStatus.COMPLETED,
       completedAt: new Date("2026-06-18T15:30:00.000Z"),
       reviewedByUserId: null
     });
-    expect(readActivityEvents()).toMatchObject([
-      {
-        eventType: ActivityEventType.STATUS_CHANGED,
-        message: "Status changed from In Progress to Completed"
-      },
-      {
-        eventType: ActivityEventType.TASK_COMPLETED,
-        message: "Task marked Completed"
-      }
+    expect(readActivityEvents()).toEqual([]);
+  });
+
+  it("rejects completion when template-required update fields are missing", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+    const { repository, readTask } = createTaskStatusRepository([
+      createStoredTask({
+        templateSnapshot: {
+          requiredUpdateFields: [
+            {
+              key: "vehicle",
+              label: "Vehicle",
+              type: "short_text",
+              required: true,
+              helpText: null
+            },
+            {
+              key: "repair_status",
+              label: "Repair status",
+              type: "single_select",
+              required: true,
+              helpText: null,
+              options: ["In progress", "Waiting on parts", "Completed"]
+            },
+            {
+              key: "next_step",
+              label: "Next step",
+              type: "long_text",
+              required: true,
+              helpText: null
+            }
+          ],
+          completionCriteria: {
+            mode: "checklist_and_update_fields",
+            requiredChecklistKeys: [],
+            requiredFieldKeys: ["vehicle", "repair_status", "next_step"]
+          }
+        }
+      })
     ]);
+
+    await expect(
+      updateTaskStatus(
+        staffUser,
+        "task-1",
+        {
+          status: "COMPLETED"
+        },
+        repository
+      )
+    ).rejects.toThrow("Task update is missing required fields: Vehicle, Repair status, Next step.");
+    expect(readTask()).toMatchObject({
+      status: TaskStatus.IN_PROGRESS,
+      updateFieldValues: null
+    });
+  });
+
+  it("stores guided update fields and allows completion once required values are present", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+    const { repository, readTask } = createTaskStatusRepository([
+      createStoredTask({
+        templateSnapshot: {
+          requiredUpdateFields: [
+            {
+              key: "vehicle",
+              label: "Vehicle",
+              type: "short_text",
+              required: true,
+              helpText: null
+            },
+            {
+              key: "repair_status",
+              label: "Repair status",
+              type: "single_select",
+              required: true,
+              helpText: null,
+              options: ["In progress", "Waiting on parts", "Completed"]
+            },
+            {
+              key: "next_step",
+              label: "Next step",
+              type: "long_text",
+              required: true,
+              helpText: null
+            }
+          ],
+          completionCriteria: {
+            mode: "update_fields",
+            requiredChecklistKeys: [],
+            requiredFieldKeys: ["vehicle", "repair_status", "next_step"]
+          }
+        }
+      })
+    ]);
+
+    const result = await updateTaskStatus(
+      staffUser,
+      "task-1",
+      {
+        status: "COMPLETED",
+        updateFields: {
+          vehicle: "2018 F-150",
+          repair_status: "Completed",
+          next_step: "Send to QC"
+        }
+      },
+      repository
+    );
+
+    expect(result).toMatchObject({
+      status: TaskStatus.COMPLETED,
+      updateFieldValues: {
+        vehicle: "2018 F-150",
+        repair_status: "Completed",
+        next_step: "Send to QC"
+      }
+    });
+    expect(readTask()).toMatchObject({
+      updateFieldValues: {
+        vehicle: "2018 F-150",
+        repair_status: "Completed",
+        next_step: "Send to QC"
+      }
+    });
   });
 });

@@ -13,6 +13,8 @@ const taskReadSelect = {
   workflowArea: true,
   sourceType: true,
   requiresManagerApproval: true,
+  templateSnapshot: true,
+  updateFieldValues: true,
   vehicleReference: true,
   customerReference: true,
   blockerReason: true,
@@ -75,7 +77,7 @@ const taskReadSelect = {
       }
     }
   }
-} satisfies Prisma.TaskSelect;
+} as const;
 
 export type TaskReadRecord = Prisma.TaskGetPayload<{
   select: typeof taskReadSelect;

@@ -45,6 +45,8 @@ function createBoardReadRepositoryHarness(options: {
       } | null;
       recommendationReasonCode?: string | null;
       recommendationExplanation?: string | null;
+      templateSnapshot?: unknown;
+      updateFieldValues?: unknown;
       vehicleReference?: string | null;
       customerReference?: string | null;
       blockerReason?: string | null;
@@ -72,6 +74,8 @@ function createBoardReadRepositoryHarness(options: {
         workflowArea: task.workflowArea ?? WorkflowArea.SALES,
         sourceType: task.sourceType ?? TaskSourceType.TEMPLATE,
         requiresManagerApproval: task.requiresManagerApproval ?? false,
+        templateSnapshot: task.templateSnapshot ?? null,
+        updateFieldValues: task.updateFieldValues ?? null,
         vehicleReference: task.vehicleReference ?? null,
         customerReference: task.customerReference ?? null,
         blockerReason: task.blockerReason ?? null,
@@ -156,6 +160,20 @@ describe("board read service", () => {
               name: "Baraka Sales",
               email: "jordan.sales@local.test"
             },
+            templateSnapshot: {
+              requiredUpdateFields: [
+                {
+                  key: "customer_name",
+                  label: "Customer name",
+                  type: "short_text",
+                  required: true,
+                  helpText: null
+                }
+              ]
+            },
+            updateFieldValues: {
+              customer_name: "Taylor R."
+            },
             recommendedUser: {
               id: "user-sales",
               name: "Baraka Sales",
@@ -213,6 +231,15 @@ describe("board read service", () => {
             id: "task-1",
             title: "Follow up with hot lead",
             customerReference: "Taylor R.",
+            requiredUpdateFields: [
+              {
+                key: "customer_name",
+                label: "Customer name"
+              }
+            ],
+            updateFieldValues: {
+              customer_name: "Taylor R."
+            },
             recommendation: {
               reasonCode: "DIRECT_DUTY_MATCH",
               explanation:

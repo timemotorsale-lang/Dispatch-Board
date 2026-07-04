@@ -242,6 +242,7 @@ model Task {
   sourceType              TaskSourceType
   sourceTemplateId        String?
   templateSnapshot        Json?
+  updateFieldValues       Json?
   sourceDutyId            String?
   workflowArea            WorkflowArea
   blockerReason           String?

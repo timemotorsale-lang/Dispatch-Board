@@ -5,6 +5,7 @@
   WorkflowArea
 } from "@prisma/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Prisma } from "@prisma/client";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import type { BoardReadRepository } from "@/server/repositories/board-read-repository";
@@ -59,6 +60,8 @@ type WorkflowTask = {
   createdAt: Date;
   updatedAt: Date;
   requiresManagerApproval: boolean;
+  templateSnapshot: Prisma.JsonValue | null;
+  updateFieldValues: Prisma.JsonValue | null;
   vehicleReference: string | null;
   customerReference: string | null;
   sourceType: TaskSourceType;
@@ -144,6 +147,8 @@ function createWorkflowHarness(authUsers: AuthenticatedUser[]) {
       workflowArea: task.workflowArea,
       sourceType: task.sourceType,
       requiresManagerApproval: task.requiresManagerApproval,
+      templateSnapshot: task.templateSnapshot,
+      updateFieldValues: task.updateFieldValues,
       vehicleReference: task.vehicleReference,
       customerReference: task.customerReference,
       blockerReason: task.blockerReason,
@@ -212,6 +217,8 @@ function createWorkflowHarness(authUsers: AuthenticatedUser[]) {
         createdAt: now,
         updatedAt: now,
         requiresManagerApproval: input.requiresManagerApproval,
+        templateSnapshot: null,
+        updateFieldValues: null,
         vehicleReference: input.vehicleReference ?? null,
         customerReference: input.customerReference ?? null,
         sourceType: TaskSourceType.MANAGER,
@@ -237,6 +244,9 @@ function createWorkflowHarness(authUsers: AuthenticatedUser[]) {
       task.status = data.status;
       task.updatedAt = new Date();
       if (data.blockerReason !== undefined) task.blockerReason = data.blockerReason;
+      if (data.updateFieldValues !== undefined) {
+        task.updateFieldValues = data.updateFieldValues as Prisma.JsonValue;
+      }
       if (data.readyForReviewAt !== undefined) task.readyForReviewAt = data.readyForReviewAt;
       if (data.completedAt !== undefined) task.completedAt = data.completedAt;
       if (data.reviewedByUserId !== undefined) task.reviewedByUserId = data.reviewedByUserId;

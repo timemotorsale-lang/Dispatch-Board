@@ -21,6 +21,20 @@ function createTaskReadRepository(): TaskReadRepository {
         workflowArea: "SALES",
         sourceType: "MANAGER",
         requiresManagerApproval: true,
+        templateSnapshot: {
+          requiredUpdateFields: [
+            {
+              key: "customer_name",
+              label: "Customer name",
+              type: "short_text",
+              required: true,
+              helpText: null
+            }
+          ]
+        },
+        updateFieldValues: {
+          customer_name: "Taylor R."
+        },
         vehicleReference: "2019 Camry",
         customerReference: "Taylor R.",
         blockerReason: null,
@@ -83,6 +97,18 @@ describe("task read service", () => {
       workflowArea: "SALES",
       sourceType: "MANAGER",
       requiresManagerApproval: true,
+      requiredUpdateFields: [
+        {
+          key: "customer_name",
+          label: "Customer name",
+          type: "short_text",
+          required: true,
+          helpText: null
+        }
+      ],
+      updateFieldValues: {
+        customer_name: "Taylor R."
+      },
       vehicleReference: "2019 Camry",
       customerReference: "Taylor R.",
       blockerReason: null,

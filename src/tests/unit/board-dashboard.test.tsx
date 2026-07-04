@@ -20,6 +20,8 @@ function createTask(id: string, overrides: Partial<GroupableBoardTask> = {}): Gr
     workflowArea: "SALES",
     sourceType: "TEMPLATE",
     requiresManagerApproval: false,
+    requiredUpdateFields: [],
+    updateFieldValues: {},
     assignedUser: {
       id: `user-${id}`,
       name: `User ${id}`

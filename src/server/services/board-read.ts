@@ -7,6 +7,7 @@ import {
   type BoardReadRepository,
   type BoardReadTaskRecord
 } from "@/server/repositories/board-read-repository";
+import type { TaskTemplateRequiredUpdateField } from "@/server/validation/task-template";
 import {
   getGenerationSettings,
   type AppSettingsRepository
@@ -34,6 +35,8 @@ export type BoardReadTask = {
   workflowArea: string;
   sourceType: string;
   requiresManagerApproval: boolean;
+  requiredUpdateFields: TaskTemplateRequiredUpdateField[];
+  updateFieldValues: Record<string, string | boolean>;
   assignedUser: BoardReadUserSummary;
   recommendedUser: BoardReadUserSummary | null;
   recommendation: BoardReadRecommendation | null;
@@ -79,6 +82,70 @@ function normalizeOptionalText(value: string | null | undefined) {
   return normalizedValue ? normalizedValue : null;
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeRequiredUpdateFields(snapshot: unknown): TaskTemplateRequiredUpdateField[] {
+  if (!isPlainObject(snapshot) || !Array.isArray(snapshot.requiredUpdateFields)) {
+    return [];
+  }
+
+  return snapshot.requiredUpdateFields.flatMap((entry) => {
+    if (!isPlainObject(entry) || typeof entry.key !== "string" || typeof entry.label !== "string") {
+      return [];
+    }
+
+    if (
+      entry.type !== "short_text" &&
+      entry.type !== "long_text" &&
+      entry.type !== "single_select" &&
+      entry.type !== "boolean"
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        key: entry.key,
+        label: entry.label,
+        type: entry.type,
+        required: entry.required !== false,
+        helpText: typeof entry.helpText === "string" ? entry.helpText : null,
+        ...(Array.isArray(entry.options) &&
+        entry.options.every((option) => typeof option === "string" && option.trim())
+          ? { options: entry.options.map((option) => option.trim()) }
+          : {})
+      } satisfies TaskTemplateRequiredUpdateField
+    ];
+  });
+}
+
+function normalizeUpdateFieldValues(value: unknown) {
+  if (!isPlainObject(value)) {
+    return {} as Record<string, string | boolean>;
+  }
+
+  const normalizedEntries: Array<[string, string | boolean]> = [];
+
+  for (const [key, fieldValue] of Object.entries(value)) {
+    if (typeof fieldValue === "boolean") {
+      normalizedEntries.push([key, fieldValue]);
+      continue;
+    }
+
+    if (typeof fieldValue === "string") {
+      const normalizedValue = fieldValue.trim();
+
+      if (normalizedValue) {
+        normalizedEntries.push([key, normalizedValue]);
+      }
+    }
+  }
+
+  return Object.fromEntries(normalizedEntries);
+}
+
 function toUserSummary(
   user: {
     id: string;
@@ -116,6 +183,8 @@ function toTaskSummary(task: BoardReadTaskRecord): BoardReadTask {
     workflowArea: task.workflowArea,
     sourceType: task.sourceType,
     requiresManagerApproval: task.requiresManagerApproval,
+    requiredUpdateFields: normalizeRequiredUpdateFields(task.templateSnapshot),
+    updateFieldValues: normalizeUpdateFieldValues(task.updateFieldValues),
     assignedUser: {
       id: task.assignedUser.id,
       name: task.assignedUser.name,

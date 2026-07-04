@@ -5,6 +5,7 @@ import {
   WorkflowArea
 } from "@prisma/client";
 import { describe, expect, it } from "vitest";
+import type { Prisma } from "@prisma/client";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import type { BoardReadRepository } from "@/server/repositories/board-read-repository";
@@ -44,6 +45,8 @@ type WorkflowTask = {
   createdAt: Date;
   updatedAt: Date;
   requiresManagerApproval: boolean;
+  templateSnapshot: Prisma.JsonValue | null;
+  updateFieldValues: Prisma.JsonValue | null;
   vehicleReference: string | null;
   customerReference: string | null;
   sourceType: TaskSourceType;
@@ -100,6 +103,8 @@ function createTaskAssignmentHarness(authUsers: AuthenticatedUser[]) {
       createdAt: new Date("2026-06-28T13:05:00.000Z"),
       updatedAt: new Date("2026-06-28T13:05:00.000Z"),
       requiresManagerApproval: false,
+      templateSnapshot: null,
+      updateFieldValues: null,
       vehicleReference: null,
       customerReference: "Taylor R.",
       sourceType: TaskSourceType.TEMPLATE,
@@ -226,18 +231,20 @@ function createTaskAssignmentHarness(authUsers: AuthenticatedUser[]) {
         `Missing board day ${task.boardDayId}.`
       );
 
-      return {
-        id: task.id,
-        title: task.title,
-        description: task.description,
-        status: task.status,
-        dueAt: task.dueAt,
-        workflowArea: task.workflowArea,
-        sourceType: task.sourceType,
-        requiresManagerApproval: task.requiresManagerApproval,
-        vehicleReference: task.vehicleReference,
-        customerReference: task.customerReference,
-        blockerReason: task.blockerReason,
+        return {
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          status: task.status,
+          dueAt: task.dueAt,
+          workflowArea: task.workflowArea,
+          sourceType: task.sourceType,
+          requiresManagerApproval: task.requiresManagerApproval,
+          templateSnapshot: task.templateSnapshot,
+          updateFieldValues: task.updateFieldValues,
+          vehicleReference: task.vehicleReference,
+          customerReference: task.customerReference,
+          blockerReason: task.blockerReason,
         readyForReviewAt: task.readyForReviewAt,
         completedAt: task.completedAt,
         createdAt: task.createdAt,
