@@ -18,6 +18,7 @@ describe("navigation visibility", () => {
 
     expect(hrefs).not.toContain("/manager-review");
     expect(hrefs).not.toContain("/settings");
+    expect(hrefs).not.toContain("/settings/team");
     expect(hrefs).toContain("/staff");
     expect(hrefs).toContain("/my-tasks");
   });
@@ -41,10 +42,10 @@ describe("navigation visibility", () => {
     expect(generalManager).toBeDefined();
 
     expect(listHrefs(getNavigationGroups(generalManager!))).toEqual(
-      expect.arrayContaining(["/manager-review", "/settings", "/staff"])
+      expect.arrayContaining(["/manager-review", "/settings", "/settings/team", "/staff"])
     );
     expect(listHrefs(getNavigationGroups(delegatedManager))).toEqual(
-      expect.arrayContaining(["/manager-review", "/settings", "/staff"])
+      expect.arrayContaining(["/manager-review", "/settings", "/settings/team", "/staff"])
     );
   });
 });

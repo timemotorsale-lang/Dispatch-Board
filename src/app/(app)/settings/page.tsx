@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { SettingsForm } from "@/features/settings/settings-form";
+import { SettingsWorkspaceNav } from "@/features/settings/settings-workspace-nav";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { DELEGATED_MANAGER_DUTY_NAME, canManageSettings } from "@/server/policies/access";
 import { getGenerationSettings } from "@/server/services/app-settings-service";
@@ -59,80 +60,95 @@ export default async function SettingsPage() {
 
   if (settings && teamManagement) {
     return (
-      <section className="page-stack">
-        <div className="page-copy">
-          <span className="eyebrow">Protected settings</span>
-          <h1>Application settings</h1>
-          <p>
-            Managers can adjust the daily board generation time, timezone, and business-day rules
-            here, while team management covers staff logins, role coverage, and direct duty setup.
-          </p>
+      <section className="settings-workspace">
+        <SettingsWorkspaceNav
+          active="settings"
+          counts={{
+            duties: visibleDutyCount,
+            roles: teamManagement.roles.length,
+            users: teamManagement.users.length
+          }}
+        />
+
+        <div className="settings-stage">
+          <div className="page-copy settings-page-copy">
+            <span className="eyebrow">Protected settings</span>
+            <h1>Application settings</h1>
+            <p>
+              Keep the operating schedule cleanly separated from manager administration. Adjust
+              board behavior here, and jump into the admin workspace only when you need to manage
+              staff, roles, duties, or delegated manager access.
+            </p>
+          </div>
+
+          <div className="settings-path">
+            <span>Settings</span>
+            <strong>Board generation</strong>
+          </div>
+
+          <section className="settings-overview-grid">
+            <article className="panel-card settings-callout-card">
+              <strong>Settings</strong>
+              <h2>Daily board controls</h2>
+              <p>
+                These controls define when a new board is generated, which timezone it follows,
+                and which days count as working days.
+              </p>
+              <div className="settings-checklist">
+                <p>Daily generation time controls when the automatic board is created.</p>
+                <p>Timezone keeps scheduling aligned with the dealership's actual operating day.</p>
+                <p>Business days prevent weekend or off-day board creation when it should not run.</p>
+              </div>
+            </article>
+
+            <article className="panel-card settings-callout-card">
+              <strong>Admin</strong>
+              <h2>Manager administration</h2>
+              <p>
+                Staffing setup lives in its own admin area so operational settings stay focused and
+                easier to scan.
+              </p>
+              <div className="settings-summary-grid">
+                <div className="settings-summary-card">
+                  <span>Users</span>
+                  <strong>{teamManagement.users.length}</strong>
+                  <small>team accounts currently in the roster</small>
+                </div>
+                <div className="settings-summary-card">
+                  <span>Roles</span>
+                  <strong>{teamManagement.roles.length}</strong>
+                  <small>available role definitions ready for assignment</small>
+                </div>
+                <div className="settings-summary-card">
+                  <span>Duties</span>
+                  <strong>{visibleDutyCount}</strong>
+                  <small>direct-duty options available for overrides</small>
+                </div>
+              </div>
+              <div className="form-actions">
+                <Link className="pill pill-primary" href="/settings/team">
+                  Open admin workspace
+                </Link>
+                <Link className="pill pill-secondary" href="/staff">
+                  Open team view
+                </Link>
+              </div>
+            </article>
+          </section>
+
+          <article className="panel-card settings-main-card">
+            <strong>Board settings</strong>
+            <h2>Generation schedule</h2>
+            <p>Update the schedule foundation that future daily board generation reads from.</p>
+            <SettingsForm
+              initialSettings={{
+                dailyGenerationTime: settings.dailyGenerationTime,
+                timezone: settings.timezone,
+                businessDays: settings.businessDays
+              }}
+            />
+          </article>
         </div>
-
-        <section className="settings-admin-grid">
-          <article className="panel-card">
-            <strong>Manager administration</strong>
-            <h2>Team and role management</h2>
-            <p>
-              The roadmap and architecture both expect manager-controlled users, roles, duties, and
-              staffing setup. Use this path to add staff accounts and assign coverage without leaving
-              protected settings.
-            </p>
-            <div className="settings-summary-grid">
-              <div className="settings-summary-card">
-                <span>Users</span>
-                <strong>{teamManagement.users.length}</strong>
-                <small>team accounts currently in the roster</small>
-              </div>
-              <div className="settings-summary-card">
-                <span>Roles</span>
-                <strong>{teamManagement.roles.length}</strong>
-                <small>available role definitions ready for assignment</small>
-              </div>
-              <div className="settings-summary-card">
-                <span>Duties</span>
-                <strong>{visibleDutyCount}</strong>
-                <small>direct-duty options available for overrides</small>
-              </div>
-            </div>
-            <div className="form-actions">
-              <Link className="pill pill-primary" href="/settings/team">
-                Manage team, roles, and duties
-              </Link>
-              <Link className="pill pill-secondary" href="/staff">
-                Open team view
-              </Link>
-            </div>
-          </article>
-
-          <article className="panel-card">
-            <strong>Architecture alignment</strong>
-            <h2>What this manager path controls</h2>
-            <p>
-              Staff accounts, role assignments, and direct duties all influence daily generation,
-              recommendations, and team visibility on the board.
-            </p>
-            <div className="settings-checklist">
-              <p>Users: create login-ready team members for the protected app.</p>
-              <p>Roles: assign job coverage that drives permissions and default duty matching.</p>
-              <p>Duties: add direct-duty overrides when a staff member owns specific daily work.</p>
-              <p>Manager powers: only the General Manager can delegate full manager capabilities.</p>
-            </div>
-          </article>
-        </section>
-
-        <article className="panel-card">
-          <strong>Daily generation defaults</strong>
-          <h2>Board generation settings</h2>
-          <p>Update the schedule foundation that later daily generation work will read from.</p>
-          <SettingsForm
-            initialSettings={{
-              dailyGenerationTime: settings.dailyGenerationTime,
-              timezone: settings.timezone,
-              businessDays: settings.businessDays
-            }}
-          />
-        </article>
       </section>
     );
   }

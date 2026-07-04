@@ -99,6 +99,18 @@ export const navigationGroups: NavigationGroup[] = [
     ]
   },
   {
+    label: "Admin",
+    items: [
+      {
+        href: "/settings/team",
+        title: "Admin",
+        description: "Staff accounts, roles, duties, templates, and access control.",
+        icon: Users,
+        isVisible: (user) => canManageSettings(user)
+      }
+    ]
+  },
+  {
     label: "Settings",
     items: [
       {
