@@ -9,6 +9,7 @@ import {
   canManageSettings,
   canManageTaskTemplates,
   canManageUsers,
+  canGrantManagerPowers,
   canReviewWorkflows,
   canUpdateAssignedWork,
   canUseStaffSelfService,
@@ -50,6 +51,57 @@ describe("permission policies", () => {
     expect(canManageSettings(staffUser)).toBe(false);
     expect(canManageTaskTemplates(staffUser)).toBe(false);
     expect(canReviewWorkflows(staffUser)).toBe(false);
+  });
+
+  it("does not treat manager-titled staff roles as full app managers unless they are the General Manager", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const inventoryLead = usersByEmail.get("riley.inventory@local.test") ?? null;
+    const opsLead = usersByEmail.get("avery.ops@local.test") ?? null;
+    const otherStaffUser = usersByEmail.get("casey.mechanic@local.test") ?? null;
+
+    expect(inventoryLead).not.toBeNull();
+    expect(opsLead).not.toBeNull();
+    expect(otherStaffUser).not.toBeNull();
+
+    expect(isManager(inventoryLead)).toBe(false);
+    expect(isManager(opsLead)).toBe(false);
+    expect(canManageUsers(inventoryLead)).toBe(false);
+    expect(canManageRoles(opsLead)).toBe(false);
+    expect(canManageDuties(opsLead)).toBe(false);
+    expect(canManageAssignments(inventoryLead)).toBe(false);
+    expect(canManageSettings(opsLead)).toBe(false);
+    expect(canManageBoardGeneration(inventoryLead)).toBe(false);
+    expect(canManageTaskTemplates(opsLead)).toBe(false);
+    expect(canReviewWorkflows(inventoryLead)).toBe(false);
+    expect(
+      canUpdateAssignedWork({
+        actor: inventoryLead,
+        assignedUserId: otherStaffUser!.id,
+        requiresManagerApproval: false,
+        requestedAction: "reassign"
+      })
+    ).toBe(false);
+  });
+
+  it("allows delegated manager capabilities without making delegation assignable by non-General-Manager users", async () => {
+    const delegatedManager = {
+      id: "user-delegate",
+      name: "Delegated Lead",
+      email: "delegate@local.test",
+      isActive: true,
+      roles: ["Salesperson"],
+      duties: {
+        direct: ["Delegated manager capabilities"],
+        roleDefaults: [],
+        all: ["Delegated manager capabilities"]
+      }
+    };
+
+    expect(isManager(delegatedManager)).toBe(true);
+    expect(canManageUsers(delegatedManager)).toBe(true);
+    expect(canManageAssignments(delegatedManager)).toBe(true);
+    expect(canManageSettings(delegatedManager)).toBe(true);
+    expect(canGrantManagerPowers(delegatedManager)).toBe(false);
   });
 
   it("allows staff self-service checks for their own work", async () => {

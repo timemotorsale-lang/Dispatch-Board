@@ -1,4 +1,4 @@
-﻿import {
+import {
   Activity,
   CalendarDays,
   Car,
@@ -12,12 +12,16 @@
   type LucideIcon
 } from "lucide-react";
 
+import type { AuthenticatedUser } from "@/server/auth/store";
+import { canManageSettings, isManager } from "@/server/policies/access";
+
 export type NavigationItem = {
   href: string;
   title: string;
   description: string;
   icon: LucideIcon;
   badge?: string;
+  isVisible?(user: AuthenticatedUser): boolean;
 };
 
 export type NavigationGroup = { label: string; items: NavigationItem[] };
@@ -66,7 +70,8 @@ export const navigationGroups: NavigationGroup[] = [
         href: "/manager-review",
         title: "Manager Review",
         description: "Approval and attention queue.",
-        icon: ClipboardCheck
+        icon: ClipboardCheck,
+        isVisible: (user) => isManager(user)
       },
       {
         href: "/activity",
@@ -100,8 +105,18 @@ export const navigationGroups: NavigationGroup[] = [
         href: "/settings",
         title: "Board Settings",
         description: "Generation and board settings.",
-        icon: Settings
+        icon: Settings,
+        isVisible: (user) => canManageSettings(user)
       }
     ]
   }
 ];
+
+export function getNavigationGroups(user: AuthenticatedUser) {
+  return navigationGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => (item.isVisible ? item.isVisible(user) : true))
+    }))
+    .filter((group) => group.items.length > 0);
+}

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 
-import { navigationGroups } from "./navigation";
+import { getNavigationGroups } from "./navigation";
 
 type AppTopbarProps = { onMenuOpen(): void; user: AuthenticatedUser };
 
@@ -15,6 +15,7 @@ function initials(name: string) {
 
 export function AppTopbar({ onMenuOpen, user }: AppTopbarProps) {
   const pathname = usePathname();
+  const navigationGroups = getNavigationGroups(user);
   const item = navigationGroups.flatMap((group) => group.items).find((entry) => pathname === entry.href || pathname.startsWith(`${entry.href}/`));
   const title = pathname === "/board" ? "Time Motor Sales Dispatch Board" : item?.title ?? "Dispatch Board";
 

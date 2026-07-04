@@ -1,6 +1,11 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { hashPassword } from "@/server/auth/password";
-import { canManageUsers } from "@/server/policies/access";
+import {
+  canGrantManagerPowers,
+  canManageUsers,
+  DELEGATED_MANAGER_DUTY_NAME,
+  isGeneralManager
+} from "@/server/policies/access";
 import {
   createTeamManagementRepository,
   type ManagedDutyRecord,
@@ -46,6 +51,12 @@ export type TeamManagementSnapshot = {
   duties: TeamManagementDutyOption[];
 };
 
+const delegatedManagerDutyDefaults = {
+  name: DELEGATED_MANAGER_DUTY_NAME,
+  workflowArea: "GENERAL_MANAGER",
+  description: "Reserved system duty that grants delegated manager capabilities."
+} as const;
+
 function toManagedTeamUser(user: ManagedUserRecord): ManagedTeamUser {
   return {
     id: user.id,
@@ -88,23 +99,90 @@ function assertCanManageTeam(user: AuthenticatedUser | null) {
   return user;
 }
 
+function isDelegatedManagerDutyName(name: string) {
+  return name.trim().toLowerCase() === DELEGATED_MANAGER_DUTY_NAME.toLowerCase();
+}
+
+async function ensureDelegatedManagerDuty(
+  repository: TeamManagementRepository
+) {
+  const existingDuties = await repository.listDuties();
+  const existingDuty = existingDuties.find((duty) => isDelegatedManagerDutyName(duty.name));
+
+  if (existingDuty) {
+    return existingDuty;
+  }
+
+  return repository.createDuty(delegatedManagerDutyDefaults);
+}
+
+async function assertCanAssignManagerPowers(
+  user: AuthenticatedUser | null,
+  dutyIds: string[] | undefined,
+  repository: TeamManagementRepository
+) {
+  if (!dutyIds || dutyIds.length === 0) {
+    return;
+  }
+
+  const duties = await repository.findDutiesByIds(dutyIds);
+  const includesDelegatedManagerDuty = duties.some((duty) => isDelegatedManagerDutyName(duty.name));
+
+  if (includesDelegatedManagerDuty && !canGrantManagerPowers(user)) {
+    throw new Error("Only the General Manager can grant delegated manager capabilities.");
+  }
+}
+
+async function assertCanCreateOrRenameDelegatedManagerDuty(
+  user: AuthenticatedUser | null,
+  nextDutyName: string | undefined,
+  repository: TeamManagementRepository,
+  dutyId?: string
+) {
+  if (!nextDutyName || !isDelegatedManagerDutyName(nextDutyName)) {
+    if (!dutyId) {
+      return;
+    }
+
+    const [currentDuty] = await repository.findDutiesByIds([dutyId]);
+
+    if (currentDuty && isDelegatedManagerDutyName(currentDuty.name) && !canGrantManagerPowers(user)) {
+      throw new Error("Only the General Manager can modify delegated manager capabilities.");
+    }
+
+    return;
+  }
+
+  if (!canGrantManagerPowers(user)) {
+    throw new Error("Only the General Manager can grant delegated manager capabilities.");
+  }
+}
+
 export async function getTeamManagementSnapshotForManager(
   user: AuthenticatedUser | null,
   repository: TeamManagementRepository = createTeamManagementRepository()
 ): Promise<TeamManagementSnapshot> {
-  assertCanManageTeam(user);
-
-  const [users, roles, duties] = await Promise.all([
-    repository.listUsers(),
-    repository.listRoles(),
-    repository.listDuties()
-  ]);
+  const authenticatedUser = assertCanManageTeam(user);
+  const [users, roles] = await Promise.all([repository.listUsers(), repository.listRoles()]);
+  const existingDuties = await repository.listDuties();
+  const delegatedManagerDuty = existingDuties.find((duty) => isDelegatedManagerDutyName(duty.name));
+  const duties =
+    delegatedManagerDuty || !isGeneralManager(authenticatedUser)
+      ? sortManagedDuties(existingDuties)
+      : sortManagedDuties([
+          ...existingDuties,
+          await ensureDelegatedManagerDuty(repository)
+        ]);
 
   return {
     users: users.map(toManagedTeamUser),
     roles: roles.map(toManagedRole),
     duties: duties.map(toManagedDuty)
   };
+}
+
+function sortManagedDuties<T extends { name: string }>(duties: T[]) {
+  return [...duties].sort((left, right) => left.name.localeCompare(right.name));
 }
 
 export async function createManagedTeamUser(
@@ -115,6 +193,7 @@ export async function createManagedTeamUser(
   assertCanManageTeam(user);
 
   const normalizedInput = normalizeTeamMemberCreateInput(input);
+  await assertCanAssignManagerPowers(user, normalizedInput.dutyIds, repository);
   const [roles, duties] = await Promise.all([
     repository.findRolesByIds(normalizedInput.roleIds),
     normalizedInput.dutyIds.length > 0 ? repository.findDutiesByIds(normalizedInput.dutyIds) : []
@@ -156,6 +235,7 @@ export async function updateManagedTeamUser(
   }
 
   const normalizedInput = normalizeTeamMemberUpdateInput(input);
+  await assertCanAssignManagerPowers(user, normalizedInput.dutyIds, repository);
 
   if (normalizedInput.roleIds) {
     const roles = await repository.findRolesByIds(normalizedInput.roleIds);
@@ -242,6 +322,7 @@ export async function createManagedDuty(
   assertCanManageTeam(user);
 
   const normalizedInput = normalizeManagedDutyCreateInput(input);
+  await assertCanCreateOrRenameDelegatedManagerDuty(user, normalizedInput.name, repository);
   const createdDuty = await repository.createDuty(normalizedInput);
 
   return toManagedDuty(createdDuty);
@@ -262,6 +343,12 @@ export async function updateManagedDuty(
   }
 
   const normalizedInput = normalizeManagedDutyUpdateInput(input);
+  await assertCanCreateOrRenameDelegatedManagerDuty(
+    user,
+    normalizedInput.name,
+    repository,
+    normalizedDutyId
+  );
   const updatedDuty = await repository.updateDuty(normalizedDutyId, normalizedInput);
 
   if (!updatedDuty) {

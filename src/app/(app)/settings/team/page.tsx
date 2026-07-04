@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { TeamManagementPanel } from "@/features/settings/team-management-panel";
 import { requireCurrentUser } from "@/server/auth/current-user";
-import { canManageSettings } from "@/server/policies/access";
+import { canGrantManagerPowers, canManageSettings } from "@/server/policies/access";
 import { getTeamManagementSnapshotForManager } from "@/server/services/team-management";
 import { listTaskTemplatesForManager } from "@/server/services/task-template-service";
 
@@ -86,6 +86,7 @@ export default async function TeamManagementSettingsPage() {
       </div>
 
       <TeamManagementPanel
+        canGrantManagerPowers={canGrantManagerPowers(user)}
         duties={snapshot.duties}
         initialUsers={snapshot.users}
         roles={snapshot.roles}

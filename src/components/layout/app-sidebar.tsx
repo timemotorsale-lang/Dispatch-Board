@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 import { LogoutButton } from "@/features/auth/logout-button";
 import type { AuthenticatedUser } from "@/server/auth/store";
 
-import { navigationGroups } from "./navigation";
+import { getNavigationGroups } from "./navigation";
 
 type AppSidebarProps = {
   isOpen: boolean;
@@ -21,6 +21,7 @@ function initials(name: string) {
 
 export function AppSidebar({ isOpen, onClose, user }: AppSidebarProps) {
   const pathname = usePathname();
+  const navigationGroups = getNavigationGroups(user);
 
   return (
     <aside className={isOpen ? "app-sidebar app-sidebar-open" : "app-sidebar"}>

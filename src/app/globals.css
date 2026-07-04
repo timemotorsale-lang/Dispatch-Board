@@ -463,6 +463,31 @@ textarea {
   margin-top: 1rem;
 }
 
+.settings-manager-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px auto;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 1rem;
+}
+
+.settings-manager-toolbar small {
+  color: #66758a;
+  font-size: 0.84rem;
+  text-align: right;
+}
+
+.settings-manager-toolbar select {
+  min-width: 0;
+  height: 42px;
+  padding: 0 12px;
+  color: #253449;
+  background: #fff;
+  border: 1px solid #dce3ec;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
 .team-roster-card {
   display: grid;
   gap: 0.85rem;
@@ -1826,6 +1851,8 @@ code {
   .operations-strip { grid-template-columns: 1fr; }.operations-strip article:last-child { grid-column: auto; }.flow-list { justify-content: flex-start; overflow-x: auto; }.team-load { overflow-x: auto; }
   .staff-duty-grid { grid-template-columns: 1fr; }
   .settings-admin-grid,.settings-summary-grid { grid-template-columns: 1fr; }
+  .settings-manager-toolbar { grid-template-columns: 1fr; }
+  .settings-manager-toolbar small { text-align: left; }
   .filter-row { grid-template-columns: 1fr 1fr; }.board-search { grid-column: 1 / -1; }.clear-filter { min-height: 34px; }
   .desktop-task-table { display: none; }.mobile-task-list { display: grid; gap: 12px; padding: 12px; background: #f6f8fb; }.mobile-task-list > section { display: grid; gap: 8px; }.mobile-task-list h3 { display: flex; align-items: center; justify-content: space-between; margin: 0; color: #344257; font-size: 12px; text-transform: uppercase; }.mobile-task-list h3 span { display: grid; place-items: center; width: 24px; height: 24px; color: #075ad9; background: #e5efff; border-radius: 50%; }.mobile-task-card { display: grid; gap: 12px; padding: 14px; background: #fff; border: 1px solid #e1e7ef; border-radius: 10px; }.mobile-task-card header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }.mobile-task-card header > div { display: grid; }.mobile-task-card header strong { color: #162235; font-size: 15px; }.mobile-task-card header div span { margin-top: 4px; color: #6a788c; font-size: 12px; }.mobile-task-card dl { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin: 0; }.mobile-task-card dl div { display: grid; }.mobile-task-card dt { color: #7a8798; font-size: 10px; text-transform: uppercase; }.mobile-task-card dd { margin: 3px 0 0; color: #2f3e52; font-size: 12px; }.blocker-inline { display: flex; align-items: center; gap: 7px; margin: 0; padding: 9px; color: #c71d34; background: #fff1f3; border-radius: 8px; font-size: 12px; line-height: 1.45; }.mobile-task-card .row-action { justify-self: start; }.operations-rail { grid-template-columns: 1fr; }
   }
