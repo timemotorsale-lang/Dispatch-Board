@@ -4,9 +4,8 @@ import { notFound } from "next/navigation";
 import { TaskAssignmentPanel } from "@/features/tasks/task-assignment-panel";
 import { TaskCommentsPanel } from "@/features/tasks/task-comments-panel";
 import { TaskStatusPanel } from "@/features/tasks/task-status-panel";
-import { canUpdateAssignedWork } from "@/server/policies/access";
 import { requireCurrentUser } from "@/server/auth/current-user";
-import { isManager } from "@/server/policies/access";
+import { canCommentOnTask, isManager } from "@/server/policies/access";
 import { getTaskReadModelById } from "@/server/services/task-read";
 import { listActiveUserSummaries } from "@/server/services/user-summary";
 
@@ -42,12 +41,7 @@ export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
     notFound();
   }
 
-  const canComment = canUpdateAssignedWork({
-    actor: user,
-    assignedUserId: task.assignedUser.id,
-    requiresManagerApproval: task.requiresManagerApproval,
-    requestedAction: "comment"
-  });
+  const canComment = canCommentOnTask(user);
   const actorIsManager = isManager(user);
   const canUpdateStatus = actorIsManager || user.id === task.assignedUser.id;
   const assignableUsers = actorIsManager ? await listActiveUserSummaries() : [];

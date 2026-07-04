@@ -169,7 +169,18 @@ export function BoardControls({ board, filters, groupMode, presentation, onFilte
 }) {
   const tabs = [{ value: "", label: `All (${board.taskCount})` }, { value: "IN_PROGRESS", label: `In Progress (${board.statusCounts.IN_PROGRESS ?? 0})` }, { value: "BLOCKED", label: `Stuck (${board.statusCounts.BLOCKED ?? 0})` }, { value: "READY_FOR_REVIEW", label: `Manager Review (${board.statusCounts.READY_FOR_REVIEW ?? 0})` }, { value: "COMPLETED", label: `Completed (${board.statusCounts.COMPLETED ?? 0})` }];
   return <section className="board-controls">
-    <div className="board-tabs">{tabs.map((tab) => <button className={filters.status === tab.value ? "board-tab active" : "board-tab"} key={tab.value || "all"} onClick={() => onFilterChange("status", tab.value)} type="button">{tab.label}</button>)}</div>
+    <div className="board-tabs">{tabs.map((tab) => {
+      const toneClass = tab.value === ""
+        ? "board-tab-purple"
+        : tab.value === "IN_PROGRESS"
+          ? "board-tab-orange"
+          : tab.value === "BLOCKED"
+            ? "board-tab-red"
+            : tab.value === "READY_FOR_REVIEW"
+              ? "board-tab-yellow"
+              : "board-tab-green";
+      return <button className={filters.status === tab.value ? `board-tab ${toneClass} active` : `board-tab ${toneClass}`} key={tab.value || "all"} onClick={() => onFilterChange("status", tab.value)} type="button">{tab.label}</button>;
+    })}</div>
     <div className="filter-row">
       <select aria-label="Group board" value={groupMode} onChange={(event) => onGroupChange(event.target.value as BoardGroupMode)}>{groupingOptions.map((option) => <option key={option.value} value={option.value}>Group: {option.label}</option>)}</select>
       <select aria-label="Filter workflow" value={filters.workflowArea} onChange={(event) => onFilterChange("workflowArea", event.target.value)}><option value="">All workflows</option>{presentation.filterOptions.workflowAreas.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>

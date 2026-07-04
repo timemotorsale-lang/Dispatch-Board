@@ -102,7 +102,7 @@ export function TaskCommentsPanel({
       {comments.length === 0 ? (
         <EmptyStateCard
           eyebrow="No updates yet"
-          message="Task updates will appear here as the assigned staff member or a manager adds progress notes."
+          message="Task updates will appear here as the team adds progress notes, blockers, and handoff-ready context."
           title="No comments on this task"
         />
       ) : (
@@ -122,7 +122,7 @@ export function TaskCommentsPanel({
       {canComment ? (
         <form className="task-comments-form" onSubmit={handleSubmit}>
           <label className="field">
-            <span>Add update</span>
+            <span>Add comment</span>
             <textarea
               disabled={isSubmitting}
               maxLength={2000}
@@ -141,16 +141,16 @@ export function TaskCommentsPanel({
 
           <div className="task-comments-actions">
             <button className="pill pill-primary" disabled={isSubmitting} type="submit">
-              {isSubmitting ? "Saving..." : "Add update"}
+              {isSubmitting ? "Saving..." : "Add comment"}
             </button>
             {!canSubmitTaskComment(draftBody, isSubmitting) ? (
-              <p className="task-comments-helper-copy">Enter a short update to post it.</p>
+              <p className="task-comments-helper-copy">Enter a short comment to post it.</p>
             ) : null}
           </div>
         </form>
       ) : (
         <p className="task-comments-readonly-copy">
-          Only the assigned staff member or a manager can add updates to this task.
+          You need board access to add comments to this task.
         </p>
       )}
 
