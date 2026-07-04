@@ -20,10 +20,21 @@ function getModelBlock(schema: string, modelName: string) {
 describe("prisma schema constraints", () => {
   it("declares the DB-021 unique constraints and indexes in Prisma-native schema", async () => {
     const schema = await readFile(schemaPath, "utf8");
+    const taskTemplateModel = getModelBlock(schema, "TaskTemplate");
     const boardDayModel = getModelBlock(schema, "BoardDay");
     const taskModel = getModelBlock(schema, "Task");
     const taskCommentModel = getModelBlock(schema, "TaskComment");
     const generationRunModel = getModelBlock(schema, "GenerationRun");
+
+    expect(taskTemplateModel).toMatch(/templateCategory\s+String\?/);
+    expect(taskTemplateModel).toMatch(/priority\s+TaskTemplatePriority\s+@default\(MEDIUM\)/);
+    expect(taskTemplateModel).toMatch(/requiredUpdateFields\s+Json/);
+    expect(taskTemplateModel).toMatch(/checklistItems\s+Json/);
+    expect(taskTemplateModel).toMatch(/completionCriteria\s+Json/);
+    expect(taskTemplateModel).toMatch(/defaultStatusRules\s+Json/);
+    expect(taskTemplateModel).toMatch(/approvalRules\s+Json/);
+    expect(taskTemplateModel).toMatch(/intelligenceSignalType\s+String/);
+    expect(taskTemplateModel).toMatch(/taskCardDisplayHints\s+Json/);
 
     expect(boardDayModel).toMatch(/date\s+DateTime\s+@unique\s+@db\.Date/);
 

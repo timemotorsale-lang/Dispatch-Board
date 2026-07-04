@@ -1,4 +1,4 @@
-﻿generator client {
+generator client {
   provider = "prisma-client-js"
 }
 
@@ -26,6 +26,13 @@ enum WorkflowArea {
   COLLECTIONS
   SHOP
   GENERAL_MANAGER
+}
+
+enum TaskTemplatePriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
 }
 
 enum BoardGenerationStatus {
@@ -177,9 +184,18 @@ model TaskTemplate {
   id                      String       @id @default(cuid())
   title                   String
   description             String?
+  templateCategory        String?
   workflowArea            WorkflowArea
+  priority                TaskTemplatePriority @default(MEDIUM)
   defaultDueTime          String
   requiresManagerApproval Boolean      @default(false)
+  requiredUpdateFields    Json
+  checklistItems          Json
+  completionCriteria      Json
+  defaultStatusRules      Json
+  approvalRules           Json
+  intelligenceSignalType  String
+  taskCardDisplayHints    Json
   isActive                Boolean      @default(true)
   roleId                  String?
   dutyId                  String?

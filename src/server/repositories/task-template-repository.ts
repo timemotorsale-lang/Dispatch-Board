@@ -60,7 +60,15 @@ export function createTaskTemplateRepository(database: TaskTemplateDatabase = pr
 
     async createTaskTemplate(input: NormalizedTaskTemplateCreateInput): Promise<TaskTemplateRecord> {
       return database.taskTemplate.create({
-        data: input,
+        data: {
+          ...input,
+          requiredUpdateFields: input.requiredUpdateFields as Prisma.InputJsonValue,
+          checklistItems: input.checklistItems as Prisma.InputJsonValue,
+          completionCriteria: input.completionCriteria as Prisma.InputJsonValue,
+          defaultStatusRules: input.defaultStatusRules as Prisma.InputJsonValue,
+          approvalRules: input.approvalRules as Prisma.InputJsonValue,
+          taskCardDisplayHints: input.taskCardDisplayHints as Prisma.InputJsonValue
+        },
         include: taskTemplateInclude
       });
     },
@@ -70,9 +78,43 @@ export function createTaskTemplateRepository(database: TaskTemplateDatabase = pr
       input: NormalizedTaskTemplateUpdateInput
     ): Promise<TaskTemplateRecord | null> {
       try {
+        const data: Prisma.TaskTemplateUpdateInput = {
+          ...input,
+          ...(input.requiredUpdateFields
+            ? {
+                requiredUpdateFields: input.requiredUpdateFields as Prisma.InputJsonValue
+              }
+            : {}),
+          ...(input.checklistItems
+            ? {
+                checklistItems: input.checklistItems as Prisma.InputJsonValue
+              }
+            : {}),
+          ...(input.completionCriteria
+            ? {
+                completionCriteria: input.completionCriteria as Prisma.InputJsonValue
+              }
+            : {}),
+          ...(input.defaultStatusRules
+            ? {
+                defaultStatusRules: input.defaultStatusRules as Prisma.InputJsonValue
+              }
+            : {}),
+          ...(input.approvalRules
+            ? {
+                approvalRules: input.approvalRules as Prisma.InputJsonValue
+              }
+            : {}),
+          ...(input.taskCardDisplayHints
+            ? {
+                taskCardDisplayHints: input.taskCardDisplayHints as Prisma.InputJsonValue
+              }
+            : {})
+        };
+
         return await database.taskTemplate.update({
           where: { id },
-          data: input,
+          data,
           include: taskTemplateInclude
         });
       } catch (error) {

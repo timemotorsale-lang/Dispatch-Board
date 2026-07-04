@@ -11,6 +11,37 @@ import { getDefaultAppSettings } from "../src/server/validation/app-settings";
 
 const prisma = new PrismaClient();
 
+const defaultTemplateFoundation = {
+  templateCategory: null,
+  priority: "MEDIUM" as const,
+  requiredUpdateFields: [],
+  checklistItems: [],
+  completionCriteria: {
+    mode: "manual",
+    requiredChecklistKeys: [],
+    requiredFieldKeys: []
+  },
+  defaultStatusRules: {
+    allowedStatuses: [
+      "NOT_STARTED",
+      "IN_PROGRESS",
+      "BLOCKED",
+      "WAITING_ON_PARTS",
+      "WAITING_ON_APPROVAL",
+      "READY_FOR_REVIEW",
+      "COMPLETED"
+    ],
+    blockedReasonRequired: true,
+    waitingReasonRequiredStatuses: []
+  },
+  approvalRules: {
+    mode: "none",
+    readyForReviewRequired: false
+  },
+  intelligenceSignalType: "NONE",
+  taskCardDisplayHints: {}
+};
+
 async function main() {
   const defaultAppSettings = getDefaultAppSettings();
 
@@ -114,9 +145,16 @@ async function main() {
         where: { id: existingTemplate.id },
         data: {
           description: templateDefinition.description,
+          ...defaultTemplateFoundation,
           workflowArea: templateDefinition.workflowArea,
           defaultDueTime: templateDefinition.defaultDueTime,
           requiresManagerApproval: templateDefinition.requiresManagerApproval,
+          approvalRules: templateDefinition.requiresManagerApproval
+            ? {
+                mode: "manager_review",
+                readyForReviewRequired: true
+              }
+            : defaultTemplateFoundation.approvalRules,
           isActive: templateDefinition.isActive,
           roleId: roleId ?? null,
           dutyId: dutyId ?? null
@@ -129,9 +167,16 @@ async function main() {
       data: {
         title: templateDefinition.title,
         description: templateDefinition.description,
+        ...defaultTemplateFoundation,
         workflowArea: templateDefinition.workflowArea,
         defaultDueTime: templateDefinition.defaultDueTime,
         requiresManagerApproval: templateDefinition.requiresManagerApproval,
+        approvalRules: templateDefinition.requiresManagerApproval
+          ? {
+              mode: "manager_review",
+              readyForReviewRequired: true
+            }
+          : defaultTemplateFoundation.approvalRules,
         isActive: templateDefinition.isActive,
         roleId: roleId ?? null,
         dutyId: dutyId ?? null

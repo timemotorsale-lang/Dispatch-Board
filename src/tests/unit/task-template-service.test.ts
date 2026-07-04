@@ -1,4 +1,4 @@
-import { WorkflowArea } from "@prisma/client";
+import { TaskTemplatePriority, WorkflowArea } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -14,9 +14,47 @@ function createStoredTaskTemplate(
     id: string;
     title: string;
     description: string | null;
+    templateCategory: string | null;
     workflowArea: WorkflowArea;
+    priority: TaskTemplatePriority;
     defaultDueTime: string;
     requiresManagerApproval: boolean;
+    requiredUpdateFields: Array<{
+      key: string;
+      label: string;
+      type: "short_text" | "long_text" | "single_select" | "boolean";
+      required: boolean;
+      helpText: string | null;
+      options?: string[];
+    }>;
+    checklistItems: Array<{
+      key: string;
+      label: string;
+      description: string | null;
+      required: boolean;
+    }>;
+    completionCriteria: {
+      mode: "manual" | "checklist" | "update_fields" | "checklist_and_update_fields";
+      requiredChecklistKeys: string[];
+      requiredFieldKeys: string[];
+    };
+    defaultStatusRules: {
+      allowedStatuses: string[];
+      blockedReasonRequired: boolean;
+      waitingReasonRequiredStatuses: string[];
+    };
+    approvalRules: {
+      mode: "none" | "manager_review";
+      readyForReviewRequired: boolean;
+    };
+    intelligenceSignalType: string;
+    taskCardDisplayHints: {
+      emphasizeDueTime: boolean;
+      emphasizeVehicle: boolean;
+      emphasizeCustomer: boolean;
+      showChecklistProgress: boolean;
+      highlightReadyForReview: boolean;
+    };
     isActive: boolean;
     roleId: string | null;
     dutyId: string | null;
@@ -30,9 +68,43 @@ function createStoredTaskTemplate(
     id: "template-1",
     title: "Review inventory status",
     description: "Review the inventory pipeline for stale units.",
+    templateCategory: "daily_operating_procedure",
     workflowArea: WorkflowArea.INVENTORY,
+    priority: TaskTemplatePriority.MEDIUM,
     defaultDueTime: "09:00",
     requiresManagerApproval: false,
+    requiredUpdateFields: [],
+    checklistItems: [],
+    completionCriteria: {
+      mode: "manual",
+      requiredChecklistKeys: [],
+      requiredFieldKeys: []
+    },
+    defaultStatusRules: {
+      allowedStatuses: [
+        "NOT_STARTED",
+        "IN_PROGRESS",
+        "BLOCKED",
+        "WAITING_ON_PARTS",
+        "WAITING_ON_APPROVAL",
+        "READY_FOR_REVIEW",
+        "COMPLETED"
+      ],
+      blockedReasonRequired: true,
+      waitingReasonRequiredStatuses: []
+    },
+    approvalRules: {
+      mode: "none",
+      readyForReviewRequired: false
+    },
+    intelligenceSignalType: "NONE",
+    taskCardDisplayHints: {
+      emphasizeDueTime: false,
+      emphasizeVehicle: false,
+      emphasizeCustomer: false,
+      showChecklistProgress: false,
+      highlightReadyForReview: false
+    },
     isActive: true,
     roleId: "role-inventory",
     dutyId: "duty-inventory",
@@ -65,9 +137,15 @@ function createTaskTemplateRepository(
     createStoredTaskTemplate({
       id: "template-2",
       title: "Review blocked tasks",
+      templateCategory: "manager_review",
       workflowArea: WorkflowArea.GENERAL_MANAGER,
+      priority: TaskTemplatePriority.HIGH,
       defaultDueTime: "16:00",
       requiresManagerApproval: true,
+      approvalRules: {
+        mode: "manager_review",
+        readyForReviewRequired: true
+      },
       roleId: "role-manager",
       dutyId: null,
       role: {
@@ -113,9 +191,7 @@ function createTaskTemplateRepository(
 
   const repository: TaskTemplateRepository = {
     async listTaskTemplates(options = {}) {
-      return sortTemplates(
-        templates.filter((template) => options.includeInactive || template.isActive)
-      );
+      return sortTemplates(templates.filter((template) => options.includeInactive || template.isActive));
     },
     async findRoleById(roleId) {
       return roles.get(roleId) ?? null;
@@ -130,9 +206,18 @@ function createTaskTemplateRepository(
         id: `template-${nextTemplateNumber++}`,
         title: input.title,
         description: input.description,
+        templateCategory: input.templateCategory,
         workflowArea: input.workflowArea,
+        priority: input.priority,
         defaultDueTime: input.defaultDueTime,
         requiresManagerApproval: input.requiresManagerApproval,
+        requiredUpdateFields: input.requiredUpdateFields,
+        checklistItems: input.checklistItems,
+        completionCriteria: input.completionCriteria,
+        defaultStatusRules: input.defaultStatusRules,
+        approvalRules: input.approvalRules,
+        intelligenceSignalType: input.intelligenceSignalType,
+        taskCardDisplayHints: input.taskCardDisplayHints,
         isActive: input.isActive,
         roleId: input.roleId,
         dutyId: input.dutyId,
@@ -154,10 +239,8 @@ function createTaskTemplateRepository(
       }
 
       const currentTemplate = templates[templateIndex];
-      const roleId =
-        "roleId" in input ? (input.roleId ?? null) : currentTemplate.roleId;
-      const dutyId =
-        "dutyId" in input ? (input.dutyId ?? null) : currentTemplate.dutyId;
+      const roleId = "roleId" in input ? (input.roleId ?? null) : currentTemplate.roleId;
+      const dutyId = "dutyId" in input ? (input.dutyId ?? null) : currentTemplate.dutyId;
 
       const updatedTemplate = {
         ...currentTemplate,
@@ -201,7 +284,9 @@ describe("task template service", () => {
     ]);
     expect(templates[1]).toMatchObject({
       roleName: "Inventory Manager",
-      dutyName: "Review inventory status"
+      dutyName: "Review inventory status",
+      templateCategory: "daily_operating_procedure",
+      priority: TaskTemplatePriority.MEDIUM
     });
   });
 
@@ -210,11 +295,7 @@ describe("task template service", () => {
     const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
     const { repository } = createTaskTemplateRepository();
 
-    const templates = await listTaskTemplatesForManager(
-      manager,
-      { includeInactive: true },
-      repository
-    );
+    const templates = await listTaskTemplatesForManager(manager, { includeInactive: true }, repository);
 
     expect(templates).toHaveLength(3);
     expect(templates.some((template) => template.isActive === false)).toBe(true);
@@ -230,7 +311,7 @@ describe("task template service", () => {
     );
   });
 
-  it("allows a manager to create a valid task template", async () => {
+  it("allows a manager to create a valid structured task template", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
     const { repository, readTemplates } = createTaskTemplateRepository();
@@ -240,9 +321,45 @@ describe("task template service", () => {
       {
         title: "  Check photo-ready vehicles  ",
         description: "  Confirm photo-ready units are ready for merchandising.  ",
+        templateCategory: "daily_operating_procedure",
         workflowArea: "ADVERTISING",
+        priority: "HIGH",
         defaultDueTime: "10:15",
         requiresManagerApproval: false,
+        requiredUpdateFields: [
+          {
+            key: "vehicle_ref",
+            label: "Vehicle reference",
+            type: "short_text",
+            required: true
+          }
+        ],
+        checklistItems: [
+          {
+            key: "verify_ready",
+            label: "Verify the vehicle is photo ready",
+            required: true
+          }
+        ],
+        completionCriteria: {
+          mode: "checklist_and_update_fields",
+          requiredChecklistKeys: ["verify_ready"],
+          requiredFieldKeys: ["vehicle_ref"]
+        },
+        defaultStatusRules: {
+          allowedStatuses: ["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "READY_FOR_REVIEW", "COMPLETED"],
+          blockedReasonRequired: true,
+          waitingReasonRequiredStatuses: []
+        },
+        approvalRules: {
+          mode: "none",
+          readyForReviewRequired: false
+        },
+        intelligenceSignalType: "MARKETING_UPDATE",
+        taskCardDisplayHints: {
+          emphasizeVehicle: true,
+          showChecklistProgress: true
+        },
         roleId: "role-marketing",
         dutyId: "duty-photos"
       },
@@ -252,12 +369,41 @@ describe("task template service", () => {
     expect(template).toMatchObject({
       title: "Check photo-ready vehicles",
       description: "Confirm photo-ready units are ready for merchandising.",
+      templateCategory: "daily_operating_procedure",
       workflowArea: WorkflowArea.ADVERTISING,
+      priority: TaskTemplatePriority.HIGH,
       defaultDueTime: "10:15",
       requiresManagerApproval: false,
       isActive: true,
       roleName: "Marketing/Advertisement Manager",
-      dutyName: "Check vehicles ready for photos"
+      dutyName: "Check vehicles ready for photos",
+      requiredUpdateFields: [
+        {
+          key: "vehicle_ref",
+          label: "Vehicle reference",
+          type: "short_text",
+          required: true,
+          helpText: null
+        }
+      ],
+      checklistItems: [
+        {
+          key: "verify_ready",
+          label: "Verify the vehicle is photo ready",
+          description: null,
+          required: true
+        }
+      ],
+      completionCriteria: {
+        mode: "checklist_and_update_fields",
+        requiredChecklistKeys: ["verify_ready"],
+        requiredFieldKeys: ["vehicle_ref"]
+      },
+      approvalRules: {
+        mode: "none",
+        readyForReviewRequired: false
+      },
+      intelligenceSignalType: "MARKETING_UPDATE"
     });
     expect(readTemplates()).toHaveLength(4);
   });
@@ -273,8 +419,14 @@ describe("task template service", () => {
       {
         title: "Review inventory exceptions",
         description: "",
+        templateCategory: "manager_review",
+        priority: "CRITICAL",
         defaultDueTime: "09:30",
         requiresManagerApproval: true,
+        approvalRules: {
+          mode: "manager_review",
+          readyForReviewRequired: true
+        },
         roleId: "role-manager",
         dutyId: null
       },
@@ -285,8 +437,14 @@ describe("task template service", () => {
       id: "template-1",
       title: "Review inventory exceptions",
       description: null,
+      templateCategory: "manager_review",
+      priority: TaskTemplatePriority.CRITICAL,
       defaultDueTime: "09:30",
       requiresManagerApproval: true,
+      approvalRules: {
+        mode: "manager_review",
+        readyForReviewRequired: true
+      },
       roleId: "role-manager",
       dutyId: null,
       roleName: "General Manager",
@@ -375,6 +533,20 @@ describe("task template service", () => {
         manager,
         {
           title: "Review leads",
+          workflowArea: "SALES",
+          priority: "URGENT",
+          defaultDueTime: "15:00",
+          requiresManagerApproval: false
+        },
+        repository
+      )
+    ).rejects.toThrow(/valid priority/);
+
+    await expect(
+      createTaskTemplate(
+        manager,
+        {
+          title: "Review leads",
           workflowArea: "SERVICE",
           defaultDueTime: "15:00",
           requiresManagerApproval: false
@@ -408,6 +580,62 @@ describe("task template service", () => {
         repository
       )
     ).rejects.toThrow(/requiresManagerApproval/);
+
+    await expect(
+      createTaskTemplate(
+        manager,
+        {
+          title: "Review leads",
+          workflowArea: "SALES",
+          defaultDueTime: "15:00",
+          requiresManagerApproval: false,
+          requiredUpdateFields: [
+            {
+              key: "lead_stage",
+              label: "Lead stage",
+              type: "single_select"
+            }
+          ]
+        },
+        repository
+      )
+    ).rejects.toThrow(/options/);
+
+    await expect(
+      createTaskTemplate(
+        manager,
+        {
+          title: "Review leads",
+          workflowArea: "SALES",
+          defaultDueTime: "15:00",
+          requiresManagerApproval: false,
+          checklistItems: [{ key: "done", label: "Done" }],
+          completionCriteria: {
+            mode: "checklist",
+            requiredChecklistKeys: ["missing_step"],
+            requiredFieldKeys: []
+          }
+        },
+        repository
+      )
+    ).rejects.toThrow(/requiredChecklistKeys/);
+
+    await expect(
+      createTaskTemplate(
+        manager,
+        {
+          title: "Review leads",
+          workflowArea: "SALES",
+          defaultDueTime: "15:00",
+          requiresManagerApproval: false,
+          approvalRules: {
+            mode: "manager_review",
+            readyForReviewRequired: true
+          }
+        },
+        repository
+      )
+    ).rejects.toThrow(/requiresManagerApproval is false/);
 
     await expect(
       updateTaskTemplate(
