@@ -10,10 +10,14 @@ import { useLiveRefresh } from "@/hooks/use-live-refresh";
 import {
   filterMyTasks,
   getAllowedMyTaskStatuses,
+  hasMissingRequiredUpdate,
+  isTaskDueSoon,
+  isTaskOverdue,
   getMyTasksFilterLabel,
   getMyTasksFilterOptions,
   getPrimaryMyTaskStatusActions,
   getTaskActionLabel,
+  needsManagerDecision,
   type MyTasksFilter
 } from "@/features/tasks/my-tasks-helpers";
 import type { BoardReadTask } from "@/server/services/board-read";
@@ -146,6 +150,92 @@ function getReadyForReviewCount(tasks: BoardReadTask[]) {
   return tasks.filter((task) => task.status === TaskStatus.READY_FOR_REVIEW).length;
 }
 
+function getWaitingOnApprovalCount(tasks: BoardReadTask[]) {
+  return tasks.filter((task) => task.status === TaskStatus.WAITING_ON_APPROVAL).length;
+}
+
+function getOverdueTaskCount(tasks: BoardReadTask[], now: Date) {
+  return tasks.filter((task) => isTaskOverdue(task, now)).length;
+}
+
+function getDueSoonTaskCount(tasks: BoardReadTask[], now: Date) {
+  return tasks.filter((task) => isTaskDueSoon(task, now)).length;
+}
+
+function getMissingRequiredUpdateCount(tasks: BoardReadTask[]) {
+  return tasks.filter((task) => hasMissingRequiredUpdate(task)).length;
+}
+
+function getNeedsManagerDecisionCount(tasks: BoardReadTask[]) {
+  return tasks.filter((task) => needsManagerDecision(task)).length;
+}
+
+type TaskSignalTone = "danger" | "warning" | "review" | "success" | "default";
+
+type TaskSignal = {
+  label: string;
+  tone: TaskSignalTone;
+};
+
+function getTaskSignals(task: BoardReadTask, now: Date): TaskSignal[] {
+  const signals: TaskSignal[] = [];
+
+  if (hasMissingRequiredUpdate(task)) {
+    signals.push({ label: "Missing required update", tone: "warning" });
+  }
+
+  if (isTaskOverdue(task, now)) {
+    signals.push({ label: "Overdue", tone: "danger" });
+  } else if (isTaskDueSoon(task, now)) {
+    signals.push({ label: "Due soon", tone: "warning" });
+  }
+
+  if (task.status === TaskStatus.BLOCKED) {
+    signals.push({ label: "Blocked", tone: "danger" });
+  }
+
+  if (task.status === TaskStatus.WAITING_ON_APPROVAL) {
+    signals.push({ label: "Waiting on approval", tone: "warning" });
+  }
+
+  if (task.status === TaskStatus.READY_FOR_REVIEW) {
+    signals.push({ label: "Ready for review", tone: "review" });
+  }
+
+  if (needsManagerDecision(task)) {
+    signals.push({ label: "Needs manager decision", tone: "review" });
+  }
+
+  return signals;
+}
+
+function getTaskCardToneClass(task: BoardReadTask, now: Date) {
+  const signals = getTaskSignals(task, now);
+
+  if (signals.some((signal) => signal.label === "Blocked" || signal.label === "Overdue")) {
+    return "my-task-card-signal-danger";
+  }
+
+  if (signals.some((signal) => signal.label === "Needs manager decision" || signal.label === "Ready for review")) {
+    return "my-task-card-signal-review";
+  }
+
+  if (signals.some((signal) => signal.label === "Missing required update" || signal.label === "Due soon" || signal.label === "Waiting on approval")) {
+    return "my-task-card-signal-warning";
+  }
+
+  return "my-task-card-signal-default";
+}
+
+function getSignalChipClass(tone: TaskSignalTone) {
+  if (tone === "danger") return "board-chip my-task-signal-chip my-task-signal-chip-danger";
+  if (tone === "warning") return "board-chip my-task-signal-chip my-task-signal-chip-warning";
+  if (tone === "review") return "board-chip my-task-signal-chip my-task-signal-chip-review";
+  if (tone === "success") return "board-chip my-task-signal-chip my-task-signal-chip-success";
+
+  return "board-chip my-task-signal-chip";
+}
+
 function statusNeedsGuidedUpdateFields(status: TaskStatus) {
   return status === TaskStatus.READY_FOR_REVIEW || status === TaskStatus.COMPLETED;
 }
@@ -180,7 +270,6 @@ type TaskCardProps = {
 };
 
 function TaskCard({ isManager, now, onTaskUpdated, task }: TaskCardProps) {
-  const allowedStatuses = getAllowedMyTaskStatuses(task, isManager);
   const [selectedStatus, setSelectedStatus] = useState<TaskStatus>(task.status as TaskStatus);
   const [blockerReason, setBlockerReason] = useState(task.blockerReason ?? "");
   const [updateFieldValues, setUpdateFieldValues] = useState<Record<string, string | boolean>>(
@@ -188,6 +277,11 @@ function TaskCard({ isManager, now, onTaskUpdated, task }: TaskCardProps) {
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const displayTask = {
+    ...task,
+    status: selectedStatus
+  };
+  const allowedStatuses = getAllowedMyTaskStatuses(task, isManager);
   const hasStatusChoices = allowedStatuses.length > 0;
   const hasGuidedUpdateFields = task.requiredUpdateFields.length > 0;
   const primaryStatusActions = getPrimaryMyTaskStatusActions(task, isManager);
@@ -206,6 +300,7 @@ function TaskCard({ isManager, now, onTaskUpdated, task }: TaskCardProps) {
   );
   const shouldHighlightGuidedUpdates =
     hasGuidedUpdateFields && statusNeedsGuidedUpdateFields(selectedStatus);
+  const cardSignals = getTaskSignals(displayTask, now);
   const canSubmit =
     hasStatusChoices &&
     !isSubmitting &&
@@ -270,7 +365,7 @@ function TaskCard({ isManager, now, onTaskUpdated, task }: TaskCardProps) {
   }
 
   return (
-    <article className="panel-card my-task-card">
+    <article className={`panel-card my-task-card ${getTaskCardToneClass(displayTask, now)}`}>
       <div className="my-task-topline">
         <div className="my-task-copy">
           <div className="my-task-heading-row">
@@ -313,6 +408,16 @@ function TaskCard({ isManager, now, onTaskUpdated, task }: TaskCardProps) {
         {task.vehicleReference ? <span className="board-chip">Vehicle: {task.vehicleReference}</span> : null}
         {task.customerReference ? <span className="board-chip">Customer: {task.customerReference}</span> : null}
       </div>
+
+      {cardSignals.length > 0 ? (
+        <div className="board-chip-row my-task-signal-row" aria-label={`Task signals for ${task.title}`}>
+          {cardSignals.map((signal) => (
+            <span className={getSignalChipClass(signal.tone)} key={signal.label}>
+              {signal.label}
+            </span>
+          ))}
+        </div>
+      ) : null}
 
       {task.blockerReason && task.status === TaskStatus.BLOCKED ? (
         <p className="board-task-alert">Blocked: {task.blockerReason}</p>
@@ -830,17 +935,37 @@ export function MyTasksScreen({
                 </div>
 
                 <ul className="board-attention-list">
-                  <li className="board-attention-item">
+                  <li className="board-attention-item board-attention-item-default">
                     <span>Open work</span>
                     <strong>{getActiveTaskCount(tasks)}</strong>
                   </li>
-                  <li className="board-attention-item">
+                  <li className="board-attention-item board-attention-item-warning">
+                    <span>Missing required update</span>
+                    <strong>{getMissingRequiredUpdateCount(tasks)}</strong>
+                  </li>
+                  <li className="board-attention-item board-attention-item-danger">
+                    <span>Overdue</span>
+                    <strong>{getOverdueTaskCount(tasks, now)}</strong>
+                  </li>
+                  <li className="board-attention-item board-attention-item-warning">
+                    <span>Due soon</span>
+                    <strong>{getDueSoonTaskCount(tasks, now)}</strong>
+                  </li>
+                  <li className="board-attention-item board-attention-item-danger">
                     <span>Blocked</span>
                     <strong>{getBlockedTaskCount(tasks)}</strong>
                   </li>
-                  <li className="board-attention-item">
+                  <li className="board-attention-item board-attention-item-warning">
+                    <span>Waiting on approval</span>
+                    <strong>{getWaitingOnApprovalCount(tasks)}</strong>
+                  </li>
+                  <li className="board-attention-item board-attention-item-review">
                     <span>Ready for review</span>
                     <strong>{getReadyForReviewCount(tasks)}</strong>
+                  </li>
+                  <li className="board-attention-item board-attention-item-review">
+                    <span>Needs manager decision</span>
+                    <strong>{getNeedsManagerDecisionCount(tasks)}</strong>
                   </li>
                 </ul>
               </section>
