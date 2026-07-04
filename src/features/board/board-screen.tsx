@@ -275,6 +275,21 @@ export function BoardScreen({
     }));
   }
 
+  function handleAttentionSelect(status: string) {
+    setGroupMode(status ? "status" : "assignee");
+    setFilters((current) => ({
+      ...current,
+      metricFilter: "",
+      status: current.status === status ? "" : status,
+      assigneeId: "",
+      workflowArea: "",
+      searchText: ""
+    }));
+    requestAnimationFrame(() => {
+      boardPrimaryRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
   useLiveRefresh(() => {
     requestBoardReload();
   });
@@ -363,7 +378,12 @@ export function BoardScreen({
                 taskCount={board.taskCount}
               />
             </div>
-            <OperationalRail recentActivity={activityEvents} tasks={presentation.filteredTasks} />
+            <OperationalRail
+              activeAttentionStatus={filters.status}
+              onAttentionSelect={handleAttentionSelect}
+              recentActivity={activityEvents}
+              tasks={board.tasks}
+            />
           </div>
         </>
       ) : null}

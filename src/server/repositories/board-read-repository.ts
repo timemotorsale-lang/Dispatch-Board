@@ -17,9 +17,12 @@ const boardTaskSelect = {
   description: true,
   status: true,
   dueAt: true,
+  updatedAt: true,
   workflowArea: true,
   sourceType: true,
   requiresManagerApproval: true,
+  templateSnapshot: true,
+  updateFieldValues: true,
   vehicleReference: true,
   customerReference: true,
   blockerReason: true,
@@ -41,7 +44,7 @@ const boardTaskSelect = {
   },
   recommendationReasonCode: true,
   recommendationExplanation: true
-} satisfies Prisma.TaskSelect;
+} as const;
 
 export type BoardReadBoardDayRecord = Prisma.BoardDayGetPayload<{
   select: typeof boardDaySelect;

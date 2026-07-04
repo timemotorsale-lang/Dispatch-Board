@@ -7,6 +7,7 @@ import { formatBoardEnumLabel, type BoardFilters, type BoardGroupMode, type Boar
 import type { ActivityFeedEvent } from "@/server/services/activity-feed";
 import type { BoardReadModel, BoardReadTask } from "@/server/services/board-read";
 import type { ActiveUserSummary } from "@/server/services/user-summary";
+import { listProjectCardSummaries } from "@/features/projects/project-data";
 
 type Task = Omit<BoardReadTask, "assignedUser"> & { assignedUser: BoardReadTask["assignedUser"] | null };
 
@@ -140,7 +141,6 @@ export function OperationsStrip({
   tasks: Task[];
 }) {
   const people = new Map<string, { count: number; id: string }>();
-  const workflow = new Map<string, number>();
   for (const task of tasks) {
     const owner = task.assignedUser?.name ?? "Unassigned";
     const ownerId = task.assignedUser?.id ?? "unassigned";
@@ -149,14 +149,16 @@ export function OperationsStrip({
       count: (currentOwner?.count ?? 0) + 1,
       id: currentOwner?.id ?? ownerId
     });
-    workflow.set(task.workflowArea, (workflow.get(task.workflowArea) ?? 0) + 1);
   }
   const team = [...people.entries()].sort((a, b) => b[1].count - a[1].count).slice(0, 4);
-  const flow = [...workflow.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   const referenced = tasks.filter((task) => task.customerReference || task.vehicleReference).length;
+  const projects = listProjectCardSummaries(tasks);
+  const activeProjects = projects.filter(({ tasks: projectTasks }) => projectTasks.length > 0).length;
+  const blockedProjects = projects.filter(({ stats }) => stats.blocked > 0).length;
+  const reviewProjects = projects.filter(({ stats }) => stats.readyForReview > 0).length;
   return <section className="operations-strip">
     <article><header><span><UsersRound size={16} /> Team load</span><small>{people.size} owners</small></header><div className="team-load">{team.map(([name, owner]) => <button aria-pressed={activeAssigneeId === owner.id} className={activeAssigneeId === owner.id ? "team-load-chip team-load-chip-active" : "team-load-chip"} key={name} onClick={() => onAssigneeSelect(owner.id)} type="button"><span className="mini-avatar">{name[0]}</span><span>{name.split(" ")[0]}<strong>{owner.count}</strong></span></button>)}</div></article>
-    <article><header><span><Layers3 size={16} /> Workflow flow</span><small>Current board</small></header><div className="flow-list">{flow.map(([name, count], index) => <div key={name}><span>{formatBoardEnumLabel(name)}</span><strong>{count}</strong>{index < flow.length - 1 ? <ChevronRight size={14} /> : null}</div>)}</div></article>
+    <article className="projects-entry-panel"><header><span><Layers3 size={16} /> Projects</span><small>Open the project hub</small></header><div className="projects-entry-copy"><strong>{activeProjects} active project areas today</strong><p>Keep the board clean here, then open the Projects hub to choose Inventory, Shop, Advertising, Sales, Administration, Documentation, or Collections.</p></div><dl className="projects-entry-metrics"><div><dt>Active areas</dt><dd>{activeProjects}</dd></div><div><dt>Blocked</dt><dd>{blockedProjects}</dd></div><div><dt>Review</dt><dd>{reviewProjects}</dd></div></dl><Link className="pill pill-secondary projects-entry-action" href="/projects">Open Projects Hub</Link></article>
     <article><header><span><CalendarDays size={16} /> Customer / vehicle context</span><small>Visibility</small></header><div className="context-count"><strong>{referenced}</strong><span>tasks include a customer or vehicle reference</span></div></article>
   </section>;
 }
@@ -169,7 +171,18 @@ export function BoardControls({ board, filters, groupMode, presentation, onFilte
 }) {
   const tabs = [{ value: "", label: `All (${board.taskCount})` }, { value: "IN_PROGRESS", label: `In Progress (${board.statusCounts.IN_PROGRESS ?? 0})` }, { value: "BLOCKED", label: `Stuck (${board.statusCounts.BLOCKED ?? 0})` }, { value: "READY_FOR_REVIEW", label: `Manager Review (${board.statusCounts.READY_FOR_REVIEW ?? 0})` }, { value: "COMPLETED", label: `Completed (${board.statusCounts.COMPLETED ?? 0})` }];
   return <section className="board-controls">
-    <div className="board-tabs">{tabs.map((tab) => <button className={filters.status === tab.value ? "board-tab active" : "board-tab"} key={tab.value || "all"} onClick={() => onFilterChange("status", tab.value)} type="button">{tab.label}</button>)}</div>
+    <div className="board-tabs">{tabs.map((tab) => {
+      const toneClass = tab.value === ""
+        ? "board-tab-purple"
+        : tab.value === "IN_PROGRESS"
+          ? "board-tab-orange"
+          : tab.value === "BLOCKED"
+            ? "board-tab-red"
+            : tab.value === "READY_FOR_REVIEW"
+              ? "board-tab-yellow"
+              : "board-tab-green";
+      return <button className={filters.status === tab.value ? `board-tab ${toneClass} active` : `board-tab ${toneClass}`} key={tab.value || "all"} onClick={() => onFilterChange("status", tab.value)} type="button">{tab.label}</button>;
+    })}</div>
     <div className="filter-row">
       <select aria-label="Group board" value={groupMode} onChange={(event) => onGroupChange(event.target.value as BoardGroupMode)}>{groupingOptions.map((option) => <option key={option.value} value={option.value}>Group: {option.label}</option>)}</select>
       <select aria-label="Filter workflow" value={filters.workflowArea} onChange={(event) => onFilterChange("workflowArea", event.target.value)}><option value="">All workflows</option>{presentation.filterOptions.workflowAreas.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
@@ -248,11 +261,21 @@ function formatActivityTimestamp(value: string) {
   }).format(new Date(value));
 }
 
-export function OperationalRail({ recentActivity, tasks }: { recentActivity: ActivityFeedEvent[]; tasks: Task[] }) {
+export function OperationalRail({
+  activeAttentionStatus,
+  onAttentionSelect,
+  recentActivity,
+  tasks
+}: {
+  activeAttentionStatus: string;
+  onAttentionSelect(status: string): void;
+  recentActivity: ActivityFeedEvent[];
+  tasks: Task[];
+}) {
   const attention = [{ label: "Blocked", detail: "Tasks are blocked", status: "BLOCKED", tone: "red" }, { label: "Waiting on Parts", detail: "Work waiting on parts", status: "WAITING_ON_PARTS", tone: "orange" }, { label: "Waiting on Approval", detail: "Awaiting manager approval", status: "WAITING_ON_APPROVAL", tone: "amber" }, { label: "Ready for Review", detail: "Ready for manager review", status: "READY_FOR_REVIEW", tone: "purple" }];
   const upcoming = [...tasks].filter((task) => task.status !== "COMPLETED").sort((a, b) => +new Date(a.dueAt) - +new Date(b.dueAt)).slice(0, 4);
   return <aside className="operations-rail">
-    <section className="rail-card"><header><h2>Needs Attention</h2><Link href="/manager-review">View all</Link></header><div className="attention-list">{attention.map((item) => <div className={`attention-row attention-${item.tone}`} key={item.status}><span className="attention-dot">!</span><div><strong>{item.label}</strong><small>{item.detail}</small></div><b>{count(tasks, item.status)}</b></div>)}</div></section>
+    <section className="rail-card"><header><h2>Needs Attention</h2><button className="rail-header-action" onClick={() => onAttentionSelect("")} type="button">View all</button></header><div className="attention-list">{attention.map((item) => <button aria-pressed={activeAttentionStatus === item.status} className={activeAttentionStatus === item.status ? `attention-row attention-${item.tone} attention-row-active` : `attention-row attention-${item.tone}`} key={item.status} onClick={() => onAttentionSelect(item.status)} type="button"><span className="attention-dot">!</span><div><strong>{item.label}</strong><small>{item.detail}</small></div><b>{count(tasks, item.status)}</b></button>)}</div></section>
     <section className="rail-card"><header><h2>Due Next</h2><span>Today</span></header><div className="due-list">{upcoming.length ? upcoming.map((task) => <Link href={`/tasks/${task.id}`} key={task.id}><time>{formatTime(task.dueAt)}</time><span><strong>{task.title}</strong><small>{task.assignedUser?.name ?? "Unassigned"}</small></span></Link>) : <p className="rail-empty">No upcoming work.</p>}</div></section>
     <section className="rail-card"><header><h2>Today&apos;s Activity</h2><span>Live feed</span></header>{recentActivity.length ? <div className="due-list">{recentActivity.slice(0, 5).map((event) => <Link href={event.task ? `/tasks/${event.task.id}` : "/activity"} key={event.id}><time>{formatActivityTimestamp(event.createdAt)}</time><span><strong>{event.message}</strong><small>{event.actor?.name ?? "System"}</small></span></Link>)}</div> : <div className="activity-placeholder"><Clock3 size={20} /><strong>No activity yet</strong><p>Generation, status changes, and task updates will start appearing here as the day moves.</p></div>}<Link className="rail-footer-link" href="/activity">Open activity view <ChevronRight size={15} /></Link></section>
   </aside>;

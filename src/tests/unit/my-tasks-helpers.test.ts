@@ -6,7 +6,11 @@ import {
   getAllowedMyTaskStatuses,
   getMyTasksFilterLabel,
   getPrimaryMyTaskStatusActions,
-  getTasksAssignedToUser
+  getTasksAssignedToUser,
+  hasMissingRequiredUpdate,
+  isTaskDueSoon,
+  isTaskOverdue,
+  needsManagerDecision
 } from "@/features/tasks/my-tasks-helpers";
 import type { BoardReadTask } from "@/server/services/board-read";
 
@@ -20,6 +24,8 @@ function createTask(overrides: Partial<BoardReadTask> = {}): BoardReadTask {
     workflowArea: "SALES",
     sourceType: "TEMPLATE",
     requiresManagerApproval: false,
+    requiredUpdateFields: [],
+    updateFieldValues: {},
     assignedUser: {
       id: "user-1",
       name: "Baraka Sales",
@@ -80,6 +86,41 @@ describe("my tasks helpers", () => {
     expect(
       filterMyTasks(tasks, "dueSoon", new Date("2026-06-18T15:30:00.000Z")).map((task) => task.id)
     ).toEqual(["task-soon"]);
+  });
+
+  it("distinguishes overdue from due soon", () => {
+    const overdueTask = createTask({
+      dueAt: "2026-06-18T15:00:00.000Z"
+    });
+    const dueSoonTask = createTask({
+      dueAt: "2026-06-18T16:30:00.000Z"
+    });
+
+    expect(isTaskOverdue(overdueTask, new Date("2026-06-18T15:30:00.000Z"))).toBe(true);
+    expect(isTaskDueSoon(overdueTask, new Date("2026-06-18T15:30:00.000Z"))).toBe(false);
+    expect(isTaskDueSoon(dueSoonTask, new Date("2026-06-18T15:30:00.000Z"))).toBe(true);
+  });
+
+  it("flags missing required updates and manager-decision work", () => {
+    const missingUpdateTask = createTask({
+      requiredUpdateFields: [
+        {
+          key: "repair_status",
+          label: "Repair status",
+          type: "short_text",
+          required: true,
+          helpText: null
+        }
+      ],
+      updateFieldValues: {}
+    });
+    const managerDecisionTask = createTask({
+      status: TaskStatus.READY_FOR_REVIEW,
+      requiresManagerApproval: true
+    });
+
+    expect(hasMissingRequiredUpdate(missingUpdateTask)).toBe(true);
+    expect(needsManagerDecision(managerDecisionTask)).toBe(true);
   });
 
   it("offers ready-for-review instead of completed for approval-required staff work", () => {

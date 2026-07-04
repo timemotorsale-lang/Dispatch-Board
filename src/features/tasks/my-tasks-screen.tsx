@@ -10,10 +10,14 @@ import { useLiveRefresh } from "@/hooks/use-live-refresh";
 import {
   filterMyTasks,
   getAllowedMyTaskStatuses,
+  hasMissingRequiredUpdate,
+  isTaskDueSoon,
+  isTaskOverdue,
   getMyTasksFilterLabel,
   getMyTasksFilterOptions,
   getPrimaryMyTaskStatusActions,
   getTaskActionLabel,
+  needsManagerDecision,
   type MyTasksFilter
 } from "@/features/tasks/my-tasks-helpers";
 import type { BoardReadTask } from "@/server/services/board-read";
@@ -34,12 +38,16 @@ type MyTasksScreenProps = {
 type StatusUpdatePayload = {
   status: TaskStatus;
   blockerReason?: string;
+  updateFields?: Record<string, string | boolean>;
 };
 
 type TaskOverride = {
   blockerReason: string | null;
   status: TaskStatus;
+  updateFieldValues: Record<string, string | boolean>;
 };
+
+type GuidedUpdateField = BoardReadTask["requiredUpdateFields"][number];
 
 function formatBoardDateLabel(boardDate: string) {
   return new Intl.DateTimeFormat("en-US", {
@@ -142,20 +150,140 @@ function getReadyForReviewCount(tasks: BoardReadTask[]) {
   return tasks.filter((task) => task.status === TaskStatus.READY_FOR_REVIEW).length;
 }
 
+function getWaitingOnApprovalCount(tasks: BoardReadTask[]) {
+  return tasks.filter((task) => task.status === TaskStatus.WAITING_ON_APPROVAL).length;
+}
+
+function getOverdueTaskCount(tasks: BoardReadTask[], now: Date) {
+  return tasks.filter((task) => isTaskOverdue(task, now)).length;
+}
+
+function getDueSoonTaskCount(tasks: BoardReadTask[], now: Date) {
+  return tasks.filter((task) => isTaskDueSoon(task, now)).length;
+}
+
+function getMissingRequiredUpdateCount(tasks: BoardReadTask[]) {
+  return tasks.filter((task) => hasMissingRequiredUpdate(task)).length;
+}
+
+function getNeedsManagerDecisionCount(tasks: BoardReadTask[]) {
+  return tasks.filter((task) => needsManagerDecision(task)).length;
+}
+
+type TaskSignalTone = "danger" | "warning" | "review" | "success" | "default";
+
+type TaskSignal = {
+  label: string;
+  tone: TaskSignalTone;
+};
+
+function getTaskSignals(task: BoardReadTask, now: Date): TaskSignal[] {
+  const signals: TaskSignal[] = [];
+
+  if (hasMissingRequiredUpdate(task)) {
+    signals.push({ label: "Missing required update", tone: "warning" });
+  }
+
+  if (isTaskOverdue(task, now)) {
+    signals.push({ label: "Overdue", tone: "danger" });
+  } else if (isTaskDueSoon(task, now)) {
+    signals.push({ label: "Due soon", tone: "warning" });
+  }
+
+  if (task.status === TaskStatus.BLOCKED) {
+    signals.push({ label: "Blocked", tone: "danger" });
+  }
+
+  if (task.status === TaskStatus.WAITING_ON_APPROVAL) {
+    signals.push({ label: "Waiting on approval", tone: "warning" });
+  }
+
+  if (task.status === TaskStatus.READY_FOR_REVIEW) {
+    signals.push({ label: "Ready for review", tone: "review" });
+  }
+
+  if (needsManagerDecision(task)) {
+    signals.push({ label: "Needs manager decision", tone: "review" });
+  }
+
+  return signals;
+}
+
+function getTaskCardToneClass(task: BoardReadTask, now: Date) {
+  const signals = getTaskSignals(task, now);
+
+  if (signals.some((signal) => signal.label === "Blocked" || signal.label === "Overdue")) {
+    return "my-task-card-signal-danger";
+  }
+
+  if (signals.some((signal) => signal.label === "Needs manager decision" || signal.label === "Ready for review")) {
+    return "my-task-card-signal-review";
+  }
+
+  if (signals.some((signal) => signal.label === "Missing required update" || signal.label === "Due soon" || signal.label === "Waiting on approval")) {
+    return "my-task-card-signal-warning";
+  }
+
+  return "my-task-card-signal-default";
+}
+
+function getSignalChipClass(tone: TaskSignalTone) {
+  if (tone === "danger") return "board-chip my-task-signal-chip my-task-signal-chip-danger";
+  if (tone === "warning") return "board-chip my-task-signal-chip my-task-signal-chip-warning";
+  if (tone === "review") return "board-chip my-task-signal-chip my-task-signal-chip-review";
+  if (tone === "success") return "board-chip my-task-signal-chip my-task-signal-chip-success";
+
+  return "board-chip my-task-signal-chip";
+}
+
+function statusNeedsGuidedUpdateFields(status: TaskStatus) {
+  return status === TaskStatus.READY_FOR_REVIEW || status === TaskStatus.COMPLETED;
+}
+
+function isGuidedUpdateFieldComplete(
+  field: GuidedUpdateField,
+  value: string | boolean | undefined
+) {
+  if (!field.required) {
+    return true;
+  }
+
+  if (typeof value === "boolean") {
+    return true;
+  }
+
+  return typeof value === "string" && value.trim().length > 0;
+}
+
 type TaskCardProps = {
   isManager: boolean;
   now: Date;
-  onTaskUpdated(taskId: string, update: { status: TaskStatus; blockerReason: string | null }): void;
+  onTaskUpdated(
+    taskId: string,
+    update: {
+      status: TaskStatus;
+      blockerReason: string | null;
+      updateFieldValues: Record<string, string | boolean>;
+    }
+  ): void;
   task: BoardReadTask;
 };
 
 function TaskCard({ isManager, now, onTaskUpdated, task }: TaskCardProps) {
-  const allowedStatuses = getAllowedMyTaskStatuses(task, isManager);
   const [selectedStatus, setSelectedStatus] = useState<TaskStatus>(task.status as TaskStatus);
   const [blockerReason, setBlockerReason] = useState(task.blockerReason ?? "");
+  const [updateFieldValues, setUpdateFieldValues] = useState<Record<string, string | boolean>>(
+    task.updateFieldValues ?? {}
+  );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const displayTask = {
+    ...task,
+    status: selectedStatus
+  };
+  const allowedStatuses = getAllowedMyTaskStatuses(task, isManager);
   const hasStatusChoices = allowedStatuses.length > 0;
+  const hasGuidedUpdateFields = task.requiredUpdateFields.length > 0;
   const primaryStatusActions = getPrimaryMyTaskStatusActions(task, isManager);
   const buttonLabel = getTaskActionLabel(
     selectedStatus,
@@ -164,6 +292,15 @@ function TaskCard({ isManager, now, onTaskUpdated, task }: TaskCardProps) {
   );
   const trimmedBlockerReason = blockerReason.trim();
   const needsBlockerReason = selectedStatus === TaskStatus.BLOCKED;
+  const guidedUpdateFieldsCompleteCount = task.requiredUpdateFields.filter((field) =>
+    isGuidedUpdateFieldComplete(field, updateFieldValues[field.key])
+  ).length;
+  const missingRequiredUpdateFields = task.requiredUpdateFields.filter(
+    (field) => field.required && !isGuidedUpdateFieldComplete(field, updateFieldValues[field.key])
+  );
+  const shouldHighlightGuidedUpdates =
+    hasGuidedUpdateFields && statusNeedsGuidedUpdateFields(selectedStatus);
+  const cardSignals = getTaskSignals(displayTask, now);
   const canSubmit =
     hasStatusChoices &&
     !isSubmitting &&
@@ -189,6 +326,7 @@ function TaskCard({ isManager, now, onTaskUpdated, task }: TaskCardProps) {
               id: string;
               status: TaskStatus;
               blockerReason: string | null;
+              updateFieldValues?: Record<string, string | boolean>;
             };
             error?: string;
           }
@@ -201,9 +339,11 @@ function TaskCard({ isManager, now, onTaskUpdated, task }: TaskCardProps) {
 
       setSelectedStatus(result.task.status);
       setBlockerReason(result.task.blockerReason ?? "");
+      setUpdateFieldValues(result.task.updateFieldValues ?? {});
       onTaskUpdated(task.id, {
         status: result.task.status,
-        blockerReason: result.task.blockerReason
+        blockerReason: result.task.blockerReason,
+        updateFieldValues: result.task.updateFieldValues ?? {}
       });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to update this task right now.");
@@ -217,12 +357,15 @@ function TaskCard({ isManager, now, onTaskUpdated, task }: TaskCardProps) {
     setErrorMessage(null);
 
     if (status !== TaskStatus.BLOCKED) {
-      void submitStatusUpdate({ status });
+      void submitStatusUpdate({
+        status,
+        ...(hasGuidedUpdateFields ? { updateFields: updateFieldValues } : {})
+      });
     }
   }
 
   return (
-    <article className="panel-card my-task-card">
+    <article className={`panel-card my-task-card ${getTaskCardToneClass(displayTask, now)}`}>
       <div className="my-task-topline">
         <div className="my-task-copy">
           <div className="my-task-heading-row">
@@ -266,12 +409,180 @@ function TaskCard({ isManager, now, onTaskUpdated, task }: TaskCardProps) {
         {task.customerReference ? <span className="board-chip">Customer: {task.customerReference}</span> : null}
       </div>
 
+      {cardSignals.length > 0 ? (
+        <div className="board-chip-row my-task-signal-row" aria-label={`Task signals for ${task.title}`}>
+          {cardSignals.map((signal) => (
+            <span className={getSignalChipClass(signal.tone)} key={signal.label}>
+              {signal.label}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
       {task.blockerReason && task.status === TaskStatus.BLOCKED ? (
         <p className="board-task-alert">Blocked: {task.blockerReason}</p>
       ) : null}
 
       {hasStatusChoices ? (
         <div className="my-task-action-grid">
+          {hasGuidedUpdateFields ? (
+            <section
+              className={
+                shouldHighlightGuidedUpdates
+                  ? "my-task-guided-update-panel my-task-guided-update-panel-active"
+                  : "my-task-guided-update-panel"
+              }
+            >
+              <div className="my-task-guided-update-header">
+                <div className="my-task-guided-update-copy">
+                  <strong>Required update</strong>
+                  <p>Capture the key details for this workflow before sending it forward.</p>
+                </div>
+                <div className="my-task-guided-update-progress">
+                  <span>
+                    {guidedUpdateFieldsCompleteCount} of {task.requiredUpdateFields.length} ready
+                  </span>
+                  {shouldHighlightGuidedUpdates && missingRequiredUpdateFields.length > 0 ? (
+                    <small>Needed for review or completion</small>
+                  ) : (
+                    <small>Saved on this task as you update it</small>
+                  )}
+                </div>
+              </div>
+
+              {shouldHighlightGuidedUpdates && missingRequiredUpdateFields.length > 0 ? (
+                <div className="my-task-guided-update-warning" role="status">
+                  Missing: {missingRequiredUpdateFields.map((field) => field.label).join(", ")}
+                </div>
+              ) : null}
+
+              <div className="my-task-guided-update-fields">
+                {task.requiredUpdateFields.map((field) => {
+                  const value = updateFieldValues[field.key];
+                  const isComplete = isGuidedUpdateFieldComplete(field, value);
+
+                  if (field.type === "boolean") {
+                    return (
+                      <label
+                        className={isComplete ? "field my-task-guided-field my-task-guided-field-complete" : "field my-task-guided-field"}
+                        key={field.key}
+                      >
+                        <span>
+                          {field.label}
+                          {field.required ? " *" : ""}
+                        </span>
+                        <select
+                          disabled={isSubmitting}
+                          value={typeof value === "boolean" ? String(value) : ""}
+                          onChange={(event) => {
+                            const nextValue = event.target.value;
+
+                            setUpdateFieldValues((current) => ({
+                              ...current,
+                              [field.key]: nextValue === "true"
+                            }));
+                            setErrorMessage(null);
+                          }}
+                        >
+                          <option value="">Select an option</option>
+                          <option value="true">Yes</option>
+                          <option value="false">No</option>
+                        </select>
+                        {field.helpText ? <small className="field-hint">{field.helpText}</small> : null}
+                      </label>
+                    );
+                  }
+
+                  if (field.type === "single_select") {
+                    return (
+                      <label
+                        className={isComplete ? "field my-task-guided-field my-task-guided-field-complete" : "field my-task-guided-field"}
+                        key={field.key}
+                      >
+                        <span>
+                          {field.label}
+                          {field.required ? " *" : ""}
+                        </span>
+                        <select
+                          disabled={isSubmitting}
+                          value={typeof value === "string" ? value : ""}
+                          onChange={(event) => {
+                            setUpdateFieldValues((current) => ({
+                              ...current,
+                              [field.key]: event.target.value
+                            }));
+                            setErrorMessage(null);
+                          }}
+                        >
+                          <option value="">Select an option</option>
+                          {(field.options ?? []).map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                        {field.helpText ? <small className="field-hint">{field.helpText}</small> : null}
+                      </label>
+                    );
+                  }
+
+                  if (field.type === "long_text") {
+                    return (
+                      <label
+                        className={isComplete ? "field my-task-guided-field my-task-guided-field-complete" : "field my-task-guided-field"}
+                        key={field.key}
+                      >
+                        <span>
+                          {field.label}
+                          {field.required ? " *" : ""}
+                        </span>
+                        <textarea
+                          disabled={isSubmitting}
+                          placeholder={field.helpText ?? undefined}
+                          rows={4}
+                          value={typeof value === "string" ? value : ""}
+                          onChange={(event) => {
+                            setUpdateFieldValues((current) => ({
+                              ...current,
+                              [field.key]: event.target.value
+                            }));
+                            setErrorMessage(null);
+                          }}
+                        />
+                        {field.helpText ? <small className="field-hint">{field.helpText}</small> : null}
+                      </label>
+                    );
+                  }
+
+                  return (
+                    <label
+                      className={isComplete ? "field my-task-guided-field my-task-guided-field-complete" : "field my-task-guided-field"}
+                      key={field.key}
+                    >
+                      <span>
+                        {field.label}
+                        {field.required ? " *" : ""}
+                      </span>
+                      <input
+                        disabled={isSubmitting}
+                        placeholder={field.helpText ?? undefined}
+                        value={typeof value === "string" ? value : ""}
+                        onChange={(event) => {
+                          setUpdateFieldValues((current) => ({
+                            ...current,
+                            [field.key]: event.target.value
+                          }));
+                          setErrorMessage(null);
+                        }}
+                      />
+                      {field.helpText ? <small className="field-hint">{field.helpText}</small> : null}
+                    </label>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
+
           {primaryStatusActions.length > 0 ? (
             <div className="my-task-quick-actions" aria-label={`Quick status actions for ${task.title}`}>
               {primaryStatusActions.map((statusOption) => (
@@ -337,6 +648,7 @@ function TaskCard({ isManager, now, onTaskUpdated, task }: TaskCardProps) {
               onClick={() =>
                 submitStatusUpdate({
                   status: selectedStatus,
+                  ...(hasGuidedUpdateFields ? { updateFields: updateFieldValues } : {}),
                   ...(selectedStatus === TaskStatus.BLOCKED
                     ? { blockerReason: trimmedBlockerReason }
                     : {})
@@ -438,7 +750,14 @@ export function MyTasksScreen({
     refreshTasks();
   });
 
-  function handleTaskUpdated(taskId: string, update: { status: TaskStatus; blockerReason: string | null }) {
+  function handleTaskUpdated(
+    taskId: string,
+    update: {
+      status: TaskStatus;
+      blockerReason: string | null;
+      updateFieldValues: Record<string, string | boolean>;
+    }
+  ) {
     setTaskOverrides((currentOverrides) => ({
       ...currentOverrides,
       [taskId]: update
@@ -616,17 +935,37 @@ export function MyTasksScreen({
                 </div>
 
                 <ul className="board-attention-list">
-                  <li className="board-attention-item">
+                  <li className="board-attention-item board-attention-item-default">
                     <span>Open work</span>
                     <strong>{getActiveTaskCount(tasks)}</strong>
                   </li>
-                  <li className="board-attention-item">
+                  <li className="board-attention-item board-attention-item-warning">
+                    <span>Missing required update</span>
+                    <strong>{getMissingRequiredUpdateCount(tasks)}</strong>
+                  </li>
+                  <li className="board-attention-item board-attention-item-danger">
+                    <span>Overdue</span>
+                    <strong>{getOverdueTaskCount(tasks, now)}</strong>
+                  </li>
+                  <li className="board-attention-item board-attention-item-warning">
+                    <span>Due soon</span>
+                    <strong>{getDueSoonTaskCount(tasks, now)}</strong>
+                  </li>
+                  <li className="board-attention-item board-attention-item-danger">
                     <span>Blocked</span>
                     <strong>{getBlockedTaskCount(tasks)}</strong>
                   </li>
-                  <li className="board-attention-item">
+                  <li className="board-attention-item board-attention-item-warning">
+                    <span>Waiting on approval</span>
+                    <strong>{getWaitingOnApprovalCount(tasks)}</strong>
+                  </li>
+                  <li className="board-attention-item board-attention-item-review">
                     <span>Ready for review</span>
                     <strong>{getReadyForReviewCount(tasks)}</strong>
+                  </li>
+                  <li className="board-attention-item board-attention-item-review">
+                    <span>Needs manager decision</span>
+                    <strong>{getNeedsManagerDecisionCount(tasks)}</strong>
                   </li>
                 </ul>
               </section>

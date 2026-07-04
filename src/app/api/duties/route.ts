@@ -20,6 +20,8 @@ function getDutyManagementErrorStatus(message: string) {
     message === "Duty name and workflow area are required." ||
     message === "Duty name is required." ||
     message === "Duty workflow area is required." ||
+    message === "Only the General Manager can grant delegated manager capabilities." ||
+    message === "Only the General Manager can modify delegated manager capabilities." ||
     message === "A duty with that name already exists."
   ) {
     return 400;

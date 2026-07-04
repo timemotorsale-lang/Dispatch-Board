@@ -12,11 +12,13 @@ const taskStatusSelect = {
   requiresManagerApproval: true,
   status: true,
   blockerReason: true,
+  templateSnapshot: true,
+  updateFieldValues: true,
   readyForReviewAt: true,
   completedAt: true,
   reviewedByUserId: true,
   updatedAt: true
-} satisfies Prisma.TaskSelect;
+} as const;
 
 export type TaskStatusRecord = Prisma.TaskGetPayload<{
   select: typeof taskStatusSelect;
@@ -28,6 +30,8 @@ export type TaskStatusLookupRecord = {
   requiresManagerApproval: boolean;
   status: TaskStatus;
   blockerReason: string | null;
+  templateSnapshot?: Prisma.JsonValue | null;
+  updateFieldValues?: Prisma.JsonValue | null;
   readyForReviewAt: Date | null;
   completedAt: Date | null;
   reviewedByUserId: string | null;
@@ -39,6 +43,7 @@ export type TaskStatusLookupRecord = {
 export type TaskStatusUpdateData = {
   status: TaskStatus;
   blockerReason?: string;
+  updateFieldValues?: Prisma.InputJsonValue;
   readyForReviewAt?: Date | null;
   completedAt?: Date | null;
   reviewedByUserId?: string | null;
@@ -70,6 +75,7 @@ export function createTaskStatusRepository(database: TaskStatusDatabase = prisma
         data: {
           status: data.status,
           ...(data.blockerReason !== undefined ? { blockerReason: data.blockerReason } : {}),
+          ...(data.updateFieldValues !== undefined ? { updateFieldValues: data.updateFieldValues } : {}),
           ...(data.readyForReviewAt !== undefined ? { readyForReviewAt: data.readyForReviewAt } : {}),
           ...(data.completedAt !== undefined ? { completedAt: data.completedAt } : {}),
           ...(data.reviewedByUserId !== undefined

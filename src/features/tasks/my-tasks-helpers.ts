@@ -32,6 +32,14 @@ function isCompleted(task: Pick<BoardReadTask, "status">) {
   return task.status === TaskStatus.COMPLETED;
 }
 
+export function isTaskOverdue(task: Pick<BoardReadTask, "status" | "dueAt">, now: Date) {
+  if (isCompleted(task)) {
+    return false;
+  }
+
+  return new Date(task.dueAt).getTime() < now.getTime();
+}
+
 function isBlockedOrWaiting(task: Pick<BoardReadTask, "status">) {
   return (
     task.status === TaskStatus.BLOCKED ||
@@ -40,7 +48,7 @@ function isBlockedOrWaiting(task: Pick<BoardReadTask, "status">) {
   );
 }
 
-function isDueSoon(task: Pick<BoardReadTask, "status" | "dueAt">, now: Date) {
+export function isTaskDueSoon(task: Pick<BoardReadTask, "status" | "dueAt">, now: Date) {
   if (isCompleted(task)) {
     return false;
   }
@@ -48,7 +56,35 @@ function isDueSoon(task: Pick<BoardReadTask, "status" | "dueAt">, now: Date) {
   const dueAtTime = new Date(task.dueAt).getTime();
   const minutesUntilDue = (dueAtTime - now.getTime()) / 60000;
 
-  return minutesUntilDue <= 120;
+  return minutesUntilDue >= 0 && minutesUntilDue <= 120;
+}
+
+export function hasMissingRequiredUpdate(
+  task: Pick<BoardReadTask, "requiredUpdateFields" | "updateFieldValues" | "status">
+) {
+  if (task.status === TaskStatus.COMPLETED) {
+    return false;
+  }
+
+  return task.requiredUpdateFields.some((field) => {
+    if (!field.required) {
+      return false;
+    }
+
+    const value = task.updateFieldValues[field.key];
+
+    if (typeof value === "boolean") {
+      return false;
+    }
+
+    return typeof value !== "string" || !value.trim();
+  });
+}
+
+export function needsManagerDecision(
+  task: Pick<BoardReadTask, "requiresManagerApproval" | "status">
+) {
+  return task.requiresManagerApproval && task.status === TaskStatus.READY_FOR_REVIEW;
 }
 
 export function filterMyTasks(tasks: BoardReadTask[], filter: MyTasksFilter, now: Date) {
@@ -61,7 +97,7 @@ export function filterMyTasks(tasks: BoardReadTask[], filter: MyTasksFilter, now
   }
 
   if (filter === "dueSoon") {
-    return tasks.filter((task) => isDueSoon(task, now));
+    return tasks.filter((task) => isTaskDueSoon(task, now));
   }
 
   if (filter === "blockedWaiting") {
@@ -87,7 +123,7 @@ export function getMyTasksFilterOptions(tasks: BoardReadTask[], now: Date): MyTa
     },
     {
       value: "dueSoon",
-      label: `Due soon (${tasks.filter((task) => isDueSoon(task, now)).length})`
+      label: `Due soon (${tasks.filter((task) => isTaskDueSoon(task, now)).length})`
     },
     {
       value: "blockedWaiting",

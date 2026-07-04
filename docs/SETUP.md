@@ -206,6 +206,24 @@ npm run db:seed
 npm run db:validate
 ```
 
+### Prisma + Next.js dev cache note
+
+If you regenerate Prisma after a schema change and Next.js still shows an old Prisma runtime error, the most common cause is a stale local dev server or stale `.next` cache.
+
+Recommended recovery steps:
+
+1. Stop the Next.js dev server completely.
+2. If needed, stop leftover local `node.exe` processes.
+3. Delete `.next`.
+4. Run:
+
+```bash
+npm run db:generate
+npm run dev
+```
+
+If Prisma itself works in a direct Node script but the app still shows an old datasource or runtime error, treat it as a stale Next/Turbopack cache first.
+
 ## Reset local database safely
 
 If you need a clean local database:
@@ -238,6 +256,8 @@ Run:
 npm run db:generate
 ```
 
+If the app still shows an older Prisma runtime error after regeneration, fully stop the dev server, remove `.next`, and start the app again.
+
 ### Port 3000 is already in use
 
 - Stop the other local server using port `3000`, or
@@ -269,3 +289,26 @@ npx playwright install chromium
 ### PowerShell blocks npm execution
 
 If PowerShell policy gets in the way, use `npm.cmd` instead of `npm` for local commands.
+
+### Windows-specific Prisma regeneration edge case
+
+On Windows, Prisma client regeneration can sometimes succeed while a still-running Next.js dev server continues serving an older compiled server bundle.
+
+If `npm run db:generate` fails with an `EPERM` rename error for `query_engine-windows.dll.node`, treat that as a file-lock issue from a still-running local Node or Next.js process first.
+
+Safe recovery sequence:
+
+```bash
+taskkill /F /IM node.exe
+```
+
+```bash
+Remove-Item -Recurse -Force .next
+```
+
+```bash
+cmd /c npm.cmd run db:generate
+cmd /c npm.cmd run dev
+```
+
+Use this only for local development when you are comfortable stopping active Node-based dev processes.

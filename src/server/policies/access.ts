@@ -1,11 +1,7 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
 
-export const MANAGER_ROLE_NAMES = new Set([
-  "General Manager",
-  "Inventory Manager",
-  "Office Manager",
-  "Marketing/Advertisement Manager"
-]);
+export const GENERAL_MANAGER_ROLE_NAME = "General Manager";
+export const DELEGATED_MANAGER_DUTY_NAME = "Delegated manager capabilities";
 
 export type AssignedWorkPermissionInput = {
   actor: AuthenticatedUser | null;
@@ -27,7 +23,19 @@ export function isManager(user: AuthenticatedUser | null) {
     return false;
   }
 
-  return user.roles.some((role) => MANAGER_ROLE_NAMES.has(role));
+  return isGeneralManager(user) || user.duties.all.includes(DELEGATED_MANAGER_DUTY_NAME);
+}
+
+export function isGeneralManager(user: AuthenticatedUser | null) {
+  if (!user) {
+    return false;
+  }
+
+  return user.roles.includes(GENERAL_MANAGER_ROLE_NAME);
+}
+
+export function canGrantManagerPowers(user: AuthenticatedUser | null) {
+  return isGeneralManager(user);
 }
 
 export function canManageUsers(user: AuthenticatedUser | null) {
@@ -66,6 +74,10 @@ export function canViewFullBoard(user: AuthenticatedUser | null) {
   return Boolean(user);
 }
 
+export function canCommentOnTask(user: AuthenticatedUser | null) {
+  return canViewFullBoard(user);
+}
+
 export function canUseStaffSelfService(user: AuthenticatedUser | null, subjectUserId: string) {
   if (!user) {
     return false;
@@ -83,6 +95,10 @@ export function canUpdateAssignedWork(input: AssignedWorkPermissionInput) {
 
   if (!actor) {
     return false;
+  }
+
+  if (requestedAction === "comment") {
+    return canCommentOnTask(actor);
   }
 
   if (isManager(actor)) {

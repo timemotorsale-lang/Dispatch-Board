@@ -45,9 +45,29 @@ describe("task templates routes", () => {
         id: "template-1",
         title: "Review inventory status",
         description: null,
+        templateCategory: "daily_operating_procedure",
         workflowArea: "INVENTORY",
+        priority: "MEDIUM",
         defaultDueTime: "09:00",
         requiresManagerApproval: false,
+        requiredUpdateFields: [],
+        checklistItems: [],
+        completionCriteria: {
+          mode: "manual",
+          requiredChecklistKeys: [],
+          requiredFieldKeys: []
+        },
+        defaultStatusRules: {
+          allowedStatuses: ["NOT_STARTED", "IN_PROGRESS"],
+          blockedReasonRequired: true,
+          waitingReasonRequiredStatuses: []
+        },
+        approvalRules: {
+          mode: "none",
+          readyForReviewRequired: false
+        },
+        intelligenceSignalType: "NONE",
+        taskCardDisplayHints: {},
         isActive: true,
         roleId: null,
         dutyId: null,
@@ -74,9 +94,29 @@ describe("task templates routes", () => {
       id: "template-1",
       title: "Review inventory status",
       description: null,
+      templateCategory: "daily_operating_procedure",
       workflowArea: "INVENTORY",
+      priority: "MEDIUM",
       defaultDueTime: "09:00",
       requiresManagerApproval: false,
+      requiredUpdateFields: [],
+      checklistItems: [],
+      completionCriteria: {
+        mode: "manual",
+        requiredChecklistKeys: [],
+        requiredFieldKeys: []
+      },
+      defaultStatusRules: {
+        allowedStatuses: ["NOT_STARTED", "IN_PROGRESS"],
+        blockedReasonRequired: true,
+        waitingReasonRequiredStatuses: []
+      },
+      approvalRules: {
+        mode: "none",
+        readyForReviewRequired: false
+      },
+      intelligenceSignalType: "NONE",
+      taskCardDisplayHints: {},
       isActive: true,
       roleId: null,
       dutyId: null,
@@ -92,6 +132,7 @@ describe("task templates routes", () => {
         body: JSON.stringify({
           title: "Review inventory status",
           workflowArea: "INVENTORY",
+          priority: "MEDIUM",
           defaultDueTime: "09:00",
           requiresManagerApproval: false
         })
@@ -112,9 +153,29 @@ describe("task templates routes", () => {
       id: "template-1",
       title: "Review inventory status",
       description: "Updated description",
+      templateCategory: "daily_operating_procedure",
       workflowArea: "INVENTORY",
+      priority: "HIGH",
       defaultDueTime: "09:00",
       requiresManagerApproval: false,
+      requiredUpdateFields: [],
+      checklistItems: [],
+      completionCriteria: {
+        mode: "manual",
+        requiredChecklistKeys: [],
+        requiredFieldKeys: []
+      },
+      defaultStatusRules: {
+        allowedStatuses: ["NOT_STARTED", "IN_PROGRESS"],
+        blockedReasonRequired: true,
+        waitingReasonRequiredStatuses: []
+      },
+      approvalRules: {
+        mode: "none",
+        readyForReviewRequired: false
+      },
+      intelligenceSignalType: "NONE",
+      taskCardDisplayHints: {},
       isActive: false,
       roleId: null,
       dutyId: null,

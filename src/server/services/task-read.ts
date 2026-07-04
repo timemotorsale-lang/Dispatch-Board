@@ -5,6 +5,12 @@ import {
   type TaskReadRepository
 } from "@/server/repositories/task-read-repository";
 import { assertCanViewBoard } from "@/server/services/board-read";
+import type {
+  TaskTemplateApprovalRules,
+  TaskTemplateChecklistItem,
+  TaskTemplateCompletionCriteria,
+  TaskTemplateRequiredUpdateField
+} from "@/server/validation/task-template";
 
 type TaskReadUserSummary = {
   id: string;
@@ -26,6 +32,14 @@ export type TaskCommentReadModel = {
   author: TaskReadUserSummary;
 };
 
+export type TaskActivityReadModel = {
+  id: string;
+  eventType: string;
+  message: string;
+  createdAt: string;
+  actor: TaskReadUserSummary | null;
+};
+
 export type TaskReadModel = {
   id: string;
   boardDayId: string;
@@ -37,6 +51,12 @@ export type TaskReadModel = {
   workflowArea: string;
   sourceType: string;
   requiresManagerApproval: boolean;
+  requiredUpdateFields: TaskTemplateRequiredUpdateField[];
+  updateFieldValues: Record<string, string | boolean>;
+  checklistItems: TaskTemplateChecklistItem[];
+  completionCriteria: TaskTemplateCompletionCriteria | null;
+  approvalRules: TaskTemplateApprovalRules | null;
+  intelligenceSignalType: string | null;
   vehicleReference: string | null;
   customerReference: string | null;
   blockerReason: string | null;
@@ -49,6 +69,7 @@ export type TaskReadModel = {
   recommendation: TaskReadRecommendation | null;
   createdByUser: TaskReadUserSummary | null;
   reviewedByUser: TaskReadUserSummary | null;
+  activityHistory: TaskActivityReadModel[];
   comments: TaskCommentReadModel[];
 };
 
@@ -66,6 +87,147 @@ function normalizeOptionalText(value: string | null | undefined) {
   const normalizedValue = value?.trim();
 
   return normalizedValue ? normalizedValue : null;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeRequiredUpdateFields(snapshot: unknown): TaskTemplateRequiredUpdateField[] {
+  if (!isPlainObject(snapshot) || !Array.isArray(snapshot.requiredUpdateFields)) {
+    return [];
+  }
+
+  return snapshot.requiredUpdateFields.flatMap((entry) => {
+    if (!isPlainObject(entry) || typeof entry.key !== "string" || typeof entry.label !== "string") {
+      return [];
+    }
+
+    if (
+      entry.type !== "short_text" &&
+      entry.type !== "long_text" &&
+      entry.type !== "single_select" &&
+      entry.type !== "boolean"
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        key: entry.key,
+        label: entry.label,
+        type: entry.type,
+        required: entry.required !== false,
+        helpText: typeof entry.helpText === "string" ? entry.helpText : null,
+        ...(Array.isArray(entry.options) &&
+        entry.options.every((option) => typeof option === "string" && option.trim())
+          ? { options: entry.options.map((option) => option.trim()) }
+          : {})
+      } satisfies TaskTemplateRequiredUpdateField
+    ];
+  });
+}
+
+function normalizeChecklistItems(snapshot: unknown): TaskTemplateChecklistItem[] {
+  if (!isPlainObject(snapshot) || !Array.isArray(snapshot.checklistItems)) {
+    return [];
+  }
+
+  return snapshot.checklistItems.flatMap((entry) => {
+    if (!isPlainObject(entry) || typeof entry.key !== "string" || typeof entry.label !== "string") {
+      return [];
+    }
+
+    return [
+      {
+        key: entry.key,
+        label: entry.label,
+        description:
+          typeof entry.description === "string" && entry.description.trim() ? entry.description.trim() : null,
+        required: entry.required !== false
+      } satisfies TaskTemplateChecklistItem
+    ];
+  });
+}
+
+function normalizeCompletionCriteria(snapshot: unknown): TaskTemplateCompletionCriteria | null {
+  if (!isPlainObject(snapshot) || !isPlainObject(snapshot.completionCriteria)) {
+    return null;
+  }
+
+  const criteria = snapshot.completionCriteria;
+
+  if (
+    typeof criteria.mode !== "string" ||
+    !Array.isArray(criteria.requiredChecklistKeys) ||
+    !Array.isArray(criteria.requiredFieldKeys)
+  ) {
+    return null;
+  }
+
+  return {
+    mode:
+      criteria.mode === "manual" ||
+      criteria.mode === "checklist" ||
+      criteria.mode === "update_fields" ||
+      criteria.mode === "checklist_and_update_fields"
+        ? criteria.mode
+        : "manual",
+    requiredChecklistKeys: criteria.requiredChecklistKeys.filter((value): value is string => typeof value === "string"),
+    requiredFieldKeys: criteria.requiredFieldKeys.filter((value): value is string => typeof value === "string")
+  };
+}
+
+function normalizeApprovalRules(snapshot: unknown): TaskTemplateApprovalRules | null {
+  if (!isPlainObject(snapshot) || !isPlainObject(snapshot.approvalRules)) {
+    return null;
+  }
+
+  const rules = snapshot.approvalRules;
+
+  if (typeof rules.mode !== "string") {
+    return null;
+  }
+
+  return {
+    mode: rules.mode === "manager_review" ? "manager_review" : "none",
+    readyForReviewRequired: rules.readyForReviewRequired === true
+  };
+}
+
+function normalizeIntelligenceSignalType(snapshot: unknown) {
+  if (!isPlainObject(snapshot) || typeof snapshot.intelligenceSignalType !== "string") {
+    return null;
+  }
+
+  const value = snapshot.intelligenceSignalType.trim();
+
+  return value || null;
+}
+
+function normalizeUpdateFieldValues(value: unknown) {
+  if (!isPlainObject(value)) {
+    return {} as Record<string, string | boolean>;
+  }
+
+  const normalizedEntries: Array<[string, string | boolean]> = [];
+
+  for (const [key, fieldValue] of Object.entries(value)) {
+    if (typeof fieldValue === "boolean") {
+      normalizedEntries.push([key, fieldValue]);
+      continue;
+    }
+
+    if (typeof fieldValue === "string") {
+      const normalizedValue = fieldValue.trim();
+
+      if (normalizedValue) {
+        normalizedEntries.push([key, normalizedValue]);
+      }
+    }
+  }
+
+  return Object.fromEntries(normalizedEntries);
 }
 
 function toUserSummary(
@@ -106,6 +268,12 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
     workflowArea: task.workflowArea,
     sourceType: task.sourceType,
     requiresManagerApproval: task.requiresManagerApproval,
+    requiredUpdateFields: normalizeRequiredUpdateFields(task.templateSnapshot),
+    updateFieldValues: normalizeUpdateFieldValues(task.updateFieldValues),
+    checklistItems: normalizeChecklistItems(task.templateSnapshot),
+    completionCriteria: normalizeCompletionCriteria(task.templateSnapshot),
+    approvalRules: normalizeApprovalRules(task.templateSnapshot),
+    intelligenceSignalType: normalizeIntelligenceSignalType(task.templateSnapshot),
     vehicleReference: normalizeOptionalText(task.vehicleReference),
     customerReference: normalizeOptionalText(task.customerReference),
     blockerReason: normalizeOptionalText(task.blockerReason),
@@ -122,6 +290,13 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
     recommendation,
     createdByUser: toUserSummary(task.createdByUser),
     reviewedByUser: toUserSummary(task.reviewedByUser),
+    activityHistory: (task.activityEvents ?? []).map((event) => ({
+      id: event.id,
+      eventType: event.eventType,
+      message: event.message,
+      createdAt: event.createdAt.toISOString(),
+      actor: toUserSummary(event.actorUser)
+    })),
     comments: task.comments.map((comment) => ({
       id: comment.id,
       taskId: comment.taskId,

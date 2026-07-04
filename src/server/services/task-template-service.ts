@@ -8,7 +8,13 @@ import {
   normalizeTaskTemplateCreateInput,
   normalizeTaskTemplateUpdateInput,
   type NormalizedTaskTemplateCreateInput,
-  type NormalizedTaskTemplateUpdateInput
+  type NormalizedTaskTemplateUpdateInput,
+  type TaskTemplateApprovalRules,
+  type TaskTemplateCardDisplayHints,
+  type TaskTemplateChecklistItem,
+  type TaskTemplateCompletionCriteria,
+  type TaskTemplateDefaultStatusRules,
+  type TaskTemplateRequiredUpdateField
 } from "@/server/validation/task-template";
 
 export type TaskTemplateRepository = ReturnType<typeof createTaskTemplateRepository>;
@@ -17,9 +23,18 @@ export type TaskTemplateSummary = {
   id: string;
   title: string;
   description: string | null;
+  templateCategory: string | null;
   workflowArea: TaskTemplateRecord["workflowArea"];
+  priority: TaskTemplateRecord["priority"];
   defaultDueTime: string;
   requiresManagerApproval: boolean;
+  requiredUpdateFields: TaskTemplateRequiredUpdateField[];
+  checklistItems: TaskTemplateChecklistItem[];
+  completionCriteria: TaskTemplateCompletionCriteria;
+  defaultStatusRules: TaskTemplateDefaultStatusRules;
+  approvalRules: TaskTemplateApprovalRules;
+  intelligenceSignalType: string;
+  taskCardDisplayHints: TaskTemplateCardDisplayHints;
   isActive: boolean;
   roleId: string | null;
   dutyId: string | null;
@@ -38,9 +53,18 @@ function toTaskTemplateSummary(template: TaskTemplateRecord): TaskTemplateSummar
     id: template.id,
     title: template.title,
     description: template.description,
+    templateCategory: template.templateCategory,
     workflowArea: template.workflowArea,
+    priority: template.priority,
     defaultDueTime: template.defaultDueTime,
     requiresManagerApproval: template.requiresManagerApproval,
+    requiredUpdateFields: template.requiredUpdateFields as TaskTemplateRequiredUpdateField[],
+    checklistItems: template.checklistItems as TaskTemplateChecklistItem[],
+    completionCriteria: template.completionCriteria as TaskTemplateCompletionCriteria,
+    defaultStatusRules: template.defaultStatusRules as TaskTemplateDefaultStatusRules,
+    approvalRules: template.approvalRules as TaskTemplateApprovalRules,
+    intelligenceSignalType: template.intelligenceSignalType,
+    taskCardDisplayHints: template.taskCardDisplayHints as TaskTemplateCardDisplayHints,
     isActive: template.isActive,
     roleId: template.roleId,
     dutyId: template.dutyId,

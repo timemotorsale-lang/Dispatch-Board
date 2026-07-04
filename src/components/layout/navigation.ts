@@ -1,8 +1,9 @@
-﻿import {
+import {
   Activity,
   CalendarDays,
   Car,
   ClipboardCheck,
+  FolderKanban,
   Gauge,
   ListChecks,
   Settings,
@@ -12,12 +13,16 @@
   type LucideIcon
 } from "lucide-react";
 
+import type { AuthenticatedUser } from "@/server/auth/store";
+import { canManageSettings, isManager } from "@/server/policies/access";
+
 export type NavigationItem = {
   href: string;
   title: string;
   description: string;
   icon: LucideIcon;
   badge?: string;
+  isVisible?(user: AuthenticatedUser): boolean;
 };
 
 export type NavigationGroup = { label: string; items: NavigationItem[] };
@@ -45,6 +50,12 @@ export const navigationGroups: NavigationGroup[] = [
         icon: ListChecks
       },
       {
+        href: "/projects",
+        title: "Projects",
+        description: "Department project boards and views.",
+        icon: FolderKanban
+      },
+      {
         href: "/vehicles",
         title: "Vehicles",
         description: "Vehicle coordination.",
@@ -66,7 +77,8 @@ export const navigationGroups: NavigationGroup[] = [
         href: "/manager-review",
         title: "Manager Review",
         description: "Approval and attention queue.",
-        icon: ClipboardCheck
+        icon: ClipboardCheck,
+        isVisible: (user) => isManager(user)
       },
       {
         href: "/activity",
@@ -94,14 +106,36 @@ export const navigationGroups: NavigationGroup[] = [
     ]
   },
   {
+    label: "Admin",
+    items: [
+      {
+        href: "/settings/team",
+        title: "Admin",
+        description: "Staff accounts, roles, duties, templates, and access control.",
+        icon: Users,
+        isVisible: (user) => canManageSettings(user)
+      }
+    ]
+  },
+  {
     label: "Settings",
     items: [
       {
         href: "/settings",
         title: "Board Settings",
         description: "Generation and board settings.",
-        icon: Settings
+        icon: Settings,
+        isVisible: (user) => canManageSettings(user)
       }
     ]
   }
 ];
+
+export function getNavigationGroups(user: AuthenticatedUser) {
+  return navigationGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => (item.isVisible ? item.isVisible(user) : true))
+    }))
+    .filter((group) => group.items.length > 0);
+}

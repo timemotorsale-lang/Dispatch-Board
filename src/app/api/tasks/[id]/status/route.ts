@@ -27,6 +27,8 @@ function getTaskStatusErrorStatus(message: string) {
     message === "Blocked tasks require a blocker reason." ||
     message === "Approval-required tasks must move through Ready for Review before Completed." ||
     message === "Task status payload must be an object." ||
+    message.startsWith("Task update is missing required fields:") ||
+    message.startsWith("Task update field ") ||
     message.startsWith("Task status updates require") ||
     message.startsWith("Task status updates contain")
   ) {
