@@ -105,6 +105,30 @@ function buildGeneratedTaskIdentityKey(boardDayId: string, sourceTemplateId: str
   return `${boardDayId}:${sourceTemplateId}:${assignedUserId}`;
 }
 
+function buildTemplateSnapshot(template: GenerationInput["users"][number]["templates"][number]) {
+  return {
+    templateId: template.templateId,
+    title: template.title,
+    description: template.description,
+    templateCategory: template.templateCategory,
+    workflowArea: template.workflowArea,
+    priority: template.priority,
+    defaultDueTime: template.defaultDueTime,
+    requiresManagerApproval: template.requiresManagerApproval,
+    requiredUpdateFields: template.requiredUpdateFields,
+    checklistItems: template.checklistItems,
+    completionCriteria: template.completionCriteria,
+    defaultStatusRules: template.defaultStatusRules,
+    approvalRules: template.approvalRules,
+    intelligenceSignalType: template.intelligenceSignalType,
+    taskCardDisplayHints: template.taskCardDisplayHints,
+    roleId: template.roleId,
+    roleName: template.roleName,
+    dutyId: template.dutyId,
+    dutyName: template.dutyName
+  };
+}
+
 function toDueAt(boardDate: string, defaultDueTime: string) {
   if (!/^\d{2}:\d{2}$/.test(defaultDueTime)) {
     throw new Error("Task template defaultDueTime must use HH:mm format.");
@@ -305,6 +329,7 @@ function buildGeneratedTaskCandidates(
         createdByUserId,
         requiresManagerApproval: template.requiresManagerApproval,
         sourceTemplateId: template.templateId,
+        templateSnapshot: buildTemplateSnapshot(template),
         sourceDutyId: template.dutyId,
         workflowArea: template.workflowArea
       };

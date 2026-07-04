@@ -241,6 +241,7 @@ model Task {
   customerReference       String?
   sourceType              TaskSourceType
   sourceTemplateId        String?
+  templateSnapshot        Json?
   sourceDutyId            String?
   workflowArea            WorkflowArea
   blockerReason           String?

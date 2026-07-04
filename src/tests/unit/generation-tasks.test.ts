@@ -42,6 +42,7 @@ type StoredTask = {
   requiresManagerApproval: boolean;
   sourceType: TaskSourceType;
   sourceTemplateId: string | null;
+  templateSnapshot: Prisma.JsonValue | null;
   sourceDutyId: string | null;
   workflowArea: WorkflowArea;
   createdAt: Date;
@@ -86,9 +87,50 @@ function createGenerationInput(): GenerationInput {
             templateId: "template-inventory",
             title: "Review inventory status",
             description: "Check stale and ready-for-sale units.",
+            templateCategory: "inventory_recon",
             workflowArea: WorkflowArea.INVENTORY,
+            priority: "HIGH",
             defaultDueTime: "09:00",
             requiresManagerApproval: false,
+            requiredUpdateFields: [
+              {
+                key: "unit_reference",
+                label: "Unit reference",
+                type: "short_text",
+                required: true,
+                helpText: null
+              }
+            ],
+            checklistItems: [
+              {
+                key: "review_unit",
+                label: "Review unit",
+                description: "Confirm current inventory status.",
+                required: true
+              }
+            ],
+            completionCriteria: {
+              mode: "checklist_and_update_fields",
+              requiredChecklistKeys: ["review_unit"],
+              requiredFieldKeys: ["unit_reference"]
+            },
+            defaultStatusRules: {
+              allowedStatuses: ["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "READY_FOR_REVIEW", "COMPLETED"],
+              blockedReasonRequired: true,
+              waitingReasonRequiredStatuses: []
+            },
+            approvalRules: {
+              mode: "none",
+              readyForReviewRequired: false
+            },
+            intelligenceSignalType: "INVENTORY_UPDATE",
+            taskCardDisplayHints: {
+              emphasizeDueTime: true,
+              emphasizeVehicle: true,
+              emphasizeCustomer: false,
+              showChecklistProgress: true,
+              highlightReadyForReview: false
+            },
             roleId: "role-inventory",
             roleName: "Inventory Manager",
             dutyId: "duty-inventory",
@@ -129,9 +171,58 @@ function createGenerationInput(): GenerationInput {
             templateId: "template-sales-duty",
             title: "Follow up with assigned leads",
             description: null,
+            templateCategory: "sales_follow_up",
             workflowArea: WorkflowArea.SALES,
+            priority: "HIGH",
             defaultDueTime: "15:30",
             requiresManagerApproval: true,
+            requiredUpdateFields: [
+              {
+                key: "customer_name",
+                label: "Customer name",
+                type: "short_text",
+                required: true,
+                helpText: null
+              }
+            ],
+            checklistItems: [
+              {
+                key: "log_follow_up",
+                label: "Log follow-up",
+                description: "Record the latest customer follow-up.",
+                required: true
+              }
+            ],
+            completionCriteria: {
+              mode: "checklist_and_update_fields",
+              requiredChecklistKeys: ["log_follow_up"],
+              requiredFieldKeys: ["customer_name"]
+            },
+            defaultStatusRules: {
+              allowedStatuses: [
+                "NOT_STARTED",
+                "IN_PROGRESS",
+                "BLOCKED",
+                "WAITING_ON_PARTS",
+                "WAITING_ON_APPROVAL",
+                "READY_FOR_REVIEW",
+                "COMPLETED"
+              ],
+              blockedReasonRequired: true,
+              waitingReasonRequiredStatuses: ["WAITING_ON_APPROVAL"]
+            },
+            approvalRules: {
+              mode: "manager_review",
+              readyForReviewRequired: true
+            },
+            intelligenceSignalType: "SALES_UPDATE",
+            taskCardDisplayHints: {
+              emphasizeDueTime: true,
+              emphasizeVehicle: false,
+              emphasizeCustomer: true,
+              showChecklistProgress: true,
+              highlightReadyForReview: true
+            },
             roleId: null,
             roleName: null,
             dutyId: "duty-sales",
@@ -255,6 +346,7 @@ function createGenerationTasksHarness(
         requiresManagerApproval: input.requiresManagerApproval,
         sourceType: TaskSourceType.TEMPLATE,
         sourceTemplateId: input.sourceTemplateId,
+        templateSnapshot: input.templateSnapshot as Prisma.JsonValue,
         sourceDutyId: input.sourceDutyId,
         workflowArea: input.workflowArea,
         createdAt: new Date("2026-06-17T08:30:00.000Z"),
@@ -272,6 +364,7 @@ function createGenerationTasksHarness(
         recommendationExplanation: createdTask.recommendationExplanation,
         dueAt: createdTask.dueAt,
         sourceTemplateId: createdTask.sourceTemplateId,
+        templateSnapshot: createdTask.templateSnapshot,
         sourceDutyId: createdTask.sourceDutyId,
         workflowArea: createdTask.workflowArea
       };
@@ -434,6 +527,12 @@ describe("generation tasks service", () => {
         requiresManagerApproval: false,
         sourceType: TaskSourceType.TEMPLATE,
         sourceTemplateId: "template-inventory",
+        templateSnapshot: expect.objectContaining({
+          templateId: "template-inventory",
+          templateCategory: "inventory_recon",
+          priority: "HIGH",
+          intelligenceSignalType: "INVENTORY_UPDATE"
+        }),
         sourceDutyId: "duty-inventory",
         workflowArea: WorkflowArea.INVENTORY
       }),
@@ -451,6 +550,13 @@ describe("generation tasks service", () => {
         requiresManagerApproval: true,
         sourceType: TaskSourceType.TEMPLATE,
         sourceTemplateId: "template-sales-duty",
+        templateSnapshot: expect.objectContaining({
+          templateId: "template-sales-duty",
+          approvalRules: expect.objectContaining({
+            mode: "manager_review",
+            readyForReviewRequired: true
+          })
+        }),
         sourceDutyId: "duty-sales",
         workflowArea: WorkflowArea.SALES
       })
@@ -593,6 +699,7 @@ describe("generation tasks service", () => {
       requiresManagerApproval: false,
       sourceType: TaskSourceType.MANAGER,
       sourceTemplateId: null,
+      templateSnapshot: null,
       sourceDutyId: null,
       workflowArea: WorkflowArea.INVENTORY,
       createdAt: new Date("2026-06-17T08:10:00.000Z"),
@@ -653,6 +760,10 @@ describe("generation tasks service", () => {
       requiresManagerApproval: false,
       sourceType: TaskSourceType.TEMPLATE,
       sourceTemplateId: "template-inventory",
+      templateSnapshot: {
+        templateId: "template-inventory",
+        title: "Review inventory status"
+      },
       sourceDutyId: "duty-inventory",
       workflowArea: WorkflowArea.INVENTORY,
       createdAt: new Date("2026-06-17T08:10:00.000Z"),
@@ -734,6 +845,10 @@ describe("generation tasks service", () => {
           requiresManagerApproval: true,
           sourceType: TaskSourceType.TEMPLATE,
           sourceTemplateId: "template-sales-duty",
+          templateSnapshot: {
+            templateId: "template-sales-duty",
+            title: "Follow up with assigned leads"
+          },
           sourceDutyId: "duty-sales",
           workflowArea: WorkflowArea.SALES,
           createdAt: new Date("2026-06-17T08:40:00.000Z"),
@@ -799,6 +914,81 @@ describe("generation tasks service", () => {
       })
     ]);
     expect(harness.readTasks()).toHaveLength(0);
+  });
+
+  it("stores a template snapshot on generated tasks so later template edits do not rewrite history", async () => {
+    const harness = createGenerationTasksHarness();
+
+    await createMissingGeneratedTasksForDate("2026-06-17", undefined, {
+      ...harness,
+      now: createNowSequence("2026-06-17T08:00:00.000Z", "2026-06-17T08:00:03.000Z")
+    });
+
+    const [inventoryTask, salesTask] = harness.readTasks();
+
+    expect(inventoryTask.templateSnapshot).toEqual({
+      templateId: "template-inventory",
+      title: "Review inventory status",
+      description: "Check stale and ready-for-sale units.",
+      templateCategory: "inventory_recon",
+      workflowArea: WorkflowArea.INVENTORY,
+      priority: "HIGH",
+      defaultDueTime: "09:00",
+      requiresManagerApproval: false,
+      requiredUpdateFields: [
+        {
+          key: "unit_reference",
+          label: "Unit reference",
+          type: "short_text",
+          required: true,
+          helpText: null
+        }
+      ],
+      checklistItems: [
+        {
+          key: "review_unit",
+          label: "Review unit",
+          description: "Confirm current inventory status.",
+          required: true
+        }
+      ],
+      completionCriteria: {
+        mode: "checklist_and_update_fields",
+        requiredChecklistKeys: ["review_unit"],
+        requiredFieldKeys: ["unit_reference"]
+      },
+      defaultStatusRules: {
+        allowedStatuses: ["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "READY_FOR_REVIEW", "COMPLETED"],
+        blockedReasonRequired: true,
+        waitingReasonRequiredStatuses: []
+      },
+      approvalRules: {
+        mode: "none",
+        readyForReviewRequired: false
+      },
+      intelligenceSignalType: "INVENTORY_UPDATE",
+      taskCardDisplayHints: {
+        emphasizeDueTime: true,
+        emphasizeVehicle: true,
+        emphasizeCustomer: false,
+        showChecklistProgress: true,
+        highlightReadyForReview: false
+      },
+      roleId: "role-inventory",
+      roleName: "Inventory Manager",
+      dutyId: "duty-inventory",
+      dutyName: "Review inventory status"
+    });
+    expect(salesTask.templateSnapshot).toEqual(
+      expect.objectContaining({
+        templateId: "template-sales-duty",
+        requiresManagerApproval: true,
+        approvalRules: {
+          mode: "manager_review",
+          readyForReviewRequired: true
+        }
+      })
+    );
   });
 
   it("records a failed generation run when task creation throws after the run has started", async () => {

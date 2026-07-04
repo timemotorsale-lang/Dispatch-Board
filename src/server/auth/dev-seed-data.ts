@@ -1,3 +1,14 @@
+import type { TaskTemplatePriority } from "@prisma/client";
+
+import type {
+  TaskTemplateApprovalRules,
+  TaskTemplateCardDisplayHints,
+  TaskTemplateChecklistItem,
+  TaskTemplateCompletionCriteria,
+  TaskTemplateDefaultStatusRules,
+  TaskTemplateRequiredUpdateField
+} from "@/server/validation/task-template";
+
 export const SHARED_DEVELOPMENT_PASSWORD = "dispatch123!";
 
 export const dayOneDutyDefinitions = [
@@ -346,12 +357,86 @@ export type DayOneTaskTemplateDefinition = {
     | "COLLECTIONS"
     | "SHOP"
     | "GENERAL_MANAGER";
+  templateCategory?: string | null;
+  priority?: TaskTemplatePriority;
   defaultDueTime: string;
   requiresManagerApproval: boolean;
+  requiredUpdateFields?: TaskTemplateRequiredUpdateField[];
+  checklistItems?: TaskTemplateChecklistItem[];
+  completionCriteria?: TaskTemplateCompletionCriteria;
+  defaultStatusRules?: TaskTemplateDefaultStatusRules;
+  approvalRules?: TaskTemplateApprovalRules;
+  intelligenceSignalType?: string;
+  taskCardDisplayHints?: Partial<TaskTemplateCardDisplayHints>;
   isActive: boolean;
   roleName?: string;
   dutyName?: string;
 };
+
+const reviewStatusRules: TaskTemplateDefaultStatusRules = {
+  allowedStatuses: ["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "READY_FOR_REVIEW", "COMPLETED"],
+  blockedReasonRequired: true,
+  waitingReasonRequiredStatuses: []
+};
+
+const operationalStatusRules: TaskTemplateDefaultStatusRules = {
+  allowedStatuses: [
+    "NOT_STARTED",
+    "IN_PROGRESS",
+    "BLOCKED",
+    "WAITING_ON_PARTS",
+    "WAITING_ON_APPROVAL",
+    "READY_FOR_REVIEW",
+    "COMPLETED"
+  ],
+  blockedReasonRequired: true,
+  waitingReasonRequiredStatuses: ["WAITING_ON_PARTS", "WAITING_ON_APPROVAL"]
+};
+
+const noApprovalRules: TaskTemplateApprovalRules = {
+  mode: "none",
+  readyForReviewRequired: false
+};
+
+const managerApprovalRules: TaskTemplateApprovalRules = {
+  mode: "manager_review",
+  readyForReviewRequired: true
+};
+
+const defaultCardDisplayHints: Partial<TaskTemplateCardDisplayHints> = {
+  emphasizeDueTime: true,
+  showChecklistProgress: true
+};
+
+function createRequiredField(
+  key: string,
+  label: string,
+  type: TaskTemplateRequiredUpdateField["type"],
+  overrides: Partial<Omit<TaskTemplateRequiredUpdateField, "key" | "label" | "type">> = {}
+): TaskTemplateRequiredUpdateField {
+  return {
+    key,
+    label,
+    type,
+    required: true,
+    helpText: null,
+    ...overrides
+  };
+}
+
+function createChecklistItem(
+  key: string,
+  label: string,
+  description: string | null,
+  required = true
+): TaskTemplateChecklistItem {
+  return {
+    key,
+    label,
+    description,
+    required
+  };
+}
 
 export const dayOneTaskTemplateDefinitions: readonly DayOneTaskTemplateDefinition[] = [
   {
@@ -677,5 +762,789 @@ export const dayOneTaskTemplateDefinitions: readonly DayOneTaskTemplateDefinitio
     requiresManagerApproval: false,
     isActive: true,
     dutyName: "Submit daily collections log"
+  },
+  {
+    title: "General Manager board review",
+    description: "Review the board, ownership gaps, and highest-priority work before the day gets away from the team.",
+    workflowArea: "GENERAL_MANAGER",
+    templateCategory: "management_review",
+    priority: "CRITICAL",
+    defaultDueTime: "09:00",
+    requiresManagerApproval: false,
+    requiredUpdateFields: [
+      createRequiredField("focus_summary", "Focus summary", "long_text"),
+      createRequiredField("top_priority", "Top priority", "short_text"),
+      createRequiredField("staffing_risk", "Staffing risk", "boolean", { required: false })
+    ],
+    checklistItems: [
+      createChecklistItem("review_board", "Review today's board", "Confirm ownership, due times, and gaps."),
+      createChecklistItem("identify_hotspots", "Identify hotspots", "Call out blockers, overdue work, and urgent units.")
+    ],
+    completionCriteria: {
+      mode: "checklist_and_update_fields",
+      requiredChecklistKeys: ["review_board", "identify_hotspots"],
+      requiredFieldKeys: ["focus_summary", "top_priority"]
+    },
+    defaultStatusRules: reviewStatusRules,
+    approvalRules: noApprovalRules,
+    intelligenceSignalType: "DAILY_INTELLIGENCE",
+    taskCardDisplayHints: {
+      ...defaultCardDisplayHints,
+      highlightReadyForReview: true
+    },
+    isActive: true,
+    roleName: "General Manager"
+  },
+  {
+    title: "General Manager blocked task review",
+    description: "Review blocked work, decide whether to unblock, escalate, or reassign, and leave clear next direction.",
+    workflowArea: "GENERAL_MANAGER",
+    templateCategory: "management_review",
+    priority: "HIGH",
+    defaultDueTime: "10:30",
+    requiresManagerApproval: false,
+    requiredUpdateFields: [
+      createRequiredField("blocked_summary", "Blocked summary", "long_text"),
+      createRequiredField("escalation_needed", "Escalation needed", "boolean")
+    ],
+    checklistItems: [
+      createChecklistItem("review_blocked_queue", "Review blocked queue", "Confirm each blocked item has an actionable next step.")
+    ],
+    completionCriteria: {
+      mode: "checklist_and_update_fields",
+      requiredChecklistKeys: ["review_blocked_queue"],
+      requiredFieldKeys: ["blocked_summary", "escalation_needed"]
+    },
+    defaultStatusRules: reviewStatusRules,
+    approvalRules: noApprovalRules,
+    intelligenceSignalType: "DAILY_INTELLIGENCE",
+    taskCardDisplayHints: defaultCardDisplayHints,
+    isActive: true,
+    roleName: "General Manager"
+  },
+  {
+    title: "General Manager ready-for-review review",
+    description: "Review items waiting for approval or final manager signoff and keep the queue moving same day.",
+    workflowArea: "GENERAL_MANAGER",
+    templateCategory: "management_review",
+    priority: "HIGH",
+    defaultDueTime: "16:00",
+    requiresManagerApproval: false,
+    requiredUpdateFields: [
+      createRequiredField("review_outcome", "Review outcome", "long_text")
+    ],
+    checklistItems: [
+      createChecklistItem("review_ready_queue", "Review ready-for-review queue", "Confirm each task is accepted or returned with direction.")
+    ],
+    completionCriteria: {
+      mode: "checklist_and_update_fields",
+      requiredChecklistKeys: ["review_ready_queue"],
+      requiredFieldKeys: ["review_outcome"]
+    },
+    defaultStatusRules: reviewStatusRules,
+    approvalRules: noApprovalRules,
+    intelligenceSignalType: "DAILY_INTELLIGENCE",
+    taskCardDisplayHints: {
+      ...defaultCardDisplayHints,
+      highlightReadyForReview: true
+    },
+    isActive: true,
+    roleName: "General Manager"
+  },
+  {
+    title: "General Manager daily directives",
+    description: "Set the next operating directives based on today's board and intelligence review.",
+    workflowArea: "GENERAL_MANAGER",
+    templateCategory: "manager_directive",
+    priority: "CRITICAL",
+    defaultDueTime: "17:30",
+    requiresManagerApproval: false,
+    requiredUpdateFields: [
+      createRequiredField("tomorrow_directive", "Tomorrow directive", "long_text"),
+      createRequiredField("follow_up_area", "Follow-up area", "single_select", {
+        options: ["Inventory", "Service", "Sales", "Marketing", "Office", "Collections"]
+      })
+    ],
+    checklistItems: [
+      createChecklistItem("review_daily_intelligence", "Review daily intelligence", "Use today's feed and manager observations."),
+      createChecklistItem("publish_direction", "Publish next direction", "Capture a concise directive the team can act on tomorrow.")
+    ],
+    completionCriteria: {
+      mode: "checklist_and_update_fields",
+      requiredChecklistKeys: ["review_daily_intelligence", "publish_direction"],
+      requiredFieldKeys: ["tomorrow_directive", "follow_up_area"]
+    },
+    defaultStatusRules: reviewStatusRules,
+    approvalRules: noApprovalRules,
+    intelligenceSignalType: "MANAGER_DIRECTIVE",
+    taskCardDisplayHints: {
+      ...defaultCardDisplayHints,
+      emphasizeCustomer: false
+    },
+    isActive: true,
+    roleName: "General Manager"
+  },
+  {
+    title: "Inventory movement update",
+    description: "Update where the unit moved today, what stage it is in now, and what is blocking the next move.",
+    workflowArea: "INVENTORY",
+    templateCategory: "inventory_recon",
+    priority: "HIGH",
+    defaultDueTime: "11:00",
+    requiresManagerApproval: false,
+    requiredUpdateFields: [
+      createRequiredField("unit_reference", "Unit reference", "short_text"),
+      createRequiredField("movement_stage", "Movement stage", "single_select", {
+        options: ["Intake", "Inspection", "Recon", "Detail", "Photos", "Frontline"]
+      }),
+      createRequiredField("movement_note", "Movement note", "long_text")
+    ],
+    checklistItems: [
+      createChecklistItem("confirm_location", "Confirm vehicle location", "Make sure the board reflects the unit's actual stage.")
+    ],
+    completionCriteria: {
+      mode: "checklist_and_update_fields",
+      requiredChecklistKeys: ["confirm_location"],
+      requiredFieldKeys: ["unit_reference", "movement_stage", "movement_note"]
+    },
+    defaultStatusRules: operationalStatusRules,
+    approvalRules: noApprovalRules,
+    intelligenceSignalType: "INVENTORY_UPDATE",
+    taskCardDisplayHints: {
+      ...defaultCardDisplayHints,
+      emphasizeVehicle: true
+    },
+    isActive: true,
+    roleName: "Inventory Manager"
+  },
+  {
+    title: "Inventory recon stage update",
+    description: "Capture the current recon stage, expected next step, and whether the vehicle is stalled.",
+    workflowArea: "INVENTORY",
+    templateCategory: "inventory_recon",
+    priority: "HIGH",
+    defaultDueTime: "14:00",
+    requiresManagerApproval: false,
+    requiredUpdateFields: [
+      createRequiredField("unit_reference", "Unit reference", "short_text"),
+      createRequiredField("recon_stage", "Recon stage", "single_select", {
+        options: ["Awaiting inspection", "In service", "Awaiting parts", "Awaiting detail", "Awaiting photos"]
+      }),
+      createRequiredField("next_step", "Next step", "short_text")
+    ],
+    checklistItems: [
+      createChecklistItem("confirm_stage", "Confirm recon stage", "Verify the board stage matches current reality.")
+    ],
+    completionCriteria: {
+      mode: "checklist_and_update_fields",
+      requiredChecklistKeys: ["confirm_stage"],
+      requiredFieldKeys: ["unit_reference", "recon_stage", "next_step"]
+    },
+    defaultStatusRules: operationalStatusRules,
+    approvalRules: noApprovalRules,
+    intelligenceSignalType: "RECON_UPDATE",
+    taskCardDisplayHints: {
+      ...defaultCardDisplayHints,
+      emphasizeVehicle: true
+    },
+    isActive: true,
+    roleName: "Inventory Manager"
+  },
+  {
+    title: "Ready-for-sale confirmation",
+    description: "Confirm the vehicle truly meets frontline readiness before signaling it as ready for sale.",
+    workflowArea: "INVENTORY",
+    templateCategory: "inventory_readiness",
+    priority: "CRITICAL",
+    defaultDueTime: "16:00",
+    requiresManagerApproval: true,
+    requiredUpdateFields: [
+      createRequiredField("unit_reference", "Unit reference", "short_text"),
+      createRequiredField("sale_readiness_note", "Sale readiness note", "long_text")
+    ],
+    checklistItems: [
+      createChecklistItem("verify_recon_complete", "Verify recon complete", "Mechanical and cosmetic recon is complete."),
+      createChecklistItem("verify_merchandising_ready", "Verify merchandising ready", "Photos/listing assets are ready or scheduled.")
+    ],
+    completionCriteria: {
+      mode: "checklist_and_update_fields",
+      requiredChecklistKeys: ["verify_recon_complete", "verify_merchandising_ready"],
+      requiredFieldKeys: ["unit_reference", "sale_readiness_note"]
+    },
+    defaultStatusRules: reviewStatusRules,
+    approvalRules: managerApprovalRules,
+    intelligenceSignalType: "INVENTORY_UPDATE",
+    taskCardDisplayHints: {
+      ...defaultCardDisplayHints,
+      emphasizeVehicle: true,
+      highlightReadyForReview: true
+    },
+    isActive: true,
+    roleName: "Inventory Manager"
+  },
+  {
+    title: "Service production update",
+    description: "Update the day's service throughput, major bottlenecks, and whether work is on pace.",
+    workflowArea: "SHOP",
+    templateCategory: "service_production",
+    priority: "HIGH",
+    defaultDueTime: "11:30",
+    requiresManagerApproval: false,
+    requiredUpdateFields: [
+      createRequiredField("production_summary", "Production summary", "long_text"),
+      createRequiredField("shop_risk", "Shop risk", "boolean")
+    ],
+    checklistItems: [
+      createChecklistItem("review_open_work", "Review open service work", "Scan active repairs and identify bottlenecks.")
+    ],
+    completionCriteria: {
+      mode: "checklist_and_update_fields",
+      requiredChecklistKeys: ["review_open_work"],
+      requiredFieldKeys: ["production_summary", "shop_risk"]
+    },
+    defaultStatusRules: operationalStatusRules,
+    approvalRules: noApprovalRules,
+    intelligenceSignalType: "SERVICE_UPDATE",
+    taskCardDisplayHints: defaultCardDisplayHints,
+    isActive: true,
+    roleName: "Service Department Manager"
+  },
+  {
+    title: "Repair status update",
+    description: "Capture the current repair status so the board reflects whether the work is progressing, stalled, or ready for review.",
+    workflowArea: "SHOP",
+    templateCategory: "repair_status",
+    priority: "HIGH",
+    defaultDueTime: "13:00",
+    requiresManagerApproval: false,
+    requiredUpdateFields: [
+      createRequiredField("repair_order", "Repair order", "short_text"),
+      createRequiredField("repair_status_note", "Repair status note", "long_text")
+    ],
+    checklistItems: [
+      createChecklistItem("confirm_current_status", "Confirm current repair status", "Update the board before moving to the next unit.")
+    ],
+    completionCriteria: {
+      mode: "checklist_and_update_fields",
+      requiredChecklistKeys: ["confirm_current_status"],
+      requiredFieldKeys: ["repair_order", "repair_status_note"]
+    },
+    defaultStatusRules: operationalStatusRules,
+    approvalRules: noApprovalRules,
+    intelligenceSignalType: "SERVICE_UPDATE",
+    taskCardDisplayHints: {
+      ...defaultCardDisplayHints,
+      emphasizeVehicle: true
+    },
+    isActive: true,
+    roleName: "Mechanic"
+  },
+  {
+    title: "Parts waiting update",
+    description: "Log what part is missing, what is being waited on, and what the next follow-up should be.",
+    workflowArea: "SHOP",
+    templateCategory: "repair_status",
+    priority: "HIGH",
+    defaultDueTime: "14:00",
+    requiresManagerApproval: false,
+    requiredUpdateFields: [
+      createRequiredField("repair_order", "Repair order", "short_text"),
+      createRequiredField("parts_wait_note", "Parts wait note", "long_text")
+    ],
+    checklistItems: [
+      createChecklistItem("mark_waiting_status", "Mark waiting status", "Use the correct waiting status and note the reason.")
+    ],
+    completionCriteria: {
+      mode: "checklist_and_update_fields",
+      requiredChecklistKeys: ["mark_waiting_status"],
+      requiredFieldKeys: ["repair_order", "parts_wait_note"]
+    },
+    defaultStatusRules: operationalStatusRules,
+    approvalRules: noApprovalRules,
+    intelligenceSignalType: "SERVICE_UPDATE",
+    taskCardDisplayHints: {
+      ...defaultCardDisplayHints,
+      emphasizeVehicle: true
+    },
+    isActive: true,
+    roleName: "Mechanic"
+  },
+  {
+    title: "QC ready review",
+    description: "Confirm the repair is complete and ready to move into review without missing open concerns.",
+    workflowArea: "SHOP",
+    templateCategory: "quality_control",
+    priority: "HIGH",
+    defaultDueTime: "15:30",
+    requiresManagerApproval: true,
+    requiredUpdateFields: [
+      createRequiredField("repair_order", "Repair order", "short_text"),
+      createRequiredField("qc_note", "QC note", "long_text")
+    ],
+    checklistItems: [
+      createChecklistItem("confirm_work_complete", "Confirm work complete", "No remaining open repair items."),
+      createChecklistItem("move_ready_for_review", "Move to Ready for Review", "Route the task through the approval path.")
+    ],
+    completionCriteria: {
+      mode: "checklist_and_update_fields",
+      requiredChecklistKeys: ["confirm_work_complete", "move_ready_for_review"],
+      requiredFieldKeys: ["repair_order", "qc_note"]
+    },
+    defaultStatusRules: reviewStatusRules,
+    approvalRules: managerApprovalRules,
+    intelligenceSignalType: "SERVICE_UPDATE",
+    taskCardDisplayHints: {
+      ...defaultCardDisplayHints,
+      emphasizeVehicle: true,
+      highlightReadyForReview: true
+    },
+    isActive: true,
+    roleName: "Service Department Manager"
+  },
+  {
+    title: "Photo completion update",
+    description: "Confirm photo work is complete or call out what still prevents the unit from being merchandised.",
+    workflowArea: "ADVERTISING",
+    templateCategory: "marketing_assets",
+    priority: "HIGH",
+    defaultDueTime: "13:00",
+    requiresManagerApproval: false,
+    requiredUpdateFields: [
+      createRequiredField("unit_reference", "Unit reference", "short_text"),
+      createRequiredField("photo_status", "Photo status", "single_select", {
+        options: ["Not started", "In progress", "Completed", "Blocked"]
+      })
+    ],
+    checklistItems: [
+      createChecklistItem("verify_photo_set", "Verify photo set", "Confirm required photo coverage is complete.")
+    ],
+    completionCriteria: {
+      mode: "checklist_and_update_fields",
+      requiredChecklistKeys: ["verify_photo_set"],
+      requiredFieldKeys: ["unit_reference", "photo_status"]
+    },
+    defaultStatusRules: operationalStatusRules,
+    approvalRules: noApprovalRules,
+    intelligenceSignalType: "MARKETING_UPDATE",
+    taskCardDisplayHints: {
+      ...defaultCardDisplayHints,
+      emphasizeVehicle: true
+    },
+    isActive: true,
+    roleName: "Marketing/Advertisement Manager"
+  },
+  {
+    title: "Listing completeness review",
+    description: "Review whether the listing is complete enough to publish confidently and flag what is still missing.",
+    workflowArea: "ADVERTISING",
+    templateCategory: "marketing_assets",
+    priority: "HIGH",
+    defaultDueTime: "15:00",
+    requiresManagerApproval: false,
+    requiredUpdateFields: [
+      createRequiredField("unit_reference", "Unit reference", "short_text"),
+      createRequiredField("listing_gap_note", "Listing gap note", "long_text")
+    ],
+    checklistItems: [
+      createChecklistItem("verify_photos", "Verify photos attached", "Photos are present and usable."),
+      createChecklistItem("verify_vehicle_details", "Verify vehicle details", "Pricing and core features are present.")
+    ],
+    completionCriteria: {
+      mode: "checklist_and_update_fields",
+      requiredChecklistKeys: ["verify_photos", "verify_vehicle_details"],
+      requiredFieldKeys: ["unit_reference", "listing_gap_note"]
+    },
+    defaultStatusRules: operationalStatusRules,
+    approvalRules: noApprovalRules,
+    intelligenceSignalType: "MARKETING_UPDATE",
+    taskCardDisplayHints: {
+      ...defaultCardDisplayHints,
+      emphasizeVehicle: true
+    },
+    isActive: true,
+    roleName: "Marketing/Advertisement Manager"
+  },
+  {
+    title: "Campaign activity update",
+    description: "Log today's campaign work and note whether any inventory-ready units still need marketing support.",
+    workflowArea: "MARKETING",
+    templateCategory: "marketing_campaign",
+    priority: "MEDIUM",
+    defaultDueTime: "16:30",
+    requiresManagerApproval: false,
+    requiredUpdateFields: [
+      createRequiredField("campaign_summary", "Campaign summary", "long_text"),
+      createRequiredField("campaign_channel", "Campaign channel", "single_select", {
+        options: ["Facebook", "Instagram", "Marketplace", "Website", "Email"]
+      })
+    ],
+    checklistItems: [
+      createChecklistItem("record_campaign_work", "Record campaign work", "Capture today's meaningful activity.")
+    ],
+    completionCriteria: {
+      mode: "checklist_and_update_fields",
+      requiredChecklistKeys: ["record_campaign_work"],
+      requiredFieldKeys: ["campaign_summary", "campaign_channel"]
+    },
+    defaultStatusRules: operationalStatusRules,
+    approvalRules: noApprovalRules,
+    intelligenceSignalType: "MARKETING_UPDATE",
+    taskCardDisplayHints: defaultCardDisplayHints,
+    isActive: true,
+    roleName: "Marketing/Advertisement Manager"
+  },
+  {
+    title: "Missing asset flag",
+    description: "Flag missing merchandising assets so stalled listings show up in the day's intelligence.",
+    workflowArea: "ADVERTISING",
+    templateCategory: "marketing_assets",
+    priority: "HIGH",
+    defaultDueTime: "15:30",
+    requiresManagerApproval: false,
+    requiredUpdateFields: [
+      createRequiredField("unit_reference", "Unit reference", "short_text"),
+      createRequiredField("missing_asset_type", "Missing asset type", "single_select", {
+        options: ["Photos", "Description", "Price", "Options", "Title status"]
+      })
+    ],
+    checklistItems: [
+      createChecklistItem("flag_missing_asset", "Flag missing asset", "Create a clear signal for follow-up.")
+    ],
+    completionCriteria: {
+      mode: "checklist_and_update_fields",
+      requiredChecklistKeys: ["flag_missing_asset"],
+      requiredFieldKeys: ["unit_reference", "missing_asset_type"]
+    },
+    defaultStatusRules: operationalStatusRules,
+    approvalRules: noApprovalRules,
+    intelligenceSignalType: "MARKETING_UPDATE",
+    taskCardDisplayHints: {
+      ...defaultCardDisplayHints,
+      emphasizeVehicle: true
+    },
+    isActive: true,
+    roleName: "Marketing/Advertisement Manager"
+  },
+  {
+    title: "Lead follow-up update",
+    description: "Capture a meaningful follow-up update so the next salesperson action is clear and reportable.",
+    workflowArea: "SALES",
+    templateCategory: "sales_follow_up",
+    priority: "HIGH",
+    defaultDueTime: "11:00",
+    requiresManagerApproval: false,
+    requiredUpdateFields: [
+      createRequiredField("customer_name", "Customer name", "short_text"),
+      createRequiredField("follow_up_note", "Follow-up note", "long_text")
+    ],
+    checklistItems: [
+      createChecklistItem("record_customer_contact", "Record customer contact", "Log the latest real outreach or response.")
+    ],
+    completionCriteria: {
+      mode: "checklist_and_update_fields",
+      requiredChecklistKeys: ["record_customer_contact"],
+      requiredFieldKeys: ["customer_name", "follow_up_note"]
+    },
+    defaultStatusRules: operationalStatusRules,
+    approvalRules: noApprovalRules,
+    intelligenceSignalType: "SALES_UPDATE",
+    taskCardDisplayHints: {
+      ...defaultCardDisplayHints,
+      emphasizeCustomer: true
+    },
+    isActive: true,
+    roleName: "Salesperson"
+  },
+  {
+    title: "Appointment confirmation update",
+    description: "Confirm the appointment is still live and leave clear context for the team.",
+    workflowArea: "SALES",
+    templateCategory: "sales_appointment",
+    priority: "HIGH",
+    defaultDueTime: "12:00",
+    requiresManagerApproval: false,
+    requiredUpdateFields: [
+      createRequiredField("customer_name", "Customer name", "short_text"),
+      createRequiredField("appointment_status", "Appointment status", "single_select", {
+        options: ["Confirmed", "Needs follow-up", "Rescheduled", "Cancelled"]
+      })
+    ],
+    checklistItems: [
+      createChecklistItem("confirm_customer_time", "Confirm customer time", "Make sure the expected arrival is current.")
+    ],
+    completionCriteria: {
+      mode: "checklist_and_update_fields",
+      requiredChecklistKeys: ["confirm_customer_time"],
+      requiredFieldKeys: ["customer_name", "appointment_status"]
+    },
+    defaultStatusRules: operationalStatusRules,
+    approvalRules: noApprovalRules,
+    intelligenceSignalType: "SALES_UPDATE",
+    taskCardDisplayHints: {
+      ...defaultCardDisplayHints,
+      emphasizeCustomer: true
+    },
+    isActive: true,
+    roleName: "Salesperson"
+  },
+  {
+    title: "Test drive update",
+    description: "Record the outcome of the test drive and whether the deal is moving, stalled, or needs manager help.",
+    workflowArea: "SALES",
+    templateCategory: "sales_progress",
+    priority: "HIGH",
+    defaultDueTime: "15:00",
+    requiresManagerApproval: false,
+    requiredUpdateFields: [
+      createRequiredField("customer_name", "Customer name", "short_text"),
+      createRequiredField("test_drive_outcome", "Test drive outcome", "long_text")
+    ],
+    checklistItems: [
+      createChecklistItem("capture_next_step", "Capture next step", "Leave a concrete next action for the deal.")
+    ],
+    completionCriteria: {
+      mode: "checklist_and_update_fields",
+      requiredChecklistKeys: ["capture_next_step"],
+      requiredFieldKeys: ["customer_name", "test_drive_outcome"]
+    },
+    defaultStatusRules: operationalStatusRules,
+    approvalRules: noApprovalRules,
+    intelligenceSignalType: "SALES_UPDATE",
+    taskCardDisplayHints: {
+      ...defaultCardDisplayHints,
+      emphasizeCustomer: true
+    },
+    isActive: true,
+    roleName: "Salesperson"
+  },
+  {
+    title: "Pending delivery update",
+    description: "Capture what still needs to happen before delivery and whether any office or inventory help is needed.",
+    workflowArea: "SALES",
+    templateCategory: "sales_delivery",
+    priority: "HIGH",
+    defaultDueTime: "16:00",
+    requiresManagerApproval: false,
+    requiredUpdateFields: [
+      createRequiredField("customer_name", "Customer name", "short_text"),
+      createRequiredField("delivery_readiness_note", "Delivery readiness note", "long_text")
+    ],
+    checklistItems: [
+      createChecklistItem("confirm_delivery_path", "Confirm delivery path", "Note any missing items before handoff.")
+    ],
+    completionCriteria: {
+      mode: "checklist_and_update_fields",
+      requiredChecklistKeys: ["confirm_delivery_path"],
+      requiredFieldKeys: ["customer_name", "delivery_readiness_note"]
+    },
+    defaultStatusRules: operationalStatusRules,
+    approvalRules: noApprovalRules,
+    intelligenceSignalType: "SALES_UPDATE",
+    taskCardDisplayHints: {
+      ...defaultCardDisplayHints,
+      emphasizeCustomer: true
+    },
+    isActive: true,
+    roleName: "Salesperson"
+  },
+  {
+    title: "Customer issue update",
+    description: "Capture the customer issue clearly so the next owner can respond without losing context.",
+    workflowArea: "ADMIN",
+    templateCategory: "office_support",
+    priority: "HIGH",
+    defaultDueTime: "11:30",
+    requiresManagerApproval: false,
+    requiredUpdateFields: [
+      createRequiredField("customer_name", "Customer name", "short_text"),
+      createRequiredField("issue_summary", "Issue summary", "long_text")
+    ],
+    checklistItems: [
+      createChecklistItem("log_issue_context", "Log issue context", "Include enough detail for follow-up.")
+    ],
+    completionCriteria: {
+      mode: "checklist_and_update_fields",
+      requiredChecklistKeys: ["log_issue_context"],
+      requiredFieldKeys: ["customer_name", "issue_summary"]
+    },
+    defaultStatusRules: operationalStatusRules,
+    approvalRules: noApprovalRules,
+    intelligenceSignalType: "CUSTOMER_ISSUE",
+    taskCardDisplayHints: {
+      ...defaultCardDisplayHints,
+      emphasizeCustomer: true
+    },
+    isActive: true,
+    roleName: "Office Manager"
+  },
+  {
+    title: "Title or document signal",
+    description: "Flag title and document issues early so they feed the board and do not block delivery unexpectedly.",
+    workflowArea: "ADMIN",
+    templateCategory: "office_documents",
+    priority: "HIGH",
+    defaultDueTime: "14:30",
+    requiresManagerApproval: false,
+    requiredUpdateFields: [
+      createRequiredField("document_type", "Document type", "single_select", {
+        options: ["Title", "Registration", "Insurance", "POI", "Other"]
+      }),
+      createRequiredField("document_note", "Document note", "long_text")
+    ],
+    checklistItems: [
+      createChecklistItem("flag_document_issue", "Flag document issue", "Record the missing or incorrect document clearly.")
+    ],
+    completionCriteria: {
+      mode: "checklist_and_update_fields",
+      requiredChecklistKeys: ["flag_document_issue"],
+      requiredFieldKeys: ["document_type", "document_note"]
+    },
+    defaultStatusRules: operationalStatusRules,
+    approvalRules: noApprovalRules,
+    intelligenceSignalType: "CUSTOMER_ISSUE",
+    taskCardDisplayHints: defaultCardDisplayHints,
+    isActive: true,
+    roleName: "Office Manager"
+  },
+  {
+    title: "Insurance communication update",
+    description: "Log insurance-related communication so the team has a shared view of what is pending.",
+    workflowArea: "ADMIN",
+    templateCategory: "office_support",
+    priority: "MEDIUM",
+    defaultDueTime: "15:00",
+    requiresManagerApproval: false,
+    requiredUpdateFields: [
+      createRequiredField("customer_name", "Customer name", "short_text"),
+      createRequiredField("insurance_note", "Insurance note", "long_text")
+    ],
+    checklistItems: [
+      createChecklistItem("record_insurance_contact", "Record insurance contact", "Capture the most recent update or request.")
+    ],
+    completionCriteria: {
+      mode: "checklist_and_update_fields",
+      requiredChecklistKeys: ["record_insurance_contact"],
+      requiredFieldKeys: ["customer_name", "insurance_note"]
+    },
+    defaultStatusRules: operationalStatusRules,
+    approvalRules: noApprovalRules,
+    intelligenceSignalType: "CUSTOMER_ISSUE",
+    taskCardDisplayHints: {
+      ...defaultCardDisplayHints,
+      emphasizeCustomer: true
+    },
+    isActive: true,
+    roleName: "Office Manager"
+  },
+  {
+    title: "Appointment support update",
+    description: "Support appointment flow and make sure sales and front desk are aligned on arrivals and special needs.",
+    workflowArea: "ADMIN",
+    templateCategory: "office_support",
+    priority: "MEDIUM",
+    defaultDueTime: "12:30",
+    requiresManagerApproval: false,
+    requiredUpdateFields: [
+      createRequiredField("customer_name", "Customer name", "short_text"),
+      createRequiredField("support_note", "Support note", "long_text")
+    ],
+    checklistItems: [
+      createChecklistItem("confirm_support_need", "Confirm support need", "Document what help is needed for the appointment.")
+    ],
+    completionCriteria: {
+      mode: "checklist_and_update_fields",
+      requiredChecklistKeys: ["confirm_support_need"],
+      requiredFieldKeys: ["customer_name", "support_note"]
+    },
+    defaultStatusRules: operationalStatusRules,
+    approvalRules: noApprovalRules,
+    intelligenceSignalType: "CUSTOMER_ISSUE",
+    taskCardDisplayHints: {
+      ...defaultCardDisplayHints,
+      emphasizeCustomer: true
+    },
+    isActive: true,
+    roleName: "Office Manager"
+  },
+  {
+    title: "Payment received update",
+    description: "Record a received payment and note whether follow-up still remains on the account.",
+    workflowArea: "COLLECTIONS",
+    templateCategory: "collections_account",
+    priority: "HIGH",
+    defaultDueTime: "13:30",
+    requiresManagerApproval: false,
+    requiredUpdateFields: [
+      createRequiredField("account_name", "Account name", "short_text"),
+      createRequiredField("payment_note", "Payment note", "long_text")
+    ],
+    checklistItems: [
+      createChecklistItem("record_payment", "Record payment", "Capture the payment update before closing the task.")
+    ],
+    completionCriteria: {
+      mode: "checklist_and_update_fields",
+      requiredChecklistKeys: ["record_payment"],
+      requiredFieldKeys: ["account_name", "payment_note"]
+    },
+    defaultStatusRules: operationalStatusRules,
+    approvalRules: noApprovalRules,
+    intelligenceSignalType: "COLLECTIONS_UPDATE",
+    taskCardDisplayHints: defaultCardDisplayHints,
+    isActive: true,
+    roleName: "Collections"
+  },
+  {
+    title: "Late account follow-up",
+    description: "Log the status of a late account and whether the next action is a call, reminder, or manager escalation.",
+    workflowArea: "COLLECTIONS",
+    templateCategory: "collections_account",
+    priority: "HIGH",
+    defaultDueTime: "15:00",
+    requiresManagerApproval: false,
+    requiredUpdateFields: [
+      createRequiredField("account_name", "Account name", "short_text"),
+      createRequiredField("late_status_note", "Late status note", "long_text")
+    ],
+    checklistItems: [
+      createChecklistItem("record_collection_attempt", "Record collection attempt", "Capture the latest contact or result.")
+    ],
+    completionCriteria: {
+      mode: "checklist_and_update_fields",
+      requiredChecklistKeys: ["record_collection_attempt"],
+      requiredFieldKeys: ["account_name", "late_status_note"]
+    },
+    defaultStatusRules: operationalStatusRules,
+    approvalRules: noApprovalRules,
+    intelligenceSignalType: "COLLECTIONS_UPDATE",
+    taskCardDisplayHints: defaultCardDisplayHints,
+    isActive: true,
+    roleName: "Collections"
+  },
+  {
+    title: "Arrangement update",
+    description: "Capture payment arrangement changes so the account history and next step stay accurate.",
+    workflowArea: "COLLECTIONS",
+    templateCategory: "collections_account",
+    priority: "MEDIUM",
+    defaultDueTime: "16:30",
+    requiresManagerApproval: false,
+    requiredUpdateFields: [
+      createRequiredField("account_name", "Account name", "short_text"),
+      createRequiredField("arrangement_note", "Arrangement note", "long_text")
+    ],
+    checklistItems: [
+      createChecklistItem("record_arrangement", "Record arrangement", "Document the promised amount or follow-up date.")
+    ],
+    completionCriteria: {
+      mode: "checklist_and_update_fields",
+      requiredChecklistKeys: ["record_arrangement"],
+      requiredFieldKeys: ["account_name", "arrangement_note"]
+    },
+    defaultStatusRules: operationalStatusRules,
+    approvalRules: noApprovalRules,
+    intelligenceSignalType: "COLLECTIONS_UPDATE",
+    taskCardDisplayHints: defaultCardDisplayHints,
+    isActive: true,
+    roleName: "Collections"
   }
 ];

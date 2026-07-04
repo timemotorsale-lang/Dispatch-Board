@@ -37,6 +37,7 @@ describe("task template seed definitions", () => {
 
   it("includes both role-based and duty-based template examples", () => {
     expect(dayOneTaskTemplateDefinitions.some((templateDefinition) => Boolean(templateDefinition.dutyName))).toBe(true);
+    expect(dayOneTaskTemplateDefinitions.some((templateDefinition) => Boolean(templateDefinition.roleName))).toBe(true);
   });
 
   it("includes the day-one roles expected by the role duty reference", () => {
@@ -87,6 +88,49 @@ describe("task template seed definitions", () => {
         "Submit daily collections log"
       ])
     );
+  });
+
+  it("includes structured enterprise dealership templates for each target role family", () => {
+    expect(dayOneTaskTemplateDefinitions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ title: "General Manager board review", roleName: "General Manager" }),
+        expect.objectContaining({ title: "Inventory movement update", roleName: "Inventory Manager" }),
+        expect.objectContaining({ title: "Service production update", roleName: "Service Department Manager" }),
+        expect.objectContaining({ title: "Repair status update", roleName: "Mechanic" }),
+        expect.objectContaining({
+          title: "Campaign activity update",
+          roleName: "Marketing/Advertisement Manager"
+        }),
+        expect.objectContaining({ title: "Lead follow-up update", roleName: "Salesperson" }),
+        expect.objectContaining({ title: "Customer issue update", roleName: "Office Manager" }),
+        expect.objectContaining({ title: "Payment received update", roleName: "Collections" })
+      ])
+    );
+  });
+
+  it("includes structured template configuration on enterprise seeds", () => {
+    const structuredTemplates = dayOneTaskTemplateDefinitions.filter(
+      (templateDefinition) =>
+        Boolean(templateDefinition.roleName) &&
+        (templateDefinition.requiredUpdateFields?.length ?? 0) > 0 &&
+        (templateDefinition.checklistItems?.length ?? 0) > 0
+    );
+
+    expect(structuredTemplates.length).toBeGreaterThanOrEqual(8);
+    expect(
+      structuredTemplates.some(
+        (templateDefinition) =>
+          templateDefinition.requiredUpdateFields?.some((field) => field.key === "customer_name") &&
+          templateDefinition.checklistItems?.some((item) => item.key === "record_customer_contact")
+      )
+    ).toBe(true);
+    expect(
+      structuredTemplates.some(
+        (templateDefinition) =>
+          templateDefinition.completionCriteria?.mode === "checklist_and_update_fields" &&
+          Boolean(templateDefinition.intelligenceSignalType)
+      )
+    ).toBe(true);
   });
 
   it("keeps conditional repair-report work seeded but inactive until a later trigger exists", () => {

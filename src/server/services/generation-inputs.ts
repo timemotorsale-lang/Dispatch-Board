@@ -4,6 +4,14 @@ import {
   type GenerationTemplateRecord,
   type GenerationUserRecord
 } from "@/server/repositories/generation-inputs-repository";
+import type {
+  TaskTemplateApprovalRules,
+  TaskTemplateCardDisplayHints,
+  TaskTemplateChecklistItem,
+  TaskTemplateCompletionCriteria,
+  TaskTemplateDefaultStatusRules,
+  TaskTemplateRequiredUpdateField
+} from "@/server/validation/task-template";
 
 export type { GenerationInputsRepository } from "@/server/repositories/generation-inputs-repository";
 
@@ -27,9 +35,18 @@ export type GenerationInputTemplate = {
   templateId: string;
   title: string;
   description: string | null;
+  templateCategory: string | null;
   workflowArea: GenerationTemplateRecord["workflowArea"];
+  priority: GenerationTemplateRecord["priority"];
   defaultDueTime: string;
   requiresManagerApproval: boolean;
+  requiredUpdateFields: TaskTemplateRequiredUpdateField[];
+  checklistItems: TaskTemplateChecklistItem[];
+  completionCriteria: TaskTemplateCompletionCriteria;
+  defaultStatusRules: TaskTemplateDefaultStatusRules;
+  approvalRules: TaskTemplateApprovalRules;
+  intelligenceSignalType: string;
+  taskCardDisplayHints: TaskTemplateCardDisplayHints;
   roleId: string | null;
   roleName: string | null;
   dutyId: string | null;
@@ -222,9 +239,18 @@ function toGenerationTemplate(
     templateId: template.id,
     title: template.title,
     description: template.description,
+    templateCategory: template.templateCategory,
     workflowArea: template.workflowArea,
+    priority: template.priority,
     defaultDueTime: template.defaultDueTime,
     requiresManagerApproval: template.requiresManagerApproval,
+    requiredUpdateFields: template.requiredUpdateFields as TaskTemplateRequiredUpdateField[],
+    checklistItems: template.checklistItems as TaskTemplateChecklistItem[],
+    completionCriteria: template.completionCriteria as TaskTemplateCompletionCriteria,
+    defaultStatusRules: template.defaultStatusRules as TaskTemplateDefaultStatusRules,
+    approvalRules: template.approvalRules as TaskTemplateApprovalRules,
+    intelligenceSignalType: template.intelligenceSignalType,
+    taskCardDisplayHints: template.taskCardDisplayHints as TaskTemplateCardDisplayHints,
     roleId: template.roleId,
     roleName: template.role?.name ?? null,
     dutyId: template.dutyId,
