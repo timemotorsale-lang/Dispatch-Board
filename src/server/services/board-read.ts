@@ -30,6 +30,7 @@ export type BoardReadTask = {
   description: string | null;
   status: string;
   dueAt: string;
+  updatedAt: string;
   workflowArea: string;
   sourceType: string;
   requiresManagerApproval: boolean;
@@ -111,6 +112,7 @@ function toTaskSummary(task: BoardReadTaskRecord): BoardReadTask {
     description: normalizeOptionalText(task.description),
     status: task.status,
     dueAt: task.dueAt.toISOString(),
+    updatedAt: (task.updatedAt ?? task.dueAt).toISOString(),
     workflowArea: task.workflowArea,
     sourceType: task.sourceType,
     requiresManagerApproval: task.requiresManagerApproval,

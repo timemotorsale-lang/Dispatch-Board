@@ -17,6 +17,7 @@ const boardTaskSelect = {
   description: true,
   status: true,
   dueAt: true,
+  updatedAt: true,
   workflowArea: true,
   sourceType: true,
   requiresManagerApproval: true,

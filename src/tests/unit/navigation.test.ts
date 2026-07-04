@@ -21,6 +21,7 @@ describe("navigation visibility", () => {
     expect(hrefs).not.toContain("/settings/team");
     expect(hrefs).toContain("/staff");
     expect(hrefs).toContain("/my-tasks");
+    expect(hrefs).toContain("/projects");
   });
 
   it("shows manager routes for delegated and General Manager users", async () => {
@@ -42,10 +43,22 @@ describe("navigation visibility", () => {
     expect(generalManager).toBeDefined();
 
     expect(listHrefs(getNavigationGroups(generalManager!))).toEqual(
-      expect.arrayContaining(["/manager-review", "/settings", "/settings/team", "/staff"])
+      expect.arrayContaining([
+        "/manager-review",
+        "/settings",
+        "/settings/team",
+        "/staff",
+        "/projects"
+      ])
     );
     expect(listHrefs(getNavigationGroups(delegatedManager))).toEqual(
-      expect.arrayContaining(["/manager-review", "/settings", "/settings/team", "/staff"])
+      expect.arrayContaining([
+        "/manager-review",
+        "/settings",
+        "/settings/team",
+        "/staff",
+        "/projects"
+      ])
     );
   });
 });
