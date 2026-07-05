@@ -56,6 +56,7 @@ Prisma client generation updated generated types but could not replace the locke
 | Appointment migration readiness | Implemented | EAPT-012 migration, seed, rollback, roll-forward, Prisma generation, production seed boundary, compatibility, and recovery reconciliation strategy is documented in `docs/appointments/MIGRATION_SEED_ROLLBACK_STRATEGY.md` with protected constants and focused tests |
 | Appointment E1 gate review | Ready for approval | `docs/appointments/E1_FOUNDATION_GATE_REVIEW.md` packages E1 evidence, carry-forward risks, non-claims, approval owners, and E2 handoff with protected constants and focused tests |
 | Appointment location-time service | Implemented | EAPT-013 location-local date/minute conversion, effective operating-window resolution, closure overlap detection, schedule-candidate evaluation, daylight-saving handling, service contract, and focused tests |
+| Appointment resource availability service | Implemented | EAPT-014 resource availability service evaluates effective windows, capacity overrides, held/committed reservations, buffers, outages, capacity reductions, warning/hard-block severity, service contract, and focused tests |
 | Appointment Board visible shell | Implemented as preview UI | `/appointments` now renders the mockup-aligned board surface with KPI cards, staff calendar columns, filters, selectable preview appointments, detail rail, linked tasks, enterprise controls, upcoming appointments, and responsive behavior; live services/APIs remain pending |
 
 ## Existing Partial or Placeholder Surfaces

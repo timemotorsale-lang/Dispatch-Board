@@ -3,7 +3,7 @@
 **Program:** Appointment Board / Appointment Command Center  
 **Target release:** Enterprise Release 1.0  
 **Planning baseline:** E0 approved on 2026-07-05  
-**Implementation status:** E2 scheduling foundation has started; EAPT-003 through EAPT-013 foundation slices are implemented, and `/appointments` now has a mockup-aligned preview shell while database-backed template administration, resource availability, conflict execution, persistence workflows, and live command-center operations remain planned
+**Implementation status:** E2 scheduling foundation has started; EAPT-003 through EAPT-014 foundation slices are implemented, and `/appointments` now has a mockup-aligned preview shell while database-backed template administration, staff availability, conflict execution, persistence workflows, and live command-center operations remain planned
 
 ## Purpose
 
@@ -61,6 +61,7 @@ The approved enterprise product, permission, lifecycle, conflict, automation, an
 | [MIGRATION_SEED_ROLLBACK_STRATEGY.md](MIGRATION_SEED_ROLLBACK_STRATEGY.md) | Implemented EAPT-012 migration, seed, rollback, roll-forward, Prisma generation, and compatibility strategy |
 | [E1_FOUNDATION_GATE_REVIEW.md](E1_FOUNDATION_GATE_REVIEW.md) | E1 gate package with evidence, carry-forward risks, non-claims, approval owners, and E2 handoff |
 | [LOCATION_TIME_SERVICE_CONTRACT.md](LOCATION_TIME_SERVICE_CONTRACT.md) | Implemented EAPT-013 location time, operating-hours, closures, timezone, and DST service contract |
+| [RESOURCE_AVAILABILITY_SERVICE_CONTRACT.md](RESOURCE_AVAILABILITY_SERVICE_CONTRACT.md) | Implemented EAPT-014 resource capacity, operating-window, reservation, outage, and severity service contract |
 | [AUTOMATION_RULES_CATALOG.md](AUTOMATION_RULES_CATALOG.md) | Explainable task-to-appointment and appointment-to-task automation model |
 | [PERMISSION_MATRIX.md](PERMISSION_MATRIX.md) | Manager, owner, participant, viewer, administrator, and system-action authorization rules |
 | [LIFECYCLE_CONFLICT_MATRIX.md](LIFECYCLE_CONFLICT_MATRIX.md) | State transitions, reason requirements, resource constraints, warnings, and hard blocks |
@@ -102,8 +103,9 @@ Implementation tickets may clarify technical details but may not weaken these ru
 | EAPT-012 — Migration, seed, rollback, and compatibility strategy | Complete | `MIGRATION_SEED_ROLLBACK_STRATEGY.md`, migration-readiness constants, expand-and-contract rules, fresh install and production upgrade commands, production seed boundaries, rollback/roll-forward procedure, recovery reconciliation targets, Prisma generation guidance, and tests |
 | E1 foundation gate review | Ready for approval | `E1_FOUNDATION_GATE_REVIEW.md`, gate-review constants, evidence map, carry-forward risks, non-claims, approval owner list, E2 handoff, and tests |
 | EAPT-013 — Location time, operating-hours, closures, and timezone services | Complete | `LOCATION_TIME_SERVICE_CONTRACT.md`, location-time service, local date/minute conversion, effective operating-window resolution, closure overlap detection, schedule-candidate evaluation, DST boundary handling, and tests |
+| EAPT-014 — Resource types, resources, capacity, availability, and outage services | Complete | `RESOURCE_AVAILABILITY_SERVICE_CONTRACT.md`, resource availability service, effective resource windows, capacity overrides, reservation consumption, outage and capacity-reduction rules, severity handling, and tests |
 | Appointment Board preview shell | Complete | `/appointments` renders the approved mockup composition with preview data, responsive day calendar, metrics, filters, selectable detail rail, linked-task presentation, enterprise controls, and upcoming appointments |
-| EAPT-014 — Resource types, resources, capacity, availability, and outage services | Next | Implement resource availability service foundations that build on location time |
+| EAPT-015 — Staff availability and location eligibility | Next | Implement staff availability and eligibility evaluation on top of location access and resource capacity |
 
 ## Recommended Review Order
 
