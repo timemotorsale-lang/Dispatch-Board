@@ -353,4 +353,65 @@ describe("prisma schema constraints", () => {
     expect(combinedSql).toMatch(/AppointmentHistoryEvent_human_actor_check/);
     expect(combinedSql).toMatch(/AppointmentHistoryEvent_automation_version_check/);
   });
+
+  it("declares the EAPT-009 appointment command ledger foundation", async () => {
+    const schema = await readFile(schemaPath, "utf8");
+    const organizationModel = getModelBlock(schema, "Organization");
+    const locationModel = getModelBlock(schema, "Location");
+    const appointmentModel = getModelBlock(schema, "Appointment");
+    const userModel = getModelBlock(schema, "User");
+    const commandLedgerModel = getModelBlock(schema, "AppointmentCommandLedger");
+
+    expect(schema).toMatch(/enum AppointmentCommandType/);
+    expect(schema).toMatch(/enum AppointmentCommandStatus/);
+    expect(schema).toMatch(/RESCHEDULE/);
+    expect(schema).toMatch(/FAILED_RETRYABLE/);
+    expect(schema).toMatch(/DUPLICATE_RETURNED/);
+
+    expect(organizationModel).toMatch(/appointmentCommandLedgerEntries\s+AppointmentCommandLedger\[\]/);
+    expect(locationModel).toMatch(/appointmentCommandLedgerEntries\s+AppointmentCommandLedger\[\]/);
+    expect(appointmentModel).toMatch(/commandLedgerEntries\s+AppointmentCommandLedger\[\]/);
+    expect(userModel).toMatch(
+      /appointmentCommandLedgerEntries\s+AppointmentCommandLedger\[\]\s+@relation\("AppointmentCommandLedgerActorUser"\)/
+    );
+
+    expect(commandLedgerModel).toMatch(/organizationId\s+String\b/);
+    expect(commandLedgerModel).toMatch(/commandType\s+AppointmentCommandType/);
+    expect(commandLedgerModel).toMatch(/status\s+AppointmentCommandStatus\s+@default\(PENDING\)/);
+    expect(commandLedgerModel).toMatch(/idempotencyKey\s+String\b/);
+    expect(commandLedgerModel).toMatch(/requestHash\s+String\b/);
+    expect(commandLedgerModel).toMatch(/correlationId\s+String\b/);
+    expect(commandLedgerModel).toMatch(/expectedAppointmentVersion\s+Int\?/);
+    expect(commandLedgerModel).toMatch(/currentAppointmentVersion\s+Int\?/);
+    expect(commandLedgerModel).toMatch(/attemptCount\s+Int\s+@default\(0\)/);
+    expect(commandLedgerModel).toMatch(/maxAttempts\s+Int\s+@default\(0\)/);
+    expect(commandLedgerModel).toMatch(/resultSnapshot\s+Json\?/);
+    expect(commandLedgerModel).toMatch(
+      /@@unique\(\[organizationId,\s*commandType,\s*idempotencyKey\]\)/
+    );
+    expect(commandLedgerModel).toMatch(/@@index\(\[status,\s*nextRetryAt\]\)/);
+  });
+
+  it("adds the EAPT-009 command ledger table and idempotency safeguards in SQL", async () => {
+    const migrationEntries = await readdir(migrationsPath, { withFileTypes: true });
+    const migrationSqlContents = await Promise.all(
+      migrationEntries
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => readFile(path.join(migrationsPath, entry.name, "migration.sql"), "utf8"))
+    );
+    const combinedSql = migrationSqlContents.join("\n");
+
+    expect(combinedSql).toMatch(/CREATE TYPE "AppointmentCommandType"/);
+    expect(combinedSql).toMatch(/CREATE TYPE "AppointmentCommandStatus"/);
+    expect(combinedSql).toMatch(/CREATE TABLE "AppointmentCommandLedger"/);
+    expect(combinedSql).toMatch(/AppointmentCommandLedger_organizationId_commandType_idempotencyKey_key/);
+    expect(combinedSql).toMatch(/AppointmentCommandLedger_idempotency_key_not_blank_check/);
+    expect(combinedSql).toMatch(/AppointmentCommandLedger_request_hash_not_blank_check/);
+    expect(combinedSql).toMatch(/AppointmentCommandLedger_version_positive_check/);
+    expect(combinedSql).toMatch(/AppointmentCommandLedger_attempts_check/);
+    expect(combinedSql).toMatch(/AppointmentCommandLedger_running_locked_check/);
+    expect(combinedSql).toMatch(/AppointmentCommandLedger_success_completed_check/);
+    expect(combinedSql).toMatch(/AppointmentCommandLedger_failure_documented_check/);
+    expect(combinedSql).toMatch(/AppointmentCommandLedger_retry_schedule_check/);
+  });
 });

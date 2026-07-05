@@ -84,6 +84,39 @@ export const APPOINTMENT_HISTORY_EVENT_TYPES = [
   "NOTE_ADDED"
 ] as const;
 
+export const APPOINTMENT_COMMAND_TYPES = [
+  "CREATE_DRAFT",
+  "SCHEDULE",
+  "RESCHEDULE",
+  "CANCEL",
+  "COMPLETE",
+  "CONFIRM",
+  "DECLINE",
+  "CHECK_IN",
+  "NO_SHOW",
+  "START",
+  "WAIT",
+  "FINISH",
+  "TRANSFER_OWNER",
+  "OVERRIDE_WARNING",
+  "LINK_TASK",
+  "UNLINK_TASK",
+  "AUTOMATION_RUN",
+  "BULK_RESCHEDULE",
+  "IMPORT"
+] as const;
+
+export const APPOINTMENT_COMMAND_STATUSES = [
+  "PENDING",
+  "RUNNING",
+  "SUCCEEDED",
+  "FAILED_RETRYABLE",
+  "FAILED_TERMINAL",
+  "CONFLICT",
+  "DUPLICATE_RETURNED",
+  "CANCELLED"
+] as const;
+
 export type AppointmentBookingStatus = (typeof APPOINTMENT_BOOKING_STATUSES)[number];
 export type AppointmentConfirmationStatus =
   (typeof APPOINTMENT_CONFIRMATION_STATUSES)[number];
@@ -94,3 +127,5 @@ export type AppointmentTaskLinkType = (typeof APPOINTMENT_TASK_LINK_TYPES)[numbe
 export type AppointmentEventActorType = (typeof APPOINTMENT_EVENT_ACTOR_TYPES)[number];
 export type AppointmentHistoryEventType =
   (typeof APPOINTMENT_HISTORY_EVENT_TYPES)[number];
+export type AppointmentCommandType = (typeof APPOINTMENT_COMMAND_TYPES)[number];
+export type AppointmentCommandStatus = (typeof APPOINTMENT_COMMAND_STATUSES)[number];

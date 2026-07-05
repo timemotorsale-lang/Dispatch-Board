@@ -117,6 +117,39 @@ enum AppointmentHistoryEventType {
   NOTE_ADDED
 }
 
+enum AppointmentCommandType {
+  CREATE_DRAFT
+  SCHEDULE
+  RESCHEDULE
+  CANCEL
+  COMPLETE
+  CONFIRM
+  DECLINE
+  CHECK_IN
+  NO_SHOW
+  START
+  WAIT
+  FINISH
+  TRANSFER_OWNER
+  OVERRIDE_WARNING
+  LINK_TASK
+  UNLINK_TASK
+  AUTOMATION_RUN
+  BULK_RESCHEDULE
+  IMPORT
+}
+
+enum AppointmentCommandStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED_RETRYABLE
+  FAILED_TERMINAL
+  CONFLICT
+  DUPLICATE_RETURNED
+  CANCELLED
+}
+
 enum CustomerStatus {
   ACTIVE
   INACTIVE
@@ -287,6 +320,7 @@ model User {
   appointmentLocationAccess UserLocationAccess[]
   createdAppointmentTaskLinks AppointmentTaskLink[] @relation("AppointmentTaskLinkCreatedByUser")
   appointmentHistoryEvents AppointmentHistoryEvent[] @relation("AppointmentHistoryEventActorUser")
+  appointmentCommandLedgerEntries AppointmentCommandLedger[] @relation("AppointmentCommandLedgerActorUser")
   schedulableResources    SchedulableResource[] @relation("SchedulableResourceUser")
   createdResourceUnavailability ResourceUnavailability[] @relation("ResourceUnavailabilityCreatedByUser")
 
@@ -380,6 +414,7 @@ model Organization {
   updatedAt    DateTime                 @updatedAt
   locations    Location[]
   appointments Appointment[]
+  appointmentCommandLedgerEntries AppointmentCommandLedger[]
   customers    Customer[]
   vehicles     Vehicle[]
   resourceTypes SchedulableResourceType[]
@@ -406,6 +441,7 @@ model Location {
   operatingWindows LocationOperatingWindow[]
   closures         LocationClosure[]
   appointments     Appointment[]
+  appointmentCommandLedgerEntries AppointmentCommandLedger[]
   userAccess       UserLocationAccess[]
   resources        SchedulableResource[]
 
@@ -501,6 +537,7 @@ model Appointment {
   vehicles                       AppointmentVehicle[]
   taskLinks                      AppointmentTaskLink[]
   historyEvents                  AppointmentHistoryEvent[]
+  commandLedgerEntries           AppointmentCommandLedger[]
   resourceRequirements           AppointmentResourceRequirement[]
   resourceReservations           AppointmentResourceReservation[]
 
@@ -932,6 +969,44 @@ model AppointmentHistoryEvent {
   @@index([appointmentTaskLinkId])
   @@index([correlationId])
   @@index([automationRuleCode, automationRuleVersion])
+}
+
+model AppointmentCommandLedger {
+  id                         String                   @id @default(cuid())
+  organizationId             String
+  locationId                 String?
+  appointmentId              String?
+  actorUserId                String?
+  commandType                AppointmentCommandType
+  status                     AppointmentCommandStatus @default(PENDING)
+  idempotencyKey             String
+  requestHash                String
+  correlationId              String
+  causationId                String?
+  expectedAppointmentVersion Int?
+  currentAppointmentVersion  Int?
+  attemptCount               Int                      @default(0)
+  maxAttempts                Int                      @default(0)
+  nextRetryAt                DateTime?
+  lockedAt                   DateTime?
+  completedAt                DateTime?
+  failedAt                   DateTime?
+  resultSnapshot             Json?
+  errorCode                  String?
+  errorMessage               String?
+  createdAt                  DateTime                 @default(now())
+  updatedAt                  DateTime                 @updatedAt
+  organization               Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location                   Location?                @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  appointment                Appointment?             @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  actorUser                  User?                    @relation("AppointmentCommandLedgerActorUser", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, commandType, idempotencyKey])
+  @@index([appointmentId, commandType, createdAt])
+  @@index([locationId, status, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([correlationId])
+  @@index([status, nextRetryAt])
 }
 
 model TaskChecklistItem {
