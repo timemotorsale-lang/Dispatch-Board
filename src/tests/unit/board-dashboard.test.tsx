@@ -1,7 +1,13 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { MetricStrip, OperationalRail, StaffDutyStrip, TaskBoard } from "@/features/board/board-dashboard";
+import {
+  MetricStrip,
+  OperationalRail,
+  OperationsStrip,
+  StaffDutyStrip,
+  TaskBoard
+} from "@/features/board/board-dashboard";
 import { DEFAULT_BOARD_FILTERS, getBoardPresentation } from "@/features/board/board-grouping";
 import type { BoardReadTask } from "@/server/services/board-read";
 import type { ActivityFeedEvent } from "@/server/services/activity-feed";
@@ -22,6 +28,8 @@ function createTask(id: string, overrides: Partial<GroupableBoardTask> = {}): Gr
     workflowArea: "SALES",
     sourceType: "TEMPLATE",
     requiresManagerApproval: false,
+    requiredUpdateFields: [],
+    updateFieldValues: {},
     assignedUser: {
       id: `user-${id}`,
       name: `User ${id}`
@@ -173,5 +181,23 @@ describe("board dashboard task board", () => {
 
     expect(markup).toContain("Open queue");
     expect(markup).toContain("/manager-review?date=2026-06-18&amp;focus=BLOCKED");
+  });
+
+  it("renders a compact projects hub entry in place of the old workflow flow card", () => {
+    const tasks = [
+      createTask("1", { workflowArea: "INVENTORY", assignedUser: { id: "user-brock", name: "Brock Inventory" } }),
+      createTask("2", { workflowArea: "SHOP", assignedUser: { id: "user-walter", name: "Walter Mechanic" } }),
+      createTask("3", { workflowArea: "SALES", assignedUser: { id: "user-baraka", name: "Baraka Sales" } })
+    ];
+
+    const markup = renderToStaticMarkup(
+      <OperationsStrip activeAssigneeId="" onAssigneeSelect={() => undefined} tasks={tasks} />
+    );
+
+    expect(markup).toContain("Projects");
+    expect(markup).toContain("/projects");
+    expect(markup).toContain("Open Projects Hub");
+    expect(markup).toContain("active project areas today");
+    expect(markup).not.toContain("Workflow flow");
   });
 });

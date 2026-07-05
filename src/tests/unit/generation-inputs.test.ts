@@ -107,9 +107,35 @@ function createTemplate(
     id: string;
     title: string;
     description: string | null;
+    templateCategory: string | null;
     workflowArea: WorkflowArea;
+    priority: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
     defaultDueTime: string;
     requiresManagerApproval: boolean;
+    requiredUpdateFields: unknown[];
+    checklistItems: unknown[];
+    completionCriteria: {
+      mode: "manual" | "checklist" | "update_fields" | "checklist_and_update_fields";
+      requiredChecklistKeys: string[];
+      requiredFieldKeys: string[];
+    };
+    defaultStatusRules: {
+      allowedStatuses: string[];
+      blockedReasonRequired: boolean;
+      waitingReasonRequiredStatuses: string[];
+    };
+    approvalRules: {
+      mode: "none" | "manager_review";
+      readyForReviewRequired: boolean;
+    };
+    intelligenceSignalType: string;
+    taskCardDisplayHints: {
+      emphasizeDueTime: boolean;
+      emphasizeVehicle: boolean;
+      emphasizeCustomer: boolean;
+      showChecklistProgress: boolean;
+      highlightReadyForReview: boolean;
+    };
     isActive: boolean;
     roleId: string | null;
     dutyId: string | null;
@@ -123,9 +149,35 @@ function createTemplate(
     id: "template-sales",
     title: "Review sales follow-up tasks",
     description: "Review open leads and next steps.",
+    templateCategory: "sales_follow_up",
     workflowArea: WorkflowArea.SALES,
+    priority: "MEDIUM",
     defaultDueTime: "15:00",
     requiresManagerApproval: false,
+    requiredUpdateFields: [],
+    checklistItems: [],
+    completionCriteria: {
+      mode: "manual",
+      requiredChecklistKeys: [],
+      requiredFieldKeys: []
+    },
+    defaultStatusRules: {
+      allowedStatuses: ["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "READY_FOR_REVIEW", "COMPLETED"],
+      blockedReasonRequired: true,
+      waitingReasonRequiredStatuses: []
+    },
+    approvalRules: {
+      mode: "none",
+      readyForReviewRequired: false
+    },
+    intelligenceSignalType: "SALES_UPDATE",
+    taskCardDisplayHints: {
+      emphasizeDueTime: true,
+      emphasizeVehicle: false,
+      emphasizeCustomer: true,
+      showChecklistProgress: false,
+      highlightReadyForReview: false
+    },
     isActive: true,
     roleId: "role-sales",
     dutyId: "duty-sales",
@@ -387,6 +439,80 @@ describe("generation inputs service", () => {
     expect(result.users[0].templates.map((template) => template.templateId)).toEqual([
       "template-active-duty"
     ]);
+  });
+
+  it("preserves structured template foundation fields in generation inputs", async () => {
+    const repository = createGenerationInputsRepository({
+      users: [createUser()],
+      templates: [
+        createTemplate({
+          id: "template-structured",
+          templateCategory: "sales_follow_up",
+          priority: "HIGH",
+          requiredUpdateFields: [
+            {
+              key: "customer_name",
+              label: "Customer name",
+              type: "short_text",
+              required: true,
+              helpText: null
+            }
+          ],
+          checklistItems: [
+            {
+              key: "log_contact",
+              label: "Log contact",
+              description: "Record the latest customer touchpoint.",
+              required: true
+            }
+          ],
+          completionCriteria: {
+            mode: "checklist_and_update_fields",
+            requiredChecklistKeys: ["log_contact"],
+            requiredFieldKeys: ["customer_name"]
+          },
+          approvalRules: {
+            mode: "none",
+            readyForReviewRequired: false
+          },
+          intelligenceSignalType: "SALES_UPDATE",
+          taskCardDisplayHints: {
+            emphasizeDueTime: true,
+            emphasizeVehicle: false,
+            emphasizeCustomer: true,
+            showChecklistProgress: true,
+            highlightReadyForReview: false
+          }
+        })
+      ]
+    });
+
+    const result = await loadGenerationInputsForDate("2026-06-17", repository);
+
+    expect(result.users[0].templates[0]).toMatchObject({
+      templateCategory: "sales_follow_up",
+      priority: "HIGH",
+      requiredUpdateFields: [
+        expect.objectContaining({
+          key: "customer_name"
+        })
+      ],
+      checklistItems: [
+        expect.objectContaining({
+          key: "log_contact"
+        })
+      ],
+      completionCriteria: {
+        mode: "checklist_and_update_fields",
+        requiredChecklistKeys: ["log_contact"],
+        requiredFieldKeys: ["customer_name"]
+      },
+      intelligenceSignalType: "SALES_UPDATE",
+      taskCardDisplayHints: expect.objectContaining({
+        emphasizeCustomer: true,
+        showChecklistProgress: true
+      })
+    });
   });
 
   it("deduplicates multi-role duties and template candidates", async () => {

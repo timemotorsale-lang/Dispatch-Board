@@ -74,6 +74,10 @@ export function canViewFullBoard(user: AuthenticatedUser | null) {
   return Boolean(user);
 }
 
+export function canCommentOnTask(user: AuthenticatedUser | null) {
+  return canViewFullBoard(user);
+}
+
 export function canUseStaffSelfService(user: AuthenticatedUser | null, subjectUserId: string) {
   if (!user) {
     return false;
@@ -91,6 +95,10 @@ export function canUpdateAssignedWork(input: AssignedWorkPermissionInput) {
 
   if (!actor) {
     return false;
+  }
+
+  if (requestedAction === "comment") {
+    return canCommentOnTask(actor);
   }
 
   if (isManager(actor)) {

@@ -11,11 +11,16 @@ import {
   normalizeTaskStatusUpdateInput,
   type NormalizedTaskStatusUpdateInput
 } from "@/server/validation/task-status";
+import type {
+  TaskTemplateCompletionCriteria,
+  TaskTemplateRequiredUpdateField
+} from "@/server/validation/task-template";
 
 export type TaskStatusUpdateResult = {
   id: string;
   status: TaskStatus;
   blockerReason: string | null;
+  updateFieldValues?: Record<string, string | boolean>;
   updatedAt: string;
 };
 
@@ -30,6 +35,191 @@ function normalizeTaskId(taskId: string) {
   }
 
   return normalizedTaskId;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeStoredUpdateFieldValues(value: unknown) {
+  if (!isPlainObject(value)) {
+    return {} as Record<string, string | boolean>;
+  }
+
+  const normalizedEntries: Array<[string, string | boolean]> = [];
+
+  for (const [key, fieldValue] of Object.entries(value)) {
+    if (typeof fieldValue === "boolean") {
+      normalizedEntries.push([key, fieldValue]);
+      continue;
+    }
+
+    if (typeof fieldValue === "string") {
+      const normalizedValue = fieldValue.trim();
+
+      if (normalizedValue) {
+        normalizedEntries.push([key, normalizedValue]);
+      }
+    }
+  }
+
+  return Object.fromEntries(normalizedEntries);
+}
+
+function normalizeTemplateRequiredUpdateFields(snapshot: unknown): TaskTemplateRequiredUpdateField[] {
+  if (!isPlainObject(snapshot) || !Array.isArray(snapshot.requiredUpdateFields)) {
+    return [];
+  }
+
+  return snapshot.requiredUpdateFields.flatMap((entry) => {
+    if (!isPlainObject(entry) || typeof entry.key !== "string" || typeof entry.label !== "string") {
+      return [];
+    }
+
+    if (
+      entry.type !== "short_text" &&
+      entry.type !== "long_text" &&
+      entry.type !== "single_select" &&
+      entry.type !== "boolean"
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        key: entry.key,
+        label: entry.label,
+        type: entry.type,
+        required: entry.required !== false,
+        helpText: typeof entry.helpText === "string" ? entry.helpText : null,
+        ...(Array.isArray(entry.options) &&
+        entry.options.every((option) => typeof option === "string" && option.trim())
+          ? { options: entry.options.map((option) => option.trim()) }
+          : {})
+      } satisfies TaskTemplateRequiredUpdateField
+    ];
+  });
+}
+
+function normalizeTemplateCompletionCriteria(snapshot: unknown): TaskTemplateCompletionCriteria | null {
+  if (!isPlainObject(snapshot) || !isPlainObject(snapshot.completionCriteria)) {
+    return null;
+  }
+
+  const criteria = snapshot.completionCriteria;
+
+  if (
+    typeof criteria.mode !== "string" ||
+    !Array.isArray(criteria.requiredChecklistKeys) ||
+    !Array.isArray(criteria.requiredFieldKeys)
+  ) {
+    return null;
+  }
+
+  return {
+    mode:
+      criteria.mode === "manual" ||
+      criteria.mode === "checklist" ||
+      criteria.mode === "update_fields" ||
+      criteria.mode === "checklist_and_update_fields"
+        ? criteria.mode
+        : "manual",
+    requiredChecklistKeys: criteria.requiredChecklistKeys.filter((value): value is string => typeof value === "string"),
+    requiredFieldKeys: criteria.requiredFieldKeys.filter((value): value is string => typeof value === "string")
+  };
+}
+
+function mergeUpdateFieldValues(
+  existingValues: unknown,
+  incomingValues: Record<string, string | boolean> | undefined
+) {
+  return {
+    ...normalizeStoredUpdateFieldValues(existingValues),
+    ...(incomingValues ?? {})
+  };
+}
+
+function validateIncomingUpdateFieldsAgainstTemplate(
+  requiredUpdateFields: TaskTemplateRequiredUpdateField[],
+  incomingValues: Record<string, string | boolean> | undefined
+) {
+  if (!incomingValues) {
+    return;
+  }
+
+  const fieldsByKey = new Map(requiredUpdateFields.map((field) => [field.key, field]));
+
+  for (const [key, value] of Object.entries(incomingValues)) {
+    const field = fieldsByKey.get(key);
+
+    if (!field) {
+      throw new Error(`Task update field "${key}" is not allowed for this task.`);
+    }
+
+    if ((field.type === "short_text" || field.type === "long_text" || field.type === "single_select") && typeof value !== "string") {
+      throw new Error(`Task update field "${field.label}" requires text input.`);
+    }
+
+    if (field.type === "boolean" && typeof value !== "boolean") {
+      throw new Error(`Task update field "${field.label}" requires a yes/no value.`);
+    }
+
+    if (field.type === "single_select" && field.options && !field.options.includes(value as string)) {
+      throw new Error(`Task update field "${field.label}" must use one of the allowed options.`);
+    }
+  }
+}
+
+function shouldEnforceRequiredUpdateFields(status: TaskStatus) {
+  return status === TaskStatus.READY_FOR_REVIEW || status === TaskStatus.COMPLETED;
+}
+
+function assertRequiredUpdateFieldsSatisfied(
+  task: {
+    templateSnapshot?: unknown;
+    updateFieldValues?: unknown;
+  },
+  input: NormalizedTaskStatusUpdateInput
+) {
+  const requiredUpdateFields = normalizeTemplateRequiredUpdateFields(task.templateSnapshot);
+
+  if (requiredUpdateFields.length === 0) {
+    return {
+      mergedUpdateFieldValues: mergeUpdateFieldValues(task.updateFieldValues, input.updateFields)
+    };
+  }
+
+  validateIncomingUpdateFieldsAgainstTemplate(requiredUpdateFields, input.updateFields);
+
+  const mergedUpdateFieldValues = mergeUpdateFieldValues(task.updateFieldValues, input.updateFields);
+  const completionCriteria = normalizeTemplateCompletionCriteria(task.templateSnapshot);
+  const requiredFieldKeys = new Set([
+    ...requiredUpdateFields.filter((field) => field.required).map((field) => field.key),
+    ...(completionCriteria?.requiredFieldKeys ?? [])
+  ]);
+
+  if (!shouldEnforceRequiredUpdateFields(input.status)) {
+    return { mergedUpdateFieldValues };
+  }
+
+  const missingLabels = requiredUpdateFields
+    .filter((field) => requiredFieldKeys.has(field.key))
+    .filter((field) => {
+      const value = mergedUpdateFieldValues[field.key];
+
+      if (field.type === "boolean") {
+        return typeof value !== "boolean";
+      }
+
+      return typeof value !== "string" || !value.trim();
+    })
+    .map((field) => field.label);
+
+  if (missingLabels.length > 0) {
+    throw new Error(`Task update is missing required fields: ${missingLabels.join(", ")}.`);
+  }
+
+  return { mergedUpdateFieldValues };
 }
 
 function getRequestedAction(
@@ -99,11 +289,14 @@ function buildTaskStatusUpdateData(
   task: {
     status: TaskStatus;
     requiresManagerApproval: boolean;
+    templateSnapshot?: unknown;
+    updateFieldValues?: unknown;
   },
   input: NormalizedTaskStatusUpdateInput
 ) {
   const now = new Date();
   const managerReviewerId = task.requiresManagerApproval ? user.id : null;
+  const { mergedUpdateFieldValues } = assertRequiredUpdateFieldsSatisfied(task, input);
 
   if (input.status === TaskStatus.BLOCKED) {
     if (!input.blockerReason) {
@@ -113,6 +306,7 @@ function buildTaskStatusUpdateData(
     return {
       status: input.status,
       blockerReason: input.blockerReason,
+      updateFieldValues: mergedUpdateFieldValues,
       ...(task.status === TaskStatus.READY_FOR_REVIEW
         ? {
             readyForReviewAt: null
@@ -126,6 +320,7 @@ function buildTaskStatusUpdateData(
   if (input.status === TaskStatus.READY_FOR_REVIEW) {
     return {
       status: input.status,
+      updateFieldValues: mergedUpdateFieldValues,
       readyForReviewAt: now,
       completedAt: null,
       reviewedByUserId: null
@@ -135,6 +330,7 @@ function buildTaskStatusUpdateData(
   if (input.status === TaskStatus.COMPLETED) {
     return {
       status: input.status,
+      updateFieldValues: mergedUpdateFieldValues,
       completedAt: now,
       reviewedByUserId: managerReviewerId
     };
@@ -142,6 +338,7 @@ function buildTaskStatusUpdateData(
 
   return {
     status: input.status,
+    updateFieldValues: mergedUpdateFieldValues,
     ...(task.status === TaskStatus.READY_FOR_REVIEW
       ? {
           readyForReviewAt: null
@@ -186,12 +383,14 @@ function toTaskStatusUpdateResult(task: {
   id: string;
   status: TaskStatus;
   blockerReason: string | null;
+  updateFieldValues?: unknown;
   updatedAt: Date;
 }): TaskStatusUpdateResult {
   return {
     id: task.id,
     status: task.status,
     blockerReason: task.blockerReason?.trim() ? task.blockerReason.trim() : null,
+    updateFieldValues: normalizeStoredUpdateFieldValues(task.updateFieldValues),
     updatedAt: task.updatedAt.toISOString()
   };
 }

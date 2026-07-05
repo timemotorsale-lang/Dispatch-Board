@@ -33,6 +33,19 @@ const managerUser = {
   }
 };
 
+const inventoryLeadUser = {
+  id: "user-riley.inventory@local.test",
+  name: "Riley Inventory",
+  email: "riley.inventory@local.test",
+  isActive: true,
+  roles: ["Inventory Manager", "Service Department Manager"],
+  duties: {
+    direct: [],
+    roleDefaults: ["Review inventory status"],
+    all: ["Review inventory status"]
+  }
+};
+
 describe("users route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -171,6 +184,18 @@ describe("users route", () => {
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
       error: "Only the General Manager can grant delegated manager capabilities."
+    });
+  });
+
+  it("rejects manager-only user management for non-General-Manager staff roles", async () => {
+    mocks.getCurrentUser.mockResolvedValue(inventoryLeadUser);
+    mocks.getTeamManagementSnapshotForManager.mockRejectedValue(new Error("Manager access required."));
+
+    const response = await GET(new Request("http://localhost/api/users"));
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      error: "Manager access required."
     });
   });
 });

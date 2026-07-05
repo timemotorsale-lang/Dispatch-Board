@@ -217,14 +217,6 @@ function getTaskReference(task: BoardReadTask) {
   return "No linked vehicle or customer";
 }
 
-function getTaskSummaryFacts(task: BoardReadTask, now: Date) {
-  return [
-    formatStatusLabel(task.workflowArea),
-    getDueCopy(task.dueAt, now),
-    task.requiresManagerApproval ? "Manager review required" : "Staff-owned update"
-  ];
-}
-
 function getTaskSignal(task: BoardReadTask, now: Date) {
   if (hasMissingRequiredUpdate(task)) {
     return {
@@ -991,7 +983,6 @@ export function MyTasksScreen({
                 ) : (
                   visibleTasks.map((task) => {
                     const isSelected = task.id === selectedTask?.id;
-                    const facts = getTaskSummaryFacts(task, now);
 
                     if (displayMode === "list") {
                       return (

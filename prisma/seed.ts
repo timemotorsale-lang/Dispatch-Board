@@ -11,6 +11,65 @@ import { getDefaultAppSettings } from "../src/server/validation/app-settings";
 
 const prisma = new PrismaClient();
 
+const defaultTemplateFoundation = {
+  templateCategory: null,
+  priority: "MEDIUM" as const,
+  requiredUpdateFields: [],
+  checklistItems: [],
+  completionCriteria: {
+    mode: "manual",
+    requiredChecklistKeys: [],
+    requiredFieldKeys: []
+  },
+  defaultStatusRules: {
+    allowedStatuses: [
+      "NOT_STARTED",
+      "IN_PROGRESS",
+      "BLOCKED",
+      "WAITING_ON_PARTS",
+      "WAITING_ON_APPROVAL",
+      "READY_FOR_REVIEW",
+      "COMPLETED"
+    ],
+    blockedReasonRequired: true,
+    waitingReasonRequiredStatuses: []
+  },
+  approvalRules: {
+    mode: "none",
+    readyForReviewRequired: false
+  },
+  intelligenceSignalType: "NONE",
+  taskCardDisplayHints: {}
+};
+
+function buildTemplateFoundation(templateDefinition: (typeof dayOneTaskTemplateDefinitions)[number]) {
+  return {
+    templateCategory: templateDefinition.templateCategory ?? defaultTemplateFoundation.templateCategory,
+    priority: templateDefinition.priority ?? defaultTemplateFoundation.priority,
+    requiredUpdateFields:
+      templateDefinition.requiredUpdateFields ?? defaultTemplateFoundation.requiredUpdateFields,
+    checklistItems: templateDefinition.checklistItems ?? defaultTemplateFoundation.checklistItems,
+    completionCriteria:
+      templateDefinition.completionCriteria ?? defaultTemplateFoundation.completionCriteria,
+    defaultStatusRules:
+      templateDefinition.defaultStatusRules ?? defaultTemplateFoundation.defaultStatusRules,
+    approvalRules: templateDefinition.approvalRules
+      ? templateDefinition.approvalRules
+      : templateDefinition.requiresManagerApproval
+        ? {
+            mode: "manager_review",
+            readyForReviewRequired: true
+          }
+        : defaultTemplateFoundation.approvalRules,
+    intelligenceSignalType:
+      templateDefinition.intelligenceSignalType ?? defaultTemplateFoundation.intelligenceSignalType,
+    taskCardDisplayHints: {
+      ...defaultTemplateFoundation.taskCardDisplayHints,
+      ...(templateDefinition.taskCardDisplayHints ?? {})
+    }
+  };
+}
+
 async function main() {
   const defaultAppSettings = getDefaultAppSettings();
 
@@ -91,6 +150,7 @@ async function main() {
   for (const templateDefinition of dayOneTaskTemplateDefinitions) {
     const roleId = templateDefinition.roleName ? roleIdByName.get(templateDefinition.roleName) : null;
     const dutyId = templateDefinition.dutyName ? dutyIdByName.get(templateDefinition.dutyName) : null;
+    const templateFoundation = buildTemplateFoundation(templateDefinition);
 
     if (templateDefinition.roleName && !roleId) {
       throw new Error(`Missing role for task template seed: ${templateDefinition.title} -> ${templateDefinition.roleName}`);
@@ -114,6 +174,7 @@ async function main() {
         where: { id: existingTemplate.id },
         data: {
           description: templateDefinition.description,
+          ...templateFoundation,
           workflowArea: templateDefinition.workflowArea,
           defaultDueTime: templateDefinition.defaultDueTime,
           requiresManagerApproval: templateDefinition.requiresManagerApproval,
@@ -129,6 +190,7 @@ async function main() {
       data: {
         title: templateDefinition.title,
         description: templateDefinition.description,
+        ...templateFoundation,
         workflowArea: templateDefinition.workflowArea,
         defaultDueTime: templateDefinition.defaultDueTime,
         requiresManagerApproval: templateDefinition.requiresManagerApproval,

@@ -1,4 +1,4 @@
-﻿import {
+import {
   Activity,
   CalendarDays,
   Car,
@@ -110,6 +110,18 @@ export const navigationGroups: NavigationGroup[] = [
         description: "Prototype-only enterprise workspace design.",
         icon: LayoutTemplate,
         badge: "Prototype"
+      }
+    ]
+  },
+  {
+    label: "Admin",
+    items: [
+      {
+        href: "/settings/team",
+        title: "Admin",
+        description: "Staff accounts, roles, duties, templates, and access control.",
+        icon: Users,
+        isVisible: (user) => canManageSettings(user)
       }
     ]
   },

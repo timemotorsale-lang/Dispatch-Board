@@ -32,6 +32,20 @@ function createBoardReadRepositoryHarness(): BoardReadRepository {
           workflowArea: WorkflowArea.SALES,
           sourceType: TaskSourceType.TEMPLATE,
           requiresManagerApproval: false,
+          templateSnapshot: {
+            requiredUpdateFields: [
+              {
+                key: "customer_name",
+                label: "Customer name",
+                type: "short_text",
+                required: true,
+                helpText: null
+              }
+            ]
+          },
+          updateFieldValues: {
+            customer_name: "Taylor R."
+          },
           vehicleReference: null,
           customerReference: "Taylor R.",
           blockerReason: null,
@@ -58,6 +72,8 @@ function createBoardReadRepositoryHarness(): BoardReadRepository {
           workflowArea: WorkflowArea.SHOP,
           sourceType: TaskSourceType.MANAGER,
           requiresManagerApproval: true,
+          templateSnapshot: null,
+          updateFieldValues: null,
           vehicleReference: "2018 F-150",
           customerReference: null,
           blockerReason: "Waiting on parts",
@@ -118,6 +134,15 @@ describe("my tasks service", () => {
           id: "task-1",
           assignedUser: {
             id: "user-jordan.sales@local.test"
+          },
+          requiredUpdateFields: [
+            {
+              key: "customer_name",
+              label: "Customer name"
+            }
+          ],
+          updateFieldValues: {
+            customer_name: "Taylor R."
           }
         }
       ]

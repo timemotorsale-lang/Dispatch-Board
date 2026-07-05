@@ -28,6 +28,7 @@ const createdGeneratedTaskSelect = {
   recommendationExplanation: true,
   dueAt: true,
   sourceTemplateId: true,
+  templateSnapshot: true,
   sourceDutyId: true,
   workflowArea: true
 } satisfies Prisma.TaskSelect;
@@ -55,6 +56,7 @@ export type CreateGeneratedTaskInput = {
   createdByUserId: string | null;
   requiresManagerApproval: boolean;
   sourceTemplateId: string;
+  templateSnapshot: Prisma.InputJsonValue;
   sourceDutyId: string | null;
   workflowArea: CreatedGeneratedTaskRecord["workflowArea"];
 };
@@ -152,6 +154,7 @@ export function createGenerationTasksRepository(
             requiresManagerApproval: input.requiresManagerApproval,
             sourceType: TaskSourceType.TEMPLATE,
             sourceTemplateId: input.sourceTemplateId,
+            templateSnapshot: input.templateSnapshot,
             sourceDutyId: input.sourceDutyId,
             workflowArea: input.workflowArea
           },

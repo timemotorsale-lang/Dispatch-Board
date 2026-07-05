@@ -30,7 +30,7 @@ describe("task comments panel", () => {
 
     expect(markup).toContain("No comments on this task");
     expect(markup).toContain("Task updates will appear here");
-    expect(markup).toContain("Add update");
+    expect(markup).toContain("Add comment");
     expect(markup).toContain("Plain text only. Line breaks are preserved.");
   });
 
@@ -41,7 +41,7 @@ describe("task comments panel", () => {
 
     expect(markup).toContain("Eli Manager");
     expect(markup).toContain("First update");
-    expect(markup).toContain("Only the assigned staff member or a manager can add updates");
+    expect(markup).toContain("You need board access to add comments to this task.");
   });
 
   it("appends new comments to the end of the current list", () => {

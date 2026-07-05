@@ -124,6 +124,8 @@ type WorkflowTask = {
   createdAt: Date;
   updatedAt: Date;
   requiresManagerApproval: boolean;
+  templateSnapshot: Prisma.JsonValue | null;
+  updateFieldValues: Prisma.JsonValue | null;
   vehicleReference: string | null;
   customerReference: string | null;
   sourceType: TaskSourceType;
@@ -272,6 +274,8 @@ function createRouteHarness(authUsers: AuthenticatedUser[]) {
         createdAt: now,
         updatedAt: now,
         requiresManagerApproval: input.requiresManagerApproval,
+        templateSnapshot: null,
+        updateFieldValues: null,
         vehicleReference: input.vehicleReference ?? null,
         customerReference: input.customerReference ?? null,
         sourceType: TaskSourceType.MANAGER,
@@ -309,6 +313,7 @@ function createRouteHarness(authUsers: AuthenticatedUser[]) {
       task.status = data.status;
       task.updatedAt = new Date();
       if (data.blockerReason !== undefined) task.blockerReason = data.blockerReason;
+      if (data.updateFieldValues !== undefined) task.updateFieldValues = data.updateFieldValues as Prisma.JsonValue;
       if (data.readyForReviewAt !== undefined) task.readyForReviewAt = data.readyForReviewAt;
       if (data.completedAt !== undefined) task.completedAt = data.completedAt;
       if (data.reviewedByUserId !== undefined) task.reviewedByUserId = data.reviewedByUserId;
@@ -319,6 +324,7 @@ function createRouteHarness(authUsers: AuthenticatedUser[]) {
         requiresManagerApproval: task.requiresManagerApproval,
         status: task.status,
         blockerReason: task.blockerReason,
+        updateFieldValues: task.updateFieldValues,
         readyForReviewAt: task.readyForReviewAt,
         completedAt: task.completedAt,
         reviewedByUserId: task.reviewedByUserId,
@@ -441,6 +447,8 @@ function createRouteHarness(authUsers: AuthenticatedUser[]) {
         createdAt: new Date(),
         updatedAt: new Date(),
         requiresManagerApproval: input.requiresManagerApproval,
+        templateSnapshot: input.templateSnapshot as Prisma.JsonValue,
+        updateFieldValues: null,
         vehicleReference: null,
         customerReference: null,
         sourceType: TaskSourceType.TEMPLATE,
@@ -532,6 +540,7 @@ function createRouteHarness(authUsers: AuthenticatedUser[]) {
       requiresManagerApproval?: boolean;
       status?: TaskStatus;
       title?: string;
+      templateSnapshot?: Prisma.JsonValue | null;
       sourceType?: TaskSourceType;
       workflowArea?: WorkflowArea;
     }) {
@@ -553,6 +562,8 @@ function createRouteHarness(authUsers: AuthenticatedUser[]) {
         createdAt: now,
         updatedAt: now,
         requiresManagerApproval: input.requiresManagerApproval ?? false,
+        templateSnapshot: input.templateSnapshot ?? null,
+        updateFieldValues: null,
         vehicleReference: null,
         customerReference: null,
         sourceType: input.sourceType ?? TaskSourceType.MANAGER,
@@ -864,6 +875,7 @@ describe("API route integration", () => {
         id: task.id,
         status: "BLOCKED",
         blockerReason: "Waiting on lender paperwork.",
+        updateFieldValues: {},
         updatedAt: "2026-06-18T15:30:00.000Z"
       }
     });
@@ -912,6 +924,7 @@ describe("API route integration", () => {
         id: task.id,
         status: "READY_FOR_REVIEW",
         blockerReason: null,
+        updateFieldValues: {},
         updatedAt: "2026-06-18T15:30:00.000Z"
       }
     });
@@ -935,7 +948,95 @@ describe("API route integration", () => {
         id: task.id,
         status: "COMPLETED",
         blockerReason: null,
+        updateFieldValues: {},
         updatedAt: "2026-06-18T15:30:00.000Z"
+      }
+    });
+  });
+
+  it("enforces template-required guided update fields through the task status route", async () => {
+    const { harness, staff } = await createRouteContext();
+    const task = harness.seedTask({
+      assignedUserId: staff.id,
+      sourceType: TaskSourceType.TEMPLATE,
+      templateSnapshot: {
+        requiredUpdateFields: [
+          {
+            key: "vehicle",
+            label: "Vehicle",
+            type: "short_text",
+            required: true,
+            helpText: null
+          },
+          {
+            key: "repair_status",
+            label: "Repair status",
+            type: "single_select",
+            required: true,
+            helpText: null,
+            options: ["In progress", "Waiting on parts", "Completed"]
+          },
+          {
+            key: "next_step",
+            label: "Next step",
+            type: "long_text",
+            required: true,
+            helpText: null
+          }
+        ],
+        completionCriteria: {
+          mode: "update_fields",
+          requiredChecklistKeys: [],
+          requiredFieldKeys: ["vehicle", "repair_status", "next_step"]
+        }
+      }
+    });
+    setCurrentUser(staff);
+
+    const invalidResponse = await postTaskStatus(
+      new Request(`http://localhost/api/tasks/${task.id}/status`, {
+        method: "POST",
+        body: JSON.stringify({
+          status: "COMPLETED"
+        })
+      }),
+      {
+        params: Promise.resolve({ id: task.id })
+      }
+    );
+
+    expect(invalidResponse.status).toBe(400);
+    await expect(invalidResponse.json()).resolves.toEqual({
+      error: "Task update is missing required fields: Vehicle, Repair status, Next step."
+    });
+
+    const validResponse = await postTaskStatus(
+      new Request(`http://localhost/api/tasks/${task.id}/status`, {
+        method: "POST",
+        body: JSON.stringify({
+          status: "COMPLETED",
+          updateFields: {
+            vehicle: "2018 F-150",
+            repair_status: "Completed",
+            next_step: "Send to QC"
+          }
+        })
+      }),
+      {
+        params: Promise.resolve({ id: task.id })
+      }
+    );
+
+    expect(validResponse.status).toBe(200);
+    await expect(validResponse.json()).resolves.toMatchObject({
+      task: {
+        id: task.id,
+        status: "COMPLETED",
+        updateFieldValues: {
+          vehicle: "2018 F-150",
+          repair_status: "Completed",
+          next_step: "Send to QC"
+        }
       }
     });
   });

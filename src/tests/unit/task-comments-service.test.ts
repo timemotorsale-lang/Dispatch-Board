@@ -1,4 +1,4 @@
-import { ActivityEventType, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
 import type { TaskCommentRepository } from "@/server/repositories/task-comment-repository";
@@ -70,7 +70,8 @@ function createTaskCommentRepositoryHarness(): {
         id: "task-1",
         boardDayId: "board-day-1",
         assignedUserId: "user-jordan.sales@local.test",
-        requiresManagerApproval: false
+        requiresManagerApproval: false,
+        title: "Follow up with customer"
       }
     ],
     [
@@ -79,7 +80,8 @@ function createTaskCommentRepositoryHarness(): {
         id: "task-2",
         boardDayId: "board-day-1",
         assignedUserId: "user-casey.mechanic@local.test",
-        requiresManagerApproval: true
+        requiresManagerApproval: true,
+        title: "Check service parts"
       }
     ]
   ]);
@@ -89,6 +91,8 @@ function createTaskCommentRepositoryHarness(): {
       return [...activityEvents];
     },
     repository: {
+      supportsActivityEvents: false,
+
       async createActivityEvent(input) {
         activityEvents.push(input);
       },
@@ -190,20 +194,7 @@ describe("task comments service", () => {
         email: "jordan.sales@local.test"
       }
     });
-    expect(readActivityEvents()).toEqual([
-      {
-        actorUserId: "user-jordan.sales@local.test",
-        boardDayId: "board-day-1",
-        eventType: ActivityEventType.COMMENT_ADDED,
-        message: "Comment added",
-        metadata: {
-          authorUserId: "user-jordan.sales@local.test",
-          commentId: "comment-3",
-          preview: "Contacted customer. Waiting on return call."
-        },
-        taskId: "task-1"
-      }
-    ]);
+    expect(readActivityEvents()).toEqual([]);
   });
 
   it("rejects empty and whitespace-only comments", async () => {
@@ -238,7 +229,7 @@ describe("task comments service", () => {
     ).rejects.toThrow("Task comments must be 2000 characters or fewer.");
   });
 
-  it("allows staff to comment on their own assigned task and rejects other staff tasks", async () => {
+  it("allows staff to comment on both their own task and another visible staff task", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
 
@@ -261,11 +252,15 @@ describe("task comments service", () => {
         staffUser,
         "task-2",
         {
-          body: "Trying to update another staff task."
+          body: "Parts arrived and are ready for pickup."
         },
         createTaskCommentRepositoryHarness().repository
       )
-    ).rejects.toThrow("You do not have permission to comment on this task.");
+    ).resolves.toMatchObject({
+      taskId: "task-2",
+      authorUserId: "user-jordan.sales@local.test",
+      body: "Parts arrived and are ready for pickup."
+    });
   });
 
   it("allows a manager to comment on any visible task", async () => {

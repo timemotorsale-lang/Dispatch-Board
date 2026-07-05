@@ -1,11 +1,12 @@
 import { TaskStatus } from "@prisma/client";
 
-const taskStatusUpdateAllowedKeys = new Set(["status", "blockerReason"]);
+const taskStatusUpdateAllowedKeys = new Set(["status", "blockerReason", "updateFields"]);
 const taskStatusValues = new Set(Object.values(TaskStatus));
 
 export type NormalizedTaskStatusUpdateInput = {
   status: TaskStatus;
   blockerReason?: string;
+  updateFields?: Record<string, string | boolean>;
 };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -52,6 +53,49 @@ function normalizeOptionalBlockerReason(value: unknown) {
   return value.trim();
 }
 
+function normalizeUpdateFields(value: unknown) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!isPlainObject(value)) {
+    throw new Error("Task status updates require updateFields to be an object when provided.");
+  }
+
+  const normalizedEntries: Array<[string, string | boolean]> = [];
+
+  for (const [key, fieldValue] of Object.entries(value)) {
+    const normalizedKey = key.trim();
+
+    if (!normalizedKey) {
+      throw new Error("Task status updates require updateFields keys to be non-empty strings.");
+    }
+
+    if (fieldValue === null || fieldValue === undefined) {
+      continue;
+    }
+
+    if (typeof fieldValue === "boolean") {
+      normalizedEntries.push([normalizedKey, fieldValue]);
+      continue;
+    }
+
+    if (typeof fieldValue === "string") {
+      const normalizedValue = fieldValue.trim();
+      if (normalizedValue) {
+        normalizedEntries.push([normalizedKey, normalizedValue]);
+      }
+      continue;
+    }
+
+    throw new Error(
+      `Task status updates require updateFields.${normalizedKey} to be a string or boolean.`
+    );
+  }
+
+  return Object.fromEntries(normalizedEntries);
+}
+
 export function normalizeTaskStatusUpdateInput(value: unknown): NormalizedTaskStatusUpdateInput {
   const input = assertTaskStatusObject(value);
 
@@ -65,6 +109,12 @@ export function normalizeTaskStatusUpdateInput(value: unknown): NormalizedTaskSt
 
   if (blockerReason) {
     normalizedInput.blockerReason = blockerReason;
+  }
+
+  const updateFields = normalizeUpdateFields(input.updateFields);
+
+  if (updateFields && Object.keys(updateFields).length > 0) {
+    normalizedInput.updateFields = updateFields;
   }
 
   return normalizedInput;
