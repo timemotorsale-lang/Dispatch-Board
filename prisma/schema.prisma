@@ -69,6 +69,17 @@ enum AppointmentSourceType {
   IMPORT
 }
 
+enum AppointmentTaskLinkType {
+  SOURCE
+  PREPARATION
+  DEPENDENCY
+  DURING_APPOINTMENT
+  APPROVAL
+  FOLLOW_UP
+  OUTCOME
+  REFERENCE
+}
+
 enum CustomerStatus {
   ACTIVE
   INACTIVE
@@ -237,6 +248,7 @@ model User {
   createdAppointments     Appointment[]     @relation("AppointmentCreatedByUser")
   appointmentParticipants AppointmentParticipant[]
   appointmentLocationAccess UserLocationAccess[]
+  createdAppointmentTaskLinks AppointmentTaskLink[] @relation("AppointmentTaskLinkCreatedByUser")
   schedulableResources    SchedulableResource[] @relation("SchedulableResourceUser")
   createdResourceUnavailability ResourceUnavailability[] @relation("ResourceUnavailabilityCreatedByUser")
 
@@ -449,6 +461,7 @@ model Appointment {
   createdByUser                  User?                         @relation("AppointmentCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
   participants                   AppointmentParticipant[]
   vehicles                       AppointmentVehicle[]
+  taskLinks                      AppointmentTaskLink[]
   resourceRequirements           AppointmentResourceRequirement[]
   resourceReservations           AppointmentResourceReservation[]
 
@@ -810,11 +823,39 @@ model Task {
   activityEvents          ActivityEvent[]
   checklistItems          TaskChecklistItem[]
   comments                TaskComment[]
+  appointmentLinks        AppointmentTaskLink[]
 
   @@unique([boardDayId, sourceTemplateId, assignedUserId])
   @@index([boardDayId, status])
   @@index([boardDayId, assignedUserId])
   @@index([boardDayId, workflowArea])
+}
+
+model AppointmentTaskLink {
+  id                 String                  @id @default(cuid())
+  appointmentId      String
+  taskId             String
+  linkType           AppointmentTaskLinkType
+  linkCode           String
+  title              String
+  explanation        String?
+  isRequired         Boolean                 @default(false)
+  blocksAppointment  Boolean                 @default(false)
+  blocksTask         Boolean                 @default(false)
+  automationRuleCode String?
+  templateVersion    Int?
+  createdByUserId    String?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  appointment        Appointment             @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  task               Task                    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  createdByUser      User?                   @relation("AppointmentTaskLinkCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([appointmentId, taskId, linkCode])
+  @@index([appointmentId, linkType])
+  @@index([taskId, linkType])
+  @@index([automationRuleCode, templateVersion])
+  @@index([createdByUserId])
 }
 
 model TaskChecklistItem {

@@ -248,4 +248,53 @@ describe("prisma schema constraints", () => {
     expect(combinedSql).toMatch(/ResourceReservation_time_range_check/);
     expect(combinedSql).toMatch(/ResourceReservation_buffer_check/);
   });
+
+  it("declares the EAPT-007 appointment-to-task link foundation", async () => {
+    const schema = await readFile(schemaPath, "utf8");
+    const appointmentModel = getModelBlock(schema, "Appointment");
+    const taskModel = getModelBlock(schema, "Task");
+    const appointmentTaskLinkModel = getModelBlock(schema, "AppointmentTaskLink");
+    const userModel = getModelBlock(schema, "User");
+
+    expect(schema).toMatch(/enum AppointmentTaskLinkType/);
+    expect(schema).toMatch(/SOURCE/);
+    expect(schema).toMatch(/PREPARATION/);
+    expect(schema).toMatch(/FOLLOW_UP/);
+
+    expect(appointmentModel).toMatch(/taskLinks\s+AppointmentTaskLink\[\]/);
+    expect(taskModel).toMatch(/appointmentLinks\s+AppointmentTaskLink\[\]/);
+    expect(userModel).toMatch(
+      /createdAppointmentTaskLinks\s+AppointmentTaskLink\[\]\s+@relation\("AppointmentTaskLinkCreatedByUser"\)/
+    );
+
+    expect(appointmentTaskLinkModel).toMatch(/appointmentId\s+String\b/);
+    expect(appointmentTaskLinkModel).toMatch(/taskId\s+String\b/);
+    expect(appointmentTaskLinkModel).toMatch(/linkType\s+AppointmentTaskLinkType/);
+    expect(appointmentTaskLinkModel).toMatch(/linkCode\s+String\b/);
+    expect(appointmentTaskLinkModel).toMatch(/blocksAppointment\s+Boolean\s+@default\(false\)/);
+    expect(appointmentTaskLinkModel).toMatch(/blocksTask\s+Boolean\s+@default\(false\)/);
+    expect(appointmentTaskLinkModel).toMatch(/automationRuleCode\s+String\?/);
+    expect(appointmentTaskLinkModel).toMatch(/templateVersion\s+Int\?/);
+    expect(appointmentTaskLinkModel).toMatch(
+      /@@unique\(\[appointmentId,\s*taskId,\s*linkCode\]\)/
+    );
+    expect(appointmentTaskLinkModel).toMatch(/@@index\(\[appointmentId,\s*linkType\]\)/);
+    expect(appointmentTaskLinkModel).toMatch(/@@index\(\[taskId,\s*linkType\]\)/);
+  });
+
+  it("adds the EAPT-007 appointment-task link table in SQL", async () => {
+    const migrationEntries = await readdir(migrationsPath, { withFileTypes: true });
+    const migrationSqlContents = await Promise.all(
+      migrationEntries
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => readFile(path.join(migrationsPath, entry.name, "migration.sql"), "utf8"))
+    );
+    const combinedSql = migrationSqlContents.join("\n");
+
+    expect(combinedSql).toMatch(/CREATE TYPE "AppointmentTaskLinkType"/);
+    expect(combinedSql).toMatch(/CREATE TABLE "AppointmentTaskLink"/);
+    expect(combinedSql).toMatch(/AppointmentTaskLink_appointmentId_taskId_linkCode_key/);
+    expect(combinedSql).toMatch(/AppointmentTaskLink_appointmentId_fkey/);
+    expect(combinedSql).toMatch(/AppointmentTaskLink_taskId_fkey/);
+  });
 });

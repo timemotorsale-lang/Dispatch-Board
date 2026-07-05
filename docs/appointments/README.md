@@ -3,7 +3,7 @@
 **Program:** Appointment Board / Appointment Command Center  
 **Target release:** Enterprise Release 1.0  
 **Planning baseline:** E0 approved on 2026-07-05  
-**Implementation status:** E1 foundation in progress; EAPT-003 through EAPT-006 foundation slices are implemented, and `/appointments` now has a mockup-aligned preview shell while database-backed template administration, services, APIs, persistence, and live command-center workflows remain planned
+**Implementation status:** E1 foundation in progress; EAPT-003 through EAPT-007 foundation slices are implemented, and `/appointments` now has a mockup-aligned preview shell while database-backed template administration, services, APIs, persistence, and live command-center workflows remain planned
 
 ## Purpose
 
@@ -53,6 +53,7 @@ The approved enterprise product, permission, lifecycle, conflict, automation, an
 | [ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md) | EAPT-002 decisions for aggregate boundaries, location, resources, time, state, concurrency, events, templates, APIs, data, UI, and migrations |
 | [APPOINTMENT_AGGREGATE_CONTRACT.md](APPOINTMENT_AGGREGATE_CONTRACT.md) | Implemented EAPT-004 identity, ownership, state, timing, snapshot, documentation, and concurrency contract |
 | [PARTICIPANT_RESOURCE_CONTRACT.md](PARTICIPANT_RESOURCE_CONTRACT.md) | Implemented EAPT-005 participant, customer, vehicle, location-access, privacy, requirement, reservation, pool, and availability contract |
+| [APPOINTMENT_TASK_LINK_CONTRACT.md](APPOINTMENT_TASK_LINK_CONTRACT.md) | Implemented EAPT-007 appointment-to-task relationship contract |
 | [AUTOMATION_RULES_CATALOG.md](AUTOMATION_RULES_CATALOG.md) | Explainable task-to-appointment and appointment-to-task automation model |
 | [PERMISSION_MATRIX.md](PERMISSION_MATRIX.md) | Manager, owner, participant, viewer, administrator, and system-action authorization rules |
 | [LIFECYCLE_CONFLICT_MATRIX.md](LIFECYCLE_CONFLICT_MATRIX.md) | State transitions, reason requirements, resource constraints, warnings, and hard blocks |
@@ -86,8 +87,9 @@ Implementation tickets may clarify technical details but may not weaken these ru
 | EAPT-004 — Appointment aggregate and independent state dimensions | Complete | `APPOINTMENT_AGGREGATE_CONTRACT.md`, additive schema/migration, lifecycle validation, manager/owner policies, and tests |
 | EAPT-005 — Participants, customers, vehicles, and schedulable resources | Complete | `PARTICIPANT_RESOURCE_CONTRACT.md`, additive schema/migration, location authorization, privacy projections, resource catalog, validation, and tests |
 | EAPT-006 — Purpose, template, outcome, reason, and versioning foundation | In progress | Initial enterprise template catalog, versioned purpose snapshot helper, template validation, automation defaults, and tests are implemented; database-backed administration remains pending |
+| EAPT-007 — Appointment-task many-to-many relationship and link types | Complete | `APPOINTMENT_TASK_LINK_CONTRACT.md`, additive schema/migration, explicit link types, blocking flags, automation version fields, duplicate-prevention key, validation, and tests |
 | Appointment Board preview shell | Complete | `/appointments` renders the approved mockup composition with preview data, responsive day calendar, metrics, filters, selectable detail rail, linked-task presentation, enterprise controls, and upcoming appointments |
-| EAPT-007 — Appointment-task many-to-many relationship and link types | Next | Define and implement independent lifecycle link behavior between appointments and tasks |
+| EAPT-008 — Audit, activity, correlation, and internal notification event contracts | Next | Define event contracts for human, system, bulk, and automated appointment changes |
 
 ## Recommended Review Order
 
