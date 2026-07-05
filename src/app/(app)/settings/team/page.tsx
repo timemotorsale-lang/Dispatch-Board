@@ -2,7 +2,6 @@ import Link from "next/link";
 
 import { SettingsWorkspaceNav } from "@/features/settings/settings-workspace-nav";
 import { TeamManagementPanel } from "@/features/settings/team-management-panel";
-import { SettingsWorkspaceNav } from "@/features/settings/settings-workspace-nav";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import {
   DELEGATED_MANAGER_DUTY_NAME,

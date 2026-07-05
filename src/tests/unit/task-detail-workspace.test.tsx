@@ -24,6 +24,12 @@ function createTask(overrides: Partial<TaskReadModel> = {}): TaskReadModel {
     workflowArea: WorkflowArea.SHOP,
     sourceType: TaskSourceType.TEMPLATE,
     requiresManagerApproval: true,
+    requiredUpdateFields: [],
+    updateFieldValues: {},
+    templateChecklistItems: [],
+    completionCriteria: null,
+    approvalRules: null,
+    intelligenceSignalType: null,
     vehicleReference: "2018 Ford Explorer",
     customerReference: null,
     blockerReason: null,
@@ -41,6 +47,7 @@ function createTask(overrides: Partial<TaskReadModel> = {}): TaskReadModel {
     createdByUser: null,
     reviewedByUser: null,
     checklistItems: [],
+    activityHistory: [],
     comments: [
       {
         id: "comment-1",
@@ -69,6 +76,7 @@ describe("task detail workspace", () => {
             boardDate: "2026-07-04",
             eventType: "task.status_updated",
             message: "System updated the task after inspection started.",
+            metadata: {},
             createdAt: "2026-07-04T13:30:00.000Z",
             actor: {
               id: "user-system",

@@ -1,7 +1,7 @@
 ﻿import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
-import { listActivityFeedEventsForDate, listActivityFeedEventsForToday } from "@/server/services/activity-feed";
+import { getActivityFeedForDate, getActivityFeedForToday } from "@/server/services/activity-feed";
 
 function getActivityErrorStatus(message: string) {
   if (message === "Authentication required.") {
@@ -30,8 +30,8 @@ export async function GET(request: Request) {
 
   try {
     const payload = boardDate
-      ? await listActivityFeedEventsForDate(user, boardDate)
-      : await listActivityFeedEventsForToday(user);
+      ? await getActivityFeedForDate(user, boardDate)
+      : await getActivityFeedForToday(user);
 
     return NextResponse.json(payload);
   } catch (error) {

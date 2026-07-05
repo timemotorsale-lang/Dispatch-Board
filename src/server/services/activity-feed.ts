@@ -1,4 +1,4 @@
-﻿import type { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { canViewFullBoard } from "@/server/policies/access";
@@ -7,7 +7,15 @@ import {
   type ActivityEventRepository,
   type ActivityEventRecord
 } from "@/server/repositories/activity-event-repository";
-import { getGenerationSettings } from "@/server/services/app-settings-service";
+import {
+  createActivityFeedRepository,
+  type ActivityFeedEventRecord,
+  type ActivityFeedRepository
+} from "@/server/repositories/activity-feed-repository";
+import {
+  getGenerationSettings,
+  type AppSettingsRepository
+} from "@/server/services/app-settings-service";
 import { getBoardDateInTimeZone, normalizeBoardDate } from "@/server/validation/board-date";
 
 export type ActivityFeedEvent = {
@@ -15,6 +23,7 @@ export type ActivityFeedEvent = {
   boardDate: string;
   eventType: string;
   message: string;
+  metadata: Prisma.JsonValue;
   createdAt: string;
   actor: {
     id: string;
@@ -24,15 +33,22 @@ export type ActivityFeedEvent = {
   task: {
     id: string;
     title: string;
+    status?: string;
+    workflowArea?: string;
   } | null;
 };
 
 type ActivityFeedDependencies = {
-  repository?: ActivityEventRepository;
+  repository?: ActivityFeedRepository;
 };
 
 type ActivityFeedTodayDependencies = ActivityFeedDependencies & {
+  appSettingsRepository?: AppSettingsRepository;
   now?: () => Date;
+};
+
+type ActivityTaskFeedDependencies = {
+  repository?: ActivityEventRepository;
 };
 
 export type RecordBoardActivityInput = {
@@ -56,20 +72,48 @@ function assertCanViewActivity(user: AuthenticatedUser | null) {
   return user;
 }
 
-function toActivityFeedEvent(event: ActivityEventRecord): ActivityFeedEvent {
+function toActorSummary(event: ActivityFeedEventRecord | ActivityEventRecord) {
+  return event.actorUser
+    ? {
+        id: event.actorUser.id,
+        name: event.actorUser.name,
+        email: event.actorUser.email || undefined
+      }
+    : null;
+}
+
+function toBoardActivityFeedEvent(
+  event: ActivityFeedEventRecord,
+  boardDate: string
+): ActivityFeedEvent {
+  return {
+    id: event.id,
+    boardDate,
+    eventType: event.eventType,
+    message: event.message,
+    metadata: event.metadata,
+    createdAt: event.createdAt.toISOString(),
+    actor: toActorSummary(event),
+    task: event.task
+      ? {
+          id: event.task.id,
+          title: event.task.title,
+          status: event.task.status,
+          workflowArea: event.task.workflowArea
+        }
+      : null
+  };
+}
+
+function toTaskActivityFeedEvent(event: ActivityEventRecord): ActivityFeedEvent {
   return {
     id: event.id,
     boardDate: event.boardDay.date.toISOString().slice(0, 10),
     eventType: event.eventType,
     message: event.message,
+    metadata: event.metadata,
     createdAt: event.createdAt.toISOString(),
-    actor: event.actorUser
-      ? {
-          id: event.actorUser.id,
-          name: event.actorUser.name,
-          email: event.actorUser.email || undefined
-        }
-      : null,
+    actor: toActorSummary(event),
     task: event.task
       ? {
           id: event.task.id,
@@ -101,12 +145,13 @@ export async function listActivityFeedEventsForDate(
   assertCanViewActivity(user);
 
   const normalizedBoardDate = normalizeBoardDate(boardDate);
-  const repository = dependencies.repository ?? createActivityEventRepository();
+  const repository = dependencies.repository ?? createActivityFeedRepository();
   const boardDay = await repository.findBoardDayByDate(normalizedBoardDate);
 
   if (!boardDay) {
     return {
       date: normalizedBoardDate,
+      boardDayId: null,
       events: []
     };
   }
@@ -115,7 +160,8 @@ export async function listActivityFeedEventsForDate(
 
   return {
     date: normalizedBoardDate,
-    events: events.map(toActivityFeedEvent)
+    boardDayId: boardDay.id,
+    events: events.map((event) => toBoardActivityFeedEvent(event, normalizedBoardDate))
   };
 }
 
@@ -125,7 +171,7 @@ export async function listActivityFeedEventsForToday(
 ) {
   assertCanViewActivity(user);
 
-  const settings = await getGenerationSettings();
+  const settings = await getGenerationSettings(dependencies.appSettingsRepository);
   const now = dependencies.now ?? (() => new Date());
   const boardDate = getBoardDateInTimeZone(now(), settings.timezone);
 
@@ -135,7 +181,7 @@ export async function listActivityFeedEventsForToday(
 export async function listActivityFeedEventsForTask(
   user: AuthenticatedUser | null,
   taskId: string,
-  dependencies: ActivityFeedDependencies = {}
+  dependencies: ActivityTaskFeedDependencies = {}
 ) {
   assertCanViewActivity(user);
 
@@ -148,7 +194,7 @@ export async function listActivityFeedEventsForTask(
   const repository = dependencies.repository ?? createActivityEventRepository();
   const events = await repository.listActivityEventsForTask(normalizedTaskId);
 
-  return events.map(toActivityFeedEvent);
+  return events.map(toTaskActivityFeedEvent);
 }
 
 export async function getActivityFeedForDate(

@@ -2,7 +2,7 @@
 
 import { prisma } from "@/server/db/client";
 
-type TaskCreateDatabase = Pick<PrismaClient, "boardDay" | "task" | "user">;
+type TaskCreateDatabase = Pick<PrismaClient, "activityEvent" | "boardDay" | "task" | "user">;
 
 const taskCreateAssigneeSelect = {
   id: true,
@@ -84,6 +84,14 @@ export type CreateTaskRecordInput = {
 
 export type TaskCreateRepository = {
   supportsActivityEvents?: boolean;
+  createActivityEvent?(input: {
+    actorUserId: string | null;
+    boardDayId: string;
+    eventType: string;
+    message: string;
+    metadata: Prisma.InputJsonValue;
+    taskId: string | null;
+  }): Promise<unknown>;
   createTask(input: CreateTaskRecordInput): Promise<CreatedTaskRecord>;
   findAssignedUserById(userId: string): Promise<TaskCreateAssignedUserRecord | null>;
   getOrCreateBoardDay(boardDate: string): Promise<BoardDay>;
@@ -98,6 +106,11 @@ export function createTaskCreateRepository(
 ): TaskCreateRepository {
   return {
     supportsActivityEvents: true,
+    async createActivityEvent(input) {
+      return database.activityEvent.create({
+        data: input
+      });
+    },
     async createTask(input) {
       return database.task.create({
         data: {

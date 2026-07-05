@@ -16,11 +16,11 @@ export type MyTasksFilterOption = {
 };
 
 const MY_TASKS_FILTER_LABELS: Record<MyTasksFilter, string> = {
-  all: "All",
-  open: "Open",
+  all: "Assigned today",
+  open: "Open work",
   dueSoon: "Due soon",
-  blockedWaiting: "Blocked",
-  readyForReview: "Review",
+  blockedWaiting: "Blocked / waiting",
+  readyForReview: "Ready for review",
   completed: "Completed"
 };
 
@@ -127,11 +127,11 @@ export function getMyTasksFilterOptions(tasks: BoardReadTask[], now: Date): MyTa
     },
     {
       value: "blockedWaiting",
-      label: `Blocked (${tasks.filter(isBlockedOrWaiting).length})`
+      label: `Blocked / Waiting (${tasks.filter(isBlockedOrWaiting).length})`
     },
     {
       value: "readyForReview",
-      label: `Review (${tasks.filter((task) => task.status === TaskStatus.READY_FOR_REVIEW).length})`
+      label: `Ready for Review (${tasks.filter((task) => task.status === TaskStatus.READY_FOR_REVIEW).length})`
     },
     {
       value: "completed",

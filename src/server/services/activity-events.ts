@@ -1,4 +1,4 @@
-import { ActivityEventType, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 import {
   createActivityEventRepository,
@@ -6,7 +6,13 @@ import {
   type ActivityEventRepository
 } from "@/server/repositories/activity-event-repository";
 
-export { ActivityEventType };
+export const ActivityEventType = {
+  DAILY_BOARD_GENERATED: "DAILY_BOARD_GENERATED",
+  TASK_CREATED: "TASK_CREATED",
+  STATUS_CHANGED: "STATUS_CHANGED"
+} as const;
+
+export type ActivityEventType = (typeof ActivityEventType)[keyof typeof ActivityEventType];
 
 export type ActivityEventModel = {
   id: string;
@@ -44,7 +50,7 @@ function toActivityEventModel(event: ActivityEventRecord): ActivityEventModel {
     boardDayId: event.boardDayId,
     actorUserId: event.actorUserId,
     taskId: event.taskId,
-    eventType: event.eventType,
+    eventType: event.eventType as ActivityEventType,
     message: event.message,
     metadata: event.metadata,
     createdAt: event.createdAt.toISOString()

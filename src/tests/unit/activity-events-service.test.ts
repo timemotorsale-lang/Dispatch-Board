@@ -1,4 +1,4 @@
-import { ActivityEventType, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
 import type {
@@ -6,7 +6,7 @@ import type {
   ActivityEventRepository,
   CreateActivityEventInput
 } from "@/server/repositories/activity-event-repository";
-import { createActivityEvent } from "@/server/services/activity-events";
+import { ActivityEventType, createActivityEvent } from "@/server/services/activity-events";
 
 function createActivityEventRepositoryHarness(): {
   events: ActivityEventRecord[];

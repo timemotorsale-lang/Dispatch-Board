@@ -6,6 +6,9 @@ type ActivityEventDatabase = Pick<PrismaClient, "activityEvent" | "boardDay">;
 
 const activityEventSelect = {
   id: true,
+  boardDayId: true,
+  actorUserId: true,
+  taskId: true,
   eventType: true,
   message: true,
   metadata: true,

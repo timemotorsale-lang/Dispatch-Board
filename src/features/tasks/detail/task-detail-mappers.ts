@@ -78,6 +78,14 @@ export function buildDefinitionOfDone(task: TaskReadModel): TaskDetailChecklistI
     return persistedItems;
   }
 
+  if (task.templateChecklistItems?.length) {
+    return task.templateChecklistItems.map((item) => ({
+      id: `${task.id}-template-${item.key}`,
+      label: item.label,
+      completed: false
+    }));
+  }
+
   const items: TaskDetailChecklistItem[] = [
     {
       id: `${task.id}-dod-status`,
