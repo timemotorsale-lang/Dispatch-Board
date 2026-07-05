@@ -3,7 +3,7 @@
 **Program:** Appointment Board / Appointment Command Center  
 **Target release:** Enterprise Release 1.0  
 **Planning baseline:** E0 approved on 2026-07-05  
-**Implementation status:** E1 foundation in progress; EAPT-003 through EAPT-005 are implemented, and `/appointments` now has a mockup-aligned preview shell while versioned templates, services, APIs, persistence, and live command-center workflows remain planned
+**Implementation status:** E1 foundation in progress; EAPT-003 through EAPT-006 foundation slices are implemented, and `/appointments` now has a mockup-aligned preview shell while database-backed template administration, services, APIs, persistence, and live command-center workflows remain planned
 
 ## Purpose
 
@@ -85,8 +85,9 @@ Implementation tickets may clarify technical details but may not weaken these ru
 | EAPT-003 — Organization, location, timezone, hours, closures, and holidays | Complete | Additive schema/migration, configured draft Minneapolis seed, weekday operating windows, validation, General Manager configuration policy, and tests |
 | EAPT-004 — Appointment aggregate and independent state dimensions | Complete | `APPOINTMENT_AGGREGATE_CONTRACT.md`, additive schema/migration, lifecycle validation, manager/owner policies, and tests |
 | EAPT-005 — Participants, customers, vehicles, and schedulable resources | Complete | `PARTICIPANT_RESOURCE_CONTRACT.md`, additive schema/migration, location authorization, privacy projections, resource catalog, validation, and tests |
+| EAPT-006 — Purpose, template, outcome, reason, and versioning foundation | In progress | Initial enterprise template catalog, versioned purpose snapshot helper, template validation, automation defaults, and tests are implemented; database-backed administration remains pending |
 | Appointment Board preview shell | Complete | `/appointments` renders the approved mockup composition with preview data, responsive day calendar, metrics, filters, selectable detail rail, linked-task presentation, enterprise controls, and upcoming appointments |
-| EAPT-006 — Purposes, templates, outcomes, reasons, and versioning | Next | Implement historical configuration snapshots and the initial enterprise template catalog |
+| EAPT-007 — Appointment-task many-to-many relationship and link types | Next | Define and implement independent lifecycle link behavior between appointments and tasks |
 
 ## Recommended Review Order
 

@@ -47,6 +47,7 @@ Prisma client generation updated generated types but could not replace the locke
 | Appointment organization/location foundation | Implemented | Additive Prisma schema and migration, configured Minneapolis address/telephone/weekday hours, draft activation state, validation, General Manager policy, and focused tests |
 | Appointment aggregate foundation | Implemented | Independent lifecycle states, ownership, timing, version, snapshots, exception documentation, SQL safeguards, authorization policies, and focused tests |
 | Appointment participant/resource foundation | Implemented | Location access, minimum customer and vehicle identities, participant and vehicle snapshots, resource types, requirements, reservations, pools, availability windows, privacy projections, SQL safeguards, and focused tests |
+| Appointment template catalog foundation | Implemented | EAPT-006 initial purpose template catalog, versioned purpose snapshot helper, template validation, outcome/reason/follow-up controls, automation defaults, and focused tests |
 | Appointment Board visible shell | Implemented as preview UI | `/appointments` now renders the mockup-aligned board surface with KPI cards, staff calendar columns, filters, selectable preview appointments, detail rail, linked tasks, enterprise controls, upcoming appointments, and responsive behavior; live services/APIs remain pending |
 
 ## Existing Partial or Placeholder Surfaces
@@ -73,7 +74,7 @@ At this baseline:
 - EAPT-003 organization/location foundation is implemented.
 - EAPT-004 Appointment aggregate foundation is implemented.
 - EAPT-005 participant, customer, vehicle, location-access, privacy, and resource foundation is implemented.
-- Versioned appointment templates, scheduling engine, APIs, command-center services, administration UI, and persisted production Appointment workflows have not yet been implemented.
+- Database-backed versioned appointment-template administration, scheduling engine, APIs, command-center services, administration UI, and persisted production Appointment workflows have not yet been implemented.
 - The existing `/appointments` route now contains the mockup-aligned preview shell and is the intended UI boundary for the next live-service slices.
 
 ## Current Execution Order
