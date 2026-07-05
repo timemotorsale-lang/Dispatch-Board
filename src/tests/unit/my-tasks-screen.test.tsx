@@ -33,6 +33,8 @@ function createTask(id: string, overrides: Partial<BoardReadTask> = {}): BoardRe
     blockerReason: null,
     readyForReviewAt: null,
     completedAt: null,
+    requiredUpdateFields: [],
+    updateFieldValues: {},
     ...overrides
   };
 }
@@ -68,10 +70,11 @@ describe("my tasks screen", () => {
     );
 
     expect(markup).toContain("My Tasks");
+    expect(markup).toContain("Task Queue");
     expect(markup).toContain("Review Blocked Tasks");
-    expect(markup).toContain("Required Update");
+    expect(markup).toContain("Task Command Center");
     expect(markup).toContain("Task Information");
-    expect(markup).toContain("Expand workspace");
+    expect(markup).toContain("Open Workspace");
   });
 
   it("shows the assigned-empty state when a board exists but no tasks are assigned", () => {

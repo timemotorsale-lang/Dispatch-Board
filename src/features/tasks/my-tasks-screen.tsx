@@ -8,16 +8,14 @@ import {
   CheckCheck,
   Clock3,
   CircleAlert,
-  CircleHelp,
-  Expand,
   FileText,
   Info,
   LayoutGrid,
   List,
   MoreHorizontal,
+  Search,
   ShieldAlert,
   Star,
-  X
 } from "lucide-react";
 import { useState, useTransition } from "react";
 
@@ -51,7 +49,7 @@ type MyTasksScreenProps = {
 };
 
 type DisplayMode = "list" | "cards";
-type InspectorTab = "Overview" | "Update Form" | "Activity" | "Manager";
+type InspectorTab = "Overview" | "Checklist" | "Updates" | "Attachments" | "History" | "Dependencies";
 type TaskOverride = {
   blockerReason: string | null;
   status: TaskStatus;
@@ -119,6 +117,26 @@ function getStatusTone(status: string) {
   }
 
   return "enterprise-status-chip enterprise-status-chip-default";
+}
+
+function getCommandActionTone(status: TaskStatus) {
+  if (status === TaskStatus.BLOCKED) {
+    return "my-task-action-chip my-task-action-chip-danger";
+  }
+
+  if (status === TaskStatus.WAITING_ON_PARTS || status === TaskStatus.WAITING_ON_APPROVAL) {
+    return "my-task-action-chip my-task-action-chip-warning";
+  }
+
+  if (status === TaskStatus.READY_FOR_REVIEW) {
+    return "my-task-action-chip my-task-action-chip-review";
+  }
+
+  if (status === TaskStatus.COMPLETED) {
+    return "my-task-action-chip my-task-action-chip-success";
+  }
+
+  return "my-task-action-chip my-task-action-chip-brand";
 }
 
 function getUrgencyTone(task: BoardReadTask, now: Date) {
@@ -306,20 +324,6 @@ function getCompletionCriteria(task: BoardReadTask) {
   return criteria;
 }
 
-function getManagerGuidance(task: BoardReadTask) {
-  if (task.requiresManagerApproval) {
-    return [
-      "Use Ready for Review when the work is complete but still needs a manager decision.",
-      "Managers can send the task back to In Progress if more context is required."
-    ];
-  }
-
-  return [
-    "Use blocked or waiting states only when the next move truly depends on something external.",
-    "Keep the task detail page updated so later handoffs remain clear."
-  ];
-}
-
 function getActivityItems(task: BoardReadTask) {
   const activity = [
     {
@@ -367,6 +371,30 @@ function getBlockedQueue(tasks: BoardReadTask[]) {
     .slice(0, 3);
 }
 
+function getLatestUpdate(task: BoardReadTask, now: Date) {
+  if (task.blockerReason && task.status === TaskStatus.BLOCKED) {
+    return {
+      actor: task.assignedUser.name,
+      detail: task.blockerReason,
+      time: "Current blocker"
+    };
+  }
+
+  if (task.readyForReviewAt) {
+    return {
+      actor: task.assignedUser.name,
+      detail: "Task is staged for review with enough context for a manager decision.",
+      time: formatDateTime(task.readyForReviewAt)
+    };
+  }
+
+  return {
+    actor: task.assignedUser.name,
+    detail: `Task is currently ${formatStatusLabel(task.status)}.`,
+    time: getDueCopy(task.dueAt, now)
+  };
+}
+
 function statusNeedsGuidedUpdateFields(status: TaskStatus) {
   return status === TaskStatus.READY_FOR_REVIEW || status === TaskStatus.COMPLETED;
 }
@@ -384,6 +412,7 @@ function isGuidedUpdateFieldComplete(field: GuidedUpdateField, value: string | b
 }
 
 type TaskStatusEditorProps = {
+  compact?: boolean;
   fullBoardHref: string;
   isManager: boolean;
   onTaskUpdated(taskId: string, update: TaskOverride): void;
@@ -391,6 +420,7 @@ type TaskStatusEditorProps = {
 };
 
 function TaskStatusEditor({
+  compact = false,
   fullBoardHref,
   isManager,
   onTaskUpdated,
@@ -467,9 +497,16 @@ function TaskStatusEditor({
   }
 
   return (
-    <section className="enterprise-detail-card enterprise-required-update-card">
+    <section
+      className={
+        compact
+          ? "enterprise-detail-card enterprise-required-update-card my-tasks-command-card my-tasks-command-card-compact"
+          : "enterprise-detail-card enterprise-required-update-card"
+      }
+    >
       <div className="enterprise-card-heading">
-        <h3>Required Update</h3>
+        <h3>Task Command Center</h3>
+        {compact ? <span>Live update</span> : null}
       </div>
 
       {primaryStatusActions.length > 0 ? (
@@ -478,8 +515,8 @@ function TaskStatusEditor({
             <button
               className={
                 statusOption.value === selectedStatus
-                  ? "my-task-action-chip my-task-action-chip-active"
-                  : "my-task-action-chip"
+                  ? `${getCommandActionTone(statusOption.value)} my-task-action-chip-active`
+                  : getCommandActionTone(statusOption.value)
               }
               disabled={isSubmitting}
               key={statusOption.value}
@@ -525,15 +562,19 @@ function TaskStatusEditor({
           </select>
         </label>
 
-        <label className="field">
-          <span>Due Time</span>
-          <input disabled value={formatDateTime(task.dueAt)} readOnly />
-        </label>
+        {!compact ? (
+          <label className="field">
+            <span>Due Time</span>
+            <input disabled value={formatDateTime(task.dueAt)} readOnly />
+          </label>
+        ) : null}
 
-        <label className="field">
-          <span>Workflow</span>
-          <input disabled value={formatStatusLabel(task.workflowArea)} readOnly />
-        </label>
+        {!compact ? (
+          <label className="field">
+            <span>Workflow</span>
+            <input disabled value={formatStatusLabel(task.workflowArea)} readOnly />
+          </label>
+        ) : null}
 
         {hasGuidedUpdateFields ? (
           <div className="field enterprise-summary-span">
@@ -672,25 +713,32 @@ function TaskStatusEditor({
               }}
             />
           </label>
-        ) : (
+        ) : !compact ? (
           <label className="field enterprise-summary-span">
             <span>Task Context</span>
             <textarea disabled readOnly rows={3} value={task.description ?? getTaskReference(task)} />
           </label>
+        ) : (
+          <div className="my-tasks-command-note">
+            <strong>Current context</strong>
+            <p>{task.description ?? getTaskReference(task)}</p>
+          </div>
         )}
       </div>
 
-      <div className="my-tasks-live-link-row">
-        <Link className="pill pill-secondary" href={`/tasks/${task.id}`}>
-          Open detail
-        </Link>
-        <Link className="pill pill-muted" href={`/tasks/${task.id}#task-updates`}>
-          View updates
-        </Link>
-        <Link className="pill pill-muted" href={fullBoardHref}>
-          Full board
-        </Link>
-      </div>
+      {!compact ? (
+        <div className="my-tasks-live-link-row">
+          <Link className="pill pill-secondary" href={`/tasks/${task.id}`}>
+            Open detail
+          </Link>
+          <Link className="pill pill-muted" href={`/tasks/${task.id}#task-updates`}>
+            View updates
+          </Link>
+          <Link className="pill pill-muted" href={fullBoardHref}>
+            Full board
+          </Link>
+        </div>
+      ) : null}
 
       <button
         className="pill pill-primary enterprise-save-button"
@@ -706,7 +754,9 @@ function TaskStatusEditor({
       >
         {isSubmitting
           ? "Saving..."
-          : getTaskActionLabel(selectedStatus, task.status as TaskStatus, task.requiresManagerApproval)}
+          : compact
+            ? "Save Update"
+            : getTaskActionLabel(selectedStatus, task.status as TaskStatus, task.requiresManagerApproval)}
       </button>
 
       {errorMessage ? (
@@ -735,8 +785,8 @@ export function MyTasksScreen({
   const [activeFilter, setActiveFilter] = useState<MyTasksFilter>("all");
   const [displayMode, setDisplayMode] = useState<DisplayMode>("list");
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>("Overview");
+  const [searchText, setSearchText] = useState("");
   const [selectedTaskId, setSelectedTaskId] = useState(initialTasks[0]?.id ?? "");
-  const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [taskOverrides, setTaskOverrides] = useState<Record<string, TaskOverride>>({});
   const tasks = initialTasks.map((task) =>
     taskOverrides[task.id]
@@ -748,11 +798,30 @@ export function MyTasksScreen({
   );
   const now = new Date(nowIso);
   const filterOptions = getMyTasksFilterOptions(tasks, now);
-  const visibleTasks = filterMyTasks(tasks, activeFilter, now);
+  const visibleTasks = filterMyTasks(tasks, activeFilter, now).filter((task) => {
+    const query = searchText.trim().toLowerCase();
+
+    if (!query) {
+      return true;
+    }
+
+    return [
+      task.title,
+      task.description ?? "",
+      task.assignedUser.name,
+      formatStatusLabel(task.status),
+      formatStatusLabel(task.workflowArea),
+      task.vehicleReference ?? "",
+      task.customerReference ?? ""
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(query);
+  });
   const selectedTask = visibleTasks.find((task) => task.id === selectedTaskId) ?? visibleTasks[0] ?? null;
   const selectedTaskSignal = selectedTask ? getTaskSignal(selectedTask, now) : null;
-  const selectedTaskFacts = selectedTask ? getTaskSummaryFacts(selectedTask, now) : [];
   const blockedQueue = getBlockedQueue(tasks);
+  const latestUpdate = selectedTask ? getLatestUpdate(selectedTask, now) : null;
 
   function refreshTasks() {
     startRefreshTransition(() => {
@@ -780,20 +849,16 @@ export function MyTasksScreen({
     <section className="page-stack dashboard-page enterprise-prototype-page my-tasks-live-page">
       <div className="dashboard-page-header enterprise-prototype-header">
         <div className="dashboard-page-copy">
-          <span className="eyebrow">Staff task view</span>
           <h1>My Tasks</h1>
-          <p>
-            {userName}, this is your real task workspace for {formatBoardDateLabel(boardDate)}.
-            Use the left queue for speed, the right inspector for context, and open the workspace when you need a deeper pass.
-          </p>
-          <div className="board-page-meta">
-            <span className="board-page-date-pill">{formatBoardDateLabel(boardDate)}</span>
+          <p>Your assigned work for today.</p>
+          <div className="board-page-meta my-tasks-header-meta">
             <span className={getGenerationStatusTone(generationStatus)}>
               {generationStatus ? formatStatusLabel(generationStatus) : "Board not generated"}
             </span>
             <span className={getLiveStatusTone(isRefreshPending)}>
               {isRefreshPending ? "Updating..." : "Live"}
             </span>
+            <span className="board-chip board-chip-muted">{userName}</span>
           </div>
           {generatedAt ? (
             <p className="my-tasks-generated-copy">Board generated {formatDateTime(generatedAt)}.</p>
@@ -842,21 +907,24 @@ export function MyTasksScreen({
       {boardExists && tasks.length > 0 ? (
         <section className="enterprise-prototype-stage my-tasks-live-stage">
           <div className="enterprise-stage-controls">
-            <div className="enterprise-filter-row" aria-label="My task filters">
-              {filterOptions.map((filterOption) => (
-                <button
-                  key={filterOption.value}
-                  className={
-                    filterOption.value === activeFilter
-                      ? "enterprise-filter-chip enterprise-filter-chip-active"
-                      : "enterprise-filter-chip"
-                  }
-                  onClick={() => setActiveFilter(filterOption.value)}
-                  type="button"
-                >
-                  {filterOption.label}
-                </button>
-              ))}
+            <div className="my-tasks-control-cluster">
+              <span className="board-page-date-pill">{formatBoardDateLabel(boardDate)}</span>
+              <div className="enterprise-filter-row" aria-label="My task filters">
+                {filterOptions.map((filterOption) => (
+                  <button
+                    key={filterOption.value}
+                    className={
+                      filterOption.value === activeFilter
+                        ? "enterprise-filter-chip enterprise-filter-chip-active"
+                        : "enterprise-filter-chip"
+                    }
+                    onClick={() => setActiveFilter(filterOption.value)}
+                    type="button"
+                  >
+                    {filterOption.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="enterprise-display-toggle" aria-label="Task list display mode">
@@ -889,18 +957,24 @@ export function MyTasksScreen({
 
           <div className="enterprise-shell enterprise-shell-mockup my-tasks-live-shell">
             <section className="enterprise-task-list-panel enterprise-task-list-panel-mockup">
-              <div className="enterprise-list-toolbar">
-                <button className="enterprise-sort-button" type="button">
-                  <Clock3 size={14} />
-                  Sort by: Due Time
-                </button>
-                <span className="my-tasks-live-list-stat">
-                  {visibleTasks.length} {visibleTasks.length === 1 ? "task" : "tasks"}
-                </span>
+              <div className="enterprise-list-toolbar my-tasks-queue-toolbar">
+                <div className="my-tasks-queue-title">
+                  <strong>Task Queue</strong>
+                  <span className="board-chip board-chip-muted">{visibleTasks.length}</span>
+                </div>
                 <button className="enterprise-menu-button" type="button" aria-label="More list options">
                   <MoreHorizontal size={18} />
                 </button>
               </div>
+              <label className="my-tasks-queue-search">
+                <Search size={16} />
+                <input
+                  aria-label="Search tasks"
+                  placeholder="Search tasks..."
+                  value={searchText}
+                  onChange={(event) => setSearchText(event.target.value)}
+                />
+              </label>
 
               <div
                 className={
@@ -928,35 +1002,23 @@ export function MyTasksScreen({
                           <button className="enterprise-list-row-hit" onClick={() => handleTaskSelect(task.id)} type="button">
                             <div className="enterprise-list-row-top">
                               <span className={getUrgencyTone(task, now)}>{getUrgencyLabel(task, now)}</span>
-                              <span className="enterprise-role-copy">{formatStatusLabel(task.workflowArea)}</span>
                               <span className="enterprise-list-row-due">{formatDueTime(task.dueAt)}</span>
                             </div>
                             <div className="enterprise-list-row-main">
                               <div className="enterprise-list-row-copy">
                                 <h3>{task.title}</h3>
-                                <p>{task.description ?? getTaskReference(task)}</p>
+                                <p>{task.description ?? "Keep this task moving with a clear update and next step."}</p>
                               </div>
                               <span className={getStatusTone(task.status)}>{formatStatusLabel(task.status)}</span>
                             </div>
                             <div className="enterprise-list-row-meta">
-                              <span>{facts[0]}</span>
-                              <span>{facts[1]}</span>
-                              <span>{facts[2]}</span>
+                              <span>{task.assignedUser.name}</span>
+                              <span>{formatStatusLabel(task.workflowArea)}</span>
                             </div>
                           </button>
                           <div className="enterprise-list-row-actions">
-                            <button
-                              className="pill pill-primary"
-                              onClick={() => {
-                                handleTaskSelect(task.id);
-                                setInspectorTab("Update Form");
-                              }}
-                              type="button"
-                            >
-                              Update
-                            </button>
-                            <Link className="pill pill-secondary" href={`/tasks/${task.id}`}>
-                              Detail
+                            <Link className="pill pill-primary" href={`/tasks/${task.id}`}>
+                              Open Workspace
                             </Link>
                           </div>
                         </article>
@@ -972,7 +1034,6 @@ export function MyTasksScreen({
                           <div className="enterprise-task-topline">
                             <div className="enterprise-card-labels">
                               <span className={getUrgencyTone(task, now)}>{getUrgencyLabel(task, now)}</span>
-                              <span className="enterprise-role-copy">{formatStatusLabel(task.workflowArea)}</span>
                             </div>
                             <span className="enterprise-due-copy">
                               <Clock3 size={14} />
@@ -986,20 +1047,11 @@ export function MyTasksScreen({
                           </div>
 
                           <div className="enterprise-card-facts">
-                            <span>{facts[0]}</span>
-                            <span>{facts[1]}</span>
+                            <span>{task.assignedUser.name}</span>
+                            <span>{formatStatusLabel(task.workflowArea)}</span>
                           </div>
 
-                          {task.blockerReason && task.status === TaskStatus.BLOCKED ? (
-                            <div className="enterprise-warning-row">
-                              <CircleAlert size={14} />
-                              <span>{task.blockerReason}</span>
-                            </div>
-                          ) : null}
-
-                          <div className="enterprise-task-actions">
-                            <span className="pill pill-primary">Inspect</span>
-                            <span className="pill pill-secondary">Detail</span>
+                          <div className="enterprise-task-actions enterprise-task-actions-mockup">
                             <span className={getStatusTone(task.status)}>{formatStatusLabel(task.status)}</span>
                           </div>
                         </button>
@@ -1010,62 +1062,43 @@ export function MyTasksScreen({
               </div>
             </section>
 
-            <aside className="enterprise-inspector enterprise-inspector-mockup">
+            <aside className="enterprise-inspector enterprise-inspector-mockup my-tasks-optimized-stage">
               {selectedTask ? (
                 <>
-                  <div className="enterprise-inspector-header enterprise-inspector-header-mockup">
-                    <div className="enterprise-inspector-title enterprise-inspector-title-mockup">
-                      <div className="enterprise-title-row">
-                        <Star size={18} className="enterprise-title-star" />
-                        <h2>{selectedTask.title}</h2>
-                      </div>
-                      <div className="enterprise-summary-grid-detail enterprise-summary-grid-detail-mockup">
-                        <div>
-                          <dt>Status</dt>
-                          <dd><span className={getStatusTone(selectedTask.status)}>{formatStatusLabel(selectedTask.status)}</span></dd>
+                  <div className="enterprise-inspector-header enterprise-inspector-header-mockup my-tasks-optimized-header">
+                    <div className="enterprise-inspector-title enterprise-inspector-title-mockup my-tasks-optimized-header-grid">
+                      <div className="my-tasks-optimized-header-copy">
+                        <div className="enterprise-title-row">
+                          <Star size={18} className="enterprise-title-star" />
+                          <h2>{selectedTask.title}</h2>
                         </div>
-                        <div>
-                          <dt>Workflow</dt>
-                          <dd>{formatStatusLabel(selectedTask.workflowArea)}</dd>
-                        </div>
-                        <div>
-                          <dt>Assigned To</dt>
-                          <dd>{selectedTask.assignedUser.name}</dd>
-                        </div>
-                        <div>
-                          <dt>Due</dt>
-                          <dd>{formatDateTime(selectedTask.dueAt)}</dd>
-                        </div>
-                        <div>
-                          <dt>Source</dt>
-                          <dd>{formatStatusLabel(selectedTask.sourceType)}</dd>
-                        </div>
-                        <div>
-                          <dt>Requires Review</dt>
-                          <dd>{selectedTask.requiresManagerApproval ? "Yes" : "No"}</dd>
+                        <div className="my-tasks-optimized-summary">
+                          <span className={getStatusTone(selectedTask.status)}>{formatStatusLabel(selectedTask.status)}</span>
+                          <span>Due: {formatDateTime(selectedTask.dueAt)}</span>
+                          <span>Owner: {selectedTask.assignedUser.name}</span>
+                          <span>Workflow: {formatStatusLabel(selectedTask.workflowArea)}</span>
+                          <span>Source: {formatStatusLabel(selectedTask.sourceType)}</span>
                         </div>
                       </div>
-                    </div>
-                    <div className="enterprise-header-actions">
-                      <button
-                        className="enterprise-icon-button"
-                        onClick={() => setWorkspaceOpen(true)}
-                        type="button"
-                        aria-label="Expand workspace"
-                      >
-                        <Expand size={17} />
-                      </button>
-                      <Link className="enterprise-icon-button" href={`/tasks/${selectedTask.id}`} aria-label="Open task detail">
-                        <BellRing size={17} />
-                      </Link>
-                      <button className="enterprise-icon-button" onClick={() => setInspectorTab("Overview")} type="button" aria-label="Reset inspector">
-                        <X size={17} />
-                      </button>
+                      <div className="my-tasks-optimized-actions">
+                        <Link className="pill pill-primary" href={`/tasks/${selectedTask.id}`}>
+                          Open Workspace
+                        </Link>
+                        <button className="pill pill-secondary" onClick={() => setInspectorTab("Updates")} type="button">
+                          View Updates
+                        </button>
+                        <Link className="pill pill-secondary" href={fullBoardHref}>
+                          Full Board
+                        </Link>
+                        <Link className="pill pill-secondary" href={`/tasks/${selectedTask.id}`}>
+                          More
+                        </Link>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="enterprise-tab-row enterprise-tab-row-mockup" aria-label="Task inspector tabs">
-                    {(["Overview", "Update Form", "Activity", "Manager"] as InspectorTab[]).map((tab) => (
+                  <div className="enterprise-tab-row enterprise-tab-row-mockup my-tasks-optimized-tabs" aria-label="Task inspector tabs">
+                    {(["Overview", "Checklist", "Updates", "Attachments", "History", "Dependencies"] as InspectorTab[]).map((tab) => (
                       <button
                         key={tab}
                         className={tab === inspectorTab ? "enterprise-tab enterprise-tab-active" : "enterprise-tab"}
@@ -1073,15 +1106,18 @@ export function MyTasksScreen({
                         type="button"
                       >
                         {tab}
+                        {tab === "Checklist" ? <span className="my-tasks-tab-count">{getCompletionCriteria(selectedTask).length}</span> : null}
+                        {tab === "Updates" ? <span className="my-tasks-tab-count">{getActivityItems(selectedTask).length}</span> : null}
+                        {tab === "Attachments" ? <span className="my-tasks-tab-count">1</span> : null}
                       </button>
                     ))}
                   </div>
 
-                  {inspectorTab === "Overview" ? (
-                    <div className="enterprise-overview-board">
-                      <div className="enterprise-overview-main">
-                        <section className="enterprise-overview-stack">
-                          <article className="enterprise-overview-card enterprise-overview-card-icon">
+                  <div className="my-tasks-optimized-content">
+                    <div className="my-tasks-optimized-main">
+                      {inspectorTab === "Overview" ? (
+                        <div className="my-tasks-overview-grid">
+                          <article className="enterprise-overview-card my-tasks-overview-card-feature">
                             <div className="enterprise-overview-card-head">
                               <CircleAlert size={18} />
                               <h3>What is Expected</h3>
@@ -1092,15 +1128,7 @@ export function MyTasksScreen({
                             </p>
                           </article>
 
-                          <article className="enterprise-overview-card enterprise-overview-card-icon">
-                            <div className={`enterprise-overview-card-head ${selectedTaskSignal?.tone ?? ""}`}>
-                              <Info size={18} />
-                              <h3>{selectedTaskSignal?.title ?? "Why This Matters"}</h3>
-                            </div>
-                            <p>{selectedTaskSignal?.body}</p>
-                          </article>
-
-                          <article className="enterprise-overview-card enterprise-overview-card-icon">
+                          <article className="enterprise-overview-card">
                             <div className="enterprise-overview-card-head enterprise-overview-card-head-success">
                               <CheckCheck size={18} />
                               <h3>Expected Outcome</h3>
@@ -1108,82 +1136,56 @@ export function MyTasksScreen({
                             <p>{getExpectedOutcome(selectedTask)}</p>
                           </article>
 
-                          <article className="enterprise-overview-card enterprise-overview-card-icon">
-                            <div className="enterprise-overview-card-head enterprise-overview-card-head-review">
-                              <FileText size={18} />
-                              <h3>Completion Criteria</h3>
-                            </div>
-                            <ul>
-                              {getCompletionCriteria(selectedTask).map((item) => (
-                                <li key={item}>{item}</li>
-                              ))}
-                            </ul>
-                          </article>
-
-                          <article className="enterprise-overview-card enterprise-overview-card-icon">
-                            <div className="enterprise-overview-card-head enterprise-overview-card-head-danger">
-                              <ShieldAlert size={18} />
-                              <h3>Manager Guidance</h3>
-                            </div>
-                            <ul>
-                              {getManagerGuidance(selectedTask).map((item) => (
-                                <li key={item}>{item}</li>
-                              ))}
-                            </ul>
-                          </article>
-                        </section>
-
-                        <TaskStatusEditor
-                          fullBoardHref={fullBoardHref}
-                          isManager={isManager}
-                          key={`${selectedTask.id}:${selectedTask.status}:${selectedTask.blockerReason ?? ""}`}
-                          onTaskUpdated={handleTaskUpdated}
-                          task={selectedTask}
-                        />
-
-                        <aside className="enterprise-side-panel-stack">
-                          <section className="enterprise-detail-card enterprise-side-card">
-                            <div className="enterprise-card-heading">
+                          <article className="enterprise-overview-card">
+                            <div className={`enterprise-overview-card-head ${selectedTaskSignal?.tone ?? ""}`}>
                               <Info size={18} />
-                              <h3>Task Information</h3>
+                              <h3>Latest Update</h3>
                             </div>
-                            <dl className="enterprise-information-list">
-                              <div><dt>Source</dt><dd>{formatStatusLabel(selectedTask.sourceType)}</dd></div>
-                              <div><dt>Assigned</dt><dd>{selectedTask.assignedUser.name}</dd></div>
-                              <div><dt>Due Window</dt><dd>{getDueCopy(selectedTask.dueAt, now)}</dd></div>
-                              <div><dt>Reference</dt><dd>{getTaskReference(selectedTask)}</dd></div>
-                              <div><dt>Workflow</dt><dd>{formatStatusLabel(selectedTask.workflowArea)}</dd></div>
-                            </dl>
-                          </section>
+                            <p><strong>{latestUpdate?.actor}</strong></p>
+                            <p>{latestUpdate?.detail}</p>
+                            <p>{latestUpdate?.time}</p>
+                          </article>
 
-                          <section className="enterprise-detail-card enterprise-side-card">
-                            <div className="enterprise-card-heading">
-                              <CircleHelp size={18} />
-                              <h3>Quick Actions</h3>
+                          <article className="enterprise-overview-card my-tasks-overview-card-wide">
+                            <div className="enterprise-overview-card-head enterprise-overview-card-head-info">
+                              <BellRing size={18} />
+                              <h3>Recent Activity</h3>
                             </div>
-                            <div className="enterprise-quick-actions">
-                              <Link className="enterprise-quick-action enterprise-quick-action-review" href={`/tasks/${selectedTask.id}`}>
-                                Open task detail
-                              </Link>
-                              <Link className="enterprise-quick-action enterprise-quick-action-success" href={`/tasks/${selectedTask.id}#task-updates`}>
-                                View task updates
-                              </Link>
-                              <Link className="enterprise-quick-action enterprise-quick-action-warning" href={fullBoardHref}>
-                                Open full board
-                              </Link>
-                              <button className="enterprise-more-action" onClick={() => setWorkspaceOpen(true)} type="button">
-                                Expand workspace
-                              </button>
-                            </div>
-                          </section>
-                        </aside>
-                      </div>
+                            <ul className="enterprise-activity-preview-list">
+                              {getActivityItems(selectedTask).slice(0, 2).map((item, index) => (
+                                <li key={`${item.label}-${index}`}>
+                                  <span className={`enterprise-activity-dot enterprise-activity-dot-${Math.min(index + 1, 3)}`} />
+                                  <span>{item.time}</span>
+                                  <p>{item.detail}</p>
+                                </li>
+                              ))}
+                            </ul>
+                            <Link className="pill pill-secondary my-tasks-inline-link" href={`/tasks/${selectedTask.id}#task-updates`}>
+                              View full activity
+                            </Link>
+                          </article>
+                        </div>
+                      ) : null}
 
-                      <div className="enterprise-overview-footer">
-                        <section className="enterprise-detail-card">
-                          <div className="enterprise-card-heading">
-                            <h3>Activity Preview</h3>
-                            <span>(Live task data)</span>
+                      {inspectorTab === "Checklist" ? (
+                        <article className="enterprise-overview-card">
+                          <div className="enterprise-overview-card-head enterprise-overview-card-head-review">
+                            <FileText size={18} />
+                            <h3>Checklist</h3>
+                          </div>
+                          <ul>
+                            {getCompletionCriteria(selectedTask).map((item) => (
+                              <li key={item}>{item}</li>
+                            ))}
+                          </ul>
+                        </article>
+                      ) : null}
+
+                      {inspectorTab === "Updates" ? (
+                        <article className="enterprise-overview-card">
+                          <div className="enterprise-overview-card-head enterprise-overview-card-head-info">
+                            <BellRing size={18} />
+                            <h3>Updates</h3>
                           </div>
                           <ul className="enterprise-activity-preview-list">
                             {getActivityItems(selectedTask).map((item, index) => (
@@ -1194,11 +1196,44 @@ export function MyTasksScreen({
                               </li>
                             ))}
                           </ul>
-                        </section>
+                        </article>
+                      ) : null}
 
-                        <section className="enterprise-detail-card">
-                          <div className="enterprise-card-heading">
-                            <h3>Blocked / Waiting</h3>
+                      {inspectorTab === "Attachments" ? (
+                        <article className="enterprise-overview-card">
+                          <div className="enterprise-overview-card-head enterprise-overview-card-head-review">
+                            <FileText size={18} />
+                            <h3>Attachments</h3>
+                          </div>
+                          <p>Attachment persistence is not available yet in the current backend, so this stays as a placeholder on the main page.</p>
+                        </article>
+                      ) : null}
+
+                      {inspectorTab === "History" ? (
+                        <article className="enterprise-overview-card">
+                          <div className="enterprise-overview-card-head enterprise-overview-card-head-review">
+                            <Clock3 size={18} />
+                            <h3>History</h3>
+                          </div>
+                          <ul className="enterprise-timeline">
+                            {getActivityItems(selectedTask).map((item, index) => (
+                              <li key={`${item.label}-${index}`}>
+                                <span className="enterprise-timeline-dot" aria-hidden="true" />
+                                <div>
+                                  <strong>{item.label}</strong>
+                                  <p>{item.time} - {item.detail}</p>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        </article>
+                      ) : null}
+
+                      {inspectorTab === "Dependencies" ? (
+                        <article className="enterprise-overview-card">
+                          <div className="enterprise-overview-card-head enterprise-overview-card-head-warning">
+                            <ShieldAlert size={18} />
+                            <h3>Dependencies</h3>
                           </div>
                           <div className="enterprise-blocked-queue">
                             {blockedQueue.length > 0 ? (
@@ -1215,65 +1250,35 @@ export function MyTasksScreen({
                               </div>
                             )}
                           </div>
-                        </section>
-                      </div>
+                        </article>
+                      ) : null}
                     </div>
-                  ) : null}
 
-                  {inspectorTab === "Update Form" ? (
-                    <div className="enterprise-tab-panel">
+                    <aside className="my-tasks-command-center">
                       <TaskStatusEditor
+                        compact
                         fullBoardHref={fullBoardHref}
                         isManager={isManager}
-                        key={`update-${selectedTask.id}:${selectedTask.status}:${selectedTask.blockerReason ?? ""}`}
+                        key={`${selectedTask.id}:${selectedTask.status}:${selectedTask.blockerReason ?? ""}`}
                         onTaskUpdated={handleTaskUpdated}
                         task={selectedTask}
                       />
-                    </div>
-                  ) : null}
 
-                  {inspectorTab === "Activity" ? (
-                    <div className="enterprise-tab-panel">
-                      <ul className="enterprise-timeline">
-                        {getActivityItems(selectedTask).map((item, index) => (
-                          <li key={`${item.label}-${index}`}>
-                            <span className="enterprise-timeline-dot" aria-hidden="true" />
-                            <div>
-                              <strong>{item.label}</strong>
-                              <p>{item.time} - {item.detail}</p>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
-
-                  {inspectorTab === "Manager" ? (
-                    <div className="enterprise-tab-panel">
-                      <div className="enterprise-action-grid">
-                        <Link className="enterprise-manager-action" href={`/tasks/${selectedTask.id}`}>
-                          Open full detail
-                        </Link>
-                        <Link className="enterprise-manager-action" href={`/tasks/${selectedTask.id}#task-updates`}>
-                          Review updates
-                        </Link>
-                        <button className="enterprise-manager-action" onClick={() => setWorkspaceOpen(true)} type="button">
-                          Expand workspace
-                        </button>
-                        <Link className="enterprise-manager-action" href={fullBoardHref}>
-                          Open board context
-                        </Link>
-                      </div>
-                      <section className="enterprise-detail-card">
-                        <strong>Manager notes</strong>
-                        <ul>
-                          {getManagerGuidance(selectedTask).map((item) => (
-                            <li key={item}>{item}</li>
-                          ))}
-                        </ul>
+                      <section className="enterprise-detail-card enterprise-side-card my-tasks-info-card">
+                        <div className="enterprise-card-heading">
+                          <Info size={18} />
+                          <h3>Task Information</h3>
+                        </div>
+                        <dl className="enterprise-information-list">
+                          <div><dt>Due Time</dt><dd>{formatDateTime(selectedTask.dueAt)}</dd></div>
+                          <div><dt>Assigned To</dt><dd>{selectedTask.assignedUser.name}</dd></div>
+                          <div><dt>Requires Review</dt><dd>{selectedTask.requiresManagerApproval ? "Yes" : "No"}</dd></div>
+                          <div><dt>Last Update</dt><dd>{latestUpdate?.time ?? "No recent update"}</dd></div>
+                          <div><dt>Created</dt><dd>{formatDateTime(selectedTask.dueAt)}</dd></div>
+                        </dl>
                       </section>
-                    </div>
-                  ) : null}
+                    </aside>
+                  </div>
                 </>
               ) : (
                 <div className="enterprise-overview-board my-tasks-live-empty-inspector">
@@ -1284,84 +1289,6 @@ export function MyTasksScreen({
             </aside>
           </div>
         </section>
-      ) : null}
-
-      {workspaceOpen && selectedTask ? (
-        <div className="enterprise-workspace-backdrop" role="dialog" aria-modal="true" aria-label="Expanded task workspace">
-          <section className="enterprise-workspace">
-            <div className="enterprise-workspace-header">
-              <div className="enterprise-workspace-heading">
-                <div className="enterprise-chip-row">
-                  <span className={getStatusTone(selectedTask.status)}>{formatStatusLabel(selectedTask.status)}</span>
-                  <span className={getUrgencyTone(selectedTask, now)}>{getUrgencyLabel(selectedTask, now)}</span>
-                  <span className="enterprise-meta-chip">{formatStatusLabel(selectedTask.workflowArea)}</span>
-                </div>
-                <h2>{selectedTask.title}</h2>
-                <p>
-                  {selectedTask.assignedUser.name} | {formatDateTime(selectedTask.dueAt)} | {getTaskReference(selectedTask)} | Requires review: {selectedTask.requiresManagerApproval ? "Yes" : "No"}
-                </p>
-              </div>
-              <button className="enterprise-workspace-close" onClick={() => setWorkspaceOpen(false)} type="button">
-                <X size={18} />
-                Close
-              </button>
-            </div>
-
-            <div className="enterprise-workspace-grid my-tasks-live-workspace-grid">
-              <section className="enterprise-workspace-main">
-                <div className="enterprise-content-block">
-                  <strong>Operational overview</strong>
-                  <p>
-                    {selectedTask.description ??
-                      "Use this workspace when the inspector is not enough and you need deeper task context before making the next move."}
-                  </p>
-                </div>
-                <TaskStatusEditor
-                  fullBoardHref={fullBoardHref}
-                  isManager={isManager}
-                  key={`workspace-${selectedTask.id}:${selectedTask.status}:${selectedTask.blockerReason ?? ""}`}
-                  onTaskUpdated={handleTaskUpdated}
-                  task={selectedTask}
-                />
-                <section className="enterprise-detail-card">
-                  <strong>Live activity</strong>
-                  <ul className="enterprise-activity-list">
-                    {getActivityItems(selectedTask).map((item, index) => (
-                      <li key={`${item.label}-${index}`}>{item.time} - {item.detail}</li>
-                    ))}
-                  </ul>
-                </section>
-              </section>
-
-              <aside className="enterprise-workspace-side">
-                <section className="enterprise-detail-card">
-                  <strong>Task information</strong>
-                  <ul>
-                    {selectedTaskFacts.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                </section>
-                <section className="enterprise-detail-card">
-                  <strong>Manager guidance</strong>
-                  <ul>
-                    {getManagerGuidance(selectedTask).map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                </section>
-                <section className="enterprise-detail-card enterprise-future-card">
-                  <strong>Next best links</strong>
-                  <div className="enterprise-future-list">
-                    <Link href={`/tasks/${selectedTask.id}`}>Task detail</Link>
-                    <Link href={`/tasks/${selectedTask.id}#task-updates`}>Task updates</Link>
-                    <Link href={fullBoardHref}>Board context</Link>
-                  </div>
-                </section>
-              </aside>
-            </div>
-          </section>
-        </div>
       ) : null}
     </section>
   );
