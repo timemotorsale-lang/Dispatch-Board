@@ -1,8 +1,8 @@
 import Link from "next/link";
 
+import { listProjectCardSummaries } from "@/features/projects/project-data";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { getBoardReadModelForToday } from "@/server/services/board-read";
-import { listProjectCardSummaries } from "@/features/projects/project-data";
 
 export default async function ProjectsPage() {
   const user = await requireCurrentUser();

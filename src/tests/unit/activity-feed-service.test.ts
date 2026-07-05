@@ -1,5 +1,4 @@
 import {
-  ActivityEventType,
   BusinessDay,
   Prisma,
   TaskStatus,
@@ -10,6 +9,10 @@ import { describe, expect, it } from "vitest";
 
 import type { ActivityFeedRepository } from "@/server/repositories/activity-feed-repository";
 import { getActivityFeedForDate, getActivityFeedForToday } from "@/server/services/activity-feed";
+import {
+  ActivityEventType,
+  type ActivityEventType as ActivityEventTypeValue
+} from "@/server/services/activity-events";
 import { createTestAuthStore } from "@/tests/support/auth-test-store";
 
 function createActivityFeedRepositoryHarness(options: {
@@ -21,7 +24,7 @@ function createActivityFeedRepositoryHarness(options: {
     string,
     Array<{
       id: string;
-      eventType?: ActivityEventType;
+      eventType?: ActivityEventTypeValue;
       message: string;
       metadata?: Prisma.JsonValue;
       createdAt: string;
@@ -168,6 +171,7 @@ describe("activity feed service", () => {
       events: [
         {
           id: "activity-event-2",
+          boardDate: "2026-06-21",
           eventType: "STATUS_CHANGED",
           message: "Jordan moved Follow up with hot lead to In Progress",
           createdAt: "2026-06-21T15:00:00.000Z",
@@ -189,6 +193,7 @@ describe("activity feed service", () => {
         },
         {
           id: "activity-event-1",
+          boardDate: "2026-06-21",
           eventType: "DAILY_BOARD_GENERATED",
           message: "Daily board generated",
           createdAt: "2026-06-21T14:30:00.000Z",

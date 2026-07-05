@@ -163,6 +163,30 @@ describe("users route", () => {
     });
   });
 
+  it("returns a validation error when a non-General-Manager tries to grant delegated manager powers", async () => {
+    mocks.createManagedTeamUser.mockRejectedValue(
+      new Error("Only the General Manager can grant delegated manager capabilities.")
+    );
+
+    const response = await POST(
+      new Request("http://localhost/api/users", {
+        method: "POST",
+        body: JSON.stringify({
+          name: "Alex Staff",
+          email: "alex.staff@local.test",
+          password: "dispatch123!",
+          roleIds: ["role-sales"],
+          dutyIds: ["duty-delegated-manager"]
+        })
+      })
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Only the General Manager can grant delegated manager capabilities."
+    });
+  });
+
   it("rejects manager-only user management for non-General-Manager staff roles", async () => {
     mocks.getCurrentUser.mockResolvedValue(inventoryLeadUser);
     mocks.getTeamManagementSnapshotForManager.mockRejectedValue(new Error("Manager access required."));

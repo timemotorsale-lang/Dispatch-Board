@@ -7,7 +7,6 @@ import {
   type BoardReadRepository,
   type BoardReadTaskRecord
 } from "@/server/repositories/board-read-repository";
-import type { TaskTemplateRequiredUpdateField } from "@/server/validation/task-template";
 import {
   getGenerationSettings,
   type AppSettingsRepository
@@ -25,6 +24,15 @@ type BoardReadRecommendation = {
   explanation: string;
 };
 
+export type BoardReadRequiredUpdateField = {
+  key: string;
+  label: string;
+  type: "short_text" | "long_text" | "single_select" | "boolean";
+  required: boolean;
+  helpText: string | null;
+  options?: string[];
+};
+
 export type BoardReadTask = {
   id: string;
   title: string;
@@ -35,7 +43,7 @@ export type BoardReadTask = {
   workflowArea: string;
   sourceType: string;
   requiresManagerApproval: boolean;
-  requiredUpdateFields: TaskTemplateRequiredUpdateField[];
+  requiredUpdateFields: BoardReadRequiredUpdateField[];
   updateFieldValues: Record<string, string | boolean>;
   assignedUser: BoardReadUserSummary;
   recommendedUser: BoardReadUserSummary | null;
@@ -86,7 +94,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-function normalizeRequiredUpdateFields(snapshot: unknown): TaskTemplateRequiredUpdateField[] {
+function normalizeRequiredUpdateFields(snapshot: unknown): BoardReadRequiredUpdateField[] {
   if (!isPlainObject(snapshot) || !Array.isArray(snapshot.requiredUpdateFields)) {
     return [];
   }
@@ -116,7 +124,7 @@ function normalizeRequiredUpdateFields(snapshot: unknown): TaskTemplateRequiredU
         entry.options.every((option) => typeof option === "string" && option.trim())
           ? { options: entry.options.map((option) => option.trim()) }
           : {})
-      } satisfies TaskTemplateRequiredUpdateField
+      } satisfies BoardReadRequiredUpdateField
     ];
   });
 }
@@ -165,6 +173,9 @@ function toUserSummary(
 }
 
 function toTaskSummary(task: BoardReadTaskRecord): BoardReadTask {
+  const snapshot = (task as { templateSnapshot?: unknown }).templateSnapshot;
+  const updateFieldValues = (task as { updateFieldValues?: unknown }).updateFieldValues;
+  const updatedAt = (task as { updatedAt?: Date }).updatedAt;
   const recommendation =
     task.recommendationReasonCode && task.recommendationExplanation
       ? {
@@ -179,12 +190,12 @@ function toTaskSummary(task: BoardReadTaskRecord): BoardReadTask {
     description: normalizeOptionalText(task.description),
     status: task.status,
     dueAt: task.dueAt.toISOString(),
-    updatedAt: (task.updatedAt ?? task.dueAt).toISOString(),
+    updatedAt: (updatedAt ?? task.dueAt).toISOString(),
     workflowArea: task.workflowArea,
     sourceType: task.sourceType,
     requiresManagerApproval: task.requiresManagerApproval,
-    requiredUpdateFields: normalizeRequiredUpdateFields(task.templateSnapshot),
-    updateFieldValues: normalizeUpdateFieldValues(task.updateFieldValues),
+    requiredUpdateFields: normalizeRequiredUpdateFields(snapshot),
+    updateFieldValues: normalizeUpdateFieldValues(updateFieldValues),
     assignedUser: {
       id: task.assignedUser.id,
       name: task.assignedUser.name,

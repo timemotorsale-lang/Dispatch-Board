@@ -32,6 +32,17 @@ export type TaskCommentReadModel = {
   author: TaskReadUserSummary;
 };
 
+export type TaskChecklistItemReadModel = {
+  id: string;
+  kind: string;
+  label: string;
+  completed: boolean;
+  sortOrder: number;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type TaskActivityReadModel = {
   id: string;
   eventType: string;
@@ -53,7 +64,7 @@ export type TaskReadModel = {
   requiresManagerApproval: boolean;
   requiredUpdateFields: TaskTemplateRequiredUpdateField[];
   updateFieldValues: Record<string, string | boolean>;
-  checklistItems: TaskTemplateChecklistItem[];
+  templateChecklistItems: TaskTemplateChecklistItem[];
   completionCriteria: TaskTemplateCompletionCriteria | null;
   approvalRules: TaskTemplateApprovalRules | null;
   intelligenceSignalType: string | null;
@@ -69,6 +80,7 @@ export type TaskReadModel = {
   recommendation: TaskReadRecommendation | null;
   createdByUser: TaskReadUserSummary | null;
   reviewedByUser: TaskReadUserSummary | null;
+  checklistItems: TaskChecklistItemReadModel[];
   activityHistory: TaskActivityReadModel[];
   comments: TaskCommentReadModel[];
 };
@@ -249,6 +261,22 @@ function toUserSummary(
 }
 
 function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
+  const snapshot = (task as { templateSnapshot?: unknown }).templateSnapshot;
+  const updateFieldValues = (task as { updateFieldValues?: unknown }).updateFieldValues;
+  const checklistItems = (task as { checklistItems?: TaskReadRecord["checklistItems"] }).checklistItems ?? [];
+  const activityEvents = (task as {
+    activityEvents?: Array<{
+      id: string;
+      eventType: string;
+      message: string;
+      createdAt: Date;
+      actorUser: {
+        id: string;
+        name: string;
+        email: string;
+      } | null;
+    }>;
+  }).activityEvents;
   const recommendation =
     task.recommendationReasonCode && task.recommendationExplanation
       ? {
@@ -268,12 +296,12 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
     workflowArea: task.workflowArea,
     sourceType: task.sourceType,
     requiresManagerApproval: task.requiresManagerApproval,
-    requiredUpdateFields: normalizeRequiredUpdateFields(task.templateSnapshot),
-    updateFieldValues: normalizeUpdateFieldValues(task.updateFieldValues),
-    checklistItems: normalizeChecklistItems(task.templateSnapshot),
-    completionCriteria: normalizeCompletionCriteria(task.templateSnapshot),
-    approvalRules: normalizeApprovalRules(task.templateSnapshot),
-    intelligenceSignalType: normalizeIntelligenceSignalType(task.templateSnapshot),
+    requiredUpdateFields: normalizeRequiredUpdateFields(snapshot),
+    updateFieldValues: normalizeUpdateFieldValues(updateFieldValues),
+    templateChecklistItems: normalizeChecklistItems(snapshot),
+    completionCriteria: normalizeCompletionCriteria(snapshot),
+    approvalRules: normalizeApprovalRules(snapshot),
+    intelligenceSignalType: normalizeIntelligenceSignalType(snapshot),
     vehicleReference: normalizeOptionalText(task.vehicleReference),
     customerReference: normalizeOptionalText(task.customerReference),
     blockerReason: normalizeOptionalText(task.blockerReason),
@@ -290,10 +318,20 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
     recommendation,
     createdByUser: toUserSummary(task.createdByUser),
     reviewedByUser: toUserSummary(task.reviewedByUser),
-    activityHistory: (task.activityEvents ?? []).map((event) => ({
+    checklistItems: checklistItems.map((item) => ({
+      id: item.id,
+      kind: item.kind,
+      label: item.label.trim(),
+      completed: item.completed,
+      sortOrder: item.sortOrder,
+      completedAt: item.completedAt?.toISOString() ?? null,
+      createdAt: item.createdAt.toISOString(),
+      updatedAt: item.updatedAt.toISOString()
+    })),
+    activityHistory: (activityEvents ?? []).map((event) => ({
       id: event.id,
       eventType: event.eventType,
-      message: event.message,
+      message: event.message.trim(),
       createdAt: event.createdAt.toISOString(),
       actor: toUserSummary(event.actorUser)
     })),

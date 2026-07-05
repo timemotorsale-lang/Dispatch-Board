@@ -96,7 +96,7 @@ export default async function SettingsPage() {
               </p>
               <div className="settings-checklist">
                 <p>Daily generation time controls when the automatic board is created.</p>
-                <p>Timezone keeps scheduling aligned with the dealership's actual operating day.</p>
+                <p>Timezone keeps scheduling aligned with the dealership&apos;s actual operating day.</p>
                 <p>Business days prevent weekend or off-day board creation when it should not run.</p>
               </div>
             </article>

@@ -1,10 +1,11 @@
-import { ActivityEventType, Prisma, TaskSourceType, TaskStatus, WorkflowArea } from "@prisma/client";
+import { Prisma, TaskSourceType, TaskStatus, WorkflowArea } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 
 import {
   createManualTask,
   type ManualTaskCreateResult
 } from "@/server/services/task-create-service";
+import { ActivityEventType } from "@/server/services/activity-events";
 import type {
   CreateTaskRecordInput,
   TaskCreateAssignedUserRecord,

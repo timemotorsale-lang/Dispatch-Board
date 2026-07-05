@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 
-import { ProjectScreen } from "@/features/projects/project-screen";
 import { getProjectCardSummary, listProjectCardSummaries } from "@/features/projects/project-data";
 import { getProjectDefinition, isProjectView, type ProjectView } from "@/features/projects/project-definitions";
+import { ProjectScreen } from "@/features/projects/project-screen";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { listActivityFeedEventsForToday } from "@/server/services/activity-feed";
 import { getBoardReadModelForToday } from "@/server/services/board-read";

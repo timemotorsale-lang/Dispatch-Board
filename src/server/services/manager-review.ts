@@ -5,7 +5,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { canReviewWorkflows } from "@/server/policies/access";
 import type { BoardReadRepository } from "@/server/repositories/board-read-repository";
 import type { AppSettingsRepository } from "@/server/services/app-settings-service";
-import { getBoardReadModelForToday } from "@/server/services/board-read";
+import { getBoardReadModelForDate, getBoardReadModelForToday } from "@/server/services/board-read";
 
 export type ManagerReviewViewModel = {
   date: string;
@@ -13,6 +13,21 @@ export type ManagerReviewViewModel = {
   boardExists: boolean;
   generationStatus: string | null;
   generatedAt: string | null;
+  tasks: BoardReadTask[];
+  attentionBuckets: ManagerAttentionBucket[];
+};
+
+export type ManagerReviewFocus =
+  | ""
+  | "READY_FOR_REVIEW"
+  | "BLOCKED"
+  | "WAITING_ON_PARTS"
+  | "WAITING_ON_APPROVAL";
+
+export type ManagerAttentionBucket = {
+  description: string;
+  label: string;
+  status: "BLOCKED" | "WAITING_ON_APPROVAL" | "WAITING_ON_PARTS";
   tasks: BoardReadTask[];
 };
 
@@ -26,6 +41,29 @@ function getReadyForReviewTasks(tasks: BoardReadTask[]) {
   return tasks.filter(
     (task) => task.status === TaskStatus.READY_FOR_REVIEW && task.requiresManagerApproval
   );
+}
+
+function getAttentionBuckets(tasks: BoardReadTask[]): ManagerAttentionBucket[] {
+  return [
+    {
+      label: "Blocked",
+      description: "Work is stalled and needs a next decision.",
+      status: TaskStatus.BLOCKED,
+      tasks: tasks.filter((task) => task.status === TaskStatus.BLOCKED)
+    },
+    {
+      label: "Waiting on Parts",
+      description: "Track ETAs and unblock repair or recon work.",
+      status: TaskStatus.WAITING_ON_PARTS,
+      tasks: tasks.filter((task) => task.status === TaskStatus.WAITING_ON_PARTS)
+    },
+    {
+      label: "Waiting on Approval",
+      description: "Manager action is holding the next step.",
+      status: TaskStatus.WAITING_ON_APPROVAL,
+      tasks: tasks.filter((task) => task.status === TaskStatus.WAITING_ON_APPROVAL)
+    }
+  ];
 }
 
 export async function getManagerReviewViewModelForToday(
@@ -45,6 +83,30 @@ export async function getManagerReviewViewModelForToday(
     boardExists: Boolean(boardResult.board),
     generationStatus: boardResult.board?.generationStatus ?? null,
     generatedAt: boardResult.board?.generatedAt ?? null,
-    tasks
+    tasks,
+    attentionBuckets: boardResult.board ? getAttentionBuckets(boardResult.board.tasks) : getAttentionBuckets([])
+  };
+}
+
+export async function getManagerReviewViewModelForDate(
+  user: AuthenticatedUser | null,
+  boardDate: string,
+  dependencies: ManagerReviewDependencies = {}
+): Promise<ManagerReviewViewModel> {
+  if (!canReviewWorkflows(user)) {
+    throw new Error("Manager review access required.");
+  }
+
+  const boardResult = await getBoardReadModelForDate(user, boardDate, dependencies);
+  const tasks = boardResult.board ? getReadyForReviewTasks(boardResult.board.tasks) : [];
+
+  return {
+    date: boardResult.date,
+    boardId: boardResult.board?.id ?? null,
+    boardExists: Boolean(boardResult.board),
+    generationStatus: boardResult.board?.generationStatus ?? null,
+    generatedAt: boardResult.board?.generatedAt ?? null,
+    tasks,
+    attentionBuckets: boardResult.board ? getAttentionBuckets(boardResult.board.tasks) : getAttentionBuckets([])
   };
 }

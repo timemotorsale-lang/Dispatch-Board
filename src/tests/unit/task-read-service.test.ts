@@ -78,6 +78,7 @@ function createTaskReadRepository(): TaskReadRepository {
           email: "morgan.manager@local.test"
         },
         reviewedByUser: null,
+        checklistItems: [],
         activityEvents: [
           {
             id: "event-1",
@@ -140,7 +141,7 @@ describe("task read service", () => {
       updateFieldValues: {
         customer_name: "Taylor R."
       },
-      checklistItems: [
+      templateChecklistItems: [
         {
           key: "confirm_customer",
           label: "Confirm customer details",
@@ -178,6 +179,7 @@ describe("task read service", () => {
         email: "morgan.manager@local.test"
       },
       reviewedByUser: null,
+      checklistItems: [],
       activityHistory: [
         {
           id: "event-1",

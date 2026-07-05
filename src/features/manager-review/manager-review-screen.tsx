@@ -7,7 +7,13 @@ import { useState, useTransition } from "react";
 
 import { EmptyStateCard, ErrorStateCard } from "@/components/ui/state-card";
 import { useLiveRefresh } from "@/hooks/use-live-refresh";
+import {
+  getAllowedMyTaskStatuses,
+  getTaskActionLabel
+} from "@/features/tasks/my-tasks-helpers";
 import type { BoardReadTask } from "@/server/services/board-read";
+import type { ManagerAttentionBucket, ManagerReviewFocus } from "@/server/services/manager-review";
+import type { ActiveUserSummary } from "@/server/services/user-summary";
 
 type ManagerReviewScreenProps = {
   boardDate: string;
@@ -16,7 +22,11 @@ type ManagerReviewScreenProps = {
   fullBoardHref: string;
   generatedAt: string | null;
   generationStatus: string | null;
+  initialAttentionBuckets: ManagerAttentionBucket[];
+  initialFocus: ManagerReviewFocus;
   initialTasks: BoardReadTask[];
+  assignableUsers: ActiveUserSummary[];
+  nowIso?: string;
 };
 
 type StatusUpdateResponse =
@@ -95,6 +105,56 @@ function getReviewAgeCopy(readyForReviewAt: string | null, now: Date) {
   return `${Math.round(ageInMinutes / 60)}h in queue`;
 }
 
+function getElapsedAgeCopy(value: string, now: Date) {
+  const minutes = Math.max(0, Math.round((now.getTime() - new Date(value).getTime()) / 60000));
+
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+
+  const hours = Math.round(minutes / 60);
+
+  if (hours < 24) {
+    return `${hours}h`;
+  }
+
+  return `${Math.round(hours / 24)}d`;
+}
+
+function getAttentionSla(task: BoardReadTask, now: Date) {
+  const minutesUntilDue = Math.round((new Date(task.dueAt).getTime() - now.getTime()) / 60000);
+
+  if (minutesUntilDue < 0) {
+    return {
+      label: "At Risk",
+      tone: "danger" as const,
+      detail: `${Math.abs(minutesUntilDue) < 60 ? `${Math.abs(minutesUntilDue)}m` : `${Math.round(Math.abs(minutesUntilDue) / 60)}h`} overdue`
+    };
+  }
+
+  if (minutesUntilDue <= 120) {
+    return {
+      label: "Due Soon",
+      tone: "warning" as const,
+      detail: `${minutesUntilDue < 60 ? `${minutesUntilDue}m` : `${Math.round(minutesUntilDue / 60)}h`} left`
+    };
+  }
+
+  if (task.status === TaskStatus.BLOCKED || task.status === TaskStatus.WAITING_ON_APPROVAL) {
+    return {
+      label: "Needs Manager",
+      tone: "warning" as const,
+      detail: "Decision holding progress"
+    };
+  }
+
+  return {
+    label: "On Track",
+    tone: "neutral" as const,
+    detail: "No immediate SLA risk"
+  };
+}
+
 function getOverdueCount(tasks: BoardReadTask[], now: Date) {
   return tasks.filter((task) => new Date(task.dueAt).getTime() < now.getTime()).length;
 }
@@ -109,11 +169,56 @@ function getOldestReviewTask(tasks: BoardReadTask[]) {
     .at(0);
 }
 
+function getAttentionTaskCount(attentionBuckets: ManagerAttentionBucket[]) {
+  return attentionBuckets.reduce((total, bucket) => total + bucket.tasks.length, 0);
+}
+
+function getOldestAttentionTask(attentionBuckets: ManagerAttentionBucket[]) {
+  return attentionBuckets
+    .flatMap((bucket) => bucket.tasks)
+    .sort((left, right) => new Date(left.dueAt).getTime() - new Date(right.dueAt).getTime())
+    .at(0);
+}
+
+function createManagerQueueHref(boardDate: string, focus: ManagerReviewFocus) {
+  const query = new URLSearchParams({ date: boardDate });
+
+  if (focus) {
+    query.set("focus", focus);
+  }
+
+  return `/manager-review?${query.toString()}`;
+}
+
 type ReviewCardProps = {
   boardHref: string;
   onTaskRemoved(taskId: string): void;
   task: BoardReadTask;
 };
+
+type TaskStatusResponse =
+  | {
+      task?: {
+        id: string;
+        status: TaskStatus;
+        blockerReason: string | null;
+      };
+      error?: string;
+    }
+  | null;
+
+type TaskAssignmentResponse =
+  | {
+      task?: {
+        id: string;
+        assignedUser: {
+          id: string;
+          name: string;
+        };
+      };
+      error?: string;
+    }
+  | null;
 
 function ReviewTaskCard({ boardHref, onTaskRemoved, task }: ReviewCardProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -234,6 +339,248 @@ function ReviewTaskCard({ boardHref, onTaskRemoved, task }: ReviewCardProps) {
   );
 }
 
+function AttentionTaskActions({
+  onTaskChanged,
+  assignableUsers,
+  task
+}: {
+  onTaskChanged(message: string): void;
+  assignableUsers: ActiveUserSummary[];
+  task: BoardReadTask;
+}) {
+  const [assignedUserId, setAssignedUserId] = useState(task.assignedUser.id);
+  const [selectedStatus, setSelectedStatus] = useState(task.status as TaskStatus);
+  const [blockerReason, setBlockerReason] = useState(task.blockerReason ?? "");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const allowedStatuses = getAllowedMyTaskStatuses(task, true);
+  const requiresBlockerReason = selectedStatus === TaskStatus.BLOCKED;
+  const trimmedBlockerReason = blockerReason.trim();
+
+  async function saveAssignment() {
+    if (assignedUserId === task.assignedUser.id) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrorMessage(null);
+
+    try {
+      const response = await fetch(`/api/tasks/${encodeURIComponent(task.id)}/assignment`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          assignedUserId
+        })
+      });
+      const result = (await response.json().catch(() => null)) as TaskAssignmentResponse;
+
+      if (!response.ok || !result?.task) {
+        setErrorMessage(result?.error ?? "Unable to reassign this task right now.");
+        return;
+      }
+
+      onTaskChanged(`Assigned ${task.title} to ${result.task.assignedUser.name}.`);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Unable to reassign this task right now.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function saveStatus() {
+    if (requiresBlockerReason && !trimmedBlockerReason) {
+      setErrorMessage("Blocked tasks require a blocker reason.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrorMessage(null);
+
+    try {
+      const response = await fetch(`/api/tasks/${encodeURIComponent(task.id)}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          status: selectedStatus,
+          ...(selectedStatus === TaskStatus.BLOCKED ? { blockerReason: trimmedBlockerReason } : {})
+        })
+      });
+      const result = (await response.json().catch(() => null)) as TaskStatusResponse;
+
+      if (!response.ok || !result?.task) {
+        setErrorMessage(result?.error ?? "Unable to update this task right now.");
+        return;
+      }
+
+      onTaskChanged(
+        `${task.title} moved to ${formatStatusLabel(result.task.status)}.`
+      );
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Unable to update this task right now.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="manager-review-inline-actions">
+      <label className="field">
+        <span>Reassign owner</span>
+        <select
+          disabled={isSubmitting}
+          value={assignedUserId}
+          onChange={(event) => {
+            setAssignedUserId(event.target.value);
+            setErrorMessage(null);
+          }}
+        >
+          {assignableUsers.map((user) => (
+            <option key={user.id} value={user.id}>
+              {user.name}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <button
+        className="pill pill-secondary manager-review-inline-button"
+        disabled={isSubmitting || assignedUserId === task.assignedUser.id}
+        onClick={() => void saveAssignment()}
+        type="button"
+      >
+        {isSubmitting ? "Saving..." : "Save assignment"}
+      </button>
+
+      <label className="field">
+        <span>Next status</span>
+        <select
+          disabled={isSubmitting}
+          value={selectedStatus}
+          onChange={(event) => {
+            setSelectedStatus(event.target.value as TaskStatus);
+            setErrorMessage(null);
+          }}
+        >
+          {allowedStatuses.map((statusOption) => (
+            <option key={statusOption.value} value={statusOption.value}>
+              {statusOption.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {requiresBlockerReason ? (
+        <label className="field manager-review-inline-span">
+          <span>Blocker reason</span>
+          <input
+            disabled={isSubmitting}
+            placeholder="What is still blocking this task?"
+            value={blockerReason}
+            onChange={(event) => {
+              setBlockerReason(event.target.value);
+              setErrorMessage(null);
+            }}
+          />
+        </label>
+      ) : null}
+
+      <button
+        className="pill pill-primary manager-review-inline-button"
+        disabled={isSubmitting}
+        onClick={() => void saveStatus()}
+        type="button"
+      >
+        {isSubmitting ? "Saving..." : getTaskActionLabel(selectedStatus, task.status as TaskStatus, task.requiresManagerApproval)}
+      </button>
+
+      {errorMessage ? (
+        <div className="notice notice-danger my-task-inline-notice manager-review-inline-span" role="alert">
+          <p>{errorMessage}</p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function AttentionTaskCard({
+  assignableUsers,
+  boardHref,
+  now,
+  onTaskChanged,
+  task
+}: {
+  assignableUsers: ActiveUserSummary[];
+  boardHref: string;
+  now: Date;
+  onTaskChanged(message: string): void;
+  task: BoardReadTask;
+}) {
+  const sla = getAttentionSla(task, now);
+
+  return (
+    <article className="panel-card my-task-card manager-review-card manager-review-card-compact">
+      <div className="my-task-topline">
+        <div className="my-task-copy">
+          <div className="my-task-heading-row">
+            <h2>{task.title}</h2>
+            <span className="board-status-chip board-status-chip-warning">
+              {formatStatusLabel(task.status)}
+            </span>
+          </div>
+          {task.description ? <p>{task.description}</p> : null}
+        </div>
+        <div className="my-task-card-links">
+          <Link className="pill pill-secondary" href={`/tasks/${task.id}`}>
+            Open detail
+          </Link>
+        </div>
+      </div>
+
+      <div className="manager-review-signal-row">
+        <span className={`manager-review-sla-pill manager-review-sla-pill-${sla.tone}`}>{sla.label}</span>
+        <span className="board-chip board-chip-muted">{sla.detail}</span>
+        <span className="board-chip board-chip-muted">Last updated {getElapsedAgeCopy(task.updatedAt, now)} ago</span>
+      </div>
+
+      <div className="my-task-meta-grid">
+        <div>
+          <span>Assigned</span>
+          <strong>{task.assignedUser.name}</strong>
+          {task.assignedUser.email ? <small>{task.assignedUser.email}</small> : null}
+        </div>
+        <div>
+          <span>Due</span>
+          <strong>{formatDueTime(task.dueAt)}</strong>
+          <small>{formatDateTime(task.dueAt)}</small>
+        </div>
+        <div>
+          <span>Workflow</span>
+          <strong>{formatStatusLabel(task.workflowArea)}</strong>
+          <small>{formatStatusLabel(task.sourceType)}</small>
+        </div>
+        <div>
+          <span>Context</span>
+          <strong>{task.vehicleReference ?? task.customerReference ?? "No reference"}</strong>
+          <small>{task.blockerReason ?? "Open the detail view for the full next-step context."}</small>
+        </div>
+      </div>
+
+      <div className="my-task-card-links manager-review-card-links">
+        <Link className="pill pill-muted" href={boardHref}>
+          Open board
+        </Link>
+      </div>
+
+      <AttentionTaskActions assignableUsers={assignableUsers} onTaskChanged={onTaskChanged} task={task} />
+    </article>
+  );
+}
+
 export function ManagerReviewScreen({
   boardDate,
   boardExists,
@@ -241,15 +588,31 @@ export function ManagerReviewScreen({
   fullBoardHref,
   generatedAt,
   generationStatus,
-  initialTasks
+  initialAttentionBuckets,
+  initialFocus,
+  initialTasks,
+  assignableUsers,
+  nowIso
 }: ManagerReviewScreenProps) {
   const router = useRouter();
   const [isRefreshPending, startRefreshTransition] = useTransition();
   const [removedTaskIds, setRemovedTaskIds] = useState<Record<string, true>>({});
   const [lastActionMessage, setLastActionMessage] = useState<string | null>(null);
+  const [focus, setFocus] = useState<ManagerReviewFocus>(initialFocus);
   const tasks = initialTasks.filter((task) => !removedTaskIds[task.id]);
-  const now = new Date();
+  const attentionBuckets = initialAttentionBuckets.map((bucket) => ({
+    ...bucket,
+    tasks: bucket.tasks.filter((task) => !removedTaskIds[task.id])
+  }));
+  const visibleReviewTasks = focus === "" || focus === "READY_FOR_REVIEW" ? tasks : [];
+  const visibleAttentionBuckets =
+    focus === "" || focus === "READY_FOR_REVIEW"
+      ? attentionBuckets
+      : attentionBuckets.filter((bucket) => bucket.status === focus);
+  const now = new Date(nowIso ?? new Date().toISOString());
   const oldestTask = getOldestReviewTask(tasks);
+  const oldestAttentionTask = getOldestAttentionTask(attentionBuckets);
+  const attentionTaskCount = getAttentionTaskCount(attentionBuckets);
 
   function refreshQueue() {
     startRefreshTransition(() => {
@@ -267,6 +630,11 @@ export function ManagerReviewScreen({
       [taskId]: true
     }));
     setLastActionMessage("The review queue has been updated.");
+  }
+
+  function handleAttentionTaskChanged(message: string) {
+    setLastActionMessage(message);
+    refreshQueue();
   }
 
   return (
@@ -292,6 +660,25 @@ export function ManagerReviewScreen({
             <p className="my-tasks-generated-copy">Board generated {formatDateTime(generatedAt)}.</p>
           ) : null}
           <p className="my-tasks-generated-copy">Refreshes when you return to this tab or click Refresh.</p>
+          <div className="manager-review-focus-row">
+            {[
+              { label: "All manager work", value: "" },
+              { label: "Ready for Review", value: "READY_FOR_REVIEW" },
+              { label: "Blocked", value: "BLOCKED" },
+              { label: "Waiting on Parts", value: "WAITING_ON_PARTS" },
+              { label: "Waiting on Approval", value: "WAITING_ON_APPROVAL" }
+            ].map((option) => (
+              <button
+                aria-pressed={focus === option.value}
+                className={focus === option.value ? "board-tab active" : "board-tab"}
+                key={option.label}
+                onClick={() => setFocus(option.value as ManagerReviewFocus)}
+                type="button"
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="board-toolbar my-tasks-toolbar">
@@ -318,7 +705,12 @@ export function ManagerReviewScreen({
           <p className="board-stat-card-copy">Review items whose due time has already passed.</p>
         </article>
         <article className="panel-card board-stat-card">
-          <strong>Oldest waiting</strong>
+          <strong>Needs attention</strong>
+          <h2>{attentionTaskCount}</h2>
+          <p className="board-stat-card-copy">Blocked and waiting work that may need a manager move.</p>
+        </article>
+        <article className="panel-card board-stat-card">
+          <strong>Oldest review</strong>
           <h2>{oldestTask?.readyForReviewAt ? getReviewAgeCopy(oldestTask.readyForReviewAt, now) : "Clear"}</h2>
           <p className="board-stat-card-copy">How long the oldest approval-ready task has been sitting.</p>
         </article>
@@ -348,17 +740,17 @@ export function ManagerReviewScreen({
         />
       ) : null}
 
-      {!errorMessage && boardExists && tasks.length === 0 ? (
+      {!errorMessage && boardExists && tasks.length === 0 && attentionTaskCount === 0 ? (
         <EmptyStateCard
           actions={[{ href: fullBoardHref, label: "Back to board" }]}
           eyebrow="Queue clear"
-          message="No approval-required tasks are waiting right now. Blockers and in-progress work still remain visible on the full board."
-          title="Nothing is waiting for manager review"
+          message="No approval-ready, blocked, or waiting work is asking for manager attention right now."
+          title="The manager queue is clear"
         />
       ) : null}
 
-      {!errorMessage && boardExists && tasks.length > 0 ? (
-        <div className="board-content-grid my-tasks-content-grid">
+      {!errorMessage && boardExists && (tasks.length > 0 || attentionTaskCount > 0) ? (
+        <div className="board-content-grid my-tasks-content-grid manager-review-columns">
           <article className="panel-card board-main-card">
             <div className="board-section-heading">
               <div>
@@ -369,13 +761,74 @@ export function ManagerReviewScreen({
             </div>
 
             <div className="my-task-list">
-              {tasks.map((task) => (
-                <ReviewTaskCard
-                  boardHref={fullBoardHref}
-                  key={task.id}
-                  onTaskRemoved={handleTaskRemoved}
-                  task={task}
-                />
+              {visibleReviewTasks.length > 0 ? (
+                visibleReviewTasks.map((task) => (
+                  <ReviewTaskCard
+                    boardHref={fullBoardHref}
+                    key={task.id}
+                    onTaskRemoved={handleTaskRemoved}
+                    task={task}
+                  />
+                ))
+              ) : (
+                <div className="notice manager-review-empty-inline" role="status">
+                  <p>
+                    {focus === "" || focus === "READY_FOR_REVIEW"
+                      ? "No tasks are waiting for formal manager review right now."
+                      : "This focus is showing the attention queue instead of review-ready work."}
+                  </p>
+                </div>
+              )}
+            </div>
+          </article>
+
+          <article className="panel-card board-main-card">
+            <div className="board-section-heading">
+              <div>
+                <strong>Attention queue</strong>
+                <h3>Blocked and waiting work</h3>
+              </div>
+              <p>Work this queue when the board shows stalled or manager-held progress.</p>
+            </div>
+
+            <div className="manager-review-attention-groups">
+              {visibleAttentionBuckets.map((bucket) => (
+                <section className="manager-review-bucket" key={bucket.status}>
+                  <div className="manager-review-bucket-header">
+                    <div>
+                      <h4>{bucket.label}</h4>
+                      <p>{bucket.description}</p>
+                    </div>
+                    <div className="manager-review-bucket-actions">
+                      <span className="board-chip">{bucket.tasks.length}</span>
+                      <Link
+                        className="pill pill-muted manager-review-bucket-link"
+                        href={createManagerQueueHref(boardDate, bucket.status)}
+                      >
+                        Open only this queue
+                      </Link>
+                    </div>
+                  </div>
+
+                  <div className="my-task-list">
+                    {bucket.tasks.length > 0 ? (
+                      bucket.tasks.map((task) => (
+                        <AttentionTaskCard
+                          assignableUsers={assignableUsers}
+                          boardHref={fullBoardHref}
+                          key={task.id}
+                          now={now}
+                          onTaskChanged={handleAttentionTaskChanged}
+                          task={task}
+                        />
+                      ))
+                    ) : (
+                      <div className="notice manager-review-empty-inline" role="status">
+                        <p>No tasks are currently in this status.</p>
+                      </div>
+                    )}
+                  </div>
+                </section>
               ))}
             </div>
           </article>
@@ -392,18 +845,27 @@ export function ManagerReviewScreen({
 
               <ul className="board-attention-list">
                 <li className="board-attention-item">
-                  <span>Waiting now</span>
+                  <span>Waiting review</span>
                   <strong>{tasks.length}</strong>
                 </li>
                 <li className="board-attention-item">
-                  <span>Overdue approvals</span>
-                  <strong>{getOverdueCount(tasks, now)}</strong>
+                  <span>Needs attention</span>
+                  <strong>{attentionTaskCount}</strong>
                 </li>
                 <li className="board-attention-item">
-                  <span>Oldest ready item</span>
-                  <strong>{oldestTask ? oldestTask.title : "None"}</strong>
+                  <span>Oldest attention item</span>
+                  <strong>{oldestAttentionTask ? oldestAttentionTask.title : oldestTask ? oldestTask.title : "None"}</strong>
                 </li>
               </ul>
+
+              <div className="manager-review-rail-actions">
+                <Link className="pill pill-secondary" href={createManagerQueueHref(boardDate, "READY_FOR_REVIEW")}>
+                  Review-only view
+                </Link>
+                <Link className="pill pill-muted" href={createManagerQueueHref(boardDate, "")}>
+                  Reset queue focus
+                </Link>
+              </div>
             </section>
           </aside>
         </div>

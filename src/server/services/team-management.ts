@@ -103,9 +103,7 @@ function isDelegatedManagerDutyName(name: string) {
   return name.trim().toLowerCase() === DELEGATED_MANAGER_DUTY_NAME.toLowerCase();
 }
 
-async function ensureDelegatedManagerDuty(
-  repository: TeamManagementRepository
-) {
+async function ensureDelegatedManagerDuty(repository: TeamManagementRepository) {
   const existingDuties = await repository.listDuties();
   const existingDuty = existingDuties.find((duty) => isDelegatedManagerDutyName(duty.name));
 
@@ -169,10 +167,7 @@ export async function getTeamManagementSnapshotForManager(
   const duties =
     delegatedManagerDuty || !isGeneralManager(authenticatedUser)
       ? sortManagedDuties(existingDuties)
-      : sortManagedDuties([
-          ...existingDuties,
-          await ensureDelegatedManagerDuty(repository)
-        ]);
+      : sortManagedDuties([...existingDuties, await ensureDelegatedManagerDuty(repository)]);
 
   return {
     users: users.map(toManagedTeamUser),

@@ -3,7 +3,21 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { TaskStatus } from "@prisma/client";
-import { useRef, useState, useTransition } from "react";
+import {
+  BellRing,
+  CheckCheck,
+  Clock3,
+  CircleAlert,
+  FileText,
+  Info,
+  LayoutGrid,
+  List,
+  MoreHorizontal,
+  Search,
+  ShieldAlert,
+  Star,
+} from "lucide-react";
+import { useState, useTransition } from "react";
 
 import { EmptyStateCard, ErrorStateCard } from "@/components/ui/state-card";
 import { useLiveRefresh } from "@/hooks/use-live-refresh";
@@ -13,7 +27,6 @@ import {
   hasMissingRequiredUpdate,
   isTaskDueSoon,
   isTaskOverdue,
-  getMyTasksFilterLabel,
   getMyTasksFilterOptions,
   getPrimaryMyTaskStatusActions,
   getTaskActionLabel,
@@ -35,18 +48,18 @@ type MyTasksScreenProps = {
   errorMessage?: string | null;
 };
 
-type StatusUpdatePayload = {
-  status: TaskStatus;
-  blockerReason?: string;
-  updateFields?: Record<string, string | boolean>;
-};
-
+type DisplayMode = "list" | "cards";
+type InspectorTab = "Overview" | "Checklist" | "Updates" | "Attachments" | "History" | "Dependencies";
 type TaskOverride = {
   blockerReason: string | null;
   status: TaskStatus;
   updateFieldValues: Record<string, string | boolean>;
 };
-
+type StatusUpdatePayload = {
+  status: TaskStatus;
+  blockerReason?: string;
+  updateFields?: Record<string, string | boolean>;
+};
 type GuidedUpdateField = BoardReadTask["requiredUpdateFields"][number];
 
 function formatBoardDateLabel(boardDate: string) {
@@ -84,22 +97,76 @@ function formatDateTime(value: string) {
 
 function getStatusTone(status: string) {
   if (status === TaskStatus.BLOCKED) {
-    return "board-status-chip board-status-chip-danger";
+    return "enterprise-status-chip enterprise-status-chip-danger";
   }
 
   if (status === TaskStatus.WAITING_ON_PARTS || status === TaskStatus.WAITING_ON_APPROVAL) {
-    return "board-status-chip board-status-chip-warning";
+    return "enterprise-status-chip enterprise-status-chip-warning";
   }
 
   if (status === TaskStatus.READY_FOR_REVIEW) {
-    return "board-status-chip board-status-chip-review";
+    return "enterprise-status-chip enterprise-status-chip-review";
   }
 
   if (status === TaskStatus.COMPLETED) {
-    return "board-status-chip board-status-chip-success";
+    return "enterprise-status-chip enterprise-status-chip-success";
   }
 
-  return "board-status-chip board-status-chip-default";
+  if (status === TaskStatus.NOT_STARTED) {
+    return "enterprise-status-chip enterprise-status-chip-neutral";
+  }
+
+  return "enterprise-status-chip enterprise-status-chip-default";
+}
+
+function getCommandActionTone(status: TaskStatus) {
+  if (status === TaskStatus.BLOCKED) {
+    return "my-task-action-chip my-task-action-chip-danger";
+  }
+
+  if (status === TaskStatus.WAITING_ON_PARTS || status === TaskStatus.WAITING_ON_APPROVAL) {
+    return "my-task-action-chip my-task-action-chip-warning";
+  }
+
+  if (status === TaskStatus.READY_FOR_REVIEW) {
+    return "my-task-action-chip my-task-action-chip-review";
+  }
+
+  if (status === TaskStatus.COMPLETED) {
+    return "my-task-action-chip my-task-action-chip-success";
+  }
+
+  return "my-task-action-chip my-task-action-chip-brand";
+}
+
+function getUrgencyTone(task: BoardReadTask, now: Date) {
+  const minutesUntilDue = Math.round((new Date(task.dueAt).getTime() - now.getTime()) / 60000);
+
+  if (
+    task.status === TaskStatus.BLOCKED ||
+    task.status === TaskStatus.WAITING_ON_APPROVAL ||
+    task.status === TaskStatus.WAITING_ON_PARTS ||
+    minutesUntilDue <= 120
+  ) {
+    return "enterprise-priority-chip enterprise-priority-chip-high";
+  }
+
+  return "enterprise-priority-chip enterprise-priority-chip-normal";
+}
+
+function getUrgencyLabel(task: BoardReadTask, now: Date) {
+  const minutesUntilDue = Math.round((new Date(task.dueAt).getTime() - now.getTime()) / 60000);
+
+  if (
+    task.status === TaskStatus.BLOCKED ||
+    task.status === TaskStatus.WAITING_ON_APPROVAL ||
+    task.status === TaskStatus.WAITING_ON_PARTS ||
+    minutesUntilDue <= 120
+  ) {
+    return "High";
+  }
+
+  return "Normal";
 }
 
 function getGenerationStatusTone(generationStatus: string | null) {
@@ -138,112 +205,193 @@ function getDueCopy(dueAt: string, now: Date) {
   return `${Math.round(minutesUntilDue / 60)}h left`;
 }
 
-function getActiveTaskCount(tasks: BoardReadTask[]) {
-  return tasks.filter((task) => task.status !== TaskStatus.COMPLETED).length;
+function getTaskReference(task: BoardReadTask) {
+  if (task.vehicleReference) {
+    return `Vehicle: ${task.vehicleReference}`;
+  }
+
+  if (task.customerReference) {
+    return `Customer: ${task.customerReference}`;
+  }
+
+  return "No linked vehicle or customer";
 }
 
-function getBlockedTaskCount(tasks: BoardReadTask[]) {
-  return tasks.filter((task) => task.status === TaskStatus.BLOCKED).length;
-}
-
-function getReadyForReviewCount(tasks: BoardReadTask[]) {
-  return tasks.filter((task) => task.status === TaskStatus.READY_FOR_REVIEW).length;
-}
-
-function getWaitingOnApprovalCount(tasks: BoardReadTask[]) {
-  return tasks.filter((task) => task.status === TaskStatus.WAITING_ON_APPROVAL).length;
-}
-
-function getOverdueTaskCount(tasks: BoardReadTask[], now: Date) {
-  return tasks.filter((task) => isTaskOverdue(task, now)).length;
-}
-
-function getDueSoonTaskCount(tasks: BoardReadTask[], now: Date) {
-  return tasks.filter((task) => isTaskDueSoon(task, now)).length;
-}
-
-function getMissingRequiredUpdateCount(tasks: BoardReadTask[]) {
-  return tasks.filter((task) => hasMissingRequiredUpdate(task)).length;
-}
-
-function getNeedsManagerDecisionCount(tasks: BoardReadTask[]) {
-  return tasks.filter((task) => needsManagerDecision(task)).length;
-}
-
-type TaskSignalTone = "danger" | "warning" | "review" | "success" | "default";
-
-type TaskSignal = {
-  label: string;
-  tone: TaskSignalTone;
-};
-
-function getTaskSignals(task: BoardReadTask, now: Date): TaskSignal[] {
-  const signals: TaskSignal[] = [];
-
+function getTaskSignal(task: BoardReadTask, now: Date) {
   if (hasMissingRequiredUpdate(task)) {
-    signals.push({ label: "Missing required update", tone: "warning" });
+    return {
+      body: "This task still needs its required update fields filled in before it can move cleanly to review or completion.",
+      title: "Required update still missing",
+      tone: "enterprise-overview-card-head-warning"
+    };
   }
 
-  if (isTaskOverdue(task, now)) {
-    signals.push({ label: "Overdue", tone: "danger" });
-  } else if (isTaskDueSoon(task, now)) {
-    signals.push({ label: "Due soon", tone: "warning" });
+  if (task.status === TaskStatus.BLOCKED && task.blockerReason) {
+    return {
+      body: task.blockerReason,
+      title: "Blocked work needs attention",
+      tone: "enterprise-overview-card-head-danger"
+    };
   }
 
-  if (task.status === TaskStatus.BLOCKED) {
-    signals.push({ label: "Blocked", tone: "danger" });
-  }
-
-  if (task.status === TaskStatus.WAITING_ON_APPROVAL) {
-    signals.push({ label: "Waiting on approval", tone: "warning" });
+  if (
+    task.status === TaskStatus.WAITING_ON_PARTS ||
+    task.status === TaskStatus.WAITING_ON_APPROVAL
+  ) {
+    return {
+      body: "Waiting tasks should still carry a clear next step and owner-ready note.",
+      title: "Waiting work should not stall quietly",
+      tone: "enterprise-overview-card-head-warning"
+    };
   }
 
   if (task.status === TaskStatus.READY_FOR_REVIEW) {
-    signals.push({ label: "Ready for review", tone: "review" });
+    return {
+      body: needsManagerDecision(task)
+        ? "This task is staged for a manager decision before final completion."
+        : "This task is staged for the next review step before final close-out.",
+      title: needsManagerDecision(task) ? "Needs manager decision" : "Ready for review",
+      tone: "enterprise-overview-card-head-review"
+    };
   }
 
-  if (needsManagerDecision(task)) {
-    signals.push({ label: "Needs manager decision", tone: "review" });
+  if (task.status === TaskStatus.COMPLETED) {
+    return {
+      body: "The work is complete. Use the activity trail or task detail page if you need final proof or notes.",
+      title: "Completed work",
+      tone: "enterprise-overview-card-head-success"
+    };
   }
 
-  return signals;
+  if (isTaskOverdue(task, now)) {
+    return {
+      body: "This task is already overdue. Update it now so the next handoff reflects the real state of the work.",
+      title: "Overdue",
+      tone: "enterprise-overview-card-head-danger"
+    };
+  }
+
+  if (isTaskDueSoon(task, now)) {
+    return {
+      body: `This task is due soon. Keep the update crisp so the next person can act without chasing context.`,
+      title: "Due soon",
+      tone: "enterprise-overview-card-head"
+    };
+  }
+
+  return {
+    body: "Keep status, blockers, and next action current so this task stays easy to scan from the queue.",
+    title: "Operational signal",
+    tone: "enterprise-overview-card-head-info"
+  };
 }
 
-function getTaskCardToneClass(task: BoardReadTask, now: Date) {
-  const signals = getTaskSignals(task, now);
-
-  if (signals.some((signal) => signal.label === "Blocked" || signal.label === "Overdue")) {
-    return "my-task-card-signal-danger";
+function getExpectedOutcome(task: BoardReadTask) {
+  if (task.status === TaskStatus.READY_FOR_REVIEW) {
+    return "Manager review can happen quickly because the task already carries enough context and a clear recommendation.";
   }
 
-  if (signals.some((signal) => signal.label === "Needs manager decision" || signal.label === "Ready for review")) {
-    return "my-task-card-signal-review";
+  if (task.status === TaskStatus.COMPLETED) {
+    return "The work is clearly closed and recorded so nobody has to revisit the task for missing context.";
   }
 
-  if (signals.some((signal) => signal.label === "Missing required update" || signal.label === "Due soon" || signal.label === "Waiting on approval")) {
-    return "my-task-card-signal-warning";
-  }
-
-  return "my-task-card-signal-default";
+  return "The task moves forward with a current status, the right owner, and enough context for the next handoff.";
 }
 
-function getSignalChipClass(tone: TaskSignalTone) {
-  if (tone === "danger") return "board-chip my-task-signal-chip my-task-signal-chip-danger";
-  if (tone === "warning") return "board-chip my-task-signal-chip my-task-signal-chip-warning";
-  if (tone === "review") return "board-chip my-task-signal-chip my-task-signal-chip-review";
-  if (tone === "success") return "board-chip my-task-signal-chip my-task-signal-chip-success";
+function getCompletionCriteria(task: BoardReadTask) {
+  const criteria = [
+    "Current status is accurate",
+    "Next action is clear",
+    "Owner and due time are visible"
+  ];
 
-  return "board-chip my-task-signal-chip";
+  if (task.requiresManagerApproval) {
+    criteria.push("Manager review is triggered at the correct step");
+  }
+
+  if (task.vehicleReference || task.customerReference) {
+    criteria.push("Linked vehicle or customer context is preserved");
+  }
+
+  return criteria;
+}
+
+function getActivityItems(task: BoardReadTask) {
+  const activity = [
+    {
+      label: "Due",
+      time: formatDateTime(task.dueAt),
+      detail: `Task is currently ${formatStatusLabel(task.status)}.`
+    }
+  ];
+
+  if (task.readyForReviewAt) {
+    activity.push({
+      label: "Review",
+      time: formatDateTime(task.readyForReviewAt),
+      detail: "Task was marked ready for manager review."
+    });
+  }
+
+  if (task.completedAt) {
+    activity.push({
+      label: "Done",
+      time: formatDateTime(task.completedAt),
+      detail: "Task completion has been recorded."
+    });
+  }
+
+  if (task.blockerReason) {
+    activity.push({
+      label: "Blocker",
+      time: "Current",
+      detail: task.blockerReason
+    });
+  }
+
+  return activity;
+}
+
+function getBlockedQueue(tasks: BoardReadTask[]) {
+  return tasks
+    .filter(
+      (task) =>
+        task.status === TaskStatus.BLOCKED ||
+        task.status === TaskStatus.WAITING_ON_PARTS ||
+        task.status === TaskStatus.WAITING_ON_APPROVAL
+    )
+    .slice(0, 3);
+}
+
+function getLatestUpdate(task: BoardReadTask, now: Date) {
+  if (task.blockerReason && task.status === TaskStatus.BLOCKED) {
+    return {
+      actor: task.assignedUser.name,
+      detail: task.blockerReason,
+      time: "Current blocker"
+    };
+  }
+
+  if (task.readyForReviewAt) {
+    return {
+      actor: task.assignedUser.name,
+      detail: "Task is staged for review with enough context for a manager decision.",
+      time: formatDateTime(task.readyForReviewAt)
+    };
+  }
+
+  return {
+    actor: task.assignedUser.name,
+    detail: `Task is currently ${formatStatusLabel(task.status)}.`,
+    time: getDueCopy(task.dueAt, now)
+  };
 }
 
 function statusNeedsGuidedUpdateFields(status: TaskStatus) {
   return status === TaskStatus.READY_FOR_REVIEW || status === TaskStatus.COMPLETED;
 }
 
-function isGuidedUpdateFieldComplete(
-  field: GuidedUpdateField,
-  value: string | boolean | undefined
-) {
+function isGuidedUpdateFieldComplete(field: GuidedUpdateField, value: string | boolean | undefined) {
   if (!field.required) {
     return true;
   }
@@ -255,21 +403,23 @@ function isGuidedUpdateFieldComplete(
   return typeof value === "string" && value.trim().length > 0;
 }
 
-type TaskCardProps = {
+type TaskStatusEditorProps = {
+  compact?: boolean;
+  fullBoardHref: string;
   isManager: boolean;
-  now: Date;
-  onTaskUpdated(
-    taskId: string,
-    update: {
-      status: TaskStatus;
-      blockerReason: string | null;
-      updateFieldValues: Record<string, string | boolean>;
-    }
-  ): void;
+  onTaskUpdated(taskId: string, update: TaskOverride): void;
   task: BoardReadTask;
 };
 
-function TaskCard({ isManager, now, onTaskUpdated, task }: TaskCardProps) {
+function TaskStatusEditor({
+  compact = false,
+  fullBoardHref,
+  isManager,
+  onTaskUpdated,
+  task
+}: TaskStatusEditorProps) {
+  const allowedStatuses = getAllowedMyTaskStatuses(task, isManager);
+  const primaryStatusActions = getPrimaryMyTaskStatusActions(task, isManager);
   const [selectedStatus, setSelectedStatus] = useState<TaskStatus>(task.status as TaskStatus);
   const [blockerReason, setBlockerReason] = useState(task.blockerReason ?? "");
   const [updateFieldValues, setUpdateFieldValues] = useState<Record<string, string | boolean>>(
@@ -277,36 +427,22 @@ function TaskCard({ isManager, now, onTaskUpdated, task }: TaskCardProps) {
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const displayTask = {
-    ...task,
-    status: selectedStatus
-  };
-  const allowedStatuses = getAllowedMyTaskStatuses(task, isManager);
   const hasStatusChoices = allowedStatuses.length > 0;
   const hasGuidedUpdateFields = task.requiredUpdateFields.length > 0;
-  const primaryStatusActions = getPrimaryMyTaskStatusActions(task, isManager);
-  const buttonLabel = getTaskActionLabel(
-    selectedStatus,
-    task.status as TaskStatus,
-    task.requiresManagerApproval
-  );
-  const trimmedBlockerReason = blockerReason.trim();
   const needsBlockerReason = selectedStatus === TaskStatus.BLOCKED;
-  const guidedUpdateFieldsCompleteCount = task.requiredUpdateFields.filter((field) =>
-    isGuidedUpdateFieldComplete(field, updateFieldValues[field.key])
-  ).length;
+  const trimmedBlockerReason = blockerReason.trim();
   const missingRequiredUpdateFields = task.requiredUpdateFields.filter(
     (field) => field.required && !isGuidedUpdateFieldComplete(field, updateFieldValues[field.key])
   );
   const shouldHighlightGuidedUpdates =
     hasGuidedUpdateFields && statusNeedsGuidedUpdateFields(selectedStatus);
-  const cardSignals = getTaskSignals(displayTask, now);
   const canSubmit =
     hasStatusChoices &&
     !isSubmitting &&
     (!needsBlockerReason || Boolean(trimmedBlockerReason)) &&
     (selectedStatus !== (task.status as TaskStatus) ||
-      (needsBlockerReason && trimmedBlockerReason !== (task.blockerReason ?? "")));
+      trimmedBlockerReason !== (task.blockerReason ?? "") ||
+      JSON.stringify(updateFieldValues) !== JSON.stringify(task.updateFieldValues ?? {}));
 
   async function submitStatusUpdate(payload: StatusUpdatePayload) {
     setIsSubmitting(true);
@@ -339,11 +475,11 @@ function TaskCard({ isManager, now, onTaskUpdated, task }: TaskCardProps) {
 
       setSelectedStatus(result.task.status);
       setBlockerReason(result.task.blockerReason ?? "");
-      setUpdateFieldValues(result.task.updateFieldValues ?? {});
+      setUpdateFieldValues(result.task.updateFieldValues ?? updateFieldValues);
       onTaskUpdated(task.id, {
         status: result.task.status,
         blockerReason: result.task.blockerReason,
-        updateFieldValues: result.task.updateFieldValues ?? {}
+        updateFieldValues: result.task.updateFieldValues ?? updateFieldValues
       });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to update this task right now.");
@@ -352,220 +488,171 @@ function TaskCard({ isManager, now, onTaskUpdated, task }: TaskCardProps) {
     }
   }
 
-  function handleQuickAction(status: TaskStatus) {
-    setSelectedStatus(status);
-    setErrorMessage(null);
-
-    if (status !== TaskStatus.BLOCKED) {
-      void submitStatusUpdate({
-        status,
-        ...(hasGuidedUpdateFields ? { updateFields: updateFieldValues } : {})
-      });
-    }
-  }
-
   return (
-    <article className={`panel-card my-task-card ${getTaskCardToneClass(displayTask, now)}`}>
-      <div className="my-task-topline">
-        <div className="my-task-copy">
-          <div className="my-task-heading-row">
-            <h2>{task.title}</h2>
-            <span className={getStatusTone(task.status)}>{formatStatusLabel(task.status)}</span>
-          </div>
-          {task.description ? <p>{task.description}</p> : null}
-        </div>
-        <div className="my-task-card-links">
-          <Link className="pill pill-secondary" href={`/tasks/${task.id}`}>
-            Detail
-          </Link>
-          <Link className="pill pill-muted" href={`/tasks/${task.id}#task-updates`}>
-            Update
-          </Link>
-        </div>
+    <section
+      className={
+        compact
+          ? "enterprise-detail-card enterprise-required-update-card my-tasks-command-card my-tasks-command-card-compact"
+          : "enterprise-detail-card enterprise-required-update-card"
+      }
+    >
+      <div className="enterprise-card-heading">
+        <h3>Task Command Center</h3>
+        {compact ? <span>Live update</span> : null}
       </div>
 
-      <div className="my-task-meta-grid">
-        <div>
-          <span>Due</span>
-          <strong>{formatDueTime(task.dueAt)}</strong>
-          <small>{getDueCopy(task.dueAt, now)}</small>
-        </div>
-        <div>
-          <span>Workflow</span>
-          <strong>{formatStatusLabel(task.workflowArea)}</strong>
-        </div>
-        <div>
-          <span>Assigned</span>
-          <strong>{task.assignedUser.name}</strong>
-          {task.assignedUser.email ? <small>{task.assignedUser.email}</small> : null}
-        </div>
-      </div>
+      {primaryStatusActions.length > 0 ? (
+        <div className="my-task-quick-actions" aria-label={`Quick status actions for ${task.title}`}>
+          {primaryStatusActions.map((statusOption) => (
+            <button
+              className={
+                statusOption.value === selectedStatus
+                  ? `${getCommandActionTone(statusOption.value)} my-task-action-chip-active`
+                  : getCommandActionTone(statusOption.value)
+              }
+              disabled={isSubmitting}
+              key={statusOption.value}
+              onClick={() => {
+                setSelectedStatus(statusOption.value);
+                setErrorMessage(null);
 
-      <div className="board-chip-row">
-        {task.requiresManagerApproval ? (
-          <span className="board-chip">Manager review required</span>
-        ) : null}
-        {task.vehicleReference ? <span className="board-chip">Vehicle: {task.vehicleReference}</span> : null}
-        {task.customerReference ? <span className="board-chip">Customer: {task.customerReference}</span> : null}
-      </div>
-
-      {cardSignals.length > 0 ? (
-        <div className="board-chip-row my-task-signal-row" aria-label={`Task signals for ${task.title}`}>
-          {cardSignals.map((signal) => (
-            <span className={getSignalChipClass(signal.tone)} key={signal.label}>
-              {signal.label}
-            </span>
+                if (statusOption.value !== TaskStatus.BLOCKED) {
+                  void submitStatusUpdate({
+                    status: statusOption.value,
+                    ...(hasGuidedUpdateFields ? { updateFields: updateFieldValues } : {})
+                  });
+                }
+              }}
+              type="button"
+            >
+              {getTaskActionLabel(
+                statusOption.value,
+                task.status as TaskStatus,
+                task.requiresManagerApproval
+              )}
+            </button>
           ))}
         </div>
       ) : null}
 
-      {task.blockerReason && task.status === TaskStatus.BLOCKED ? (
-        <p className="board-task-alert">Blocked: {task.blockerReason}</p>
-      ) : null}
+      <div className="enterprise-form-grid enterprise-form-grid-mockup">
+        <label className="field">
+          <span>Next Status</span>
+          <select
+            disabled={isSubmitting || allowedStatuses.length === 0}
+            value={selectedStatus}
+            onChange={(event) => {
+              setSelectedStatus(event.target.value as TaskStatus);
+              setErrorMessage(null);
+            }}
+          >
+            {allowedStatuses.map((statusOption) => (
+              <option key={statusOption.value} value={statusOption.value}>
+                {statusOption.label}
+              </option>
+            ))}
+          </select>
+        </label>
 
-      {hasStatusChoices ? (
-        <div className="my-task-action-grid">
-          {hasGuidedUpdateFields ? (
-            <section
-              className={
-                shouldHighlightGuidedUpdates
-                  ? "my-task-guided-update-panel my-task-guided-update-panel-active"
-                  : "my-task-guided-update-panel"
-              }
-            >
-              <div className="my-task-guided-update-header">
-                <div className="my-task-guided-update-copy">
-                  <strong>Required update</strong>
-                  <p>Capture the key details for this workflow before sending it forward.</p>
-                </div>
-                <div className="my-task-guided-update-progress">
-                  <span>
-                    {guidedUpdateFieldsCompleteCount} of {task.requiredUpdateFields.length} ready
-                  </span>
-                  {shouldHighlightGuidedUpdates && missingRequiredUpdateFields.length > 0 ? (
-                    <small>Needed for review or completion</small>
-                  ) : (
-                    <small>Saved on this task as you update it</small>
-                  )}
-                </div>
-              </div>
+        {!compact ? (
+          <label className="field">
+            <span>Due Time</span>
+            <input disabled value={formatDateTime(task.dueAt)} readOnly />
+          </label>
+        ) : null}
 
-              {shouldHighlightGuidedUpdates && missingRequiredUpdateFields.length > 0 ? (
-                <div className="my-task-guided-update-warning" role="status">
-                  Missing: {missingRequiredUpdateFields.map((field) => field.label).join(", ")}
-                </div>
-              ) : null}
+        {!compact ? (
+          <label className="field">
+            <span>Workflow</span>
+            <input disabled value={formatStatusLabel(task.workflowArea)} readOnly />
+          </label>
+        ) : null}
 
-              <div className="my-task-guided-update-fields">
-                {task.requiredUpdateFields.map((field) => {
-                  const value = updateFieldValues[field.key];
-                  const isComplete = isGuidedUpdateFieldComplete(field, value);
+        {hasGuidedUpdateFields ? (
+          <div className="field enterprise-summary-span">
+            <span>Required Update Fields</span>
+            {shouldHighlightGuidedUpdates && missingRequiredUpdateFields.length > 0 ? (
+              <small className="field-hint">
+                Missing: {missingRequiredUpdateFields.map((field) => field.label).join(", ")}
+              </small>
+            ) : (
+              <small className="field-hint">
+                These details travel with the task so review and completion are easier downstream.
+              </small>
+            )}
 
-                  if (field.type === "boolean") {
-                    return (
-                      <label
-                        className={isComplete ? "field my-task-guided-field my-task-guided-field-complete" : "field my-task-guided-field"}
-                        key={field.key}
-                      >
-                        <span>
-                          {field.label}
-                          {field.required ? " *" : ""}
-                        </span>
-                        <select
-                          disabled={isSubmitting}
-                          value={typeof value === "boolean" ? String(value) : ""}
-                          onChange={(event) => {
-                            const nextValue = event.target.value;
+            <div className="enterprise-guided-update-grid">
+              {task.requiredUpdateFields.map((field) => {
+                const value = updateFieldValues[field.key];
 
-                            setUpdateFieldValues((current) => ({
-                              ...current,
-                              [field.key]: nextValue === "true"
-                            }));
-                            setErrorMessage(null);
-                          }}
-                        >
-                          <option value="">Select an option</option>
-                          <option value="true">Yes</option>
-                          <option value="false">No</option>
-                        </select>
-                        {field.helpText ? <small className="field-hint">{field.helpText}</small> : null}
-                      </label>
-                    );
-                  }
-
-                  if (field.type === "single_select") {
-                    return (
-                      <label
-                        className={isComplete ? "field my-task-guided-field my-task-guided-field-complete" : "field my-task-guided-field"}
-                        key={field.key}
-                      >
-                        <span>
-                          {field.label}
-                          {field.required ? " *" : ""}
-                        </span>
-                        <select
-                          disabled={isSubmitting}
-                          value={typeof value === "string" ? value : ""}
-                          onChange={(event) => {
-                            setUpdateFieldValues((current) => ({
-                              ...current,
-                              [field.key]: event.target.value
-                            }));
-                            setErrorMessage(null);
-                          }}
-                        >
-                          <option value="">Select an option</option>
-                          {(field.options ?? []).map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                        </select>
-                        {field.helpText ? <small className="field-hint">{field.helpText}</small> : null}
-                      </label>
-                    );
-                  }
-
-                  if (field.type === "long_text") {
-                    return (
-                      <label
-                        className={isComplete ? "field my-task-guided-field my-task-guided-field-complete" : "field my-task-guided-field"}
-                        key={field.key}
-                      >
-                        <span>
-                          {field.label}
-                          {field.required ? " *" : ""}
-                        </span>
-                        <textarea
-                          disabled={isSubmitting}
-                          placeholder={field.helpText ?? undefined}
-                          rows={4}
-                          value={typeof value === "string" ? value : ""}
-                          onChange={(event) => {
-                            setUpdateFieldValues((current) => ({
-                              ...current,
-                              [field.key]: event.target.value
-                            }));
-                            setErrorMessage(null);
-                          }}
-                        />
-                        {field.helpText ? <small className="field-hint">{field.helpText}</small> : null}
-                      </label>
-                    );
-                  }
-
+                if (field.type === "boolean") {
                   return (
-                    <label
-                      className={isComplete ? "field my-task-guided-field my-task-guided-field-complete" : "field my-task-guided-field"}
-                      key={field.key}
-                    >
+                    <label className="field" key={field.key}>
                       <span>
                         {field.label}
                         {field.required ? " *" : ""}
                       </span>
-                      <input
+                      <select
+                        disabled={isSubmitting}
+                        value={typeof value === "boolean" ? String(value) : ""}
+                        onChange={(event) => {
+                          const nextValue = event.target.value;
+
+                          setUpdateFieldValues((current) => ({
+                            ...current,
+                            [field.key]: nextValue === "true"
+                          }));
+                          setErrorMessage(null);
+                        }}
+                      >
+                        <option value="">Select an option</option>
+                        <option value="true">Yes</option>
+                        <option value="false">No</option>
+                      </select>
+                    </label>
+                  );
+                }
+
+                if (field.type === "single_select") {
+                  return (
+                    <label className="field" key={field.key}>
+                      <span>
+                        {field.label}
+                        {field.required ? " *" : ""}
+                      </span>
+                      <select
+                        disabled={isSubmitting}
+                        value={typeof value === "string" ? value : ""}
+                        onChange={(event) => {
+                          setUpdateFieldValues((current) => ({
+                            ...current,
+                            [field.key]: event.target.value
+                          }));
+                          setErrorMessage(null);
+                        }}
+                      >
+                        <option value="">Select an option</option>
+                        {(field.options ?? []).map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  );
+                }
+
+                if (field.type === "long_text") {
+                  return (
+                    <label className="field" key={field.key}>
+                      <span>
+                        {field.label}
+                        {field.required ? " *" : ""}
+                      </span>
+                      <textarea
                         disabled={isSubmitting}
                         placeholder={field.helpText ?? undefined}
+                        rows={4}
                         value={typeof value === "string" ? value : ""}
                         onChange={(event) => {
                           setUpdateFieldValues((current) => ({
@@ -575,107 +662,101 @@ function TaskCard({ isManager, now, onTaskUpdated, task }: TaskCardProps) {
                           setErrorMessage(null);
                         }}
                       />
-                      {field.helpText ? <small className="field-hint">{field.helpText}</small> : null}
                     </label>
                   );
-                })}
-              </div>
-            </section>
-          ) : null}
+                }
 
-          {primaryStatusActions.length > 0 ? (
-            <div className="my-task-quick-actions" aria-label={`Quick status actions for ${task.title}`}>
-              {primaryStatusActions.map((statusOption) => (
-                <button
-                  className={
-                    statusOption.value === selectedStatus
-                      ? "my-task-action-chip my-task-action-chip-active"
-                      : "my-task-action-chip"
-                  }
-                  disabled={isSubmitting}
-                  key={statusOption.value}
-                  onClick={() => handleQuickAction(statusOption.value)}
-                  type="button"
-                >
-                  {getTaskActionLabel(
-                    statusOption.value,
-                    task.status as TaskStatus,
-                    task.requiresManagerApproval
-                  )}
-                </button>
-              ))}
+                return (
+                  <label className="field" key={field.key}>
+                    <span>
+                      {field.label}
+                      {field.required ? " *" : ""}
+                    </span>
+                    <input
+                      disabled={isSubmitting}
+                      placeholder={field.helpText ?? undefined}
+                      value={typeof value === "string" ? value : ""}
+                      onChange={(event) => {
+                        setUpdateFieldValues((current) => ({
+                          ...current,
+                          [field.key]: event.target.value
+                        }));
+                        setErrorMessage(null);
+                      }}
+                    />
+                  </label>
+                );
+              })}
             </div>
-          ) : null}
+          </div>
+        ) : null}
 
-          <label className="field">
-            <span>Next action</span>
-            <select
+        {needsBlockerReason ? (
+          <label className="field enterprise-summary-span">
+            <span>Blocker Reason</span>
+            <textarea
               disabled={isSubmitting}
-              value={selectedStatus}
+              placeholder="What is blocking this task?"
+              rows={3}
+              value={blockerReason}
               onChange={(event) => {
-                setSelectedStatus(event.target.value as TaskStatus);
+                setBlockerReason(event.target.value);
                 setErrorMessage(null);
               }}
-            >
-              {allowedStatuses.map((statusOption) => (
-                <option key={statusOption.value} value={statusOption.value}>
-                  {statusOption.label}
-                </option>
-              ))}
-            </select>
+            />
           </label>
-
-          {needsBlockerReason ? (
-            <label className="field my-task-blocker-field">
-              <span>Blocker reason</span>
-              <input
-                disabled={isSubmitting}
-                placeholder="What is blocking this task?"
-                value={blockerReason}
-                onChange={(event) => {
-                  setBlockerReason(event.target.value);
-                  setErrorMessage(null);
-                }}
-              />
-              <small className="field-hint">A blocker reason is required before this update can be sent.</small>
-            </label>
-          ) : null}
-
-          <div className="my-task-actions">
-            <button
-              className="pill pill-primary"
-              disabled={!canSubmit}
-              onClick={() =>
-                submitStatusUpdate({
-                  status: selectedStatus,
-                  ...(hasGuidedUpdateFields ? { updateFields: updateFieldValues } : {}),
-                  ...(selectedStatus === TaskStatus.BLOCKED
-                    ? { blockerReason: trimmedBlockerReason }
-                    : {})
-                })
-              }
-              type="button"
-            >
-              {isSubmitting ? "Saving..." : buttonLabel}
-            </button>
+        ) : !compact ? (
+          <label className="field enterprise-summary-span">
+            <span>Task Context</span>
+            <textarea disabled readOnly rows={3} value={task.description ?? getTaskReference(task)} />
+          </label>
+        ) : (
+          <div className="my-tasks-command-note">
+            <strong>Current context</strong>
+            <p>{task.description ?? getTaskReference(task)}</p>
           </div>
+        )}
+      </div>
+
+      {!compact ? (
+        <div className="my-tasks-live-link-row">
+          <Link className="pill pill-secondary" href={`/tasks/${task.id}`}>
+            Open detail
+          </Link>
+          <Link className="pill pill-muted" href={`/tasks/${task.id}#task-updates`}>
+            View updates
+          </Link>
+          <Link className="pill pill-muted" href={fullBoardHref}>
+            Full board
+          </Link>
         </div>
-      ) : (
-        <div className="my-task-readonly-row">
-          <p>
-            {task.status === TaskStatus.COMPLETED
-              ? "This task is already completed."
-              : "This task is waiting on review before it can move again from this screen."}
-          </p>
-        </div>
-      )}
+      ) : null}
+
+      <button
+        className="pill pill-primary enterprise-save-button"
+        disabled={!canSubmit}
+        onClick={() =>
+          submitStatusUpdate({
+            status: selectedStatus,
+            ...(hasGuidedUpdateFields ? { updateFields: updateFieldValues } : {}),
+            ...(selectedStatus === TaskStatus.BLOCKED ? { blockerReason: trimmedBlockerReason } : {})
+          })
+        }
+        type="button"
+      >
+        {isSubmitting
+          ? "Saving..."
+          : compact
+            ? "Save Update"
+            : getTaskActionLabel(selectedStatus, task.status as TaskStatus, task.requiresManagerApproval)}
+      </button>
 
       {errorMessage ? (
         <div className="notice notice-danger my-task-inline-notice" role="alert">
           <p>{errorMessage}</p>
         </div>
       ) : null}
-    </article>
+    </section>
   );
 }
 
@@ -694,8 +775,11 @@ export function MyTasksScreen({
   const router = useRouter();
   const [isRefreshPending, startRefreshTransition] = useTransition();
   const [activeFilter, setActiveFilter] = useState<MyTasksFilter>("all");
+  const [displayMode, setDisplayMode] = useState<DisplayMode>("list");
+  const [inspectorTab, setInspectorTab] = useState<InspectorTab>("Overview");
+  const [searchText, setSearchText] = useState("");
+  const [selectedTaskId, setSelectedTaskId] = useState(initialTasks[0]?.id ?? "");
   const [taskOverrides, setTaskOverrides] = useState<Record<string, TaskOverride>>({});
-  const taskListRef = useRef<HTMLElement | null>(null);
   const tasks = initialTasks.map((task) =>
     taskOverrides[task.id]
       ? {
@@ -706,39 +790,30 @@ export function MyTasksScreen({
   );
   const now = new Date(nowIso);
   const filterOptions = getMyTasksFilterOptions(tasks, now);
-  const visibleTasks = filterMyTasks(tasks, activeFilter, now);
-  const activeFilterLabel = getMyTasksFilterLabel(activeFilter);
-  const summaryCards: Array<{
-    description: string;
-    filter: MyTasksFilter;
-    title: string;
-    value: number;
-  }> = [
-    {
-      description: "Tasks assigned to you on today's board.",
-      filter: "all",
-      title: "Assigned today",
-      value: tasks.length
-    },
-    {
-      description: "Everything still in flight or waiting on you today.",
-      filter: "open",
-      title: "Open work",
-      value: getActiveTaskCount(tasks)
-    },
-    {
-      description: "Tasks that need a blocker cleared before they can move.",
-      filter: "blockedWaiting",
-      title: "Blocked",
-      value: getBlockedTaskCount(tasks)
-    },
-    {
-      description: "Approval-ready work that may need a manager next.",
-      filter: "readyForReview",
-      title: "Ready for review",
-      value: getReadyForReviewCount(tasks)
+  const visibleTasks = filterMyTasks(tasks, activeFilter, now).filter((task) => {
+    const query = searchText.trim().toLowerCase();
+
+    if (!query) {
+      return true;
     }
-  ];
+
+    return [
+      task.title,
+      task.description ?? "",
+      task.assignedUser.name,
+      formatStatusLabel(task.status),
+      formatStatusLabel(task.workflowArea),
+      task.vehicleReference ?? "",
+      task.customerReference ?? ""
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(query);
+  });
+  const selectedTask = visibleTasks.find((task) => task.id === selectedTaskId) ?? visibleTasks[0] ?? null;
+  const selectedTaskSignal = selectedTask ? getTaskSignal(selectedTask, now) : null;
+  const blockedQueue = getBlockedQueue(tasks);
+  const latestUpdate = selectedTask ? getLatestUpdate(selectedTask, now) : null;
 
   function refreshTasks() {
     startRefreshTransition(() => {
@@ -750,52 +825,36 @@ export function MyTasksScreen({
     refreshTasks();
   });
 
-  function handleTaskUpdated(
-    taskId: string,
-    update: {
-      status: TaskStatus;
-      blockerReason: string | null;
-      updateFieldValues: Record<string, string | boolean>;
-    }
-  ) {
+  function handleTaskUpdated(taskId: string, update: TaskOverride) {
     setTaskOverrides((currentOverrides) => ({
       ...currentOverrides,
       [taskId]: update
     }));
   }
 
-  function handleFilterSelect(filter: MyTasksFilter) {
-    setActiveFilter((currentFilter) =>
-      currentFilter === filter && filter !== "all" ? "all" : filter
-    );
-    requestAnimationFrame(() => {
-      taskListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
+  function handleTaskSelect(taskId: string) {
+    setSelectedTaskId(taskId);
+    setInspectorTab("Overview");
   }
 
   return (
-    <section className="page-stack dashboard-page board-page my-tasks-page">
-      <div className="dashboard-page-header">
+    <section className="page-stack dashboard-page enterprise-prototype-page my-tasks-live-page">
+      <div className="dashboard-page-header enterprise-prototype-header">
         <div className="dashboard-page-copy">
-          <span className="eyebrow">Staff task view</span>
           <h1>My Tasks</h1>
-          <p>
-            {userName}, this is your streamlined work list for {formatBoardDateLabel(boardDate)}.
-            Stay focused here, then jump to the full board when you need wider daily context.
-          </p>
-          <div className="board-page-meta">
-            <span className="board-page-date-pill">{formatBoardDateLabel(boardDate)}</span>
+          <p>Your assigned work for today.</p>
+          <div className="board-page-meta my-tasks-header-meta">
             <span className={getGenerationStatusTone(generationStatus)}>
               {generationStatus ? formatStatusLabel(generationStatus) : "Board not generated"}
             </span>
             <span className={getLiveStatusTone(isRefreshPending)}>
               {isRefreshPending ? "Updating..." : "Live"}
             </span>
+            <span className="board-chip board-chip-muted">{userName}</span>
           </div>
           {generatedAt ? (
             <p className="my-tasks-generated-copy">Board generated {formatDateTime(generatedAt)}.</p>
           ) : null}
-          <p className="my-tasks-generated-copy">Refreshes when you return to this tab or click Refresh.</p>
         </div>
 
         <div className="board-toolbar my-tasks-toolbar">
@@ -808,26 +867,6 @@ export function MyTasksScreen({
             </button>
           </div>
         </div>
-      </div>
-
-      <div className="panel-grid board-summary-grid">
-        {summaryCards.map((card) => (
-          <button
-            aria-pressed={activeFilter === card.filter}
-            className={
-              activeFilter === card.filter
-                ? "panel-card board-stat-card my-task-summary-card my-task-summary-card-active"
-                : "panel-card board-stat-card my-task-summary-card"
-            }
-            key={card.title}
-            onClick={() => handleFilterSelect(card.filter)}
-            type="button"
-          >
-            <strong>{card.title}</strong>
-            <h2>{card.value}</h2>
-            <p className="board-stat-card-copy">{card.description}</p>
-          </button>
-        ))}
       </div>
 
       {errorMessage ? (
@@ -858,120 +897,389 @@ export function MyTasksScreen({
       ) : null}
 
       {boardExists && tasks.length > 0 ? (
-        <>
-          <div className="panel-card board-controls-card">
-            <div className="board-controls-heading">
-              <div>
-                <strong>Task filters</strong>
-                <h2>Keep your list focused</h2>
+        <section className="enterprise-prototype-stage my-tasks-live-stage">
+          <div className="enterprise-stage-controls">
+            <div className="my-tasks-control-cluster">
+              <span className="board-page-date-pill">{formatBoardDateLabel(boardDate)}</span>
+              <div className="enterprise-filter-row" aria-label="My task filters">
+                {filterOptions.map((filterOption) => (
+                  <button
+                    key={filterOption.value}
+                    className={
+                      filterOption.value === activeFilter
+                        ? "enterprise-filter-chip enterprise-filter-chip-active"
+                        : "enterprise-filter-chip"
+                    }
+                    onClick={() => setActiveFilter(filterOption.value)}
+                    type="button"
+                  >
+                    {filterOption.label}
+                  </button>
+                ))}
               </div>
-              <p>Click a summary card or use the chips below to focus on what needs your attention next.</p>
             </div>
 
-            <div className="board-quick-filters" aria-label="My task filters">
-              {filterOptions.map((filterOption) => (
-                <button
-                  key={filterOption.value}
-                  className={
-                    filterOption.value === activeFilter
-                      ? "board-filter-pill board-filter-pill-active"
-                      : "board-filter-pill"
-                  }
-                  onClick={() => handleFilterSelect(filterOption.value)}
-                  type="button"
-                >
-                  {filterOption.label}
-                </button>
-              ))}
+            <div className="enterprise-display-toggle" aria-label="Task list display mode">
+              <button
+                className={
+                  displayMode === "list"
+                    ? "enterprise-display-toggle-button enterprise-display-toggle-button-active"
+                    : "enterprise-display-toggle-button"
+                }
+                onClick={() => setDisplayMode("list")}
+                type="button"
+              >
+                <List size={15} />
+                List
+              </button>
+              <button
+                className={
+                  displayMode === "cards"
+                    ? "enterprise-display-toggle-button enterprise-display-toggle-button-active"
+                    : "enterprise-display-toggle-button"
+                }
+                onClick={() => setDisplayMode("cards")}
+                type="button"
+              >
+                <LayoutGrid size={15} />
+                Cards
+              </button>
             </div>
           </div>
 
-          <div className="board-content-grid my-tasks-content-grid">
-            <article className="panel-card board-main-card" ref={taskListRef}>
-              <div className="board-section-heading">
-                <div>
-                  <strong>Assigned work</strong>
-                  <h3>Your task list</h3>
+          <div className="enterprise-shell enterprise-shell-mockup my-tasks-live-shell">
+            <section className="enterprise-task-list-panel enterprise-task-list-panel-mockup">
+              <div className="enterprise-list-toolbar my-tasks-queue-toolbar">
+                <div className="my-tasks-queue-title">
+                  <strong>Task Queue</strong>
+                  <span className="board-chip board-chip-muted">{visibleTasks.length}</span>
                 </div>
-                <p>Keep updates quick, clear blockers fast, and open task detail when you need more context.</p>
+                <button className="enterprise-menu-button" type="button" aria-label="More list options">
+                  <MoreHorizontal size={18} />
+                </button>
               </div>
-
-              <div className="my-tasks-filter-feedback" role="status">
-                <strong>{activeFilterLabel}</strong>
-                <span>
-                  {visibleTasks.length} {visibleTasks.length === 1 ? "task" : "tasks"} showing
-                </span>
-              </div>
-
-              {visibleTasks.length === 0 ? (
-                <EmptyStateCard
-                  eyebrow="Filter result"
-                  message="No tasks match this filter right now. Choose a different filter to bring work back into view."
-                  title="Nothing matches this task filter"
+              <label className="my-tasks-queue-search">
+                <Search size={16} />
+                <input
+                  aria-label="Search tasks"
+                  placeholder="Search tasks..."
+                  value={searchText}
+                  onChange={(event) => setSearchText(event.target.value)}
                 />
+              </label>
+
+              <div
+                className={
+                  displayMode === "cards"
+                    ? "enterprise-card-list enterprise-card-list-mockup"
+                    : "enterprise-card-list enterprise-card-list-mockup enterprise-card-list-compact"
+                }
+              >
+                {visibleTasks.length === 0 ? (
+                  <div className="enterprise-list-empty-state">
+                    <strong>No tasks in this filter</strong>
+                    <p>Try a different filter to bring matching work back into the queue.</p>
+                  </div>
+                ) : (
+                  visibleTasks.map((task) => {
+                    const isSelected = task.id === selectedTask?.id;
+
+                    if (displayMode === "list") {
+                      return (
+                        <article
+                          className={isSelected ? "enterprise-list-row enterprise-list-row-selected" : "enterprise-list-row"}
+                          key={task.id}
+                        >
+                          <button className="enterprise-list-row-hit" onClick={() => handleTaskSelect(task.id)} type="button">
+                            <div className="enterprise-list-row-top">
+                              <span className={getUrgencyTone(task, now)}>{getUrgencyLabel(task, now)}</span>
+                              <span className="enterprise-list-row-due">{formatDueTime(task.dueAt)}</span>
+                            </div>
+                            <div className="enterprise-list-row-main">
+                              <div className="enterprise-list-row-copy">
+                                <h3>{task.title}</h3>
+                                <p>{task.description ?? "Keep this task moving with a clear update and next step."}</p>
+                              </div>
+                              <span className={getStatusTone(task.status)}>{formatStatusLabel(task.status)}</span>
+                            </div>
+                            <div className="enterprise-list-row-meta">
+                              <span>{task.assignedUser.name}</span>
+                              <span>{formatStatusLabel(task.workflowArea)}</span>
+                            </div>
+                          </button>
+                          <div className="enterprise-list-row-actions">
+                            <Link className="pill pill-primary" href={`/tasks/${task.id}`}>
+                              Open Workspace
+                            </Link>
+                          </div>
+                        </article>
+                      );
+                    }
+
+                    return (
+                      <article
+                        className={isSelected ? "enterprise-task-card enterprise-task-card-selected" : "enterprise-task-card"}
+                        key={task.id}
+                      >
+                        <button className="enterprise-task-card-hit" onClick={() => handleTaskSelect(task.id)} type="button">
+                          <div className="enterprise-task-topline">
+                            <div className="enterprise-card-labels">
+                              <span className={getUrgencyTone(task, now)}>{getUrgencyLabel(task, now)}</span>
+                            </div>
+                            <span className="enterprise-due-copy">
+                              <Clock3 size={14} />
+                              {formatDueTime(task.dueAt)}
+                            </span>
+                          </div>
+
+                          <div className="enterprise-task-copy">
+                            <h3>{task.title}</h3>
+                            <p>{task.description ?? getTaskReference(task)}</p>
+                          </div>
+
+                          <div className="enterprise-card-facts">
+                            <span>{task.assignedUser.name}</span>
+                            <span>{formatStatusLabel(task.workflowArea)}</span>
+                          </div>
+
+                          <div className="enterprise-task-actions enterprise-task-actions-mockup">
+                            <span className={getStatusTone(task.status)}>{formatStatusLabel(task.status)}</span>
+                          </div>
+                        </button>
+                      </article>
+                    );
+                  })
+                )}
+              </div>
+            </section>
+
+            <aside className="enterprise-inspector enterprise-inspector-mockup my-tasks-optimized-stage">
+              {selectedTask ? (
+                <>
+                  <div className="enterprise-inspector-header enterprise-inspector-header-mockup my-tasks-optimized-header">
+                    <div className="enterprise-inspector-title enterprise-inspector-title-mockup my-tasks-optimized-header-grid">
+                      <div className="my-tasks-optimized-header-copy">
+                        <div className="enterprise-title-row">
+                          <Star size={18} className="enterprise-title-star" />
+                          <h2>{selectedTask.title}</h2>
+                        </div>
+                        <div className="my-tasks-optimized-summary">
+                          <span className={getStatusTone(selectedTask.status)}>{formatStatusLabel(selectedTask.status)}</span>
+                          <span>Due: {formatDateTime(selectedTask.dueAt)}</span>
+                          <span>Owner: {selectedTask.assignedUser.name}</span>
+                          <span>Workflow: {formatStatusLabel(selectedTask.workflowArea)}</span>
+                          <span>Source: {formatStatusLabel(selectedTask.sourceType)}</span>
+                        </div>
+                      </div>
+                      <div className="my-tasks-optimized-actions">
+                        <Link className="pill pill-primary" href={`/tasks/${selectedTask.id}`}>
+                          Open Workspace
+                        </Link>
+                        <button className="pill pill-secondary" onClick={() => setInspectorTab("Updates")} type="button">
+                          View Updates
+                        </button>
+                        <Link className="pill pill-secondary" href={fullBoardHref}>
+                          Full Board
+                        </Link>
+                        <Link className="pill pill-secondary" href={`/tasks/${selectedTask.id}`}>
+                          More
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="enterprise-tab-row enterprise-tab-row-mockup my-tasks-optimized-tabs" aria-label="Task inspector tabs">
+                    {(["Overview", "Checklist", "Updates", "Attachments", "History", "Dependencies"] as InspectorTab[]).map((tab) => (
+                      <button
+                        key={tab}
+                        className={tab === inspectorTab ? "enterprise-tab enterprise-tab-active" : "enterprise-tab"}
+                        onClick={() => setInspectorTab(tab)}
+                        type="button"
+                      >
+                        {tab}
+                        {tab === "Checklist" ? <span className="my-tasks-tab-count">{getCompletionCriteria(selectedTask).length}</span> : null}
+                        {tab === "Updates" ? <span className="my-tasks-tab-count">{getActivityItems(selectedTask).length}</span> : null}
+                        {tab === "Attachments" ? <span className="my-tasks-tab-count">1</span> : null}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="my-tasks-optimized-content">
+                    <div className="my-tasks-optimized-main">
+                      {inspectorTab === "Overview" ? (
+                        <div className="my-tasks-overview-grid">
+                          <article className="enterprise-overview-card my-tasks-overview-card-feature">
+                            <div className="enterprise-overview-card-head">
+                              <CircleAlert size={18} />
+                              <h3>What is Expected</h3>
+                            </div>
+                            <p>
+                              {selectedTask.description ??
+                                "Move this task forward by keeping the status current, logging blockers clearly, and handing off enough context for the next step."}
+                            </p>
+                          </article>
+
+                          <article className="enterprise-overview-card">
+                            <div className="enterprise-overview-card-head enterprise-overview-card-head-success">
+                              <CheckCheck size={18} />
+                              <h3>Expected Outcome</h3>
+                            </div>
+                            <p>{getExpectedOutcome(selectedTask)}</p>
+                          </article>
+
+                          <article className="enterprise-overview-card">
+                            <div className={`enterprise-overview-card-head ${selectedTaskSignal?.tone ?? ""}`}>
+                              <Info size={18} />
+                              <h3>Latest Update</h3>
+                            </div>
+                            <p><strong>{latestUpdate?.actor}</strong></p>
+                            <p>{latestUpdate?.detail}</p>
+                            <p>{latestUpdate?.time}</p>
+                          </article>
+
+                          <article className="enterprise-overview-card my-tasks-overview-card-wide">
+                            <div className="enterprise-overview-card-head enterprise-overview-card-head-info">
+                              <BellRing size={18} />
+                              <h3>Recent Activity</h3>
+                            </div>
+                            <ul className="enterprise-activity-preview-list">
+                              {getActivityItems(selectedTask).slice(0, 2).map((item, index) => (
+                                <li key={`${item.label}-${index}`}>
+                                  <span className={`enterprise-activity-dot enterprise-activity-dot-${Math.min(index + 1, 3)}`} />
+                                  <span>{item.time}</span>
+                                  <p>{item.detail}</p>
+                                </li>
+                              ))}
+                            </ul>
+                            <Link className="pill pill-secondary my-tasks-inline-link" href={`/tasks/${selectedTask.id}#task-updates`}>
+                              View full activity
+                            </Link>
+                          </article>
+                        </div>
+                      ) : null}
+
+                      {inspectorTab === "Checklist" ? (
+                        <article className="enterprise-overview-card">
+                          <div className="enterprise-overview-card-head enterprise-overview-card-head-review">
+                            <FileText size={18} />
+                            <h3>Checklist</h3>
+                          </div>
+                          <ul>
+                            {getCompletionCriteria(selectedTask).map((item) => (
+                              <li key={item}>{item}</li>
+                            ))}
+                          </ul>
+                        </article>
+                      ) : null}
+
+                      {inspectorTab === "Updates" ? (
+                        <article className="enterprise-overview-card">
+                          <div className="enterprise-overview-card-head enterprise-overview-card-head-info">
+                            <BellRing size={18} />
+                            <h3>Updates</h3>
+                          </div>
+                          <ul className="enterprise-activity-preview-list">
+                            {getActivityItems(selectedTask).map((item, index) => (
+                              <li key={`${item.label}-${index}`}>
+                                <span className={`enterprise-activity-dot enterprise-activity-dot-${Math.min(index + 1, 3)}`} />
+                                <span>{item.time}</span>
+                                <p>{item.detail}</p>
+                              </li>
+                            ))}
+                          </ul>
+                        </article>
+                      ) : null}
+
+                      {inspectorTab === "Attachments" ? (
+                        <article className="enterprise-overview-card">
+                          <div className="enterprise-overview-card-head enterprise-overview-card-head-review">
+                            <FileText size={18} />
+                            <h3>Attachments</h3>
+                          </div>
+                          <p>Attachment persistence is not available yet in the current backend, so this stays as a placeholder on the main page.</p>
+                        </article>
+                      ) : null}
+
+                      {inspectorTab === "History" ? (
+                        <article className="enterprise-overview-card">
+                          <div className="enterprise-overview-card-head enterprise-overview-card-head-review">
+                            <Clock3 size={18} />
+                            <h3>History</h3>
+                          </div>
+                          <ul className="enterprise-timeline">
+                            {getActivityItems(selectedTask).map((item, index) => (
+                              <li key={`${item.label}-${index}`}>
+                                <span className="enterprise-timeline-dot" aria-hidden="true" />
+                                <div>
+                                  <strong>{item.label}</strong>
+                                  <p>{item.time} - {item.detail}</p>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        </article>
+                      ) : null}
+
+                      {inspectorTab === "Dependencies" ? (
+                        <article className="enterprise-overview-card">
+                          <div className="enterprise-overview-card-head enterprise-overview-card-head-warning">
+                            <ShieldAlert size={18} />
+                            <h3>Dependencies</h3>
+                          </div>
+                          <div className="enterprise-blocked-queue">
+                            {blockedQueue.length > 0 ? (
+                              blockedQueue.map((task) => (
+                                <div className="enterprise-blocked-queue-item" key={task.id}>
+                                  <span>{task.title}</span>
+                                  <strong>{formatStatusLabel(task.status)}</strong>
+                                </div>
+                              ))
+                            ) : (
+                              <div className="enterprise-blocked-queue-item">
+                                <span>No blocked or waiting tasks are assigned to you right now.</span>
+                                <strong>Clear</strong>
+                              </div>
+                            )}
+                          </div>
+                        </article>
+                      ) : null}
+                    </div>
+
+                    <aside className="my-tasks-command-center">
+                      <TaskStatusEditor
+                        compact
+                        fullBoardHref={fullBoardHref}
+                        isManager={isManager}
+                        key={`${selectedTask.id}:${selectedTask.status}:${selectedTask.blockerReason ?? ""}`}
+                        onTaskUpdated={handleTaskUpdated}
+                        task={selectedTask}
+                      />
+
+                      <section className="enterprise-detail-card enterprise-side-card my-tasks-info-card">
+                        <div className="enterprise-card-heading">
+                          <Info size={18} />
+                          <h3>Task Information</h3>
+                        </div>
+                        <dl className="enterprise-information-list">
+                          <div><dt>Due Time</dt><dd>{formatDateTime(selectedTask.dueAt)}</dd></div>
+                          <div><dt>Assigned To</dt><dd>{selectedTask.assignedUser.name}</dd></div>
+                          <div><dt>Requires Review</dt><dd>{selectedTask.requiresManagerApproval ? "Yes" : "No"}</dd></div>
+                          <div><dt>Last Update</dt><dd>{latestUpdate?.time ?? "No recent update"}</dd></div>
+                          <div><dt>Created</dt><dd>{formatDateTime(selectedTask.dueAt)}</dd></div>
+                        </dl>
+                      </section>
+                    </aside>
+                  </div>
+                </>
               ) : (
-                <div className="my-task-list">
-                  {visibleTasks.map((task) => (
-                    <TaskCard
-                      key={task.id}
-                      isManager={isManager}
-                      now={now}
-                      onTaskUpdated={handleTaskUpdated}
-                      task={task}
-                    />
-                  ))}
+                <div className="enterprise-overview-board my-tasks-live-empty-inspector">
+                  <strong>No task selected</strong>
+                  <p>Choose a filter with matching tasks to bring the inspector back into view.</p>
                 </div>
               )}
-            </article>
-
-            <aside className="board-panel-stack">
-              <section className="panel-card board-rail-card">
-                <div className="board-section-heading">
-                  <div>
-                    <strong>Focus now</strong>
-                    <h3>Quick scan</h3>
-                  </div>
-                  <p>Your most important counts stay visible beside the list.</p>
-                </div>
-
-                <ul className="board-attention-list">
-                  <li className="board-attention-item board-attention-item-default">
-                    <span>Open work</span>
-                    <strong>{getActiveTaskCount(tasks)}</strong>
-                  </li>
-                  <li className="board-attention-item board-attention-item-warning">
-                    <span>Missing required update</span>
-                    <strong>{getMissingRequiredUpdateCount(tasks)}</strong>
-                  </li>
-                  <li className="board-attention-item board-attention-item-danger">
-                    <span>Overdue</span>
-                    <strong>{getOverdueTaskCount(tasks, now)}</strong>
-                  </li>
-                  <li className="board-attention-item board-attention-item-warning">
-                    <span>Due soon</span>
-                    <strong>{getDueSoonTaskCount(tasks, now)}</strong>
-                  </li>
-                  <li className="board-attention-item board-attention-item-danger">
-                    <span>Blocked</span>
-                    <strong>{getBlockedTaskCount(tasks)}</strong>
-                  </li>
-                  <li className="board-attention-item board-attention-item-warning">
-                    <span>Waiting on approval</span>
-                    <strong>{getWaitingOnApprovalCount(tasks)}</strong>
-                  </li>
-                  <li className="board-attention-item board-attention-item-review">
-                    <span>Ready for review</span>
-                    <strong>{getReadyForReviewCount(tasks)}</strong>
-                  </li>
-                  <li className="board-attention-item board-attention-item-review">
-                    <span>Needs manager decision</span>
-                    <strong>{getNeedsManagerDecisionCount(tasks)}</strong>
-                  </li>
-                </ul>
-              </section>
             </aside>
           </div>
-        </>
+        </section>
       ) : null}
     </section>
   );

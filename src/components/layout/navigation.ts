@@ -5,6 +5,7 @@ import {
   ClipboardCheck,
   FolderKanban,
   Gauge,
+  LayoutTemplate,
   ListChecks,
   Settings,
   Users,
@@ -102,6 +103,13 @@ export const navigationGroups: NavigationGroup[] = [
         title: "Reports / Insights",
         description: "Operating reports.",
         icon: Wrench
+      },
+      {
+        href: "/prototype/task-templates",
+        title: "Task Templates",
+        description: "Prototype-only enterprise workspace design.",
+        icon: LayoutTemplate,
+        badge: "Prototype"
       }
     ]
   },

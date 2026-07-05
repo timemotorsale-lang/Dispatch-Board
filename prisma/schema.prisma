@@ -58,6 +58,11 @@ enum TaskSourceType {
   STAFF
 }
 
+enum TaskChecklistItemKind {
+  DEFINITION_OF_DONE
+  SUBTASK
+}
+
 enum GenerationRunStatus {
   RUNNING
   SUCCEEDED
@@ -259,12 +264,29 @@ model Task {
   sourceTemplate          TaskTemplate?  @relation("TaskSourceTemplate", fields: [sourceTemplateId], references: [id], onDelete: SetNull)
   sourceDuty              Duty?          @relation("TaskSourceDuty", fields: [sourceDutyId], references: [id], onDelete: SetNull)
   activityEvents          ActivityEvent[]
+  checklistItems          TaskChecklistItem[]
   comments                TaskComment[]
 
   @@unique([boardDayId, sourceTemplateId, assignedUserId])
   @@index([boardDayId, status])
   @@index([boardDayId, assignedUserId])
   @@index([boardDayId, workflowArea])
+}
+
+model TaskChecklistItem {
+  id          String                @id @default(cuid())
+  taskId       String
+  kind         TaskChecklistItemKind
+  label        String
+  completed    Boolean               @default(false)
+  sortOrder    Int
+  completedAt  DateTime?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  task         Task                  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, kind, sortOrder])
+  @@index([taskId, completed])
 }
 
 model TaskComment {

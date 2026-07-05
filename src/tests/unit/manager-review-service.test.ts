@@ -52,7 +52,7 @@ function createBoardReadRepositoryHarness(): BoardReadRepository {
           id: "task-2",
           title: "Call insurance partner",
           description: "",
-          status: TaskStatus.IN_PROGRESS,
+          status: TaskStatus.BLOCKED,
           dueAt: new Date("2026-06-18T17:00:00.000Z"),
           workflowArea: WorkflowArea.ADMIN,
           sourceType: TaskSourceType.MANAGER,
@@ -61,7 +61,7 @@ function createBoardReadRepositoryHarness(): BoardReadRepository {
           updateFieldValues: null,
           vehicleReference: null,
           customerReference: null,
-          blockerReason: null,
+          blockerReason: "Waiting on signed paperwork.",
           readyForReviewAt: null,
           completedAt: null,
           assignedUser: {
@@ -119,6 +119,16 @@ describe("manager review service", () => {
       ]
     });
     expect(result.tasks).toHaveLength(1);
+    expect(result.attentionBuckets).toHaveLength(3);
+    expect(result.attentionBuckets[0]).toMatchObject({
+      label: "Blocked",
+      tasks: [
+        {
+          id: "task-2",
+          status: TaskStatus.BLOCKED
+        }
+      ]
+    });
   });
 
   it("rejects non-manager access", async () => {

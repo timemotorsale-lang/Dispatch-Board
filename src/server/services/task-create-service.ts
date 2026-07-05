@@ -2,6 +2,7 @@
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { canManageAssignments } from "@/server/policies/access";
+import { ActivityEventType } from "@/server/services/activity-events";
 import { recordBoardActivityEvent } from "@/server/services/activity-feed";
 import {
   createTaskCreateRepository,
@@ -185,7 +186,23 @@ export async function createManualTask(
     workflowArea: normalizedInput.workflowArea
   });
 
-  if (repository.supportsActivityEvents) {
+  if (repository.createActivityEvent) {
+    await repository.createActivityEvent({
+      boardDayId: boardDay.id,
+      actorUserId: authenticatedUser.id,
+      taskId: task.id,
+      eventType: ActivityEventType.TASK_CREATED,
+      message: `Task created: ${task.title}`,
+      metadata: {
+        assignedUserId: task.assignedUser.id,
+        dueAt: task.dueAt.toISOString(),
+        requiresManagerApproval: task.requiresManagerApproval,
+        sourceType: task.sourceType,
+        title: task.title,
+        workflowArea: task.workflowArea
+      }
+    });
+  } else if (repository.supportsActivityEvents) {
     await recordBoardActivityEvent({
       boardDayId: boardDay.id,
       actorUserId: authenticatedUser.id,
