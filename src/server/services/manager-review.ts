@@ -5,7 +5,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { canReviewWorkflows } from "@/server/policies/access";
 import type { BoardReadRepository } from "@/server/repositories/board-read-repository";
 import type { AppSettingsRepository } from "@/server/services/app-settings-service";
-import { getBoardReadModelForToday } from "@/server/services/board-read";
+import { getBoardReadModelForDate, getBoardReadModelForToday } from "@/server/services/board-read";
 
 export type ManagerReviewViewModel = {
   date: string;
@@ -16,6 +16,13 @@ export type ManagerReviewViewModel = {
   tasks: BoardReadTask[];
   attentionBuckets: ManagerAttentionBucket[];
 };
+
+export type ManagerReviewFocus =
+  | ""
+  | "READY_FOR_REVIEW"
+  | "BLOCKED"
+  | "WAITING_ON_PARTS"
+  | "WAITING_ON_APPROVAL";
 
 export type ManagerAttentionBucket = {
   description: string;
@@ -68,6 +75,29 @@ export async function getManagerReviewViewModelForToday(
   }
 
   const boardResult = await getBoardReadModelForToday(user, dependencies);
+  const tasks = boardResult.board ? getReadyForReviewTasks(boardResult.board.tasks) : [];
+
+  return {
+    date: boardResult.date,
+    boardId: boardResult.board?.id ?? null,
+    boardExists: Boolean(boardResult.board),
+    generationStatus: boardResult.board?.generationStatus ?? null,
+    generatedAt: boardResult.board?.generatedAt ?? null,
+    tasks,
+    attentionBuckets: boardResult.board ? getAttentionBuckets(boardResult.board.tasks) : getAttentionBuckets([])
+  };
+}
+
+export async function getManagerReviewViewModelForDate(
+  user: AuthenticatedUser | null,
+  boardDate: string,
+  dependencies: ManagerReviewDependencies = {}
+): Promise<ManagerReviewViewModel> {
+  if (!canReviewWorkflows(user)) {
+    throw new Error("Manager review access required.");
+  }
+
+  const boardResult = await getBoardReadModelForDate(user, boardDate, dependencies);
   const tasks = boardResult.board ? getReadyForReviewTasks(boardResult.board.tasks) : [];
 
   return {

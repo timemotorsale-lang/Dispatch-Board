@@ -80,7 +80,28 @@ describe("manager review screen", () => {
         generatedAt="2026-07-05T13:00:00.000Z"
         generationStatus="GENERATED"
         initialAttentionBuckets={createAttentionBuckets()}
+        initialFocus=""
         initialTasks={[createTask("review-1")]}
+        assignableUsers={[
+          {
+            id: "user-blocked-1",
+            name: "User blocked-1",
+            email: "user-blocked-1@local.test",
+            roles: ["Mechanic"],
+            dutySource: "custom",
+            dutyPreview: ["Repair follow-up"],
+            dutyCount: 1
+          },
+          {
+            id: "manager-1",
+            name: "Eli Manager",
+            email: "eli@local.test",
+            roles: ["General Manager"],
+            dutySource: "role_default",
+            dutyPreview: ["Review blocked tasks"],
+            dutyCount: 1
+          }
+        ]}
       />
     );
 
@@ -88,6 +109,9 @@ describe("manager review screen", () => {
     expect(markup).toContain("Attention queue");
     expect(markup).toContain("Blocked");
     expect(markup).toContain("Task blocked-1");
+    expect(markup).toContain("/manager-review?date=2026-07-05&amp;focus=BLOCKED");
+    expect(markup).toContain("Save assignment");
+    expect(markup).toContain("Next status");
     expect(markup).toContain("No tasks are currently in this status.");
   });
 });

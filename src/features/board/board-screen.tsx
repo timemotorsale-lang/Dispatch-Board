@@ -380,6 +380,8 @@ export function BoardScreen({
             </div>
             <OperationalRail
               activeAttentionStatus={filters.status}
+              boardDate={loadState.date}
+              isManager={isManager}
               onAttentionSelect={handleAttentionSelect}
               recentActivity={activityEvents}
               tasks={board.tasks}

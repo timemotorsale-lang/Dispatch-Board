@@ -1,9 +1,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { MetricStrip, StaffDutyStrip, TaskBoard } from "@/features/board/board-dashboard";
+import { MetricStrip, OperationalRail, StaffDutyStrip, TaskBoard } from "@/features/board/board-dashboard";
 import { DEFAULT_BOARD_FILTERS, getBoardPresentation } from "@/features/board/board-grouping";
 import type { BoardReadTask } from "@/server/services/board-read";
+import type { ActivityFeedEvent } from "@/server/services/activity-feed";
 import type { ActiveUserSummary } from "@/server/services/user-summary";
 
 type GroupableBoardTask = Omit<BoardReadTask, "assignedUser"> & {
@@ -156,5 +157,21 @@ describe("board dashboard task board", () => {
     );
 
     expect(markup).toContain("Recommended: Baraka Sales");
+  });
+
+  it("gives managers a direct link from attention rows into the matching queue", () => {
+    const markup = renderToStaticMarkup(
+      <OperationalRail
+        activeAttentionStatus=""
+        boardDate="2026-06-18"
+        isManager
+        onAttentionSelect={() => undefined}
+        recentActivity={[] as ActivityFeedEvent[]}
+        tasks={[createTask("blocked", { status: "BLOCKED" })]}
+      />
+    );
+
+    expect(markup).toContain("Open queue");
+    expect(markup).toContain("/manager-review?date=2026-06-18&amp;focus=BLOCKED");
   });
 });

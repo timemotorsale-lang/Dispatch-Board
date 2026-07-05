@@ -3,10 +3,42 @@ import type { ComponentProps } from "react";
 import { ManagerReviewScreen } from "@/features/manager-review/manager-review-screen";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { canReviewWorkflows } from "@/server/policies/access";
-import { getManagerReviewViewModelForToday } from "@/server/services/manager-review";
+import {
+  getManagerReviewViewModelForDate,
+  getManagerReviewViewModelForToday,
+  type ManagerReviewFocus
+} from "@/server/services/manager-review";
+import { listActiveUserSummaries } from "@/server/services/user-summary";
 
-export default async function ManagerReviewPage() {
+type ManagerReviewPageProps = {
+  searchParams?: Promise<{
+    date?: string | string[];
+    focus?: string | string[];
+  }>;
+};
+
+function normalizeFocus(value: string | string[] | undefined): ManagerReviewFocus {
+  const candidate = Array.isArray(value) ? value[0] : value;
+
+  if (
+    candidate === "READY_FOR_REVIEW" ||
+    candidate === "BLOCKED" ||
+    candidate === "WAITING_ON_PARTS" ||
+    candidate === "WAITING_ON_APPROVAL"
+  ) {
+    return candidate;
+  }
+
+  return "";
+}
+
+export default async function ManagerReviewPage({ searchParams }: ManagerReviewPageProps) {
   const user = await requireCurrentUser();
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const requestedDate = Array.isArray(resolvedSearchParams?.date)
+    ? resolvedSearchParams?.date[0]
+    : resolvedSearchParams?.date;
+  const initialFocus = normalizeFocus(resolvedSearchParams?.focus);
 
   if (!canReviewWorkflows(user)) {
     return (
@@ -37,11 +69,16 @@ export default async function ManagerReviewPage() {
     generatedAt: null,
     generationStatus: null,
     initialTasks: [],
-    initialAttentionBuckets: []
+    initialAttentionBuckets: [],
+    initialFocus,
+    assignableUsers: []
   };
 
   try {
-    const reviewQueue = await getManagerReviewViewModelForToday(user);
+    const reviewQueue = requestedDate
+      ? await getManagerReviewViewModelForDate(user, requestedDate)
+      : await getManagerReviewViewModelForToday(user);
+    const assignableUsers = await listActiveUserSummaries();
     screenProps.boardDate = reviewQueue.date;
     screenProps.boardExists = reviewQueue.boardExists;
     screenProps.fullBoardHref = `/board?date=${encodeURIComponent(reviewQueue.date)}`;
@@ -49,6 +86,7 @@ export default async function ManagerReviewPage() {
     screenProps.generationStatus = reviewQueue.generationStatus;
     screenProps.initialTasks = reviewQueue.tasks;
     screenProps.initialAttentionBuckets = reviewQueue.attentionBuckets;
+    screenProps.assignableUsers = assignableUsers;
   } catch (error) {
     screenProps.errorMessage =
       error instanceof Error ? error.message : "Unable to load the manager review queue right now.";
