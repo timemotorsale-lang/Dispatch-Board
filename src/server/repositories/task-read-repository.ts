@@ -2,7 +2,8 @@ import { Prisma, PrismaClient } from "@prisma/client";
 
 import { prisma } from "@/server/db/client";
 
-type TaskReadDatabase = Pick<PrismaClient, "task">;
+type TaskReadDatabase = Pick<PrismaClient, "task"> &
+  Partial<Pick<PrismaClient, "taskChecklistItem">>;
 
 const taskReadSelect = {
   id: true,
@@ -79,21 +80,90 @@ const taskReadSelect = {
 
 export type TaskReadRecord = Prisma.TaskGetPayload<{
   select: typeof taskReadSelect;
-}>;
+}> & {
+  checklistItems: Array<{
+    id: string;
+    kind: string;
+    label: string;
+    completed: boolean;
+    sortOrder: number;
+    completedAt: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }>;
+};
 
 export type TaskReadRepository = {
   findTaskById(taskId: string): Promise<TaskReadRecord | null>;
 };
 
+const taskChecklistReadSelect = {
+  id: true,
+  kind: true,
+  label: true,
+  completed: true,
+  sortOrder: true,
+  completedAt: true,
+  createdAt: true,
+  updatedAt: true
+} satisfies Prisma.TaskChecklistItemSelect;
+
+function isChecklistStorageUnavailable(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+
+  return (
+    message.includes("Unknown field `checklistItems`") ||
+    message.includes("taskChecklistItem") ||
+    message.includes("TaskChecklistItem")
+  );
+}
+
 export function createTaskReadRepository(database: TaskReadDatabase = prisma): TaskReadRepository {
   return {
     async findTaskById(taskId) {
-      return database.task.findUnique({
+      const task = await database.task.findUnique({
         where: {
           id: taskId
         },
         select: taskReadSelect
       });
+
+      if (!task) {
+        return null;
+      }
+
+      const checklistDelegate = database.taskChecklistItem;
+
+      if (!checklistDelegate) {
+        return {
+          ...task,
+          checklistItems: []
+        };
+      }
+
+      try {
+        const checklistItems = await checklistDelegate.findMany({
+          where: {
+            taskId
+          },
+          orderBy: [{ kind: "asc" }, { sortOrder: "asc" }],
+          select: taskChecklistReadSelect
+        });
+
+        return {
+          ...task,
+          checklistItems
+        };
+      } catch (error) {
+        if (isChecklistStorageUnavailable(error)) {
+          return {
+            ...task,
+            checklistItems: []
+          };
+        }
+
+        throw error;
+      }
     }
   };
 }

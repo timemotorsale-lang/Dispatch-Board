@@ -48,6 +48,7 @@ export type ActivityEventRepository = {
   createActivityEvent(input: ActivityEventCreateInput): Promise<ActivityEventRecord>;
   findBoardDayByDate(boardDate: string): Promise<{ id: string; date: Date } | null>;
   listActivityEventsForBoardDay(boardDayId: string, limit?: number): Promise<ActivityEventRecord[]>;
+  listActivityEventsForTask(taskId: string, limit?: number): Promise<ActivityEventRecord[]>;
 };
 
 function toBoardDateValue(boardDate: string) {
@@ -88,6 +89,17 @@ export function createActivityEventRepository(
       return database.activityEvent.findMany({
         where: {
           boardDayId
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: limit,
+        select: activityEventSelect
+      });
+    },
+
+    async listActivityEventsForTask(taskId, limit = 50) {
+      return database.activityEvent.findMany({
+        where: {
+          taskId
         },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take: limit,

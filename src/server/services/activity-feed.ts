@@ -132,6 +132,25 @@ export async function listActivityFeedEventsForToday(
   return listActivityFeedEventsForDate(user, boardDate, dependencies);
 }
 
+export async function listActivityFeedEventsForTask(
+  user: AuthenticatedUser | null,
+  taskId: string,
+  dependencies: ActivityFeedDependencies = {}
+) {
+  assertCanViewActivity(user);
+
+  const normalizedTaskId = taskId.trim();
+
+  if (!normalizedTaskId) {
+    throw new Error("Task id is required.");
+  }
+
+  const repository = dependencies.repository ?? createActivityEventRepository();
+  const events = await repository.listActivityEventsForTask(normalizedTaskId);
+
+  return events.map(toActivityFeedEvent);
+}
+
 export async function getActivityFeedForDate(
   user: AuthenticatedUser | null,
   boardDate: string,

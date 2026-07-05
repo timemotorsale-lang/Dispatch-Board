@@ -26,6 +26,17 @@ export type TaskCommentReadModel = {
   author: TaskReadUserSummary;
 };
 
+export type TaskChecklistItemReadModel = {
+  id: string;
+  kind: string;
+  label: string;
+  completed: boolean;
+  sortOrder: number;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type TaskReadModel = {
   id: string;
   boardDayId: string;
@@ -49,6 +60,7 @@ export type TaskReadModel = {
   recommendation: TaskReadRecommendation | null;
   createdByUser: TaskReadUserSummary | null;
   reviewedByUser: TaskReadUserSummary | null;
+  checklistItems: TaskChecklistItemReadModel[];
   comments: TaskCommentReadModel[];
 };
 
@@ -122,6 +134,16 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
     recommendation,
     createdByUser: toUserSummary(task.createdByUser),
     reviewedByUser: toUserSummary(task.reviewedByUser),
+    checklistItems: task.checklistItems.map((item) => ({
+      id: item.id,
+      kind: item.kind,
+      label: item.label.trim(),
+      completed: item.completed,
+      sortOrder: item.sortOrder,
+      completedAt: item.completedAt?.toISOString() ?? null,
+      createdAt: item.createdAt.toISOString(),
+      updatedAt: item.updatedAt.toISOString()
+    })),
     comments: task.comments.map((comment) => ({
       id: comment.id,
       taskId: comment.taskId,
