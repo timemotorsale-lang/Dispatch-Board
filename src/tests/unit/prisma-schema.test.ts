@@ -297,4 +297,60 @@ describe("prisma schema constraints", () => {
     expect(combinedSql).toMatch(/AppointmentTaskLink_appointmentId_fkey/);
     expect(combinedSql).toMatch(/AppointmentTaskLink_taskId_fkey/);
   });
+
+  it("declares the EAPT-008 appointment history event foundation", async () => {
+    const schema = await readFile(schemaPath, "utf8");
+    const appointmentModel = getModelBlock(schema, "Appointment");
+    const taskModel = getModelBlock(schema, "Task");
+    const taskLinkModel = getModelBlock(schema, "AppointmentTaskLink");
+    const userModel = getModelBlock(schema, "User");
+    const historyModel = getModelBlock(schema, "AppointmentHistoryEvent");
+
+    expect(schema).toMatch(/enum AppointmentEventActorType/);
+    expect(schema).toMatch(/enum AppointmentHistoryEventType/);
+    expect(schema).toMatch(/WARNING_OVERRIDDEN/);
+    expect(schema).toMatch(/AUTOMATION_FAILED/);
+    expect(schema).toMatch(/NOTIFICATION_QUEUED/);
+
+    expect(appointmentModel).toMatch(/historyEvents\s+AppointmentHistoryEvent\[\]/);
+    expect(taskModel).toMatch(/appointmentHistoryEvents\s+AppointmentHistoryEvent\[\]/);
+    expect(taskLinkModel).toMatch(/historyEvents\s+AppointmentHistoryEvent\[\]/);
+    expect(userModel).toMatch(
+      /appointmentHistoryEvents\s+AppointmentHistoryEvent\[\]\s+@relation\("AppointmentHistoryEventActorUser"\)/
+    );
+
+    expect(historyModel).toMatch(/appointmentId\s+String\b/);
+    expect(historyModel).toMatch(/actorType\s+AppointmentEventActorType/);
+    expect(historyModel).toMatch(/actorUserId\s+String\?/);
+    expect(historyModel).toMatch(/eventType\s+AppointmentHistoryEventType/);
+    expect(historyModel).toMatch(/reasonCode\s+String\?/);
+    expect(historyModel).toMatch(/correlationId\s+String\b/);
+    expect(historyModel).toMatch(/automationRuleCode\s+String\?/);
+    expect(historyModel).toMatch(/automationRuleVersion\s+Int\?/);
+    expect(historyModel).toMatch(/priorValue\s+Json\?/);
+    expect(historyModel).toMatch(/newValue\s+Json\?/);
+    expect(historyModel).toMatch(/notificationIntent\s+Json\?/);
+    expect(historyModel).toMatch(/@@index\(\[appointmentId,\s*occurredAt\]\)/);
+    expect(historyModel).toMatch(/@@index\(\[correlationId\]\)/);
+  });
+
+  it("adds the EAPT-008 appointment history table and audit safeguards in SQL", async () => {
+    const migrationEntries = await readdir(migrationsPath, { withFileTypes: true });
+    const migrationSqlContents = await Promise.all(
+      migrationEntries
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => readFile(path.join(migrationsPath, entry.name, "migration.sql"), "utf8"))
+    );
+    const combinedSql = migrationSqlContents.join("\n");
+
+    expect(combinedSql).toMatch(/CREATE TYPE "AppointmentEventActorType"/);
+    expect(combinedSql).toMatch(/CREATE TYPE "AppointmentHistoryEventType"/);
+    expect(combinedSql).toMatch(/CREATE TABLE "AppointmentHistoryEvent"/);
+    expect(combinedSql).toMatch(/AppointmentHistoryEvent_appointmentId_fkey/);
+    expect(combinedSql).toMatch(/AppointmentHistoryEvent_actorUserId_fkey/);
+    expect(combinedSql).toMatch(/AppointmentHistoryEvent_message_not_blank_check/);
+    expect(combinedSql).toMatch(/AppointmentHistoryEvent_correlation_not_blank_check/);
+    expect(combinedSql).toMatch(/AppointmentHistoryEvent_human_actor_check/);
+    expect(combinedSql).toMatch(/AppointmentHistoryEvent_automation_version_check/);
+  });
 });

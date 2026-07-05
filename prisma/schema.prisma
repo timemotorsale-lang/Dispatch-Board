@@ -80,6 +80,43 @@ enum AppointmentTaskLinkType {
   REFERENCE
 }
 
+enum AppointmentEventActorType {
+  HUMAN
+  SYSTEM
+  AUTOMATION
+  IMPORT
+}
+
+enum AppointmentHistoryEventType {
+  CREATED
+  DRAFT_UPDATED
+  APPROVED
+  SCHEDULED
+  RESCHEDULED
+  CANCELLED
+  CONFIRMED
+  DECLINED
+  CHECKED_IN
+  NO_SHOW_RECORDED
+  STARTED
+  WAITING
+  FINISHED
+  COMPLETED
+  OUTCOME_RECORDED
+  OWNER_CHANGED
+  FIELD_UPDATED
+  WARNING_OVERRIDDEN
+  CONFLICT_DETECTED
+  TASK_LINKED
+  TASK_UNLINKED
+  AUTOMATION_EVALUATED
+  AUTOMATION_FAILED
+  NOTIFICATION_QUEUED
+  BULK_ACTION_PREVIEWED
+  BULK_ACTION_APPLIED
+  NOTE_ADDED
+}
+
 enum CustomerStatus {
   ACTIVE
   INACTIVE
@@ -249,6 +286,7 @@ model User {
   appointmentParticipants AppointmentParticipant[]
   appointmentLocationAccess UserLocationAccess[]
   createdAppointmentTaskLinks AppointmentTaskLink[] @relation("AppointmentTaskLinkCreatedByUser")
+  appointmentHistoryEvents AppointmentHistoryEvent[] @relation("AppointmentHistoryEventActorUser")
   schedulableResources    SchedulableResource[] @relation("SchedulableResourceUser")
   createdResourceUnavailability ResourceUnavailability[] @relation("ResourceUnavailabilityCreatedByUser")
 
@@ -462,6 +500,7 @@ model Appointment {
   participants                   AppointmentParticipant[]
   vehicles                       AppointmentVehicle[]
   taskLinks                      AppointmentTaskLink[]
+  historyEvents                  AppointmentHistoryEvent[]
   resourceRequirements           AppointmentResourceRequirement[]
   resourceReservations           AppointmentResourceReservation[]
 
@@ -824,6 +863,7 @@ model Task {
   checklistItems          TaskChecklistItem[]
   comments                TaskComment[]
   appointmentLinks        AppointmentTaskLink[]
+  appointmentHistoryEvents AppointmentHistoryEvent[]
 
   @@unique([boardDayId, sourceTemplateId, assignedUserId])
   @@index([boardDayId, status])
@@ -850,12 +890,48 @@ model AppointmentTaskLink {
   appointment        Appointment             @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   task               Task                    @relation(fields: [taskId], references: [id], onDelete: Cascade)
   createdByUser      User?                   @relation("AppointmentTaskLinkCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  historyEvents      AppointmentHistoryEvent[]
 
   @@unique([appointmentId, taskId, linkCode])
   @@index([appointmentId, linkType])
   @@index([taskId, linkType])
   @@index([automationRuleCode, templateVersion])
   @@index([createdByUserId])
+}
+
+model AppointmentHistoryEvent {
+  id                    String                       @id @default(cuid())
+  appointmentId         String
+  actorType             AppointmentEventActorType
+  actorUserId           String?
+  taskId                String?
+  appointmentTaskLinkId String?
+  eventType             AppointmentHistoryEventType
+  message               String
+  reasonCode            String?
+  reasonNotes           String?
+  correlationId         String
+  causationId           String?
+  automationRuleCode    String?
+  automationRuleVersion Int?
+  priorValue            Json?
+  newValue              Json?
+  metadata              Json
+  notificationIntent    Json?
+  occurredAt            DateTime                     @default(now())
+  createdAt             DateTime                     @default(now())
+  appointment           Appointment                  @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  actorUser             User?                        @relation("AppointmentHistoryEventActorUser", fields: [actorUserId], references: [id], onDelete: SetNull)
+  task                  Task?                        @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  appointmentTaskLink   AppointmentTaskLink?         @relation(fields: [appointmentTaskLinkId], references: [id], onDelete: SetNull)
+
+  @@index([appointmentId, occurredAt])
+  @@index([eventType, occurredAt])
+  @@index([actorUserId, occurredAt])
+  @@index([taskId, occurredAt])
+  @@index([appointmentTaskLinkId])
+  @@index([correlationId])
+  @@index([automationRuleCode, automationRuleVersion])
 }
 
 model TaskChecklistItem {
