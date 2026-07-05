@@ -250,11 +250,21 @@ function formatActivityTimestamp(value: string) {
   }).format(new Date(value));
 }
 
-export function OperationalRail({ recentActivity, tasks }: { recentActivity: ActivityFeedEvent[]; tasks: Task[] }) {
+export function OperationalRail({
+  activeAttentionStatus,
+  onAttentionSelect,
+  recentActivity,
+  tasks
+}: {
+  activeAttentionStatus: string;
+  onAttentionSelect(status: string): void;
+  recentActivity: ActivityFeedEvent[];
+  tasks: Task[];
+}) {
   const attention = [{ label: "Blocked", detail: "Tasks are blocked", status: "BLOCKED", tone: "red" }, { label: "Waiting on Parts", detail: "Work waiting on parts", status: "WAITING_ON_PARTS", tone: "orange" }, { label: "Waiting on Approval", detail: "Awaiting manager approval", status: "WAITING_ON_APPROVAL", tone: "amber" }, { label: "Ready for Review", detail: "Ready for manager review", status: "READY_FOR_REVIEW", tone: "purple" }];
   const upcoming = [...tasks].filter((task) => task.status !== "COMPLETED").sort((a, b) => +new Date(a.dueAt) - +new Date(b.dueAt)).slice(0, 4);
   return <aside className="operations-rail">
-    <section className="rail-card"><header><h2>Needs Attention</h2><Link href="/manager-review">View all</Link></header><div className="attention-list">{attention.map((item) => <div className={`attention-row attention-${item.tone}`} key={item.status}><span className="attention-dot">!</span><div><strong>{item.label}</strong><small>{item.detail}</small></div><b>{count(tasks, item.status)}</b></div>)}</div></section>
+    <section className="rail-card"><header><h2>Needs Attention</h2><button className="rail-header-action" onClick={() => onAttentionSelect("")} type="button">View all</button></header><div className="attention-list">{attention.map((item) => <button aria-pressed={activeAttentionStatus === item.status} className={activeAttentionStatus === item.status ? `attention-row attention-${item.tone} attention-row-active` : `attention-row attention-${item.tone}`} key={item.status} onClick={() => onAttentionSelect(item.status)} type="button"><span className="attention-dot">!</span><div><strong>{item.label}</strong><small>{item.detail}</small></div><b>{count(tasks, item.status)}</b></button>)}</div></section>
     <section className="rail-card"><header><h2>Due Next</h2><span>Today</span></header><div className="due-list">{upcoming.length ? upcoming.map((task) => <Link href={`/tasks/${task.id}`} key={task.id}><time>{formatTime(task.dueAt)}</time><span><strong>{task.title}</strong><small>{task.assignedUser?.name ?? "Unassigned"}</small></span></Link>) : <p className="rail-empty">No upcoming work.</p>}</div></section>
     <section className="rail-card"><header><h2>Today&apos;s Activity</h2><span>Live feed</span></header>{recentActivity.length ? <div className="due-list">{recentActivity.slice(0, 5).map((event) => <Link href={event.task ? `/tasks/${event.task.id}` : "/activity"} key={event.id}><time>{formatActivityTimestamp(event.createdAt)}</time><span><strong>{event.message}</strong><small>{event.actor?.name ?? "System"}</small></span></Link>)}</div> : <div className="activity-placeholder"><Clock3 size={20} /><strong>No activity yet</strong><p>Generation, status changes, and task updates will start appearing here as the day moves.</p></div>}<Link className="rail-footer-link" href="/activity">Open activity view <ChevronRight size={15} /></Link></section>
   </aside>;
