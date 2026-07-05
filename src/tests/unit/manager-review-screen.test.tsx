@@ -102,6 +102,7 @@ describe("manager review screen", () => {
             dutyCount: 1
           }
         ]}
+        nowIso="2026-07-05T18:00:00.000Z"
       />
     );
 
@@ -112,6 +113,8 @@ describe("manager review screen", () => {
     expect(markup).toContain("/manager-review?date=2026-07-05&amp;focus=BLOCKED");
     expect(markup).toContain("Save assignment");
     expect(markup).toContain("Next status");
+    expect(markup).toContain("At Risk");
+    expect(markup).toContain("Last updated 3h ago");
     expect(markup).toContain("No tasks are currently in this status.");
   });
 });

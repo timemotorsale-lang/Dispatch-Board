@@ -1588,6 +1588,39 @@ code {
   justify-content: flex-end;
 }
 
+.manager-review-signal-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.manager-review-sla-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0 0.8rem;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.manager-review-sla-pill-danger {
+  color: #a61b22;
+  background: #fff0f1;
+}
+
+.manager-review-sla-pill-warning {
+  color: #a45b05;
+  background: #fff5e8;
+}
+
+.manager-review-sla-pill-neutral {
+  color: #475569;
+  background: #eef2f7;
+}
+
 .manager-review-inline-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -26,6 +26,7 @@ type ManagerReviewScreenProps = {
   initialFocus: ManagerReviewFocus;
   initialTasks: BoardReadTask[];
   assignableUsers: ActiveUserSummary[];
+  nowIso?: string;
 };
 
 type StatusUpdateResponse =
@@ -102,6 +103,56 @@ function getReviewAgeCopy(readyForReviewAt: string | null, now: Date) {
   }
 
   return `${Math.round(ageInMinutes / 60)}h in queue`;
+}
+
+function getElapsedAgeCopy(value: string, now: Date) {
+  const minutes = Math.max(0, Math.round((now.getTime() - new Date(value).getTime()) / 60000));
+
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+
+  const hours = Math.round(minutes / 60);
+
+  if (hours < 24) {
+    return `${hours}h`;
+  }
+
+  return `${Math.round(hours / 24)}d`;
+}
+
+function getAttentionSla(task: BoardReadTask, now: Date) {
+  const minutesUntilDue = Math.round((new Date(task.dueAt).getTime() - now.getTime()) / 60000);
+
+  if (minutesUntilDue < 0) {
+    return {
+      label: "At Risk",
+      tone: "danger" as const,
+      detail: `${Math.abs(minutesUntilDue) < 60 ? `${Math.abs(minutesUntilDue)}m` : `${Math.round(Math.abs(minutesUntilDue) / 60)}h`} overdue`
+    };
+  }
+
+  if (minutesUntilDue <= 120) {
+    return {
+      label: "Due Soon",
+      tone: "warning" as const,
+      detail: `${minutesUntilDue < 60 ? `${minutesUntilDue}m` : `${Math.round(minutesUntilDue / 60)}h`} left`
+    };
+  }
+
+  if (task.status === TaskStatus.BLOCKED || task.status === TaskStatus.WAITING_ON_APPROVAL) {
+    return {
+      label: "Needs Manager",
+      tone: "warning" as const,
+      detail: "Decision holding progress"
+    };
+  }
+
+  return {
+    label: "On Track",
+    tone: "neutral" as const,
+    detail: "No immediate SLA risk"
+  };
 }
 
 function getOverdueCount(tasks: BoardReadTask[], now: Date) {
@@ -459,14 +510,18 @@ function AttentionTaskActions({
 function AttentionTaskCard({
   assignableUsers,
   boardHref,
+  now,
   onTaskChanged,
   task
 }: {
   assignableUsers: ActiveUserSummary[];
   boardHref: string;
+  now: Date;
   onTaskChanged(message: string): void;
   task: BoardReadTask;
 }) {
+  const sla = getAttentionSla(task, now);
+
   return (
     <article className="panel-card my-task-card manager-review-card manager-review-card-compact">
       <div className="my-task-topline">
@@ -484,6 +539,12 @@ function AttentionTaskCard({
             Open detail
           </Link>
         </div>
+      </div>
+
+      <div className="manager-review-signal-row">
+        <span className={`manager-review-sla-pill manager-review-sla-pill-${sla.tone}`}>{sla.label}</span>
+        <span className="board-chip board-chip-muted">{sla.detail}</span>
+        <span className="board-chip board-chip-muted">Last updated {getElapsedAgeCopy(task.updatedAt, now)} ago</span>
       </div>
 
       <div className="my-task-meta-grid">
@@ -530,7 +591,8 @@ export function ManagerReviewScreen({
   initialAttentionBuckets,
   initialFocus,
   initialTasks,
-  assignableUsers
+  assignableUsers,
+  nowIso
 }: ManagerReviewScreenProps) {
   const router = useRouter();
   const [isRefreshPending, startRefreshTransition] = useTransition();
@@ -547,7 +609,7 @@ export function ManagerReviewScreen({
     focus === "" || focus === "READY_FOR_REVIEW"
       ? attentionBuckets
       : attentionBuckets.filter((bucket) => bucket.status === focus);
-  const now = new Date();
+  const now = new Date(nowIso ?? new Date().toISOString());
   const oldestTask = getOldestReviewTask(tasks);
   const oldestAttentionTask = getOldestAttentionTask(attentionBuckets);
   const attentionTaskCount = getAttentionTaskCount(attentionBuckets);
@@ -755,6 +817,7 @@ export function ManagerReviewScreen({
                           assignableUsers={assignableUsers}
                           boardHref={fullBoardHref}
                           key={task.id}
+                          now={now}
                           onTaskChanged={handleAttentionTaskChanged}
                           task={task}
                         />
