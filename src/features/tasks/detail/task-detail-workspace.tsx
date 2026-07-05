@@ -55,8 +55,8 @@ export function TaskDetailWorkspace({
             <span>Dispatch Board</span>
           </div>
           <div className="task-workspace-topbar-actions">
-            <Link className="pill pill-secondary" href="/my-tasks">
-              Back to My Tasks
+            <Link className="pill pill-secondary" href="/tasks">
+              Back to Task List
             </Link>
             <Link className="pill pill-primary" href={`/board?date=${encodeURIComponent(task.boardDate)}`}>
               Split View

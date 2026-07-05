@@ -773,7 +773,7 @@ export function ManagerReviewScreen({
               ) : (
                 <div className="notice manager-review-empty-inline" role="status">
                   <p>
-                    {focus === "READY_FOR_REVIEW"
+                    {focus === "" || focus === "READY_FOR_REVIEW"
                       ? "No tasks are waiting for formal manager review right now."
                       : "This focus is showing the attention queue instead of review-ready work."}
                   </p>
