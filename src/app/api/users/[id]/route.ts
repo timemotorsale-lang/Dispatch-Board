@@ -30,6 +30,7 @@ function getUserManagementErrorStatus(message: string) {
     message === "At least one role must be assigned." ||
     message === "Every assigned role must reference an existing role." ||
     message === "Every assigned duty must reference an existing duty." ||
+    message === "Only the General Manager can grant delegated manager capabilities." ||
     message === "A user with that email already exists."
   ) {
     return 400;

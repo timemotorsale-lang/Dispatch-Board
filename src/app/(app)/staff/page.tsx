@@ -1,6 +1,8 @@
 import Link from "next/link";
 
 import { StaffDutyStrip } from "@/features/board/board-dashboard";
+import { requireCurrentUser } from "@/server/auth/current-user";
+import { canManageUsers } from "@/server/policies/access";
 import { listActiveUserSummaries } from "@/server/services/user-summary";
 
 function countStaffWithCustomDuties(staff: Awaited<ReturnType<typeof listActiveUserSummaries>>) {
@@ -12,9 +14,11 @@ function countUnassignedDutyProfiles(staff: Awaited<ReturnType<typeof listActive
 }
 
 export default async function StaffPage() {
+  const user = await requireCurrentUser();
   const staff = await listActiveUserSummaries();
   const customDutyCount = countStaffWithCustomDuties(staff);
   const unassignedDutyCount = countUnassignedDutyProfiles(staff);
+  const canManageTeam = canManageUsers(user);
 
   return (
     <section className="page-stack dashboard-page">
@@ -36,6 +40,11 @@ export default async function StaffPage() {
         <Link className="pill pill-secondary" href="/my-tasks">
           Open My Tasks
         </Link>
+        {canManageTeam ? (
+          <Link className="pill pill-secondary" href="/settings/team">
+            Manage team
+          </Link>
+        ) : null}
       </div>
 
       <section className="operations-strip">

@@ -3,6 +3,7 @@
 import { WorkflowArea } from "@prisma/client";
 import { useState, useTransition } from "react";
 
+import { DELEGATED_MANAGER_DUTY_NAME } from "@/server/policies/access";
 import type {
   ManagedTeamUser,
   TeamManagementDutyOption,
@@ -11,6 +12,7 @@ import type {
 import type { TaskTemplateSummary } from "@/server/services/task-template-service";
 
 type TeamManagementPanelProps = {
+  canGrantManagerPowers: boolean;
   duties: TeamManagementDutyOption[];
   initialUsers: ManagedTeamUser[];
   roles: TeamManagementReferenceOption[];
@@ -193,7 +195,26 @@ function toTemplateRequestBody(formState: TemplateFormState) {
   };
 }
 
+function isDelegatedManagerDuty(duty: { name: string }) {
+  return duty.name.trim().toLowerCase() === DELEGATED_MANAGER_DUTY_NAME.toLowerCase();
+}
+
+function setManagerPowerAssignment(dutyIds: string[], delegatedDutyId: string | null, shouldGrant: boolean) {
+  if (!delegatedDutyId) {
+    return dutyIds;
+  }
+
+  return shouldGrant
+    ? toggleSelection(dutyIds, delegatedDutyId, true)
+    : toggleSelection(dutyIds, delegatedDutyId, false);
+}
+
+function hasDelegatedManagerPowers(dutyIds: string[], delegatedDutyId: string | null) {
+  return delegatedDutyId ? dutyIds.includes(delegatedDutyId) : false;
+}
+
 export function TeamManagementPanel({
+  canGrantManagerPowers,
   duties,
   initialUsers,
   roles,
@@ -221,6 +242,9 @@ export function TeamManagementPanel({
   const [dutyMessage, setDutyMessage] = useState({ error: "", success: "" });
   const [templateMessage, setTemplateMessage] = useState({ error: "", success: "" });
   const [editMessage, setEditMessage] = useState({ error: "", success: "" });
+  const delegatedManagerDuty = dutyOptions.find(isDelegatedManagerDuty) ?? null;
+  const standardDutyOptions = dutyOptions.filter((duty) => !isDelegatedManagerDuty(duty));
+  const delegatedManagerDutyId = delegatedManagerDuty?.id ?? null;
 
   function resetEditMessage() {
     setEditMessage({ error: "", success: "" });
@@ -480,7 +504,7 @@ export function TeamManagementPanel({
           <div className="form-actions"><button className="pill pill-primary" disabled={isPending} type="submit">{isPending ? "Saving..." : "Add duty"}</button></div>
         </form>
         <div className="team-roster-list">
-          {dutyOptions.map((duty) => {
+          {standardDutyOptions.map((duty) => {
             const isEditing = editingDutyId === duty.id && dutyEditFormState;
 
             return (
@@ -543,7 +567,7 @@ export function TeamManagementPanel({
           <fieldset className="business-day-group">
             <legend>Default duties</legend>
             <div className="checkbox-list">
-              {dutyOptions.map((duty) => (
+              {standardDutyOptions.map((duty) => (
                 <label className="checkbox-item" key={`new-role-${duty.id}`}>
                   <input checked={roleFormState.dutyIds.includes(duty.id)} type="checkbox" onChange={(event) => setRoleFormState((current) => ({ ...current, dutyIds: toggleSelection(current.dutyIds, duty.id, event.target.checked) }))} />
                   <span>{duty.name}<small>{duty.workflowArea}</small></span>
@@ -576,7 +600,7 @@ export function TeamManagementPanel({
                     <fieldset className="business-day-group">
                       <legend>Default duties</legend>
                       <div className="checkbox-list">
-                        {dutyOptions.map((duty) => (
+                        {standardDutyOptions.map((duty) => (
                           <label className="checkbox-item" key={`edit-role-${role.id}-${duty.id}`}>
                             <input checked={roleEditFormState.dutyIds.includes(duty.id)} type="checkbox" onChange={(event) => setRoleEditFormState((current) => current ? { ...current, dutyIds: toggleSelection(current.dutyIds, duty.id, event.target.checked) } : current)} />
                             <span>{duty.name}<small>{duty.workflowArea}</small></span>
@@ -621,7 +645,7 @@ export function TeamManagementPanel({
             <label className="field"><span>Role match</span><select value={templateFormState.roleId} onChange={(event) => setTemplateFormState((current) => ({ ...current, roleId: event.target.value }))}><option value="">No role link</option>{roleOptions.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</select></label>
           </div>
           <div className="settings-grid">
-            <label className="field"><span>Duty match</span><select value={templateFormState.dutyId} onChange={(event) => setTemplateFormState((current) => ({ ...current, dutyId: event.target.value }))}><option value="">No duty link</option>{dutyOptions.map((duty) => <option key={duty.id} value={duty.id}>{duty.name}</option>)}</select></label>
+            <label className="field"><span>Duty match</span><select value={templateFormState.dutyId} onChange={(event) => setTemplateFormState((current) => ({ ...current, dutyId: event.target.value }))}><option value="">No duty link</option>{standardDutyOptions.map((duty) => <option key={duty.id} value={duty.id}>{duty.name}</option>)}</select></label>
             <label className="checkbox-item checkbox-item-inline"><input checked={templateFormState.requiresManagerApproval} type="checkbox" onChange={(event) => setTemplateFormState((current) => ({ ...current, requiresManagerApproval: event.target.checked }))} /><span>Requires manager approval</span></label>
           </div>
           {templateMessage.error ? <div className="notice notice-danger"><p>{templateMessage.error}</p></div> : null}
@@ -646,7 +670,7 @@ export function TeamManagementPanel({
                       <label className="field"><span>Role link</span><select value={templateEditFormState.roleId} onChange={(event) => setTemplateEditFormState((current) => current ? { ...current, roleId: event.target.value } : current)}><option value="">No role link</option>{roleOptions.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</select></label>
                     </div>
                     <div className="settings-grid">
-                      <label className="field"><span>Duty link</span><select value={templateEditFormState.dutyId} onChange={(event) => setTemplateEditFormState((current) => current ? { ...current, dutyId: event.target.value } : current)}><option value="">No duty link</option>{dutyOptions.map((duty) => <option key={duty.id} value={duty.id}>{duty.name}</option>)}</select></label>
+                      <label className="field"><span>Duty link</span><select value={templateEditFormState.dutyId} onChange={(event) => setTemplateEditFormState((current) => current ? { ...current, dutyId: event.target.value } : current)}><option value="">No duty link</option>{standardDutyOptions.map((duty) => <option key={duty.id} value={duty.id}>{duty.name}</option>)}</select></label>
                       <label className="checkbox-item checkbox-item-inline"><input checked={templateEditFormState.requiresManagerApproval} type="checkbox" onChange={(event) => setTemplateEditFormState((current) => current ? { ...current, requiresManagerApproval: event.target.checked } : current)} /><span>Requires manager approval</span></label>
                     </div>
                     <label className="checkbox-item checkbox-item-inline"><input checked={templateEditFormState.isActive} type="checkbox" onChange={(event) => setTemplateEditFormState((current) => current ? { ...current, isActive: event.target.checked } : current)} /><span>Template active</span></label>
@@ -663,7 +687,7 @@ export function TeamManagementPanel({
                     </div>
                     <dl className="team-roster-details">
                       <div><dt>Workflow / due time</dt><dd>{template.workflowArea} • {template.defaultDueTime}</dd></div>
-                      <div><dt>Matching rules</dt><dd>{template.roleName || "No role link"} • {template.dutyName || "No duty link"}</dd></div>
+                      <div><dt>Matching rules</dt><dd>{template.roleName || "No role link"} • {template.dutyName?.trim().toLowerCase() === DELEGATED_MANAGER_DUTY_NAME.toLowerCase() ? "No duty link" : template.dutyName || "No duty link"}</dd></div>
                     </dl>
                     <div className="form-actions">
                       <button className="pill pill-secondary" onClick={() => { setEditingTemplateId(template.id); setTemplateEditFormState(createTemplateEditFormState(template)); }} type="button">Edit template</button>
@@ -695,7 +719,35 @@ export function TeamManagementPanel({
           </fieldset>
           <fieldset className="business-day-group">
             <legend>Direct duties</legend>
-            <div className="checkbox-list">{dutyOptions.map((duty) => <label className="checkbox-item" key={`user-duty-${duty.id}`}><input checked={teamMemberFormState.dutyIds.includes(duty.id)} type="checkbox" onChange={(event) => setTeamMemberFormState((current) => ({ ...current, dutyIds: toggleSelection(current.dutyIds, duty.id, event.target.checked) }))} /><span>{duty.name}<small>{duty.workflowArea}</small></span></label>)}</div>
+            <div className="checkbox-list">{standardDutyOptions.map((duty) => <label className="checkbox-item" key={`user-duty-${duty.id}`}><input checked={teamMemberFormState.dutyIds.includes(duty.id)} type="checkbox" onChange={(event) => setTeamMemberFormState((current) => ({ ...current, dutyIds: toggleSelection(current.dutyIds, duty.id, event.target.checked) }))} /><span>{duty.name}<small>{duty.workflowArea}</small></span></label>)}</div>
+          </fieldset>
+          <fieldset className="business-day-group">
+            <legend>Manager powers</legend>
+            <label className="checkbox-item">
+              <input
+                checked={hasDelegatedManagerPowers(teamMemberFormState.dutyIds, delegatedManagerDutyId)}
+                disabled={!canGrantManagerPowers || !delegatedManagerDutyId}
+                type="checkbox"
+                onChange={(event) =>
+                  setTeamMemberFormState((current) => ({
+                    ...current,
+                    dutyIds: setManagerPowerAssignment(
+                      current.dutyIds,
+                      delegatedManagerDutyId,
+                      event.target.checked
+                    )
+                  }))
+                }
+              />
+              <span>
+                Grant manager powers
+                <small>
+                  {canGrantManagerPowers
+                    ? "Lets this team member manage staff, duties, roles, templates, and board settings."
+                    : "Only the General Manager can grant or revoke elevated manager capabilities."}
+                </small>
+              </span>
+            </label>
           </fieldset>
           {teamMemberMessage.error ? <div className="notice notice-danger"><p>{teamMemberMessage.error}</p></div> : null}
           {teamMemberMessage.success ? <div className="notice"><p>{teamMemberMessage.success}</p></div> : null}
@@ -720,7 +772,39 @@ export function TeamManagementPanel({
                     </fieldset>
                     <fieldset className="business-day-group">
                       <legend>Direct duties</legend>
-                      <div className="checkbox-list">{dutyOptions.map((duty) => <label className="checkbox-item" key={`edit-user-duty-${user.id}-${duty.id}`}><input checked={userEditFormState.dutyIds.includes(duty.id)} type="checkbox" onChange={(event) => setUserEditFormState((current) => current ? { ...current, dutyIds: toggleSelection(current.dutyIds, duty.id, event.target.checked) } : current)} /><span>{duty.name}<small>{duty.workflowArea}</small></span></label>)}</div>
+                      <div className="checkbox-list">{standardDutyOptions.map((duty) => <label className="checkbox-item" key={`edit-user-duty-${user.id}-${duty.id}`}><input checked={userEditFormState.dutyIds.includes(duty.id)} type="checkbox" onChange={(event) => setUserEditFormState((current) => current ? { ...current, dutyIds: toggleSelection(current.dutyIds, duty.id, event.target.checked) } : current)} /><span>{duty.name}<small>{duty.workflowArea}</small></span></label>)}</div>
+                    </fieldset>
+                    <fieldset className="business-day-group">
+                      <legend>Manager powers</legend>
+                      <label className="checkbox-item">
+                        <input
+                          checked={hasDelegatedManagerPowers(userEditFormState.dutyIds, delegatedManagerDutyId)}
+                          disabled={!canGrantManagerPowers || !delegatedManagerDutyId}
+                          type="checkbox"
+                          onChange={(event) =>
+                            setUserEditFormState((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    dutyIds: setManagerPowerAssignment(
+                                      current.dutyIds,
+                                      delegatedManagerDutyId,
+                                      event.target.checked
+                                    )
+                                  }
+                                : current
+                            )
+                          }
+                        />
+                        <span>
+                          Grant manager powers
+                          <small>
+                            {canGrantManagerPowers
+                              ? "Lets this team member manage staff, duties, roles, templates, and board settings."
+                              : "Only the General Manager can grant or revoke elevated manager capabilities."}
+                          </small>
+                        </span>
+                      </label>
                     </fieldset>
                     <div className="form-actions">
                       <button className="pill pill-primary" disabled={isPending} onClick={() => saveUserEdit(user.id)} type="button">Save team member</button>
@@ -736,7 +820,8 @@ export function TeamManagementPanel({
                     <p className="team-roster-meta">Added {formatCreatedAt(user.createdAt)}</p>
                     <dl className="team-roster-details">
                       <div><dt>Roles</dt><dd>{user.roles.map((role) => role.name).join(" / ") || "No roles assigned"}</dd></div>
-                      <div><dt>Direct duties</dt><dd>{user.duties.map((duty) => duty.name).join(" • ") || "Role defaults only"}</dd></div>
+                      <div><dt>Direct duties</dt><dd>{user.duties.filter((duty) => !isDelegatedManagerDuty(duty)).map((duty) => duty.name).join(" • ") || "Role defaults only"}</dd></div>
+                      <div><dt>Manager powers</dt><dd>{user.duties.some(isDelegatedManagerDuty) ? "Granted by General Manager" : "No delegated manager powers"}</dd></div>
                     </dl>
                     <div className="form-actions">
                       <button className="pill pill-secondary" onClick={() => { setEditingUserId(user.id); setUserEditFormState(createUserEditFormState(user)); }} type="button">Edit member</button>

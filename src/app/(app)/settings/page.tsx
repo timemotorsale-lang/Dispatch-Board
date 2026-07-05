@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { SettingsForm } from "@/features/settings/settings-form";
 import { requireCurrentUser } from "@/server/auth/current-user";
-import { canManageSettings } from "@/server/policies/access";
+import { DELEGATED_MANAGER_DUTY_NAME, canManageSettings } from "@/server/policies/access";
 import { getGenerationSettings } from "@/server/services/app-settings-service";
 import { getTeamManagementSnapshotForManager } from "@/server/services/team-management";
 
@@ -51,6 +51,11 @@ export default async function SettingsPage() {
   }
 
   const { settings, teamManagement, errorMessage } = await loadSettingsPageData(user);
+  const visibleDutyCount = teamManagement
+    ? teamManagement.duties.filter(
+        (duty) => duty.name.trim().toLowerCase() !== DELEGATED_MANAGER_DUTY_NAME.toLowerCase()
+      ).length
+    : 0;
 
   if (settings && teamManagement) {
     return (
@@ -86,7 +91,7 @@ export default async function SettingsPage() {
               </div>
               <div className="settings-summary-card">
                 <span>Duties</span>
-                <strong>{teamManagement.duties.length}</strong>
+                <strong>{visibleDutyCount}</strong>
                 <small>direct-duty options available for overrides</small>
               </div>
             </div>
@@ -111,6 +116,7 @@ export default async function SettingsPage() {
               <p>Users: create login-ready team members for the protected app.</p>
               <p>Roles: assign job coverage that drives permissions and default duty matching.</p>
               <p>Duties: add direct-duty overrides when a staff member owns specific daily work.</p>
+              <p>Manager powers: only the General Manager can delegate full manager capabilities.</p>
             </div>
           </article>
         </section>
