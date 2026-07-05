@@ -26,9 +26,13 @@ import { useLiveRefresh } from "@/hooks/use-live-refresh";
 import {
   filterMyTasks,
   getAllowedMyTaskStatuses,
+  hasMissingRequiredUpdate,
+  isTaskDueSoon,
+  isTaskOverdue,
   getMyTasksFilterOptions,
   getPrimaryMyTaskStatusActions,
   getTaskActionLabel,
+  needsManagerDecision,
   type MyTasksFilter
 } from "@/features/tasks/my-tasks-helpers";
 import type { BoardReadTask } from "@/server/services/board-read";
@@ -51,11 +55,14 @@ type InspectorTab = "Overview" | "Update Form" | "Activity" | "Manager";
 type TaskOverride = {
   blockerReason: string | null;
   status: TaskStatus;
+  updateFieldValues: Record<string, string | boolean>;
 };
 type StatusUpdatePayload = {
   status: TaskStatus;
   blockerReason?: string;
+  updateFields?: Record<string, string | boolean>;
 };
+type GuidedUpdateField = BoardReadTask["requiredUpdateFields"][number];
 
 function formatBoardDateLabel(boardDate: string) {
   return new Intl.DateTimeFormat("en-US", {
@@ -201,6 +208,14 @@ function getTaskSummaryFacts(task: BoardReadTask, now: Date) {
 }
 
 function getTaskSignal(task: BoardReadTask, now: Date) {
+  if (hasMissingRequiredUpdate(task)) {
+    return {
+      body: "This task still needs its required update fields filled in before it can move cleanly to review or completion.",
+      title: "Required update still missing",
+      tone: "enterprise-overview-card-head-warning"
+    };
+  }
+
   if (task.status === TaskStatus.BLOCKED && task.blockerReason) {
     return {
       body: task.blockerReason,
@@ -222,8 +237,10 @@ function getTaskSignal(task: BoardReadTask, now: Date) {
 
   if (task.status === TaskStatus.READY_FOR_REVIEW) {
     return {
-      body: "This task is staged for a manager or approver to review before the final close-out.",
-      title: "Ready for review",
+      body: needsManagerDecision(task)
+        ? "This task is staged for a manager decision before final completion."
+        : "This task is staged for the next review step before final close-out.",
+      title: needsManagerDecision(task) ? "Needs manager decision" : "Ready for review",
       tone: "enterprise-overview-card-head-review"
     };
   }
@@ -236,9 +253,15 @@ function getTaskSignal(task: BoardReadTask, now: Date) {
     };
   }
 
-  const minutesUntilDue = Math.round((new Date(task.dueAt).getTime() - now.getTime()) / 60000);
+  if (isTaskOverdue(task, now)) {
+    return {
+      body: "This task is already overdue. Update it now so the next handoff reflects the real state of the work.",
+      title: "Overdue",
+      tone: "enterprise-overview-card-head-danger"
+    };
+  }
 
-  if (minutesUntilDue <= 120) {
+  if (isTaskDueSoon(task, now)) {
     return {
       body: `This task is due soon. Keep the update crisp so the next person can act without chasing context.`,
       title: "Due soon",
@@ -344,6 +367,22 @@ function getBlockedQueue(tasks: BoardReadTask[]) {
     .slice(0, 3);
 }
 
+function statusNeedsGuidedUpdateFields(status: TaskStatus) {
+  return status === TaskStatus.READY_FOR_REVIEW || status === TaskStatus.COMPLETED;
+}
+
+function isGuidedUpdateFieldComplete(field: GuidedUpdateField, value: string | boolean | undefined) {
+  if (!field.required) {
+    return true;
+  }
+
+  if (typeof value === "boolean") {
+    return true;
+  }
+
+  return typeof value === "string" && value.trim().length > 0;
+}
+
 type TaskStatusEditorProps = {
   fullBoardHref: string;
   isManager: boolean;
@@ -361,17 +400,27 @@ function TaskStatusEditor({
   const primaryStatusActions = getPrimaryMyTaskStatusActions(task, isManager);
   const [selectedStatus, setSelectedStatus] = useState<TaskStatus>(task.status as TaskStatus);
   const [blockerReason, setBlockerReason] = useState(task.blockerReason ?? "");
+  const [updateFieldValues, setUpdateFieldValues] = useState<Record<string, string | boolean>>(
+    task.updateFieldValues ?? {}
+  );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const hasStatusChoices = allowedStatuses.length > 0;
+  const hasGuidedUpdateFields = task.requiredUpdateFields.length > 0;
   const needsBlockerReason = selectedStatus === TaskStatus.BLOCKED;
   const trimmedBlockerReason = blockerReason.trim();
+  const missingRequiredUpdateFields = task.requiredUpdateFields.filter(
+    (field) => field.required && !isGuidedUpdateFieldComplete(field, updateFieldValues[field.key])
+  );
+  const shouldHighlightGuidedUpdates =
+    hasGuidedUpdateFields && statusNeedsGuidedUpdateFields(selectedStatus);
   const canSubmit =
     hasStatusChoices &&
     !isSubmitting &&
     (!needsBlockerReason || Boolean(trimmedBlockerReason)) &&
     (selectedStatus !== (task.status as TaskStatus) ||
-      trimmedBlockerReason !== (task.blockerReason ?? ""));
+      trimmedBlockerReason !== (task.blockerReason ?? "") ||
+      JSON.stringify(updateFieldValues) !== JSON.stringify(task.updateFieldValues ?? {}));
 
   async function submitStatusUpdate(payload: StatusUpdatePayload) {
     setIsSubmitting(true);
@@ -391,6 +440,7 @@ function TaskStatusEditor({
               id: string;
               status: TaskStatus;
               blockerReason: string | null;
+              updateFieldValues?: Record<string, string | boolean>;
             };
             error?: string;
           }
@@ -403,9 +453,11 @@ function TaskStatusEditor({
 
       setSelectedStatus(result.task.status);
       setBlockerReason(result.task.blockerReason ?? "");
+      setUpdateFieldValues(result.task.updateFieldValues ?? updateFieldValues);
       onTaskUpdated(task.id, {
         status: result.task.status,
-        blockerReason: result.task.blockerReason
+        blockerReason: result.task.blockerReason,
+        updateFieldValues: result.task.updateFieldValues ?? updateFieldValues
       });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to update this task right now.");
@@ -436,7 +488,10 @@ function TaskStatusEditor({
                 setErrorMessage(null);
 
                 if (statusOption.value !== TaskStatus.BLOCKED) {
-                  void submitStatusUpdate({ status: statusOption.value });
+                  void submitStatusUpdate({
+                    status: statusOption.value,
+                    ...(hasGuidedUpdateFields ? { updateFields: updateFieldValues } : {})
+                  });
                 }
               }}
               type="button"
@@ -480,6 +535,129 @@ function TaskStatusEditor({
           <input disabled value={formatStatusLabel(task.workflowArea)} readOnly />
         </label>
 
+        {hasGuidedUpdateFields ? (
+          <div className="field enterprise-summary-span">
+            <span>Required Update Fields</span>
+            {shouldHighlightGuidedUpdates && missingRequiredUpdateFields.length > 0 ? (
+              <small className="field-hint">
+                Missing: {missingRequiredUpdateFields.map((field) => field.label).join(", ")}
+              </small>
+            ) : (
+              <small className="field-hint">
+                These details travel with the task so review and completion are easier downstream.
+              </small>
+            )}
+
+            <div className="enterprise-guided-update-grid">
+              {task.requiredUpdateFields.map((field) => {
+                const value = updateFieldValues[field.key];
+
+                if (field.type === "boolean") {
+                  return (
+                    <label className="field" key={field.key}>
+                      <span>
+                        {field.label}
+                        {field.required ? " *" : ""}
+                      </span>
+                      <select
+                        disabled={isSubmitting}
+                        value={typeof value === "boolean" ? String(value) : ""}
+                        onChange={(event) => {
+                          const nextValue = event.target.value;
+
+                          setUpdateFieldValues((current) => ({
+                            ...current,
+                            [field.key]: nextValue === "true"
+                          }));
+                          setErrorMessage(null);
+                        }}
+                      >
+                        <option value="">Select an option</option>
+                        <option value="true">Yes</option>
+                        <option value="false">No</option>
+                      </select>
+                    </label>
+                  );
+                }
+
+                if (field.type === "single_select") {
+                  return (
+                    <label className="field" key={field.key}>
+                      <span>
+                        {field.label}
+                        {field.required ? " *" : ""}
+                      </span>
+                      <select
+                        disabled={isSubmitting}
+                        value={typeof value === "string" ? value : ""}
+                        onChange={(event) => {
+                          setUpdateFieldValues((current) => ({
+                            ...current,
+                            [field.key]: event.target.value
+                          }));
+                          setErrorMessage(null);
+                        }}
+                      >
+                        <option value="">Select an option</option>
+                        {(field.options ?? []).map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  );
+                }
+
+                if (field.type === "long_text") {
+                  return (
+                    <label className="field" key={field.key}>
+                      <span>
+                        {field.label}
+                        {field.required ? " *" : ""}
+                      </span>
+                      <textarea
+                        disabled={isSubmitting}
+                        placeholder={field.helpText ?? undefined}
+                        rows={4}
+                        value={typeof value === "string" ? value : ""}
+                        onChange={(event) => {
+                          setUpdateFieldValues((current) => ({
+                            ...current,
+                            [field.key]: event.target.value
+                          }));
+                          setErrorMessage(null);
+                        }}
+                      />
+                    </label>
+                  );
+                }
+
+                return (
+                  <label className="field" key={field.key}>
+                    <span>
+                      {field.label}
+                      {field.required ? " *" : ""}
+                    </span>
+                    <input
+                      disabled={isSubmitting}
+                      placeholder={field.helpText ?? undefined}
+                      value={typeof value === "string" ? value : ""}
+                      onChange={(event) => {
+                        setUpdateFieldValues((current) => ({
+                          ...current,
+                          [field.key]: event.target.value
+                        }));
+                        setErrorMessage(null);
+                      }}
+                    />
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
         {needsBlockerReason ? (
           <label className="field enterprise-summary-span">
             <span>Blocker Reason</span>
@@ -520,6 +698,7 @@ function TaskStatusEditor({
         onClick={() =>
           submitStatusUpdate({
             status: selectedStatus,
+            ...(hasGuidedUpdateFields ? { updateFields: updateFieldValues } : {}),
             ...(selectedStatus === TaskStatus.BLOCKED ? { blockerReason: trimmedBlockerReason } : {})
           })
         }

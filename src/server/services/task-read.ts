@@ -37,6 +37,23 @@ export type TaskChecklistItemReadModel = {
   updatedAt: string;
 };
 
+export type TaskRequiredUpdateFieldReadModel = {
+  key: string;
+  label: string;
+  type: "short_text" | "long_text" | "single_select" | "boolean";
+  required: boolean;
+  helpText: string | null;
+  options?: string[];
+};
+
+export type TaskActivityReadModel = {
+  id: string;
+  eventType: string;
+  message: string;
+  createdAt: string;
+  actor: TaskReadUserSummary | null;
+};
+
 export type TaskReadModel = {
   id: string;
   boardDayId: string;
@@ -48,6 +65,8 @@ export type TaskReadModel = {
   workflowArea: string;
   sourceType: string;
   requiresManagerApproval: boolean;
+  requiredUpdateFields: TaskRequiredUpdateFieldReadModel[];
+  updateFieldValues: Record<string, string | boolean>;
   vehicleReference: string | null;
   customerReference: string | null;
   blockerReason: string | null;
@@ -61,6 +80,7 @@ export type TaskReadModel = {
   createdByUser: TaskReadUserSummary | null;
   reviewedByUser: TaskReadUserSummary | null;
   checklistItems: TaskChecklistItemReadModel[];
+  activityHistory: TaskActivityReadModel[];
   comments: TaskCommentReadModel[];
 };
 
@@ -78,6 +98,70 @@ function normalizeOptionalText(value: string | null | undefined) {
   const normalizedValue = value?.trim();
 
   return normalizedValue ? normalizedValue : null;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeRequiredUpdateFields(snapshot: unknown): TaskRequiredUpdateFieldReadModel[] {
+  if (!isPlainObject(snapshot) || !Array.isArray(snapshot.requiredUpdateFields)) {
+    return [];
+  }
+
+  return snapshot.requiredUpdateFields.flatMap((entry) => {
+    if (!isPlainObject(entry) || typeof entry.key !== "string" || typeof entry.label !== "string") {
+      return [];
+    }
+
+    if (
+      entry.type !== "short_text" &&
+      entry.type !== "long_text" &&
+      entry.type !== "single_select" &&
+      entry.type !== "boolean"
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        key: entry.key,
+        label: entry.label,
+        type: entry.type,
+        required: entry.required !== false,
+        helpText: typeof entry.helpText === "string" ? entry.helpText : null,
+        ...(Array.isArray(entry.options) &&
+        entry.options.every((option) => typeof option === "string" && option.trim())
+          ? { options: entry.options.map((option) => option.trim()) }
+          : {})
+      } satisfies TaskRequiredUpdateFieldReadModel
+    ];
+  });
+}
+
+function normalizeUpdateFieldValues(value: unknown) {
+  if (!isPlainObject(value)) {
+    return {} as Record<string, string | boolean>;
+  }
+
+  const normalizedEntries: Array<[string, string | boolean]> = [];
+
+  for (const [key, fieldValue] of Object.entries(value)) {
+    if (typeof fieldValue === "boolean") {
+      normalizedEntries.push([key, fieldValue]);
+      continue;
+    }
+
+    if (typeof fieldValue === "string") {
+      const normalizedValue = fieldValue.trim();
+
+      if (normalizedValue) {
+        normalizedEntries.push([key, normalizedValue]);
+      }
+    }
+  }
+
+  return Object.fromEntries(normalizedEntries);
 }
 
 function toUserSummary(
@@ -99,6 +183,22 @@ function toUserSummary(
 }
 
 function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
+  const snapshot = (task as { templateSnapshot?: unknown }).templateSnapshot;
+  const updateFieldValues = (task as { updateFieldValues?: unknown }).updateFieldValues;
+  const checklistItems = (task as { checklistItems?: TaskReadRecord["checklistItems"] }).checklistItems ?? [];
+  const activityEvents = (task as {
+    activityEvents?: Array<{
+      id: string;
+      eventType: string;
+      message: string;
+      createdAt: Date;
+      actorUser: {
+        id: string;
+        name: string;
+        email: string;
+      } | null;
+    }>;
+  }).activityEvents;
   const recommendation =
     task.recommendationReasonCode && task.recommendationExplanation
       ? {
@@ -118,6 +218,8 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
     workflowArea: task.workflowArea,
     sourceType: task.sourceType,
     requiresManagerApproval: task.requiresManagerApproval,
+    requiredUpdateFields: normalizeRequiredUpdateFields(snapshot),
+    updateFieldValues: normalizeUpdateFieldValues(updateFieldValues),
     vehicleReference: normalizeOptionalText(task.vehicleReference),
     customerReference: normalizeOptionalText(task.customerReference),
     blockerReason: normalizeOptionalText(task.blockerReason),
@@ -134,7 +236,7 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
     recommendation,
     createdByUser: toUserSummary(task.createdByUser),
     reviewedByUser: toUserSummary(task.reviewedByUser),
-    checklistItems: task.checklistItems.map((item) => ({
+    checklistItems: checklistItems.map((item) => ({
       id: item.id,
       kind: item.kind,
       label: item.label.trim(),
@@ -143,6 +245,13 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
       completedAt: item.completedAt?.toISOString() ?? null,
       createdAt: item.createdAt.toISOString(),
       updatedAt: item.updatedAt.toISOString()
+    })),
+    activityHistory: (activityEvents ?? []).map((event) => ({
+      id: event.id,
+      eventType: event.eventType,
+      message: event.message.trim(),
+      createdAt: event.createdAt.toISOString(),
+      actor: toUserSummary(event.actorUser)
     })),
     comments: task.comments.map((comment) => ({
       id: comment.id,

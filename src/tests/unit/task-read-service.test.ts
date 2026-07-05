@@ -83,6 +83,8 @@ describe("task read service", () => {
       workflowArea: "SALES",
       sourceType: "MANAGER",
       requiresManagerApproval: true,
+      requiredUpdateFields: [],
+      updateFieldValues: {},
       vehicleReference: "2019 Camry",
       customerReference: "Taylor R.",
       blockerReason: null,
@@ -103,6 +105,8 @@ describe("task read service", () => {
         email: "morgan.manager@local.test"
       },
       reviewedByUser: null,
+      checklistItems: [],
+      activityHistory: [],
       comments: [
         {
           id: "comment-1",

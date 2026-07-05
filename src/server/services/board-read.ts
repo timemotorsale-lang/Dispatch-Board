@@ -24,15 +24,27 @@ type BoardReadRecommendation = {
   explanation: string;
 };
 
+export type BoardReadRequiredUpdateField = {
+  key: string;
+  label: string;
+  type: "short_text" | "long_text" | "single_select" | "boolean";
+  required: boolean;
+  helpText: string | null;
+  options?: string[];
+};
+
 export type BoardReadTask = {
   id: string;
   title: string;
   description: string | null;
   status: string;
   dueAt: string;
+  updatedAt: string;
   workflowArea: string;
   sourceType: string;
   requiresManagerApproval: boolean;
+  requiredUpdateFields: BoardReadRequiredUpdateField[];
+  updateFieldValues: Record<string, string | boolean>;
   assignedUser: BoardReadUserSummary;
   recommendedUser: BoardReadUserSummary | null;
   recommendation: BoardReadRecommendation | null;
@@ -78,6 +90,70 @@ function normalizeOptionalText(value: string | null | undefined) {
   return normalizedValue ? normalizedValue : null;
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeRequiredUpdateFields(snapshot: unknown): BoardReadRequiredUpdateField[] {
+  if (!isPlainObject(snapshot) || !Array.isArray(snapshot.requiredUpdateFields)) {
+    return [];
+  }
+
+  return snapshot.requiredUpdateFields.flatMap((entry) => {
+    if (!isPlainObject(entry) || typeof entry.key !== "string" || typeof entry.label !== "string") {
+      return [];
+    }
+
+    if (
+      entry.type !== "short_text" &&
+      entry.type !== "long_text" &&
+      entry.type !== "single_select" &&
+      entry.type !== "boolean"
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        key: entry.key,
+        label: entry.label,
+        type: entry.type,
+        required: entry.required !== false,
+        helpText: typeof entry.helpText === "string" ? entry.helpText : null,
+        ...(Array.isArray(entry.options) &&
+        entry.options.every((option) => typeof option === "string" && option.trim())
+          ? { options: entry.options.map((option) => option.trim()) }
+          : {})
+      } satisfies BoardReadRequiredUpdateField
+    ];
+  });
+}
+
+function normalizeUpdateFieldValues(value: unknown) {
+  if (!isPlainObject(value)) {
+    return {} as Record<string, string | boolean>;
+  }
+
+  const normalizedEntries: Array<[string, string | boolean]> = [];
+
+  for (const [key, fieldValue] of Object.entries(value)) {
+    if (typeof fieldValue === "boolean") {
+      normalizedEntries.push([key, fieldValue]);
+      continue;
+    }
+
+    if (typeof fieldValue === "string") {
+      const normalizedValue = fieldValue.trim();
+
+      if (normalizedValue) {
+        normalizedEntries.push([key, normalizedValue]);
+      }
+    }
+  }
+
+  return Object.fromEntries(normalizedEntries);
+}
+
 function toUserSummary(
   user: {
     id: string;
@@ -97,6 +173,9 @@ function toUserSummary(
 }
 
 function toTaskSummary(task: BoardReadTaskRecord): BoardReadTask {
+  const snapshot = (task as { templateSnapshot?: unknown }).templateSnapshot;
+  const updateFieldValues = (task as { updateFieldValues?: unknown }).updateFieldValues;
+  const updatedAt = (task as { updatedAt?: Date }).updatedAt;
   const recommendation =
     task.recommendationReasonCode && task.recommendationExplanation
       ? {
@@ -111,9 +190,12 @@ function toTaskSummary(task: BoardReadTaskRecord): BoardReadTask {
     description: normalizeOptionalText(task.description),
     status: task.status,
     dueAt: task.dueAt.toISOString(),
+    updatedAt: (updatedAt ?? task.dueAt).toISOString(),
     workflowArea: task.workflowArea,
     sourceType: task.sourceType,
     requiresManagerApproval: task.requiresManagerApproval,
+    requiredUpdateFields: normalizeRequiredUpdateFields(snapshot),
+    updateFieldValues: normalizeUpdateFieldValues(updateFieldValues),
     assignedUser: {
       id: task.assignedUser.id,
       name: task.assignedUser.name,
