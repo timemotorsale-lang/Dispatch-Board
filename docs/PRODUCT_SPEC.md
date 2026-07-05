@@ -1,5 +1,7 @@
 # PRODUCT_SPEC.md
 
+> **Enterprise Appointment Program:** The approved Enterprise Release 1.0 direction for the Appointment Command Center is documented in [`docs/appointments/README.md`](appointments/README.md). Those documents supersede MVP-level appointment assumptions in this specification for the Appointment feature only; they do not represent implemented behavior.
+
 # Time Motor Sales Dispatch Board — Product Specification
 
 ## 1. Product Name

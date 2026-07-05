@@ -15,11 +15,13 @@ The product direction is:
 
 ## Current State
 
-This repository is currently documentation-first and pre-implementation.
+The Dispatch Board foundation is implemented. It includes the application scaffold, PostgreSQL/Prisma schema and migrations, seeded authentication, roles and duties, daily generation, board and task workflows, manager review, activity events, responsive interfaces, and automated tests.
 
-- Treat `docs/ARCHITECTURE.md` as the target architecture, not as proof that code already exists.
+- Read `docs/CURRENT_IMPLEMENTATION_STATUS.md` for the evidence-based baseline.
+- Treat planned Enterprise Appointment documents as target behavior, not proof that Appointment code exists.
+- The `/appointments` route remains a placeholder until its implementation milestones land.
+- Keep documentation and implementation status synchronized after every meaningful slice.
 - Do not describe planned features as completed work.
-- When implementation begins, keep docs updated so the documented architecture and actual code do not drift apart.
 
 ## Read First
 
@@ -42,11 +44,11 @@ Read these too when they exist:
 
 These are durable project constraints taken from the architecture and vibe-coding guide.
 
-- Build the MVP around the daily dispatch workflow first.
+- Preserve the working daily dispatch workflow while adding approved enterprise capabilities in scoped vertical slices.
 - Prefer one deployable web app unless a later implementation constraint clearly justifies splitting services.
 - Keep business rules server-side. UI controls can hide actions, but the server must be the source of truth.
 - Keep automation simple and explainable. Recommendation logic should support the manager, not replace the manager.
-- Do not add required third-party integrations in the MVP unless the product docs are updated first.
+- Do not add required third-party integrations unless the relevant product program explicitly approves them.
 - Build in small vertical slices instead of isolated frontend-only or backend-only batches.
 - Preserve the distinction between planned architecture and implemented behavior.
 

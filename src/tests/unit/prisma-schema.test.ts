@@ -70,4 +70,182 @@ describe("prisma schema constraints", () => {
     expect(combinedSql).toMatch(/ADD CONSTRAINT "Task_blocked_requires_blocker_reason_check"/);
     expect(combinedSql).toMatch(/NULLIF\(BTRIM\("blockerReason"\), ''\) IS NOT NULL/);
   });
+
+  it("declares the EAPT-003 organization and location foundation", async () => {
+    const schema = await readFile(schemaPath, "utf8");
+    const organizationModel = getModelBlock(schema, "Organization");
+    const locationModel = getModelBlock(schema, "Location");
+    const operatingWindowModel = getModelBlock(schema, "LocationOperatingWindow");
+    const closureModel = getModelBlock(schema, "LocationClosure");
+
+    expect(organizationModel).toMatch(/code\s+String\s+@unique/);
+    expect(organizationModel).toMatch(/locations\s+Location\[\]/);
+
+    expect(locationModel).toMatch(/organizationId\s+String\b/);
+    expect(locationModel).toMatch(/timezone\s+String\b/);
+    expect(locationModel).toMatch(/phoneNumber\s+String\?/);
+    expect(locationModel).toMatch(
+      /schedulingStatus\s+LocationSchedulingStatus\s+@default\(DRAFT\)/
+    );
+    expect(locationModel).toMatch(/@@unique\(\[organizationId,\s*code\]\)/);
+    expect(locationModel).toMatch(/@@index\(\[organizationId,\s*schedulingStatus\]\)/);
+
+    expect(operatingWindowModel).toMatch(/businessDay\s+BusinessDay\b/);
+    expect(operatingWindowModel).toMatch(/opensAtMinute\s+Int\b/);
+    expect(operatingWindowModel).toMatch(/closesAtMinute\s+Int\b/);
+    expect(operatingWindowModel).toMatch(/validFrom\s+DateTime\s+@db\.Date/);
+    expect(operatingWindowModel).toMatch(/validTo\s+DateTime\?\s+@db\.Date/);
+
+    expect(closureModel).toMatch(/type\s+LocationClosureType\b/);
+    expect(closureModel).toMatch(/startsAt\s+DateTime\b/);
+    expect(closureModel).toMatch(/endsAt\s+DateTime\b/);
+    expect(closureModel).toMatch(/reason\s+String\b/);
+    expect(closureModel).toMatch(/createdByUserId\s+String\?/);
+  });
+
+  it("protects EAPT-003 time, closure, timezone, and country invariants in SQL", async () => {
+    const migrationEntries = await readdir(migrationsPath, { withFileTypes: true });
+    const migrationSqlContents = await Promise.all(
+      migrationEntries
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => readFile(path.join(migrationsPath, entry.name, "migration.sql"), "utf8"))
+    );
+    const combinedSql = migrationSqlContents.join("\n");
+
+    expect(combinedSql).toMatch(/LocationOperatingWindow_minute_range_check/);
+    expect(combinedSql).toMatch(/"opensAtMinute" < "closesAtMinute"/);
+    expect(combinedSql).toMatch(/LocationOperatingWindow_validity_check/);
+    expect(combinedSql).toMatch(/LocationClosure_time_range_check/);
+    expect(combinedSql).toMatch(/LocationClosure_reason_not_blank_check/);
+    expect(combinedSql).toMatch(/Location_country_code_check/);
+    expect(combinedSql).toMatch(/Location_timezone_not_blank_check/);
+    expect(combinedSql).toMatch(/Location_phone_number_check/);
+  });
+
+  it("declares the EAPT-004 appointment aggregate and independent state dimensions", async () => {
+    const schema = await readFile(schemaPath, "utf8");
+    const appointmentModel = getModelBlock(schema, "Appointment");
+
+    expect(schema).toMatch(/enum AppointmentBookingStatus/);
+    expect(schema).toMatch(/enum AppointmentConfirmationStatus/);
+    expect(schema).toMatch(/enum AppointmentAttendanceStatus/);
+    expect(schema).toMatch(/enum AppointmentExecutionStatus/);
+    expect(schema).toMatch(/enum AppointmentSourceType/);
+    expect(appointmentModel).toMatch(/appointmentNumber\s+String\s+@unique/);
+    expect(appointmentModel).toMatch(/ownerUserId\s+String\?/);
+    expect(appointmentModel).toMatch(/bookingStatus\s+AppointmentBookingStatus/);
+    expect(appointmentModel).toMatch(/confirmationStatus\s+AppointmentConfirmationStatus/);
+    expect(appointmentModel).toMatch(/attendanceStatus\s+AppointmentAttendanceStatus/);
+    expect(appointmentModel).toMatch(/executionStatus\s+AppointmentExecutionStatus/);
+    expect(appointmentModel).toMatch(/version\s+Int\s+@default\(1\)/);
+    expect(appointmentModel).toMatch(/purposeSnapshot\s+Json\?/);
+    expect(appointmentModel).toMatch(/customerSnapshot\s+Json\?/);
+    expect(appointmentModel).toMatch(/vehicleSnapshot\s+Json\?/);
+    expect(appointmentModel).toMatch(/sourceSnapshot\s+Json\?/);
+    expect(appointmentModel).toMatch(/cancellationReasonCode\s+String\?/);
+    expect(appointmentModel).toMatch(/outcomeCode\s+String\?/);
+    expect(appointmentModel).toMatch(/followUpDispositionCode\s+String\?/);
+    expect(appointmentModel).toMatch(/@@index\(\[locationId,\s*bookingStatus,\s*startsAt\]\)/);
+    expect(appointmentModel).toMatch(/@@index\(\[ownerUserId,\s*bookingStatus,\s*startsAt\]\)/);
+  });
+
+  it("protects EAPT-004 identity, timing, lifecycle, and documentation invariants in SQL", async () => {
+    const migrationEntries = await readdir(migrationsPath, { withFileTypes: true });
+    const migrationSqlContents = await Promise.all(
+      migrationEntries
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => readFile(path.join(migrationsPath, entry.name, "migration.sql"), "utf8"))
+    );
+    const combinedSql = migrationSqlContents.join("\n");
+
+    expect(combinedSql).toMatch(/Appointment_version_positive_check/);
+    expect(combinedSql).toMatch(/Appointment_time_pair_check/);
+    expect(combinedSql).toMatch(/Appointment_committed_fields_check/);
+    expect(combinedSql).toMatch(/Appointment_cancelled_documentation_check/);
+    expect(combinedSql).toMatch(/Appointment_completed_documentation_check/);
+    expect(combinedSql).toMatch(/Appointment_declined_documentation_check/);
+    expect(combinedSql).toMatch(/Appointment_no_show_documentation_check/);
+    expect(combinedSql).toMatch(/Appointment_waiting_documentation_check/);
+  });
+
+  it("declares the EAPT-005 participant, customer, vehicle, and resource foundation", async () => {
+    const schema = await readFile(schemaPath, "utf8");
+    const accessModel = getModelBlock(schema, "UserLocationAccess");
+    const customerModel = getModelBlock(schema, "Customer");
+    const vehicleModel = getModelBlock(schema, "Vehicle");
+    const participantModel = getModelBlock(schema, "AppointmentParticipant");
+    const appointmentVehicleModel = getModelBlock(schema, "AppointmentVehicle");
+    const resourceTypeModel = getModelBlock(schema, "SchedulableResourceType");
+    const resourceModel = getModelBlock(schema, "SchedulableResource");
+    const requirementModel = getModelBlock(schema, "AppointmentResourceRequirement");
+    const reservationModel = getModelBlock(schema, "AppointmentResourceReservation");
+
+    expect(schema).toMatch(/enum AppointmentParticipantType/);
+    expect(schema).toMatch(/enum SchedulableResourceKind/);
+    expect(schema).toMatch(/enum ResourceCapacityMode/);
+    expect(schema).toMatch(/enum ResourceReservationStatus/);
+
+    expect(accessModel).toMatch(/canOwnAppointments\s+Boolean\s+@default\(false\)/);
+    expect(accessModel).toMatch(/canManageAppointments\s+Boolean\s+@default\(false\)/);
+    expect(accessModel).toMatch(/canViewLimitedData\s+Boolean\s+@default\(false\)/);
+    expect(accessModel).toMatch(/@@id\(\[userId,\s*locationId\]\)/);
+
+    expect(customerModel).toMatch(/customerNumber\s+String\b/);
+    expect(customerModel).toMatch(/mergedIntoCustomerId\s+String\?/);
+    expect(customerModel).toMatch(/retentionUntil\s+DateTime\?\s+@db\.Date/);
+    expect(vehicleModel).toMatch(/vehicleNumber\s+String\b/);
+    expect(vehicleModel).toMatch(/vin\s+String\?/);
+    expect(vehicleModel).toMatch(/@@unique\(\[organizationId,\s*vin\]\)/);
+
+    expect(participantModel).toMatch(/participantType\s+AppointmentParticipantType/);
+    expect(participantModel).toMatch(/displayNameSnapshot\s+String\b/);
+    expect(participantModel).toMatch(/contactSnapshot\s+Json\?/);
+    expect(appointmentVehicleModel).toMatch(/vehicleSnapshot\s+Json\b/);
+    expect(appointmentVehicleModel).toMatch(/exclusiveReservationRequired\s+Boolean/);
+
+    expect(resourceTypeModel).toMatch(/kind\s+SchedulableResourceKind/);
+    expect(resourceTypeModel).toMatch(/defaultCapacityMode\s+ResourceCapacityMode/);
+    expect(resourceTypeModel).toMatch(/visibilityClass\s+ResourceVisibilityClass/);
+    expect(resourceModel).toMatch(/capacityMode\s+ResourceCapacityMode/);
+    expect(resourceModel).toMatch(/conflictPolicy\s+ResourceConflictPolicy/);
+    expect(resourceModel).toMatch(/operatingWindows\s+ResourceOperatingWindow\[\]/);
+    expect(resourceModel).toMatch(/unavailability\s+ResourceUnavailability\[\]/);
+
+    expect(requirementModel).toMatch(/requiredCapacity\s+Int\s+@default\(1\)/);
+    expect(requirementModel).toMatch(
+      /assignmentTiming\s+ResourceRequirementAssignmentTiming\s+@default\(AT_BOOKING\)/
+    );
+    expect(reservationModel).toMatch(/status\s+ResourceReservationStatus\s+@default\(PROPOSED\)/);
+    expect(reservationModel).toMatch(/capacityUnits\s+Int\s+@default\(1\)/);
+    expect(reservationModel).toMatch(/bufferBeforeMinutes\s+Int\s+@default\(0\)/);
+  });
+
+  it("protects EAPT-005 cardinality, privacy, capacity, and availability invariants in SQL", async () => {
+    const migrationEntries = await readdir(migrationsPath, { withFileTypes: true });
+    const migrationSqlContents = await Promise.all(
+      migrationEntries
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => readFile(path.join(migrationsPath, entry.name, "migration.sql"), "utf8"))
+    );
+    const combinedSql = migrationSqlContents.join("\n");
+
+    expect(combinedSql).toMatch(/UserLocationAccess_capability_hierarchy_check/);
+    expect(combinedSql).toMatch(/Customer_merge_target_check/);
+    expect(combinedSql).toMatch(/Customer_merge_same_organization_fkey/);
+    expect(combinedSql).toMatch(/Vehicle_vin_format_check/);
+    expect(combinedSql).toMatch(/AppointmentParticipant_reference_check/);
+    expect(combinedSql).toMatch(/AppointmentParticipant_primary_type_key/);
+    expect(combinedSql).toMatch(/AppointmentVehicle_primary_key/);
+    expect(combinedSql).toMatch(/ResourceType_exclusive_capacity_check/);
+    expect(combinedSql).toMatch(/Resource_exclusive_capacity_check/);
+    expect(combinedSql).toMatch(/Resource_location_organization_fkey/);
+    expect(combinedSql).toMatch(/Resource_type_organization_fkey/);
+    expect(combinedSql).toMatch(/Resource_vehicle_organization_fkey/);
+    expect(combinedSql).toMatch(/ResourcePoolMember_not_self_check/);
+    expect(combinedSql).toMatch(/ResourceOperatingWindow_minute_range_check/);
+    expect(combinedSql).toMatch(/ResourceUnavailability_capacity_check/);
+    expect(combinedSql).toMatch(/ResourceRequirement_optional_block_check/);
+    expect(combinedSql).toMatch(/ResourceReservation_time_range_check/);
+    expect(combinedSql).toMatch(/ResourceReservation_buffer_check/);
+  });
 });

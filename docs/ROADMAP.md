@@ -1,8 +1,10 @@
 # Time Motor Sales Dispatch Board Roadmap
 
-**Last updated:** 2026-06-16  
-**Roadmap status:** Documentation-first planning stage  
-**Primary goal:** Ship a responsive internal web app that generates a daily dispatch board, lets managers control assignments, and lets staff update their own work quickly.
+**Last updated:** 2026-07-05
+**Roadmap status:** Dispatch Board foundation implemented; Enterprise Appointment E1 in progress
+**Primary goal:** Preserve and harden the working Dispatch Board while delivering the approved Enterprise Appointment Command Center.
+
+> **Enterprise Appointment Program:** The Appointment Command Center has an approved Enterprise Release 1.0 planning package in [`docs/appointments/README.md`](appointments/README.md). That package supersedes MVP-level appointment assumptions in this roadmap for the Appointment feature only. It remains planned work until its implementation milestones are completed.
 
 ---
 
@@ -33,14 +35,16 @@ Each task should be small enough for Codex to complete without rewriting large p
 
 ## Recommended current execution order
 
-This repository does not have the app scaffold yet, so the most practical build order is:
+The original Phase 1 checklist below records the Dispatch Board build plan. The dated implementation truth is maintained in [`docs/CURRENT_IMPLEMENTATION_STATUS.md`](CURRENT_IMPLEMENTATION_STATUS.md).
 
-1. **Stand up the app foundation** so the repo can boot locally with a database connection and predictable dev workflow.
-2. **Add auth, roles, duties, and policy checks** so later workflows have a real permission model.
-3. **Build daily generation end to end** so the product's central workflow exists before board polish.
-4. **Add the board, task detail, and staff update flows** so the system becomes usable by real people.
-5. **Add activity, recommendations, and review controls** so managers can trust and oversee the workflow.
-6. **Harden responsiveness, tests, and setup docs** so the MVP is stable enough for real daily use.
+Current execution order:
+
+1. **Complete Enterprise Appointment E1 architecture and domain contracts.**
+2. **Implement organization, location, appointment, resource, configuration, permission, audit, and migration foundations.**
+3. **Build scheduling and capacity services before calendar polish.**
+4. **Add lifecycle, task orchestration, automation, and event-backed history.**
+5. **Build command-center, creation, administration, owner, and responsive workflows.**
+6. **Complete notifications, analytics, hardening, pilot, and production rollout through E10.**
 
 ---
 

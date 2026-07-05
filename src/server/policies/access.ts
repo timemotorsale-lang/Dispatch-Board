@@ -66,6 +66,98 @@ export function canManageTaskTemplates(user: AuthenticatedUser | null) {
   return isManager(user);
 }
 
+export function canManageAppointmentConfiguration(user: AuthenticatedUser | null) {
+  return isGeneralManager(user);
+}
+
+export type AppointmentLocationAccessGrant = {
+  canViewSchedule: boolean;
+  canParticipate: boolean;
+  canOwnAppointments: boolean;
+  canManageAppointments: boolean;
+  canViewLimitedData: boolean;
+};
+
+export type AppointmentPermissionInput = {
+  actor: AuthenticatedUser | null;
+  ownerUserId: string | null;
+  locationAccess: AppointmentLocationAccessGrant | null;
+};
+
+export function canCreateAppointment(input: AppointmentPermissionInput) {
+  if (!input.actor || !input.locationAccess?.canViewSchedule) {
+    return false;
+  }
+
+  const managerAtLocation =
+    isManager(input.actor) && input.locationAccess.canManageAppointments;
+  const eligibleOwner =
+    input.ownerUserId === input.actor.id &&
+    input.locationAccess.canOwnAppointments &&
+    input.locationAccess.canParticipate;
+
+  return managerAtLocation || eligibleOwner;
+}
+
+export function canMutateAppointment(input: AppointmentPermissionInput) {
+  if (!input.actor || !input.locationAccess?.canViewSchedule) {
+    return false;
+  }
+
+  const managerAtLocation =
+    isManager(input.actor) && input.locationAccess.canManageAppointments;
+  const eligibleOwner =
+    input.ownerUserId === input.actor.id &&
+    input.locationAccess.canOwnAppointments &&
+    input.locationAccess.canParticipate;
+
+  return managerAtLocation || eligibleOwner;
+}
+
+export type AppointmentLocationManagerPermissionInput = {
+  actor: AuthenticatedUser | null;
+  locationAccess: AppointmentLocationAccessGrant | null;
+};
+
+export function canApproveAppointment(input: AppointmentLocationManagerPermissionInput) {
+  return Boolean(
+    isManager(input.actor) &&
+      input.locationAccess?.canViewSchedule &&
+      input.locationAccess.canManageAppointments
+  );
+}
+
+export function canTransferAppointmentOwnership(
+  input: AppointmentLocationManagerPermissionInput
+) {
+  return canApproveAppointment(input);
+}
+
+export function canOverrideAppointmentWarning(
+  input: AppointmentLocationManagerPermissionInput
+) {
+  return canApproveAppointment(input);
+}
+
+export function canViewAppointmentSchedule(
+  input: AppointmentLocationManagerPermissionInput
+) {
+  return Boolean(input.actor && input.locationAccess?.canViewSchedule);
+}
+
+export function canViewAppointmentLimitedData(input: AppointmentPermissionInput) {
+  if (!input.actor || !input.locationAccess?.canViewLimitedData) {
+    return false;
+  }
+
+  const managerAtLocation =
+    isManager(input.actor) && input.locationAccess.canManageAppointments;
+  const ownerAtLocation =
+    input.ownerUserId === input.actor.id && input.locationAccess.canOwnAppointments;
+
+  return managerAtLocation || ownerAtLocation;
+}
+
 export function canReviewWorkflows(user: AuthenticatedUser | null) {
   return isManager(user);
 }
