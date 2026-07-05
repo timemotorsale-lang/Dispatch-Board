@@ -7,6 +7,7 @@ import { formatBoardEnumLabel, type BoardFilters, type BoardGroupMode, type Boar
 import type { ActivityFeedEvent } from "@/server/services/activity-feed";
 import type { BoardReadModel, BoardReadTask } from "@/server/services/board-read";
 import type { ActiveUserSummary } from "@/server/services/user-summary";
+import { listProjectCardSummaries } from "@/features/projects/project-data";
 
 type Task = Omit<BoardReadTask, "assignedUser"> & { assignedUser: BoardReadTask["assignedUser"] | null };
 
@@ -140,7 +141,6 @@ export function OperationsStrip({
   tasks: Task[];
 }) {
   const people = new Map<string, { count: number; id: string }>();
-  const workflow = new Map<string, number>();
   for (const task of tasks) {
     const owner = task.assignedUser?.name ?? "Unassigned";
     const ownerId = task.assignedUser?.id ?? "unassigned";
@@ -149,14 +149,16 @@ export function OperationsStrip({
       count: (currentOwner?.count ?? 0) + 1,
       id: currentOwner?.id ?? ownerId
     });
-    workflow.set(task.workflowArea, (workflow.get(task.workflowArea) ?? 0) + 1);
   }
   const team = [...people.entries()].sort((a, b) => b[1].count - a[1].count).slice(0, 4);
-  const flow = [...workflow.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   const referenced = tasks.filter((task) => task.customerReference || task.vehicleReference).length;
+  const projects = listProjectCardSummaries(tasks);
+  const activeProjects = projects.filter(({ tasks: projectTasks }) => projectTasks.length > 0).length;
+  const blockedProjects = projects.filter(({ stats }) => stats.blocked > 0).length;
+  const reviewProjects = projects.filter(({ stats }) => stats.readyForReview > 0).length;
   return <section className="operations-strip">
     <article><header><span><UsersRound size={16} /> Team load</span><small>{people.size} owners</small></header><div className="team-load">{team.map(([name, owner]) => <button aria-pressed={activeAssigneeId === owner.id} className={activeAssigneeId === owner.id ? "team-load-chip team-load-chip-active" : "team-load-chip"} key={name} onClick={() => onAssigneeSelect(owner.id)} type="button"><span className="mini-avatar">{name[0]}</span><span>{name.split(" ")[0]}<strong>{owner.count}</strong></span></button>)}</div></article>
-    <article><header><span><Layers3 size={16} /> Workflow flow</span><small>Current board</small></header><div className="flow-list">{flow.map(([name, count], index) => <div key={name}><span>{formatBoardEnumLabel(name)}</span><strong>{count}</strong>{index < flow.length - 1 ? <ChevronRight size={14} /> : null}</div>)}</div></article>
+    <article className="projects-entry-panel"><header><span><Layers3 size={16} /> Projects</span><small>Open the project hub</small></header><div className="projects-entry-copy"><strong>{activeProjects} active project areas today</strong><p>Keep the board clean here, then open the Projects hub to choose Inventory, Shop, Advertising, Sales, Administration, Documentation, or Collections.</p></div><dl className="projects-entry-metrics"><div><dt>Active areas</dt><dd>{activeProjects}</dd></div><div><dt>Blocked</dt><dd>{blockedProjects}</dd></div><div><dt>Review</dt><dd>{reviewProjects}</dd></div></dl><Link className="pill pill-secondary projects-entry-action" href="/projects">Open Projects Hub</Link></article>
     <article><header><span><CalendarDays size={16} /> Customer / vehicle context</span><small>Visibility</small></header><div className="context-count"><strong>{referenced}</strong><span>tasks include a customer or vehicle reference</span></div></article>
   </section>;
 }

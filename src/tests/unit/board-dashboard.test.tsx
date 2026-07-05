@@ -17,6 +17,7 @@ function createTask(id: string, overrides: Partial<GroupableBoardTask> = {}): Gr
     description: null,
     status: "NOT_STARTED",
     dueAt: "2026-06-18T14:00:00.000Z",
+    updatedAt: "2026-06-18T13:00:00.000Z",
     workflowArea: "SALES",
     sourceType: "TEMPLATE",
     requiresManagerApproval: false,

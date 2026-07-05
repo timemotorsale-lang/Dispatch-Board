@@ -3,6 +3,7 @@
   CalendarDays,
   Car,
   ClipboardCheck,
+  FolderKanban,
   Gauge,
   LayoutTemplate,
   ListChecks,
@@ -44,6 +45,12 @@ export const navigationGroups: NavigationGroup[] = [
         title: "Tasks",
         description: "Shared task workflow.",
         icon: ListChecks
+      },
+      {
+        href: "/projects",
+        title: "Projects",
+        description: "Department project boards and views.",
+        icon: FolderKanban
       },
       {
         href: "/vehicles",
