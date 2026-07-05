@@ -1573,6 +1573,14 @@ code {
   border: 1px solid rgba(109, 40, 217, 0.12);
 }
 
+.manager-review-card-compact {
+  gap: 1rem;
+}
+
+.manager-review-card-links {
+  justify-content: flex-end;
+}
+
 .manager-review-note {
   display: grid;
   gap: 0.35rem;
@@ -1606,8 +1614,62 @@ code {
   box-shadow: var(--shadow-sm);
 }
 
+.manager-review-columns {
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.15fr) minmax(260px, 0.7fr);
+}
+
+.manager-review-attention-groups {
+  display: grid;
+  gap: 1rem;
+}
+
+.manager-review-bucket {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 22px;
+  background: rgba(248, 250, 252, 0.92);
+}
+
+.manager-review-bucket-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.manager-review-bucket-header h4,
+.manager-review-bucket-header p {
+  margin: 0;
+}
+
+.manager-review-bucket-header h4 {
+  color: var(--ink);
+  font-size: 1rem;
+}
+
+.manager-review-bucket-header p {
+  margin-top: 0.25rem;
+  color: var(--muted);
+}
+
+.manager-review-empty-inline {
+  padding: 0.95rem 1rem;
+}
+
+.manager-review-empty-inline p {
+  margin: 0;
+}
+
 .my-tasks-content-grid {
   grid-template-columns: minmax(0, 1.6fr) minmax(260px, 0.8fr);
+}
+
+@media (max-width: 1180px) {
+  .manager-review-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .my-task-action-grid {

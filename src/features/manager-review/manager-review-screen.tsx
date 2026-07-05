@@ -8,6 +8,7 @@ import { useState, useTransition } from "react";
 import { EmptyStateCard, ErrorStateCard } from "@/components/ui/state-card";
 import { useLiveRefresh } from "@/hooks/use-live-refresh";
 import type { BoardReadTask } from "@/server/services/board-read";
+import type { ManagerAttentionBucket } from "@/server/services/manager-review";
 
 type ManagerReviewScreenProps = {
   boardDate: string;
@@ -16,6 +17,7 @@ type ManagerReviewScreenProps = {
   fullBoardHref: string;
   generatedAt: string | null;
   generationStatus: string | null;
+  initialAttentionBuckets: ManagerAttentionBucket[];
   initialTasks: BoardReadTask[];
 };
 
@@ -106,6 +108,17 @@ function getOldestReviewTask(tasks: BoardReadTask[]) {
       const rightValue = right.readyForReviewAt ?? right.dueAt;
       return new Date(leftValue).getTime() - new Date(rightValue).getTime();
     })
+    .at(0);
+}
+
+function getAttentionTaskCount(attentionBuckets: ManagerAttentionBucket[]) {
+  return attentionBuckets.reduce((total, bucket) => total + bucket.tasks.length, 0);
+}
+
+function getOldestAttentionTask(attentionBuckets: ManagerAttentionBucket[]) {
+  return attentionBuckets
+    .flatMap((bucket) => bucket.tasks)
+    .sort((left, right) => new Date(left.dueAt).getTime() - new Date(right.dueAt).getTime())
     .at(0);
 }
 
@@ -234,6 +247,58 @@ function ReviewTaskCard({ boardHref, onTaskRemoved, task }: ReviewCardProps) {
   );
 }
 
+function AttentionTaskCard({ boardHref, task }: { boardHref: string; task: BoardReadTask }) {
+  return (
+    <article className="panel-card my-task-card manager-review-card manager-review-card-compact">
+      <div className="my-task-topline">
+        <div className="my-task-copy">
+          <div className="my-task-heading-row">
+            <h2>{task.title}</h2>
+            <span className="board-status-chip board-status-chip-warning">
+              {formatStatusLabel(task.status)}
+            </span>
+          </div>
+          {task.description ? <p>{task.description}</p> : null}
+        </div>
+        <div className="my-task-card-links">
+          <Link className="pill pill-secondary" href={`/tasks/${task.id}`}>
+            Open detail
+          </Link>
+        </div>
+      </div>
+
+      <div className="my-task-meta-grid">
+        <div>
+          <span>Assigned</span>
+          <strong>{task.assignedUser.name}</strong>
+          {task.assignedUser.email ? <small>{task.assignedUser.email}</small> : null}
+        </div>
+        <div>
+          <span>Due</span>
+          <strong>{formatDueTime(task.dueAt)}</strong>
+          <small>{formatDateTime(task.dueAt)}</small>
+        </div>
+        <div>
+          <span>Workflow</span>
+          <strong>{formatStatusLabel(task.workflowArea)}</strong>
+          <small>{formatStatusLabel(task.sourceType)}</small>
+        </div>
+        <div>
+          <span>Context</span>
+          <strong>{task.vehicleReference ?? task.customerReference ?? "No reference"}</strong>
+          <small>{task.blockerReason ?? "Open the detail view for the full next-step context."}</small>
+        </div>
+      </div>
+
+      <div className="my-task-card-links manager-review-card-links">
+        <Link className="pill pill-muted" href={boardHref}>
+          Open board
+        </Link>
+      </div>
+    </article>
+  );
+}
+
 export function ManagerReviewScreen({
   boardDate,
   boardExists,
@@ -241,6 +306,7 @@ export function ManagerReviewScreen({
   fullBoardHref,
   generatedAt,
   generationStatus,
+  initialAttentionBuckets,
   initialTasks
 }: ManagerReviewScreenProps) {
   const router = useRouter();
@@ -248,8 +314,14 @@ export function ManagerReviewScreen({
   const [removedTaskIds, setRemovedTaskIds] = useState<Record<string, true>>({});
   const [lastActionMessage, setLastActionMessage] = useState<string | null>(null);
   const tasks = initialTasks.filter((task) => !removedTaskIds[task.id]);
+  const attentionBuckets = initialAttentionBuckets.map((bucket) => ({
+    ...bucket,
+    tasks: bucket.tasks.filter((task) => !removedTaskIds[task.id])
+  }));
   const now = new Date();
   const oldestTask = getOldestReviewTask(tasks);
+  const oldestAttentionTask = getOldestAttentionTask(attentionBuckets);
+  const attentionTaskCount = getAttentionTaskCount(attentionBuckets);
 
   function refreshQueue() {
     startRefreshTransition(() => {
@@ -318,7 +390,12 @@ export function ManagerReviewScreen({
           <p className="board-stat-card-copy">Review items whose due time has already passed.</p>
         </article>
         <article className="panel-card board-stat-card">
-          <strong>Oldest waiting</strong>
+          <strong>Needs attention</strong>
+          <h2>{attentionTaskCount}</h2>
+          <p className="board-stat-card-copy">Blocked and waiting work that may need a manager move.</p>
+        </article>
+        <article className="panel-card board-stat-card">
+          <strong>Oldest review</strong>
           <h2>{oldestTask?.readyForReviewAt ? getReviewAgeCopy(oldestTask.readyForReviewAt, now) : "Clear"}</h2>
           <p className="board-stat-card-copy">How long the oldest approval-ready task has been sitting.</p>
         </article>
@@ -348,17 +425,17 @@ export function ManagerReviewScreen({
         />
       ) : null}
 
-      {!errorMessage && boardExists && tasks.length === 0 ? (
+      {!errorMessage && boardExists && tasks.length === 0 && attentionTaskCount === 0 ? (
         <EmptyStateCard
           actions={[{ href: fullBoardHref, label: "Back to board" }]}
           eyebrow="Queue clear"
-          message="No approval-required tasks are waiting right now. Blockers and in-progress work still remain visible on the full board."
-          title="Nothing is waiting for manager review"
+          message="No approval-ready, blocked, or waiting work is asking for manager attention right now."
+          title="The manager queue is clear"
         />
       ) : null}
 
-      {!errorMessage && boardExists && tasks.length > 0 ? (
-        <div className="board-content-grid my-tasks-content-grid">
+      {!errorMessage && boardExists && (tasks.length > 0 || attentionTaskCount > 0) ? (
+        <div className="board-content-grid my-tasks-content-grid manager-review-columns">
           <article className="panel-card board-main-card">
             <div className="board-section-heading">
               <div>
@@ -369,13 +446,55 @@ export function ManagerReviewScreen({
             </div>
 
             <div className="my-task-list">
-              {tasks.map((task) => (
-                <ReviewTaskCard
-                  boardHref={fullBoardHref}
-                  key={task.id}
-                  onTaskRemoved={handleTaskRemoved}
-                  task={task}
-                />
+              {tasks.length > 0 ? (
+                tasks.map((task) => (
+                  <ReviewTaskCard
+                    boardHref={fullBoardHref}
+                    key={task.id}
+                    onTaskRemoved={handleTaskRemoved}
+                    task={task}
+                  />
+                ))
+              ) : (
+                <div className="notice manager-review-empty-inline" role="status">
+                  <p>No tasks are waiting for formal manager review right now.</p>
+                </div>
+              )}
+            </div>
+          </article>
+
+          <article className="panel-card board-main-card">
+            <div className="board-section-heading">
+              <div>
+                <strong>Attention queue</strong>
+                <h3>Blocked and waiting work</h3>
+              </div>
+              <p>Work this queue when the board shows stalled or manager-held progress.</p>
+            </div>
+
+            <div className="manager-review-attention-groups">
+              {attentionBuckets.map((bucket) => (
+                <section className="manager-review-bucket" key={bucket.status}>
+                  <div className="manager-review-bucket-header">
+                    <div>
+                      <h4>{bucket.label}</h4>
+                      <p>{bucket.description}</p>
+                    </div>
+                    <span className="board-chip">{bucket.tasks.length}</span>
+                  </div>
+
+                  <div className="my-task-list">
+                    {bucket.tasks.length > 0 ? (
+                      bucket.tasks.map((task) => (
+                        <AttentionTaskCard boardHref={fullBoardHref} key={task.id} task={task} />
+                      ))
+                    ) : (
+                      <div className="notice manager-review-empty-inline" role="status">
+                        <p>No tasks are currently in this status.</p>
+                      </div>
+                    )}
+                  </div>
+                </section>
               ))}
             </div>
           </article>
@@ -392,16 +511,16 @@ export function ManagerReviewScreen({
 
               <ul className="board-attention-list">
                 <li className="board-attention-item">
-                  <span>Waiting now</span>
+                  <span>Waiting review</span>
                   <strong>{tasks.length}</strong>
                 </li>
                 <li className="board-attention-item">
-                  <span>Overdue approvals</span>
-                  <strong>{getOverdueCount(tasks, now)}</strong>
+                  <span>Needs attention</span>
+                  <strong>{attentionTaskCount}</strong>
                 </li>
                 <li className="board-attention-item">
-                  <span>Oldest ready item</span>
-                  <strong>{oldestTask ? oldestTask.title : "None"}</strong>
+                  <span>Oldest attention item</span>
+                  <strong>{oldestAttentionTask ? oldestAttentionTask.title : oldestTask ? oldestTask.title : "None"}</strong>
                 </li>
               </ul>
             </section>

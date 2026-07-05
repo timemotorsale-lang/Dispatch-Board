@@ -36,7 +36,8 @@ export default async function ManagerReviewPage() {
     fullBoardHref: "/board",
     generatedAt: null,
     generationStatus: null,
-    initialTasks: []
+    initialTasks: [],
+    initialAttentionBuckets: []
   };
 
   try {
@@ -47,6 +48,7 @@ export default async function ManagerReviewPage() {
     screenProps.generatedAt = reviewQueue.generatedAt;
     screenProps.generationStatus = reviewQueue.generationStatus;
     screenProps.initialTasks = reviewQueue.tasks;
+    screenProps.initialAttentionBuckets = reviewQueue.attentionBuckets;
   } catch (error) {
     screenProps.errorMessage =
       error instanceof Error ? error.message : "Unable to load the manager review queue right now.";
