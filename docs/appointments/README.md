@@ -63,6 +63,7 @@ The approved enterprise product, permission, lifecycle, conflict, automation, an
 | [LOCATION_TIME_SERVICE_CONTRACT.md](LOCATION_TIME_SERVICE_CONTRACT.md) | Implemented EAPT-013 location time, operating-hours, closures, timezone, and DST service contract |
 | [RESOURCE_AVAILABILITY_SERVICE_CONTRACT.md](RESOURCE_AVAILABILITY_SERVICE_CONTRACT.md) | Implemented EAPT-014 resource capacity, operating-window, reservation, outage, and severity service contract |
 | [STAFF_AVAILABILITY_SERVICE_CONTRACT.md](STAFF_AVAILABILITY_SERVICE_CONTRACT.md) | Implemented EAPT-015 staff availability, location eligibility, owner/participant/manager grant, and staff-resource matching contract |
+| [APPOINTMENT_DURATION_BUFFER_CONTRACT.md](APPOINTMENT_DURATION_BUFFER_CONTRACT.md) | Implemented EAPT-016 duration, preparation buffer, cleanup buffer, override, and time-footprint contract |
 | [AUTOMATION_RULES_CATALOG.md](AUTOMATION_RULES_CATALOG.md) | Explainable task-to-appointment and appointment-to-task automation model |
 | [PERMISSION_MATRIX.md](PERMISSION_MATRIX.md) | Manager, owner, participant, viewer, administrator, and system-action authorization rules |
 | [LIFECYCLE_CONFLICT_MATRIX.md](LIFECYCLE_CONFLICT_MATRIX.md) | State transitions, reason requirements, resource constraints, warnings, and hard blocks |
@@ -107,7 +108,8 @@ Implementation tickets may clarify technical details but may not weaken these ru
 | EAPT-014 — Resource types, resources, capacity, availability, and outage services | Complete | `RESOURCE_AVAILABILITY_SERVICE_CONTRACT.md`, resource availability service, effective resource windows, capacity overrides, reservation consumption, outage and capacity-reduction rules, severity handling, and tests |
 | EAPT-015 — Staff availability and location eligibility | Complete | `STAFF_AVAILABILITY_SERVICE_CONTRACT.md`, staff availability service, location access eligibility, owner/participant/manager grant checks, staff-resource matching, staff reservation/absence availability, warning/hard-block handling, and tests |
 | Appointment Board preview shell | Complete | `/appointments` renders the approved mockup composition with preview data, responsive day calendar, metrics, filters, selectable detail rail, linked-task presentation, enterprise controls, and upcoming appointments |
-| EAPT-016 — Appointment duration, preparation, and cleanup buffer rules | Next | Implement template/default duration and buffer rule evaluation |
+| EAPT-016 — Appointment duration, preparation, and cleanup buffer rules | Complete | `APPOINTMENT_DURATION_BUFFER_CONTRACT.md`, duration rule service, appointment/resource time-footprint calculation, documented override reasons, manager-approval flagging, start-interval enforcement, and focused tests |
+| EAPT-017 — Scheduling candidate assembly and conflict pipeline | Next | Combine location time, duration footprint, resource availability, and staff availability into schedulable candidate evaluation |
 
 ## Recommended Review Order
 
