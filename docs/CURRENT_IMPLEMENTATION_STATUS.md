@@ -59,6 +59,7 @@ Prisma client generation updated generated types but could not replace the locke
 | Appointment resource availability service | Implemented | EAPT-014 resource availability service evaluates effective windows, capacity overrides, held/committed reservations, buffers, outages, capacity reductions, warning/hard-block severity, service contract, and focused tests |
 | Appointment staff availability service | Implemented | EAPT-015 staff availability service evaluates active staff, location access grants, owner/participant/manager eligibility, staff-resource matching, staff reservations/absence availability, warning/hard-block severity, service contract, and focused tests |
 | Appointment duration and buffer rules | Implemented | EAPT-016 duration rule service resolves template defaults, documented overrides, manager-approval requirements, location start intervals, appointment windows, and reserved resource footprints with focused tests |
+| Appointment recurrence service | Implemented as service boundary | EAPT-017 recurrence service expands daily, weekly, and monthly series, preserves local time across daylight-saving changes, applies reasoned skipped/rescheduled occurrence exceptions, bounds expansion horizons, and previews safe series-edit scopes |
 | Appointment Board visible shell | Implemented as preview UI | `/appointments` now renders the mockup-aligned board surface with KPI cards, staff calendar columns, filters, selectable preview appointments, detail rail, linked tasks, enterprise controls, upcoming appointments, and responsive behavior; live services/APIs remain pending |
 
 ## Existing Partial or Placeholder Surfaces
@@ -85,7 +86,7 @@ At this baseline:
 - EAPT-003 organization/location foundation is implemented.
 - EAPT-004 Appointment aggregate foundation is implemented.
 - EAPT-005 participant, customer, vehicle, location-access, privacy, and resource foundation is implemented.
-- Database-backed versioned appointment-template administration, scheduling candidate assembly, full conflict pipeline, lifecycle execution services, command-center read services, administration UI, and persisted production Appointment workflows have not yet been implemented.
+- Database-backed versioned appointment-template administration, recurrence persistence/materialization, scheduling candidate assembly, full conflict pipeline, lifecycle execution services, command-center read services, administration UI, and persisted production Appointment workflows have not yet been implemented.
 - The existing `/appointments` route now contains the mockup-aligned preview shell and is the intended UI boundary for the next live-service slices.
 
 ## Current Execution Order
