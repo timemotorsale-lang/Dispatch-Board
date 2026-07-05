@@ -162,13 +162,20 @@ The following inputs remain open:
 
 ### 5.5 Enterprise Operations
 
-- Expected daily and peak appointment volume
-- Number of concurrent users
-- Appointment and audit retention period
-- Recovery-time objective
-- Recovery-point objective
+- Expected daily appointment volume: proposed E1 baseline is 75 appointments per business day
+- Peak appointment volume: proposed E1 baseline is 125 appointments per business day and 24 appointments per hour
+- Number of concurrent users: proposed E1 baseline is 20 command-center users
+- Appointment retention period: proposed E1 baseline is 7 years, with 24 months hot operational retention
+- Audit/history retention period: proposed E1 baseline is 7 years; ordinary hard deletion of audit events is not allowed
+- Command-ledger evidence retention: proposed E1 baseline is 2 years
+- Recovery-time objective: proposed E1 baseline is 4 hours
+- Recovery-point objective: proposed E1 baseline is 15 minutes
+- Backup frequency: proposed E1 baseline is every 15 minutes
+- Restore drill frequency: proposed E1 baseline is every 90 days
 - Supported browsers and minimum device sizes
 - Pilot users and pilot success thresholds
+
+Detailed EAPT-011 assumptions, signoff owners, archive rules, performance targets, and query/index coverage are recorded in `PRODUCTION_OPERATIONS_BASELINE.md`.
 
 ## 6. Activation Controls
 

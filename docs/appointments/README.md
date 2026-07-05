@@ -3,7 +3,7 @@
 **Program:** Appointment Board / Appointment Command Center  
 **Target release:** Enterprise Release 1.0  
 **Planning baseline:** E0 approved on 2026-07-05  
-**Implementation status:** E1 foundation in progress; EAPT-003 through EAPT-010 foundation slices are implemented, and `/appointments` now has a mockup-aligned preview shell while database-backed template administration, scheduling execution, persistence workflows, and live command-center operations remain planned
+**Implementation status:** E1 foundation in progress; EAPT-003 through EAPT-011 foundation slices are implemented, and `/appointments` now has a mockup-aligned preview shell while database-backed template administration, scheduling execution, persistence workflows, and live command-center operations remain planned
 
 ## Purpose
 
@@ -57,6 +57,7 @@ The approved enterprise product, permission, lifecycle, conflict, automation, an
 | [APPOINTMENT_EVENT_CONTRACT.md](APPOINTMENT_EVENT_CONTRACT.md) | Implemented EAPT-008 appointment event, audit, notification-intent, and correlation contract |
 | [COMMAND_IDEMPOTENCY_CONTRACT.md](COMMAND_IDEMPOTENCY_CONTRACT.md) | Implemented EAPT-009 command, optimistic-concurrency, idempotency, transaction, and retry contract |
 | [APPOINTMENT_COMMAND_BOUNDARY.md](APPOINTMENT_COMMAND_BOUNDARY.md) | Implemented EAPT-010 repository, service, validation, policy, and API command boundary |
+| [PRODUCTION_OPERATIONS_BASELINE.md](PRODUCTION_OPERATIONS_BASELINE.md) | Implemented EAPT-011 production-volume, retention, archive, RTO, RPO, index, and signoff baseline |
 | [AUTOMATION_RULES_CATALOG.md](AUTOMATION_RULES_CATALOG.md) | Explainable task-to-appointment and appointment-to-task automation model |
 | [PERMISSION_MATRIX.md](PERMISSION_MATRIX.md) | Manager, owner, participant, viewer, administrator, and system-action authorization rules |
 | [LIFECYCLE_CONFLICT_MATRIX.md](LIFECYCLE_CONFLICT_MATRIX.md) | State transitions, reason requirements, resource constraints, warnings, and hard blocks |
@@ -94,8 +95,9 @@ Implementation tickets may clarify technical details but may not weaken these ru
 | EAPT-008 — Audit, activity, correlation, and internal notification event contracts | Complete | `APPOINTMENT_EVENT_CONTRACT.md`, appointment history event schema/migration, actor/event catalogs, reason rules, prior/new value rules, notification intent, correlation IDs, validation, and tests |
 | EAPT-009 — Concurrency, idempotency, transaction, and retry boundaries | Complete | `COMMAND_IDEMPOTENCY_CONTRACT.md`, command ledger schema/migration, command/status catalogs, idempotency uniqueness, request hash, version checks, retry state, result/error snapshots, validation, and tests |
 | EAPT-010 — Repository, service, validation, policy, and API boundaries | Complete | `APPOINTMENT_COMMAND_BOUNDARY.md`, command request validation, repository contract, service boundary, API command intake route, manager/owner authorization, duplicate idempotency handling, stale-version conflict recording, and tests |
+| EAPT-011 — Production-volume assumptions, retention, indexing, archive, RTO, and RPO inputs | Complete | `PRODUCTION_OPERATIONS_BASELINE.md`, operational baseline constants, named owner areas, volume targets, retention/archive rules, RTO/RPO targets, performance gates, query-family coverage, change-control rules, and tests |
 | Appointment Board preview shell | Complete | `/appointments` renders the approved mockup composition with preview data, responsive day calendar, metrics, filters, selectable detail rail, linked-task presentation, enterprise controls, and upcoming appointments |
-| EAPT-011 — Production-volume assumptions, retention, indexing, archive, RTO, and RPO inputs | Next | Record measurable operating assumptions and ownership for enterprise release qualification |
+| EAPT-012 — Migration, seed, rollback, and compatibility strategy | Next | Document fresh install, upgrade, rollback/roll-forward, non-sensitive seed, Prisma-generation, and compatibility procedures |
 
 ## Recommended Review Order
 
