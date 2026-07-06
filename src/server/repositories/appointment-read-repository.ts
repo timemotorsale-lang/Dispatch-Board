@@ -310,12 +310,23 @@ export function createAppointmentReadRepository(
       return database.appointment.findMany({
         where: {
           locationId: input.locationId,
-          startsAt: {
-            lt: input.windowEnd
-          },
-          endsAt: {
-            gt: input.windowStart
-          },
+          OR: [
+            {
+              startsAt: {
+                lt: input.windowEnd
+              },
+              endsAt: {
+                gt: input.windowStart
+              }
+            },
+            {
+              bookingStatus: {
+                in: ["DRAFT", "PENDING_APPROVAL"]
+              },
+              startsAt: null,
+              endsAt: null
+            }
+          ],
           ...(input.includeCancelled
             ? {}
             : {

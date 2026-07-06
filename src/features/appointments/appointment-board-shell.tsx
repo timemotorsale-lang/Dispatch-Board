@@ -870,22 +870,28 @@ function getNumberValue(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
-export function buildOutcomeSuccessNotice(input: {
-  appointmentId: string;
-  result: unknown;
-}) {
+function getExecutionResultSnapshot(result: unknown) {
   const resultObject =
-    input.result && typeof input.result === "object"
-      ? (input.result as Record<string, unknown>)
-      : {};
+    result && typeof result === "object" ? (result as Record<string, unknown>) : {};
   const execution =
     resultObject.execution && typeof resultObject.execution === "object"
       ? (resultObject.execution as Record<string, unknown>)
       : {};
-  const resultSnapshot =
-    execution.resultSnapshot && typeof execution.resultSnapshot === "object"
-      ? (execution.resultSnapshot as Record<string, unknown>)
-      : {};
+
+  return execution.resultSnapshot && typeof execution.resultSnapshot === "object"
+    ? (execution.resultSnapshot as Record<string, unknown>)
+    : {};
+}
+
+function getGeneratedFollowUpAppointmentNumbers(result: unknown) {
+  return getStringArray(getExecutionResultSnapshot(result).generatedFollowUpAppointmentNumbers);
+}
+
+export function buildOutcomeSuccessNotice(input: {
+  appointmentId: string;
+  result: unknown;
+}) {
+  const resultSnapshot = getExecutionResultSnapshot(input.result);
   const generatedFollowUpAppointmentNumbers = getStringArray(
     resultSnapshot.generatedFollowUpAppointmentNumbers
   );
@@ -1045,7 +1051,7 @@ export function AppointmentBoardShell() {
   const [detailRefreshKey, setDetailRefreshKey] = useState(0);
   const [actionNotice, setActionNotice] = useState("Operational command bridge ready. Persisted appointments can now use the live command API for check-in and no-show actions.");
 
-  async function loadLiveAppointments() {
+  async function loadLiveAppointments(options: { suppressSuccessNotice?: boolean } = {}) {
     setIsLiveLoading(true);
 
     try {
@@ -1062,11 +1068,15 @@ export function AppointmentBoardShell() {
           : [];
 
       setLiveAppointments(appointmentsFromReadModel);
-      setActionNotice(
-        appointmentsFromReadModel.length > 0
-          ? `Loaded ${appointmentsFromReadModel.length} live appointment${appointmentsFromReadModel.length === 1 ? "" : "s"} from the read model.`
-          : "Live read model is connected. No persisted appointments were found for this day, so the approved preview board remains visible."
-      );
+      if (!options.suppressSuccessNotice) {
+        setActionNotice(
+          appointmentsFromReadModel.length > 0
+            ? `Loaded ${appointmentsFromReadModel.length} live appointment${appointmentsFromReadModel.length === 1 ? "" : "s"} from the read model.`
+            : "Live read model is connected. No persisted appointments were found for this day, so the approved preview board remains visible."
+        );
+      }
+
+      return appointmentsFromReadModel;
     } catch (error) {
       setLiveAppointments([]);
       setActionNotice(
@@ -1074,6 +1084,8 @@ export function AppointmentBoardShell() {
           ? `Live read model could not load: ${error.message}. Preview board remains visible.`
           : "Live read model could not load. Preview board remains visible."
       );
+
+      return [];
     } finally {
       setIsLiveLoading(false);
     }
@@ -2442,12 +2454,11 @@ export function AppointmentBoardShell() {
         );
       }
 
-      setActionNotice(
-        buildOutcomeSuccessNotice({
-          appointmentId: selectedAppointment.id,
-          result
-        })
-      );
+      const generatedFollowUpAppointmentNumbers = getGeneratedFollowUpAppointmentNumbers(result);
+      let successNotice = buildOutcomeSuccessNotice({
+        appointmentId: selectedAppointment.id,
+        result
+      });
       setOutcomeDraft((current) => ({
         ...current,
         reasonNotes: ""
@@ -2460,7 +2471,19 @@ export function AppointmentBoardShell() {
             : "follow-up"
       }));
       setDetailRefreshKey((value) => value + 1);
-      await loadLiveAppointments();
+      const refreshedAppointments = await loadLiveAppointments({
+        suppressSuccessNotice: true
+      });
+      const generatedAppointment = refreshedAppointments.find((appointment) =>
+        generatedFollowUpAppointmentNumbers.includes(appointment.id)
+      );
+
+      if (generatedAppointment) {
+        selectAppointmentForDetail(generatedAppointment);
+        successNotice = `${successNotice} Selected ${generatedAppointment.id} so it can be scheduled.`;
+      }
+
+      setActionNotice(successNotice);
     } catch (error) {
       setActionNotice(error instanceof Error ? error.message : "Outcome could not be saved.");
     } finally {

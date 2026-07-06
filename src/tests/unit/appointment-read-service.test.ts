@@ -257,11 +257,24 @@ function createAppointmentReadRepositoryHarness(input?: {
         const startsAt = appointment.startsAt?.getTime();
         const endsAt = appointment.endsAt?.getTime();
 
-        if (!startsAt || !endsAt || appointment.locationId !== query.locationId) {
+        if (appointment.locationId !== query.locationId) {
           return false;
         }
 
         if (!query.includeCancelled && appointment.bookingStatus === "CANCELLED") {
+          return false;
+        }
+
+        if (
+          !startsAt &&
+          !endsAt &&
+          (appointment.bookingStatus === "DRAFT" ||
+            appointment.bookingStatus === "PENDING_APPROVAL")
+        ) {
+          return true;
+        }
+
+        if (!startsAt || !endsAt) {
           return false;
         }
 
@@ -426,6 +439,53 @@ describe("appointment read service", () => {
     expect(
       includeCancelledResult.appointments.map((appointment) => appointment.appointmentNumber)
     ).toEqual(["APT-10245", "APT-CANCELLED"]);
+  });
+
+  it("includes unscheduled draft appointments so generated follow-up drafts remain selectable", async () => {
+    const scheduled = createAppointment();
+    const generatedDraft = createAppointment({
+      id: "appointment-follow-up-draft",
+      appointmentNumber: "FUP-APT-10245-MOCK",
+      bookingStatus: "DRAFT",
+      startsAt: null,
+      endsAt: null,
+      sourceType: "AUTOMATION",
+      sourceReference: scheduled.id,
+      title: "Follow-up: Service / Repair"
+    });
+    const unscheduledCompleted = createAppointment({
+      id: "appointment-completed-unscheduled",
+      appointmentNumber: "APT-COMPLETED-UNSCHEDULED",
+      bookingStatus: "COMPLETED",
+      startsAt: null,
+      endsAt: null
+    });
+    const repository = createAppointmentReadRepositoryHarness({
+      appointments: [scheduled, generatedDraft, unscheduledCompleted]
+    });
+
+    const result = await listAppointmentReadModels(
+      managerUser,
+      {
+        locationId: "loc-time-motor-sales-minneapolis",
+        windowStart,
+        windowEnd
+      },
+      repository,
+      now
+    );
+
+    expect(result.appointments.map((appointment) => appointment.appointmentNumber)).toEqual([
+      "APT-10245",
+      "FUP-APT-10245-MOCK"
+    ]);
+    expect(result.appointments[1]).toMatchObject({
+      appointmentNumber: "FUP-APT-10245-MOCK",
+      startsAt: null,
+      endsAt: null,
+      bookingStatus: "DRAFT",
+      sourceReference: scheduled.id
+    });
   });
 
   it("rejects unauthenticated users and users without active schedule access", async () => {
