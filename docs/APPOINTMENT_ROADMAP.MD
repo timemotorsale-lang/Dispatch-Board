@@ -21,7 +21,7 @@ However, the full Enterprise Release 1.0 roadmap is not complete yet. The remain
 | Product direction | Approved | The product purpose and enterprise scope are approved. |
 | Appointment foundation | Strongly implemented | Core model, commands, permissions, audit, scheduling services, and resource/staff foundations exist. |
 | Appointment Board UI | In progress with substantial live workflow | The visible board exists and many detail-rail workflows are live. |
-| Enterprise admin | In progress / partial | Managers now have an Appointment Settings foundation for location profile, phone, hours, resource summary, catalogs, and automation readiness. Full editors for templates, reasons, outcomes, closures, capacity, automation rules, and import/export remain. |
+| Enterprise admin | In progress / partial | Managers now have an Appointment Settings foundation for location profile, phone, hours, closures, resource status/capacity/conflict policy, resource outages/capacity reductions, resource summaries, catalogs, and automation readiness. Full editors for templates, reasons, outcomes, recurring/special-hours calendars, automation rules, and import/export remain. |
 | Task-to-appointment orchestration | In progress with live vertical slice | Follow-up automation, task-detail create-linked-draft workflow, live browser proof, board scheduling handoff, and appointment-to-task navigation exist. Automation-rule authoring/runtime remains. |
 | Reporting and analytics | Pending | KPI definitions, reporting models, exports, and reconciliation are not built yet. |
 | Notifications | Pending | Internal notifications and future integration contracts remain. |
@@ -136,6 +136,7 @@ Important context: the package count understates the depth of the work already c
 - Server-side and UI-level guard against scheduling/rescheduling into a past start time.
 - Appointment history events merged into the Activity Feed with appointment labels, tones, filters, and context.
 - Appointment Settings admin foundation at `/settings/appointments` for manager-only location profile, address, phone, operating hours, scheduling status, resource summaries, catalogs, and automation readiness.
+- Appointment Settings V2 controls for location closures, holiday/planned/emergency closure windows, resource status/capacity/conflict policy updates, and resource outage/capacity-reduction windows.
 - Appointment Board header and create/schedule payload defaults now read from the admin location foundation with safe Lake Street fallbacks.
 
 ### 4.5 Current validation evidence
@@ -148,15 +149,16 @@ npm run typecheck
 npm test
 npm run db:validate
 
-105 test files passed
-607 tests passed
+106 test files passed
+615 tests passed
 ```
 
-Focused validation during the Admin Settings Foundation block:
+Focused validation during the Appointment Admin Foundation V2 block:
 
 ```text
 npm run typecheck
-npm test -- appointment-admin-settings-service.test.ts appointment-admin-settings-route.test.ts appointment-board-shell.test.tsx
+npm test -- appointment-admin-settings-service.test.ts appointment-admin-settings-route.test.ts appointment-admin-settings-v2-route.test.ts
+npm test -- appointment-admin-settings-service.test.ts appointment-admin-settings-route.test.ts appointment-admin-settings-v2-route.test.ts appointment-board-shell.test.tsx
 npm run lint
 npm run db:validate
 npm test
@@ -331,7 +333,7 @@ Recommended E4 next steps:
 | EAPT-056 | Conflict resolution and manager override experience | Partial |
 | EAPT-057 | Bulk rescheduling and closure-impact workspace | Not started |
 | EAPT-058 | Purpose, template, outcome, reason administration | Not started / foundation partial |
-| EAPT-059 | Location, hours, closures, resource, capacity, availability administration | Partial; location profile, phone, weekday hours, scheduling status, resource summary, and board wiring implemented |
+| EAPT-059 | Location, hours, closures, resource, capacity, availability administration | Partial; location profile, phone, weekday hours, scheduling status, closure creation, resource status/capacity/conflict policy, resource outage/capacity-reduction windows, resource summary, and board wiring implemented |
 | EAPT-060 | Automation rule authoring and simulation | Not started |
 | EAPT-061 | Automation activation, pause, retire, failure administration | Not started |
 | EAPT-062 | Configuration import/export with validation and redaction | Not started |
@@ -339,8 +341,8 @@ Recommended E4 next steps:
 
 Recommended E5 next steps:
 
-1. Add closure/holiday and special-hours administration.
-2. Add resource capacity, outage, and availability editors.
+1. Add closure edit/delete, recurring holiday templates, and special-hours calendars.
+2. Add deeper resource availability calendars, capacity overrides by day, and resource type editors.
 3. Reason-code and outcome administration.
 4. Purpose/template administration.
 5. Automation rule administration with simulation before activation.

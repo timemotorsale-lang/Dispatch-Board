@@ -21,6 +21,8 @@ function getAppointmentSettingsErrorStatus(message: string) {
     message.includes("invalid") ||
     message.includes("HH:mm") ||
     message.includes("valid timezone") ||
+    message.includes("valid date") ||
+    message.includes("end after") ||
     message.includes("must be") ||
     message.includes("At least one appointment operating day")
   ) {

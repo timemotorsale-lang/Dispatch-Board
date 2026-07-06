@@ -1,10 +1,22 @@
-import { BusinessDay, LocationSchedulingStatus } from "@prisma/client";
+import {
+  BusinessDay,
+  LocationClosureType,
+  LocationSchedulingStatus,
+  ResourceCapacityMode,
+  ResourceConflictPolicy,
+  ResourceUnavailabilityType,
+  SchedulableResourceStatus
+} from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
 import {
   type AppointmentAdminSettingsRepository,
+  createAppointmentLocationClosureForManager,
+  createAppointmentResourceUnavailabilityForManager,
   getAppointmentBoardSettings,
   normalizeAppointmentAdminSettingsInput,
+  normalizeAppointmentResourceUnavailabilityInput,
+  updateAppointmentResourceForManager,
   updateAppointmentAdminSettings
 } from "@/server/services/appointment-admin-settings";
 import { createTestAuthStore } from "@/tests/support/auth-test-store";
@@ -44,6 +56,26 @@ function createLocation(overrides: Record<string, unknown> = {}) {
 
 function createRepository() {
   let location = createLocation();
+  let closures: Awaited<ReturnType<AppointmentAdminSettingsRepository["listLocationClosures"]>> = [];
+  let resources: Awaited<ReturnType<AppointmentAdminSettingsRepository["listResources"]>> = [
+    {
+      id: "res-abdi",
+      code: "STAFF-ABDI",
+      name: "Abdi Farah",
+      status: SchedulableResourceStatus.ACTIVE,
+      capacityMode: ResourceCapacityMode.EXCLUSIVE,
+      capacity: 1,
+      conflictPolicy: ResourceConflictPolicy.HARD_BLOCK,
+      userId: "user-abdi",
+      vehicleId: null,
+      resourceType: {
+        code: "STAFF",
+        name: "Staff member",
+        kind: "STAFF"
+      },
+      unavailability: []
+    }
+  ];
   let lastUpdate:
     | Parameters<AppointmentAdminSettingsRepository["updateLocationAndHours"]>[0]
     | null = null;
@@ -52,6 +84,9 @@ function createRepository() {
     async getLocation() {
       return location;
     },
+    async listLocationClosures() {
+      return closures;
+    },
     async listResourceTypes() {
       return [
         {
@@ -59,32 +94,67 @@ function createRepository() {
           code: "STAFF",
           name: "Staff member",
           kind: "STAFF",
-          defaultCapacityMode: "UNIT",
+          defaultCapacityMode: ResourceCapacityMode.EXCLUSIVE,
           defaultCapacity: 1,
-          defaultConflictPolicy: "BLOCK",
+          defaultConflictPolicy: ResourceConflictPolicy.HARD_BLOCK,
           isActive: true
         }
       ];
     },
     async listResources() {
-      return [
-        {
-          id: "res-abdi",
-          code: "STAFF-ABDI",
-          name: "Abdi Farah",
-          status: "ACTIVE",
-          capacityMode: "UNIT",
-          capacity: 1,
-          conflictPolicy: "BLOCK",
-          userId: "user-abdi",
-          vehicleId: null,
-          resourceType: {
-            code: "STAFF",
-            name: "Staff member",
-            kind: "STAFF"
-          }
-        }
-      ];
+      return resources;
+    },
+    async createLocationClosure(input) {
+      const closure = {
+        id: `closure-${closures.length + 1}`,
+        type: input.type,
+        name: input.name,
+        startsAt: input.startsAt,
+        endsAt: input.endsAt,
+        reason: input.reason,
+        createdByUserId: input.createdByUserId,
+        createdAt: new Date("2026-07-06T19:00:00.000Z")
+      };
+      closures = [...closures, closure];
+
+      return closure;
+    },
+    async updateResource(input) {
+      resources = resources.map((resource) =>
+        resource.id === input.resourceId
+          ? {
+              ...resource,
+              status: input.status,
+              capacityMode: input.capacityMode,
+              capacity: input.capacity,
+              conflictPolicy: input.conflictPolicy
+            }
+          : resource
+      );
+
+      return resources.find((resource) => resource.id === input.resourceId)!;
+    },
+    async createResourceUnavailability(input) {
+      const entry = {
+        id: `unavailability-${resources[0].unavailability.length + 1}`,
+        type: input.type,
+        startsAt: input.startsAt,
+        endsAt: input.endsAt,
+        capacityReduction: input.capacityReduction,
+        reason: input.reason,
+        createdByUserId: input.createdByUserId,
+        createdAt: new Date("2026-07-06T19:00:00.000Z")
+      };
+      resources = resources.map((resource) =>
+        resource.id === input.resourceId
+          ? {
+              ...resource,
+              unavailability: [...resource.unavailability, entry]
+            }
+          : resource
+      );
+
+      return entry;
     },
     async updateLocationAndHours(input) {
       lastUpdate = input;
@@ -274,6 +344,116 @@ describe("appointment admin settings service", () => {
         repository
       )
     ).rejects.toThrow(/Manager access required/);
+  });
+
+  it("allows managers to create location closures", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createRepository();
+
+    const settings = await createAppointmentLocationClosureForManager(
+      manager,
+      {
+        type: LocationClosureType.HOLIDAY,
+        name: "Independence Day",
+        startsAt: "2026-07-04T14:00:00.000Z",
+        endsAt: "2026-07-05T00:00:00.000Z",
+        reason: "Dealership holiday closure."
+      },
+      repository
+    );
+
+    expect(settings.closures).toEqual([
+      expect.objectContaining({
+        type: LocationClosureType.HOLIDAY,
+        name: "Independence Day",
+        reason: "Dealership holiday closure."
+      })
+    ]);
+  });
+
+  it("allows managers to update resource capacity and conflict policy", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createRepository();
+
+    const settings = await updateAppointmentResourceForManager(
+      manager,
+      {
+        resourceId: "res-abdi",
+        status: SchedulableResourceStatus.ACTIVE,
+        capacityMode: ResourceCapacityMode.CAPACITY,
+        capacity: 2,
+        conflictPolicy: ResourceConflictPolicy.WARNING
+      },
+      repository
+    );
+
+    expect(settings.resources[0]).toMatchObject({
+      id: "res-abdi",
+      capacityMode: ResourceCapacityMode.CAPACITY,
+      capacity: 2,
+      conflictPolicy: ResourceConflictPolicy.WARNING
+    });
+  });
+
+  it("allows managers to create resource capacity reductions", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createRepository();
+
+    const settings = await createAppointmentResourceUnavailabilityForManager(
+      manager,
+      {
+        resourceId: "res-abdi",
+        type: ResourceUnavailabilityType.CAPACITY_REDUCTION,
+        startsAt: "2026-07-08T14:00:00.000Z",
+        endsAt: "2026-07-08T18:00:00.000Z",
+        capacityReduction: 1,
+        reason: "Partial staffing coverage."
+      },
+      repository
+    );
+
+    expect(settings.resources[0].unavailability).toEqual([
+      expect.objectContaining({
+        type: ResourceUnavailabilityType.CAPACITY_REDUCTION,
+        capacityReduction: 1,
+        reason: "Partial staffing coverage."
+      })
+    ]);
+  });
+
+  it("rejects malformed resource unavailability windows", () => {
+    expect(() =>
+      normalizeAppointmentResourceUnavailabilityInput({
+        locationId: "loc-time-motor-sales-minneapolis",
+        resourceId: "res-abdi",
+        userId: "user-manager",
+        unavailability: {
+          resourceId: "res-abdi",
+          type: ResourceUnavailabilityType.CAPACITY_REDUCTION,
+          startsAt: "2026-07-08T14:00:00.000Z",
+          endsAt: "2026-07-08T18:00:00.000Z",
+          reason: "Missing reduction amount."
+        }
+      })
+    ).toThrow(/requires a positive reduction/);
+
+    expect(() =>
+      normalizeAppointmentResourceUnavailabilityInput({
+        locationId: "loc-time-motor-sales-minneapolis",
+        resourceId: "res-abdi",
+        userId: "user-manager",
+        unavailability: {
+          resourceId: "res-abdi",
+          type: ResourceUnavailabilityType.OUTAGE,
+          startsAt: "2026-07-08T18:00:00.000Z",
+          endsAt: "2026-07-08T14:00:00.000Z",
+          reason: "Backwards window."
+        }
+      })
+    ).toThrow(/end after/);
   });
 
   it("exposes board-safe settings for the Appointment Board shell", async () => {

@@ -1,4 +1,12 @@
-import { BusinessDay, type LocationSchedulingStatus } from "@prisma/client";
+import {
+  BusinessDay,
+  LocationClosureType,
+  ResourceCapacityMode,
+  ResourceConflictPolicy,
+  ResourceUnavailabilityType,
+  SchedulableResourceStatus,
+  type LocationSchedulingStatus
+} from "@prisma/client";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { getInitialMinneapolisLocation } from "@/server/appointments/location-foundation";
@@ -22,6 +30,11 @@ const validSchedulingStatuses = new Set<LocationSchedulingStatus>([
   "SUSPENDED",
   "RETIRED"
 ]);
+const validLocationClosureTypes = new Set<string>(Object.values(LocationClosureType));
+const validResourceStatuses = new Set<string>(Object.values(SchedulableResourceStatus));
+const validResourceCapacityModes = new Set<string>(Object.values(ResourceCapacityMode));
+const validResourceConflictPolicies = new Set<string>(Object.values(ResourceConflictPolicy));
+const validResourceUnavailabilityTypes = new Set<string>(Object.values(ResourceUnavailabilityType));
 
 type AppointmentAdminLocationRecord = {
   id: string;
@@ -53,6 +66,17 @@ type AppointmentAdminOperatingWindowRecord = {
   validTo: Date | null;
 };
 
+type AppointmentAdminLocationClosureRecord = {
+  id: string;
+  type: string;
+  name: string;
+  startsAt: Date;
+  endsAt: Date;
+  reason: string;
+  createdByUserId: string | null;
+  createdAt: Date;
+};
+
 type AppointmentAdminResourceTypeRecord = {
   id: string;
   code: string;
@@ -62,6 +86,17 @@ type AppointmentAdminResourceTypeRecord = {
   defaultCapacity: number;
   defaultConflictPolicy: string;
   isActive: boolean;
+};
+
+type AppointmentAdminResourceUnavailabilityRecord = {
+  id: string;
+  type: string;
+  startsAt: Date;
+  endsAt: Date;
+  capacityReduction: number | null;
+  reason: string;
+  createdByUserId: string | null;
+  createdAt: Date;
 };
 
 type AppointmentAdminResourceRecord = {
@@ -79,12 +114,17 @@ type AppointmentAdminResourceRecord = {
     name: string;
     kind: string;
   };
+  unavailability: AppointmentAdminResourceUnavailabilityRecord[];
 };
 
 export type AppointmentAdminSettingsRepository = {
   getLocation(): Promise<AppointmentAdminLocationRecord | null>;
+  listLocationClosures(locationId: string): Promise<AppointmentAdminLocationClosureRecord[]>;
   listResourceTypes(organizationId: string): Promise<AppointmentAdminResourceTypeRecord[]>;
   listResources(locationId: string): Promise<AppointmentAdminResourceRecord[]>;
+  createLocationClosure(input: NormalizedAppointmentLocationClosureInput): Promise<AppointmentAdminLocationClosureRecord>;
+  updateResource(input: NormalizedAppointmentResourceUpdateInput): Promise<AppointmentAdminResourceRecord>;
+  createResourceUnavailability(input: NormalizedAppointmentResourceUnavailabilityInput): Promise<AppointmentAdminResourceUnavailabilityRecord>;
   updateLocationAndHours(input: {
     location: AppointmentAdminLocationInput;
     operatingWindows: NormalizedAppointmentOperatingWindowInput[];
@@ -115,6 +155,31 @@ export type AppointmentAdminSettingsInput = {
   operatingWindows: AppointmentOperatingWindowInput[];
 };
 
+export type AppointmentLocationClosureInput = {
+  type: string;
+  name: string;
+  startsAt: string;
+  endsAt: string;
+  reason: string;
+};
+
+export type AppointmentResourceUpdateInput = {
+  resourceId: string;
+  status: string;
+  capacityMode: string;
+  capacity: number;
+  conflictPolicy: string;
+};
+
+export type AppointmentResourceUnavailabilityInput = {
+  resourceId: string;
+  type: string;
+  startsAt: string;
+  endsAt: string;
+  capacityReduction?: number | null;
+  reason: string;
+};
+
 export type NormalizedAppointmentOperatingWindowInput = {
   businessDay: BusinessDay;
   isOpen: boolean;
@@ -122,6 +187,36 @@ export type NormalizedAppointmentOperatingWindowInput = {
   closesAt: string | null;
   opensAtMinute: number | null;
   closesAtMinute: number | null;
+};
+
+export type NormalizedAppointmentLocationClosureInput = {
+  locationId: string;
+  type: LocationClosureType;
+  name: string;
+  startsAt: Date;
+  endsAt: Date;
+  reason: string;
+  createdByUserId: string;
+};
+
+export type NormalizedAppointmentResourceUpdateInput = {
+  resourceId: string;
+  locationId: string;
+  status: SchedulableResourceStatus;
+  capacityMode: ResourceCapacityMode;
+  capacity: number;
+  conflictPolicy: ResourceConflictPolicy;
+};
+
+export type NormalizedAppointmentResourceUnavailabilityInput = {
+  resourceId: string;
+  locationId: string;
+  type: ResourceUnavailabilityType;
+  startsAt: Date;
+  endsAt: Date;
+  capacityReduction: number | null;
+  reason: string;
+  createdByUserId: string;
 };
 
 export type AppointmentAdminSettings = {
@@ -140,8 +235,29 @@ export type AppointmentAdminSettings = {
     businessHoursLabel: string;
   };
   operatingWindows: NormalizedAppointmentOperatingWindowInput[];
+  closures: Array<{
+    id: string;
+    type: string;
+    name: string;
+    startsAtIso: string;
+    endsAtIso: string;
+    reason: string;
+    createdByUserId: string | null;
+    createdAtIso: string;
+  }>;
   resourceTypes: AppointmentAdminResourceTypeRecord[];
-  resources: AppointmentAdminResourceRecord[];
+  resources: Array<Omit<AppointmentAdminResourceRecord, "unavailability"> & {
+    unavailability: Array<{
+      id: string;
+      type: string;
+      startsAtIso: string;
+      endsAtIso: string;
+      capacityReduction: number | null;
+      reason: string;
+      createdByUserId: string | null;
+      createdAtIso: string;
+    }>;
+  }>;
   catalogs: {
     purposes: Array<{
       code: string;
@@ -173,7 +289,9 @@ export type AppointmentBoardSettings = {
   businessHoursLabel: string;
 };
 
-function assertCanManageAppointmentAdminSettings(user: AuthenticatedUser | null) {
+function assertCanManageAppointmentAdminSettings(
+  user: AuthenticatedUser | null
+): asserts user is AuthenticatedUser {
   if (!user) {
     throw new Error("Authentication required.");
   }
@@ -211,11 +329,41 @@ function normalizeOptionalText(value: unknown, label: string, maxLength: number)
   return normalized;
 }
 
+function normalizePositiveInteger(value: unknown, label: string, maxValue = 1000) {
+  const normalized = typeof value === "number" ? value : Number(value);
+
+  if (!Number.isInteger(normalized) || normalized <= 0) {
+    throw new Error(`${label} must be a positive whole number.`);
+  }
+
+  if (normalized > maxValue) {
+    throw new Error(`${label} must be ${maxValue} or fewer.`);
+  }
+
+  return normalized;
+}
+
+function normalizeDate(value: unknown, label: string) {
+  const date = typeof value === "string" || value instanceof Date ? new Date(value) : null;
+
+  if (!date || Number.isNaN(date.getTime())) {
+    throw new Error(`${label} must be a valid date and time.`);
+  }
+
+  return date;
+}
+
 function assertValidTimezone(timezone: string) {
   try {
     Intl.DateTimeFormat("en-US", { timeZone: timezone }).format(new Date());
   } catch {
     throw new Error("Appointment location timezone must be a valid timezone.");
+  }
+}
+
+function assertValidDateRange(startsAt: Date, endsAt: Date, label: string) {
+  if (endsAt <= startsAt) {
+    throw new Error(`${label} must end after it starts.`);
   }
 }
 
@@ -396,6 +544,110 @@ export function normalizeAppointmentAdminSettingsInput(
   };
 }
 
+export function normalizeAppointmentLocationClosureInput(input: {
+  locationId: string;
+  userId: string;
+  closure: AppointmentLocationClosureInput;
+}): NormalizedAppointmentLocationClosureInput {
+  const type = normalizeText(input.closure?.type, "Closure type", 40);
+
+  if (!validLocationClosureTypes.has(type)) {
+    throw new Error("Location closure type is invalid.");
+  }
+
+  const startsAt = normalizeDate(input.closure?.startsAt, "Closure start");
+  const endsAt = normalizeDate(input.closure?.endsAt, "Closure end");
+  assertValidDateRange(startsAt, endsAt, "Location closure");
+
+  return {
+    locationId: normalizeText(input.locationId, "Closure location", 120),
+    type: type as LocationClosureType,
+    name: normalizeText(input.closure?.name, "Closure name", 120),
+    startsAt,
+    endsAt,
+    reason: normalizeText(input.closure?.reason, "Closure reason", 1000),
+    createdByUserId: normalizeText(input.userId, "Closure creator", 120)
+  };
+}
+
+export function normalizeAppointmentResourceUpdateInput(input: {
+  locationId: string;
+  resourceId: string;
+  update: AppointmentResourceUpdateInput;
+}): NormalizedAppointmentResourceUpdateInput {
+  const status = normalizeText(input.update?.status, "Resource status", 40);
+  const capacityMode = normalizeText(input.update?.capacityMode, "Resource capacity mode", 40);
+  const conflictPolicy = normalizeText(input.update?.conflictPolicy, "Resource conflict policy", 40);
+  const capacity = normalizePositiveInteger(input.update?.capacity, "Resource capacity", 1000);
+
+  if (!validResourceStatuses.has(status)) {
+    throw new Error("Resource status is invalid.");
+  }
+
+  if (!validResourceCapacityModes.has(capacityMode)) {
+    throw new Error("Resource capacity mode is invalid.");
+  }
+
+  if (!validResourceConflictPolicies.has(conflictPolicy)) {
+    throw new Error("Resource conflict policy is invalid.");
+  }
+
+  if (capacityMode === "EXCLUSIVE" && capacity !== 1) {
+    throw new Error("An exclusive resource must have capacity 1.");
+  }
+
+  return {
+    resourceId: normalizeText(input.resourceId, "Resource", 120),
+    locationId: normalizeText(input.locationId, "Resource location", 120),
+    status: status as SchedulableResourceStatus,
+    capacityMode: capacityMode as ResourceCapacityMode,
+    capacity,
+    conflictPolicy: conflictPolicy as ResourceConflictPolicy
+  };
+}
+
+export function normalizeAppointmentResourceUnavailabilityInput(input: {
+  locationId: string;
+  resourceId: string;
+  userId: string;
+  unavailability: AppointmentResourceUnavailabilityInput;
+}): NormalizedAppointmentResourceUnavailabilityInput {
+  const type = normalizeText(input.unavailability?.type, "Resource unavailability type", 40);
+
+  if (!validResourceUnavailabilityTypes.has(type)) {
+    throw new Error("Resource unavailability type is invalid.");
+  }
+
+  const startsAt = normalizeDate(input.unavailability?.startsAt, "Resource unavailability start");
+  const endsAt = normalizeDate(input.unavailability?.endsAt, "Resource unavailability end");
+  assertValidDateRange(startsAt, endsAt, "Resource unavailability");
+
+  const rawCapacityReduction = input.unavailability?.capacityReduction;
+  const capacityReduction =
+    rawCapacityReduction === null || rawCapacityReduction === undefined
+      ? null
+      : normalizePositiveInteger(rawCapacityReduction, "Resource capacity reduction", 1000);
+
+  if (type === "CAPACITY_REDUCTION" && !capacityReduction) {
+    throw new Error("A capacity-reduction window requires a positive reduction.");
+  }
+
+  if (type !== "CAPACITY_REDUCTION" && capacityReduction) {
+    throw new Error("Only a capacity-reduction window may specify reduced capacity.");
+  }
+
+  return {
+    resourceId: normalizeText(input.resourceId, "Resource", 120),
+    locationId: normalizeText(input.locationId, "Resource location", 120),
+    type: type as ResourceUnavailabilityType,
+    startsAt,
+    endsAt,
+    capacityReduction,
+    reason: normalizeText(input.unavailability?.reason, "Resource unavailability reason", 1000),
+    createdByUserId: normalizeText(input.userId, "Resource unavailability creator", 120)
+  };
+}
+
 function getCatalogs() {
   const outcomeCodes = new Set<string>();
   const followUpDispositionCodes = new Set<string>();
@@ -442,8 +694,38 @@ function getAutomationRules() {
   );
 }
 
+function serializeClosure(closure: AppointmentAdminLocationClosureRecord) {
+  return {
+    id: closure.id,
+    type: closure.type,
+    name: closure.name,
+    startsAtIso: closure.startsAt.toISOString(),
+    endsAtIso: closure.endsAt.toISOString(),
+    reason: closure.reason,
+    createdByUserId: closure.createdByUserId,
+    createdAtIso: closure.createdAt.toISOString()
+  };
+}
+
+function serializeResource(resource: AppointmentAdminResourceRecord) {
+  return {
+    ...resource,
+    unavailability: resource.unavailability.map((entry) => ({
+      id: entry.id,
+      type: entry.type,
+      startsAtIso: entry.startsAt.toISOString(),
+      endsAtIso: entry.endsAt.toISOString(),
+      capacityReduction: entry.capacityReduction,
+      reason: entry.reason,
+      createdByUserId: entry.createdByUserId,
+      createdAtIso: entry.createdAt.toISOString()
+    }))
+  };
+}
+
 function toSettings(input: {
   location: AppointmentAdminLocationRecord;
+  closures: AppointmentAdminLocationClosureRecord[];
   resourceTypes: AppointmentAdminResourceTypeRecord[];
   resources: AppointmentAdminResourceRecord[];
 }): AppointmentAdminSettings {
@@ -470,8 +752,9 @@ function toSettings(input: {
       businessHoursLabel: getBusinessHoursLabel(operatingWindows)
     },
     operatingWindows,
+    closures: input.closures.map(serializeClosure),
     resourceTypes: input.resourceTypes,
-    resources: input.resources,
+    resources: input.resources.map(serializeResource),
     catalogs: getCatalogs(),
     automationRules: getAutomationRules()
   };
@@ -530,6 +813,28 @@ export function createAppointmentAdminSettingsRepository(): AppointmentAdminSett
         }
       });
     },
+    async listLocationClosures(locationId) {
+      return prisma.locationClosure.findMany({
+        where: {
+          locationId,
+          endsAt: {
+            gte: new Date("2026-07-01T00:00:00.000Z")
+          }
+        },
+        select: {
+          id: true,
+          type: true,
+          name: true,
+          startsAt: true,
+          endsAt: true,
+          reason: true,
+          createdByUserId: true,
+          createdAt: true
+        },
+        orderBy: [{ startsAt: "asc" }, { createdAt: "asc" }],
+        take: 25
+      });
+    },
     async listResourceTypes(organizationId) {
       return prisma.schedulableResourceType.findMany({
         where: { organizationId },
@@ -565,9 +870,129 @@ export function createAppointmentAdminSettingsRepository(): AppointmentAdminSett
               name: true,
               kind: true
             }
+          },
+          unavailability: {
+            where: {
+              endsAt: {
+                gte: new Date("2026-07-01T00:00:00.000Z")
+              }
+            },
+            select: {
+              id: true,
+              type: true,
+              startsAt: true,
+              endsAt: true,
+              capacityReduction: true,
+              reason: true,
+              createdByUserId: true,
+              createdAt: true
+            },
+            orderBy: [{ startsAt: "asc" }, { createdAt: "asc" }],
+            take: 8
           }
         },
         orderBy: [{ resourceType: { kind: "asc" } }, { name: "asc" }]
+      });
+    },
+    async createLocationClosure(input) {
+      return prisma.locationClosure.create({
+        data: input,
+        select: {
+          id: true,
+          type: true,
+          name: true,
+          startsAt: true,
+          endsAt: true,
+          reason: true,
+          createdByUserId: true,
+          createdAt: true
+        }
+      });
+    },
+    async updateResource(input) {
+      return prisma.schedulableResource.update({
+        where: {
+          id: input.resourceId,
+          locationId: input.locationId
+        },
+        data: {
+          status: input.status,
+          capacityMode: input.capacityMode,
+          capacity: input.capacity,
+          conflictPolicy: input.conflictPolicy
+        },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          status: true,
+          capacityMode: true,
+          capacity: true,
+          conflictPolicy: true,
+          userId: true,
+          vehicleId: true,
+          resourceType: {
+            select: {
+              code: true,
+              name: true,
+              kind: true
+            }
+          },
+          unavailability: {
+            where: {
+              endsAt: {
+                gte: new Date("2026-07-01T00:00:00.000Z")
+              }
+            },
+            select: {
+              id: true,
+              type: true,
+              startsAt: true,
+              endsAt: true,
+              capacityReduction: true,
+              reason: true,
+              createdByUserId: true,
+              createdAt: true
+            },
+            orderBy: [{ startsAt: "asc" }, { createdAt: "asc" }],
+            take: 8
+          }
+        }
+      });
+    },
+    async createResourceUnavailability(input) {
+      const resource = await prisma.schedulableResource.findFirst({
+        where: {
+          id: input.resourceId,
+          locationId: input.locationId
+        },
+        select: { id: true }
+      });
+
+      if (!resource) {
+        throw new Error("Resource is not configured for this appointment location.");
+      }
+
+      return prisma.resourceUnavailability.create({
+        data: {
+          resourceId: input.resourceId,
+          type: input.type,
+          startsAt: input.startsAt,
+          endsAt: input.endsAt,
+          capacityReduction: input.capacityReduction,
+          reason: input.reason,
+          createdByUserId: input.createdByUserId
+        },
+        select: {
+          id: true,
+          type: true,
+          startsAt: true,
+          endsAt: true,
+          capacityReduction: true,
+          reason: true,
+          createdByUserId: true,
+          createdAt: true
+        }
       });
     },
     async updateLocationAndHours(input) {
@@ -691,12 +1116,13 @@ export async function getAppointmentAdminSettings(
     throw new Error("Appointment location settings are not configured.");
   }
 
-  const [resourceTypes, resources] = await Promise.all([
+  const [closures, resourceTypes, resources] = await Promise.all([
+    repository.listLocationClosures(location.id),
     repository.listResourceTypes(location.organizationId),
     repository.listResources(location.id)
   ]);
 
-  return toSettings({ location, resourceTypes, resources });
+  return toSettings({ location, closures, resourceTypes, resources });
 }
 
 export async function getAppointmentBoardSettings(
@@ -723,6 +1149,79 @@ export async function updateAppointmentAdminSettings(
 
   const normalizedInput = normalizeAppointmentAdminSettingsInput(input);
   await repository.updateLocationAndHours(normalizedInput);
+
+  return getAppointmentAdminSettings(repository);
+}
+
+export async function createAppointmentLocationClosureForManager(
+  user: AuthenticatedUser | null,
+  input: AppointmentLocationClosureInput,
+  repository: AppointmentAdminSettingsRepository = createAppointmentAdminSettingsRepository()
+) {
+  assertCanManageAppointmentAdminSettings(user);
+
+  const location = await repository.getLocation();
+
+  if (!location) {
+    throw new Error("Appointment location settings are not configured.");
+  }
+
+  await repository.createLocationClosure(
+    normalizeAppointmentLocationClosureInput({
+      locationId: location.id,
+      userId: user.id,
+      closure: input
+    })
+  );
+
+  return getAppointmentAdminSettings(repository);
+}
+
+export async function updateAppointmentResourceForManager(
+  user: AuthenticatedUser | null,
+  input: AppointmentResourceUpdateInput,
+  repository: AppointmentAdminSettingsRepository = createAppointmentAdminSettingsRepository()
+) {
+  assertCanManageAppointmentAdminSettings(user);
+
+  const location = await repository.getLocation();
+
+  if (!location) {
+    throw new Error("Appointment location settings are not configured.");
+  }
+
+  await repository.updateResource(
+    normalizeAppointmentResourceUpdateInput({
+      locationId: location.id,
+      resourceId: input.resourceId,
+      update: input
+    })
+  );
+
+  return getAppointmentAdminSettings(repository);
+}
+
+export async function createAppointmentResourceUnavailabilityForManager(
+  user: AuthenticatedUser | null,
+  input: AppointmentResourceUnavailabilityInput,
+  repository: AppointmentAdminSettingsRepository = createAppointmentAdminSettingsRepository()
+) {
+  assertCanManageAppointmentAdminSettings(user);
+
+  const location = await repository.getLocation();
+
+  if (!location) {
+    throw new Error("Appointment location settings are not configured.");
+  }
+
+  await repository.createResourceUnavailability(
+    normalizeAppointmentResourceUnavailabilityInput({
+      locationId: location.id,
+      resourceId: input.resourceId,
+      userId: user.id,
+      unavailability: input
+    })
+  );
 
   return getAppointmentAdminSettings(repository);
 }

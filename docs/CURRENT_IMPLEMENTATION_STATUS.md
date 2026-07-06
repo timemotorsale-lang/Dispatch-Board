@@ -18,8 +18,8 @@ npm run db:validate
 Vitest result:
 
 ```text
-105 test files passed
-607 tests passed
+106 test files passed
+615 tests passed
 ```
 
 Latest focused validation after the Admin Settings Foundation block:
@@ -27,6 +27,8 @@ Latest focused validation after the Admin Settings Foundation block:
 ```text
 npm run typecheck
 npm test -- appointment-admin-settings-service.test.ts appointment-admin-settings-route.test.ts appointment-board-shell.test.tsx
+npm test -- appointment-admin-settings-service.test.ts appointment-admin-settings-route.test.ts appointment-admin-settings-v2-route.test.ts
+npm test -- appointment-admin-settings-service.test.ts appointment-admin-settings-route.test.ts appointment-admin-settings-v2-route.test.ts appointment-board-shell.test.tsx
 npm run lint
 npm run db:validate
 npm test
@@ -43,7 +45,7 @@ All focused and full-suite runs passed. The authored task-to-appointment Playwri
 | Authentication | Implemented | Login, logout, current-user route, sessions, and protected routes |
 | Users, roles, and duties | Implemented | Schema, APIs, services, policies, settings UI, and tests |
 | App settings | Implemented | Timezone, business days, generation time, manager API/UI, and tests |
-| Appointment admin settings foundation | Implemented as partial E5 admin foundation | Manager-only `/settings/appointments` workspace, protected `/api/settings/appointments` route, location profile/address/phone/timezone/status editing, weekday appointment operating windows, resource/catalog/automation readiness summaries, and Appointment Board header/create/schedule fallback wiring |
+| Appointment admin settings foundation | Implemented as partial E5 admin foundation | Manager-only `/settings/appointments` workspace, protected appointment admin settings routes, location profile/address/phone/timezone/status editing, weekday appointment operating windows, location closure creation, resource status/capacity/conflict-policy editing, resource outage/capacity-reduction windows, resource/catalog/automation readiness summaries, and Appointment Board header/create/schedule fallback wiring |
 | Task templates | Partially implemented | Schema, API, service, validation, seed data, tests, and prototype UI exist; production template administration remains incomplete |
 | Daily board generation | Implemented | Input loading, idempotent task generation, run tracking, manual trigger, scheduled route, and tests |
 | Board read and UI | Implemented | Date/today APIs, grouping, filtering, responsive board, manual task creation, and tests |
