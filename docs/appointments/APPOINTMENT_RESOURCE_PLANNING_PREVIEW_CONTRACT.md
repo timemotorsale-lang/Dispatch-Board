@@ -81,11 +81,11 @@ Successful response:
 Partially addressed after this slice:
 
 - EAPT-029E lets the UI attach a server-recommended appointment resource requirement.
+- EAPT-029F lets the UI propose a specific active resource candidate as a non-capacity-consuming `PROPOSED` reservation.
 
 Still pending:
 
 - broader create/update/remove appointment resource requirement administration
-- active resource candidate selection
 - live resource availability evaluation for the selected time window
 - reservation hold/commit/release UI
 - warning override capture

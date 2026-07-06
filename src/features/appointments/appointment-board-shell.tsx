@@ -189,6 +189,13 @@ type AppointmentResourcePlanning = {
     resourceTypeName: string | null;
     selectedRequirementId: string | null;
     selectedReservationCount: number;
+    selectedReservation: {
+      id: string;
+      status: string;
+      resourceId: string;
+      resourceCode: string;
+      resourceName: string;
+    } | null;
     activeCandidateCount: number;
     status: "SELECTED" | "AVAILABLE" | "CONFIGURATION_NEEDED" | "RESOURCE_TYPE_MISSING";
     candidates: Array<{
@@ -826,6 +833,8 @@ export function AppointmentBoardShell() {
   const [resourcePlanning, setResourcePlanning] = useState<AppointmentResourcePlanning | null>(null);
   const [isResourcePlanningLoading, setIsResourcePlanningLoading] = useState(false);
   const [resourceRequirementSavingCode, setResourceRequirementSavingCode] = useState<string | null>(null);
+  const [resourceCandidateSavingCode, setResourceCandidateSavingCode] = useState<string | null>(null);
+  const [selectedResourceCandidates, setSelectedResourceCandidates] = useState<Record<string, string>>({});
   const [detailRefreshKey, setDetailRefreshKey] = useState(0);
   const [actionNotice, setActionNotice] = useState("Operational command bridge ready. Persisted appointments can now use the live command API for check-in and no-show actions.");
 
@@ -1198,6 +1207,88 @@ export function AppointmentBoardShell() {
       );
     } finally {
       setResourceRequirementSavingCode(null);
+    }
+  }
+
+  async function proposeResourceCandidate(
+    recommendation: AppointmentResourcePlanning["recommendations"][number]
+  ) {
+    if (!selectedAppointment.recordId || !selectedAppointment.recordVersion) {
+      setActionNotice("Resource candidates can only be proposed for persisted live draft appointments.");
+      return;
+    }
+
+    if (!recommendation.selectedRequirementId) {
+      setActionNotice(`Attach the ${recommendation.label} requirement before proposing a resource candidate.`);
+      return;
+    }
+
+    const selectedResourceId =
+      selectedResourceCandidates[recommendation.requirementCode] ??
+      recommendation.selectedReservation?.resourceId ??
+      recommendation.candidates[0]?.id;
+
+    if (!selectedResourceId) {
+      setActionNotice(`No active ${recommendation.resourceTypeCode} candidate is available to propose.`);
+      return;
+    }
+
+    setResourceCandidateSavingCode(recommendation.requirementCode);
+
+    try {
+      const selectedCandidate = recommendation.candidates.find(
+        (candidate) => candidate.id === selectedResourceId
+      );
+      const correlationId = createAppointmentActionIdentifier(
+        "resource-candidate",
+        selectedAppointment.recordId
+      );
+      const response = await fetch(
+        `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/resource-requirements/${encodeURIComponent(recommendation.selectedRequirementId)}/candidate-proposals`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            resourceId: selectedResourceId,
+            expectedAppointmentVersion: selectedAppointment.recordVersion,
+            reasonCode: "RESOURCE_CANDIDATE_PROPOSED",
+            reasonNotes: `Proposed ${selectedCandidate?.name ?? "selected resource"} for ${recommendation.label} from Appointment Board resource planning.`,
+            correlationId
+          })
+        }
+      );
+      const result = (await response.json().catch(() => null)) as
+        | {
+            proposal?: {
+              resourceName: string;
+              created: boolean;
+              appointmentVersion: number;
+            };
+            error?: string;
+          }
+        | null;
+
+      if (!response.ok || !result?.proposal) {
+        throw new Error(result?.error || "Unable to propose the resource candidate.");
+      }
+
+      setActionNotice(
+        result.proposal.created
+          ? `${result.proposal.resourceName} was proposed for ${recommendation.label}. Schedule readiness and resource planning are refreshing.`
+          : `${result.proposal.resourceName} was already proposed for ${recommendation.label}. Schedule readiness and resource planning are refreshing.`
+      );
+      setDetailRefreshKey((value) => value + 1);
+      await loadLiveAppointments();
+    } catch (error) {
+      setActionNotice(
+        error instanceof Error
+          ? error.message
+          : "Unable to propose the resource candidate right now."
+      );
+    } finally {
+      setResourceCandidateSavingCode(null);
     }
   }
 
@@ -1586,6 +1677,62 @@ export function AppointmentBoardShell() {
                             ? "Attaching..."
                             : "Attach Requirement"}
                         </button>
+                      ) : null}
+                      {recommendation.selectedRequirementId ? (
+                        <div className="appointment-resource-candidate-form">
+                          {recommendation.selectedReservation ? (
+                            <small>
+                              Proposed: {recommendation.selectedReservation.resourceName} ({recommendation.selectedReservation.status})
+                            </small>
+                          ) : (
+                            <small>No resource candidate proposed yet.</small>
+                          )}
+                          <select
+                            aria-label={`Select ${recommendation.label} candidate`}
+                            disabled={
+                              resourceCandidateSavingCode === recommendation.requirementCode ||
+                              recommendation.candidates.length === 0 ||
+                              selectedAppointment.dataSource !== "live" ||
+                              !resourcePlanning.canManageResourcesForAppointment
+                            }
+                            onChange={(event) =>
+                              setSelectedResourceCandidates((current) => ({
+                                ...current,
+                                [recommendation.requirementCode]: event.target.value
+                              }))
+                            }
+                            value={
+                              selectedResourceCandidates[recommendation.requirementCode] ??
+                              recommendation.selectedReservation?.resourceId ??
+                              recommendation.candidates[0]?.id ??
+                              ""
+                            }
+                          >
+                            {recommendation.candidates.length === 0 ? (
+                              <option value="">No active candidates</option>
+                            ) : null}
+                            {recommendation.candidates.map((candidate) => (
+                              <option key={candidate.id} value={candidate.id}>
+                                {candidate.name} · {candidate.capacityMode} · {candidate.conflictPolicy}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            className="appointment-resource-action"
+                            disabled={
+                              resourceCandidateSavingCode === recommendation.requirementCode ||
+                              recommendation.candidates.length === 0 ||
+                              selectedAppointment.dataSource !== "live" ||
+                              !resourcePlanning.canManageResourcesForAppointment
+                            }
+                            onClick={() => void proposeResourceCandidate(recommendation)}
+                            type="button"
+                          >
+                            {resourceCandidateSavingCode === recommendation.requirementCode
+                              ? "Proposing..."
+                              : "Propose Candidate"}
+                          </button>
+                        </div>
                       ) : null}
                     </div>
                   ))}

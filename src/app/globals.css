@@ -6258,6 +6258,31 @@ code {
   cursor: not-allowed;
 }
 
+.appointment-resource-candidate-form {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 7px;
+  padding-top: 6px;
+  border-top: 1px solid #edf0f4;
+}
+
+.appointment-resource-candidate-form select {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  color: #253449;
+  background: #fff;
+  border: 1px solid #dce3ed;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.appointment-resource-candidate-form select:disabled {
+  color: #94a3b8;
+  background: #f8fafc;
+}
+
 .appointment-resource-copy {
   margin: 0;
   color: #64748b;

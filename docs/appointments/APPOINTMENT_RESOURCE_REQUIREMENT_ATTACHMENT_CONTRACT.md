@@ -74,9 +74,12 @@ Successful create response:
 
 ## Not Yet Claimed
 
+Partially addressed after this slice:
+
+- EAPT-029F lets the UI propose a specific active resource candidate as a non-capacity-consuming `PROPOSED` reservation.
+
 Still pending:
 
-- selecting a specific resource candidate
 - checking live resource availability for the appointment time window
 - holding or committing a reservation
 - release/change requirement flows

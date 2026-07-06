@@ -8,7 +8,10 @@ import {
   type AppointmentLocationAccessGrant
 } from "@/server/policies/access";
 import { normalizeAppointmentHistoryEvent } from "@/server/validation/appointment-history-events";
-import { normalizeAppointmentResourceRequirement } from "@/server/validation/appointment-resources";
+import {
+  normalizeAppointmentResourceRequirement,
+  normalizeAppointmentResourceReservation
+} from "@/server/validation/appointment-resources";
 
 const appointmentResourcePlanningSelect = {
   id: true,
@@ -18,11 +21,14 @@ const appointmentResourcePlanningSelect = {
   ownerUserId: true,
   title: true,
   version: true,
+  startsAt: true,
+  endsAt: true,
   bookingStatus: true,
   purposeSnapshot: true,
   resourceRequirements: {
     select: {
       id: true,
+      appointmentId: true,
       resourceTypeId: true,
       requirementCode: true,
       requiredCapacity: true,
@@ -41,7 +47,15 @@ const appointmentResourcePlanningSelect = {
         select: {
           id: true,
           status: true,
-          resourceId: true
+          resourceId: true,
+          createdAt: true,
+          resource: {
+            select: {
+              id: true,
+              code: true,
+              name: true
+            }
+          }
         }
       }
     }
@@ -74,6 +88,8 @@ const resourceTypeSelect = {
 
 const resourceSelect = {
   id: true,
+  organizationId: true,
+  locationId: true,
   resourceTypeId: true,
   code: true,
   name: true,
@@ -90,6 +106,7 @@ type AppointmentResourcePlanningDatabase = Pick<
   | "userLocationAccess"
   | "schedulableResourceType"
   | "schedulableResource"
+  | "appointmentResourceReservation"
 >;
 
 export type AppointmentResourcePlanningAppointmentRecord = Prisma.AppointmentGetPayload<{
@@ -155,6 +172,15 @@ export type AppointmentResourcePlanningResult = {
       resourceTypeName: string | null;
       selectedRequirementId: string | null;
       selectedReservationCount: number;
+      selectedReservation:
+        | {
+            id: string;
+            status: string;
+            resourceId: string;
+            resourceCode: string;
+            resourceName: string;
+          }
+        | null;
       activeCandidateCount: number;
       status:
         | "SELECTED"
@@ -189,6 +215,31 @@ export type AppointmentAttachedResourceRequirement = {
 
 export type AttachRecommendedResourceRequirementInput = {
   requirementCode: string;
+  expectedAppointmentVersion: number;
+  reasonCode: string;
+  reasonNotes: string;
+  correlationId?: string | null;
+};
+
+export type AppointmentProposedResourceCandidate = {
+  id: string;
+  appointmentId: string;
+  requirementId: string | null;
+  resourceId: string;
+  resourceCode: string;
+  resourceName: string;
+  status: "PROPOSED";
+  startsAt: Date;
+  endsAt: Date;
+  capacityUnits: number;
+  created: boolean;
+  cancelledPriorProposalCount: number;
+  appointmentVersion: number;
+};
+
+export type ProposeAppointmentResourceCandidateInput = {
+  requirementId: string;
+  resourceId: string;
   expectedAppointmentVersion: number;
   reasonCode: string;
   reasonNotes: string;
@@ -451,6 +502,65 @@ function toAttachedRequirement(input: {
   };
 }
 
+function getActiveSelectedReservation(
+  requirement: AppointmentResourcePlanningAppointmentRecord["resourceRequirements"][number] | null
+) {
+  if (!requirement) {
+    return null;
+  }
+
+  const activeReservations = requirement.reservations
+    .filter((reservation) => ["PROPOSED", "HELD", "COMMITTED"].includes(reservation.status))
+    .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+
+  const reservation = activeReservations[0];
+
+  if (!reservation) {
+    return null;
+  }
+
+  return {
+    id: reservation.id,
+    status: reservation.status,
+    resourceId: reservation.resourceId,
+    resourceCode: reservation.resource.code,
+    resourceName: reservation.resource.name
+  };
+}
+
+function toProposedCandidate(input: {
+  reservation: {
+    id: string;
+    appointmentId: string;
+    requirementId: string | null;
+    resourceId: string;
+    status: string;
+    startsAt: Date;
+    endsAt: Date;
+    capacityUnits: number;
+  };
+  resource: AppointmentResourcePlanningResourceRecord;
+  created: boolean;
+  cancelledPriorProposalCount: number;
+  appointmentVersion: number;
+}): AppointmentProposedResourceCandidate {
+  return {
+    id: input.reservation.id,
+    appointmentId: input.reservation.appointmentId,
+    requirementId: input.reservation.requirementId,
+    resourceId: input.reservation.resourceId,
+    resourceCode: input.resource.code,
+    resourceName: input.resource.name,
+    status: "PROPOSED",
+    startsAt: input.reservation.startsAt,
+    endsAt: input.reservation.endsAt,
+    capacityUnits: input.reservation.capacityUnits,
+    created: input.created,
+    cancelledPriorProposalCount: input.cancelledPriorProposalCount,
+    appointmentVersion: input.appointmentVersion
+  };
+}
+
 function summarizeStatus(
   recommendations: AppointmentResourcePlanningResult["recommendations"]
 ): AppointmentResourcePlanningResult["status"] {
@@ -487,6 +597,7 @@ function buildPlanning(input: {
           requirement.requirementCode === recommendation.requirementCode ||
           requirement.resourceType.code === recommendation.resourceTypeCode
       ) ?? null;
+    const selectedReservation = getActiveSelectedReservation(selectedRequirement);
     const candidates = resourceType
       ? input.resources.filter((resource) => resource.resourceTypeId === resourceType.id)
       : [];
@@ -503,7 +614,12 @@ function buildPlanning(input: {
       resourceTypeId: resourceType?.id ?? null,
       resourceTypeName: resourceType?.name ?? null,
       selectedRequirementId: selectedRequirement?.id ?? null,
-      selectedReservationCount: selectedRequirement?.reservations.length ?? 0,
+      selectedReservationCount: selectedRequirement
+        ? selectedRequirement.reservations.filter((reservation) =>
+            ["PROPOSED", "HELD", "COMMITTED"].includes(reservation.status)
+          ).length
+        : 0,
+      selectedReservation,
       activeCandidateCount: candidates.length,
       status,
       candidates: candidates.map((resource) => ({
@@ -915,6 +1031,277 @@ export async function attachRecommendedAppointmentResourceRequirement(
     return toAttachedRequirement({
       requirement: createdRequirement,
       created: true,
+      appointmentVersion: expectedAppointmentVersion + 1
+    });
+  });
+}
+
+export async function proposeAppointmentResourceCandidate(
+  user: AuthenticatedUser | null,
+  appointmentId: string,
+  input: ProposeAppointmentResourceCandidateInput,
+  database: AppointmentResourcePlanningDatabase = prisma,
+  now = new Date()
+): Promise<AppointmentProposedResourceCandidate> {
+  const actor = assertAuthenticated(user);
+  const normalizedAppointmentId = requiredText(appointmentId, "Appointment id");
+  const requirementId = requiredText(input.requirementId, "Resource requirement");
+  const resourceId = requiredText(input.resourceId, "Resource candidate");
+  const expectedAppointmentVersion = requiredVersion(input.expectedAppointmentVersion);
+  const reasonCode = requiredText(input.reasonCode, "Resource candidate reason code");
+  const reasonNotes = requiredText(input.reasonNotes, "Resource candidate reason notes");
+  const correlationId =
+    input.correlationId?.trim() ||
+    `resource-candidate-${normalizedAppointmentId}-${requirementId}-${resourceId}-${now.getTime()}`;
+
+  const appointment = await database.appointment.findUnique({
+    where: {
+      id: normalizedAppointmentId
+    },
+    select: appointmentResourcePlanningSelect
+  });
+
+  if (!appointment) {
+    throw new Error("Appointment not found.");
+  }
+
+  if (appointment.bookingStatus !== "DRAFT" && appointment.bookingStatus !== "PENDING_APPROVAL") {
+    throw new Error("Resource candidates can only be proposed for draft appointments.");
+  }
+
+  if (!appointment.startsAt || !appointment.endsAt || appointment.endsAt <= appointment.startsAt) {
+    throw new Error("Resource candidate proposal requires a valid appointment time window.");
+  }
+
+  const requirement = appointment.resourceRequirements.find(
+    (candidate) => candidate.id === requirementId
+  );
+
+  if (!requirement) {
+    throw new Error("Resource requirement not found for this appointment.");
+  }
+
+  const access = await database.userLocationAccess.findFirst({
+    where: {
+      userId: actor.id,
+      locationId: appointment.locationId,
+      validFrom: {
+        lte: now
+      },
+      OR: [
+        {
+          validTo: null
+        },
+        {
+          validTo: {
+            gte: now
+          }
+        }
+      ]
+    },
+    select: locationAccessSelect
+  });
+
+  if (!access || !isDateWithinAccessWindow(access, now)) {
+    throw new Error("Appointment schedule is not authorized.");
+  }
+
+  const locationAccess = toLocationAccessGrant(access);
+
+  if (!canViewAppointmentSchedule({ actor, locationAccess })) {
+    throw new Error("Appointment schedule is not authorized.");
+  }
+
+  if (
+    !canMutateAppointment({
+      actor,
+      ownerUserId: appointment.ownerUserId,
+      locationAccess
+    })
+  ) {
+    throw new Error("Appointment command is not authorized.");
+  }
+
+  const resource = await database.schedulableResource.findFirst({
+    where: {
+      id: resourceId,
+      organizationId: appointment.organizationId,
+      locationId: appointment.locationId,
+      resourceTypeId: requirement.resourceTypeId,
+      status: "ACTIVE",
+      effectiveFrom: {
+        lte: now
+      },
+      OR: [
+        {
+          effectiveTo: null
+        },
+        {
+          effectiveTo: {
+            gte: now
+          }
+        }
+      ]
+    },
+    select: resourceSelect
+  });
+
+  if (!resource) {
+    throw new Error("Resource candidate is not available for this requirement.");
+  }
+
+  const normalizedReservation = normalizeAppointmentResourceReservation({
+    appointmentId: appointment.id,
+    appointmentLocationId: appointment.locationId,
+    requirementId: requirement.id,
+    requirementAppointmentId: requirement.appointmentId,
+    resourceId: resource.id,
+    resourceLocationId: resource.locationId,
+    status: "PROPOSED",
+    startsAt: appointment.startsAt,
+    endsAt: appointment.endsAt,
+    capacityUnits: requirement.requiredCapacity,
+    resourceCapacity: resource.capacity,
+    resourceCapacityMode: resource.capacityMode,
+    bufferBeforeMinutes: 0,
+    bufferAfterMinutes: 0
+  });
+
+  const existingSameProposal = requirement.reservations.find(
+    (reservation) => reservation.status === "PROPOSED" && reservation.resourceId === resource.id
+  );
+
+  if (existingSameProposal) {
+    return toProposedCandidate({
+      reservation: {
+        id: existingSameProposal.id,
+        appointmentId: appointment.id,
+        requirementId: requirement.id,
+        resourceId: resource.id,
+        status: "PROPOSED",
+        startsAt: appointment.startsAt,
+        endsAt: appointment.endsAt,
+        capacityUnits: requirement.requiredCapacity
+      },
+      resource,
+      created: false,
+      cancelledPriorProposalCount: 0,
+      appointmentVersion: appointment.version
+    });
+  }
+
+  const historyEvent = normalizeAppointmentHistoryEvent({
+    appointmentId: appointment.id,
+    actorType: "HUMAN",
+    actorUserId: actor.id,
+    eventType: "FIELD_UPDATED",
+    message: `Resource candidate ${resource.name} was proposed for ${requirement.requirementCode}.`,
+    reasonCode,
+    reasonNotes,
+    correlationId,
+    priorValue: {
+      resourceRequirement: {
+        id: requirement.id,
+        requirementCode: requirement.requirementCode,
+        activeReservations: requirement.reservations
+          .filter((reservation) => ["PROPOSED", "HELD", "COMMITTED"].includes(reservation.status))
+          .map((reservation) => ({
+            id: reservation.id,
+            status: reservation.status,
+            resourceId: reservation.resourceId
+          }))
+      }
+    },
+    newValue: {
+      resourceCandidate: {
+        resourceId: resource.id,
+        resourceCode: resource.code,
+        resourceName: resource.name,
+        status: "PROPOSED"
+      }
+    },
+    metadata: {
+      source: "APPOINTMENT_BOARD_RESOURCE_PLANNING",
+      expectedAppointmentVersion,
+      requirementId: requirement.id
+    },
+    occurredAt: now
+  });
+
+  return database.$transaction(async (tx) => {
+    const appointmentUpdate = await tx.appointment.updateMany({
+      where: {
+        id: appointment.id,
+        version: expectedAppointmentVersion
+      },
+      data: {
+        version: {
+          increment: 1
+        }
+      }
+    });
+
+    if (appointmentUpdate.count !== 1) {
+      throw new Error("Appointment version is stale.");
+    }
+
+    const cancelledPriorProposals = await tx.appointmentResourceReservation.updateMany({
+      where: {
+        appointmentId: appointment.id,
+        requirementId: requirement.id,
+        status: "PROPOSED"
+      },
+      data: {
+        status: "CANCELLED"
+      }
+    });
+
+    const createdReservation = await tx.appointmentResourceReservation.create({
+      data: {
+        appointmentId: normalizedReservation.appointmentId,
+        requirementId: normalizedReservation.requirementId,
+        resourceId: normalizedReservation.resourceId,
+        status: normalizedReservation.status,
+        startsAt: normalizedReservation.startsAt,
+        endsAt: normalizedReservation.endsAt,
+        capacityUnits: normalizedReservation.capacityUnits,
+        bufferBeforeMinutes: normalizedReservation.bufferBeforeMinutes,
+        bufferAfterMinutes: normalizedReservation.bufferAfterMinutes
+      },
+      select: {
+        id: true,
+        appointmentId: true,
+        requirementId: true,
+        resourceId: true,
+        status: true,
+        startsAt: true,
+        endsAt: true,
+        capacityUnits: true
+      }
+    });
+
+    await tx.appointmentHistoryEvent.create({
+      data: {
+        appointmentId: historyEvent.appointmentId,
+        actorType: historyEvent.actorType,
+        actorUserId: historyEvent.actorUserId,
+        eventType: historyEvent.eventType,
+        message: historyEvent.message,
+        reasonCode: historyEvent.reasonCode,
+        reasonNotes: historyEvent.reasonNotes,
+        correlationId: historyEvent.correlationId,
+        priorValue: nullableInputJson(historyEvent.priorValue),
+        newValue: nullableInputJson(historyEvent.newValue),
+        metadata: asInputJson(historyEvent.metadata),
+        occurredAt: historyEvent.occurredAt ?? now
+      }
+    });
+
+    return toProposedCandidate({
+      reservation: createdReservation,
+      resource,
+      created: true,
+      cancelledPriorProposalCount: cancelledPriorProposals.count,
       appointmentVersion: expectedAppointmentVersion + 1
     });
   });

@@ -1,0 +1,162 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  getCurrentUser: vi.fn(),
+  proposeAppointmentResourceCandidate: vi.fn()
+}));
+
+vi.mock("@/server/auth/current-user", () => ({
+  getCurrentUser: mocks.getCurrentUser
+}));
+
+vi.mock("@/server/services/appointment-resource-planning-service", () => ({
+  proposeAppointmentResourceCandidate: mocks.proposeAppointmentResourceCandidate
+}));
+
+import { POST } from "@/app/api/appointments/[id]/resource-requirements/[requirementId]/candidate-proposals/route";
+
+const managerUser = {
+  id: "user-manager",
+  name: "Abdi Farah",
+  email: "manager@local.test",
+  isActive: true,
+  roles: ["General Manager"],
+  duties: {
+    direct: [],
+    roleDefaults: [],
+    all: []
+  }
+};
+
+describe("appointment resource candidate proposals route", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getCurrentUser.mockResolvedValue(managerUser);
+    mocks.proposeAppointmentResourceCandidate.mockResolvedValue({
+      id: "reservation-proposed",
+      appointmentId: "appointment-1",
+      requirementId: "requirement-1",
+      resourceId: "resource-bay-1",
+      resourceCode: "BAY_1",
+      resourceName: "Service Bay 1",
+      status: "PROPOSED",
+      startsAt: new Date("2026-07-06T15:00:00.000Z"),
+      endsAt: new Date("2026-07-06T16:00:00.000Z"),
+      capacityUnits: 1,
+      created: true,
+      cancelledPriorProposalCount: 0,
+      appointmentVersion: 4
+    });
+  });
+
+  it("proposes a resource candidate for an attached requirement", async () => {
+    const response = await POST(
+      new Request(
+        "http://localhost/api/appointments/appointment-1/resource-requirements/requirement-1/candidate-proposals",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            resourceId: "resource-bay-1",
+            expectedAppointmentVersion: 3,
+            reasonCode: "RESOURCE_CANDIDATE_PROPOSED",
+            reasonNotes: "Propose Bay 1 before scheduling.",
+            correlationId: "correlation-1"
+          })
+        }
+      ),
+      {
+        params: Promise.resolve({
+          id: "appointment-1",
+          requirementId: "requirement-1"
+        })
+      }
+    );
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toMatchObject({
+      proposal: {
+        id: "reservation-proposed",
+        resourceName: "Service Bay 1",
+        status: "PROPOSED",
+        created: true,
+        appointmentVersion: 4
+      }
+    });
+    expect(mocks.proposeAppointmentResourceCandidate).toHaveBeenCalledWith(
+      managerUser,
+      "appointment-1",
+      {
+        requirementId: "requirement-1",
+        resourceId: "resource-bay-1",
+        expectedAppointmentVersion: 3,
+        reasonCode: "RESOURCE_CANDIDATE_PROPOSED",
+        reasonNotes: "Propose Bay 1 before scheduling.",
+        correlationId: "correlation-1"
+      }
+    );
+  });
+
+  it("maps stale versions to conflict", async () => {
+    mocks.proposeAppointmentResourceCandidate.mockRejectedValue(
+      new Error("Appointment version is stale.")
+    );
+
+    const response = await POST(
+      new Request(
+        "http://localhost/api/appointments/appointment-1/resource-requirements/requirement-1/candidate-proposals",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            resourceId: "resource-bay-1",
+            expectedAppointmentVersion: 2,
+            reasonCode: "RESOURCE_CANDIDATE_PROPOSED",
+            reasonNotes: "Propose Bay 1 before scheduling."
+          })
+        }
+      ),
+      {
+        params: Promise.resolve({
+          id: "appointment-1",
+          requirementId: "requirement-1"
+        })
+      }
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      error: "Appointment version is stale."
+    });
+  });
+
+  it("maps missing requirements to not found", async () => {
+    mocks.proposeAppointmentResourceCandidate.mockRejectedValue(
+      new Error("Resource requirement not found for this appointment.")
+    );
+
+    const response = await POST(
+      new Request(
+        "http://localhost/api/appointments/appointment-1/resource-requirements/missing/candidate-proposals",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            resourceId: "resource-bay-1",
+            expectedAppointmentVersion: 3,
+            reasonCode: "RESOURCE_CANDIDATE_PROPOSED",
+            reasonNotes: "Propose Bay 1 before scheduling."
+          })
+        }
+      ),
+      {
+        params: Promise.resolve({
+          id: "appointment-1",
+          requirementId: "missing"
+        })
+      }
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({
+      error: "Resource requirement not found for this appointment."
+    });
+  });
+});

@@ -4,6 +4,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import {
   attachRecommendedAppointmentResourceRequirement,
   previewAppointmentResourcePlanning,
+  proposeAppointmentResourceCandidate,
   type AppointmentResourcePlanningAppointmentRecord,
   type AppointmentResourcePlanningLocationAccessRecord,
   type AppointmentResourcePlanningRepository,
@@ -65,6 +66,8 @@ function resource(
 ): AppointmentResourcePlanningResourceRecord {
   return {
     id: "resource-bay-1",
+    organizationId: "org-time-motor-sales",
+    locationId: "loc-time-motor-sales-minneapolis",
     resourceTypeId: "resource-type-service-bay",
     code: "BAY_1",
     name: "Service Bay 1",
@@ -87,6 +90,8 @@ function appointment(
     ownerUserId: managerUser.id,
     title: "Service / Repair",
     version: 3,
+    startsAt: new Date("2026-07-06T15:00:00.000Z"),
+    endsAt: new Date("2026-07-06T16:00:00.000Z"),
     bookingStatus: "DRAFT",
     purposeSnapshot: {
       category: "service"
@@ -174,6 +179,7 @@ describe("appointment resource planning service", () => {
           resourceRequirements: [
             {
               id: "requirement-1",
+              appointmentId: "appointment-1",
               resourceTypeId: "resource-type-service-bay",
               requirementCode: "SERVICE_BAY",
               requiredCapacity: 1,
@@ -384,6 +390,217 @@ describe("appointment recommended resource requirement attachment", () => {
           expectedAppointmentVersion: 2,
           reasonCode: "RESOURCE_REQUIREMENT_ADDED",
           reasonNotes: "Attach service bay before scheduling."
+        },
+        harness.database,
+        now
+      )
+    ).rejects.toThrow("Appointment version is stale.");
+  });
+});
+
+describe("appointment resource candidate proposal", () => {
+  const attachedRequirement = {
+    id: "requirement-1",
+    appointmentId: "appointment-1",
+    resourceTypeId: "resource-type-service-bay",
+    requirementCode: "SERVICE_BAY",
+    requiredCapacity: 1,
+    isMandatory: true,
+    assignmentTiming: "AT_BOOKING" as const,
+    hardBlockIfUnfulfilled: true,
+    resourceType: {
+      id: "resource-type-service-bay",
+      code: "SERVICE_BAY",
+      name: "Service Bay",
+      kind: "SERVICE_BAY" as const
+    },
+    reservations: []
+  };
+
+  function appointmentWithRequirement(
+    overrides: Partial<AppointmentResourcePlanningAppointmentRecord> = {}
+  ): AppointmentResourcePlanningAppointmentRecord {
+    return appointment({
+      resourceRequirements: [attachedRequirement],
+      ...overrides
+    });
+  }
+
+  function database(input?: {
+    appointment?: AppointmentResourcePlanningAppointmentRecord | null;
+    access?: AppointmentResourcePlanningLocationAccessRecord | null;
+    resource?: AppointmentResourcePlanningResourceRecord | null;
+    updateCount?: number;
+    cancelledCount?: number;
+  }) {
+    const createdReservations: unknown[] = [];
+    const createdHistory: unknown[] = [];
+
+    return {
+      createdReservations,
+      createdHistory,
+      database: {
+        appointment: {
+          async findUnique() {
+            return input?.appointment === undefined
+              ? appointmentWithRequirement()
+              : input.appointment;
+          }
+        },
+        userLocationAccess: {
+          async findFirst() {
+            return input?.access === undefined ? access() : input.access;
+          }
+        },
+        schedulableResourceType: {
+          async findFirst() {
+            return resourceType();
+          }
+        },
+        schedulableResource: {
+          async findFirst() {
+            return input?.resource === undefined ? resource() : input.resource;
+          },
+          async findMany() {
+            return [];
+          }
+        },
+        async $transaction(operation: (tx: unknown) => Promise<unknown>) {
+          return operation({
+            appointment: {
+              async updateMany() {
+                return {
+                  count: input?.updateCount ?? 1
+                };
+              }
+            },
+            appointmentResourceReservation: {
+              async updateMany() {
+                return {
+                  count: input?.cancelledCount ?? 0
+                };
+              },
+              async create(createInput: { data: unknown }) {
+                createdReservations.push(createInput.data);
+
+                return {
+                  id: "reservation-proposed",
+                  appointmentId: "appointment-1",
+                  requirementId: "requirement-1",
+                  resourceId: "resource-bay-1",
+                  status: "PROPOSED",
+                  startsAt: new Date("2026-07-06T15:00:00.000Z"),
+                  endsAt: new Date("2026-07-06T16:00:00.000Z"),
+                  capacityUnits: 1
+                };
+              }
+            },
+            appointmentHistoryEvent: {
+              async create(createInput: { data: unknown }) {
+                createdHistory.push(createInput.data);
+              }
+            }
+          });
+        }
+      }
+    };
+  }
+
+  it("creates a proposed reservation candidate with version guard and history", async () => {
+    const harness = database({
+      cancelledCount: 1
+    });
+
+    const result = await proposeAppointmentResourceCandidate(
+      managerUser,
+      "appointment-1",
+      {
+        requirementId: "requirement-1",
+        resourceId: "resource-bay-1",
+        expectedAppointmentVersion: 3,
+        reasonCode: "RESOURCE_CANDIDATE_PROPOSED",
+        reasonNotes: "Propose Bay 1 before scheduling.",
+        correlationId: "correlation-1"
+      },
+      harness.database,
+      now
+    );
+
+    expect(result).toMatchObject({
+      id: "reservation-proposed",
+      resourceId: "resource-bay-1",
+      resourceName: "Service Bay 1",
+      status: "PROPOSED",
+      created: true,
+      cancelledPriorProposalCount: 1,
+      appointmentVersion: 4
+    });
+    expect(harness.createdReservations).toHaveLength(1);
+    expect(harness.createdHistory).toHaveLength(1);
+  });
+
+  it("returns an existing same proposed candidate without creating a duplicate", async () => {
+    const harness = database({
+      appointment: appointmentWithRequirement({
+        resourceRequirements: [
+          {
+            ...attachedRequirement,
+            reservations: [
+              {
+                id: "reservation-existing",
+                status: "PROPOSED",
+                resourceId: "resource-bay-1",
+                createdAt: new Date("2026-07-06T15:05:00.000Z"),
+                resource: {
+                  id: "resource-bay-1",
+                  code: "BAY_1",
+                  name: "Service Bay 1"
+                }
+              }
+            ]
+          }
+        ]
+      })
+    });
+
+    const result = await proposeAppointmentResourceCandidate(
+      managerUser,
+      "appointment-1",
+      {
+        requirementId: "requirement-1",
+        resourceId: "resource-bay-1",
+        expectedAppointmentVersion: 3,
+        reasonCode: "RESOURCE_CANDIDATE_PROPOSED",
+        reasonNotes: "Propose Bay 1 before scheduling."
+      },
+      harness.database,
+      now
+    );
+
+    expect(result).toMatchObject({
+      id: "reservation-existing",
+      created: false,
+      appointmentVersion: 3
+    });
+    expect(harness.createdReservations).toHaveLength(0);
+    expect(harness.createdHistory).toHaveLength(0);
+  });
+
+  it("rejects stale appointment versions", async () => {
+    const harness = database({
+      updateCount: 0
+    });
+
+    await expect(
+      proposeAppointmentResourceCandidate(
+        managerUser,
+        "appointment-1",
+        {
+          requirementId: "requirement-1",
+          resourceId: "resource-bay-1",
+          expectedAppointmentVersion: 2,
+          reasonCode: "RESOURCE_CANDIDATE_PROPOSED",
+          reasonNotes: "Propose Bay 1 before scheduling."
         },
         harness.database,
         now
