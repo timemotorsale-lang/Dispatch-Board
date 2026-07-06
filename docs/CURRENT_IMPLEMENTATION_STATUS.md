@@ -1,7 +1,7 @@
 # Current Implementation Status
 
 **Verified:** 2026-07-06  
-**Purpose:** Evidence-based snapshot of the repository before Enterprise Appointment implementation  
+**Purpose:** Evidence-based snapshot of the repository during Enterprise Appointment implementation
 **Supersedes:** Stale “pre-implementation” statements in older planning documents
 
 ## Quality Baseline
@@ -18,11 +18,20 @@ npm run db:validate
 Vitest result:
 
 ```text
-102 test files passed
-591 tests passed
+103 test files passed
+597 tests passed
 ```
 
-End-to-end tests, production build, database migration deployment, and production deployment were not rerun during this checkpoint.
+Latest focused validation after the task-to-appointment and activity-feed block:
+
+```text
+npm run typecheck
+npm test -- appointment-board-shell.test.tsx task-detail-workspace.test.tsx activity-feed-service.test.ts appointment-lifecycle-command-service.test.ts
+npm test -- activity-feed-service.test.ts activity-feed-ui.test.ts activity-feed-route.test.ts activity-events-service.test.ts
+npm test -- appointment-lifecycle-command-service.test.ts appointment-board-shell.test.tsx appointment-command-execution-service.test.ts task-appointment-service.test.ts task-detail-workspace.test.tsx
+```
+
+All focused runs passed before the final full-suite run above. The authored task-to-appointment Playwright e2e spec could not be executed on this workstation because local Playwright Chromium is not installed. Production build, database migration deployment, and production deployment were not rerun during this checkpoint.
 
 ## Implemented Foundation
 
@@ -58,6 +67,7 @@ End-to-end tests, production build, database migration deployment, and productio
 | Appointment location-time service | Implemented | EAPT-013 location-local date/minute conversion, effective operating-window resolution, closure overlap detection, schedule-candidate evaluation, daylight-saving handling, service contract, and focused tests |
 | Appointment resource availability service | Implemented | EAPT-014 resource availability service evaluates effective windows, capacity overrides, held/committed reservations, buffers, outages, capacity reductions, warning/hard-block severity, service contract, and focused tests |
 | Appointment staff availability service | Implemented | EAPT-015 staff availability service evaluates active staff, location access grants, owner/participant/manager eligibility, staff-resource matching, staff reservations/absence availability, warning/hard-block severity, service contract, and focused tests |
+| Appointment staff resource seed foundation | Implemented | Active Minneapolis users now receive seeded schedulable staff resources and staff operating windows, allowing staff conflict preview and scheduling to operate against real staff capacity |
 | Appointment duration and buffer rules | Implemented | EAPT-016 duration rule service resolves template defaults, documented overrides, manager-approval requirements, location start intervals, appointment windows, and reserved resource footprints with focused tests |
 | Appointment recurrence service | Implemented as service boundary | EAPT-017 recurrence service expands daily, weekly, and monthly series, preserves local time across daylight-saving changes, applies reasoned skipped/rescheduled occurrence exceptions, bounds expansion horizons, and previews safe series-edit scopes |
 | Appointment hard-conflict service | Implemented as service boundary | EAPT-018 hard-conflict service evaluates inactive templates, missing context, invalid time, location closure/hours, mandatory resource hard blocks, owner/staff authorization, warning-only exclusions, and recurring occurrence hard failures with focused tests |
@@ -109,8 +119,10 @@ End-to-end tests, production build, database migration deployment, and productio
 | Appointment proposed-time resource candidate availability | Implemented as initial API/UI preview boundary | EAPT-029AF extends resource-candidate availability to evaluate already proposed resource candidates against proposed unscheduled-draft start/end windows without saving and refreshes the board candidate availability panel as date/time/duration changes |
 | Appointment proposed-time resource proposal and hold | Implemented as initial API/UI mutation boundary | EAPT-029AG lets unscheduled drafts propose resource candidates for the selected slot, stores that proposed window on the reservation without scheduling the appointment, and allows hold to validate the reservation window while keeping existing authority, version, availability, warning, and reason controls |
 | Appointment linked work read model and detail panel | Implemented as initial read-model/UI boundary | EAPT-030A extends appointment read projection with linked task title, status, due time, assigned user, link metadata, and required/blocking flags, and renders real linked-task rows in the Appointment Board detail rail |
-| Task-to-appointment draft creation | Implemented as initial task-detail command workflow | EAPT-032 adds a Create Appointment card to the task detail rail, allows managers and assigned task owners to create linked unscheduled draft appointments, requires a documented reason, submits through the audited `CREATE_DRAFT` command ledger, links the source task as `SOURCE_TASK`, records task activity, and leaves scheduling/conflict checks to the Appointment Board |
-| Appointment Board visible shell | Implemented as preview UI with live binding and command bridge | `/appointments` now renders the mockup-aligned board surface with KPI cards, staff calendar columns, filters, selectable appointments, detail rail, real linked task rows, enterprise controls, upcoming appointments, responsive behavior, live read-model hydration when persisted records exist, preview fallback when none exist, Check In / No Show / Start Work / Finish Work controls wired to the live command API when persisted appointment record IDs and versions are available, draft creation, draft scheduling, dedicated unscheduled/draft lane, unscheduled draft scheduling form, proposed-time readiness preview, proposed-time staff conflict preview, proposed-time staff warning override, proposed-time resource candidate availability preview, proposed-time resource proposal/hold mutation, schedule-readiness preview, owner and participant staff conflict preview, owner/participant staff warning override/enforcement, resource-planning preview, recommended resource requirement attachment, proposed resource candidate selection, proposed-candidate availability preview, resource candidate hold, Schedule command held-reservation commit, held/committed reservation release, held-reservation replacement, scheduled committed reservation replacement with warning-level acceptance, resource warning override capture, warning-before-hold enforcement, persisted warning override visibility, explicit resource action reason fields, final outcome/follow-up capture, transaction-backed follow-up task automation, transaction-backed follow-up draft appointment automation, generated draft visibility/selection, and task-originated linked draft creation; browser workflows and production evidence remain pending |
+| Appointment linked-work navigation | Implemented as initial UI handoff | Live linked task rows on the Appointment Board expose direct task-detail navigation for appointment-to-task handoff |
+| Task-to-appointment draft creation | Implemented as initial task-detail command workflow | EAPT-032 adds a Create Appointment card to the task detail rail, allows managers and assigned task owners to create linked unscheduled draft appointments, requires a documented reason, submits through the audited `CREATE_DRAFT` command ledger, links the source task as `SOURCE_TASK`, records task activity, provides Appointment Board handoff, and leaves scheduling/conflict checks to the Appointment Board |
+| Appointment activity feed visibility | Implemented as initial feed bridge | Appointment history events are merged into the Activity Feed with appointment-prefixed labels, tones, appointment filter support, actor/task/appointment context, and focused service/UI tests |
+| Appointment Board visible shell | Implemented as preview UI with live binding and command bridge | `/appointments` now renders the mockup-aligned board surface with KPI cards, staff calendar columns, filters, selectable appointments, detail rail, real linked task rows, enterprise controls, upcoming appointments, responsive behavior, live read-model hydration when persisted records exist, preview fallback when none exist, Check In / No Show / Start Work / Finish Work controls wired to the live command API when persisted appointment record IDs and versions are available, draft creation, draft scheduling, dedicated unscheduled/draft lane, unscheduled draft scheduling form, past-time schedule guard, proposed-time readiness preview, proposed-time staff conflict preview, proposed-time staff warning override, proposed-time resource candidate availability preview, proposed-time resource proposal/hold mutation, schedule-readiness preview, owner and participant staff conflict preview, owner/participant staff warning override/enforcement, resource-planning preview, recommended resource requirement attachment, proposed resource candidate selection, proposed-candidate availability preview, resource candidate hold, Schedule command held-reservation commit, held/committed reservation release, held-reservation replacement, scheduled committed reservation replacement with warning-level acceptance, resource warning override capture, warning-before-hold enforcement, persisted warning override visibility, explicit resource action reason fields, final outcome/follow-up capture, transaction-backed follow-up task automation, transaction-backed follow-up draft appointment automation, generated draft visibility/selection, and task-originated linked draft creation with manual browser proof; broad automated browser workflows and production evidence remain pending |
 
 ## Existing Partial or Placeholder Surfaces
 

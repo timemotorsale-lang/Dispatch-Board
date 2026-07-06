@@ -147,6 +147,9 @@ export function TaskAppointmentPanel({ canCreateAppointment, task }: TaskAppoint
       {createdAppointmentNumber ? (
         <div className="notice notice-success my-task-inline-notice" role="status">
           <p>Draft appointment {createdAppointmentNumber} was created and linked to this task.</p>
+          <Link className="pill pill-secondary task-appointment-success-link" href="/appointments">
+            Schedule on Appointment Board
+          </Link>
         </div>
       ) : null}
 

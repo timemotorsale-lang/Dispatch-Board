@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   AppointmentBoardShell,
   buildOutcomeSuccessNotice,
+  isProposedScheduleStartInPast,
   isUnscheduledDraftAppointment
 } from "@/features/appointments/appointment-board-shell";
 
@@ -61,6 +62,24 @@ describe("appointment board shell", () => {
         status: "confirmed",
         startsAtIso: null,
         endsAtIso: null
+      })
+    ).toBe(false);
+  });
+
+  it("detects proposed draft schedule starts that are already in the past", () => {
+    expect(
+      isProposedScheduleStartInPast({
+        localDate: "2026-07-06",
+        startTime: "09:30",
+        now: new Date("2026-07-06T15:00:00.000Z")
+      })
+    ).toBe(true);
+
+    expect(
+      isProposedScheduleStartInPast({
+        localDate: "2026-07-06",
+        startTime: "10:30",
+        now: new Date("2026-07-06T15:00:00.000Z")
       })
     ).toBe(false);
   });

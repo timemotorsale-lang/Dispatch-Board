@@ -556,6 +556,25 @@ function assertNoSchedulingBlocks(input: AppointmentLifecycleCommandInput) {
   return null;
 }
 
+function assertFutureScheduleStart(input: AppointmentLifecycleCommandInput, startsAt: Date, label: string) {
+  const now = input.now ?? new Date();
+
+  if (startsAt < now) {
+    return rejectPlan({
+      commandId: input.commandId,
+      commandType: input.commandType,
+      rejectionCode: "PAST_TIME",
+      rejectionReasons: [`${label} cannot start in the past.`],
+      commandResultSnapshot: {
+        startsAt,
+        now
+      }
+    });
+  }
+
+  return null;
+}
+
 function assertExistingAppointment(input: AppointmentLifecycleCommandInput) {
   if (!input.appointment) {
     throw new Error(`${input.commandType} requires an existing appointment.`);
@@ -1015,6 +1034,12 @@ function buildSchedulePlan(
     });
   }
 
+  const pastTimePlan = assertFutureScheduleStart(input, startsAt, "Scheduling");
+
+  if (pastTimePlan) {
+    return pastTimePlan;
+  }
+
   const set = {
     startsAt,
     endsAt,
@@ -1113,6 +1138,12 @@ function buildReschedulePlan(
       rejectionCode: "INVALID_TIME",
       rejectionReasons: ["Rescheduling requires a valid start and end time."]
     });
+  }
+
+  const pastTimePlan = assertFutureScheduleStart(input, startsAt, "Rescheduling");
+
+  if (pastTimePlan) {
+    return pastTimePlan;
   }
 
   const set = {

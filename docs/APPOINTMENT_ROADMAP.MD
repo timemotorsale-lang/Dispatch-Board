@@ -10,7 +10,7 @@
 
 ## 1. Executive summary
 
-The Appointment Board has moved beyond a static mockup. It now has a real live-command foundation with appointment creation, scheduling, unscheduled draft handling, staff conflict checks, resource planning, resource proposal/hold/release/replacement workflows, outcome capture, follow-up automation, linked task display, task-detail create-appointment flow, audit history, version checks, and server-side authorization.
+The Appointment Board has moved beyond a static mockup. It now has a real live-command foundation with appointment creation, scheduling, unscheduled draft handling, staff conflict checks, seeded staff schedulable resources, resource planning, resource proposal/hold/release/replacement workflows, outcome capture, follow-up automation, linked task display and navigation, task-detail create-appointment flow, Appointment Board handoff, activity-feed visibility for appointment history, audit history, version checks, and server-side authorization.
 
 However, the full Enterprise Release 1.0 roadmap is not complete yet. The remaining work is mostly enterprise completion work: richer linked-work actions, automation administration, full command-center views, admin settings, notifications, analytics, accessibility, security, production hardening, and rollout.
 
@@ -22,7 +22,7 @@ However, the full Enterprise Release 1.0 roadmap is not complete yet. The remain
 | Appointment foundation | Strongly implemented | Core model, commands, permissions, audit, scheduling services, and resource/staff foundations exist. |
 | Appointment Board UI | In progress with substantial live workflow | The visible board exists and many detail-rail workflows are live. |
 | Enterprise admin | Mostly pending | Managers/admins still need full UI for templates, reasons, outcomes, resources, hours, closures, automation rules, and configuration. |
-| Task-to-appointment orchestration | Partially implemented | Follow-up automation and task-detail create-linked-draft workflow exist, but automation-rule triggers and full bidirectional workflow remain. |
+| Task-to-appointment orchestration | In progress with live vertical slice | Follow-up automation, task-detail create-linked-draft workflow, live browser proof, board scheduling handoff, and appointment-to-task navigation exist. Automation-rule authoring/runtime remains. |
 | Reporting and analytics | Pending | KPI definitions, reporting models, exports, and reconciliation are not built yet. |
 | Notifications | Pending | Internal notifications and future integration contracts remain. |
 | Release readiness | Pending | Browser tests, accessibility, security, load, deployment, backup/restore, and pilot evidence remain. |
@@ -36,7 +36,7 @@ This is an approximate package-level view from the enterprise roadmap.
 | E0 | Product approval | Complete | 0 | 0 | Approved |
 | E1 | 12 | 11 | 1 | 0 | Mostly complete / gate-ready |
 | E2 | 13 | 13 | 0 | 0 | Mostly complete / ready for review |
-| E3 | 13 | 4 | 2 | 7 | In progress |
+| E3 | 13 | 6 | 2 | 5 | In progress |
 | E4 | 14 | 0 | 1 | 13 | In progress, not gate-ready |
 | E5 | 11 | 0 | 1 | 10 | Mostly not started |
 | E6 | 9 | 0 | 0 | 9 | Not started |
@@ -47,9 +47,9 @@ This is an approximate package-level view from the enterprise roadmap.
 
 Approximate package-level progress:
 
-- Complete: 28 of 114 roadmap packages
+- Complete: 30 of 114 roadmap packages
 - In progress / partial: 5 of 114 roadmap packages
-- Not started: 81 of 114 roadmap packages
+- Not started: 79 of 114 roadmap packages
 
 Important context: the package count understates the depth of the work already completed in E3/E4 because EAPT-029 has been broken into many smaller implemented slices through EAPT-029AG. The Appointment Board has significantly more live workflow behavior than the simple parent-package count suggests.
 
@@ -67,6 +67,7 @@ Important context: the package count understates the depth of the work already c
 ### 4.2 Foundation
 
 - Organization, Minneapolis location, timezone, address, phone, and weekday operating-hours foundation.
+- Seeded schedulable staff resources and staff operating windows for active Minneapolis users.
 - Appointment aggregate foundation.
 - Independent lifecycle state dimensions.
 - Ownership, versioning, snapshots, audit, and reason models.
@@ -128,11 +129,16 @@ Important context: the package count understates the depth of the work already c
 - Outcome-driven follow-up draft appointment automation.
 - Generated draft visibility and selection after outcome automation.
 - Initial linked-task read model and real linked-task detail rows in the board.
+- Direct appointment-to-task navigation from linked task rows.
 - Task-detail create linked draft appointment workflow through the audited command ledger.
+- Task-detail to Appointment Board handoff after creating a linked draft.
+- Live browser proof for task-created draft scheduling through the Appointment Board.
+- Server-side and UI-level guard against scheduling/rescheduling into a past start time.
+- Appointment history events merged into the Activity Feed with appointment labels, tones, filters, and context.
 
 ### 4.5 Current validation evidence
 
-Last recorded validation:
+Latest full-suite validation:
 
 ```text
 npm run lint
@@ -140,13 +146,24 @@ npm run typecheck
 npm test
 npm run db:validate
 
-102 test files passed
-591 tests passed
+103 test files passed
+597 tests passed
+```
+
+Focused validation during the task-to-appointment and activity-feed block:
+
+```text
+npm run typecheck
+npm test -- appointment-board-shell.test.tsx task-detail-workspace.test.tsx activity-feed-service.test.ts appointment-lifecycle-command-service.test.ts
+npm test -- activity-feed-service.test.ts activity-feed-ui.test.ts activity-feed-route.test.ts activity-events-service.test.ts
+npm test -- appointment-lifecycle-command-service.test.ts appointment-board-shell.test.tsx appointment-command-execution-service.test.ts task-appointment-service.test.ts task-detail-workspace.test.tsx
+
+All focused runs passed before the final full-suite run above.
 ```
 
 Not yet complete:
 
-- Appointment browser/end-to-end workflow evidence.
+- Playwright end-to-end suite execution in this workstation. The task-to-appointment e2e spec exists, but local Playwright Chromium is not installed.
 - Production build evidence.
 - Production deployment evidence.
 - Accessibility audit.
@@ -240,17 +257,25 @@ Remaining E2 work:
 | EAPT-027 | Create, approve, edit, ownership, cancel, reschedule commands | Mostly complete as backend command foundation |
 | EAPT-028 | Confirmation, attendance, execution, completion commands | Complete initial backend boundary |
 | EAPT-029 | Outcomes, reasons, corrections, follow-up dispositions | In progress; many board slices complete through EAPT-029AG |
-| EAPT-030 | Appointment-task link persistence and read models | In progress; initial linked-task read model and detail panel implemented |
+| EAPT-030 | Appointment-task link persistence, read models, and handoff navigation | Complete initial live slice; linked-task read/detail and appointment-to-task navigation implemented |
 | EAPT-031 | Appointment-template task blueprint generation | Not started |
-| EAPT-032 | Create appointment from any task workflow | Complete initial task-detail workflow |
+| EAPT-032 | Create appointment from any task workflow | Complete initial task-detail workflow with live browser proof; automated e2e execution awaits local Playwright browser install |
 | EAPT-033 | Task-to-appointment automation runtime | Not started / partial outcome automation exists |
 | EAPT-034 | Rule versioning, simulation, activation, pause, retirement | Not started |
 | EAPT-035 | Automation review, failure, retry, replay services | Not started |
-| EAPT-036 | Activity history for appointment and automation events | Partial |
+| EAPT-036 | Activity history for appointment and automation events | Complete initial Activity Feed merge for appointment history; automation failure/replay visibility remains |
 | EAPT-037 | Optimistic concurrency on every mutation | Partial / implemented on many paths |
 | EAPT-038 | Lifecycle, permission, orchestration, audit, automation tests | Partial |
 
-Recommended E3 next steps:
+Current E3 next steps:
+
+1. Enable local Playwright browser installation and run the authored task detail to linked draft to Appointment Board schedule e2e test.
+2. Automation failure/retry/replay visibility.
+3. Availability-assisted scheduling recommendations for unscheduled drafts.
+4. Automation rule authoring/simulation/activation controls.
+5. Template-driven task blueprint generation.
+
+Superseded prior E3 next steps:
 
 1. Browser workflow coverage for task detail → create linked draft → schedule from the Appointment Board.
 2. Activity-feed emission for generated tasks and generated appointments.
@@ -320,7 +345,7 @@ Recommended E5 next steps:
 
 **Goal:** Make appointment operation fast and safe across desktop, tablet, and mobile experiences.
 
-**Current status:** Not started.
+**Current status:** Mostly not started; initial desktop task/appointment handoff exists.
 
 | ID | Work package | Status |
 | --- | --- | --- |
@@ -328,7 +353,7 @@ Recommended E5 next steps:
 | EAPT-065 | Mobile appointment detail and quick actions | Not started |
 | EAPT-066 | Participant read-only appointment experience | Not started |
 | EAPT-067 | Customer and vehicle masking across viewports | Not started |
-| EAPT-068 | Linked-task handoff between appointment and task workspaces | Not started |
+| EAPT-068 | Linked-task handoff between appointment and task workspaces | Initial desktop handoff implemented; dedicated responsive/mobile workflow remains |
 | EAPT-069 | Mobile note, outcome, reason, follow-up workflows | Not started |
 | EAPT-070 | Offline/stale-connection safeguards without offline mutation | Not started |
 | EAPT-071 | Role-based usability and accessibility sessions | Not started |
@@ -417,6 +442,23 @@ Note: external SMS, email, Google Calendar, Outlook, CRM, DMS, and public bookin
 ## 6. Recommended next implementation sequence
 
 The best next sequence is to finish the active E3/E4 bridge before jumping into broad reporting or rollout.
+
+Current recommended sequence:
+
+| Order | Recommended focus | Why it matters |
+| ---: | --- | --- |
+| 1 | Run authored Playwright e2e after installing local browser binaries | The task-created draft flow was proven manually in the live browser, but the automated e2e cannot run until local Playwright Chromium is installed. |
+| 2 | Admin settings for location, hours, resources, reasons, outcomes, and templates | This lets managers update operational information without code changes. |
+| 3 | Automation rule administration and failure/retry/replay | Needed before automatic appointment creation can be considered enterprise-safe. |
+| 4 | Availability-assisted scheduling recommendations for unscheduled drafts | Helps managers choose valid times/resources faster instead of manually testing slots. |
+| 5 | Exception queues | Follow-ups, unscheduled drafts, no-shows, confirmation gaps, and automation failures need clear ownership. |
+| 6 | Browser workflow coverage for the current board | Expand beyond the authored task-created-draft e2e to cover resource hold, schedule, start/finish, and outcome workflows. |
+| 7 | Reporting and KPI dictionary | Needed before enterprise review and owner confidence in metrics. |
+| 8 | Security, accessibility, performance, backup, and release hardening | Needed before pilot/release. |
+| 9 | Internal notifications | Needed for operational visibility beyond the board and activity feed. |
+| 10 | Pilot and rollout | Final release stage after E1-E9 gates pass. |
+
+Superseded prior recommended sequence:
 
 | Order | Recommended focus | Why it matters |
 | ---: | --- | --- |

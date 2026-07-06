@@ -226,6 +226,42 @@ describe("appointment lifecycle command execution planner", () => {
     });
   });
 
+  it("rejects scheduling and rescheduling when the proposed start time is in the past", () => {
+    const pastStartsAt = new Date("2026-07-06T14:00:00.000Z");
+    const pastEndsAt = new Date("2026-07-06T14:30:00.000Z");
+    const schedulePlan = planAppointmentLifecycleCommandExecution(
+      baseCommand({
+        commandType: "SCHEDULE",
+        payload: {
+          startsAt: pastStartsAt,
+          endsAt: pastEndsAt
+        }
+      })
+    );
+    const reschedulePlan = planAppointmentLifecycleCommandExecution(
+      baseCommand({
+        commandType: "RESCHEDULE",
+        payload: {
+          startsAt: pastStartsAt,
+          endsAt: pastEndsAt,
+          reasonCode: "CUSTOMER_REQUEST",
+          reasonNotes: "Customer asked for a different time."
+        }
+      })
+    );
+
+    expect(schedulePlan).toMatchObject({
+      executable: false,
+      rejectionCode: "PAST_TIME",
+      rejectionReasons: ["Scheduling cannot start in the past."]
+    });
+    expect(reschedulePlan).toMatchObject({
+      executable: false,
+      rejectionCode: "PAST_TIME",
+      rejectionReasons: ["Rescheduling cannot start in the past."]
+    });
+  });
+
   it("plans scheduling with reservation commitment only after conflicts are resolved", () => {
     const plan = planAppointmentLifecycleCommandExecution(
       baseCommand({

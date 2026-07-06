@@ -76,6 +76,16 @@ function buildTemplateFoundation(templateDefinition: (typeof dayOneTaskTemplateD
   };
 }
 
+function buildStaffResourceCode(email: string) {
+  const localPart = email.split("@")[0] ?? email;
+  const normalizedLocalPart = localPart
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return `STAFF-${normalizedLocalPart || "USER"}`;
+}
+
 async function main() {
   const defaultAppSettings = getDefaultAppSettings();
   const initialOrganization = getInitialOrganization();
@@ -145,6 +155,25 @@ async function main() {
         organizationId: organization.id
       }
     });
+  }
+
+  const staffResourceType = await prisma.schedulableResourceType.findUnique({
+    where: {
+      organizationId_code: {
+        organizationId: organization.id,
+        code: "STAFF"
+      }
+    },
+    select: {
+      id: true,
+      defaultCapacityMode: true,
+      defaultCapacity: true,
+      defaultConflictPolicy: true
+    }
+  });
+
+  if (!staffResourceType) {
+    throw new Error("Missing STAFF schedulable resource type after appointment resource seed.");
   }
 
   for (const roleDefinition of dayOneRoleDefinitions) {
@@ -352,11 +381,59 @@ async function main() {
           validTo: null
         }
       });
+
+      const staffResource = await prisma.schedulableResource.upsert({
+        where: {
+          locationId_userId: {
+            locationId: location.id,
+            userId
+          }
+        },
+        update: {
+          resourceTypeId: staffResourceType.id,
+          code: buildStaffResourceCode(userDefinition.email),
+          name: userDefinition.name,
+          status: "ACTIVE",
+          capacityMode: staffResourceType.defaultCapacityMode,
+          capacity: staffResourceType.defaultCapacity,
+          conflictPolicy: staffResourceType.defaultConflictPolicy,
+          effectiveFrom: new Date("2026-07-05T00:00:00.000Z"),
+          effectiveTo: null
+        },
+        create: {
+          organizationId: organization.id,
+          locationId: location.id,
+          resourceTypeId: staffResourceType.id,
+          code: buildStaffResourceCode(userDefinition.email),
+          name: userDefinition.name,
+          status: "ACTIVE",
+          capacityMode: staffResourceType.defaultCapacityMode,
+          capacity: staffResourceType.defaultCapacity,
+          conflictPolicy: staffResourceType.defaultConflictPolicy,
+          userId,
+          effectiveFrom: new Date("2026-07-05T00:00:00.000Z"),
+          effectiveTo: null
+        },
+        select: { id: true }
+      });
+
+      await prisma.resourceOperatingWindow.createMany({
+        data: initialOperatingWindows.map((window) => ({
+          resourceId: staffResource.id,
+          businessDay: window.businessDay,
+          opensAtMinute: window.opensAtMinute,
+          closesAtMinute: window.closesAtMinute,
+          capacityOverride: null,
+          validFrom: window.validFrom,
+          validTo: window.validTo
+        })),
+        skipDuplicates: true
+      });
     }
   }
 
   console.log(
-    "Development seed completed with users, roles, duties, task templates, assignments, app settings, Minneapolis appointment configuration, resource types, and location access."
+    "Development seed completed with users, roles, duties, task templates, assignments, app settings, Minneapolis appointment configuration, resource types, staff resources, staff hours, and location access."
   );
 }
 

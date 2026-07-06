@@ -117,6 +117,7 @@ describe("task detail workspace", () => {
     expect(markup).toContain("Ticket Details");
     expect(markup).toContain("Create Appointment");
     expect(markup).toContain("Create linked draft");
+    expect(markup).toContain("Open Board");
     expect(markup).toContain("Planning");
   });
 });

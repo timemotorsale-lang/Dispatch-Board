@@ -22,6 +22,7 @@ import {
   Users,
   X
 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 type AppointmentCategory =
@@ -1069,6 +1070,19 @@ function localDateTimeToMinneapolisIso(localDate: string, time: string) {
   return candidate.toISOString();
 }
 
+export function isProposedScheduleStartInPast(input: {
+  localDate: string;
+  startTime: string;
+  now?: Date;
+}) {
+  const startsAt = new Date(
+    localDateTimeToMinneapolisIso(input.localDate, input.startTime)
+  );
+  const now = input.now ?? new Date();
+
+  return startsAt < now;
+}
+
 function addMinutesToIso(isoValue: string, minutes: number) {
   return new Date(new Date(isoValue).getTime() + minutes * 60_000).toISOString();
 }
@@ -1291,6 +1305,12 @@ export function AppointmentBoardShell() {
     isUnscheduledDraftAppointment(selectedAppointment);
   const selectedUnscheduledDraftCanProceedWithStaff =
     !selectedAppointmentIsUnscheduledDraft || Boolean(staffConflictPreview?.canProceedWithStaff);
+  const selectedUnscheduledDraftStartsInPast =
+    selectedAppointmentIsUnscheduledDraft &&
+    isProposedScheduleStartInPast({
+      localDate: scheduleDraft.localDate,
+      startTime: scheduleDraft.startTime
+    });
 
   const selectedStaff =
     visibleStaffMembers.find((staff) => staff.id === selectedAppointment.staffId) ?? visibleStaffMembers[0];
@@ -2510,6 +2530,11 @@ export function AppointmentBoardShell() {
       return;
     }
 
+    if (selectedUnscheduledDraftStartsInPast) {
+      setActionNotice("Schedule Draft is blocked: choose a current or future time.");
+      return;
+    }
+
     if (scheduleReadiness && !scheduleReadiness.canSubmitSchedule) {
       setActionNotice(
         `Schedule Draft is blocked: ${scheduleReadiness.hardBlocks.map((block) => block.message).join(" ")}`
@@ -3092,6 +3117,9 @@ export function AppointmentBoardShell() {
                           {task.appointmentRequiredForTask ? " · Appointment required for task" : ""}
                         </small>
                         {task.explanation ? <small>{task.explanation}</small> : null}
+                        <Link className="appointment-task-link" href={`/tasks/${task.taskId}`}>
+                          Open Task
+                        </Link>
                       </div>
                     </div>
                   ))
@@ -3216,12 +3244,18 @@ export function AppointmentBoardShell() {
               <p className="appointment-resource-copy">
                 This submits the existing SCHEDULE command with the selected Minneapolis time window, expected version, idempotency key, staff-conflict validation, and history reason.
               </p>
+              {selectedUnscheduledDraftStartsInPast ? (
+                <p className="appointment-resource-copy appointment-resource-warning">
+                  Choose a current or future time before scheduling this draft.
+                </p>
+              ) : null}
               <button
                 className="appointment-resource-action"
                 disabled={
                   isCommandPending ||
                   isReadinessLoading ||
                   isStaffConflictLoading ||
+                  selectedUnscheduledDraftStartsInPast ||
                   !scheduleDraft.reasonNotes.trim() ||
                   (scheduleReadiness ? !scheduleReadiness.canSubmitSchedule : false) ||
                   !selectedUnscheduledDraftCanProceedWithStaff

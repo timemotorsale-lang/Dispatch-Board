@@ -5323,6 +5323,11 @@ code {
   grid-template-columns: 1fr;
 }
 
+.task-appointment-success-link {
+  width: fit-content;
+  margin-top: 0.5rem;
+}
+
 @media (max-width: 1180px) {
   .task-workspace-body {
     grid-template-columns: 1fr;
@@ -6143,6 +6148,19 @@ code {
 .appointment-task-row small {
   color: #64748b;
   font-size: 10px;
+}
+
+.appointment-task-link {
+  width: fit-content;
+  margin-top: 5px;
+  color: #075ad9;
+  font-size: 10px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.appointment-task-link:hover {
+  text-decoration: underline;
 }
 
 .appointment-governance-list {
