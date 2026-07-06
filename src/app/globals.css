@@ -676,6 +676,98 @@ textarea {
   gap: 1rem;
 }
 
+.appointment-admin-ops-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.appointment-admin-span {
+  grid-column: 1 / -1;
+}
+
+.appointment-admin-span textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
+.appointment-admin-resource-grid,
+.appointment-admin-record-list {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.appointment-admin-resource-card {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  background: #f8fafc;
+  border: 1px solid #dfe7f2;
+  border-radius: 1rem;
+}
+
+.appointment-admin-resource-card header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.appointment-admin-resource-card header div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.appointment-admin-resource-card header span,
+.appointment-admin-resource-card header small {
+  color: #617189;
+  font-size: 0.78rem;
+}
+
+.appointment-admin-resource-card header strong {
+  color: #12233a;
+  font-size: 1rem;
+}
+
+.appointment-admin-record {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.85rem;
+  background: #fff;
+  border: 1px solid #e1e8f2;
+  border-radius: 0.9rem;
+}
+
+.appointment-admin-record span {
+  width: fit-content;
+  padding: 0.25rem 0.45rem;
+  color: #075ad9;
+  background: #e9f1ff;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.appointment-admin-record strong {
+  color: #162235;
+  font-size: 0.94rem;
+}
+
+.appointment-admin-record small,
+.appointment-admin-record p {
+  margin: 0;
+  color: #617189;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.appointment-admin-record-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .appointment-admin-pill-list,
 .appointment-admin-code-list {
   display: flex;
@@ -2570,7 +2662,7 @@ code {
   .board-and-rail { grid-template-columns: minmax(0,1fr); }.operations-rail { position: static; grid-template-columns: repeat(3,minmax(0,1fr)); max-height: none; overflow: visible; }
   .filter-row { grid-template-columns: repeat(4,minmax(112px,1fr)); }.board-search { grid-column: span 3; }
   .project-view-grid,.project-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .appointment-admin-summary-grid { grid-template-columns: 1fr; }
+  .appointment-admin-ops-grid,.appointment-admin-summary-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 1360px) {
@@ -2628,6 +2720,7 @@ code {
   .settings-admin-grid,.settings-summary-grid { grid-template-columns: 1fr; }
   .settings-workspace,.settings-overview-grid { grid-template-columns: 1fr; }
   .appointment-admin-hour-row { grid-template-columns: 1fr; }
+  .appointment-admin-resource-card header { display: grid; }
   .settings-rail { position: static; }
   .settings-rail-summary { grid-template-columns: repeat(3,minmax(0,1fr)); }
   .settings-manager-toolbar { grid-template-columns: 1fr; }
