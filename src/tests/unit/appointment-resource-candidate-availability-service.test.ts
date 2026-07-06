@@ -6,6 +6,7 @@ import { locationLocalDateMinuteToInstant } from "@/server/appointments/location
 import {
   holdAppointmentResourceCandidate,
   previewAppointmentResourceCandidateAvailability,
+  releaseAppointmentResourceReservation,
   type AppointmentResourceCandidateAvailabilityAppointmentRecord,
   type AppointmentResourceCandidateAvailabilityLocationAccessRecord,
   type AppointmentResourceCandidateAvailabilityRepository
@@ -384,6 +385,169 @@ describe("appointment resource candidate hold service", () => {
           expectedAppointmentVersion: 2,
           reasonCode: "RESOURCE_CANDIDATE_HELD",
           reasonNotes: "Hold Bay 1 before scheduling."
+        },
+        harness.database,
+        now
+      )
+    ).rejects.toThrow("Appointment version is stale.");
+
+    expect(harness.updatedReservations).toHaveLength(0);
+    expect(harness.createdHistory).toHaveLength(0);
+  });
+});
+
+describe("appointment resource reservation release service", () => {
+  function appointmentWithReleasableReservation(
+    status: "HELD" | "COMMITTED" = "HELD"
+  ): AppointmentResourceCandidateAvailabilityAppointmentRecord {
+    const baseAppointment = appointment();
+    const baseRequirement = baseAppointment.resourceRequirements[0];
+    const baseReservation = baseRequirement.reservations[0];
+
+    return {
+      ...baseAppointment,
+      bookingStatus: status === "COMMITTED" ? "SCHEDULED" : "DRAFT",
+      resourceRequirements: [
+        {
+          ...baseRequirement,
+          reservations: [
+            {
+              ...baseReservation,
+              id: `reservation-${status.toLowerCase()}`,
+              status
+            }
+          ]
+        }
+      ]
+    };
+  }
+
+  function database(input?: {
+    appointment?: AppointmentResourceCandidateAvailabilityAppointmentRecord | null;
+    access?: AppointmentResourceCandidateAvailabilityLocationAccessRecord | null;
+    appointmentUpdateCount?: number;
+    reservationUpdateCount?: number;
+  }) {
+    const createdHistory: unknown[] = [];
+    const updatedReservations: unknown[] = [];
+
+    return {
+      createdHistory,
+      updatedReservations,
+      database: {
+        appointment: {
+          async findUnique() {
+            return input?.appointment === undefined
+              ? appointmentWithReleasableReservation()
+              : input.appointment;
+          }
+        },
+        userLocationAccess: {
+          async findFirst() {
+            return input?.access === undefined ? access() : input.access;
+          }
+        },
+        async $transaction(operation: (tx: unknown) => Promise<unknown>) {
+          return operation({
+            appointment: {
+              async updateMany() {
+                return {
+                  count: input?.appointmentUpdateCount ?? 1
+                };
+              }
+            },
+            appointmentResourceReservation: {
+              async updateMany(updateInput: { data: unknown }) {
+                updatedReservations.push(updateInput.data);
+
+                return {
+                  count: input?.reservationUpdateCount ?? 1
+                };
+              }
+            },
+            appointmentHistoryEvent: {
+              async create(createInput: { data: unknown }) {
+                createdHistory.push(createInput.data);
+              }
+            }
+          });
+        }
+      }
+    };
+  }
+
+  it("releases a held reservation with version guard and history", async () => {
+    const harness = database();
+
+    const result = await releaseAppointmentResourceReservation(
+      managerUser,
+      "appointment-1",
+      {
+        reservationId: "reservation-held",
+        expectedAppointmentVersion: 3,
+        reasonCode: "RESOURCE_RESERVATION_RELEASED",
+        reasonNotes: "Release Bay 1 after customer changed timing.",
+        correlationId: "correlation-release-1"
+      },
+      harness.database,
+      now
+    );
+
+    expect(result).toMatchObject({
+      id: "reservation-held",
+      resourceName: "Service Bay 1",
+      priorStatus: "HELD",
+      status: "RELEASED",
+      appointmentVersion: 4
+    });
+    expect(harness.updatedReservations).toEqual([
+      {
+        status: "RELEASED"
+      }
+    ]);
+    expect(harness.createdHistory).toHaveLength(1);
+  });
+
+  it("releases a committed reservation from a scheduled appointment", async () => {
+    const harness = database({
+      appointment: appointmentWithReleasableReservation("COMMITTED")
+    });
+
+    const result = await releaseAppointmentResourceReservation(
+      managerUser,
+      "appointment-1",
+      {
+        reservationId: "reservation-committed",
+        expectedAppointmentVersion: 3,
+        reasonCode: "RESOURCE_RESERVATION_RELEASED",
+        reasonNotes: "Release committed Bay 1 after manager reassignment."
+      },
+      harness.database,
+      now
+    );
+
+    expect(result).toMatchObject({
+      id: "reservation-committed",
+      priorStatus: "COMMITTED",
+      status: "RELEASED"
+    });
+    expect(harness.createdHistory).toHaveLength(1);
+  });
+
+  it("rejects stale appointment versions before release", async () => {
+    const harness = database({
+      appointmentUpdateCount: 0
+    });
+
+    await expect(
+      releaseAppointmentResourceReservation(
+        managerUser,
+        "appointment-1",
+        {
+          reservationId: "reservation-held",
+          expectedAppointmentVersion: 2,
+          reasonCode: "RESOURCE_RESERVATION_RELEASED",
+          reasonNotes: "Release Bay 1 after customer changed timing."
         },
         harness.database,
         now

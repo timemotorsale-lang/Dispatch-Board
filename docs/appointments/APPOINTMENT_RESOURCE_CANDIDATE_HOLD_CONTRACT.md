@@ -90,5 +90,5 @@ Successful response:
 Still pending:
 
 - warning override capture as a dedicated UI/history artifact
-- release/change controls for held or committed reservations
+- replacement/change workflow for swapping one resource to another
 - staff conflict preview alongside resource availability

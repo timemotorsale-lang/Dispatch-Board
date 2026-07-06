@@ -18,8 +18,8 @@ npm run db:validate
 Vitest result:
 
 ```text
-96 test files passed
-524 tests passed
+97 test files passed
+530 tests passed
 ```
 
 End-to-end tests, production build, database migration deployment, and production deployment were not rerun during this checkpoint.
@@ -84,13 +84,14 @@ End-to-end tests, production build, database migration deployment, and productio
 | Appointment proposed candidate availability preview | Implemented as initial API/UI boundary | EAPT-029G adds `GET /api/appointments/:id/resource-candidate-availability`, evaluates persisted `PROPOSED` reservations through the resource availability service, reports READY/WARNING/BLOCKED, keeps proposed reservations non-capacity-consuming, and displays availability in the Resource Planning detail rail |
 | Appointment resource candidate hold | Implemented as initial write boundary | EAPT-029H adds `POST /api/appointments/:id/resource-reservations/:reservationId/hold`, re-checks availability before writing capacity-consuming state, changes `PROPOSED` reservations to `HELD`, enforces expected version and manager/owner authority, increments appointment version, writes `FIELD_UPDATED` history, and exposes Hold Candidate in the detail rail |
 | Appointment held reservation schedule commit | Implemented as initial command execution bridge | EAPT-029I loads appointment-held reservations server-side during `SCHEDULE`, passes them into lifecycle reservation effects, updates existing `HELD` reservation rows to `COMMITTED` instead of creating duplicate committed rows, and records committed reservation counts in command execution results |
-| Appointment Board visible shell | Implemented as preview UI with live binding and command bridge | `/appointments` now renders the mockup-aligned board surface with KPI cards, staff calendar columns, filters, selectable appointments, detail rail, linked tasks, enterprise controls, upcoming appointments, responsive behavior, live read-model hydration when persisted records exist, preview fallback when none exist, Check In / No Show controls wired to the live command API when persisted appointment record IDs and versions are available, draft creation, draft scheduling, schedule-readiness preview, resource-planning preview, recommended resource requirement attachment, proposed resource candidate selection, proposed-candidate availability preview, resource candidate hold, and Schedule command held-reservation commit; browser workflows and production evidence remain pending |
+| Appointment resource reservation release control | Implemented as initial API/UI boundary | EAPT-029J adds `POST /api/appointments/:id/resource-reservations/:reservationId/release`, releases `HELD` and `COMMITTED` reservations from active appointments, enforces expected version, manager/owner authority, reason code/notes, appointment version increment, `FIELD_UPDATED` history, and exposes Release Reservation in the Resource Planning detail rail |
+| Appointment Board visible shell | Implemented as preview UI with live binding and command bridge | `/appointments` now renders the mockup-aligned board surface with KPI cards, staff calendar columns, filters, selectable appointments, detail rail, linked tasks, enterprise controls, upcoming appointments, responsive behavior, live read-model hydration when persisted records exist, preview fallback when none exist, Check In / No Show controls wired to the live command API when persisted appointment record IDs and versions are available, draft creation, draft scheduling, schedule-readiness preview, resource-planning preview, recommended resource requirement attachment, proposed resource candidate selection, proposed-candidate availability preview, resource candidate hold, Schedule command held-reservation commit, and held/committed reservation release; browser workflows and production evidence remain pending |
 
 ## Existing Partial or Placeholder Surfaces
 
 | Surface | Current state |
 | --- | --- |
-| Appointments | Visible preview shell exists; E1 command intake API boundary exists; E2 scheduling service boundaries exist; EAPT-026 read API and initial board hydration exist; EAPT-027/EAPT-028 lifecycle command execution routes exist for supported backend commands; the detail rail has Schedule Draft, Schedule Readiness, Resource Planning, Attach Requirement, Propose Candidate, proposed-candidate availability, Hold Candidate, and safe Check In / No Show command bridges; New Appointment can create persisted draft records; Schedule Draft now commits held reservations server-side; staff conflict preview, warning override UI, release/change controls, browser workflows, final completion/outcome capture, and production evidence remain pending |
+| Appointments | Visible preview shell exists; E1 command intake API boundary exists; E2 scheduling service boundaries exist; EAPT-026 read API and initial board hydration exist; EAPT-027/EAPT-028 lifecycle command execution routes exist for supported backend commands; the detail rail has Schedule Draft, Schedule Readiness, Resource Planning, Attach Requirement, Propose Candidate, proposed-candidate availability, Hold Candidate, Release Reservation, and safe Check In / No Show command bridges; New Appointment can create persisted draft records; Schedule Draft now commits held reservations server-side; staff conflict preview, warning override UI, replacement/change workflow, browser workflows, final completion/outcome capture, and production evidence remain pending |
 | Customers | Placeholder guidance page; no enterprise customer subsystem |
 | Vehicles | Placeholder guidance page; no enterprise vehicle subsystem |
 | Reports | Placeholder guidance page; no enterprise reporting subsystem |
@@ -123,7 +124,8 @@ At this baseline:
 - EAPT-029G initial proposed resource candidate availability preview is implemented as a server-backed API/UI boundary.
 - EAPT-029H initial proposed-to-held resource reservation workflow is implemented as a guarded write boundary.
 - EAPT-029I initial Schedule command held-reservation commit bridge is implemented.
-- Database-backed versioned appointment-template administration, recurrence persistence/materialization, persisted warning override/history records, availability-search API/UI, waitlist persistence/queues, reschedule/bulk execution persistence, staff conflict preview UI, warning override UI, resource release/change controls, final completion/outcome capture, full command-center UI wiring, administration UI, browser workflow tests, and persisted production Appointment workflows have not yet been implemented.
+- EAPT-029J initial held/committed resource reservation release control is implemented.
+- Database-backed versioned appointment-template administration, recurrence persistence/materialization, persisted warning override/history records, availability-search API/UI, waitlist persistence/queues, reschedule/bulk execution persistence, staff conflict preview UI, warning override UI, resource replacement/change workflow, final completion/outcome capture, full command-center UI wiring, administration UI, browser workflow tests, and persisted production Appointment workflows have not yet been implemented.
 - The existing `/appointments` route now contains the mockup-aligned preview shell and is the intended UI boundary for the next live-service slices.
 
 ## Current Execution Order

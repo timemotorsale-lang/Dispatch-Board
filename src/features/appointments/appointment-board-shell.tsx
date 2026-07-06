@@ -859,6 +859,7 @@ export function AppointmentBoardShell() {
   const [resourceRequirementSavingCode, setResourceRequirementSavingCode] = useState<string | null>(null);
   const [resourceCandidateSavingCode, setResourceCandidateSavingCode] = useState<string | null>(null);
   const [resourceHoldSavingReservationId, setResourceHoldSavingReservationId] = useState<string | null>(null);
+  const [resourceReleaseSavingReservationId, setResourceReleaseSavingReservationId] = useState<string | null>(null);
   const [selectedResourceCandidates, setSelectedResourceCandidates] = useState<Record<string, string>>({});
   const [detailRefreshKey, setDetailRefreshKey] = useState(0);
   const [actionNotice, setActionNotice] = useState("Operational command bridge ready. Persisted appointments can now use the live command API for check-in and no-show actions.");
@@ -966,7 +967,7 @@ export function AppointmentBoardShell() {
     let isActive = true;
 
     async function loadResourcePlanning() {
-      if (selectedAppointment.status !== "draft" || !selectedAppointment.recordId) {
+      if (!selectedAppointment.recordId) {
         setResourcePlanning(null);
         setIsResourcePlanningLoading(false);
         return;
@@ -1452,6 +1453,78 @@ export function AppointmentBoardShell() {
     }
   }
 
+  async function releaseResourceReservation(
+    recommendation: AppointmentResourcePlanning["recommendations"][number]
+  ) {
+    if (!selectedAppointment.recordId || !selectedAppointment.recordVersion) {
+      setActionNotice("Resource reservations can only be released for persisted live appointments.");
+      return;
+    }
+
+    if (!recommendation.selectedReservation) {
+      setActionNotice(`No ${recommendation.label} reservation is selected for release.`);
+      return;
+    }
+
+    if (!["HELD", "COMMITTED"].includes(recommendation.selectedReservation.status)) {
+      setActionNotice("Only held or committed reservations can be released from this control.");
+      return;
+    }
+
+    setResourceReleaseSavingReservationId(recommendation.selectedReservation.id);
+
+    try {
+      const correlationId = createAppointmentActionIdentifier(
+        "resource-release",
+        selectedAppointment.recordId
+      );
+      const response = await fetch(
+        `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/resource-reservations/${encodeURIComponent(recommendation.selectedReservation.id)}/release`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            expectedAppointmentVersion: selectedAppointment.recordVersion,
+            reasonCode: "RESOURCE_RESERVATION_RELEASED",
+            reasonNotes: `Released ${recommendation.selectedReservation.resourceName} from ${recommendation.label} in Appointment Board resource planning.`,
+            correlationId
+          })
+        }
+      );
+      const result = (await response.json().catch(() => null)) as
+        | {
+            reservation?: {
+              resourceName: string;
+              priorStatus: "HELD" | "COMMITTED";
+              status: "RELEASED";
+              appointmentVersion: number;
+            };
+            error?: string;
+          }
+        | null;
+
+      if (!response.ok || !result?.reservation) {
+        throw new Error(result?.error || "Unable to release the resource reservation.");
+      }
+
+      setActionNotice(
+        `${result.reservation.resourceName} was released from ${result.reservation.priorStatus.toLowerCase()} reservation status. Schedule readiness and resource planning are refreshing.`
+      );
+      setDetailRefreshKey((value) => value + 1);
+      await loadLiveAppointments();
+    } catch (error) {
+      setActionNotice(
+        error instanceof Error
+          ? error.message
+          : "Unable to release the resource reservation right now."
+      );
+    } finally {
+      setResourceReleaseSavingReservationId(null);
+    }
+  }
+
   async function submitOperationalCommand(commandType: OperationalCommand) {
     const label = commandLabel(commandType);
 
@@ -1767,7 +1840,7 @@ export function AppointmentBoardShell() {
             </ul>
           </div>
 
-          {selectedAppointment.status === "draft" ? (
+          {selectedAppointment.dataSource === "live" ? (
             <div className="appointment-detail-section">
               <div className="appointment-section-heading">
                 <strong>Schedule Readiness</strong>
@@ -1826,6 +1899,7 @@ export function AppointmentBoardShell() {
                           className="appointment-resource-action"
                           disabled={
                             resourceRequirementSavingCode === recommendation.requirementCode ||
+                            selectedAppointment.status !== "draft" ||
                             selectedAppointment.dataSource !== "live" ||
                             !recommendation.resourceTypeId ||
                             !resourcePlanning.canManageResourcesForAppointment
@@ -1842,7 +1916,7 @@ export function AppointmentBoardShell() {
                         <div className="appointment-resource-candidate-form">
                           {recommendation.selectedReservation ? (
                             <small>
-                              Proposed: {recommendation.selectedReservation.resourceName} ({recommendation.selectedReservation.status})
+                              Selected: {recommendation.selectedReservation.resourceName} ({recommendation.selectedReservation.status})
                             </small>
                           ) : (
                             <small>No resource candidate proposed yet.</small>
@@ -1856,9 +1930,17 @@ export function AppointmentBoardShell() {
                               <>
                                 <div className={`appointment-resource-availability appointment-resource-availability-${availability?.status.toLowerCase() ?? "loading"}`}>
                                   <strong>
-                                    Availability: {isCandidateAvailabilityLoading ? "Checking" : availability?.status ?? "Unavailable"}
+                                    {recommendation.selectedReservation?.status === "PROPOSED"
+                                      ? `Availability: ${isCandidateAvailabilityLoading ? "Checking" : availability?.status ?? "Unavailable"}`
+                                      : `Reservation: ${recommendation.selectedReservation?.status}`}
                                   </strong>
-                                  {availability ? (
+                                  {recommendation.selectedReservation?.status !== "PROPOSED" ? (
+                                    <span>
+                                      {recommendation.selectedReservation?.status === "COMMITTED"
+                                        ? "This resource is committed through the schedule command and consumes capacity."
+                                        : "This resource is held and consumes capacity until scheduled or released."}
+                                    </span>
+                                  ) : availability ? (
                                     <span>
                                       {availability.reasons.length > 0
                                         ? availability.reasons.join(" ")
@@ -1877,6 +1959,7 @@ export function AppointmentBoardShell() {
                                     className="appointment-resource-action appointment-resource-hold-action"
                                     disabled={
                                       resourceHoldSavingReservationId === recommendation.selectedReservation.id ||
+                                      selectedAppointment.status !== "draft" ||
                                       selectedAppointment.dataSource !== "live" ||
                                       !resourcePlanning.canManageResourcesForAppointment ||
                                       isCandidateAvailabilityLoading ||
@@ -1890,6 +1973,22 @@ export function AppointmentBoardShell() {
                                       : "Hold Candidate"}
                                   </button>
                                 ) : null}
+                                {["HELD", "COMMITTED"].includes(recommendation.selectedReservation?.status ?? "") ? (
+                                  <button
+                                    className="appointment-resource-action appointment-resource-release-action"
+                                    disabled={
+                                      resourceReleaseSavingReservationId === recommendation.selectedReservation.id ||
+                                      selectedAppointment.dataSource !== "live" ||
+                                      !resourcePlanning.canManageResourcesForAppointment
+                                    }
+                                    onClick={() => void releaseResourceReservation(recommendation)}
+                                    type="button"
+                                  >
+                                    {resourceReleaseSavingReservationId === recommendation.selectedReservation.id
+                                      ? "Releasing..."
+                                      : "Release Reservation"}
+                                  </button>
+                                ) : null}
                               </>
                             );
                           })() : null}
@@ -1897,6 +1996,7 @@ export function AppointmentBoardShell() {
                             aria-label={`Select ${recommendation.label} candidate`}
                             disabled={
                               resourceCandidateSavingCode === recommendation.requirementCode ||
+                              selectedAppointment.status !== "draft" ||
                               recommendation.candidates.length === 0 ||
                               selectedAppointment.dataSource !== "live" ||
                               !resourcePlanning.canManageResourcesForAppointment
@@ -1927,6 +2027,7 @@ export function AppointmentBoardShell() {
                             className="appointment-resource-action"
                             disabled={
                               resourceCandidateSavingCode === recommendation.requirementCode ||
+                              selectedAppointment.status !== "draft" ||
                               recommendation.candidates.length === 0 ||
                               selectedAppointment.dataSource !== "live" ||
                               !resourcePlanning.canManageResourcesForAppointment
