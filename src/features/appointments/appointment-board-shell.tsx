@@ -210,6 +210,28 @@ type AppointmentResourcePlanning = {
   }>;
 };
 
+type AppointmentResourceCandidateAvailability = {
+  appointmentId: string;
+  appointmentNumber: string;
+  status: "READY" | "WARNING" | "BLOCKED" | "NO_PROPOSALS";
+  canProceedToHold: boolean;
+  proposals: Array<{
+    reservationId: string;
+    requirementId: string | null;
+    requirementCode: string;
+    resourceId: string;
+    resourceCode: string;
+    resourceName: string;
+    status: "READY" | "WARNING" | "BLOCKED";
+    canProceedToHold: boolean;
+    reasons: string[];
+    availableCapacity: number;
+    requiredCapacity: number;
+    reservedCapacity: number;
+    unavailableCapacity: number;
+  }>;
+};
+
 type ViewMode = "day" | "week" | "month" | "agenda";
 
 const businessDate = "Monday, July 6, 2026";
@@ -832,6 +854,8 @@ export function AppointmentBoardShell() {
   const [isReadinessLoading, setIsReadinessLoading] = useState(false);
   const [resourcePlanning, setResourcePlanning] = useState<AppointmentResourcePlanning | null>(null);
   const [isResourcePlanningLoading, setIsResourcePlanningLoading] = useState(false);
+  const [candidateAvailability, setCandidateAvailability] = useState<AppointmentResourceCandidateAvailability | null>(null);
+  const [isCandidateAvailabilityLoading, setIsCandidateAvailabilityLoading] = useState(false);
   const [resourceRequirementSavingCode, setResourceRequirementSavingCode] = useState<string | null>(null);
   const [resourceCandidateSavingCode, setResourceCandidateSavingCode] = useState<string | null>(null);
   const [selectedResourceCandidates, setSelectedResourceCandidates] = useState<Record<string, string>>({});
@@ -985,6 +1009,63 @@ export function AppointmentBoardShell() {
     }
 
     void loadResourcePlanning();
+
+    return () => {
+      isActive = false;
+    };
+  }, [detailRefreshKey, selectedAppointment.recordId, selectedAppointment.status]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadCandidateAvailability() {
+      if (selectedAppointment.status !== "draft" || !selectedAppointment.recordId) {
+        setCandidateAvailability(null);
+        setIsCandidateAvailabilityLoading(false);
+        return;
+      }
+
+      setIsCandidateAvailabilityLoading(true);
+
+      try {
+        const response = await fetch(
+          `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/resource-candidate-availability`
+        );
+        const result = (await response.json().catch(() => null)) as
+          | {
+              resourceCandidateAvailability?: AppointmentResourceCandidateAvailability;
+              error?: string;
+            }
+          | null;
+
+        if (!isActive) {
+          return;
+        }
+
+        if (!response.ok || !result?.resourceCandidateAvailability) {
+          throw new Error(result?.error || "Unable to load resource candidate availability.");
+        }
+
+        setCandidateAvailability(result.resourceCandidateAvailability);
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        setCandidateAvailability(null);
+        setActionNotice(
+          error instanceof Error
+            ? `Resource candidate availability could not load: ${error.message}`
+            : "Resource candidate availability could not load."
+        );
+      } finally {
+        if (isActive) {
+          setIsCandidateAvailabilityLoading(false);
+        }
+      }
+    }
+
+    void loadCandidateAvailability();
 
     return () => {
       isActive = false;
@@ -1687,6 +1768,32 @@ export function AppointmentBoardShell() {
                           ) : (
                             <small>No resource candidate proposed yet.</small>
                           )}
+                          {recommendation.selectedReservation ? (() => {
+                            const availability = candidateAvailability?.proposals.find(
+                              (proposal) => proposal.reservationId === recommendation.selectedReservation?.id
+                            );
+
+                            return (
+                              <div className={`appointment-resource-availability appointment-resource-availability-${availability?.status.toLowerCase() ?? "loading"}`}>
+                                <strong>
+                                  Availability: {isCandidateAvailabilityLoading ? "Checking" : availability?.status ?? "Unavailable"}
+                                </strong>
+                                {availability ? (
+                                  <span>
+                                    {availability.reasons.length > 0
+                                      ? availability.reasons.join(" ")
+                                      : `Capacity available: ${availability.availableCapacity}/${availability.requiredCapacity}`}
+                                  </span>
+                                ) : (
+                                  <span>
+                                    {isCandidateAvailabilityLoading
+                                      ? "Checking proposed resource against current reservations and outages."
+                                      : "No availability result is available for this proposal yet."}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })() : null}
                           <select
                             aria-label={`Select ${recommendation.label} candidate`}
                             disabled={

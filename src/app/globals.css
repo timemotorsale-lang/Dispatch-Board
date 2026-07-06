@@ -6283,6 +6283,45 @@ code {
   background: #f8fafc;
 }
 
+.appointment-resource-availability {
+  display: grid;
+  gap: 3px;
+  padding: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid #94a3b8;
+  border-radius: 9px;
+}
+
+.appointment-resource-availability strong {
+  color: #253449;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.appointment-resource-availability span {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.appointment-resource-availability-ready {
+  border-left-color: #22c55e;
+  background: #f0fdf4;
+}
+
+.appointment-resource-availability-warning {
+  border-left-color: #f59e0b;
+  background: #fff7ed;
+}
+
+.appointment-resource-availability-blocked {
+  border-left-color: #ef4444;
+  background: #fff1f2;
+}
+
 .appointment-resource-copy {
   margin: 0;
   color: #64748b;

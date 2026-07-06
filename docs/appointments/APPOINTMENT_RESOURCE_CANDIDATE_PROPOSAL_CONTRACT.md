@@ -78,9 +78,12 @@ Successful create response:
 
 ## Not Yet Claimed
 
+Partially addressed after this slice:
+
+- EAPT-029G evaluates proposed candidates against live resource availability and displays READY/WARNING/BLOCKED in the detail rail.
+
 Still pending:
 
-- live resource availability evaluation for the selected appointment window
 - held reservation workflow
 - committed reservation workflow through the final scheduling command
 - warning override capture
