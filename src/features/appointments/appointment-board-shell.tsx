@@ -1228,6 +1228,8 @@ export function AppointmentBoardShell() {
   const selectedAppointmentIsUnscheduledDraft =
     selectedAppointment.dataSource === "live" &&
     isUnscheduledDraftAppointment(selectedAppointment);
+  const selectedUnscheduledDraftCanProceedWithStaff =
+    !selectedAppointmentIsUnscheduledDraft || Boolean(staffConflictPreview?.canProceedWithStaff);
 
   const selectedStaff =
     visibleStaffMembers.find((staff) => staff.id === selectedAppointment.staffId) ?? visibleStaffMembers[0];
@@ -1507,9 +1509,24 @@ export function AppointmentBoardShell() {
       setIsStaffConflictLoading(true);
 
       try {
-        const response = await fetch(
-          `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/staff-conflicts`
-        );
+        let staffConflictsUrl = `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/staff-conflicts`;
+
+        if (selectedAppointmentIsUnscheduledDraft) {
+          const startsAt = localDateTimeToMinneapolisIso(
+            scheduleDraft.localDate,
+            scheduleDraft.startTime
+          );
+          const endsAt = addMinutesToIso(startsAt, scheduleDraft.durationMinutes);
+          const params = new URLSearchParams({
+            proposedStartsAt: startsAt,
+            proposedEndsAt: endsAt,
+            proposedSchedulingTimezone: selectedAppointment.schedulingTimezone ?? defaultTimezone
+          });
+
+          staffConflictsUrl = `${staffConflictsUrl}?${params.toString()}`;
+        }
+
+        const response = await fetch(staffConflictsUrl);
         const result = (await response.json().catch(() => null)) as
           | { staffConflicts?: AppointmentStaffConflictPreview; error?: string }
           | null;
@@ -1546,7 +1563,16 @@ export function AppointmentBoardShell() {
     return () => {
       isActive = false;
     };
-  }, [detailRefreshKey, selectedAppointment.recordId, selectedAppointment.status]);
+  }, [
+    detailRefreshKey,
+    scheduleDraft.durationMinutes,
+    scheduleDraft.localDate,
+    scheduleDraft.startTime,
+    selectedAppointment.recordId,
+    selectedAppointment.schedulingTimezone,
+    selectedAppointment.status,
+    selectedAppointmentIsUnscheduledDraft
+  ]);
 
   const metrics = [
     { label: "Total Appointments", value: boardAppointments.length, status: "all" as const, tone: "slate" },
@@ -2012,6 +2038,20 @@ export function AppointmentBoardShell() {
         staffConflictPreview.reasons.length > 0
           ? staffConflictPreview.reasons.join(" ")
           : "Manager accepted staff warning policy.";
+      const proposedScheduleWindow = selectedAppointmentIsUnscheduledDraft
+        ? (() => {
+            const startsAt = localDateTimeToMinneapolisIso(
+              scheduleDraft.localDate,
+              scheduleDraft.startTime
+            );
+
+            return {
+              proposedStartsAt: startsAt,
+              proposedEndsAt: addMinutesToIso(startsAt, scheduleDraft.durationMinutes),
+              proposedSchedulingTimezone: selectedAppointment.schedulingTimezone ?? defaultTimezone
+            };
+          })()
+        : {};
       const response = await fetch(
         `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/staff-conflicts/override`,
         {
@@ -2027,10 +2067,15 @@ export function AppointmentBoardShell() {
                 staffConflictPreview.staff?.roleCode
                   ? ` (${staffConflictPreview.staff.roleCode.replaceAll("_", " ")})`
                   : ""
+              }${
+                selectedAppointmentIsUnscheduledDraft
+                  ? ` for proposed slot ${scheduleDraft.localDate} ${scheduleDraft.startTime}`
+                  : ""
               }: ${reasonText}`,
               staffWarningReason
             ),
-            correlationId
+            correlationId,
+            ...proposedScheduleWindow
           })
         }
       );
@@ -2366,6 +2411,15 @@ export function AppointmentBoardShell() {
     if (scheduleReadiness && !scheduleReadiness.canSubmitSchedule) {
       setActionNotice(
         `Schedule Draft is blocked: ${scheduleReadiness.hardBlocks.map((block) => block.message).join(" ")}`
+      );
+      return;
+    }
+
+    if (!selectedUnscheduledDraftCanProceedWithStaff) {
+      setActionNotice(
+        staffConflictPreview?.reasons.length
+          ? `Schedule Draft is blocked by staff availability: ${staffConflictPreview.reasons.join(" ")}`
+          : "Schedule Draft is waiting for staff conflict preview to clear."
       );
       return;
     }
@@ -3044,8 +3098,10 @@ export function AppointmentBoardShell() {
                 disabled={
                   isCommandPending ||
                   isReadinessLoading ||
+                  isStaffConflictLoading ||
                   !scheduleDraft.reasonNotes.trim() ||
-                  (scheduleReadiness ? !scheduleReadiness.canSubmitSchedule : false)
+                  (scheduleReadiness ? !scheduleReadiness.canSubmitSchedule : false) ||
+                  !selectedUnscheduledDraftCanProceedWithStaff
                 }
                 onClick={() => void submitUnscheduledDraftSchedule()}
                 type="button"

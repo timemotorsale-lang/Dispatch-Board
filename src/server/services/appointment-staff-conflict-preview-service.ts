@@ -212,6 +212,9 @@ export type OverrideAppointmentStaffWarningInput = {
   reasonCode: string;
   reasonNotes: string;
   correlationId?: string | null;
+  proposedStartsAt?: Date | null;
+  proposedEndsAt?: Date | null;
+  proposedSchedulingTimezone?: string | null;
 };
 
 export type AppointmentStaffWarningOverride = {
@@ -848,19 +851,28 @@ export async function overrideAppointmentStaffWarning(
     throw new Error("Only an authorized manager can override appointment warnings.");
   }
 
-  const staffMemberIdentities = getStaffMembersFromAppointment(appointment);
+  const appointmentForPreview = {
+    ...appointment,
+    startsAt: input.proposedStartsAt ?? appointment.startsAt,
+    endsAt: input.proposedEndsAt ?? appointment.endsAt,
+    schedulingTimezone: input.proposedSchedulingTimezone ?? appointment.schedulingTimezone
+  };
+  const staffMemberIdentities = getStaffMembersFromAppointment(appointmentForPreview);
   const members = await Promise.all(
     staffMemberIdentities.map(async (member) => ({
       ...member,
-      locationAccess: await repository.findLocationAccess(member.userId, appointment.locationId),
+      locationAccess: await repository.findLocationAccess(
+        member.userId,
+        appointmentForPreview.locationId
+      ),
       staffResource: await repository.findStaffResourceForUser(
         member.userId,
-        appointment.locationId
+        appointmentForPreview.locationId
       )
     }))
   );
   const preview = buildPreview({
-    appointment,
+    appointment: appointmentForPreview,
     members
   });
 
@@ -905,7 +917,10 @@ export async function overrideAppointmentStaffWarning(
       staffRole: staff.role,
       staffRoleCode: staff.roleCode,
       resourceId: staff.resourceId,
-      warningKey
+      warningKey,
+      proposedStartsAt: input.proposedStartsAt?.toISOString() ?? null,
+      proposedEndsAt: input.proposedEndsAt?.toISOString() ?? null,
+      proposedSchedulingTimezone: input.proposedSchedulingTimezone ?? null
     },
     occurredAt: now
   });

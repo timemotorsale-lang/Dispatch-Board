@@ -80,7 +80,47 @@ describe("appointment staff warning override route", () => {
         expectedAppointmentVersion: 3,
         reasonCode: "STAFF_WARNING_OVERRIDDEN",
         reasonNotes: "Manager accepts overlap with backup coverage.",
-        correlationId: "corr-staff-warning"
+        correlationId: "corr-staff-warning",
+        proposedStartsAt: null,
+        proposedEndsAt: null,
+        proposedSchedulingTimezone: null
+      }
+    );
+  });
+
+  it("passes proposed schedule windows for unscheduled draft warning overrides", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/appointments/appointment-1/staff-conflicts/override", {
+        method: "POST",
+        body: JSON.stringify({
+          expectedAppointmentVersion: 3,
+          reasonCode: "STAFF_WARNING_OVERRIDDEN",
+          reasonNotes: "Manager accepts proposed-slot overlap.",
+          correlationId: "corr-proposed-staff-warning",
+          proposedStartsAt: "2026-07-06T16:00:00.000Z",
+          proposedEndsAt: "2026-07-06T17:00:00.000Z",
+          proposedSchedulingTimezone: "America/Chicago"
+        })
+      }),
+      {
+        params: Promise.resolve({
+          id: "appointment-1"
+        })
+      }
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.overrideAppointmentStaffWarning).toHaveBeenCalledWith(
+      managerUser,
+      "appointment-1",
+      {
+        expectedAppointmentVersion: 3,
+        reasonCode: "STAFF_WARNING_OVERRIDDEN",
+        reasonNotes: "Manager accepts proposed-slot overlap.",
+        correlationId: "corr-proposed-staff-warning",
+        proposedStartsAt: new Date("2026-07-06T16:00:00.000Z"),
+        proposedEndsAt: new Date("2026-07-06T17:00:00.000Z"),
+        proposedSchedulingTimezone: "America/Chicago"
       }
     );
   });

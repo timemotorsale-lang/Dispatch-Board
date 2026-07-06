@@ -519,6 +519,92 @@ describe("appointment staff conflict preview service", () => {
     expect(createdHistory).toHaveLength(1);
   });
 
+  it("records a manager override for a proposed-time warning on an unscheduled draft", async () => {
+    const overlappingReservation = {
+      id: "reservation-proposed-staff-overlap",
+      appointmentId: "appointment-2",
+      status: "COMMITTED",
+      startsAt: localInstant("2026-07-06", 11),
+      endsAt: localInstant("2026-07-06", 12),
+      capacityUnits: 1,
+      bufferBeforeMinutes: 0,
+      bufferAfterMinutes: 0
+    };
+    const createdHistory: Array<{ data: Record<string, unknown> }> = [];
+    const unscheduledAppointment = appointment({
+      startsAt: null,
+      endsAt: null
+    });
+    const database = {
+      appointment: {
+        async findUnique() {
+          return unscheduledAppointment;
+        },
+        async updateMany() {
+          return {
+            count: 1
+          };
+        }
+      },
+      userLocationAccess: {
+        async findUnique(input: { where: { userId_locationId: { userId: string } } }) {
+          return access(input.where.userId_locationId.userId);
+        }
+      },
+      schedulableResource: {
+        async findFirst() {
+          return staffResource({
+            reservations: [overlappingReservation]
+          });
+        }
+      },
+      appointmentHistoryEvent: {
+        async findFirst() {
+          return null;
+        },
+        async create(input: { data: Record<string, unknown> }) {
+          createdHistory.push(input);
+        }
+      },
+      async $transaction(operation: (tx: unknown) => Promise<unknown>) {
+        return operation(this);
+      }
+    };
+
+    const result = await overrideAppointmentStaffWarning(
+      managerUser,
+      "appointment-1",
+      {
+        expectedAppointmentVersion: 3,
+        reasonCode: "STAFF_WARNING_OVERRIDDEN",
+        reasonNotes: "Manager accepts proposed-slot staff overlap.",
+        correlationId: "corr-proposed-staff-warning",
+        proposedStartsAt: localInstant("2026-07-06", 11),
+        proposedEndsAt: localInstant("2026-07-06", 12),
+        proposedSchedulingTimezone: timezone
+      },
+      database,
+      now
+    );
+
+    expect(result).toMatchObject({
+      appointmentId: "appointment-1",
+      staffUserId: "user-brock",
+      status: "OVERRIDDEN",
+      warningCode: "STAFF_OVERLAP",
+      appointmentVersion: 4
+    });
+    expect(createdHistory).toHaveLength(1);
+    expect(createdHistory[0].data).toMatchObject({
+      metadata: expect.objectContaining({
+        warningKey: result.warningKey,
+        proposedStartsAt: localInstant("2026-07-06", 11).toISOString(),
+        proposedEndsAt: localInstant("2026-07-06", 12).toISOString(),
+        proposedSchedulingTimezone: timezone
+      })
+    });
+  });
+
   it("records a manager override for a warning-level internal participant staff conflict", async () => {
     const overlappingReservation = {
       id: "reservation-participant-overlap",

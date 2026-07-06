@@ -91,6 +91,32 @@ describe("appointment staff conflict preview route", () => {
     );
   });
 
+  it("passes proposed schedule windows to staff conflict preview", async () => {
+    const response = await GET(
+      new Request(
+        "http://localhost/api/appointments/appointment-1/staff-conflicts?proposedStartsAt=2026-07-06T16%3A00%3A00.000Z&proposedEndsAt=2026-07-06T17%3A00%3A00.000Z&proposedSchedulingTimezone=America%2FChicago"
+      ),
+      {
+        params: Promise.resolve({
+          id: "appointment-1"
+        })
+      }
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.previewAppointmentStaffConflicts).toHaveBeenCalledWith(
+      managerUser,
+      "appointment-1",
+      undefined,
+      undefined,
+      {
+        proposedStartsAt: new Date("2026-07-06T16:00:00.000Z"),
+        proposedEndsAt: new Date("2026-07-06T17:00:00.000Z"),
+        proposedSchedulingTimezone: "America/Chicago"
+      }
+    );
+  });
+
   it("maps missing appointments to 404", async () => {
     mocks.previewAppointmentStaffConflicts.mockRejectedValue(
       new Error("Appointment not found.")

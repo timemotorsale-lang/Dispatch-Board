@@ -36,12 +36,28 @@ function getStaffWarningOverrideErrorStatus(message: string) {
     message === "Staff warning overrides can only be recorded for draft appointments." ||
     message === "Staff owner does not have a warning to override." ||
     message === "Staff hard blocks cannot be overridden." ||
+    message === "Proposed appointment start must be a valid date." ||
+    message === "Proposed appointment end must be a valid date." ||
     message.includes("Staff warning override")
   ) {
     return 400;
   }
 
   return 500;
+}
+
+function parseOptionalDatePayload(value: unknown, label: string) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const date = value instanceof Date ? value : new Date(String(value));
+
+  if (Number.isNaN(date.getTime())) {
+    throw new Error(`${label} must be a valid date.`);
+  }
+
+  return date;
 }
 
 export async function POST(
@@ -65,7 +81,19 @@ export async function POST(
       reasonCode: typeof payload.reasonCode === "string" ? payload.reasonCode : "",
       reasonNotes: typeof payload.reasonNotes === "string" ? payload.reasonNotes : "",
       correlationId:
-        typeof payload.correlationId === "string" ? payload.correlationId : null
+        typeof payload.correlationId === "string" ? payload.correlationId : null,
+      proposedStartsAt: parseOptionalDatePayload(
+        "proposedStartsAt" in payload ? payload.proposedStartsAt : null,
+        "Proposed appointment start"
+      ),
+      proposedEndsAt: parseOptionalDatePayload(
+        "proposedEndsAt" in payload ? payload.proposedEndsAt : null,
+        "Proposed appointment end"
+      ),
+      proposedSchedulingTimezone:
+        typeof payload.proposedSchedulingTimezone === "string"
+          ? payload.proposedSchedulingTimezone
+          : null
     });
 
     return NextResponse.json(
