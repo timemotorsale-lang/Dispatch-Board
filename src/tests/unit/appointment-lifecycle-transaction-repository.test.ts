@@ -9,6 +9,11 @@ function createDatabaseHarness() {
     data: Record<string, unknown>;
   }> = [];
   const reservationCreates: Record<string, unknown>[] = [];
+  const boardDayUpserts: Array<{
+    where: Record<string, unknown>;
+    create: Record<string, unknown>;
+  }> = [];
+  const taskCreates: Record<string, unknown>[] = [];
   const taskLinkCreates: Record<string, unknown>[] = [];
   const historyCreates: Record<string, unknown>[] = [];
   const commandUpdates: Array<{
@@ -104,6 +109,33 @@ function createDatabaseHarness() {
         return { count: input.where.id.in.length };
       }
     },
+    boardDay: {
+      async upsert(input: {
+        where: Record<string, unknown>;
+        create: Record<string, unknown>;
+      }) {
+        boardDayUpserts.push({
+          where: input.where,
+          create: input.create
+        });
+
+        return {
+          id: `board-day-${boardDayUpserts.length}`,
+          date: input.create.date as Date
+        };
+      }
+    },
+    task: {
+      async create(input: { data: Record<string, unknown> }) {
+        taskCreates.push(input.data);
+
+        return {
+          id: `task-${taskCreates.length}`,
+          title: input.data.title as string,
+          boardDayId: input.data.boardDayId as string
+        };
+      }
+    },
     appointmentTaskLink: {
       async create(input: { data: Record<string, unknown> }) {
         taskLinkCreates.push(input.data);
@@ -172,12 +204,14 @@ function createDatabaseHarness() {
   return {
     appointmentCreates,
     appointmentUpdates,
+    boardDayUpserts,
     commandUpdates,
     database,
     deletedTaskLinkIds,
     historyCreates,
     committedHeldReservationIds,
     reservationCreates,
+    taskCreates,
     taskLinkCreates,
     updatedReservationIds
   };
@@ -249,6 +283,31 @@ describe("appointment lifecycle Prisma transaction repository", () => {
           }
         ]
       });
+      const tasks = await tx.createTasks([
+        {
+          action: "CREATE_TASK",
+          automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_TASK",
+          templateVersion: 1,
+          title: "Callback required for appointment APT-10245",
+          description: "Call customer with estimate.",
+          assignedUserId: "user-manager",
+          createdByUserId: "user-manager",
+          boardDate: "2026-07-07",
+          dueAt: new Date("2026-07-07T15:00:00.000Z"),
+          status: "NOT_STARTED",
+          workflowArea: "SHOP",
+          sourceType: "MANAGER",
+          requiresManagerApproval: false,
+          customerReference: "Ahmed Ibrahim",
+          vehicleReference: "2014 Ford Taurus",
+          linkType: "FOLLOW_UP",
+          linkCode: "OUTCOME_CALLBACK_REQUIRED",
+          linkTitle: "Outcome follow-up task",
+          linkExplanation: "Created automatically from final appointment outcome disposition.",
+          blocksAppointment: false,
+          blocksTask: true
+        }
+      ]);
       const events = await tx.createHistoryEvents({
         appointmentId: appointment.id,
         events: [
@@ -283,6 +342,7 @@ describe("appointment lifecycle Prisma transaction repository", () => {
         resultSnapshot: {
           appointmentId: appointment.id,
           committedReservationCount: reservations.length,
+          createdTaskCount: tasks.length,
           createdTaskLinkCount: links.length,
           historyEventCount: events.length
         },
@@ -321,6 +381,30 @@ describe("appointment lifecycle Prisma transaction repository", () => {
         appointmentId: "appointment-1",
         taskId: "task-1",
         linkCode: "PREP_TASK"
+      })
+    ]);
+    expect(harness.boardDayUpserts).toEqual([
+      {
+        where: {
+          date: new Date("2026-07-07T00:00:00.000Z")
+        },
+        create: {
+          date: new Date("2026-07-07T00:00:00.000Z")
+        }
+      }
+    ]);
+    expect(harness.taskCreates).toEqual([
+      expect.objectContaining({
+        assignedUserId: "user-manager",
+        boardDayId: "board-day-1",
+        createdByUserId: "user-manager",
+        customerReference: "Ahmed Ibrahim",
+        dueAt: new Date("2026-07-07T15:00:00.000Z"),
+        sourceType: "MANAGER",
+        status: "NOT_STARTED",
+        title: "Callback required for appointment APT-10245",
+        vehicleReference: "2014 Ford Taurus",
+        workflowArea: "SHOP"
       })
     ]);
     expect(harness.historyCreates).toEqual([

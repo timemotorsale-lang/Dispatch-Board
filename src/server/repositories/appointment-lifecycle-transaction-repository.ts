@@ -12,6 +12,7 @@ import {
   type AppointmentLifecycleCommandLedgerCompletion,
   type AppointmentLifecyclePersistedAppointment,
   type AppointmentLifecyclePersistedHistoryEvent,
+  type AppointmentLifecyclePersistedTask,
   type AppointmentLifecyclePersistedTaskLink,
   type AppointmentLifecycleTransaction,
   type AppointmentLifecycleTransactionRepository
@@ -54,6 +55,20 @@ type AppointmentLifecycleTransactionClient = {
       where: { id: { in: string[] }; status: { in: string[] } };
       data: Record<string, unknown>;
     }): Promise<{ count: number }>;
+  };
+  boardDay: {
+    upsert(input: {
+      where: { date: Date };
+      update: Record<string, never>;
+      create: { date: Date };
+      select: typeof persistedBoardDaySelect;
+    }): Promise<{ id: string; date: Date }>;
+  };
+  task: {
+    create(input: {
+      data: Record<string, unknown>;
+      select: typeof persistedTaskSelect;
+    }): Promise<AppointmentLifecyclePersistedTask>;
   };
   appointmentTaskLink: {
     create(input: {
@@ -113,6 +128,17 @@ const releaseReservationSelect = {
   id: true,
   resourceId: true,
   status: true
+} as const;
+
+const persistedBoardDaySelect = {
+  id: true,
+  date: true
+} as const;
+
+const persistedTaskSelect = {
+  id: true,
+  title: true,
+  boardDayId: true
 } as const;
 
 const persistedTaskLinkSelect = {
@@ -306,6 +332,37 @@ function toReleaseRecord(input: {
   };
 }
 
+function toBoardDateValue(boardDate: string) {
+  return new Date(`${boardDate}T00:00:00.000Z`);
+}
+
+function toTaskData(input: {
+  boardDayId: string;
+  effect: Parameters<AppointmentLifecycleTransaction["createTasks"]>[0][number];
+}) {
+  return {
+    assignedUserId: input.effect.assignedUserId,
+    boardDayId: input.boardDayId,
+    createdByUserId: input.effect.createdByUserId,
+    ...(input.effect.customerReference
+      ? { customerReference: input.effect.customerReference }
+      : {}),
+    description: input.effect.description,
+    dueAt: input.effect.dueAt,
+    requiresManagerApproval: input.effect.requiresManagerApproval,
+    sourceType: input.effect.sourceType,
+    status: input.effect.status,
+    templateSnapshot: asInputJson({
+      automationRuleCode: input.effect.automationRuleCode,
+      templateVersion: input.effect.templateVersion,
+      source: "APPOINTMENT_OUTCOME"
+    }),
+    title: input.effect.title,
+    ...(input.effect.vehicleReference ? { vehicleReference: input.effect.vehicleReference } : {}),
+    workflowArea: input.effect.workflowArea
+  };
+}
+
 function toTaskLinkData(input: {
   appointmentId: string;
   link: ReturnType<typeof normalizeAppointmentTaskLink>;
@@ -421,6 +478,35 @@ function createTransactionAdapter(tx: AppointmentLifecycleTransactionClient): Ap
       });
 
       return releasableReservations.map((reservation) => toReleaseRecord({ reservation, effect }));
+    },
+
+    async createTasks(effects) {
+      const tasks: AppointmentLifecyclePersistedTask[] = [];
+
+      for (const effect of effects) {
+        const boardDay = await tx.boardDay.upsert({
+          where: {
+            date: toBoardDateValue(effect.boardDate)
+          },
+          update: {},
+          create: {
+            date: toBoardDateValue(effect.boardDate)
+          },
+          select: persistedBoardDaySelect
+        });
+
+        tasks.push(
+          await tx.task.create({
+            data: toTaskData({
+              boardDayId: boardDay.id,
+              effect
+            }),
+            select: persistedTaskSelect
+          })
+        );
+      }
+
+      return tasks;
     },
 
     async createTaskLinks(input) {

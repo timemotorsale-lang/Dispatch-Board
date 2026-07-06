@@ -4,6 +4,7 @@ import type {
   AppointmentLifecycleCommandExecutionPlan,
   AppointmentLifecycleHistoryEffect,
   AppointmentLifecycleReservationEffect,
+  AppointmentLifecycleTaskCreateEffect,
   AppointmentLifecycleTaskLinkEffect
 } from "@/server/appointments/appointment-lifecycle-command-service";
 import type {
@@ -25,6 +26,12 @@ export type AppointmentLifecyclePersistedTaskLink = {
   appointmentId: string;
   taskId: string;
   linkCode: string;
+};
+
+export type AppointmentLifecyclePersistedTask = {
+  id: string;
+  title: string;
+  boardDayId: string;
 };
 
 export type AppointmentLifecyclePersistedHistoryEvent = {
@@ -57,6 +64,9 @@ export type AppointmentLifecycleTransaction = {
   releaseReservations(
     effect: Extract<AppointmentLifecycleReservationEffect, { action: "RELEASE_RESERVATIONS" }>
   ): Promise<AppointmentReservationReleaseRecord[]>;
+  createTasks(
+    effects: AppointmentLifecycleTaskCreateEffect[]
+  ): Promise<AppointmentLifecyclePersistedTask[]>;
   createTaskLinks(input: {
     appointmentId: string;
     links: ReturnType<typeof normalizeAppointmentTaskLink>[];
@@ -87,6 +97,7 @@ export type AppointmentLifecycleTransactionResult = {
   appointment: AppointmentLifecyclePersistedAppointment | null;
   committedReservationCount: number;
   releasedReservationCount: number;
+  createdTaskCount: number;
   createdTaskLinkCount: number;
   removedTaskLinkCount: number;
   historyEventCount: number;
@@ -126,6 +137,27 @@ function toTaskLinkInput(input: {
   });
 }
 
+function toTaskLinkInputForCreatedTask(input: {
+  appointmentId: string;
+  effect: AppointmentLifecycleTaskCreateEffect;
+  taskId: string;
+}) {
+  return normalizeAppointmentTaskLink({
+    appointmentId: input.appointmentId,
+    taskId: input.taskId,
+    linkType: input.effect.linkType,
+    linkCode: input.effect.linkCode,
+    title: input.effect.linkTitle,
+    explanation: input.effect.linkExplanation,
+    isRequired: false,
+    blocksAppointment: input.effect.blocksAppointment,
+    blocksTask: input.effect.blocksTask,
+    automationRuleCode: input.effect.automationRuleCode,
+    templateVersion: input.effect.templateVersion,
+    createdByUserId: input.effect.createdByUserId
+  });
+}
+
 function toHistoryEventInput(input: {
   appointmentId: string;
   commandId: string;
@@ -157,6 +189,7 @@ function createResultSnapshot(input: {
   appointmentId: string | null;
   committedReservationCount: number;
   releasedReservationCount: number;
+  createdTaskCount: number;
   createdTaskLinkCount: number;
   removedTaskLinkCount: number;
   historyEventCount: number;
@@ -166,6 +199,7 @@ function createResultSnapshot(input: {
     appointmentId: input.appointmentId,
     committedReservationCount: input.committedReservationCount,
     releasedReservationCount: input.releasedReservationCount,
+    createdTaskCount: input.createdTaskCount,
     createdTaskLinkCount: input.createdTaskLinkCount,
     removedTaskLinkCount: input.removedTaskLinkCount,
     historyEventCount: input.historyEventCount
@@ -201,6 +235,7 @@ async function recordRejectedPlan(input: {
     appointment: null,
     committedReservationCount: 0,
     releasedReservationCount: 0,
+    createdTaskCount: 0,
     createdTaskLinkCount: 0,
     removedTaskLinkCount: 0,
     historyEventCount: 0,
@@ -249,17 +284,28 @@ export async function executeAppointmentLifecycleCommandPlan(input: {
       }
     }
 
+    const taskCreateEffects = input.plan.taskCreateEffects ?? [];
+    const createdTasks = await transaction.createTasks(taskCreateEffects);
     const createdTaskLinks = await transaction.createTaskLinks({
       appointmentId,
-      links: input.plan.taskLinkEffects
-        .filter((effect) => effect.action === "CREATE_LINK")
-        .map((effect) =>
-          toTaskLinkInput({
+      links: [
+        ...input.plan.taskLinkEffects
+          .filter((effect) => effect.action === "CREATE_LINK")
+          .map((effect) =>
+            toTaskLinkInput({
+              appointmentId,
+              effect,
+              actorUserId: getHistoryActorUserId(input.plan)
+            })
+          ),
+        ...createdTasks.map((task, index) =>
+          toTaskLinkInputForCreatedTask({
             appointmentId,
-            effect,
-            actorUserId: getHistoryActorUserId(input.plan)
+            effect: taskCreateEffects[index],
+            taskId: task.id
           })
         )
+      ]
     });
     const removedTaskLinks = await transaction.removeTaskLinks({
       appointmentId,
@@ -281,6 +327,7 @@ export async function executeAppointmentLifecycleCommandPlan(input: {
       appointmentId,
       committedReservationCount: committedReservations.length,
       releasedReservationCount: releasedReservations.length,
+      createdTaskCount: createdTasks.length,
       createdTaskLinkCount: createdTaskLinks.length,
       removedTaskLinkCount: removedTaskLinks.length,
       historyEventCount: historyEvents.length
@@ -304,6 +351,7 @@ export async function executeAppointmentLifecycleCommandPlan(input: {
       appointment,
       committedReservationCount: committedReservations.length,
       releasedReservationCount: releasedReservations.length,
+      createdTaskCount: createdTasks.length,
       createdTaskLinkCount: createdTaskLinks.length,
       removedTaskLinkCount: removedTaskLinks.length,
       historyEventCount: historyEvents.length,

@@ -69,6 +69,38 @@ export type AppointmentLifecycleTaskLinkEffect = {
   appointmentRequiredForTask: boolean;
 };
 
+export type AppointmentLifecycleTaskCreateEffect = {
+  action: "CREATE_TASK";
+  automationRuleCode: string;
+  templateVersion: number;
+  title: string;
+  description: string;
+  assignedUserId: string;
+  createdByUserId: string;
+  boardDate: string;
+  dueAt: Date;
+  status: "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "WAITING_ON_PARTS" | "WAITING_ON_APPROVAL" | "READY_FOR_REVIEW" | "COMPLETED";
+  workflowArea:
+    | "INVENTORY"
+    | "ADVERTISING"
+    | "MARKETING"
+    | "SALES"
+    | "ADMIN"
+    | "COLLECTIONS"
+    | "SHOP"
+    | "GENERAL_MANAGER";
+  sourceType: "MANAGER" | "STAFF" | "TEMPLATE";
+  requiresManagerApproval: boolean;
+  customerReference: string | null;
+  vehicleReference: string | null;
+  linkType: string;
+  linkCode: string;
+  linkTitle: string;
+  linkExplanation: string;
+  blocksAppointment: boolean;
+  blocksTask: boolean;
+};
+
 export type AppointmentLifecycleHistoryEffect = {
   eventType: AppointmentHistoryEventType;
   actorType: "HUMAN" | "SYSTEM" | "AUTOMATION" | "IMPORT";
@@ -96,6 +128,8 @@ export type AppointmentLifecycleCommandPayload = {
   customerSnapshot?: Record<string, unknown> | null;
   vehicleSnapshot?: Record<string, unknown> | null;
   sourceSnapshot?: Record<string, unknown> | null;
+  customerReference?: string | null;
+  vehicleReference?: string | null;
   reasonCode?: string | null;
   reasonNotes?: string | null;
   outcomeCode?: string | null;
@@ -182,6 +216,7 @@ export type AppointmentLifecycleCommandExecutionPlan = {
   rejectionReasons: string[];
   appointmentEffect: AppointmentLifecycleAppointmentEffect | null;
   reservationEffects: AppointmentLifecycleReservationEffect[];
+  taskCreateEffects?: AppointmentLifecycleTaskCreateEffect[];
   taskLinkEffects: AppointmentLifecycleTaskLinkEffect[];
   historyEffects: AppointmentLifecycleHistoryEffect[];
   commandResultSnapshot: Record<string, unknown>;
@@ -201,6 +236,145 @@ function optionalText(value: string | null | undefined) {
   const normalized = value?.trim();
 
   return normalized || null;
+}
+
+function addBusinessDays(date: Date, businessDays: number) {
+  const result = new Date(date);
+  let remaining = businessDays;
+
+  while (remaining > 0) {
+    result.setUTCDate(result.getUTCDate() + 1);
+
+    const day = result.getUTCDay();
+
+    if (day !== 0 && day !== 6) {
+      remaining -= 1;
+    }
+  }
+
+  return result;
+}
+
+function inferTaskWorkflowArea(title: string, followUpDispositionCode: string) {
+  const normalizedTitle = title.toLowerCase();
+
+  if (followUpDispositionCode === "MANAGER_REVIEW_REQUIRED") {
+    return "GENERAL_MANAGER" as const;
+  }
+
+  if (
+    normalizedTitle.includes("service") ||
+    normalizedTitle.includes("repair") ||
+    normalizedTitle.includes("oil")
+  ) {
+    return "SHOP" as const;
+  }
+
+  if (
+    normalizedTitle.includes("dmv") ||
+    normalizedTitle.includes("title") ||
+    normalizedTitle.includes("registration") ||
+    normalizedTitle.includes("document")
+  ) {
+    return "ADMIN" as const;
+  }
+
+  if (normalizedTitle.includes("collection") || normalizedTitle.includes("payment")) {
+    return "COLLECTIONS" as const;
+  }
+
+  if (normalizedTitle.includes("inventory") || normalizedTitle.includes("vendor")) {
+    return "INVENTORY" as const;
+  }
+
+  if (normalizedTitle.includes("marketing") || normalizedTitle.includes("listing")) {
+    return "MARKETING" as const;
+  }
+
+  if (normalizedTitle.includes("test drive") || normalizedTitle.includes("sales")) {
+    return "SALES" as const;
+  }
+
+  return "ADMIN" as const;
+}
+
+function getFollowUpTaskTitle(input: {
+  appointmentNumber: string;
+  followUpDispositionCode: string;
+}) {
+  if (input.followUpDispositionCode === "CALLBACK_REQUIRED") {
+    return `Callback required for appointment ${input.appointmentNumber}`;
+  }
+
+  if (input.followUpDispositionCode === "FOLLOW_UP_APPOINTMENT_REQUIRED") {
+    return `Schedule follow-up appointment for ${input.appointmentNumber}`;
+  }
+
+  if (input.followUpDispositionCode === "MANAGER_REVIEW_REQUIRED") {
+    return `Manager review required for appointment ${input.appointmentNumber}`;
+  }
+
+  return `Follow up on appointment ${input.appointmentNumber}`;
+}
+
+function buildOutcomeFollowUpTaskEffects(input: {
+  appointment: AppointmentLifecycleCommandAppointment;
+  actor: AuthenticatedUser | null;
+  payload: AppointmentLifecycleCommandPayload | undefined;
+  followUpDispositionCode: string;
+  followUpNotes: string | null;
+  now: Date;
+}): AppointmentLifecycleTaskCreateEffect[] {
+  if (
+    input.followUpDispositionCode === "NO_FOLLOW_UP_REQUIRED" ||
+    input.followUpDispositionCode === "TASK_CREATED"
+  ) {
+    return [];
+  }
+
+  const assignedUserId = input.appointment.ownerUserId ?? input.actor?.id;
+  const createdByUserId = input.actor?.id;
+
+  if (!assignedUserId || !createdByUserId) {
+    return [];
+  }
+
+  const dueAt = addBusinessDays(input.now, 1);
+  const title = getFollowUpTaskTitle({
+    appointmentNumber: input.appointment.appointmentNumber,
+    followUpDispositionCode: input.followUpDispositionCode
+  });
+  const followUpNotes = input.followUpNotes ?? "Follow-up required from appointment outcome.";
+
+  return [
+    {
+      action: "CREATE_TASK",
+      automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_TASK",
+      templateVersion: 1,
+      title,
+      description: [
+        `Auto-created from completed appointment ${input.appointment.appointmentNumber}: ${input.appointment.title}.`,
+        `Follow-up disposition: ${input.followUpDispositionCode}.`,
+        `Next step: ${followUpNotes}`
+      ].join("\n"),
+      assignedUserId,
+      createdByUserId,
+      boardDate: dueAt.toISOString().slice(0, 10),
+      dueAt,
+      status: "NOT_STARTED",
+      workflowArea: inferTaskWorkflowArea(input.appointment.title, input.followUpDispositionCode),
+      sourceType: "MANAGER",
+      requiresManagerApproval: input.followUpDispositionCode === "MANAGER_REVIEW_REQUIRED",
+      customerReference: optionalText(input.payload?.customerReference),
+      vehicleReference: optionalText(input.payload?.vehicleReference),
+      linkType: "FOLLOW_UP",
+      linkCode: `OUTCOME_${input.followUpDispositionCode}`,
+      linkTitle: "Outcome follow-up task",
+      linkExplanation: "Created automatically from final appointment outcome disposition.",
+      blocksAppointment: false,
+      blocksTask: true
+    }
+  ];
 }
 
 function parseOptionalDate(value: Date | string | null | undefined, label: string) {
@@ -1462,6 +1636,14 @@ function buildCompletePlan(
   );
   const outcomeNotes = optionalText(input.payload?.outcomeNotes);
   const followUpNotes = optionalText(input.payload?.followUpNotes);
+  const taskCreateEffects = buildOutcomeFollowUpTaskEffects({
+    appointment,
+    actor: input.actor,
+    payload: input.payload,
+    followUpDispositionCode,
+    followUpNotes,
+    now
+  });
   const set = {
     bookingStatus: "COMPLETED",
     completedAt: now,
@@ -1495,6 +1677,7 @@ function buildCompletePlan(
           }
         ]
       : [],
+    taskCreateEffects,
     taskLinkEffects: input.payload?.taskLinks ?? [],
     historyEffects: [
       buildHistoryEffect({
@@ -1522,14 +1705,32 @@ function buildCompletePlan(
           followUpDispositionCode,
           followUpNotes
         }
-      })
+      }),
+      ...(taskCreateEffects.length > 0
+        ? [
+            buildHistoryEffect({
+              command: { ...input, now },
+              eventType: "TASK_LINKED",
+              message: `Appointment ${appointment.appointmentNumber} follow-up task automation created a linked task request.`,
+              reasonCode,
+              reasonNotes,
+              priorValue: null,
+              newValue: {
+                automationRuleCode: taskCreateEffects[0].automationRuleCode,
+                taskTitle: taskCreateEffects[0].title,
+                followUpDispositionCode
+              }
+            })
+          ]
+        : [])
     ],
     commandResultSnapshot: {
       appointmentId: appointment.id,
       bookingStatus: "COMPLETED",
       outcomeCode,
       followUpDispositionCode,
-      releaseReservationCount: input.payload?.releaseReservations?.length ?? 0
+      releaseReservationCount: input.payload?.releaseReservations?.length ?? 0,
+      automatedTaskCount: taskCreateEffects.length
     }
   };
 }

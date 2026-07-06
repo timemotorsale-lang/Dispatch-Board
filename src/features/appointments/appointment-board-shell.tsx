@@ -2377,6 +2377,8 @@ export function AppointmentBoardShell() {
             outcomeNotes: outcomeDraft.outcomeNotes.trim() || null,
             followUpDispositionCode: outcomeDraft.followUpDispositionCode,
             followUpNotes: outcomeDraft.followUpNotes.trim() || null,
+            customerReference: selectedAppointment.customer,
+            vehicleReference: selectedAppointment.vehicle,
             reasonCode: "OUTCOME_RECORDED",
             reasonNotes: buildResourceReasonNote(
               `Recorded ${outcomeLabel} outcome with ${followUpLabel.toLowerCase()} follow-up disposition from Appointment Board.`,

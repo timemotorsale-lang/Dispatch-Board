@@ -10,6 +10,7 @@ import {
   type AppointmentLifecycleCommandLedgerCompletion,
   type AppointmentLifecyclePersistedAppointment,
   type AppointmentLifecyclePersistedHistoryEvent,
+  type AppointmentLifecyclePersistedTask,
   type AppointmentLifecyclePersistedTaskLink,
   type AppointmentLifecycleTransaction,
   type AppointmentLifecycleTransactionRepository
@@ -109,6 +110,7 @@ function createRepositoryHarness(options?: { failHistory?: boolean }) {
   const appointments: AppointmentLifecyclePersistedAppointment[] = [];
   const committedReservations: AppointmentCommittedResourceReservation[] = [];
   const releasedReservations: AppointmentReservationReleaseRecord[] = [];
+  const createdTasks: AppointmentLifecyclePersistedTask[] = [];
   const createdTaskLinks: AppointmentLifecyclePersistedTaskLink[] = [];
   const removedTaskLinks: AppointmentLifecyclePersistedTaskLink[] = [];
   const historyEvents: AppointmentLifecyclePersistedHistoryEvent[] = [];
@@ -119,6 +121,7 @@ function createRepositoryHarness(options?: { failHistory?: boolean }) {
       appointments: [...appointments],
       committedReservations: [...committedReservations],
       releasedReservations: [...releasedReservations],
+      createdTasks: [...createdTasks],
       createdTaskLinks: [...createdTaskLinks],
       removedTaskLinks: [...removedTaskLinks],
       historyEvents: [...historyEvents],
@@ -130,6 +133,7 @@ function createRepositoryHarness(options?: { failHistory?: boolean }) {
     appointments.splice(0, appointments.length, ...state.appointments);
     committedReservations.splice(0, committedReservations.length, ...state.committedReservations);
     releasedReservations.splice(0, releasedReservations.length, ...state.releasedReservations);
+    createdTasks.splice(0, createdTasks.length, ...state.createdTasks);
     createdTaskLinks.splice(0, createdTaskLinks.length, ...state.createdTaskLinks);
     removedTaskLinks.splice(0, removedTaskLinks.length, ...state.removedTaskLinks);
     historyEvents.splice(0, historyEvents.length, ...state.historyEvents);
@@ -190,6 +194,17 @@ function createRepositoryHarness(options?: { failHistory?: boolean }) {
       }));
 
       releasedReservations.push(...records);
+      return records;
+    },
+
+    async createTasks(effects) {
+      const records = effects.map((effect, index) => ({
+        id: `task-${index + 1}`,
+        title: effect.title,
+        boardDayId: `board-day-${index + 1}`
+      }));
+
+      createdTasks.push(...records);
       return records;
     },
 
@@ -255,6 +270,7 @@ function createRepositoryHarness(options?: { failHistory?: boolean }) {
     appointments,
     commandCompletions,
     committedReservations,
+    createdTasks,
     createdTaskLinks,
     historyEvents,
     releasedReservations,
@@ -333,6 +349,68 @@ describe("appointment lifecycle transaction execution", () => {
           historyEventCount: 1
         })
       })
+    ]);
+  });
+
+  it("creates automated follow-up tasks and links during completion execution", async () => {
+    const plan = planAppointmentLifecycleCommandExecution(
+      baseCommand({
+        commandType: "COMPLETE",
+        appointment: {
+          ...appointment,
+          confirmationStatus: "CONFIRMED",
+          attendanceStatus: "CHECKED_IN",
+          executionStatus: "FINISHED"
+        },
+        payload: {
+          outcomeCode: "FOLLOW_UP_REQUIRED",
+          followUpDispositionCode: "CALLBACK_REQUIRED",
+          followUpNotes: "Call customer with estimate.",
+          customerReference: "Ahmed Ibrahim",
+          vehicleReference: "2014 Ford Taurus",
+          reasonCode: "OUTCOME_RECORDED",
+          reasonNotes: "Callback required after inspection."
+        }
+      })
+    );
+    const harness = createRepositoryHarness();
+    const result = await executeAppointmentLifecycleCommandPlan({
+      plan,
+      repository: harness.repository,
+      now
+    });
+
+    expect(result).toMatchObject({
+      executed: true,
+      commandStatus: "SUCCEEDED",
+      createdTaskCount: 1,
+      createdTaskLinkCount: 1,
+      historyEventCount: 3,
+      resultSnapshot: expect.objectContaining({
+        automatedTaskCount: 1,
+        createdTaskCount: 1,
+        createdTaskLinkCount: 1
+      })
+    });
+    expect(harness.createdTasks).toEqual([
+      {
+        id: "task-1",
+        title: "Callback required for appointment APT-10245",
+        boardDayId: "board-day-1"
+      }
+    ]);
+    expect(harness.createdTaskLinks).toEqual([
+      {
+        id: "link-1",
+        appointmentId: appointment.id,
+        taskId: "task-1",
+        linkCode: "OUTCOME_CALLBACK_REQUIRED"
+      }
+    ]);
+    expect(harness.historyEvents.map((event) => event.eventType)).toEqual([
+      "COMPLETED",
+      "OUTCOME_RECORDED",
+      "TASK_LINKED"
     ]);
   });
 

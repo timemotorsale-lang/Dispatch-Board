@@ -783,6 +783,70 @@ describe("appointment lifecycle command execution planner", () => {
     });
   });
 
+  it("plans an automated follow-up task when completion disposition requires callback", () => {
+    const finishedAppointment: AppointmentLifecycleCommandAppointment = {
+      ...appointment,
+      executionStatus: "FINISHED"
+    };
+    const plan = planAppointmentLifecycleCommandExecution(
+      baseCommand({
+        commandType: "COMPLETE",
+        appointment: finishedAppointment,
+        payload: {
+          outcomeCode: "FOLLOW_UP_REQUIRED",
+          outcomeNotes: "Customer wants a repair estimate call.",
+          followUpDispositionCode: "CALLBACK_REQUIRED",
+          followUpNotes: "Call customer with brake estimate tomorrow.",
+          customerReference: "Ahmed Ibrahim",
+          vehicleReference: "2014 Ford Taurus",
+          reasonCode: "OUTCOME_RECORDED",
+          reasonNotes: "Callback required after service inspection."
+        }
+      })
+    );
+
+    expect(plan).toMatchObject({
+      executable: true,
+      taskCreateEffects: [
+        {
+          action: "CREATE_TASK",
+          automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_TASK",
+          templateVersion: 1,
+          title: "Callback required for appointment APT-10245",
+          assignedUserId: ownerUser.id,
+          createdByUserId: managerUser.id,
+          boardDate: "2026-07-07",
+          status: "NOT_STARTED",
+          workflowArea: "SHOP",
+          customerReference: "Ahmed Ibrahim",
+          vehicleReference: "2014 Ford Taurus",
+          linkType: "FOLLOW_UP",
+          linkCode: "OUTCOME_CALLBACK_REQUIRED",
+          blocksTask: true
+        }
+      ],
+      historyEffects: [
+        {
+          eventType: "COMPLETED"
+        },
+        {
+          eventType: "OUTCOME_RECORDED"
+        },
+        {
+          eventType: "TASK_LINKED",
+          newValue: {
+            automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_TASK",
+            taskTitle: "Callback required for appointment APT-10245",
+            followUpDispositionCode: "CALLBACK_REQUIRED"
+          }
+        }
+      ],
+      commandResultSnapshot: {
+        automatedTaskCount: 1
+      }
+    });
+  });
+
   it("blocks completion before finish and after no-show", () => {
     const notFinished = planAppointmentLifecycleCommandExecution(
       baseCommand({

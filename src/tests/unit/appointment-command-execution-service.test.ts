@@ -171,6 +171,10 @@ function createLifecycleRepositoryHarness() {
           return [];
         },
 
+        async createTasks() {
+          return [];
+        },
+
         async createTaskLinks() {
           return [];
         },
