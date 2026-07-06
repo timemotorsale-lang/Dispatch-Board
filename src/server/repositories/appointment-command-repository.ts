@@ -5,10 +5,11 @@ import type {
   AppointmentCommandStatus,
   AppointmentCommandType
 } from "@/server/appointments/appointment-domain";
+import type { AppointmentReservationCommitCandidate } from "@/server/appointments/appointment-reservation-commit-service";
 
 type AppointmentCommandDatabase = Pick<
   PrismaClient,
-  "appointment" | "userLocationAccess"
+  "appointment" | "appointmentResourceReservation" | "userLocationAccess"
 > & {
   appointmentCommandLedger: {
     create(input: {
@@ -84,6 +85,63 @@ const appointmentLocationAccessSelect = {
   validTo: true
 } satisfies Prisma.UserLocationAccessSelect;
 
+const heldReservationCommitCandidateSelect = {
+  id: true,
+  appointmentId: true,
+  requirementId: true,
+  startsAt: true,
+  endsAt: true,
+  capacityUnits: true,
+  bufferBeforeMinutes: true,
+  bufferAfterMinutes: true,
+  appointment: {
+    select: {
+      id: true,
+      locationId: true
+    }
+  },
+  requirement: {
+    select: {
+      id: true,
+      appointmentId: true,
+      requirementCode: true
+    }
+  },
+  resource: {
+    select: {
+      id: true,
+      locationId: true,
+      name: true,
+      status: true,
+      capacityMode: true,
+      capacity: true,
+      conflictPolicy: true,
+      effectiveFrom: true,
+      effectiveTo: true,
+      operatingWindows: {
+        select: {
+          businessDay: true,
+          opensAtMinute: true,
+          closesAtMinute: true,
+          capacityOverride: true,
+          validFrom: true,
+          validTo: true
+        }
+      },
+      unavailability: {
+        select: {
+          id: true,
+          type: true,
+          startsAt: true,
+          endsAt: true,
+          capacityReduction: true,
+          reason: true
+        }
+      }
+    }
+  }
+} satisfies Prisma.AppointmentResourceReservationSelect;
+
 export type AppointmentCommandAppointmentRecord = Prisma.AppointmentGetPayload<{
   select: typeof appointmentCommandAppointmentSelect;
 }>;
@@ -118,6 +176,11 @@ export type AppointmentCommandLedgerRecord = {
 export type AppointmentCommandLocationAccessRecord = Prisma.UserLocationAccessGetPayload<{
   select: typeof appointmentLocationAccessSelect;
 }>;
+
+export type AppointmentCommandHeldReservationCommitCandidateRecord =
+  Prisma.AppointmentResourceReservationGetPayload<{
+    select: typeof heldReservationCommitCandidateSelect;
+  }>;
 
 export type CreateAppointmentCommandLedgerRecordInput = {
   organizationId: string;
@@ -158,6 +221,9 @@ export type AppointmentCommandRepository = {
     commandType: AppointmentCommandType;
     idempotencyKey: string;
   }): Promise<AppointmentCommandLedgerRecord | null>;
+  findHeldReservationCommitCandidates?(
+    appointmentId: string
+  ): Promise<AppointmentReservationCommitCandidate[]>;
 };
 
 function isDateWithinAccessWindow(
@@ -165,6 +231,38 @@ function isDateWithinAccessWindow(
   at: Date
 ) {
   return access.validFrom <= at && (!access.validTo || access.validTo >= at);
+}
+
+function toCommitCandidate(
+  reservation: AppointmentCommandHeldReservationCommitCandidateRecord
+): AppointmentReservationCommitCandidate {
+  return {
+    sourceReservationId: reservation.id,
+    appointmentId: reservation.appointmentId,
+    appointmentLocationId: reservation.appointment.locationId,
+    requirementId: reservation.requirementId,
+    requirementAppointmentId: reservation.requirement?.appointmentId ?? null,
+    requirementCode: reservation.requirement?.requirementCode ?? "UNASSIGNED_RESOURCE",
+    resource: {
+      id: reservation.resource.id,
+      name: reservation.resource.name,
+      status: reservation.resource.status,
+      capacityMode: reservation.resource.capacityMode,
+      capacity: reservation.resource.capacity,
+      conflictPolicy: reservation.resource.conflictPolicy,
+      effectiveFrom: reservation.resource.effectiveFrom,
+      effectiveTo: reservation.resource.effectiveTo
+    },
+    resourceLocationId: reservation.resource.locationId,
+    operatingWindows: reservation.resource.operatingWindows,
+    unavailability: reservation.resource.unavailability,
+    startsAt: reservation.startsAt,
+    endsAt: reservation.endsAt,
+    capacityUnits: reservation.capacityUnits,
+    bufferBeforeMinutes: reservation.bufferBeforeMinutes,
+    bufferAfterMinutes: reservation.bufferAfterMinutes,
+    status: "COMMITTED"
+  };
 }
 
 export function createAppointmentCommandRepository(
@@ -242,6 +340,21 @@ export function createAppointmentCommandRepository(
         },
         select: appointmentCommandLedgerSelect
       });
+    },
+
+    async findHeldReservationCommitCandidates(appointmentId) {
+      const reservations = await database.appointmentResourceReservation.findMany({
+        where: {
+          appointmentId,
+          status: "HELD"
+        },
+        orderBy: {
+          createdAt: "asc"
+        },
+        select: heldReservationCommitCandidateSelect
+      });
+
+      return reservations.map(toCommitCandidate);
     }
   };
 }

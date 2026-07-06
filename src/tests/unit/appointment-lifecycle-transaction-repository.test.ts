@@ -17,6 +17,7 @@ function createDatabaseHarness() {
   }> = [];
   const deletedTaskLinkIds: string[][] = [];
   const updatedReservationIds: string[][] = [];
+  const committedHeldReservationIds: string[] = [];
 
   const tx = {
     appointment: {
@@ -67,6 +68,23 @@ function createDatabaseHarness() {
         };
       },
 
+      async findUnique(input: { where: { id: string } }) {
+        return {
+          id: input.where.id,
+          appointmentId: "appointment-1",
+          requirementId: "requirement-1",
+          resourceId: "resource-bay-1",
+          status: "COMMITTED",
+          startsAt: new Date("2026-07-06T16:00:00.000Z"),
+          endsAt: new Date("2026-07-06T17:00:00.000Z"),
+          capacityUnits: 1,
+          bufferBeforeMinutes: 0,
+          bufferAfterMinutes: 0,
+          createdAt: new Date("2026-07-06T15:00:00.000Z"),
+          updatedAt: new Date("2026-07-06T15:00:00.000Z")
+        };
+      },
+
       async findMany() {
         return [
           {
@@ -77,7 +95,11 @@ function createDatabaseHarness() {
         ];
       },
 
-      async updateMany(input: { where: { id: { in: string[] } } }) {
+      async updateMany(input: { where: { id: { in: string[] } }; data?: Record<string, unknown> }) {
+        if (input.data?.status === "COMMITTED") {
+          committedHeldReservationIds.push(...input.where.id.in);
+        }
+
         updatedReservationIds.push(input.where.id.in);
         return { count: input.where.id.in.length };
       }
@@ -154,6 +176,7 @@ function createDatabaseHarness() {
     database,
     deletedTaskLinkIds,
     historyCreates,
+    committedHeldReservationIds,
     reservationCreates,
     taskLinkCreates,
     updatedReservationIds
@@ -382,5 +405,50 @@ describe("appointment lifecycle Prisma transaction repository", () => {
 
     expect(harness.updatedReservationIds).toEqual([["reservation-old"]]);
     expect(harness.deletedTaskLinkIds).toEqual([["link-old"]]);
+  });
+
+  it("commits an existing held reservation without creating a duplicate row", async () => {
+    const harness = createDatabaseHarness();
+    const repository = createAppointmentLifecycleTransactionRepository(
+      harness.database as never
+    );
+
+    await repository.withLifecycleTransaction(async (tx) => {
+      const reservations = await tx.commitReservations({
+        action: "COMMIT_RESERVATIONS",
+        allowWarningCommit: false,
+        candidates: [
+          {
+            sourceReservationId: "reservation-held",
+            appointmentId: "appointment-1",
+            appointmentLocationId: "loc-1",
+            requirementId: "requirement-1",
+            requirementAppointmentId: "appointment-1",
+            requirementCode: "SERVICE_BAY",
+            resource: {
+              id: "resource-bay-1",
+              name: "Bay 1",
+              status: "ACTIVE",
+              capacityMode: "EXCLUSIVE",
+              capacity: 1,
+              conflictPolicy: "HARD_BLOCK",
+              effectiveFrom: new Date("2026-01-01T00:00:00.000Z"),
+              effectiveTo: null
+            },
+            resourceLocationId: "loc-1",
+            operatingWindows: [],
+            unavailability: [],
+            startsAt: new Date("2026-07-06T16:00:00.000Z"),
+            endsAt: new Date("2026-07-06T17:00:00.000Z"),
+            status: "COMMITTED"
+          }
+        ]
+      });
+
+      return reservations;
+    });
+
+    expect(harness.committedHeldReservationIds).toEqual(["reservation-held"]);
+    expect(harness.reservationCreates).toEqual([]);
   });
 });

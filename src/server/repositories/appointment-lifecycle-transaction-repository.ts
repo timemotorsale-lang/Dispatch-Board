@@ -42,6 +42,10 @@ type AppointmentLifecycleTransactionClient = {
       data: Record<string, unknown>;
       select: typeof persistedReservationSelect;
     }): Promise<AppointmentCommittedResourceReservation>;
+    findUnique(input: {
+      where: { id: string };
+      select: typeof persistedReservationSelect;
+    }): Promise<AppointmentCommittedResourceReservation | null>;
     findMany(input: {
       where: { id: { in: string[] }; status: { in: string[] } };
       select: typeof releaseReservationSelect;
@@ -245,6 +249,48 @@ function toReservationData(
   };
 }
 
+async function commitExistingHeldReservation(input: {
+  tx: AppointmentLifecycleTransactionClient;
+  candidate: Parameters<AppointmentLifecycleTransaction["commitReservations"]>[0]["candidates"][number];
+}) {
+  const sourceReservationId = input.candidate.sourceReservationId?.trim();
+
+  if (!sourceReservationId) {
+    return null;
+  }
+
+  const update = await input.tx.appointmentResourceReservation.updateMany({
+    where: {
+      id: {
+        in: [sourceReservationId]
+      },
+      status: {
+        in: ["HELD"]
+      }
+    },
+    data: {
+      status: "COMMITTED"
+    }
+  });
+
+  if (update.count !== 1) {
+    throw new Error("Held resource reservation could not be committed.");
+  }
+
+  const reservation = await input.tx.appointmentResourceReservation.findUnique({
+    where: {
+      id: sourceReservationId
+    },
+    select: persistedReservationSelect
+  });
+
+  if (!reservation) {
+    throw new Error("Committed held resource reservation could not be reloaded.");
+  }
+
+  return reservation;
+}
+
 function toReleaseRecord(input: {
   reservation: { id: string; resourceId: string };
   effect: Parameters<AppointmentLifecycleTransaction["releaseReservations"]>[0];
@@ -319,6 +365,13 @@ function createTransactionAdapter(tx: AppointmentLifecycleTransactionClient): Ap
       const reservations: AppointmentCommittedResourceReservation[] = [];
 
       for (const candidate of effect.candidates) {
+        const existingReservation = await commitExistingHeldReservation({ tx, candidate });
+
+        if (existingReservation) {
+          reservations.push(existingReservation);
+          continue;
+        }
+
         reservations.push(
           await tx.appointmentResourceReservation.create({
             data: toReservationData(candidate),

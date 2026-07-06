@@ -18,6 +18,7 @@ export type AppointmentReservationCommitConflictCode =
   (typeof APPOINTMENT_RESERVATION_COMMIT_CONFLICT_CODES)[number];
 
 export type AppointmentReservationCommitCandidate = {
+  sourceReservationId?: string | null;
   appointmentId: string;
   appointmentLocationId: string;
   requirementId?: string | null;

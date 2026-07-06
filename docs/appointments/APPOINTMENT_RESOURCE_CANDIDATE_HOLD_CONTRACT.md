@@ -89,8 +89,6 @@ Successful response:
 
 Still pending:
 
-- committed reservation workflow through the final scheduling command
 - warning override capture as a dedicated UI/history artifact
 - release/change controls for held or committed reservations
 - staff conflict preview alongside resource availability
-- final schedule payload reservation candidates

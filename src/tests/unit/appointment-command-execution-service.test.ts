@@ -42,6 +42,11 @@ const ownerUser: AuthenticatedUser = {
 function createCommandRepositoryHarness(input?: {
   appointment?: AppointmentCommandAppointmentRecord | null;
   existingCommand?: AppointmentCommandLedgerRecord | null;
+  heldReservationCandidates?: NonNullable<
+    AppointmentCommandRepository["findHeldReservationCommitCandidates"]
+  > extends (...args: never[]) => Promise<infer Result>
+    ? Result
+    : never;
 }) {
   const createdCommands: CreateAppointmentCommandLedgerRecordInput[] = [];
   const appointment = input?.appointment ?? {
@@ -120,6 +125,10 @@ function createCommandRepositoryHarness(input?: {
 
     async findCommandByIdempotency() {
       return input?.existingCommand ?? null;
+    },
+
+    async findHeldReservationCommitCandidates() {
+      return input?.heldReservationCandidates ?? [];
     }
   };
 
@@ -132,6 +141,7 @@ function createCommandRepositoryHarness(input?: {
 
 function createLifecycleRepositoryHarness() {
   const completedCommands: string[] = [];
+  const committedReservationCandidateCounts: number[] = [];
 
   const repository: AppointmentLifecycleTransactionRepository = {
     async withLifecycleTransaction(operation) {
@@ -152,7 +162,8 @@ function createLifecycleRepositoryHarness() {
           };
         },
 
-        async commitReservations() {
+        async commitReservations(effect) {
+          committedReservationCandidateCounts.push(effect.candidates.length);
           return [];
         },
 
@@ -186,6 +197,7 @@ function createLifecycleRepositoryHarness() {
 
   return {
     completedCommands,
+    committedReservationCandidateCounts,
     repository
   };
 }
@@ -235,6 +247,87 @@ describe("appointment command execution service", () => {
       }
     });
     expect(lifecycleHarness.completedCommands).toEqual(["cmd-1"]);
+  });
+
+  it("adds held resource reservations to schedule execution on the server", async () => {
+    const commandHarness = createCommandRepositoryHarness({
+      appointment: {
+        id: "appointment-1",
+        appointmentNumber: "APT-10245",
+        organizationId: "org-time-motor-sales",
+        locationId: "loc-time-motor-sales-minneapolis",
+        ownerUserId: ownerUser.id,
+        title: "Service / Repair",
+        schedulingTimezone: "America/Chicago",
+        startsAt: new Date("2026-07-06T15:00:00.000Z"),
+        endsAt: new Date("2026-07-06T16:00:00.000Z"),
+        bookingStatus: "DRAFT",
+        confirmationStatus: "PENDING",
+        attendanceStatus: "EXPECTED",
+        executionStatus: "NOT_STARTED",
+        version: 3
+      },
+      heldReservationCandidates: [
+        {
+          sourceReservationId: "reservation-held",
+          appointmentId: "appointment-1",
+          appointmentLocationId: "loc-time-motor-sales-minneapolis",
+          requirementId: "requirement-1",
+          requirementAppointmentId: "appointment-1",
+          requirementCode: "SERVICE_BAY",
+          resource: {
+            id: "resource-bay-1",
+            name: "Service Bay 1",
+            status: "ACTIVE",
+            capacityMode: "EXCLUSIVE",
+            capacity: 1,
+            conflictPolicy: "HARD_BLOCK",
+            effectiveFrom: new Date("2026-01-01T00:00:00.000Z"),
+            effectiveTo: null
+          },
+          resourceLocationId: "loc-time-motor-sales-minneapolis",
+          operatingWindows: [],
+          unavailability: [],
+          startsAt: new Date("2026-07-06T15:00:00.000Z"),
+          endsAt: new Date("2026-07-06T16:00:00.000Z"),
+          capacityUnits: 1,
+          bufferBeforeMinutes: 0,
+          bufferAfterMinutes: 0,
+          status: "COMMITTED"
+        }
+      ]
+    });
+    const lifecycleHarness = createLifecycleRepositoryHarness();
+    const result = await submitAndExecuteAppointmentCommand(
+      managerUser,
+      {
+        commandType: "SCHEDULE",
+        appointmentId: "appointment-1",
+        expectedAppointmentVersion: 3,
+        idempotencyKey: "schedule-held-reservation-1",
+        correlationId: "corr-schedule-held-1",
+        payload: {
+          startsAt: "2026-07-06T15:00:00.000Z",
+          endsAt: "2026-07-06T16:00:00.000Z"
+        }
+      },
+      {
+        commandRepository: commandHarness.repository,
+        lifecycleRepository: lifecycleHarness.repository,
+        now
+      }
+    );
+
+    expect(result).toMatchObject({
+      accepted: true,
+      execution: {
+        executed: true,
+        resultSnapshot: {
+          reservationCandidateCount: 1
+        }
+      }
+    });
+    expect(lifecycleHarness.committedReservationCandidateCounts).toEqual([1]);
   });
 
   it("executes operational appointment commands through the same transaction boundary", async () => {

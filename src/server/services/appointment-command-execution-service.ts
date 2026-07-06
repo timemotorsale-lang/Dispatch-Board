@@ -77,6 +77,35 @@ function toLifecycleAppointment(
   };
 }
 
+async function getLifecyclePayload(input: {
+  commandType: AppointmentLifecycleExecutionCommand;
+  appointment: AppointmentCommandAppointmentRecord | null;
+  commandRepository: AppointmentCommandRepository;
+  payload: Record<string, unknown>;
+}) {
+  if (
+    input.commandType !== "SCHEDULE" ||
+    !input.appointment ||
+    Array.isArray(input.payload.reservationCandidates) ||
+    !input.commandRepository.findHeldReservationCommitCandidates
+  ) {
+    return input.payload;
+  }
+
+  const heldReservationCandidates =
+    await input.commandRepository.findHeldReservationCommitCandidates(input.appointment.id);
+
+  if (heldReservationCandidates.length === 0) {
+    return input.payload;
+  }
+
+  return {
+    ...input.payload,
+    reservationCandidates: heldReservationCandidates,
+    heldReservationCandidateCount: heldReservationCandidates.length
+  };
+}
+
 export async function submitAndExecuteAppointmentCommand(
   user: AuthenticatedUser | null,
   input: unknown,
@@ -119,6 +148,12 @@ export async function submitAndExecuteAppointmentCommand(
   const locationAccess = toLocationAccessGrant(
     await commandRepository.findActiveLocationAccess(user.id, locationId, now)
   );
+  const payload = await getLifecyclePayload({
+    commandType: submitted.command.commandType,
+    appointment,
+    commandRepository,
+    payload: commandRequest.payload
+  });
   const plan = planAppointmentLifecycleCommandExecution({
     commandId: submitted.command.id,
     commandType: submitted.command.commandType,
@@ -130,7 +165,7 @@ export async function submitAndExecuteAppointmentCommand(
     expectedAppointmentVersion: commandRequest.expectedAppointmentVersion,
     correlationId: submitted.command.correlationId,
     causationId: submitted.command.causationId,
-    payload: commandRequest.payload,
+    payload,
     now
   });
   const execution = await executeAppointmentLifecycleCommandPlan({
