@@ -14,12 +14,15 @@ import {
   canViewAppointmentSchedule,
   type AppointmentLocationAccessGrant
 } from "@/server/policies/access";
+import { normalizeAppointmentHistoryEvent } from "@/server/validation/appointment-history-events";
 
 const appointmentResourceCandidateAvailabilitySelect = {
   id: true,
   appointmentNumber: true,
   locationId: true,
   ownerUserId: true,
+  version: true,
+  bookingStatus: true,
   schedulingTimezone: true,
   startsAt: true,
   endsAt: true,
@@ -108,7 +111,7 @@ const locationAccessSelect = {
 
 type AppointmentResourceCandidateAvailabilityDatabase = Pick<
   PrismaClient,
-  "appointment" | "userLocationAccess"
+  "$transaction" | "appointment" | "userLocationAccess"
 >;
 
 export type AppointmentResourceCandidateAvailabilityAppointmentRecord =
@@ -152,6 +155,30 @@ export type AppointmentResourceCandidateAvailabilityResult = {
     reservedCapacity: number;
     unavailableCapacity: number;
   }>;
+};
+
+export type AppointmentHeldResourceReservation = {
+  id: string;
+  appointmentId: string;
+  requirementId: string | null;
+  resourceId: string;
+  resourceCode: string;
+  resourceName: string;
+  status: "HELD";
+  startsAt: Date;
+  endsAt: Date;
+  capacityUnits: number;
+  appointmentVersion: number;
+  availabilityStatus: "READY" | "WARNING";
+  warningReasons: string[];
+};
+
+export type HoldAppointmentResourceCandidateInput = {
+  reservationId: string;
+  expectedAppointmentVersion: number;
+  reasonCode: string;
+  reasonNotes: string;
+  correlationId?: string | null;
 };
 
 function assertAuthenticated(user: AuthenticatedUser | null) {
@@ -234,6 +261,73 @@ function summarizeStatus(
   }
 
   return "READY";
+}
+
+function requiredText(value: string | null | undefined, label: string) {
+  const normalized = value?.trim();
+
+  if (!normalized) {
+    throw new Error(`${label} is required.`);
+  }
+
+  return normalized;
+}
+
+function requiredVersion(value: number | null | undefined): number {
+  if (value === null || value === undefined || !Number.isInteger(value) || value < 1) {
+    throw new Error("Expected appointment version is required.");
+  }
+
+  return value;
+}
+
+function asInputJson(value: unknown) {
+  return value as Prisma.InputJsonValue;
+}
+
+function nullableInputJson(value: unknown) {
+  return value === null || value === undefined ? Prisma.JsonNull : asInputJson(value);
+}
+
+function findProposedReservation(
+  appointment: AppointmentResourceCandidateAvailabilityAppointmentRecord,
+  reservationId: string
+) {
+  for (const requirement of appointment.resourceRequirements) {
+    const reservation = requirement.reservations.find((entry) => entry.id === reservationId);
+
+    if (reservation) {
+      return {
+        requirement,
+        reservation
+      };
+    }
+  }
+
+  return null;
+}
+
+function toHeldReservation(input: {
+  reservation: AppointmentResourceCandidateAvailabilityAppointmentRecord["resourceRequirements"][number]["reservations"][number];
+  appointmentVersion: number;
+  availabilityStatus: "READY" | "WARNING";
+  warningReasons: string[];
+}): AppointmentHeldResourceReservation {
+  return {
+    id: input.reservation.id,
+    appointmentId: input.reservation.appointmentId,
+    requirementId: input.reservation.requirementId,
+    resourceId: input.reservation.resourceId,
+    resourceCode: input.reservation.resource.code,
+    resourceName: input.reservation.resource.name,
+    status: "HELD",
+    startsAt: input.reservation.startsAt,
+    endsAt: input.reservation.endsAt,
+    capacityUnits: input.reservation.capacityUnits,
+    appointmentVersion: input.appointmentVersion,
+    availabilityStatus: input.availabilityStatus,
+    warningReasons: input.warningReasons
+  };
 }
 
 export function createAppointmentResourceCandidateAvailabilityRepository(
@@ -362,4 +456,200 @@ export async function previewAppointmentResourceCandidateAvailability(
     canProceedToHold: status === "READY" || status === "WARNING",
     proposals
   };
+}
+
+export async function holdAppointmentResourceCandidate(
+  user: AuthenticatedUser | null,
+  appointmentId: string,
+  input: HoldAppointmentResourceCandidateInput,
+  database: AppointmentResourceCandidateAvailabilityDatabase = prisma,
+  now = new Date()
+): Promise<AppointmentHeldResourceReservation> {
+  const actor = assertAuthenticated(user);
+  const normalizedAppointmentId = requiredText(appointmentId, "Appointment id");
+  const reservationId = requiredText(input.reservationId, "Resource reservation");
+  const expectedAppointmentVersion = requiredVersion(input.expectedAppointmentVersion);
+  const reasonCode = requiredText(input.reasonCode, "Resource hold reason code");
+  const reasonNotes = requiredText(input.reasonNotes, "Resource hold reason notes");
+  const correlationId =
+    input.correlationId?.trim() ||
+    `resource-hold-${normalizedAppointmentId}-${reservationId}-${now.getTime()}`;
+
+  const appointment = await database.appointment.findUnique({
+    where: {
+      id: normalizedAppointmentId
+    },
+    select: appointmentResourceCandidateAvailabilitySelect
+  });
+
+  if (!appointment) {
+    throw new Error("Appointment not found.");
+  }
+
+  if (appointment.bookingStatus !== "DRAFT" && appointment.bookingStatus !== "PENDING_APPROVAL") {
+    throw new Error("Resource candidates can only be held for draft appointments.");
+  }
+
+  if (!appointment.startsAt || !appointment.endsAt || appointment.endsAt <= appointment.startsAt) {
+    throw new Error("Resource candidate hold requires a valid appointment time window.");
+  }
+
+  const proposal = findProposedReservation(appointment, reservationId);
+
+  if (!proposal) {
+    throw new Error("Resource candidate proposal not found for this appointment.");
+  }
+
+  const access = await database.userLocationAccess.findFirst({
+    where: {
+      userId: actor.id,
+      locationId: appointment.locationId,
+      validFrom: {
+        lte: now
+      },
+      OR: [
+        {
+          validTo: null
+        },
+        {
+          validTo: {
+            gte: now
+          }
+        }
+      ]
+    },
+    select: locationAccessSelect
+  });
+
+  if (!access || !isDateWithinAccessWindow(access, now)) {
+    throw new Error("Appointment schedule is not authorized.");
+  }
+
+  const locationAccess = toLocationAccessGrant(access);
+
+  if (!canViewAppointmentSchedule({ actor, locationAccess })) {
+    throw new Error("Appointment schedule is not authorized.");
+  }
+
+  if (
+    !canMutateAppointment({
+      actor,
+      ownerUserId: appointment.ownerUserId,
+      locationAccess
+    })
+  ) {
+    throw new Error("Appointment command is not authorized.");
+  }
+
+  const availability = evaluateResourceAvailability({
+    resource: toAvailabilityResource(proposal.reservation.resource),
+    timezone: appointment.schedulingTimezone,
+    operatingWindows: toOperatingWindows(proposal.reservation.resource),
+    unavailability: toUnavailability(proposal.reservation.resource),
+    reservations: toReservations(proposal.reservation.resource),
+    startsAt: proposal.reservation.startsAt,
+    endsAt: proposal.reservation.endsAt,
+    requiredCapacity: proposal.reservation.capacityUnits
+  });
+
+  if (availability.isHardBlocked) {
+    throw new Error("Resource candidate is no longer available to hold.");
+  }
+
+  const availabilityStatus: AppointmentHeldResourceReservation["availabilityStatus"] =
+    availability.isAvailable ? "READY" : "WARNING";
+  const historyEvent = normalizeAppointmentHistoryEvent({
+    appointmentId: appointment.id,
+    actorType: "HUMAN",
+    actorUserId: actor.id,
+    eventType: "FIELD_UPDATED",
+    message: `Resource candidate ${proposal.reservation.resource.name} was held for ${proposal.requirement.requirementCode}.`,
+    reasonCode,
+    reasonNotes,
+    correlationId,
+    priorValue: {
+      resourceReservation: {
+        id: proposal.reservation.id,
+        status: proposal.reservation.status,
+        resourceId: proposal.reservation.resourceId
+      }
+    },
+    newValue: {
+      resourceReservation: {
+        id: proposal.reservation.id,
+        status: "HELD",
+        resourceId: proposal.reservation.resourceId,
+        resourceCode: proposal.reservation.resource.code,
+        resourceName: proposal.reservation.resource.name
+      },
+      availability: {
+        status: availabilityStatus,
+        warningReasons: availability.reasons
+      }
+    },
+    metadata: {
+      source: "APPOINTMENT_BOARD_RESOURCE_PLANNING",
+      expectedAppointmentVersion,
+      requirementId: proposal.requirement.id,
+      reservationId: proposal.reservation.id
+    },
+    occurredAt: now
+  });
+
+  return database.$transaction(async (tx) => {
+    const appointmentUpdate = await tx.appointment.updateMany({
+      where: {
+        id: appointment.id,
+        version: expectedAppointmentVersion
+      },
+      data: {
+        version: {
+          increment: 1
+        }
+      }
+    });
+
+    if (appointmentUpdate.count !== 1) {
+      throw new Error("Appointment version is stale.");
+    }
+
+    const reservationUpdate = await tx.appointmentResourceReservation.updateMany({
+      where: {
+        id: proposal.reservation.id,
+        appointmentId: appointment.id,
+        status: "PROPOSED"
+      },
+      data: {
+        status: "HELD"
+      }
+    });
+
+    if (reservationUpdate.count !== 1) {
+      throw new Error("Resource candidate proposal was already changed.");
+    }
+
+    await tx.appointmentHistoryEvent.create({
+      data: {
+        appointmentId: historyEvent.appointmentId,
+        actorType: historyEvent.actorType,
+        actorUserId: historyEvent.actorUserId,
+        eventType: historyEvent.eventType,
+        message: historyEvent.message,
+        reasonCode: historyEvent.reasonCode,
+        reasonNotes: historyEvent.reasonNotes,
+        correlationId: historyEvent.correlationId,
+        priorValue: nullableInputJson(historyEvent.priorValue),
+        newValue: nullableInputJson(historyEvent.newValue),
+        metadata: asInputJson(historyEvent.metadata),
+        occurredAt: historyEvent.occurredAt ?? now
+      }
+    });
+
+    return toHeldReservation({
+      reservation: proposal.reservation,
+      appointmentVersion: expectedAppointmentVersion + 1,
+      availabilityStatus,
+      warningReasons: availability.reasons
+    });
+  });
 }

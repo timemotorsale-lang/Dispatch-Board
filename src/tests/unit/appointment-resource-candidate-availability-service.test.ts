@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { locationLocalDateMinuteToInstant } from "@/server/appointments/location-time-service";
 import {
+  holdAppointmentResourceCandidate,
   previewAppointmentResourceCandidateAvailability,
   type AppointmentResourceCandidateAvailabilityAppointmentRecord,
   type AppointmentResourceCandidateAvailabilityLocationAccessRecord,
@@ -62,6 +63,8 @@ function appointment(
     appointmentNumber: "APT-20001",
     locationId: "loc-time-motor-sales-minneapolis",
     ownerUserId: managerUser.id,
+    version: 3,
+    bookingStatus: "DRAFT",
     schedulingTimezone: timezone,
     startsAt,
     endsAt,
@@ -224,5 +227,170 @@ describe("appointment resource candidate availability service", () => {
         now
       )
     ).rejects.toThrow("Appointment command is not authorized.");
+  });
+});
+
+describe("appointment resource candidate hold service", () => {
+  function database(input?: {
+    appointment?: AppointmentResourceCandidateAvailabilityAppointmentRecord | null;
+    access?: AppointmentResourceCandidateAvailabilityLocationAccessRecord | null;
+    appointmentUpdateCount?: number;
+    reservationUpdateCount?: number;
+  }) {
+    const createdHistory: unknown[] = [];
+    const updatedReservations: unknown[] = [];
+
+    return {
+      createdHistory,
+      updatedReservations,
+      database: {
+        appointment: {
+          async findUnique() {
+            return input?.appointment === undefined ? appointment() : input.appointment;
+          }
+        },
+        userLocationAccess: {
+          async findFirst() {
+            return input?.access === undefined ? access() : input.access;
+          }
+        },
+        async $transaction(operation: (tx: unknown) => Promise<unknown>) {
+          return operation({
+            appointment: {
+              async updateMany() {
+                return {
+                  count: input?.appointmentUpdateCount ?? 1
+                };
+              }
+            },
+            appointmentResourceReservation: {
+              async updateMany(updateInput: { data: unknown }) {
+                updatedReservations.push(updateInput.data);
+
+                return {
+                  count: input?.reservationUpdateCount ?? 1
+                };
+              }
+            },
+            appointmentHistoryEvent: {
+              async create(createInput: { data: unknown }) {
+                createdHistory.push(createInput.data);
+              }
+            }
+          });
+        }
+      }
+    };
+  }
+
+  it("holds a proposed resource candidate after rechecking availability", async () => {
+    const harness = database();
+
+    const result = await holdAppointmentResourceCandidate(
+      managerUser,
+      "appointment-1",
+      {
+        reservationId: "reservation-proposed",
+        expectedAppointmentVersion: 3,
+        reasonCode: "RESOURCE_CANDIDATE_HELD",
+        reasonNotes: "Hold Bay 1 before scheduling.",
+        correlationId: "correlation-1"
+      },
+      harness.database,
+      now
+    );
+
+    expect(result).toMatchObject({
+      id: "reservation-proposed",
+      resourceName: "Service Bay 1",
+      status: "HELD",
+      appointmentVersion: 4,
+      availabilityStatus: "READY",
+      warningReasons: []
+    });
+    expect(harness.updatedReservations).toEqual([
+      {
+        status: "HELD"
+      }
+    ]);
+    expect(harness.createdHistory).toHaveLength(1);
+  });
+
+  it("blocks holds when the candidate became unavailable", async () => {
+    const proposedAppointment = appointment();
+    const proposedReservation =
+      proposedAppointment.resourceRequirements[0].reservations[0];
+    const harness = database({
+      appointment: {
+        ...proposedAppointment,
+        resourceRequirements: [
+          {
+            ...proposedAppointment.resourceRequirements[0],
+            reservations: [
+              {
+                ...proposedReservation,
+                resource: {
+                  ...proposedReservation.resource,
+                  reservations: [
+                    {
+                      id: "reservation-committed",
+                      appointmentId: "appointment-2",
+                      status: "COMMITTED",
+                      startsAt: proposedReservation.startsAt,
+                      endsAt: proposedReservation.endsAt,
+                      capacityUnits: 1,
+                      bufferBeforeMinutes: 0,
+                      bufferAfterMinutes: 0
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    });
+
+    await expect(
+      holdAppointmentResourceCandidate(
+        managerUser,
+        "appointment-1",
+        {
+          reservationId: "reservation-proposed",
+          expectedAppointmentVersion: 3,
+          reasonCode: "RESOURCE_CANDIDATE_HELD",
+          reasonNotes: "Hold Bay 1 before scheduling."
+        },
+        harness.database,
+        now
+      )
+    ).rejects.toThrow("Resource candidate is no longer available to hold.");
+
+    expect(harness.updatedReservations).toHaveLength(0);
+    expect(harness.createdHistory).toHaveLength(0);
+  });
+
+  it("rejects stale appointment versions before holding the proposal", async () => {
+    const harness = database({
+      appointmentUpdateCount: 0
+    });
+
+    await expect(
+      holdAppointmentResourceCandidate(
+        managerUser,
+        "appointment-1",
+        {
+          reservationId: "reservation-proposed",
+          expectedAppointmentVersion: 2,
+          reasonCode: "RESOURCE_CANDIDATE_HELD",
+          reasonNotes: "Hold Bay 1 before scheduling."
+        },
+        harness.database,
+        now
+      )
+    ).rejects.toThrow("Appointment version is stale.");
+
+    expect(harness.updatedReservations).toHaveLength(0);
+    expect(harness.createdHistory).toHaveLength(0);
   });
 });

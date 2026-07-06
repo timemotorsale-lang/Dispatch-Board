@@ -8,7 +8,7 @@
 
 This contract defines the first live availability check for proposed resource candidates in the Appointment Board.
 
-The board can now evaluate `PROPOSED` resource reservations against current resource operating windows, outages/unavailability, held reservations, and committed reservations. This is still a preview. It does not hold or commit capacity.
+The board can now evaluate `PROPOSED` resource reservations against current resource operating windows, outages/unavailability, held reservations, and committed reservations. This preview does not itself hold or commit capacity; the hold workflow is handled by EAPT-029H.
 
 ## User Flow
 
@@ -32,7 +32,7 @@ From `/appointments`:
 - Resource operating windows and unavailability are evaluated server-side.
 - Hard-block resources return `BLOCKED`.
 - Warning-policy resources can return `WARNING`.
-- The final hold/commit workflow remains separate and must re-check availability before writing capacity-consuming reservations.
+- The final hold/commit workflow remains separate from preview and must re-check availability before writing capacity-consuming reservations.
 
 ## API Shape
 
@@ -74,7 +74,6 @@ Successful response:
 
 Still pending:
 
-- held reservation workflow
 - committed reservation workflow through the final scheduling command
 - warning override capture
 - release/change controls for held or committed reservations

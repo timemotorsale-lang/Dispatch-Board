@@ -858,6 +858,7 @@ export function AppointmentBoardShell() {
   const [isCandidateAvailabilityLoading, setIsCandidateAvailabilityLoading] = useState(false);
   const [resourceRequirementSavingCode, setResourceRequirementSavingCode] = useState<string | null>(null);
   const [resourceCandidateSavingCode, setResourceCandidateSavingCode] = useState<string | null>(null);
+  const [resourceHoldSavingReservationId, setResourceHoldSavingReservationId] = useState<string | null>(null);
   const [selectedResourceCandidates, setSelectedResourceCandidates] = useState<Record<string, string>>({});
   const [detailRefreshKey, setDetailRefreshKey] = useState(0);
   const [actionNotice, setActionNotice] = useState("Operational command bridge ready. Persisted appointments can now use the live command API for check-in and no-show actions.");
@@ -1373,6 +1374,84 @@ export function AppointmentBoardShell() {
     }
   }
 
+  async function holdResourceCandidate(
+    recommendation: AppointmentResourcePlanning["recommendations"][number],
+    availability: AppointmentResourceCandidateAvailability["proposals"][number] | undefined
+  ) {
+    if (!selectedAppointment.recordId || !selectedAppointment.recordVersion) {
+      setActionNotice("Resource candidates can only be held for persisted live draft appointments.");
+      return;
+    }
+
+    if (!recommendation.selectedReservation) {
+      setActionNotice(`Propose a ${recommendation.label} candidate before placing a hold.`);
+      return;
+    }
+
+    if (availability && !availability.canProceedToHold) {
+      setActionNotice(
+        `Hold is blocked: ${availability.reasons.length > 0 ? availability.reasons.join(" ") : "resource candidate is not available."}`
+      );
+      return;
+    }
+
+    setResourceHoldSavingReservationId(recommendation.selectedReservation.id);
+
+    try {
+      const correlationId = createAppointmentActionIdentifier(
+        "resource-hold",
+        selectedAppointment.recordId
+      );
+      const response = await fetch(
+        `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/resource-reservations/${encodeURIComponent(recommendation.selectedReservation.id)}/hold`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            expectedAppointmentVersion: selectedAppointment.recordVersion,
+            reasonCode: "RESOURCE_CANDIDATE_HELD",
+            reasonNotes: `Held ${recommendation.selectedReservation.resourceName} for ${recommendation.label} from Appointment Board resource planning.`,
+            correlationId
+          })
+        }
+      );
+      const result = (await response.json().catch(() => null)) as
+        | {
+            reservation?: {
+              resourceName: string;
+              status: "HELD";
+              appointmentVersion: number;
+              availabilityStatus: "READY" | "WARNING";
+              warningReasons: string[];
+            };
+            error?: string;
+          }
+        | null;
+
+      if (!response.ok || !result?.reservation) {
+        throw new Error(result?.error || "Unable to hold the resource candidate.");
+      }
+
+      setActionNotice(
+        result.reservation.availabilityStatus === "WARNING"
+          ? `${result.reservation.resourceName} was held with a warning. ${result.reservation.warningReasons.join(" ")}`
+          : `${result.reservation.resourceName} is now held for ${recommendation.label}. Schedule readiness and resource planning are refreshing.`
+      );
+      setDetailRefreshKey((value) => value + 1);
+      await loadLiveAppointments();
+    } catch (error) {
+      setActionNotice(
+        error instanceof Error
+          ? error.message
+          : "Unable to hold the resource candidate right now."
+      );
+    } finally {
+      setResourceHoldSavingReservationId(null);
+    }
+  }
+
   async function submitOperationalCommand(commandType: OperationalCommand) {
     const label = commandLabel(commandType);
 
@@ -1774,24 +1853,44 @@ export function AppointmentBoardShell() {
                             );
 
                             return (
-                              <div className={`appointment-resource-availability appointment-resource-availability-${availability?.status.toLowerCase() ?? "loading"}`}>
-                                <strong>
-                                  Availability: {isCandidateAvailabilityLoading ? "Checking" : availability?.status ?? "Unavailable"}
-                                </strong>
-                                {availability ? (
-                                  <span>
-                                    {availability.reasons.length > 0
-                                      ? availability.reasons.join(" ")
-                                      : `Capacity available: ${availability.availableCapacity}/${availability.requiredCapacity}`}
-                                  </span>
-                                ) : (
-                                  <span>
-                                    {isCandidateAvailabilityLoading
-                                      ? "Checking proposed resource against current reservations and outages."
-                                      : "No availability result is available for this proposal yet."}
-                                  </span>
-                                )}
-                              </div>
+                              <>
+                                <div className={`appointment-resource-availability appointment-resource-availability-${availability?.status.toLowerCase() ?? "loading"}`}>
+                                  <strong>
+                                    Availability: {isCandidateAvailabilityLoading ? "Checking" : availability?.status ?? "Unavailable"}
+                                  </strong>
+                                  {availability ? (
+                                    <span>
+                                      {availability.reasons.length > 0
+                                        ? availability.reasons.join(" ")
+                                        : `Capacity available: ${availability.availableCapacity}/${availability.requiredCapacity}`}
+                                    </span>
+                                  ) : (
+                                    <span>
+                                      {isCandidateAvailabilityLoading
+                                        ? "Checking proposed resource against current reservations and outages."
+                                        : "No availability result is available for this proposal yet."}
+                                    </span>
+                                  )}
+                                </div>
+                                {recommendation.selectedReservation?.status === "PROPOSED" ? (
+                                  <button
+                                    className="appointment-resource-action appointment-resource-hold-action"
+                                    disabled={
+                                      resourceHoldSavingReservationId === recommendation.selectedReservation.id ||
+                                      selectedAppointment.dataSource !== "live" ||
+                                      !resourcePlanning.canManageResourcesForAppointment ||
+                                      isCandidateAvailabilityLoading ||
+                                      availability?.canProceedToHold === false
+                                    }
+                                    onClick={() => void holdResourceCandidate(recommendation, availability)}
+                                    type="button"
+                                  >
+                                    {resourceHoldSavingReservationId === recommendation.selectedReservation.id
+                                      ? "Holding..."
+                                      : "Hold Candidate"}
+                                  </button>
+                                ) : null}
+                              </>
                             );
                           })() : null}
                           <select

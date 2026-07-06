@@ -18,8 +18,8 @@ npm run db:validate
 Vitest result:
 
 ```text
-95 test files passed
-516 tests passed
+96 test files passed
+522 tests passed
 ```
 
 End-to-end tests, production build, database migration deployment, and production deployment were not rerun during this checkpoint.
@@ -82,13 +82,14 @@ End-to-end tests, production build, database migration deployment, and productio
 | Appointment resource requirement attachment | Implemented as initial write boundary | EAPT-029E adds `POST /api/appointments/:id/resource-requirements`, attaches server-recommended requirements to persisted draft appointments, enforces expected version, manager/owner authority, recommendation eligibility, and configured resource type, increments appointment version, writes `FIELD_UPDATED` history, and exposes Attach Requirement in the detail rail |
 | Appointment resource candidate proposal | Implemented as initial proposed-selection boundary | EAPT-029F adds `POST /api/appointments/:id/resource-requirements/:requirementId/candidate-proposals`, validates active matching resources, creates non-capacity-consuming `PROPOSED` reservations, cancels prior proposed candidates for the same requirement, increments appointment version, writes `FIELD_UPDATED` history, and exposes candidate dropdown plus Propose Candidate in the detail rail |
 | Appointment proposed candidate availability preview | Implemented as initial API/UI boundary | EAPT-029G adds `GET /api/appointments/:id/resource-candidate-availability`, evaluates persisted `PROPOSED` reservations through the resource availability service, reports READY/WARNING/BLOCKED, keeps proposed reservations non-capacity-consuming, and displays availability in the Resource Planning detail rail |
-| Appointment Board visible shell | Implemented as preview UI with live binding and command bridge | `/appointments` now renders the mockup-aligned board surface with KPI cards, staff calendar columns, filters, selectable appointments, detail rail, linked tasks, enterprise controls, upcoming appointments, responsive behavior, live read-model hydration when persisted records exist, preview fallback when none exist, Check In / No Show controls wired to the live command API when persisted appointment record IDs and versions are available, draft creation, draft scheduling, schedule-readiness preview, resource-planning preview, recommended resource requirement attachment, proposed resource candidate selection, and proposed-candidate availability preview; browser workflows and production evidence remain pending |
+| Appointment resource candidate hold | Implemented as initial write boundary | EAPT-029H adds `POST /api/appointments/:id/resource-reservations/:reservationId/hold`, re-checks availability before writing capacity-consuming state, changes `PROPOSED` reservations to `HELD`, enforces expected version and manager/owner authority, increments appointment version, writes `FIELD_UPDATED` history, and exposes Hold Candidate in the detail rail |
+| Appointment Board visible shell | Implemented as preview UI with live binding and command bridge | `/appointments` now renders the mockup-aligned board surface with KPI cards, staff calendar columns, filters, selectable appointments, detail rail, linked tasks, enterprise controls, upcoming appointments, responsive behavior, live read-model hydration when persisted records exist, preview fallback when none exist, Check In / No Show controls wired to the live command API when persisted appointment record IDs and versions are available, draft creation, draft scheduling, schedule-readiness preview, resource-planning preview, recommended resource requirement attachment, proposed resource candidate selection, proposed-candidate availability preview, and resource candidate hold; browser workflows and production evidence remain pending |
 
 ## Existing Partial or Placeholder Surfaces
 
 | Surface | Current state |
 | --- | --- |
-| Appointments | Visible preview shell exists; E1 command intake API boundary exists; E2 scheduling service boundaries exist; EAPT-026 read API and initial board hydration exist; EAPT-027/EAPT-028 lifecycle command execution routes exist for supported backend commands; the detail rail has Schedule Draft, Schedule Readiness, Resource Planning, Attach Requirement, Propose Candidate, proposed-candidate availability, and safe Check In / No Show command bridges; New Appointment can create persisted draft records; staff conflict preview, held/committed resource reservation UI, browser workflows, final completion/outcome capture, and production evidence remain pending |
+| Appointments | Visible preview shell exists; E1 command intake API boundary exists; E2 scheduling service boundaries exist; EAPT-026 read API and initial board hydration exist; EAPT-027/EAPT-028 lifecycle command execution routes exist for supported backend commands; the detail rail has Schedule Draft, Schedule Readiness, Resource Planning, Attach Requirement, Propose Candidate, proposed-candidate availability, Hold Candidate, and safe Check In / No Show command bridges; New Appointment can create persisted draft records; staff conflict preview, committed resource reservation UI, release/change controls, browser workflows, final completion/outcome capture, and production evidence remain pending |
 | Customers | Placeholder guidance page; no enterprise customer subsystem |
 | Vehicles | Placeholder guidance page; no enterprise vehicle subsystem |
 | Reports | Placeholder guidance page; no enterprise reporting subsystem |
@@ -119,7 +120,8 @@ At this baseline:
 - EAPT-029E initial Resource Planning requirement attachment is implemented as a guarded write boundary.
 - EAPT-029F initial Resource Planning candidate proposal is implemented as a guarded write boundary.
 - EAPT-029G initial proposed resource candidate availability preview is implemented as a server-backed API/UI boundary.
-- Database-backed versioned appointment-template administration, recurrence persistence/materialization, persisted warning override/history records, availability-search API/UI, waitlist persistence/queues, reschedule/bulk execution persistence, staff conflict preview UI, held/committed resource reservation UI, final completion/outcome capture, full command-center UI wiring, administration UI, browser workflow tests, and persisted production Appointment workflows have not yet been implemented.
+- EAPT-029H initial proposed-to-held resource reservation workflow is implemented as a guarded write boundary.
+- Database-backed versioned appointment-template administration, recurrence persistence/materialization, persisted warning override/history records, availability-search API/UI, waitlist persistence/queues, reschedule/bulk execution persistence, staff conflict preview UI, committed resource reservation UI, resource release/change controls, final completion/outcome capture, full command-center UI wiring, administration UI, browser workflow tests, and persisted production Appointment workflows have not yet been implemented.
 - The existing `/appointments` route now contains the mockup-aligned preview shell and is the intended UI boundary for the next live-service slices.
 
 ## Current Execution Order
