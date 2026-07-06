@@ -86,7 +86,6 @@ Successful response:
 Still pending:
 
 - explicit release-reason modal fields instead of the current board-generated reason note
-- replacement/change workflow that releases one resource and proposes another in one guided path
 - warning override UI/history capture
 - staff conflict preview alongside resource availability
 - browser workflow coverage for attach → propose → hold → schedule → release

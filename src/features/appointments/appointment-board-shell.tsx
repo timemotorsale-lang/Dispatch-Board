@@ -860,6 +860,7 @@ export function AppointmentBoardShell() {
   const [resourceCandidateSavingCode, setResourceCandidateSavingCode] = useState<string | null>(null);
   const [resourceHoldSavingReservationId, setResourceHoldSavingReservationId] = useState<string | null>(null);
   const [resourceReleaseSavingReservationId, setResourceReleaseSavingReservationId] = useState<string | null>(null);
+  const [resourceReplacementSavingReservationId, setResourceReplacementSavingReservationId] = useState<string | null>(null);
   const [selectedResourceCandidates, setSelectedResourceCandidates] = useState<Record<string, string>>({});
   const [detailRefreshKey, setDetailRefreshKey] = useState(0);
   const [actionNotice, setActionNotice] = useState("Operational command bridge ready. Persisted appointments can now use the live command API for check-in and no-show actions.");
@@ -1525,6 +1526,97 @@ export function AppointmentBoardShell() {
     }
   }
 
+  async function replaceResourceReservation(
+    recommendation: AppointmentResourcePlanning["recommendations"][number]
+  ) {
+    if (!selectedAppointment.recordId || !selectedAppointment.recordVersion) {
+      setActionNotice("Resource reservations can only be replaced for persisted live draft appointments.");
+      return;
+    }
+
+    if (selectedAppointment.status !== "draft") {
+      setActionNotice("Resource replacement is currently available before scheduling. Scheduled replacements will use the later reschedule workflow.");
+      return;
+    }
+
+    if (!recommendation.selectedReservation || recommendation.selectedReservation.status !== "HELD") {
+      setActionNotice(`Hold a ${recommendation.label} reservation before replacing it.`);
+      return;
+    }
+
+    const selectedResourceId =
+      selectedResourceCandidates[recommendation.requirementCode] ??
+      recommendation.candidates.find(
+        (candidate) => candidate.id !== recommendation.selectedReservation?.resourceId
+      )?.id;
+
+    if (!selectedResourceId) {
+      setActionNotice(`No replacement ${recommendation.resourceTypeCode} candidate is available.`);
+      return;
+    }
+
+    if (selectedResourceId === recommendation.selectedReservation.resourceId) {
+      setActionNotice("Choose a different resource before replacing the current reservation.");
+      return;
+    }
+
+    setResourceReplacementSavingReservationId(recommendation.selectedReservation.id);
+
+    try {
+      const selectedCandidate = recommendation.candidates.find(
+        (candidate) => candidate.id === selectedResourceId
+      );
+      const correlationId = createAppointmentActionIdentifier(
+        "resource-replacement",
+        selectedAppointment.recordId
+      );
+      const response = await fetch(
+        `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/resource-reservations/${encodeURIComponent(recommendation.selectedReservation.id)}/replace`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            resourceId: selectedResourceId,
+            expectedAppointmentVersion: selectedAppointment.recordVersion,
+            reasonCode: "RESOURCE_RESERVATION_REPLACED",
+            reasonNotes: `Replaced ${recommendation.selectedReservation.resourceName} with ${selectedCandidate?.name ?? "selected resource"} for ${recommendation.label} from Appointment Board resource planning.`,
+            correlationId
+          })
+        }
+      );
+      const result = (await response.json().catch(() => null)) as
+        | {
+            replacement?: {
+              resourceName: string;
+              releasedResourceName: string;
+              appointmentVersion: number;
+            };
+            error?: string;
+          }
+        | null;
+
+      if (!response.ok || !result?.replacement) {
+        throw new Error(result?.error || "Unable to replace the resource reservation.");
+      }
+
+      setActionNotice(
+        `${result.replacement.releasedResourceName} was released and ${result.replacement.resourceName} was proposed as the replacement. Review availability, then hold the new candidate.`
+      );
+      setDetailRefreshKey((value) => value + 1);
+      await loadLiveAppointments();
+    } catch (error) {
+      setActionNotice(
+        error instanceof Error
+          ? error.message
+          : "Unable to replace the resource reservation right now."
+      );
+    } finally {
+      setResourceReplacementSavingReservationId(null);
+    }
+  }
+
   async function submitOperationalCommand(commandType: OperationalCommand) {
     const label = commandLabel(commandType);
 
@@ -1989,6 +2081,26 @@ export function AppointmentBoardShell() {
                                       : "Release Reservation"}
                                   </button>
                                 ) : null}
+                                {recommendation.selectedReservation?.status === "HELD" ? (
+                                  <button
+                                    className="appointment-resource-action appointment-resource-replace-action"
+                                    disabled={
+                                      resourceReplacementSavingReservationId === recommendation.selectedReservation.id ||
+                                      selectedAppointment.status !== "draft" ||
+                                      selectedAppointment.dataSource !== "live" ||
+                                      !resourcePlanning.canManageResourcesForAppointment ||
+                                      recommendation.candidates.filter(
+                                        (candidate) => candidate.id !== recommendation.selectedReservation?.resourceId
+                                      ).length === 0
+                                    }
+                                    onClick={() => void replaceResourceReservation(recommendation)}
+                                    type="button"
+                                  >
+                                    {resourceReplacementSavingReservationId === recommendation.selectedReservation.id
+                                      ? "Replacing..."
+                                      : "Replace Reservation"}
+                                  </button>
+                                ) : null}
                               </>
                             );
                           })() : null}
@@ -1997,6 +2109,7 @@ export function AppointmentBoardShell() {
                             disabled={
                               resourceCandidateSavingCode === recommendation.requirementCode ||
                               selectedAppointment.status !== "draft" ||
+                              ["HELD", "COMMITTED"].includes(recommendation.selectedReservation?.status ?? "") ||
                               recommendation.candidates.length === 0 ||
                               selectedAppointment.dataSource !== "live" ||
                               !resourcePlanning.canManageResourcesForAppointment
@@ -2028,6 +2141,7 @@ export function AppointmentBoardShell() {
                             disabled={
                               resourceCandidateSavingCode === recommendation.requirementCode ||
                               selectedAppointment.status !== "draft" ||
+                              ["HELD", "COMMITTED"].includes(recommendation.selectedReservation?.status ?? "") ||
                               recommendation.candidates.length === 0 ||
                               selectedAppointment.dataSource !== "live" ||
                               !resourcePlanning.canManageResourcesForAppointment

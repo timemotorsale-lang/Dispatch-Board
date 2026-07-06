@@ -246,6 +246,23 @@ export type ProposeAppointmentResourceCandidateInput = {
   correlationId?: string | null;
 };
 
+export type AppointmentReplacedResourceReservation = AppointmentProposedResourceCandidate & {
+  releasedReservationId: string;
+  releasedResourceId: string;
+  releasedResourceCode: string;
+  releasedResourceName: string;
+  releasedPriorStatus: "HELD";
+};
+
+export type ReplaceAppointmentResourceReservationInput = {
+  reservationId: string;
+  resourceId: string;
+  expectedAppointmentVersion: number;
+  reasonCode: string;
+  reasonNotes: string;
+  correlationId?: string | null;
+};
+
 const CATEGORY_REQUIREMENTS: Record<string, RecommendedRequirement[]> = {
   sales: [
     {
@@ -558,6 +575,46 @@ function toProposedCandidate(input: {
     created: input.created,
     cancelledPriorProposalCount: input.cancelledPriorProposalCount,
     appointmentVersion: input.appointmentVersion
+  };
+}
+
+function toReplacedReservation(input: {
+  releasedReservation: {
+    id: string;
+    resourceId: string;
+    status: string;
+    resource: {
+      code: string;
+      name: string;
+    };
+  };
+  reservation: {
+    id: string;
+    appointmentId: string;
+    requirementId: string | null;
+    resourceId: string;
+    status: string;
+    startsAt: Date;
+    endsAt: Date;
+    capacityUnits: number;
+  };
+  resource: AppointmentResourcePlanningResourceRecord;
+  cancelledPriorProposalCount: number;
+  appointmentVersion: number;
+}): AppointmentReplacedResourceReservation {
+  return {
+    ...toProposedCandidate({
+      reservation: input.reservation,
+      resource: input.resource,
+      created: true,
+      cancelledPriorProposalCount: input.cancelledPriorProposalCount,
+      appointmentVersion: input.appointmentVersion
+    }),
+    releasedReservationId: input.releasedReservation.id,
+    releasedResourceId: input.releasedReservation.resourceId,
+    releasedResourceCode: input.releasedReservation.resource.code,
+    releasedResourceName: input.releasedReservation.resource.name,
+    releasedPriorStatus: "HELD"
   };
 }
 
@@ -1301,6 +1358,277 @@ export async function proposeAppointmentResourceCandidate(
       reservation: createdReservation,
       resource,
       created: true,
+      cancelledPriorProposalCount: cancelledPriorProposals.count,
+      appointmentVersion: expectedAppointmentVersion + 1
+    });
+  });
+}
+
+export async function replaceAppointmentResourceReservation(
+  user: AuthenticatedUser | null,
+  appointmentId: string,
+  input: ReplaceAppointmentResourceReservationInput,
+  database: AppointmentResourcePlanningDatabase = prisma,
+  now = new Date()
+): Promise<AppointmentReplacedResourceReservation> {
+  const actor = assertAuthenticated(user);
+  const normalizedAppointmentId = requiredText(appointmentId, "Appointment id");
+  const reservationId = requiredText(input.reservationId, "Resource reservation");
+  const resourceId = requiredText(input.resourceId, "Replacement resource candidate");
+  const expectedAppointmentVersion = requiredVersion(input.expectedAppointmentVersion);
+  const reasonCode = requiredText(input.reasonCode, "Resource replacement reason code");
+  const reasonNotes = requiredText(input.reasonNotes, "Resource replacement reason notes");
+  const correlationId =
+    input.correlationId?.trim() ||
+    `resource-replacement-${normalizedAppointmentId}-${reservationId}-${resourceId}-${now.getTime()}`;
+
+  const appointment = await database.appointment.findUnique({
+    where: {
+      id: normalizedAppointmentId
+    },
+    select: appointmentResourcePlanningSelect
+  });
+
+  if (!appointment) {
+    throw new Error("Appointment not found.");
+  }
+
+  if (appointment.bookingStatus !== "DRAFT" && appointment.bookingStatus !== "PENDING_APPROVAL") {
+    throw new Error("Resource reservations can only be replaced on draft appointments.");
+  }
+
+  if (!appointment.startsAt || !appointment.endsAt || appointment.endsAt <= appointment.startsAt) {
+    throw new Error("Resource replacement requires a valid appointment time window.");
+  }
+
+  const requirement =
+    appointment.resourceRequirements.find((candidate) =>
+      candidate.reservations.some((reservation) => reservation.id === reservationId)
+    ) ?? null;
+  const releasedReservation =
+    requirement?.reservations.find((reservation) => reservation.id === reservationId) ?? null;
+
+  if (!requirement || !releasedReservation || releasedReservation.status !== "HELD") {
+    throw new Error("Held resource reservation not found for replacement on this appointment.");
+  }
+
+  if (releasedReservation.resourceId === resourceId) {
+    throw new Error("Replacement resource candidate must be different from the held reservation.");
+  }
+
+  const access = await database.userLocationAccess.findFirst({
+    where: {
+      userId: actor.id,
+      locationId: appointment.locationId,
+      validFrom: {
+        lte: now
+      },
+      OR: [
+        {
+          validTo: null
+        },
+        {
+          validTo: {
+            gte: now
+          }
+        }
+      ]
+    },
+    select: locationAccessSelect
+  });
+
+  if (!access || !isDateWithinAccessWindow(access, now)) {
+    throw new Error("Appointment schedule is not authorized.");
+  }
+
+  const locationAccess = toLocationAccessGrant(access);
+
+  if (!canViewAppointmentSchedule({ actor, locationAccess })) {
+    throw new Error("Appointment schedule is not authorized.");
+  }
+
+  if (
+    !canMutateAppointment({
+      actor,
+      ownerUserId: appointment.ownerUserId,
+      locationAccess
+    })
+  ) {
+    throw new Error("Appointment command is not authorized.");
+  }
+
+  const resource = await database.schedulableResource.findFirst({
+    where: {
+      id: resourceId,
+      organizationId: appointment.organizationId,
+      locationId: appointment.locationId,
+      resourceTypeId: requirement.resourceTypeId,
+      status: "ACTIVE",
+      effectiveFrom: {
+        lte: now
+      },
+      OR: [
+        {
+          effectiveTo: null
+        },
+        {
+          effectiveTo: {
+            gte: now
+          }
+        }
+      ]
+    },
+    select: resourceSelect
+  });
+
+  if (!resource) {
+    throw new Error("Replacement resource candidate is not available for this requirement.");
+  }
+
+  const normalizedReservation = normalizeAppointmentResourceReservation({
+    appointmentId: appointment.id,
+    appointmentLocationId: appointment.locationId,
+    requirementId: requirement.id,
+    requirementAppointmentId: requirement.appointmentId,
+    resourceId: resource.id,
+    resourceLocationId: resource.locationId,
+    status: "PROPOSED",
+    startsAt: appointment.startsAt,
+    endsAt: appointment.endsAt,
+    capacityUnits: requirement.requiredCapacity,
+    resourceCapacity: resource.capacity,
+    resourceCapacityMode: resource.capacityMode,
+    bufferBeforeMinutes: 0,
+    bufferAfterMinutes: 0
+  });
+  const historyEvent = normalizeAppointmentHistoryEvent({
+    appointmentId: appointment.id,
+    actorType: "HUMAN",
+    actorUserId: actor.id,
+    eventType: "FIELD_UPDATED",
+    message: `Resource reservation ${releasedReservation.resource.name} was replaced with ${resource.name} for ${requirement.requirementCode}.`,
+    reasonCode,
+    reasonNotes,
+    correlationId,
+    priorValue: {
+      resourceReservation: {
+        id: releasedReservation.id,
+        status: releasedReservation.status,
+        resourceId: releasedReservation.resourceId,
+        resourceCode: releasedReservation.resource.code,
+        resourceName: releasedReservation.resource.name
+      }
+    },
+    newValue: {
+      releasedReservation: {
+        id: releasedReservation.id,
+        status: "RELEASED"
+      },
+      proposedReservation: {
+        resourceId: resource.id,
+        resourceCode: resource.code,
+        resourceName: resource.name,
+        status: "PROPOSED"
+      }
+    },
+    metadata: {
+      source: "APPOINTMENT_BOARD_RESOURCE_PLANNING",
+      expectedAppointmentVersion,
+      requirementId: requirement.id,
+      releasedReservationId: releasedReservation.id,
+      replacementResourceId: resource.id
+    },
+    occurredAt: now
+  });
+
+  return database.$transaction(async (tx) => {
+    const appointmentUpdate = await tx.appointment.updateMany({
+      where: {
+        id: appointment.id,
+        version: expectedAppointmentVersion
+      },
+      data: {
+        version: {
+          increment: 1
+        }
+      }
+    });
+
+    if (appointmentUpdate.count !== 1) {
+      throw new Error("Appointment version is stale.");
+    }
+
+    const releasedReservationUpdate = await tx.appointmentResourceReservation.updateMany({
+      where: {
+        id: releasedReservation.id,
+        appointmentId: appointment.id,
+        status: "HELD"
+      },
+      data: {
+        status: "RELEASED"
+      }
+    });
+
+    if (releasedReservationUpdate.count !== 1) {
+      throw new Error("Held resource reservation was already changed.");
+    }
+
+    const cancelledPriorProposals = await tx.appointmentResourceReservation.updateMany({
+      where: {
+        appointmentId: appointment.id,
+        requirementId: requirement.id,
+        status: "PROPOSED"
+      },
+      data: {
+        status: "CANCELLED"
+      }
+    });
+
+    const createdReservation = await tx.appointmentResourceReservation.create({
+      data: {
+        appointmentId: normalizedReservation.appointmentId,
+        requirementId: normalizedReservation.requirementId,
+        resourceId: normalizedReservation.resourceId,
+        status: normalizedReservation.status,
+        startsAt: normalizedReservation.startsAt,
+        endsAt: normalizedReservation.endsAt,
+        capacityUnits: normalizedReservation.capacityUnits,
+        bufferBeforeMinutes: normalizedReservation.bufferBeforeMinutes,
+        bufferAfterMinutes: normalizedReservation.bufferAfterMinutes
+      },
+      select: {
+        id: true,
+        appointmentId: true,
+        requirementId: true,
+        resourceId: true,
+        status: true,
+        startsAt: true,
+        endsAt: true,
+        capacityUnits: true
+      }
+    });
+
+    await tx.appointmentHistoryEvent.create({
+      data: {
+        appointmentId: historyEvent.appointmentId,
+        actorType: historyEvent.actorType,
+        actorUserId: historyEvent.actorUserId,
+        eventType: historyEvent.eventType,
+        message: historyEvent.message,
+        reasonCode: historyEvent.reasonCode,
+        reasonNotes: historyEvent.reasonNotes,
+        correlationId: historyEvent.correlationId,
+        priorValue: nullableInputJson(historyEvent.priorValue),
+        newValue: nullableInputJson(historyEvent.newValue),
+        metadata: asInputJson(historyEvent.metadata),
+        occurredAt: historyEvent.occurredAt ?? now
+      }
+    });
+
+    return toReplacedReservation({
+      releasedReservation,
+      reservation: createdReservation,
+      resource,
       cancelledPriorProposalCount: cancelledPriorProposals.count,
       appointmentVersion: expectedAppointmentVersion + 1
     });
