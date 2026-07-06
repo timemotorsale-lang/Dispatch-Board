@@ -860,6 +860,51 @@ function labelForOption(options: Array<{ value: string; label: string }>, value:
   return options.find((option) => option.value === value)?.label ?? value.replaceAll("_", " ");
 }
 
+function getStringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
+}
+
+function getNumberValue(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+export function buildOutcomeSuccessNotice(input: {
+  appointmentId: string;
+  result: unknown;
+}) {
+  const resultObject =
+    input.result && typeof input.result === "object"
+      ? (input.result as Record<string, unknown>)
+      : {};
+  const execution =
+    resultObject.execution && typeof resultObject.execution === "object"
+      ? (resultObject.execution as Record<string, unknown>)
+      : {};
+  const resultSnapshot =
+    execution.resultSnapshot && typeof execution.resultSnapshot === "object"
+      ? (execution.resultSnapshot as Record<string, unknown>)
+      : {};
+  const generatedFollowUpAppointmentNumbers = getStringArray(
+    resultSnapshot.generatedFollowUpAppointmentNumbers
+  );
+  const automatedTaskCount = getNumberValue(resultSnapshot.automatedTaskCount);
+  const automationMessages = [
+    generatedFollowUpAppointmentNumbers.length > 0
+      ? `Draft follow-up appointment created: ${generatedFollowUpAppointmentNumbers.join(", ")}.`
+      : null,
+    automatedTaskCount > 0
+      ? `${automatedTaskCount} follow-up task${automatedTaskCount === 1 ? "" : "s"} created.`
+      : null
+  ].filter(Boolean);
+
+  return [
+    `Outcome saved for ${input.appointmentId}. Completion, outcome, follow-up, history, and command ledger were updated.`,
+    ...automationMessages
+  ].join(" ");
+}
+
 function createAppointmentNumber() {
   return `APT-${Date.now().toString().slice(-8)}`;
 }
@@ -2398,7 +2443,10 @@ export function AppointmentBoardShell() {
       }
 
       setActionNotice(
-        `Outcome saved for ${selectedAppointment.id}. Completion, outcome, follow-up, history, and command ledger were updated.`
+        buildOutcomeSuccessNotice({
+          appointmentId: selectedAppointment.id,
+          result
+        })
       );
       setOutcomeDraft((current) => ({
         ...current,

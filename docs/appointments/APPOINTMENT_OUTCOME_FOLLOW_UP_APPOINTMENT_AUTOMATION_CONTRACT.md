@@ -27,7 +27,9 @@ When `COMPLETE` is submitted with `followUpDispositionCode = FOLLOW_UP_APPOINTME
   - customer and vehicle snapshots from the board-provided references when available;
   - source snapshot pointing back to the original appointment.
 
-The command also records `AUTOMATION_EVALUATED` history on the completed appointment and adds `automatedFollowUpAppointmentCount` / `createdAppointmentCount` to the command execution result.
+The command also records `AUTOMATION_EVALUATED` history on the completed appointment and adds `automatedFollowUpAppointmentCount`, `createdAppointmentCount`, and `generatedFollowUpAppointmentNumbers` to the command execution result.
+
+The Appointment Board success notice surfaces generated draft appointment numbers after `Save Outcome` so the manager knows exactly which draft was created.
 
 ## Guardrails
 
@@ -47,6 +49,5 @@ The command also records `AUTOMATION_EVALUATED` history on the completed appoint
 ## Still Pending
 
 - Browser workflow coverage for completed appointment → generated draft appointment.
-- UI surfacing of the generated draft appointment ID/number in the success notice.
 - Admin-editable automation templates and due rules.
 - Dedicated appointment-to-appointment relationship table if future reporting requires direct parent/child traversal beyond source snapshots.

@@ -451,6 +451,7 @@ describe("appointment lifecycle transaction execution", () => {
       historyEventCount: 4,
       resultSnapshot: expect.objectContaining({
         automatedFollowUpAppointmentCount: 1,
+        generatedFollowUpAppointmentNumbers: [expect.stringMatching(/^FUP-APT-10245-/)],
         createdAppointmentCount: 1,
         automatedTaskCount: 1
       })

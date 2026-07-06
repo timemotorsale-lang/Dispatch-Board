@@ -1825,7 +1825,10 @@ function buildCompletePlan(
       followUpDispositionCode,
       releaseReservationCount: input.payload?.releaseReservations?.length ?? 0,
       automatedTaskCount: taskCreateEffects.length,
-      automatedFollowUpAppointmentCount: appointmentCreateEffects.length
+      automatedFollowUpAppointmentCount: appointmentCreateEffects.length,
+      generatedFollowUpAppointmentNumbers: appointmentCreateEffects.map(
+        (effect) => effect.values.appointmentNumber
+      )
     }
   };
 }

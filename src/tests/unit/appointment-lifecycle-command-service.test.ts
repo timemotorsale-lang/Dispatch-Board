@@ -923,7 +923,8 @@ describe("appointment lifecycle command execution planner", () => {
       ],
       commandResultSnapshot: {
         automatedTaskCount: 1,
-        automatedFollowUpAppointmentCount: 1
+        automatedFollowUpAppointmentCount: 1,
+        generatedFollowUpAppointmentNumbers: [expect.stringMatching(/^FUP-APT-10245-/)]
       }
     });
   });
