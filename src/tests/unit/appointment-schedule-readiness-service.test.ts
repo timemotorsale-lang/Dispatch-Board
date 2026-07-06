@@ -129,6 +129,42 @@ describe("appointment schedule readiness service", () => {
     });
   });
 
+  it("evaluates a proposed time window for unscheduled drafts without saving it", async () => {
+    const readiness = await previewAppointmentScheduleReadiness(
+      managerUser,
+      "appointment-1",
+      repository({
+        appointment: appointment({
+          startsAt: null,
+          endsAt: null
+        })
+      }),
+      now,
+      {
+        proposedStartsAt: new Date("2026-07-06T16:00:00.000Z"),
+        proposedEndsAt: new Date("2026-07-06T17:00:00.000Z"),
+        proposedSchedulingTimezone: "America/Chicago"
+      }
+    );
+
+    expect(readiness.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "time_window",
+          status: "PASS",
+          message: "Appointment has a valid time window."
+        })
+      ])
+    );
+    expect(readiness.hardBlocks).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "INVALID_TIME"
+        })
+      ])
+    );
+  });
+
   it("rejects unauthorized schedule preview access", async () => {
     await expect(
       previewAppointmentScheduleReadiness(

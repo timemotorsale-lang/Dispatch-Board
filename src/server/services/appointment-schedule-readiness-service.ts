@@ -110,6 +110,12 @@ export type AppointmentScheduleReadinessResult = {
   }>;
 };
 
+export type AppointmentScheduleReadinessOptions = {
+  proposedStartsAt?: Date | null;
+  proposedEndsAt?: Date | null;
+  proposedSchedulingTimezone?: string | null;
+};
+
 function assertAuthenticated(user: AuthenticatedUser | null) {
   if (!user) {
     throw new Error("Authentication required.");
@@ -246,7 +252,7 @@ function buildReadiness(appointment: AppointmentScheduleReadinessAppointmentReco
         code: "time_window",
         label: "Time window",
         status: "PASS",
-        message: "Appointment has a valid saved time window."
+        message: "Appointment has a valid time window."
       })
     );
   }
@@ -375,7 +381,8 @@ export async function previewAppointmentScheduleReadiness(
   user: AuthenticatedUser | null,
   appointmentId: string,
   repository: AppointmentScheduleReadinessRepository = createAppointmentScheduleReadinessRepository(),
-  now = new Date()
+  now = new Date(),
+  options: AppointmentScheduleReadinessOptions = {}
 ): Promise<AppointmentScheduleReadinessResult> {
   const actor = assertAuthenticated(user);
   const normalizedAppointmentId = appointmentId.trim();
@@ -408,5 +415,9 @@ export async function previewAppointmentScheduleReadiness(
     throw new Error("Appointment command is not authorized.");
   }
 
-  return buildReadiness(appointment);
+  return buildReadiness({
+    ...appointment,
+    startsAt: options.proposedStartsAt ?? appointment.startsAt,
+    endsAt: options.proposedEndsAt ?? appointment.endsAt
+  });
 }

@@ -1427,8 +1427,25 @@ export function AppointmentBoardShell() {
       setIsReadinessLoading(true);
 
       try {
+        let readinessUrl = `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/schedule-readiness`;
+
+        if (selectedAppointmentIsUnscheduledDraft) {
+          const startsAt = localDateTimeToMinneapolisIso(
+            scheduleDraft.localDate,
+            scheduleDraft.startTime
+          );
+          const endsAt = addMinutesToIso(startsAt, scheduleDraft.durationMinutes);
+          const params = new URLSearchParams({
+            proposedStartsAt: startsAt,
+            proposedEndsAt: endsAt,
+            proposedSchedulingTimezone: selectedAppointment.schedulingTimezone ?? defaultTimezone
+          });
+
+          readinessUrl = `${readinessUrl}?${params.toString()}`;
+        }
+
         const response = await fetch(
-          `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/schedule-readiness`
+          readinessUrl
         );
         const result = (await response.json().catch(() => null)) as
           | { readiness?: AppointmentScheduleReadiness; error?: string }
@@ -1466,7 +1483,16 @@ export function AppointmentBoardShell() {
     return () => {
       isActive = false;
     };
-  }, [detailRefreshKey, selectedAppointment.recordId, selectedAppointment.status]);
+  }, [
+    detailRefreshKey,
+    scheduleDraft.durationMinutes,
+    scheduleDraft.localDate,
+    scheduleDraft.startTime,
+    selectedAppointment.recordId,
+    selectedAppointment.schedulingTimezone,
+    selectedAppointment.status,
+    selectedAppointmentIsUnscheduledDraft
+  ]);
 
   useEffect(() => {
     let isActive = true;
@@ -2337,6 +2363,13 @@ export function AppointmentBoardShell() {
       return;
     }
 
+    if (scheduleReadiness && !scheduleReadiness.canSubmitSchedule) {
+      setActionNotice(
+        `Schedule Draft is blocked: ${scheduleReadiness.hardBlocks.map((block) => block.message).join(" ")}`
+      );
+      return;
+    }
+
     setIsCommandPending(true);
 
     try {
@@ -3008,7 +3041,12 @@ export function AppointmentBoardShell() {
               </p>
               <button
                 className="appointment-resource-action"
-                disabled={isCommandPending || !scheduleDraft.reasonNotes.trim()}
+                disabled={
+                  isCommandPending ||
+                  isReadinessLoading ||
+                  !scheduleDraft.reasonNotes.trim() ||
+                  (scheduleReadiness ? !scheduleReadiness.canSubmitSchedule : false)
+                }
                 onClick={() => void submitUnscheduledDraftSchedule()}
                 type="button"
               >
