@@ -93,6 +93,7 @@ function appointment(
     version: 3,
     startsAt: new Date("2026-07-06T15:00:00.000Z"),
     endsAt: new Date("2026-07-06T16:00:00.000Z"),
+    schedulingTimezone: "America/Chicago",
     bookingStatus: "DRAFT",
     purposeSnapshot: {
       category: "service"
@@ -640,6 +641,17 @@ describe("appointment resource reservation replacement", () => {
       }
     ]
   };
+  const committedRequirement = {
+    ...heldRequirement,
+    reservations: [
+      {
+        ...heldRequirement.reservations[0],
+        id: "reservation-committed",
+        status: "COMMITTED",
+        resourceId: "resource-bay-1"
+      }
+    ]
+  };
 
   function appointmentWithHeldReservation(
     overrides: Partial<AppointmentResourcePlanningAppointmentRecord> = {}
@@ -687,13 +699,34 @@ describe("appointment resource reservation replacement", () => {
         },
         schedulableResource: {
           async findFirst() {
-            return input?.resource === undefined
-              ? resource({
-                  id: "resource-bay-2",
-                  code: "BAY_2",
-                  name: "Service Bay 2"
-                })
-              : input.resource;
+            const selectedResource =
+              input?.resource === undefined
+                ? resource({
+                    id: "resource-bay-2",
+                    code: "BAY_2",
+                    name: "Service Bay 2"
+                  })
+                : input.resource;
+
+            return selectedResource
+              ? {
+                  ...selectedResource,
+                  effectiveFrom: new Date("2026-01-01T00:00:00.000Z"),
+                  effectiveTo: null,
+                  operatingWindows: [
+                    {
+                      businessDay: "MONDAY",
+                      opensAtMinute: 9 * 60,
+                      closesAtMinute: 18 * 60,
+                      capacityOverride: null,
+                      validFrom: new Date("2026-01-01T00:00:00.000Z"),
+                      validTo: null
+                    }
+                  ],
+                  unavailability: [],
+                  reservations: []
+                }
+              : null;
           },
           async findMany() {
             return [];
@@ -788,6 +821,57 @@ describe("appointment resource reservation replacement", () => {
       }
     ]);
     expect(harness.createdReservations).toHaveLength(1);
+    expect(harness.createdHistory).toHaveLength(1);
+  });
+
+  it("releases a committed scheduled reservation and creates a committed replacement atomically", async () => {
+    const harness = database({
+      appointment: appointmentWithHeldReservation({
+        bookingStatus: "SCHEDULED",
+        resourceRequirements: [committedRequirement]
+      })
+    });
+
+    const result = await replaceAppointmentResourceReservation(
+      managerUser,
+      "appointment-1",
+      {
+        reservationId: "reservation-committed",
+        resourceId: "resource-bay-2",
+        expectedAppointmentVersion: 3,
+        reasonCode: "RESOURCE_RESERVATION_REPLACED",
+        reasonNotes: "Swap committed bay after lift became unavailable.",
+        correlationId: "correlation-replace-committed"
+      },
+      harness.database,
+      now
+    );
+
+    expect(result).toMatchObject({
+      id: "reservation-replacement",
+      resourceId: "resource-bay-2",
+      resourceName: "Service Bay 2",
+      status: "COMMITTED",
+      releasedReservationId: "reservation-committed",
+      releasedResourceName: "Service Bay 1",
+      releasedPriorStatus: "COMMITTED",
+      cancelledPriorProposalCount: 0,
+      appointmentVersion: 4
+    });
+    expect(harness.updatedReservations).toEqual([
+      {
+        status: "RELEASED"
+      },
+      {
+        status: "CANCELLED"
+      }
+    ]);
+    expect(harness.createdReservations).toEqual([
+      expect.objectContaining({
+        status: "COMMITTED",
+        resourceId: "resource-bay-2"
+      })
+    ]);
     expect(harness.createdHistory).toHaveLength(1);
   });
 

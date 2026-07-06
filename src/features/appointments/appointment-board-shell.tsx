@@ -1855,17 +1855,15 @@ export function AppointmentBoardShell() {
     recommendation: AppointmentResourcePlanning["recommendations"][number]
   ) {
     if (!selectedAppointment.recordId || !selectedAppointment.recordVersion) {
-      setActionNotice("Resource reservations can only be replaced for persisted live draft appointments.");
+      setActionNotice("Resource reservations can only be replaced for persisted live appointments.");
       return;
     }
 
-    if (selectedAppointment.status !== "draft") {
-      setActionNotice("Resource replacement is currently available before scheduling. Scheduled replacements will use the later reschedule workflow.");
-      return;
-    }
-
-    if (!recommendation.selectedReservation || recommendation.selectedReservation.status !== "HELD") {
-      setActionNotice(`Hold a ${recommendation.label} reservation before replacing it.`);
+    if (
+      !recommendation.selectedReservation ||
+      !["HELD", "COMMITTED"].includes(recommendation.selectedReservation.status)
+    ) {
+      setActionNotice(`Hold or schedule a ${recommendation.label} reservation before replacing it.`);
       return;
     }
 
@@ -1888,7 +1886,7 @@ export function AppointmentBoardShell() {
     const userReason = getResourceActionReason("replace", recommendation.selectedReservation.id);
 
     if (!userReason) {
-      setActionNotice("Add a replacement reason before replacing this held reservation.");
+      setActionNotice("Add a replacement reason before replacing this reservation.");
       return;
     }
 
@@ -1926,6 +1924,8 @@ export function AppointmentBoardShell() {
             replacement?: {
               resourceName: string;
               releasedResourceName: string;
+              status: "PROPOSED" | "COMMITTED";
+              releasedPriorStatus: "HELD" | "COMMITTED";
               appointmentVersion: number;
             };
             error?: string;
@@ -1937,7 +1937,9 @@ export function AppointmentBoardShell() {
       }
 
       setActionNotice(
-        `${result.replacement.releasedResourceName} was released and ${result.replacement.resourceName} was proposed as the replacement. Review availability, then hold the new candidate.`
+        result.replacement.status === "COMMITTED"
+          ? `${result.replacement.releasedResourceName} was released and ${result.replacement.resourceName} is now committed as the replacement.`
+          : `${result.replacement.releasedResourceName} was released and ${result.replacement.resourceName} was proposed as the replacement. Review availability, then hold the new candidate.`
       );
       clearResourceActionReason("replace", recommendation.selectedReservation.id);
       setDetailRefreshKey((value) => value + 1);
@@ -2378,7 +2380,7 @@ export function AppointmentBoardShell() {
             </div>
           ) : null}
 
-          {selectedAppointment.status === "draft" ? (
+          {selectedAppointment.dataSource === "live" && selectedAppointment.recordId ? (
             <div className="appointment-detail-section">
               <div className="appointment-section-heading">
                 <strong>Resource Planning</strong>
@@ -2593,13 +2595,12 @@ export function AppointmentBoardShell() {
                                       : "Release Reservation"}
                                   </button>
                                 ) : null}
-                                {recommendation.selectedReservation?.status === "HELD" ? (
+                                {["HELD", "COMMITTED"].includes(recommendation.selectedReservation?.status ?? "") ? (
                                   <label className="appointment-resource-reason-field">
                                     Replacement reason
                                     <textarea
                                       disabled={
                                         resourceReplacementSavingReservationId === recommendation.selectedReservation.id ||
-                                        selectedAppointment.status !== "draft" ||
                                         selectedAppointment.dataSource !== "live" ||
                                         !resourcePlanning.canManageResourcesForAppointment
                                       }
@@ -2610,7 +2611,7 @@ export function AppointmentBoardShell() {
                                           event.target.value
                                         )
                                       }
-                                      placeholder="Explain why this held resource is being replaced."
+                                      placeholder="Explain why this resource is being replaced."
                                       rows={2}
                                       value={getResourceActionReason(
                                         "replace",
@@ -2619,12 +2620,11 @@ export function AppointmentBoardShell() {
                                     />
                                   </label>
                                 ) : null}
-                                {recommendation.selectedReservation?.status === "HELD" ? (
+                                {["HELD", "COMMITTED"].includes(recommendation.selectedReservation?.status ?? "") ? (
                                   <button
                                     className="appointment-resource-action appointment-resource-replace-action"
                                     disabled={
                                       resourceReplacementSavingReservationId === recommendation.selectedReservation.id ||
-                                      selectedAppointment.status !== "draft" ||
                                       selectedAppointment.dataSource !== "live" ||
                                       !resourcePlanning.canManageResourcesForAppointment ||
                                       recommendation.candidates.filter(
@@ -2650,8 +2650,10 @@ export function AppointmentBoardShell() {
                             aria-label={`Select ${recommendation.label} candidate`}
                             disabled={
                               resourceCandidateSavingCode === recommendation.requirementCode ||
-                              selectedAppointment.status !== "draft" ||
-                              ["HELD", "COMMITTED"].includes(recommendation.selectedReservation?.status ?? "") ||
+                              (selectedAppointment.status !== "draft" &&
+                                !["HELD", "COMMITTED"].includes(
+                                  recommendation.selectedReservation?.status ?? ""
+                                )) ||
                               recommendation.candidates.length === 0 ||
                               selectedAppointment.dataSource !== "live" ||
                               !resourcePlanning.canManageResourcesForAppointment

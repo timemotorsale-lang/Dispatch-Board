@@ -1,6 +1,13 @@
 import { Prisma, PrismaClient } from "@prisma/client";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
+import {
+  evaluateResourceAvailability,
+  type ResourceAvailabilityOperatingWindow,
+  type ResourceAvailabilityReservation,
+  type ResourceAvailabilityResource,
+  type ResourceAvailabilityUnavailability
+} from "@/server/appointments/resource-availability-service";
 import { prisma } from "@/server/db/client";
 import {
   canMutateAppointment,
@@ -23,6 +30,7 @@ const appointmentResourcePlanningSelect = {
   version: true,
   startsAt: true,
   endsAt: true,
+  schedulingTimezone: true,
   bookingStatus: true,
   purposeSnapshot: true,
   resourceRequirements: {
@@ -99,6 +107,44 @@ const resourceSelect = {
   conflictPolicy: true
 } satisfies Prisma.SchedulableResourceSelect;
 
+const replacementResourceSelect = {
+  ...resourceSelect,
+  effectiveFrom: true,
+  effectiveTo: true,
+  operatingWindows: {
+    select: {
+      businessDay: true,
+      opensAtMinute: true,
+      closesAtMinute: true,
+      capacityOverride: true,
+      validFrom: true,
+      validTo: true
+    }
+  },
+  unavailability: {
+    select: {
+      id: true,
+      type: true,
+      startsAt: true,
+      endsAt: true,
+      capacityReduction: true,
+      reason: true
+    }
+  },
+  reservations: {
+    select: {
+      id: true,
+      appointmentId: true,
+      status: true,
+      startsAt: true,
+      endsAt: true,
+      capacityUnits: true,
+      bufferBeforeMinutes: true,
+      bufferAfterMinutes: true
+    }
+  }
+} satisfies Prisma.SchedulableResourceSelect;
+
 type AppointmentResourcePlanningDatabase = Pick<
   PrismaClient,
   | "$transaction"
@@ -124,6 +170,11 @@ export type AppointmentResourcePlanningResourceTypeRecord = Prisma.SchedulableRe
 export type AppointmentResourcePlanningResourceRecord = Prisma.SchedulableResourceGetPayload<{
   select: typeof resourceSelect;
 }>;
+
+type AppointmentResourcePlanningReplacementResourceRecord =
+  Prisma.SchedulableResourceGetPayload<{
+    select: typeof replacementResourceSelect;
+  }>;
 
 export type AppointmentResourcePlanningRepository = {
   findAppointmentById(
@@ -246,12 +297,16 @@ export type ProposeAppointmentResourceCandidateInput = {
   correlationId?: string | null;
 };
 
-export type AppointmentReplacedResourceReservation = AppointmentProposedResourceCandidate & {
+export type AppointmentReplacedResourceReservation = Omit<
+  AppointmentProposedResourceCandidate,
+  "status"
+> & {
+  status: "PROPOSED" | "COMMITTED";
   releasedReservationId: string;
   releasedResourceId: string;
   releasedResourceCode: string;
   releasedResourceName: string;
-  releasedPriorStatus: "HELD";
+  releasedPriorStatus: "HELD" | "COMMITTED";
 };
 
 export type ReplaceAppointmentResourceReservationInput = {
@@ -578,6 +633,39 @@ function toProposedCandidate(input: {
   };
 }
 
+function toAvailabilityResource(
+  resource: AppointmentResourcePlanningReplacementResourceRecord
+): ResourceAvailabilityResource {
+  return {
+    id: resource.id,
+    name: resource.name,
+    status: resource.status,
+    capacityMode: resource.capacityMode,
+    capacity: resource.capacity,
+    conflictPolicy: resource.conflictPolicy,
+    effectiveFrom: resource.effectiveFrom,
+    effectiveTo: resource.effectiveTo
+  };
+}
+
+function toOperatingWindows(
+  resource: AppointmentResourcePlanningReplacementResourceRecord
+): ResourceAvailabilityOperatingWindow[] {
+  return resource.operatingWindows;
+}
+
+function toUnavailability(
+  resource: AppointmentResourcePlanningReplacementResourceRecord
+): ResourceAvailabilityUnavailability[] {
+  return resource.unavailability;
+}
+
+function toReservations(
+  resource: AppointmentResourcePlanningReplacementResourceRecord
+): ResourceAvailabilityReservation[] {
+  return resource.reservations;
+}
+
 function toReplacedReservation(input: {
   releasedReservation: {
     id: string;
@@ -598,23 +686,31 @@ function toReplacedReservation(input: {
     endsAt: Date;
     capacityUnits: number;
   };
-  resource: AppointmentResourcePlanningResourceRecord;
+  resource: AppointmentResourcePlanningReplacementResourceRecord;
   cancelledPriorProposalCount: number;
   appointmentVersion: number;
+  replacementStatus: "PROPOSED" | "COMMITTED";
+  releasedPriorStatus: "HELD" | "COMMITTED";
 }): AppointmentReplacedResourceReservation {
   return {
-    ...toProposedCandidate({
-      reservation: input.reservation,
-      resource: input.resource,
-      created: true,
-      cancelledPriorProposalCount: input.cancelledPriorProposalCount,
-      appointmentVersion: input.appointmentVersion
-    }),
+    id: input.reservation.id,
+    appointmentId: input.reservation.appointmentId,
+    requirementId: input.reservation.requirementId,
+    resourceId: input.reservation.resourceId,
+    resourceCode: input.resource.code,
+    resourceName: input.resource.name,
+    status: input.replacementStatus,
+    startsAt: input.reservation.startsAt,
+    endsAt: input.reservation.endsAt,
+    capacityUnits: input.reservation.capacityUnits,
+    created: true,
+    cancelledPriorProposalCount: input.cancelledPriorProposalCount,
+    appointmentVersion: input.appointmentVersion,
     releasedReservationId: input.releasedReservation.id,
     releasedResourceId: input.releasedReservation.resourceId,
     releasedResourceCode: input.releasedReservation.resource.code,
     releasedResourceName: input.releasedReservation.resource.name,
-    releasedPriorStatus: "HELD"
+    releasedPriorStatus: input.releasedPriorStatus
   };
 }
 
@@ -1393,10 +1489,6 @@ export async function replaceAppointmentResourceReservation(
     throw new Error("Appointment not found.");
   }
 
-  if (appointment.bookingStatus !== "DRAFT" && appointment.bookingStatus !== "PENDING_APPROVAL") {
-    throw new Error("Resource reservations can only be replaced on draft appointments.");
-  }
-
   if (!appointment.startsAt || !appointment.endsAt || appointment.endsAt <= appointment.startsAt) {
     throw new Error("Resource replacement requires a valid appointment time window.");
   }
@@ -1408,12 +1500,31 @@ export async function replaceAppointmentResourceReservation(
   const releasedReservation =
     requirement?.reservations.find((reservation) => reservation.id === reservationId) ?? null;
 
-  if (!requirement || !releasedReservation || releasedReservation.status !== "HELD") {
+  if (
+    !requirement ||
+    !releasedReservation ||
+    !["HELD", "COMMITTED"].includes(releasedReservation.status)
+  ) {
     throw new Error("Held resource reservation not found for replacement on this appointment.");
   }
 
+  const releasedPriorStatus = releasedReservation.status as "HELD" | "COMMITTED";
+  const replacementStatus: "PROPOSED" | "COMMITTED" =
+    releasedPriorStatus === "COMMITTED" ? "COMMITTED" : "PROPOSED";
+  const isDraftReplacement =
+    releasedPriorStatus === "HELD" &&
+    (appointment.bookingStatus === "DRAFT" || appointment.bookingStatus === "PENDING_APPROVAL");
+  const isScheduledReplacement =
+    releasedPriorStatus === "COMMITTED" && appointment.bookingStatus === "SCHEDULED";
+
+  if (!isDraftReplacement && !isScheduledReplacement) {
+    throw new Error(
+      "Resource reservations can only be replaced when a draft appointment has a held reservation or a scheduled appointment has a committed reservation."
+    );
+  }
+
   if (releasedReservation.resourceId === resourceId) {
-    throw new Error("Replacement resource candidate must be different from the held reservation.");
+    throw new Error("Replacement resource candidate must be different from the current reservation.");
   }
 
   const access = await database.userLocationAccess.findFirst({
@@ -1478,11 +1589,28 @@ export async function replaceAppointmentResourceReservation(
         }
       ]
     },
-    select: resourceSelect
+    select: replacementResourceSelect
   });
 
   if (!resource) {
     throw new Error("Replacement resource candidate is not available for this requirement.");
+  }
+
+  const availability = evaluateResourceAvailability({
+    resource: toAvailabilityResource(resource),
+    timezone: appointment.schedulingTimezone,
+    operatingWindows: toOperatingWindows(resource),
+    unavailability: toUnavailability(resource),
+    reservations: toReservations(resource),
+    startsAt: appointment.startsAt,
+    endsAt: appointment.endsAt,
+    requiredCapacity: requirement.requiredCapacity
+  });
+
+  if (!availability.isAvailable) {
+    throw new Error(
+      `Replacement resource candidate is not available for this requirement. ${availability.reasons.join(" ")}`
+    );
   }
 
   const normalizedReservation = normalizeAppointmentResourceReservation({
@@ -1492,7 +1620,7 @@ export async function replaceAppointmentResourceReservation(
     requirementAppointmentId: requirement.appointmentId,
     resourceId: resource.id,
     resourceLocationId: resource.locationId,
-    status: "PROPOSED",
+    status: replacementStatus,
     startsAt: appointment.startsAt,
     endsAt: appointment.endsAt,
     capacityUnits: requirement.requiredCapacity,
@@ -1522,13 +1650,14 @@ export async function replaceAppointmentResourceReservation(
     newValue: {
       releasedReservation: {
         id: releasedReservation.id,
+        priorStatus: releasedPriorStatus,
         status: "RELEASED"
       },
-      proposedReservation: {
+      replacementReservation: {
         resourceId: resource.id,
         resourceCode: resource.code,
         resourceName: resource.name,
-        status: "PROPOSED"
+        status: replacementStatus
       }
     },
     metadata: {
@@ -1536,7 +1665,9 @@ export async function replaceAppointmentResourceReservation(
       expectedAppointmentVersion,
       requirementId: requirement.id,
       releasedReservationId: releasedReservation.id,
-      replacementResourceId: resource.id
+      releasedPriorStatus,
+      replacementResourceId: resource.id,
+      replacementStatus
     },
     occurredAt: now
   });
@@ -1562,7 +1693,7 @@ export async function replaceAppointmentResourceReservation(
       where: {
         id: releasedReservation.id,
         appointmentId: appointment.id,
-        status: "HELD"
+        status: releasedPriorStatus
       },
       data: {
         status: "RELEASED"
@@ -1570,7 +1701,7 @@ export async function replaceAppointmentResourceReservation(
     });
 
     if (releasedReservationUpdate.count !== 1) {
-      throw new Error("Held resource reservation was already changed.");
+      throw new Error("Resource reservation was already changed.");
     }
 
     const cancelledPriorProposals = await tx.appointmentResourceReservation.updateMany({
@@ -1630,7 +1761,9 @@ export async function replaceAppointmentResourceReservation(
       reservation: createdReservation,
       resource,
       cancelledPriorProposalCount: cancelledPriorProposals.count,
-      appointmentVersion: expectedAppointmentVersion + 1
+      appointmentVersion: expectedAppointmentVersion + 1,
+      replacementStatus,
+      releasedPriorStatus
     });
   });
 }
