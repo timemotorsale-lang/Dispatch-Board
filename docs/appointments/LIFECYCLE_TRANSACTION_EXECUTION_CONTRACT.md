@@ -2,7 +2,7 @@
 
 **Work package:** EAPT-027 extension  
 **Status:** Implemented service boundary  
-**Scope:** Atomic execution boundary for lifecycle command plans
+**Scope:** Atomic execution boundary and concrete Prisma transaction adapter for lifecycle command plans
 
 ## Purpose
 
@@ -21,6 +21,14 @@ For executable plans, the executor applies:
 - Appointment-task link create and remove effects.
 - Appointment history events.
 - Command-ledger success completion.
+
+The concrete Prisma repository applies those effects through one database transaction and persists:
+
+- Appointment create/update rows with optimistic version checks.
+- Appointment resource reservation create/release rows.
+- Appointment-task link create/remove rows.
+- Appointment history event rows.
+- Appointment command-ledger completion rows.
 
 For rejected plans, the executor:
 
@@ -43,13 +51,10 @@ This protects against dangerous partial states such as:
 
 ## Current Limits
 
-This slice intentionally does not yet provide the concrete Prisma transaction adapter.
+This slice provides the concrete Prisma transaction adapter, but live production execution still requires:
 
-The implemented boundary is ready for that adapter, but live production execution still requires:
-
-- Concrete Prisma transaction repository.
 - Command route integration.
-- Real reservation commit/release adapter wiring.
+- End-to-end command submission that invokes the planner, transaction executor, and Prisma adapter together.
 - Live appointment read refresh in the Appointment Board.
 - Browser-level mutation tests.
 
@@ -60,3 +65,4 @@ The boundary is covered by unit tests for:
 - Successful execution of appointment, reservation, task-link, history, and command-completion effects together.
 - Rejected-plan handling without side effects.
 - Rollback of all prior effects when a later transaction step fails.
+- Prisma adapter operation-shape tests for appointment updates, reservation writes, task-link writes, history writes, command completion, stale-version rejection, reservation release, and task-link removal.
