@@ -224,6 +224,9 @@ type AppointmentResourceCandidateAvailability = {
     resourceName: string;
     status: "READY" | "WARNING" | "BLOCKED";
     canProceedToHold: boolean;
+    warningOverrideRequired: boolean;
+    warningOverrideSatisfied: boolean;
+    warningKey: string | null;
     reasons: string[];
     availableCapacity: number;
     requiredCapacity: number;
@@ -1394,7 +1397,9 @@ export function AppointmentBoardShell() {
 
     if (availability && !availability.canProceedToHold) {
       setActionNotice(
-        `Hold is blocked: ${availability.reasons.length > 0 ? availability.reasons.join(" ") : "resource candidate is not available."}`
+        availability.warningOverrideRequired && !availability.warningOverrideSatisfied
+          ? "Hold is blocked until a manager records the warning override."
+          : `Hold is blocked: ${availability.reasons.length > 0 ? availability.reasons.join(" ") : "resource candidate is not available."}`
       );
       return;
     }
@@ -2105,6 +2110,11 @@ export function AppointmentBoardShell() {
                             const availability = candidateAvailability?.proposals.find(
                               (proposal) => proposal.reservationId === recommendation.selectedReservation?.id
                             );
+                            const warningAlreadyOverridden = Boolean(
+                              recommendation.selectedReservation &&
+                                (overriddenResourceWarnings[recommendation.selectedReservation.id] ||
+                                  availability?.warningOverrideSatisfied)
+                            );
 
                             return (
                               <>
@@ -2123,7 +2133,11 @@ export function AppointmentBoardShell() {
                                   ) : availability ? (
                                     <span>
                                       {availability.reasons.length > 0
-                                        ? availability.reasons.join(" ")
+                                        ? `${availability.reasons.join(" ")}${
+                                            availability.warningOverrideSatisfied
+                                              ? " Warning override recorded."
+                                              : ""
+                                          }`
                                         : `Capacity available: ${availability.availableCapacity}/${availability.requiredCapacity}`}
                                     </span>
                                   ) : (
@@ -2159,7 +2173,7 @@ export function AppointmentBoardShell() {
                                     className="appointment-resource-action appointment-resource-warning-action"
                                     disabled={
                                       resourceWarningOverrideSavingReservationId === recommendation.selectedReservation.id ||
-                                      Boolean(overriddenResourceWarnings[recommendation.selectedReservation.id]) ||
+                                      warningAlreadyOverridden ||
                                       selectedAppointment.status !== "draft" ||
                                       selectedAppointment.dataSource !== "live" ||
                                       !resourcePlanning.canManageResourcesForAppointment ||
@@ -2170,7 +2184,7 @@ export function AppointmentBoardShell() {
                                   >
                                     {resourceWarningOverrideSavingReservationId === recommendation.selectedReservation.id
                                       ? "Overriding..."
-                                      : overriddenResourceWarnings[recommendation.selectedReservation.id]
+                                      : warningAlreadyOverridden
                                         ? "Warning Overridden"
                                         : "Override Warning"}
                                   </button>

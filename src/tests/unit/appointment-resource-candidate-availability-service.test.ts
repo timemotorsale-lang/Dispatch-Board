@@ -157,6 +157,7 @@ function warningAppointment(): AppointmentResourceCandidateAvailabilityAppointme
 function repository(input?: {
   appointment?: AppointmentResourceCandidateAvailabilityAppointmentRecord | null;
   access?: AppointmentResourceCandidateAvailabilityLocationAccessRecord | null;
+  warningOverrideKeys?: string[];
 }): AppointmentResourceCandidateAvailabilityRepository {
   return {
     async findAppointmentById() {
@@ -164,6 +165,9 @@ function repository(input?: {
     },
     async findActiveLocationAccess() {
       return input?.access === undefined ? access() : input.access;
+    },
+    async findResourceWarningOverrideKeys() {
+      return input?.warningOverrideKeys ?? [];
     }
   };
 }
@@ -244,6 +248,67 @@ describe("appointment resource candidate availability service", () => {
             "Resource capacity is already reserved during the candidate window.",
             "Resource does not have enough available capacity."
           ])
+        }
+      ]
+    });
+  });
+
+  it("requires warning override before warning-level candidates can proceed to hold", async () => {
+    const availability = await previewAppointmentResourceCandidateAvailability(
+      managerUser,
+      "appointment-1",
+      repository({
+        appointment: warningAppointment()
+      }),
+      now
+    );
+
+    expect(availability).toMatchObject({
+      status: "WARNING",
+      canProceedToHold: false,
+      proposals: [
+        {
+          status: "WARNING",
+          canProceedToHold: false,
+          warningOverrideRequired: true,
+          warningOverrideSatisfied: false,
+          warningKey: expect.stringContaining("RESOURCE|RESOURCE_WARNING|appointment-1")
+        }
+      ]
+    });
+  });
+
+  it("surfaces persisted warning overrides in candidate availability", async () => {
+    const previewWithoutOverride = await previewAppointmentResourceCandidateAvailability(
+      managerUser,
+      "appointment-1",
+      repository({
+        appointment: warningAppointment()
+      }),
+      now
+    );
+    const warningKey = previewWithoutOverride.proposals[0].warningKey;
+
+    const availability = await previewAppointmentResourceCandidateAvailability(
+      managerUser,
+      "appointment-1",
+      repository({
+        appointment: warningAppointment(),
+        warningOverrideKeys: warningKey ? [warningKey] : []
+      }),
+      now
+    );
+
+    expect(availability).toMatchObject({
+      status: "WARNING",
+      canProceedToHold: true,
+      proposals: [
+        {
+          status: "WARNING",
+          canProceedToHold: true,
+          warningOverrideRequired: true,
+          warningOverrideSatisfied: true,
+          warningKey
         }
       ]
     });

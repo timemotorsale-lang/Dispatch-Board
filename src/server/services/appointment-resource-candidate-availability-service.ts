@@ -177,6 +177,10 @@ export type AppointmentResourceCandidateAvailabilityRepository = {
     locationId: string,
     at: Date
   ): Promise<AppointmentResourceCandidateAvailabilityLocationAccessRecord | null>;
+  findResourceWarningOverrideKeys?(
+    appointmentId: string,
+    warningKeys: string[]
+  ): Promise<string[]>;
 };
 
 export type AppointmentResourceCandidateAvailabilityResult = {
@@ -193,6 +197,9 @@ export type AppointmentResourceCandidateAvailabilityResult = {
     resourceName: string;
     status: "READY" | "WARNING" | "BLOCKED";
     canProceedToHold: boolean;
+    warningOverrideRequired: boolean;
+    warningOverrideSatisfied: boolean;
+    warningKey: string | null;
     reasons: string[];
     availableCapacity: number;
     requiredCapacity: number;
@@ -530,6 +537,33 @@ export function createAppointmentResourceCandidateAvailabilityRepository(
         },
         select: locationAccessSelect
       });
+    },
+    async findResourceWarningOverrideKeys(appointmentId, warningKeys) {
+      if (warningKeys.length === 0) {
+        return [];
+      }
+
+      const results = await Promise.all(
+        [...new Set(warningKeys)].map(async (warningKey) => {
+          const event = await database.appointmentHistoryEvent.findFirst({
+            where: {
+              appointmentId,
+              eventType: "WARNING_OVERRIDDEN",
+              metadata: {
+                path: ["warningKey"],
+                equals: warningKey
+              }
+            },
+            select: {
+              id: true
+            }
+          });
+
+          return event ? warningKey : null;
+        })
+      );
+
+      return results.filter((warningKey): warningKey is string => Boolean(warningKey));
     }
   };
 }
@@ -579,7 +613,7 @@ export async function previewAppointmentResourceCandidateAvailability(
     throw new Error("Resource candidate availability requires a valid appointment time window.");
   }
 
-  const proposals = appointment.resourceRequirements.flatMap((requirement) =>
+  const proposalEvaluations = appointment.resourceRequirements.flatMap((requirement) =>
     requirement.reservations.map((reservation) => {
       const availability = evaluateResourceAvailability({
         resource: toAvailabilityResource(reservation.resource),
@@ -596,6 +630,15 @@ export async function previewAppointmentResourceCandidateAvailability(
         : availability.isHardBlocked
           ? "BLOCKED"
           : "WARNING";
+      const warningKey =
+        status === "WARNING"
+          ? buildResourceWarningKey({
+              appointmentId: appointment.id,
+              reservationId: reservation.id,
+              resourceId: reservation.resourceId,
+              reasons: availability.reasons
+            })
+          : null;
 
       return {
         reservationId: reservation.id,
@@ -605,7 +648,7 @@ export async function previewAppointmentResourceCandidateAvailability(
         resourceCode: reservation.resource.code,
         resourceName: reservation.resource.name,
         status,
-        canProceedToHold: !availability.isHardBlocked,
+        warningKey,
         reasons: availability.reasons,
         availableCapacity: availability.availableCapacity,
         requiredCapacity: reservation.capacityUnits,
@@ -614,13 +657,38 @@ export async function previewAppointmentResourceCandidateAvailability(
       };
     })
   );
+  const warningOverrideKeys =
+    repository.findResourceWarningOverrideKeys
+      ? await repository.findResourceWarningOverrideKeys(
+          appointment.id,
+          proposalEvaluations
+            .map((proposal) => proposal.warningKey)
+            .filter((warningKey): warningKey is string => Boolean(warningKey))
+        )
+      : [];
+  const overriddenWarningKeys = new Set(warningOverrideKeys);
+  const proposals = proposalEvaluations.map((proposal) => {
+    const warningOverrideRequired = proposal.status === "WARNING";
+    const warningOverrideSatisfied = Boolean(
+      proposal.warningKey && overriddenWarningKeys.has(proposal.warningKey)
+    );
+
+    return {
+      ...proposal,
+      canProceedToHold:
+        proposal.status === "READY" ||
+        (warningOverrideRequired && warningOverrideSatisfied),
+      warningOverrideRequired,
+      warningOverrideSatisfied
+    };
+  });
   const status = summarizeStatus(proposals);
 
   return {
     appointmentId: appointment.id,
     appointmentNumber: appointment.appointmentNumber,
     status,
-    canProceedToHold: status === "READY" || status === "WARNING",
+    canProceedToHold: proposals.some((proposal) => proposal.canProceedToHold),
     proposals
   };
 }
