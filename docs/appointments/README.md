@@ -65,6 +65,7 @@ The approved enterprise product, permission, lifecycle, conflict, automation, an
 | [STAFF_AVAILABILITY_SERVICE_CONTRACT.md](STAFF_AVAILABILITY_SERVICE_CONTRACT.md) | Implemented EAPT-015 staff availability, location eligibility, owner/participant/manager grant, and staff-resource matching contract |
 | [APPOINTMENT_DURATION_BUFFER_CONTRACT.md](APPOINTMENT_DURATION_BUFFER_CONTRACT.md) | Implemented EAPT-016 duration, preparation buffer, cleanup buffer, override, and time-footprint contract |
 | [RECURRENCE_OCCURRENCE_CONTRACT.md](RECURRENCE_OCCURRENCE_CONTRACT.md) | Implemented EAPT-017 recurrence definition, occurrence exception, expansion horizon, DST, and edit-scope contract |
+| [HARD_CONFLICT_EVALUATION_CONTRACT.md](HARD_CONFLICT_EVALUATION_CONTRACT.md) | Implemented EAPT-018 server-side hard-conflict evaluation contract |
 | [AUTOMATION_RULES_CATALOG.md](AUTOMATION_RULES_CATALOG.md) | Explainable task-to-appointment and appointment-to-task automation model |
 | [PERMISSION_MATRIX.md](PERMISSION_MATRIX.md) | Manager, owner, participant, viewer, administrator, and system-action authorization rules |
 | [LIFECYCLE_CONFLICT_MATRIX.md](LIFECYCLE_CONFLICT_MATRIX.md) | State transitions, reason requirements, resource constraints, warnings, and hard blocks |
@@ -111,7 +112,8 @@ Implementation tickets may clarify technical details but may not weaken these ru
 | Appointment Board preview shell | Complete | `/appointments` renders the approved mockup composition with preview data, responsive day calendar, metrics, filters, selectable detail rail, linked-task presentation, enterprise controls, and upcoming appointments |
 | EAPT-016 — Appointment duration, preparation, and cleanup buffer rules | Complete | `APPOINTMENT_DURATION_BUFFER_CONTRACT.md`, duration rule service, appointment/resource time-footprint calculation, documented override reasons, manager-approval flagging, start-interval enforcement, and focused tests |
 | EAPT-017 — Recurrence definitions, occurrence exceptions, and expansion horizon | Complete | `RECURRENCE_OCCURRENCE_CONTRACT.md`, recurrence service, daily/weekly/monthly expansion, DST-safe local-time behavior, skipped/rescheduled exceptions, bounded horizons, series-edit impact previews, and focused tests |
-| EAPT-018 — Server-side hard-conflict evaluation | Next | Combine location time, duration footprint, recurrence expansion, resource availability, and staff availability into authoritative hard-block evaluation |
+| EAPT-018 — Server-side hard-conflict evaluation | Complete | `HARD_CONFLICT_EVALUATION_CONTRACT.md`, hard-conflict service, template/context/time/location/resource/staff/recurrence blocking, reserved-resource window use, and focused tests |
+| EAPT-019 — Server-side warning evaluation and manager override records | Next | Evaluate warning-only conflicts and require manager authority plus documented reason before commitment |
 
 ## Recommended Review Order
 
