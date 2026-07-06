@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
-import { submitAppointmentCommand } from "@/server/services/appointment-command-service";
+import { submitAndExecuteAppointmentCommand } from "@/server/services/appointment-command-execution-service";
 
 function getAppointmentCommandErrorStatus(message: string) {
   if (message === "Authentication required.") {
@@ -39,14 +39,15 @@ export async function POST(request: Request) {
   const payload = await request.json().catch(() => null);
 
   try {
-    const result = await submitAppointmentCommand(user, payload);
+    const result = await submitAndExecuteAppointmentCommand(user, payload);
 
     return NextResponse.json(
       {
         command: result.command,
         duplicate: result.duplicate,
         accepted: result.accepted,
-        conflict: result.conflict
+        conflict: result.conflict,
+        execution: result.execution
       },
       {
         status: result.conflict ? 409 : result.duplicate ? 200 : 202

@@ -2,15 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getCurrentUser: vi.fn(),
-  submitAppointmentCommand: vi.fn()
+  submitAndExecuteAppointmentCommand: vi.fn()
 }));
 
 vi.mock("@/server/auth/current-user", () => ({
   getCurrentUser: mocks.getCurrentUser
 }));
 
-vi.mock("@/server/services/appointment-command-service", () => ({
-  submitAppointmentCommand: mocks.submitAppointmentCommand
+vi.mock("@/server/services/appointment-command-execution-service", () => ({
+  submitAndExecuteAppointmentCommand: mocks.submitAndExecuteAppointmentCommand
 }));
 
 import { POST } from "@/app/api/appointments/commands/route";
@@ -35,10 +35,11 @@ describe("appointment command route", () => {
   });
 
   it("accepts a command into the appointment command boundary", async () => {
-    mocks.submitAppointmentCommand.mockResolvedValue({
+    mocks.submitAndExecuteAppointmentCommand.mockResolvedValue({
       accepted: true,
       duplicate: false,
       conflict: null,
+      execution: null,
       command: {
         id: "cmd-1",
         commandType: "RESCHEDULE",
@@ -64,20 +65,22 @@ describe("appointment command route", () => {
       accepted: true,
       duplicate: false,
       conflict: null,
+      execution: null,
       command: {
         id: "cmd-1",
         commandType: "RESCHEDULE",
         status: "PENDING"
       }
     });
-    expect(mocks.submitAppointmentCommand).toHaveBeenCalledWith(managerUser, payload);
+    expect(mocks.submitAndExecuteAppointmentCommand).toHaveBeenCalledWith(managerUser, payload);
   });
 
   it("returns duplicate idempotency requests as safe 200 responses", async () => {
-    mocks.submitAppointmentCommand.mockResolvedValue({
+    mocks.submitAndExecuteAppointmentCommand.mockResolvedValue({
       accepted: true,
       duplicate: true,
       conflict: null,
+      execution: null,
       command: {
         id: "cmd-existing",
         commandType: "RESCHEDULE",
@@ -107,9 +110,10 @@ describe("appointment command route", () => {
   });
 
   it("returns stale-version conflicts as 409 responses", async () => {
-    mocks.submitAppointmentCommand.mockResolvedValue({
+    mocks.submitAndExecuteAppointmentCommand.mockResolvedValue({
       accepted: false,
       duplicate: false,
+      execution: null,
       conflict: {
         expectedAppointmentVersion: 2,
         currentAppointmentVersion: 3
@@ -144,7 +148,7 @@ describe("appointment command route", () => {
   });
 
   it("maps authorization failures to 403", async () => {
-    mocks.submitAppointmentCommand.mockRejectedValue(
+    mocks.submitAndExecuteAppointmentCommand.mockRejectedValue(
       new Error("Appointment command is not authorized.")
     );
 
@@ -167,7 +171,7 @@ describe("appointment command route", () => {
   });
 
   it("maps authentication failures to 401", async () => {
-    mocks.submitAppointmentCommand.mockRejectedValue(new Error("Authentication required."));
+    mocks.submitAndExecuteAppointmentCommand.mockRejectedValue(new Error("Authentication required."));
 
     const response = await POST(
       new Request("http://localhost/api/appointments/commands", {
