@@ -65,6 +65,9 @@ export type AppointmentLifecycleTaskLinkEffect = {
   taskId: string;
   linkType: string;
   linkCode: string;
+  title?: string;
+  explanation?: string | null;
+  isRequired?: boolean;
   blocksAppointment: boolean;
   appointmentRequiredForTask: boolean;
 };

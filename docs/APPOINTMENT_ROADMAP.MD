@@ -10,9 +10,9 @@
 
 ## 1. Executive summary
 
-The Appointment Board has moved beyond a static mockup. It now has a real live-command foundation with appointment creation, scheduling, unscheduled draft handling, staff conflict checks, resource planning, resource proposal/hold/release/replacement workflows, outcome capture, follow-up automation, audit history, version checks, and server-side authorization.
+The Appointment Board has moved beyond a static mockup. It now has a real live-command foundation with appointment creation, scheduling, unscheduled draft handling, staff conflict checks, resource planning, resource proposal/hold/release/replacement workflows, outcome capture, follow-up automation, linked task display, task-detail create-appointment flow, audit history, version checks, and server-side authorization.
 
-However, the full Enterprise Release 1.0 roadmap is not complete yet. The remaining work is mostly enterprise completion work: task linkage, create appointment from any task, automation administration, full command-center views, admin settings, notifications, analytics, accessibility, security, production hardening, and rollout.
+However, the full Enterprise Release 1.0 roadmap is not complete yet. The remaining work is mostly enterprise completion work: richer linked-work actions, automation administration, full command-center views, admin settings, notifications, analytics, accessibility, security, production hardening, and rollout.
 
 ## 2. Current status at a glance
 
@@ -22,7 +22,7 @@ However, the full Enterprise Release 1.0 roadmap is not complete yet. The remain
 | Appointment foundation | Strongly implemented | Core model, commands, permissions, audit, scheduling services, and resource/staff foundations exist. |
 | Appointment Board UI | In progress with substantial live workflow | The visible board exists and many detail-rail workflows are live. |
 | Enterprise admin | Mostly pending | Managers/admins still need full UI for templates, reasons, outcomes, resources, hours, closures, automation rules, and configuration. |
-| Task-to-appointment orchestration | Partially pending | Follow-up automation exists, but create-from-any-task and full bidirectional workflow remain. |
+| Task-to-appointment orchestration | Partially implemented | Follow-up automation and task-detail create-linked-draft workflow exist, but automation-rule triggers and full bidirectional workflow remain. |
 | Reporting and analytics | Pending | KPI definitions, reporting models, exports, and reconciliation are not built yet. |
 | Notifications | Pending | Internal notifications and future integration contracts remain. |
 | Release readiness | Pending | Browser tests, accessibility, security, load, deployment, backup/restore, and pilot evidence remain. |
@@ -36,7 +36,7 @@ This is an approximate package-level view from the enterprise roadmap.
 | E0 | Product approval | Complete | 0 | 0 | Approved |
 | E1 | 12 | 11 | 1 | 0 | Mostly complete / gate-ready |
 | E2 | 13 | 13 | 0 | 0 | Mostly complete / ready for review |
-| E3 | 13 | 3 | 2 | 8 | In progress |
+| E3 | 13 | 4 | 2 | 7 | In progress |
 | E4 | 14 | 0 | 1 | 13 | In progress, not gate-ready |
 | E5 | 11 | 0 | 1 | 10 | Mostly not started |
 | E6 | 9 | 0 | 0 | 9 | Not started |
@@ -47,9 +47,9 @@ This is an approximate package-level view from the enterprise roadmap.
 
 Approximate package-level progress:
 
-- Complete: 27 of 114 roadmap packages
+- Complete: 28 of 114 roadmap packages
 - In progress / partial: 5 of 114 roadmap packages
-- Not started: 82 of 114 roadmap packages
+- Not started: 81 of 114 roadmap packages
 
 Important context: the package count understates the depth of the work already completed in E3/E4 because EAPT-029 has been broken into many smaller implemented slices through EAPT-029AG. The Appointment Board has significantly more live workflow behavior than the simple parent-package count suggests.
 
@@ -128,6 +128,7 @@ Important context: the package count understates the depth of the work already c
 - Outcome-driven follow-up draft appointment automation.
 - Generated draft visibility and selection after outcome automation.
 - Initial linked-task read model and real linked-task detail rows in the board.
+- Task-detail create linked draft appointment workflow through the audited command ledger.
 
 ### 4.5 Current validation evidence
 
@@ -241,7 +242,7 @@ Remaining E2 work:
 | EAPT-029 | Outcomes, reasons, corrections, follow-up dispositions | In progress; many board slices complete through EAPT-029AG |
 | EAPT-030 | Appointment-task link persistence and read models | In progress; initial linked-task read model and detail panel implemented |
 | EAPT-031 | Appointment-template task blueprint generation | Not started |
-| EAPT-032 | Create appointment from any task workflow | Not started |
+| EAPT-032 | Create appointment from any task workflow | Complete initial task-detail workflow |
 | EAPT-033 | Task-to-appointment automation runtime | Not started / partial outcome automation exists |
 | EAPT-034 | Rule versioning, simulation, activation, pause, retirement | Not started |
 | EAPT-035 | Automation review, failure, retry, replay services | Not started |
@@ -251,11 +252,11 @@ Remaining E2 work:
 
 Recommended E3 next steps:
 
-1. Create appointment from any task.
+1. Browser workflow coverage for task detail → create linked draft → schedule from the Appointment Board.
 2. Activity-feed emission for generated tasks and generated appointments.
 3. Complete linked-work actions beyond the initial read-only detail panel.
 4. Automation failure/retry/replay visibility.
-5. Browser workflow coverage for the current Appointment Board.
+5. Availability-assisted scheduling recommendations for unscheduled drafts.
 
 ## E4 — Appointment Command Center operating views
 
@@ -419,7 +420,7 @@ The best next sequence is to finish the active E3/E4 bridge before jumping into 
 
 | Order | Recommended focus | Why it matters |
 | ---: | --- | --- |
-| 1 | Create appointment from any task | This was explicitly approved in E0 and is a core day-one capability. |
+| 1 | Browser workflow for task-created draft appointment scheduling | The initial task-detail create workflow exists; the next proof is task detail → linked draft → Appointment Board scheduling. |
 | 2 | Activity-feed emission for appointment automation | Generated tasks and generated draft appointments need visible operational history. |
 | 3 | Complete linked work actions beyond read-only display | The board now shows live linked work; the next step is task creation/linking actions and handoff behavior. |
 | 4 | Browser workflow coverage for the current board | We need end-to-end proof that the visible board works, not just unit-level confidence. |
@@ -436,7 +437,7 @@ These are the biggest blockers before this can be called Enterprise Release 1.0:
 
 1. Full administration is not complete.
 2. Full Appointment Command Center views are not complete.
-3. Create appointment from any task is not complete.
+3. Create appointment from any task needs browser evidence and automation-rule triggers beyond the initial task-detail workflow.
 4. Task-to-appointment automation runtime/admin is not complete.
 5. Browser/end-to-end workflow evidence is missing.
 6. Accessibility evidence is missing.

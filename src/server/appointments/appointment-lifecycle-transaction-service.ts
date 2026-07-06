@@ -129,9 +129,9 @@ function toTaskLinkInput(input: {
     taskId: input.effect.taskId,
     linkType: input.effect.linkType,
     linkCode: input.effect.linkCode,
-    title: `${input.effect.linkType} appointment task link`,
-    explanation: null,
-    isRequired: input.effect.blocksAppointment,
+    title: input.effect.title ?? `${input.effect.linkType} appointment task link`,
+    explanation: input.effect.explanation ?? null,
+    isRequired: input.effect.isRequired ?? input.effect.blocksAppointment,
     blocksAppointment: input.effect.blocksAppointment,
     blocksTask: input.effect.appointmentRequiredForTask,
     createdByUserId: input.actorUserId

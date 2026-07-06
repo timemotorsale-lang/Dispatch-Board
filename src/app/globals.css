@@ -5314,6 +5314,15 @@ code {
   margin-top: 0.2rem;
 }
 
+.task-appointment-card {
+  border-color: #cfe0ff;
+  background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
+}
+
+.task-appointment-field-grid {
+  grid-template-columns: 1fr;
+}
+
 @media (max-width: 1180px) {
   .task-workspace-body {
     grid-template-columns: 1fr;

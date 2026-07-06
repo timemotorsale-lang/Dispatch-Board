@@ -17,6 +17,7 @@ import {
   formatTaskEnumLabel
 } from "@/features/tasks/detail/task-detail-mappers";
 import { TaskMetadataPanel } from "@/features/tasks/detail/task-metadata-panel";
+import { TaskAppointmentPanel } from "@/features/tasks/detail/task-appointment-panel";
 import { TaskWorkspaceExecutionPanels } from "@/features/tasks/detail/task-workspace-execution-panels";
 
 type TaskDetailWorkspaceProps = {
@@ -24,6 +25,7 @@ type TaskDetailWorkspaceProps = {
   actorIsManager: boolean;
   assignableUsers: ActiveUserSummary[];
   canComment: boolean;
+  canCreateAppointment: boolean;
   canUpdateStatus: boolean;
   task: TaskReadModel;
 };
@@ -33,6 +35,7 @@ export function TaskDetailWorkspace({
   actorIsManager,
   assignableUsers,
   canComment,
+  canCreateAppointment,
   canUpdateStatus,
   task
 }: TaskDetailWorkspaceProps) {
@@ -183,6 +186,8 @@ export function TaskDetailWorkspace({
                 </div>
               )}
             </section>
+
+            <TaskAppointmentPanel canCreateAppointment={canCreateAppointment} task={task} />
 
             <section className="enterprise-detail-card task-workspace-rail-card">
               <span className="task-workspace-rail-eyebrow">Schedule</span>

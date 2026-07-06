@@ -101,6 +101,7 @@ describe("task detail workspace", () => {
           }
         ]}
         canComment
+        canCreateAppointment
         canUpdateStatus
         task={createTask()}
       />
@@ -114,6 +115,8 @@ describe("task detail workspace", () => {
     expect(markup).toContain("Attachments");
     expect(markup).toContain("Metadata &amp; Configuration");
     expect(markup).toContain("Ticket Details");
+    expect(markup).toContain("Create Appointment");
+    expect(markup).toContain("Create linked draft");
     expect(markup).toContain("Planning");
   });
 });
