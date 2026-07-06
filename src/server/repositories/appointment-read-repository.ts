@@ -107,9 +107,28 @@ const appointmentReadSelect = {
       id: true,
       taskId: true,
       linkType: true,
+      linkCode: true,
+      title: true,
+      explanation: true,
+      isRequired: true,
       blocksAppointment: true,
       blocksTask: true,
-      createdAt: true
+      createdAt: true,
+      task: {
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          dueAt: true,
+          assignedUser: {
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
+          }
+        }
+      }
     }
   },
   resourceReservations: {
@@ -194,9 +213,20 @@ export type AppointmentReadTaskLinkRecord = {
   id: string;
   taskId: string;
   linkType: AppointmentTaskLinkType;
+  linkCode: string;
+  title: string;
+  explanation: string | null;
+  isRequired: boolean;
   blocksAppointment: boolean;
   blocksTask: boolean;
   createdAt: Date;
+  task: {
+    id: string;
+    title: string;
+    status: string;
+    dueAt: Date;
+    assignedUser: AppointmentReadUserSummaryRecord;
+  };
 };
 
 export type AppointmentReadResourceReservationRecord = {

@@ -106,6 +106,20 @@ type Appointment = {
   conflict?: boolean;
   needsFollowUp?: boolean;
   taskAutomation: string[];
+  linkedTasks?: Array<{
+    id: string;
+    taskId: string;
+    title: string;
+    status: string;
+    dueAt: string;
+    assignedUserName: string;
+    linkType: string;
+    linkTitle: string;
+    explanation: string | null;
+    isRequired: boolean;
+    blocksAppointment: boolean;
+    appointmentRequiredForTask: boolean;
+  }>;
   governanceNotes: string[];
 };
 
@@ -142,8 +156,20 @@ type AppointmentReadModel = {
     isPrimary: boolean;
   }>;
   taskLinks: Array<{
+    id: string;
     taskId: string;
+    taskTitle?: string;
+    taskStatus?: string;
+    taskDueAt?: string;
+    assignedUser?: {
+      id: string;
+      name: string;
+      email?: string;
+    };
     linkType: string;
+    linkTitle?: string;
+    explanation?: string | null;
+    isRequired?: boolean;
     blocksAppointment: boolean;
     appointmentRequiredForTask: boolean;
   }>;
@@ -155,6 +181,8 @@ type AppointmentReadModel = {
   outcomeNotes: string | null;
   followUpDispositionCode: string | null;
   followUpNotes: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 type AppointmentReadApiResult = {
@@ -638,6 +666,23 @@ function statusLabel(status: AppointmentStatus) {
   return status.split("-").map((word) => word[0].toUpperCase() + word.slice(1)).join(" ");
 }
 
+function formatTaskStatus(status: string) {
+  return status
+    .toLowerCase()
+    .split("_")
+    .map((word) => word[0]?.toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function formatTaskDueAt(value: string, timezone = defaultTimezone) {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: timezone
+  }).format(new Date(value));
+}
+
 export function isUnscheduledDraftAppointment(appointment: {
   status: string;
   startsAtIso?: string | null;
@@ -810,8 +855,24 @@ function mapReadModelToAppointment(appointment: AppointmentReadModel): Appointme
     ),
     taskAutomation:
       appointment.taskLinks.length > 0
-        ? appointment.taskLinks.map((taskLink) => `${taskLink.linkType}: ${taskLink.taskId}`)
+        ? appointment.taskLinks.map(
+            (taskLink) => `${taskLink.linkTitle ?? taskLink.linkType}: ${taskLink.taskTitle ?? taskLink.taskId}`
+          )
         : ["No linked tasks yet"],
+    linkedTasks: appointment.taskLinks.map((taskLink) => ({
+      id: taskLink.id,
+      taskId: taskLink.taskId,
+      title: taskLink.taskTitle ?? taskLink.taskId,
+      status: taskLink.taskStatus ?? "UNKNOWN",
+      dueAt: taskLink.taskDueAt ?? appointment.startsAt ?? appointment.createdAt ?? new Date().toISOString(),
+      assignedUserName: taskLink.assignedUser?.name ?? "Unassigned",
+      linkType: taskLink.linkType,
+      linkTitle: taskLink.linkTitle ?? taskLink.linkType,
+      explanation: taskLink.explanation ?? null,
+      isRequired: taskLink.isRequired === true,
+      blocksAppointment: taskLink.blocksAppointment,
+      appointmentRequiredForTask: taskLink.appointmentRequiredForTask
+    })),
     governanceNotes: [
       appointment.visibility.canMutate
         ? "You can update this appointment."
@@ -3009,19 +3070,40 @@ export function AppointmentBoardShell() {
 
           <div className="appointment-detail-section">
             <div className="appointment-section-heading">
-              <strong>Linked Tasks ({selectedAppointment.taskAutomation.length})</strong>
+              <strong>
+                Linked Tasks ({selectedAppointment.linkedTasks?.length ?? selectedAppointment.taskAutomation.length})
+              </strong>
               <button type="button" onClick={() => handlePreviewAction("New linked task")}>+ New Task</button>
             </div>
             <div className="appointment-task-stack">
-              {selectedAppointment.taskAutomation.map((task, index) => (
-                <div className="appointment-task-row" key={task}>
-                  <span>{index + 1}</span>
-                  <div>
-                    <strong>{task}</strong>
-                    <small>{index === 0 ? "In Progress" : "Not Started"}</small>
-                  </div>
-                </div>
-              ))}
+              {selectedAppointment.linkedTasks && selectedAppointment.linkedTasks.length > 0
+                ? selectedAppointment.linkedTasks.map((task, index) => (
+                    <div className="appointment-task-row" key={task.id}>
+                      <span>{index + 1}</span>
+                      <div>
+                        <strong>{task.title}</strong>
+                        <small>
+                          {formatTaskStatus(task.status)} · Due {formatTaskDueAt(task.dueAt, selectedAppointment.schedulingTimezone)} · {task.assignedUserName}
+                        </small>
+                        <small>
+                          {task.linkTitle}
+                          {task.isRequired ? " · Required" : ""}
+                          {task.blocksAppointment ? " · Blocks appointment" : ""}
+                          {task.appointmentRequiredForTask ? " · Appointment required for task" : ""}
+                        </small>
+                        {task.explanation ? <small>{task.explanation}</small> : null}
+                      </div>
+                    </div>
+                  ))
+                : selectedAppointment.taskAutomation.map((task, index) => (
+                    <div className="appointment-task-row" key={task}>
+                      <span>{index + 1}</span>
+                      <div>
+                        <strong>{task}</strong>
+                        <small>{index === 0 ? "In Progress" : "Not Started"}</small>
+                      </div>
+                    </div>
+                  ))}
             </div>
           </div>
 

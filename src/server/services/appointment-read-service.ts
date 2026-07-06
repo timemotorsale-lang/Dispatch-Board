@@ -77,9 +77,18 @@ export type AppointmentReadParticipantSummary = {
 export type AppointmentReadTaskLinkSummary = {
   id: string;
   taskId: string;
+  taskTitle: string;
+  taskStatus: string;
+  taskDueAt: string;
+  assignedUser: AppointmentReadUserSummary;
   linkType: string;
+  linkCode: string;
+  linkTitle: string;
+  explanation: string | null;
+  isRequired: boolean;
   blocksAppointment: boolean;
   appointmentRequiredForTask: boolean;
+  createdAt: string;
 };
 
 export type AppointmentReadResourceReservationSummary = {
@@ -442,9 +451,18 @@ function toAppointmentReadModel(input: {
     taskLinks: input.appointment.taskLinks.map((taskLink) => ({
       id: taskLink.id,
       taskId: taskLink.taskId,
+      taskTitle: taskLink.task.title,
+      taskStatus: taskLink.task.status,
+      taskDueAt: taskLink.task.dueAt.toISOString(),
+      assignedUser: toUserSummary(taskLink.task.assignedUser)!,
       linkType: taskLink.linkType,
+      linkCode: taskLink.linkCode,
+      linkTitle: taskLink.title,
+      explanation: taskLink.explanation,
+      isRequired: taskLink.isRequired,
       blocksAppointment: taskLink.blocksAppointment,
-      appointmentRequiredForTask: taskLink.blocksTask
+      appointmentRequiredForTask: taskLink.blocksTask,
+      createdAt: taskLink.createdAt.toISOString()
     })),
     resourceReservations: input.appointment.resourceReservations.map((reservation) => ({
       id: reservation.id,

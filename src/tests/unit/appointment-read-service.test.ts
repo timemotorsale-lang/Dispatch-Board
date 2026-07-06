@@ -192,9 +192,24 @@ function createAppointment(
         id: "link-1",
         taskId: "task-intake",
         linkType: "PREPARATION",
+        linkCode: "INTAKE_AND_INSPECTION",
+        title: "Intake & Inspection",
+        explanation: "Complete intake before service begins.",
+        isRequired: true,
         blocksAppointment: true,
-        appointmentRequiredForTask: false,
-        createdAt: new Date("2026-07-05T18:05:00.000Z")
+        blocksTask: false,
+        createdAt: new Date("2026-07-05T18:05:00.000Z"),
+        task: {
+          id: "task-intake",
+          title: "Inspect vehicle intake",
+          status: "IN_PROGRESS",
+          dueAt: new Date("2026-07-06T14:45:00.000Z"),
+          assignedUser: {
+            id: ownerUser.id,
+            name: ownerUser.name,
+            email: ownerUser.email
+          }
+        }
       }
     ],
     resourceReservations: [
@@ -318,7 +333,25 @@ describe("appointment read service", () => {
         dataAccessLevel: "LIMITED_DETAIL",
         canMutate: true,
         canViewSensitiveContact: true
-      }
+      },
+      taskLinks: [
+        {
+          taskId: "task-intake",
+          taskTitle: "Inspect vehicle intake",
+          taskStatus: "IN_PROGRESS",
+          taskDueAt: "2026-07-06T14:45:00.000Z",
+          assignedUser: {
+            id: ownerUser.id,
+            name: ownerUser.name
+          },
+          linkCode: "INTAKE_AND_INSPECTION",
+          linkTitle: "Intake & Inspection",
+          explanation: "Complete intake before service begins.",
+          isRequired: true,
+          blocksAppointment: true,
+          appointmentRequiredForTask: false
+        }
+      ]
     });
   });
 
