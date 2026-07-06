@@ -72,6 +72,7 @@ function appointment(
       name: "Brock Peterson",
       isActive: true
     },
+    participants: [],
     ...overrides
   };
 }
@@ -114,6 +115,11 @@ function repository(input?: {
   actorAccess?: AppointmentStaffConflictPreviewLocationAccessRecord | null;
   ownerAccess?: AppointmentStaffConflictPreviewLocationAccessRecord | null;
   staffResource?: AppointmentStaffConflictPreviewStaffResourceRecord | null;
+  participantAccesses?: Record<
+    string,
+    AppointmentStaffConflictPreviewLocationAccessRecord | null
+  >;
+  staffResources?: Record<string, AppointmentStaffConflictPreviewStaffResourceRecord | null>;
   warningOverrideKeys?: string[];
 }): AppointmentStaffConflictPreviewRepository {
   return {
@@ -127,9 +133,17 @@ function repository(input?: {
           : input.actorAccess;
       }
 
+      if (input?.participantAccesses && userId in input.participantAccesses) {
+        return input.participantAccesses[userId] ?? null;
+      }
+
       return input?.ownerAccess === undefined ? access(userId) : input.ownerAccess;
     },
-    async findStaffResourceForUser() {
+    async findStaffResourceForUser(userId) {
+      if (input?.staffResources && userId in input.staffResources) {
+        return input.staffResources[userId] ?? null;
+      }
+
       return input?.staffResource === undefined ? staffResource() : input.staffResource;
     },
     async findStaffWarningOverrideKeys() {
@@ -218,6 +232,92 @@ describe("appointment staff conflict preview service", () => {
       warningOverrideRequired: true,
       warningOverrideSatisfied: false,
       warningKey: expect.stringContaining("STAFF|STAFF_OVERLAP|appointment-1"),
+      reasons: expect.arrayContaining([
+        "Resource capacity is already reserved during the candidate window.",
+        "Resource does not have enough available capacity."
+      ])
+    });
+  });
+
+  it("surfaces warning-only internal participant staff conflicts", async () => {
+    const overlappingReservation = {
+      id: "reservation-participant-overlap",
+      appointmentId: "appointment-2",
+      status: "COMMITTED",
+      startsAt: localInstant("2026-07-06", 10),
+      endsAt: localInstant("2026-07-06", 11),
+      capacityUnits: 1,
+      bufferBeforeMinutes: 0,
+      bufferAfterMinutes: 0
+    };
+
+    const preview = await previewAppointmentStaffConflicts(
+      managerUser,
+      "appointment-1",
+      repository({
+        appointment: appointment({
+          participants: [
+            {
+              id: "participant-rayana",
+              roleCode: "OFFICE_ADMIN",
+              userId: "user-rayana",
+              displayNameSnapshot: "Rayana Hassan",
+              isRequired: true,
+              isPrimary: false,
+              attendanceRequired: true,
+              user: {
+                id: "user-rayana",
+                name: "Rayana Hassan",
+                isActive: true
+              }
+            }
+          ]
+        }),
+        staffResources: {
+          "user-brock": staffResource(),
+          "user-rayana": staffResource({
+            id: "resource-staff-rayana",
+            userId: "user-rayana",
+            name: "Rayana Hassan",
+            reservations: [overlappingReservation]
+          })
+        }
+      }),
+      now
+    );
+
+    expect(preview).toMatchObject({
+      status: "WARNING",
+      canProceedWithStaff: false,
+      warningOverrideRequired: true,
+      warningOverrideSatisfied: false,
+      staff: {
+        userId: "user-rayana",
+        name: "Rayana Hassan",
+        role: "PARTICIPANT",
+        roleCode: "OFFICE_ADMIN",
+        resourceId: "resource-staff-rayana"
+      },
+      staffMembers: expect.arrayContaining([
+        expect.objectContaining({
+          userId: "user-brock",
+          role: "OWNER",
+          status: "READY"
+        }),
+        expect.objectContaining({
+          userId: "user-rayana",
+          role: "PARTICIPANT",
+          status: "WARNING",
+          warningKey: expect.stringContaining("STAFF|STAFF_OVERLAP|appointment-1|user-rayana")
+        })
+      ]),
+      checks: expect.arrayContaining([
+        expect.objectContaining({
+          code: "participant_staff_user-rayana_OFFICE_ADMIN",
+          status: "WARNING",
+          staffRole: "PARTICIPANT"
+        })
+      ]),
       reasons: expect.arrayContaining([
         "Resource capacity is already reserved during the candidate window.",
         "Resource does not have enough available capacity."

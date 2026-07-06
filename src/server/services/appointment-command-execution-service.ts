@@ -124,11 +124,13 @@ async function getLifecyclePayload(input: {
       hardConflicts: [
         ...((payload.hardConflicts as unknown[]) ?? []),
         {
-          code: staffConflicts.staff ? "STAFF_UNAVAILABLE_OR_UNAUTHORIZED" : "OWNER_UNAVAILABLE_OR_UNAUTHORIZED",
+          code: staffConflicts.staff
+            ? "STAFF_UNAVAILABLE_OR_UNAUTHORIZED"
+            : "OWNER_UNAVAILABLE_OR_UNAUTHORIZED",
           source: "STAFF",
           message:
             staffConflicts.reasons[0] ??
-            "Owner staff is not available or authorized for this appointment.",
+            "Required staff is not available or authorized for this appointment.",
           staffUserId: staffConflicts.staff?.userId
         }
       ]
@@ -146,7 +148,7 @@ async function getLifecyclePayload(input: {
       source: "STAFF",
       message:
         staffConflicts.reasons[0] ??
-        "Owner staff has a warning-level availability conflict.",
+        "Required staff has a warning-level availability conflict.",
       managerOverrideRequired: true,
       staffUserId: staffConflicts.staff?.userId
     };
@@ -217,6 +219,7 @@ export async function submitAndExecuteAppointmentCommand(
           warningOverrideSatisfied: false,
           warningKey: null,
           staff: null,
+          staffMembers: [],
           checks: [],
           reasons: [],
           availability: null

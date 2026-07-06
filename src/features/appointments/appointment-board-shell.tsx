@@ -180,15 +180,35 @@ type AppointmentStaffConflictPreview = {
   staff: {
     userId: string;
     name: string;
-    role: "OWNER";
+    role: "OWNER" | "PARTICIPANT";
+    roleCode: string;
     resourceId: string | null;
     resourceName: string | null;
   } | null;
+  staffMembers?: Array<{
+    userId: string;
+    name: string;
+    role: "OWNER" | "PARTICIPANT";
+    roleCode: string;
+    resourceId: string | null;
+    resourceName: string | null;
+    status: "READY" | "WARNING" | "BLOCKED";
+    warningOverrideRequired: boolean;
+    warningOverrideSatisfied: boolean;
+    warningKey: string | null;
+    reasons: string[];
+  }>;
   checks: Array<{
     code: string;
     label: string;
     status: "PASS" | "WARNING" | "BLOCKED";
     message: string;
+    staffUserId?: string;
+    staffRole?: "OWNER" | "PARTICIPANT";
+    staffRoleCode?: string;
+    warningKey?: string | null;
+    warningOverrideRequired?: boolean;
+    warningOverrideSatisfied?: boolean;
   }>;
   reasons: string[];
 };
@@ -2308,17 +2328,21 @@ export function AppointmentBoardShell() {
                 <div className="appointment-readiness-stack">
                   <div className={`appointment-readiness-row appointment-readiness-row-${staffConflictPreview.status === "READY" ? "pass" : staffConflictPreview.status.toLowerCase()}`}>
                     <strong>
-                      {staffConflictPreview.staff
-                        ? `${staffConflictPreview.staff.name} (${staffConflictPreview.staff.role})`
-                        : "Owner staff"}
+                      {staffConflictPreview.staffMembers?.length
+                        ? `${staffConflictPreview.staffMembers.length} required staff checked`
+                        : staffConflictPreview.staff
+                          ? `${staffConflictPreview.staff.name} (${staffConflictPreview.staff.role})`
+                          : "Required staff"}
                     </strong>
                     <span>{staffConflictPreview.status}</span>
                     <small>
                       {staffConflictPreview.reasons.length > 0
                         ? staffConflictPreview.reasons.join(" ")
-                        : staffConflictPreview.staff?.resourceName
-                          ? `${staffConflictPreview.staff.resourceName} is available for this appointment window.`
-                      : "Staff availability is ready for this appointment window."}
+                        : staffConflictPreview.staffMembers?.length
+                          ? "All required staff are available for this appointment window."
+                          : staffConflictPreview.staff?.resourceName
+                            ? `${staffConflictPreview.staff.resourceName} is available for this appointment window.`
+                            : "Staff availability is ready for this appointment window."}
                     </small>
                   </div>
                   {staffConflictPreview.status === "WARNING" &&
@@ -2362,7 +2386,7 @@ export function AppointmentBoardShell() {
                       </div>
                     );
                   })() : null}
-                  {staffConflictPreview.checks.slice(1).map((check) => (
+                  {staffConflictPreview.checks.map((check) => (
                     <div className={`appointment-readiness-row appointment-readiness-row-${check.status.toLowerCase()}`} key={check.code}>
                       <strong>{check.label}</strong>
                       <span>{check.status}</span>

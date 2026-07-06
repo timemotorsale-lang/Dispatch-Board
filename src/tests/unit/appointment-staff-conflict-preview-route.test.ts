@@ -42,9 +42,25 @@ describe("appointment staff conflict preview route", () => {
         userId: "user-brock",
         name: "Brock Peterson",
         role: "OWNER",
+        roleCode: "OWNER",
         resourceId: "resource-staff-brock",
         resourceName: "Brock Peterson"
       },
+      staffMembers: [
+        {
+          userId: "user-brock",
+          name: "Brock Peterson",
+          role: "OWNER",
+          roleCode: "OWNER",
+          resourceId: "resource-staff-brock",
+          resourceName: "Brock Peterson",
+          status: "READY",
+          warningOverrideRequired: false,
+          warningOverrideSatisfied: false,
+          warningKey: null,
+          reasons: []
+        }
+      ],
       checks: [],
       reasons: [],
       availability: null

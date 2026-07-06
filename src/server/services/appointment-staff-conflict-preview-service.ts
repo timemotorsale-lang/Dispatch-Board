@@ -31,6 +31,28 @@ const appointmentStaffConflictPreviewSelect = {
       name: true,
       isActive: true
     }
+  },
+  participants: {
+    where: {
+      participantType: "INTERNAL_USER",
+      attendanceRequired: true
+    },
+    select: {
+      id: true,
+      roleCode: true,
+      userId: true,
+      displayNameSnapshot: true,
+      isRequired: true,
+      isPrimary: true,
+      attendanceRequired: true,
+      user: {
+        select: {
+          id: true,
+          name: true,
+          isActive: true
+        }
+      }
+    }
   }
 } satisfies Prisma.AppointmentSelect;
 
@@ -145,15 +167,35 @@ export type AppointmentStaffConflictPreviewResult = {
   staff: {
     userId: string;
     name: string;
-    role: "OWNER";
+    role: "OWNER" | "PARTICIPANT";
+    roleCode: string;
     resourceId: string | null;
     resourceName: string | null;
   } | null;
+  staffMembers: Array<{
+    userId: string;
+    name: string;
+    role: "OWNER" | "PARTICIPANT";
+    roleCode: string;
+    resourceId: string | null;
+    resourceName: string | null;
+    status: "READY" | "WARNING" | "BLOCKED";
+    warningOverrideRequired: boolean;
+    warningOverrideSatisfied: boolean;
+    warningKey: string | null;
+    reasons: string[];
+  }>;
   checks: Array<{
     code: string;
     label: string;
     status: "PASS" | "WARNING" | "BLOCKED";
     message: string;
+    staffUserId?: string;
+    staffRole?: "OWNER" | "PARTICIPANT";
+    staffRoleCode?: string;
+    warningKey?: string | null;
+    warningOverrideRequired?: boolean;
+    warningOverrideSatisfied?: boolean;
   }>;
   reasons: string[];
   availability: StaffAvailabilityResult | null;
@@ -276,6 +318,12 @@ function createCheck(input: {
   label: string;
   status: "PASS" | "WARNING" | "BLOCKED";
   message: string;
+  staffUserId?: string;
+  staffRole?: "OWNER" | "PARTICIPANT";
+  staffRoleCode?: string;
+  warningKey?: string | null;
+  warningOverrideRequired?: boolean;
+  warningOverrideSatisfied?: boolean;
 }) {
   return input;
 }
@@ -293,6 +341,7 @@ function buildMissingOwnerResult(
     warningOverrideSatisfied: false,
     warningKey: null,
     staff: null,
+    staffMembers: [],
     checks: [
       createCheck({
         code: "owner_required",
@@ -323,10 +372,28 @@ function buildInvalidTimeResult(
           userId: appointment.ownerUser.id,
           name: appointment.ownerUser.name,
           role: "OWNER",
+          roleCode: "OWNER",
           resourceId: null,
           resourceName: null
         }
       : null,
+    staffMembers: appointment.ownerUser
+      ? [
+          {
+            userId: appointment.ownerUser.id,
+            name: appointment.ownerUser.name,
+            role: "OWNER",
+            roleCode: "OWNER",
+            resourceId: null,
+            resourceName: null,
+            status: "BLOCKED",
+            warningOverrideRequired: false,
+            warningOverrideSatisfied: false,
+            warningKey: null,
+            reasons: ["Staff conflict preview requires a valid appointment start and end time."]
+          }
+        ]
+      : [],
     checks: [
       createCheck({
         code: "time_window",
@@ -356,6 +423,58 @@ function buildStaffWarningKey(input: {
   ].join("|");
 }
 
+type StaffConflictMemberInput = {
+  userId: string;
+  name: string;
+  isActive: boolean;
+  role: "OWNER" | "PARTICIPANT";
+  roleCode: string;
+  locationAccess: AppointmentStaffConflictPreviewLocationAccessRecord | null;
+  staffResource: AppointmentStaffConflictPreviewStaffResourceRecord | null;
+};
+
+function getStaffMembersFromAppointment(
+  appointment: AppointmentStaffConflictPreviewAppointmentRecord
+) {
+  const members: Array<{
+    userId: string;
+    name: string;
+    isActive: boolean;
+    role: "OWNER" | "PARTICIPANT";
+    roleCode: string;
+  }> = [];
+
+  if (appointment.ownerUser) {
+    members.push({
+      userId: appointment.ownerUser.id,
+      name: appointment.ownerUser.name,
+      isActive: appointment.ownerUser.isActive,
+      role: "OWNER",
+      roleCode: "OWNER"
+    });
+  }
+
+  for (const participant of appointment.participants) {
+    if (!participant.user || !participant.userId) {
+      continue;
+    }
+
+    if (members.some((member) => member.userId === participant.userId)) {
+      continue;
+    }
+
+    members.push({
+      userId: participant.user.id,
+      name: participant.user.name || participant.displayNameSnapshot,
+      isActive: participant.user.isActive,
+      role: "PARTICIPANT",
+      roleCode: participant.roleCode
+    });
+  }
+
+  return members;
+}
+
 function requiredText(value: string | null | undefined, label: string) {
   const normalized = value?.trim();
 
@@ -376,8 +495,7 @@ function requiredVersion(value: number | null | undefined) {
 
 function buildPreview(input: {
   appointment: AppointmentStaffConflictPreviewAppointmentRecord;
-  ownerAccess: AppointmentStaffConflictPreviewLocationAccessRecord | null;
-  staffResource: AppointmentStaffConflictPreviewStaffResourceRecord | null;
+  members: StaffConflictMemberInput[];
   overriddenWarningKeys?: Set<string>;
 }) {
   if (!input.appointment.ownerUser) {
@@ -392,69 +510,145 @@ function buildPreview(input: {
     return buildInvalidTimeResult(input.appointment);
   }
 
-  const availability = evaluateStaffAvailability({
-    staff: input.appointment.ownerUser,
-    locationId: input.appointment.locationId,
-    timezone: input.appointment.schedulingTimezone,
-    requestedRole: "OWNER",
-    locationAccess: toStaffLocationAccess(input.ownerAccess),
-    staffResource: toStaffResource(input.staffResource),
-    operatingWindows: input.staffResource?.operatingWindows ?? [],
-    unavailability: input.staffResource?.unavailability ?? [],
-    reservations: toReservations(input.staffResource, input.appointment.id),
-    startsAt: input.appointment.startsAt,
-    endsAt: input.appointment.endsAt,
-    requiredCapacity: 1
+  const staffMembers = input.members.map((member) => {
+    const availability = evaluateStaffAvailability({
+      staff: {
+        id: member.userId,
+        name: member.name,
+        isActive: member.isActive
+      },
+      locationId: input.appointment.locationId,
+      timezone: input.appointment.schedulingTimezone,
+      requestedRole: member.role,
+      locationAccess: toStaffLocationAccess(member.locationAccess),
+      staffResource: toStaffResource(member.staffResource),
+      operatingWindows: member.staffResource?.operatingWindows ?? [],
+      unavailability: member.staffResource?.unavailability ?? [],
+      reservations: toReservations(member.staffResource, input.appointment.id),
+      startsAt: input.appointment.startsAt!,
+      endsAt: input.appointment.endsAt!,
+      requiredCapacity: 1
+    });
+    const status: "READY" | "WARNING" | "BLOCKED" = availability.isSchedulable
+      ? "READY"
+      : availability.isWarningOnly
+        ? "WARNING"
+        : "BLOCKED";
+    const warningKey =
+      status === "WARNING"
+        ? buildStaffWarningKey({
+            appointmentId: input.appointment.id,
+            staffUserId: member.userId,
+            resourceId: member.staffResource?.id ?? null,
+            reasons: availability.reasons
+          })
+        : null;
+    const warningOverrideRequired = status === "WARNING";
+    const warningOverrideSatisfied = Boolean(
+      warningKey && input.overriddenWarningKeys?.has(warningKey)
+    );
+
+    return {
+      userId: member.userId,
+      name: member.name,
+      role: member.role,
+      roleCode: member.roleCode,
+      resourceId: member.staffResource?.id ?? null,
+      resourceName: member.staffResource?.name ?? null,
+      status,
+      warningOverrideRequired,
+      warningOverrideSatisfied,
+      warningKey,
+      reasons: availability.reasons,
+      availability
+    };
   });
-  const status = availability.isSchedulable
-    ? "READY"
-    : availability.isWarningOnly
-      ? "WARNING"
-      : "BLOCKED";
-  const warningKey =
-    status === "WARNING"
-      ? buildStaffWarningKey({
-          appointmentId: input.appointment.id,
-          staffUserId: input.appointment.ownerUser.id,
-          resourceId: input.staffResource?.id ?? null,
-          reasons: availability.reasons
-        })
-      : null;
-  const warningOverrideRequired = status === "WARNING";
-  const warningOverrideSatisfied = Boolean(
-    warningKey && input.overriddenWarningKeys?.has(warningKey)
-  );
+  const blockedMember = staffMembers.find((member) => member.status === "BLOCKED") ?? null;
+  const warningMembers = staffMembers.filter((member) => member.status === "WARNING");
+  const firstUnsatisfiedWarning =
+    warningMembers.find((member) => !member.warningOverrideSatisfied) ?? null;
+  const firstWarning = warningMembers[0] ?? null;
+  const focusedMember =
+    blockedMember ??
+    firstUnsatisfiedWarning ??
+    firstWarning ??
+    staffMembers.find((member) => member.role === "OWNER") ??
+    staffMembers[0] ??
+    null;
+  const status = blockedMember ? "BLOCKED" : warningMembers.length > 0 ? "WARNING" : "READY";
+  const warningOverrideRequired = warningMembers.length > 0;
+  const warningOverrideSatisfied =
+    warningMembers.length > 0 &&
+    warningMembers.every((member) => member.warningOverrideSatisfied);
+  const warningKey = firstUnsatisfiedWarning?.warningKey ?? firstWarning?.warningKey ?? null;
+  const reasons = [
+    ...new Set(
+      staffMembers.flatMap((member) => (member.status === "READY" ? [] : member.reasons))
+    )
+  ];
 
   return {
     appointmentId: input.appointment.id,
     appointmentNumber: input.appointment.appointmentNumber,
     bookingStatus: input.appointment.bookingStatus,
     status,
-    canProceedWithStaff: availability.isSchedulable || warningOverrideSatisfied,
+    canProceedWithStaff: status === "READY" || (status === "WARNING" && warningOverrideSatisfied),
     warningOverrideRequired,
     warningOverrideSatisfied,
     warningKey,
-    staff: {
-      userId: input.appointment.ownerUser.id,
-      name: input.appointment.ownerUser.name,
-      role: "OWNER",
-      resourceId: input.staffResource?.id ?? null,
-      resourceName: input.staffResource?.name ?? null
-    },
-    checks: [
+    staff: focusedMember
+      ? {
+          userId: focusedMember.userId,
+          name: focusedMember.name,
+          role: focusedMember.role,
+          roleCode: focusedMember.roleCode,
+          resourceId: focusedMember.resourceId,
+          resourceName: focusedMember.resourceName
+        }
+      : null,
+    staffMembers: staffMembers.map((member) => ({
+      userId: member.userId,
+      name: member.name,
+      role: member.role,
+      roleCode: member.roleCode,
+      resourceId: member.resourceId,
+      resourceName: member.resourceName,
+      status: member.status,
+      warningOverrideRequired: member.warningOverrideRequired,
+      warningOverrideSatisfied: member.warningOverrideSatisfied,
+      warningKey: member.warningKey,
+      reasons: member.reasons
+    })),
+    checks: staffMembers.map((member) =>
       createCheck({
-        code: "owner_staff",
-        label: "Owner staff",
+        code:
+          member.role === "OWNER"
+            ? "owner_staff"
+            : `participant_staff_${member.userId}_${member.roleCode}`,
+        label:
+          member.role === "OWNER"
+            ? "Owner staff"
+            : `Participant staff (${member.roleCode.replaceAll("_", " ")})`,
         status:
-          status === "READY" ? "PASS" : status === "WARNING" ? "WARNING" : "BLOCKED",
+          member.status === "READY"
+            ? "PASS"
+            : member.status === "WARNING"
+              ? "WARNING"
+              : "BLOCKED",
         message:
-          availability.reasons.length > 0
-            ? availability.reasons.join(" ")
-            : `${input.appointment.ownerUser.name} is available for this appointment window.`
+          member.reasons.length > 0
+            ? member.reasons.join(" ")
+            : `${member.name} is available for this appointment window.`,
+        staffUserId: member.userId,
+        staffRole: member.role,
+        staffRoleCode: member.roleCode,
+        warningKey: member.warningKey,
+        warningOverrideRequired: member.warningOverrideRequired,
+        warningOverrideSatisfied: member.warningOverrideSatisfied
       })
-    ],
-    reasons: availability.reasons,
-    availability
+    ),
+    reasons,
+    availability: focusedMember?.availability ?? null
   } satisfies AppointmentStaffConflictPreviewResult;
 }
 
@@ -565,26 +759,32 @@ export async function previewAppointmentStaffConflicts(
     throw new Error("Appointment command is not authorized.");
   }
 
-  const ownerAccess = appointment.ownerUserId
-    ? await repository.findLocationAccess(appointment.ownerUserId, appointment.locationId)
-    : null;
-  const staffResource = appointment.ownerUserId
-    ? await repository.findStaffResourceForUser(appointment.ownerUserId, appointment.locationId)
-    : null;
+  const staffMemberIdentities = getStaffMembersFromAppointment(appointment);
+  const members = await Promise.all(
+    staffMemberIdentities.map(async (member) => ({
+      ...member,
+      locationAccess: await repository.findLocationAccess(member.userId, appointment.locationId),
+      staffResource: await repository.findStaffResourceForUser(
+        member.userId,
+        appointment.locationId
+      )
+    }))
+  );
   const initialPreview = buildPreview({
     appointment,
-    ownerAccess,
-    staffResource
+    members
   });
+  const warningKeys = initialPreview.staffMembers
+    .map((member) => member.warningKey)
+    .filter((warningKey): warningKey is string => Boolean(warningKey));
   const overriddenWarningKeys =
-    initialPreview.warningKey && repository.findStaffWarningOverrideKeys
-      ? await repository.findStaffWarningOverrideKeys(appointment.id, [initialPreview.warningKey])
+    warningKeys.length > 0 && repository.findStaffWarningOverrideKeys
+      ? await repository.findStaffWarningOverrideKeys(appointment.id, warningKeys)
       : [];
 
   return buildPreview({
     appointment,
-    ownerAccess,
-    staffResource,
+    members,
     overriddenWarningKeys: new Set(overriddenWarningKeys)
   });
 }
@@ -630,16 +830,20 @@ export async function overrideAppointmentStaffWarning(
     throw new Error("Only an authorized manager can override appointment warnings.");
   }
 
-  const ownerAccess = appointment.ownerUserId
-    ? await repository.findLocationAccess(appointment.ownerUserId, appointment.locationId)
-    : null;
-  const staffResource = appointment.ownerUserId
-    ? await repository.findStaffResourceForUser(appointment.ownerUserId, appointment.locationId)
-    : null;
+  const staffMemberIdentities = getStaffMembersFromAppointment(appointment);
+  const members = await Promise.all(
+    staffMemberIdentities.map(async (member) => ({
+      ...member,
+      locationAccess: await repository.findLocationAccess(member.userId, appointment.locationId),
+      staffResource: await repository.findStaffResourceForUser(
+        member.userId,
+        appointment.locationId
+      )
+    }))
+  );
   const preview = buildPreview({
     appointment,
-    ownerAccess,
-    staffResource
+    members
   });
 
   if (preview.status === "READY") {

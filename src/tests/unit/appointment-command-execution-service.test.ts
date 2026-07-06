@@ -379,9 +379,25 @@ describe("appointment command execution service", () => {
             userId: ownerUser.id,
             name: ownerUser.name,
             role: "OWNER",
+            roleCode: "OWNER",
             resourceId: "resource-staff",
             resourceName: ownerUser.name
           },
+          staffMembers: [
+            {
+              userId: ownerUser.id,
+              name: ownerUser.name,
+              role: "OWNER",
+              roleCode: "OWNER",
+              resourceId: "resource-staff",
+              resourceName: ownerUser.name,
+              status: "WARNING",
+              warningOverrideRequired: true,
+              warningOverrideSatisfied: false,
+              warningKey: "STAFF|STAFF_OVERLAP|appointment-1|user-owner|resource-staff",
+              reasons: ["Owner staff has a warning-level overlap."]
+            }
+          ],
           checks: [],
           reasons: ["Owner staff has a warning-level overlap."],
           availability: null
