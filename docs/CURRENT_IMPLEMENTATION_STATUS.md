@@ -18,20 +18,21 @@ npm run db:validate
 Vitest result:
 
 ```text
-103 test files passed
-597 tests passed
+105 test files passed
+607 tests passed
 ```
 
-Latest focused validation after the task-to-appointment and activity-feed block:
+Latest focused validation after the Admin Settings Foundation block:
 
 ```text
 npm run typecheck
-npm test -- appointment-board-shell.test.tsx task-detail-workspace.test.tsx activity-feed-service.test.ts appointment-lifecycle-command-service.test.ts
-npm test -- activity-feed-service.test.ts activity-feed-ui.test.ts activity-feed-route.test.ts activity-events-service.test.ts
-npm test -- appointment-lifecycle-command-service.test.ts appointment-board-shell.test.tsx appointment-command-execution-service.test.ts task-appointment-service.test.ts task-detail-workspace.test.tsx
+npm test -- appointment-admin-settings-service.test.ts appointment-admin-settings-route.test.ts appointment-board-shell.test.tsx
+npm run lint
+npm run db:validate
+npm test
 ```
 
-All focused runs passed before the final full-suite run above. The authored task-to-appointment Playwright e2e spec could not be executed on this workstation because local Playwright Chromium is not installed. Production build, database migration deployment, and production deployment were not rerun during this checkpoint.
+All focused and full-suite runs passed. The authored task-to-appointment Playwright e2e spec was not executed during this checkpoint because local Playwright Chromium is not installed. Production build, database migration deployment, and production deployment were not rerun during this checkpoint.
 
 ## Implemented Foundation
 
@@ -42,6 +43,7 @@ All focused runs passed before the final full-suite run above. The authored task
 | Authentication | Implemented | Login, logout, current-user route, sessions, and protected routes |
 | Users, roles, and duties | Implemented | Schema, APIs, services, policies, settings UI, and tests |
 | App settings | Implemented | Timezone, business days, generation time, manager API/UI, and tests |
+| Appointment admin settings foundation | Implemented as partial E5 admin foundation | Manager-only `/settings/appointments` workspace, protected `/api/settings/appointments` route, location profile/address/phone/timezone/status editing, weekday appointment operating windows, resource/catalog/automation readiness summaries, and Appointment Board header/create/schedule fallback wiring |
 | Task templates | Partially implemented | Schema, API, service, validation, seed data, tests, and prototype UI exist; production template administration remains incomplete |
 | Daily board generation | Implemented | Input loading, idempotent task generation, run tracking, manual trigger, scheduled route, and tests |
 | Board read and UI | Implemented | Date/today APIs, grouping, filtering, responsive board, manual task creation, and tests |

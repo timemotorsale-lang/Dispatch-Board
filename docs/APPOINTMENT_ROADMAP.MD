@@ -21,7 +21,7 @@ However, the full Enterprise Release 1.0 roadmap is not complete yet. The remain
 | Product direction | Approved | The product purpose and enterprise scope are approved. |
 | Appointment foundation | Strongly implemented | Core model, commands, permissions, audit, scheduling services, and resource/staff foundations exist. |
 | Appointment Board UI | In progress with substantial live workflow | The visible board exists and many detail-rail workflows are live. |
-| Enterprise admin | Mostly pending | Managers/admins still need full UI for templates, reasons, outcomes, resources, hours, closures, automation rules, and configuration. |
+| Enterprise admin | In progress / partial | Managers now have an Appointment Settings foundation for location profile, phone, hours, resource summary, catalogs, and automation readiness. Full editors for templates, reasons, outcomes, closures, capacity, automation rules, and import/export remain. |
 | Task-to-appointment orchestration | In progress with live vertical slice | Follow-up automation, task-detail create-linked-draft workflow, live browser proof, board scheduling handoff, and appointment-to-task navigation exist. Automation-rule authoring/runtime remains. |
 | Reporting and analytics | Pending | KPI definitions, reporting models, exports, and reconciliation are not built yet. |
 | Notifications | Pending | Internal notifications and future integration contracts remain. |
@@ -38,7 +38,7 @@ This is an approximate package-level view from the enterprise roadmap.
 | E2 | 13 | 13 | 0 | 0 | Mostly complete / ready for review |
 | E3 | 13 | 6 | 2 | 5 | In progress |
 | E4 | 14 | 0 | 1 | 13 | In progress, not gate-ready |
-| E5 | 11 | 0 | 1 | 10 | Mostly not started |
+| E5 | 11 | 0 | 4 | 7 | In progress, not gate-ready |
 | E6 | 9 | 0 | 0 | 9 | Not started |
 | E7 | 8 | 0 | 0 | 8 | Not started |
 | E8 | 8 | 0 | 0 | 8 | Not started |
@@ -48,8 +48,8 @@ This is an approximate package-level view from the enterprise roadmap.
 Approximate package-level progress:
 
 - Complete: 30 of 114 roadmap packages
-- In progress / partial: 5 of 114 roadmap packages
-- Not started: 79 of 114 roadmap packages
+- In progress / partial: 8 of 114 roadmap packages
+- Not started: 76 of 114 roadmap packages
 
 Important context: the package count understates the depth of the work already completed in E3/E4 because EAPT-029 has been broken into many smaller implemented slices through EAPT-029AG. The Appointment Board has significantly more live workflow behavior than the simple parent-package count suggests.
 
@@ -135,6 +135,8 @@ Important context: the package count understates the depth of the work already c
 - Live browser proof for task-created draft scheduling through the Appointment Board.
 - Server-side and UI-level guard against scheduling/rescheduling into a past start time.
 - Appointment history events merged into the Activity Feed with appointment labels, tones, filters, and context.
+- Appointment Settings admin foundation at `/settings/appointments` for manager-only location profile, address, phone, operating hours, scheduling status, resource summaries, catalogs, and automation readiness.
+- Appointment Board header and create/schedule payload defaults now read from the admin location foundation with safe Lake Street fallbacks.
 
 ### 4.5 Current validation evidence
 
@@ -146,19 +148,20 @@ npm run typecheck
 npm test
 npm run db:validate
 
-103 test files passed
-597 tests passed
+105 test files passed
+607 tests passed
 ```
 
-Focused validation during the task-to-appointment and activity-feed block:
+Focused validation during the Admin Settings Foundation block:
 
 ```text
 npm run typecheck
-npm test -- appointment-board-shell.test.tsx task-detail-workspace.test.tsx activity-feed-service.test.ts appointment-lifecycle-command-service.test.ts
-npm test -- activity-feed-service.test.ts activity-feed-ui.test.ts activity-feed-route.test.ts activity-events-service.test.ts
-npm test -- appointment-lifecycle-command-service.test.ts appointment-board-shell.test.tsx appointment-command-execution-service.test.ts task-appointment-service.test.ts task-detail-workspace.test.tsx
+npm test -- appointment-admin-settings-service.test.ts appointment-admin-settings-route.test.ts appointment-board-shell.test.tsx
+npm run lint
+npm run db:validate
+npm test
 
-All focused runs passed before the final full-suite run above.
+All focused and full-suite runs passed.
 ```
 
 Not yet complete:
@@ -318,7 +321,7 @@ Recommended E4 next steps:
 
 **Goal:** Let authorized managers/admins configure appointment behavior without code changes.
 
-**Current status:** Mostly not started.
+**Current status:** In progress / partial.
 
 | ID | Work package | Status |
 | --- | --- | --- |
@@ -328,7 +331,7 @@ Recommended E4 next steps:
 | EAPT-056 | Conflict resolution and manager override experience | Partial |
 | EAPT-057 | Bulk rescheduling and closure-impact workspace | Not started |
 | EAPT-058 | Purpose, template, outcome, reason administration | Not started / foundation partial |
-| EAPT-059 | Location, hours, closures, resource, capacity, availability administration | Not started |
+| EAPT-059 | Location, hours, closures, resource, capacity, availability administration | Partial; location profile, phone, weekday hours, scheduling status, resource summary, and board wiring implemented |
 | EAPT-060 | Automation rule authoring and simulation | Not started |
 | EAPT-061 | Automation activation, pause, retire, failure administration | Not started |
 | EAPT-062 | Configuration import/export with validation and redaction | Not started |
@@ -336,10 +339,11 @@ Recommended E4 next steps:
 
 Recommended E5 next steps:
 
-1. Admin settings for business location, phone, hours, closures, and resource capacity.
-2. Reason-code and outcome administration.
-3. Purpose/template administration.
-4. Automation rule administration with simulation before activation.
+1. Add closure/holiday and special-hours administration.
+2. Add resource capacity, outage, and availability editors.
+3. Reason-code and outcome administration.
+4. Purpose/template administration.
+5. Automation rule administration with simulation before activation.
 
 ## E6 — Owner, staff, and responsive workflows
 
