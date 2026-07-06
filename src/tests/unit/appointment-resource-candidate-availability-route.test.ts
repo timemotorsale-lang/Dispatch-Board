@@ -83,6 +83,50 @@ describe("appointment resource candidate availability route", () => {
     );
   });
 
+  it("passes proposed scheduling window options to the resource candidate availability preview", async () => {
+    const response = await GET(
+      new Request(
+        "http://localhost/api/appointments/appointment-1/resource-candidate-availability?proposedStartsAt=2026-07-06T16%3A00%3A00.000Z&proposedEndsAt=2026-07-06T17%3A00%3A00.000Z&proposedSchedulingTimezone=America%2FChicago"
+      ),
+      {
+        params: Promise.resolve({
+          id: "appointment-1"
+        })
+      }
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.previewAppointmentResourceCandidateAvailability).toHaveBeenCalledWith(
+      managerUser,
+      "appointment-1",
+      undefined,
+      undefined,
+      {
+        proposedStartsAt: new Date("2026-07-06T16:00:00.000Z"),
+        proposedEndsAt: new Date("2026-07-06T17:00:00.000Z"),
+        proposedSchedulingTimezone: "America/Chicago"
+      }
+    );
+  });
+
+  it("rejects invalid proposed scheduling windows", async () => {
+    const response = await GET(
+      new Request(
+        "http://localhost/api/appointments/appointment-1/resource-candidate-availability?proposedStartsAt=not-a-date"
+      ),
+      {
+        params: Promise.resolve({
+          id: "appointment-1"
+        })
+      }
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Proposed appointment start must be a valid date."
+    });
+  });
+
   it("maps missing appointments to 404", async () => {
     mocks.previewAppointmentResourceCandidateAvailability.mockRejectedValue(
       new Error("Appointment not found.")

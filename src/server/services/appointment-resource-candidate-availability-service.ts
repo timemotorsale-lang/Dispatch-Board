@@ -183,6 +183,12 @@ export type AppointmentResourceCandidateAvailabilityRepository = {
   ): Promise<string[]>;
 };
 
+export type AppointmentResourceCandidateAvailabilityPreviewOptions = {
+  proposedStartsAt?: Date | null;
+  proposedEndsAt?: Date | null;
+  proposedSchedulingTimezone?: string | null;
+};
+
 export type AppointmentResourceCandidateAvailabilityResult = {
   appointmentId: string;
   appointmentNumber: string;
@@ -573,7 +579,8 @@ export async function previewAppointmentResourceCandidateAvailability(
   appointmentId: string,
   repository: AppointmentResourceCandidateAvailabilityRepository =
     createAppointmentResourceCandidateAvailabilityRepository(),
-  now = new Date()
+  now = new Date(),
+  options: AppointmentResourceCandidateAvailabilityPreviewOptions = {}
 ): Promise<AppointmentResourceCandidateAvailabilityResult> {
   const actor = assertAuthenticated(user);
 
@@ -609,20 +616,33 @@ export async function previewAppointmentResourceCandidateAvailability(
     throw new Error("Appointment command is not authorized.");
   }
 
-  if (!appointment.startsAt || !appointment.endsAt || appointment.endsAt <= appointment.startsAt) {
+  const appointmentForPreview = {
+    ...appointment,
+    startsAt: options.proposedStartsAt ?? appointment.startsAt,
+    endsAt: options.proposedEndsAt ?? appointment.endsAt,
+    schedulingTimezone: options.proposedSchedulingTimezone ?? appointment.schedulingTimezone
+  };
+
+  if (
+    !appointmentForPreview.startsAt ||
+    !appointmentForPreview.endsAt ||
+    appointmentForPreview.endsAt <= appointmentForPreview.startsAt
+  ) {
     throw new Error("Resource candidate availability requires a valid appointment time window.");
   }
 
-  const proposalEvaluations = appointment.resourceRequirements.flatMap((requirement) =>
+  const proposalEvaluations = appointmentForPreview.resourceRequirements.flatMap((requirement) =>
     requirement.reservations.map((reservation) => {
+      const reservationStartsAt = options.proposedStartsAt ?? reservation.startsAt;
+      const reservationEndsAt = options.proposedEndsAt ?? reservation.endsAt;
       const availability = evaluateResourceAvailability({
         resource: toAvailabilityResource(reservation.resource),
-        timezone: appointment.schedulingTimezone,
+        timezone: appointmentForPreview.schedulingTimezone,
         operatingWindows: toOperatingWindows(reservation.resource),
         unavailability: toUnavailability(reservation.resource),
         reservations: toReservations(reservation.resource),
-        startsAt: reservation.startsAt,
-        endsAt: reservation.endsAt,
+        startsAt: reservationStartsAt,
+        endsAt: reservationEndsAt,
         requiredCapacity: reservation.capacityUnits
       });
       const status: AppointmentResourceCandidateAvailabilityResult["proposals"][number]["status"] = availability.isAvailable

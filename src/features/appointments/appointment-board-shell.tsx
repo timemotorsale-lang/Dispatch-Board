@@ -1372,9 +1372,24 @@ export function AppointmentBoardShell() {
       setIsCandidateAvailabilityLoading(true);
 
       try {
-        const response = await fetch(
-          `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/resource-candidate-availability`
-        );
+        let candidateAvailabilityUrl = `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/resource-candidate-availability`;
+
+        if (selectedAppointmentIsUnscheduledDraft) {
+          const startsAt = localDateTimeToMinneapolisIso(
+            scheduleDraft.localDate,
+            scheduleDraft.startTime
+          );
+          const endsAt = addMinutesToIso(startsAt, scheduleDraft.durationMinutes);
+          const params = new URLSearchParams({
+            proposedStartsAt: startsAt,
+            proposedEndsAt: endsAt,
+            proposedSchedulingTimezone: selectedAppointment.schedulingTimezone ?? defaultTimezone
+          });
+
+          candidateAvailabilityUrl = `${candidateAvailabilityUrl}?${params.toString()}`;
+        }
+
+        const response = await fetch(candidateAvailabilityUrl);
         const result = (await response.json().catch(() => null)) as
           | {
               resourceCandidateAvailability?: AppointmentResourceCandidateAvailability;
@@ -1414,7 +1429,16 @@ export function AppointmentBoardShell() {
     return () => {
       isActive = false;
     };
-  }, [detailRefreshKey, selectedAppointment.recordId, selectedAppointment.status]);
+  }, [
+    detailRefreshKey,
+    scheduleDraft.durationMinutes,
+    scheduleDraft.localDate,
+    scheduleDraft.startTime,
+    selectedAppointment.recordId,
+    selectedAppointment.schedulingTimezone,
+    selectedAppointment.status,
+    selectedAppointmentIsUnscheduledDraft
+  ]);
 
   useEffect(() => {
     let isActive = true;

@@ -253,6 +253,68 @@ describe("appointment resource candidate availability service", () => {
     });
   });
 
+  it("evaluates missing-time draft candidates against a proposed scheduling window", async () => {
+    const unscheduledAppointment = appointment({
+      startsAt: null,
+      endsAt: null
+    });
+    const requirement = unscheduledAppointment.resourceRequirements[0];
+    const proposedReservation = requirement.reservations[0];
+
+    const availability = await previewAppointmentResourceCandidateAvailability(
+      managerUser,
+      "appointment-1",
+      repository({
+        appointment: {
+          ...unscheduledAppointment,
+          resourceRequirements: [
+            {
+              ...requirement,
+              reservations: [
+                {
+                  ...proposedReservation,
+                  resource: {
+                    ...proposedReservation.resource,
+                    reservations: [
+                      {
+                        id: "reservation-committed",
+                        appointmentId: "appointment-2",
+                        status: "COMMITTED",
+                        startsAt: proposedReservation.startsAt,
+                        endsAt: proposedReservation.endsAt,
+                        capacityUnits: 1,
+                        bufferBeforeMinutes: 0,
+                        bufferAfterMinutes: 0
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }),
+      now,
+      {
+        proposedStartsAt: localInstant("2026-07-06", 11),
+        proposedEndsAt: localInstant("2026-07-06", 12),
+        proposedSchedulingTimezone: timezone
+      }
+    );
+
+    expect(availability).toMatchObject({
+      status: "READY",
+      canProceedToHold: true,
+      proposals: [
+        {
+          reservationId: "reservation-proposed",
+          status: "READY",
+          reasons: []
+        }
+      ]
+    });
+  });
+
   it("requires warning override before warning-level candidates can proceed to hold", async () => {
     const availability = await previewAppointmentResourceCandidateAvailability(
       managerUser,
