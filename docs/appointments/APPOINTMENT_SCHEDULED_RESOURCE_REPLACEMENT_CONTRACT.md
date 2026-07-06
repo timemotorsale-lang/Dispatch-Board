@@ -28,7 +28,7 @@ Managers and appointment owners need a safe way to swap a committed resource aft
   - a valid appointment time window;
   - explicit reason code and reason notes.
 - The replacement resource is checked through resource availability before the write.
-- Warning-level or blocked replacement resources are not silently accepted in this slice. The manager must choose a cleanly available resource or use a later warning-override replacement workflow.
+- Warning-level committed replacement resources are handled by EAPT-029U with documented manager acceptance. Hard-block replacement resources are still rejected.
 - All writes happen in one protected transaction:
   - appointment version increment;
   - old reservation marked `RELEASED`;
@@ -75,7 +75,6 @@ The history event records:
 
 This slice does not yet implement:
 
-- warning-level committed replacement override workflow;
 - replacement-specific reason-code picker/catalog;
 - production browser workflow evidence;
 - participant-resource replacement workflows beyond the selected requirement model.

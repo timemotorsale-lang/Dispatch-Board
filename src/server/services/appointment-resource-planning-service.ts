@@ -302,6 +302,8 @@ export type AppointmentReplacedResourceReservation = Omit<
   "status"
 > & {
   status: "PROPOSED" | "COMMITTED";
+  availabilityStatus: "READY" | "WARNING";
+  warningReasons: string[];
   releasedReservationId: string;
   releasedResourceId: string;
   releasedResourceCode: string;
@@ -691,6 +693,8 @@ function toReplacedReservation(input: {
   appointmentVersion: number;
   replacementStatus: "PROPOSED" | "COMMITTED";
   releasedPriorStatus: "HELD" | "COMMITTED";
+  availabilityStatus: "READY" | "WARNING";
+  warningReasons: string[];
 }): AppointmentReplacedResourceReservation {
   return {
     id: input.reservation.id,
@@ -706,6 +710,8 @@ function toReplacedReservation(input: {
     created: true,
     cancelledPriorProposalCount: input.cancelledPriorProposalCount,
     appointmentVersion: input.appointmentVersion,
+    availabilityStatus: input.availabilityStatus,
+    warningReasons: input.warningReasons,
     releasedReservationId: input.releasedReservation.id,
     releasedResourceId: input.releasedReservation.resourceId,
     releasedResourceCode: input.releasedReservation.resource.code,
@@ -1607,11 +1613,21 @@ export async function replaceAppointmentResourceReservation(
     requiredCapacity: requirement.requiredCapacity
   });
 
-  if (!availability.isAvailable) {
+  if (availability.isHardBlocked || (!availability.isAvailable && !availability.isWarningOnly)) {
     throw new Error(
       `Replacement resource candidate is not available for this requirement. ${availability.reasons.join(" ")}`
     );
   }
+
+  if (availability.isWarningOnly && replacementStatus !== "COMMITTED") {
+    throw new Error(
+      `Replacement resource candidate is not available for this requirement. ${availability.reasons.join(" ")}`
+    );
+  }
+
+  const availabilityStatus: AppointmentReplacedResourceReservation["availabilityStatus"] =
+    availability.isAvailable ? "READY" : "WARNING";
+  const warningReasons = availabilityStatus === "WARNING" ? availability.reasons : [];
 
   const normalizedReservation = normalizeAppointmentResourceReservation({
     appointmentId: appointment.id,
@@ -1658,6 +1674,11 @@ export async function replaceAppointmentResourceReservation(
         resourceCode: resource.code,
         resourceName: resource.name,
         status: replacementStatus
+      },
+      availability: {
+        status: availabilityStatus,
+        warningReasons,
+        warningOverrideAccepted: availabilityStatus === "WARNING"
       }
     },
     metadata: {
@@ -1667,7 +1688,9 @@ export async function replaceAppointmentResourceReservation(
       releasedReservationId: releasedReservation.id,
       releasedPriorStatus,
       replacementResourceId: resource.id,
-      replacementStatus
+      replacementStatus,
+      availabilityStatus,
+      warningOverrideAccepted: availabilityStatus === "WARNING"
     },
     occurredAt: now
   });
@@ -1763,7 +1786,9 @@ export async function replaceAppointmentResourceReservation(
       cancelledPriorProposalCount: cancelledPriorProposals.count,
       appointmentVersion: expectedAppointmentVersion + 1,
       replacementStatus,
-      releasedPriorStatus
+      releasedPriorStatus,
+      availabilityStatus,
+      warningReasons
     });
   });
 }

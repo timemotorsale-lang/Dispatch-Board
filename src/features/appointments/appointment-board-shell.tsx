@@ -1955,6 +1955,8 @@ export function AppointmentBoardShell() {
               resourceName: string;
               releasedResourceName: string;
               status: "PROPOSED" | "COMMITTED";
+              availabilityStatus?: "READY" | "WARNING";
+              warningReasons?: string[];
               releasedPriorStatus: "HELD" | "COMMITTED";
               appointmentVersion: number;
             };
@@ -1968,7 +1970,11 @@ export function AppointmentBoardShell() {
 
       setActionNotice(
         result.replacement.status === "COMMITTED"
-          ? `${result.replacement.releasedResourceName} was released and ${result.replacement.resourceName} is now committed as the replacement.`
+          ? `${result.replacement.releasedResourceName} was released and ${result.replacement.resourceName} is now committed as the replacement.${
+              result.replacement.availabilityStatus === "WARNING"
+                ? ` Manager warning accepted: ${(result.replacement.warningReasons ?? []).join(" ")}`
+                : ""
+            }`
           : `${result.replacement.releasedResourceName} was released and ${result.replacement.resourceName} was proposed as the replacement. Review availability, then hold the new candidate.`
       );
       clearResourceActionReason("replace", recommendation.selectedReservation.id);

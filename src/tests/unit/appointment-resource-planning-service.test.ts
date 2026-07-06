@@ -667,6 +667,16 @@ describe("appointment resource reservation replacement", () => {
     appointment?: AppointmentResourcePlanningAppointmentRecord | null;
     access?: AppointmentResourcePlanningLocationAccessRecord | null;
     resource?: AppointmentResourcePlanningResourceRecord | null;
+    replacementReservations?: Array<{
+      id: string;
+      appointmentId: string;
+      status: string;
+      startsAt: Date;
+      endsAt: Date;
+      capacityUnits: number;
+      bufferBeforeMinutes: number;
+      bufferAfterMinutes: number;
+    }>;
     appointmentUpdateCount?: number;
     releaseUpdateCount?: number;
     cancelledCount?: number;
@@ -724,7 +734,7 @@ describe("appointment resource reservation replacement", () => {
                     }
                   ],
                   unavailability: [],
-                  reservations: []
+                  reservations: input?.replacementReservations ?? []
                 }
               : null;
           },
@@ -757,13 +767,16 @@ describe("appointment resource reservation replacement", () => {
               },
               async create(createInput: { data: unknown }) {
                 createdReservations.push(createInput.data);
+                const data = createInput.data as {
+                  status?: string;
+                };
 
                 return {
                   id: "reservation-replacement",
                   appointmentId: "appointment-1",
                   requirementId: "requirement-1",
                   resourceId: "resource-bay-2",
-                  status: "PROPOSED",
+                  status: data.status ?? "PROPOSED",
                   startsAt: new Date("2026-07-06T15:00:00.000Z"),
                   endsAt: new Date("2026-07-06T16:00:00.000Z"),
                   capacityUnits: 1
@@ -873,6 +886,123 @@ describe("appointment resource reservation replacement", () => {
       })
     ]);
     expect(harness.createdHistory).toHaveLength(1);
+  });
+
+  it("allows warning-level committed scheduled replacement with documented manager reason", async () => {
+    const overlappingReservation = {
+      id: "reservation-overlap",
+      appointmentId: "appointment-2",
+      status: "COMMITTED",
+      startsAt: new Date("2026-07-06T15:00:00.000Z"),
+      endsAt: new Date("2026-07-06T16:00:00.000Z"),
+      capacityUnits: 1,
+      bufferBeforeMinutes: 0,
+      bufferAfterMinutes: 0
+    };
+    const harness = database({
+      appointment: appointmentWithHeldReservation({
+        bookingStatus: "SCHEDULED",
+        resourceRequirements: [committedRequirement]
+      }),
+      resource: resource({
+        id: "resource-bay-2",
+        code: "BAY_2",
+        name: "Service Bay 2",
+        conflictPolicy: "WARNING"
+      }),
+      replacementReservations: [overlappingReservation]
+    });
+
+    const result = await replaceAppointmentResourceReservation(
+      managerUser,
+      "appointment-1",
+      {
+        reservationId: "reservation-committed",
+        resourceId: "resource-bay-2",
+        expectedAppointmentVersion: 3,
+        reasonCode: "RESOURCE_RESERVATION_REPLACED",
+        reasonNotes: "Manager accepts temporary bay overlap because jobs are staggered.",
+        correlationId: "correlation-replace-committed-warning"
+      },
+      harness.database,
+      now
+    );
+
+    expect(result).toMatchObject({
+      status: "COMMITTED",
+      availabilityStatus: "WARNING",
+      warningReasons: expect.arrayContaining([
+        "Resource capacity is already reserved during the candidate window.",
+        "Resource does not have enough available capacity."
+      ]),
+      releasedPriorStatus: "COMMITTED"
+    });
+    expect(harness.createdReservations).toEqual([
+      expect.objectContaining({
+        status: "COMMITTED",
+        resourceId: "resource-bay-2"
+      })
+    ]);
+    expect(harness.createdHistory).toEqual([
+      expect.objectContaining({
+        newValue: expect.objectContaining({
+          availability: expect.objectContaining({
+            status: "WARNING",
+            warningOverrideAccepted: true
+          })
+        }),
+        metadata: expect.objectContaining({
+          availabilityStatus: "WARNING",
+          warningOverrideAccepted: true
+        })
+      })
+    ]);
+  });
+
+  it("rejects hard-block committed scheduled replacement conflicts", async () => {
+    const harness = database({
+      appointment: appointmentWithHeldReservation({
+        bookingStatus: "SCHEDULED",
+        resourceRequirements: [committedRequirement]
+      }),
+      resource: resource({
+        id: "resource-bay-2",
+        code: "BAY_2",
+        name: "Service Bay 2",
+        conflictPolicy: "HARD_BLOCK"
+      }),
+      replacementReservations: [
+        {
+          id: "reservation-overlap",
+          appointmentId: "appointment-2",
+          status: "COMMITTED",
+          startsAt: new Date("2026-07-06T15:00:00.000Z"),
+          endsAt: new Date("2026-07-06T16:00:00.000Z"),
+          capacityUnits: 1,
+          bufferBeforeMinutes: 0,
+          bufferAfterMinutes: 0
+        }
+      ]
+    });
+
+    await expect(
+      replaceAppointmentResourceReservation(
+        managerUser,
+        "appointment-1",
+        {
+          reservationId: "reservation-committed",
+          resourceId: "resource-bay-2",
+          expectedAppointmentVersion: 3,
+          reasonCode: "RESOURCE_RESERVATION_REPLACED",
+          reasonNotes: "Attempt hard-blocked bay swap."
+        },
+        harness.database,
+        now
+      )
+    ).rejects.toThrow("Replacement resource candidate is not available");
+
+    expect(harness.createdReservations).toHaveLength(0);
+    expect(harness.createdHistory).toHaveLength(0);
   });
 
   it("requires a different replacement resource", async () => {
