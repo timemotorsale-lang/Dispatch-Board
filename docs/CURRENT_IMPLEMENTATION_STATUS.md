@@ -1,6 +1,6 @@
 # Current Implementation Status
 
-**Verified:** 2026-07-05  
+**Verified:** 2026-07-06  
 **Purpose:** Evidence-based snapshot of the repository before Enterprise Appointment implementation  
 **Supersedes:** Stale “pre-implementation” statements in older planning documents
 
@@ -73,13 +73,14 @@ Prisma client generation updated generated types but could not replace the locke
 | Appointment lifecycle command execution planning | Implemented as service boundary | EAPT-027 adds approve/edit command values and produces atomic effect plans for create draft, approve, edit, schedule, reschedule, cancel, and transfer-owner commands, including authorization, stale-version protection, hard-conflict/warning rejection, reservation release/commit effects, task-link effects, history effects, and command-result snapshots |
 | Appointment lifecycle transaction execution boundary | Implemented as service boundary | EAPT-027 transaction executor applies executable lifecycle plans as one protected unit across appointment, reservation, task-link, history, and command-result effects, records rejected plans as failed commands without side effects, proves rollback behavior when later transaction steps fail, and includes a concrete Prisma transaction repository for appointment, reservation, task-link, history, and command-ledger persistence |
 | Appointment lifecycle command route execution | Implemented as backend boundary | EAPT-027 command route orchestration submits supported lifecycle commands through the ledger boundary, skips duplicates/conflicts, builds lifecycle plans, executes through the transaction executor and Prisma adapter, and returns execution results in the API response |
+| Appointment confirmation, attendance, and execution commands | Implemented as backend boundary | EAPT-028 extends lifecycle command execution to confirm, decline, check in, record no-show, start, wait, and finish appointments with manager/owner authorization, stale-version protection, scheduled-state guards, required reason/follow-up documentation where applicable, optional no-show reservation release, history effects, route execution support, and focused tests |
 | Appointment Board visible shell | Implemented as preview UI | `/appointments` now renders the mockup-aligned board surface with KPI cards, staff calendar columns, filters, selectable preview appointments, detail rail, linked tasks, enterprise controls, upcoming appointments, and responsive behavior; live services/APIs remain pending |
 
 ## Existing Partial or Placeholder Surfaces
 
 | Surface | Current state |
 | --- | --- |
-| Appointments | Visible preview shell exists; E1 command intake API boundary exists; E2 scheduling service boundaries exist; EAPT-027 lifecycle command execution route exists for supported backend commands; live command-center UI wiring, browser workflows, and production evidence remain pending |
+| Appointments | Visible preview shell exists; E1 command intake API boundary exists; E2 scheduling service boundaries exist; EAPT-027/EAPT-028 lifecycle command execution routes exist for supported backend commands; live command-center UI wiring, browser workflows, final completion/outcome capture, and production evidence remain pending |
 | Customers | Placeholder guidance page; no enterprise customer subsystem |
 | Vehicles | Placeholder guidance page; no enterprise vehicle subsystem |
 | Reports | Placeholder guidance page; no enterprise reporting subsystem |
@@ -102,7 +103,8 @@ At this baseline:
 - E2 scheduling foundation service boundaries EAPT-013 through EAPT-025 are implemented and ready for review; concrete database adapters, live APIs, and UI workflows remain pending.
 - EAPT-026 appointment read model and permission-filtered query foundation is implemented as a service boundary.
 - EAPT-027 lifecycle command execution planning, transaction execution boundaries, approve/edit command expansion, concrete Prisma transaction adapter, and lifecycle command route orchestration are implemented as backend boundaries.
-- Database-backed versioned appointment-template administration, recurrence persistence/materialization, persisted warning override/history records, availability-search API/UI, waitlist persistence/queues, reschedule/bulk execution persistence, live command-center UI wiring, administration UI, browser workflow tests, and persisted production Appointment workflows have not yet been implemented.
+- EAPT-028 confirmation, attendance, no-show, and execution-state command planning and route execution are implemented as backend boundaries.
+- Database-backed versioned appointment-template administration, recurrence persistence/materialization, persisted warning override/history records, availability-search API/UI, waitlist persistence/queues, reschedule/bulk execution persistence, final completion/outcome capture, live command-center UI wiring, administration UI, browser workflow tests, and persisted production Appointment workflows have not yet been implemented.
 - The existing `/appointments` route now contains the mockup-aligned preview shell and is the intended UI boundary for the next live-service slices.
 
 ## Current Execution Order

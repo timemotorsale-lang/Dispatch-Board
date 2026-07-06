@@ -80,6 +80,9 @@ const appointment: AppointmentLifecycleCommandAppointment = {
   startsAt: new Date("2026-07-06T15:00:00.000Z"),
   endsAt: new Date("2026-07-06T16:00:00.000Z"),
   bookingStatus: "SCHEDULED",
+  confirmationStatus: "CONFIRMED",
+  attendanceStatus: "EXPECTED",
+  executionStatus: "NOT_STARTED",
   version: 3
 };
 
@@ -475,6 +478,246 @@ describe("appointment lifecycle command execution planner", () => {
           actorUserId: ownerUser.id
         }
       ]
+    });
+  });
+
+  it("plans confirmation and customer decline with reasoned follow-up", () => {
+    const confirmed = planAppointmentLifecycleCommandExecution(
+      baseCommand({
+        commandType: "CONFIRM",
+        actor: ownerUser,
+        locationAccess: ownerAccess
+      })
+    );
+    const declined = planAppointmentLifecycleCommandExecution(
+      baseCommand({
+        commandType: "DECLINE",
+        payload: {
+          reasonCode: "CUSTOMER_DECLINED",
+          reasonNotes: "Customer declined the proposed appointment.",
+          followUpDispositionCode: "CALLBACK_REQUIRED"
+        }
+      })
+    );
+
+    expect(confirmed).toMatchObject({
+      executable: true,
+      appointmentEffect: {
+        operation: "UPDATE",
+        appointmentId: appointment.id,
+        set: {
+          confirmationStatus: "CONFIRMED",
+          confirmedAt: now
+        }
+      },
+      historyEffects: [
+        {
+          eventType: "CONFIRMED",
+          actorUserId: ownerUser.id
+        }
+      ]
+    });
+    expect(declined).toMatchObject({
+      executable: true,
+      appointmentEffect: {
+        operation: "UPDATE",
+        appointmentId: appointment.id,
+        set: {
+          confirmationStatus: "DECLINED",
+          declinedAt: now,
+          confirmationDeclineReasonCode: "CUSTOMER_DECLINED",
+          confirmationDeclineReasonNotes: "Customer declined the proposed appointment.",
+          followUpDispositionCode: "CALLBACK_REQUIRED"
+        }
+      },
+      historyEffects: [
+        {
+          eventType: "DECLINED",
+          reasonCode: "CUSTOMER_DECLINED"
+        }
+      ]
+    });
+  });
+
+  it("plans check-in and blocks check-in after a no-show is recorded", () => {
+    const checkedIn = planAppointmentLifecycleCommandExecution(
+      baseCommand({
+        commandType: "CHECK_IN",
+        actor: ownerUser,
+        locationAccess: ownerAccess
+      })
+    );
+    const blocked = planAppointmentLifecycleCommandExecution(
+      baseCommand({
+        commandType: "CHECK_IN",
+        appointment: {
+          ...appointment,
+          attendanceStatus: "NO_SHOW"
+        }
+      })
+    );
+
+    expect(checkedIn).toMatchObject({
+      executable: true,
+      appointmentEffect: {
+        operation: "UPDATE",
+        appointmentId: appointment.id,
+        set: {
+          attendanceStatus: "CHECKED_IN",
+          checkedInAt: now
+        }
+      },
+      historyEffects: [
+        {
+          eventType: "CHECKED_IN",
+          actorUserId: ownerUser.id
+        }
+      ]
+    });
+    expect(blocked).toMatchObject({
+      executable: false,
+      rejectionCode: "NO_SHOW_RECORDED"
+    });
+  });
+
+  it("plans no-show with reason, follow-up disposition, and optional reservation release", () => {
+    const releaseReservation = {
+      id: "reservation-old",
+      resourceId: "resource-bay-1",
+      status: "COMMITTED" as const
+    };
+    const plan = planAppointmentLifecycleCommandExecution(
+      baseCommand({
+        commandType: "NO_SHOW",
+        payload: {
+          reasonCode: "CUSTOMER_NO_SHOW",
+          reasonNotes: "Customer did not arrive by the grace period.",
+          followUpDispositionCode: "CALLBACK_REQUIRED",
+          releaseReservations: [releaseReservation]
+        }
+      })
+    );
+
+    expect(plan).toMatchObject({
+      executable: true,
+      appointmentEffect: {
+        operation: "UPDATE",
+        appointmentId: appointment.id,
+        set: {
+          attendanceStatus: "NO_SHOW",
+          executionStatus: "NOT_STARTED",
+          noShowAt: now,
+          noShowReasonCode: "CUSTOMER_NO_SHOW",
+          noShowReasonNotes: "Customer did not arrive by the grace period.",
+          followUpDispositionCode: "CALLBACK_REQUIRED"
+        }
+      },
+      reservationEffects: [
+        {
+          action: "RELEASE_RESERVATIONS",
+          reservations: [releaseReservation],
+          reasonCode: "CUSTOMER_NO_SHOW",
+          releasedByUserId: managerUser.id
+        }
+      ],
+      historyEffects: [
+        {
+          eventType: "NO_SHOW_RECORDED",
+          reasonCode: "CUSTOMER_NO_SHOW"
+        }
+      ]
+    });
+  });
+
+  it("plans execution start, wait, and finish transitions with required wait reason", () => {
+    const started = planAppointmentLifecycleCommandExecution(
+      baseCommand({
+        commandType: "START"
+      })
+    );
+    const waiting = planAppointmentLifecycleCommandExecution(
+      baseCommand({
+        commandType: "WAIT",
+        appointment: {
+          ...appointment,
+          executionStatus: "IN_PROGRESS"
+        },
+        payload: {
+          reasonCode: "WAITING_ON_PARTS",
+          reasonNotes: "Waiting for ordered brake pads."
+        }
+      })
+    );
+    const finished = planAppointmentLifecycleCommandExecution(
+      baseCommand({
+        commandType: "FINISH",
+        appointment: {
+          ...appointment,
+          executionStatus: "WAITING"
+        }
+      })
+    );
+    const blocked = planAppointmentLifecycleCommandExecution(
+      baseCommand({
+        commandType: "FINISH",
+        appointment: {
+          ...appointment,
+          executionStatus: "NOT_STARTED"
+        }
+      })
+    );
+
+    expect(started).toMatchObject({
+      executable: true,
+      appointmentEffect: {
+        operation: "UPDATE",
+        set: {
+          executionStatus: "IN_PROGRESS",
+          startedAt: now
+        }
+      },
+      historyEffects: [
+        {
+          eventType: "STARTED"
+        }
+      ]
+    });
+    expect(waiting).toMatchObject({
+      executable: true,
+      appointmentEffect: {
+        operation: "UPDATE",
+        set: {
+          executionStatus: "WAITING",
+          waitingAt: now,
+          waitingReasonCode: "WAITING_ON_PARTS",
+          waitingReasonNotes: "Waiting for ordered brake pads."
+        }
+      },
+      historyEffects: [
+        {
+          eventType: "WAITING",
+          reasonCode: "WAITING_ON_PARTS"
+        }
+      ]
+    });
+    expect(finished).toMatchObject({
+      executable: true,
+      appointmentEffect: {
+        operation: "UPDATE",
+        set: {
+          executionStatus: "FINISHED",
+          finishedAt: now
+        }
+      },
+      historyEffects: [
+        {
+          eventType: "FINISHED"
+        }
+      ]
+    });
+    expect(blocked).toMatchObject({
+      executable: false,
+      rejectionCode: "EXECUTION_NOT_STARTED"
     });
   });
 

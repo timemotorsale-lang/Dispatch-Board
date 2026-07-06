@@ -70,6 +70,9 @@ function toLifecycleAppointment(
     startsAt: appointment.startsAt,
     endsAt: appointment.endsAt,
     bookingStatus: appointment.bookingStatus,
+    confirmationStatus: appointment.confirmationStatus,
+    attendanceStatus: appointment.attendanceStatus,
+    executionStatus: appointment.executionStatus,
     version: appointment.version
   };
 }

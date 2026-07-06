@@ -2,6 +2,9 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import type {
   AppointmentBookingStatus,
   AppointmentCommandType,
+  AppointmentAttendanceStatus,
+  AppointmentConfirmationStatus,
+  AppointmentExecutionStatus,
   AppointmentHistoryEventType,
   AppointmentSourceType
 } from "@/server/appointments/appointment-domain";
@@ -26,6 +29,13 @@ export const APPOINTMENT_LIFECYCLE_EXECUTION_COMMANDS = [
   "SCHEDULE",
   "RESCHEDULE",
   "CANCEL",
+  "CONFIRM",
+  "DECLINE",
+  "CHECK_IN",
+  "NO_SHOW",
+  "START",
+  "WAIT",
+  "FINISH",
   "TRANSFER_OWNER"
 ] as const satisfies readonly AppointmentCommandType[];
 
@@ -43,6 +53,9 @@ export type AppointmentLifecycleCommandAppointment = {
   startsAt: Date | null;
   endsAt: Date | null;
   bookingStatus: AppointmentBookingStatus;
+  confirmationStatus: AppointmentConfirmationStatus;
+  attendanceStatus: AppointmentAttendanceStatus;
+  executionStatus: AppointmentExecutionStatus;
   version: number;
 };
 
@@ -322,6 +335,75 @@ function assertExpectedVersion(input: AppointmentLifecycleCommandInput) {
   }
 
   return null;
+}
+
+function assertMutableAppointment(input: AppointmentLifecycleCommandInput) {
+  const appointment = assertExistingAppointment(input);
+  const stalePlan = assertExpectedVersion(input);
+
+  if (stalePlan) {
+    return {
+      appointment,
+      rejection: stalePlan
+    };
+  }
+
+  if (
+    !canMutateAppointment({
+      actor: input.actor,
+      ownerUserId: appointment.ownerUserId,
+      locationAccess: input.locationAccess
+    })
+  ) {
+    return {
+      appointment,
+      rejection: rejectPlan({
+        commandId: input.commandId,
+        commandType: input.commandType,
+        rejectionCode: "UNAUTHORIZED",
+        rejectionReasons: ["Actor is not authorized to update this appointment."]
+      })
+    };
+  }
+
+  return {
+    appointment,
+    rejection: null
+  };
+}
+
+function assertOpenScheduledAppointment(input: AppointmentLifecycleCommandInput) {
+  const { appointment, rejection } = assertMutableAppointment(input);
+
+  if (rejection) {
+    return {
+      appointment,
+      rejection
+    };
+  }
+
+  if (appointment.bookingStatus !== "SCHEDULED") {
+    return {
+      appointment,
+      rejection: rejectPlan({
+        commandId: input.commandId,
+        commandType: input.commandType,
+        rejectionCode: "INVALID_BOOKING_STATUS",
+        rejectionReasons: [
+          `${input.commandType} requires a scheduled appointment; current status is ${appointment.bookingStatus}.`
+        ],
+        commandResultSnapshot: {
+          appointmentId: appointment.id,
+          bookingStatus: appointment.bookingStatus
+        }
+      })
+    };
+  }
+
+  return {
+    appointment,
+    rejection: null
+  };
 }
 
 function buildCreateDraftPlan(
@@ -928,6 +1010,418 @@ function buildCancelPlan(
   };
 }
 
+function buildConfirmPlan(
+  input: AppointmentLifecycleCommandInput
+): AppointmentLifecycleCommandExecutionPlan {
+  const { appointment, rejection } = assertOpenScheduledAppointment(input);
+
+  if (rejection) {
+    return rejection;
+  }
+
+  const now = input.now ?? new Date();
+  const set = {
+    confirmationStatus: "CONFIRMED",
+    confirmedAt: now
+  };
+
+  return {
+    commandId: input.commandId,
+    commandType: input.commandType,
+    executable: true,
+    rejectionCode: null,
+    rejectionReasons: [],
+    appointmentEffect: {
+      operation: "UPDATE",
+      appointmentId: appointment.id,
+      expectedVersion: appointment.version,
+      set,
+      incrementVersion: 1
+    },
+    reservationEffects: [],
+    taskLinkEffects: input.payload?.taskLinks ?? [],
+    historyEffects: [
+      buildHistoryEffect({
+        command: { ...input, now },
+        eventType: "CONFIRMED",
+        message: `Appointment ${appointment.appointmentNumber} confirmed.`,
+        priorValue: {
+          confirmationStatus: appointment.confirmationStatus
+        },
+        newValue: set
+      })
+    ],
+    commandResultSnapshot: {
+      appointmentId: appointment.id,
+      confirmationStatus: "CONFIRMED"
+    }
+  };
+}
+
+function buildDeclinePlan(
+  input: AppointmentLifecycleCommandInput
+): AppointmentLifecycleCommandExecutionPlan {
+  const { appointment, rejection } = assertOpenScheduledAppointment(input);
+
+  if (rejection) {
+    return rejection;
+  }
+
+  const { reasonCode, reasonNotes } = getRequiredReason(input.payload);
+  const now = input.now ?? new Date();
+  const followUpDispositionCode = requiredText(
+    input.payload?.followUpDispositionCode,
+    "Decline follow-up disposition"
+  );
+  const set = {
+    confirmationStatus: "DECLINED",
+    declinedAt: now,
+    confirmationDeclineReasonCode: reasonCode,
+    confirmationDeclineReasonNotes: reasonNotes,
+    followUpDispositionCode
+  };
+
+  return {
+    commandId: input.commandId,
+    commandType: input.commandType,
+    executable: true,
+    rejectionCode: null,
+    rejectionReasons: [],
+    appointmentEffect: {
+      operation: "UPDATE",
+      appointmentId: appointment.id,
+      expectedVersion: appointment.version,
+      set,
+      incrementVersion: 1
+    },
+    reservationEffects: [],
+    taskLinkEffects: input.payload?.taskLinks ?? [],
+    historyEffects: [
+      buildHistoryEffect({
+        command: { ...input, now },
+        eventType: "DECLINED",
+        message: `Appointment ${appointment.appointmentNumber} declined.`,
+        reasonCode,
+        reasonNotes,
+        priorValue: {
+          confirmationStatus: appointment.confirmationStatus
+        },
+        newValue: set
+      })
+    ],
+    commandResultSnapshot: {
+      appointmentId: appointment.id,
+      confirmationStatus: "DECLINED",
+      followUpDispositionCode
+    }
+  };
+}
+
+function buildCheckInPlan(
+  input: AppointmentLifecycleCommandInput
+): AppointmentLifecycleCommandExecutionPlan {
+  const { appointment, rejection } = assertOpenScheduledAppointment(input);
+
+  if (rejection) {
+    return rejection;
+  }
+
+  if (appointment.attendanceStatus === "NO_SHOW") {
+    return rejectPlan({
+      commandId: input.commandId,
+      commandType: input.commandType,
+      rejectionCode: "NO_SHOW_RECORDED",
+      rejectionReasons: ["A no-show appointment cannot be checked in without a corrective edit."]
+    });
+  }
+
+  const now = input.now ?? new Date();
+  const set = {
+    attendanceStatus: "CHECKED_IN",
+    checkedInAt: now
+  };
+
+  return {
+    commandId: input.commandId,
+    commandType: input.commandType,
+    executable: true,
+    rejectionCode: null,
+    rejectionReasons: [],
+    appointmentEffect: {
+      operation: "UPDATE",
+      appointmentId: appointment.id,
+      expectedVersion: appointment.version,
+      set,
+      incrementVersion: 1
+    },
+    reservationEffects: [],
+    taskLinkEffects: input.payload?.taskLinks ?? [],
+    historyEffects: [
+      buildHistoryEffect({
+        command: { ...input, now },
+        eventType: "CHECKED_IN",
+        message: `Appointment ${appointment.appointmentNumber} checked in.`,
+        priorValue: {
+          attendanceStatus: appointment.attendanceStatus
+        },
+        newValue: set
+      })
+    ],
+    commandResultSnapshot: {
+      appointmentId: appointment.id,
+      attendanceStatus: "CHECKED_IN"
+    }
+  };
+}
+
+function buildNoShowPlan(
+  input: AppointmentLifecycleCommandInput
+): AppointmentLifecycleCommandExecutionPlan {
+  const { appointment, rejection } = assertOpenScheduledAppointment(input);
+
+  if (rejection) {
+    return rejection;
+  }
+
+  const { reasonCode, reasonNotes } = getRequiredReason(input.payload);
+  const now = input.now ?? new Date();
+  const followUpDispositionCode = requiredText(
+    input.payload?.followUpDispositionCode,
+    "No-show follow-up disposition"
+  );
+  const set = {
+    attendanceStatus: "NO_SHOW",
+    executionStatus: "NOT_STARTED",
+    noShowAt: now,
+    noShowReasonCode: reasonCode,
+    noShowReasonNotes: reasonNotes,
+    followUpDispositionCode
+  };
+
+  return {
+    commandId: input.commandId,
+    commandType: input.commandType,
+    executable: true,
+    rejectionCode: null,
+    rejectionReasons: [],
+    appointmentEffect: {
+      operation: "UPDATE",
+      appointmentId: appointment.id,
+      expectedVersion: appointment.version,
+      set,
+      incrementVersion: 1
+    },
+    reservationEffects: input.payload?.releaseReservations?.length
+      ? [
+          {
+            action: "RELEASE_RESERVATIONS",
+            reservations: input.payload.releaseReservations,
+            reasonCode,
+            reasonNotes,
+            releasedByUserId: input.actor?.id ?? null
+          }
+        ]
+      : [],
+    taskLinkEffects: input.payload?.taskLinks ?? [],
+    historyEffects: [
+      buildHistoryEffect({
+        command: { ...input, now },
+        eventType: "NO_SHOW_RECORDED",
+        message: `Appointment ${appointment.appointmentNumber} marked as no-show.`,
+        reasonCode,
+        reasonNotes,
+        priorValue: {
+          attendanceStatus: appointment.attendanceStatus,
+          executionStatus: appointment.executionStatus
+        },
+        newValue: set
+      })
+    ],
+    commandResultSnapshot: {
+      appointmentId: appointment.id,
+      attendanceStatus: "NO_SHOW",
+      followUpDispositionCode,
+      releaseReservationCount: input.payload?.releaseReservations?.length ?? 0
+    }
+  };
+}
+
+function buildStartPlan(
+  input: AppointmentLifecycleCommandInput
+): AppointmentLifecycleCommandExecutionPlan {
+  const { appointment, rejection } = assertOpenScheduledAppointment(input);
+
+  if (rejection) {
+    return rejection;
+  }
+
+  if (appointment.attendanceStatus === "NO_SHOW") {
+    return rejectPlan({
+      commandId: input.commandId,
+      commandType: input.commandType,
+      rejectionCode: "NO_SHOW_RECORDED",
+      rejectionReasons: ["A no-show appointment cannot be started without a corrective edit."]
+    });
+  }
+
+  const now = input.now ?? new Date();
+  const set = {
+    executionStatus: "IN_PROGRESS",
+    startedAt: now
+  };
+
+  return {
+    commandId: input.commandId,
+    commandType: input.commandType,
+    executable: true,
+    rejectionCode: null,
+    rejectionReasons: [],
+    appointmentEffect: {
+      operation: "UPDATE",
+      appointmentId: appointment.id,
+      expectedVersion: appointment.version,
+      set,
+      incrementVersion: 1
+    },
+    reservationEffects: [],
+    taskLinkEffects: input.payload?.taskLinks ?? [],
+    historyEffects: [
+      buildHistoryEffect({
+        command: { ...input, now },
+        eventType: "STARTED",
+        message: `Appointment ${appointment.appointmentNumber} started.`,
+        priorValue: {
+          executionStatus: appointment.executionStatus
+        },
+        newValue: set
+      })
+    ],
+    commandResultSnapshot: {
+      appointmentId: appointment.id,
+      executionStatus: "IN_PROGRESS"
+    }
+  };
+}
+
+function buildWaitPlan(
+  input: AppointmentLifecycleCommandInput
+): AppointmentLifecycleCommandExecutionPlan {
+  const { appointment, rejection } = assertOpenScheduledAppointment(input);
+
+  if (rejection) {
+    return rejection;
+  }
+
+  if (appointment.executionStatus !== "IN_PROGRESS" && appointment.executionStatus !== "WAITING") {
+    return rejectPlan({
+      commandId: input.commandId,
+      commandType: input.commandType,
+      rejectionCode: "EXECUTION_NOT_STARTED",
+      rejectionReasons: ["WAIT requires an appointment that is already in progress."]
+    });
+  }
+
+  const { reasonCode, reasonNotes } = getRequiredReason(input.payload);
+  const now = input.now ?? new Date();
+  const set = {
+    executionStatus: "WAITING",
+    waitingAt: now,
+    waitingReasonCode: reasonCode,
+    waitingReasonNotes: reasonNotes
+  };
+
+  return {
+    commandId: input.commandId,
+    commandType: input.commandType,
+    executable: true,
+    rejectionCode: null,
+    rejectionReasons: [],
+    appointmentEffect: {
+      operation: "UPDATE",
+      appointmentId: appointment.id,
+      expectedVersion: appointment.version,
+      set,
+      incrementVersion: 1
+    },
+    reservationEffects: [],
+    taskLinkEffects: input.payload?.taskLinks ?? [],
+    historyEffects: [
+      buildHistoryEffect({
+        command: { ...input, now },
+        eventType: "WAITING",
+        message: `Appointment ${appointment.appointmentNumber} waiting.`,
+        reasonCode,
+        reasonNotes,
+        priorValue: {
+          executionStatus: appointment.executionStatus
+        },
+        newValue: set
+      })
+    ],
+    commandResultSnapshot: {
+      appointmentId: appointment.id,
+      executionStatus: "WAITING"
+    }
+  };
+}
+
+function buildFinishPlan(
+  input: AppointmentLifecycleCommandInput
+): AppointmentLifecycleCommandExecutionPlan {
+  const { appointment, rejection } = assertOpenScheduledAppointment(input);
+
+  if (rejection) {
+    return rejection;
+  }
+
+  if (appointment.executionStatus !== "IN_PROGRESS" && appointment.executionStatus !== "WAITING") {
+    return rejectPlan({
+      commandId: input.commandId,
+      commandType: input.commandType,
+      rejectionCode: "EXECUTION_NOT_STARTED",
+      rejectionReasons: ["FINISH requires an appointment that is in progress or waiting."]
+    });
+  }
+
+  const now = input.now ?? new Date();
+  const set = {
+    executionStatus: "FINISHED",
+    finishedAt: now
+  };
+
+  return {
+    commandId: input.commandId,
+    commandType: input.commandType,
+    executable: true,
+    rejectionCode: null,
+    rejectionReasons: [],
+    appointmentEffect: {
+      operation: "UPDATE",
+      appointmentId: appointment.id,
+      expectedVersion: appointment.version,
+      set,
+      incrementVersion: 1
+    },
+    reservationEffects: [],
+    taskLinkEffects: input.payload?.taskLinks ?? [],
+    historyEffects: [
+      buildHistoryEffect({
+        command: { ...input, now },
+        eventType: "FINISHED",
+        message: `Appointment ${appointment.appointmentNumber} finished.`,
+        priorValue: {
+          executionStatus: appointment.executionStatus
+        },
+        newValue: set
+      })
+    ],
+    commandResultSnapshot: {
+      appointmentId: appointment.id,
+      executionStatus: "FINISHED"
+    }
+  };
+}
+
 function buildTransferOwnerPlan(
   input: AppointmentLifecycleCommandInput
 ): AppointmentLifecycleCommandExecutionPlan {
@@ -1013,6 +1507,20 @@ export function planAppointmentLifecycleCommandExecution(
       return buildReschedulePlan(input);
     case "CANCEL":
       return buildCancelPlan(input);
+    case "CONFIRM":
+      return buildConfirmPlan(input);
+    case "DECLINE":
+      return buildDeclinePlan(input);
+    case "CHECK_IN":
+      return buildCheckInPlan(input);
+    case "NO_SHOW":
+      return buildNoShowPlan(input);
+    case "START":
+      return buildStartPlan(input);
+    case "WAIT":
+      return buildWaitPlan(input);
+    case "FINISH":
+      return buildFinishPlan(input);
     case "TRANSFER_OWNER":
       return buildTransferOwnerPlan(input);
   }

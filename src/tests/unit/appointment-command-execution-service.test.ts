@@ -237,6 +237,46 @@ describe("appointment command execution service", () => {
     expect(lifecycleHarness.completedCommands).toEqual(["cmd-1"]);
   });
 
+  it("executes operational appointment commands through the same transaction boundary", async () => {
+    const commandHarness = createCommandRepositoryHarness();
+    const lifecycleHarness = createLifecycleRepositoryHarness();
+    const result = await submitAndExecuteAppointmentCommand(
+      managerUser,
+      {
+        commandType: "CHECK_IN",
+        appointmentId: "appointment-1",
+        expectedAppointmentVersion: 3,
+        idempotencyKey: "check-in-and-execute-1",
+        correlationId: "corr-check-in-1"
+      },
+      {
+        commandRepository: commandHarness.repository,
+        lifecycleRepository: lifecycleHarness.repository,
+        now
+      }
+    );
+
+    expect(result).toMatchObject({
+      accepted: true,
+      command: {
+        id: "cmd-1",
+        commandType: "CHECK_IN",
+        status: "SUCCEEDED"
+      },
+      execution: {
+        executed: true,
+        commandId: "cmd-1",
+        commandStatus: "SUCCEEDED",
+        appointment: {
+          id: "appointment-1",
+          version: 4
+        },
+        historyEventCount: 1
+      }
+    });
+    expect(lifecycleHarness.completedCommands).toEqual(["cmd-1"]);
+  });
+
   it("does not execute duplicate command submissions", async () => {
     const firstHarness = createCommandRepositoryHarness();
     const lifecycleHarness = createLifecycleRepositoryHarness();
