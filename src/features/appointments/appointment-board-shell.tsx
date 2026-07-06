@@ -47,6 +47,8 @@ type OperationalCommand = "CHECK_IN" | "NO_SHOW" | "SCHEDULE";
 
 type AppointmentBoardDataSource = "preview" | "live";
 
+type ResourceAuditAction = "warning-override" | "release" | "replace";
+
 type DraftAppointmentForm = {
   category: AppointmentCategory;
   title: string;
@@ -823,6 +825,14 @@ function addMinutesToIso(isoValue: string, minutes: number) {
   return new Date(new Date(isoValue).getTime() + minutes * 60_000).toISOString();
 }
 
+function resourceAuditKey(action: ResourceAuditAction, reservationId: string) {
+  return `${action}:${reservationId}`;
+}
+
+function buildResourceReasonNote(context: string, userReason: string) {
+  return `${context} Reason documented by user: ${userReason.trim()}`;
+}
+
 export function AppointmentBoardShell() {
   const [selectedId, setSelectedId] = useState(appointments[0].id);
   const [query, setQuery] = useState("");
@@ -866,6 +876,7 @@ export function AppointmentBoardShell() {
   const [resourceReplacementSavingReservationId, setResourceReplacementSavingReservationId] = useState<string | null>(null);
   const [resourceWarningOverrideSavingReservationId, setResourceWarningOverrideSavingReservationId] = useState<string | null>(null);
   const [overriddenResourceWarnings, setOverriddenResourceWarnings] = useState<Record<string, true>>({});
+  const [resourceActionReasonNotes, setResourceActionReasonNotes] = useState<Record<string, string>>({});
   const [selectedResourceCandidates, setSelectedResourceCandidates] = useState<Record<string, string>>({});
   const [detailRefreshKey, setDetailRefreshKey] = useState(0);
   const [actionNotice, setActionNotice] = useState("Operational command bridge ready. Persisted appointments can now use the live command API for check-in and no-show actions.");
@@ -902,6 +913,30 @@ export function AppointmentBoardShell() {
     } finally {
       setIsLiveLoading(false);
     }
+  }
+
+  function getResourceActionReason(action: ResourceAuditAction, reservationId: string) {
+    return resourceActionReasonNotes[resourceAuditKey(action, reservationId)]?.trim() ?? "";
+  }
+
+  function updateResourceActionReason(
+    action: ResourceAuditAction,
+    reservationId: string,
+    value: string
+  ) {
+    setResourceActionReasonNotes((current) => ({
+      ...current,
+      [resourceAuditKey(action, reservationId)]: value
+    }));
+  }
+
+  function clearResourceActionReason(action: ResourceAuditAction, reservationId: string) {
+    setResourceActionReasonNotes((current) => {
+      const next = { ...current };
+      delete next[resourceAuditKey(action, reservationId)];
+
+      return next;
+    });
   }
 
   useEffect(() => {
@@ -1485,6 +1520,16 @@ export function AppointmentBoardShell() {
       return;
     }
 
+    const userReason = getResourceActionReason(
+      "warning-override",
+      recommendation.selectedReservation.id
+    );
+
+    if (!userReason) {
+      setActionNotice("Add a manager reason before overriding this resource warning.");
+      return;
+    }
+
     setResourceWarningOverrideSavingReservationId(recommendation.selectedReservation.id);
 
     try {
@@ -1506,7 +1551,10 @@ export function AppointmentBoardShell() {
           body: JSON.stringify({
             expectedAppointmentVersion: selectedAppointment.recordVersion,
             reasonCode: "RESOURCE_WARNING_OVERRIDDEN",
-            reasonNotes: `Manager accepted warning for ${recommendation.selectedReservation.resourceName} on ${recommendation.label}: ${reasonText}`,
+            reasonNotes: buildResourceReasonNote(
+              `Manager accepted warning for ${recommendation.selectedReservation.resourceName} on ${recommendation.label}: ${reasonText}`,
+              userReason
+            ),
             correlationId
           })
         }
@@ -1534,6 +1582,7 @@ export function AppointmentBoardShell() {
       setActionNotice(
         `${result.warningOverride.resourceName} warning was overridden with a documented manager reason. You can now continue the resource planning workflow.`
       );
+      clearResourceActionReason("warning-override", recommendation.selectedReservation.id);
       setDetailRefreshKey((value) => value + 1);
       await loadLiveAppointments();
     } catch (error) {
@@ -1565,6 +1614,13 @@ export function AppointmentBoardShell() {
       return;
     }
 
+    const userReason = getResourceActionReason("release", recommendation.selectedReservation.id);
+
+    if (!userReason) {
+      setActionNotice("Add a release reason before releasing this resource reservation.");
+      return;
+    }
+
     setResourceReleaseSavingReservationId(recommendation.selectedReservation.id);
 
     try {
@@ -1582,7 +1638,10 @@ export function AppointmentBoardShell() {
           body: JSON.stringify({
             expectedAppointmentVersion: selectedAppointment.recordVersion,
             reasonCode: "RESOURCE_RESERVATION_RELEASED",
-            reasonNotes: `Released ${recommendation.selectedReservation.resourceName} from ${recommendation.label} in Appointment Board resource planning.`,
+            reasonNotes: buildResourceReasonNote(
+              `Released ${recommendation.selectedReservation.resourceName} from ${recommendation.label} in Appointment Board resource planning.`,
+              userReason
+            ),
             correlationId
           })
         }
@@ -1606,6 +1665,7 @@ export function AppointmentBoardShell() {
       setActionNotice(
         `${result.reservation.resourceName} was released from ${result.reservation.priorStatus.toLowerCase()} reservation status. Schedule readiness and resource planning are refreshing.`
       );
+      clearResourceActionReason("release", recommendation.selectedReservation.id);
       setDetailRefreshKey((value) => value + 1);
       await loadLiveAppointments();
     } catch (error) {
@@ -1653,6 +1713,13 @@ export function AppointmentBoardShell() {
       return;
     }
 
+    const userReason = getResourceActionReason("replace", recommendation.selectedReservation.id);
+
+    if (!userReason) {
+      setActionNotice("Add a replacement reason before replacing this held reservation.");
+      return;
+    }
+
     setResourceReplacementSavingReservationId(recommendation.selectedReservation.id);
 
     try {
@@ -1674,7 +1741,10 @@ export function AppointmentBoardShell() {
             resourceId: selectedResourceId,
             expectedAppointmentVersion: selectedAppointment.recordVersion,
             reasonCode: "RESOURCE_RESERVATION_REPLACED",
-            reasonNotes: `Replaced ${recommendation.selectedReservation.resourceName} with ${selectedCandidate?.name ?? "selected resource"} for ${recommendation.label} from Appointment Board resource planning.`,
+            reasonNotes: buildResourceReasonNote(
+              `Replaced ${recommendation.selectedReservation.resourceName} with ${selectedCandidate?.name ?? "selected resource"} for ${recommendation.label} from Appointment Board resource planning.`,
+              userReason
+            ),
             correlationId
           })
         }
@@ -1697,6 +1767,7 @@ export function AppointmentBoardShell() {
       setActionNotice(
         `${result.replacement.releasedResourceName} was released and ${result.replacement.resourceName} was proposed as the replacement. Review availability, then hold the new candidate.`
       );
+      clearResourceActionReason("replace", recommendation.selectedReservation.id);
       setDetailRefreshKey((value) => value + 1);
       await loadLiveAppointments();
     } catch (error) {
@@ -2148,6 +2219,34 @@ export function AppointmentBoardShell() {
                                     </span>
                                   )}
                                 </div>
+                                {recommendation.selectedReservation?.status === "PROPOSED" &&
+                                availability?.status === "WARNING" &&
+                                !warningAlreadyOverridden ? (
+                                  <label className="appointment-resource-reason-field">
+                                    Manager warning reason
+                                    <textarea
+                                      disabled={
+                                        resourceWarningOverrideSavingReservationId === recommendation.selectedReservation.id ||
+                                        selectedAppointment.status !== "draft" ||
+                                        selectedAppointment.dataSource !== "live" ||
+                                        !resourcePlanning.canManageResourcesForAppointment
+                                      }
+                                      onChange={(event) =>
+                                        updateResourceActionReason(
+                                          "warning-override",
+                                          recommendation.selectedReservation!.id,
+                                          event.target.value
+                                        )
+                                      }
+                                      placeholder="Explain why this warning is acceptable."
+                                      rows={2}
+                                      value={getResourceActionReason(
+                                        "warning-override",
+                                        recommendation.selectedReservation.id
+                                      )}
+                                    />
+                                  </label>
+                                ) : null}
                                 {recommendation.selectedReservation?.status === "PROPOSED" ? (
                                   <button
                                     className="appointment-resource-action appointment-resource-hold-action"
@@ -2177,7 +2276,11 @@ export function AppointmentBoardShell() {
                                       selectedAppointment.status !== "draft" ||
                                       selectedAppointment.dataSource !== "live" ||
                                       !resourcePlanning.canManageResourcesForAppointment ||
-                                      isCandidateAvailabilityLoading
+                                      isCandidateAvailabilityLoading ||
+                                      !getResourceActionReason(
+                                        "warning-override",
+                                        recommendation.selectedReservation.id
+                                      )
                                     }
                                     onClick={() => void overrideResourceWarning(recommendation, availability)}
                                     type="button"
@@ -2190,12 +2293,41 @@ export function AppointmentBoardShell() {
                                   </button>
                                 ) : null}
                                 {["HELD", "COMMITTED"].includes(recommendation.selectedReservation?.status ?? "") ? (
+                                  <label className="appointment-resource-reason-field">
+                                    Release reason
+                                    <textarea
+                                      disabled={
+                                        resourceReleaseSavingReservationId === recommendation.selectedReservation.id ||
+                                        selectedAppointment.dataSource !== "live" ||
+                                        !resourcePlanning.canManageResourcesForAppointment
+                                      }
+                                      onChange={(event) =>
+                                        updateResourceActionReason(
+                                          "release",
+                                          recommendation.selectedReservation!.id,
+                                          event.target.value
+                                        )
+                                      }
+                                      placeholder="Explain why this resource is being released."
+                                      rows={2}
+                                      value={getResourceActionReason(
+                                        "release",
+                                        recommendation.selectedReservation.id
+                                      )}
+                                    />
+                                  </label>
+                                ) : null}
+                                {["HELD", "COMMITTED"].includes(recommendation.selectedReservation?.status ?? "") ? (
                                   <button
                                     className="appointment-resource-action appointment-resource-release-action"
                                     disabled={
                                       resourceReleaseSavingReservationId === recommendation.selectedReservation.id ||
                                       selectedAppointment.dataSource !== "live" ||
-                                      !resourcePlanning.canManageResourcesForAppointment
+                                      !resourcePlanning.canManageResourcesForAppointment ||
+                                      !getResourceActionReason(
+                                        "release",
+                                        recommendation.selectedReservation.id
+                                      )
                                     }
                                     onClick={() => void releaseResourceReservation(recommendation)}
                                     type="button"
@@ -2204,6 +2336,32 @@ export function AppointmentBoardShell() {
                                       ? "Releasing..."
                                       : "Release Reservation"}
                                   </button>
+                                ) : null}
+                                {recommendation.selectedReservation?.status === "HELD" ? (
+                                  <label className="appointment-resource-reason-field">
+                                    Replacement reason
+                                    <textarea
+                                      disabled={
+                                        resourceReplacementSavingReservationId === recommendation.selectedReservation.id ||
+                                        selectedAppointment.status !== "draft" ||
+                                        selectedAppointment.dataSource !== "live" ||
+                                        !resourcePlanning.canManageResourcesForAppointment
+                                      }
+                                      onChange={(event) =>
+                                        updateResourceActionReason(
+                                          "replace",
+                                          recommendation.selectedReservation!.id,
+                                          event.target.value
+                                        )
+                                      }
+                                      placeholder="Explain why this held resource is being replaced."
+                                      rows={2}
+                                      value={getResourceActionReason(
+                                        "replace",
+                                        recommendation.selectedReservation.id
+                                      )}
+                                    />
+                                  </label>
                                 ) : null}
                                 {recommendation.selectedReservation?.status === "HELD" ? (
                                   <button
@@ -2215,7 +2373,11 @@ export function AppointmentBoardShell() {
                                       !resourcePlanning.canManageResourcesForAppointment ||
                                       recommendation.candidates.filter(
                                         (candidate) => candidate.id !== recommendation.selectedReservation?.resourceId
-                                      ).length === 0
+                                      ).length === 0 ||
+                                      !getResourceActionReason(
+                                        "replace",
+                                        recommendation.selectedReservation.id
+                                      )
                                     }
                                     onClick={() => void replaceResourceReservation(recommendation)}
                                     type="button"

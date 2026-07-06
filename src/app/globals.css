@@ -6270,6 +6270,35 @@ code {
   border-color: #e7e5e4;
 }
 
+.appointment-resource-reason-field {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 5px;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+}
+
+.appointment-resource-reason-field textarea {
+  width: 100%;
+  min-width: 0;
+  resize: vertical;
+  padding: 8px 10px;
+  color: #253449;
+  background: #fff;
+  border: 1px solid #dce3ed;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.appointment-resource-reason-field textarea:disabled {
+  color: #94a3b8;
+  background: #f8fafc;
+}
+
 .appointment-resource-candidate-form {
   display: grid;
   grid-column: 1 / -1;
