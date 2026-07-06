@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import {
+  attachRecommendedAppointmentResourceRequirement,
   previewAppointmentResourcePlanning,
   type AppointmentResourcePlanningAppointmentRecord,
   type AppointmentResourcePlanningLocationAccessRecord,
@@ -47,6 +48,7 @@ function resourceType(
 ): AppointmentResourcePlanningResourceTypeRecord {
   return {
     id: "resource-type-service-bay",
+    organizationId: "org-time-motor-sales",
     code: "SERVICE_BAY",
     name: "Service Bay",
     kind: "SERVICE_BAY",
@@ -84,6 +86,7 @@ function appointment(
     locationId: "loc-time-motor-sales-minneapolis",
     ownerUserId: managerUser.id,
     title: "Service / Repair",
+    version: 3,
     bookingStatus: "DRAFT",
     purposeSnapshot: {
       category: "service"
@@ -218,5 +221,173 @@ describe("appointment resource planning service", () => {
         now
       )
     ).rejects.toThrow("Appointment command is not authorized.");
+  });
+});
+
+describe("appointment recommended resource requirement attachment", () => {
+  function database(input?: {
+    appointment?: AppointmentResourcePlanningAppointmentRecord | null;
+    access?: AppointmentResourcePlanningLocationAccessRecord | null;
+    resourceType?: AppointmentResourcePlanningResourceTypeRecord | null;
+    existingRequirement?: {
+      id: string;
+      appointmentId: string;
+      resourceTypeId: string;
+      requirementCode: string;
+      requiredCapacity: number;
+      isMandatory: boolean;
+      assignmentTiming: string;
+      hardBlockIfUnfulfilled: boolean;
+    } | null;
+    updateCount?: number;
+  }) {
+    const createdRequirements: unknown[] = [];
+    const createdHistory: unknown[] = [];
+
+    return {
+      createdRequirements,
+      createdHistory,
+      database: {
+        appointment: {
+          async findUnique() {
+            return input?.appointment === undefined ? appointment() : input.appointment;
+          }
+        },
+        userLocationAccess: {
+          async findFirst() {
+            return input?.access === undefined ? access() : input.access;
+          }
+        },
+        schedulableResourceType: {
+          async findFirst() {
+            return input?.resourceType === undefined ? resourceType() : input.resourceType;
+          }
+        },
+        schedulableResource: {
+          async findMany() {
+            return [];
+          }
+        },
+        async $transaction(operation: (tx: unknown) => Promise<unknown>) {
+          return operation({
+            appointmentResourceRequirement: {
+              async findUnique() {
+                return input?.existingRequirement ?? null;
+              },
+              async create(createInput: { data: unknown }) {
+                createdRequirements.push(createInput.data);
+
+                return {
+                  id: "requirement-created",
+                  appointmentId: "appointment-1",
+                  resourceTypeId: "resource-type-service-bay",
+                  requirementCode: "SERVICE_BAY",
+                  requiredCapacity: 1,
+                  isMandatory: true,
+                  assignmentTiming: "AT_BOOKING",
+                  hardBlockIfUnfulfilled: true
+                };
+              }
+            },
+            appointment: {
+              async updateMany() {
+                return {
+                  count: input?.updateCount ?? 1
+                };
+              }
+            },
+            appointmentHistoryEvent: {
+              async create(createInput: { data: unknown }) {
+                createdHistory.push(createInput.data);
+              }
+            }
+          });
+        }
+      }
+    };
+  }
+
+  it("creates a recommended resource requirement with a version guard and history", async () => {
+    const harness = database();
+
+    const result = await attachRecommendedAppointmentResourceRequirement(
+      managerUser,
+      "appointment-1",
+      {
+        requirementCode: "SERVICE_BAY",
+        expectedAppointmentVersion: 3,
+        reasonCode: "RESOURCE_REQUIREMENT_ADDED",
+        reasonNotes: "Attach service bay before scheduling.",
+        correlationId: "correlation-1"
+      },
+      harness.database,
+      now
+    );
+
+    expect(result).toMatchObject({
+      id: "requirement-created",
+      requirementCode: "SERVICE_BAY",
+      created: true,
+      appointmentVersion: 4
+    });
+    expect(harness.createdRequirements).toHaveLength(1);
+    expect(harness.createdHistory).toHaveLength(1);
+  });
+
+  it("returns an existing requirement without creating a duplicate", async () => {
+    const harness = database({
+      existingRequirement: {
+        id: "requirement-existing",
+        appointmentId: "appointment-1",
+        resourceTypeId: "resource-type-service-bay",
+        requirementCode: "SERVICE_BAY",
+        requiredCapacity: 1,
+        isMandatory: true,
+        assignmentTiming: "AT_BOOKING",
+        hardBlockIfUnfulfilled: true
+      }
+    });
+
+    const result = await attachRecommendedAppointmentResourceRequirement(
+      managerUser,
+      "appointment-1",
+      {
+        requirementCode: "SERVICE_BAY",
+        expectedAppointmentVersion: 3,
+        reasonCode: "RESOURCE_REQUIREMENT_ADDED",
+        reasonNotes: "Attach service bay before scheduling."
+      },
+      harness.database,
+      now
+    );
+
+    expect(result).toMatchObject({
+      id: "requirement-existing",
+      created: false,
+      appointmentVersion: 3
+    });
+    expect(harness.createdRequirements).toHaveLength(0);
+    expect(harness.createdHistory).toHaveLength(0);
+  });
+
+  it("rejects stale appointment versions", async () => {
+    const harness = database({
+      updateCount: 0
+    });
+
+    await expect(
+      attachRecommendedAppointmentResourceRequirement(
+        managerUser,
+        "appointment-1",
+        {
+          requirementCode: "SERVICE_BAY",
+          expectedAppointmentVersion: 2,
+          reasonCode: "RESOURCE_REQUIREMENT_ADDED",
+          reasonNotes: "Attach service bay before scheduling."
+        },
+        harness.database,
+        now
+      )
+    ).rejects.toThrow("Appointment version is stale.");
   });
 });

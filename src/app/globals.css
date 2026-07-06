@@ -6238,6 +6238,26 @@ code {
   font-weight: 800;
 }
 
+.appointment-resource-action {
+  justify-self: start;
+  grid-column: 1 / -1;
+  padding: 7px 10px;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.appointment-resource-action:disabled {
+  color: #94a3b8;
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  cursor: not-allowed;
+}
+
 .appointment-resource-copy {
   margin: 0;
   color: #64748b;

@@ -183,7 +183,7 @@ type AppointmentResourcePlanning = {
     requiredCapacity: number;
     isMandatory: boolean;
     hardBlockIfUnfulfilled: boolean;
-    assignmentTiming: "AT_BOOKING" | "BEFORE_START" | "ANYTIME_BEFORE_COMPLETION";
+    assignmentTiming: "AT_BOOKING" | "BEFORE_START" | "OPTIONAL";
     rationale: string;
     resourceTypeId: string | null;
     resourceTypeName: string | null;
@@ -714,6 +714,15 @@ function createDraftCommandIdentifier() {
   return `appointment-create-draft-${randomSuffix}`;
 }
 
+function createAppointmentActionIdentifier(action: string, appointmentId: string) {
+  const randomSuffix =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+  return `appointment-${action.toLowerCase()}-${appointmentId}-${randomSuffix}`;
+}
+
 function createAppointmentNumber() {
   return `APT-${Date.now().toString().slice(-8)}`;
 }
@@ -816,6 +825,8 @@ export function AppointmentBoardShell() {
   const [isReadinessLoading, setIsReadinessLoading] = useState(false);
   const [resourcePlanning, setResourcePlanning] = useState<AppointmentResourcePlanning | null>(null);
   const [isResourcePlanningLoading, setIsResourcePlanningLoading] = useState(false);
+  const [resourceRequirementSavingCode, setResourceRequirementSavingCode] = useState<string | null>(null);
+  const [detailRefreshKey, setDetailRefreshKey] = useState(0);
   const [actionNotice, setActionNotice] = useState("Operational command bridge ready. Persisted appointments can now use the live command API for check-in and no-show actions.");
 
   async function loadLiveAppointments() {
@@ -969,7 +980,7 @@ export function AppointmentBoardShell() {
     return () => {
       isActive = false;
     };
-  }, [selectedAppointment.recordId, selectedAppointment.status]);
+  }, [detailRefreshKey, selectedAppointment.recordId, selectedAppointment.status]);
 
   useEffect(() => {
     let isActive = true;
@@ -1023,7 +1034,7 @@ export function AppointmentBoardShell() {
     return () => {
       isActive = false;
     };
-  }, [selectedAppointment.recordId, selectedAppointment.status]);
+  }, [detailRefreshKey, selectedAppointment.recordId, selectedAppointment.status]);
 
   const metrics = [
     { label: "Total Appointments", value: boardAppointments.length, status: "all" as const, tone: "slate" },
@@ -1113,6 +1124,80 @@ export function AppointmentBoardShell() {
       );
     } finally {
       setIsDraftSaving(false);
+    }
+  }
+
+  async function attachResourceRequirement(
+    recommendation: AppointmentResourcePlanning["recommendations"][number]
+  ) {
+    if (!selectedAppointment.recordId || !selectedAppointment.recordVersion) {
+      setActionNotice("Resource requirements can only be attached to persisted live draft appointments.");
+      return;
+    }
+
+    if (!recommendation.resourceTypeId) {
+      setActionNotice(`${recommendation.resourceTypeCode} must be configured before this requirement can be attached.`);
+      return;
+    }
+
+    if (recommendation.selectedRequirementId) {
+      setActionNotice(`${recommendation.label} is already attached to this appointment.`);
+      return;
+    }
+
+    setResourceRequirementSavingCode(recommendation.requirementCode);
+
+    try {
+      const correlationId = createAppointmentActionIdentifier(
+        "resource-requirement",
+        selectedAppointment.recordId
+      );
+      const response = await fetch(
+        `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/resource-requirements`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            requirementCode: recommendation.requirementCode,
+            expectedAppointmentVersion: selectedAppointment.recordVersion,
+            reasonCode: "RESOURCE_REQUIREMENT_ADDED",
+            reasonNotes: `Attached recommended ${recommendation.label} requirement from Appointment Board resource planning.`,
+            correlationId
+          })
+        }
+      );
+      const result = (await response.json().catch(() => null)) as
+        | {
+            requirement?: {
+              requirementCode: string;
+              created: boolean;
+              appointmentVersion: number;
+            };
+            error?: string;
+          }
+        | null;
+
+      if (!response.ok || !result?.requirement) {
+        throw new Error(result?.error || "Unable to attach the resource requirement.");
+      }
+
+      setActionNotice(
+        result.requirement.created
+          ? `${recommendation.label} requirement was attached. Schedule readiness and resource planning are refreshing.`
+          : `${recommendation.label} requirement was already attached. Schedule readiness and resource planning are refreshing.`
+      );
+      setDetailRefreshKey((value) => value + 1);
+      await loadLiveAppointments();
+    } catch (error) {
+      setActionNotice(
+        error instanceof Error
+          ? error.message
+          : "Unable to attach the resource requirement right now."
+      );
+    } finally {
+      setResourceRequirementSavingCode(null);
     }
   }
 
@@ -1485,6 +1570,23 @@ export function AppointmentBoardShell() {
                           ? `${recommendation.selectedReservationCount} reservation${recommendation.selectedReservationCount === 1 ? "" : "s"} attached`
                           : `${recommendation.activeCandidateCount} active candidate${recommendation.activeCandidateCount === 1 ? "" : "s"}`}
                       </em>
+                      {!recommendation.selectedRequirementId ? (
+                        <button
+                          className="appointment-resource-action"
+                          disabled={
+                            resourceRequirementSavingCode === recommendation.requirementCode ||
+                            selectedAppointment.dataSource !== "live" ||
+                            !recommendation.resourceTypeId ||
+                            !resourcePlanning.canManageResourcesForAppointment
+                          }
+                          onClick={() => void attachResourceRequirement(recommendation)}
+                          type="button"
+                        >
+                          {resourceRequirementSavingCode === recommendation.requirementCode
+                            ? "Attaching..."
+                            : "Attach Requirement"}
+                        </button>
+                      ) : null}
                     </div>
                   ))}
                 </div>

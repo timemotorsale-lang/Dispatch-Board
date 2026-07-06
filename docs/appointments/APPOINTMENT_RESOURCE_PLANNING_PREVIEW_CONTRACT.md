@@ -8,7 +8,7 @@
 
 This contract defines the first visible resource-planning layer in the Appointment Board detail rail.
 
-The board now asks the server what resource requirements are recommended for a persisted draft appointment and whether matching active resources are configured at the appointment location. This is a read-only planning slice. It does not yet create a requirement, reserve a resource, or schedule against resource capacity.
+The board now asks the server what resource requirements are recommended for a persisted draft appointment and whether matching active resources are configured at the appointment location. This started as a read-only planning slice. EAPT-029E now adds the first write action for attaching a recommended requirement. Resource candidate selection and reservation commitment remain pending.
 
 ## User Flow
 
@@ -78,9 +78,13 @@ Successful response:
 
 ## Not Yet Claimed
 
+Partially addressed after this slice:
+
+- EAPT-029E lets the UI attach a server-recommended appointment resource requirement.
+
 Still pending:
 
-- create/update appointment resource requirements from the UI
+- broader create/update/remove appointment resource requirement administration
 - active resource candidate selection
 - live resource availability evaluation for the selected time window
 - reservation hold/commit/release UI

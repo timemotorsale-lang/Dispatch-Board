@@ -7,6 +7,8 @@ import {
   canViewAppointmentSchedule,
   type AppointmentLocationAccessGrant
 } from "@/server/policies/access";
+import { normalizeAppointmentHistoryEvent } from "@/server/validation/appointment-history-events";
+import { normalizeAppointmentResourceRequirement } from "@/server/validation/appointment-resources";
 
 const appointmentResourcePlanningSelect = {
   id: true,
@@ -15,6 +17,7 @@ const appointmentResourcePlanningSelect = {
   locationId: true,
   ownerUserId: true,
   title: true,
+  version: true,
   bookingStatus: true,
   purposeSnapshot: true,
   resourceRequirements: {
@@ -59,6 +62,7 @@ const locationAccessSelect = {
 
 const resourceTypeSelect = {
   id: true,
+  organizationId: true,
   code: true,
   name: true,
   kind: true,
@@ -81,7 +85,11 @@ const resourceSelect = {
 
 type AppointmentResourcePlanningDatabase = Pick<
   PrismaClient,
-  "appointment" | "userLocationAccess" | "schedulableResourceType" | "schedulableResource"
+  | "$transaction"
+  | "appointment"
+  | "userLocationAccess"
+  | "schedulableResourceType"
+  | "schedulableResource"
 >;
 
 export type AppointmentResourcePlanningAppointmentRecord = Prisma.AppointmentGetPayload<{
@@ -120,14 +128,14 @@ export type AppointmentResourcePlanningRepository = {
   }): Promise<AppointmentResourcePlanningResourceRecord[]>;
 };
 
-type RecommendedRequirement = {
+export type RecommendedRequirement = {
   requirementCode: string;
   label: string;
   resourceTypeCode: string;
   requiredCapacity: number;
   isMandatory: boolean;
   hardBlockIfUnfulfilled: boolean;
-  assignmentTiming: "AT_BOOKING" | "BEFORE_START" | "ANYTIME_BEFORE_COMPLETION";
+  assignmentTiming: "AT_BOOKING" | "BEFORE_START" | "OPTIONAL";
   rationale: string;
 };
 
@@ -164,6 +172,27 @@ export type AppointmentResourcePlanningResult = {
       message: string;
     }
   >;
+};
+
+export type AppointmentAttachedResourceRequirement = {
+  id: string;
+  appointmentId: string;
+  resourceTypeId: string;
+  requirementCode: string;
+  requiredCapacity: number;
+  isMandatory: boolean;
+  assignmentTiming: string;
+  hardBlockIfUnfulfilled: boolean;
+  created: boolean;
+  appointmentVersion: number;
+};
+
+export type AttachRecommendedResourceRequirementInput = {
+  requirementCode: string;
+  expectedAppointmentVersion: number;
+  reasonCode: string;
+  reasonNotes: string;
+  correlationId?: string | null;
 };
 
 const CATEGORY_REQUIREMENTS: Record<string, RecommendedRequirement[]> = {
@@ -259,7 +288,7 @@ const CATEGORY_REQUIREMENTS: Record<string, RecommendedRequirement[]> = {
       requiredCapacity: 1,
       isMandatory: false,
       hardBlockIfUnfulfilled: false,
-      assignmentTiming: "BEFORE_START",
+      assignmentTiming: "OPTIONAL",
       rationale: "Marketing appointments may need photo or listing equipment depending on the job."
     }
   ],
@@ -360,6 +389,66 @@ function inferCategory(appointment: AppointmentResourcePlanningAppointmentRecord
   }
 
   return "general";
+}
+
+function requiredText(value: string | null | undefined, label: string) {
+  const normalized = value?.trim();
+
+  if (!normalized) {
+    throw new Error(`${label} is required.`);
+  }
+
+  return normalized;
+}
+
+function requiredVersion(value: number | null | undefined): number {
+  if (value === null || value === undefined || !Number.isInteger(value) || value < 1) {
+    throw new Error("Expected appointment version is required.");
+  }
+
+  return value;
+}
+
+function asInputJson(value: unknown) {
+  return value as Prisma.InputJsonValue;
+}
+
+function nullableInputJson(value: unknown) {
+  return value === null || value === undefined ? Prisma.JsonNull : asInputJson(value);
+}
+
+function getRecommendedRequirementForAppointment(
+  appointment: AppointmentResourcePlanningAppointmentRecord,
+  requirementCode: string
+) {
+  const category = inferCategory(appointment);
+
+  return (
+    CATEGORY_REQUIREMENTS[category]?.find(
+      (requirement) => requirement.requirementCode === requirementCode
+    ) ?? null
+  );
+}
+
+function toAttachedRequirement(input: {
+  requirement: {
+    id: string;
+    appointmentId: string;
+    resourceTypeId: string;
+    requirementCode: string;
+    requiredCapacity: number;
+    isMandatory: boolean;
+    assignmentTiming: string;
+    hardBlockIfUnfulfilled: boolean;
+  };
+  created: boolean;
+  appointmentVersion: number;
+}): AppointmentAttachedResourceRequirement {
+  return {
+    ...input.requirement,
+    created: input.created,
+    appointmentVersion: input.appointmentVersion
+  };
 }
 
 function summarizeStatus(
@@ -592,5 +681,241 @@ export async function previewAppointmentResourcePlanning(
     resourceTypes,
     resources,
     canManageResourcesForAppointment
+  });
+}
+
+export async function attachRecommendedAppointmentResourceRequirement(
+  user: AuthenticatedUser | null,
+  appointmentId: string,
+  input: AttachRecommendedResourceRequirementInput,
+  database: AppointmentResourcePlanningDatabase = prisma,
+  now = new Date()
+): Promise<AppointmentAttachedResourceRequirement> {
+  const actor = assertAuthenticated(user);
+  const normalizedAppointmentId = requiredText(appointmentId, "Appointment id");
+  const requirementCode = requiredText(input.requirementCode, "Resource requirement code");
+  const expectedAppointmentVersion = requiredVersion(input.expectedAppointmentVersion);
+  const reasonCode = requiredText(input.reasonCode, "Resource requirement reason code");
+  const reasonNotes = requiredText(input.reasonNotes, "Resource requirement reason notes");
+  const correlationId =
+    input.correlationId?.trim() ||
+    `resource-requirement-${normalizedAppointmentId}-${requirementCode}-${now.getTime()}`;
+
+  const appointment = await database.appointment.findUnique({
+    where: {
+      id: normalizedAppointmentId
+    },
+    select: appointmentResourcePlanningSelect
+  });
+
+  if (!appointment) {
+    throw new Error("Appointment not found.");
+  }
+
+  if (appointment.bookingStatus !== "DRAFT" && appointment.bookingStatus !== "PENDING_APPROVAL") {
+    throw new Error("Resource requirements can only be attached to draft appointments.");
+  }
+
+  const access = await database.userLocationAccess.findFirst({
+    where: {
+      userId: actor.id,
+      locationId: appointment.locationId,
+      validFrom: {
+        lte: now
+      },
+      OR: [
+        {
+          validTo: null
+        },
+        {
+          validTo: {
+            gte: now
+          }
+        }
+      ]
+    },
+    select: locationAccessSelect
+  });
+
+  if (!access || !isDateWithinAccessWindow(access, now)) {
+    throw new Error("Appointment schedule is not authorized.");
+  }
+
+  const locationAccess = toLocationAccessGrant(access);
+
+  if (!canViewAppointmentSchedule({ actor, locationAccess })) {
+    throw new Error("Appointment schedule is not authorized.");
+  }
+
+  if (
+    !canMutateAppointment({
+      actor,
+      ownerUserId: appointment.ownerUserId,
+      locationAccess
+    })
+  ) {
+    throw new Error("Appointment command is not authorized.");
+  }
+
+  const recommendedRequirement = getRecommendedRequirementForAppointment(
+    appointment,
+    requirementCode
+  );
+
+  if (!recommendedRequirement) {
+    throw new Error("Resource requirement recommendation is not available for this appointment.");
+  }
+
+  const resourceType = await database.schedulableResourceType.findFirst({
+    where: {
+      organizationId: appointment.organizationId,
+      code: recommendedRequirement.resourceTypeCode,
+      isActive: true
+    },
+    select: resourceTypeSelect
+  });
+
+  if (!resourceType) {
+    throw new Error("Resource requirement type is not configured.");
+  }
+
+  const normalizedRequirement = normalizeAppointmentResourceRequirement({
+    appointmentId: appointment.id,
+    appointmentOrganizationId: appointment.organizationId,
+    resourceTypeId: resourceType.id,
+    resourceTypeOrganizationId: resourceType.organizationId,
+    requirementCode: recommendedRequirement.requirementCode,
+    requiredCapacity: recommendedRequirement.requiredCapacity,
+    isMandatory: recommendedRequirement.isMandatory,
+    assignmentTiming: recommendedRequirement.assignmentTiming,
+    hardBlockIfUnfulfilled: recommendedRequirement.hardBlockIfUnfulfilled,
+    characteristics: {
+      label: recommendedRequirement.label,
+      rationale: recommendedRequirement.rationale,
+      source: "APPOINTMENT_BOARD_RESOURCE_PLANNING"
+    }
+  });
+
+  const historyEvent = normalizeAppointmentHistoryEvent({
+    appointmentId: appointment.id,
+    actorType: "HUMAN",
+    actorUserId: actor.id,
+    eventType: "FIELD_UPDATED",
+    message: `Resource requirement ${normalizedRequirement.requirementCode} was attached.`,
+    reasonCode,
+    reasonNotes,
+    correlationId,
+    priorValue: {
+      resourceRequirements: appointment.resourceRequirements.map((requirement) => ({
+        id: requirement.id,
+        requirementCode: requirement.requirementCode,
+        resourceTypeCode: requirement.resourceType.code
+      }))
+    },
+    newValue: {
+      resourceRequirement: {
+        requirementCode: normalizedRequirement.requirementCode,
+        resourceTypeCode: recommendedRequirement.resourceTypeCode,
+        requiredCapacity: normalizedRequirement.requiredCapacity,
+        isMandatory: normalizedRequirement.isMandatory,
+        hardBlockIfUnfulfilled: normalizedRequirement.hardBlockIfUnfulfilled
+      }
+    },
+    metadata: {
+      source: "APPOINTMENT_BOARD_RESOURCE_PLANNING",
+      expectedAppointmentVersion
+    },
+    occurredAt: now
+  });
+
+  return database.$transaction(async (tx) => {
+    const existingRequirement = await tx.appointmentResourceRequirement.findUnique({
+      where: {
+        appointmentId_requirementCode: {
+          appointmentId: appointment.id,
+          requirementCode: normalizedRequirement.requirementCode
+        }
+      },
+      select: {
+        id: true,
+        appointmentId: true,
+        resourceTypeId: true,
+        requirementCode: true,
+        requiredCapacity: true,
+        isMandatory: true,
+        assignmentTiming: true,
+        hardBlockIfUnfulfilled: true
+      }
+    });
+
+    if (existingRequirement) {
+      return toAttachedRequirement({
+        requirement: existingRequirement,
+        created: false,
+        appointmentVersion: appointment.version
+      });
+    }
+
+    const appointmentUpdate = await tx.appointment.updateMany({
+      where: {
+        id: appointment.id,
+        version: expectedAppointmentVersion
+      },
+      data: {
+        version: {
+          increment: 1
+        }
+      }
+    });
+
+    if (appointmentUpdate.count !== 1) {
+      throw new Error("Appointment version is stale.");
+    }
+
+    const createdRequirement = await tx.appointmentResourceRequirement.create({
+      data: {
+        appointmentId: normalizedRequirement.appointmentId,
+        resourceTypeId: normalizedRequirement.resourceTypeId,
+        requirementCode: normalizedRequirement.requirementCode,
+        requiredCapacity: normalizedRequirement.requiredCapacity,
+        isMandatory: normalizedRequirement.isMandatory,
+        assignmentTiming: normalizedRequirement.assignmentTiming,
+        hardBlockIfUnfulfilled: normalizedRequirement.hardBlockIfUnfulfilled,
+        characteristics: nullableInputJson(normalizedRequirement.characteristics)
+      },
+      select: {
+        id: true,
+        appointmentId: true,
+        resourceTypeId: true,
+        requirementCode: true,
+        requiredCapacity: true,
+        isMandatory: true,
+        assignmentTiming: true,
+        hardBlockIfUnfulfilled: true
+      }
+    });
+
+    await tx.appointmentHistoryEvent.create({
+      data: {
+        appointmentId: historyEvent.appointmentId,
+        actorType: historyEvent.actorType,
+        actorUserId: historyEvent.actorUserId,
+        eventType: historyEvent.eventType,
+        message: historyEvent.message,
+        reasonCode: historyEvent.reasonCode,
+        reasonNotes: historyEvent.reasonNotes,
+        correlationId: historyEvent.correlationId,
+        priorValue: nullableInputJson(historyEvent.priorValue),
+        newValue: nullableInputJson(historyEvent.newValue),
+        metadata: asInputJson(historyEvent.metadata),
+        occurredAt: historyEvent.occurredAt ?? now
+      }
+    });
+
+    return toAttachedRequirement({
+      requirement: createdRequirement,
+      created: true,
+      appointmentVersion: expectedAppointmentVersion + 1
+    });
   });
 }
