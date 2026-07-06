@@ -5,6 +5,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { locationLocalDateMinuteToInstant } from "@/server/appointments/location-time-service";
 import {
   holdAppointmentResourceCandidate,
+  overrideAppointmentResourceWarning,
   previewAppointmentResourceCandidateAvailability,
   releaseAppointmentResourceReservation,
   type AppointmentResourceCandidateAvailabilityAppointmentRecord,
@@ -114,6 +115,42 @@ function appointment(
       }
     ],
     ...overrides
+  };
+}
+
+function warningAppointment(): AppointmentResourceCandidateAvailabilityAppointmentRecord {
+  const baseAppointment = appointment();
+  const baseRequirement = baseAppointment.resourceRequirements[0];
+  const baseReservation = baseRequirement.reservations[0];
+
+  return {
+    ...baseAppointment,
+    resourceRequirements: [
+      {
+        ...baseRequirement,
+        reservations: [
+          {
+            ...baseReservation,
+            resource: {
+              ...baseReservation.resource,
+              conflictPolicy: "WARNING",
+              reservations: [
+                {
+                  id: "reservation-committed",
+                  appointmentId: "appointment-2",
+                  status: "COMMITTED",
+                  startsAt: baseReservation.startsAt,
+                  endsAt: baseReservation.endsAt,
+                  capacityUnits: 1,
+                  bufferBeforeMinutes: 0,
+                  bufferAfterMinutes: 0
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
   };
 }
 
@@ -555,6 +592,187 @@ describe("appointment resource reservation release service", () => {
     ).rejects.toThrow("Appointment version is stale.");
 
     expect(harness.updatedReservations).toHaveLength(0);
+    expect(harness.createdHistory).toHaveLength(0);
+  });
+});
+
+describe("appointment resource warning override service", () => {
+  function database(input?: {
+    appointment?: AppointmentResourceCandidateAvailabilityAppointmentRecord | null;
+    access?: AppointmentResourceCandidateAvailabilityLocationAccessRecord | null;
+    appointmentUpdateCount?: number;
+  }) {
+    const createdHistory: Array<{ eventType?: string; priorValue?: unknown; newValue?: unknown }> = [];
+
+    return {
+      createdHistory,
+      database: {
+        appointment: {
+          async findUnique() {
+            return input?.appointment === undefined ? warningAppointment() : input.appointment;
+          }
+        },
+        userLocationAccess: {
+          async findFirst() {
+            return input?.access === undefined ? access() : input.access;
+          }
+        },
+        async $transaction(operation: (tx: unknown) => Promise<unknown>) {
+          return operation({
+            appointment: {
+              async updateMany() {
+                return {
+                  count: input?.appointmentUpdateCount ?? 1
+                };
+              }
+            },
+            appointmentHistoryEvent: {
+              async create(createInput: { data: { eventType?: string; priorValue?: unknown; newValue?: unknown } }) {
+                createdHistory.push(createInput.data);
+              }
+            }
+          });
+        }
+      }
+    };
+  }
+
+  it("records a manager override for a warning-level resource candidate", async () => {
+    const harness = database();
+
+    const result = await overrideAppointmentResourceWarning(
+      managerUser,
+      "appointment-1",
+      {
+        reservationId: "reservation-proposed",
+        expectedAppointmentVersion: 3,
+        reasonCode: "RESOURCE_WARNING_OVERRIDDEN",
+        reasonNotes: "Manager accepts the warning because the customer will wait.",
+        correlationId: "correlation-warning-1"
+      },
+      harness.database,
+      now
+    );
+
+    expect(result).toMatchObject({
+      appointmentId: "appointment-1",
+      reservationId: "reservation-proposed",
+      resourceName: "Service Bay 1",
+      status: "OVERRIDDEN",
+      warningCode: "RESOURCE_WARNING",
+      appointmentVersion: 4,
+      reasons: expect.arrayContaining([
+        "Resource capacity is already reserved during the candidate window.",
+        "Resource does not have enough available capacity."
+      ])
+    });
+    expect(harness.createdHistory).toHaveLength(1);
+    expect(harness.createdHistory[0]).toMatchObject({
+      eventType: "WARNING_OVERRIDDEN",
+      newValue: {
+        status: "OVERRIDDEN"
+      }
+    });
+  });
+
+  it("does not override hard-blocked resource candidates", async () => {
+    const baseAppointment = appointment();
+    const baseRequirement = baseAppointment.resourceRequirements[0];
+    const baseReservation = baseRequirement.reservations[0];
+    const harness = database({
+      appointment: {
+        ...baseAppointment,
+        resourceRequirements: [
+          {
+            ...baseRequirement,
+            reservations: [
+              {
+                ...baseReservation,
+                resource: {
+                  ...baseReservation.resource,
+                  reservations: [
+                    {
+                      id: "reservation-committed",
+                      appointmentId: "appointment-2",
+                      status: "COMMITTED",
+                      startsAt: baseReservation.startsAt,
+                      endsAt: baseReservation.endsAt,
+                      capacityUnits: 1,
+                      bufferBeforeMinutes: 0,
+                      bufferAfterMinutes: 0
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    });
+
+    await expect(
+      overrideAppointmentResourceWarning(
+        managerUser,
+        "appointment-1",
+        {
+          reservationId: "reservation-proposed",
+          expectedAppointmentVersion: 3,
+          reasonCode: "RESOURCE_WARNING_OVERRIDDEN",
+          reasonNotes: "Attempt to override hard block."
+        },
+        harness.database,
+        now
+      )
+    ).rejects.toThrow("Resource hard blocks cannot be overridden.");
+
+    expect(harness.createdHistory).toHaveLength(0);
+  });
+
+  it("rejects non-manager warning overrides", async () => {
+    const harness = database({
+      access: access({
+        canManageAppointments: false
+      })
+    });
+
+    await expect(
+      overrideAppointmentResourceWarning(
+        managerUser,
+        "appointment-1",
+        {
+          reservationId: "reservation-proposed",
+          expectedAppointmentVersion: 3,
+          reasonCode: "RESOURCE_WARNING_OVERRIDDEN",
+          reasonNotes: "Owner accepts warning without manager rights."
+        },
+        harness.database,
+        now
+      )
+    ).rejects.toThrow("Only an authorized manager can override appointment warnings.");
+
+    expect(harness.createdHistory).toHaveLength(0);
+  });
+
+  it("rejects stale appointment versions before writing override history", async () => {
+    const harness = database({
+      appointmentUpdateCount: 0
+    });
+
+    await expect(
+      overrideAppointmentResourceWarning(
+        managerUser,
+        "appointment-1",
+        {
+          reservationId: "reservation-proposed",
+          expectedAppointmentVersion: 2,
+          reasonCode: "RESOURCE_WARNING_OVERRIDDEN",
+          reasonNotes: "Stale manager override attempt."
+        },
+        harness.database,
+        now
+      )
+    ).rejects.toThrow("Appointment version is stale.");
+
     expect(harness.createdHistory).toHaveLength(0);
   });
 });

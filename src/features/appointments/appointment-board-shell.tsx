@@ -861,6 +861,8 @@ export function AppointmentBoardShell() {
   const [resourceHoldSavingReservationId, setResourceHoldSavingReservationId] = useState<string | null>(null);
   const [resourceReleaseSavingReservationId, setResourceReleaseSavingReservationId] = useState<string | null>(null);
   const [resourceReplacementSavingReservationId, setResourceReplacementSavingReservationId] = useState<string | null>(null);
+  const [resourceWarningOverrideSavingReservationId, setResourceWarningOverrideSavingReservationId] = useState<string | null>(null);
+  const [overriddenResourceWarnings, setOverriddenResourceWarnings] = useState<Record<string, true>>({});
   const [selectedResourceCandidates, setSelectedResourceCandidates] = useState<Record<string, string>>({});
   const [detailRefreshKey, setDetailRefreshKey] = useState(0);
   const [actionNotice, setActionNotice] = useState("Operational command bridge ready. Persisted appointments can now use the live command API for check-in and no-show actions.");
@@ -1451,6 +1453,92 @@ export function AppointmentBoardShell() {
       );
     } finally {
       setResourceHoldSavingReservationId(null);
+    }
+  }
+
+  async function overrideResourceWarning(
+    recommendation: AppointmentResourcePlanning["recommendations"][number],
+    availability: AppointmentResourceCandidateAvailability["proposals"][number] | undefined
+  ) {
+    if (!selectedAppointment.recordId || !selectedAppointment.recordVersion) {
+      setActionNotice("Resource warnings can only be overridden for persisted live draft appointments.");
+      return;
+    }
+
+    if (selectedAppointment.status !== "draft") {
+      setActionNotice("Resource warning overrides are currently available before scheduling.");
+      return;
+    }
+
+    if (!recommendation.selectedReservation || recommendation.selectedReservation.status !== "PROPOSED") {
+      setActionNotice(`Propose a ${recommendation.label} candidate before overriding a warning.`);
+      return;
+    }
+
+    if (availability?.status !== "WARNING") {
+      setActionNotice("Only warning-level resource conflicts can be overridden. Hard blocks still require a different resource or time.");
+      return;
+    }
+
+    setResourceWarningOverrideSavingReservationId(recommendation.selectedReservation.id);
+
+    try {
+      const correlationId = createAppointmentActionIdentifier(
+        "resource-warning-override",
+        selectedAppointment.recordId
+      );
+      const reasonText =
+        availability.reasons.length > 0
+          ? availability.reasons.join(" ")
+          : "Manager accepted resource warning policy.";
+      const response = await fetch(
+        `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/resource-reservations/${encodeURIComponent(recommendation.selectedReservation.id)}/warning-override`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            expectedAppointmentVersion: selectedAppointment.recordVersion,
+            reasonCode: "RESOURCE_WARNING_OVERRIDDEN",
+            reasonNotes: `Manager accepted warning for ${recommendation.selectedReservation.resourceName} on ${recommendation.label}: ${reasonText}`,
+            correlationId
+          })
+        }
+      );
+      const result = (await response.json().catch(() => null)) as
+        | {
+            warningOverride?: {
+              reservationId: string;
+              resourceName: string;
+              appointmentVersion: number;
+              reasons: string[];
+            };
+            error?: string;
+          }
+        | null;
+
+      if (!response.ok || !result?.warningOverride) {
+        throw new Error(result?.error || "Unable to override the resource warning.");
+      }
+
+      setOverriddenResourceWarnings((current) => ({
+        ...current,
+        [result.warningOverride!.reservationId]: true
+      }));
+      setActionNotice(
+        `${result.warningOverride.resourceName} warning was overridden with a documented manager reason. You can now continue the resource planning workflow.`
+      );
+      setDetailRefreshKey((value) => value + 1);
+      await loadLiveAppointments();
+    } catch (error) {
+      setActionNotice(
+        error instanceof Error
+          ? error.message
+          : "Unable to override the resource warning right now."
+      );
+    } finally {
+      setResourceWarningOverrideSavingReservationId(null);
     }
   }
 
@@ -2063,6 +2151,28 @@ export function AppointmentBoardShell() {
                                     {resourceHoldSavingReservationId === recommendation.selectedReservation.id
                                       ? "Holding..."
                                       : "Hold Candidate"}
+                                  </button>
+                                ) : null}
+                                {recommendation.selectedReservation?.status === "PROPOSED" &&
+                                availability?.status === "WARNING" ? (
+                                  <button
+                                    className="appointment-resource-action appointment-resource-warning-action"
+                                    disabled={
+                                      resourceWarningOverrideSavingReservationId === recommendation.selectedReservation.id ||
+                                      Boolean(overriddenResourceWarnings[recommendation.selectedReservation.id]) ||
+                                      selectedAppointment.status !== "draft" ||
+                                      selectedAppointment.dataSource !== "live" ||
+                                      !resourcePlanning.canManageResourcesForAppointment ||
+                                      isCandidateAvailabilityLoading
+                                    }
+                                    onClick={() => void overrideResourceWarning(recommendation, availability)}
+                                    type="button"
+                                  >
+                                    {resourceWarningOverrideSavingReservationId === recommendation.selectedReservation.id
+                                      ? "Overriding..."
+                                      : overriddenResourceWarnings[recommendation.selectedReservation.id]
+                                        ? "Warning Overridden"
+                                        : "Override Warning"}
                                   </button>
                                 ) : null}
                                 {["HELD", "COMMITTED"].includes(recommendation.selectedReservation?.status ?? "") ? (

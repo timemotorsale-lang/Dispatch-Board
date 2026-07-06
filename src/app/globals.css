@@ -6258,6 +6258,18 @@ code {
   cursor: not-allowed;
 }
 
+.appointment-resource-warning-action {
+  color: #92400e;
+  background: #fffbeb;
+  border-color: #fcd34d;
+}
+
+.appointment-resource-warning-action:disabled {
+  color: #a8a29e;
+  background: #fafaf9;
+  border-color: #e7e5e4;
+}
+
 .appointment-resource-candidate-form {
   display: grid;
   grid-column: 1 / -1;

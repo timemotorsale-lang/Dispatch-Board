@@ -10,6 +10,7 @@ import {
 } from "@/server/appointments/resource-availability-service";
 import { prisma } from "@/server/db/client";
 import {
+  canOverrideAppointmentWarning,
   canMutateAppointment,
   canViewAppointmentSchedule,
   type AppointmentLocationAccessGrant
@@ -247,6 +248,30 @@ export type ReleaseAppointmentResourceReservationInput = {
   correlationId?: string | null;
 };
 
+export type AppointmentResourceWarningOverride = {
+  appointmentId: string;
+  appointmentNumber: string;
+  reservationId: string;
+  requirementId: string | null;
+  requirementCode: string;
+  resourceId: string;
+  resourceCode: string;
+  resourceName: string;
+  status: "OVERRIDDEN";
+  warningCode: "RESOURCE_WARNING";
+  warningKey: string;
+  reasons: string[];
+  appointmentVersion: number;
+};
+
+export type OverrideAppointmentResourceWarningInput = {
+  reservationId: string;
+  expectedAppointmentVersion: number;
+  reasonCode: string;
+  reasonNotes: string;
+  correlationId?: string | null;
+};
+
 function assertAuthenticated(user: AuthenticatedUser | null) {
   if (!user) {
     throw new Error("Authentication required.");
@@ -432,6 +457,22 @@ function toReleasedReservation(input: {
     capacityUnits: input.reservation.capacityUnits,
     appointmentVersion: input.appointmentVersion
   };
+}
+
+function buildResourceWarningKey(input: {
+  appointmentId: string;
+  reservationId: string;
+  resourceId: string;
+  reasons: string[];
+}) {
+  return [
+    "RESOURCE",
+    "RESOURCE_WARNING",
+    input.appointmentId,
+    input.reservationId,
+    input.resourceId,
+    input.reasons.join("|")
+  ].join("|");
 }
 
 export function createAppointmentResourceCandidateAvailabilityRepository(
@@ -929,5 +970,193 @@ export async function releaseAppointmentResourceReservation(
       reservation: releaseCandidate.reservation,
       appointmentVersion: expectedAppointmentVersion + 1
     });
+  });
+}
+
+export async function overrideAppointmentResourceWarning(
+  user: AuthenticatedUser | null,
+  appointmentId: string,
+  input: OverrideAppointmentResourceWarningInput,
+  database: AppointmentResourceCandidateAvailabilityDatabase = prisma,
+  now = new Date()
+): Promise<AppointmentResourceWarningOverride> {
+  const actor = assertAuthenticated(user);
+  const normalizedAppointmentId = requiredText(appointmentId, "Appointment id");
+  const reservationId = requiredText(input.reservationId, "Resource reservation");
+  const expectedAppointmentVersion = requiredVersion(input.expectedAppointmentVersion);
+  const reasonCode = requiredText(input.reasonCode, "Resource warning override reason code");
+  const reasonNotes = requiredText(input.reasonNotes, "Resource warning override reason notes");
+  const correlationId =
+    input.correlationId?.trim() ||
+    `resource-warning-override-${normalizedAppointmentId}-${reservationId}-${now.getTime()}`;
+
+  const appointment = await database.appointment.findUnique({
+    where: {
+      id: normalizedAppointmentId
+    },
+    select: appointmentResourceCandidateAvailabilitySelect
+  });
+
+  if (!appointment) {
+    throw new Error("Appointment not found.");
+  }
+
+  if (appointment.bookingStatus !== "DRAFT" && appointment.bookingStatus !== "PENDING_APPROVAL") {
+    throw new Error("Resource warning overrides can only be recorded for draft appointments.");
+  }
+
+  if (!appointment.startsAt || !appointment.endsAt || appointment.endsAt <= appointment.startsAt) {
+    throw new Error("Resource warning override requires a valid appointment time window.");
+  }
+
+  const proposal = findProposedReservation(appointment, reservationId);
+
+  if (!proposal) {
+    throw new Error("Resource candidate proposal not found for this appointment.");
+  }
+
+  const access = await database.userLocationAccess.findFirst({
+    where: {
+      userId: actor.id,
+      locationId: appointment.locationId,
+      validFrom: {
+        lte: now
+      },
+      OR: [
+        {
+          validTo: null
+        },
+        {
+          validTo: {
+            gte: now
+          }
+        }
+      ]
+    },
+    select: locationAccessSelect
+  });
+
+  if (!access || !isDateWithinAccessWindow(access, now)) {
+    throw new Error("Appointment schedule is not authorized.");
+  }
+
+  const locationAccess = toLocationAccessGrant(access);
+
+  if (!canViewAppointmentSchedule({ actor, locationAccess })) {
+    throw new Error("Appointment schedule is not authorized.");
+  }
+
+  if (!canOverrideAppointmentWarning({ actor, locationAccess })) {
+    throw new Error("Only an authorized manager can override appointment warnings.");
+  }
+
+  const availability = evaluateResourceAvailability({
+    resource: toAvailabilityResource(proposal.reservation.resource),
+    timezone: appointment.schedulingTimezone,
+    operatingWindows: toOperatingWindows(proposal.reservation.resource),
+    unavailability: toUnavailability(proposal.reservation.resource),
+    reservations: toReservations(proposal.reservation.resource),
+    startsAt: proposal.reservation.startsAt,
+    endsAt: proposal.reservation.endsAt,
+    requiredCapacity: proposal.reservation.capacityUnits
+  });
+
+  if (availability.isAvailable) {
+    throw new Error("Resource candidate does not have a warning to override.");
+  }
+
+  if (availability.isHardBlocked) {
+    throw new Error("Resource hard blocks cannot be overridden.");
+  }
+
+  const warningKey = buildResourceWarningKey({
+    appointmentId: appointment.id,
+    reservationId: proposal.reservation.id,
+    resourceId: proposal.reservation.resourceId,
+    reasons: availability.reasons
+  });
+  const historyEvent = normalizeAppointmentHistoryEvent({
+    appointmentId: appointment.id,
+    actorType: "HUMAN",
+    actorUserId: actor.id,
+    eventType: "WARNING_OVERRIDDEN",
+    message: `Resource warning for ${proposal.reservation.resource.name} was overridden.`,
+    reasonCode,
+    reasonNotes,
+    correlationId,
+    priorValue: {
+      warning: {
+        warningKey,
+        warningCode: "RESOURCE_WARNING",
+        source: "RESOURCE",
+        resourceId: proposal.reservation.resourceId,
+        reservationId: proposal.reservation.id,
+        requirementCode: proposal.requirement.requirementCode,
+        reasons: availability.reasons
+      }
+    },
+    newValue: {
+      status: "OVERRIDDEN"
+    },
+    metadata: {
+      source: "APPOINTMENT_BOARD_RESOURCE_PLANNING",
+      expectedAppointmentVersion,
+      requirementId: proposal.requirement.id,
+      reservationId: proposal.reservation.id,
+      resourceId: proposal.reservation.resourceId,
+      warningKey
+    },
+    occurredAt: now
+  });
+
+  return database.$transaction(async (tx) => {
+    const appointmentUpdate = await tx.appointment.updateMany({
+      where: {
+        id: appointment.id,
+        version: expectedAppointmentVersion
+      },
+      data: {
+        version: {
+          increment: 1
+        }
+      }
+    });
+
+    if (appointmentUpdate.count !== 1) {
+      throw new Error("Appointment version is stale.");
+    }
+
+    await tx.appointmentHistoryEvent.create({
+      data: {
+        appointmentId: historyEvent.appointmentId,
+        actorType: historyEvent.actorType,
+        actorUserId: historyEvent.actorUserId,
+        eventType: historyEvent.eventType,
+        message: historyEvent.message,
+        reasonCode: historyEvent.reasonCode,
+        reasonNotes: historyEvent.reasonNotes,
+        correlationId: historyEvent.correlationId,
+        priorValue: nullableInputJson(historyEvent.priorValue),
+        newValue: nullableInputJson(historyEvent.newValue),
+        metadata: asInputJson(historyEvent.metadata),
+        occurredAt: historyEvent.occurredAt ?? now
+      }
+    });
+
+    return {
+      appointmentId: appointment.id,
+      appointmentNumber: appointment.appointmentNumber,
+      reservationId: proposal.reservation.id,
+      requirementId: proposal.reservation.requirementId,
+      requirementCode: proposal.requirement.requirementCode,
+      resourceId: proposal.reservation.resourceId,
+      resourceCode: proposal.reservation.resource.code,
+      resourceName: proposal.reservation.resource.name,
+      status: "OVERRIDDEN",
+      warningCode: "RESOURCE_WARNING",
+      warningKey,
+      reasons: availability.reasons,
+      appointmentVersion: expectedAppointmentVersion + 1
+    };
   });
 }
