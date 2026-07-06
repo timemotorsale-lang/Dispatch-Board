@@ -80,8 +80,7 @@ describe("appointment E2 scheduling foundation gate review", () => {
       id: "E3",
       name: "Lifecycle, Task Orchestration, Audit, and Automation",
       firstWorkPackage: "EAPT-026",
-      firstWorkPackageName:
-        "Implement lifecycle command execution with transactional appointment, reservation, history, and task effects"
+      firstWorkPackageName: "Implement appointment read model and permission-filtered queries"
     });
   });
 });

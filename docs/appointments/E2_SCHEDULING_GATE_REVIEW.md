@@ -1,6 +1,6 @@
 # E2 Scheduling Foundation Gate Review
 
-**Milestone:** E2 — Scheduling, Availability, and Capacity Engine  
+**Milestone:** E2 - Scheduling, Availability, and Capacity Engine  
 **Status:** Ready for review  
 **Reviewed through:** EAPT-025  
 **Recommendation:** Proceed to E3 after gate approval  
@@ -89,13 +89,13 @@ Proceed to E3 after approval.
 The first E3 work package is:
 
 ```text
-EAPT-026 — Implement lifecycle command execution with transactional appointment, reservation, history, and task effects
+EAPT-026 - Implement appointment read model and permission-filtered queries
 ```
 
 EAPT-026 should prove:
 
-- Lifecycle commands use the E1 command boundary.
-- Scheduling decisions use the E2 conflict, warning, and reservation boundaries.
-- Appointment, reservation, task-link, and history effects are protected together.
-- Failed lifecycle execution leaves no partial appointment state.
-- Command results remain idempotent and audit-ready.
+- Managers, owners, participants, and location viewers receive only the appointment data they are authorized to see.
+- Customer and vehicle detail is masked unless policy allows limited detail.
+- Location access and schedule visibility are enforced server-side.
+- Date-window queries exclude out-of-window and cancelled appointments by default.
+- The future live Appointment Board can consume one consistent, permission-filtered read model.

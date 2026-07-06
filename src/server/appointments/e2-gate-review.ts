@@ -126,7 +126,7 @@ export const APPOINTMENT_E2_GATE_REVIEW = {
     name: "Lifecycle, Task Orchestration, Audit, and Automation",
     firstWorkPackage: "EAPT-026",
     firstWorkPackageName:
-      "Implement lifecycle command execution with transactional appointment, reservation, history, and task effects"
+      "Implement appointment read model and permission-filtered queries"
   }
 } as const;
 
