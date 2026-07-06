@@ -6111,7 +6111,7 @@ code {
   border-color: #1d5eed;
 }
 
-.appointment-detail-actions button:nth-child(2) {
+.appointment-detail-actions button.appointment-danger-outline {
   color: #dc2626;
   background: #fff;
   border-color: #fecdd3;

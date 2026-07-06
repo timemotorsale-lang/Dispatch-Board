@@ -43,7 +43,7 @@ type AppointmentStatus =
   | "no-show"
   | "follow-up";
 
-type OperationalCommand = "CHECK_IN" | "NO_SHOW";
+type OperationalCommand = "CHECK_IN" | "NO_SHOW" | "SCHEDULE";
 
 type AppointmentBoardDataSource = "preview" | "live";
 
@@ -69,6 +69,9 @@ type Appointment = {
   id: string;
   recordId?: string;
   recordVersion?: number;
+  startsAtIso?: string | null;
+  endsAtIso?: string | null;
+  schedulingTimezone?: string;
   dataSource?: AppointmentBoardDataSource;
   title: string;
   customer: string;
@@ -577,6 +580,9 @@ function mapReadModelToAppointment(appointment: AppointmentReadModel): Appointme
     id: appointment.appointmentNumber,
     recordId: appointment.id,
     recordVersion: appointment.version,
+    startsAtIso: appointment.startsAt,
+    endsAtIso: appointment.endsAt,
+    schedulingTimezone: appointment.schedulingTimezone,
     dataSource: "live",
     title: appointment.title,
     customer: appointment.customer?.displayName ?? "Internal / No customer",
@@ -608,11 +614,27 @@ function mapReadModelToAppointment(appointment: AppointmentReadModel): Appointme
 }
 
 function commandLabel(commandType: OperationalCommand) {
-  return commandType === "CHECK_IN" ? "Check In" : "No Show";
+  if (commandType === "CHECK_IN") {
+    return "Check In";
+  }
+
+  if (commandType === "NO_SHOW") {
+    return "No Show";
+  }
+
+  return "Schedule Draft";
 }
 
 function commandStatus(commandType: OperationalCommand): AppointmentStatus {
-  return commandType === "CHECK_IN" ? "checked-in" : "no-show";
+  if (commandType === "CHECK_IN") {
+    return "checked-in";
+  }
+
+  if (commandType === "NO_SHOW") {
+    return "no-show";
+  }
+
+  return "confirmed";
 }
 
 function createCommandIdentifier(commandType: OperationalCommand, appointmentId: string) {
@@ -938,6 +960,11 @@ export function AppointmentBoardShell() {
       return;
     }
 
+    if (commandType === "SCHEDULE" && (!selectedAppointment.startsAtIso || !selectedAppointment.endsAtIso)) {
+      setActionNotice("Schedule Draft requires a saved start and end time.");
+      return;
+    }
+
     setIsCommandPending(true);
 
     try {
@@ -953,14 +980,22 @@ export function AppointmentBoardShell() {
           expectedAppointmentVersion: selectedAppointment.recordVersion,
           idempotencyKey,
           correlationId: idempotencyKey,
-          payload:
-            commandType === "NO_SHOW"
+          payload: {
+            ...(commandType === "NO_SHOW"
               ? {
                   reasonCode: noShowDraft.reasonCode,
                   reasonNotes: noShowDraft.reasonNotes.trim(),
                   followUpDispositionCode: noShowDraft.followUpDispositionCode
                 }
-              : {}
+              : {}),
+            ...(commandType === "SCHEDULE"
+              ? {
+                  startsAt: selectedAppointment.startsAtIso,
+                  endsAt: selectedAppointment.endsAtIso,
+                  schedulingTimezone: selectedAppointment.schedulingTimezone ?? defaultTimezone
+                }
+              : {})
+          }
         })
       });
       const result = await response.json().catch(() => null);
@@ -979,6 +1014,10 @@ export function AppointmentBoardShell() {
       }));
       setNoShowOpen(false);
       setActionNotice(`${label} saved for ${selectedAppointment.id}. History and command ledger were updated by the live command path.`);
+
+      if (commandType === "SCHEDULE") {
+        await loadLiveAppointments();
+      }
     } catch (error) {
       setActionNotice(error instanceof Error ? error.message : `${label} could not be completed.`);
     } finally {
@@ -1232,15 +1271,25 @@ export function AppointmentBoardShell() {
           </div>
 
           <div className="appointment-detail-actions">
+            {selectedAppointment.status === "draft" ? (
+              <button
+                disabled={isCommandPending || selectedAppointment.dataSource !== "live"}
+                type="button"
+                onClick={() => void submitOperationalCommand("SCHEDULE")}
+              >
+                <ClipboardCheck size={16} aria-hidden="true" />{isCommandPending ? "Scheduling..." : "Schedule Draft"}
+              </button>
+            ) : null}
             <button
-              disabled={isCommandPending || selectedAppointment.status === "checked-in"}
+              disabled={isCommandPending || selectedAppointment.status === "draft" || selectedAppointment.status === "checked-in"}
               type="button"
               onClick={() => void submitOperationalCommand("CHECK_IN")}
             >
               <Check size={16} aria-hidden="true" />{isCommandPending ? "Saving..." : "Check In"}
             </button>
             <button
-              disabled={isCommandPending || selectedAppointment.status === "no-show"}
+              className="appointment-danger-outline"
+              disabled={isCommandPending || selectedAppointment.status === "draft" || selectedAppointment.status === "no-show"}
               type="button"
               onClick={() => setNoShowOpen(true)}
             >
