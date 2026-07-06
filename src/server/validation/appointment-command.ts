@@ -5,6 +5,8 @@ import {
 
 const commandTypes = new Set<string>(APPOINTMENT_COMMAND_TYPES);
 const existingAppointmentCommands = new Set<AppointmentCommandType>([
+  "APPROVE",
+  "EDIT",
   "SCHEDULE",
   "RESCHEDULE",
   "CANCEL",

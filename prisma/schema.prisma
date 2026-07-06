@@ -119,6 +119,8 @@ enum AppointmentHistoryEventType {
 
 enum AppointmentCommandType {
   CREATE_DRAFT
+  APPROVE
+  EDIT
   SCHEDULE
   RESCHEDULE
   CANCEL

@@ -249,6 +249,53 @@ describe("appointment command service boundary", () => {
     });
   });
 
+  it("accepts approve commands only from an authorized appointment manager", async () => {
+    const { createdCommands, repository } = createAppointmentCommandRepositoryHarness();
+
+    await expect(
+      submitAppointmentCommand(
+        ownerUser,
+        {
+          commandType: "APPROVE",
+          appointmentId: "appointment-1",
+          expectedAppointmentVersion: 3,
+          idempotencyKey: "approve-owner-rejected-1",
+          payload: {}
+        },
+        repository,
+        now
+      )
+    ).rejects.toThrow("Appointment command is not authorized.");
+
+    const result = await submitAppointmentCommand(
+      managerUser,
+      {
+        commandType: "APPROVE",
+        appointmentId: "appointment-1",
+        expectedAppointmentVersion: 3,
+        idempotencyKey: "approve-manager-1",
+        payload: {}
+      },
+      repository,
+      now
+    );
+
+    expect(result).toMatchObject({
+      accepted: true,
+      command: {
+        commandType: "APPROVE",
+        status: "PENDING",
+        appointmentId: "appointment-1",
+        actorUserId: managerUser.id
+      }
+    });
+    expect(createdCommands).toHaveLength(1);
+    expect(createdCommands[0]).toMatchObject({
+      commandType: "APPROVE",
+      status: "PENDING"
+    });
+  });
+
   it("returns same-hash idempotency duplicates without creating another command", async () => {
     const { repository, toLedgerRecord, createdCommands } =
       createAppointmentCommandRepositoryHarness();

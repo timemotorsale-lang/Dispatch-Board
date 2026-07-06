@@ -28,6 +28,8 @@ describe("appointment command ledger foundation", () => {
   it("keeps command type and status catalogs explicit", () => {
     expect(APPOINTMENT_COMMAND_TYPES).toEqual([
       "CREATE_DRAFT",
+      "APPROVE",
+      "EDIT",
       "SCHEDULE",
       "RESCHEDULE",
       "CANCEL",

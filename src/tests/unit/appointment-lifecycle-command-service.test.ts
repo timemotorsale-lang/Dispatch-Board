@@ -264,6 +264,120 @@ describe("appointment lifecycle command execution planner", () => {
     });
   });
 
+  it("plans manager-only approval as scheduling commitment with approved history", () => {
+    const pendingAppointment: AppointmentLifecycleCommandAppointment = {
+      ...appointment,
+      bookingStatus: "PENDING_APPROVAL"
+    };
+    const unauthorized = planAppointmentLifecycleCommandExecution(
+      baseCommand({
+        commandType: "APPROVE",
+        actor: ownerUser,
+        locationAccess: ownerAccess,
+        appointment: pendingAppointment,
+        payload: {
+          startsAt,
+          endsAt
+        }
+      })
+    );
+    const approved = planAppointmentLifecycleCommandExecution(
+      baseCommand({
+        commandType: "APPROVE",
+        appointment: pendingAppointment,
+        payload: {
+          startsAt,
+          endsAt,
+          reservationCandidates: [reservationCandidate]
+        }
+      })
+    );
+
+    expect(unauthorized).toMatchObject({
+      executable: false,
+      rejectionCode: "UNAUTHORIZED"
+    });
+    expect(approved).toMatchObject({
+      executable: true,
+      appointmentEffect: {
+        operation: "UPDATE",
+        appointmentId: appointment.id,
+        set: {
+          bookingStatus: "SCHEDULED",
+          startsAt,
+          endsAt
+        }
+      },
+      reservationEffects: [
+        {
+          action: "COMMIT_RESERVATIONS",
+          candidates: [reservationCandidate]
+        }
+      ],
+      historyEffects: [
+        {
+          eventType: "APPROVED",
+          actorUserId: managerUser.id
+        }
+      ]
+    });
+  });
+
+  it("plans detail edits without allowing time changes to bypass rescheduling", () => {
+    const edited = planAppointmentLifecycleCommandExecution(
+      baseCommand({
+        commandType: "EDIT",
+        actor: ownerUser,
+        locationAccess: ownerAccess,
+        payload: {
+          title: "Updated Service / Repair",
+          customerSnapshot: {
+            displayName: "Ahmed Ibrahim"
+          }
+        }
+      })
+    );
+    const timeChange = planAppointmentLifecycleCommandExecution(
+      baseCommand({
+        commandType: "EDIT",
+        actor: ownerUser,
+        locationAccess: ownerAccess,
+        payload: {
+          startsAt,
+          endsAt
+        }
+      })
+    );
+
+    expect(edited).toMatchObject({
+      executable: true,
+      appointmentEffect: {
+        operation: "UPDATE",
+        appointmentId: appointment.id,
+        set: {
+          title: "Updated Service / Repair",
+          customerSnapshot: {
+            displayName: "Ahmed Ibrahim"
+          }
+        }
+      },
+      historyEffects: [
+        {
+          eventType: "FIELD_UPDATED",
+          actorUserId: ownerUser.id
+        }
+      ],
+      commandResultSnapshot: {
+        editedFields: ["title", "customerSnapshot"]
+      }
+    });
+    expect(timeChange).toMatchObject({
+      executable: false,
+      rejectionCode: "USE_RESCHEDULE",
+      rejectionReasons: ["EDIT cannot change appointment time. Use RESCHEDULE for time changes."]
+    });
+  });
+
   it("plans rescheduling as release plus recommit with required reasoned history", () => {
     const releaseReservation = {
       id: "reservation-old",

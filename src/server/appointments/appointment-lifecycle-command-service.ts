@@ -13,6 +13,7 @@ import type {
 import type { AppointmentWarning } from "@/server/appointments/appointment-warning-service";
 import type { AppointmentLocationAccessGrant } from "@/server/policies/access";
 import {
+  canApproveAppointment,
   canCreateAppointment,
   canMutateAppointment,
   canTransferAppointmentOwnership
@@ -20,6 +21,8 @@ import {
 
 export const APPOINTMENT_LIFECYCLE_EXECUTION_COMMANDS = [
   "CREATE_DRAFT",
+  "APPROVE",
+  "EDIT",
   "SCHEDULE",
   "RESCHEDULE",
   "CANCEL",
@@ -398,6 +401,237 @@ function buildCreateDraftPlan(
   };
 }
 
+function buildApprovePlan(
+  input: AppointmentLifecycleCommandInput
+): AppointmentLifecycleCommandExecutionPlan {
+  const appointment = assertExistingAppointment(input);
+  const stalePlan = assertExpectedVersion(input);
+
+  if (stalePlan) {
+    return stalePlan;
+  }
+
+  if (
+    !canApproveAppointment({
+      actor: input.actor,
+      locationAccess: input.locationAccess
+    })
+  ) {
+    return rejectPlan({
+      commandId: input.commandId,
+      commandType: input.commandType,
+      rejectionCode: "UNAUTHORIZED",
+      rejectionReasons: ["Only an authorized manager can approve this appointment."]
+    });
+  }
+
+  const blockedPlan = assertNoSchedulingBlocks(input);
+
+  if (blockedPlan) {
+    return blockedPlan;
+  }
+
+  const startsAt =
+    parseOptionalDate(input.payload?.startsAt, "Appointment start") ?? appointment.startsAt;
+  const endsAt = parseOptionalDate(input.payload?.endsAt, "Appointment end") ?? appointment.endsAt;
+
+  if (!appointment.ownerUserId) {
+    return rejectPlan({
+      commandId: input.commandId,
+      commandType: input.commandType,
+      rejectionCode: "OWNER_REQUIRED",
+      rejectionReasons: ["An approved appointment requires an accountable owner."]
+    });
+  }
+
+  if (!startsAt || !endsAt || endsAt <= startsAt) {
+    return rejectPlan({
+      commandId: input.commandId,
+      commandType: input.commandType,
+      rejectionCode: "INVALID_TIME",
+      rejectionReasons: ["Approval requires a valid scheduled start and end time."]
+    });
+  }
+
+  const set = {
+    startsAt,
+    endsAt,
+    bookingStatus: "SCHEDULED",
+    schedulingTimezone: input.payload?.schedulingTimezone ?? appointment.schedulingTimezone
+  };
+
+  return {
+    commandId: input.commandId,
+    commandType: input.commandType,
+    executable: true,
+    rejectionCode: null,
+    rejectionReasons: [],
+    appointmentEffect: {
+      operation: "UPDATE",
+      appointmentId: appointment.id,
+      expectedVersion: appointment.version,
+      set,
+      incrementVersion: 1
+    },
+    reservationEffects:
+      input.payload?.reservationCandidates && input.payload.reservationCandidates.length > 0
+        ? [
+            {
+              action: "COMMIT_RESERVATIONS",
+              candidates: input.payload.reservationCandidates,
+              allowWarningCommit: Boolean(input.payload.warnings?.length)
+            }
+          ]
+        : [],
+    taskLinkEffects: input.payload?.taskLinks ?? [],
+    historyEffects: [
+      buildHistoryEffect({
+        command: input,
+        eventType: "APPROVED",
+        message: `Appointment ${appointment.appointmentNumber} approved.`,
+        priorValue: {
+          startsAt: appointment.startsAt,
+          endsAt: appointment.endsAt,
+          bookingStatus: appointment.bookingStatus
+        },
+        newValue: set
+      })
+    ],
+    commandResultSnapshot: {
+      appointmentId: appointment.id,
+      approved: true,
+      bookingStatus: "SCHEDULED",
+      reservationCandidateCount: input.payload?.reservationCandidates?.length ?? 0
+    }
+  };
+}
+
+function buildEditSet(input: AppointmentLifecycleCommandInput) {
+  const set: Record<string, unknown> = {};
+
+  if (input.payload?.startsAt !== undefined || input.payload?.endsAt !== undefined) {
+    return {
+      error: "EDIT cannot change appointment time. Use RESCHEDULE for time changes.",
+      set
+    };
+  }
+
+  if (input.payload?.title !== undefined) {
+    set.title = requiredText(input.payload.title, "Appointment title");
+  }
+
+  if (input.payload?.schedulingTimezone !== undefined) {
+    set.schedulingTimezone = requiredText(
+      input.payload.schedulingTimezone,
+      "Appointment scheduling timezone"
+    );
+  }
+
+  if (input.payload?.purposeSnapshot !== undefined) {
+    set.purposeSnapshot = input.payload.purposeSnapshot;
+  }
+
+  if (input.payload?.customerSnapshot !== undefined) {
+    set.customerSnapshot = input.payload.customerSnapshot;
+  }
+
+  if (input.payload?.vehicleSnapshot !== undefined) {
+    set.vehicleSnapshot = input.payload.vehicleSnapshot;
+  }
+
+  if (input.payload?.sourceSnapshot !== undefined) {
+    set.sourceSnapshot = input.payload.sourceSnapshot;
+  }
+
+  return {
+    error: null,
+    set
+  };
+}
+
+function buildEditPlan(
+  input: AppointmentLifecycleCommandInput
+): AppointmentLifecycleCommandExecutionPlan {
+  const appointment = assertExistingAppointment(input);
+  const stalePlan = assertExpectedVersion(input);
+
+  if (stalePlan) {
+    return stalePlan;
+  }
+
+  if (
+    !canMutateAppointment({
+      actor: input.actor,
+      ownerUserId: appointment.ownerUserId,
+      locationAccess: input.locationAccess
+    })
+  ) {
+    return rejectPlan({
+      commandId: input.commandId,
+      commandType: input.commandType,
+      rejectionCode: "UNAUTHORIZED",
+      rejectionReasons: ["Actor is not authorized to edit this appointment."]
+    });
+  }
+
+  const { error, set } = buildEditSet(input);
+
+  if (error) {
+    return rejectPlan({
+      commandId: input.commandId,
+      commandType: input.commandType,
+      rejectionCode: "USE_RESCHEDULE",
+      rejectionReasons: [error]
+    });
+  }
+
+  if (Object.keys(set).length === 0 && !input.payload?.taskLinks?.length) {
+    return rejectPlan({
+      commandId: input.commandId,
+      commandType: input.commandType,
+      rejectionCode: "NO_EDIT_FIELDS",
+      rejectionReasons: ["EDIT requires at least one editable appointment field or task-link effect."]
+    });
+  }
+
+  return {
+    commandId: input.commandId,
+    commandType: input.commandType,
+    executable: true,
+    rejectionCode: null,
+    rejectionReasons: [],
+    appointmentEffect:
+      Object.keys(set).length > 0
+        ? {
+            operation: "UPDATE",
+            appointmentId: appointment.id,
+            expectedVersion: appointment.version,
+            set,
+            incrementVersion: 1
+          }
+        : null,
+    reservationEffects: [],
+    taskLinkEffects: input.payload?.taskLinks ?? [],
+    historyEffects: [
+      buildHistoryEffect({
+        command: input,
+        eventType: "FIELD_UPDATED",
+        message: `Appointment ${appointment.appointmentNumber} details edited.`,
+        priorValue: {
+          title: appointment.title,
+          schedulingTimezone: appointment.schedulingTimezone
+        },
+        newValue: set
+      })
+    ],
+    commandResultSnapshot: {
+      appointmentId: appointment.id,
+      editedFields: Object.keys(set),
+      taskLinkCount: input.payload?.taskLinks?.length ?? 0
+    }
+  };
+}
+
 function buildSchedulePlan(
   input: AppointmentLifecycleCommandInput
 ): AppointmentLifecycleCommandExecutionPlan {
@@ -769,6 +1003,10 @@ export function planAppointmentLifecycleCommandExecution(
   switch (input.commandType) {
     case "CREATE_DRAFT":
       return buildCreateDraftPlan(input);
+    case "APPROVE":
+      return buildApprovePlan(input);
+    case "EDIT":
+      return buildEditPlan(input);
     case "SCHEDULE":
       return buildSchedulePlan(input);
     case "RESCHEDULE":

@@ -364,6 +364,8 @@ describe("prisma schema constraints", () => {
 
     expect(schema).toMatch(/enum AppointmentCommandType/);
     expect(schema).toMatch(/enum AppointmentCommandStatus/);
+    expect(schema).toMatch(/APPROVE/);
+    expect(schema).toMatch(/EDIT/);
     expect(schema).toMatch(/RESCHEDULE/);
     expect(schema).toMatch(/FAILED_RETRYABLE/);
     expect(schema).toMatch(/DUPLICATE_RETURNED/);
@@ -402,6 +404,8 @@ describe("prisma schema constraints", () => {
     const combinedSql = migrationSqlContents.join("\n");
 
     expect(combinedSql).toMatch(/CREATE TYPE "AppointmentCommandType"/);
+    expect(combinedSql).toMatch(/ADD VALUE IF NOT EXISTS 'APPROVE'/);
+    expect(combinedSql).toMatch(/ADD VALUE IF NOT EXISTS 'EDIT'/);
     expect(combinedSql).toMatch(/CREATE TYPE "AppointmentCommandStatus"/);
     expect(combinedSql).toMatch(/CREATE TABLE "AppointmentCommandLedger"/);
     expect(combinedSql).toMatch(/AppointmentCommandLedger_organizationId_commandType_idempotencyKey_key/);

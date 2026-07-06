@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import {
+  canApproveAppointment,
   canCreateAppointment,
   canMutateAppointment,
   canOverrideAppointmentWarning,
@@ -24,6 +25,8 @@ import {
 import { normalizeAppointmentCommandLedgerEntry } from "@/server/validation/appointment-command-ledger";
 
 const existingAppointmentCommands = new Set<AppointmentCommandType>([
+  "APPROVE",
+  "EDIT",
   "SCHEDULE",
   "RESCHEDULE",
   "CANCEL",
@@ -191,6 +194,19 @@ function assertCommandAuthorization(input: {
   if (input.commandType === "OVERRIDE_WARNING") {
     if (
       !canOverrideAppointmentWarning({
+        actor: input.actor,
+        locationAccess: input.locationAccess
+      })
+    ) {
+      throw new Error("Appointment command is not authorized.");
+    }
+
+    return;
+  }
+
+  if (input.commandType === "APPROVE") {
+    if (
+      !canApproveAppointment({
         actor: input.actor,
         locationAccess: input.locationAccess
       })
