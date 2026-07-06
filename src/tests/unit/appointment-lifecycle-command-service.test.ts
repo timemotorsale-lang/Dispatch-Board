@@ -721,6 +721,107 @@ describe("appointment lifecycle command execution planner", () => {
     });
   });
 
+  it("plans completion only after finished execution with outcome and follow-up audit", () => {
+    const finishedAppointment: AppointmentLifecycleCommandAppointment = {
+      ...appointment,
+      executionStatus: "FINISHED"
+    };
+    const plan = planAppointmentLifecycleCommandExecution(
+      baseCommand({
+        commandType: "COMPLETE",
+        appointment: finishedAppointment,
+        payload: {
+          outcomeCode: "COMPLETED",
+          outcomeNotes: "Brake inspection and oil change completed.",
+          followUpDispositionCode: "NO_FOLLOW_UP_REQUIRED",
+          followUpNotes: "Customer received summary at pickup.",
+          reasonCode: "OUTCOME_RECORDED",
+          reasonNotes: "Final appointment result documented from the board."
+        }
+      })
+    );
+
+    expect(plan).toMatchObject({
+      executable: true,
+      appointmentEffect: {
+        operation: "UPDATE",
+        appointmentId: appointment.id,
+        expectedVersion: appointment.version,
+        set: {
+          bookingStatus: "COMPLETED",
+          completedAt: now,
+          outcomeCode: "COMPLETED",
+          outcomeNotes: "Brake inspection and oil change completed.",
+          followUpDispositionCode: "NO_FOLLOW_UP_REQUIRED",
+          followUpNotes: "Customer received summary at pickup."
+        },
+        incrementVersion: 1
+      },
+      historyEffects: [
+        {
+          eventType: "COMPLETED",
+          reasonCode: "OUTCOME_RECORDED",
+          reasonNotes: "Final appointment result documented from the board."
+        },
+        {
+          eventType: "OUTCOME_RECORDED",
+          reasonCode: "OUTCOME_RECORDED",
+          newValue: {
+            outcomeCode: "COMPLETED",
+            outcomeNotes: "Brake inspection and oil change completed.",
+            followUpDispositionCode: "NO_FOLLOW_UP_REQUIRED",
+            followUpNotes: "Customer received summary at pickup."
+          }
+        }
+      ],
+      commandResultSnapshot: {
+        appointmentId: appointment.id,
+        bookingStatus: "COMPLETED",
+        outcomeCode: "COMPLETED",
+        followUpDispositionCode: "NO_FOLLOW_UP_REQUIRED"
+      }
+    });
+  });
+
+  it("blocks completion before finish and after no-show", () => {
+    const notFinished = planAppointmentLifecycleCommandExecution(
+      baseCommand({
+        commandType: "COMPLETE",
+        payload: {
+          outcomeCode: "COMPLETED",
+          followUpDispositionCode: "NO_FOLLOW_UP_REQUIRED",
+          reasonCode: "OUTCOME_RECORDED",
+          reasonNotes: "Attempted too early."
+        }
+      })
+    );
+    const noShow = planAppointmentLifecycleCommandExecution(
+      baseCommand({
+        commandType: "COMPLETE",
+        appointment: {
+          ...appointment,
+          attendanceStatus: "NO_SHOW",
+          executionStatus: "FINISHED"
+        },
+        payload: {
+          outcomeCode: "COMPLETED",
+          followUpDispositionCode: "NO_FOLLOW_UP_REQUIRED",
+          reasonCode: "OUTCOME_RECORDED",
+          reasonNotes: "Attempted after no-show."
+        }
+      })
+    );
+
+    expect(notFinished).toMatchObject({
+      executable: false,
+      rejectionCode: "EXECUTION_NOT_FINISHED"
+    });
+    expect(noShow).toMatchObject({
+      executable: false,
+      rejectionCode: "NO_SHOW_RECORDED"
+    });
+  });
+
   it("keeps ownership transfer manager-only and stale-version protected", () => {
     const unauthorized = planAppointmentLifecycleCommandExecution(
       baseCommand({

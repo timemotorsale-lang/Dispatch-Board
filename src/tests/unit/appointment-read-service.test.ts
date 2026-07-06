@@ -113,7 +113,9 @@ function createAppointment(
     cancelledAt: null,
     completedAt: null,
     outcomeCode: null,
+    outcomeNotes: null,
     followUpDispositionCode: null,
+    followUpNotes: null,
     createdAt: new Date("2026-07-05T18:00:00.000Z"),
     updatedAt: new Date("2026-07-05T18:10:00.000Z"),
     ownerUser: {

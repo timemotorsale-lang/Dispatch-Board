@@ -43,7 +43,7 @@ type AppointmentStatus =
   | "no-show"
   | "follow-up";
 
-type OperationalCommand = "CHECK_IN" | "NO_SHOW" | "SCHEDULE";
+type OperationalCommand = "CHECK_IN" | "NO_SHOW" | "SCHEDULE" | "START" | "FINISH";
 
 type AppointmentBoardDataSource = "preview" | "live";
 
@@ -74,6 +74,13 @@ type Appointment = {
   startsAtIso?: string | null;
   endsAtIso?: string | null;
   schedulingTimezone?: string;
+  bookingStatus?: string;
+  attendanceStatus?: string;
+  executionStatus?: string;
+  outcomeCode?: string | null;
+  outcomeNotes?: string | null;
+  followUpDispositionCode?: string | null;
+  followUpNotes?: string | null;
   dataSource?: AppointmentBoardDataSource;
   title: string;
   customer: string;
@@ -137,7 +144,10 @@ type AppointmentReadModel = {
     canMutate: boolean;
     relationship: string;
   };
+  outcomeCode: string | null;
+  outcomeNotes: string | null;
   followUpDispositionCode: string | null;
+  followUpNotes: string | null;
 };
 
 type AppointmentReadApiResult = {
@@ -292,6 +302,21 @@ const defaultBoardDate = "2026-07-06";
 const defaultOrganizationId = "org-time-motor-sales";
 const defaultLocationId = "loc-time-motor-sales-minneapolis";
 const defaultTimezone = "America/Chicago";
+
+const outcomeOptions = [
+  { value: "COMPLETED", label: "Completed" },
+  { value: "FOLLOW_UP_REQUIRED", label: "Needs follow-up" },
+  { value: "RESCHEDULED", label: "Rescheduled" },
+  { value: "ESCALATED", label: "Escalated" }
+];
+
+const followUpDispositionOptions = [
+  { value: "NO_FOLLOW_UP_REQUIRED", label: "No follow-up required" },
+  { value: "CALLBACK_REQUIRED", label: "Callback required" },
+  { value: "FOLLOW_UP_APPOINTMENT_REQUIRED", label: "Follow-up appointment required" },
+  { value: "TASK_CREATED", label: "Task created / assigned" },
+  { value: "MANAGER_REVIEW_REQUIRED", label: "Manager review required" }
+];
 
 const staffMembers: StaffMember[] = [
   { id: "abdi", name: "Abdi Farah", role: "General Manager", initials: "AF" },
@@ -588,7 +613,7 @@ const noShowReasonOptions = [
   { value: "CUSTOMER_UNREACHABLE", label: "Customer unreachable" },
   { value: "DOCUMENTATION_MISSING", label: "Required documents missing" }
 ];
-const followUpDispositionOptions = [
+const noShowFollowUpDispositionOptions = [
   { value: "CALLBACK_REQUIRED", label: "Callback required" },
   { value: "RESCHEDULE_REQUESTED", label: "Reschedule requested" },
   { value: "CALLBACK_NOT_REQUIRED", label: "No callback required" }
@@ -645,12 +670,15 @@ function resolveStatus(appointment: AppointmentReadModel): AppointmentStatus {
     return "in-progress";
   }
 
-  if (appointment.attendanceStatus === "CHECKED_IN") {
-    return "checked-in";
+  if (
+    appointment.followUpDispositionCode &&
+    appointment.followUpDispositionCode !== "NO_FOLLOW_UP_REQUIRED"
+  ) {
+    return "follow-up";
   }
 
-  if (appointment.followUpDispositionCode) {
-    return "follow-up";
+  if (appointment.attendanceStatus === "CHECKED_IN") {
+    return "checked-in";
   }
 
   return "confirmed";
@@ -721,6 +749,13 @@ function mapReadModelToAppointment(appointment: AppointmentReadModel): Appointme
     startsAtIso: appointment.startsAt,
     endsAtIso: appointment.endsAt,
     schedulingTimezone: appointment.schedulingTimezone,
+    bookingStatus: appointment.bookingStatus,
+    attendanceStatus: appointment.attendanceStatus,
+    executionStatus: appointment.executionStatus,
+    outcomeCode: appointment.outcomeCode,
+    outcomeNotes: appointment.outcomeNotes,
+    followUpDispositionCode: appointment.followUpDispositionCode,
+    followUpNotes: appointment.followUpNotes,
     dataSource: "live",
     title: appointment.title,
     customer: appointment.customer?.displayName ?? "Internal / No customer",
@@ -736,7 +771,10 @@ function mapReadModelToAppointment(appointment: AppointmentReadModel): Appointme
     complaint: appointment.sourceReference ?? "Live appointment record from the read model.",
     location: "Time Motor Sales",
     confirmation: appointment.confirmationStatus.replaceAll("_", " ").toLowerCase(),
-    needsFollowUp: Boolean(appointment.followUpDispositionCode),
+    needsFollowUp: Boolean(
+      appointment.followUpDispositionCode &&
+        appointment.followUpDispositionCode !== "NO_FOLLOW_UP_REQUIRED"
+    ),
     taskAutomation:
       appointment.taskLinks.length > 0
         ? appointment.taskLinks.map((taskLink) => `${taskLink.linkType}: ${taskLink.taskId}`)
@@ -756,6 +794,14 @@ function commandLabel(commandType: OperationalCommand) {
     return "Check In";
   }
 
+  if (commandType === "START") {
+    return "Start Work";
+  }
+
+  if (commandType === "FINISH") {
+    return "Finish Work";
+  }
+
   if (commandType === "NO_SHOW") {
     return "No Show";
   }
@@ -765,6 +811,14 @@ function commandLabel(commandType: OperationalCommand) {
 
 function commandStatus(commandType: OperationalCommand): AppointmentStatus {
   if (commandType === "CHECK_IN") {
+    return "checked-in";
+  }
+
+  if (commandType === "START") {
+    return "in-progress";
+  }
+
+  if (commandType === "FINISH") {
     return "checked-in";
   }
 
@@ -800,6 +854,10 @@ function createAppointmentActionIdentifier(action: string, appointmentId: string
       : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
   return `appointment-${action.toLowerCase()}-${appointmentId}-${randomSuffix}`;
+}
+
+function labelForOption(options: Array<{ value: string; label: string }>, value: string) {
+  return options.find((option) => option.value === value)?.label ?? value.replaceAll("_", " ");
 }
 
 function createAppointmentNumber() {
@@ -895,6 +953,14 @@ export function AppointmentBoardShell() {
     reasonNotes: "",
     followUpDispositionCode: "CALLBACK_REQUIRED"
   });
+  const [outcomeDraft, setOutcomeDraft] = useState({
+    outcomeCode: "COMPLETED",
+    outcomeNotes: "",
+    followUpDispositionCode: "NO_FOLLOW_UP_REQUIRED",
+    followUpNotes: "",
+    reasonNotes: ""
+  });
+  const [isOutcomeSaving, setIsOutcomeSaving] = useState(false);
   const [draftAppointment, setDraftAppointment] = useState<DraftAppointmentForm>({
     category: "service",
     title: "Service / Repair",
@@ -1095,6 +1161,34 @@ export function AppointmentBoardShell() {
   )
     ? ownerTransferUserId
     : ownerTransferCandidates[0]?.id ?? "";
+
+  const outcomeFieldValues =
+    selectedAppointment.bookingStatus === "COMPLETED"
+      ? {
+          outcomeCode: selectedAppointment.outcomeCode ?? "COMPLETED",
+          outcomeNotes: selectedAppointment.outcomeNotes ?? "",
+          followUpDispositionCode:
+            selectedAppointment.followUpDispositionCode ?? "NO_FOLLOW_UP_REQUIRED",
+          followUpNotes: selectedAppointment.followUpNotes ?? "",
+          reasonNotes: ""
+        }
+      : outcomeDraft;
+
+  function resetOutcomeDraftFromAppointment(appointment: Appointment | null = null) {
+    setOutcomeDraft({
+      outcomeCode: appointment?.outcomeCode ?? "COMPLETED",
+      outcomeNotes: appointment?.outcomeNotes ?? "",
+      followUpDispositionCode:
+        appointment?.followUpDispositionCode ?? "NO_FOLLOW_UP_REQUIRED",
+      followUpNotes: appointment?.followUpNotes ?? "",
+      reasonNotes: ""
+    });
+  }
+
+  function selectAppointmentForDetail(appointment: Appointment) {
+    setSelectedId(appointment.id);
+    resetOutcomeDraftFromAppointment(appointment);
+  }
 
   useEffect(() => {
     let isActive = true;
@@ -1395,6 +1489,7 @@ export function AppointmentBoardShell() {
 
       setDraftOpen(false);
       setSelectedId(appointmentNumber);
+      resetOutcomeDraftFromAppointment();
       setActionNotice(`Appointment ${appointmentNumber} was created. Reloading the live board...`);
       await loadLiveAppointments();
     } catch (error) {
@@ -2138,6 +2233,23 @@ export function AppointmentBoardShell() {
       return;
     }
 
+    if (
+      commandType === "START" &&
+      selectedAppointment.executionStatus !== "NOT_STARTED"
+    ) {
+      setActionNotice("Start Work requires an appointment that has not started yet.");
+      return;
+    }
+
+    if (
+      commandType === "FINISH" &&
+      selectedAppointment.executionStatus !== "IN_PROGRESS" &&
+      selectedAppointment.executionStatus !== "WAITING"
+    ) {
+      setActionNotice("Finish Work requires an appointment that is currently in progress or waiting.");
+      return;
+    }
+
     setIsCommandPending(true);
 
     try {
@@ -2188,13 +2300,121 @@ export function AppointmentBoardShell() {
       setNoShowOpen(false);
       setActionNotice(`${label} saved for ${selectedAppointment.id}. History and command ledger were updated by the live command path.`);
 
-      if (commandType === "SCHEDULE") {
-        await loadLiveAppointments();
-      }
+      await loadLiveAppointments();
     } catch (error) {
       setActionNotice(error instanceof Error ? error.message : `${label} could not be completed.`);
     } finally {
       setIsCommandPending(false);
+    }
+  }
+
+  async function submitOutcomeCompletion() {
+    if (!selectedAppointment.recordId || !selectedAppointment.recordVersion) {
+      setActionNotice(
+        `Save Outcome is wired to the live command API, but ${selectedAppointment.id} is still preview data.`
+      );
+      return;
+    }
+
+    if (selectedAppointment.bookingStatus === "COMPLETED") {
+      setActionNotice(`${selectedAppointment.id} already has a completed outcome.`);
+      return;
+    }
+
+    if (selectedAppointment.status === "draft") {
+      setActionNotice("Save Outcome requires a scheduled appointment.");
+      return;
+    }
+
+    if (selectedAppointment.attendanceStatus === "NO_SHOW") {
+      setActionNotice("No-show appointments must use the no-show follow-up workflow.");
+      return;
+    }
+
+    if (selectedAppointment.executionStatus !== "FINISHED") {
+      setActionNotice("Finish Work before saving the final outcome.");
+      return;
+    }
+
+    if (!outcomeDraft.reasonNotes.trim()) {
+      setActionNotice("Save Outcome requires a documented reason.");
+      return;
+    }
+
+    if (
+      outcomeDraft.followUpDispositionCode !== "NO_FOLLOW_UP_REQUIRED" &&
+      !outcomeDraft.followUpNotes.trim()
+    ) {
+      setActionNotice("Follow-up disposition requires a next step note.");
+      return;
+    }
+
+    setIsOutcomeSaving(true);
+
+    try {
+      const idempotencyKey = createAppointmentActionIdentifier(
+        "complete-outcome",
+        selectedAppointment.recordId
+      );
+      const outcomeLabel = labelForOption(outcomeOptions, outcomeDraft.outcomeCode);
+      const followUpLabel = labelForOption(
+        followUpDispositionOptions,
+        outcomeDraft.followUpDispositionCode
+      );
+      const response = await fetch("/api/appointments/commands", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          commandType: "COMPLETE",
+          appointmentId: selectedAppointment.recordId,
+          expectedAppointmentVersion: selectedAppointment.recordVersion,
+          idempotencyKey,
+          correlationId: idempotencyKey,
+          payload: {
+            outcomeCode: outcomeDraft.outcomeCode,
+            outcomeNotes: outcomeDraft.outcomeNotes.trim() || null,
+            followUpDispositionCode: outcomeDraft.followUpDispositionCode,
+            followUpNotes: outcomeDraft.followUpNotes.trim() || null,
+            reasonCode: "OUTCOME_RECORDED",
+            reasonNotes: buildResourceReasonNote(
+              `Recorded ${outcomeLabel} outcome with ${followUpLabel.toLowerCase()} follow-up disposition from Appointment Board.`,
+              outcomeDraft.reasonNotes
+            )
+          }
+        })
+      });
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok || !result?.accepted) {
+        throw new Error(
+          result?.error ||
+            result?.execution?.rejectionReasons?.join(" ") ||
+            "Outcome could not be saved."
+        );
+      }
+
+      setActionNotice(
+        `Outcome saved for ${selectedAppointment.id}. Completion, outcome, follow-up, history, and command ledger were updated.`
+      );
+      setOutcomeDraft((current) => ({
+        ...current,
+        reasonNotes: ""
+      }));
+      setAppointmentStatusOverrides((current) => ({
+        ...current,
+        [selectedAppointment.id]:
+          outcomeDraft.followUpDispositionCode === "NO_FOLLOW_UP_REQUIRED"
+            ? "confirmed"
+            : "follow-up"
+      }));
+      setDetailRefreshKey((value) => value + 1);
+      await loadLiveAppointments();
+    } catch (error) {
+      setActionNotice(error instanceof Error ? error.message : "Outcome could not be saved.");
+    } finally {
+      setIsOutcomeSaving(false);
     }
   }
 
@@ -2334,7 +2554,7 @@ export function AppointmentBoardShell() {
                         <button
                           className={selectedAppointment.id === appointment.id ? `appointment-calendar-item ${meta.className} appointment-calendar-item-active` : `appointment-calendar-item ${meta.className}`}
                           key={appointment.id}
-                          onClick={() => setSelectedId(appointment.id)}
+                          onClick={() => selectAppointmentForDetail(appointment)}
                           style={{ top: `${top}px`, minHeight: `${height}px` }}
                           type="button"
                         >
@@ -2360,7 +2580,7 @@ export function AppointmentBoardShell() {
               <p>The command surface is ready; live scheduling data will reuse the same enterprise controls, permissions, and audit rules.</p>
               <div className="appointment-alt-list">
                 {filteredAppointments.slice(0, 5).map((appointment) => (
-                  <button key={appointment.id} type="button" onClick={() => setSelectedId(appointment.id)}>
+                  <button key={appointment.id} type="button" onClick={() => selectAppointmentForDetail(appointment)}>
                     <span>{formatTime(appointment.startMinutes)}</span>
                     <strong>{appointment.title}</strong>
                     <small>{appointment.customer} · {categoryMeta[appointment.category].label}</small>
@@ -2953,18 +3173,114 @@ export function AppointmentBoardShell() {
           <div className="appointment-detail-section">
             <label className="appointment-outcome-label">
               Outcome
-              <select onChange={(event) => event.target.value ? handlePreviewAction(`Outcome "${event.target.value}"`) : undefined} defaultValue="">
-                <option value="" disabled>Select outcome</option>
-                <option>Completed</option>
-                <option>Rescheduled</option>
-                <option>Needs follow-up</option>
-                <option>No-show documented</option>
+              <select
+                disabled={isOutcomeSaving || selectedAppointment.bookingStatus === "COMPLETED"}
+                onChange={(event) =>
+                  setOutcomeDraft((current) => ({
+                    ...current,
+                    outcomeCode: event.target.value
+                  }))
+                }
+                value={outcomeFieldValues.outcomeCode}
+              >
+                {outcomeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="appointment-outcome-label">
-              Next Step / Follow-Up
-              <textarea placeholder="Add next step..." rows={4} onBlur={(event) => event.currentTarget.value ? handlePreviewAction("Next step") : undefined} />
+              Follow-Up Disposition
+              <select
+                disabled={isOutcomeSaving || selectedAppointment.bookingStatus === "COMPLETED"}
+                onChange={(event) =>
+                  setOutcomeDraft((current) => ({
+                    ...current,
+                    followUpDispositionCode: event.target.value
+                  }))
+                }
+                value={outcomeFieldValues.followUpDispositionCode}
+              >
+                {followUpDispositionOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </label>
+            <label className="appointment-outcome-label">
+              Outcome Notes
+              <textarea
+                disabled={isOutcomeSaving || selectedAppointment.bookingStatus === "COMPLETED"}
+                onChange={(event) =>
+                  setOutcomeDraft((current) => ({
+                    ...current,
+                    outcomeNotes: event.target.value
+                  }))
+                }
+                placeholder="Document what happened during this appointment..."
+                rows={3}
+                value={outcomeFieldValues.outcomeNotes}
+              />
+            </label>
+            <label className="appointment-outcome-label">
+              Next Step / Follow-Up
+              <textarea
+                disabled={isOutcomeSaving || selectedAppointment.bookingStatus === "COMPLETED"}
+                onChange={(event) =>
+                  setOutcomeDraft((current) => ({
+                    ...current,
+                    followUpNotes: event.target.value
+                  }))
+                }
+                placeholder={
+                  outcomeFieldValues.followUpDispositionCode === "NO_FOLLOW_UP_REQUIRED"
+                    ? "Optional: add final handoff notes..."
+                    : "Required: document the exact next step..."
+                }
+                rows={4}
+                value={outcomeFieldValues.followUpNotes}
+              />
+            </label>
+            <label className="appointment-outcome-label">
+              Completion Reason
+              <textarea
+                disabled={isOutcomeSaving || selectedAppointment.bookingStatus === "COMPLETED"}
+                onChange={(event) =>
+                  setOutcomeDraft((current) => ({
+                    ...current,
+                    reasonNotes: event.target.value
+                  }))
+                }
+                placeholder="Required audit reason for closing this appointment..."
+                rows={3}
+                value={outcomeFieldValues.reasonNotes}
+              />
+            </label>
+            <p className="appointment-resource-copy">
+              {selectedAppointment.bookingStatus === "COMPLETED"
+                ? "Final outcome is recorded on this appointment."
+                : selectedAppointment.executionStatus === "FINISHED"
+                  ? "Ready to save final outcome through the command ledger."
+                  : "Finish Work first, then record the final outcome and follow-up."}
+            </p>
+            <button
+              className="appointment-resource-action"
+              disabled={
+                isOutcomeSaving ||
+                selectedAppointment.dataSource !== "live" ||
+                selectedAppointment.bookingStatus === "COMPLETED" ||
+                selectedAppointment.executionStatus !== "FINISHED" ||
+                !outcomeDraft.reasonNotes.trim() ||
+                (outcomeDraft.followUpDispositionCode !== "NO_FOLLOW_UP_REQUIRED" &&
+                  !outcomeDraft.followUpNotes.trim())
+              }
+              onClick={() => void submitOutcomeCompletion()}
+              type="button"
+            >
+              {isOutcomeSaving ? "Saving Outcome..." : "Save Outcome"}
+            </button>
           </div>
 
           <div className="appointment-detail-actions">
@@ -2978,15 +3294,57 @@ export function AppointmentBoardShell() {
               </button>
             ) : null}
             <button
-              disabled={isCommandPending || selectedAppointment.status === "draft" || selectedAppointment.status === "checked-in"}
+              disabled={
+                isCommandPending ||
+                selectedAppointment.status === "draft" ||
+                selectedAppointment.status === "checked-in" ||
+                selectedAppointment.status === "in-progress" ||
+                selectedAppointment.status === "no-show" ||
+                selectedAppointment.bookingStatus === "COMPLETED" ||
+                selectedAppointment.dataSource !== "live"
+              }
               type="button"
               onClick={() => void submitOperationalCommand("CHECK_IN")}
             >
               <Check size={16} aria-hidden="true" />{isCommandPending ? "Saving..." : "Check In"}
             </button>
             <button
+              disabled={
+                isCommandPending ||
+                selectedAppointment.dataSource !== "live" ||
+                selectedAppointment.status === "draft" ||
+                selectedAppointment.status === "no-show" ||
+                selectedAppointment.bookingStatus === "COMPLETED" ||
+                selectedAppointment.attendanceStatus !== "CHECKED_IN" ||
+                selectedAppointment.executionStatus !== "NOT_STARTED"
+              }
+              type="button"
+              onClick={() => void submitOperationalCommand("START")}
+            >
+              <Clock3 size={16} aria-hidden="true" />{isCommandPending ? "Saving..." : "Start Work"}
+            </button>
+            <button
+              disabled={
+                isCommandPending ||
+                selectedAppointment.dataSource !== "live" ||
+                selectedAppointment.bookingStatus === "COMPLETED" ||
+                (selectedAppointment.executionStatus !== "IN_PROGRESS" &&
+                  selectedAppointment.executionStatus !== "WAITING")
+              }
+              type="button"
+              onClick={() => void submitOperationalCommand("FINISH")}
+            >
+              <ClipboardCheck size={16} aria-hidden="true" />{isCommandPending ? "Saving..." : "Finish Work"}
+            </button>
+            <button
               className="appointment-danger-outline"
-              disabled={isCommandPending || selectedAppointment.status === "draft" || selectedAppointment.status === "no-show"}
+              disabled={
+                isCommandPending ||
+                selectedAppointment.status === "draft" ||
+                selectedAppointment.status === "no-show" ||
+                selectedAppointment.bookingStatus === "COMPLETED" ||
+                selectedAppointment.dataSource !== "live"
+              }
               type="button"
               onClick={() => setNoShowOpen(true)}
             >
@@ -3150,7 +3508,7 @@ export function AppointmentBoardShell() {
                   value={noShowDraft.followUpDispositionCode}
                   onChange={(event) => setNoShowDraft((current) => ({ ...current, followUpDispositionCode: event.target.value }))}
                 >
-                  {followUpDispositionOptions.map((option) => (
+                  {noShowFollowUpDispositionOptions.map((option) => (
                     <option key={option.value} value={option.value}>{option.label}</option>
                   ))}
                 </select>

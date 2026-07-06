@@ -37,7 +37,9 @@ const appointmentReadSelect = {
   cancelledAt: true,
   completedAt: true,
   outcomeCode: true,
+  outcomeNotes: true,
   followUpDispositionCode: true,
+  followUpNotes: true,
   createdAt: true,
   updatedAt: true,
   ownerUser: {
@@ -236,7 +238,9 @@ export type AppointmentReadAppointmentRecord = {
   cancelledAt: Date | null;
   completedAt: Date | null;
   outcomeCode: string | null;
+  outcomeNotes: string | null;
   followUpDispositionCode: string | null;
+  followUpNotes: string | null;
   createdAt: Date;
   updatedAt: Date;
   ownerUser: AppointmentReadUserSummaryRecord | null;

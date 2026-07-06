@@ -123,7 +123,9 @@ export type AppointmentReadModel = {
   taskLinks: AppointmentReadTaskLinkSummary[];
   resourceReservations: AppointmentReadResourceReservationSummary[];
   outcomeCode: string | null;
+  outcomeNotes: string | null;
   followUpDispositionCode: string | null;
+  followUpNotes: string | null;
   createdAt: string;
   updatedAt: string;
   visibility: AppointmentReadVisibility;
@@ -455,7 +457,9 @@ function toAppointmentReadModel(input: {
       capacityUnits: reservation.capacityUnits
     })),
     outcomeCode: input.appointment.outcomeCode,
+    outcomeNotes: input.appointment.outcomeNotes,
     followUpDispositionCode: input.appointment.followUpDispositionCode,
+    followUpNotes: input.appointment.followUpNotes,
     createdAt: input.appointment.createdAt.toISOString(),
     updatedAt: input.appointment.updatedAt.toISOString(),
     visibility

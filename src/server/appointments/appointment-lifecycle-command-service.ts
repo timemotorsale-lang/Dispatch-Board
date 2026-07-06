@@ -29,6 +29,7 @@ export const APPOINTMENT_LIFECYCLE_EXECUTION_COMMANDS = [
   "SCHEDULE",
   "RESCHEDULE",
   "CANCEL",
+  "COMPLETE",
   "CONFIRM",
   "DECLINE",
   "CHECK_IN",
@@ -97,7 +98,10 @@ export type AppointmentLifecycleCommandPayload = {
   sourceSnapshot?: Record<string, unknown> | null;
   reasonCode?: string | null;
   reasonNotes?: string | null;
+  outcomeCode?: string | null;
+  outcomeNotes?: string | null;
   followUpDispositionCode?: string | null;
+  followUpNotes?: string | null;
   reservationCandidates?: AppointmentReservationCommitCandidate[];
   releaseReservations?: AppointmentReservationReleaseCandidate[];
   taskLinks?: AppointmentLifecycleTaskLinkEffect[];
@@ -1422,6 +1426,114 @@ function buildFinishPlan(
   };
 }
 
+function buildCompletePlan(
+  input: AppointmentLifecycleCommandInput
+): AppointmentLifecycleCommandExecutionPlan {
+  const { appointment, rejection } = assertOpenScheduledAppointment(input);
+
+  if (rejection) {
+    return rejection;
+  }
+
+  if (appointment.attendanceStatus === "NO_SHOW") {
+    return rejectPlan({
+      commandId: input.commandId,
+      commandType: input.commandType,
+      rejectionCode: "NO_SHOW_RECORDED",
+      rejectionReasons: ["A no-show appointment must use the no-show follow-up workflow."]
+    });
+  }
+
+  if (appointment.executionStatus !== "FINISHED") {
+    return rejectPlan({
+      commandId: input.commandId,
+      commandType: input.commandType,
+      rejectionCode: "EXECUTION_NOT_FINISHED",
+      rejectionReasons: ["COMPLETE requires a finished appointment execution."]
+    });
+  }
+
+  const { reasonCode, reasonNotes } = getRequiredReason(input.payload);
+  const now = input.now ?? new Date();
+  const outcomeCode = requiredText(input.payload?.outcomeCode, "Appointment outcome");
+  const followUpDispositionCode = requiredText(
+    input.payload?.followUpDispositionCode,
+    "Completion follow-up disposition"
+  );
+  const outcomeNotes = optionalText(input.payload?.outcomeNotes);
+  const followUpNotes = optionalText(input.payload?.followUpNotes);
+  const set = {
+    bookingStatus: "COMPLETED",
+    completedAt: now,
+    outcomeCode,
+    outcomeNotes,
+    followUpDispositionCode,
+    followUpNotes
+  };
+
+  return {
+    commandId: input.commandId,
+    commandType: input.commandType,
+    executable: true,
+    rejectionCode: null,
+    rejectionReasons: [],
+    appointmentEffect: {
+      operation: "UPDATE",
+      appointmentId: appointment.id,
+      expectedVersion: appointment.version,
+      set,
+      incrementVersion: 1
+    },
+    reservationEffects: input.payload?.releaseReservations?.length
+      ? [
+          {
+            action: "RELEASE_RESERVATIONS",
+            reservations: input.payload.releaseReservations,
+            reasonCode,
+            reasonNotes,
+            releasedByUserId: input.actor?.id ?? null
+          }
+        ]
+      : [],
+    taskLinkEffects: input.payload?.taskLinks ?? [],
+    historyEffects: [
+      buildHistoryEffect({
+        command: { ...input, now },
+        eventType: "COMPLETED",
+        message: `Appointment ${appointment.appointmentNumber} completed.`,
+        reasonCode,
+        reasonNotes,
+        priorValue: {
+          bookingStatus: appointment.bookingStatus,
+          executionStatus: appointment.executionStatus
+        },
+        newValue: set
+      }),
+      buildHistoryEffect({
+        command: { ...input, now },
+        eventType: "OUTCOME_RECORDED",
+        message: `Appointment ${appointment.appointmentNumber} outcome recorded.`,
+        reasonCode,
+        reasonNotes,
+        priorValue: null,
+        newValue: {
+          outcomeCode,
+          outcomeNotes,
+          followUpDispositionCode,
+          followUpNotes
+        }
+      })
+    ],
+    commandResultSnapshot: {
+      appointmentId: appointment.id,
+      bookingStatus: "COMPLETED",
+      outcomeCode,
+      followUpDispositionCode,
+      releaseReservationCount: input.payload?.releaseReservations?.length ?? 0
+    }
+  };
+}
+
 function buildTransferOwnerPlan(
   input: AppointmentLifecycleCommandInput
 ): AppointmentLifecycleCommandExecutionPlan {
@@ -1507,6 +1619,8 @@ export function planAppointmentLifecycleCommandExecution(
       return buildReschedulePlan(input);
     case "CANCEL":
       return buildCancelPlan(input);
+    case "COMPLETE":
+      return buildCompletePlan(input);
     case "CONFIRM":
       return buildConfirmPlan(input);
     case "DECLINE":
