@@ -21,7 +21,7 @@ However, the full Enterprise Release 1.0 roadmap is not complete yet. The remain
 | Product direction | Approved | The product purpose and enterprise scope are approved. |
 | Appointment foundation | Strongly implemented | Core model, commands, permissions, audit, scheduling services, and resource/staff foundations exist. |
 | Appointment Board UI | In progress with substantial live workflow | The visible board exists and many detail-rail workflows are live. |
-| Enterprise admin | In progress / partial | Managers now have an Appointment Settings foundation for location profile, phone, hours, closures, resource status/capacity/conflict policy, resource outages/capacity reductions, resource summaries, catalogs, and automation readiness. Full editors for templates, reasons, outcomes, recurring/special-hours calendars, automation rules, and import/export remain. |
+| Enterprise admin | In progress / partial | Managers now have Appointment Settings plus a Catalog + Automation workspace for location profile, phone, hours, closures, resource status/capacity/conflict policy, resource outages/capacity reductions, purpose templates, outcome/follow-up/reason catalogs, automation rule hooks, and simulation previews. Persistent editors, version activation, recurring/special-hours calendars, automation activation/pause/retire, and import/export remain. |
 | Task-to-appointment orchestration | In progress with live vertical slice | Follow-up automation, task-detail create-linked-draft workflow, live browser proof, board scheduling handoff, and appointment-to-task navigation exist. Automation-rule authoring/runtime remains. |
 | Reporting and analytics | Pending | KPI definitions, reporting models, exports, and reconciliation are not built yet. |
 | Notifications | Pending | Internal notifications and future integration contracts remain. |
@@ -138,6 +138,7 @@ Important context: the package count understates the depth of the work already c
 - Appointment Settings admin foundation at `/settings/appointments` for manager-only location profile, address, phone, operating hours, scheduling status, resource summaries, catalogs, and automation readiness.
 - Appointment Settings V2 controls for location closure create/edit/delete, holiday/planned/emergency closure windows, resource status/capacity/conflict policy updates, and resource outage/capacity-reduction windows.
 - Appointment Board header and create/schedule payload defaults now read from the admin location foundation with safe Lake Street fallbacks.
+- Appointment Catalog + Automation admin workspace at `/settings/appointments/catalog` for manager-only purpose template review, outcome/follow-up/reason catalog visibility, automation rule hook visibility, and safe automation simulation before activation.
 
 ### 4.5 Current validation evidence
 
@@ -149,17 +150,15 @@ npm run typecheck
 npm test
 npm run db:validate
 
-106 test files passed
-618 tests passed
+109 test files passed
+628 tests passed
 ```
 
-Focused validation during the Appointment Admin Foundation V2 block:
+Focused validation during the Appointment Catalog + Automation Admin block:
 
 ```text
 npm run typecheck
-npm test -- appointment-admin-settings-service.test.ts appointment-admin-settings-route.test.ts appointment-admin-settings-v2-route.test.ts
-npm test -- appointment-admin-settings-service.test.ts appointment-admin-settings-v2-route.test.ts
-npm test -- appointment-admin-settings-service.test.ts appointment-admin-settings-route.test.ts appointment-admin-settings-v2-route.test.ts appointment-board-shell.test.tsx
+npm test -- appointment-catalog-automation-admin-service.test.ts appointment-catalog-automation-admin-route.test.ts appointment-catalog-automation-panel.test.tsx
 npm run lint
 npm run db:validate
 npm test
@@ -333,20 +332,20 @@ Recommended E4 next steps:
 | EAPT-055 | Recurrence and occurrence-exception controls | Not started |
 | EAPT-056 | Conflict resolution and manager override experience | Partial |
 | EAPT-057 | Bulk rescheduling and closure-impact workspace | Not started |
-| EAPT-058 | Purpose, template, outcome, reason administration | Not started / foundation partial |
+| EAPT-058 | Purpose, template, outcome, reason administration | Partial; manager-visible purpose templates, outcome/follow-up/reason catalogs, and governance read model exist. Persistent editing, approval, and version activation remain. |
 | EAPT-059 | Location, hours, closures, resource, capacity, availability administration | Partial; location profile, phone, weekday hours, scheduling status, closure create/edit/delete, resource status/capacity/conflict policy, resource outage/capacity-reduction windows, resource summary, and board wiring implemented |
-| EAPT-060 | Automation rule authoring and simulation | Not started |
-| EAPT-061 | Automation activation, pause, retire, failure administration | Not started |
+| EAPT-060 | Automation rule authoring and simulation | Partial; automation rule hooks and simulation preview exist. Rule authoring and persistent approval remain. |
+| EAPT-061 | Automation activation, pause, retire, failure administration | Not started; activation lifecycle remains after simulation foundation. |
 | EAPT-062 | Configuration import/export with validation and redaction | Not started |
 | EAPT-063 | Creation and administration workflow tests | Not started |
 
 Recommended E5 next steps:
 
-1. Add recurring holiday templates and special-hours calendars.
-2. Add deeper resource availability calendars, capacity overrides by day, and resource type editors.
-3. Reason-code and outcome administration.
-4. Purpose/template administration.
-5. Automation rule administration with simulation before activation.
+1. Add persistent purpose/template/outcome/follow-up/reason editing with draft, approval, and version activation.
+2. Add automation rule authoring, approval, activation, pause, retire, failure handling, retry, and replay.
+3. Add recurring holiday templates and special-hours calendars.
+4. Add deeper resource availability calendars, capacity overrides by day, and resource type editors.
+5. Add configuration import/export with validation, redaction, and audit evidence.
 
 ## E6 — Owner, staff, and responsive workflows
 

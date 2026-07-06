@@ -768,6 +768,116 @@ textarea {
   gap: 0.5rem;
 }
 
+.appointment-catalog-admin-stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.appointment-catalog-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.appointment-catalog-workspace {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.72fr) minmax(0, 1.28fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.appointment-catalog-list {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1rem;
+  max-height: 720px;
+  overflow: auto;
+  padding-right: 0.25rem;
+}
+
+.appointment-catalog-row {
+  display: grid;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 0.85rem;
+  text-align: left;
+  background: #f8fafc;
+  border: 1px solid #e0e7f0;
+  border-radius: 0.95rem;
+  cursor: pointer;
+}
+
+.appointment-catalog-row:hover,
+.appointment-catalog-row-active {
+  background: #eef5ff;
+  border-color: #bfd4f5;
+}
+
+.appointment-catalog-row span,
+.appointment-catalog-detail-grid span,
+.appointment-catalog-simulation span {
+  color: #617189;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.appointment-catalog-row strong,
+.appointment-catalog-detail-grid strong,
+.appointment-catalog-simulation strong {
+  color: #12233a;
+}
+
+.appointment-catalog-row small,
+.appointment-catalog-detail-grid small,
+.appointment-catalog-simulation small {
+  color: #617189;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.appointment-catalog-detail-grid,
+.appointment-catalog-simulation {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.appointment-catalog-detail-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.appointment-catalog-detail-grid > div,
+.appointment-catalog-simulation > div {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.9rem;
+  background: #f8fafc;
+  border: 1px solid #e0e7f0;
+  border-radius: 0.95rem;
+}
+
+.appointment-catalog-two-column {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.appointment-catalog-two-column h3 {
+  margin: 0;
+  color: #12233a;
+  font-size: 0.95rem;
+}
+
+.appointment-catalog-rule-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
 .appointment-admin-pill-list,
 .appointment-admin-code-list {
   display: flex;
@@ -2662,7 +2772,7 @@ code {
   .board-and-rail { grid-template-columns: minmax(0,1fr); }.operations-rail { position: static; grid-template-columns: repeat(3,minmax(0,1fr)); max-height: none; overflow: visible; }
   .filter-row { grid-template-columns: repeat(4,minmax(112px,1fr)); }.board-search { grid-column: span 3; }
   .project-view-grid,.project-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .appointment-admin-ops-grid,.appointment-admin-summary-grid { grid-template-columns: 1fr; }
+  .appointment-admin-ops-grid,.appointment-admin-summary-grid,.appointment-catalog-metric-grid,.appointment-catalog-workspace { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 1360px) {
@@ -2720,6 +2830,7 @@ code {
   .settings-admin-grid,.settings-summary-grid { grid-template-columns: 1fr; }
   .settings-workspace,.settings-overview-grid { grid-template-columns: 1fr; }
   .appointment-admin-hour-row { grid-template-columns: 1fr; }
+  .appointment-catalog-detail-grid,.appointment-catalog-two-column { grid-template-columns: 1fr; }
   .appointment-admin-resource-card header { display: grid; }
   .settings-rail { position: static; }
   .settings-rail-summary { grid-template-columns: repeat(3,minmax(0,1fr)); }

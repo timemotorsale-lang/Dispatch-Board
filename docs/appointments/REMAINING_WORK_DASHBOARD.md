@@ -21,7 +21,7 @@ However, Enterprise Release 1.0 is not complete. The remaining work is mostly th
 | E2 | Scheduling, availability, recurrence, capacity | Mostly complete / gate-ready | Authoritative scheduling services, resource/staff availability, hard conflict, warning, waitlist, bulk, and quality gates exist as service foundations. |
 | E3 | Lifecycle, task orchestration, audit, automation | In progress | Live command execution, appointment board workflows, resource workflows, staff conflict controls, outcomes, linked-task read/display/navigation, task-detail draft appointment creation, board handoff, appointment activity-feed visibility, and follow-up automation are implemented. Automation-admin, failure/retry/replay, and final lifecycle coverage items remain. |
 | E4 | Appointment Command Center operating views | In progress but not gate-complete | The mockup-aligned board and detail rail exist, but full day/week/month/agenda/resource/location views, exception queues, saved views, and browser/accessibility evidence remain. |
-| E5 | Creation and administration | In progress / partial | Appointment Settings foundation now exists for manager-only location profile, phone, hours, status, closures, resource status/capacity/conflict policy, resource outages/capacity reductions, resource summaries, catalogs, and automation readiness. Full editors for purposes, templates, reasons, outcomes, recurring/special-hours calendars, automation rules, and import/export remain. |
+| E5 | Creation and administration | In progress / partial | Appointment Settings plus Catalog + Automation admin foundations now exist for manager-only location profile, phone, hours, status, closures, resource status/capacity/conflict policy, resource outages/capacity reductions, resource summaries, purpose templates, outcome/follow-up/reason catalogs, automation rule hooks, and simulation previews. Persistent editors, version activation, recurring/special-hours calendars, automation activation/pause/retire, and import/export remain. |
 | E6 | Owner, staff, and responsive workflows | Not started | Dedicated My Appointments, mobile workflows, participant read-only experience, responsive handoff, stale/offline safeguards, and real-device testing remain. |
 | E7 | Internal notifications and future integration contracts | Not started | Notification preferences, notification center, internal appointment notifications, failure handling, and stable future SMS/email/calendar/CRM/DMS contracts remain. |
 | E8 | Analytics and operational controls | Not started | KPI dictionary, reporting read models, reports, exports, audit, reconciliation, and reporting performance/privacy tests remain. |
@@ -112,6 +112,7 @@ Important context: this count understates the depth of E3 because EAPT-029 has b
 - Appointment Settings admin foundation at `/settings/appointments` for manager-only location profile, address, phone, operating hours, scheduling status, resource summaries, catalogs, and automation readiness
 - Appointment Settings V2 controls for location closure create/edit/delete, holiday/planned/emergency closure windows, resource status/capacity/conflict policy updates, and resource outage/capacity-reduction windows
 - Appointment Board header and create/schedule defaults now read from the admin location foundation with safe Lake Street fallbacks
+- Appointment Catalog + Automation admin workspace at `/settings/appointments/catalog` for manager-only purpose template review, outcome/follow-up/reason catalog visibility, automation rule hook visibility, and safe automation simulation before activation
 
 ### Current validation evidence
 
@@ -123,17 +124,15 @@ npm run typecheck
 npm test
 npm run db:validate
 
-106 test files passed
-618 tests passed
+109 test files passed
+628 tests passed
 ```
 
-Focused validation during the Appointment Admin Foundation V2 block:
+Focused validation during the Appointment Catalog + Automation Admin block:
 
 ```text
 npm run typecheck
-npm test -- appointment-admin-settings-service.test.ts appointment-admin-settings-route.test.ts appointment-admin-settings-v2-route.test.ts
-npm test -- appointment-admin-settings-service.test.ts appointment-admin-settings-v2-route.test.ts
-npm test -- appointment-admin-settings-service.test.ts appointment-admin-settings-route.test.ts appointment-admin-settings-v2-route.test.ts appointment-board-shell.test.tsx
+npm test -- appointment-catalog-automation-admin-service.test.ts appointment-catalog-automation-admin-route.test.ts appointment-catalog-automation-panel.test.tsx
 npm run lint
 npm run db:validate
 npm test
@@ -237,20 +236,20 @@ This is one of the largest remaining enterprise areas.
 | EAPT-055 | Recurrence and occurrence-exception controls | Not started | Medium |
 | EAPT-056 | Conflict resolution and manager override experience | Partial | High |
 | EAPT-057 | Bulk rescheduling and closure-impact workspace | Not started | Medium |
-| EAPT-058 | Purpose, template, outcome, and reason administration | Not started / foundation partial | High |
+| EAPT-058 | Purpose, template, outcome, and reason administration | Partial; manager-visible purpose templates, outcome/follow-up/reason catalogs, and governance read model exist. Persistent editing, approval, and version activation remain. | High |
 | EAPT-059 | Location, hours, closures, resource, capacity, availability administration | Partial; location profile, phone, weekday hours, scheduling status, closure create/edit/delete, resource status/capacity/conflict policy, resource outage/capacity-reduction windows, resource summary, and Appointment Board wiring implemented | High |
-| EAPT-060 | Automation rule authoring and simulation | Not started | High |
-| EAPT-061 | Automation activation, pause, retire, and failure administration | Not started | High |
+| EAPT-060 | Automation rule authoring and simulation | Partial; automation rule hooks and simulation preview exist. Rule authoring and persistent approval remain. | High |
+| EAPT-061 | Automation activation, pause, retire, and failure administration | Not started; activation lifecycle remains after simulation foundation. | High |
 | EAPT-062 | Configuration import/export with validation and redaction | Not started | Medium |
 | EAPT-063 | Creation and administration workflow tests | Not started | High |
 
 Recommended next E5 slices:
 
-1. Add recurring holiday templates and special-hours calendars.
-2. Add deeper resource availability calendars, capacity overrides by day, and resource type editors.
-3. Reason-code and outcome administration.
-4. Purpose/template administration.
-5. Automation rules administration with simulation before activation.
+1. Add persistent purpose/template/outcome/follow-up/reason editing with draft, approval, and version activation.
+2. Add automation rule authoring, approval, activation, pause, retire, failure handling, retry, and replay.
+3. Add recurring holiday templates and special-hours calendars.
+4. Add deeper resource availability calendars, capacity overrides by day, and resource type editors.
+5. Add configuration import/export with validation, redaction, and audit evidence.
 
 ## E6 remaining work
 

@@ -18,17 +18,15 @@ npm run db:validate
 Vitest result:
 
 ```text
-106 test files passed
-618 tests passed
+109 test files passed
+628 tests passed
 ```
 
-Latest focused validation after the Admin Settings Foundation block:
+Latest focused validation after the Appointment Catalog + Automation Admin block:
 
 ```text
 npm run typecheck
-npm test -- appointment-admin-settings-service.test.ts appointment-admin-settings-route.test.ts appointment-board-shell.test.tsx
-npm test -- appointment-admin-settings-service.test.ts appointment-admin-settings-route.test.ts appointment-admin-settings-v2-route.test.ts
-npm test -- appointment-admin-settings-service.test.ts appointment-admin-settings-route.test.ts appointment-admin-settings-v2-route.test.ts appointment-board-shell.test.tsx
+npm test -- appointment-catalog-automation-admin-service.test.ts appointment-catalog-automation-admin-route.test.ts appointment-catalog-automation-panel.test.tsx
 npm run lint
 npm run db:validate
 npm test
@@ -46,6 +44,7 @@ All focused and full-suite runs passed. The authored task-to-appointment Playwri
 | Users, roles, and duties | Implemented | Schema, APIs, services, policies, settings UI, and tests |
 | App settings | Implemented | Timezone, business days, generation time, manager API/UI, and tests |
 | Appointment admin settings foundation | Implemented as partial E5 admin foundation | Manager-only `/settings/appointments` workspace, protected appointment admin settings routes, location profile/address/phone/timezone/status editing, weekday appointment operating windows, location closure create/edit/delete, resource status/capacity/conflict-policy editing, resource outage/capacity-reduction windows, resource/catalog/automation readiness summaries, and Appointment Board header/create/schedule fallback wiring |
+| Appointment catalog automation admin foundation | Implemented as partial E5 admin foundation | Manager-only `/settings/appointments/catalog` workspace, protected catalog/simulation routes, purpose template read model, outcome/follow-up/reason catalog visibility, automation rule hook visibility, governance metrics, and safe simulation preview. Persistent catalog editing, rule authoring, approval, and activation lifecycle remain pending |
 | Task templates | Partially implemented | Schema, API, service, validation, seed data, tests, and prototype UI exist; production template administration remains incomplete |
 | Daily board generation | Implemented | Input loading, idempotent task generation, run tracking, manual trigger, scheduled route, and tests |
 | Board read and UI | Implemented | Date/today APIs, grouping, filtering, responsive board, manual task creation, and tests |
