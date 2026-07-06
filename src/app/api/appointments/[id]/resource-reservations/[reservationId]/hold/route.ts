@@ -41,6 +41,7 @@ function getResourceReservationHoldErrorStatus(message: string) {
     message === "Resource candidates can only be held for draft appointments." ||
     message === "Resource candidate hold requires a valid appointment time window." ||
     message === "Resource candidate is no longer available to hold." ||
+    message === "Resource warning must be overridden before this candidate can be held." ||
     message === "Resource candidate proposal was already changed." ||
     message.includes("Resource hold")
   ) {

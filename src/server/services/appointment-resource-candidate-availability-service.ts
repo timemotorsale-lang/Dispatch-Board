@@ -150,7 +150,7 @@ const locationAccessSelect = {
 
 type AppointmentResourceCandidateAvailabilityDatabase = Pick<
   PrismaClient,
-  "$transaction" | "appointment" | "userLocationAccess"
+  "$transaction" | "appointment" | "appointmentHistoryEvent" | "userLocationAccess"
 >;
 
 export type AppointmentResourceCandidateAvailabilityAppointmentRecord =
@@ -475,6 +475,28 @@ function buildResourceWarningKey(input: {
   ].join("|");
 }
 
+async function hasResourceWarningOverride(input: {
+  database: AppointmentResourceCandidateAvailabilityDatabase;
+  appointmentId: string;
+  warningKey: string;
+}) {
+  const historyEvent = await input.database.appointmentHistoryEvent.findFirst({
+    where: {
+      appointmentId: input.appointmentId,
+      eventType: "WARNING_OVERRIDDEN",
+      metadata: {
+        path: ["warningKey"],
+        equals: input.warningKey
+      }
+    },
+    select: {
+      id: true
+    }
+  });
+
+  return Boolean(historyEvent);
+}
+
 export function createAppointmentResourceCandidateAvailabilityRepository(
   database: AppointmentResourceCandidateAvailabilityDatabase = prisma
 ): AppointmentResourceCandidateAvailabilityRepository {
@@ -699,6 +721,24 @@ export async function holdAppointmentResourceCandidate(
 
   if (availability.isHardBlocked) {
     throw new Error("Resource candidate is no longer available to hold.");
+  }
+
+  const warningKey = buildResourceWarningKey({
+    appointmentId: appointment.id,
+    reservationId: proposal.reservation.id,
+    resourceId: proposal.reservation.resourceId,
+    reasons: availability.reasons
+  });
+
+  if (
+    !availability.isAvailable &&
+    !(await hasResourceWarningOverride({
+      database,
+      appointmentId: appointment.id,
+      warningKey
+    }))
+  ) {
+    throw new Error("Resource warning must be overridden before this candidate can be held.");
   }
 
   const availabilityStatus: AppointmentHeldResourceReservation["availabilityStatus"] =

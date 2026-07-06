@@ -274,6 +274,7 @@ describe("appointment resource candidate hold service", () => {
     access?: AppointmentResourceCandidateAvailabilityLocationAccessRecord | null;
     appointmentUpdateCount?: number;
     reservationUpdateCount?: number;
+    warningOverrideExists?: boolean;
   }) {
     const createdHistory: unknown[] = [];
     const updatedReservations: unknown[] = [];
@@ -290,6 +291,11 @@ describe("appointment resource candidate hold service", () => {
         userLocationAccess: {
           async findFirst() {
             return input?.access === undefined ? access() : input.access;
+          }
+        },
+        appointmentHistoryEvent: {
+          async findFirst() {
+            return input?.warningOverrideExists ? { id: "history-warning-override" } : null;
           }
         },
         async $transaction(operation: (tx: unknown) => Promise<unknown>) {
@@ -408,6 +414,64 @@ describe("appointment resource candidate hold service", () => {
     expect(harness.createdHistory).toHaveLength(0);
   });
 
+  it("requires a manager warning override before holding warning-level candidates", async () => {
+    const harness = database({
+      appointment: warningAppointment()
+    });
+
+    await expect(
+      holdAppointmentResourceCandidate(
+        managerUser,
+        "appointment-1",
+        {
+          reservationId: "reservation-proposed",
+          expectedAppointmentVersion: 3,
+          reasonCode: "RESOURCE_CANDIDATE_HELD",
+          reasonNotes: "Hold Bay 1 before scheduling."
+        },
+        harness.database,
+        now
+      )
+    ).rejects.toThrow("Resource warning must be overridden before this candidate can be held.");
+
+    expect(harness.updatedReservations).toHaveLength(0);
+    expect(harness.createdHistory).toHaveLength(0);
+  });
+
+  it("holds warning-level candidates after a matching manager override exists", async () => {
+    const harness = database({
+      appointment: warningAppointment(),
+      warningOverrideExists: true
+    });
+
+    const result = await holdAppointmentResourceCandidate(
+      managerUser,
+      "appointment-1",
+      {
+        reservationId: "reservation-proposed",
+        expectedAppointmentVersion: 3,
+        reasonCode: "RESOURCE_CANDIDATE_HELD",
+        reasonNotes: "Hold Bay 1 after manager warning override."
+      },
+      harness.database,
+      now
+    );
+
+    expect(result).toMatchObject({
+      status: "HELD",
+      availabilityStatus: "WARNING",
+      warningReasons: expect.arrayContaining([
+        "Resource capacity is already reserved during the candidate window."
+      ])
+    });
+    expect(harness.updatedReservations).toEqual([
+      {
+        status: "HELD"
+      }
+    ]);
+    expect(harness.createdHistory).toHaveLength(1);
+  });
+
   it("rejects stale appointment versions before holding the proposal", async () => {
     const harness = database({
       appointmentUpdateCount: 0
@@ -482,6 +546,11 @@ describe("appointment resource reservation release service", () => {
         userLocationAccess: {
           async findFirst() {
             return input?.access === undefined ? access() : input.access;
+          }
+        },
+        appointmentHistoryEvent: {
+          async findFirst() {
+            return null;
           }
         },
         async $transaction(operation: (tx: unknown) => Promise<unknown>) {
@@ -615,6 +684,11 @@ describe("appointment resource warning override service", () => {
         userLocationAccess: {
           async findFirst() {
             return input?.access === undefined ? access() : input.access;
+          }
+        },
+        appointmentHistoryEvent: {
+          async findFirst() {
+            return null;
           }
         },
         async $transaction(operation: (tx: unknown) => Promise<unknown>) {

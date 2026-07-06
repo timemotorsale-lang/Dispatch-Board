@@ -154,4 +154,35 @@ describe("appointment resource candidate hold route", () => {
       error: "Resource candidate is no longer available to hold."
     });
   });
+
+  it("maps missing warning overrides to bad request", async () => {
+    mocks.holdAppointmentResourceCandidate.mockRejectedValue(
+      new Error("Resource warning must be overridden before this candidate can be held.")
+    );
+
+    const response = await POST(
+      new Request(
+        "http://localhost/api/appointments/appointment-1/resource-reservations/reservation-proposed/hold",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            expectedAppointmentVersion: 3,
+            reasonCode: "RESOURCE_CANDIDATE_HELD",
+            reasonNotes: "Hold warning candidate before scheduling."
+          })
+        }
+      ),
+      {
+        params: Promise.resolve({
+          id: "appointment-1",
+          reservationId: "reservation-proposed"
+        })
+      }
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Resource warning must be overridden before this candidate can be held."
+    });
+  });
 });
