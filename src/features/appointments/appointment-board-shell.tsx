@@ -168,6 +168,28 @@ type AppointmentScheduleReadiness = {
   }>;
 };
 
+type AppointmentStaffConflictPreview = {
+  appointmentId: string;
+  appointmentNumber: string;
+  bookingStatus: string;
+  status: "READY" | "WARNING" | "BLOCKED";
+  canProceedWithStaff: boolean;
+  staff: {
+    userId: string;
+    name: string;
+    role: "OWNER";
+    resourceId: string | null;
+    resourceName: string | null;
+  } | null;
+  checks: Array<{
+    code: string;
+    label: string;
+    status: "PASS" | "WARNING" | "BLOCKED";
+    message: string;
+  }>;
+  reasons: string[];
+};
+
 type AppointmentResourcePlanning = {
   appointmentId: string;
   appointmentNumber: string;
@@ -865,6 +887,8 @@ export function AppointmentBoardShell() {
   const [isDraftSaving, setIsDraftSaving] = useState(false);
   const [scheduleReadiness, setScheduleReadiness] = useState<AppointmentScheduleReadiness | null>(null);
   const [isReadinessLoading, setIsReadinessLoading] = useState(false);
+  const [staffConflictPreview, setStaffConflictPreview] = useState<AppointmentStaffConflictPreview | null>(null);
+  const [isStaffConflictLoading, setIsStaffConflictLoading] = useState(false);
   const [resourcePlanning, setResourcePlanning] = useState<AppointmentResourcePlanning | null>(null);
   const [isResourcePlanningLoading, setIsResourcePlanningLoading] = useState(false);
   const [candidateAvailability, setCandidateAvailability] = useState<AppointmentResourceCandidateAvailability | null>(null);
@@ -1163,6 +1187,60 @@ export function AppointmentBoardShell() {
     }
 
     void loadScheduleReadiness();
+
+    return () => {
+      isActive = false;
+    };
+  }, [detailRefreshKey, selectedAppointment.recordId, selectedAppointment.status]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadStaffConflictPreview() {
+      if (selectedAppointment.status !== "draft" || !selectedAppointment.recordId) {
+        setStaffConflictPreview(null);
+        setIsStaffConflictLoading(false);
+        return;
+      }
+
+      setIsStaffConflictLoading(true);
+
+      try {
+        const response = await fetch(
+          `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/staff-conflicts`
+        );
+        const result = (await response.json().catch(() => null)) as
+          | { staffConflicts?: AppointmentStaffConflictPreview; error?: string }
+          | null;
+
+        if (!isActive) {
+          return;
+        }
+
+        if (!response.ok || !result?.staffConflicts) {
+          throw new Error(result?.error || "Unable to load staff conflict preview.");
+        }
+
+        setStaffConflictPreview(result.staffConflicts);
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        setStaffConflictPreview(null);
+        setActionNotice(
+          error instanceof Error
+            ? `Staff conflict preview could not load: ${error.message}`
+            : "Staff conflict preview could not load."
+        );
+      } finally {
+        if (isActive) {
+          setIsStaffConflictLoading(false);
+        }
+      }
+    }
+
+    void loadStaffConflictPreview();
 
     return () => {
       isActive = false;
@@ -2117,6 +2195,49 @@ export function AppointmentBoardShell() {
               ) : (
                 <p className="appointment-readiness-copy">
                   {isReadinessLoading ? "Checking schedule readiness..." : "Schedule readiness is not available for this appointment yet."}
+                </p>
+              )}
+            </div>
+          ) : null}
+
+          {selectedAppointment.dataSource === "live" && selectedAppointment.status === "draft" ? (
+            <div className="appointment-detail-section">
+              <div className="appointment-section-heading">
+                <strong>Staff Conflict Preview</strong>
+                <span className={`appointment-readiness-chip appointment-readiness-${staffConflictPreview?.status.toLowerCase() ?? "loading"}`}>
+                  {isStaffConflictLoading ? "Loading" : staffConflictPreview?.status ?? "Unavailable"}
+                </span>
+              </div>
+              {staffConflictPreview ? (
+                <div className="appointment-readiness-stack">
+                  <div className={`appointment-readiness-row appointment-readiness-row-${staffConflictPreview.status === "READY" ? "pass" : staffConflictPreview.status.toLowerCase()}`}>
+                    <strong>
+                      {staffConflictPreview.staff
+                        ? `${staffConflictPreview.staff.name} (${staffConflictPreview.staff.role})`
+                        : "Owner staff"}
+                    </strong>
+                    <span>{staffConflictPreview.status}</span>
+                    <small>
+                      {staffConflictPreview.reasons.length > 0
+                        ? staffConflictPreview.reasons.join(" ")
+                        : staffConflictPreview.staff?.resourceName
+                          ? `${staffConflictPreview.staff.resourceName} is available for this appointment window.`
+                          : "Staff availability is ready for this appointment window."}
+                    </small>
+                  </div>
+                  {staffConflictPreview.checks.slice(1).map((check) => (
+                    <div className={`appointment-readiness-row appointment-readiness-row-${check.status.toLowerCase()}`} key={check.code}>
+                      <strong>{check.label}</strong>
+                      <span>{check.status}</span>
+                      <small>{check.message}</small>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="appointment-readiness-copy">
+                  {isStaffConflictLoading
+                    ? "Checking owner staff availability..."
+                    : "Staff conflict preview is not available for this appointment yet."}
                 </p>
               )}
             </div>
