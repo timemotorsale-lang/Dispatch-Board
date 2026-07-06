@@ -95,6 +95,7 @@ export type AppointmentLifecycleTransactionResult = {
   commandId: string;
   commandStatus: AppointmentCommandStatus;
   appointment: AppointmentLifecyclePersistedAppointment | null;
+  createdAppointmentCount: number;
   committedReservationCount: number;
   releasedReservationCount: number;
   createdTaskCount: number;
@@ -187,6 +188,7 @@ function toHistoryEventInput(input: {
 function createResultSnapshot(input: {
   plan: AppointmentLifecycleCommandExecutionPlan;
   appointmentId: string | null;
+  createdAppointmentCount: number;
   committedReservationCount: number;
   releasedReservationCount: number;
   createdTaskCount: number;
@@ -197,6 +199,7 @@ function createResultSnapshot(input: {
   return {
     ...input.plan.commandResultSnapshot,
     appointmentId: input.appointmentId,
+    createdAppointmentCount: input.createdAppointmentCount,
     committedReservationCount: input.committedReservationCount,
     releasedReservationCount: input.releasedReservationCount,
     createdTaskCount: input.createdTaskCount,
@@ -233,6 +236,7 @@ async function recordRejectedPlan(input: {
     commandId: input.plan.commandId,
     commandStatus: "FAILED_TERMINAL",
     appointment: null,
+    createdAppointmentCount: 0,
     committedReservationCount: 0,
     releasedReservationCount: 0,
     createdTaskCount: 0,
@@ -271,6 +275,12 @@ export async function executeAppointmentLifecycleCommandPlan(input: {
 
     if (!appointmentId) {
       throw new Error("Lifecycle command execution requires an appointment id.");
+    }
+
+    const createdAppointments: AppointmentLifecyclePersistedAppointment[] = [];
+
+    for (const effect of input.plan.appointmentCreateEffects ?? []) {
+      createdAppointments.push(await transaction.createAppointment(effect));
     }
 
     const committedReservations: AppointmentCommittedResourceReservation[] = [];
@@ -325,6 +335,7 @@ export async function executeAppointmentLifecycleCommandPlan(input: {
     const resultSnapshot = createResultSnapshot({
       plan: input.plan,
       appointmentId,
+      createdAppointmentCount: createdAppointments.length,
       committedReservationCount: committedReservations.length,
       releasedReservationCount: releasedReservations.length,
       createdTaskCount: createdTasks.length,
@@ -349,6 +360,7 @@ export async function executeAppointmentLifecycleCommandPlan(input: {
       commandId: input.plan.commandId,
       commandStatus: "SUCCEEDED",
       appointment,
+      createdAppointmentCount: createdAppointments.length,
       committedReservationCount: committedReservations.length,
       releasedReservationCount: releasedReservations.length,
       createdTaskCount: createdTasks.length,

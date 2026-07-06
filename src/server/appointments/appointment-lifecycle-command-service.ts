@@ -215,6 +215,7 @@ export type AppointmentLifecycleCommandExecutionPlan = {
   rejectionCode: string | null;
   rejectionReasons: string[];
   appointmentEffect: AppointmentLifecycleAppointmentEffect | null;
+  appointmentCreateEffects?: AppointmentLifecycleAppointmentCreateEffect[];
   reservationEffects: AppointmentLifecycleReservationEffect[];
   taskCreateEffects?: AppointmentLifecycleTaskCreateEffect[];
   taskLinkEffects: AppointmentLifecycleTaskLinkEffect[];
@@ -315,6 +316,73 @@ function getFollowUpTaskTitle(input: {
   }
 
   return `Follow up on appointment ${input.appointmentNumber}`;
+}
+
+function getFollowUpAppointmentNumber(input: {
+  appointmentNumber: string;
+  now: Date;
+}) {
+  return `FUP-${input.appointmentNumber}-${input.now.getTime().toString(36).toUpperCase()}`;
+}
+
+function snapshotFromReference(value: string | null, key: string) {
+  return value ? { [key]: value } : null;
+}
+
+function buildOutcomeFollowUpAppointmentEffects(input: {
+  appointment: AppointmentLifecycleCommandAppointment;
+  actor: AuthenticatedUser | null;
+  payload: AppointmentLifecycleCommandPayload | undefined;
+  followUpDispositionCode: string;
+  followUpNotes: string | null;
+  now: Date;
+}): AppointmentLifecycleAppointmentCreateEffect[] {
+  if (input.followUpDispositionCode !== "FOLLOW_UP_APPOINTMENT_REQUIRED") {
+    return [];
+  }
+
+  const customerReference = optionalText(input.payload?.customerReference);
+  const vehicleReference = optionalText(input.payload?.vehicleReference);
+
+  return [
+    {
+      operation: "CREATE",
+      values: {
+        appointmentNumber: getFollowUpAppointmentNumber({
+          appointmentNumber: input.appointment.appointmentNumber,
+          now: input.now
+        }),
+        organizationId: input.appointment.organizationId,
+        locationId: input.appointment.locationId,
+        ownerUserId: input.appointment.ownerUserId,
+        createdByUserId: input.actor?.id ?? null,
+        sourceType: "AUTOMATION",
+        sourceReference: input.appointment.id,
+        title: `Follow-up: ${input.appointment.title}`,
+        schedulingTimezone: input.appointment.schedulingTimezone,
+        startsAt: null,
+        endsAt: null,
+        bookingStatus: "DRAFT",
+        version: 1,
+        purposeSnapshot: {
+          purposeCode: "FOLLOW_UP_APPOINTMENT",
+          automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_APPOINTMENT",
+          templateVersion: 1,
+          sourceAppointmentId: input.appointment.id,
+          sourceAppointmentNumber: input.appointment.appointmentNumber,
+          followUpNotes: input.followUpNotes
+        },
+        customerSnapshot: snapshotFromReference(customerReference, "displayName"),
+        vehicleSnapshot: snapshotFromReference(vehicleReference, "displayName"),
+        sourceSnapshot: {
+          sourceAppointmentId: input.appointment.id,
+          sourceAppointmentNumber: input.appointment.appointmentNumber,
+          sourceTitle: input.appointment.title,
+          followUpDispositionCode: input.followUpDispositionCode
+        }
+      }
+    }
+  ];
 }
 
 function buildOutcomeFollowUpTaskEffects(input: {
@@ -1644,6 +1712,14 @@ function buildCompletePlan(
     followUpNotes,
     now
   });
+  const appointmentCreateEffects = buildOutcomeFollowUpAppointmentEffects({
+    appointment,
+    actor: input.actor,
+    payload: input.payload,
+    followUpDispositionCode,
+    followUpNotes,
+    now
+  });
   const set = {
     bookingStatus: "COMPLETED",
     completedAt: now,
@@ -1677,6 +1753,7 @@ function buildCompletePlan(
           }
         ]
       : [],
+    appointmentCreateEffects,
     taskCreateEffects,
     taskLinkEffects: input.payload?.taskLinks ?? [],
     historyEffects: [
@@ -1722,6 +1799,23 @@ function buildCompletePlan(
               }
             })
           ]
+        : []),
+      ...(appointmentCreateEffects.length > 0
+        ? [
+            buildHistoryEffect({
+              command: { ...input, now },
+              eventType: "AUTOMATION_EVALUATED",
+              message: `Appointment ${appointment.appointmentNumber} follow-up appointment automation created a draft appointment request.`,
+              reasonCode,
+              reasonNotes,
+              priorValue: null,
+              newValue: {
+                automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_APPOINTMENT",
+                appointmentNumber: appointmentCreateEffects[0].values.appointmentNumber,
+                followUpDispositionCode
+              }
+            })
+          ]
         : [])
     ],
     commandResultSnapshot: {
@@ -1730,7 +1824,8 @@ function buildCompletePlan(
       outcomeCode,
       followUpDispositionCode,
       releaseReservationCount: input.payload?.releaseReservations?.length ?? 0,
-      automatedTaskCount: taskCreateEffects.length
+      automatedTaskCount: taskCreateEffects.length,
+      automatedFollowUpAppointmentCount: appointmentCreateEffects.length
     }
   };
 }

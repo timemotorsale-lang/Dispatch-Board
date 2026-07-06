@@ -61,5 +61,5 @@ When automation creates a task, the appointment command plan includes:
 - Admin-editable automation templates.
 - Configurable due-time and owner-routing rules.
 - Browser workflow coverage for the complete → generated task path.
-- Automatic follow-up appointment draft creation for `FOLLOW_UP_APPOINTMENT_REQUIRED`.
+- Browser workflow coverage for generated follow-up tasks.
 - Activity-feed event emission for generated follow-up tasks.

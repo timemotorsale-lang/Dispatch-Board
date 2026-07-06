@@ -847,6 +847,87 @@ describe("appointment lifecycle command execution planner", () => {
     });
   });
 
+  it("plans an automated draft appointment when completion disposition requires a follow-up appointment", () => {
+    const finishedAppointment: AppointmentLifecycleCommandAppointment = {
+      ...appointment,
+      executionStatus: "FINISHED"
+    };
+    const plan = planAppointmentLifecycleCommandExecution(
+      baseCommand({
+        commandType: "COMPLETE",
+        appointment: finishedAppointment,
+        payload: {
+          outcomeCode: "FOLLOW_UP_REQUIRED",
+          outcomeNotes: "Customer requested another visit.",
+          followUpDispositionCode: "FOLLOW_UP_APPOINTMENT_REQUIRED",
+          followUpNotes: "Create a draft appointment for next brake inspection.",
+          customerReference: "Ahmed Ibrahim",
+          vehicleReference: "2014 Ford Taurus",
+          reasonCode: "OUTCOME_RECORDED",
+          reasonNotes: "Follow-up visit needed after inspection."
+        }
+      })
+    );
+
+    expect(plan).toMatchObject({
+      executable: true,
+      appointmentCreateEffects: [
+        {
+          operation: "CREATE",
+          values: {
+            appointmentNumber: expect.stringMatching(/^FUP-APT-10245-/),
+            organizationId: appointment.organizationId,
+            locationId: appointment.locationId,
+            ownerUserId: ownerUser.id,
+            createdByUserId: managerUser.id,
+            sourceType: "AUTOMATION",
+            sourceReference: appointment.id,
+            title: "Follow-up: Service / Repair",
+            schedulingTimezone: "America/Chicago",
+            startsAt: null,
+            endsAt: null,
+            bookingStatus: "DRAFT",
+            version: 1,
+            customerSnapshot: {
+              displayName: "Ahmed Ibrahim"
+            },
+            vehicleSnapshot: {
+              displayName: "2014 Ford Taurus"
+            }
+          }
+        }
+      ],
+      taskCreateEffects: [
+        {
+          title: "Schedule follow-up appointment for APT-10245",
+          linkCode: "OUTCOME_FOLLOW_UP_APPOINTMENT_REQUIRED"
+        }
+      ],
+      historyEffects: [
+        {
+          eventType: "COMPLETED"
+        },
+        {
+          eventType: "OUTCOME_RECORDED"
+        },
+        {
+          eventType: "TASK_LINKED"
+        },
+        {
+          eventType: "AUTOMATION_EVALUATED",
+          newValue: {
+            automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_APPOINTMENT",
+            followUpDispositionCode: "FOLLOW_UP_APPOINTMENT_REQUIRED"
+          }
+        }
+      ],
+      commandResultSnapshot: {
+        automatedTaskCount: 1,
+        automatedFollowUpAppointmentCount: 1
+      }
+    });
+  });
+
   it("blocks completion before finish and after no-show", () => {
     const notFinished = planAppointmentLifecycleCommandExecution(
       baseCommand({

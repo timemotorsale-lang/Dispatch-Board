@@ -414,6 +414,67 @@ describe("appointment lifecycle transaction execution", () => {
     ]);
   });
 
+  it("creates automated draft follow-up appointments during completion execution", async () => {
+    const plan = planAppointmentLifecycleCommandExecution(
+      baseCommand({
+        commandType: "COMPLETE",
+        appointment: {
+          ...appointment,
+          confirmationStatus: "CONFIRMED",
+          attendanceStatus: "CHECKED_IN",
+          executionStatus: "FINISHED"
+        },
+        payload: {
+          outcomeCode: "FOLLOW_UP_REQUIRED",
+          followUpDispositionCode: "FOLLOW_UP_APPOINTMENT_REQUIRED",
+          followUpNotes: "Schedule another inspection visit.",
+          customerReference: "Ahmed Ibrahim",
+          vehicleReference: "2014 Ford Taurus",
+          reasonCode: "OUTCOME_RECORDED",
+          reasonNotes: "Follow-up appointment required."
+        }
+      })
+    );
+    const harness = createRepositoryHarness();
+    const result = await executeAppointmentLifecycleCommandPlan({
+      plan,
+      repository: harness.repository,
+      now
+    });
+
+    expect(result).toMatchObject({
+      executed: true,
+      commandStatus: "SUCCEEDED",
+      createdAppointmentCount: 1,
+      createdTaskCount: 1,
+      createdTaskLinkCount: 1,
+      historyEventCount: 4,
+      resultSnapshot: expect.objectContaining({
+        automatedFollowUpAppointmentCount: 1,
+        createdAppointmentCount: 1,
+        automatedTaskCount: 1
+      })
+    });
+    expect(harness.appointments).toEqual([
+      {
+        id: appointment.id,
+        appointmentNumber: appointment.appointmentNumber,
+        version: 4
+      },
+      {
+        id: "appointment-created-1",
+        appointmentNumber: expect.stringMatching(/^FUP-APT-10245-/),
+        version: 1
+      }
+    ]);
+    expect(harness.historyEvents.map((event) => event.eventType)).toEqual([
+      "COMPLETED",
+      "OUTCOME_RECORDED",
+      "TASK_LINKED",
+      "AUTOMATION_EVALUATED"
+    ]);
+  });
+
   it("records rejected plans as failed command results without applying side effects", async () => {
     const plan = planAppointmentLifecycleCommandExecution(
       baseCommand({
