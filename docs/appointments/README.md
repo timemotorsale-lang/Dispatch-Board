@@ -68,6 +68,7 @@ The approved enterprise product, permission, lifecycle, conflict, automation, an
 | [HARD_CONFLICT_EVALUATION_CONTRACT.md](HARD_CONFLICT_EVALUATION_CONTRACT.md) | Implemented EAPT-018 server-side hard-conflict evaluation contract |
 | [WARNING_OVERRIDE_CONTRACT.md](WARNING_OVERRIDE_CONTRACT.md) | Implemented EAPT-019 server-side warning evaluation and manager override contract |
 | [RESOURCE_RESERVATION_COMMIT_CONTRACT.md](RESOURCE_RESERVATION_COMMIT_CONTRACT.md) | Implemented EAPT-020 protected resource reservation commit and release contract |
+| [AVAILABILITY_SEARCH_CONTRACT.md](AVAILABILITY_SEARCH_CONTRACT.md) | Implemented EAPT-021 availability search contract for people and resources |
 | [AUTOMATION_RULES_CATALOG.md](AUTOMATION_RULES_CATALOG.md) | Explainable task-to-appointment and appointment-to-task automation model |
 | [PERMISSION_MATRIX.md](PERMISSION_MATRIX.md) | Manager, owner, participant, viewer, administrator, and system-action authorization rules |
 | [LIFECYCLE_CONFLICT_MATRIX.md](LIFECYCLE_CONFLICT_MATRIX.md) | State transitions, reason requirements, resource constraints, warnings, and hard blocks |
@@ -117,7 +118,8 @@ Implementation tickets may clarify technical details but may not weaken these ru
 | EAPT-018 — Server-side hard-conflict evaluation | Complete | `HARD_CONFLICT_EVALUATION_CONTRACT.md`, hard-conflict service, template/context/time/location/resource/staff/recurrence blocking, reserved-resource window use, and focused tests |
 | EAPT-019 — Server-side warning evaluation and manager override records | Complete | `WARNING_OVERRIDE_CONTRACT.md`, warning service, warning-only staff/resource extraction, duration override warnings, manager-only override validation, reason-code/note requirements, audit-shaped override records, and focused tests |
 | EAPT-020 — Atomic resource reservation and release behavior | Complete | `RESOURCE_RESERVATION_COMMIT_CONTRACT.md`, transaction/lock service boundary, deterministic resource lock ordering, inside-lock availability recheck, no-partial-create behavior, held/committed capacity protection, warning commit policy, reasoned release, and focused tests |
-| EAPT-021 — Availability search for people and resources | Next | Search candidate slots using the same time, conflict, warning, and reservation rules used at commitment |
+| EAPT-021 — Availability search for people and resources | Complete | `AVAILABILITY_SEARCH_CONTRACT.md`, availability search service, bounded local-date windows, location-window candidate generation, hard-conflict and warning reconciliation, clean availability filtering, blocked diagnostics, and focused tests |
+| EAPT-022 — Rescheduling and recurrence-change impact preview | Next | Preview prior/new times, warning/hard-block effects, recurrence impact, and affected reservations before changes are committed |
 
 ## Recommended Review Order
 
