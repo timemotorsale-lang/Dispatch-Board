@@ -9,6 +9,7 @@ import {
 } from "@/server/repositories/activity-event-repository";
 import {
   createActivityFeedRepository,
+  type ActivityFeedAppointmentHistoryEventRecord,
   type ActivityFeedEventRecord,
   type ActivityFeedRepository
 } from "@/server/repositories/activity-feed-repository";
@@ -35,6 +36,12 @@ export type ActivityFeedEvent = {
     title: string;
     status?: string;
     workflowArea?: string;
+  } | null;
+  appointment?: {
+    id: string;
+    appointmentNumber: string;
+    title: string;
+    bookingStatus: string;
   } | null;
 };
 
@@ -105,6 +112,35 @@ function toBoardActivityFeedEvent(
   };
 }
 
+function toAppointmentHistoryActivityFeedEvent(
+  event: ActivityFeedAppointmentHistoryEventRecord,
+  boardDate: string
+): ActivityFeedEvent {
+  return {
+    id: `appointment-history-${event.id}`,
+    boardDate,
+    eventType: `APPOINTMENT_${event.eventType}`,
+    message: event.message,
+    metadata: event.metadata,
+    createdAt: event.occurredAt.toISOString(),
+    actor: toActorSummary(event),
+    task: event.task
+      ? {
+          id: event.task.id,
+          title: event.task.title,
+          status: event.task.status,
+          workflowArea: event.task.workflowArea
+        }
+      : null,
+    appointment: {
+      id: event.appointment.id,
+      appointmentNumber: event.appointment.appointmentNumber,
+      title: event.appointment.title,
+      bookingStatus: event.appointment.bookingStatus
+    }
+  };
+}
+
 function toTaskActivityFeedEvent(event: ActivityEventRecord): ActivityFeedEvent {
   return {
     id: event.id,
@@ -156,12 +192,25 @@ export async function listActivityFeedEventsForDate(
     };
   }
 
-  const events = await repository.listActivityEventsForBoardDay(boardDay.id);
+  const [boardEvents, appointmentEvents] = await Promise.all([
+    repository.listActivityEventsForBoardDay(boardDay.id),
+    repository.listAppointmentHistoryEventsForBoardDate(normalizedBoardDate)
+  ]);
+  const events = [
+    ...boardEvents.map((event) => toBoardActivityFeedEvent(event, normalizedBoardDate)),
+    ...appointmentEvents.map((event) =>
+      toAppointmentHistoryActivityFeedEvent(event, normalizedBoardDate)
+    )
+  ].sort((left, right) => {
+    const byDate = new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+
+    return byDate !== 0 ? byDate : right.id.localeCompare(left.id);
+  });
 
   return {
     date: normalizedBoardDate,
     boardDayId: boardDay.id,
-    events: events.map((event) => toBoardActivityFeedEvent(event, normalizedBoardDate))
+    events
   };
 }
 

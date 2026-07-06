@@ -1,0 +1,4139 @@
+"use client";
+
+import {
+  Bell,
+  CalendarDays,
+  Car,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  ClipboardCheck,
+  FileText,
+  Filter,
+  MapPin,
+  MessageCircle,
+  Phone,
+  Plus,
+  Search,
+  Settings,
+  ShieldCheck,
+  UserRound,
+  Users,
+  X
+} from "lucide-react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+
+type AppointmentCategory =
+  | "sales"
+  | "service"
+  | "delivery"
+  | "customer"
+  | "dmv"
+  | "collections"
+  | "inventory"
+  | "marketing"
+  | "general";
+
+type AppointmentStatus =
+  | "draft"
+  | "confirmed"
+  | "checked-in"
+  | "in-progress"
+  | "no-show"
+  | "follow-up";
+
+type OperationalCommand = "CHECK_IN" | "NO_SHOW" | "SCHEDULE" | "START" | "FINISH";
+
+type AppointmentBoardDataSource = "preview" | "live";
+
+type ResourceAuditAction = "warning-override" | "release" | "replace";
+
+type DraftAppointmentForm = {
+  category: AppointmentCategory;
+  title: string;
+  customer: string;
+  vehicle: string;
+  localDate: string;
+  startTime: string;
+  durationMinutes: number;
+  reason: string;
+};
+
+type ScheduleDraftForm = {
+  localDate: string;
+  startTime: string;
+  durationMinutes: number;
+  reasonNotes: string;
+};
+
+type StaffMember = {
+  id: string;
+  name: string;
+  role: string;
+  initials: string;
+};
+
+type Appointment = {
+  id: string;
+  recordId?: string;
+  recordVersion?: number;
+  startsAtIso?: string | null;
+  endsAtIso?: string | null;
+  schedulingTimezone?: string;
+  bookingStatus?: string;
+  attendanceStatus?: string;
+  executionStatus?: string;
+  outcomeCode?: string | null;
+  outcomeNotes?: string | null;
+  followUpDispositionCode?: string | null;
+  followUpNotes?: string | null;
+  dataSource?: AppointmentBoardDataSource;
+  title: string;
+  customer: string;
+  vehicle: string;
+  category: AppointmentCategory;
+  status: AppointmentStatus;
+  staffId: string;
+  staffName?: string;
+  staffRole?: string;
+  startMinutes: number;
+  durationMinutes: number;
+  phone: string;
+  complaint: string;
+  location: string;
+  confirmation: string;
+  conflict?: boolean;
+  needsFollowUp?: boolean;
+  taskAutomation: string[];
+  linkedTasks?: Array<{
+    id: string;
+    taskId: string;
+    title: string;
+    status: string;
+    dueAt: string;
+    assignedUserName: string;
+    linkType: string;
+    linkTitle: string;
+    explanation: string | null;
+    isRequired: boolean;
+    blocksAppointment: boolean;
+    appointmentRequiredForTask: boolean;
+  }>;
+  governanceNotes: string[];
+};
+
+type AppointmentReadModel = {
+  id: string;
+  appointmentNumber: string;
+  title: string;
+  sourceReference: string | null;
+  schedulingTimezone: string;
+  startsAt: string | null;
+  endsAt: string | null;
+  bookingStatus: string;
+  confirmationStatus: string;
+  attendanceStatus: string;
+  executionStatus: string;
+  version: number;
+  owner: {
+    id: string;
+    name: string;
+    email?: string;
+  } | null;
+  customer: {
+    displayName: string;
+    phoneNumber: string | null;
+  } | null;
+  vehicles: Array<{
+    vehicleNumber: string;
+    stockNumber: string | null;
+    year: number | null;
+    make: string | null;
+    model: string | null;
+    vin: string | null;
+    roleCode: string;
+    isPrimary: boolean;
+  }>;
+  taskLinks: Array<{
+    id: string;
+    taskId: string;
+    taskTitle?: string;
+    taskStatus?: string;
+    taskDueAt?: string;
+    assignedUser?: {
+      id: string;
+      name: string;
+      email?: string;
+    };
+    linkType: string;
+    linkTitle?: string;
+    explanation?: string | null;
+    isRequired?: boolean;
+    blocksAppointment: boolean;
+    appointmentRequiredForTask: boolean;
+  }>;
+  visibility: {
+    canMutate: boolean;
+    relationship: string;
+  };
+  outcomeCode: string | null;
+  outcomeNotes: string | null;
+  followUpDispositionCode: string | null;
+  followUpNotes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type AppointmentReadApiResult = {
+  date: string;
+  appointmentCount: number;
+  appointments: AppointmentReadModel[];
+};
+
+type AppointmentScheduleReadiness = {
+  appointmentId: string;
+  appointmentNumber: string;
+  bookingStatus: string;
+  status: "READY" | "WARNING" | "BLOCKED";
+  canSubmitSchedule: boolean;
+  hardBlocks: Array<{
+    code: string;
+    message: string;
+  }>;
+  warnings: Array<{
+    code: string;
+    message: string;
+  }>;
+  checks: Array<{
+    code: string;
+    label: string;
+    status: "PASS" | "WARNING" | "BLOCKED";
+    message: string;
+  }>;
+};
+
+type AppointmentStaffConflictPreview = {
+  appointmentId: string;
+  appointmentNumber: string;
+  bookingStatus: string;
+  status: "READY" | "WARNING" | "BLOCKED";
+  canProceedWithStaff: boolean;
+  warningOverrideRequired: boolean;
+  warningOverrideSatisfied: boolean;
+  warningKey: string | null;
+  staff: {
+    userId: string;
+    name: string;
+    role: "OWNER" | "PARTICIPANT";
+    roleCode: string;
+    resourceId: string | null;
+    resourceName: string | null;
+  } | null;
+  staffMembers?: Array<{
+    userId: string;
+    name: string;
+    role: "OWNER" | "PARTICIPANT";
+    roleCode: string;
+    resourceId: string | null;
+    resourceName: string | null;
+    status: "READY" | "WARNING" | "BLOCKED";
+    warningOverrideRequired: boolean;
+    warningOverrideSatisfied: boolean;
+    warningKey: string | null;
+    reasons: string[];
+  }>;
+  checks: Array<{
+    code: string;
+    label: string;
+    status: "PASS" | "WARNING" | "BLOCKED";
+    message: string;
+    staffUserId?: string;
+    staffRole?: "OWNER" | "PARTICIPANT";
+    staffRoleCode?: string;
+    warningKey?: string | null;
+    warningOverrideRequired?: boolean;
+    warningOverrideSatisfied?: boolean;
+  }>;
+  reasons: string[];
+};
+
+type AppointmentResourcePlanning = {
+  appointmentId: string;
+  appointmentNumber: string;
+  category: string;
+  status:
+    | "READY_TO_SELECT"
+    | "REQUIREMENT_SELECTED"
+    | "CONFIGURATION_NEEDED"
+    | "NO_RECOMMENDATION";
+  canManageResourcesForAppointment: boolean;
+  recommendations: Array<{
+    requirementCode: string;
+    label: string;
+    resourceTypeCode: string;
+    requiredCapacity: number;
+    isMandatory: boolean;
+    hardBlockIfUnfulfilled: boolean;
+    assignmentTiming: "AT_BOOKING" | "BEFORE_START" | "OPTIONAL";
+    rationale: string;
+    resourceTypeId: string | null;
+    resourceTypeName: string | null;
+    selectedRequirementId: string | null;
+    selectedReservationCount: number;
+    selectedReservation: {
+      id: string;
+      status: string;
+      resourceId: string;
+      resourceCode: string;
+      resourceName: string;
+    } | null;
+    activeCandidateCount: number;
+    status: "SELECTED" | "AVAILABLE" | "CONFIGURATION_NEEDED" | "RESOURCE_TYPE_MISSING";
+    candidates: Array<{
+      id: string;
+      code: string;
+      name: string;
+      capacity: number;
+      capacityMode: string;
+      conflictPolicy: string;
+    }>;
+    message: string;
+  }>;
+};
+
+type AppointmentResourceCandidateAvailability = {
+  appointmentId: string;
+  appointmentNumber: string;
+  status: "READY" | "WARNING" | "BLOCKED" | "NO_PROPOSALS";
+  canProceedToHold: boolean;
+  proposals: Array<{
+    reservationId: string;
+    requirementId: string | null;
+    requirementCode: string;
+    resourceId: string;
+    resourceCode: string;
+    resourceName: string;
+    status: "READY" | "WARNING" | "BLOCKED";
+    canProceedToHold: boolean;
+    warningOverrideRequired: boolean;
+    warningOverrideSatisfied: boolean;
+    warningKey: string | null;
+    reasons: string[];
+    availableCapacity: number;
+    requiredCapacity: number;
+    reservedCapacity: number;
+    unavailableCapacity: number;
+  }>;
+};
+
+type ViewMode = "day" | "week" | "month" | "agenda";
+
+const businessDate = "Monday, July 6, 2026";
+const businessHours = "9:00 AM - 6:00 PM";
+const dealershipAddress = "1101 E. Lake Street, Minneapolis, MN 55407";
+const dealershipPhone = "(612) 724-3631";
+const defaultBoardDate = "2026-07-06";
+const defaultOrganizationId = "org-time-motor-sales";
+const defaultLocationId = "loc-time-motor-sales-minneapolis";
+const defaultTimezone = "America/Chicago";
+
+const outcomeOptions = [
+  { value: "COMPLETED", label: "Completed" },
+  { value: "FOLLOW_UP_REQUIRED", label: "Needs follow-up" },
+  { value: "RESCHEDULED", label: "Rescheduled" },
+  { value: "ESCALATED", label: "Escalated" }
+];
+
+const followUpDispositionOptions = [
+  { value: "NO_FOLLOW_UP_REQUIRED", label: "No follow-up required" },
+  { value: "CALLBACK_REQUIRED", label: "Callback required" },
+  { value: "FOLLOW_UP_APPOINTMENT_REQUIRED", label: "Follow-up appointment required" },
+  { value: "TASK_CREATED", label: "Task created / assigned" },
+  { value: "MANAGER_REVIEW_REQUIRED", label: "Manager review required" }
+];
+
+const staffMembers: StaffMember[] = [
+  { id: "abdi", name: "Abdi Farah", role: "General Manager", initials: "AF" },
+  { id: "brock", name: "Brock Peterson", role: "Service Advisor", initials: "BP" },
+  { id: "walter", name: "Walter James", role: "Sales Manager", initials: "WJ" },
+  { id: "mohamed", name: "Mohamed Ali", role: "Salesperson", initials: "MA" },
+  { id: "rayana", name: "Rayana Hassan", role: "Office / Admin", initials: "RH" }
+];
+
+const categoryMeta: Record<AppointmentCategory, { label: string; className: string }> = {
+  sales: { label: "Sales / Test Drive", className: "appointment-kind-sales" },
+  service: { label: "Service / Repair", className: "appointment-kind-service" },
+  delivery: { label: "Vehicle Delivery", className: "appointment-kind-delivery" },
+  customer: { label: "Customer Issue", className: "appointment-kind-customer" },
+  dmv: { label: "Documentation / DMV", className: "appointment-kind-dmv" },
+  collections: { label: "Collections / Payment", className: "appointment-kind-collections" },
+  inventory: { label: "Inventory / Vendor", className: "appointment-kind-inventory" },
+  marketing: { label: "Marketing / Listing", className: "appointment-kind-marketing" },
+  general: { label: "Other / General", className: "appointment-kind-general" }
+};
+
+const appointments: Appointment[] = [
+  {
+    id: "APT-10245",
+    title: "Service / Repair",
+    customer: "Abdi Hussein",
+    vehicle: "2014 Ford Taurus",
+    category: "service",
+    status: "confirmed",
+    staffId: "brock",
+    startMinutes: 540,
+    durationMinutes: 75,
+    phone: "(612) 555-0147",
+    complaint: "Brake noise when stopping.",
+    location: "Service counter",
+    confirmation: "Confirmed by phone",
+    taskAutomation: ["Intake & Inspection", "Diagnostics", "Estimate & Approval"],
+    governanceNotes: ["Manager can override timing.", "Owner can update appointment notes."]
+  },
+  {
+    id: "APT-10246",
+    title: "Test Drive",
+    customer: "Ahmed Ibrahim",
+    vehicle: "2018 Toyota Camry",
+    category: "sales",
+    status: "confirmed",
+    staffId: "abdi",
+    startMinutes: 545,
+    durationMinutes: 65,
+    phone: "(612) 555-0102",
+    complaint: "Wants financing options ready before arrival.",
+    location: "Showroom",
+    confirmation: "SMS confirmed",
+    taskAutomation: ["Pull vehicle", "Prepare buyer profile", "Attach lead source"],
+    governanceNotes: ["Conflict warning enabled.", "Customer data stays on board."]
+  },
+  {
+    id: "APT-10247",
+    title: "Title / Registration",
+    customer: "Amina Said",
+    vehicle: "Registration",
+    category: "dmv",
+    status: "follow-up",
+    staffId: "rayana",
+    startMinutes: 545,
+    durationMinutes: 80,
+    phone: "(612) 555-0191",
+    complaint: "Needs title transfer paperwork reviewed.",
+    location: "Office desk",
+    confirmation: "Walk-in hold",
+    needsFollowUp: true,
+    taskAutomation: ["Document review", "Title checklist", "Customer signature"],
+    governanceNotes: ["Reason required for document changes.", "Admin task template attached."]
+  },
+  {
+    id: "APT-10248",
+    title: "Test Drive",
+    customer: "Mohamed Duale",
+    vehicle: "2020 Honda Accord",
+    category: "sales",
+    status: "confirmed",
+    staffId: "walter",
+    startMinutes: 570,
+    durationMinutes: 75,
+    phone: "(612) 555-0173",
+    complaint: "Compare Accord and Camry payments.",
+    location: "Sales floor",
+    confirmation: "Confirmed by staff",
+    conflict: true,
+    taskAutomation: ["Vehicle hold", "Trade appraisal prompt"],
+    governanceNotes: ["Conflict warning: sales floor overlap.", "Manager review if moved."]
+  },
+  {
+    id: "APT-10249",
+    title: "Service / Repair",
+    customer: "Khalid Mohamud",
+    vehicle: "Brake Inspection",
+    category: "service",
+    status: "in-progress",
+    staffId: "brock",
+    startMinutes: 600,
+    durationMinutes: 75,
+    phone: "(612) 555-0115",
+    complaint: "Soft brake pedal.",
+    location: "Service counter",
+    confirmation: "Checked in",
+    taskAutomation: ["Open inspection", "Assign technician", "Estimate due"],
+    governanceNotes: ["Status reason recorded.", "Linked to repair workflow."]
+  },
+  {
+    id: "APT-10250",
+    title: "Vehicle Delivery",
+    customer: "Farah Abdi",
+    vehicle: "2021 Toyota RAV4",
+    category: "delivery",
+    status: "checked-in",
+    staffId: "mohamed",
+    startMinutes: 630,
+    durationMinutes: 75,
+    phone: "(612) 555-0122",
+    complaint: "Final paperwork and keys.",
+    location: "Delivery bay",
+    confirmation: "Customer arrived",
+    taskAutomation: ["Detail & fuel", "Delivery checklist", "Warranty packet"],
+    governanceNotes: ["Delivery checklist required.", "Owner/staff changes audited."]
+  },
+  {
+    id: "APT-10251",
+    title: "Title / DMV",
+    customer: "Said Mohamed",
+    vehicle: "Paperwork",
+    category: "dmv",
+    status: "follow-up",
+    staffId: "abdi",
+    startMinutes: 660,
+    durationMinutes: 70,
+    phone: "(612) 555-0150",
+    complaint: "Needs missing buyer documents.",
+    location: "Manager office",
+    confirmation: "Needs follow-up",
+    needsFollowUp: true,
+    taskAutomation: ["Missing docs alert", "Customer call task"],
+    governanceNotes: ["Follow-up reason required.", "Document status visible only on board."]
+  },
+  {
+    id: "APT-10252",
+    title: "DMV / Plates",
+    customer: "Mustafa Ali",
+    vehicle: "New Plates",
+    category: "dmv",
+    status: "confirmed",
+    staffId: "rayana",
+    startMinutes: 690,
+    durationMinutes: 75,
+    phone: "(612) 555-0180",
+    complaint: "Plate pickup and registration copy.",
+    location: "Office desk",
+    confirmation: "Confirmed",
+    taskAutomation: ["Plate release checklist", "Scan registration"],
+    governanceNotes: ["Admin owns appointment.", "Changes require reason."]
+  },
+  {
+    id: "APT-10253",
+    title: "Sales Meeting",
+    customer: "Team Meeting",
+    vehicle: "Sales Floor",
+    category: "sales",
+    status: "confirmed",
+    staffId: "walter",
+    startMinutes: 720,
+    durationMinutes: 65,
+    phone: dealershipPhone,
+    complaint: "Pipeline, test drives, and follow-ups.",
+    location: "Sales floor",
+    confirmation: "Internal",
+    taskAutomation: ["Pipeline review", "Assign call blocks"],
+    governanceNotes: ["Internal appointment allowed.", "Conflicts warn staff only."]
+  },
+  {
+    id: "APT-10254",
+    title: "Collections",
+    customer: "Abdirahman Ali",
+    vehicle: "Payment Plan",
+    category: "collections",
+    status: "confirmed",
+    staffId: "abdi",
+    startMinutes: 780,
+    durationMinutes: 65,
+    phone: "(612) 555-0166",
+    complaint: "Review payment promise.",
+    location: "Manager office",
+    confirmation: "Confirmed",
+    taskAutomation: ["Payment notes", "Promise follow-up"],
+    governanceNotes: ["Reason required for outcome.", "Manager-only edits after close."]
+  },
+  {
+    id: "APT-10255",
+    title: "Service / Repair",
+    customer: "Liban Ali",
+    vehicle: "Oil Change",
+    category: "service",
+    status: "confirmed",
+    staffId: "brock",
+    startMinutes: 810,
+    durationMinutes: 70,
+    phone: "(612) 555-0144",
+    complaint: "Oil change and quick check.",
+    location: "Service counter",
+    confirmation: "Confirmed",
+    taskAutomation: ["Quick service ticket", "Parts check"],
+    governanceNotes: ["Owner can update notes.", "Manager override audited."]
+  },
+  {
+    id: "APT-10256",
+    title: "Test Drive",
+    customer: "Hassan Omar",
+    vehicle: "2022 RAV4",
+    category: "sales",
+    status: "confirmed",
+    staffId: "walter",
+    startMinutes: 840,
+    durationMinutes: 75,
+    phone: "(612) 555-0133",
+    complaint: "Buyer wants SUV comparison.",
+    location: "Showroom",
+    confirmation: "Confirmed",
+    taskAutomation: ["Pull vehicle", "Insurance copy request"],
+    governanceNotes: ["Conflict block if vehicle unavailable.", "Sales owner can update."]
+  },
+  {
+    id: "APT-10257",
+    title: "Vehicle Delivery",
+    customer: "Yusuf Mohamed",
+    vehicle: "2020 Camry",
+    category: "delivery",
+    status: "checked-in",
+    staffId: "mohamed",
+    startMinutes: 780,
+    durationMinutes: 75,
+    phone: "(612) 555-0118",
+    complaint: "Final delivery walkthrough.",
+    location: "Delivery bay",
+    confirmation: "Customer arrived",
+    taskAutomation: ["Delivery prep", "Detail confirmation", "Funding package"],
+    governanceNotes: ["Delivery reason required if delayed.", "Task chain already linked."]
+  },
+  {
+    id: "APT-10258",
+    title: "Document Review",
+    customer: "Customer File",
+    vehicle: "Verification",
+    category: "dmv",
+    status: "no-show",
+    staffId: "rayana",
+    startMinutes: 870,
+    durationMinutes: 75,
+    phone: "(612) 555-0195",
+    complaint: "Customer did not arrive for file verification.",
+    location: "Office desk",
+    confirmation: "No show documented",
+    taskAutomation: ["No-show follow-up", "Document exception"],
+    governanceNotes: ["No-show reason required.", "Follow-up task generated."]
+  },
+  {
+    id: "APT-10259",
+    title: "Service Follow-Up",
+    customer: "Abdirizak Jama",
+    vehicle: "Check on Parts",
+    category: "service",
+    status: "in-progress",
+    staffId: "brock",
+    startMinutes: 960,
+    durationMinutes: 70,
+    phone: "(612) 555-0178",
+    complaint: "Confirm part availability.",
+    location: "Service counter",
+    confirmation: "In progress",
+    taskAutomation: ["Parts ETA", "Customer callback"],
+    governanceNotes: ["Follow-up reason captured.", "Linked to service work order."]
+  }
+];
+
+const upcomingAppointments = [
+  { time: "Tue, Jul 7 - 9:00 AM", title: "Test Drive", customer: "Ali Mohamed", vehicle: "2019 Nissan Altima", staff: "Walter James", category: "sales" as const },
+  { time: "Tue, Jul 7 - 10:30 AM", title: "Service / Repair", customer: "Abdul Rahman", vehicle: "2016 Ford Escape", staff: "Brock Peterson", category: "service" as const },
+  { time: "Tue, Jul 7 - 1:00 PM", title: "Vehicle Delivery", customer: "Sadia Hassan", vehicle: "2021 Toyota RAV4", staff: "Mohamed Ali", category: "delivery" as const },
+  { time: "Tue, Jul 7 - 2:00 PM", title: "Documentation / DMV", customer: "Omar Duale", vehicle: "Title Transfer", staff: "Rayana Hassan", category: "dmv" as const }
+];
+
+const viewModes: ViewMode[] = ["day", "week", "month", "agenda"];
+const hourLabels = ["9:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM", "5:00 PM", "6:00 PM"];
+const noShowReasonOptions = [
+  { value: "CUSTOMER_NO_SHOW", label: "Customer did not arrive" },
+  { value: "CUSTOMER_UNREACHABLE", label: "Customer unreachable" },
+  { value: "DOCUMENTATION_MISSING", label: "Required documents missing" }
+];
+const noShowFollowUpDispositionOptions = [
+  { value: "CALLBACK_REQUIRED", label: "Callback required" },
+  { value: "RESCHEDULE_REQUESTED", label: "Reschedule requested" },
+  { value: "CALLBACK_NOT_REQUIRED", label: "No callback required" }
+];
+
+function formatTime(totalMinutes: number) {
+  const hour24 = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  const period = hour24 >= 12 ? "PM" : "AM";
+  const hour = hour24 % 12 || 12;
+  return `${hour}:${minutes.toString().padStart(2, "0")} ${period}`;
+}
+
+function statusLabel(status: AppointmentStatus) {
+  return status.split("-").map((word) => word[0].toUpperCase() + word.slice(1)).join(" ");
+}
+
+function formatTaskStatus(status: string) {
+  return status
+    .toLowerCase()
+    .split("_")
+    .map((word) => word[0]?.toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function formatTaskDueAt(value: string, timezone = defaultTimezone) {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: timezone
+  }).format(new Date(value));
+}
+
+export function isUnscheduledDraftAppointment(appointment: {
+  status: string;
+  startsAtIso?: string | null;
+  endsAtIso?: string | null;
+}) {
+  return appointment.status === "draft" && (!appointment.startsAtIso || !appointment.endsAtIso);
+}
+
+function appointmentTimeLabel(appointment: Appointment) {
+  if (isUnscheduledDraftAppointment(appointment)) {
+    return "Unscheduled";
+  }
+
+  return formatTime(appointment.startMinutes);
+}
+
+function appointmentTimeRangeLabel(appointment: Appointment) {
+  if (isUnscheduledDraftAppointment(appointment)) {
+    return "Unscheduled draft - choose a time to schedule";
+  }
+
+  return `${formatTime(appointment.startMinutes)} - ${formatTime(
+    appointment.startMinutes + appointment.durationMinutes
+  )} (${appointment.durationMinutes} min)`;
+}
+
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "??";
+}
+
+function getMinutesInTimezone(value: string | null, timezone: string) {
+  if (!value) {
+    return null;
+  }
+
+  const parts = new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    hour12: false,
+    minute: "2-digit",
+    timeZone: timezone
+  }).formatToParts(new Date(value));
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? "0");
+
+  return (hour === 24 ? 0 : hour) * 60 + minute;
+}
+
+function resolveStatus(appointment: AppointmentReadModel): AppointmentStatus {
+  if (appointment.bookingStatus === "DRAFT" || appointment.bookingStatus === "PENDING_APPROVAL") {
+    return "draft";
+  }
+
+  if (appointment.attendanceStatus === "NO_SHOW") {
+    return "no-show";
+  }
+
+  if (appointment.executionStatus === "IN_PROGRESS" || appointment.executionStatus === "WAITING") {
+    return "in-progress";
+  }
+
+  if (
+    appointment.followUpDispositionCode &&
+    appointment.followUpDispositionCode !== "NO_FOLLOW_UP_REQUIRED"
+  ) {
+    return "follow-up";
+  }
+
+  if (appointment.attendanceStatus === "CHECKED_IN") {
+    return "checked-in";
+  }
+
+  return "confirmed";
+}
+
+function resolveCategory(appointment: AppointmentReadModel): AppointmentCategory {
+  const title = appointment.title.toLowerCase();
+
+  if (title.includes("service") || title.includes("repair") || title.includes("oil")) {
+    return "service";
+  }
+
+  if (title.includes("delivery")) {
+    return "delivery";
+  }
+
+  if (title.includes("dmv") || title.includes("title") || title.includes("registration") || title.includes("document")) {
+    return "dmv";
+  }
+
+  if (title.includes("collection") || title.includes("payment")) {
+    return "collections";
+  }
+
+  if (title.includes("inventory") || title.includes("vendor")) {
+    return "inventory";
+  }
+
+  if (title.includes("marketing") || title.includes("listing")) {
+    return "marketing";
+  }
+
+  if (title.includes("issue") || title.includes("complaint")) {
+    return "customer";
+  }
+
+  if (title.includes("test drive") || title.includes("sales")) {
+    return "sales";
+  }
+
+  return "general";
+}
+
+function resolveVehicleLabel(appointment: AppointmentReadModel) {
+  const primaryVehicle =
+    appointment.vehicles.find((vehicle) => vehicle.isPrimary) ?? appointment.vehicles[0];
+
+  if (!primaryVehicle) {
+    return "No vehicle attached";
+  }
+
+  const yearMakeModel = [primaryVehicle.year, primaryVehicle.make, primaryVehicle.model]
+    .filter(Boolean)
+    .join(" ");
+
+  return yearMakeModel || primaryVehicle.stockNumber || primaryVehicle.vehicleNumber;
+}
+
+function mapReadModelToAppointment(appointment: AppointmentReadModel): Appointment {
+  const startsAt = getMinutesInTimezone(appointment.startsAt, appointment.schedulingTimezone);
+  const endsAt = getMinutesInTimezone(appointment.endsAt, appointment.schedulingTimezone);
+  const ownerName = appointment.owner?.name ?? "Unassigned";
+
+  return {
+    id: appointment.appointmentNumber,
+    recordId: appointment.id,
+    recordVersion: appointment.version,
+    startsAtIso: appointment.startsAt,
+    endsAtIso: appointment.endsAt,
+    schedulingTimezone: appointment.schedulingTimezone,
+    bookingStatus: appointment.bookingStatus,
+    attendanceStatus: appointment.attendanceStatus,
+    executionStatus: appointment.executionStatus,
+    outcomeCode: appointment.outcomeCode,
+    outcomeNotes: appointment.outcomeNotes,
+    followUpDispositionCode: appointment.followUpDispositionCode,
+    followUpNotes: appointment.followUpNotes,
+    dataSource: "live",
+    title: appointment.title,
+    customer: appointment.customer?.displayName ?? "Internal / No customer",
+    vehicle: resolveVehicleLabel(appointment),
+    category: resolveCategory(appointment),
+    status: resolveStatus(appointment),
+    staffId: appointment.owner?.id ?? "unassigned-live",
+    staffName: ownerName,
+    staffRole: appointment.visibility.relationship === "MANAGER" ? "Manager-visible" : "Owner / participant",
+    startMinutes: startsAt ?? 9 * 60,
+    durationMinutes: startsAt !== null && endsAt !== null ? Math.max(30, endsAt - startsAt) : 60,
+    phone: appointment.customer?.phoneNumber ?? dealershipPhone,
+    complaint: appointment.sourceReference ?? "Live appointment record from the read model.",
+    location: "Time Motor Sales",
+    confirmation: appointment.confirmationStatus.replaceAll("_", " ").toLowerCase(),
+    needsFollowUp: Boolean(
+      appointment.followUpDispositionCode &&
+        appointment.followUpDispositionCode !== "NO_FOLLOW_UP_REQUIRED"
+    ),
+    taskAutomation:
+      appointment.taskLinks.length > 0
+        ? appointment.taskLinks.map(
+            (taskLink) => `${taskLink.linkTitle ?? taskLink.linkType}: ${taskLink.taskTitle ?? taskLink.taskId}`
+          )
+        : ["No linked tasks yet"],
+    linkedTasks: appointment.taskLinks.map((taskLink) => ({
+      id: taskLink.id,
+      taskId: taskLink.taskId,
+      title: taskLink.taskTitle ?? taskLink.taskId,
+      status: taskLink.taskStatus ?? "UNKNOWN",
+      dueAt: taskLink.taskDueAt ?? appointment.startsAt ?? appointment.createdAt ?? new Date().toISOString(),
+      assignedUserName: taskLink.assignedUser?.name ?? "Unassigned",
+      linkType: taskLink.linkType,
+      linkTitle: taskLink.linkTitle ?? taskLink.linkType,
+      explanation: taskLink.explanation ?? null,
+      isRequired: taskLink.isRequired === true,
+      blocksAppointment: taskLink.blocksAppointment,
+      appointmentRequiredForTask: taskLink.appointmentRequiredForTask
+    })),
+    governanceNotes: [
+      appointment.visibility.canMutate
+        ? "You can update this appointment."
+        : "Read-only for your current appointment permissions.",
+      `Live record v${appointment.version}.`,
+      "Changes use the command ledger and audit history."
+    ]
+  };
+}
+
+function commandLabel(commandType: OperationalCommand) {
+  if (commandType === "CHECK_IN") {
+    return "Check In";
+  }
+
+  if (commandType === "START") {
+    return "Start Work";
+  }
+
+  if (commandType === "FINISH") {
+    return "Finish Work";
+  }
+
+  if (commandType === "NO_SHOW") {
+    return "No Show";
+  }
+
+  return "Schedule Draft";
+}
+
+function commandStatus(commandType: OperationalCommand): AppointmentStatus {
+  if (commandType === "CHECK_IN") {
+    return "checked-in";
+  }
+
+  if (commandType === "START") {
+    return "in-progress";
+  }
+
+  if (commandType === "FINISH") {
+    return "checked-in";
+  }
+
+  if (commandType === "NO_SHOW") {
+    return "no-show";
+  }
+
+  return "confirmed";
+}
+
+function createCommandIdentifier(commandType: OperationalCommand, appointmentId: string) {
+  const randomSuffix =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+  return `appointment-${commandType.toLowerCase()}-${appointmentId}-${randomSuffix}`;
+}
+
+function createDraftCommandIdentifier() {
+  const randomSuffix =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+  return `appointment-create-draft-${randomSuffix}`;
+}
+
+function createAppointmentActionIdentifier(action: string, appointmentId: string) {
+  const randomSuffix =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+  return `appointment-${action.toLowerCase()}-${appointmentId}-${randomSuffix}`;
+}
+
+function labelForOption(options: Array<{ value: string; label: string }>, value: string) {
+  return options.find((option) => option.value === value)?.label ?? value.replaceAll("_", " ");
+}
+
+function getStringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
+}
+
+function getNumberValue(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function getExecutionResultSnapshot(result: unknown) {
+  const resultObject =
+    result && typeof result === "object" ? (result as Record<string, unknown>) : {};
+  const execution =
+    resultObject.execution && typeof resultObject.execution === "object"
+      ? (resultObject.execution as Record<string, unknown>)
+      : {};
+
+  return execution.resultSnapshot && typeof execution.resultSnapshot === "object"
+    ? (execution.resultSnapshot as Record<string, unknown>)
+    : {};
+}
+
+function getGeneratedFollowUpAppointmentNumbers(result: unknown) {
+  return getStringArray(getExecutionResultSnapshot(result).generatedFollowUpAppointmentNumbers);
+}
+
+export function buildOutcomeSuccessNotice(input: {
+  appointmentId: string;
+  result: unknown;
+}) {
+  const resultSnapshot = getExecutionResultSnapshot(input.result);
+  const generatedFollowUpAppointmentNumbers = getStringArray(
+    resultSnapshot.generatedFollowUpAppointmentNumbers
+  );
+  const automatedTaskCount = getNumberValue(resultSnapshot.automatedTaskCount);
+  const automationMessages = [
+    generatedFollowUpAppointmentNumbers.length > 0
+      ? `Draft follow-up appointment created: ${generatedFollowUpAppointmentNumbers.join(", ")}.`
+      : null,
+    automatedTaskCount > 0
+      ? `${automatedTaskCount} follow-up task${automatedTaskCount === 1 ? "" : "s"} created.`
+      : null
+  ].filter(Boolean);
+
+  return [
+    `Outcome saved for ${input.appointmentId}. Completion, outcome, follow-up, history, and command ledger were updated.`,
+    ...automationMessages
+  ].join(" ");
+}
+
+function createAppointmentNumber() {
+  return `APT-${Date.now().toString().slice(-8)}`;
+}
+
+function localDateTimeToMinneapolisIso(localDate: string, time: string) {
+  const [yearText, monthText, dayText] = localDate.split("-");
+  const [hourText, minuteText] = time.split(":");
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(day) ||
+    !Number.isInteger(hour) ||
+    !Number.isInteger(minute)
+  ) {
+    throw new Error("Appointment date and time must be valid.");
+  }
+
+  let candidate = new Date(Date.UTC(year, month - 1, day, hour, minute, 0, 0));
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      day: "2-digit",
+      hour: "2-digit",
+      hour12: false,
+      minute: "2-digit",
+      month: "2-digit",
+      numberingSystem: "latn",
+      timeZone: defaultTimezone,
+      year: "numeric"
+    }).formatToParts(candidate);
+    const actualYear = Number(parts.find((part) => part.type === "year")?.value);
+    const actualMonth = Number(parts.find((part) => part.type === "month")?.value);
+    const actualDay = Number(parts.find((part) => part.type === "day")?.value);
+    const actualHourText = parts.find((part) => part.type === "hour")?.value ?? "0";
+    const actualHour = actualHourText === "24" ? 0 : Number(actualHourText);
+    const actualMinute = Number(parts.find((part) => part.type === "minute")?.value);
+    const actualUtcAsLocal = Date.UTC(
+      actualYear,
+      actualMonth - 1,
+      actualDay,
+      actualHour,
+      actualMinute,
+      0,
+      0
+    );
+    const desiredUtcAsLocal = Date.UTC(year, month - 1, day, hour, minute, 0, 0);
+    const differenceMs = desiredUtcAsLocal - actualUtcAsLocal;
+
+    if (differenceMs === 0) {
+      return candidate.toISOString();
+    }
+
+    candidate = new Date(candidate.getTime() + differenceMs);
+  }
+
+  return candidate.toISOString();
+}
+
+export function isProposedScheduleStartInPast(input: {
+  localDate: string;
+  startTime: string;
+  now?: Date;
+}) {
+  const startsAt = new Date(
+    localDateTimeToMinneapolisIso(input.localDate, input.startTime)
+  );
+  const now = input.now ?? new Date();
+
+  return startsAt < now;
+}
+
+function addMinutesToIso(isoValue: string, minutes: number) {
+  return new Date(new Date(isoValue).getTime() + minutes * 60_000).toISOString();
+}
+
+function resourceAuditKey(action: ResourceAuditAction, reservationId: string) {
+  return `${action}:${reservationId}`;
+}
+
+function buildResourceReasonNote(context: string, userReason: string) {
+  return `${context} Reason documented by user: ${userReason.trim()}`;
+}
+
+export function AppointmentBoardShell() {
+  const [selectedId, setSelectedId] = useState(appointments[0].id);
+  const [query, setQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<AppointmentCategory | "all">("all");
+  const [staffFilter, setStaffFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<AppointmentStatus | "all">("all");
+  const [conflictsOnly, setConflictsOnly] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("day");
+  const [draftOpen, setDraftOpen] = useState(false);
+  const [noShowOpen, setNoShowOpen] = useState(false);
+  const [isCommandPending, setIsCommandPending] = useState(false);
+  const [appointmentStatusOverrides, setAppointmentStatusOverrides] = useState<Record<string, AppointmentStatus>>({});
+  const [noShowDraft, setNoShowDraft] = useState({
+    reasonCode: "CUSTOMER_NO_SHOW",
+    reasonNotes: "",
+    followUpDispositionCode: "CALLBACK_REQUIRED"
+  });
+  const [outcomeDraft, setOutcomeDraft] = useState({
+    outcomeCode: "COMPLETED",
+    outcomeNotes: "",
+    followUpDispositionCode: "NO_FOLLOW_UP_REQUIRED",
+    followUpNotes: "",
+    reasonNotes: ""
+  });
+  const [isOutcomeSaving, setIsOutcomeSaving] = useState(false);
+  const [draftAppointment, setDraftAppointment] = useState<DraftAppointmentForm>({
+    category: "service",
+    title: "Service / Repair",
+    customer: "",
+    vehicle: "",
+    localDate: defaultBoardDate,
+    startTime: "10:00",
+    durationMinutes: 60,
+    reason: ""
+  });
+  const [scheduleDraft, setScheduleDraft] = useState<ScheduleDraftForm>({
+    localDate: defaultBoardDate,
+    startTime: "10:00",
+    durationMinutes: 60,
+    reasonNotes: ""
+  });
+  const [liveAppointments, setLiveAppointments] = useState<Appointment[]>([]);
+  const [isLiveLoading, setIsLiveLoading] = useState(true);
+  const [isDraftSaving, setIsDraftSaving] = useState(false);
+  const [scheduleReadiness, setScheduleReadiness] = useState<AppointmentScheduleReadiness | null>(null);
+  const [isReadinessLoading, setIsReadinessLoading] = useState(false);
+  const [staffConflictPreview, setStaffConflictPreview] = useState<AppointmentStaffConflictPreview | null>(null);
+  const [isStaffConflictLoading, setIsStaffConflictLoading] = useState(false);
+  const [staffWarningOverrideSaving, setStaffWarningOverrideSaving] = useState(false);
+  const [staffWarningReason, setStaffWarningReason] = useState("");
+  const [overriddenStaffWarnings, setOverriddenStaffWarnings] = useState<Record<string, true>>({});
+  const [resourcePlanning, setResourcePlanning] = useState<AppointmentResourcePlanning | null>(null);
+  const [isResourcePlanningLoading, setIsResourcePlanningLoading] = useState(false);
+  const [candidateAvailability, setCandidateAvailability] = useState<AppointmentResourceCandidateAvailability | null>(null);
+  const [isCandidateAvailabilityLoading, setIsCandidateAvailabilityLoading] = useState(false);
+  const [resourceRequirementSavingCode, setResourceRequirementSavingCode] = useState<string | null>(null);
+  const [resourceCandidateSavingCode, setResourceCandidateSavingCode] = useState<string | null>(null);
+  const [resourceHoldSavingReservationId, setResourceHoldSavingReservationId] = useState<string | null>(null);
+  const [resourceReleaseSavingReservationId, setResourceReleaseSavingReservationId] = useState<string | null>(null);
+  const [resourceReplacementSavingReservationId, setResourceReplacementSavingReservationId] = useState<string | null>(null);
+  const [resourceWarningOverrideSavingReservationId, setResourceWarningOverrideSavingReservationId] = useState<string | null>(null);
+  const [overriddenResourceWarnings, setOverriddenResourceWarnings] = useState<Record<string, true>>({});
+  const [resourceActionReasonNotes, setResourceActionReasonNotes] = useState<Record<string, string>>({});
+  const [selectedResourceCandidates, setSelectedResourceCandidates] = useState<Record<string, string>>({});
+  const [ownerTransferUserId, setOwnerTransferUserId] = useState("");
+  const [ownerTransferReason, setOwnerTransferReason] = useState("");
+  const [isOwnerTransferSaving, setIsOwnerTransferSaving] = useState(false);
+  const [detailRefreshKey, setDetailRefreshKey] = useState(0);
+  const [actionNotice, setActionNotice] = useState("Operational command bridge ready. Persisted appointments can now use the live command API for check-in and no-show actions.");
+
+  async function loadLiveAppointments(options: { suppressSuccessNotice?: boolean } = {}) {
+    setIsLiveLoading(true);
+
+    try {
+      const response = await fetch(`/api/appointments?date=${encodeURIComponent(defaultBoardDate)}`);
+      const result = (await response.json().catch(() => null)) as AppointmentReadApiResult | { error?: string } | null;
+
+      if (!response.ok) {
+        throw new Error(result && "error" in result && result.error ? result.error : "Unable to load live appointments.");
+      }
+
+      const appointmentsFromReadModel =
+        result && "appointments" in result
+          ? result.appointments.map((appointment) => mapReadModelToAppointment(appointment))
+          : [];
+
+      setLiveAppointments(appointmentsFromReadModel);
+      if (!options.suppressSuccessNotice) {
+        setActionNotice(
+          appointmentsFromReadModel.length > 0
+            ? `Loaded ${appointmentsFromReadModel.length} live appointment${appointmentsFromReadModel.length === 1 ? "" : "s"} from the read model.`
+            : "Live read model is connected. No persisted appointments were found for this day, so the approved preview board remains visible."
+        );
+      }
+
+      return appointmentsFromReadModel;
+    } catch (error) {
+      setLiveAppointments([]);
+      setActionNotice(
+        error instanceof Error
+          ? `Live read model could not load: ${error.message}. Preview board remains visible.`
+          : "Live read model could not load. Preview board remains visible."
+      );
+
+      return [];
+    } finally {
+      setIsLiveLoading(false);
+    }
+  }
+
+  function getResourceActionReason(action: ResourceAuditAction, reservationId: string) {
+    return resourceActionReasonNotes[resourceAuditKey(action, reservationId)]?.trim() ?? "";
+  }
+
+  function updateResourceActionReason(
+    action: ResourceAuditAction,
+    reservationId: string,
+    value: string
+  ) {
+    setResourceActionReasonNotes((current) => ({
+      ...current,
+      [resourceAuditKey(action, reservationId)]: value
+    }));
+  }
+
+  function clearResourceActionReason(action: ResourceAuditAction, reservationId: string) {
+    setResourceActionReasonNotes((current) => {
+      const next = { ...current };
+      delete next[resourceAuditKey(action, reservationId)];
+
+      return next;
+    });
+  }
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadIfActive() {
+      await loadLiveAppointments();
+    }
+
+    if (isActive) {
+      void loadIfActive();
+    }
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  const boardAppointments = useMemo(
+    () =>
+      (liveAppointments.length > 0 ? liveAppointments : appointments).map((appointment) => ({
+        ...appointment,
+        status: appointmentStatusOverrides[appointment.id] ?? appointment.status
+      })),
+    [appointmentStatusOverrides, liveAppointments]
+  );
+
+  const visibleStaffMembers = useMemo(
+    () =>
+      boardAppointments.reduce<StaffMember[]>((staffList, appointment) => {
+        if (staffList.some((staff) => staff.id === appointment.staffId)) {
+          return staffList;
+        }
+
+        staffList.push({
+          id: appointment.staffId,
+          name: appointment.staffName ?? "Unassigned",
+          role: appointment.staffRole ?? "Appointment owner",
+          initials: getInitials(appointment.staffName ?? "Unassigned")
+        });
+
+        return staffList;
+      }, [...staffMembers]),
+    [boardAppointments]
+  );
+
+  const filteredAppointments = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return boardAppointments.filter((appointment) => {
+      const searchTarget = `${appointment.title} ${appointment.customer} ${appointment.vehicle} ${appointment.id} ${appointment.phone}`.toLowerCase();
+      return (
+        (!normalizedQuery || searchTarget.includes(normalizedQuery)) &&
+        (categoryFilter === "all" || appointment.category === categoryFilter) &&
+        (staffFilter === "all" || appointment.staffId === staffFilter) &&
+        (statusFilter === "all" || appointment.status === statusFilter) &&
+        (!conflictsOnly || appointment.conflict)
+      );
+    });
+  }, [boardAppointments, categoryFilter, conflictsOnly, query, staffFilter, statusFilter]);
+
+  const unscheduledDraftAppointments = useMemo(
+    () => filteredAppointments.filter((appointment) => isUnscheduledDraftAppointment(appointment)),
+    [filteredAppointments]
+  );
+
+  const scheduledFilteredAppointments = useMemo(
+    () => filteredAppointments.filter((appointment) => !isUnscheduledDraftAppointment(appointment)),
+    [filteredAppointments]
+  );
+
+  const selectedAppointment =
+    boardAppointments.find((appointment) => appointment.id === selectedId) ?? filteredAppointments[0] ?? boardAppointments[0];
+  const selectedAppointmentIsUnscheduledDraft =
+    selectedAppointment.dataSource === "live" &&
+    isUnscheduledDraftAppointment(selectedAppointment);
+  const selectedUnscheduledDraftCanProceedWithStaff =
+    !selectedAppointmentIsUnscheduledDraft || Boolean(staffConflictPreview?.canProceedWithStaff);
+  const selectedUnscheduledDraftStartsInPast =
+    selectedAppointmentIsUnscheduledDraft &&
+    isProposedScheduleStartInPast({
+      localDate: scheduleDraft.localDate,
+      startTime: scheduleDraft.startTime
+    });
+
+  const selectedStaff =
+    visibleStaffMembers.find((staff) => staff.id === selectedAppointment.staffId) ?? visibleStaffMembers[0];
+
+  const ownerTransferCandidates = useMemo(() => {
+    const candidates = new Map<string, StaffMember>();
+
+    for (const appointment of boardAppointments) {
+      if (appointment.dataSource !== "live" || appointment.staffId === "unassigned-live") {
+        continue;
+      }
+
+      candidates.set(appointment.staffId, {
+        id: appointment.staffId,
+        name: appointment.staffName ?? appointment.staffId,
+        role: appointment.staffRole ?? "Appointment owner",
+        initials: getInitials(appointment.staffName ?? appointment.staffId)
+      });
+    }
+
+    for (const staffMember of staffConflictPreview?.staffMembers ?? []) {
+      candidates.set(staffMember.userId, {
+        id: staffMember.userId,
+        name: staffMember.name,
+        role:
+          staffMember.role === "OWNER"
+            ? "Appointment owner"
+            : `Participant · ${staffMember.roleCode.replaceAll("_", " ")}`,
+        initials: getInitials(staffMember.name)
+      });
+    }
+
+    return Array.from(candidates.values())
+      .filter((staff) => staff.id !== selectedAppointment.staffId)
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }, [boardAppointments, selectedAppointment.staffId, staffConflictPreview?.staffMembers]);
+
+  const resolvedOwnerTransferUserId = ownerTransferCandidates.some(
+    (staff) => staff.id === ownerTransferUserId
+  )
+    ? ownerTransferUserId
+    : ownerTransferCandidates[0]?.id ?? "";
+
+  const outcomeFieldValues =
+    selectedAppointment.bookingStatus === "COMPLETED"
+      ? {
+          outcomeCode: selectedAppointment.outcomeCode ?? "COMPLETED",
+          outcomeNotes: selectedAppointment.outcomeNotes ?? "",
+          followUpDispositionCode:
+            selectedAppointment.followUpDispositionCode ?? "NO_FOLLOW_UP_REQUIRED",
+          followUpNotes: selectedAppointment.followUpNotes ?? "",
+          reasonNotes: ""
+        }
+      : outcomeDraft;
+
+  function resetOutcomeDraftFromAppointment(appointment: Appointment | null = null) {
+    setOutcomeDraft({
+      outcomeCode: appointment?.outcomeCode ?? "COMPLETED",
+      outcomeNotes: appointment?.outcomeNotes ?? "",
+      followUpDispositionCode:
+        appointment?.followUpDispositionCode ?? "NO_FOLLOW_UP_REQUIRED",
+      followUpNotes: appointment?.followUpNotes ?? "",
+      reasonNotes: ""
+    });
+  }
+
+  function selectAppointmentForDetail(appointment: Appointment) {
+    setSelectedId(appointment.id);
+    resetOutcomeDraftFromAppointment(appointment);
+    setScheduleDraft((current) => ({
+      ...current,
+      reasonNotes: ""
+    }));
+  }
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadResourcePlanning() {
+      if (!selectedAppointment.recordId) {
+        setResourcePlanning(null);
+        setIsResourcePlanningLoading(false);
+        return;
+      }
+
+      setIsResourcePlanningLoading(true);
+
+      try {
+        const response = await fetch(
+          `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/resource-planning`
+        );
+        const result = (await response.json().catch(() => null)) as
+          | { resourcePlanning?: AppointmentResourcePlanning; error?: string }
+          | null;
+
+        if (!isActive) {
+          return;
+        }
+
+        if (!response.ok || !result?.resourcePlanning) {
+          throw new Error(result?.error || "Unable to load resource planning.");
+        }
+
+        setResourcePlanning(result.resourcePlanning);
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        setResourcePlanning(null);
+        setActionNotice(
+          error instanceof Error
+            ? `Resource planning could not load: ${error.message}`
+            : "Resource planning could not load."
+        );
+      } finally {
+        if (isActive) {
+          setIsResourcePlanningLoading(false);
+        }
+      }
+    }
+
+    void loadResourcePlanning();
+
+    return () => {
+      isActive = false;
+    };
+  }, [detailRefreshKey, selectedAppointment.recordId, selectedAppointment.status]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadCandidateAvailability() {
+      if (selectedAppointment.status !== "draft" || !selectedAppointment.recordId) {
+        setCandidateAvailability(null);
+        setIsCandidateAvailabilityLoading(false);
+        return;
+      }
+
+      setIsCandidateAvailabilityLoading(true);
+
+      try {
+        let candidateAvailabilityUrl = `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/resource-candidate-availability`;
+
+        if (selectedAppointmentIsUnscheduledDraft) {
+          const startsAt = localDateTimeToMinneapolisIso(
+            scheduleDraft.localDate,
+            scheduleDraft.startTime
+          );
+          const endsAt = addMinutesToIso(startsAt, scheduleDraft.durationMinutes);
+          const params = new URLSearchParams({
+            proposedStartsAt: startsAt,
+            proposedEndsAt: endsAt,
+            proposedSchedulingTimezone: selectedAppointment.schedulingTimezone ?? defaultTimezone
+          });
+
+          candidateAvailabilityUrl = `${candidateAvailabilityUrl}?${params.toString()}`;
+        }
+
+        const response = await fetch(candidateAvailabilityUrl);
+        const result = (await response.json().catch(() => null)) as
+          | {
+              resourceCandidateAvailability?: AppointmentResourceCandidateAvailability;
+              error?: string;
+            }
+          | null;
+
+        if (!isActive) {
+          return;
+        }
+
+        if (!response.ok || !result?.resourceCandidateAvailability) {
+          throw new Error(result?.error || "Unable to load resource candidate availability.");
+        }
+
+        setCandidateAvailability(result.resourceCandidateAvailability);
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        setCandidateAvailability(null);
+        setActionNotice(
+          error instanceof Error
+            ? `Resource candidate availability could not load: ${error.message}`
+            : "Resource candidate availability could not load."
+        );
+      } finally {
+        if (isActive) {
+          setIsCandidateAvailabilityLoading(false);
+        }
+      }
+    }
+
+    void loadCandidateAvailability();
+
+    return () => {
+      isActive = false;
+    };
+  }, [
+    detailRefreshKey,
+    scheduleDraft.durationMinutes,
+    scheduleDraft.localDate,
+    scheduleDraft.startTime,
+    selectedAppointment.recordId,
+    selectedAppointment.schedulingTimezone,
+    selectedAppointment.status,
+    selectedAppointmentIsUnscheduledDraft
+  ]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadScheduleReadiness() {
+      if (selectedAppointment.status !== "draft" || !selectedAppointment.recordId) {
+        setScheduleReadiness(null);
+        setIsReadinessLoading(false);
+        return;
+      }
+
+      setIsReadinessLoading(true);
+
+      try {
+        let readinessUrl = `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/schedule-readiness`;
+
+        if (selectedAppointmentIsUnscheduledDraft) {
+          const startsAt = localDateTimeToMinneapolisIso(
+            scheduleDraft.localDate,
+            scheduleDraft.startTime
+          );
+          const endsAt = addMinutesToIso(startsAt, scheduleDraft.durationMinutes);
+          const params = new URLSearchParams({
+            proposedStartsAt: startsAt,
+            proposedEndsAt: endsAt,
+            proposedSchedulingTimezone: selectedAppointment.schedulingTimezone ?? defaultTimezone
+          });
+
+          readinessUrl = `${readinessUrl}?${params.toString()}`;
+        }
+
+        const response = await fetch(
+          readinessUrl
+        );
+        const result = (await response.json().catch(() => null)) as
+          | { readiness?: AppointmentScheduleReadiness; error?: string }
+          | null;
+
+        if (!isActive) {
+          return;
+        }
+
+        if (!response.ok || !result?.readiness) {
+          throw new Error(result?.error || "Unable to load schedule readiness.");
+        }
+
+        setScheduleReadiness(result.readiness);
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        setScheduleReadiness(null);
+        setActionNotice(
+          error instanceof Error
+            ? `Schedule readiness could not load: ${error.message}`
+            : "Schedule readiness could not load."
+        );
+      } finally {
+        if (isActive) {
+          setIsReadinessLoading(false);
+        }
+      }
+    }
+
+    void loadScheduleReadiness();
+
+    return () => {
+      isActive = false;
+    };
+  }, [
+    detailRefreshKey,
+    scheduleDraft.durationMinutes,
+    scheduleDraft.localDate,
+    scheduleDraft.startTime,
+    selectedAppointment.recordId,
+    selectedAppointment.schedulingTimezone,
+    selectedAppointment.status,
+    selectedAppointmentIsUnscheduledDraft
+  ]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadStaffConflictPreview() {
+      if (selectedAppointment.status !== "draft" || !selectedAppointment.recordId) {
+        setStaffConflictPreview(null);
+        setIsStaffConflictLoading(false);
+        return;
+      }
+
+      setIsStaffConflictLoading(true);
+
+      try {
+        let staffConflictsUrl = `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/staff-conflicts`;
+
+        if (selectedAppointmentIsUnscheduledDraft) {
+          const startsAt = localDateTimeToMinneapolisIso(
+            scheduleDraft.localDate,
+            scheduleDraft.startTime
+          );
+          const endsAt = addMinutesToIso(startsAt, scheduleDraft.durationMinutes);
+          const params = new URLSearchParams({
+            proposedStartsAt: startsAt,
+            proposedEndsAt: endsAt,
+            proposedSchedulingTimezone: selectedAppointment.schedulingTimezone ?? defaultTimezone
+          });
+
+          staffConflictsUrl = `${staffConflictsUrl}?${params.toString()}`;
+        }
+
+        const response = await fetch(staffConflictsUrl);
+        const result = (await response.json().catch(() => null)) as
+          | { staffConflicts?: AppointmentStaffConflictPreview; error?: string }
+          | null;
+
+        if (!isActive) {
+          return;
+        }
+
+        if (!response.ok || !result?.staffConflicts) {
+          throw new Error(result?.error || "Unable to load staff conflict preview.");
+        }
+
+        setStaffConflictPreview(result.staffConflicts);
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        setStaffConflictPreview(null);
+        setActionNotice(
+          error instanceof Error
+            ? `Staff conflict preview could not load: ${error.message}`
+            : "Staff conflict preview could not load."
+        );
+      } finally {
+        if (isActive) {
+          setIsStaffConflictLoading(false);
+        }
+      }
+    }
+
+    void loadStaffConflictPreview();
+
+    return () => {
+      isActive = false;
+    };
+  }, [
+    detailRefreshKey,
+    scheduleDraft.durationMinutes,
+    scheduleDraft.localDate,
+    scheduleDraft.startTime,
+    selectedAppointment.recordId,
+    selectedAppointment.schedulingTimezone,
+    selectedAppointment.status,
+    selectedAppointmentIsUnscheduledDraft
+  ]);
+
+  const metrics = [
+    { label: "Total Appointments", value: boardAppointments.length, status: "all" as const, tone: "slate" },
+    { label: "Confirmed", value: boardAppointments.filter((appointment) => appointment.status === "confirmed").length, status: "confirmed" as const, tone: "green" },
+    { label: "Checked In", value: boardAppointments.filter((appointment) => appointment.status === "checked-in").length, status: "checked-in" as const, tone: "blue" },
+    { label: "In Progress", value: boardAppointments.filter((appointment) => appointment.status === "in-progress").length, status: "in-progress" as const, tone: "orange" },
+    { label: "No Show", value: boardAppointments.filter((appointment) => appointment.status === "no-show").length, status: "no-show" as const, tone: "red" },
+    { label: "Needs Follow-Up", value: boardAppointments.filter((appointment) => appointment.needsFollowUp || appointment.status === "follow-up").length, status: "follow-up" as const, tone: "purple" }
+  ];
+
+  function handlePreviewAction(label: string) {
+    setActionNotice(`${label} captured in preview. Live version will require a documented reason and audit trail.`);
+  }
+
+  async function submitDraftAppointment() {
+    if (!draftAppointment.title.trim()) {
+      setActionNotice("Appointment title is required.");
+      return;
+    }
+
+    if (!draftAppointment.reason.trim()) {
+      setActionNotice("New appointments require a documented reason.");
+      return;
+    }
+
+    setIsDraftSaving(true);
+
+    try {
+      const startsAt = localDateTimeToMinneapolisIso(
+        draftAppointment.localDate,
+        draftAppointment.startTime
+      );
+      const endsAt = addMinutesToIso(startsAt, draftAppointment.durationMinutes);
+      const appointmentNumber = createAppointmentNumber();
+      const idempotencyKey = createDraftCommandIdentifier();
+      const response = await fetch("/api/appointments/commands", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          commandType: "CREATE_DRAFT",
+          organizationId: defaultOrganizationId,
+          locationId: defaultLocationId,
+          idempotencyKey,
+          correlationId: idempotencyKey,
+          payload: {
+            appointmentNumber,
+            title: draftAppointment.title.trim(),
+            sourceType: "MANUAL",
+            sourceReference: draftAppointment.reason.trim(),
+            startsAt,
+            endsAt,
+            schedulingTimezone: defaultTimezone,
+            purposeSnapshot: {
+              category: draftAppointment.category,
+              categoryLabel: categoryMeta[draftAppointment.category].label,
+              reason: draftAppointment.reason.trim()
+            },
+            customerSnapshot: draftAppointment.customer.trim()
+              ? {
+                  displayName: draftAppointment.customer.trim()
+                }
+              : null,
+            vehicleSnapshot: draftAppointment.vehicle.trim()
+              ? {
+                  displayName: draftAppointment.vehicle.trim(),
+                  vehicleNumber: draftAppointment.vehicle.trim()
+                }
+              : null
+          }
+        })
+      });
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok || !result?.accepted) {
+        throw new Error(result?.error || "Unable to create the appointment.");
+      }
+
+      setDraftOpen(false);
+      setSelectedId(appointmentNumber);
+      resetOutcomeDraftFromAppointment();
+      setActionNotice(`Appointment ${appointmentNumber} was created. Reloading the live board...`);
+      await loadLiveAppointments();
+    } catch (error) {
+      setActionNotice(
+        error instanceof Error ? error.message : "Unable to create the appointment right now."
+      );
+    } finally {
+      setIsDraftSaving(false);
+    }
+  }
+
+  async function attachResourceRequirement(
+    recommendation: AppointmentResourcePlanning["recommendations"][number]
+  ) {
+    if (!selectedAppointment.recordId || !selectedAppointment.recordVersion) {
+      setActionNotice("Resource requirements can only be attached to persisted live draft appointments.");
+      return;
+    }
+
+    if (!recommendation.resourceTypeId) {
+      setActionNotice(`${recommendation.resourceTypeCode} must be configured before this requirement can be attached.`);
+      return;
+    }
+
+    if (recommendation.selectedRequirementId) {
+      setActionNotice(`${recommendation.label} is already attached to this appointment.`);
+      return;
+    }
+
+    setResourceRequirementSavingCode(recommendation.requirementCode);
+
+    try {
+      const correlationId = createAppointmentActionIdentifier(
+        "resource-requirement",
+        selectedAppointment.recordId
+      );
+      const response = await fetch(
+        `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/resource-requirements`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            requirementCode: recommendation.requirementCode,
+            expectedAppointmentVersion: selectedAppointment.recordVersion,
+            reasonCode: "RESOURCE_REQUIREMENT_ADDED",
+            reasonNotes: `Attached recommended ${recommendation.label} requirement from Appointment Board resource planning.`,
+            correlationId
+          })
+        }
+      );
+      const result = (await response.json().catch(() => null)) as
+        | {
+            requirement?: {
+              requirementCode: string;
+              created: boolean;
+              appointmentVersion: number;
+            };
+            error?: string;
+          }
+        | null;
+
+      if (!response.ok || !result?.requirement) {
+        throw new Error(result?.error || "Unable to attach the resource requirement.");
+      }
+
+      setActionNotice(
+        result.requirement.created
+          ? `${recommendation.label} requirement was attached. Schedule readiness and resource planning are refreshing.`
+          : `${recommendation.label} requirement was already attached. Schedule readiness and resource planning are refreshing.`
+      );
+      setDetailRefreshKey((value) => value + 1);
+      await loadLiveAppointments();
+    } catch (error) {
+      setActionNotice(
+        error instanceof Error
+          ? error.message
+          : "Unable to attach the resource requirement right now."
+      );
+    } finally {
+      setResourceRequirementSavingCode(null);
+    }
+  }
+
+  async function proposeResourceCandidate(
+    recommendation: AppointmentResourcePlanning["recommendations"][number]
+  ) {
+    if (!selectedAppointment.recordId || !selectedAppointment.recordVersion) {
+      setActionNotice("Resource candidates can only be proposed for persisted live draft appointments.");
+      return;
+    }
+
+    if (!recommendation.selectedRequirementId) {
+      setActionNotice(`Attach the ${recommendation.label} requirement before proposing a resource candidate.`);
+      return;
+    }
+
+    const selectedResourceId =
+      selectedResourceCandidates[recommendation.requirementCode] ??
+      recommendation.selectedReservation?.resourceId ??
+      recommendation.candidates[0]?.id;
+
+    if (!selectedResourceId) {
+      setActionNotice(`No active ${recommendation.resourceTypeCode} candidate is available to propose.`);
+      return;
+    }
+
+    setResourceCandidateSavingCode(recommendation.requirementCode);
+
+    try {
+      const selectedCandidate = recommendation.candidates.find(
+        (candidate) => candidate.id === selectedResourceId
+      );
+      const correlationId = createAppointmentActionIdentifier(
+        "resource-candidate",
+        selectedAppointment.recordId
+      );
+      const proposedScheduleWindow = selectedAppointmentIsUnscheduledDraft
+        ? (() => {
+            const startsAt = localDateTimeToMinneapolisIso(
+              scheduleDraft.localDate,
+              scheduleDraft.startTime
+            );
+
+            return {
+              proposedStartsAt: startsAt,
+              proposedEndsAt: addMinutesToIso(startsAt, scheduleDraft.durationMinutes),
+              proposedSchedulingTimezone: selectedAppointment.schedulingTimezone ?? defaultTimezone
+            };
+          })()
+        : {};
+      const response = await fetch(
+        `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/resource-requirements/${encodeURIComponent(recommendation.selectedRequirementId)}/candidate-proposals`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            resourceId: selectedResourceId,
+            expectedAppointmentVersion: selectedAppointment.recordVersion,
+            reasonCode: "RESOURCE_CANDIDATE_PROPOSED",
+            reasonNotes: selectedAppointmentIsUnscheduledDraft
+              ? `Proposed ${selectedCandidate?.name ?? "selected resource"} for ${recommendation.label} from Appointment Board resource planning for ${scheduleDraft.localDate} ${scheduleDraft.startTime}.`
+              : `Proposed ${selectedCandidate?.name ?? "selected resource"} for ${recommendation.label} from Appointment Board resource planning.`,
+            correlationId,
+            ...proposedScheduleWindow
+          })
+        }
+      );
+      const result = (await response.json().catch(() => null)) as
+        | {
+            proposal?: {
+              resourceName: string;
+              created: boolean;
+              appointmentVersion: number;
+            };
+            error?: string;
+          }
+        | null;
+
+      if (!response.ok || !result?.proposal) {
+        throw new Error(result?.error || "Unable to propose the resource candidate.");
+      }
+
+      setActionNotice(
+        result.proposal.created
+          ? `${result.proposal.resourceName} was proposed for ${recommendation.label}. Schedule readiness and resource planning are refreshing.`
+          : `${result.proposal.resourceName} was already proposed for ${recommendation.label}. Schedule readiness and resource planning are refreshing.`
+      );
+      setDetailRefreshKey((value) => value + 1);
+      await loadLiveAppointments();
+    } catch (error) {
+      setActionNotice(
+        error instanceof Error
+          ? error.message
+          : "Unable to propose the resource candidate right now."
+      );
+    } finally {
+      setResourceCandidateSavingCode(null);
+    }
+  }
+
+  async function holdResourceCandidate(
+    recommendation: AppointmentResourcePlanning["recommendations"][number],
+    availability: AppointmentResourceCandidateAvailability["proposals"][number] | undefined
+  ) {
+    if (!selectedAppointment.recordId || !selectedAppointment.recordVersion) {
+      setActionNotice("Resource candidates can only be held for persisted live draft appointments.");
+      return;
+    }
+
+    if (!recommendation.selectedReservation) {
+      setActionNotice(`Propose a ${recommendation.label} candidate before placing a hold.`);
+      return;
+    }
+
+    if (availability && !availability.canProceedToHold) {
+      setActionNotice(
+        availability.warningOverrideRequired && !availability.warningOverrideSatisfied
+          ? "Hold is blocked until a manager records the warning override."
+          : `Hold is blocked: ${availability.reasons.length > 0 ? availability.reasons.join(" ") : "resource candidate is not available."}`
+      );
+      return;
+    }
+
+    setResourceHoldSavingReservationId(recommendation.selectedReservation.id);
+
+    try {
+      const correlationId = createAppointmentActionIdentifier(
+        "resource-hold",
+        selectedAppointment.recordId
+      );
+      const response = await fetch(
+        `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/resource-reservations/${encodeURIComponent(recommendation.selectedReservation.id)}/hold`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            expectedAppointmentVersion: selectedAppointment.recordVersion,
+            reasonCode: "RESOURCE_CANDIDATE_HELD",
+            reasonNotes: `Held ${recommendation.selectedReservation.resourceName} for ${recommendation.label} from Appointment Board resource planning.`,
+            correlationId
+          })
+        }
+      );
+      const result = (await response.json().catch(() => null)) as
+        | {
+            reservation?: {
+              resourceName: string;
+              status: "HELD";
+              appointmentVersion: number;
+              availabilityStatus: "READY" | "WARNING";
+              warningReasons: string[];
+            };
+            error?: string;
+          }
+        | null;
+
+      if (!response.ok || !result?.reservation) {
+        throw new Error(result?.error || "Unable to hold the resource candidate.");
+      }
+
+      setActionNotice(
+        result.reservation.availabilityStatus === "WARNING"
+          ? `${result.reservation.resourceName} was held with a warning. ${result.reservation.warningReasons.join(" ")}`
+          : `${result.reservation.resourceName} is now held for ${recommendation.label}. Schedule readiness and resource planning are refreshing.`
+      );
+      setDetailRefreshKey((value) => value + 1);
+      await loadLiveAppointments();
+    } catch (error) {
+      setActionNotice(
+        error instanceof Error
+          ? error.message
+          : "Unable to hold the resource candidate right now."
+      );
+    } finally {
+      setResourceHoldSavingReservationId(null);
+    }
+  }
+
+  async function overrideResourceWarning(
+    recommendation: AppointmentResourcePlanning["recommendations"][number],
+    availability: AppointmentResourceCandidateAvailability["proposals"][number] | undefined
+  ) {
+    if (!selectedAppointment.recordId || !selectedAppointment.recordVersion) {
+      setActionNotice("Resource warnings can only be overridden for persisted live draft appointments.");
+      return;
+    }
+
+    if (selectedAppointment.status !== "draft") {
+      setActionNotice("Resource warning overrides are currently available before scheduling.");
+      return;
+    }
+
+    if (!recommendation.selectedReservation || recommendation.selectedReservation.status !== "PROPOSED") {
+      setActionNotice(`Propose a ${recommendation.label} candidate before overriding a warning.`);
+      return;
+    }
+
+    if (availability?.status !== "WARNING") {
+      setActionNotice("Only warning-level resource conflicts can be overridden. Hard blocks still require a different resource or time.");
+      return;
+    }
+
+    const userReason = getResourceActionReason(
+      "warning-override",
+      recommendation.selectedReservation.id
+    );
+
+    if (!userReason) {
+      setActionNotice("Add a manager reason before overriding this resource warning.");
+      return;
+    }
+
+    setResourceWarningOverrideSavingReservationId(recommendation.selectedReservation.id);
+
+    try {
+      const correlationId = createAppointmentActionIdentifier(
+        "resource-warning-override",
+        selectedAppointment.recordId
+      );
+      const reasonText =
+        availability.reasons.length > 0
+          ? availability.reasons.join(" ")
+          : "Manager accepted resource warning policy.";
+      const response = await fetch(
+        `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/resource-reservations/${encodeURIComponent(recommendation.selectedReservation.id)}/warning-override`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            expectedAppointmentVersion: selectedAppointment.recordVersion,
+            reasonCode: "RESOURCE_WARNING_OVERRIDDEN",
+            reasonNotes: buildResourceReasonNote(
+              `Manager accepted warning for ${recommendation.selectedReservation.resourceName} on ${recommendation.label}: ${reasonText}`,
+              userReason
+            ),
+            correlationId
+          })
+        }
+      );
+      const result = (await response.json().catch(() => null)) as
+        | {
+            warningOverride?: {
+              reservationId: string;
+              resourceName: string;
+              appointmentVersion: number;
+              reasons: string[];
+            };
+            error?: string;
+          }
+        | null;
+
+      if (!response.ok || !result?.warningOverride) {
+        throw new Error(result?.error || "Unable to override the resource warning.");
+      }
+
+      setOverriddenResourceWarnings((current) => ({
+        ...current,
+        [result.warningOverride!.reservationId]: true
+      }));
+      setActionNotice(
+        `${result.warningOverride.resourceName} warning was overridden with a documented manager reason. You can now continue the resource planning workflow.`
+      );
+      clearResourceActionReason("warning-override", recommendation.selectedReservation.id);
+      setDetailRefreshKey((value) => value + 1);
+      await loadLiveAppointments();
+    } catch (error) {
+      setActionNotice(
+        error instanceof Error
+          ? error.message
+          : "Unable to override the resource warning right now."
+      );
+    } finally {
+      setResourceWarningOverrideSavingReservationId(null);
+    }
+  }
+
+  async function overrideStaffWarning() {
+    if (!selectedAppointment.recordId || !selectedAppointment.recordVersion) {
+      setActionNotice("Staff warnings can only be overridden for persisted live draft appointments.");
+      return;
+    }
+
+    if (selectedAppointment.status !== "draft") {
+      setActionNotice("Staff warning overrides are currently available before scheduling.");
+      return;
+    }
+
+    if (
+      !staffConflictPreview ||
+      staffConflictPreview.status !== "WARNING" ||
+      !staffConflictPreview.warningOverrideRequired
+    ) {
+      setActionNotice("Only warning-level staff conflicts can be overridden.");
+      return;
+    }
+
+    if (!staffWarningReason.trim()) {
+      setActionNotice("Add a manager reason before overriding this staff warning.");
+      return;
+    }
+
+    setStaffWarningOverrideSaving(true);
+
+    try {
+      const correlationId = createAppointmentActionIdentifier(
+        "staff-warning-override",
+        selectedAppointment.recordId
+      );
+      const reasonText =
+        staffConflictPreview.reasons.length > 0
+          ? staffConflictPreview.reasons.join(" ")
+          : "Manager accepted staff warning policy.";
+      const proposedScheduleWindow = selectedAppointmentIsUnscheduledDraft
+        ? (() => {
+            const startsAt = localDateTimeToMinneapolisIso(
+              scheduleDraft.localDate,
+              scheduleDraft.startTime
+            );
+
+            return {
+              proposedStartsAt: startsAt,
+              proposedEndsAt: addMinutesToIso(startsAt, scheduleDraft.durationMinutes),
+              proposedSchedulingTimezone: selectedAppointment.schedulingTimezone ?? defaultTimezone
+            };
+          })()
+        : {};
+      const response = await fetch(
+        `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/staff-conflicts/override`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            expectedAppointmentVersion: selectedAppointment.recordVersion,
+            reasonCode: "STAFF_WARNING_OVERRIDDEN",
+            reasonNotes: buildResourceReasonNote(
+              `Manager accepted staff warning for ${staffConflictPreview.staff?.name ?? "required staff"}${
+                staffConflictPreview.staff?.roleCode
+                  ? ` (${staffConflictPreview.staff.roleCode.replaceAll("_", " ")})`
+                  : ""
+              }${
+                selectedAppointmentIsUnscheduledDraft
+                  ? ` for proposed slot ${scheduleDraft.localDate} ${scheduleDraft.startTime}`
+                  : ""
+              }: ${reasonText}`,
+              staffWarningReason
+            ),
+            correlationId,
+            ...proposedScheduleWindow
+          })
+        }
+      );
+      const result = (await response.json().catch(() => null)) as
+        | {
+            staffWarningOverride?: {
+              warningKey: string;
+              staffName: string;
+              staffRole?: "OWNER" | "PARTICIPANT";
+              staffRoleCode?: string;
+              appointmentVersion: number;
+            };
+            error?: string;
+          }
+        | null;
+
+      if (!response.ok || !result?.staffWarningOverride) {
+        throw new Error(result?.error || "Unable to override the staff warning.");
+      }
+
+      setOverriddenStaffWarnings((current) => ({
+        ...current,
+        [result.staffWarningOverride!.warningKey]: true
+      }));
+      setStaffWarningReason("");
+      setActionNotice(
+        `${result.staffWarningOverride.staffName}${
+          result.staffWarningOverride.staffRoleCode
+            ? ` (${result.staffWarningOverride.staffRoleCode.replaceAll("_", " ")})`
+            : ""
+        } staff warning was overridden with a documented manager reason.`
+      );
+      setDetailRefreshKey((value) => value + 1);
+      await loadLiveAppointments();
+    } catch (error) {
+      setActionNotice(
+        error instanceof Error ? error.message : "Unable to override the staff warning right now."
+      );
+    } finally {
+      setStaffWarningOverrideSaving(false);
+    }
+  }
+
+  async function releaseResourceReservation(
+    recommendation: AppointmentResourcePlanning["recommendations"][number]
+  ) {
+    if (!selectedAppointment.recordId || !selectedAppointment.recordVersion) {
+      setActionNotice("Resource reservations can only be released for persisted live appointments.");
+      return;
+    }
+
+    if (!recommendation.selectedReservation) {
+      setActionNotice(`No ${recommendation.label} reservation is selected for release.`);
+      return;
+    }
+
+    if (!["HELD", "COMMITTED"].includes(recommendation.selectedReservation.status)) {
+      setActionNotice("Only held or committed reservations can be released from this control.");
+      return;
+    }
+
+    const userReason = getResourceActionReason("release", recommendation.selectedReservation.id);
+
+    if (!userReason) {
+      setActionNotice("Add a release reason before releasing this resource reservation.");
+      return;
+    }
+
+    setResourceReleaseSavingReservationId(recommendation.selectedReservation.id);
+
+    try {
+      const correlationId = createAppointmentActionIdentifier(
+        "resource-release",
+        selectedAppointment.recordId
+      );
+      const response = await fetch(
+        `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/resource-reservations/${encodeURIComponent(recommendation.selectedReservation.id)}/release`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            expectedAppointmentVersion: selectedAppointment.recordVersion,
+            reasonCode: "RESOURCE_RESERVATION_RELEASED",
+            reasonNotes: buildResourceReasonNote(
+              `Released ${recommendation.selectedReservation.resourceName} from ${recommendation.label} in Appointment Board resource planning.`,
+              userReason
+            ),
+            correlationId
+          })
+        }
+      );
+      const result = (await response.json().catch(() => null)) as
+        | {
+            reservation?: {
+              resourceName: string;
+              priorStatus: "HELD" | "COMMITTED";
+              status: "RELEASED";
+              appointmentVersion: number;
+            };
+            error?: string;
+          }
+        | null;
+
+      if (!response.ok || !result?.reservation) {
+        throw new Error(result?.error || "Unable to release the resource reservation.");
+      }
+
+      setActionNotice(
+        `${result.reservation.resourceName} was released from ${result.reservation.priorStatus.toLowerCase()} reservation status. Schedule readiness and resource planning are refreshing.`
+      );
+      clearResourceActionReason("release", recommendation.selectedReservation.id);
+      setDetailRefreshKey((value) => value + 1);
+      await loadLiveAppointments();
+    } catch (error) {
+      setActionNotice(
+        error instanceof Error
+          ? error.message
+          : "Unable to release the resource reservation right now."
+      );
+    } finally {
+      setResourceReleaseSavingReservationId(null);
+    }
+  }
+
+  async function replaceResourceReservation(
+    recommendation: AppointmentResourcePlanning["recommendations"][number]
+  ) {
+    if (!selectedAppointment.recordId || !selectedAppointment.recordVersion) {
+      setActionNotice("Resource reservations can only be replaced for persisted live appointments.");
+      return;
+    }
+
+    if (
+      !recommendation.selectedReservation ||
+      !["HELD", "COMMITTED"].includes(recommendation.selectedReservation.status)
+    ) {
+      setActionNotice(`Hold or schedule a ${recommendation.label} reservation before replacing it.`);
+      return;
+    }
+
+    const selectedResourceId =
+      selectedResourceCandidates[recommendation.requirementCode] ??
+      recommendation.candidates.find(
+        (candidate) => candidate.id !== recommendation.selectedReservation?.resourceId
+      )?.id;
+
+    if (!selectedResourceId) {
+      setActionNotice(`No replacement ${recommendation.resourceTypeCode} candidate is available.`);
+      return;
+    }
+
+    if (selectedResourceId === recommendation.selectedReservation.resourceId) {
+      setActionNotice("Choose a different resource before replacing the current reservation.");
+      return;
+    }
+
+    const userReason = getResourceActionReason("replace", recommendation.selectedReservation.id);
+
+    if (!userReason) {
+      setActionNotice("Add a replacement reason before replacing this reservation.");
+      return;
+    }
+
+    setResourceReplacementSavingReservationId(recommendation.selectedReservation.id);
+
+    try {
+      const selectedCandidate = recommendation.candidates.find(
+        (candidate) => candidate.id === selectedResourceId
+      );
+      const correlationId = createAppointmentActionIdentifier(
+        "resource-replacement",
+        selectedAppointment.recordId
+      );
+      const response = await fetch(
+        `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/resource-reservations/${encodeURIComponent(recommendation.selectedReservation.id)}/replace`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            resourceId: selectedResourceId,
+            expectedAppointmentVersion: selectedAppointment.recordVersion,
+            reasonCode: "RESOURCE_RESERVATION_REPLACED",
+            reasonNotes: buildResourceReasonNote(
+              `Replaced ${recommendation.selectedReservation.resourceName} with ${selectedCandidate?.name ?? "selected resource"} for ${recommendation.label} from Appointment Board resource planning.`,
+              userReason
+            ),
+            correlationId
+          })
+        }
+      );
+      const result = (await response.json().catch(() => null)) as
+        | {
+            replacement?: {
+              resourceName: string;
+              releasedResourceName: string;
+              status: "PROPOSED" | "COMMITTED";
+              availabilityStatus?: "READY" | "WARNING";
+              warningReasons?: string[];
+              releasedPriorStatus: "HELD" | "COMMITTED";
+              appointmentVersion: number;
+            };
+            error?: string;
+          }
+        | null;
+
+      if (!response.ok || !result?.replacement) {
+        throw new Error(result?.error || "Unable to replace the resource reservation.");
+      }
+
+      setActionNotice(
+        result.replacement.status === "COMMITTED"
+          ? `${result.replacement.releasedResourceName} was released and ${result.replacement.resourceName} is now committed as the replacement.${
+              result.replacement.availabilityStatus === "WARNING"
+                ? ` Manager warning accepted: ${(result.replacement.warningReasons ?? []).join(" ")}`
+                : ""
+            }`
+          : `${result.replacement.releasedResourceName} was released and ${result.replacement.resourceName} was proposed as the replacement. Review availability, then hold the new candidate.`
+      );
+      clearResourceActionReason("replace", recommendation.selectedReservation.id);
+      setDetailRefreshKey((value) => value + 1);
+      await loadLiveAppointments();
+    } catch (error) {
+      setActionNotice(
+        error instanceof Error
+          ? error.message
+          : "Unable to replace the resource reservation right now."
+      );
+    } finally {
+      setResourceReplacementSavingReservationId(null);
+    }
+  }
+
+  async function transferAppointmentOwner() {
+    if (!selectedAppointment.recordId || !selectedAppointment.recordVersion) {
+      setActionNotice("Owner reassignment can only be submitted for persisted live appointments.");
+      return;
+    }
+
+    if (!resolvedOwnerTransferUserId) {
+      setActionNotice("Choose a new accountable owner before submitting the reassignment.");
+      return;
+    }
+
+    if (resolvedOwnerTransferUserId === selectedAppointment.staffId) {
+      setActionNotice("Choose a different owner before submitting the reassignment.");
+      return;
+    }
+
+    if (!ownerTransferReason.trim()) {
+      setActionNotice("Owner reassignment requires a documented manager reason.");
+      return;
+    }
+
+    const selectedOwner = ownerTransferCandidates.find(
+      (candidate) => candidate.id === resolvedOwnerTransferUserId
+    );
+
+    setIsOwnerTransferSaving(true);
+
+    try {
+      const idempotencyKey = createAppointmentActionIdentifier(
+        "transfer-owner",
+        selectedAppointment.recordId
+      );
+      const response = await fetch("/api/appointments/commands", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          commandType: "TRANSFER_OWNER",
+          appointmentId: selectedAppointment.recordId,
+          expectedAppointmentVersion: selectedAppointment.recordVersion,
+          idempotencyKey,
+          correlationId: idempotencyKey,
+          payload: {
+            ownerUserId: resolvedOwnerTransferUserId,
+            reasonCode: "APPOINTMENT_OWNER_TRANSFERRED",
+            reasonNotes: buildResourceReasonNote(
+              `Transferred accountable owner from ${selectedAppointment.staffName ?? selectedAppointment.staffId} to ${selectedOwner?.name ?? resolvedOwnerTransferUserId} from Appointment Board owner controls.`,
+              ownerTransferReason
+            )
+          }
+        })
+      });
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok || !result?.accepted) {
+        throw new Error(
+          result?.error ||
+            result?.execution?.rejectionReasons?.join(" ") ||
+            "Owner reassignment could not be completed."
+        );
+      }
+
+      setOwnerTransferReason("");
+      setActionNotice(
+        `Owner reassignment saved for ${selectedAppointment.id}: ${selectedOwner?.name ?? resolvedOwnerTransferUserId} is now accountable. History and command ledger were updated.`
+      );
+      setDetailRefreshKey((value) => value + 1);
+      await loadLiveAppointments();
+    } catch (error) {
+      setActionNotice(
+        error instanceof Error ? error.message : "Owner reassignment could not be completed."
+      );
+    } finally {
+      setIsOwnerTransferSaving(false);
+    }
+  }
+
+  async function submitUnscheduledDraftSchedule() {
+    if (!selectedAppointment.recordId || !selectedAppointment.recordVersion) {
+      setActionNotice(
+        `Schedule Draft is wired to the live command API, but ${selectedAppointment.id} is still preview data.`
+      );
+      return;
+    }
+
+    if (!selectedAppointmentIsUnscheduledDraft) {
+      setActionNotice("This scheduling form is only for unscheduled live draft appointments.");
+      return;
+    }
+
+    if (!scheduleDraft.reasonNotes.trim()) {
+      setActionNotice("Scheduling an unscheduled draft requires a documented reason.");
+      return;
+    }
+
+    if (selectedUnscheduledDraftStartsInPast) {
+      setActionNotice("Schedule Draft is blocked: choose a current or future time.");
+      return;
+    }
+
+    if (scheduleReadiness && !scheduleReadiness.canSubmitSchedule) {
+      setActionNotice(
+        `Schedule Draft is blocked: ${scheduleReadiness.hardBlocks.map((block) => block.message).join(" ")}`
+      );
+      return;
+    }
+
+    if (!selectedUnscheduledDraftCanProceedWithStaff) {
+      setActionNotice(
+        staffConflictPreview?.reasons.length
+          ? `Schedule Draft is blocked by staff availability: ${staffConflictPreview.reasons.join(" ")}`
+          : "Schedule Draft is waiting for staff conflict preview to clear."
+      );
+      return;
+    }
+
+    setIsCommandPending(true);
+
+    try {
+      const startsAt = localDateTimeToMinneapolisIso(
+        scheduleDraft.localDate,
+        scheduleDraft.startTime
+      );
+      const endsAt = addMinutesToIso(startsAt, scheduleDraft.durationMinutes);
+      const idempotencyKey = createCommandIdentifier("SCHEDULE", selectedAppointment.recordId);
+      const response = await fetch("/api/appointments/commands", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          commandType: "SCHEDULE",
+          appointmentId: selectedAppointment.recordId,
+          expectedAppointmentVersion: selectedAppointment.recordVersion,
+          idempotencyKey,
+          correlationId: idempotencyKey,
+          payload: {
+            startsAt,
+            endsAt,
+            schedulingTimezone: selectedAppointment.schedulingTimezone ?? defaultTimezone,
+            reasonCode: "UNSCHEDULED_DRAFT_SCHEDULED",
+            reasonNotes: buildResourceReasonNote(
+              `Scheduled unscheduled draft ${selectedAppointment.id} from Appointment Board draft lane for ${scheduleDraft.localDate} at ${scheduleDraft.startTime}.`,
+              scheduleDraft.reasonNotes
+            )
+          }
+        })
+      });
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok || !result?.accepted) {
+        throw new Error(
+          result?.error ||
+            result?.execution?.rejectionReasons?.join(" ") ||
+            "Unscheduled draft could not be scheduled."
+        );
+      }
+
+      setAppointmentStatusOverrides((current) => ({
+        ...current,
+        [selectedAppointment.id]: "confirmed"
+      }));
+      setScheduleDraft((current) => ({
+        ...current,
+        reasonNotes: ""
+      }));
+      setActionNotice(
+        `Scheduled ${selectedAppointment.id}. It now has a real time window and was moved onto the appointment calendar.`
+      );
+
+      const refreshedAppointments = await loadLiveAppointments({
+        suppressSuccessNotice: true
+      });
+      const refreshedAppointment = refreshedAppointments.find(
+        (appointment) => appointment.id === selectedAppointment.id
+      );
+
+      if (refreshedAppointment) {
+        selectAppointmentForDetail(refreshedAppointment);
+      }
+    } catch (error) {
+      setActionNotice(
+        error instanceof Error ? error.message : "Unscheduled draft could not be scheduled."
+      );
+    } finally {
+      setIsCommandPending(false);
+    }
+  }
+
+  async function submitOperationalCommand(commandType: OperationalCommand) {
+    const label = commandLabel(commandType);
+
+    if (!selectedAppointment.recordId || !selectedAppointment.recordVersion) {
+      setActionNotice(
+        `${label} is wired to the live command API, but ${selectedAppointment.id} is still preview data. The next data slice must provide a persisted appointment record ID and version before this can save.`
+      );
+      return;
+    }
+
+    if (commandType === "NO_SHOW" && !noShowDraft.reasonNotes.trim()) {
+      setActionNotice("No Show requires reason notes before it can be submitted.");
+      return;
+    }
+
+    if (commandType === "SCHEDULE" && selectedAppointmentIsUnscheduledDraft) {
+      setActionNotice("Use the unscheduled draft scheduling form to choose a date, time, and reason.");
+      return;
+    }
+
+    if (commandType === "SCHEDULE" && (!selectedAppointment.startsAtIso || !selectedAppointment.endsAtIso)) {
+      setActionNotice("Schedule Draft requires a saved start and end time.");
+      return;
+    }
+
+    if (commandType === "SCHEDULE" && scheduleReadiness && !scheduleReadiness.canSubmitSchedule) {
+      setActionNotice(
+        `Schedule Draft is blocked: ${scheduleReadiness.hardBlocks.map((block) => block.message).join(" ")}`
+      );
+      return;
+    }
+
+    if (
+      commandType === "START" &&
+      selectedAppointment.executionStatus !== "NOT_STARTED"
+    ) {
+      setActionNotice("Start Work requires an appointment that has not started yet.");
+      return;
+    }
+
+    if (
+      commandType === "FINISH" &&
+      selectedAppointment.executionStatus !== "IN_PROGRESS" &&
+      selectedAppointment.executionStatus !== "WAITING"
+    ) {
+      setActionNotice("Finish Work requires an appointment that is currently in progress or waiting.");
+      return;
+    }
+
+    setIsCommandPending(true);
+
+    try {
+      const idempotencyKey = createCommandIdentifier(commandType, selectedAppointment.recordId);
+      const response = await fetch("/api/appointments/commands", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          commandType,
+          appointmentId: selectedAppointment.recordId,
+          expectedAppointmentVersion: selectedAppointment.recordVersion,
+          idempotencyKey,
+          correlationId: idempotencyKey,
+          payload: {
+            ...(commandType === "NO_SHOW"
+              ? {
+                  reasonCode: noShowDraft.reasonCode,
+                  reasonNotes: noShowDraft.reasonNotes.trim(),
+                  followUpDispositionCode: noShowDraft.followUpDispositionCode
+                }
+              : {}),
+            ...(commandType === "SCHEDULE"
+              ? {
+                  startsAt: selectedAppointment.startsAtIso,
+                  endsAt: selectedAppointment.endsAtIso,
+                  schedulingTimezone: selectedAppointment.schedulingTimezone ?? defaultTimezone
+                }
+              : {})
+          }
+        })
+      });
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok || !result?.accepted) {
+        throw new Error(
+          result?.error ||
+            result?.execution?.rejectionReasons?.join(" ") ||
+            `${label} could not be completed.`
+        );
+      }
+
+      setAppointmentStatusOverrides((current) => ({
+        ...current,
+        [selectedAppointment.id]: commandStatus(commandType)
+      }));
+      setNoShowOpen(false);
+      setActionNotice(`${label} saved for ${selectedAppointment.id}. History and command ledger were updated by the live command path.`);
+
+      await loadLiveAppointments();
+    } catch (error) {
+      setActionNotice(error instanceof Error ? error.message : `${label} could not be completed.`);
+    } finally {
+      setIsCommandPending(false);
+    }
+  }
+
+  async function submitOutcomeCompletion() {
+    if (!selectedAppointment.recordId || !selectedAppointment.recordVersion) {
+      setActionNotice(
+        `Save Outcome is wired to the live command API, but ${selectedAppointment.id} is still preview data.`
+      );
+      return;
+    }
+
+    if (selectedAppointment.bookingStatus === "COMPLETED") {
+      setActionNotice(`${selectedAppointment.id} already has a completed outcome.`);
+      return;
+    }
+
+    if (selectedAppointment.status === "draft") {
+      setActionNotice("Save Outcome requires a scheduled appointment.");
+      return;
+    }
+
+    if (selectedAppointment.attendanceStatus === "NO_SHOW") {
+      setActionNotice("No-show appointments must use the no-show follow-up workflow.");
+      return;
+    }
+
+    if (selectedAppointment.executionStatus !== "FINISHED") {
+      setActionNotice("Finish Work before saving the final outcome.");
+      return;
+    }
+
+    if (!outcomeDraft.reasonNotes.trim()) {
+      setActionNotice("Save Outcome requires a documented reason.");
+      return;
+    }
+
+    if (
+      outcomeDraft.followUpDispositionCode !== "NO_FOLLOW_UP_REQUIRED" &&
+      !outcomeDraft.followUpNotes.trim()
+    ) {
+      setActionNotice("Follow-up disposition requires a next step note.");
+      return;
+    }
+
+    setIsOutcomeSaving(true);
+
+    try {
+      const idempotencyKey = createAppointmentActionIdentifier(
+        "complete-outcome",
+        selectedAppointment.recordId
+      );
+      const outcomeLabel = labelForOption(outcomeOptions, outcomeDraft.outcomeCode);
+      const followUpLabel = labelForOption(
+        followUpDispositionOptions,
+        outcomeDraft.followUpDispositionCode
+      );
+      const response = await fetch("/api/appointments/commands", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          commandType: "COMPLETE",
+          appointmentId: selectedAppointment.recordId,
+          expectedAppointmentVersion: selectedAppointment.recordVersion,
+          idempotencyKey,
+          correlationId: idempotencyKey,
+          payload: {
+            outcomeCode: outcomeDraft.outcomeCode,
+            outcomeNotes: outcomeDraft.outcomeNotes.trim() || null,
+            followUpDispositionCode: outcomeDraft.followUpDispositionCode,
+            followUpNotes: outcomeDraft.followUpNotes.trim() || null,
+            customerReference: selectedAppointment.customer,
+            vehicleReference: selectedAppointment.vehicle,
+            reasonCode: "OUTCOME_RECORDED",
+            reasonNotes: buildResourceReasonNote(
+              `Recorded ${outcomeLabel} outcome with ${followUpLabel.toLowerCase()} follow-up disposition from Appointment Board.`,
+              outcomeDraft.reasonNotes
+            )
+          }
+        })
+      });
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok || !result?.accepted) {
+        throw new Error(
+          result?.error ||
+            result?.execution?.rejectionReasons?.join(" ") ||
+            "Outcome could not be saved."
+        );
+      }
+
+      const generatedFollowUpAppointmentNumbers = getGeneratedFollowUpAppointmentNumbers(result);
+      let successNotice = buildOutcomeSuccessNotice({
+        appointmentId: selectedAppointment.id,
+        result
+      });
+      setOutcomeDraft((current) => ({
+        ...current,
+        reasonNotes: ""
+      }));
+      setAppointmentStatusOverrides((current) => ({
+        ...current,
+        [selectedAppointment.id]:
+          outcomeDraft.followUpDispositionCode === "NO_FOLLOW_UP_REQUIRED"
+            ? "confirmed"
+            : "follow-up"
+      }));
+      setDetailRefreshKey((value) => value + 1);
+      const refreshedAppointments = await loadLiveAppointments({
+        suppressSuccessNotice: true
+      });
+      const generatedAppointment = refreshedAppointments.find((appointment) =>
+        generatedFollowUpAppointmentNumbers.includes(appointment.id)
+      );
+
+      if (generatedAppointment) {
+        selectAppointmentForDetail(generatedAppointment);
+        successNotice = `${successNotice} Selected ${generatedAppointment.id} so it can be scheduled.`;
+      }
+
+      setActionNotice(successNotice);
+    } catch (error) {
+      setActionNotice(error instanceof Error ? error.message : "Outcome could not be saved.");
+    } finally {
+      setIsOutcomeSaving(false);
+    }
+  }
+
+  return (
+    <section className="appointment-board-page" aria-labelledby="appointment-board-title">
+      <div className="appointment-board-toolbar">
+        <div>
+          <p className="section-kicker">Enterprise appointment operations</p>
+          <h1 id="appointment-board-title">Appointment Board</h1>
+          <p>{dealershipAddress} · {dealershipPhone} · {businessHours}</p>
+        </div>
+        <div className="appointment-toolbar-actions">
+          <label className="appointment-search">
+            <Search aria-hidden="true" size={17} />
+            <input
+              aria-label="Search appointments, customers, vehicles, or phone numbers"
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search appointments, customers, vehicles..."
+              type="search"
+              value={query}
+            />
+          </label>
+          <button className="appointment-primary-button" onClick={() => setDraftOpen(true)} type="button">
+            <Plus size={17} aria-hidden="true" />
+            New Appointment
+          </button>
+          <button className="appointment-icon-button" type="button" aria-label="Calendar settings" onClick={() => handlePreviewAction("Calendar settings")}>
+            <CalendarDays size={18} aria-hidden="true" />
+          </button>
+          <button className="appointment-icon-button appointment-alert-button" type="button" aria-label="Board alerts" onClick={() => handlePreviewAction("Alerts")}>
+            <Bell size={18} aria-hidden="true" />
+            <span>3</span>
+          </button>
+          <button className="appointment-icon-button" type="button" aria-label="Appointment settings" onClick={() => handlePreviewAction("Board settings")}>
+            <Settings size={18} aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+
+      <div className="appointment-preview-banner" role="status">
+        <ShieldCheck size={18} aria-hidden="true" />
+        <span>{isLiveLoading ? "Loading live appointment read model..." : actionNotice}</span>
+      </div>
+
+      <div className="appointment-date-row">
+        <button type="button" className="appointment-date-button" onClick={() => handlePreviewAction("Today")}>
+          Today
+        </button>
+        <button type="button" className="appointment-square-button" aria-label="Previous day" onClick={() => handlePreviewAction("Previous day")}>
+          <ChevronLeft size={17} />
+        </button>
+        <button type="button" className="appointment-square-button" aria-label="Next day" onClick={() => handlePreviewAction("Next day")}>
+          <ChevronRight size={17} />
+        </button>
+        <div className="appointment-date-display">
+          <strong>{businessDate}</strong>
+          <CalendarDays size={16} aria-hidden="true" />
+        </div>
+      </div>
+
+      <div className="appointment-metric-grid" aria-label="Appointment metrics">
+        {metrics.map((metric) => (
+          <button
+            className={statusFilter === metric.status ? `appointment-metric appointment-metric-${metric.tone} appointment-metric-active` : `appointment-metric appointment-metric-${metric.tone}`}
+            key={metric.label}
+            onClick={() => setStatusFilter(metric.status)}
+            type="button"
+          >
+            <strong>{metric.value}</strong>
+            <span>{metric.label}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="appointment-main-grid">
+        <div className="appointment-board-card">
+          {unscheduledDraftAppointments.length > 0 ? (
+            <section className="appointment-unscheduled-card" aria-labelledby="unscheduled-draft-appointments">
+              <div className="appointment-section-heading">
+                <div>
+                  <strong id="unscheduled-draft-appointments">Unscheduled / Drafts</strong>
+                  <p>Generated follow-ups and live drafts waiting for a real appointment time.</p>
+                </div>
+                <span>{unscheduledDraftAppointments.length} needs scheduling</span>
+              </div>
+              <div className="appointment-unscheduled-list">
+                {unscheduledDraftAppointments.map((appointment) => {
+                  const meta = categoryMeta[appointment.category];
+
+                  return (
+                    <button
+                      className={
+                        selectedAppointment.id === appointment.id
+                          ? `appointment-unscheduled-item ${meta.className} appointment-unscheduled-item-active`
+                          : `appointment-unscheduled-item ${meta.className}`
+                      }
+                      key={appointment.id}
+                      onClick={() => selectAppointmentForDetail(appointment)}
+                      type="button"
+                    >
+                      <span>{appointment.id}</span>
+                      <strong>{appointment.title}</strong>
+                      <small>{appointment.customer} · {appointment.vehicle}</small>
+                      <em>{appointment.staffName ?? "Unassigned"} · {categoryMeta[appointment.category].label}</em>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
+
+          <div className="appointment-board-controls">
+            <div className="appointment-view-tabs" aria-label="Appointment view">
+              {viewModes.map((mode) => (
+                <button
+                  className={viewMode === mode ? "appointment-view-tab appointment-view-tab-active" : "appointment-view-tab"}
+                  key={mode}
+                  onClick={() => setViewMode(mode)}
+                  type="button"
+                >
+                  {mode[0].toUpperCase() + mode.slice(1)}
+                </button>
+              ))}
+            </div>
+            <div className="appointment-filter-row">
+              <select aria-label="Filter appointment category" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value as AppointmentCategory | "all")}>
+                <option value="all">All Categories</option>
+                {Object.entries(categoryMeta).map(([key, value]) => (
+                  <option key={key} value={key}>{value.label}</option>
+                ))}
+              </select>
+              <select aria-label="Filter appointment staff" value={staffFilter} onChange={(event) => setStaffFilter(event.target.value)}>
+                <option value="all">All Staff</option>
+                {visibleStaffMembers.map((staff) => (
+                  <option key={staff.id} value={staff.id}>{staff.name}</option>
+                ))}
+              </select>
+              <button className={conflictsOnly ? "appointment-filter-toggle appointment-filter-toggle-active" : "appointment-filter-toggle"} type="button" onClick={() => setConflictsOnly((value) => !value)}>
+                <Filter size={15} aria-hidden="true" />
+                Conflicts Only
+              </button>
+            </div>
+          </div>
+
+          {viewMode === "day" ? (
+            <div className="appointment-calendar-shell">
+              <div className="appointment-calendar-header">
+                <div className="appointment-all-day">All Day</div>
+                {visibleStaffMembers.map((staff) => (
+                  <div className="appointment-staff-header" key={staff.id}>
+                    <span className="appointment-avatar">{staff.initials}</span>
+                    <div>
+                      <strong>{staff.name}</strong>
+                      <small>{staff.role}</small>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="appointment-calendar-body">
+                <div className="appointment-time-column">
+                  {hourLabels.map((hour, index) => (
+                    <span key={hour} style={{ top: `${index * 66}px` }}>{hour}</span>
+                  ))}
+                </div>
+                {visibleStaffMembers.map((staff) => (
+                  <div className="appointment-staff-column" key={staff.id}>
+                    {scheduledFilteredAppointments.filter((appointment) => appointment.staffId === staff.id).map((appointment) => {
+                      const meta = categoryMeta[appointment.category];
+                      const top = Math.max(0, ((appointment.startMinutes - 540) / 60) * 66);
+                      const height = Math.max(58, (appointment.durationMinutes / 60) * 66);
+                      return (
+                        <button
+                          className={selectedAppointment.id === appointment.id ? `appointment-calendar-item ${meta.className} appointment-calendar-item-active` : `appointment-calendar-item ${meta.className}`}
+                          key={appointment.id}
+                          onClick={() => selectAppointmentForDetail(appointment)}
+                          style={{ top: `${top}px`, minHeight: `${height}px` }}
+                          type="button"
+                        >
+                          <span>{formatTime(appointment.startMinutes)}</span>
+                          <strong>{appointment.title}</strong>
+                          <small>{appointment.customer}</small>
+                          <small>{appointment.vehicle}</small>
+                          {appointment.conflict ? <b>Conflict warning</b> : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+                <div className="appointment-now-line" aria-hidden="true">
+                  <span>10:15 AM</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="appointment-alt-view">
+              <CalendarDays size={34} aria-hidden="true" />
+              <strong>{viewMode[0].toUpperCase() + viewMode.slice(1)} view shell</strong>
+              <p>The command surface is ready; live scheduling data will reuse the same enterprise controls, permissions, and audit rules.</p>
+              <div className="appointment-alt-list">
+                {scheduledFilteredAppointments.slice(0, 5).map((appointment) => (
+                  <button key={appointment.id} type="button" onClick={() => selectAppointmentForDetail(appointment)}>
+                    <span>{appointmentTimeLabel(appointment)}</span>
+                    <strong>{appointment.title}</strong>
+                    <small>{appointment.customer} · {categoryMeta[appointment.category].label}</small>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="appointment-legend" aria-label="Appointment category legend">
+            {Object.entries(categoryMeta).map(([key, meta]) => (
+              <span key={key}><i className={meta.className} />{meta.label}</span>
+            ))}
+          </div>
+        </div>
+
+        <aside className="appointment-detail-panel" aria-label="Appointment details">
+          <div className="appointment-detail-header">
+            <div className={`appointment-detail-icon ${categoryMeta[selectedAppointment.category].className}`}>
+              <Users size={22} aria-hidden="true" />
+            </div>
+            <div>
+              <strong>{selectedAppointment.title}</strong>
+              <span>Appointment #{selectedAppointment.id}</span>
+            </div>
+            <span className={`appointment-status appointment-status-${selectedAppointment.status}`}>{statusLabel(selectedAppointment.status)}</span>
+          </div>
+
+          <div className="appointment-detail-list">
+            <p><CalendarDays size={16} aria-hidden="true" />{businessDate}</p>
+            <p><Clock3 size={16} aria-hidden="true" />{appointmentTimeRangeLabel(selectedAppointment)}</p>
+            <p><UserRound size={16} aria-hidden="true" />{selectedStaff.name} ({selectedStaff.role})</p>
+            <p><Phone size={16} aria-hidden="true" />{selectedAppointment.phone}</p>
+            <p><Car size={16} aria-hidden="true" />{selectedAppointment.vehicle}</p>
+            <p><MapPin size={16} aria-hidden="true" />{selectedAppointment.location}</p>
+            <p><MessageCircle size={16} aria-hidden="true" />{selectedAppointment.complaint}</p>
+          </div>
+
+          <div className="appointment-detail-section">
+            <div className="appointment-section-heading">
+              <strong>
+                Linked Tasks ({selectedAppointment.linkedTasks?.length ?? selectedAppointment.taskAutomation.length})
+              </strong>
+              <button type="button" onClick={() => handlePreviewAction("New linked task")}>+ New Task</button>
+            </div>
+            <div className="appointment-task-stack">
+              {selectedAppointment.linkedTasks && selectedAppointment.linkedTasks.length > 0
+                ? selectedAppointment.linkedTasks.map((task, index) => (
+                    <div className="appointment-task-row" key={task.id}>
+                      <span>{index + 1}</span>
+                      <div>
+                        <strong>{task.title}</strong>
+                        <small>
+                          {formatTaskStatus(task.status)} · Due {formatTaskDueAt(task.dueAt, selectedAppointment.schedulingTimezone)} · {task.assignedUserName}
+                        </small>
+                        <small>
+                          {task.linkTitle}
+                          {task.isRequired ? " · Required" : ""}
+                          {task.blocksAppointment ? " · Blocks appointment" : ""}
+                          {task.appointmentRequiredForTask ? " · Appointment required for task" : ""}
+                        </small>
+                        {task.explanation ? <small>{task.explanation}</small> : null}
+                        <Link className="appointment-task-link" href={`/tasks/${task.taskId}`}>
+                          Open Task
+                        </Link>
+                      </div>
+                    </div>
+                  ))
+                : selectedAppointment.taskAutomation.map((task, index) => (
+                    <div className="appointment-task-row" key={task}>
+                      <span>{index + 1}</span>
+                      <div>
+                        <strong>{task}</strong>
+                        <small>{index === 0 ? "In Progress" : "Not Started"}</small>
+                      </div>
+                    </div>
+                  ))}
+            </div>
+          </div>
+
+          <div className="appointment-detail-section">
+            <strong>Enterprise Controls</strong>
+            <ul className="appointment-governance-list">
+              {selectedAppointment.governanceNotes.map((note) => (
+                <li key={note}>{note}</li>
+              ))}
+            </ul>
+          </div>
+
+          {selectedAppointment.dataSource === "live" ? (
+            <div className="appointment-detail-section">
+              <div className="appointment-section-heading">
+                <strong>Schedule Readiness</strong>
+                <span className={`appointment-readiness-chip appointment-readiness-${scheduleReadiness?.status.toLowerCase() ?? "loading"}`}>
+                  {isReadinessLoading ? "Loading" : scheduleReadiness?.status ?? "Unavailable"}
+                </span>
+              </div>
+              {scheduleReadiness ? (
+                <div className="appointment-readiness-stack">
+                  {scheduleReadiness.checks.map((check) => (
+                    <div className={`appointment-readiness-row appointment-readiness-row-${check.status.toLowerCase()}`} key={check.code}>
+                      <strong>{check.label}</strong>
+                      <span>{check.status}</span>
+                      <small>{check.message}</small>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="appointment-readiness-copy">
+                  {isReadinessLoading ? "Checking schedule readiness..." : "Schedule readiness is not available for this appointment yet."}
+                </p>
+              )}
+            </div>
+          ) : null}
+
+          {selectedAppointmentIsUnscheduledDraft ? (
+            <div className="appointment-detail-section">
+              <div className="appointment-section-heading">
+                <strong>Schedule Unscheduled Draft</strong>
+                <span className="appointment-resource-chip appointment-resource-ready-to-select">
+                  Command audited
+                </span>
+              </div>
+              <label className="appointment-outcome-label">
+                Appointment date
+                <input
+                  disabled={isCommandPending}
+                  onChange={(event) =>
+                    setScheduleDraft((current) => ({
+                      ...current,
+                      localDate: event.target.value
+                    }))
+                  }
+                  type="date"
+                  value={scheduleDraft.localDate}
+                />
+              </label>
+              <label className="appointment-outcome-label">
+                Start time
+                <input
+                  disabled={isCommandPending}
+                  onChange={(event) =>
+                    setScheduleDraft((current) => ({
+                      ...current,
+                      startTime: event.target.value
+                    }))
+                  }
+                  type="time"
+                  value={scheduleDraft.startTime}
+                />
+              </label>
+              <label className="appointment-outcome-label">
+                Duration
+                <select
+                  disabled={isCommandPending}
+                  onChange={(event) =>
+                    setScheduleDraft((current) => ({
+                      ...current,
+                      durationMinutes: Number(event.target.value)
+                    }))
+                  }
+                  value={scheduleDraft.durationMinutes}
+                >
+                  <option value={30}>30 min</option>
+                  <option value={45}>45 min</option>
+                  <option value={60}>1 hr</option>
+                  <option value={75}>1 hr 15 min</option>
+                  <option value={90}>1 hr 30 min</option>
+                  <option value={120}>2 hr</option>
+                </select>
+              </label>
+              <label className="appointment-outcome-label">
+                Scheduling reason
+                <textarea
+                  disabled={isCommandPending}
+                  onChange={(event) =>
+                    setScheduleDraft((current) => ({
+                      ...current,
+                      reasonNotes: event.target.value
+                    }))
+                  }
+                  placeholder="Document why this draft is being scheduled for this slot."
+                  rows={3}
+                  value={scheduleDraft.reasonNotes}
+                />
+              </label>
+              <p className="appointment-resource-copy">
+                This submits the existing SCHEDULE command with the selected Minneapolis time window, expected version, idempotency key, staff-conflict validation, and history reason.
+              </p>
+              {selectedUnscheduledDraftStartsInPast ? (
+                <p className="appointment-resource-copy appointment-resource-warning">
+                  Choose a current or future time before scheduling this draft.
+                </p>
+              ) : null}
+              <button
+                className="appointment-resource-action"
+                disabled={
+                  isCommandPending ||
+                  isReadinessLoading ||
+                  isStaffConflictLoading ||
+                  selectedUnscheduledDraftStartsInPast ||
+                  !scheduleDraft.reasonNotes.trim() ||
+                  (scheduleReadiness ? !scheduleReadiness.canSubmitSchedule : false) ||
+                  !selectedUnscheduledDraftCanProceedWithStaff
+                }
+                onClick={() => void submitUnscheduledDraftSchedule()}
+                type="button"
+              >
+                {isCommandPending ? "Scheduling..." : "Schedule This Draft"}
+              </button>
+            </div>
+          ) : null}
+
+          {selectedAppointment.dataSource === "live" && selectedAppointment.status === "draft" ? (
+            <div className="appointment-detail-section">
+              <div className="appointment-section-heading">
+                <strong>Staff Conflict Preview</strong>
+                <span className={`appointment-readiness-chip appointment-readiness-${staffConflictPreview?.status.toLowerCase() ?? "loading"}`}>
+                  {isStaffConflictLoading ? "Loading" : staffConflictPreview?.status ?? "Unavailable"}
+                </span>
+              </div>
+              {staffConflictPreview ? (
+                <div className="appointment-readiness-stack">
+                  <div className={`appointment-readiness-row appointment-readiness-row-${staffConflictPreview.status === "READY" ? "pass" : staffConflictPreview.status.toLowerCase()}`}>
+                    <strong>
+                      {staffConflictPreview.staffMembers?.length
+                        ? `${staffConflictPreview.staffMembers.length} required staff checked`
+                        : staffConflictPreview.staff
+                          ? `${staffConflictPreview.staff.name} (${staffConflictPreview.staff.role})`
+                          : "Required staff"}
+                    </strong>
+                    <span>{staffConflictPreview.status}</span>
+                    <small>
+                      {staffConflictPreview.reasons.length > 0
+                        ? staffConflictPreview.reasons.join(" ")
+                        : staffConflictPreview.staffMembers?.length
+                          ? "All required staff are available for this appointment window."
+                          : staffConflictPreview.staff?.resourceName
+                            ? `${staffConflictPreview.staff.resourceName} is available for this appointment window.`
+                            : "Staff availability is ready for this appointment window."}
+                    </small>
+                  </div>
+                  {staffConflictPreview.status === "WARNING" &&
+                  staffConflictPreview.warningOverrideRequired ? (() => {
+                    const staffWarningAlreadyOverridden = Boolean(
+                      staffConflictPreview.warningOverrideSatisfied ||
+                        (staffConflictPreview.warningKey &&
+                          overriddenStaffWarnings[staffConflictPreview.warningKey])
+                    );
+
+                    return (
+                      <div className="appointment-staff-warning-control">
+                        {!staffWarningAlreadyOverridden ? (
+                          <label className="appointment-resource-reason-field">
+                            Manager staff warning reason
+                            <textarea
+                              disabled={staffWarningOverrideSaving}
+                              onChange={(event) => setStaffWarningReason(event.target.value)}
+                              placeholder="Explain why this staff conflict is acceptable."
+                              rows={2}
+                              value={staffWarningReason}
+                            />
+                          </label>
+                        ) : null}
+                        <button
+                          className="appointment-resource-action appointment-resource-warning-action"
+                          disabled={
+                            staffWarningOverrideSaving ||
+                            staffWarningAlreadyOverridden ||
+                            !staffWarningReason.trim()
+                          }
+                          onClick={() => void overrideStaffWarning()}
+                          type="button"
+                        >
+                          {staffWarningOverrideSaving
+                            ? "Overriding..."
+                            : staffWarningAlreadyOverridden
+                              ? "Staff Warning Overridden"
+                              : "Override Staff Warning"}
+                        </button>
+                      </div>
+                    );
+                  })() : null}
+                  {staffConflictPreview.checks.map((check) => (
+                    <div className={`appointment-readiness-row appointment-readiness-row-${check.status.toLowerCase()}`} key={check.code}>
+                      <strong>{check.label}</strong>
+                      <span>{check.status}</span>
+                      <small>{check.message}</small>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="appointment-readiness-copy">
+                  {isStaffConflictLoading
+                    ? "Checking required staff availability..."
+                    : "Staff conflict preview is not available for this appointment yet."}
+                </p>
+              )}
+            </div>
+          ) : null}
+
+          <div className="appointment-detail-section">
+              <div className="appointment-section-heading">
+                <strong>Owner Reassignment</strong>
+                <span className="appointment-resource-chip appointment-resource-requirement-selected">
+                  Manager audited
+                </span>
+              </div>
+              <div className="appointment-owner-transfer-card">
+                <div className="appointment-owner-transfer-current">
+                  <span className="appointment-avatar">{selectedStaff.initials}</span>
+                  <div>
+                    <strong>{selectedAppointment.staffName ?? selectedStaff.name}</strong>
+                    <small>
+                      {selectedAppointment.dataSource === "live" && selectedAppointment.recordVersion
+                        ? `Current accountable owner · live record v${selectedAppointment.recordVersion}`
+                        : "Current preview owner · save requires a live appointment record"}
+                    </small>
+                  </div>
+                </div>
+                <label className="appointment-resource-reason-field">
+                  New accountable owner
+                  <select
+                    disabled={
+                      selectedAppointment.dataSource !== "live" ||
+                      isOwnerTransferSaving ||
+                      ownerTransferCandidates.length === 0
+                    }
+                    onChange={(event) => setOwnerTransferUserId(event.target.value)}
+                    value={resolvedOwnerTransferUserId}
+                  >
+                    {ownerTransferCandidates.length === 0 ? (
+                      <option value="">No alternate live staff available</option>
+                    ) : null}
+                    {ownerTransferCandidates.map((candidate) => (
+                      <option key={candidate.id} value={candidate.id}>
+                        {candidate.name} · {candidate.role}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="appointment-resource-reason-field">
+                  Reassignment reason
+                  <textarea
+                    disabled={
+                      selectedAppointment.dataSource !== "live" ||
+                      isOwnerTransferSaving ||
+                      ownerTransferCandidates.length === 0
+                    }
+                    onChange={(event) => setOwnerTransferReason(event.target.value)}
+                    placeholder="Document why accountability is moving to this staff member."
+                    rows={2}
+                    value={ownerTransferReason}
+                  />
+                </label>
+                <button
+                  className="appointment-resource-action"
+                  disabled={
+                    isOwnerTransferSaving ||
+                    selectedAppointment.dataSource !== "live" ||
+                    !selectedAppointment.recordId ||
+                    !selectedAppointment.recordVersion ||
+                    ownerTransferCandidates.length === 0 ||
+                    !resolvedOwnerTransferUserId ||
+                    !ownerTransferReason.trim()
+                  }
+                  onClick={() => void transferAppointmentOwner()}
+                  type="button"
+                >
+                  {isOwnerTransferSaving ? "Transferring..." : "Transfer Owner"}
+                </button>
+                <p className="appointment-resource-copy">
+                  {selectedAppointment.dataSource === "live"
+                    ? "Only authorized managers can complete this command. The backend records the prior owner, new owner, version, correlation id, and reason."
+                    : "Preview appointments show the enterprise owner-transfer control, but saving is enabled only after the appointment exists as a live record."}
+                </p>
+              </div>
+            </div>
+
+          {selectedAppointment.dataSource === "live" && selectedAppointment.recordId ? (
+            <div className="appointment-detail-section">
+              <div className="appointment-section-heading">
+                <strong>Resource Planning</strong>
+                <span className={`appointment-resource-chip appointment-resource-${resourcePlanning?.status.toLowerCase().replaceAll("_", "-") ?? "loading"}`}>
+                  {isResourcePlanningLoading
+                    ? "Loading"
+                    : resourcePlanning?.status.replaceAll("_", " ") ?? "Unavailable"}
+                </span>
+              </div>
+              {resourcePlanning ? (
+                <div className="appointment-resource-stack">
+                  {resourcePlanning.recommendations.map((recommendation) => (
+                    <div
+                      className={`appointment-resource-row appointment-resource-row-${recommendation.status.toLowerCase().replaceAll("_", "-")}`}
+                      key={recommendation.requirementCode}
+                    >
+                      <div>
+                        <strong>{recommendation.label}</strong>
+                        <small>{recommendation.rationale}</small>
+                      </div>
+                      <span>{recommendation.resourceTypeCode}</span>
+                      <p>{recommendation.message}</p>
+                      <em>
+                        {recommendation.selectedRequirementId
+                          ? `${recommendation.selectedReservationCount} reservation${recommendation.selectedReservationCount === 1 ? "" : "s"} attached`
+                          : `${recommendation.activeCandidateCount} active candidate${recommendation.activeCandidateCount === 1 ? "" : "s"}`}
+                      </em>
+                      {!recommendation.selectedRequirementId ? (
+                        <button
+                          className="appointment-resource-action"
+                          disabled={
+                            resourceRequirementSavingCode === recommendation.requirementCode ||
+                            selectedAppointment.status !== "draft" ||
+                            selectedAppointment.dataSource !== "live" ||
+                            !recommendation.resourceTypeId ||
+                            !resourcePlanning.canManageResourcesForAppointment
+                          }
+                          onClick={() => void attachResourceRequirement(recommendation)}
+                          type="button"
+                        >
+                          {resourceRequirementSavingCode === recommendation.requirementCode
+                            ? "Attaching..."
+                            : "Attach Requirement"}
+                        </button>
+                      ) : null}
+                      {recommendation.selectedRequirementId ? (
+                        <div className="appointment-resource-candidate-form">
+                          {recommendation.selectedReservation ? (
+                            <small>
+                              Selected: {recommendation.selectedReservation.resourceName} ({recommendation.selectedReservation.status})
+                            </small>
+                          ) : (
+                            <small>No resource candidate proposed yet.</small>
+                          )}
+                          {recommendation.selectedReservation ? (() => {
+                            const availability = candidateAvailability?.proposals.find(
+                              (proposal) => proposal.reservationId === recommendation.selectedReservation?.id
+                            );
+                            const warningAlreadyOverridden = Boolean(
+                              recommendation.selectedReservation &&
+                                (overriddenResourceWarnings[recommendation.selectedReservation.id] ||
+                                  availability?.warningOverrideSatisfied)
+                            );
+
+                            return (
+                              <>
+                                <div className={`appointment-resource-availability appointment-resource-availability-${availability?.status.toLowerCase() ?? "loading"}`}>
+                                  <strong>
+                                    {recommendation.selectedReservation?.status === "PROPOSED"
+                                      ? `Availability: ${isCandidateAvailabilityLoading ? "Checking" : availability?.status ?? "Unavailable"}`
+                                      : `Reservation: ${recommendation.selectedReservation?.status}`}
+                                  </strong>
+                                  {recommendation.selectedReservation?.status !== "PROPOSED" ? (
+                                    <span>
+                                      {recommendation.selectedReservation?.status === "COMMITTED"
+                                        ? "This resource is committed through the schedule command and consumes capacity."
+                                        : "This resource is held and consumes capacity until scheduled or released."}
+                                    </span>
+                                  ) : availability ? (
+                                    <span>
+                                      {availability.reasons.length > 0
+                                        ? `${availability.reasons.join(" ")}${
+                                            availability.warningOverrideSatisfied
+                                              ? " Warning override recorded."
+                                              : ""
+                                          }`
+                                        : `Capacity available: ${availability.availableCapacity}/${availability.requiredCapacity}`}
+                                    </span>
+                                  ) : (
+                                    <span>
+                                      {isCandidateAvailabilityLoading
+                                        ? "Checking proposed resource against current reservations and outages."
+                                        : "No availability result is available for this proposal yet."}
+                                    </span>
+                                  )}
+                                </div>
+                                {recommendation.selectedReservation?.status === "PROPOSED" &&
+                                availability?.status === "WARNING" &&
+                                !warningAlreadyOverridden ? (
+                                  <label className="appointment-resource-reason-field">
+                                    Manager warning reason
+                                    <textarea
+                                      disabled={
+                                        resourceWarningOverrideSavingReservationId === recommendation.selectedReservation.id ||
+                                        selectedAppointment.status !== "draft" ||
+                                        selectedAppointment.dataSource !== "live" ||
+                                        !resourcePlanning.canManageResourcesForAppointment
+                                      }
+                                      onChange={(event) =>
+                                        updateResourceActionReason(
+                                          "warning-override",
+                                          recommendation.selectedReservation!.id,
+                                          event.target.value
+                                        )
+                                      }
+                                      placeholder="Explain why this warning is acceptable."
+                                      rows={2}
+                                      value={getResourceActionReason(
+                                        "warning-override",
+                                        recommendation.selectedReservation.id
+                                      )}
+                                    />
+                                  </label>
+                                ) : null}
+                                {recommendation.selectedReservation?.status === "PROPOSED" ? (
+                                  <button
+                                    className="appointment-resource-action appointment-resource-hold-action"
+                                    disabled={
+                                      resourceHoldSavingReservationId === recommendation.selectedReservation.id ||
+                                      selectedAppointment.status !== "draft" ||
+                                      selectedAppointment.dataSource !== "live" ||
+                                      !resourcePlanning.canManageResourcesForAppointment ||
+                                      isCandidateAvailabilityLoading ||
+                                      availability?.canProceedToHold === false
+                                    }
+                                    onClick={() => void holdResourceCandidate(recommendation, availability)}
+                                    type="button"
+                                  >
+                                    {resourceHoldSavingReservationId === recommendation.selectedReservation.id
+                                      ? "Holding..."
+                                      : "Hold Candidate"}
+                                  </button>
+                                ) : null}
+                                {recommendation.selectedReservation?.status === "PROPOSED" &&
+                                availability?.status === "WARNING" ? (
+                                  <button
+                                    className="appointment-resource-action appointment-resource-warning-action"
+                                    disabled={
+                                      resourceWarningOverrideSavingReservationId === recommendation.selectedReservation.id ||
+                                      warningAlreadyOverridden ||
+                                      selectedAppointment.status !== "draft" ||
+                                      selectedAppointment.dataSource !== "live" ||
+                                      !resourcePlanning.canManageResourcesForAppointment ||
+                                      isCandidateAvailabilityLoading ||
+                                      !getResourceActionReason(
+                                        "warning-override",
+                                        recommendation.selectedReservation.id
+                                      )
+                                    }
+                                    onClick={() => void overrideResourceWarning(recommendation, availability)}
+                                    type="button"
+                                  >
+                                    {resourceWarningOverrideSavingReservationId === recommendation.selectedReservation.id
+                                      ? "Overriding..."
+                                      : warningAlreadyOverridden
+                                        ? "Warning Overridden"
+                                        : "Override Warning"}
+                                  </button>
+                                ) : null}
+                                {["HELD", "COMMITTED"].includes(recommendation.selectedReservation?.status ?? "") ? (
+                                  <label className="appointment-resource-reason-field">
+                                    Release reason
+                                    <textarea
+                                      disabled={
+                                        resourceReleaseSavingReservationId === recommendation.selectedReservation.id ||
+                                        selectedAppointment.dataSource !== "live" ||
+                                        !resourcePlanning.canManageResourcesForAppointment
+                                      }
+                                      onChange={(event) =>
+                                        updateResourceActionReason(
+                                          "release",
+                                          recommendation.selectedReservation!.id,
+                                          event.target.value
+                                        )
+                                      }
+                                      placeholder="Explain why this resource is being released."
+                                      rows={2}
+                                      value={getResourceActionReason(
+                                        "release",
+                                        recommendation.selectedReservation.id
+                                      )}
+                                    />
+                                  </label>
+                                ) : null}
+                                {["HELD", "COMMITTED"].includes(recommendation.selectedReservation?.status ?? "") ? (
+                                  <button
+                                    className="appointment-resource-action appointment-resource-release-action"
+                                    disabled={
+                                      resourceReleaseSavingReservationId === recommendation.selectedReservation.id ||
+                                      selectedAppointment.dataSource !== "live" ||
+                                      !resourcePlanning.canManageResourcesForAppointment ||
+                                      !getResourceActionReason(
+                                        "release",
+                                        recommendation.selectedReservation.id
+                                      )
+                                    }
+                                    onClick={() => void releaseResourceReservation(recommendation)}
+                                    type="button"
+                                  >
+                                    {resourceReleaseSavingReservationId === recommendation.selectedReservation.id
+                                      ? "Releasing..."
+                                      : "Release Reservation"}
+                                  </button>
+                                ) : null}
+                                {["HELD", "COMMITTED"].includes(recommendation.selectedReservation?.status ?? "") ? (
+                                  <label className="appointment-resource-reason-field">
+                                    Replacement reason
+                                    <textarea
+                                      disabled={
+                                        resourceReplacementSavingReservationId === recommendation.selectedReservation.id ||
+                                        selectedAppointment.dataSource !== "live" ||
+                                        !resourcePlanning.canManageResourcesForAppointment
+                                      }
+                                      onChange={(event) =>
+                                        updateResourceActionReason(
+                                          "replace",
+                                          recommendation.selectedReservation!.id,
+                                          event.target.value
+                                        )
+                                      }
+                                      placeholder="Explain why this resource is being replaced."
+                                      rows={2}
+                                      value={getResourceActionReason(
+                                        "replace",
+                                        recommendation.selectedReservation.id
+                                      )}
+                                    />
+                                  </label>
+                                ) : null}
+                                {["HELD", "COMMITTED"].includes(recommendation.selectedReservation?.status ?? "") ? (
+                                  <button
+                                    className="appointment-resource-action appointment-resource-replace-action"
+                                    disabled={
+                                      resourceReplacementSavingReservationId === recommendation.selectedReservation.id ||
+                                      selectedAppointment.dataSource !== "live" ||
+                                      !resourcePlanning.canManageResourcesForAppointment ||
+                                      recommendation.candidates.filter(
+                                        (candidate) => candidate.id !== recommendation.selectedReservation?.resourceId
+                                      ).length === 0 ||
+                                      !getResourceActionReason(
+                                        "replace",
+                                        recommendation.selectedReservation.id
+                                      )
+                                    }
+                                    onClick={() => void replaceResourceReservation(recommendation)}
+                                    type="button"
+                                  >
+                                    {resourceReplacementSavingReservationId === recommendation.selectedReservation.id
+                                      ? "Replacing..."
+                                      : "Replace Reservation"}
+                                  </button>
+                                ) : null}
+                              </>
+                            );
+                          })() : null}
+                          <select
+                            aria-label={`Select ${recommendation.label} candidate`}
+                            disabled={
+                              resourceCandidateSavingCode === recommendation.requirementCode ||
+                              (selectedAppointment.status !== "draft" &&
+                                !["HELD", "COMMITTED"].includes(
+                                  recommendation.selectedReservation?.status ?? ""
+                                )) ||
+                              recommendation.candidates.length === 0 ||
+                              selectedAppointment.dataSource !== "live" ||
+                              !resourcePlanning.canManageResourcesForAppointment
+                            }
+                            onChange={(event) =>
+                              setSelectedResourceCandidates((current) => ({
+                                ...current,
+                                [recommendation.requirementCode]: event.target.value
+                              }))
+                            }
+                            value={
+                              selectedResourceCandidates[recommendation.requirementCode] ??
+                              recommendation.selectedReservation?.resourceId ??
+                              recommendation.candidates[0]?.id ??
+                              ""
+                            }
+                          >
+                            {recommendation.candidates.length === 0 ? (
+                              <option value="">No active candidates</option>
+                            ) : null}
+                            {recommendation.candidates.map((candidate) => (
+                              <option key={candidate.id} value={candidate.id}>
+                                {candidate.name} · {candidate.capacityMode} · {candidate.conflictPolicy}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            className="appointment-resource-action"
+                            disabled={
+                              resourceCandidateSavingCode === recommendation.requirementCode ||
+                              selectedAppointment.status !== "draft" ||
+                              ["HELD", "COMMITTED"].includes(recommendation.selectedReservation?.status ?? "") ||
+                              recommendation.candidates.length === 0 ||
+                              selectedAppointment.dataSource !== "live" ||
+                              !resourcePlanning.canManageResourcesForAppointment
+                            }
+                            onClick={() => void proposeResourceCandidate(recommendation)}
+                            type="button"
+                          >
+                            {resourceCandidateSavingCode === recommendation.requirementCode
+                              ? "Proposing..."
+                              : "Propose Candidate"}
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="appointment-resource-copy">
+                  {isResourcePlanningLoading
+                    ? "Checking resource requirements and configured resources..."
+                    : "Resource planning is not available for this appointment yet."}
+                </p>
+              )}
+            </div>
+          ) : null}
+
+          <div className="appointment-detail-section">
+            <label className="appointment-outcome-label">
+              Outcome
+              <select
+                disabled={isOutcomeSaving || selectedAppointment.bookingStatus === "COMPLETED"}
+                onChange={(event) =>
+                  setOutcomeDraft((current) => ({
+                    ...current,
+                    outcomeCode: event.target.value
+                  }))
+                }
+                value={outcomeFieldValues.outcomeCode}
+              >
+                {outcomeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="appointment-outcome-label">
+              Follow-Up Disposition
+              <select
+                disabled={isOutcomeSaving || selectedAppointment.bookingStatus === "COMPLETED"}
+                onChange={(event) =>
+                  setOutcomeDraft((current) => ({
+                    ...current,
+                    followUpDispositionCode: event.target.value
+                  }))
+                }
+                value={outcomeFieldValues.followUpDispositionCode}
+              >
+                {followUpDispositionOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="appointment-outcome-label">
+              Outcome Notes
+              <textarea
+                disabled={isOutcomeSaving || selectedAppointment.bookingStatus === "COMPLETED"}
+                onChange={(event) =>
+                  setOutcomeDraft((current) => ({
+                    ...current,
+                    outcomeNotes: event.target.value
+                  }))
+                }
+                placeholder="Document what happened during this appointment..."
+                rows={3}
+                value={outcomeFieldValues.outcomeNotes}
+              />
+            </label>
+            <label className="appointment-outcome-label">
+              Next Step / Follow-Up
+              <textarea
+                disabled={isOutcomeSaving || selectedAppointment.bookingStatus === "COMPLETED"}
+                onChange={(event) =>
+                  setOutcomeDraft((current) => ({
+                    ...current,
+                    followUpNotes: event.target.value
+                  }))
+                }
+                placeholder={
+                  outcomeFieldValues.followUpDispositionCode === "NO_FOLLOW_UP_REQUIRED"
+                    ? "Optional: add final handoff notes..."
+                    : "Required: document the exact next step..."
+                }
+                rows={4}
+                value={outcomeFieldValues.followUpNotes}
+              />
+            </label>
+            <label className="appointment-outcome-label">
+              Completion Reason
+              <textarea
+                disabled={isOutcomeSaving || selectedAppointment.bookingStatus === "COMPLETED"}
+                onChange={(event) =>
+                  setOutcomeDraft((current) => ({
+                    ...current,
+                    reasonNotes: event.target.value
+                  }))
+                }
+                placeholder="Required audit reason for closing this appointment..."
+                rows={3}
+                value={outcomeFieldValues.reasonNotes}
+              />
+            </label>
+            <p className="appointment-resource-copy">
+              {selectedAppointment.bookingStatus === "COMPLETED"
+                ? "Final outcome is recorded on this appointment."
+                : selectedAppointment.executionStatus === "FINISHED"
+                  ? "Ready to save final outcome through the command ledger."
+                  : "Finish Work first, then record the final outcome and follow-up."}
+            </p>
+            <button
+              className="appointment-resource-action"
+              disabled={
+                isOutcomeSaving ||
+                selectedAppointment.dataSource !== "live" ||
+                selectedAppointment.bookingStatus === "COMPLETED" ||
+                selectedAppointment.executionStatus !== "FINISHED" ||
+                !outcomeDraft.reasonNotes.trim() ||
+                (outcomeDraft.followUpDispositionCode !== "NO_FOLLOW_UP_REQUIRED" &&
+                  !outcomeDraft.followUpNotes.trim())
+              }
+              onClick={() => void submitOutcomeCompletion()}
+              type="button"
+            >
+              {isOutcomeSaving ? "Saving Outcome..." : "Save Outcome"}
+            </button>
+          </div>
+
+          <div className="appointment-detail-actions">
+            {selectedAppointment.status === "draft" ? (
+              <button
+                disabled={
+                  isCommandPending ||
+                  selectedAppointment.dataSource !== "live" ||
+                  selectedAppointmentIsUnscheduledDraft
+                }
+                type="button"
+                onClick={() => void submitOperationalCommand("SCHEDULE")}
+              >
+                <ClipboardCheck size={16} aria-hidden="true" />{isCommandPending ? "Scheduling..." : "Schedule Draft"}
+              </button>
+            ) : null}
+            <button
+              disabled={
+                isCommandPending ||
+                selectedAppointment.status === "draft" ||
+                selectedAppointment.status === "checked-in" ||
+                selectedAppointment.status === "in-progress" ||
+                selectedAppointment.status === "no-show" ||
+                selectedAppointment.bookingStatus === "COMPLETED" ||
+                selectedAppointment.dataSource !== "live"
+              }
+              type="button"
+              onClick={() => void submitOperationalCommand("CHECK_IN")}
+            >
+              <Check size={16} aria-hidden="true" />{isCommandPending ? "Saving..." : "Check In"}
+            </button>
+            <button
+              disabled={
+                isCommandPending ||
+                selectedAppointment.dataSource !== "live" ||
+                selectedAppointment.status === "draft" ||
+                selectedAppointment.status === "no-show" ||
+                selectedAppointment.bookingStatus === "COMPLETED" ||
+                selectedAppointment.attendanceStatus !== "CHECKED_IN" ||
+                selectedAppointment.executionStatus !== "NOT_STARTED"
+              }
+              type="button"
+              onClick={() => void submitOperationalCommand("START")}
+            >
+              <Clock3 size={16} aria-hidden="true" />{isCommandPending ? "Saving..." : "Start Work"}
+            </button>
+            <button
+              disabled={
+                isCommandPending ||
+                selectedAppointment.dataSource !== "live" ||
+                selectedAppointment.bookingStatus === "COMPLETED" ||
+                (selectedAppointment.executionStatus !== "IN_PROGRESS" &&
+                  selectedAppointment.executionStatus !== "WAITING")
+              }
+              type="button"
+              onClick={() => void submitOperationalCommand("FINISH")}
+            >
+              <ClipboardCheck size={16} aria-hidden="true" />{isCommandPending ? "Saving..." : "Finish Work"}
+            </button>
+            <button
+              className="appointment-danger-outline"
+              disabled={
+                isCommandPending ||
+                selectedAppointment.status === "draft" ||
+                selectedAppointment.status === "no-show" ||
+                selectedAppointment.bookingStatus === "COMPLETED" ||
+                selectedAppointment.dataSource !== "live"
+              }
+              type="button"
+              onClick={() => setNoShowOpen(true)}
+            >
+              <X size={16} aria-hidden="true" />No Show
+            </button>
+            <button type="button" onClick={() => handlePreviewAction("More actions")}>•••</button>
+          </div>
+        </aside>
+      </div>
+
+      <section className="appointment-upcoming-card" aria-labelledby="upcoming-appointments">
+        <div className="appointment-section-heading">
+          <strong id="upcoming-appointments">Upcoming Appointments</strong>
+          <button type="button" onClick={() => handlePreviewAction("View all appointments")}>View all →</button>
+        </div>
+        <div className="appointment-upcoming-grid">
+          {upcomingAppointments.map((appointment) => (
+            <button
+              className={`appointment-upcoming-item ${categoryMeta[appointment.category].className}`}
+              key={`${appointment.time}-${appointment.customer}`}
+              onClick={() => handlePreviewAction(`Upcoming appointment for ${appointment.customer}`)}
+              type="button"
+            >
+              <span>{appointment.time}</span>
+              <strong>{appointment.title}</strong>
+              <small>{appointment.customer}</small>
+              <small>{appointment.vehicle}</small>
+              <em>{appointment.staff}</em>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {draftOpen ? (
+        <div className="appointment-modal-backdrop" role="presentation">
+          <div className="appointment-modal" role="dialog" aria-modal="true" aria-labelledby="draft-appointment-title">
+            <div className="appointment-section-heading">
+              <strong id="draft-appointment-title">New Appointment Shell</strong>
+              <button type="button" aria-label="Close new appointment shell" onClick={() => setDraftOpen(false)}>×</button>
+            </div>
+            <p>Create a persisted appointment draft for the selected Minneapolis board day. Scheduling approval, conflict checks, and resource reservations remain controlled by the later schedule command flow.</p>
+            <div className="appointment-modal-grid">
+              <label>
+                Category
+                <select
+                  value={draftAppointment.category}
+                  onChange={(event) => {
+                    const category = event.target.value as AppointmentCategory;
+                    setDraftAppointment((current) => ({
+                      ...current,
+                      category,
+                      title: categoryMeta[category].label
+                    }));
+                  }}
+                >
+                  {Object.entries(categoryMeta).map(([key, value]) => (
+                    <option key={key} value={key}>{value.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Owner
+                <select disabled value="current-user">
+                  <option value="current-user">Signed-in user / manager</option>
+                </select>
+              </label>
+              <label>
+                Title
+                <input
+                  placeholder="Appointment title"
+                  value={draftAppointment.title}
+                  onChange={(event) => setDraftAppointment((current) => ({ ...current, title: event.target.value }))}
+                />
+              </label>
+              <label>
+                Customer
+                <input
+                  placeholder="Customer name"
+                  value={draftAppointment.customer}
+                  onChange={(event) => setDraftAppointment((current) => ({ ...current, customer: event.target.value }))}
+                />
+              </label>
+              <label>
+                Vehicle
+                <input
+                  placeholder="Vehicle / stock #"
+                  value={draftAppointment.vehicle}
+                  onChange={(event) => setDraftAppointment((current) => ({ ...current, vehicle: event.target.value }))}
+                />
+              </label>
+              <label>
+                Date
+                <input
+                  type="date"
+                  value={draftAppointment.localDate}
+                  onChange={(event) => setDraftAppointment((current) => ({ ...current, localDate: event.target.value }))}
+                />
+              </label>
+              <label>
+                Start time
+                <input
+                  type="time"
+                  value={draftAppointment.startTime}
+                  onChange={(event) => setDraftAppointment((current) => ({ ...current, startTime: event.target.value }))}
+                />
+              </label>
+              <label>
+                Duration
+                <select
+                  value={draftAppointment.durationMinutes}
+                  onChange={(event) => setDraftAppointment((current) => ({ ...current, durationMinutes: Number(event.target.value) }))}
+                >
+                  <option value={30}>30 minutes</option>
+                  <option value={45}>45 minutes</option>
+                  <option value={60}>1 hour</option>
+                  <option value={75}>1 hour 15 minutes</option>
+                  <option value={90}>1 hour 30 minutes</option>
+                </select>
+              </label>
+              <label className="appointment-modal-span">
+                Reason
+                <textarea
+                  rows={3}
+                  placeholder="Every creation requires a documented reason."
+                  value={draftAppointment.reason}
+                  onChange={(event) => setDraftAppointment((current) => ({ ...current, reason: event.target.value }))}
+                />
+              </label>
+            </div>
+            <div className="appointment-detail-actions">
+              <button disabled={isDraftSaving} type="button" onClick={() => void submitDraftAppointment()}><ClipboardCheck size={16} aria-hidden="true" />{isDraftSaving ? "Creating..." : "Create Draft Appointment"}</button>
+              <button disabled={isDraftSaving} type="button" onClick={() => setDraftOpen(false)}><FileText size={16} aria-hidden="true" />Close</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {noShowOpen ? (
+        <div className="appointment-modal-backdrop" role="presentation">
+          <div className="appointment-modal" role="dialog" aria-modal="true" aria-labelledby="no-show-appointment-title">
+            <div className="appointment-section-heading">
+              <strong id="no-show-appointment-title">Document No Show</strong>
+              <button type="button" aria-label="Close no-show form" onClick={() => setNoShowOpen(false)}>Ã—</button>
+            </div>
+            <p>No-show actions require a reason, notes, follow-up disposition, and an audit event before capacity can be released.</p>
+            <div className="appointment-modal-grid">
+              <label>
+                Reason
+                <select
+                  value={noShowDraft.reasonCode}
+                  onChange={(event) => setNoShowDraft((current) => ({ ...current, reasonCode: event.target.value }))}
+                >
+                  {noShowReasonOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Follow-up
+                <select
+                  value={noShowDraft.followUpDispositionCode}
+                  onChange={(event) => setNoShowDraft((current) => ({ ...current, followUpDispositionCode: event.target.value }))}
+                >
+                  {noShowFollowUpDispositionOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="appointment-modal-span">
+                Reason notes
+                <textarea
+                  rows={3}
+                  placeholder="Example: Customer did not arrive by the grace period; called once and left voicemail."
+                  value={noShowDraft.reasonNotes}
+                  onChange={(event) => setNoShowDraft((current) => ({ ...current, reasonNotes: event.target.value }))}
+                />
+              </label>
+            </div>
+            <div className="appointment-detail-actions">
+              <button className="appointment-danger-action" disabled={isCommandPending} type="button" onClick={() => void submitOperationalCommand("NO_SHOW")}>
+                <X size={16} aria-hidden="true" />{isCommandPending ? "Saving..." : "Save No Show"}
+              </button>
+              <button disabled={isCommandPending} type="button" onClick={() => setNoShowOpen(false)}>
+                <FileText size={16} aria-hidden="true" />Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}

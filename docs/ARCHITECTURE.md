@@ -1,20 +1,20 @@
 # Time Motor Sales Dispatch Board - Architecture
 
 **Document:** Architecture  
-**Version:** v0.1.0 draft  
-**Last updated:** 2026-06-16  
-**Status:** Planned - pre-implementation  
-**Source documents:** `docs/PRODUCT_SPEC.md`, `docs/MVP_SCOPE.md`, `docs/The Guide To Vibe Coding.md`
+**Version:** v0.2.0 living baseline
+**Last updated:** 2026-07-05
+**Status:** Dispatch Board implemented; Enterprise Appointment E1 in progress
+**Source documents:** `docs/PRODUCT_SPEC.md`, `docs/MVP_SCOPE.md`, `docs/CURRENT_IMPLEMENTATION_STATUS.md`, `docs/appointments/`, `docs/The Guide To Vibe Coding.md`
 
 ---
 
 ## 1. Purpose
 
-This document defines the target technical architecture for the Time Motor Sales Dispatch Board MVP.
+This document describes the implemented technical foundation and durable architecture rules for the Time Motor Sales Dispatch Board.
 
-The MVP is a responsive internal web app that generates a daily team dispatch board from staff roles, duties, and task templates. The manager can review and adjust assignments, staff can update their own tasks, and the whole team can see the state of the day through the board and activity feed.
+The current application is a responsive internal web app that generates a daily team dispatch board from staff roles, duties, and task templates. The manager can review and adjust assignments, staff can update their own tasks, and the whole team can see the state of the day through the board and activity feed.
 
-Because this project is currently documentation-first, this architecture describes the planned structure. It should be updated whenever the implementation meaningfully changes.
+Implemented and planned behavior must remain distinguishable. The dated baseline is recorded in `docs/CURRENT_IMPLEMENTATION_STATUS.md`; approved Enterprise Appointment decisions are recorded in `docs/appointments/ARCHITECTURE_DECISIONS.md`. Update this document whenever implementation meaningfully changes.
 
 ---
 
@@ -775,21 +775,22 @@ After meaningful changes, update this document so it remains a living architectu
 
 ## 21. Current Implementation Status
 
-Because this document is being created before the app scaffold, all implementation areas are currently planned.
+The original architecture was written before implementation. The Dispatch Board foundation is now live in the repository. See `docs/CURRENT_IMPLEMENTATION_STATUS.md` for the dated evidence baseline and `docs/appointments/` for the planned Enterprise Appointment architecture.
 
 | Area | Status |
 | --- | --- |
-| Web app scaffold | Not started |
-| Database schema | Not started |
-| Auth | Not started |
-| Roles and duties | Not started |
-| Task templates | Not started |
-| Daily board generation | Not started |
-| Assignment recommendations | Not started |
-| Task board UI | Not started |
-| Staff status updates | Not started |
-| Manager review workflow | Not started |
-| Activity feed | Not started |
-| Tests | Not started |
-| Deployment | Not started |
+| Web app scaffold | Implemented |
+| Database schema | Implemented for current Dispatch Board; Appointment domain planned |
+| Auth | Implemented |
+| Roles and duties | Implemented |
+| Task templates | Schema/API/service implemented; production administration UI partial |
+| Daily board generation | Implemented |
+| Assignment recommendations | Implemented |
+| Task board UI | Implemented |
+| Staff status updates | Implemented |
+| Manager review workflow | Implemented |
+| Activity feed | Implemented |
+| Tests | Implemented; current baseline recorded separately |
+| Enterprise Appointment Command Center | E1 foundation in progress |
+| Deployment | Configuration exists; production readiness not verified in current baseline |
 

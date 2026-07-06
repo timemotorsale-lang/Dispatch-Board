@@ -7,6 +7,12 @@ import {
   developmentUserDefinitions
 } from "../src/server/auth/dev-seed-data";
 import { hashPassword } from "../src/server/auth/password";
+import {
+  getInitialMinneapolisOperatingWindows,
+  getInitialMinneapolisLocation,
+  getInitialOrganization
+} from "../src/server/appointments/location-foundation";
+import { getInitialResourceTypeDefinitions } from "../src/server/appointments/resource-foundation";
 import { getDefaultAppSettings } from "../src/server/validation/app-settings";
 
 const prisma = new PrismaClient();
@@ -70,8 +76,22 @@ function buildTemplateFoundation(templateDefinition: (typeof dayOneTaskTemplateD
   };
 }
 
+function buildStaffResourceCode(email: string) {
+  const localPart = email.split("@")[0] ?? email;
+  const normalizedLocalPart = localPart
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return `STAFF-${normalizedLocalPart || "USER"}`;
+}
+
 async function main() {
   const defaultAppSettings = getDefaultAppSettings();
+  const initialOrganization = getInitialOrganization();
+  const initialLocation = getInitialMinneapolisLocation();
+  const initialOperatingWindows = getInitialMinneapolisOperatingWindows();
+  const initialResourceTypes = getInitialResourceTypeDefinitions();
 
   await prisma.bootstrapMarker.upsert({
     where: { label: "foundation-seed" },
@@ -88,6 +108,73 @@ async function main() {
     },
     create: defaultAppSettings
   });
+
+  const organization = await prisma.organization.upsert({
+    where: { code: initialOrganization.code },
+    update: {
+      name: initialOrganization.name
+    },
+    create: initialOrganization,
+    select: { id: true }
+  });
+
+  const location = await prisma.location.upsert({
+    where: {
+      organizationId_code: {
+        organizationId: organization.id,
+        code: initialLocation.code
+      }
+    },
+    update: {},
+    create: {
+      ...initialLocation,
+      organizationId: organization.id
+    },
+    select: { id: true }
+  });
+
+  await prisma.locationOperatingWindow.createMany({
+    data: initialOperatingWindows.map((window) => ({
+      ...window,
+      locationId: location.id
+    })),
+    skipDuplicates: true
+  });
+
+  for (const resourceType of initialResourceTypes) {
+    await prisma.schedulableResourceType.upsert({
+      where: {
+        organizationId_code: {
+          organizationId: organization.id,
+          code: resourceType.code
+        }
+      },
+      update: {},
+      create: {
+        ...resourceType,
+        organizationId: organization.id
+      }
+    });
+  }
+
+  const staffResourceType = await prisma.schedulableResourceType.findUnique({
+    where: {
+      organizationId_code: {
+        organizationId: organization.id,
+        code: "STAFF"
+      }
+    },
+    select: {
+      id: true,
+      defaultCapacityMode: true,
+      defaultCapacity: true,
+      defaultConflictPolicy: true
+    }
+  });
+
+  if (!staffResourceType) {
+    throw new Error("Missing STAFF schedulable resource type after appointment resource seed.");
+  }
 
   for (const roleDefinition of dayOneRoleDefinitions) {
     await prisma.role.upsert({
@@ -268,9 +355,86 @@ async function main() {
         }
       });
     }
+
+    if (userDefinition.isActive) {
+      const isGeneralManager = userDefinition.roleNames.some(
+        (roleName) => roleName === "General Manager"
+      );
+
+      await prisma.userLocationAccess.upsert({
+        where: {
+          userId_locationId: {
+            userId,
+            locationId: location.id
+          }
+        },
+        update: {},
+        create: {
+          userId,
+          locationId: location.id,
+          canViewSchedule: true,
+          canParticipate: true,
+          canOwnAppointments: true,
+          canManageAppointments: isGeneralManager,
+          canViewLimitedData: isGeneralManager,
+          validFrom: new Date("2026-07-05T00:00:00.000Z"),
+          validTo: null
+        }
+      });
+
+      const staffResource = await prisma.schedulableResource.upsert({
+        where: {
+          locationId_userId: {
+            locationId: location.id,
+            userId
+          }
+        },
+        update: {
+          resourceTypeId: staffResourceType.id,
+          code: buildStaffResourceCode(userDefinition.email),
+          name: userDefinition.name,
+          status: "ACTIVE",
+          capacityMode: staffResourceType.defaultCapacityMode,
+          capacity: staffResourceType.defaultCapacity,
+          conflictPolicy: staffResourceType.defaultConflictPolicy,
+          effectiveFrom: new Date("2026-07-05T00:00:00.000Z"),
+          effectiveTo: null
+        },
+        create: {
+          organizationId: organization.id,
+          locationId: location.id,
+          resourceTypeId: staffResourceType.id,
+          code: buildStaffResourceCode(userDefinition.email),
+          name: userDefinition.name,
+          status: "ACTIVE",
+          capacityMode: staffResourceType.defaultCapacityMode,
+          capacity: staffResourceType.defaultCapacity,
+          conflictPolicy: staffResourceType.defaultConflictPolicy,
+          userId,
+          effectiveFrom: new Date("2026-07-05T00:00:00.000Z"),
+          effectiveTo: null
+        },
+        select: { id: true }
+      });
+
+      await prisma.resourceOperatingWindow.createMany({
+        data: initialOperatingWindows.map((window) => ({
+          resourceId: staffResource.id,
+          businessDay: window.businessDay,
+          opensAtMinute: window.opensAtMinute,
+          closesAtMinute: window.closesAtMinute,
+          capacityOverride: null,
+          validFrom: window.validFrom,
+          validTo: window.validTo
+        })),
+        skipDuplicates: true
+      });
+    }
   }
 
-  console.log("Development seed completed with users, roles, duties, task templates, assignments, and app settings.");
+  console.log(
+    "Development seed completed with users, roles, duties, task templates, assignments, app settings, Minneapolis appointment configuration, resource types, staff resources, staff hours, and location access."
+  );
 }
 
 main()

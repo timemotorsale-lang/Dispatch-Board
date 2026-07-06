@@ -1,5 +1,7 @@
 # My Tasks Implementation Build Sheet
 
+> **Enterprise Appointment implementation:** This sheet remains the tracker for My Tasks. The Appointment Command Center uses [`docs/appointments/IMPLEMENTATION_ROADMAP.md`](appointments/IMPLEMENTATION_ROADMAP.md) and inherits this sheet’s build, UI, workflow, regression, test, and signoff discipline. Current Appointment progress is recorded in [`docs/appointments/README.md`](appointments/README.md).
+
 ## Program Rules
 
 - Approved source of truth: the accepted `My Tasks` prototype and mockup-aligned route.

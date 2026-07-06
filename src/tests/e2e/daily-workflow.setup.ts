@@ -9,6 +9,14 @@ export async function resetDailyWorkflowState() {
   });
 
   await prisma.activityEvent.deleteMany();
+  await prisma.appointmentHistoryEvent.deleteMany();
+  await prisma.appointmentTaskLink.deleteMany();
+  await prisma.appointmentResourceReservation.deleteMany();
+  await prisma.appointmentResourceRequirement.deleteMany();
+  await prisma.appointmentParticipant.deleteMany();
+  await prisma.appointmentVehicle.deleteMany();
+  await prisma.appointmentCommandLedger.deleteMany();
+  await prisma.appointment.deleteMany();
   await prisma.taskComment.deleteMany();
   await prisma.task.deleteMany();
   await prisma.generationRun.deleteMany();

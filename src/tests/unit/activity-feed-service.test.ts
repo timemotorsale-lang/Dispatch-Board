@@ -41,8 +41,37 @@ function createActivityFeedRepositoryHarness(options: {
       } | null;
     }>
   >;
+  appointmentEventsByBoardDate?: Record<
+    string,
+    Array<{
+      id: string;
+      eventType: string;
+      message: string;
+      metadata?: Prisma.JsonValue;
+      occurredAt: string;
+      createdAt?: string;
+      actorUser?: {
+        id: string;
+        name: string;
+        email: string;
+      } | null;
+      task?: {
+        id: string;
+        title: string;
+        status?: TaskStatus;
+        workflowArea?: WorkflowArea;
+      } | null;
+      appointment: {
+        id: string;
+        appointmentNumber: string;
+        title: string;
+        bookingStatus: string;
+      };
+    }>
+  >;
 } = {}) {
   const listedBoardDayIds: string[] = [];
+  const listedAppointmentBoardDates: string[] = [];
   const boardDays =
     options.boardDays?.map((boardDay) => ({
       id: boardDay.id,
@@ -69,6 +98,29 @@ function createActivityFeedRepositoryHarness(options: {
       }))
     ])
   );
+  const appointmentEventsByBoardDate = new Map(
+    Object.entries(options.appointmentEventsByBoardDate ?? {}).map(([boardDate, events]) => [
+      boardDate,
+      events.map((event) => ({
+        id: event.id,
+        eventType: event.eventType,
+        message: event.message,
+        metadata: event.metadata ?? {},
+        occurredAt: new Date(event.occurredAt),
+        createdAt: new Date(event.createdAt ?? event.occurredAt),
+        actorUser: event.actorUser ?? null,
+        task: event.task
+          ? {
+              id: event.task.id,
+              title: event.task.title,
+              status: event.task.status ?? TaskStatus.IN_PROGRESS,
+              workflowArea: event.task.workflowArea ?? WorkflowArea.SALES
+            }
+          : null,
+        appointment: event.appointment
+      }))
+    ])
+  );
 
   const repository: ActivityFeedRepository = {
     async findBoardDayByDate(boardDate) {
@@ -80,12 +132,19 @@ function createActivityFeedRepositoryHarness(options: {
     async listActivityEventsForBoardDay(boardDayId) {
       listedBoardDayIds.push(boardDayId);
       return eventsByBoardDayId.get(boardDayId) ?? [];
+    },
+    async listAppointmentHistoryEventsForBoardDate(boardDate) {
+      listedAppointmentBoardDates.push(boardDate);
+      return appointmentEventsByBoardDate.get(boardDate) ?? [];
     }
   };
 
   return {
     readListedBoardDayIds() {
       return [...listedBoardDayIds];
+    },
+    readListedAppointmentBoardDates() {
+      return [...listedAppointmentBoardDates];
     },
     repository
   };
@@ -203,6 +262,104 @@ describe("activity feed service", () => {
         }
       ]
     });
+  });
+
+  it("merges appointment history events into the board activity feed", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const harness = createActivityFeedRepositoryHarness({
+      boardDays: [
+        {
+          id: "board-day-1",
+          date: "2026-07-06"
+        }
+      ],
+      eventsByBoardDayId: {
+        "board-day-1": [
+          {
+            id: "activity-event-task",
+            eventType: ActivityEventType.TASK_CREATED,
+            message: "Task created",
+            createdAt: "2026-07-06T14:30:00.000Z"
+          }
+        ]
+      },
+      appointmentEventsByBoardDate: {
+        "2026-07-06": [
+          {
+            id: "appointment-history-scheduled",
+            eventType: "SCHEDULED",
+            message: "Appointment APT-10245 scheduled.",
+            occurredAt: "2026-07-06T16:00:00.000Z",
+            actorUser: {
+              id: "user-manager",
+              name: "Abdi Farah",
+              email: "morgan.manager@local.test"
+            },
+            task: {
+              id: "task-1",
+              title: "Customer meeting required",
+              status: TaskStatus.IN_PROGRESS,
+              workflowArea: WorkflowArea.SALES
+            },
+            appointment: {
+              id: "appointment-1",
+              appointmentNumber: "APT-10245",
+              title: "Customer Meeting",
+              bookingStatus: "SCHEDULED"
+            },
+            metadata: {
+              reasonCode: "UNSCHEDULED_DRAFT_SCHEDULED"
+            }
+          }
+        ]
+      }
+    });
+
+    const result = await getActivityFeedForDate(manager, "2026-07-06", {
+      repository: harness.repository
+    });
+
+    expect(harness.readListedAppointmentBoardDates()).toEqual(["2026-07-06"]);
+    expect(result.events).toEqual([
+      {
+        id: "appointment-history-appointment-history-scheduled",
+        boardDate: "2026-07-06",
+        eventType: "APPOINTMENT_SCHEDULED",
+        message: "Appointment APT-10245 scheduled.",
+        metadata: {
+          reasonCode: "UNSCHEDULED_DRAFT_SCHEDULED"
+        },
+        createdAt: "2026-07-06T16:00:00.000Z",
+        actor: {
+          id: "user-manager",
+          name: "Abdi Farah",
+          email: "morgan.manager@local.test"
+        },
+        task: {
+          id: "task-1",
+          title: "Customer meeting required",
+          status: "IN_PROGRESS",
+          workflowArea: "SALES"
+        },
+        appointment: {
+          id: "appointment-1",
+          appointmentNumber: "APT-10245",
+          title: "Customer Meeting",
+          bookingStatus: "SCHEDULED"
+        }
+      },
+      {
+        id: "activity-event-task",
+        boardDate: "2026-07-06",
+        eventType: "TASK_CREATED",
+        message: "Task created",
+        createdAt: "2026-07-06T14:30:00.000Z",
+        actor: null,
+        task: null,
+        metadata: {}
+      }
+    ]);
   });
 
   it("returns an empty feed when no board exists for the requested date", async () => {

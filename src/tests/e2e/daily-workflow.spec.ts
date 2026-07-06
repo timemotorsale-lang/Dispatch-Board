@@ -11,6 +11,10 @@ const password = "dispatch123!";
 const staffComment = "E2E update: customer callback is logged.";
 const blockerReason = "E2E blocker: waiting on customer confirmation.";
 const approvalTaskTitle = "E2E approve sold vehicle prep";
+const appointmentTaskTitle = "E2E customer meeting required";
+const appointmentTitle = "E2E task-originated customer meeting";
+const appointmentReason = "E2E reason: customer must meet sales before the task can continue.";
+const schedulingReason = "E2E reason: scheduling the task-created draft into an approved slot.";
 
 type BoardTask = {
   id: string;
@@ -29,6 +33,24 @@ type BoardPayload = {
     taskCount: number;
     tasks: BoardTask[];
   };
+};
+
+type AppointmentReadPayload = {
+  appointments: Array<{
+    id: string;
+    appointmentNumber: string;
+    title: string;
+    sourceReference: string | null;
+    startsAt: string | null;
+    endsAt: string | null;
+    bookingStatus: string;
+    taskLinks: Array<{
+      taskId: string;
+      linkCode: string;
+      linkType: string;
+      taskTitle: string | null;
+    }>;
+  }>;
 };
 
 test.beforeEach(async () => {
@@ -87,6 +109,32 @@ async function waitForBoardTask(page: Page, predicate: (task: BoardTask) => bool
     .poll(async () => {
       const payload = await readTodayBoard(page);
       return payload.board.tasks.find(predicate) ?? null;
+    })
+    .not.toBeNull();
+}
+
+async function readAppointments(page: Page) {
+  return page.evaluate(async () => {
+    const response = await fetch("/api/appointments?date=2026-07-06");
+    if (!response.ok) {
+      throw new Error(`Appointments API failed with ${response.status}`);
+    }
+
+    return (await response.json()) as AppointmentReadPayload;
+  });
+}
+
+async function waitForTaskAppointment(
+  page: Page,
+  taskId: string,
+  predicate: (appointment: AppointmentReadPayload["appointments"][number]) => boolean
+) {
+  return expect
+    .poll(async () => {
+      const payload = await readAppointments(page);
+      return payload.appointments.find(
+        (appointment) => appointment.sourceReference === taskId && predicate(appointment)
+      ) ?? null;
     })
     .not.toBeNull();
 }
@@ -176,4 +224,72 @@ test("manager and staff can complete the daily dispatch workflow", async ({ page
   await expect(page.getByText(blockerReason)).toBeVisible();
   await expect(page.getByText(new RegExp(`marked ${approvalTaskTitle} ready for review`))).toBeVisible();
   await expect(page.getByText(new RegExp(`approved completion for ${approvalTaskTitle}`))).toBeVisible();
+});
+
+test("manager can create a linked appointment draft from a task and schedule it on the Appointment Board", async ({ page }) => {
+  test.setTimeout(60_000);
+
+  await login(page, managerEmail);
+  await expect(page.getByText("Daily dispatch board")).toBeVisible();
+
+  await page.getByRole("button", { name: "Create Task" }).click();
+  await page.getByLabel("Title").fill(appointmentTaskTitle);
+  await page.getByLabel("Assigned to").selectOption({ label: "Baraka Sales" });
+  await page.getByLabel("Due time").fill("16:45");
+  await page.getByLabel("Workflow area").selectOption("SALES");
+  await page.getByRole("button", { name: /^Create task$/ }).click();
+  await expect(page.getByText("Task created.")).toBeVisible();
+
+  const task = (await readTodayBoard(page)).board.tasks.find(
+    (boardTask) => boardTask.title === appointmentTaskTitle
+  );
+  expect(task).toBeTruthy();
+
+  await page.goto(`/tasks/${task!.id}`);
+  await expect(page.getByRole("heading", { name: appointmentTaskTitle })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Create Appointment" })).toBeVisible();
+  await page.getByLabel("Appointment Title").fill(appointmentTitle);
+  await page.getByLabel("Documented Reason").fill(appointmentReason);
+  await page.getByRole("button", { name: "Create linked draft" }).click();
+  await expect(page.getByText(/Draft appointment APT-TASK-/)).toBeVisible();
+
+  await waitForTaskAppointment(
+    page,
+    task!.id,
+    (appointment) =>
+      appointment.title === appointmentTitle &&
+      appointment.startsAt === null &&
+      appointment.taskLinks.some(
+        (link) =>
+          link.taskId === task!.id &&
+          link.linkCode === "SOURCE_TASK" &&
+          link.taskTitle === appointmentTaskTitle
+      )
+  );
+
+  await page.goto("/activity");
+  await expect(page.getByText(new RegExp(`created draft appointment .* from ${appointmentTaskTitle}`))).toBeVisible();
+
+  await page.goto("/appointments");
+  await expect(page.getByRole("heading", { name: "Appointment Board" })).toBeVisible();
+  await expect(page.getByText("Unscheduled / Drafts")).toBeVisible();
+  await expect(page.getByRole("button", { name: new RegExp(appointmentTitle) })).toBeVisible();
+  await expect(page.getByText("Linked Tasks (1)")).toBeVisible();
+  await expect(page.getByText(appointmentTaskTitle)).toBeVisible();
+
+  await page.getByLabel("Scheduling reason").fill(schedulingReason);
+  const scheduleButton = page.getByRole("button", { name: "Schedule This Draft" });
+  await expect(scheduleButton).toBeEnabled();
+  await scheduleButton.click();
+  await expect(page.getByText(/It now has a real time window and was moved onto the appointment calendar/)).toBeVisible();
+
+  await waitForTaskAppointment(
+    page,
+    task!.id,
+    (appointment) =>
+      appointment.title === appointmentTitle &&
+      appointment.bookingStatus === "SCHEDULED" &&
+      appointment.startsAt !== null &&
+      appointment.endsAt !== null
+  );
 });

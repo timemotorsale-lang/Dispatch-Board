@@ -36,6 +36,11 @@ export function ActivityFeedItem({ event }: { event: ActivityFeedEvent }) {
   const taskContext = event.task
     ? [event.task.title, formatEnum(event.task.workflowArea)].filter(Boolean).join(" - ")
     : null;
+  const appointmentContext = event.appointment
+    ? [event.appointment.appointmentNumber, event.appointment.title, formatEnum(event.appointment.bookingStatus)]
+        .filter(Boolean)
+        .join(" - ")
+    : null;
 
   return (
     <article className={`activity-feed-item activity-feed-item-${tone}`}>
@@ -52,6 +57,11 @@ export function ActivityFeedItem({ event }: { event: ActivityFeedEvent }) {
         {event.task ? (
           <Link className="activity-feed-context" href={`/tasks/${event.task.id}`}>
             {taskContext}
+          </Link>
+        ) : null}
+        {!event.task && event.appointment ? (
+          <Link className="activity-feed-context" href="/appointments">
+            {appointmentContext}
           </Link>
         ) : null}
       </div>
