@@ -6116,6 +6116,17 @@ code {
   border-color: #fecdd3;
 }
 
+.appointment-detail-actions button.appointment-danger-action {
+  color: #fff;
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+.appointment-detail-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
 .appointment-upcoming-card {
   display: grid;
   gap: 14px;

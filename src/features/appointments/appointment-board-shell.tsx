@@ -37,6 +37,8 @@ type AppointmentCategory =
 
 type AppointmentStatus = "confirmed" | "checked-in" | "in-progress" | "no-show" | "follow-up";
 
+type OperationalCommand = "CHECK_IN" | "NO_SHOW";
+
 type StaffMember = {
   id: string;
   name: string;
@@ -46,6 +48,8 @@ type StaffMember = {
 
 type Appointment = {
   id: string;
+  recordId?: string;
+  recordVersion?: number;
   title: string;
   customer: string;
   vehicle: string;
@@ -361,6 +365,16 @@ const upcomingAppointments = [
 
 const viewModes: ViewMode[] = ["day", "week", "month", "agenda"];
 const hourLabels = ["9:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM", "5:00 PM", "6:00 PM"];
+const noShowReasonOptions = [
+  { value: "CUSTOMER_NO_SHOW", label: "Customer did not arrive" },
+  { value: "CUSTOMER_UNREACHABLE", label: "Customer unreachable" },
+  { value: "DOCUMENTATION_MISSING", label: "Required documents missing" }
+];
+const followUpDispositionOptions = [
+  { value: "CALLBACK_REQUIRED", label: "Callback required" },
+  { value: "RESCHEDULE_REQUESTED", label: "Reschedule requested" },
+  { value: "CALLBACK_NOT_REQUIRED", label: "No callback required" }
+];
 
 function formatTime(totalMinutes: number) {
   const hour24 = Math.floor(totalMinutes / 60);
@@ -374,6 +388,23 @@ function statusLabel(status: AppointmentStatus) {
   return status.split("-").map((word) => word[0].toUpperCase() + word.slice(1)).join(" ");
 }
 
+function commandLabel(commandType: OperationalCommand) {
+  return commandType === "CHECK_IN" ? "Check In" : "No Show";
+}
+
+function commandStatus(commandType: OperationalCommand): AppointmentStatus {
+  return commandType === "CHECK_IN" ? "checked-in" : "no-show";
+}
+
+function createCommandIdentifier(commandType: OperationalCommand, appointmentId: string) {
+  const randomSuffix =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+  return `appointment-${commandType.toLowerCase()}-${appointmentId}-${randomSuffix}`;
+}
+
 export function AppointmentBoardShell() {
   const [selectedId, setSelectedId] = useState(appointments[0].id);
   const [query, setQuery] = useState("");
@@ -383,12 +414,29 @@ export function AppointmentBoardShell() {
   const [conflictsOnly, setConflictsOnly] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("day");
   const [draftOpen, setDraftOpen] = useState(false);
-  const [actionNotice, setActionNotice] = useState("Preview shell ready. Live creation and persistence connect in the next implementation slice.");
+  const [noShowOpen, setNoShowOpen] = useState(false);
+  const [isCommandPending, setIsCommandPending] = useState(false);
+  const [appointmentStatusOverrides, setAppointmentStatusOverrides] = useState<Record<string, AppointmentStatus>>({});
+  const [noShowDraft, setNoShowDraft] = useState({
+    reasonCode: "CUSTOMER_NO_SHOW",
+    reasonNotes: "",
+    followUpDispositionCode: "CALLBACK_REQUIRED"
+  });
+  const [actionNotice, setActionNotice] = useState("Operational command bridge ready. Persisted appointments can now use the live command API for check-in and no-show actions.");
+
+  const boardAppointments = useMemo(
+    () =>
+      appointments.map((appointment) => ({
+        ...appointment,
+        status: appointmentStatusOverrides[appointment.id] ?? appointment.status
+      })),
+    [appointmentStatusOverrides]
+  );
 
   const filteredAppointments = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
-    return appointments.filter((appointment) => {
+    return boardAppointments.filter((appointment) => {
       const searchTarget = `${appointment.title} ${appointment.customer} ${appointment.vehicle} ${appointment.id} ${appointment.phone}`.toLowerCase();
       return (
         (!normalizedQuery || searchTarget.includes(normalizedQuery)) &&
@@ -398,24 +446,87 @@ export function AppointmentBoardShell() {
         (!conflictsOnly || appointment.conflict)
       );
     });
-  }, [categoryFilter, conflictsOnly, query, staffFilter, statusFilter]);
+  }, [boardAppointments, categoryFilter, conflictsOnly, query, staffFilter, statusFilter]);
 
   const selectedAppointment =
-    appointments.find((appointment) => appointment.id === selectedId) ?? filteredAppointments[0] ?? appointments[0];
+    boardAppointments.find((appointment) => appointment.id === selectedId) ?? filteredAppointments[0] ?? boardAppointments[0];
 
   const selectedStaff = staffMembers.find((staff) => staff.id === selectedAppointment.staffId) ?? staffMembers[0];
 
   const metrics = [
-    { label: "Total Appointments", value: appointments.length, status: "all" as const, tone: "slate" },
-    { label: "Confirmed", value: appointments.filter((appointment) => appointment.status === "confirmed").length, status: "confirmed" as const, tone: "green" },
-    { label: "Checked In", value: appointments.filter((appointment) => appointment.status === "checked-in").length, status: "checked-in" as const, tone: "blue" },
-    { label: "In Progress", value: appointments.filter((appointment) => appointment.status === "in-progress").length, status: "in-progress" as const, tone: "orange" },
-    { label: "No Show", value: appointments.filter((appointment) => appointment.status === "no-show").length, status: "no-show" as const, tone: "red" },
-    { label: "Needs Follow-Up", value: appointments.filter((appointment) => appointment.needsFollowUp || appointment.status === "follow-up").length, status: "follow-up" as const, tone: "purple" }
+    { label: "Total Appointments", value: boardAppointments.length, status: "all" as const, tone: "slate" },
+    { label: "Confirmed", value: boardAppointments.filter((appointment) => appointment.status === "confirmed").length, status: "confirmed" as const, tone: "green" },
+    { label: "Checked In", value: boardAppointments.filter((appointment) => appointment.status === "checked-in").length, status: "checked-in" as const, tone: "blue" },
+    { label: "In Progress", value: boardAppointments.filter((appointment) => appointment.status === "in-progress").length, status: "in-progress" as const, tone: "orange" },
+    { label: "No Show", value: boardAppointments.filter((appointment) => appointment.status === "no-show").length, status: "no-show" as const, tone: "red" },
+    { label: "Needs Follow-Up", value: boardAppointments.filter((appointment) => appointment.needsFollowUp || appointment.status === "follow-up").length, status: "follow-up" as const, tone: "purple" }
   ];
 
   function handlePreviewAction(label: string) {
     setActionNotice(`${label} captured in preview. Live version will require a documented reason and audit trail.`);
+  }
+
+  async function submitOperationalCommand(commandType: OperationalCommand) {
+    const label = commandLabel(commandType);
+
+    if (!selectedAppointment.recordId || !selectedAppointment.recordVersion) {
+      setActionNotice(
+        `${label} is wired to the live command API, but ${selectedAppointment.id} is still preview data. The next data slice must provide a persisted appointment record ID and version before this can save.`
+      );
+      return;
+    }
+
+    if (commandType === "NO_SHOW" && !noShowDraft.reasonNotes.trim()) {
+      setActionNotice("No Show requires reason notes before it can be submitted.");
+      return;
+    }
+
+    setIsCommandPending(true);
+
+    try {
+      const idempotencyKey = createCommandIdentifier(commandType, selectedAppointment.recordId);
+      const response = await fetch("/api/appointments/commands", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          commandType,
+          appointmentId: selectedAppointment.recordId,
+          expectedAppointmentVersion: selectedAppointment.recordVersion,
+          idempotencyKey,
+          correlationId: idempotencyKey,
+          payload:
+            commandType === "NO_SHOW"
+              ? {
+                  reasonCode: noShowDraft.reasonCode,
+                  reasonNotes: noShowDraft.reasonNotes.trim(),
+                  followUpDispositionCode: noShowDraft.followUpDispositionCode
+                }
+              : {}
+        })
+      });
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok || !result?.accepted) {
+        throw new Error(
+          result?.error ||
+            result?.execution?.rejectionReasons?.join(" ") ||
+            `${label} could not be completed.`
+        );
+      }
+
+      setAppointmentStatusOverrides((current) => ({
+        ...current,
+        [selectedAppointment.id]: commandStatus(commandType)
+      }));
+      setNoShowOpen(false);
+      setActionNotice(`${label} saved for ${selectedAppointment.id}. History and command ledger were updated by the live command path.`);
+    } catch (error) {
+      setActionNotice(error instanceof Error ? error.message : `${label} could not be completed.`);
+    } finally {
+      setIsCommandPending(false);
+    }
   }
 
   return (
@@ -664,8 +775,20 @@ export function AppointmentBoardShell() {
           </div>
 
           <div className="appointment-detail-actions">
-            <button type="button" onClick={() => handlePreviewAction("Check in")}><Check size={16} aria-hidden="true" />Check In</button>
-            <button type="button" onClick={() => handlePreviewAction("No show")}><X size={16} aria-hidden="true" />No Show</button>
+            <button
+              disabled={isCommandPending || selectedAppointment.status === "checked-in"}
+              type="button"
+              onClick={() => void submitOperationalCommand("CHECK_IN")}
+            >
+              <Check size={16} aria-hidden="true" />{isCommandPending ? "Saving..." : "Check In"}
+            </button>
+            <button
+              disabled={isCommandPending || selectedAppointment.status === "no-show"}
+              type="button"
+              onClick={() => setNoShowOpen(true)}
+            >
+              <X size={16} aria-hidden="true" />No Show
+            </button>
             <button type="button" onClick={() => handlePreviewAction("More actions")}>•••</button>
           </div>
         </aside>
@@ -712,6 +835,59 @@ export function AppointmentBoardShell() {
             <div className="appointment-detail-actions">
               <button type="button" onClick={() => { handlePreviewAction("Draft appointment"); setDraftOpen(false); }}><ClipboardCheck size={16} aria-hidden="true" />Capture Draft Preview</button>
               <button type="button" onClick={() => setDraftOpen(false)}><FileText size={16} aria-hidden="true" />Close</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {noShowOpen ? (
+        <div className="appointment-modal-backdrop" role="presentation">
+          <div className="appointment-modal" role="dialog" aria-modal="true" aria-labelledby="no-show-appointment-title">
+            <div className="appointment-section-heading">
+              <strong id="no-show-appointment-title">Document No Show</strong>
+              <button type="button" aria-label="Close no-show form" onClick={() => setNoShowOpen(false)}>Ã—</button>
+            </div>
+            <p>No-show actions require a reason, notes, follow-up disposition, and an audit event before capacity can be released.</p>
+            <div className="appointment-modal-grid">
+              <label>
+                Reason
+                <select
+                  value={noShowDraft.reasonCode}
+                  onChange={(event) => setNoShowDraft((current) => ({ ...current, reasonCode: event.target.value }))}
+                >
+                  {noShowReasonOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Follow-up
+                <select
+                  value={noShowDraft.followUpDispositionCode}
+                  onChange={(event) => setNoShowDraft((current) => ({ ...current, followUpDispositionCode: event.target.value }))}
+                >
+                  {followUpDispositionOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="appointment-modal-span">
+                Reason notes
+                <textarea
+                  rows={3}
+                  placeholder="Example: Customer did not arrive by the grace period; called once and left voicemail."
+                  value={noShowDraft.reasonNotes}
+                  onChange={(event) => setNoShowDraft((current) => ({ ...current, reasonNotes: event.target.value }))}
+                />
+              </label>
+            </div>
+            <div className="appointment-detail-actions">
+              <button className="appointment-danger-action" disabled={isCommandPending} type="button" onClick={() => void submitOperationalCommand("NO_SHOW")}>
+                <X size={16} aria-hidden="true" />{isCommandPending ? "Saving..." : "Save No Show"}
+              </button>
+              <button disabled={isCommandPending} type="button" onClick={() => setNoShowOpen(false)}>
+                <FileText size={16} aria-hidden="true" />Cancel
+              </button>
             </div>
           </div>
         </div>
