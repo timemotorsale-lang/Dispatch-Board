@@ -144,6 +144,28 @@ type AppointmentReadApiResult = {
   appointments: AppointmentReadModel[];
 };
 
+type AppointmentScheduleReadiness = {
+  appointmentId: string;
+  appointmentNumber: string;
+  bookingStatus: string;
+  status: "READY" | "WARNING" | "BLOCKED";
+  canSubmitSchedule: boolean;
+  hardBlocks: Array<{
+    code: string;
+    message: string;
+  }>;
+  warnings: Array<{
+    code: string;
+    message: string;
+  }>;
+  checks: Array<{
+    code: string;
+    label: string;
+    status: "PASS" | "WARNING" | "BLOCKED";
+    message: string;
+  }>;
+};
+
 type ViewMode = "day" | "week" | "month" | "agenda";
 
 const businessDate = "Monday, July 6, 2026";
@@ -753,6 +775,8 @@ export function AppointmentBoardShell() {
   const [liveAppointments, setLiveAppointments] = useState<Appointment[]>([]);
   const [isLiveLoading, setIsLiveLoading] = useState(true);
   const [isDraftSaving, setIsDraftSaving] = useState(false);
+  const [scheduleReadiness, setScheduleReadiness] = useState<AppointmentScheduleReadiness | null>(null);
+  const [isReadinessLoading, setIsReadinessLoading] = useState(false);
   const [actionNotice, setActionNotice] = useState("Operational command bridge ready. Persisted appointments can now use the live command API for check-in and no-show actions.");
 
   async function loadLiveAppointments() {
@@ -853,6 +877,60 @@ export function AppointmentBoardShell() {
 
   const selectedStaff =
     visibleStaffMembers.find((staff) => staff.id === selectedAppointment.staffId) ?? visibleStaffMembers[0];
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadScheduleReadiness() {
+      if (selectedAppointment.status !== "draft" || !selectedAppointment.recordId) {
+        setScheduleReadiness(null);
+        setIsReadinessLoading(false);
+        return;
+      }
+
+      setIsReadinessLoading(true);
+
+      try {
+        const response = await fetch(
+          `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/schedule-readiness`
+        );
+        const result = (await response.json().catch(() => null)) as
+          | { readiness?: AppointmentScheduleReadiness; error?: string }
+          | null;
+
+        if (!isActive) {
+          return;
+        }
+
+        if (!response.ok || !result?.readiness) {
+          throw new Error(result?.error || "Unable to load schedule readiness.");
+        }
+
+        setScheduleReadiness(result.readiness);
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        setScheduleReadiness(null);
+        setActionNotice(
+          error instanceof Error
+            ? `Schedule readiness could not load: ${error.message}`
+            : "Schedule readiness could not load."
+        );
+      } finally {
+        if (isActive) {
+          setIsReadinessLoading(false);
+        }
+      }
+    }
+
+    void loadScheduleReadiness();
+
+    return () => {
+      isActive = false;
+    };
+  }, [selectedAppointment.recordId, selectedAppointment.status]);
 
   const metrics = [
     { label: "Total Appointments", value: boardAppointments.length, status: "all" as const, tone: "slate" },
@@ -962,6 +1040,13 @@ export function AppointmentBoardShell() {
 
     if (commandType === "SCHEDULE" && (!selectedAppointment.startsAtIso || !selectedAppointment.endsAtIso)) {
       setActionNotice("Schedule Draft requires a saved start and end time.");
+      return;
+    }
+
+    if (commandType === "SCHEDULE" && scheduleReadiness && !scheduleReadiness.canSubmitSchedule) {
+      setActionNotice(
+        `Schedule Draft is blocked: ${scheduleReadiness.hardBlocks.map((block) => block.message).join(" ")}`
+      );
       return;
     }
 
@@ -1252,6 +1337,32 @@ export function AppointmentBoardShell() {
               ))}
             </ul>
           </div>
+
+          {selectedAppointment.status === "draft" ? (
+            <div className="appointment-detail-section">
+              <div className="appointment-section-heading">
+                <strong>Schedule Readiness</strong>
+                <span className={`appointment-readiness-chip appointment-readiness-${scheduleReadiness?.status.toLowerCase() ?? "loading"}`}>
+                  {isReadinessLoading ? "Loading" : scheduleReadiness?.status ?? "Unavailable"}
+                </span>
+              </div>
+              {scheduleReadiness ? (
+                <div className="appointment-readiness-stack">
+                  {scheduleReadiness.checks.map((check) => (
+                    <div className={`appointment-readiness-row appointment-readiness-row-${check.status.toLowerCase()}`} key={check.code}>
+                      <strong>{check.label}</strong>
+                      <span>{check.status}</span>
+                      <small>{check.message}</small>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="appointment-readiness-copy">
+                  {isReadinessLoading ? "Checking schedule readiness..." : "Schedule readiness is not available for this appointment yet."}
+                </p>
+              )}
+            </div>
+          ) : null}
 
           <div className="appointment-detail-section">
             <label className="appointment-outcome-label">

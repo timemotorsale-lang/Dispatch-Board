@@ -6,7 +6,7 @@
 
 ## Quality Baseline
 
-The following commands passed on 2026-07-05:
+The following commands passed on 2026-07-06:
 
 ```text
 npm run lint
@@ -18,11 +18,11 @@ npm run db:validate
 Vitest result:
 
 ```text
-57 test files passed
-314 tests passed
+89 test files passed
+491 tests passed
 ```
 
-Prisma client generation updated generated types but could not replace the locked Windows query-engine DLL while the existing development server was running. End-to-end tests, production build, database migration deployment, and production deployment were not rerun during this checkpoint.
+End-to-end tests, production build, database migration deployment, and production deployment were not rerun during this checkpoint.
 
 ## Implemented Foundation
 
@@ -77,13 +77,14 @@ Prisma client generation updated generated types but could not replace the locke
 | Appointment confirmation, attendance, and execution commands | Implemented as backend boundary | EAPT-028 extends lifecycle command execution to confirm, decline, check in, record no-show, start, wait, and finish appointments with manager/owner authorization, stale-version protection, scheduled-state guards, required reason/follow-up documentation where applicable, optional no-show reservation release, history effects, route execution support, and focused tests |
 | Appointment draft creation UI | Implemented as initial UI command bridge | EAPT-029A New Appointment modal submits `CREATE_DRAFT` through the live command route with category, title, customer snapshot, vehicle snapshot, Minneapolis date/time, duration, documented reason, generated appointment number, generated idempotency key, signed-in owner default, and live board refresh after success |
 | Appointment draft scheduling UI | Implemented as initial UI command bridge | EAPT-029B detail rail exposes Schedule Draft for persisted draft appointments, disables Check In and No Show while an appointment is still draft, submits `SCHEDULE` with appointment ID, expected version, saved start/end, and scheduling timezone, and refreshes from the live read model after success |
-| Appointment Board visible shell | Implemented as preview UI with live binding and command bridge | `/appointments` now renders the mockup-aligned board surface with KPI cards, staff calendar columns, filters, selectable appointments, detail rail, linked tasks, enterprise controls, upcoming appointments, responsive behavior, live read-model hydration when persisted records exist, preview fallback when none exist, Check In / No Show controls wired to the live command API when persisted appointment record IDs and versions are available, draft creation, and draft scheduling; browser workflows and production evidence remain pending |
+| Appointment schedule readiness preview | Implemented as initial API/UI boundary | EAPT-029C adds a server-backed readiness preview for persisted draft appointments, exposes `GET /api/appointments/:id/schedule-readiness`, enforces schedule visibility plus manager/owner authority, reports hard blocks and warnings, renders Schedule Readiness in the detail rail, and stops Schedule Draft when hard blocks exist |
+| Appointment Board visible shell | Implemented as preview UI with live binding and command bridge | `/appointments` now renders the mockup-aligned board surface with KPI cards, staff calendar columns, filters, selectable appointments, detail rail, linked tasks, enterprise controls, upcoming appointments, responsive behavior, live read-model hydration when persisted records exist, preview fallback when none exist, Check In / No Show controls wired to the live command API when persisted appointment record IDs and versions are available, draft creation, draft scheduling, and schedule-readiness preview; browser workflows and production evidence remain pending |
 
 ## Existing Partial or Placeholder Surfaces
 
 | Surface | Current state |
 | --- | --- |
-| Appointments | Visible preview shell exists; E1 command intake API boundary exists; E2 scheduling service boundaries exist; EAPT-026 read API and initial board hydration exist; EAPT-027/EAPT-028 lifecycle command execution routes exist for supported backend commands; the detail rail has Schedule Draft plus safe Check In / No Show command bridges; New Appointment can create persisted draft records; full conflict/warning preview, resource reservation UI, browser workflows, final completion/outcome capture, and production evidence remain pending |
+| Appointments | Visible preview shell exists; E1 command intake API boundary exists; E2 scheduling service boundaries exist; EAPT-026 read API and initial board hydration exist; EAPT-027/EAPT-028 lifecycle command execution routes exist for supported backend commands; the detail rail has Schedule Draft, Schedule Readiness, and safe Check In / No Show command bridges; New Appointment can create persisted draft records; full resource/staff conflict preview, resource reservation UI, browser workflows, final completion/outcome capture, and production evidence remain pending |
 | Customers | Placeholder guidance page; no enterprise customer subsystem |
 | Vehicles | Placeholder guidance page; no enterprise vehicle subsystem |
 | Reports | Placeholder guidance page; no enterprise reporting subsystem |
@@ -109,7 +110,8 @@ At this baseline:
 - EAPT-028 confirmation, attendance, no-show, and execution-state command planning and route execution are implemented as backend boundaries.
 - EAPT-029A initial New Appointment draft creation is implemented as a UI command bridge.
 - EAPT-029B initial Schedule Draft action is implemented as a UI command bridge.
-- Database-backed versioned appointment-template administration, recurrence persistence/materialization, persisted warning override/history records, availability-search API/UI, waitlist persistence/queues, reschedule/bulk execution persistence, conflict/warning preview UI, resource reservation UI, final completion/outcome capture, full command-center UI wiring, administration UI, browser workflow tests, and persisted production Appointment workflows have not yet been implemented.
+- EAPT-029C initial Schedule Readiness warning/block preview is implemented as a server-backed API/UI boundary.
+- Database-backed versioned appointment-template administration, recurrence persistence/materialization, persisted warning override/history records, availability-search API/UI, waitlist persistence/queues, reschedule/bulk execution persistence, full resource/staff conflict preview UI, resource reservation UI, final completion/outcome capture, full command-center UI wiring, administration UI, browser workflow tests, and persisted production Appointment workflows have not yet been implemented.
 - The existing `/appointments` route now contains the mockup-aligned preview shell and is the intended UI boundary for the next live-service slices.
 
 ## Current Execution Order

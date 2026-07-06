@@ -43,11 +43,15 @@ This slice keeps the server-side protections already implemented by EAPT-027:
 
 This slice does not claim the full enterprise scheduling decision panel yet.
 
+Partially addressed after this slice:
+
+- EAPT-029C adds an initial server-backed Schedule Readiness warning/block preview in the detail rail.
+
 Still pending:
 
-- live conflict/warning preview inside the modal or detail rail
-- resource requirement selection
+- full resource requirement selection
 - resource reservation candidates
+- resource and staff conflict preview against selected candidates
 - manager warning override UI
 - recurrence scheduling UI
 - bulk scheduling
