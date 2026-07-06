@@ -5950,6 +5950,7 @@ code {
 }
 
 .appointment-status-confirmed { color: #15803d !important; background: #e8f7ee; }
+.appointment-status-draft { color: #475569 !important; background: #eef2f7; }
 .appointment-status-checked-in { color: #075ad9 !important; background: #eaf2ff; }
 .appointment-status-in-progress { color: #c2410c !important; background: #fff1e4; }
 .appointment-status-no-show { color: #dc2626 !important; background: #fff0f3; }

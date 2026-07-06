@@ -35,11 +35,28 @@ type AppointmentCategory =
   | "marketing"
   | "general";
 
-type AppointmentStatus = "confirmed" | "checked-in" | "in-progress" | "no-show" | "follow-up";
+type AppointmentStatus =
+  | "draft"
+  | "confirmed"
+  | "checked-in"
+  | "in-progress"
+  | "no-show"
+  | "follow-up";
 
 type OperationalCommand = "CHECK_IN" | "NO_SHOW";
 
 type AppointmentBoardDataSource = "preview" | "live";
+
+type DraftAppointmentForm = {
+  category: AppointmentCategory;
+  title: string;
+  customer: string;
+  vehicle: string;
+  localDate: string;
+  startTime: string;
+  durationMinutes: number;
+  reason: string;
+};
 
 type StaffMember = {
   id: string;
@@ -131,6 +148,9 @@ const businessHours = "9:00 AM - 6:00 PM";
 const dealershipAddress = "1101 E. Lake Street, Minneapolis, MN 55407";
 const dealershipPhone = "(612) 724-3631";
 const defaultBoardDate = "2026-07-06";
+const defaultOrganizationId = "org-time-motor-sales";
+const defaultLocationId = "loc-time-motor-sales-minneapolis";
+const defaultTimezone = "America/Chicago";
 
 const staffMembers: StaffMember[] = [
   { id: "abdi", name: "Abdi Farah", role: "General Manager", initials: "AF" },
@@ -472,6 +492,10 @@ function getMinutesInTimezone(value: string | null, timezone: string) {
 }
 
 function resolveStatus(appointment: AppointmentReadModel): AppointmentStatus {
+  if (appointment.bookingStatus === "DRAFT" || appointment.bookingStatus === "PENDING_APPROVAL") {
+    return "draft";
+  }
+
   if (appointment.attendanceStatus === "NO_SHOW") {
     return "no-show";
   }
@@ -600,6 +624,83 @@ function createCommandIdentifier(commandType: OperationalCommand, appointmentId:
   return `appointment-${commandType.toLowerCase()}-${appointmentId}-${randomSuffix}`;
 }
 
+function createDraftCommandIdentifier() {
+  const randomSuffix =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+  return `appointment-create-draft-${randomSuffix}`;
+}
+
+function createAppointmentNumber() {
+  return `APT-${Date.now().toString().slice(-8)}`;
+}
+
+function localDateTimeToMinneapolisIso(localDate: string, time: string) {
+  const [yearText, monthText, dayText] = localDate.split("-");
+  const [hourText, minuteText] = time.split(":");
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(day) ||
+    !Number.isInteger(hour) ||
+    !Number.isInteger(minute)
+  ) {
+    throw new Error("Appointment date and time must be valid.");
+  }
+
+  let candidate = new Date(Date.UTC(year, month - 1, day, hour, minute, 0, 0));
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      day: "2-digit",
+      hour: "2-digit",
+      hour12: false,
+      minute: "2-digit",
+      month: "2-digit",
+      numberingSystem: "latn",
+      timeZone: defaultTimezone,
+      year: "numeric"
+    }).formatToParts(candidate);
+    const actualYear = Number(parts.find((part) => part.type === "year")?.value);
+    const actualMonth = Number(parts.find((part) => part.type === "month")?.value);
+    const actualDay = Number(parts.find((part) => part.type === "day")?.value);
+    const actualHourText = parts.find((part) => part.type === "hour")?.value ?? "0";
+    const actualHour = actualHourText === "24" ? 0 : Number(actualHourText);
+    const actualMinute = Number(parts.find((part) => part.type === "minute")?.value);
+    const actualUtcAsLocal = Date.UTC(
+      actualYear,
+      actualMonth - 1,
+      actualDay,
+      actualHour,
+      actualMinute,
+      0,
+      0
+    );
+    const desiredUtcAsLocal = Date.UTC(year, month - 1, day, hour, minute, 0, 0);
+    const differenceMs = desiredUtcAsLocal - actualUtcAsLocal;
+
+    if (differenceMs === 0) {
+      return candidate.toISOString();
+    }
+
+    candidate = new Date(candidate.getTime() + differenceMs);
+  }
+
+  return candidate.toISOString();
+}
+
+function addMinutesToIso(isoValue: string, minutes: number) {
+  return new Date(new Date(isoValue).getTime() + minutes * 60_000).toISOString();
+}
+
 export function AppointmentBoardShell() {
   const [selectedId, setSelectedId] = useState(appointments[0].id);
   const [query, setQuery] = useState("");
@@ -617,58 +718,65 @@ export function AppointmentBoardShell() {
     reasonNotes: "",
     followUpDispositionCode: "CALLBACK_REQUIRED"
   });
+  const [draftAppointment, setDraftAppointment] = useState<DraftAppointmentForm>({
+    category: "service",
+    title: "Service / Repair",
+    customer: "",
+    vehicle: "",
+    localDate: defaultBoardDate,
+    startTime: "10:00",
+    durationMinutes: 60,
+    reason: ""
+  });
   const [liveAppointments, setLiveAppointments] = useState<Appointment[]>([]);
   const [isLiveLoading, setIsLiveLoading] = useState(true);
+  const [isDraftSaving, setIsDraftSaving] = useState(false);
   const [actionNotice, setActionNotice] = useState("Operational command bridge ready. Persisted appointments can now use the live command API for check-in and no-show actions.");
+
+  async function loadLiveAppointments() {
+    setIsLiveLoading(true);
+
+    try {
+      const response = await fetch(`/api/appointments?date=${encodeURIComponent(defaultBoardDate)}`);
+      const result = (await response.json().catch(() => null)) as AppointmentReadApiResult | { error?: string } | null;
+
+      if (!response.ok) {
+        throw new Error(result && "error" in result && result.error ? result.error : "Unable to load live appointments.");
+      }
+
+      const appointmentsFromReadModel =
+        result && "appointments" in result
+          ? result.appointments.map((appointment) => mapReadModelToAppointment(appointment))
+          : [];
+
+      setLiveAppointments(appointmentsFromReadModel);
+      setActionNotice(
+        appointmentsFromReadModel.length > 0
+          ? `Loaded ${appointmentsFromReadModel.length} live appointment${appointmentsFromReadModel.length === 1 ? "" : "s"} from the read model.`
+          : "Live read model is connected. No persisted appointments were found for this day, so the approved preview board remains visible."
+      );
+    } catch (error) {
+      setLiveAppointments([]);
+      setActionNotice(
+        error instanceof Error
+          ? `Live read model could not load: ${error.message}. Preview board remains visible.`
+          : "Live read model could not load. Preview board remains visible."
+      );
+    } finally {
+      setIsLiveLoading(false);
+    }
+  }
 
   useEffect(() => {
     let isActive = true;
 
-    async function loadLiveAppointments() {
-      setIsLiveLoading(true);
-
-      try {
-        const response = await fetch(`/api/appointments?date=${encodeURIComponent(defaultBoardDate)}`);
-        const result = (await response.json().catch(() => null)) as AppointmentReadApiResult | { error?: string } | null;
-
-        if (!isActive) {
-          return;
-        }
-
-        if (!response.ok) {
-          throw new Error(result && "error" in result && result.error ? result.error : "Unable to load live appointments.");
-        }
-
-        const appointmentsFromReadModel =
-          result && "appointments" in result
-            ? result.appointments.map((appointment) => mapReadModelToAppointment(appointment))
-            : [];
-
-        setLiveAppointments(appointmentsFromReadModel);
-        setActionNotice(
-          appointmentsFromReadModel.length > 0
-            ? `Loaded ${appointmentsFromReadModel.length} live appointment${appointmentsFromReadModel.length === 1 ? "" : "s"} from the read model.`
-            : "Live read model is connected. No persisted appointments were found for this day, so the approved preview board remains visible."
-        );
-      } catch (error) {
-        if (!isActive) {
-          return;
-        }
-
-        setLiveAppointments([]);
-        setActionNotice(
-          error instanceof Error
-            ? `Live read model could not load: ${error.message}. Preview board remains visible.`
-            : "Live read model could not load. Preview board remains visible."
-        );
-      } finally {
-        if (isActive) {
-          setIsLiveLoading(false);
-        }
-      }
+    async function loadIfActive() {
+      await loadLiveAppointments();
     }
 
-    void loadLiveAppointments();
+    if (isActive) {
+      void loadIfActive();
+    }
 
     return () => {
       isActive = false;
@@ -735,6 +843,84 @@ export function AppointmentBoardShell() {
 
   function handlePreviewAction(label: string) {
     setActionNotice(`${label} captured in preview. Live version will require a documented reason and audit trail.`);
+  }
+
+  async function submitDraftAppointment() {
+    if (!draftAppointment.title.trim()) {
+      setActionNotice("Appointment title is required.");
+      return;
+    }
+
+    if (!draftAppointment.reason.trim()) {
+      setActionNotice("New appointments require a documented reason.");
+      return;
+    }
+
+    setIsDraftSaving(true);
+
+    try {
+      const startsAt = localDateTimeToMinneapolisIso(
+        draftAppointment.localDate,
+        draftAppointment.startTime
+      );
+      const endsAt = addMinutesToIso(startsAt, draftAppointment.durationMinutes);
+      const appointmentNumber = createAppointmentNumber();
+      const idempotencyKey = createDraftCommandIdentifier();
+      const response = await fetch("/api/appointments/commands", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          commandType: "CREATE_DRAFT",
+          organizationId: defaultOrganizationId,
+          locationId: defaultLocationId,
+          idempotencyKey,
+          correlationId: idempotencyKey,
+          payload: {
+            appointmentNumber,
+            title: draftAppointment.title.trim(),
+            sourceType: "MANUAL",
+            sourceReference: draftAppointment.reason.trim(),
+            startsAt,
+            endsAt,
+            schedulingTimezone: defaultTimezone,
+            purposeSnapshot: {
+              category: draftAppointment.category,
+              categoryLabel: categoryMeta[draftAppointment.category].label,
+              reason: draftAppointment.reason.trim()
+            },
+            customerSnapshot: draftAppointment.customer.trim()
+              ? {
+                  displayName: draftAppointment.customer.trim()
+                }
+              : null,
+            vehicleSnapshot: draftAppointment.vehicle.trim()
+              ? {
+                  displayName: draftAppointment.vehicle.trim(),
+                  vehicleNumber: draftAppointment.vehicle.trim()
+                }
+              : null
+          }
+        })
+      });
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok || !result?.accepted) {
+        throw new Error(result?.error || "Unable to create the appointment.");
+      }
+
+      setDraftOpen(false);
+      setSelectedId(appointmentNumber);
+      setActionNotice(`Appointment ${appointmentNumber} was created. Reloading the live board...`);
+      await loadLiveAppointments();
+    } catch (error) {
+      setActionNotice(
+        error instanceof Error ? error.message : "Unable to create the appointment right now."
+      );
+    } finally {
+      setIsDraftSaving(false);
+    }
   }
 
   async function submitOperationalCommand(commandType: OperationalCommand) {
@@ -1095,17 +1281,98 @@ export function AppointmentBoardShell() {
               <strong id="draft-appointment-title">New Appointment Shell</strong>
               <button type="button" aria-label="Close new appointment shell" onClick={() => setDraftOpen(false)}>×</button>
             </div>
-            <p>This visible shell is ready for the day-one workflow: category, owner, customer, vehicle, reason, automation template, conflict rule, and audit reason.</p>
+            <p>Create a persisted appointment draft for the selected Minneapolis board day. Scheduling approval, conflict checks, and resource reservations remain controlled by the later schedule command flow.</p>
             <div className="appointment-modal-grid">
-              <label>Category<select defaultValue="service"><option value="service">Service / Repair</option><option value="sales">Sales / Test Drive</option><option value="dmv">Documentation / DMV</option></select></label>
-              <label>Owner<select defaultValue="brock">{visibleStaffMembers.map((staff) => <option key={staff.id} value={staff.id}>{staff.name}</option>)}</select></label>
-              <label>Customer<input placeholder="Customer name" /></label>
-              <label>Vehicle<input placeholder="Vehicle / stock #" /></label>
-              <label className="appointment-modal-span">Reason<textarea rows={3} placeholder="Every change or creation requires a documented reason." /></label>
+              <label>
+                Category
+                <select
+                  value={draftAppointment.category}
+                  onChange={(event) => {
+                    const category = event.target.value as AppointmentCategory;
+                    setDraftAppointment((current) => ({
+                      ...current,
+                      category,
+                      title: categoryMeta[category].label
+                    }));
+                  }}
+                >
+                  {Object.entries(categoryMeta).map(([key, value]) => (
+                    <option key={key} value={key}>{value.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Owner
+                <select disabled value="current-user">
+                  <option value="current-user">Signed-in user / manager</option>
+                </select>
+              </label>
+              <label>
+                Title
+                <input
+                  placeholder="Appointment title"
+                  value={draftAppointment.title}
+                  onChange={(event) => setDraftAppointment((current) => ({ ...current, title: event.target.value }))}
+                />
+              </label>
+              <label>
+                Customer
+                <input
+                  placeholder="Customer name"
+                  value={draftAppointment.customer}
+                  onChange={(event) => setDraftAppointment((current) => ({ ...current, customer: event.target.value }))}
+                />
+              </label>
+              <label>
+                Vehicle
+                <input
+                  placeholder="Vehicle / stock #"
+                  value={draftAppointment.vehicle}
+                  onChange={(event) => setDraftAppointment((current) => ({ ...current, vehicle: event.target.value }))}
+                />
+              </label>
+              <label>
+                Date
+                <input
+                  type="date"
+                  value={draftAppointment.localDate}
+                  onChange={(event) => setDraftAppointment((current) => ({ ...current, localDate: event.target.value }))}
+                />
+              </label>
+              <label>
+                Start time
+                <input
+                  type="time"
+                  value={draftAppointment.startTime}
+                  onChange={(event) => setDraftAppointment((current) => ({ ...current, startTime: event.target.value }))}
+                />
+              </label>
+              <label>
+                Duration
+                <select
+                  value={draftAppointment.durationMinutes}
+                  onChange={(event) => setDraftAppointment((current) => ({ ...current, durationMinutes: Number(event.target.value) }))}
+                >
+                  <option value={30}>30 minutes</option>
+                  <option value={45}>45 minutes</option>
+                  <option value={60}>1 hour</option>
+                  <option value={75}>1 hour 15 minutes</option>
+                  <option value={90}>1 hour 30 minutes</option>
+                </select>
+              </label>
+              <label className="appointment-modal-span">
+                Reason
+                <textarea
+                  rows={3}
+                  placeholder="Every creation requires a documented reason."
+                  value={draftAppointment.reason}
+                  onChange={(event) => setDraftAppointment((current) => ({ ...current, reason: event.target.value }))}
+                />
+              </label>
             </div>
             <div className="appointment-detail-actions">
-              <button type="button" onClick={() => { handlePreviewAction("Draft appointment"); setDraftOpen(false); }}><ClipboardCheck size={16} aria-hidden="true" />Capture Draft Preview</button>
-              <button type="button" onClick={() => setDraftOpen(false)}><FileText size={16} aria-hidden="true" />Close</button>
+              <button disabled={isDraftSaving} type="button" onClick={() => void submitDraftAppointment()}><ClipboardCheck size={16} aria-hidden="true" />{isDraftSaving ? "Creating..." : "Create Draft Appointment"}</button>
+              <button disabled={isDraftSaving} type="button" onClick={() => setDraftOpen(false)}><FileText size={16} aria-hidden="true" />Close</button>
             </div>
           </div>
         </div>
