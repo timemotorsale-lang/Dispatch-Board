@@ -79,7 +79,7 @@ Prisma client generation updated generated types but could not replace the locke
 
 | Surface | Current state |
 | --- | --- |
-| Appointments | Visible preview shell exists; E1 command intake API boundary exists; scheduling engine, lifecycle execution, persistence workflows, and live command-center services remain pending |
+| Appointments | Visible preview shell exists; E1 command intake API boundary exists; E2 scheduling service boundaries exist; EAPT-027 lifecycle command execution route exists for supported backend commands; live command-center UI wiring, browser workflows, and production evidence remain pending |
 | Customers | Placeholder guidance page; no enterprise customer subsystem |
 | Vehicles | Placeholder guidance page; no enterprise vehicle subsystem |
 | Reports | Placeholder guidance page; no enterprise reporting subsystem |
