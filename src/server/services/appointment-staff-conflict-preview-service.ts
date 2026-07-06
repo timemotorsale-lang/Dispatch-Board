@@ -201,6 +201,12 @@ export type AppointmentStaffConflictPreviewResult = {
   availability: StaffAvailabilityResult | null;
 };
 
+export type AppointmentStaffConflictPreviewOptions = {
+  proposedStartsAt?: Date | null;
+  proposedEndsAt?: Date | null;
+  proposedSchedulingTimezone?: string | null;
+};
+
 export type OverrideAppointmentStaffWarningInput = {
   expectedAppointmentVersion: number;
   reasonCode: string;
@@ -725,7 +731,8 @@ export async function previewAppointmentStaffConflicts(
   appointmentId: string,
   repository: AppointmentStaffConflictPreviewRepository =
     createAppointmentStaffConflictPreviewRepository(),
-  now = new Date()
+  now = new Date(),
+  options: AppointmentStaffConflictPreviewOptions = {}
 ): Promise<AppointmentStaffConflictPreviewResult> {
   const actor = assertAuthenticated(user);
   const normalizedAppointmentId = appointmentId.trim();
@@ -761,19 +768,28 @@ export async function previewAppointmentStaffConflicts(
     throw new Error("Appointment command is not authorized.");
   }
 
-  const staffMemberIdentities = getStaffMembersFromAppointment(appointment);
+  const appointmentForPreview = {
+    ...appointment,
+    startsAt: options.proposedStartsAt ?? appointment.startsAt,
+    endsAt: options.proposedEndsAt ?? appointment.endsAt,
+    schedulingTimezone: options.proposedSchedulingTimezone ?? appointment.schedulingTimezone
+  };
+  const staffMemberIdentities = getStaffMembersFromAppointment(appointmentForPreview);
   const members = await Promise.all(
     staffMemberIdentities.map(async (member) => ({
       ...member,
-      locationAccess: await repository.findLocationAccess(member.userId, appointment.locationId),
+      locationAccess: await repository.findLocationAccess(
+        member.userId,
+        appointmentForPreview.locationId
+      ),
       staffResource: await repository.findStaffResourceForUser(
         member.userId,
-        appointment.locationId
+        appointmentForPreview.locationId
       )
     }))
   );
   const initialPreview = buildPreview({
-    appointment,
+    appointment: appointmentForPreview,
     members
   });
   const warningKeys = initialPreview.staffMembers
@@ -785,7 +801,7 @@ export async function previewAppointmentStaffConflicts(
       : [];
 
   return buildPreview({
-    appointment,
+    appointment: appointmentForPreview,
     members,
     overriddenWarningKeys: new Set(overriddenWarningKeys)
   });

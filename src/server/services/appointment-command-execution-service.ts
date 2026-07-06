@@ -11,7 +11,10 @@ import {
   type AppointmentLifecycleTransactionResult
 } from "@/server/appointments/appointment-lifecycle-transaction-service";
 import type { AppointmentLocationAccessGrant } from "@/server/policies/access";
-import { previewAppointmentStaffConflicts } from "@/server/services/appointment-staff-conflict-preview-service";
+import {
+  previewAppointmentStaffConflicts,
+  type AppointmentStaffConflictPreviewOptions
+} from "@/server/services/appointment-staff-conflict-preview-service";
 import {
   createAppointmentCommandRepository,
   type AppointmentCommandAppointmentRecord,
@@ -29,7 +32,39 @@ export type AppointmentCommandExecutionResult = AppointmentCommandBoundaryResult
   execution: AppointmentLifecycleTransactionResult | null;
 };
 
-type StaffConflictPreviewForSchedule = typeof previewAppointmentStaffConflicts;
+type StaffConflictPreviewForSchedule = (
+  user: AuthenticatedUser | null,
+  appointmentId: string,
+  repository?: Parameters<typeof previewAppointmentStaffConflicts>[2],
+  now?: Date,
+  options?: AppointmentStaffConflictPreviewOptions
+) => ReturnType<typeof previewAppointmentStaffConflicts>;
+
+function parsePayloadDate(value: unknown) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const date = value instanceof Date ? value : new Date(String(value));
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getProposedScheduleWindow(payload: Record<string, unknown>) {
+  const proposedStartsAt = parsePayloadDate(payload.startsAt);
+  const proposedEndsAt = parsePayloadDate(payload.endsAt);
+
+  if (!proposedStartsAt || !proposedEndsAt) {
+    return {};
+  }
+
+  return {
+    proposedStartsAt,
+    proposedEndsAt,
+    proposedSchedulingTimezone:
+      typeof payload.schedulingTimezone === "string" ? payload.schedulingTimezone : null
+  } satisfies AppointmentStaffConflictPreviewOptions;
+}
 
 function isLifecycleExecutionCommand(
   commandType: string
@@ -115,7 +150,8 @@ async function getLifecyclePayload(input: {
     input.user,
     input.appointment.id,
     undefined,
-    input.now
+    input.now,
+    getProposedScheduleWindow(payload)
   );
 
   if (staffConflicts.status === "BLOCKED") {

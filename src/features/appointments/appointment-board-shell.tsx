@@ -60,6 +60,13 @@ type DraftAppointmentForm = {
   reason: string;
 };
 
+type ScheduleDraftForm = {
+  localDate: string;
+  startTime: string;
+  durationMinutes: number;
+  reasonNotes: string;
+};
+
 type StaffMember = {
   id: string;
   name: string;
@@ -1048,6 +1055,12 @@ export function AppointmentBoardShell() {
     durationMinutes: 60,
     reason: ""
   });
+  const [scheduleDraft, setScheduleDraft] = useState<ScheduleDraftForm>({
+    localDate: defaultBoardDate,
+    startTime: "10:00",
+    durationMinutes: 60,
+    reasonNotes: ""
+  });
   const [liveAppointments, setLiveAppointments] = useState<Appointment[]>([]);
   const [isLiveLoading, setIsLiveLoading] = useState(true);
   const [isDraftSaving, setIsDraftSaving] = useState(false);
@@ -1212,6 +1225,9 @@ export function AppointmentBoardShell() {
 
   const selectedAppointment =
     boardAppointments.find((appointment) => appointment.id === selectedId) ?? filteredAppointments[0] ?? boardAppointments[0];
+  const selectedAppointmentIsUnscheduledDraft =
+    selectedAppointment.dataSource === "live" &&
+    isUnscheduledDraftAppointment(selectedAppointment);
 
   const selectedStaff =
     visibleStaffMembers.find((staff) => staff.id === selectedAppointment.staffId) ?? visibleStaffMembers[0];
@@ -1281,6 +1297,10 @@ export function AppointmentBoardShell() {
   function selectAppointmentForDetail(appointment: Appointment) {
     setSelectedId(appointment.id);
     resetOutcomeDraftFromAppointment(appointment);
+    setScheduleDraft((current) => ({
+      ...current,
+      reasonNotes: ""
+    }));
   }
 
   useEffect(() => {
@@ -2299,6 +2319,97 @@ export function AppointmentBoardShell() {
     }
   }
 
+  async function submitUnscheduledDraftSchedule() {
+    if (!selectedAppointment.recordId || !selectedAppointment.recordVersion) {
+      setActionNotice(
+        `Schedule Draft is wired to the live command API, but ${selectedAppointment.id} is still preview data.`
+      );
+      return;
+    }
+
+    if (!selectedAppointmentIsUnscheduledDraft) {
+      setActionNotice("This scheduling form is only for unscheduled live draft appointments.");
+      return;
+    }
+
+    if (!scheduleDraft.reasonNotes.trim()) {
+      setActionNotice("Scheduling an unscheduled draft requires a documented reason.");
+      return;
+    }
+
+    setIsCommandPending(true);
+
+    try {
+      const startsAt = localDateTimeToMinneapolisIso(
+        scheduleDraft.localDate,
+        scheduleDraft.startTime
+      );
+      const endsAt = addMinutesToIso(startsAt, scheduleDraft.durationMinutes);
+      const idempotencyKey = createCommandIdentifier("SCHEDULE", selectedAppointment.recordId);
+      const response = await fetch("/api/appointments/commands", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          commandType: "SCHEDULE",
+          appointmentId: selectedAppointment.recordId,
+          expectedAppointmentVersion: selectedAppointment.recordVersion,
+          idempotencyKey,
+          correlationId: idempotencyKey,
+          payload: {
+            startsAt,
+            endsAt,
+            schedulingTimezone: selectedAppointment.schedulingTimezone ?? defaultTimezone,
+            reasonCode: "UNSCHEDULED_DRAFT_SCHEDULED",
+            reasonNotes: buildResourceReasonNote(
+              `Scheduled unscheduled draft ${selectedAppointment.id} from Appointment Board draft lane for ${scheduleDraft.localDate} at ${scheduleDraft.startTime}.`,
+              scheduleDraft.reasonNotes
+            )
+          }
+        })
+      });
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok || !result?.accepted) {
+        throw new Error(
+          result?.error ||
+            result?.execution?.rejectionReasons?.join(" ") ||
+            "Unscheduled draft could not be scheduled."
+        );
+      }
+
+      setAppointmentStatusOverrides((current) => ({
+        ...current,
+        [selectedAppointment.id]: "confirmed"
+      }));
+      setScheduleDraft((current) => ({
+        ...current,
+        reasonNotes: ""
+      }));
+      setActionNotice(
+        `Scheduled ${selectedAppointment.id}. It now has a real time window and was moved onto the appointment calendar.`
+      );
+
+      const refreshedAppointments = await loadLiveAppointments({
+        suppressSuccessNotice: true
+      });
+      const refreshedAppointment = refreshedAppointments.find(
+        (appointment) => appointment.id === selectedAppointment.id
+      );
+
+      if (refreshedAppointment) {
+        selectAppointmentForDetail(refreshedAppointment);
+      }
+    } catch (error) {
+      setActionNotice(
+        error instanceof Error ? error.message : "Unscheduled draft could not be scheduled."
+      );
+    } finally {
+      setIsCommandPending(false);
+    }
+  }
+
   async function submitOperationalCommand(commandType: OperationalCommand) {
     const label = commandLabel(commandType);
 
@@ -2311,6 +2422,11 @@ export function AppointmentBoardShell() {
 
     if (commandType === "NO_SHOW" && !noShowDraft.reasonNotes.trim()) {
       setActionNotice("No Show requires reason notes before it can be submitted.");
+      return;
+    }
+
+    if (commandType === "SCHEDULE" && selectedAppointmentIsUnscheduledDraft) {
+      setActionNotice("Use the unscheduled draft scheduling form to choose a date, time, and reason.");
       return;
     }
 
@@ -2813,6 +2929,91 @@ export function AppointmentBoardShell() {
                   {isReadinessLoading ? "Checking schedule readiness..." : "Schedule readiness is not available for this appointment yet."}
                 </p>
               )}
+            </div>
+          ) : null}
+
+          {selectedAppointmentIsUnscheduledDraft ? (
+            <div className="appointment-detail-section">
+              <div className="appointment-section-heading">
+                <strong>Schedule Unscheduled Draft</strong>
+                <span className="appointment-resource-chip appointment-resource-ready-to-select">
+                  Command audited
+                </span>
+              </div>
+              <label className="appointment-outcome-label">
+                Appointment date
+                <input
+                  disabled={isCommandPending}
+                  onChange={(event) =>
+                    setScheduleDraft((current) => ({
+                      ...current,
+                      localDate: event.target.value
+                    }))
+                  }
+                  type="date"
+                  value={scheduleDraft.localDate}
+                />
+              </label>
+              <label className="appointment-outcome-label">
+                Start time
+                <input
+                  disabled={isCommandPending}
+                  onChange={(event) =>
+                    setScheduleDraft((current) => ({
+                      ...current,
+                      startTime: event.target.value
+                    }))
+                  }
+                  type="time"
+                  value={scheduleDraft.startTime}
+                />
+              </label>
+              <label className="appointment-outcome-label">
+                Duration
+                <select
+                  disabled={isCommandPending}
+                  onChange={(event) =>
+                    setScheduleDraft((current) => ({
+                      ...current,
+                      durationMinutes: Number(event.target.value)
+                    }))
+                  }
+                  value={scheduleDraft.durationMinutes}
+                >
+                  <option value={30}>30 min</option>
+                  <option value={45}>45 min</option>
+                  <option value={60}>1 hr</option>
+                  <option value={75}>1 hr 15 min</option>
+                  <option value={90}>1 hr 30 min</option>
+                  <option value={120}>2 hr</option>
+                </select>
+              </label>
+              <label className="appointment-outcome-label">
+                Scheduling reason
+                <textarea
+                  disabled={isCommandPending}
+                  onChange={(event) =>
+                    setScheduleDraft((current) => ({
+                      ...current,
+                      reasonNotes: event.target.value
+                    }))
+                  }
+                  placeholder="Document why this draft is being scheduled for this slot."
+                  rows={3}
+                  value={scheduleDraft.reasonNotes}
+                />
+              </label>
+              <p className="appointment-resource-copy">
+                This submits the existing SCHEDULE command with the selected Minneapolis time window, expected version, idempotency key, staff-conflict validation, and history reason.
+              </p>
+              <button
+                className="appointment-resource-action"
+                disabled={isCommandPending || !scheduleDraft.reasonNotes.trim()}
+                onClick={() => void submitUnscheduledDraftSchedule()}
+                type="button"
+              >
+                {isCommandPending ? "Scheduling..." : "Schedule This Draft"}
+              </button>
             </div>
           ) : null}
 
@@ -3430,7 +3631,11 @@ export function AppointmentBoardShell() {
           <div className="appointment-detail-actions">
             {selectedAppointment.status === "draft" ? (
               <button
-                disabled={isCommandPending || selectedAppointment.dataSource !== "live"}
+                disabled={
+                  isCommandPending ||
+                  selectedAppointment.dataSource !== "live" ||
+                  selectedAppointmentIsUnscheduledDraft
+                }
                 type="button"
                 onClick={() => void submitOperationalCommand("SCHEDULE")}
               >

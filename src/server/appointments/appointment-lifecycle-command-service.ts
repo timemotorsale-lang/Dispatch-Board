@@ -1018,6 +1018,8 @@ function buildSchedulePlan(
     bookingStatus: "SCHEDULED",
     schedulingTimezone: input.payload?.schedulingTimezone ?? appointment.schedulingTimezone
   };
+  const reasonCode = optionalText(input.payload?.reasonCode);
+  const reasonNotes = optionalText(input.payload?.reasonNotes);
 
   return {
     commandId: input.commandId,
@@ -1048,6 +1050,8 @@ function buildSchedulePlan(
         command: input,
         eventType: "SCHEDULED",
         message: `Appointment ${appointment.appointmentNumber} scheduled.`,
+        reasonCode,
+        reasonNotes,
         priorValue: {
           startsAt: appointment.startsAt,
           endsAt: appointment.endsAt,

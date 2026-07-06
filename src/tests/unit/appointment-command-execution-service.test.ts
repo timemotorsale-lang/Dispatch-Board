@@ -253,6 +253,95 @@ describe("appointment command execution service", () => {
     expect(lifecycleHarness.completedCommands).toEqual(["cmd-1"]);
   });
 
+  it("evaluates proposed schedule times for unscheduled draft staff checks", async () => {
+    const commandHarness = createCommandRepositoryHarness({
+      appointment: {
+        id: "appointment-1",
+        appointmentNumber: "APT-10245",
+        organizationId: "org-time-motor-sales",
+        locationId: "loc-time-motor-sales-minneapolis",
+        ownerUserId: ownerUser.id,
+        title: "Follow-up: Service / Repair",
+        schedulingTimezone: "America/Chicago",
+        startsAt: null,
+        endsAt: null,
+        bookingStatus: "DRAFT",
+        confirmationStatus: "PENDING",
+        attendanceStatus: "EXPECTED",
+        executionStatus: "NOT_STARTED",
+        version: 3
+      }
+    });
+    const lifecycleHarness = createLifecycleRepositoryHarness();
+    const proposedWindows: Array<{
+      startsAt: string | null;
+      endsAt: string | null;
+      timezone: string | null | undefined;
+    }> = [];
+    const result = await submitAndExecuteAppointmentCommand(
+      managerUser,
+      {
+        commandType: "SCHEDULE",
+        appointmentId: "appointment-1",
+        expectedAppointmentVersion: 3,
+        idempotencyKey: "schedule-unscheduled-draft-1",
+        correlationId: "corr-schedule-unscheduled-draft-1",
+        payload: {
+          startsAt: "2026-07-06T16:00:00.000Z",
+          endsAt: "2026-07-06T17:00:00.000Z",
+          schedulingTimezone: "America/Chicago",
+          reasonCode: "UNSCHEDULED_DRAFT_SCHEDULED",
+          reasonNotes: "Customer requested the follow-up slot."
+        }
+      },
+      {
+        commandRepository: commandHarness.repository,
+        lifecycleRepository: lifecycleHarness.repository,
+        staffConflictPreview: async (_user, _appointmentId, _repository, _now, options) => {
+          proposedWindows.push({
+            startsAt: options?.proposedStartsAt?.toISOString() ?? null,
+            endsAt: options?.proposedEndsAt?.toISOString() ?? null,
+            timezone: options?.proposedSchedulingTimezone
+          });
+
+          return {
+            appointmentId: "appointment-1",
+            appointmentNumber: "APT-10245",
+            bookingStatus: "DRAFT",
+            status: "READY",
+            canProceedWithStaff: true,
+            warningOverrideRequired: false,
+            warningOverrideSatisfied: false,
+            warningKey: null,
+            staff: null,
+            staffMembers: [],
+            checks: [],
+            reasons: [],
+            availability: null
+          };
+        },
+        now
+      }
+    );
+
+    expect(result.accepted).toBe(true);
+    expect(result.execution).toMatchObject({
+      executed: true,
+      commandStatus: "SUCCEEDED",
+      appointment: {
+        id: "appointment-1",
+        version: 4
+      }
+    });
+    expect(proposedWindows).toEqual([
+      {
+        startsAt: "2026-07-06T16:00:00.000Z",
+        endsAt: "2026-07-06T17:00:00.000Z",
+        timezone: "America/Chicago"
+      }
+    ]);
+  });
+
   it("adds held resource reservations to schedule execution on the server", async () => {
     const commandHarness = createCommandRepositoryHarness({
       appointment: {
