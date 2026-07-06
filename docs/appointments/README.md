@@ -70,6 +70,7 @@ The approved enterprise product, permission, lifecycle, conflict, automation, an
 | [RESOURCE_RESERVATION_COMMIT_CONTRACT.md](RESOURCE_RESERVATION_COMMIT_CONTRACT.md) | Implemented EAPT-020 protected resource reservation commit and release contract |
 | [AVAILABILITY_SEARCH_CONTRACT.md](AVAILABILITY_SEARCH_CONTRACT.md) | Implemented EAPT-021 availability search contract for people and resources |
 | [RESCHEDULE_IMPACT_PREVIEW_CONTRACT.md](RESCHEDULE_IMPACT_PREVIEW_CONTRACT.md) | Implemented EAPT-022 reschedule and recurrence-change impact preview contract |
+| [BULK_RESCHEDULE_CONTRACT.md](BULK_RESCHEDULE_CONTRACT.md) | Implemented EAPT-023 bulk-reschedule dry-run and controlled-execution contract |
 | [AUTOMATION_RULES_CATALOG.md](AUTOMATION_RULES_CATALOG.md) | Explainable task-to-appointment and appointment-to-task automation model |
 | [PERMISSION_MATRIX.md](PERMISSION_MATRIX.md) | Manager, owner, participant, viewer, administrator, and system-action authorization rules |
 | [LIFECYCLE_CONFLICT_MATRIX.md](LIFECYCLE_CONFLICT_MATRIX.md) | State transitions, reason requirements, resource constraints, warnings, and hard blocks |
@@ -121,7 +122,8 @@ Implementation tickets may clarify technical details but may not weaken these ru
 | EAPT-020 — Atomic resource reservation and release behavior | Complete | `RESOURCE_RESERVATION_COMMIT_CONTRACT.md`, transaction/lock service boundary, deterministic resource lock ordering, inside-lock availability recheck, no-partial-create behavior, held/committed capacity protection, warning commit policy, reasoned release, and focused tests |
 | EAPT-021 — Availability search for people and resources | Complete | `AVAILABILITY_SEARCH_CONTRACT.md`, availability search service, bounded local-date windows, location-window candidate generation, hard-conflict and warning reconciliation, clean availability filtering, blocked diagnostics, and focused tests |
 | EAPT-022 — Rescheduling and recurrence-change impact preview | Complete | `RESCHEDULE_IMPACT_PREVIEW_CONTRACT.md`, reschedule impact service, prior/new time preview, reservation release/recreate impact, hard-block and warning reconciliation, recurrence scope preview, preserved occurrence handling, and focused tests |
-| EAPT-023 — Bulk-rescheduling dry run and controlled execution | Next | Use impact previews to plan bulk changes, partial-failure handling, retries, permissions, and audit-safe execution |
+| EAPT-023 — Bulk-rescheduling dry run and controlled execution | Complete | `BULK_RESCHEDULE_CONTRACT.md`, bulk dry-run classification, all-or-nothing and partial execution policies, required reasons, operation preview tokens, retry/idempotency behavior, skipped-item reporting, and focused tests |
+| EAPT-024 — Waitlist and unscheduled-request domain services | Next | Capture unscheduled requests safely and convert them to candidates without silently scheduling |
 
 ## Recommended Review Order
 
