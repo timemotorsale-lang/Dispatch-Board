@@ -631,6 +631,32 @@ function statusLabel(status: AppointmentStatus) {
   return status.split("-").map((word) => word[0].toUpperCase() + word.slice(1)).join(" ");
 }
 
+export function isUnscheduledDraftAppointment(appointment: {
+  status: string;
+  startsAtIso?: string | null;
+  endsAtIso?: string | null;
+}) {
+  return appointment.status === "draft" && (!appointment.startsAtIso || !appointment.endsAtIso);
+}
+
+function appointmentTimeLabel(appointment: Appointment) {
+  if (isUnscheduledDraftAppointment(appointment)) {
+    return "Unscheduled";
+  }
+
+  return formatTime(appointment.startMinutes);
+}
+
+function appointmentTimeRangeLabel(appointment: Appointment) {
+  if (isUnscheduledDraftAppointment(appointment)) {
+    return "Unscheduled draft - choose a time to schedule";
+  }
+
+  return `${formatTime(appointment.startMinutes)} - ${formatTime(
+    appointment.startMinutes + appointment.durationMinutes
+  )} (${appointment.durationMinutes} min)`;
+}
+
 function getInitials(name: string) {
   return name
     .split(" ")
@@ -1173,6 +1199,16 @@ export function AppointmentBoardShell() {
       );
     });
   }, [boardAppointments, categoryFilter, conflictsOnly, query, staffFilter, statusFilter]);
+
+  const unscheduledDraftAppointments = useMemo(
+    () => filteredAppointments.filter((appointment) => isUnscheduledDraftAppointment(appointment)),
+    [filteredAppointments]
+  );
+
+  const scheduledFilteredAppointments = useMemo(
+    () => filteredAppointments.filter((appointment) => !isUnscheduledDraftAppointment(appointment)),
+    [filteredAppointments]
+  );
 
   const selectedAppointment =
     boardAppointments.find((appointment) => appointment.id === selectedId) ?? filteredAppointments[0] ?? boardAppointments[0];
@@ -2564,6 +2600,41 @@ export function AppointmentBoardShell() {
 
       <div className="appointment-main-grid">
         <div className="appointment-board-card">
+          {unscheduledDraftAppointments.length > 0 ? (
+            <section className="appointment-unscheduled-card" aria-labelledby="unscheduled-draft-appointments">
+              <div className="appointment-section-heading">
+                <div>
+                  <strong id="unscheduled-draft-appointments">Unscheduled / Drafts</strong>
+                  <p>Generated follow-ups and live drafts waiting for a real appointment time.</p>
+                </div>
+                <span>{unscheduledDraftAppointments.length} needs scheduling</span>
+              </div>
+              <div className="appointment-unscheduled-list">
+                {unscheduledDraftAppointments.map((appointment) => {
+                  const meta = categoryMeta[appointment.category];
+
+                  return (
+                    <button
+                      className={
+                        selectedAppointment.id === appointment.id
+                          ? `appointment-unscheduled-item ${meta.className} appointment-unscheduled-item-active`
+                          : `appointment-unscheduled-item ${meta.className}`
+                      }
+                      key={appointment.id}
+                      onClick={() => selectAppointmentForDetail(appointment)}
+                      type="button"
+                    >
+                      <span>{appointment.id}</span>
+                      <strong>{appointment.title}</strong>
+                      <small>{appointment.customer} · {appointment.vehicle}</small>
+                      <em>{appointment.staffName ?? "Unassigned"} · {categoryMeta[appointment.category].label}</em>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
+
           <div className="appointment-board-controls">
             <div className="appointment-view-tabs" aria-label="Appointment view">
               {viewModes.map((mode) => (
@@ -2619,7 +2690,7 @@ export function AppointmentBoardShell() {
                 </div>
                 {visibleStaffMembers.map((staff) => (
                   <div className="appointment-staff-column" key={staff.id}>
-                    {filteredAppointments.filter((appointment) => appointment.staffId === staff.id).map((appointment) => {
+                    {scheduledFilteredAppointments.filter((appointment) => appointment.staffId === staff.id).map((appointment) => {
                       const meta = categoryMeta[appointment.category];
                       const top = Math.max(0, ((appointment.startMinutes - 540) / 60) * 66);
                       const height = Math.max(58, (appointment.durationMinutes / 60) * 66);
@@ -2652,9 +2723,9 @@ export function AppointmentBoardShell() {
               <strong>{viewMode[0].toUpperCase() + viewMode.slice(1)} view shell</strong>
               <p>The command surface is ready; live scheduling data will reuse the same enterprise controls, permissions, and audit rules.</p>
               <div className="appointment-alt-list">
-                {filteredAppointments.slice(0, 5).map((appointment) => (
+                {scheduledFilteredAppointments.slice(0, 5).map((appointment) => (
                   <button key={appointment.id} type="button" onClick={() => selectAppointmentForDetail(appointment)}>
-                    <span>{formatTime(appointment.startMinutes)}</span>
+                    <span>{appointmentTimeLabel(appointment)}</span>
                     <strong>{appointment.title}</strong>
                     <small>{appointment.customer} · {categoryMeta[appointment.category].label}</small>
                   </button>
@@ -2684,7 +2755,7 @@ export function AppointmentBoardShell() {
 
           <div className="appointment-detail-list">
             <p><CalendarDays size={16} aria-hidden="true" />{businessDate}</p>
-            <p><Clock3 size={16} aria-hidden="true" />{formatTime(selectedAppointment.startMinutes)} - {formatTime(selectedAppointment.startMinutes + selectedAppointment.durationMinutes)} ({selectedAppointment.durationMinutes} min)</p>
+            <p><Clock3 size={16} aria-hidden="true" />{appointmentTimeRangeLabel(selectedAppointment)}</p>
             <p><UserRound size={16} aria-hidden="true" />{selectedStaff.name} ({selectedStaff.role})</p>
             <p><Phone size={16} aria-hidden="true" />{selectedAppointment.phone}</p>
             <p><Car size={16} aria-hidden="true" />{selectedAppointment.vehicle}</p>

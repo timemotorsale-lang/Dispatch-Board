@@ -5573,6 +5573,7 @@ code {
 
 .appointment-board-card,
 .appointment-detail-panel,
+.appointment-unscheduled-card,
 .appointment-upcoming-card {
   min-width: 0;
   background: #fff;
@@ -5583,6 +5584,89 @@ code {
 
 .appointment-board-card {
   overflow: hidden;
+}
+
+.appointment-unscheduled-card {
+  display: grid;
+  gap: 12px;
+  margin: 12px;
+  padding: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  border-style: dashed;
+  box-shadow: none;
+}
+
+.appointment-unscheduled-card .appointment-section-heading {
+  align-items: flex-start;
+}
+
+.appointment-unscheduled-card .appointment-section-heading div {
+  display: grid;
+  gap: 3px;
+}
+
+.appointment-unscheduled-card .appointment-section-heading p {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.appointment-unscheduled-card .appointment-section-heading > span {
+  display: inline-grid;
+  place-items: center;
+  min-height: 26px;
+  padding: 0 9px;
+  color: #7c3aed;
+  background: #f2edfb;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.appointment-unscheduled-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 9px;
+}
+
+.appointment-unscheduled-item {
+  display: grid;
+  gap: 4px;
+  padding: 11px 12px;
+  text-align: left;
+  border-width: 1px 1px 1px 4px;
+  border-style: solid;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.appointment-unscheduled-item span {
+  color: #475569;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+}
+
+.appointment-unscheduled-item strong {
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.appointment-unscheduled-item small,
+.appointment-unscheduled-item em {
+  color: #64748b;
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1.35;
+}
+
+.appointment-unscheduled-item-active {
+  outline: 2px solid rgba(124, 58, 237, 0.32);
+  outline-offset: 1px;
 }
 
 .appointment-board-controls {
