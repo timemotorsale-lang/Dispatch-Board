@@ -76,6 +76,7 @@ The approved enterprise product, permission, lifecycle, conflict, automation, an
 | [E2_SCHEDULING_GATE_REVIEW.md](E2_SCHEDULING_GATE_REVIEW.md) | E2 gate package with scheduling evidence, carry-forward risks, non-claims, approval owners, and E3 handoff |
 | [APPOINTMENT_READ_MODEL_CONTRACT.md](APPOINTMENT_READ_MODEL_CONTRACT.md) | Implemented EAPT-026 appointment read model and permission-filtered query contract |
 | [LIFECYCLE_COMMAND_EXECUTION_CONTRACT.md](LIFECYCLE_COMMAND_EXECUTION_CONTRACT.md) | Implemented EAPT-027 lifecycle command execution planning contract |
+| [LIFECYCLE_TRANSACTION_EXECUTION_CONTRACT.md](LIFECYCLE_TRANSACTION_EXECUTION_CONTRACT.md) | Implemented EAPT-027 atomic transaction execution boundary contract |
 | [AUTOMATION_RULES_CATALOG.md](AUTOMATION_RULES_CATALOG.md) | Explainable task-to-appointment and appointment-to-task automation model |
 | [PERMISSION_MATRIX.md](PERMISSION_MATRIX.md) | Manager, owner, participant, viewer, administrator, and system-action authorization rules |
 | [LIFECYCLE_CONFLICT_MATRIX.md](LIFECYCLE_CONFLICT_MATRIX.md) | State transitions, reason requirements, resource constraints, warnings, and hard blocks |
@@ -132,7 +133,7 @@ Implementation tickets may clarify technical details but may not weaken these ru
 | EAPT-025 — Scheduling engine load, concurrency, and failure tests | Complete | `SCHEDULING_ENGINE_QUALITY_GATE.md`, approved baseline coverage, peak-hour availability search test, exclusive-resource concurrency test, transaction-failure no-partial-state test, 500-item bulk dry-run test, and focused tests |
 | E2 scheduling foundation gate | Ready for review | `E2_SCHEDULING_GATE_REVIEW.md`, gate-review constants, evidence map, carry-forward risks, non-claims, approval owner list, E3 handoff, and tests; database-backed adapters, live APIs, and UI workflows remain later milestones |
 | EAPT-026 — Appointment read model and permission-filtered queries | Complete | `APPOINTMENT_READ_MODEL_CONTRACT.md`, appointment read repository, permission-filtered read service, manager/owner/participant/viewer relationship projection, customer and vehicle masking, cancelled/window filtering, and focused tests |
-| EAPT-027 — Create, approve, edit, ownership, cancel, and reschedule commands | Complete service boundary | `LIFECYCLE_COMMAND_EXECUTION_CONTRACT.md`, additive approve/edit command migration, lifecycle command planner, create draft, approve, edit, schedule, reschedule, cancel, and transfer-owner effects, hard-conflict/warning rejection, reason/follow-up requirements, reservation/task/history effect planning, and focused tests; live transaction execution remains pending |
+| EAPT-027 — Create, approve, edit, ownership, cancel, and reschedule commands | Complete service boundary | `LIFECYCLE_COMMAND_EXECUTION_CONTRACT.md`, `LIFECYCLE_TRANSACTION_EXECUTION_CONTRACT.md`, additive approve/edit command migration, lifecycle command planner, atomic transaction executor boundary, create draft, approve, edit, schedule, reschedule, cancel, and transfer-owner effects, hard-conflict/warning rejection, reason/follow-up requirements, reservation/task/history/command-result effect execution, rollback tests, and focused tests; concrete Prisma adapter and route wiring remain pending |
 
 ## Recommended Review Order
 
