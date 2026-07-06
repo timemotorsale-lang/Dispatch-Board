@@ -56,6 +56,8 @@ const appointmentResourcePlanningSelect = {
           id: true,
           status: true,
           resourceId: true,
+          startsAt: true,
+          endsAt: true,
           createdAt: true,
           resource: {
             select: {
@@ -295,6 +297,9 @@ export type ProposeAppointmentResourceCandidateInput = {
   reasonCode: string;
   reasonNotes: string;
   correlationId?: string | null;
+  proposedStartsAt?: Date | null;
+  proposedEndsAt?: Date | null;
+  proposedSchedulingTimezone?: string | null;
 };
 
 export type AppointmentReplacedResourceReservation = Omit<
@@ -1228,7 +1233,11 @@ export async function proposeAppointmentResourceCandidate(
     throw new Error("Resource candidates can only be proposed for draft appointments.");
   }
 
-  if (!appointment.startsAt || !appointment.endsAt || appointment.endsAt <= appointment.startsAt) {
+  const reservationStartsAt = input.proposedStartsAt ?? appointment.startsAt;
+  const reservationEndsAt = input.proposedEndsAt ?? appointment.endsAt;
+  const reservationTimezone = input.proposedSchedulingTimezone ?? appointment.schedulingTimezone;
+
+  if (!reservationStartsAt || !reservationEndsAt || reservationEndsAt <= reservationStartsAt) {
     throw new Error("Resource candidate proposal requires a valid appointment time window.");
   }
 
@@ -1317,8 +1326,8 @@ export async function proposeAppointmentResourceCandidate(
     resourceId: resource.id,
     resourceLocationId: resource.locationId,
     status: "PROPOSED",
-    startsAt: appointment.startsAt,
-    endsAt: appointment.endsAt,
+    startsAt: reservationStartsAt,
+    endsAt: reservationEndsAt,
     capacityUnits: requirement.requiredCapacity,
     resourceCapacity: resource.capacity,
     resourceCapacityMode: resource.capacityMode,
@@ -1327,7 +1336,13 @@ export async function proposeAppointmentResourceCandidate(
   });
 
   const existingSameProposal = requirement.reservations.find(
-    (reservation) => reservation.status === "PROPOSED" && reservation.resourceId === resource.id
+    (reservation) =>
+      reservation.status === "PROPOSED" &&
+      reservation.resourceId === resource.id &&
+      Boolean(reservation.startsAt) &&
+      Boolean(reservation.endsAt) &&
+      reservation.startsAt.getTime() === reservationStartsAt.getTime() &&
+      reservation.endsAt.getTime() === reservationEndsAt.getTime()
   );
 
   if (existingSameProposal) {
@@ -1338,8 +1353,8 @@ export async function proposeAppointmentResourceCandidate(
         requirementId: requirement.id,
         resourceId: resource.id,
         status: "PROPOSED",
-        startsAt: appointment.startsAt,
-        endsAt: appointment.endsAt,
+        startsAt: existingSameProposal.startsAt,
+        endsAt: existingSameProposal.endsAt,
         capacityUnits: requirement.requiredCapacity
       },
       resource,
@@ -1367,7 +1382,9 @@ export async function proposeAppointmentResourceCandidate(
           .map((reservation) => ({
             id: reservation.id,
             status: reservation.status,
-            resourceId: reservation.resourceId
+            resourceId: reservation.resourceId,
+            startsAt: reservation.startsAt.toISOString(),
+            endsAt: reservation.endsAt.toISOString()
           }))
       }
     },
@@ -1376,13 +1393,19 @@ export async function proposeAppointmentResourceCandidate(
         resourceId: resource.id,
         resourceCode: resource.code,
         resourceName: resource.name,
-        status: "PROPOSED"
+        status: "PROPOSED",
+        startsAt: reservationStartsAt.toISOString(),
+        endsAt: reservationEndsAt.toISOString(),
+        schedulingTimezone: reservationTimezone
       }
     },
     metadata: {
       source: "APPOINTMENT_BOARD_RESOURCE_PLANNING",
       expectedAppointmentVersion,
-      requirementId: requirement.id
+      requirementId: requirement.id,
+      proposedStartsAt: input.proposedStartsAt?.toISOString() ?? null,
+      proposedEndsAt: input.proposedEndsAt?.toISOString() ?? null,
+      proposedSchedulingTimezone: input.proposedSchedulingTimezone ?? null
     },
     occurredAt: now
   });

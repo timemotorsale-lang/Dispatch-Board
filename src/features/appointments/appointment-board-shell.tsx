@@ -1797,6 +1797,20 @@ export function AppointmentBoardShell() {
         "resource-candidate",
         selectedAppointment.recordId
       );
+      const proposedScheduleWindow = selectedAppointmentIsUnscheduledDraft
+        ? (() => {
+            const startsAt = localDateTimeToMinneapolisIso(
+              scheduleDraft.localDate,
+              scheduleDraft.startTime
+            );
+
+            return {
+              proposedStartsAt: startsAt,
+              proposedEndsAt: addMinutesToIso(startsAt, scheduleDraft.durationMinutes),
+              proposedSchedulingTimezone: selectedAppointment.schedulingTimezone ?? defaultTimezone
+            };
+          })()
+        : {};
       const response = await fetch(
         `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/resource-requirements/${encodeURIComponent(recommendation.selectedRequirementId)}/candidate-proposals`,
         {
@@ -1808,8 +1822,11 @@ export function AppointmentBoardShell() {
             resourceId: selectedResourceId,
             expectedAppointmentVersion: selectedAppointment.recordVersion,
             reasonCode: "RESOURCE_CANDIDATE_PROPOSED",
-            reasonNotes: `Proposed ${selectedCandidate?.name ?? "selected resource"} for ${recommendation.label} from Appointment Board resource planning.`,
-            correlationId
+            reasonNotes: selectedAppointmentIsUnscheduledDraft
+              ? `Proposed ${selectedCandidate?.name ?? "selected resource"} for ${recommendation.label} from Appointment Board resource planning for ${scheduleDraft.localDate} ${scheduleDraft.startTime}.`
+              : `Proposed ${selectedCandidate?.name ?? "selected resource"} for ${recommendation.label} from Appointment Board resource planning.`,
+            correlationId,
+            ...proposedScheduleWindow
           })
         }
       );

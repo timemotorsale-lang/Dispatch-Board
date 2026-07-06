@@ -745,14 +745,18 @@ export async function holdAppointmentResourceCandidate(
     throw new Error("Resource candidates can only be held for draft appointments.");
   }
 
-  if (!appointment.startsAt || !appointment.endsAt || appointment.endsAt <= appointment.startsAt) {
-    throw new Error("Resource candidate hold requires a valid appointment time window.");
-  }
-
   const proposal = findProposedReservation(appointment, reservationId);
 
   if (!proposal) {
     throw new Error("Resource candidate proposal not found for this appointment.");
+  }
+
+  if (
+    !proposal.reservation.startsAt ||
+    !proposal.reservation.endsAt ||
+    proposal.reservation.endsAt <= proposal.reservation.startsAt
+  ) {
+    throw new Error("Resource candidate hold requires a valid appointment time window.");
   }
 
   const access = await database.userLocationAccess.findFirst({

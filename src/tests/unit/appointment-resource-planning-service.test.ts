@@ -541,6 +541,47 @@ describe("appointment resource candidate proposal", () => {
     expect(harness.createdHistory).toHaveLength(1);
   });
 
+  it("creates proposed reservations for missing-time drafts from the proposed scheduling window", async () => {
+    const harness = database({
+      appointment: appointmentWithRequirement({
+        startsAt: null,
+        endsAt: null
+      })
+    });
+
+    await proposeAppointmentResourceCandidate(
+      managerUser,
+      "appointment-1",
+      {
+        requirementId: "requirement-1",
+        resourceId: "resource-bay-1",
+        expectedAppointmentVersion: 3,
+        reasonCode: "RESOURCE_CANDIDATE_PROPOSED",
+        reasonNotes: "Propose Bay 1 for the selected draft slot.",
+        proposedStartsAt: new Date("2026-07-06T16:00:00.000Z"),
+        proposedEndsAt: new Date("2026-07-06T17:00:00.000Z"),
+        proposedSchedulingTimezone: "America/Chicago"
+      },
+      harness.database,
+      now
+    );
+
+    expect(harness.createdReservations).toMatchObject([
+      {
+        startsAt: new Date("2026-07-06T16:00:00.000Z"),
+        endsAt: new Date("2026-07-06T17:00:00.000Z")
+      }
+    ]);
+    expect(harness.createdHistory).toHaveLength(1);
+    expect(harness.createdHistory[0]).toMatchObject({
+      metadata: expect.objectContaining({
+        proposedStartsAt: "2026-07-06T16:00:00.000Z",
+        proposedEndsAt: "2026-07-06T17:00:00.000Z",
+        proposedSchedulingTimezone: "America/Chicago"
+      })
+    });
+  });
+
   it("returns an existing same proposed candidate without creating a duplicate", async () => {
     const harness = database({
       appointment: appointmentWithRequirement({
@@ -552,6 +593,8 @@ describe("appointment resource candidate proposal", () => {
                 id: "reservation-existing",
                 status: "PROPOSED",
                 resourceId: "resource-bay-1",
+                startsAt: new Date("2026-07-06T15:00:00.000Z"),
+                endsAt: new Date("2026-07-06T16:00:00.000Z"),
                 createdAt: new Date("2026-07-06T15:05:00.000Z"),
                 resource: {
                   id: "resource-bay-1",

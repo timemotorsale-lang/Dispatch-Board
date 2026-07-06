@@ -487,6 +487,42 @@ describe("appointment resource candidate hold service", () => {
     expect(harness.createdHistory).toHaveLength(1);
   });
 
+  it("holds missing-time draft candidates using the proposed reservation window", async () => {
+    const proposedAppointment = appointment({
+      startsAt: null,
+      endsAt: null
+    });
+    const harness = database({
+      appointment: proposedAppointment
+    });
+
+    const result = await holdAppointmentResourceCandidate(
+      managerUser,
+      "appointment-1",
+      {
+        reservationId: "reservation-proposed",
+        expectedAppointmentVersion: 3,
+        reasonCode: "RESOURCE_CANDIDATE_HELD",
+        reasonNotes: "Hold Bay 1 for the selected draft slot."
+      },
+      harness.database,
+      now
+    );
+
+    expect(result).toMatchObject({
+      id: "reservation-proposed",
+      status: "HELD",
+      startsAt: proposedAppointment.resourceRequirements[0].reservations[0].startsAt,
+      endsAt: proposedAppointment.resourceRequirements[0].reservations[0].endsAt,
+      availabilityStatus: "READY"
+    });
+    expect(harness.updatedReservations).toEqual([
+      {
+        status: "HELD"
+      }
+    ]);
+  });
+
   it("blocks holds when the candidate became unavailable", async () => {
     const proposedAppointment = appointment();
     const proposedReservation =

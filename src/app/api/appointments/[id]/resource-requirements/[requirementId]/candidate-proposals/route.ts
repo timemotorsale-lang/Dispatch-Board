@@ -39,6 +39,8 @@ function getResourceCandidateErrorStatus(message: string) {
     message === "Resource requirement is required." ||
     message === "Resource candidate is required." ||
     message === "Expected appointment version is required." ||
+    message === "Proposed appointment start must be a valid date." ||
+    message === "Proposed appointment end must be a valid date." ||
     message === "Resource candidates can only be proposed for draft appointments." ||
     message === "Resource candidate proposal requires a valid appointment time window." ||
     message === "Resource candidate is not available for this requirement." ||
@@ -48,6 +50,24 @@ function getResourceCandidateErrorStatus(message: string) {
   }
 
   return 500;
+}
+
+function parseOptionalDatePayload(value: unknown, label: string) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  if (typeof value !== "string") {
+    throw new Error(`${label} must be a valid date.`);
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    throw new Error(`${label} must be a valid date.`);
+  }
+
+  return date;
 }
 
 export async function POST(
@@ -73,7 +93,19 @@ export async function POST(
       reasonCode: typeof payload.reasonCode === "string" ? payload.reasonCode : "",
       reasonNotes: typeof payload.reasonNotes === "string" ? payload.reasonNotes : "",
       correlationId:
-        typeof payload.correlationId === "string" ? payload.correlationId : null
+        typeof payload.correlationId === "string" ? payload.correlationId : null,
+      proposedStartsAt: parseOptionalDatePayload(
+        (payload as Record<string, unknown>).proposedStartsAt,
+        "Proposed appointment start"
+      ),
+      proposedEndsAt: parseOptionalDatePayload(
+        (payload as Record<string, unknown>).proposedEndsAt,
+        "Proposed appointment end"
+      ),
+      proposedSchedulingTimezone:
+        typeof (payload as Record<string, unknown>).proposedSchedulingTimezone === "string"
+          ? ((payload as Record<string, unknown>).proposedSchedulingTimezone as string)
+          : null
     });
 
     return NextResponse.json(

@@ -91,9 +91,85 @@ describe("appointment resource candidate proposals route", () => {
         expectedAppointmentVersion: 3,
         reasonCode: "RESOURCE_CANDIDATE_PROPOSED",
         reasonNotes: "Propose Bay 1 before scheduling.",
-        correlationId: "correlation-1"
+        correlationId: "correlation-1",
+        proposedStartsAt: null,
+        proposedEndsAt: null,
+        proposedSchedulingTimezone: null
       }
     );
+  });
+
+  it("passes proposed scheduling window fields for unscheduled draft candidate proposals", async () => {
+    const response = await POST(
+      new Request(
+        "http://localhost/api/appointments/appointment-1/resource-requirements/requirement-1/candidate-proposals",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            resourceId: "resource-bay-1",
+            expectedAppointmentVersion: 3,
+            reasonCode: "RESOURCE_CANDIDATE_PROPOSED",
+            reasonNotes: "Propose Bay 1 for the selected draft slot.",
+            correlationId: "correlation-1",
+            proposedStartsAt: "2026-07-06T16:00:00.000Z",
+            proposedEndsAt: "2026-07-06T17:00:00.000Z",
+            proposedSchedulingTimezone: "America/Chicago"
+          })
+        }
+      ),
+      {
+        params: Promise.resolve({
+          id: "appointment-1",
+          requirementId: "requirement-1"
+        })
+      }
+    );
+
+    expect(response.status).toBe(201);
+    expect(mocks.proposeAppointmentResourceCandidate).toHaveBeenCalledWith(
+      managerUser,
+      "appointment-1",
+      {
+        requirementId: "requirement-1",
+        resourceId: "resource-bay-1",
+        expectedAppointmentVersion: 3,
+        reasonCode: "RESOURCE_CANDIDATE_PROPOSED",
+        reasonNotes: "Propose Bay 1 for the selected draft slot.",
+        correlationId: "correlation-1",
+        proposedStartsAt: new Date("2026-07-06T16:00:00.000Z"),
+        proposedEndsAt: new Date("2026-07-06T17:00:00.000Z"),
+        proposedSchedulingTimezone: "America/Chicago"
+      }
+    );
+  });
+
+  it("rejects invalid proposed scheduling windows", async () => {
+    const response = await POST(
+      new Request(
+        "http://localhost/api/appointments/appointment-1/resource-requirements/requirement-1/candidate-proposals",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            resourceId: "resource-bay-1",
+            expectedAppointmentVersion: 3,
+            reasonCode: "RESOURCE_CANDIDATE_PROPOSED",
+            reasonNotes: "Propose Bay 1 for the selected draft slot.",
+            proposedStartsAt: "not-a-date"
+          })
+        }
+      ),
+      {
+        params: Promise.resolve({
+          id: "appointment-1",
+          requirementId: "requirement-1"
+        })
+      }
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Proposed appointment start must be a valid date."
+    });
   });
 
   it("maps stale versions to conflict", async () => {
