@@ -68,6 +68,7 @@ Prisma client generation updated generated types but could not replace the locke
 | Appointment bulk reschedule service | Implemented as service boundary | EAPT-023 bulk service classifies dry-run targets, supports all-or-nothing and partial execution policies, requires reasoned execution, records skipped/succeeded/failed summaries, and enforces operation ID plus preview-token retry safety |
 | Appointment waitlist and unscheduled-request service | Implemented as service boundary | EAPT-024 waitlist service captures unscheduled demand without scheduling, tracks missing context, requires schedule access, ranks availability candidates, and prepares explicit promotion plans that still require appointment commands |
 | Appointment scheduling engine quality gate | Implemented as automated coverage | EAPT-025 quality tests cover approved baseline values, peak-hour availability search under p95 target, exclusive-resource concurrency protection, transaction-failure no-partial-state behavior, and 500-item bulk dry-run capacity |
+| Appointment E2 scheduling foundation gate review | Ready for review | `docs/appointments/E2_SCHEDULING_GATE_REVIEW.md` packages EAPT-013 through EAPT-025 evidence, carry-forward risks, non-claims, approval owners, and E3 handoff with protected constants and focused tests |
 | Appointment Board visible shell | Implemented as preview UI | `/appointments` now renders the mockup-aligned board surface with KPI cards, staff calendar columns, filters, selectable preview appointments, detail rail, linked tasks, enterprise controls, upcoming appointments, and responsive behavior; live services/APIs remain pending |
 
 ## Existing Partial or Placeholder Surfaces
@@ -95,6 +96,7 @@ At this baseline:
 - EAPT-004 Appointment aggregate foundation is implemented.
 - EAPT-005 participant, customer, vehicle, location-access, privacy, and resource foundation is implemented.
 - E2 scheduling foundation service boundaries EAPT-013 through EAPT-025 are implemented and ready for review; concrete database adapters, live APIs, and UI workflows remain pending.
+- The E2 scheduling foundation gate review is ready for approval; approval would authorize E3 lifecycle, task orchestration, audit, and automation work beginning with EAPT-026.
 - Database-backed versioned appointment-template administration, recurrence persistence/materialization, persisted warning override/history records, concrete Prisma reservation transaction adapter, availability-search API/UI, waitlist persistence/queues, reschedule/bulk execution persistence, lifecycle execution services, command-center read services, administration UI, and persisted production Appointment workflows have not yet been implemented.
 - The existing `/appointments` route now contains the mockup-aligned preview shell and is the intended UI boundary for the next live-service slices.
 

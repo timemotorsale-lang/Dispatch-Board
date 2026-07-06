@@ -3,7 +3,7 @@
 **Program:** Appointment Board / Appointment Command Center  
 **Target release:** Enterprise Release 1.0  
 **Planning baseline:** E0 approved on 2026-07-05  
-**Implementation status:** E2 scheduling foundation has started; EAPT-003 through EAPT-015 foundation slices are implemented, and `/appointments` now has a mockup-aligned preview shell while database-backed template administration, conflict execution, persistence workflows, and live command-center operations remain planned
+**Implementation status:** E2 scheduling foundation is ready for review; EAPT-003 through EAPT-025 foundation slices are implemented, and `/appointments` now has a mockup-aligned preview shell while database-backed lifecycle execution, persistence workflows, and live command-center operations remain planned
 
 ## Purpose
 
@@ -73,6 +73,7 @@ The approved enterprise product, permission, lifecycle, conflict, automation, an
 | [BULK_RESCHEDULE_CONTRACT.md](BULK_RESCHEDULE_CONTRACT.md) | Implemented EAPT-023 bulk-reschedule dry-run and controlled-execution contract |
 | [WAITLIST_UNSCHEDULED_REQUEST_CONTRACT.md](WAITLIST_UNSCHEDULED_REQUEST_CONTRACT.md) | Implemented EAPT-024 waitlist and unscheduled-request contract |
 | [SCHEDULING_ENGINE_QUALITY_GATE.md](SCHEDULING_ENGINE_QUALITY_GATE.md) | Implemented EAPT-025 scheduling engine load, concurrency, failure, and E2 quality-gate coverage |
+| [E2_SCHEDULING_GATE_REVIEW.md](E2_SCHEDULING_GATE_REVIEW.md) | E2 gate package with scheduling evidence, carry-forward risks, non-claims, approval owners, and E3 handoff |
 | [AUTOMATION_RULES_CATALOG.md](AUTOMATION_RULES_CATALOG.md) | Explainable task-to-appointment and appointment-to-task automation model |
 | [PERMISSION_MATRIX.md](PERMISSION_MATRIX.md) | Manager, owner, participant, viewer, administrator, and system-action authorization rules |
 | [LIFECYCLE_CONFLICT_MATRIX.md](LIFECYCLE_CONFLICT_MATRIX.md) | State transitions, reason requirements, resource constraints, warnings, and hard blocks |
@@ -127,7 +128,7 @@ Implementation tickets may clarify technical details but may not weaken these ru
 | EAPT-023 — Bulk-rescheduling dry run and controlled execution | Complete | `BULK_RESCHEDULE_CONTRACT.md`, bulk dry-run classification, all-or-nothing and partial execution policies, required reasons, operation preview tokens, retry/idempotency behavior, skipped-item reporting, and focused tests |
 | EAPT-024 — Waitlist and unscheduled-request domain services | Complete | `WAITLIST_UNSCHEDULED_REQUEST_CONTRACT.md`, unscheduled request service, context readiness checks, permission-safe capture, availability-based candidate ranking, no-silent-scheduling guarantees, promotion planning, and focused tests |
 | EAPT-025 — Scheduling engine load, concurrency, and failure tests | Complete | `SCHEDULING_ENGINE_QUALITY_GATE.md`, approved baseline coverage, peak-hour availability search test, exclusive-resource concurrency test, transaction-failure no-partial-state test, 500-item bulk dry-run test, and focused tests |
-| E2 scheduling foundation gate | Ready for review | EAPT-013 through EAPT-025 service boundaries, contracts, and focused tests are implemented; database-backed adapters, live APIs, and UI workflows remain later milestones |
+| E2 scheduling foundation gate | Ready for review | `E2_SCHEDULING_GATE_REVIEW.md`, gate-review constants, evidence map, carry-forward risks, non-claims, approval owner list, E3 handoff, and tests; database-backed adapters, live APIs, and UI workflows remain later milestones |
 
 ## Recommended Review Order
 
