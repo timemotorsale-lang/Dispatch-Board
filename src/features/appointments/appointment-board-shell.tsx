@@ -166,6 +166,43 @@ type AppointmentScheduleReadiness = {
   }>;
 };
 
+type AppointmentResourcePlanning = {
+  appointmentId: string;
+  appointmentNumber: string;
+  category: string;
+  status:
+    | "READY_TO_SELECT"
+    | "REQUIREMENT_SELECTED"
+    | "CONFIGURATION_NEEDED"
+    | "NO_RECOMMENDATION";
+  canManageResourcesForAppointment: boolean;
+  recommendations: Array<{
+    requirementCode: string;
+    label: string;
+    resourceTypeCode: string;
+    requiredCapacity: number;
+    isMandatory: boolean;
+    hardBlockIfUnfulfilled: boolean;
+    assignmentTiming: "AT_BOOKING" | "BEFORE_START" | "ANYTIME_BEFORE_COMPLETION";
+    rationale: string;
+    resourceTypeId: string | null;
+    resourceTypeName: string | null;
+    selectedRequirementId: string | null;
+    selectedReservationCount: number;
+    activeCandidateCount: number;
+    status: "SELECTED" | "AVAILABLE" | "CONFIGURATION_NEEDED" | "RESOURCE_TYPE_MISSING";
+    candidates: Array<{
+      id: string;
+      code: string;
+      name: string;
+      capacity: number;
+      capacityMode: string;
+      conflictPolicy: string;
+    }>;
+    message: string;
+  }>;
+};
+
 type ViewMode = "day" | "week" | "month" | "agenda";
 
 const businessDate = "Monday, July 6, 2026";
@@ -777,6 +814,8 @@ export function AppointmentBoardShell() {
   const [isDraftSaving, setIsDraftSaving] = useState(false);
   const [scheduleReadiness, setScheduleReadiness] = useState<AppointmentScheduleReadiness | null>(null);
   const [isReadinessLoading, setIsReadinessLoading] = useState(false);
+  const [resourcePlanning, setResourcePlanning] = useState<AppointmentResourcePlanning | null>(null);
+  const [isResourcePlanningLoading, setIsResourcePlanningLoading] = useState(false);
   const [actionNotice, setActionNotice] = useState("Operational command bridge ready. Persisted appointments can now use the live command API for check-in and no-show actions.");
 
   async function loadLiveAppointments() {
@@ -877,6 +916,60 @@ export function AppointmentBoardShell() {
 
   const selectedStaff =
     visibleStaffMembers.find((staff) => staff.id === selectedAppointment.staffId) ?? visibleStaffMembers[0];
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadResourcePlanning() {
+      if (selectedAppointment.status !== "draft" || !selectedAppointment.recordId) {
+        setResourcePlanning(null);
+        setIsResourcePlanningLoading(false);
+        return;
+      }
+
+      setIsResourcePlanningLoading(true);
+
+      try {
+        const response = await fetch(
+          `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/resource-planning`
+        );
+        const result = (await response.json().catch(() => null)) as
+          | { resourcePlanning?: AppointmentResourcePlanning; error?: string }
+          | null;
+
+        if (!isActive) {
+          return;
+        }
+
+        if (!response.ok || !result?.resourcePlanning) {
+          throw new Error(result?.error || "Unable to load resource planning.");
+        }
+
+        setResourcePlanning(result.resourcePlanning);
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        setResourcePlanning(null);
+        setActionNotice(
+          error instanceof Error
+            ? `Resource planning could not load: ${error.message}`
+            : "Resource planning could not load."
+        );
+      } finally {
+        if (isActive) {
+          setIsResourcePlanningLoading(false);
+        }
+      }
+    }
+
+    void loadResourcePlanning();
+
+    return () => {
+      isActive = false;
+    };
+  }, [selectedAppointment.recordId, selectedAppointment.status]);
 
   useEffect(() => {
     let isActive = true;
@@ -1359,6 +1452,47 @@ export function AppointmentBoardShell() {
               ) : (
                 <p className="appointment-readiness-copy">
                   {isReadinessLoading ? "Checking schedule readiness..." : "Schedule readiness is not available for this appointment yet."}
+                </p>
+              )}
+            </div>
+          ) : null}
+
+          {selectedAppointment.status === "draft" ? (
+            <div className="appointment-detail-section">
+              <div className="appointment-section-heading">
+                <strong>Resource Planning</strong>
+                <span className={`appointment-resource-chip appointment-resource-${resourcePlanning?.status.toLowerCase().replaceAll("_", "-") ?? "loading"}`}>
+                  {isResourcePlanningLoading
+                    ? "Loading"
+                    : resourcePlanning?.status.replaceAll("_", " ") ?? "Unavailable"}
+                </span>
+              </div>
+              {resourcePlanning ? (
+                <div className="appointment-resource-stack">
+                  {resourcePlanning.recommendations.map((recommendation) => (
+                    <div
+                      className={`appointment-resource-row appointment-resource-row-${recommendation.status.toLowerCase().replaceAll("_", "-")}`}
+                      key={recommendation.requirementCode}
+                    >
+                      <div>
+                        <strong>{recommendation.label}</strong>
+                        <small>{recommendation.rationale}</small>
+                      </div>
+                      <span>{recommendation.resourceTypeCode}</span>
+                      <p>{recommendation.message}</p>
+                      <em>
+                        {recommendation.selectedRequirementId
+                          ? `${recommendation.selectedReservationCount} reservation${recommendation.selectedReservationCount === 1 ? "" : "s"} attached`
+                          : `${recommendation.activeCandidateCount} active candidate${recommendation.activeCandidateCount === 1 ? "" : "s"}`}
+                      </em>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="appointment-resource-copy">
+                  {isResourcePlanningLoading
+                    ? "Checking resource requirements and configured resources..."
+                    : "Resource planning is not available for this appointment yet."}
                 </p>
               )}
             </div>

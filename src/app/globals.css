@@ -6143,6 +6143,108 @@ code {
   line-height: 1.5;
 }
 
+.appointment-resource-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 9px;
+  color: #475569;
+  background: #eef2f7;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.appointment-resource-ready-to-select {
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.appointment-resource-requirement-selected {
+  color: #15803d;
+  background: #e8f7ee;
+}
+
+.appointment-resource-configuration-needed,
+.appointment-resource-no-recommendation {
+  color: #b45309;
+  background: #fff7ed;
+}
+
+.appointment-resource-stack {
+  display: grid;
+  gap: 8px;
+}
+
+.appointment-resource-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 10px;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid #edf0f4;
+  border-left: 3px solid #94a3b8;
+  border-radius: 11px;
+}
+
+.appointment-resource-row-selected {
+  border-left-color: #22c55e;
+}
+
+.appointment-resource-row-available {
+  border-left-color: #3b82f6;
+}
+
+.appointment-resource-row-configuration-needed,
+.appointment-resource-row-resource-type-missing {
+  border-left-color: #f59e0b;
+}
+
+.appointment-resource-row div {
+  display: grid;
+  gap: 3px;
+}
+
+.appointment-resource-row strong {
+  color: #172033;
+  font-size: 12px;
+}
+
+.appointment-resource-row small,
+.appointment-resource-row p,
+.appointment-resource-row em {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.appointment-resource-row span {
+  color: #253449;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+}
+
+.appointment-resource-row p,
+.appointment-resource-row em {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.appointment-resource-row em {
+  color: #334155;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.appointment-resource-copy {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .appointment-outcome-label {
   display: grid;
   gap: 7px;
