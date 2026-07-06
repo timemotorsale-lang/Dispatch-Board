@@ -24,6 +24,20 @@ enum LocationSchedulingStatus {
   RETIRED
 }
 
+enum AppointmentCatalogVersionStatus {
+  DRAFT
+  ACTIVE
+  RETIRED
+}
+
+enum AppointmentCatalogChangeAction {
+  SEEDED
+  DRAFT_CREATED
+  DRAFT_UPDATED
+  ACTIVATED
+  RETIRED
+}
+
 enum LocationClosureType {
   HOLIDAY
   PLANNED
@@ -325,6 +339,9 @@ model User {
   appointmentCommandLedgerEntries AppointmentCommandLedger[] @relation("AppointmentCommandLedgerActorUser")
   schedulableResources    SchedulableResource[] @relation("SchedulableResourceUser")
   createdResourceUnavailability ResourceUnavailability[] @relation("ResourceUnavailabilityCreatedByUser")
+  createdAppointmentCatalogVersions AppointmentCatalogVersion[] @relation("AppointmentCatalogVersionCreatedByUser")
+  activatedAppointmentCatalogVersions AppointmentCatalogVersion[] @relation("AppointmentCatalogVersionActivatedByUser")
+  appointmentCatalogChangeEvents AppointmentCatalogChangeEvent[] @relation("AppointmentCatalogChangeEventActorUser")
 
   @@index([isActive])
 }
@@ -421,6 +438,8 @@ model Organization {
   vehicles     Vehicle[]
   resourceTypes SchedulableResourceType[]
   resources    SchedulableResource[]
+  appointmentCatalogVersions AppointmentCatalogVersion[]
+  appointmentCatalogChangeEvents AppointmentCatalogChangeEvent[]
 }
 
 model Location {
@@ -484,6 +503,54 @@ model LocationClosure {
 
   @@index([locationId, startsAt, endsAt])
   @@index([createdByUserId])
+}
+
+model AppointmentCatalogVersion {
+  id                 String                          @id @default(cuid())
+  organizationId     String
+  version            Int
+  status             AppointmentCatalogVersionStatus @default(DRAFT)
+  title              String
+  description        String?
+  reason             String
+  catalogSnapshot    Json
+  validationSnapshot Json
+  createdByUserId    String?
+  activatedByUserId  String?
+  activatedAt        DateTime?
+  retiredAt          DateTime?
+  createdAt          DateTime                        @default(now())
+  updatedAt          DateTime                        @updatedAt
+  organization       Organization                    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdByUser      User?                           @relation("AppointmentCatalogVersionCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  activatedByUser    User?                           @relation("AppointmentCatalogVersionActivatedByUser", fields: [activatedByUserId], references: [id], onDelete: SetNull)
+  changeEvents       AppointmentCatalogChangeEvent[]
+
+  @@unique([organizationId, version])
+  @@index([organizationId, status])
+  @@index([createdByUserId])
+  @@index([activatedByUserId])
+}
+
+model AppointmentCatalogChangeEvent {
+  id                 String                         @id @default(cuid())
+  catalogVersionId   String
+  organizationId     String
+  actorUserId        String?
+  action             AppointmentCatalogChangeAction
+  reason             String
+  priorSnapshot      Json?
+  newSnapshot        Json
+  validationSnapshot Json?
+  occurredAt         DateTime                       @default(now())
+  createdAt          DateTime                       @default(now())
+  catalogVersion     AppointmentCatalogVersion      @relation(fields: [catalogVersionId], references: [id], onDelete: Cascade)
+  organization       Organization                   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  actorUser          User?                          @relation("AppointmentCatalogChangeEventActorUser", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([catalogVersionId, occurredAt])
+  @@index([organizationId, action, occurredAt])
+  @@index([actorUserId, occurredAt])
 }
 
 model Appointment {
