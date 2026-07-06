@@ -22,6 +22,26 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Upcoming Appointments");
   });
 
+  it("renders admin-provided board settings when available", () => {
+    const markup = renderToStaticMarkup(
+      <AppointmentBoardShell
+        boardSettings={{
+          organizationId: "org-time-motor-sales",
+          locationId: "loc-time-motor-sales-minneapolis",
+          locationName: "Time Motor Sales — Minneapolis",
+          timezone: "America/Chicago",
+          addressLine: "1101 E. Lake Street, Minneapolis MN 55407",
+          phoneNumber: "(612) 724-3631",
+          businessHoursLabel: "9:00 AM - 6:00 PM"
+        }}
+      />
+    );
+
+    expect(markup).toContain("1101 E. Lake Street, Minneapolis MN 55407");
+    expect(markup).toContain("(612) 724-3631");
+    expect(markup).toContain("9:00 AM - 6:00 PM");
+  });
+
   it("summarizes generated follow-up automation after outcome save", () => {
     expect(
       buildOutcomeSuccessNotice({

@@ -330,10 +330,24 @@ type AppointmentResourceCandidateAvailability = {
 
 type ViewMode = "day" | "week" | "month" | "agenda";
 
+export type AppointmentBoardSettings = {
+  organizationId: string;
+  locationId: string;
+  locationName: string;
+  timezone: string;
+  addressLine: string;
+  phoneNumber: string;
+  businessHoursLabel: string;
+};
+
+type AppointmentBoardShellProps = {
+  boardSettings?: AppointmentBoardSettings | null;
+};
+
 const businessDate = "Monday, July 6, 2026";
-const businessHours = "9:00 AM - 6:00 PM";
-const dealershipAddress = "1101 E. Lake Street, Minneapolis, MN 55407";
-const dealershipPhone = "(612) 724-3631";
+const fallbackBusinessHours = "9:00 AM - 6:00 PM";
+const fallbackDealershipAddress = "1101 E. Lake Street, Minneapolis, MN 55407";
+const fallbackDealershipPhone = "(612) 724-3631";
 const defaultBoardDate = "2026-07-06";
 const defaultOrganizationId = "org-time-motor-sales";
 const defaultLocationId = "loc-time-motor-sales-minneapolis";
@@ -524,7 +538,7 @@ const appointments: Appointment[] = [
     staffId: "walter",
     startMinutes: 720,
     durationMinutes: 65,
-    phone: dealershipPhone,
+    phone: fallbackDealershipPhone,
     complaint: "Pipeline, test drives, and follow-ups.",
     location: "Sales floor",
     confirmation: "Internal",
@@ -846,7 +860,7 @@ function mapReadModelToAppointment(appointment: AppointmentReadModel): Appointme
     staffRole: appointment.visibility.relationship === "MANAGER" ? "Manager-visible" : "Owner / participant",
     startMinutes: startsAt ?? 9 * 60,
     durationMinutes: startsAt !== null && endsAt !== null ? Math.max(30, endsAt - startsAt) : 60,
-    phone: appointment.customer?.phoneNumber ?? dealershipPhone,
+    phone: appointment.customer?.phoneNumber ?? fallbackDealershipPhone,
     complaint: appointment.sourceReference ?? "Live appointment record from the read model.",
     location: "Time Motor Sales",
     confirmation: appointment.confirmationStatus.replaceAll("_", " ").toLowerCase(),
@@ -1010,7 +1024,7 @@ function createAppointmentNumber() {
   return `APT-${Date.now().toString().slice(-8)}`;
 }
 
-function localDateTimeToMinneapolisIso(localDate: string, time: string) {
+function localDateTimeToMinneapolisIso(localDate: string, time: string, timezone = defaultTimezone) {
   const [yearText, monthText, dayText] = localDate.split("-");
   const [hourText, minuteText] = time.split(":");
   const year = Number(yearText);
@@ -1039,7 +1053,7 @@ function localDateTimeToMinneapolisIso(localDate: string, time: string) {
       minute: "2-digit",
       month: "2-digit",
       numberingSystem: "latn",
-      timeZone: defaultTimezone,
+      timeZone: timezone,
       year: "numeric"
     }).formatToParts(candidate);
     const actualYear = Number(parts.find((part) => part.type === "year")?.value);
@@ -1074,9 +1088,10 @@ export function isProposedScheduleStartInPast(input: {
   localDate: string;
   startTime: string;
   now?: Date;
+  timezone?: string;
 }) {
   const startsAt = new Date(
-    localDateTimeToMinneapolisIso(input.localDate, input.startTime)
+    localDateTimeToMinneapolisIso(input.localDate, input.startTime, input.timezone)
   );
   const now = input.now ?? new Date();
 
@@ -1095,7 +1110,13 @@ function buildResourceReasonNote(context: string, userReason: string) {
   return `${context} Reason documented by user: ${userReason.trim()}`;
 }
 
-export function AppointmentBoardShell() {
+export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellProps = {}) {
+  const boardOrganizationId = boardSettings?.organizationId ?? defaultOrganizationId;
+  const boardLocationId = boardSettings?.locationId ?? defaultLocationId;
+  const boardTimezone = boardSettings?.timezone ?? defaultTimezone;
+  const boardAddress = boardSettings?.addressLine || fallbackDealershipAddress;
+  const boardPhone = boardSettings?.phoneNumber || fallbackDealershipPhone;
+  const boardBusinessHours = boardSettings?.businessHoursLabel || fallbackBusinessHours;
   const [selectedId, setSelectedId] = useState(appointments[0].id);
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<AppointmentCategory | "all">("all");
@@ -1309,7 +1330,8 @@ export function AppointmentBoardShell() {
     selectedAppointmentIsUnscheduledDraft &&
     isProposedScheduleStartInPast({
       localDate: scheduleDraft.localDate,
-      startTime: scheduleDraft.startTime
+      startTime: scheduleDraft.startTime,
+      timezone: selectedAppointment.schedulingTimezone ?? boardTimezone
     });
 
   const selectedStaff =
@@ -1458,13 +1480,14 @@ export function AppointmentBoardShell() {
         if (selectedAppointmentIsUnscheduledDraft) {
           const startsAt = localDateTimeToMinneapolisIso(
             scheduleDraft.localDate,
-            scheduleDraft.startTime
+            scheduleDraft.startTime,
+            selectedAppointment.schedulingTimezone ?? boardTimezone
           );
           const endsAt = addMinutesToIso(startsAt, scheduleDraft.durationMinutes);
           const params = new URLSearchParams({
             proposedStartsAt: startsAt,
             proposedEndsAt: endsAt,
-            proposedSchedulingTimezone: selectedAppointment.schedulingTimezone ?? defaultTimezone
+            proposedSchedulingTimezone: selectedAppointment.schedulingTimezone ?? boardTimezone
           });
 
           candidateAvailabilityUrl = `${candidateAvailabilityUrl}?${params.toString()}`;
@@ -1518,7 +1541,8 @@ export function AppointmentBoardShell() {
     selectedAppointment.recordId,
     selectedAppointment.schedulingTimezone,
     selectedAppointment.status,
-    selectedAppointmentIsUnscheduledDraft
+    selectedAppointmentIsUnscheduledDraft,
+    boardTimezone
   ]);
 
   useEffect(() => {
@@ -1539,13 +1563,14 @@ export function AppointmentBoardShell() {
         if (selectedAppointmentIsUnscheduledDraft) {
           const startsAt = localDateTimeToMinneapolisIso(
             scheduleDraft.localDate,
-            scheduleDraft.startTime
+            scheduleDraft.startTime,
+            selectedAppointment.schedulingTimezone ?? boardTimezone
           );
           const endsAt = addMinutesToIso(startsAt, scheduleDraft.durationMinutes);
           const params = new URLSearchParams({
             proposedStartsAt: startsAt,
             proposedEndsAt: endsAt,
-            proposedSchedulingTimezone: selectedAppointment.schedulingTimezone ?? defaultTimezone
+            proposedSchedulingTimezone: selectedAppointment.schedulingTimezone ?? boardTimezone
           });
 
           readinessUrl = `${readinessUrl}?${params.toString()}`;
@@ -1598,7 +1623,8 @@ export function AppointmentBoardShell() {
     selectedAppointment.recordId,
     selectedAppointment.schedulingTimezone,
     selectedAppointment.status,
-    selectedAppointmentIsUnscheduledDraft
+    selectedAppointmentIsUnscheduledDraft,
+    boardTimezone
   ]);
 
   useEffect(() => {
@@ -1619,13 +1645,14 @@ export function AppointmentBoardShell() {
         if (selectedAppointmentIsUnscheduledDraft) {
           const startsAt = localDateTimeToMinneapolisIso(
             scheduleDraft.localDate,
-            scheduleDraft.startTime
+            scheduleDraft.startTime,
+            selectedAppointment.schedulingTimezone ?? boardTimezone
           );
           const endsAt = addMinutesToIso(startsAt, scheduleDraft.durationMinutes);
           const params = new URLSearchParams({
             proposedStartsAt: startsAt,
             proposedEndsAt: endsAt,
-            proposedSchedulingTimezone: selectedAppointment.schedulingTimezone ?? defaultTimezone
+            proposedSchedulingTimezone: selectedAppointment.schedulingTimezone ?? boardTimezone
           });
 
           staffConflictsUrl = `${staffConflictsUrl}?${params.toString()}`;
@@ -1676,7 +1703,8 @@ export function AppointmentBoardShell() {
     selectedAppointment.recordId,
     selectedAppointment.schedulingTimezone,
     selectedAppointment.status,
-    selectedAppointmentIsUnscheduledDraft
+    selectedAppointmentIsUnscheduledDraft,
+    boardTimezone
   ]);
 
   const metrics = [
@@ -1708,7 +1736,8 @@ export function AppointmentBoardShell() {
     try {
       const startsAt = localDateTimeToMinneapolisIso(
         draftAppointment.localDate,
-        draftAppointment.startTime
+        draftAppointment.startTime,
+        boardTimezone
       );
       const endsAt = addMinutesToIso(startsAt, draftAppointment.durationMinutes);
       const appointmentNumber = createAppointmentNumber();
@@ -1720,8 +1749,8 @@ export function AppointmentBoardShell() {
         },
         body: JSON.stringify({
           commandType: "CREATE_DRAFT",
-          organizationId: defaultOrganizationId,
-          locationId: defaultLocationId,
+          organizationId: boardOrganizationId,
+          locationId: boardLocationId,
           idempotencyKey,
           correlationId: idempotencyKey,
           payload: {
@@ -1731,7 +1760,7 @@ export function AppointmentBoardShell() {
             sourceReference: draftAppointment.reason.trim(),
             startsAt,
             endsAt,
-            schedulingTimezone: defaultTimezone,
+            schedulingTimezone: boardTimezone,
             purposeSnapshot: {
               category: draftAppointment.category,
               categoryLabel: categoryMeta[draftAppointment.category].label,
@@ -1882,13 +1911,14 @@ export function AppointmentBoardShell() {
         ? (() => {
             const startsAt = localDateTimeToMinneapolisIso(
               scheduleDraft.localDate,
-              scheduleDraft.startTime
+              scheduleDraft.startTime,
+              selectedAppointment.schedulingTimezone ?? boardTimezone
             );
 
             return {
               proposedStartsAt: startsAt,
               proposedEndsAt: addMinutesToIso(startsAt, scheduleDraft.durationMinutes),
-              proposedSchedulingTimezone: selectedAppointment.schedulingTimezone ?? defaultTimezone
+              proposedSchedulingTimezone: selectedAppointment.schedulingTimezone ?? boardTimezone
             };
           })()
         : {};
@@ -2164,13 +2194,14 @@ export function AppointmentBoardShell() {
         ? (() => {
             const startsAt = localDateTimeToMinneapolisIso(
               scheduleDraft.localDate,
-              scheduleDraft.startTime
+              scheduleDraft.startTime,
+              selectedAppointment.schedulingTimezone ?? boardTimezone
             );
 
             return {
               proposedStartsAt: startsAt,
               proposedEndsAt: addMinutesToIso(startsAt, scheduleDraft.durationMinutes),
-              proposedSchedulingTimezone: selectedAppointment.schedulingTimezone ?? defaultTimezone
+              proposedSchedulingTimezone: selectedAppointment.schedulingTimezone ?? boardTimezone
             };
           })()
         : {};
@@ -2556,7 +2587,8 @@ export function AppointmentBoardShell() {
     try {
       const startsAt = localDateTimeToMinneapolisIso(
         scheduleDraft.localDate,
-        scheduleDraft.startTime
+        scheduleDraft.startTime,
+        selectedAppointment.schedulingTimezone ?? boardTimezone
       );
       const endsAt = addMinutesToIso(startsAt, scheduleDraft.durationMinutes);
       const idempotencyKey = createCommandIdentifier("SCHEDULE", selectedAppointment.recordId);
@@ -2574,7 +2606,7 @@ export function AppointmentBoardShell() {
           payload: {
             startsAt,
             endsAt,
-            schedulingTimezone: selectedAppointment.schedulingTimezone ?? defaultTimezone,
+            schedulingTimezone: selectedAppointment.schedulingTimezone ?? boardTimezone,
             reasonCode: "UNSCHEDULED_DRAFT_SCHEDULED",
             reasonNotes: buildResourceReasonNote(
               `Scheduled unscheduled draft ${selectedAppointment.id} from Appointment Board draft lane for ${scheduleDraft.localDate} at ${scheduleDraft.startTime}.`,
@@ -2700,7 +2732,7 @@ export function AppointmentBoardShell() {
               ? {
                   startsAt: selectedAppointment.startsAtIso,
                   endsAt: selectedAppointment.endsAtIso,
-                  schedulingTimezone: selectedAppointment.schedulingTimezone ?? defaultTimezone
+                  schedulingTimezone: selectedAppointment.schedulingTimezone ?? boardTimezone
                 }
               : {})
           }
@@ -2863,7 +2895,7 @@ export function AppointmentBoardShell() {
         <div>
           <p className="section-kicker">Enterprise appointment operations</p>
           <h1 id="appointment-board-title">Appointment Board</h1>
-          <p>{dealershipAddress} · {dealershipPhone} · {businessHours}</p>
+          <p>{boardAddress} · {boardPhone} · {boardBusinessHours}</p>
         </div>
         <div className="appointment-toolbar-actions">
           <label className="appointment-search">
