@@ -325,6 +325,85 @@ describe("appointment staff conflict preview service", () => {
     });
   });
 
+  it("surfaces persisted internal participant staff warning overrides in the preview", async () => {
+    const overlappingReservation = {
+      id: "reservation-participant-overlap",
+      appointmentId: "appointment-2",
+      status: "COMMITTED",
+      startsAt: localInstant("2026-07-06", 10),
+      endsAt: localInstant("2026-07-06", 11),
+      capacityUnits: 1,
+      bufferBeforeMinutes: 0,
+      bufferAfterMinutes: 0
+    };
+    const participantAppointment = appointment({
+      participants: [
+        {
+          id: "participant-rayana",
+          roleCode: "OFFICE_ADMIN",
+          userId: "user-rayana",
+          displayNameSnapshot: "Rayana Hassan",
+          isRequired: true,
+          isPrimary: false,
+          attendanceRequired: true,
+          user: {
+            id: "user-rayana",
+            name: "Rayana Hassan",
+            isActive: true
+          }
+        }
+      ]
+    });
+    const resources = {
+      "user-brock": staffResource(),
+      "user-rayana": staffResource({
+        id: "resource-staff-rayana",
+        userId: "user-rayana",
+        name: "Rayana Hassan",
+        reservations: [overlappingReservation]
+      })
+    };
+    const initial = await previewAppointmentStaffConflicts(
+      managerUser,
+      "appointment-1",
+      repository({
+        appointment: participantAppointment,
+        staffResources: resources
+      }),
+      now
+    );
+
+    const preview = await previewAppointmentStaffConflicts(
+      managerUser,
+      "appointment-1",
+      repository({
+        appointment: participantAppointment,
+        staffResources: resources,
+        warningOverrideKeys: initial.warningKey ? [initial.warningKey] : []
+      }),
+      now
+    );
+
+    expect(preview).toMatchObject({
+      status: "WARNING",
+      canProceedWithStaff: true,
+      warningOverrideRequired: true,
+      warningOverrideSatisfied: true,
+      warningKey: initial.warningKey,
+      staff: {
+        userId: "user-rayana",
+        role: "PARTICIPANT",
+        roleCode: "OFFICE_ADMIN"
+      },
+      staffMembers: expect.arrayContaining([
+        expect.objectContaining({
+          userId: "user-rayana",
+          warningOverrideSatisfied: true
+        })
+      ])
+    });
+  });
+
   it("surfaces persisted staff warning overrides in the preview", async () => {
     const overlappingReservation = {
       id: "reservation-staff-overlap",
@@ -438,6 +517,114 @@ describe("appointment staff conflict preview service", () => {
       appointmentVersion: 4
     });
     expect(createdHistory).toHaveLength(1);
+  });
+
+  it("records a manager override for a warning-level internal participant staff conflict", async () => {
+    const overlappingReservation = {
+      id: "reservation-participant-overlap",
+      appointmentId: "appointment-2",
+      status: "COMMITTED",
+      startsAt: localInstant("2026-07-06", 10),
+      endsAt: localInstant("2026-07-06", 11),
+      capacityUnits: 1,
+      bufferBeforeMinutes: 0,
+      bufferAfterMinutes: 0
+    };
+    const createdHistory: Array<{ data: Record<string, unknown> }> = [];
+    const participantAppointment = appointment({
+      participants: [
+        {
+          id: "participant-rayana",
+          roleCode: "OFFICE_ADMIN",
+          userId: "user-rayana",
+          displayNameSnapshot: "Rayana Hassan",
+          isRequired: true,
+          isPrimary: false,
+          attendanceRequired: true,
+          user: {
+            id: "user-rayana",
+            name: "Rayana Hassan",
+            isActive: true
+          }
+        }
+      ]
+    });
+    const database = {
+      appointment: {
+        async findUnique() {
+          return participantAppointment;
+        },
+        async updateMany() {
+          return {
+            count: 1
+          };
+        }
+      },
+      userLocationAccess: {
+        async findUnique(input: { where: { userId_locationId: { userId: string } } }) {
+          return access(input.where.userId_locationId.userId);
+        }
+      },
+      schedulableResource: {
+        async findFirst(input: { where: { userId: string } }) {
+          if (input.where.userId === "user-rayana") {
+            return staffResource({
+              id: "resource-staff-rayana",
+              userId: "user-rayana",
+              name: "Rayana Hassan",
+              reservations: [overlappingReservation]
+            });
+          }
+
+          return staffResource();
+        }
+      },
+      appointmentHistoryEvent: {
+        async findFirst() {
+          return null;
+        },
+        async create(input: { data: Record<string, unknown> }) {
+          createdHistory.push(input);
+        }
+      },
+      async $transaction(operation: (tx: unknown) => Promise<unknown>) {
+        return operation(this);
+      }
+    };
+
+    const result = await overrideAppointmentStaffWarning(
+      managerUser,
+      "appointment-1",
+      {
+        expectedAppointmentVersion: 3,
+        reasonCode: "STAFF_WARNING_OVERRIDDEN",
+        reasonNotes: "Manager accepts office admin overlap for DMV handoff.",
+        correlationId: "corr-participant-staff-warning"
+      },
+      database,
+      now
+    );
+
+    expect(result).toMatchObject({
+      appointmentId: "appointment-1",
+      staffUserId: "user-rayana",
+      staffName: "Rayana Hassan",
+      staffRole: "PARTICIPANT",
+      staffRoleCode: "OFFICE_ADMIN",
+      resourceId: "resource-staff-rayana",
+      status: "OVERRIDDEN",
+      warningCode: "STAFF_OVERLAP",
+      appointmentVersion: 4
+    });
+    expect(createdHistory).toHaveLength(1);
+    expect(createdHistory[0].data).toMatchObject({
+      eventType: "WARNING_OVERRIDDEN",
+      metadata: expect.objectContaining({
+        staffUserId: "user-rayana",
+        staffRole: "PARTICIPANT",
+        staffRoleCode: "OFFICE_ADMIN"
+      })
+    });
   });
 
   it("rejects unauthorized preview access", async () => {

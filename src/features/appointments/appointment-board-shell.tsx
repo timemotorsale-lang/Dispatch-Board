@@ -1747,7 +1747,11 @@ export function AppointmentBoardShell() {
             expectedAppointmentVersion: selectedAppointment.recordVersion,
             reasonCode: "STAFF_WARNING_OVERRIDDEN",
             reasonNotes: buildResourceReasonNote(
-              `Manager accepted staff warning for ${staffConflictPreview.staff?.name ?? "owner staff"}: ${reasonText}`,
+              `Manager accepted staff warning for ${staffConflictPreview.staff?.name ?? "required staff"}${
+                staffConflictPreview.staff?.roleCode
+                  ? ` (${staffConflictPreview.staff.roleCode.replaceAll("_", " ")})`
+                  : ""
+              }: ${reasonText}`,
               staffWarningReason
             ),
             correlationId
@@ -1759,6 +1763,8 @@ export function AppointmentBoardShell() {
             staffWarningOverride?: {
               warningKey: string;
               staffName: string;
+              staffRole?: "OWNER" | "PARTICIPANT";
+              staffRoleCode?: string;
               appointmentVersion: number;
             };
             error?: string;
@@ -1775,7 +1781,11 @@ export function AppointmentBoardShell() {
       }));
       setStaffWarningReason("");
       setActionNotice(
-        `${result.staffWarningOverride.staffName} staff warning was overridden with a documented manager reason.`
+        `${result.staffWarningOverride.staffName}${
+          result.staffWarningOverride.staffRoleCode
+            ? ` (${result.staffWarningOverride.staffRoleCode.replaceAll("_", " ")})`
+            : ""
+        } staff warning was overridden with a documented manager reason.`
       );
       setDetailRefreshKey((value) => value + 1);
       await loadLiveAppointments();
@@ -2397,7 +2407,7 @@ export function AppointmentBoardShell() {
               ) : (
                 <p className="appointment-readiness-copy">
                   {isStaffConflictLoading
-                    ? "Checking owner staff availability..."
+                    ? "Checking required staff availability..."
                     : "Staff conflict preview is not available for this appointment yet."}
                 </p>
               )}

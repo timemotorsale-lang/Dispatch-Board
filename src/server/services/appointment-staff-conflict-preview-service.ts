@@ -213,6 +213,8 @@ export type AppointmentStaffWarningOverride = {
   appointmentNumber: string;
   staffUserId: string;
   staffName: string;
+  staffRole: "OWNER" | "PARTICIPANT";
+  staffRoleCode: string;
   resourceId: string | null;
   resourceName: string | null;
   status: "OVERRIDDEN";
@@ -847,7 +849,7 @@ export async function overrideAppointmentStaffWarning(
   });
 
   if (preview.status === "READY") {
-    throw new Error("Staff owner does not have a warning to override.");
+    throw new Error("Required staff does not have a warning to override.");
   }
 
   if (preview.status === "BLOCKED" || !preview.warningKey || !preview.staff) {
@@ -871,6 +873,8 @@ export async function overrideAppointmentStaffWarning(
         warningCode: "STAFF_OVERLAP",
         source: "STAFF",
         staffUserId: staff.userId,
+        staffRole: staff.role,
+        staffRoleCode: staff.roleCode,
         resourceId: staff.resourceId,
         reasons: preview.reasons
       }
@@ -882,6 +886,8 @@ export async function overrideAppointmentStaffWarning(
       source: "APPOINTMENT_BOARD_STAFF_CONFLICT_PREVIEW",
       expectedAppointmentVersion,
       staffUserId: staff.userId,
+      staffRole: staff.role,
+      staffRoleCode: staff.roleCode,
       resourceId: staff.resourceId,
       warningKey
     },
@@ -927,6 +933,8 @@ export async function overrideAppointmentStaffWarning(
       appointmentNumber: appointment.appointmentNumber,
       staffUserId: staff.userId,
       staffName: staff.name,
+      staffRole: staff.role,
+      staffRoleCode: staff.roleCode,
       resourceId: staff.resourceId,
       resourceName: staff.resourceName,
       status: "OVERRIDDEN",
