@@ -11,6 +11,7 @@ import {
   type AppointmentLifecycleTransactionResult
 } from "@/server/appointments/appointment-lifecycle-transaction-service";
 import type { AppointmentLocationAccessGrant } from "@/server/policies/access";
+import { previewAppointmentStaffConflicts } from "@/server/services/appointment-staff-conflict-preview-service";
 import {
   createAppointmentCommandRepository,
   type AppointmentCommandAppointmentRecord,
@@ -27,6 +28,8 @@ import { normalizeAppointmentCommandRequest } from "@/server/validation/appointm
 export type AppointmentCommandExecutionResult = AppointmentCommandBoundaryResult & {
   execution: AppointmentLifecycleTransactionResult | null;
 };
+
+type StaffConflictPreviewForSchedule = typeof previewAppointmentStaffConflicts;
 
 function isLifecycleExecutionCommand(
   commandType: string
@@ -82,28 +85,80 @@ async function getLifecyclePayload(input: {
   appointment: AppointmentCommandAppointmentRecord | null;
   commandRepository: AppointmentCommandRepository;
   payload: Record<string, unknown>;
+  user: AuthenticatedUser | null;
+  now: Date;
+  staffConflictPreview: StaffConflictPreviewForSchedule;
 }) {
+  if (input.commandType !== "SCHEDULE" || !input.appointment) {
+    return input.payload;
+  }
+
+  let payload = input.payload;
+
   if (
-    input.commandType !== "SCHEDULE" ||
-    !input.appointment ||
-    Array.isArray(input.payload.reservationCandidates) ||
-    !input.commandRepository.findHeldReservationCommitCandidates
+    !Array.isArray(payload.reservationCandidates) &&
+    input.commandRepository.findHeldReservationCommitCandidates
   ) {
-    return input.payload;
+    const heldReservationCandidates =
+      await input.commandRepository.findHeldReservationCommitCandidates(input.appointment.id);
+
+    if (heldReservationCandidates.length > 0) {
+      payload = {
+        ...payload,
+        reservationCandidates: heldReservationCandidates,
+        heldReservationCandidateCount: heldReservationCandidates.length
+      };
+    }
   }
 
-  const heldReservationCandidates =
-    await input.commandRepository.findHeldReservationCommitCandidates(input.appointment.id);
+  const staffConflicts = await input.staffConflictPreview(
+    input.user,
+    input.appointment.id,
+    undefined,
+    input.now
+  );
 
-  if (heldReservationCandidates.length === 0) {
-    return input.payload;
+  if (staffConflicts.status === "BLOCKED") {
+    return {
+      ...payload,
+      hardConflicts: [
+        ...((payload.hardConflicts as unknown[]) ?? []),
+        {
+          code: staffConflicts.staff ? "STAFF_UNAVAILABLE_OR_UNAUTHORIZED" : "OWNER_UNAVAILABLE_OR_UNAUTHORIZED",
+          source: "STAFF",
+          message:
+            staffConflicts.reasons[0] ??
+            "Owner staff is not available or authorized for this appointment.",
+          staffUserId: staffConflicts.staff?.userId
+        }
+      ]
+    };
   }
 
-  return {
-    ...input.payload,
-    reservationCandidates: heldReservationCandidates,
-    heldReservationCandidateCount: heldReservationCandidates.length
-  };
+  if (
+    staffConflicts.status === "WARNING" &&
+    staffConflicts.warningOverrideRequired &&
+    !staffConflicts.warningOverrideSatisfied
+  ) {
+    const warning = {
+      warningKey: staffConflicts.warningKey ?? "STAFF|STAFF_OVERLAP|unknown",
+      code: "STAFF_OVERLAP",
+      source: "STAFF",
+      message:
+        staffConflicts.reasons[0] ??
+        "Owner staff has a warning-level availability conflict.",
+      managerOverrideRequired: true,
+      staffUserId: staffConflicts.staff?.userId
+    };
+
+    return {
+      ...payload,
+      warnings: [...((payload.warnings as unknown[]) ?? []), warning],
+      unresolvedWarnings: [...((payload.unresolvedWarnings as unknown[]) ?? []), warning]
+    };
+  }
+
+  return payload;
 }
 
 export async function submitAndExecuteAppointmentCommand(
@@ -112,6 +167,7 @@ export async function submitAndExecuteAppointmentCommand(
   dependencies?: {
     commandRepository?: AppointmentCommandRepository;
     lifecycleRepository?: AppointmentLifecycleTransactionRepository;
+    staffConflictPreview?: StaffConflictPreviewForSchedule;
     now?: Date;
   }
 ): Promise<AppointmentCommandExecutionResult> {
@@ -148,11 +204,32 @@ export async function submitAndExecuteAppointmentCommand(
   const locationAccess = toLocationAccessGrant(
     await commandRepository.findActiveLocationAccess(user.id, locationId, now)
   );
+  const staffConflictPreview =
+    dependencies?.staffConflictPreview ??
+    (dependencies
+      ? (async () => ({
+          appointmentId: appointment?.id ?? "",
+          appointmentNumber: appointment?.appointmentNumber ?? "",
+          bookingStatus: appointment?.bookingStatus ?? "DRAFT",
+          status: "READY" as const,
+          canProceedWithStaff: true,
+          warningOverrideRequired: false,
+          warningOverrideSatisfied: false,
+          warningKey: null,
+          staff: null,
+          checks: [],
+          reasons: [],
+          availability: null
+        }))
+      : previewAppointmentStaffConflicts);
   const payload = await getLifecyclePayload({
     commandType: submitted.command.commandType,
     appointment,
     commandRepository,
-    payload: commandRequest.payload
+    payload: commandRequest.payload,
+    user,
+    now,
+    staffConflictPreview
   });
   const plan = planAppointmentLifecycleCommandExecution({
     commandId: submitted.command.id,

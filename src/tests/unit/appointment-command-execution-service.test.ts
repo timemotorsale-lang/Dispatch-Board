@@ -330,6 +330,83 @@ describe("appointment command execution service", () => {
     expect(lifecycleHarness.committedReservationCandidateCounts).toEqual([1]);
   });
 
+  it("rejects schedule execution when owner staff warning has not been overridden", async () => {
+    const commandHarness = createCommandRepositoryHarness({
+      appointment: {
+        id: "appointment-1",
+        appointmentNumber: "APT-10245",
+        organizationId: "org-time-motor-sales",
+        locationId: "loc-time-motor-sales-minneapolis",
+        ownerUserId: ownerUser.id,
+        title: "Service / Repair",
+        schedulingTimezone: "America/Chicago",
+        startsAt: new Date("2026-07-06T15:00:00.000Z"),
+        endsAt: new Date("2026-07-06T16:00:00.000Z"),
+        bookingStatus: "DRAFT",
+        confirmationStatus: "NOT_REQUIRED",
+        attendanceStatus: "EXPECTED",
+        executionStatus: "NOT_STARTED",
+        version: 3
+      }
+    });
+    const lifecycleHarness = createLifecycleRepositoryHarness();
+    const result = await submitAndExecuteAppointmentCommand(
+      managerUser,
+      {
+        commandType: "SCHEDULE",
+        appointmentId: "appointment-1",
+        expectedAppointmentVersion: 3,
+        idempotencyKey: "schedule-staff-warning-blocked",
+        correlationId: "corr-schedule-staff-warning",
+        payload: {
+          startsAt: "2026-07-06T16:00:00.000Z",
+          endsAt: "2026-07-06T17:00:00.000Z"
+        }
+      },
+      {
+        commandRepository: commandHarness.repository,
+        lifecycleRepository: lifecycleHarness.repository,
+        staffConflictPreview: async () => ({
+          appointmentId: "appointment-1",
+          appointmentNumber: "APT-10245",
+          bookingStatus: "DRAFT",
+          status: "WARNING",
+          canProceedWithStaff: false,
+          warningOverrideRequired: true,
+          warningOverrideSatisfied: false,
+          warningKey: "STAFF|STAFF_OVERLAP|appointment-1|user-owner|resource-staff",
+          staff: {
+            userId: ownerUser.id,
+            name: ownerUser.name,
+            role: "OWNER",
+            resourceId: "resource-staff",
+            resourceName: ownerUser.name
+          },
+          checks: [],
+          reasons: ["Owner staff has a warning-level overlap."],
+          availability: null
+        }),
+        now
+      }
+    );
+
+    expect(result).toMatchObject({
+      accepted: false,
+      command: {
+        commandType: "SCHEDULE",
+        status: "FAILED_TERMINAL"
+      },
+      execution: {
+        executed: false,
+        commandStatus: "FAILED_TERMINAL",
+        resultSnapshot: {
+          rejectionCode: "UNRESOLVED_WARNING",
+          rejectionReasons: ["Owner staff has a warning-level overlap."]
+        }
+      }
+    });
+  });
+
   it("executes operational appointment commands through the same transaction boundary", async () => {
     const commandHarness = createCommandRepositoryHarness();
     const lifecycleHarness = createLifecycleRepositoryHarness();

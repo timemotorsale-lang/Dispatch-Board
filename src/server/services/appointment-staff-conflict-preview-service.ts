@@ -9,10 +9,12 @@ import {
 } from "@/server/appointments/staff-availability-service";
 import { prisma } from "@/server/db/client";
 import {
+  canOverrideAppointmentWarning,
   canMutateAppointment,
   canViewAppointmentSchedule,
   type AppointmentLocationAccessGrant
 } from "@/server/policies/access";
+import { normalizeAppointmentHistoryEvent } from "@/server/validation/appointment-history-events";
 
 const appointmentStaffConflictPreviewSelect = {
   id: true,
@@ -96,7 +98,7 @@ const staffResourceSelect = {
 
 type AppointmentStaffConflictPreviewDatabase = Pick<
   PrismaClient,
-  "appointment" | "userLocationAccess" | "schedulableResource"
+  "$transaction" | "appointment" | "appointmentHistoryEvent" | "userLocationAccess" | "schedulableResource"
 >;
 
 export type AppointmentStaffConflictPreviewAppointmentRecord = Prisma.AppointmentGetPayload<{
@@ -125,6 +127,10 @@ export type AppointmentStaffConflictPreviewRepository = {
     userId: string,
     locationId: string
   ): Promise<AppointmentStaffConflictPreviewStaffResourceRecord | null>;
+  findStaffWarningOverrideKeys?(
+    appointmentId: string,
+    warningKeys: string[]
+  ): Promise<string[]>;
 };
 
 export type AppointmentStaffConflictPreviewResult = {
@@ -133,6 +139,9 @@ export type AppointmentStaffConflictPreviewResult = {
   bookingStatus: string;
   status: "READY" | "WARNING" | "BLOCKED";
   canProceedWithStaff: boolean;
+  warningOverrideRequired: boolean;
+  warningOverrideSatisfied: boolean;
+  warningKey: string | null;
   staff: {
     userId: string;
     name: string;
@@ -148,6 +157,27 @@ export type AppointmentStaffConflictPreviewResult = {
   }>;
   reasons: string[];
   availability: StaffAvailabilityResult | null;
+};
+
+export type OverrideAppointmentStaffWarningInput = {
+  expectedAppointmentVersion: number;
+  reasonCode: string;
+  reasonNotes: string;
+  correlationId?: string | null;
+};
+
+export type AppointmentStaffWarningOverride = {
+  appointmentId: string;
+  appointmentNumber: string;
+  staffUserId: string;
+  staffName: string;
+  resourceId: string | null;
+  resourceName: string | null;
+  status: "OVERRIDDEN";
+  warningCode: "STAFF_OVERLAP";
+  warningKey: string;
+  reasons: string[];
+  appointmentVersion: number;
 };
 
 function assertAuthenticated(user: AuthenticatedUser | null) {
@@ -259,6 +289,9 @@ function buildMissingOwnerResult(
     bookingStatus: appointment.bookingStatus,
     status: "BLOCKED",
     canProceedWithStaff: false,
+    warningOverrideRequired: false,
+    warningOverrideSatisfied: false,
+    warningKey: null,
     staff: null,
     checks: [
       createCheck({
@@ -282,6 +315,9 @@ function buildInvalidTimeResult(
     bookingStatus: appointment.bookingStatus,
     status: "BLOCKED",
     canProceedWithStaff: false,
+    warningOverrideRequired: false,
+    warningOverrideSatisfied: false,
+    warningKey: null,
     staff: appointment.ownerUser
       ? {
           userId: appointment.ownerUser.id,
@@ -304,10 +340,45 @@ function buildInvalidTimeResult(
   };
 }
 
+function buildStaffWarningKey(input: {
+  appointmentId: string;
+  staffUserId: string;
+  resourceId: string | null;
+  reasons: string[];
+}) {
+  return [
+    "STAFF",
+    "STAFF_OVERLAP",
+    input.appointmentId,
+    input.staffUserId,
+    input.resourceId ?? "no-resource",
+    input.reasons.join("|")
+  ].join("|");
+}
+
+function requiredText(value: string | null | undefined, label: string) {
+  const normalized = value?.trim();
+
+  if (!normalized) {
+    throw new Error(`${label} is required.`);
+  }
+
+  return normalized;
+}
+
+function requiredVersion(value: number | null | undefined) {
+  if (!Number.isInteger(value) || (value ?? 0) < 1) {
+    throw new Error("Expected appointment version is required.");
+  }
+
+  return value as number;
+}
+
 function buildPreview(input: {
   appointment: AppointmentStaffConflictPreviewAppointmentRecord;
   ownerAccess: AppointmentStaffConflictPreviewLocationAccessRecord | null;
   staffResource: AppointmentStaffConflictPreviewStaffResourceRecord | null;
+  overriddenWarningKeys?: Set<string>;
 }) {
   if (!input.appointment.ownerUser) {
     return buildMissingOwnerResult(input.appointment);
@@ -340,13 +411,29 @@ function buildPreview(input: {
     : availability.isWarningOnly
       ? "WARNING"
       : "BLOCKED";
+  const warningKey =
+    status === "WARNING"
+      ? buildStaffWarningKey({
+          appointmentId: input.appointment.id,
+          staffUserId: input.appointment.ownerUser.id,
+          resourceId: input.staffResource?.id ?? null,
+          reasons: availability.reasons
+        })
+      : null;
+  const warningOverrideRequired = status === "WARNING";
+  const warningOverrideSatisfied = Boolean(
+    warningKey && input.overriddenWarningKeys?.has(warningKey)
+  );
 
   return {
     appointmentId: input.appointment.id,
     appointmentNumber: input.appointment.appointmentNumber,
     bookingStatus: input.appointment.bookingStatus,
     status,
-    canProceedWithStaff: availability.isSchedulable || availability.isWarningOnly,
+    canProceedWithStaff: availability.isSchedulable || warningOverrideSatisfied,
+    warningOverrideRequired,
+    warningOverrideSatisfied,
+    warningKey,
     staff: {
       userId: input.appointment.ownerUser.id,
       name: input.appointment.ownerUser.name,
@@ -405,6 +492,34 @@ export function createAppointmentStaffConflictPreviewRepository(
         },
         select: staffResourceSelect
       });
+    },
+
+    async findStaffWarningOverrideKeys(appointmentId, warningKeys) {
+      if (warningKeys.length === 0) {
+        return [];
+      }
+
+      const results = await Promise.all(
+        [...new Set(warningKeys)].map(async (warningKey) => {
+          const event = await database.appointmentHistoryEvent.findFirst({
+            where: {
+              appointmentId,
+              eventType: "WARNING_OVERRIDDEN",
+              metadata: {
+                path: ["warningKey"],
+                equals: warningKey
+              }
+            },
+            select: {
+              id: true
+            }
+          });
+
+          return event ? warningKey : null;
+        })
+      );
+
+      return results.filter((warningKey): warningKey is string => Boolean(warningKey));
     }
   };
 }
@@ -456,10 +571,165 @@ export async function previewAppointmentStaffConflicts(
   const staffResource = appointment.ownerUserId
     ? await repository.findStaffResourceForUser(appointment.ownerUserId, appointment.locationId)
     : null;
+  const initialPreview = buildPreview({
+    appointment,
+    ownerAccess,
+    staffResource
+  });
+  const overriddenWarningKeys =
+    initialPreview.warningKey && repository.findStaffWarningOverrideKeys
+      ? await repository.findStaffWarningOverrideKeys(appointment.id, [initialPreview.warningKey])
+      : [];
 
   return buildPreview({
     appointment,
     ownerAccess,
+    staffResource,
+    overriddenWarningKeys: new Set(overriddenWarningKeys)
+  });
+}
+
+export async function overrideAppointmentStaffWarning(
+  user: AuthenticatedUser | null,
+  appointmentId: string,
+  input: OverrideAppointmentStaffWarningInput,
+  database: AppointmentStaffConflictPreviewDatabase = prisma,
+  now = new Date()
+): Promise<AppointmentStaffWarningOverride> {
+  const actor = assertAuthenticated(user);
+  const normalizedAppointmentId = requiredText(appointmentId, "Appointment id");
+  const expectedAppointmentVersion = requiredVersion(input.expectedAppointmentVersion);
+  const reasonCode = requiredText(input.reasonCode, "Staff warning override reason code");
+  const reasonNotes = requiredText(input.reasonNotes, "Staff warning override reason notes");
+  const correlationId =
+    input.correlationId?.trim() ||
+    `staff-warning-override-${normalizedAppointmentId}-${now.getTime()}`;
+  const repository = createAppointmentStaffConflictPreviewRepository(database);
+  const appointment = await repository.findAppointmentById(normalizedAppointmentId);
+
+  if (!appointment) {
+    throw new Error("Appointment not found.");
+  }
+
+  if (appointment.bookingStatus !== "DRAFT" && appointment.bookingStatus !== "PENDING_APPROVAL") {
+    throw new Error("Staff warning overrides can only be recorded for draft appointments.");
+  }
+
+  const actorAccess = await repository.findLocationAccess(actor.id, appointment.locationId);
+  const locationAccess = toLocationAccessGrant(actorAccess);
+
+  if (
+    !actorAccess ||
+    !isDateWithinAccessWindow(actorAccess, now) ||
+    !canViewAppointmentSchedule({ actor, locationAccess })
+  ) {
+    throw new Error("Appointment schedule is not authorized.");
+  }
+
+  if (!canOverrideAppointmentWarning({ actor, locationAccess })) {
+    throw new Error("Only an authorized manager can override appointment warnings.");
+  }
+
+  const ownerAccess = appointment.ownerUserId
+    ? await repository.findLocationAccess(appointment.ownerUserId, appointment.locationId)
+    : null;
+  const staffResource = appointment.ownerUserId
+    ? await repository.findStaffResourceForUser(appointment.ownerUserId, appointment.locationId)
+    : null;
+  const preview = buildPreview({
+    appointment,
+    ownerAccess,
     staffResource
+  });
+
+  if (preview.status === "READY") {
+    throw new Error("Staff owner does not have a warning to override.");
+  }
+
+  if (preview.status === "BLOCKED" || !preview.warningKey || !preview.staff) {
+    throw new Error("Staff hard blocks cannot be overridden.");
+  }
+
+  const staff = preview.staff;
+  const warningKey = preview.warningKey;
+  const historyEvent = normalizeAppointmentHistoryEvent({
+    appointmentId: appointment.id,
+    actorType: "HUMAN",
+    actorUserId: actor.id,
+    eventType: "WARNING_OVERRIDDEN",
+    message: `Staff warning for ${preview.staff.name} was overridden.`,
+    reasonCode,
+    reasonNotes,
+    correlationId,
+    priorValue: {
+      warning: {
+        warningKey,
+        warningCode: "STAFF_OVERLAP",
+        source: "STAFF",
+        staffUserId: staff.userId,
+        resourceId: staff.resourceId,
+        reasons: preview.reasons
+      }
+    },
+    newValue: {
+      status: "OVERRIDDEN"
+    },
+    metadata: {
+      source: "APPOINTMENT_BOARD_STAFF_CONFLICT_PREVIEW",
+      expectedAppointmentVersion,
+      staffUserId: staff.userId,
+      resourceId: staff.resourceId,
+      warningKey
+    },
+    occurredAt: now
+  });
+
+  return database.$transaction(async (tx) => {
+    const appointmentUpdate = await tx.appointment.updateMany({
+      where: {
+        id: appointment.id,
+        version: expectedAppointmentVersion
+      },
+      data: {
+        version: {
+          increment: 1
+        }
+      }
+    });
+
+    if (appointmentUpdate.count !== 1) {
+      throw new Error("Appointment version is stale.");
+    }
+
+    await tx.appointmentHistoryEvent.create({
+      data: {
+        appointmentId: historyEvent.appointmentId,
+        actorType: historyEvent.actorType,
+        actorUserId: historyEvent.actorUserId,
+        eventType: historyEvent.eventType,
+        message: historyEvent.message,
+        reasonCode: historyEvent.reasonCode,
+        reasonNotes: historyEvent.reasonNotes,
+        correlationId: historyEvent.correlationId,
+        priorValue: historyEvent.priorValue as Prisma.InputJsonValue,
+        newValue: historyEvent.newValue as Prisma.InputJsonValue,
+        metadata: historyEvent.metadata as Prisma.InputJsonValue,
+        occurredAt: historyEvent.occurredAt ?? now
+      }
+    });
+
+    return {
+      appointmentId: appointment.id,
+      appointmentNumber: appointment.appointmentNumber,
+      staffUserId: staff.userId,
+      staffName: staff.name,
+      resourceId: staff.resourceId,
+      resourceName: staff.resourceName,
+      status: "OVERRIDDEN",
+      warningCode: "STAFF_OVERLAP",
+      warningKey,
+      reasons: preview.reasons,
+      appointmentVersion: expectedAppointmentVersion + 1
+    };
   });
 }

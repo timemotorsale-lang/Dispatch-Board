@@ -174,6 +174,9 @@ type AppointmentStaffConflictPreview = {
   bookingStatus: string;
   status: "READY" | "WARNING" | "BLOCKED";
   canProceedWithStaff: boolean;
+  warningOverrideRequired: boolean;
+  warningOverrideSatisfied: boolean;
+  warningKey: string | null;
   staff: {
     userId: string;
     name: string;
@@ -889,6 +892,9 @@ export function AppointmentBoardShell() {
   const [isReadinessLoading, setIsReadinessLoading] = useState(false);
   const [staffConflictPreview, setStaffConflictPreview] = useState<AppointmentStaffConflictPreview | null>(null);
   const [isStaffConflictLoading, setIsStaffConflictLoading] = useState(false);
+  const [staffWarningOverrideSaving, setStaffWarningOverrideSaving] = useState(false);
+  const [staffWarningReason, setStaffWarningReason] = useState("");
+  const [overriddenStaffWarnings, setOverriddenStaffWarnings] = useState<Record<string, true>>({});
   const [resourcePlanning, setResourcePlanning] = useState<AppointmentResourcePlanning | null>(null);
   const [isResourcePlanningLoading, setIsResourcePlanningLoading] = useState(false);
   const [candidateAvailability, setCandidateAvailability] = useState<AppointmentResourceCandidateAvailability | null>(null);
@@ -1674,6 +1680,94 @@ export function AppointmentBoardShell() {
     }
   }
 
+  async function overrideStaffWarning() {
+    if (!selectedAppointment.recordId || !selectedAppointment.recordVersion) {
+      setActionNotice("Staff warnings can only be overridden for persisted live draft appointments.");
+      return;
+    }
+
+    if (selectedAppointment.status !== "draft") {
+      setActionNotice("Staff warning overrides are currently available before scheduling.");
+      return;
+    }
+
+    if (
+      !staffConflictPreview ||
+      staffConflictPreview.status !== "WARNING" ||
+      !staffConflictPreview.warningOverrideRequired
+    ) {
+      setActionNotice("Only warning-level staff conflicts can be overridden.");
+      return;
+    }
+
+    if (!staffWarningReason.trim()) {
+      setActionNotice("Add a manager reason before overriding this staff warning.");
+      return;
+    }
+
+    setStaffWarningOverrideSaving(true);
+
+    try {
+      const correlationId = createAppointmentActionIdentifier(
+        "staff-warning-override",
+        selectedAppointment.recordId
+      );
+      const reasonText =
+        staffConflictPreview.reasons.length > 0
+          ? staffConflictPreview.reasons.join(" ")
+          : "Manager accepted staff warning policy.";
+      const response = await fetch(
+        `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/staff-conflicts/override`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            expectedAppointmentVersion: selectedAppointment.recordVersion,
+            reasonCode: "STAFF_WARNING_OVERRIDDEN",
+            reasonNotes: buildResourceReasonNote(
+              `Manager accepted staff warning for ${staffConflictPreview.staff?.name ?? "owner staff"}: ${reasonText}`,
+              staffWarningReason
+            ),
+            correlationId
+          })
+        }
+      );
+      const result = (await response.json().catch(() => null)) as
+        | {
+            staffWarningOverride?: {
+              warningKey: string;
+              staffName: string;
+              appointmentVersion: number;
+            };
+            error?: string;
+          }
+        | null;
+
+      if (!response.ok || !result?.staffWarningOverride) {
+        throw new Error(result?.error || "Unable to override the staff warning.");
+      }
+
+      setOverriddenStaffWarnings((current) => ({
+        ...current,
+        [result.staffWarningOverride!.warningKey]: true
+      }));
+      setStaffWarningReason("");
+      setActionNotice(
+        `${result.staffWarningOverride.staffName} staff warning was overridden with a documented manager reason.`
+      );
+      setDetailRefreshKey((value) => value + 1);
+      await loadLiveAppointments();
+    } catch (error) {
+      setActionNotice(
+        error instanceof Error ? error.message : "Unable to override the staff warning right now."
+      );
+    } finally {
+      setStaffWarningOverrideSaving(false);
+    }
+  }
+
   async function releaseResourceReservation(
     recommendation: AppointmentResourcePlanning["recommendations"][number]
   ) {
@@ -2222,9 +2316,50 @@ export function AppointmentBoardShell() {
                         ? staffConflictPreview.reasons.join(" ")
                         : staffConflictPreview.staff?.resourceName
                           ? `${staffConflictPreview.staff.resourceName} is available for this appointment window.`
-                          : "Staff availability is ready for this appointment window."}
+                      : "Staff availability is ready for this appointment window."}
                     </small>
                   </div>
+                  {staffConflictPreview.status === "WARNING" &&
+                  staffConflictPreview.warningOverrideRequired ? (() => {
+                    const staffWarningAlreadyOverridden = Boolean(
+                      staffConflictPreview.warningOverrideSatisfied ||
+                        (staffConflictPreview.warningKey &&
+                          overriddenStaffWarnings[staffConflictPreview.warningKey])
+                    );
+
+                    return (
+                      <div className="appointment-staff-warning-control">
+                        {!staffWarningAlreadyOverridden ? (
+                          <label className="appointment-resource-reason-field">
+                            Manager staff warning reason
+                            <textarea
+                              disabled={staffWarningOverrideSaving}
+                              onChange={(event) => setStaffWarningReason(event.target.value)}
+                              placeholder="Explain why this staff conflict is acceptable."
+                              rows={2}
+                              value={staffWarningReason}
+                            />
+                          </label>
+                        ) : null}
+                        <button
+                          className="appointment-resource-action appointment-resource-warning-action"
+                          disabled={
+                            staffWarningOverrideSaving ||
+                            staffWarningAlreadyOverridden ||
+                            !staffWarningReason.trim()
+                          }
+                          onClick={() => void overrideStaffWarning()}
+                          type="button"
+                        >
+                          {staffWarningOverrideSaving
+                            ? "Overriding..."
+                            : staffWarningAlreadyOverridden
+                              ? "Staff Warning Overridden"
+                              : "Override Staff Warning"}
+                        </button>
+                      </div>
+                    );
+                  })() : null}
                   {staffConflictPreview.checks.slice(1).map((check) => (
                     <div className={`appointment-readiness-row appointment-readiness-row-${check.status.toLowerCase()}`} key={check.code}>
                       <strong>{check.label}</strong>

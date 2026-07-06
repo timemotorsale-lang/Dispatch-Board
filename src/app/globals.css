@@ -6299,6 +6299,11 @@ code {
   background: #f8fafc;
 }
 
+.appointment-staff-warning-control {
+  display: grid;
+  gap: 7px;
+}
+
 .appointment-resource-candidate-form {
   display: grid;
   grid-column: 1 / -1;
