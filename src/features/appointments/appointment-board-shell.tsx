@@ -22,7 +22,7 @@ import {
   Users,
   X
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type AppointmentCategory =
   | "sales"
@@ -39,6 +39,8 @@ type AppointmentStatus = "confirmed" | "checked-in" | "in-progress" | "no-show" 
 
 type OperationalCommand = "CHECK_IN" | "NO_SHOW";
 
+type AppointmentBoardDataSource = "preview" | "live";
+
 type StaffMember = {
   id: string;
   name: string;
@@ -50,12 +52,15 @@ type Appointment = {
   id: string;
   recordId?: string;
   recordVersion?: number;
+  dataSource?: AppointmentBoardDataSource;
   title: string;
   customer: string;
   vehicle: string;
   category: AppointmentCategory;
   status: AppointmentStatus;
   staffId: string;
+  staffName?: string;
+  staffRole?: string;
   startMinutes: number;
   durationMinutes: number;
   phone: string;
@@ -68,12 +73,64 @@ type Appointment = {
   governanceNotes: string[];
 };
 
+type AppointmentReadModel = {
+  id: string;
+  appointmentNumber: string;
+  title: string;
+  sourceReference: string | null;
+  schedulingTimezone: string;
+  startsAt: string | null;
+  endsAt: string | null;
+  bookingStatus: string;
+  confirmationStatus: string;
+  attendanceStatus: string;
+  executionStatus: string;
+  version: number;
+  owner: {
+    id: string;
+    name: string;
+    email?: string;
+  } | null;
+  customer: {
+    displayName: string;
+    phoneNumber: string | null;
+  } | null;
+  vehicles: Array<{
+    vehicleNumber: string;
+    stockNumber: string | null;
+    year: number | null;
+    make: string | null;
+    model: string | null;
+    vin: string | null;
+    roleCode: string;
+    isPrimary: boolean;
+  }>;
+  taskLinks: Array<{
+    taskId: string;
+    linkType: string;
+    blocksAppointment: boolean;
+    appointmentRequiredForTask: boolean;
+  }>;
+  visibility: {
+    canMutate: boolean;
+    relationship: string;
+  };
+  followUpDispositionCode: string | null;
+};
+
+type AppointmentReadApiResult = {
+  date: string;
+  appointmentCount: number;
+  appointments: AppointmentReadModel[];
+};
+
 type ViewMode = "day" | "week" | "month" | "agenda";
 
 const businessDate = "Monday, July 6, 2026";
 const businessHours = "9:00 AM - 6:00 PM";
 const dealershipAddress = "1101 E. Lake Street, Minneapolis, MN 55407";
 const dealershipPhone = "(612) 724-3631";
+const defaultBoardDate = "2026-07-06";
 
 const staffMembers: StaffMember[] = [
   { id: "abdi", name: "Abdi Farah", role: "General Manager", initials: "AF" },
@@ -388,6 +445,144 @@ function statusLabel(status: AppointmentStatus) {
   return status.split("-").map((word) => word[0].toUpperCase() + word.slice(1)).join(" ");
 }
 
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "??";
+}
+
+function getMinutesInTimezone(value: string | null, timezone: string) {
+  if (!value) {
+    return null;
+  }
+
+  const parts = new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    hour12: false,
+    minute: "2-digit",
+    timeZone: timezone
+  }).formatToParts(new Date(value));
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? "0");
+
+  return (hour === 24 ? 0 : hour) * 60 + minute;
+}
+
+function resolveStatus(appointment: AppointmentReadModel): AppointmentStatus {
+  if (appointment.attendanceStatus === "NO_SHOW") {
+    return "no-show";
+  }
+
+  if (appointment.executionStatus === "IN_PROGRESS" || appointment.executionStatus === "WAITING") {
+    return "in-progress";
+  }
+
+  if (appointment.attendanceStatus === "CHECKED_IN") {
+    return "checked-in";
+  }
+
+  if (appointment.followUpDispositionCode) {
+    return "follow-up";
+  }
+
+  return "confirmed";
+}
+
+function resolveCategory(appointment: AppointmentReadModel): AppointmentCategory {
+  const title = appointment.title.toLowerCase();
+
+  if (title.includes("service") || title.includes("repair") || title.includes("oil")) {
+    return "service";
+  }
+
+  if (title.includes("delivery")) {
+    return "delivery";
+  }
+
+  if (title.includes("dmv") || title.includes("title") || title.includes("registration") || title.includes("document")) {
+    return "dmv";
+  }
+
+  if (title.includes("collection") || title.includes("payment")) {
+    return "collections";
+  }
+
+  if (title.includes("inventory") || title.includes("vendor")) {
+    return "inventory";
+  }
+
+  if (title.includes("marketing") || title.includes("listing")) {
+    return "marketing";
+  }
+
+  if (title.includes("issue") || title.includes("complaint")) {
+    return "customer";
+  }
+
+  if (title.includes("test drive") || title.includes("sales")) {
+    return "sales";
+  }
+
+  return "general";
+}
+
+function resolveVehicleLabel(appointment: AppointmentReadModel) {
+  const primaryVehicle =
+    appointment.vehicles.find((vehicle) => vehicle.isPrimary) ?? appointment.vehicles[0];
+
+  if (!primaryVehicle) {
+    return "No vehicle attached";
+  }
+
+  const yearMakeModel = [primaryVehicle.year, primaryVehicle.make, primaryVehicle.model]
+    .filter(Boolean)
+    .join(" ");
+
+  return yearMakeModel || primaryVehicle.stockNumber || primaryVehicle.vehicleNumber;
+}
+
+function mapReadModelToAppointment(appointment: AppointmentReadModel): Appointment {
+  const startsAt = getMinutesInTimezone(appointment.startsAt, appointment.schedulingTimezone);
+  const endsAt = getMinutesInTimezone(appointment.endsAt, appointment.schedulingTimezone);
+  const ownerName = appointment.owner?.name ?? "Unassigned";
+
+  return {
+    id: appointment.appointmentNumber,
+    recordId: appointment.id,
+    recordVersion: appointment.version,
+    dataSource: "live",
+    title: appointment.title,
+    customer: appointment.customer?.displayName ?? "Internal / No customer",
+    vehicle: resolveVehicleLabel(appointment),
+    category: resolveCategory(appointment),
+    status: resolveStatus(appointment),
+    staffId: appointment.owner?.id ?? "unassigned-live",
+    staffName: ownerName,
+    staffRole: appointment.visibility.relationship === "MANAGER" ? "Manager-visible" : "Owner / participant",
+    startMinutes: startsAt ?? 9 * 60,
+    durationMinutes: startsAt !== null && endsAt !== null ? Math.max(30, endsAt - startsAt) : 60,
+    phone: appointment.customer?.phoneNumber ?? dealershipPhone,
+    complaint: appointment.sourceReference ?? "Live appointment record from the read model.",
+    location: "Time Motor Sales",
+    confirmation: appointment.confirmationStatus.replaceAll("_", " ").toLowerCase(),
+    needsFollowUp: Boolean(appointment.followUpDispositionCode),
+    taskAutomation:
+      appointment.taskLinks.length > 0
+        ? appointment.taskLinks.map((taskLink) => `${taskLink.linkType}: ${taskLink.taskId}`)
+        : ["No linked tasks yet"],
+    governanceNotes: [
+      appointment.visibility.canMutate
+        ? "You can update this appointment."
+        : "Read-only for your current appointment permissions.",
+      `Live record v${appointment.version}.`,
+      "Changes use the command ledger and audit history."
+    ]
+  };
+}
+
 function commandLabel(commandType: OperationalCommand) {
   return commandType === "CHECK_IN" ? "Check In" : "No Show";
 }
@@ -422,15 +617,90 @@ export function AppointmentBoardShell() {
     reasonNotes: "",
     followUpDispositionCode: "CALLBACK_REQUIRED"
   });
+  const [liveAppointments, setLiveAppointments] = useState<Appointment[]>([]);
+  const [isLiveLoading, setIsLiveLoading] = useState(true);
   const [actionNotice, setActionNotice] = useState("Operational command bridge ready. Persisted appointments can now use the live command API for check-in and no-show actions.");
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadLiveAppointments() {
+      setIsLiveLoading(true);
+
+      try {
+        const response = await fetch(`/api/appointments?date=${encodeURIComponent(defaultBoardDate)}`);
+        const result = (await response.json().catch(() => null)) as AppointmentReadApiResult | { error?: string } | null;
+
+        if (!isActive) {
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error(result && "error" in result && result.error ? result.error : "Unable to load live appointments.");
+        }
+
+        const appointmentsFromReadModel =
+          result && "appointments" in result
+            ? result.appointments.map((appointment) => mapReadModelToAppointment(appointment))
+            : [];
+
+        setLiveAppointments(appointmentsFromReadModel);
+        setActionNotice(
+          appointmentsFromReadModel.length > 0
+            ? `Loaded ${appointmentsFromReadModel.length} live appointment${appointmentsFromReadModel.length === 1 ? "" : "s"} from the read model.`
+            : "Live read model is connected. No persisted appointments were found for this day, so the approved preview board remains visible."
+        );
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        setLiveAppointments([]);
+        setActionNotice(
+          error instanceof Error
+            ? `Live read model could not load: ${error.message}. Preview board remains visible.`
+            : "Live read model could not load. Preview board remains visible."
+        );
+      } finally {
+        if (isActive) {
+          setIsLiveLoading(false);
+        }
+      }
+    }
+
+    void loadLiveAppointments();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   const boardAppointments = useMemo(
     () =>
-      appointments.map((appointment) => ({
+      (liveAppointments.length > 0 ? liveAppointments : appointments).map((appointment) => ({
         ...appointment,
         status: appointmentStatusOverrides[appointment.id] ?? appointment.status
       })),
-    [appointmentStatusOverrides]
+    [appointmentStatusOverrides, liveAppointments]
+  );
+
+  const visibleStaffMembers = useMemo(
+    () =>
+      boardAppointments.reduce<StaffMember[]>((staffList, appointment) => {
+        if (staffList.some((staff) => staff.id === appointment.staffId)) {
+          return staffList;
+        }
+
+        staffList.push({
+          id: appointment.staffId,
+          name: appointment.staffName ?? "Unassigned",
+          role: appointment.staffRole ?? "Appointment owner",
+          initials: getInitials(appointment.staffName ?? "Unassigned")
+        });
+
+        return staffList;
+      }, [...staffMembers]),
+    [boardAppointments]
   );
 
   const filteredAppointments = useMemo(() => {
@@ -451,7 +721,8 @@ export function AppointmentBoardShell() {
   const selectedAppointment =
     boardAppointments.find((appointment) => appointment.id === selectedId) ?? filteredAppointments[0] ?? boardAppointments[0];
 
-  const selectedStaff = staffMembers.find((staff) => staff.id === selectedAppointment.staffId) ?? staffMembers[0];
+  const selectedStaff =
+    visibleStaffMembers.find((staff) => staff.id === selectedAppointment.staffId) ?? visibleStaffMembers[0];
 
   const metrics = [
     { label: "Total Appointments", value: boardAppointments.length, status: "all" as const, tone: "slate" },
@@ -567,7 +838,7 @@ export function AppointmentBoardShell() {
 
       <div className="appointment-preview-banner" role="status">
         <ShieldCheck size={18} aria-hidden="true" />
-        <span>{actionNotice}</span>
+        <span>{isLiveLoading ? "Loading live appointment read model..." : actionNotice}</span>
       </div>
 
       <div className="appointment-date-row">
@@ -624,7 +895,7 @@ export function AppointmentBoardShell() {
               </select>
               <select aria-label="Filter appointment staff" value={staffFilter} onChange={(event) => setStaffFilter(event.target.value)}>
                 <option value="all">All Staff</option>
-                {staffMembers.map((staff) => (
+                {visibleStaffMembers.map((staff) => (
                   <option key={staff.id} value={staff.id}>{staff.name}</option>
                 ))}
               </select>
@@ -639,7 +910,7 @@ export function AppointmentBoardShell() {
             <div className="appointment-calendar-shell">
               <div className="appointment-calendar-header">
                 <div className="appointment-all-day">All Day</div>
-                {staffMembers.map((staff) => (
+                {visibleStaffMembers.map((staff) => (
                   <div className="appointment-staff-header" key={staff.id}>
                     <span className="appointment-avatar">{staff.initials}</span>
                     <div>
@@ -655,7 +926,7 @@ export function AppointmentBoardShell() {
                     <span key={hour} style={{ top: `${index * 66}px` }}>{hour}</span>
                   ))}
                 </div>
-                {staffMembers.map((staff) => (
+                {visibleStaffMembers.map((staff) => (
                   <div className="appointment-staff-column" key={staff.id}>
                     {filteredAppointments.filter((appointment) => appointment.staffId === staff.id).map((appointment) => {
                       const meta = categoryMeta[appointment.category];
@@ -827,7 +1098,7 @@ export function AppointmentBoardShell() {
             <p>This visible shell is ready for the day-one workflow: category, owner, customer, vehicle, reason, automation template, conflict rule, and audit reason.</p>
             <div className="appointment-modal-grid">
               <label>Category<select defaultValue="service"><option value="service">Service / Repair</option><option value="sales">Sales / Test Drive</option><option value="dmv">Documentation / DMV</option></select></label>
-              <label>Owner<select defaultValue="brock">{staffMembers.map((staff) => <option key={staff.id} value={staff.id}>{staff.name}</option>)}</select></label>
+              <label>Owner<select defaultValue="brock">{visibleStaffMembers.map((staff) => <option key={staff.id} value={staff.id}>{staff.name}</option>)}</select></label>
               <label>Customer<input placeholder="Customer name" /></label>
               <label>Vehicle<input placeholder="Vehicle / stock #" /></label>
               <label className="appointment-modal-span">Reason<textarea rows={3} placeholder="Every change or creation requires a documented reason." /></label>
