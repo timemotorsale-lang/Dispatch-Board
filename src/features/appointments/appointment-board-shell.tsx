@@ -928,6 +928,9 @@ export function AppointmentBoardShell() {
   const [overriddenResourceWarnings, setOverriddenResourceWarnings] = useState<Record<string, true>>({});
   const [resourceActionReasonNotes, setResourceActionReasonNotes] = useState<Record<string, string>>({});
   const [selectedResourceCandidates, setSelectedResourceCandidates] = useState<Record<string, string>>({});
+  const [ownerTransferUserId, setOwnerTransferUserId] = useState("");
+  const [ownerTransferReason, setOwnerTransferReason] = useState("");
+  const [isOwnerTransferSaving, setIsOwnerTransferSaving] = useState(false);
   const [detailRefreshKey, setDetailRefreshKey] = useState(0);
   const [actionNotice, setActionNotice] = useState("Operational command bridge ready. Persisted appointments can now use the live command API for check-in and no-show actions.");
 
@@ -1053,6 +1056,45 @@ export function AppointmentBoardShell() {
 
   const selectedStaff =
     visibleStaffMembers.find((staff) => staff.id === selectedAppointment.staffId) ?? visibleStaffMembers[0];
+
+  const ownerTransferCandidates = useMemo(() => {
+    const candidates = new Map<string, StaffMember>();
+
+    for (const appointment of boardAppointments) {
+      if (appointment.dataSource !== "live" || appointment.staffId === "unassigned-live") {
+        continue;
+      }
+
+      candidates.set(appointment.staffId, {
+        id: appointment.staffId,
+        name: appointment.staffName ?? appointment.staffId,
+        role: appointment.staffRole ?? "Appointment owner",
+        initials: getInitials(appointment.staffName ?? appointment.staffId)
+      });
+    }
+
+    for (const staffMember of staffConflictPreview?.staffMembers ?? []) {
+      candidates.set(staffMember.userId, {
+        id: staffMember.userId,
+        name: staffMember.name,
+        role:
+          staffMember.role === "OWNER"
+            ? "Appointment owner"
+            : `Participant · ${staffMember.roleCode.replaceAll("_", " ")}`,
+        initials: getInitials(staffMember.name)
+      });
+    }
+
+    return Array.from(candidates.values())
+      .filter((staff) => staff.id !== selectedAppointment.staffId)
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }, [boardAppointments, selectedAppointment.staffId, staffConflictPreview?.staffMembers]);
+
+  const resolvedOwnerTransferUserId = ownerTransferCandidates.some(
+    (staff) => staff.id === ownerTransferUserId
+  )
+    ? ownerTransferUserId
+    : ownerTransferCandidates[0]?.id ?? "";
 
   useEffect(() => {
     let isActive = true;
@@ -1991,6 +2033,84 @@ export function AppointmentBoardShell() {
     }
   }
 
+  async function transferAppointmentOwner() {
+    if (!selectedAppointment.recordId || !selectedAppointment.recordVersion) {
+      setActionNotice("Owner reassignment can only be submitted for persisted live appointments.");
+      return;
+    }
+
+    if (!resolvedOwnerTransferUserId) {
+      setActionNotice("Choose a new accountable owner before submitting the reassignment.");
+      return;
+    }
+
+    if (resolvedOwnerTransferUserId === selectedAppointment.staffId) {
+      setActionNotice("Choose a different owner before submitting the reassignment.");
+      return;
+    }
+
+    if (!ownerTransferReason.trim()) {
+      setActionNotice("Owner reassignment requires a documented manager reason.");
+      return;
+    }
+
+    const selectedOwner = ownerTransferCandidates.find(
+      (candidate) => candidate.id === resolvedOwnerTransferUserId
+    );
+
+    setIsOwnerTransferSaving(true);
+
+    try {
+      const idempotencyKey = createAppointmentActionIdentifier(
+        "transfer-owner",
+        selectedAppointment.recordId
+      );
+      const response = await fetch("/api/appointments/commands", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          commandType: "TRANSFER_OWNER",
+          appointmentId: selectedAppointment.recordId,
+          expectedAppointmentVersion: selectedAppointment.recordVersion,
+          idempotencyKey,
+          correlationId: idempotencyKey,
+          payload: {
+            ownerUserId: resolvedOwnerTransferUserId,
+            reasonCode: "APPOINTMENT_OWNER_TRANSFERRED",
+            reasonNotes: buildResourceReasonNote(
+              `Transferred accountable owner from ${selectedAppointment.staffName ?? selectedAppointment.staffId} to ${selectedOwner?.name ?? resolvedOwnerTransferUserId} from Appointment Board owner controls.`,
+              ownerTransferReason
+            )
+          }
+        })
+      });
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok || !result?.accepted) {
+        throw new Error(
+          result?.error ||
+            result?.execution?.rejectionReasons?.join(" ") ||
+            "Owner reassignment could not be completed."
+        );
+      }
+
+      setOwnerTransferReason("");
+      setActionNotice(
+        `Owner reassignment saved for ${selectedAppointment.id}: ${selectedOwner?.name ?? resolvedOwnerTransferUserId} is now accountable. History and command ledger were updated.`
+      );
+      setDetailRefreshKey((value) => value + 1);
+      await loadLiveAppointments();
+    } catch (error) {
+      setActionNotice(
+        error instanceof Error ? error.message : "Owner reassignment could not be completed."
+      );
+    } finally {
+      setIsOwnerTransferSaving(false);
+    }
+  }
+
   async function submitOperationalCommand(commandType: OperationalCommand) {
     const label = commandLabel(commandType);
 
@@ -2419,6 +2539,84 @@ export function AppointmentBoardShell() {
               )}
             </div>
           ) : null}
+
+          <div className="appointment-detail-section">
+              <div className="appointment-section-heading">
+                <strong>Owner Reassignment</strong>
+                <span className="appointment-resource-chip appointment-resource-requirement-selected">
+                  Manager audited
+                </span>
+              </div>
+              <div className="appointment-owner-transfer-card">
+                <div className="appointment-owner-transfer-current">
+                  <span className="appointment-avatar">{selectedStaff.initials}</span>
+                  <div>
+                    <strong>{selectedAppointment.staffName ?? selectedStaff.name}</strong>
+                    <small>
+                      {selectedAppointment.dataSource === "live" && selectedAppointment.recordVersion
+                        ? `Current accountable owner · live record v${selectedAppointment.recordVersion}`
+                        : "Current preview owner · save requires a live appointment record"}
+                    </small>
+                  </div>
+                </div>
+                <label className="appointment-resource-reason-field">
+                  New accountable owner
+                  <select
+                    disabled={
+                      selectedAppointment.dataSource !== "live" ||
+                      isOwnerTransferSaving ||
+                      ownerTransferCandidates.length === 0
+                    }
+                    onChange={(event) => setOwnerTransferUserId(event.target.value)}
+                    value={resolvedOwnerTransferUserId}
+                  >
+                    {ownerTransferCandidates.length === 0 ? (
+                      <option value="">No alternate live staff available</option>
+                    ) : null}
+                    {ownerTransferCandidates.map((candidate) => (
+                      <option key={candidate.id} value={candidate.id}>
+                        {candidate.name} · {candidate.role}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="appointment-resource-reason-field">
+                  Reassignment reason
+                  <textarea
+                    disabled={
+                      selectedAppointment.dataSource !== "live" ||
+                      isOwnerTransferSaving ||
+                      ownerTransferCandidates.length === 0
+                    }
+                    onChange={(event) => setOwnerTransferReason(event.target.value)}
+                    placeholder="Document why accountability is moving to this staff member."
+                    rows={2}
+                    value={ownerTransferReason}
+                  />
+                </label>
+                <button
+                  className="appointment-resource-action"
+                  disabled={
+                    isOwnerTransferSaving ||
+                    selectedAppointment.dataSource !== "live" ||
+                    !selectedAppointment.recordId ||
+                    !selectedAppointment.recordVersion ||
+                    ownerTransferCandidates.length === 0 ||
+                    !resolvedOwnerTransferUserId ||
+                    !ownerTransferReason.trim()
+                  }
+                  onClick={() => void transferAppointmentOwner()}
+                  type="button"
+                >
+                  {isOwnerTransferSaving ? "Transferring..." : "Transfer Owner"}
+                </button>
+                <p className="appointment-resource-copy">
+                  {selectedAppointment.dataSource === "live"
+                    ? "Only authorized managers can complete this command. The backend records the prior owner, new owner, version, correlation id, and reason."
+                    : "Preview appointments show the enterprise owner-transfer control, but saving is enabled only after the appointment exists as a live record."}
+                </p>
+              </div>
+            </div>
 
           {selectedAppointment.dataSource === "live" && selectedAppointment.recordId ? (
             <div className="appointment-detail-section">

@@ -442,7 +442,7 @@ function toAppointmentReadModel(input: {
       taskId: taskLink.taskId,
       linkType: taskLink.linkType,
       blocksAppointment: taskLink.blocksAppointment,
-      appointmentRequiredForTask: taskLink.appointmentRequiredForTask
+      appointmentRequiredForTask: taskLink.blocksTask
     })),
     resourceReservations: input.appointment.resourceReservations.map((reservation) => ({
       id: reservation.id,

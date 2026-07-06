@@ -1,4 +1,4 @@
-import { BusinessDay, LocationSchedulingStatus } from "@prisma/client";
+import type { BusinessDay, LocationSchedulingStatus } from "@prisma/client";
 
 export const INITIAL_ORGANIZATION = {
   id: "org-time-motor-sales",
@@ -19,16 +19,17 @@ export const INITIAL_MINNEAPOLIS_LOCATION = {
   postalCode: "55407",
   phoneNumber: "+16127243631",
   countryCode: "US",
-  schedulingStatus: LocationSchedulingStatus.DRAFT
+  schedulingStatus: "DRAFT" satisfies LocationSchedulingStatus
 } as const;
 
-export const INITIAL_MINNEAPOLIS_OPERATING_WINDOWS = [
-  BusinessDay.MONDAY,
-  BusinessDay.TUESDAY,
-  BusinessDay.WEDNESDAY,
-  BusinessDay.THURSDAY,
-  BusinessDay.FRIDAY
-].map((businessDay) => ({
+export const INITIAL_MINNEAPOLIS_OPERATING_WINDOWS = ([
+  "MONDAY",
+  "TUESDAY",
+  "WEDNESDAY",
+  "THURSDAY",
+  "FRIDAY"
+  ] satisfies BusinessDay[]
+).map((businessDay) => ({
   id: `loc-time-motor-sales-minneapolis-hours-${businessDay.toLowerCase()}-20260705`,
   businessDay,
   opensAtMinute: 9 * 60,

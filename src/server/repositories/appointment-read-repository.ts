@@ -106,7 +106,7 @@ const appointmentReadSelect = {
       taskId: true,
       linkType: true,
       blocksAppointment: true,
-      appointmentRequiredForTask: true,
+      blocksTask: true,
       createdAt: true
     }
   },
@@ -193,7 +193,7 @@ export type AppointmentReadTaskLinkRecord = {
   taskId: string;
   linkType: AppointmentTaskLinkType;
   blocksAppointment: boolean;
-  appointmentRequiredForTask: boolean;
+  blocksTask: boolean;
   createdAt: Date;
 };
 
