@@ -66,6 +66,7 @@ Prisma client generation updated generated types but could not replace the locke
 | Appointment availability search service | Implemented as service boundary | EAPT-021 availability search service generates bounded local-date candidates from location windows, evaluates slots through hard-conflict and warning rules, separates available/warning/blocked results, and keeps search behavior aligned with commit-time checks |
 | Appointment reschedule impact service | Implemented as service boundary | EAPT-022 reschedule preview service reports prior/new times, proposed resource windows, reservation release/recreate impacts, hard conflicts, warnings, recurrence scope effects, blocked/warning occurrence keys, and preserved completed/cancelled occurrences |
 | Appointment bulk reschedule service | Implemented as service boundary | EAPT-023 bulk service classifies dry-run targets, supports all-or-nothing and partial execution policies, requires reasoned execution, records skipped/succeeded/failed summaries, and enforces operation ID plus preview-token retry safety |
+| Appointment waitlist and unscheduled-request service | Implemented as service boundary | EAPT-024 waitlist service captures unscheduled demand without scheduling, tracks missing context, requires schedule access, ranks availability candidates, and prepares explicit promotion plans that still require appointment commands |
 | Appointment Board visible shell | Implemented as preview UI | `/appointments` now renders the mockup-aligned board surface with KPI cards, staff calendar columns, filters, selectable preview appointments, detail rail, linked tasks, enterprise controls, upcoming appointments, and responsive behavior; live services/APIs remain pending |
 
 ## Existing Partial or Placeholder Surfaces
@@ -92,7 +93,7 @@ At this baseline:
 - EAPT-003 organization/location foundation is implemented.
 - EAPT-004 Appointment aggregate foundation is implemented.
 - EAPT-005 participant, customer, vehicle, location-access, privacy, and resource foundation is implemented.
-- Database-backed versioned appointment-template administration, recurrence persistence/materialization, persisted warning override/history records, concrete Prisma reservation transaction adapter, availability-search API/UI, reschedule/bulk execution persistence, lifecycle execution services, command-center read services, administration UI, and persisted production Appointment workflows have not yet been implemented.
+- Database-backed versioned appointment-template administration, recurrence persistence/materialization, persisted warning override/history records, concrete Prisma reservation transaction adapter, availability-search API/UI, waitlist persistence/queues, reschedule/bulk execution persistence, lifecycle execution services, command-center read services, administration UI, and persisted production Appointment workflows have not yet been implemented.
 - The existing `/appointments` route now contains the mockup-aligned preview shell and is the intended UI boundary for the next live-service slices.
 
 ## Current Execution Order

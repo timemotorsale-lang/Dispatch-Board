@@ -71,6 +71,7 @@ The approved enterprise product, permission, lifecycle, conflict, automation, an
 | [AVAILABILITY_SEARCH_CONTRACT.md](AVAILABILITY_SEARCH_CONTRACT.md) | Implemented EAPT-021 availability search contract for people and resources |
 | [RESCHEDULE_IMPACT_PREVIEW_CONTRACT.md](RESCHEDULE_IMPACT_PREVIEW_CONTRACT.md) | Implemented EAPT-022 reschedule and recurrence-change impact preview contract |
 | [BULK_RESCHEDULE_CONTRACT.md](BULK_RESCHEDULE_CONTRACT.md) | Implemented EAPT-023 bulk-reschedule dry-run and controlled-execution contract |
+| [WAITLIST_UNSCHEDULED_REQUEST_CONTRACT.md](WAITLIST_UNSCHEDULED_REQUEST_CONTRACT.md) | Implemented EAPT-024 waitlist and unscheduled-request contract |
 | [AUTOMATION_RULES_CATALOG.md](AUTOMATION_RULES_CATALOG.md) | Explainable task-to-appointment and appointment-to-task automation model |
 | [PERMISSION_MATRIX.md](PERMISSION_MATRIX.md) | Manager, owner, participant, viewer, administrator, and system-action authorization rules |
 | [LIFECYCLE_CONFLICT_MATRIX.md](LIFECYCLE_CONFLICT_MATRIX.md) | State transitions, reason requirements, resource constraints, warnings, and hard blocks |
@@ -123,7 +124,8 @@ Implementation tickets may clarify technical details but may not weaken these ru
 | EAPT-021 — Availability search for people and resources | Complete | `AVAILABILITY_SEARCH_CONTRACT.md`, availability search service, bounded local-date windows, location-window candidate generation, hard-conflict and warning reconciliation, clean availability filtering, blocked diagnostics, and focused tests |
 | EAPT-022 — Rescheduling and recurrence-change impact preview | Complete | `RESCHEDULE_IMPACT_PREVIEW_CONTRACT.md`, reschedule impact service, prior/new time preview, reservation release/recreate impact, hard-block and warning reconciliation, recurrence scope preview, preserved occurrence handling, and focused tests |
 | EAPT-023 — Bulk-rescheduling dry run and controlled execution | Complete | `BULK_RESCHEDULE_CONTRACT.md`, bulk dry-run classification, all-or-nothing and partial execution policies, required reasons, operation preview tokens, retry/idempotency behavior, skipped-item reporting, and focused tests |
-| EAPT-024 — Waitlist and unscheduled-request domain services | Next | Capture unscheduled requests safely and convert them to candidates without silently scheduling |
+| EAPT-024 — Waitlist and unscheduled-request domain services | Complete | `WAITLIST_UNSCHEDULED_REQUEST_CONTRACT.md`, unscheduled request service, context readiness checks, permission-safe capture, availability-based candidate ranking, no-silent-scheduling guarantees, promotion planning, and focused tests |
+| EAPT-025 — Scheduling engine load, concurrency, and failure tests | Next | Add scheduling-engine quality coverage for capacity, concurrency, failure, and E2 gate behavior |
 
 ## Recommended Review Order
 
