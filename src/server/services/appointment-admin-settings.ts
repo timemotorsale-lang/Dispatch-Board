@@ -123,6 +123,8 @@ export type AppointmentAdminSettingsRepository = {
   listResourceTypes(organizationId: string): Promise<AppointmentAdminResourceTypeRecord[]>;
   listResources(locationId: string): Promise<AppointmentAdminResourceRecord[]>;
   createLocationClosure(input: NormalizedAppointmentLocationClosureInput): Promise<AppointmentAdminLocationClosureRecord>;
+  updateLocationClosure(input: NormalizedAppointmentLocationClosureUpdateInput): Promise<AppointmentAdminLocationClosureRecord>;
+  deleteLocationClosure(input: AppointmentLocationClosureDeleteInput): Promise<void>;
   updateResource(input: NormalizedAppointmentResourceUpdateInput): Promise<AppointmentAdminResourceRecord>;
   createResourceUnavailability(input: NormalizedAppointmentResourceUnavailabilityInput): Promise<AppointmentAdminResourceUnavailabilityRecord>;
   updateLocationAndHours(input: {
@@ -163,6 +165,11 @@ export type AppointmentLocationClosureInput = {
   reason: string;
 };
 
+export type AppointmentLocationClosureDeleteInput = {
+  locationId: string;
+  closureId: string;
+};
+
 export type AppointmentResourceUpdateInput = {
   resourceId: string;
   status: string;
@@ -198,6 +205,11 @@ export type NormalizedAppointmentLocationClosureInput = {
   reason: string;
   createdByUserId: string;
 };
+
+export type NormalizedAppointmentLocationClosureUpdateInput =
+  Omit<NormalizedAppointmentLocationClosureInput, "createdByUserId"> & {
+    closureId: string;
+  };
 
 export type NormalizedAppointmentResourceUpdateInput = {
   resourceId: string;
@@ -549,6 +561,21 @@ export function normalizeAppointmentLocationClosureInput(input: {
   userId: string;
   closure: AppointmentLocationClosureInput;
 }): NormalizedAppointmentLocationClosureInput {
+  const normalized = normalizeAppointmentLocationClosureFields({
+    locationId: input.locationId,
+    closure: input.closure
+  });
+
+  return {
+    ...normalized,
+    createdByUserId: normalizeText(input.userId, "Closure creator", 120)
+  };
+}
+
+function normalizeAppointmentLocationClosureFields(input: {
+  locationId: string;
+  closure: AppointmentLocationClosureInput;
+}) {
   const type = normalizeText(input.closure?.type, "Closure type", 40);
 
   if (!validLocationClosureTypes.has(type)) {
@@ -565,8 +592,21 @@ export function normalizeAppointmentLocationClosureInput(input: {
     name: normalizeText(input.closure?.name, "Closure name", 120),
     startsAt,
     endsAt,
-    reason: normalizeText(input.closure?.reason, "Closure reason", 1000),
-    createdByUserId: normalizeText(input.userId, "Closure creator", 120)
+    reason: normalizeText(input.closure?.reason, "Closure reason", 1000)
+  };
+}
+
+export function normalizeAppointmentLocationClosureUpdateInput(input: {
+  locationId: string;
+  closureId: string;
+  closure: AppointmentLocationClosureInput;
+}): NormalizedAppointmentLocationClosureUpdateInput {
+  return {
+    ...normalizeAppointmentLocationClosureFields({
+      locationId: input.locationId,
+      closure: input.closure
+    }),
+    closureId: normalizeText(input.closureId, "Closure", 120)
   };
 }
 
@@ -909,6 +949,39 @@ export function createAppointmentAdminSettingsRepository(): AppointmentAdminSett
         }
       });
     },
+    async updateLocationClosure(input) {
+      return prisma.locationClosure.update({
+        where: {
+          id: input.closureId,
+          locationId: input.locationId
+        },
+        data: {
+          type: input.type,
+          name: input.name,
+          startsAt: input.startsAt,
+          endsAt: input.endsAt,
+          reason: input.reason
+        },
+        select: {
+          id: true,
+          type: true,
+          name: true,
+          startsAt: true,
+          endsAt: true,
+          reason: true,
+          createdByUserId: true,
+          createdAt: true
+        }
+      });
+    },
+    async deleteLocationClosure(input) {
+      await prisma.locationClosure.delete({
+        where: {
+          id: input.closureId,
+          locationId: input.locationId
+        }
+      });
+    },
     async updateResource(input) {
       return prisma.schedulableResource.update({
         where: {
@@ -1173,6 +1246,52 @@ export async function createAppointmentLocationClosureForManager(
       closure: input
     })
   );
+
+  return getAppointmentAdminSettings(repository);
+}
+
+export async function updateAppointmentLocationClosureForManager(
+  user: AuthenticatedUser | null,
+  closureId: string,
+  input: AppointmentLocationClosureInput,
+  repository: AppointmentAdminSettingsRepository = createAppointmentAdminSettingsRepository()
+) {
+  assertCanManageAppointmentAdminSettings(user);
+
+  const location = await repository.getLocation();
+
+  if (!location) {
+    throw new Error("Appointment location settings are not configured.");
+  }
+
+  await repository.updateLocationClosure(
+    normalizeAppointmentLocationClosureUpdateInput({
+      locationId: location.id,
+      closureId,
+      closure: input
+    })
+  );
+
+  return getAppointmentAdminSettings(repository);
+}
+
+export async function deleteAppointmentLocationClosureForManager(
+  user: AuthenticatedUser | null,
+  closureId: string,
+  repository: AppointmentAdminSettingsRepository = createAppointmentAdminSettingsRepository()
+) {
+  assertCanManageAppointmentAdminSettings(user);
+
+  const location = await repository.getLocation();
+
+  if (!location) {
+    throw new Error("Appointment location settings are not configured.");
+  }
+
+  await repository.deleteLocationClosure({
+    locationId: location.id,
+    closureId: normalizeText(closureId, "Closure", 120)
+  });
 
   return getAppointmentAdminSettings(repository);
 }

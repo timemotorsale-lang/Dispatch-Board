@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getCurrentUser: vi.fn(),
   createAppointmentLocationClosureForManager: vi.fn(),
+  updateAppointmentLocationClosureForManager: vi.fn(),
+  deleteAppointmentLocationClosureForManager: vi.fn(),
   updateAppointmentResourceForManager: vi.fn(),
   createAppointmentResourceUnavailabilityForManager: vi.fn()
 }));
@@ -13,12 +15,18 @@ vi.mock("@/server/auth/current-user", () => ({
 
 vi.mock("@/server/services/appointment-admin-settings", () => ({
   createAppointmentLocationClosureForManager: mocks.createAppointmentLocationClosureForManager,
+  updateAppointmentLocationClosureForManager: mocks.updateAppointmentLocationClosureForManager,
+  deleteAppointmentLocationClosureForManager: mocks.deleteAppointmentLocationClosureForManager,
   updateAppointmentResourceForManager: mocks.updateAppointmentResourceForManager,
   createAppointmentResourceUnavailabilityForManager:
     mocks.createAppointmentResourceUnavailabilityForManager
 }));
 
 import { POST as POSTClosure } from "@/app/api/settings/appointments/closures/route";
+import {
+  DELETE as DELETEClosure,
+  PATCH as PATCHClosure
+} from "@/app/api/settings/appointments/closures/[closureId]/route";
 import { PATCH as PATCHResource } from "@/app/api/settings/appointments/resources/[resourceId]/route";
 import { POST as POSTResourceUnavailability } from "@/app/api/settings/appointments/resources/[resourceId]/unavailability/route";
 
@@ -45,6 +53,8 @@ describe("appointment admin settings v2 routes", () => {
     vi.clearAllMocks();
     mocks.getCurrentUser.mockResolvedValue(managerUser);
     mocks.createAppointmentLocationClosureForManager.mockResolvedValue(settings);
+    mocks.updateAppointmentLocationClosureForManager.mockResolvedValue(settings);
+    mocks.deleteAppointmentLocationClosureForManager.mockResolvedValue(settings);
     mocks.updateAppointmentResourceForManager.mockResolvedValue(settings);
     mocks.createAppointmentResourceUnavailabilityForManager.mockResolvedValue(settings);
   });
@@ -70,6 +80,52 @@ describe("appointment admin settings v2 routes", () => {
     expect(mocks.createAppointmentLocationClosureForManager).toHaveBeenCalledWith(
       managerUser,
       payload
+    );
+  });
+
+  it("updates location closures for managers", async () => {
+    const payload = {
+      type: "PLANNED",
+      name: "Service training",
+      startsAt: "2026-07-10T14:00:00.000Z",
+      endsAt: "2026-07-10T18:00:00.000Z",
+      reason: "Training window extended."
+    };
+
+    const response = await PATCHClosure(
+      new Request("http://localhost/api/settings/appointments/closures/closure-1", {
+        method: "PATCH",
+        body: JSON.stringify(payload)
+      }),
+      {
+        params: Promise.resolve({ closureId: "closure-1" })
+      }
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ settings });
+    expect(mocks.updateAppointmentLocationClosureForManager).toHaveBeenCalledWith(
+      managerUser,
+      "closure-1",
+      payload
+    );
+  });
+
+  it("deletes location closures for managers", async () => {
+    const response = await DELETEClosure(
+      new Request("http://localhost/api/settings/appointments/closures/closure-1", {
+        method: "DELETE"
+      }),
+      {
+        params: Promise.resolve({ closureId: "closure-1" })
+      }
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ settings });
+    expect(mocks.deleteAppointmentLocationClosureForManager).toHaveBeenCalledWith(
+      managerUser,
+      "closure-1"
     );
   });
 

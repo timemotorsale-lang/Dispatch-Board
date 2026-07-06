@@ -13,9 +13,11 @@ import {
   type AppointmentAdminSettingsRepository,
   createAppointmentLocationClosureForManager,
   createAppointmentResourceUnavailabilityForManager,
+  deleteAppointmentLocationClosureForManager,
   getAppointmentBoardSettings,
   normalizeAppointmentAdminSettingsInput,
   normalizeAppointmentResourceUnavailabilityInput,
+  updateAppointmentLocationClosureForManager,
   updateAppointmentResourceForManager,
   updateAppointmentAdminSettings
 } from "@/server/services/appointment-admin-settings";
@@ -118,6 +120,25 @@ function createRepository() {
       closures = [...closures, closure];
 
       return closure;
+    },
+    async updateLocationClosure(input) {
+      closures = closures.map((closure) =>
+        closure.id === input.closureId
+          ? {
+              ...closure,
+              type: input.type,
+              name: input.name,
+              startsAt: input.startsAt,
+              endsAt: input.endsAt,
+              reason: input.reason
+            }
+          : closure
+      );
+
+      return closures.find((closure) => closure.id === input.closureId)!;
+    },
+    async deleteLocationClosure(input) {
+      closures = closures.filter((closure) => closure.id !== input.closureId);
     },
     async updateResource(input) {
       resources = resources.map((resource) =>
@@ -370,6 +391,52 @@ describe("appointment admin settings service", () => {
         reason: "Dealership holiday closure."
       })
     ]);
+  });
+
+  it("allows managers to edit and delete location closures", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createRepository();
+
+    const created = await createAppointmentLocationClosureForManager(
+      manager,
+      {
+        type: LocationClosureType.PLANNED,
+        name: "Morning service closure",
+        startsAt: "2026-07-10T14:00:00.000Z",
+        endsAt: "2026-07-10T16:00:00.000Z",
+        reason: "Team training."
+      },
+      repository
+    );
+    const closureId = created.closures[0].id;
+
+    const updated = await updateAppointmentLocationClosureForManager(
+      manager,
+      closureId,
+      {
+        type: LocationClosureType.PLANNED,
+        name: "Extended service training",
+        startsAt: "2026-07-10T14:00:00.000Z",
+        endsAt: "2026-07-10T18:00:00.000Z",
+        reason: "Training window was extended."
+      },
+      repository
+    );
+
+    expect(updated.closures[0]).toMatchObject({
+      id: closureId,
+      name: "Extended service training",
+      reason: "Training window was extended."
+    });
+
+    const deleted = await deleteAppointmentLocationClosureForManager(
+      manager,
+      closureId,
+      repository
+    );
+
+    expect(deleted.closures).toEqual([]);
   });
 
   it("allows managers to update resource capacity and conflict policy", async () => {

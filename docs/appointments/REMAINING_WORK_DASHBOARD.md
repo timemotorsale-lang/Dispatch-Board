@@ -110,7 +110,7 @@ Important context: this count understates the depth of E3 because EAPT-029 has b
 - Server/UI guard against scheduling or rescheduling into a past start time
 - Appointment history events merged into the Activity Feed with appointment labels, tones, filters, and context
 - Appointment Settings admin foundation at `/settings/appointments` for manager-only location profile, address, phone, operating hours, scheduling status, resource summaries, catalogs, and automation readiness
-- Appointment Settings V2 controls for location closures, holiday/planned/emergency closure windows, resource status/capacity/conflict policy updates, and resource outage/capacity-reduction windows
+- Appointment Settings V2 controls for location closure create/edit/delete, holiday/planned/emergency closure windows, resource status/capacity/conflict policy updates, and resource outage/capacity-reduction windows
 - Appointment Board header and create/schedule defaults now read from the admin location foundation with safe Lake Street fallbacks
 
 ### Current validation evidence
@@ -124,7 +124,7 @@ npm test
 npm run db:validate
 
 106 test files passed
-615 tests passed
+618 tests passed
 ```
 
 Focused validation during the Appointment Admin Foundation V2 block:
@@ -132,6 +132,7 @@ Focused validation during the Appointment Admin Foundation V2 block:
 ```text
 npm run typecheck
 npm test -- appointment-admin-settings-service.test.ts appointment-admin-settings-route.test.ts appointment-admin-settings-v2-route.test.ts
+npm test -- appointment-admin-settings-service.test.ts appointment-admin-settings-v2-route.test.ts
 npm test -- appointment-admin-settings-service.test.ts appointment-admin-settings-route.test.ts appointment-admin-settings-v2-route.test.ts appointment-board-shell.test.tsx
 npm run lint
 npm run db:validate
@@ -237,7 +238,7 @@ This is one of the largest remaining enterprise areas.
 | EAPT-056 | Conflict resolution and manager override experience | Partial | High |
 | EAPT-057 | Bulk rescheduling and closure-impact workspace | Not started | Medium |
 | EAPT-058 | Purpose, template, outcome, and reason administration | Not started / foundation partial | High |
-| EAPT-059 | Location, hours, closures, resource, capacity, availability administration | Partial; location profile, phone, weekday hours, scheduling status, closure creation, resource status/capacity/conflict policy, resource outage/capacity-reduction windows, resource summary, and Appointment Board wiring implemented | High |
+| EAPT-059 | Location, hours, closures, resource, capacity, availability administration | Partial; location profile, phone, weekday hours, scheduling status, closure create/edit/delete, resource status/capacity/conflict policy, resource outage/capacity-reduction windows, resource summary, and Appointment Board wiring implemented | High |
 | EAPT-060 | Automation rule authoring and simulation | Not started | High |
 | EAPT-061 | Automation activation, pause, retire, and failure administration | Not started | High |
 | EAPT-062 | Configuration import/export with validation and redaction | Not started | Medium |
@@ -245,7 +246,7 @@ This is one of the largest remaining enterprise areas.
 
 Recommended next E5 slices:
 
-1. Add closure edit/delete, recurring holiday templates, and special-hours calendars.
+1. Add recurring holiday templates and special-hours calendars.
 2. Add deeper resource availability calendars, capacity overrides by day, and resource type editors.
 3. Reason-code and outcome administration.
 4. Purpose/template administration.

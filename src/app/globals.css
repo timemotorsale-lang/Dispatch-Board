@@ -762,6 +762,12 @@ textarea {
   line-height: 1.45;
 }
 
+.appointment-admin-record-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .appointment-admin-pill-list,
 .appointment-admin-code-list {
   display: flex;

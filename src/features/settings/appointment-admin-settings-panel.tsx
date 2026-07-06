@@ -73,6 +73,9 @@ type AppointmentSettingsFormState = {
 };
 
 type ResourceFormState = Record<string, Omit<AppointmentResourceUpdateInput, "resourceId">>;
+type ClosureEditDraft = AppointmentLocationClosureInput & {
+  id: string;
+};
 
 const defaultClosureDraft: AppointmentLocationClosureInput = {
   type: "PLANNED",
@@ -155,12 +158,20 @@ function toApiDateTime(value: string) {
   return new Date(value).toISOString();
 }
 
+function toDateTimeLocal(value: string) {
+  const date = new Date(value);
+  const offsetMs = date.getTimezoneOffset() * 60_000;
+
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
 export function AppointmentAdminSettingsPanel({
   initialSettings
 }: AppointmentAdminSettingsPanelProps) {
   const [settings, setSettings] = useState(initialSettings);
   const [formState, setFormState] = useState(() => toFormState(initialSettings));
   const [closureDraft, setClosureDraft] = useState(defaultClosureDraft);
+  const [editingClosure, setEditingClosure] = useState<ClosureEditDraft | null>(null);
   const [resourceDrafts, setResourceDrafts] = useState(() => toResourceFormState(initialSettings));
   const [unavailabilityDraft, setUnavailabilityDraft] = useState<AppointmentResourceUnavailabilityInput>({
     ...defaultUnavailabilityDraft,
@@ -215,8 +226,8 @@ export function AppointmentAdminSettingsPanel({
   async function mutateAppointmentSettings(
     url: string,
     options: {
-      body: unknown;
-      method?: "POST" | "PATCH";
+      body?: unknown;
+      method?: "POST" | "PATCH" | "DELETE";
       successMessage: string;
       onSuccess?: () => void;
     }
@@ -229,7 +240,7 @@ export function AppointmentAdminSettingsPanel({
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify(options.body)
+      body: options.body === undefined ? undefined : JSON.stringify(options.body)
     });
     const payload = (await response.json().catch(() => null)) as
       | {
@@ -292,6 +303,59 @@ export function AppointmentAdminSettingsPanel({
         successMessage: "Closure saved. Scheduling checks can now honor this appointment closure.",
         onSuccess: () => setClosureDraft(defaultClosureDraft)
       });
+    });
+  }
+
+  function beginEditClosure(closure: AppointmentAdminSettings["closures"][number]) {
+    setEditingClosure({
+      id: closure.id,
+      type: closure.type,
+      name: closure.name,
+      startsAt: toDateTimeLocal(closure.startsAtIso),
+      endsAt: toDateTimeLocal(closure.endsAtIso),
+      reason: closure.reason
+    });
+    setErrorMessage("");
+    setSuccessMessage("");
+  }
+
+  function submitClosureEdit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!editingClosure) {
+      return;
+    }
+
+    startTransition(async () => {
+      await mutateAppointmentSettings(
+        `/api/settings/appointments/closures/${encodeURIComponent(editingClosure.id)}`,
+        {
+          method: "PATCH",
+          body: {
+            type: editingClosure.type,
+            name: editingClosure.name,
+            startsAt: toApiDateTime(editingClosure.startsAt),
+            endsAt: toApiDateTime(editingClosure.endsAt),
+            reason: editingClosure.reason
+          },
+          successMessage: "Closure updated.",
+          onSuccess: () => setEditingClosure(null)
+        }
+      );
+    });
+  }
+
+  function deleteClosure(closureId: string) {
+    startTransition(async () => {
+      await mutateAppointmentSettings(
+        `/api/settings/appointments/closures/${encodeURIComponent(closureId)}`,
+        {
+          method: "DELETE",
+          successMessage: "Closure deleted.",
+          onSuccess: () =>
+            setEditingClosure((current) => (current?.id === closureId ? null : current))
+        }
+      );
     });
   }
 
@@ -641,6 +705,24 @@ export function AppointmentAdminSettingsPanel({
                     {formatDateTime(closure.startsAtIso)} – {formatDateTime(closure.endsAtIso)}
                   </small>
                   <p>{closure.reason}</p>
+                  <div className="appointment-admin-record-actions">
+                    <button
+                      className="pill pill-secondary"
+                      disabled={isPending}
+                      onClick={() => beginEditClosure(closure)}
+                      type="button"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className="pill pill-secondary"
+                      disabled={isPending}
+                      onClick={() => deleteClosure(closure.id)}
+                      type="button"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               ))
             ) : (
@@ -648,6 +730,104 @@ export function AppointmentAdminSettingsPanel({
             )}
           </div>
         </form>
+
+        {editingClosure ? (
+          <form className="panel-card settings-main-card" onSubmit={submitClosureEdit}>
+            <strong>Edit closure</strong>
+            <h2>{editingClosure.name || "Selected closure"}</h2>
+            <p>
+              Adjust this closure or special-hours window. A documented reason remains required.
+            </p>
+
+            <div className="settings-grid">
+              <label className="field">
+                <span>Closure type</span>
+                <select
+                  value={editingClosure.type}
+                  onChange={(event) =>
+                    setEditingClosure((current) =>
+                      current ? { ...current, type: event.target.value } : current
+                    )
+                  }
+                >
+                  {closureTypes.map((type) => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="field">
+                <span>Name</span>
+                <input
+                  value={editingClosure.name}
+                  onChange={(event) =>
+                    setEditingClosure((current) =>
+                      current ? { ...current, name: event.target.value } : current
+                    )
+                  }
+                  required
+                />
+              </label>
+
+              <label className="field">
+                <span>Starts</span>
+                <input
+                  type="datetime-local"
+                  value={editingClosure.startsAt}
+                  onChange={(event) =>
+                    setEditingClosure((current) =>
+                      current ? { ...current, startsAt: event.target.value } : current
+                    )
+                  }
+                  required
+                />
+              </label>
+
+              <label className="field">
+                <span>Ends</span>
+                <input
+                  type="datetime-local"
+                  value={editingClosure.endsAt}
+                  onChange={(event) =>
+                    setEditingClosure((current) =>
+                      current ? { ...current, endsAt: event.target.value } : current
+                    )
+                  }
+                  required
+                />
+              </label>
+
+              <label className="field appointment-admin-span">
+                <span>Reason</span>
+                <textarea
+                  value={editingClosure.reason}
+                  onChange={(event) =>
+                    setEditingClosure((current) =>
+                      current ? { ...current, reason: event.target.value } : current
+                    )
+                  }
+                  required
+                />
+              </label>
+            </div>
+
+            <div className="form-actions">
+              <button className="pill pill-primary" disabled={isPending} type="submit">
+                {isPending ? "Saving..." : "Save closure"}
+              </button>
+              <button
+                className="pill pill-secondary"
+                disabled={isPending}
+                onClick={() => setEditingClosure(null)}
+                type="button"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : null}
 
         <form className="panel-card settings-main-card" onSubmit={submitResourceUnavailability}>
           <strong>Resource availability</strong>
