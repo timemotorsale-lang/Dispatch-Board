@@ -6654,6 +6654,18 @@ code {
   border-color: #bfdbfe;
 }
 
+.appointment-command-center-tag-red {
+  color: #b91c1c;
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.appointment-command-center-tag-amber {
+  color: #b45309;
+  background: #fff7ed;
+  border-color: #fde68a;
+}
+
 .appointment-command-center-tag-green {
   color: #166534;
   background: #f0fdf4;
@@ -6877,6 +6889,161 @@ code {
   color: #fff;
   background: #1d5eed;
   border-color: #1d5eed;
+}
+
+.appointment-executive-review-card {
+  display: grid;
+  gap: 12px;
+  margin: 0 12px 12px;
+  padding: 14px;
+  background: linear-gradient(180deg, #fffdf8 0%, #fff7ed 100%);
+  border: 1px solid #fed7aa;
+  border-radius: 18px;
+}
+
+.appointment-executive-review-card .appointment-section-heading {
+  align-items: flex-start;
+}
+
+.appointment-executive-review-card .appointment-section-heading > span {
+  display: inline-grid;
+  place-items: center;
+  min-height: 26px;
+  padding: 0 9px;
+  color: #9a3412;
+  background: #fff;
+  border: 1px solid #fdba74;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.appointment-executive-review-presets,
+.appointment-executive-review-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.appointment-executive-review-preset,
+.appointment-executive-review-actions button {
+  min-height: 34px;
+  padding: 10px 12px;
+  color: #7c2d12;
+  background: #fff;
+  border: 1px solid #fdba74;
+  border-radius: 14px;
+  cursor: pointer;
+}
+
+.appointment-executive-review-preset {
+  display: grid;
+  gap: 4px;
+  min-width: 180px;
+  text-align: left;
+}
+
+.appointment-executive-review-preset strong {
+  color: #7c2d12;
+  font-size: 12px;
+}
+
+.appointment-executive-review-preset span {
+  color: #9a3412;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.appointment-executive-review-preset-active,
+.appointment-executive-review-actions button:last-child {
+  color: #fff;
+  background: #ea580c;
+  border-color: #ea580c;
+}
+
+.appointment-executive-review-preset-active strong,
+.appointment-executive-review-preset-active span {
+  color: #fff;
+}
+
+.appointment-executive-review-grid,
+.appointment-executive-review-metrics,
+.appointment-executive-review-trends,
+.appointment-executive-review-digest-performance {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.appointment-executive-review-metric,
+.appointment-executive-review-trend,
+.appointment-executive-review-digest-performance article {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #fed7aa;
+  border-radius: 14px;
+}
+
+.appointment-executive-review-metric-blue { border-color: #bfdbfe; }
+.appointment-executive-review-metric-amber { border-color: #fde68a; }
+.appointment-executive-review-metric-red { border-color: #fecaca; }
+.appointment-executive-review-metric-purple { border-color: #ddd6fe; }
+.appointment-executive-review-metric-green { border-color: #bbf7d0; }
+
+.appointment-executive-review-metric span,
+.appointment-executive-review-digest-performance span {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.appointment-executive-review-metric strong,
+.appointment-executive-review-trend b,
+.appointment-executive-review-digest-performance strong {
+  color: #0f172a;
+  font-size: 22px;
+}
+
+.appointment-executive-review-metric p,
+.appointment-executive-review-trend p,
+.appointment-executive-review-digest-performance p {
+  margin: 0;
+  color: #475569;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.appointment-executive-review-trend-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.appointment-executive-review-trend strong {
+  color: #0f172a;
+  font-size: 12px;
+}
+
+.appointment-executive-review-brief {
+  display: grid;
+  gap: 8px;
+}
+
+.appointment-executive-review-brief textarea {
+  width: 100%;
+  min-height: 260px;
+  padding: 10px 11px;
+  color: #253449;
+  background: #fff;
+  border: 1px solid #fdba74;
+  border-radius: 12px;
+  resize: vertical;
 }
 
 .appointment-command-search-card {
@@ -8449,6 +8616,10 @@ code {
   }
 
   .appointment-command-search-results,
+  .appointment-executive-review-grid,
+  .appointment-executive-review-metrics,
+  .appointment-executive-review-trends,
+  .appointment-executive-review-digest-performance,
   .appointment-command-center-digests-grid,
   .appointment-command-center-shift-handoff-grid,
   .appointment-command-center-views-grid,
@@ -8474,6 +8645,10 @@ code {
   .appointment-metric-grid,
   .appointment-upcoming-grid,
   .appointment-exception-grid,
+  .appointment-executive-review-grid,
+  .appointment-executive-review-metrics,
+  .appointment-executive-review-trends,
+  .appointment-executive-review-digest-performance,
   .appointment-command-center-digests-grid,
   .appointment-command-center-shift-handoff-grid,
   .appointment-command-center-digest-preferences,
@@ -8498,6 +8673,7 @@ code {
   }
 
   .appointment-command-center-save-row,
+  .appointment-executive-review-trend-top,
   .appointment-command-center-digest-rule-top,
   .appointment-command-center-digest-history-top,
   .appointment-command-center-shift-handoff-heading,

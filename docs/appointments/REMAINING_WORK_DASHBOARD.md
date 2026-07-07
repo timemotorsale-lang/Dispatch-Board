@@ -10,7 +10,7 @@
 
 The Appointment Board is no longer just a visual mockup. It now has a live command foundation, server-side permissions, scheduling previews, seeded schedulable staff resources, resource workflows, staff conflict handling, unscheduled draft scheduling, past-time schedule protection, outcome capture, follow-up automation, linked-task display/navigation, task-detail create-appointment flow, Appointment Board handoff, and appointment history in the Activity Feed.
 
-However, Enterprise Release 1.0 is not complete. The remaining work is mostly the enterprise finish: full command-center views, administration/settings, task-to-appointment automation runtime, notification center, analytics/reporting, production hardening, browser/accessibility evidence, and rollout.
+However, Enterprise Release 1.0 is not complete. The remaining work is mostly the enterprise finish: expanded command-center views, administration/settings completion, task-to-appointment automation runtime, durable notification center/runtime, durable analytics/reporting models, production hardening, browser/accessibility evidence, and rollout.
 
 ## Overall milestone status
 
@@ -20,11 +20,11 @@ However, Enterprise Release 1.0 is not complete. The remaining work is mostly th
 | E1 | Architecture and domain foundation | Mostly complete / gate-ready, with EAPT-006 still partially open | Core appointment model, policy, audit, migration, and Minneapolis baseline exist. Template administration is not fully database-backed yet. |
 | E2 | Scheduling, availability, recurrence, capacity | Mostly complete / gate-ready | Authoritative scheduling services, resource/staff availability, hard conflict, warning, waitlist, bulk, and quality gates exist as service foundations. |
 | E3 | Lifecycle, task orchestration, audit, automation | In progress | Live command execution, appointment board workflows, resource workflows, staff conflict controls, outcomes, linked-task read/display/navigation, task-detail draft appointment creation, board handoff, appointment activity-feed visibility, and follow-up automation are implemented. Automation-admin, failure/retry/replay, and final lifecycle coverage items remain. |
-| E4 | Appointment Command Center operating views | In progress but not gate-complete | The mockup-aligned board and detail rail exist, but full day/week/month/agenda/resource/location views, exception queues, saved views, and browser/accessibility evidence remain. |
+| E4 | Appointment Command Center operating views | In progress but not gate-complete | The mockup-aligned board and detail rail exist, and the command center now includes exception queues, resolution workbench, saved views, watched subscriptions, notification digests, reporting/exports, and an executive review suite. Full week/month/resource/location views and browser/accessibility evidence remain. |
 | E5 | Creation and administration | In progress / partial | Appointment Settings, a versioned Catalog + Automation admin workspace, and an Automation Operations Console now exist for manager-only location profile, phone, hours, status, closures, recurring-template-to-closure apply flow, special-hours calendar preview, recurring template readiness, resource availability summaries, resource-specific operating calendars with day-level hours/capacity override windows, reason-required removal controls, overlap/runtime review, precedence guidance, next-effective-window preview, bulk multi-day apply/replace controls, capacity override readiness and quick drafts, resource type create/edit/deactivate controls, resource controls, purpose templates, outcome/follow-up/reason catalogs, code deprecation/reactivation with replacement guidance, rule hooks, simulation, draft/active catalog versions, required change reasons, rule lifecycle, health, failure queue, retry/replay readiness, preview-safe configuration export, import-preview validation, redaction reporting, and audit controls. Recurring series automation, notifications, and import apply remain. |
 | E6 | Owner, staff, and responsive workflows | Not started | Dedicated My Appointments, mobile workflows, participant read-only experience, responsive handoff, stale/offline safeguards, and real-device testing remain. |
-| E7 | Internal notifications and future integration contracts | Not started | Notification preferences, notification center, internal appointment notifications, failure handling, and stable future SMS/email/calendar/CRM/DMS contracts remain. |
-| E8 | Analytics and operational controls | Not started | KPI dictionary, reporting read models, reports, exports, audit, reconciliation, and reporting performance/privacy tests remain. |
+| E7 | Internal notifications and future integration contracts | In progress / partial | Internal notification digest rules, delivery preferences, preview/send workflow, and digest history exist inside the command center. Durable notification center, delivery runtime, failure handling, and stable future SMS/email/calendar/CRM/DMS contracts remain. |
+| E8 | Analytics and operational controls | In progress / partial | Command-center reporting exports, executive scorecards, trend watch, and leadership brief generation exist. KPI dictionary, durable reporting read models, reconciliation, and reporting performance/privacy tests remain. |
 | E9 | Enterprise hardening and release qualification | Not started | Security review, WCAG audit, load/soak testing, observability, backup/restore, rollback drills, end-to-end traceability, and release signoff remain. |
 | E10 | Pilot and production rollout | Not started | Pilot, production configuration, training, launch, measurement, go/no-go, and stabilization remain. |
 
@@ -37,19 +37,19 @@ This is an approximate planning view. A roadmap package is only marked complete 
 | E1 | 12 | 11 | 1 | 0 | Ready for approval after EAPT-006 admin gap is accepted or completed |
 | E2 | 13 | 13 | 0 | 0 | Ready for review |
 | E3 | 13 | 6 | 2 | 5 | In progress |
-| E4 | 14 | 0 | 1 | 13 | In progress, not gate-ready |
+| E4 | 14 | 0 | 8 | 6 | In progress, not gate-ready |
 | E5 | 11 | 0 | 4 | 7 | In progress, not gate-ready |
 | E6 | 9 | 0 | 0 | 9 | Not started |
-| E7 | 8 | 0 | 0 | 8 | Not started |
-| E8 | 8 | 0 | 0 | 8 | Not started |
+| E7 | 8 | 0 | 1 | 7 | In progress / partial |
+| E8 | 8 | 0 | 1 | 7 | In progress / partial |
 | E9 | 16 | 0 | 0 | 16 | Not started |
 | E10 | 10 | 0 | 0 | 10 | Not started |
 
 Approximate package-level progress:
 
 - Complete: 30 of 114 roadmap packages
-- In progress / partial: 8 of 114 roadmap packages
-- Not started: 76 of 114 roadmap packages
+- In progress / partial: 16 of 114 roadmap packages
+- Not started: 68 of 114 roadmap packages
 
 Important context: this count understates the depth of E3 because EAPT-029 has been implemented as many smaller vertical slices through EAPT-029AG. The Appointment Board has more real workflow implementation than the simple parent package count shows.
 

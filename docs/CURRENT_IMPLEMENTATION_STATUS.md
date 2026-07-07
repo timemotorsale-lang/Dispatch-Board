@@ -22,17 +22,15 @@ Vitest result:
 667 tests passed
 ```
 
-Latest focused validation after the Appointment Admin Availability Configuration block:
+Latest focused validation after the Appointment Command Center Executive Review Suite block:
 
 ```text
+npm test -- src/tests/unit/appointment-board-shell.test.tsx
 npm run typecheck
-npm test -- appointment-admin-settings-service.test.ts appointment-admin-settings-panel.test.tsx appointment-admin-import-export-service.test.ts
-npm run lint
-npm run db:validate
-npm test
+npm run build
 ```
 
-Focused appointment admin settings service, UI, import/export fixture, type, lint, schema, and full-suite validation passed. The authored task-to-appointment Playwright e2e spec was not executed during this checkpoint because local Playwright Chromium is not installed. Production build, database migration deployment, and production deployment were not rerun during this checkpoint.
+Focused appointment board command-center validation passed for notification digests, executive review scorecards, leadership brief generation, and the visible board shell. Production build passed for this checkpoint. Playwright browser evidence, deployment validation, database migration deployment, and production release steps were not executed during this checkpoint.
 
 ## Implemented Foundation
 
@@ -48,7 +46,7 @@ Focused appointment admin settings service, UI, import/export fixture, type, lin
 | Appointment automation operations console | Implemented as partial E5/E3 automation runtime and operations foundation | Manager-only `/settings/appointments/automation` workspace, automation rule schema/migration, rule lifecycle draft/activate/pause/retire APIs, health metrics, catalog-derived rule candidates, runtime execution persistence from outcome-driven automations, failure/review queue controls, duplicate-safe retry/replay/resolve/skip execution handling, required reason capture, audit event schema, and focused service/route/UI tests |
 | Task templates | Partially implemented | Schema, API, service, validation, seed data, tests, and prototype UI exist; production template administration remains incomplete |
 | Daily board generation | Implemented | Input loading, idempotent task generation, run tracking, manual trigger, scheduled route, and tests |
-| Board read and UI | Implemented | Date/today APIs, grouping, filtering, responsive board, manual task creation, and tests |
+| Board read and UI | Implemented | Date/today APIs, grouping, filtering, responsive board, manual task creation, command-center exception queues, resolution workbench, saved views, watched subscriptions, notification digests, executive review suite, and tests |
 | Task detail and execution | Implemented | Detail read, metadata, status, assignment, checklist, comments, activity, and responsive workflows |
 | My Tasks | Implemented | Staff-focused queue, guided updates, responsive layout, and tests |
 | Manager review | Implemented | Protected review workspace, assignment, approve/reopen actions, and tests |

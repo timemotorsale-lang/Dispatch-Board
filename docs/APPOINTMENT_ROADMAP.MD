@@ -20,11 +20,11 @@ However, the full Enterprise Release 1.0 roadmap is not complete yet. The remain
 | --- | --- | --- |
 | Product direction | Approved | The product purpose and enterprise scope are approved. |
 | Appointment foundation | Strongly implemented | Core model, commands, permissions, audit, scheduling services, and resource/staff foundations exist. |
-| Appointment Board UI | In progress with substantial live workflow | The visible board exists and many detail-rail workflows are live. |
+| Appointment Board UI | In progress with substantial live workflow | The visible board exists, many detail-rail workflows are live, and the command center now includes exception queues, resolution workbench, saved views, watched subscriptions, notification digests, and an executive review suite. |
 | Enterprise admin | In progress / partial | Managers now have Appointment Settings, a versioned Catalog + Automation workspace, and an Automation Operations Console for location profile, phone, hours, closures, recurring-template-to-closure apply flow, special-hours calendar preview, recurring template readiness, resource availability summaries, resource-specific operating calendars with day-level hours/capacity override windows, reason-required removal controls, overlap/runtime review, precedence guidance, next-effective-window preview, bulk multi-day apply/replace controls, capacity override readiness and quick drafts, resource type create/edit/deactivate controls, resource controls, purpose templates, outcome/follow-up/reason catalogs, code deprecation/reactivation with replacement guidance, rule hooks, simulation, draft/active catalog versions, required change reasons, rule lifecycle, health, failure queue, retry/replay readiness, preview-safe configuration export, import-preview validation, redaction reporting, and audit controls. Recurring series automation, notifications, and import apply remain. |
 | Task-to-appointment orchestration | In progress with live vertical slice | Follow-up automation, task-detail create-linked-draft workflow, live browser proof, board scheduling handoff, and appointment-to-task navigation exist. Automation-rule authoring/runtime remains. |
-| Reporting and analytics | Pending | KPI definitions, reporting models, exports, and reconciliation are not built yet. |
-| Notifications | Pending | Internal notifications and future integration contracts remain. |
+| Reporting and analytics | In progress / partial | Reporting exports, command-center scorecards, executive review briefs, and visible KPI summaries now exist. Reconciled KPI dictionary, durable reporting read models, and enterprise reconciliation remain. |
+| Notifications | In progress / partial | Internal notification digest controls, delivery preferences, preview/send workflow, and digest history now exist inside the command center. Durable notification center, delivery runtime, failure handling, and future integration contracts remain. |
 | Release readiness | Pending | Browser tests, accessibility, security, load, deployment, backup/restore, and pilot evidence remain. |
 
 ## 3. Progress dashboard
@@ -37,19 +37,19 @@ This is an approximate package-level view from the enterprise roadmap.
 | E1 | 12 | 11 | 1 | 0 | Mostly complete / gate-ready |
 | E2 | 13 | 13 | 0 | 0 | Mostly complete / ready for review |
 | E3 | 13 | 6 | 2 | 5 | In progress |
-| E4 | 14 | 0 | 1 | 13 | In progress, not gate-ready |
+| E4 | 14 | 0 | 8 | 6 | In progress, not gate-ready |
 | E5 | 11 | 0 | 4 | 7 | In progress, not gate-ready |
 | E6 | 9 | 0 | 0 | 9 | Not started |
-| E7 | 8 | 0 | 0 | 8 | Not started |
-| E8 | 8 | 0 | 0 | 8 | Not started |
+| E7 | 8 | 0 | 1 | 7 | In progress / partial |
+| E8 | 8 | 0 | 1 | 7 | In progress / partial |
 | E9 | 16 | 0 | 0 | 16 | Not started |
 | E10 | 10 | 0 | 0 | 10 | Not started |
 
 Approximate package-level progress:
 
 - Complete: 30 of 114 roadmap packages
-- In progress / partial: 8 of 114 roadmap packages
-- Not started: 76 of 114 roadmap packages
+- In progress / partial: 16 of 114 roadmap packages
+- Not started: 68 of 114 roadmap packages
 
 Important context: the package count understates the depth of the work already completed in E3/E4 because EAPT-029 has been broken into many smaller implemented slices through EAPT-029AG. The Appointment Board has significantly more live workflow behavior than the simple parent-package count suggests.
 
@@ -300,8 +300,8 @@ Superseded prior E3 next steps:
 | --- | --- | --- |
 | EAPT-039 | Information architecture and responsive interaction specification | Partial |
 | EAPT-040 | Route shell, access control, navigation, global error boundaries | Partial |
-| EAPT-041 | Date, location, resource, search, filter, saved-view controls | Partial |
-| EAPT-042 | KPI strip with reconciled definitions and drill-down filters | Partial |
+| EAPT-041 | Date, location, resource, search, filter, saved-view controls | Partial; day/date shell, search/filter controls, saved views, watched subscriptions, and command-center preset flows exist. Week/month/resource/location view expansion remains. |
+| EAPT-042 | KPI strip with reconciled definitions and drill-down filters | Partial; visible appointment metrics, command-center reporting summary, and executive review scorecards/briefs exist. Reconciled KPI dictionary and deeper drill-down model remain. |
 | EAPT-043 | Today queue and Agenda view | Not started |
 | EAPT-044 | Day schedule with staff and resource modes | Partial |
 | EAPT-045 | Week view | Not started |
@@ -309,7 +309,7 @@ Superseded prior E3 next steps:
 | EAPT-047 | Staff, vehicle, resource, and location schedule views | Not started |
 | EAPT-048 | Appointment detail workspace and sticky action region | Partial |
 | EAPT-049 | History, linked work, conflict, outcome, follow-up panels | Partial |
-| EAPT-050 | Waitlist, no-show, follow-up, confirmation, automation review, failure queues | Not started |
+| EAPT-050 | Waitlist, no-show, follow-up, confirmation, automation review, failure queues | Partial; no-show recovery, follow-up, escalation, and digest review queues now exist in the command center. Waitlist queue, confirmation queue, and automation-failure queue remain. |
 | EAPT-051 | Loading, empty, stale, partial-failure, error states | Partial |
 | EAPT-052 | Component, integration, accessibility, visual regression, browser tests | Not started |
 
