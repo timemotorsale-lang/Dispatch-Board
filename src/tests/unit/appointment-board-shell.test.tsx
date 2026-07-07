@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildAppointmentAuditTimeline,
+  buildAppointmentCommandCenterExport,
+  buildAppointmentCommandCenterReport,
   AppointmentBoardShell,
   buildAppointmentExceptionQueues,
   buildAppointmentResolutionWorkbench,
@@ -33,6 +35,8 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Select visible");
     expect(markup).toContain("Command Center Audit Timeline");
     expect(markup).toContain("Timeline focus");
+    expect(markup).toContain("Reporting &amp; Exports");
+    expect(markup).toContain("Export preview");
   });
 
   it("renders admin-provided board settings when available", () => {
@@ -429,6 +433,143 @@ describe("appointment board shell", () => {
       expect.arrayContaining(["manager", "automation", "task", "appointment"])
     );
     expect(timeline.some((event) => event.title === "Exception queue surfaced")).toBe(true);
+  });
+
+  it("builds a command-center report snapshot from visible workbench items", () => {
+    const report = buildAppointmentCommandCenterReport({
+      generatedForLabel: "Monday, July 6, 2026 · Focus APT-NOSHOW",
+      workbenchItems: [
+        {
+          appointment: {
+            id: "APT-NOSHOW",
+            customer: "Ahmed Ibrahim",
+            vehicle: "2018 Toyota Camry"
+          },
+          queueKey: "no-show-recovery",
+          queueLabel: "No-Show Recovery",
+          priority: "Critical",
+          priorityRank: 0,
+          ageHours: 2.5,
+          slaStatus: "breached",
+          recommendedAction: "Recover customer",
+          ownerName: "Abdi Farah",
+          resolutionStatus: "escalated",
+          lastActionLabel: "Escalated just now"
+        },
+        {
+          appointment: {
+            id: "APT-CONFLICT",
+            customer: "Khalid Mohamud",
+            vehicle: "Brake Inspection"
+          },
+          queueKey: "conflict-watch",
+          queueLabel: "Conflict Watch",
+          priority: "High",
+          priorityRank: 1,
+          ageHours: 1.2,
+          slaStatus: "at-risk",
+          recommendedAction: "Rebalance resources",
+          ownerName: "Brock Peterson",
+          resolutionStatus: "assigned",
+          lastActionLabel: "Assigned just now"
+        }
+      ] as any,
+      auditTimelineEvents: [
+        {
+          id: "manager-event-1",
+          appointmentId: "APT-NOSHOW",
+          lane: "manager",
+          tone: "purple",
+          title: "Manager escalation recorded",
+          detail: "Escalated into the manager lane under Abdi Farah.",
+          actor: "Abdi Farah",
+          occurredAtLabel: "Just now"
+        }
+      ]
+    });
+
+    expect(report.summary).toEqual({
+      visibleExceptions: 2,
+      breachedSla: 1,
+      escalated: 1,
+      managerEvents: 1
+    });
+    expect(report.rows[0]).toMatchObject({
+      appointmentId: "APT-NOSHOW",
+      queueLabel: "No-Show Recovery",
+      priority: "Critical"
+    });
+  });
+
+  it("renders command-center exports in summary, csv, and audit json formats", () => {
+    const report = buildAppointmentCommandCenterReport({
+      generatedForLabel: "Monday, July 6, 2026 · Focus APT-NOSHOW",
+      workbenchItems: [
+        {
+          appointment: {
+            id: "APT-NOSHOW",
+            customer: "Ahmed Ibrahim",
+            vehicle: "2018 Toyota Camry"
+          },
+          queueKey: "no-show-recovery",
+          queueLabel: "No-Show Recovery",
+          priority: "Critical",
+          priorityRank: 0,
+          ageHours: 2.5,
+          slaStatus: "breached",
+          recommendedAction: "Recover customer",
+          ownerName: "Abdi Farah",
+          resolutionStatus: "escalated",
+          lastActionLabel: "Escalated just now"
+        }
+      ] as any,
+      auditTimelineEvents: [
+        {
+          id: "manager-event-1",
+          appointmentId: "APT-NOSHOW",
+          lane: "manager",
+          tone: "purple",
+          title: "Manager escalation recorded",
+          detail: "Escalated into the manager lane under Abdi Farah.",
+          actor: "Abdi Farah",
+          occurredAtLabel: "Just now"
+        }
+      ]
+    });
+
+    const summaryExport = buildAppointmentCommandCenterExport({
+      format: "summary",
+      report,
+      auditTimelineEvents: []
+    });
+    const csvExport = buildAppointmentCommandCenterExport({
+      format: "csv",
+      report,
+      auditTimelineEvents: []
+    });
+    const jsonExport = buildAppointmentCommandCenterExport({
+      format: "audit-json",
+      report,
+      auditTimelineEvents: [
+        {
+          id: "manager-event-1",
+          appointmentId: "APT-NOSHOW",
+          lane: "manager",
+          tone: "purple",
+          title: "Manager escalation recorded",
+          detail: "Escalated into the manager lane under Abdi Farah.",
+          actor: "Abdi Farah",
+          occurredAtLabel: "Just now"
+        }
+      ]
+    });
+
+    expect(summaryExport).toContain("Appointment command center report");
+    expect(summaryExport).toContain("Visible exceptions: 1");
+    expect(csvExport).toContain("appointment_id,customer,vehicle,queue");
+    expect(csvExport).toContain("\"APT-NOSHOW\"");
+    expect(jsonExport).toContain("\"auditTimelineEvents\"");
+    expect(jsonExport).toContain("\"Manager escalation recorded\"");
   });
 
   it("detects proposed draft schedule starts that are already in the past", () => {
