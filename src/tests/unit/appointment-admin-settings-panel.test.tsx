@@ -159,6 +159,33 @@ function settingsFixture(): AppointmentAdminSettings {
         ],
         recommendations: []
       },
+      resourceCalendarRuntime: {
+        reviewedDateIso: "2026-07-07",
+        overlappingResourceCount: 1,
+        noRuntimeWindowResourceCount: 0,
+        precedenceRules: [
+          "Runtime prefers the most recent effective window when multiple resource windows overlap.",
+          "When start dates tie, narrower windows win over broader windows.",
+          "Capacity overrides stay bounded by the resource's configured capacity."
+        ],
+        resources: [
+          {
+            resourceId: "res-abdi",
+            resourceName: "Abdi Farah",
+            resourceTypeName: "Staff member",
+            runtimeStatus: "NEEDS_REVIEW",
+            operatingWindowCount: 1,
+            overlappingWindowCount: 1,
+            overrideWindowCount: 1,
+            nextEffectiveDateIso: "2026-07-07",
+            nextEffectiveWindowLabel: "10:00 - 16:00",
+            effectiveCapacity: 1,
+            warnings: [
+              "Overlapping operating windows exist. Runtime will prefer the most recent and most specific active window."
+            ]
+          }
+        ]
+      },
       resourceTypeEditorReadiness: {
         activeTypeCount: 1,
         inactiveTypeCount: 0,
@@ -196,6 +223,9 @@ describe("appointment admin settings panel", () => {
     expect(markup).toContain("Create closure");
     expect(markup).toContain("Capacity override drafts");
     expect(markup).toContain("Use capacity override draft");
+    expect(markup).toContain("Resource calendar runtime");
+    expect(markup).toContain("Runtime review date");
+    expect(markup).toContain("Needs Review runtime");
     expect(markup).toContain("Resource operating calendar");
     expect(markup).toContain("Day-level hours and capacity overrides");
     expect(markup).toContain("Add resource operating window");

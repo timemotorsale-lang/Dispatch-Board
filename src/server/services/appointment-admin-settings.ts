@@ -13,6 +13,10 @@ import {
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { getInitialMinneapolisLocation } from "@/server/appointments/location-foundation";
 import { INITIAL_APPOINTMENT_TEMPLATE_DEFINITIONS } from "@/server/appointments/appointment-template-domain";
+import {
+  compareResourceOperatingWindowPrecedence,
+  getActiveResourceOperatingWindowsForLocalDate
+} from "@/server/appointments/resource-availability-service";
 import { prisma } from "@/server/db/client";
 import { canManageSettings } from "@/server/policies/access";
 
@@ -473,6 +477,25 @@ export type AppointmentAdminSettings = {
         reasonTemplate: string;
       }>;
       recommendations: string[];
+    };
+    resourceCalendarRuntime: {
+      reviewedDateIso: string;
+      overlappingResourceCount: number;
+      noRuntimeWindowResourceCount: number;
+      precedenceRules: string[];
+      resources: Array<{
+        resourceId: string;
+        resourceName: string;
+        resourceTypeName: string;
+        runtimeStatus: "READY" | "NEEDS_REVIEW" | "NO_WINDOW";
+        operatingWindowCount: number;
+        overlappingWindowCount: number;
+        overrideWindowCount: number;
+        nextEffectiveDateIso: string | null;
+        nextEffectiveWindowLabel: string | null;
+        effectiveCapacity: number | null;
+        warnings: string[];
+      }>;
     };
     resourceTypeEditorReadiness: {
       activeTypeCount: number;
@@ -1181,6 +1204,93 @@ function overlapsDay(input: { startsAt: Date; endsAt: Date }, dayStart: Date) {
   return input.startsAt < dayEnd && input.endsAt > dayStart;
 }
 
+function dateRangesOverlap(
+  leftFrom: Date,
+  leftTo: Date | null,
+  rightFrom: Date,
+  rightTo: Date | null
+) {
+  const leftStart = localDateKey(leftFrom);
+  const leftEnd = leftTo ? localDateKey(leftTo) : "9999-12-31";
+  const rightStart = localDateKey(rightFrom);
+  const rightEnd = rightTo ? localDateKey(rightTo) : "9999-12-31";
+
+  return leftStart <= rightEnd && rightStart <= leftEnd;
+}
+
+function minuteRangesOverlap(
+  leftStartMinute: number,
+  leftEndMinute: number,
+  rightStartMinute: number,
+  rightEndMinute: number
+) {
+  return leftStartMinute < rightEndMinute && rightStartMinute < leftEndMinute;
+}
+
+function getOverlappingResourceWindowIds(resource: AppointmentAdminResourceRecord) {
+  const overlappingIds = new Set<string>();
+
+  for (let index = 0; index < resource.operatingWindows.length; index += 1) {
+    const current = resource.operatingWindows[index];
+
+    for (let compareIndex = index + 1; compareIndex < resource.operatingWindows.length; compareIndex += 1) {
+      const candidate = resource.operatingWindows[compareIndex];
+
+      if (current.businessDay !== candidate.businessDay) {
+        continue;
+      }
+
+      if (
+        dateRangesOverlap(current.validFrom, current.validTo, candidate.validFrom, candidate.validTo) &&
+        minuteRangesOverlap(
+          current.opensAtMinute,
+          current.closesAtMinute,
+          candidate.opensAtMinute,
+          candidate.closesAtMinute
+        )
+      ) {
+        overlappingIds.add(current.id);
+        overlappingIds.add(candidate.id);
+      }
+    }
+  }
+
+  return overlappingIds;
+}
+
+function getNextEffectiveResourceWindow(input: {
+  resource: AppointmentAdminResourceRecord;
+  days: AppointmentAdminSettings["specialHoursCalendar"]["days"];
+}) {
+  for (const day of input.days) {
+    const activeWindows = getActiveResourceOperatingWindowsForLocalDate({
+      businessDay: day.businessDay,
+      localDate: day.dateIso,
+      operatingWindows: input.resource.operatingWindows
+    });
+
+    if (activeWindows.length === 0) {
+      continue;
+    }
+
+    const winningWindow = [...activeWindows].sort(compareResourceOperatingWindowPrecedence)[0];
+    const effectiveCapacity =
+      winningWindow.capacityOverride === null || winningWindow.capacityOverride === undefined
+        ? input.resource.capacity
+        : Math.min(input.resource.capacity, winningWindow.capacityOverride);
+
+    return {
+      dateIso: day.dateIso,
+      label: `${minuteToTime(winningWindow.opensAtMinute)} - ${minuteToTime(
+        winningWindow.closesAtMinute
+      )}`,
+      effectiveCapacity
+    };
+  }
+
+  return null;
+}
+
 function buildSpecialHoursCalendar(input: {
   windows: AppointmentAdminOperatingWindowRecord[];
   closures: AppointmentAdminLocationClosureRecord[];
@@ -1441,6 +1551,7 @@ function buildResourceAvailability(input: {
   calendar: AppointmentAdminSettings["specialHoursCalendar"];
 }): AppointmentAdminSettings["availabilityConfiguration"]["resourceAvailability"] {
   const resources = input.resources.map((resource) => {
+    const overlappingWindowIds = getOverlappingResourceWindowIds(resource);
     const impactedDates = input.calendar.days
       .filter((day) =>
         resource.unavailability.some((entry) => overlapsDay(entry, new Date(`${day.dateIso}T00:00:00.000Z`)))
@@ -1450,15 +1561,21 @@ function buildResourceAvailability(input: {
       resource.status !== SchedulableResourceStatus.ACTIVE
         ? "Resource is not active for scheduling."
         : null,
+      resource.operatingWindows.length === 0
+        ? "Resource has no operating windows, so runtime scheduling will not find coverage."
+        : null,
+      overlappingWindowIds.size > 0
+        ? "Resource has overlapping operating windows that need manager review."
+        : null,
       impactedDates.length > 0 ? "Resource has upcoming outage or capacity-reduction windows." : null,
       resource.capacityMode === ResourceCapacityMode.EXCLUSIVE && resource.capacity <= 1
         ? "Exclusive resource; overlapping appointments should stay blocked unless policy changes."
         : null
     ].filter((warning): warning is string => Boolean(warning));
     const readiness: AppointmentAdminSettings["availabilityConfiguration"]["resourceAvailability"]["resources"][number]["readiness"] =
-      resource.status !== SchedulableResourceStatus.ACTIVE
+      resource.status !== SchedulableResourceStatus.ACTIVE || resource.operatingWindows.length === 0
         ? "BLOCKED"
-        : impactedDates.length > 0
+        : impactedDates.length > 0 || overlappingWindowIds.size > 0
           ? "WATCH"
           : "READY";
 
@@ -1490,6 +1607,70 @@ function buildResourceAvailability(input: {
       blockedResourceCount: resources.filter((resource) => resource.readiness === "BLOCKED").length,
       capacityResourceCount: resources.filter((resource) => resource.capacityMode === ResourceCapacityMode.CAPACITY).length
     }
+  };
+}
+
+function buildResourceCalendarRuntime(input: {
+  resources: AppointmentAdminResourceRecord[];
+  calendar: AppointmentAdminSettings["specialHoursCalendar"];
+}): AppointmentAdminSettings["availabilityConfiguration"]["resourceCalendarRuntime"] {
+  const reviewedDateIso =
+    input.calendar.days.find((day) => day.status !== "CLOSED")?.dateIso ??
+    input.calendar.horizonStartIso;
+  const resources = input.resources.map((resource) => {
+    const overlappingWindowIds = getOverlappingResourceWindowIds(resource);
+    const nextEffectiveWindow = getNextEffectiveResourceWindow({
+      resource,
+      days: input.calendar.days
+    });
+    const warnings = [
+      resource.operatingWindows.length === 0
+        ? "No runtime operating windows are configured for this resource."
+        : null,
+      overlappingWindowIds.size > 0
+        ? "Overlapping operating windows exist. Runtime will prefer the most recent and most specific active window."
+        : null,
+      nextEffectiveWindow
+        ? null
+        : "No effective operating window was found inside the current review horizon."
+    ].filter((warning): warning is string => Boolean(warning));
+    const runtimeStatus: AppointmentAdminSettings["availabilityConfiguration"]["resourceCalendarRuntime"]["resources"][number]["runtimeStatus"] =
+      resource.operatingWindows.length === 0
+        ? "NO_WINDOW"
+        : warnings.length > 0
+          ? "NEEDS_REVIEW"
+          : "READY";
+
+    return {
+      resourceId: resource.id,
+      resourceName: resource.name,
+      resourceTypeName: resource.resourceType.name,
+      runtimeStatus,
+      operatingWindowCount: resource.operatingWindows.length,
+      overlappingWindowCount: overlappingWindowIds.size,
+      overrideWindowCount: resource.operatingWindows.filter(
+        (window) => window.capacityOverride !== null && window.capacityOverride !== undefined
+      ).length,
+      nextEffectiveDateIso: nextEffectiveWindow?.dateIso ?? null,
+      nextEffectiveWindowLabel: nextEffectiveWindow?.label ?? null,
+      effectiveCapacity: nextEffectiveWindow?.effectiveCapacity ?? null,
+      warnings
+    };
+  });
+
+  return {
+    reviewedDateIso,
+    overlappingResourceCount: resources.filter((resource) => resource.overlappingWindowCount > 0)
+      .length,
+    noRuntimeWindowResourceCount: resources.filter(
+      (resource) => resource.runtimeStatus === "NO_WINDOW"
+    ).length,
+    precedenceRules: [
+      "Runtime prefers the most recent effective window when multiple resource windows overlap.",
+      "When start dates tie, narrower windows win over broader windows.",
+      "Capacity overrides stay bounded by the resource's configured capacity."
+    ],
+    resources
   };
 }
 
@@ -1601,6 +1782,10 @@ function buildAvailabilityConfiguration(input: {
       calendar: input.specialHoursCalendar
     }),
     capacityOverrideReadiness: buildCapacityOverrideReadiness({
+      resources: input.resources,
+      calendar: input.specialHoursCalendar
+    }),
+    resourceCalendarRuntime: buildResourceCalendarRuntime({
       resources: input.resources,
       calendar: input.specialHoursCalendar
     }),

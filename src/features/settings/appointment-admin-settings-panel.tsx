@@ -1112,6 +1112,54 @@ export function AppointmentAdminSettingsPanel({
           </div>
         </div>
 
+        <div className="appointment-admin-record-list">
+          <strong>Resource calendar runtime</strong>
+          <div className="appointment-admin-record">
+            <span>Runtime review date</span>
+            <strong>{settings.availabilityConfiguration.resourceCalendarRuntime.reviewedDateIso}</strong>
+            <small>
+              {
+                settings.availabilityConfiguration.resourceCalendarRuntime
+                  .overlappingResourceCount
+              }{" "}
+              resources need overlap review •{" "}
+              {
+                settings.availabilityConfiguration.resourceCalendarRuntime
+                  .noRuntimeWindowResourceCount
+              }{" "}
+              have no runtime window coverage
+            </small>
+            {settings.availabilityConfiguration.resourceCalendarRuntime.precedenceRules.map(
+              (rule) => (
+                <p key={rule}>{rule}</p>
+              )
+            )}
+          </div>
+
+          {settings.availabilityConfiguration.resourceCalendarRuntime.resources.map((resource) => (
+            <div className="appointment-admin-record" key={resource.resourceId}>
+              <span>{formatKind(resource.runtimeStatus)} runtime</span>
+              <strong>{resource.resourceName}</strong>
+              <small>
+                {resource.resourceTypeName} • {resource.operatingWindowCount} windows •{" "}
+                {resource.overrideWindowCount} override windows
+                {resource.nextEffectiveDateIso && resource.nextEffectiveWindowLabel
+                  ? ` • next: ${resource.nextEffectiveDateIso} ${resource.nextEffectiveWindowLabel}`
+                  : ""}
+              </small>
+              {resource.effectiveCapacity !== null ? (
+                <p>Effective runtime capacity preview: {resource.effectiveCapacity}</p>
+              ) : null}
+              {resource.overlappingWindowCount > 0 ? (
+                <p>{resource.overlappingWindowCount} operating windows overlap and need review.</p>
+              ) : null}
+              {resource.warnings.map((warning) => (
+                <p key={warning}>{warning}</p>
+              ))}
+            </div>
+          ))}
+        </div>
+
         <div className="settings-grid">
           <div className="appointment-admin-record-list">
             <strong>Capacity override readiness</strong>
