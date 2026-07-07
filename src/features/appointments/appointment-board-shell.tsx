@@ -139,6 +139,45 @@ type AppointmentExceptionQueue = {
   items: Appointment[];
 };
 
+type AppointmentResolutionStateStatus =
+  | "open"
+  | "assigned"
+  | "snoozed"
+  | "escalated"
+  | "resolved";
+
+type AppointmentResolutionState = {
+  status: AppointmentResolutionStateStatus;
+  ownerId?: string;
+  ownerName?: string;
+  note?: string;
+  snoozedUntilLabel?: string;
+  updatedAtLabel?: string;
+};
+
+type AppointmentResolutionWorkbenchFilter =
+  | "all"
+  | "breached-sla"
+  | "escalated"
+  | AppointmentExceptionQueueKey;
+
+type AppointmentResolutionWorkbenchSort = "priority" | "age" | "customer";
+
+type AppointmentResolutionWorkbenchItem = {
+  appointment: Appointment;
+  queueKey: AppointmentExceptionQueueKey;
+  queueLabel: string;
+  priority: "Critical" | "High" | "Medium";
+  priorityRank: number;
+  ageHours: number;
+  slaStatus: "on-track" | "at-risk" | "breached";
+  recommendedAction: string;
+  ownerName: string;
+  resolutionStatus: AppointmentResolutionStateStatus;
+  snoozedUntilLabel?: string;
+  lastActionLabel: string;
+};
+
 type AppointmentReadModel = {
   id: string;
   appointmentNumber: string;
@@ -367,6 +406,8 @@ const defaultBoardDate = "2026-07-06";
 const defaultOrganizationId = "org-time-motor-sales";
 const defaultLocationId = "loc-time-motor-sales-minneapolis";
 const defaultTimezone = "America/Chicago";
+const resolutionWorkbenchReferenceMinutes = 15 * 60 + 30;
+const defaultResolutionOwnerId = "abdi";
 
 const outcomeOptions = [
   { value: "COMPLETED", label: "Completed" },
@@ -716,6 +757,10 @@ function formatWorkflowCodeLabel(value: string | null | undefined) {
     .join(" ");
 }
 
+function resolutionStatusLabel(status: AppointmentResolutionStateStatus) {
+  return status[0].toUpperCase() + status.slice(1);
+}
+
 function formatTaskDueAt(value: string, timezone = defaultTimezone) {
   return new Intl.DateTimeFormat("en-US", {
     weekday: "short",
@@ -800,6 +845,201 @@ export function buildAppointmentExceptionQueues(appointments: Appointment[]): Ap
       )
     }
   ];
+}
+
+function appointmentPrimaryExceptionQueue(
+  appointment: Appointment
+): AppointmentExceptionQueueKey | null {
+  const queues = buildAppointmentExceptionQueues([appointment]).filter((queue) => queue.items.length > 0);
+  return queues[0]?.key ?? null;
+}
+
+function appointmentResolutionPriority(
+  queueKey: AppointmentExceptionQueueKey,
+  appointment: Appointment,
+  resolutionState?: AppointmentResolutionState
+) {
+  if (resolutionState?.status === "escalated" || queueKey === "no-show-recovery") {
+    return { label: "Critical" as const, rank: 0 };
+  }
+
+  if (
+    queueKey === "conflict-watch" ||
+    (queueKey === "needs-scheduling" && appointment.needsFollowUp)
+  ) {
+    return { label: "High" as const, rank: 1 };
+  }
+
+  return { label: "Medium" as const, rank: 2 };
+}
+
+function appointmentResolutionAgeHours(
+  appointment: Appointment,
+  nowMinutes = resolutionWorkbenchReferenceMinutes
+) {
+  const baselineMinutes = isUnscheduledDraftAppointment(appointment)
+    ? 9 * 60
+    : appointment.startMinutes;
+
+  return Math.max(0, Math.round(((nowMinutes - baselineMinutes) / 60) * 10) / 10);
+}
+
+function appointmentResolutionSlaStatus(
+  priorityRank: number,
+  ageHours: number
+) {
+  if (priorityRank === 0) {
+    if (ageHours >= 1) {
+      return "breached" as const;
+    }
+
+    if (ageHours >= 0.5) {
+      return "at-risk" as const;
+    }
+
+    return "on-track" as const;
+  }
+
+  if (priorityRank === 1) {
+    if (ageHours >= 2) {
+      return "breached" as const;
+    }
+
+    if (ageHours >= 1) {
+      return "at-risk" as const;
+    }
+
+    return "on-track" as const;
+  }
+
+  if (ageHours >= 4) {
+    return "breached" as const;
+  }
+
+  if (ageHours >= 2) {
+    return "at-risk" as const;
+  }
+
+  return "on-track" as const;
+}
+
+function appointmentResolutionRecommendation(
+  queueKey: AppointmentExceptionQueueKey,
+  resolutionState?: AppointmentResolutionState
+) {
+  if (resolutionState?.status === "escalated") {
+    return "Manager escalation";
+  }
+
+  if (queueKey === "needs-scheduling") {
+    return "Schedule slot";
+  }
+
+  if (queueKey === "conflict-watch") {
+    return "Rebalance resources";
+  }
+
+  if (queueKey === "no-show-recovery") {
+    return "Recover customer";
+  }
+
+  return "Assign next step";
+}
+
+export function buildAppointmentResolutionWorkbench(
+  appointments: Appointment[],
+  resolutionStateByAppointmentId: Record<string, AppointmentResolutionState> = {},
+  options: {
+    filter?: AppointmentResolutionWorkbenchFilter;
+    includeDormant?: boolean;
+    nowMinutes?: number;
+    sort?: AppointmentResolutionWorkbenchSort;
+  } = {}
+): AppointmentResolutionWorkbenchItem[] {
+  const filter = options.filter ?? "all";
+  const includeDormant = options.includeDormant ?? false;
+  const sort = options.sort ?? "priority";
+  const nowMinutes = options.nowMinutes ?? resolutionWorkbenchReferenceMinutes;
+  const items: AppointmentResolutionWorkbenchItem[] = [];
+
+  for (const appointment of appointments) {
+    const queueKey = appointmentPrimaryExceptionQueue(appointment);
+
+    if (!queueKey) {
+      continue;
+    }
+
+    const resolutionState = resolutionStateByAppointmentId[appointment.id];
+    if (
+      !includeDormant &&
+      (resolutionState?.status === "resolved" || resolutionState?.status === "snoozed")
+    ) {
+      continue;
+    }
+
+    const priority = appointmentResolutionPriority(queueKey, appointment, resolutionState);
+    const ageHours = appointmentResolutionAgeHours(appointment, nowMinutes);
+    const ownerName =
+      resolutionState?.ownerName ?? appointment.staffName ?? staffMembers.find((staff) => staff.id === appointment.staffId)?.name ?? "Unassigned";
+
+    items.push({
+      appointment,
+      queueKey,
+      queueLabel:
+        buildAppointmentExceptionQueues([appointment]).find((queue) => queue.key === queueKey)?.title ??
+        queueKey,
+      priority: priority.label,
+      priorityRank: priority.rank,
+      ageHours,
+      slaStatus: appointmentResolutionSlaStatus(priority.rank, ageHours),
+      recommendedAction: appointmentResolutionRecommendation(queueKey, resolutionState),
+      ownerName,
+      resolutionStatus: resolutionState?.status ?? "open",
+      snoozedUntilLabel: resolutionState?.snoozedUntilLabel,
+      lastActionLabel: resolutionState?.updatedAtLabel ?? "Awaiting manager action"
+    });
+  }
+
+  return items
+    .filter((item) => {
+      if (filter === "all") {
+        return true;
+      }
+
+      if (filter === "breached-sla") {
+        return item.slaStatus === "breached";
+      }
+
+      if (filter === "escalated") {
+        return item.resolutionStatus === "escalated";
+      }
+
+      return item.queueKey === filter;
+    })
+    .sort((left, right) => {
+    if (sort === "age") {
+      if (left.ageHours !== right.ageHours) {
+        return right.ageHours - left.ageHours;
+      }
+    } else if (sort === "customer") {
+      return left.appointment.customer.localeCompare(right.appointment.customer);
+    } else {
+      if (left.priorityRank !== right.priorityRank) {
+        return left.priorityRank - right.priorityRank;
+      }
+
+      if (left.slaStatus !== right.slaStatus) {
+        const slaRank = { breached: 0, "at-risk": 1, "on-track": 2 } as const;
+        return slaRank[left.slaStatus] - slaRank[right.slaStatus];
+      }
+
+      if (left.ageHours !== right.ageHours) {
+        return right.ageHours - left.ageHours;
+      }
+    }
+
+    return left.appointment.customer.localeCompare(right.appointment.customer);
+  });
 }
 
 function appointmentTimeLabel(appointment: Appointment) {
@@ -1304,6 +1544,13 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   const [ownerTransferUserId, setOwnerTransferUserId] = useState("");
   const [ownerTransferReason, setOwnerTransferReason] = useState("");
   const [isOwnerTransferSaving, setIsOwnerTransferSaving] = useState(false);
+  const [resolutionFilter, setResolutionFilter] = useState<AppointmentResolutionWorkbenchFilter>("all");
+  const [resolutionSort, setResolutionSort] = useState<AppointmentResolutionWorkbenchSort>("priority");
+  const [showDormantWorkbenchItems, setShowDormantWorkbenchItems] = useState(false);
+  const [resolutionOwnerId, setResolutionOwnerId] = useState(defaultResolutionOwnerId);
+  const [resolutionNote, setResolutionNote] = useState("");
+  const [selectedResolutionIds, setSelectedResolutionIds] = useState<Record<string, true>>({});
+  const [resolutionStateByAppointmentId, setResolutionStateByAppointmentId] = useState<Record<string, AppointmentResolutionState>>({});
   const [detailRefreshKey, setDetailRefreshKey] = useState(0);
   const [actionNotice, setActionNotice] = useState("Operational command bridge ready. Persisted appointments can now use the live command API for check-in and no-show actions.");
 
@@ -1435,11 +1682,44 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     [filteredAppointments]
   );
 
+  const activeExceptionAppointments = useMemo(
+    () =>
+      filteredAppointments.filter((appointment) => {
+        const resolutionStatus = resolutionStateByAppointmentId[appointment.id]?.status;
+        return resolutionStatus !== "resolved" && resolutionStatus !== "snoozed";
+      }),
+    [filteredAppointments, resolutionStateByAppointmentId]
+  );
+
   const exceptionQueues = useMemo(
-    () => buildAppointmentExceptionQueues(filteredAppointments),
-    [filteredAppointments]
+    () => buildAppointmentExceptionQueues(activeExceptionAppointments),
+    [activeExceptionAppointments]
   );
   const activeExceptionQueueCount = exceptionQueues.filter((queue) => queue.items.length > 0).length;
+  const resolutionWorkbenchItems = useMemo(
+    () =>
+      buildAppointmentResolutionWorkbench(filteredAppointments, resolutionStateByAppointmentId, {
+        filter: resolutionFilter,
+        includeDormant: showDormantWorkbenchItems,
+        sort: resolutionSort
+      }),
+    [
+      filteredAppointments,
+      resolutionFilter,
+      resolutionSort,
+      resolutionStateByAppointmentId,
+      showDormantWorkbenchItems
+    ]
+  );
+  const selectedResolutionItemIds = useMemo(
+    () =>
+      resolutionWorkbenchItems
+        .filter((item) => selectedResolutionIds[item.appointment.id])
+        .map((item) => item.appointment.id),
+    [resolutionWorkbenchItems, selectedResolutionIds]
+  );
+  const breachedResolutionCount = resolutionWorkbenchItems.filter((item) => item.slaStatus === "breached").length;
+  const escalatedResolutionCount = resolutionWorkbenchItems.filter((item) => item.resolutionStatus === "escalated").length;
 
   const scheduledFilteredAppointments = useMemo(
     () => filteredAppointments.filter((appointment) => !isUnscheduledDraftAppointment(appointment)),
@@ -1534,6 +1814,134 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
       reasonNotes: ""
     }));
   }
+
+  function toggleResolutionSelection(appointmentId: string) {
+    setSelectedResolutionIds((current) => {
+      const next = { ...current };
+
+      if (next[appointmentId]) {
+        delete next[appointmentId];
+        return next;
+      }
+
+      next[appointmentId] = true;
+      return next;
+    });
+  }
+
+  function toggleSelectAllResolutionItems() {
+    if (selectedResolutionItemIds.length === resolutionWorkbenchItems.length) {
+      setSelectedResolutionIds({});
+      return;
+    }
+
+    setSelectedResolutionIds(
+      Object.fromEntries(resolutionWorkbenchItems.map((item) => [item.appointment.id, true]))
+    );
+  }
+
+  function applyResolutionWorkbenchAction(
+    action: "assign" | "snooze" | "escalate" | "resolve",
+    appointmentIds: string[]
+  ) {
+    if (appointmentIds.length === 0) {
+      setActionNotice("Select at least one exception item before applying a workbench action.");
+      return;
+    }
+
+    const assignee =
+      visibleStaffMembers.find((staff) => staff.id === resolutionOwnerId) ??
+      staffMembers.find((staff) => staff.id === resolutionOwnerId) ??
+      staffMembers[0];
+    const noteSuffix = resolutionNote.trim() ? ` Reason captured: ${resolutionNote.trim()}` : "";
+
+    setResolutionStateByAppointmentId((current) => {
+      const next = { ...current };
+
+      for (const appointmentId of appointmentIds) {
+        const previous = current[appointmentId];
+
+        if (action === "assign") {
+          next[appointmentId] = {
+            ...previous,
+            status: previous?.status === "escalated" ? "escalated" : "assigned",
+            ownerId: assignee.id,
+            ownerName: assignee.name,
+            note: resolutionNote.trim() || previous?.note,
+            updatedAtLabel: "Assigned just now"
+          };
+          continue;
+        }
+
+        if (action === "snooze") {
+          next[appointmentId] = {
+            ...previous,
+            status: "snoozed",
+            ownerId: previous?.ownerId ?? assignee.id,
+            ownerName: previous?.ownerName ?? assignee.name,
+            note: resolutionNote.trim() || previous?.note,
+            snoozedUntilLabel: "Tomorrow 9:00 AM",
+            updatedAtLabel: "Snoozed just now"
+          };
+          continue;
+        }
+
+        if (action === "escalate") {
+          next[appointmentId] = {
+            ...previous,
+            status: "escalated",
+            ownerId: assignee.id,
+            ownerName: assignee.name,
+            note: resolutionNote.trim() || previous?.note,
+            updatedAtLabel: "Escalated just now"
+          };
+          continue;
+        }
+
+        next[appointmentId] = {
+          ...previous,
+          status: "resolved",
+          ownerId: previous?.ownerId ?? assignee.id,
+          ownerName: previous?.ownerName ?? assignee.name,
+          note: resolutionNote.trim() || previous?.note,
+          updatedAtLabel: "Resolved just now"
+        };
+      }
+
+      return next;
+    });
+
+    setSelectedResolutionIds({});
+    setResolutionNote("");
+
+    const itemCountLabel = `${appointmentIds.length} exception item${appointmentIds.length === 1 ? "" : "s"}`;
+    if (action === "assign") {
+      setActionNotice(`Assigned ${itemCountLabel} to ${assignee.name}.${noteSuffix}`);
+      return;
+    }
+
+    if (action === "snooze") {
+      setActionNotice(`Snoozed ${itemCountLabel} until tomorrow 9:00 AM.${noteSuffix}`);
+      return;
+    }
+
+    if (action === "escalate") {
+      setActionNotice(`Escalated ${itemCountLabel} into the manager resolution lane.${noteSuffix}`);
+      return;
+    }
+
+    setActionNotice(`Resolved ${itemCountLabel} from the command center workbench.${noteSuffix}`);
+  }
+
+  useEffect(() => {
+    const visibleIds = new Set(resolutionWorkbenchItems.map((item) => item.appointment.id));
+
+    setSelectedResolutionIds((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(([appointmentId]) => visibleIds.has(appointmentId))
+      ) as Record<string, true>
+    );
+  }, [resolutionWorkbenchItems]);
 
   useEffect(() => {
     let isActive = true;
@@ -3195,6 +3603,213 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
                 );
               })}
             </div>
+          </section>
+
+          <section className="appointment-resolution-workbench" aria-labelledby="appointment-resolution-workbench">
+            <div className="appointment-section-heading">
+              <div>
+                <strong id="appointment-resolution-workbench">Resolution Workbench</strong>
+                <p>Prioritize aging exceptions, capture manager-safe reasons, and clear operational bottlenecks without leaving the board.</p>
+              </div>
+              <span>
+                {resolutionWorkbenchItems.length} live item{resolutionWorkbenchItems.length === 1 ? "" : "s"}
+              </span>
+            </div>
+
+            <div className="appointment-resolution-toolbar">
+              <div className="appointment-resolution-toolbar-group">
+                <label>
+                  Queue focus
+                  <select
+                    aria-label="Filter resolution workbench items"
+                    value={resolutionFilter}
+                    onChange={(event) =>
+                      setResolutionFilter(event.target.value as AppointmentResolutionWorkbenchFilter)
+                    }
+                  >
+                    <option value="all">All active queues</option>
+                    <option value="needs-scheduling">Needs scheduling</option>
+                    <option value="conflict-watch">Conflict watch</option>
+                    <option value="no-show-recovery">No-show recovery</option>
+                    <option value="follow-up-required">Follow-up required</option>
+                    <option value="breached-sla">Breached SLA</option>
+                    <option value="escalated">Escalated only</option>
+                  </select>
+                </label>
+
+                <label>
+                  Sort by
+                  <select
+                    aria-label="Sort resolution workbench items"
+                    value={resolutionSort}
+                    onChange={(event) =>
+                      setResolutionSort(event.target.value as AppointmentResolutionWorkbenchSort)
+                    }
+                  >
+                    <option value="priority">Priority + SLA</option>
+                    <option value="age">Oldest first</option>
+                    <option value="customer">Customer name</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="appointment-resolution-toolbar-group appointment-resolution-toolbar-group-inline">
+                <button type="button" onClick={toggleSelectAllResolutionItems}>
+                  {selectedResolutionItemIds.length === resolutionWorkbenchItems.length &&
+                  resolutionWorkbenchItems.length > 0
+                    ? "Clear selection"
+                    : "Select visible"}
+                </button>
+                <label className="appointment-resolution-toggle">
+                  <input
+                    checked={showDormantWorkbenchItems}
+                    onChange={(event) => setShowDormantWorkbenchItems(event.target.checked)}
+                    type="checkbox"
+                  />
+                  Show snoozed / resolved
+                </label>
+              </div>
+            </div>
+
+            <div className="appointment-resolution-summary">
+              <span>{breachedResolutionCount} breached SLA</span>
+              <span>{escalatedResolutionCount} escalated</span>
+              <span>{selectedResolutionItemIds.length} selected</span>
+            </div>
+
+            {selectedResolutionItemIds.length > 0 ? (
+              <div className="appointment-resolution-bulk-bar">
+                <div className="appointment-resolution-bulk-fields">
+                  <label>
+                    Assign owner
+                    <select
+                      aria-label="Assign selected exception items"
+                      value={resolutionOwnerId}
+                      onChange={(event) => setResolutionOwnerId(event.target.value)}
+                    >
+                      {visibleStaffMembers.map((staff) => (
+                        <option key={staff.id} value={staff.id}>{staff.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="appointment-resolution-note-field">
+                    Manager note
+                    <input
+                      aria-label="Resolution note"
+                      onChange={(event) => setResolutionNote(event.target.value)}
+                      placeholder="Capture the reason for the action."
+                      type="text"
+                      value={resolutionNote}
+                    />
+                  </label>
+                </div>
+                <div className="appointment-resolution-bulk-actions">
+                  <button type="button" onClick={() => applyResolutionWorkbenchAction("assign", selectedResolutionItemIds)}>
+                    Assign selected
+                  </button>
+                  <button type="button" onClick={() => applyResolutionWorkbenchAction("snooze", selectedResolutionItemIds)}>
+                    Snooze
+                  </button>
+                  <button type="button" onClick={() => applyResolutionWorkbenchAction("escalate", selectedResolutionItemIds)}>
+                    Escalate
+                  </button>
+                  <button type="button" onClick={() => applyResolutionWorkbenchAction("resolve", selectedResolutionItemIds)}>
+                    Resolve
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {resolutionWorkbenchItems.length > 0 ? (
+              <div className="appointment-resolution-list">
+                {resolutionWorkbenchItems.map((item) => (
+                  <article className="appointment-resolution-item" key={`${item.queueKey}-${item.appointment.id}`}>
+                    <div className="appointment-resolution-item-top">
+                      <label className="appointment-resolution-item-checkbox">
+                        <input
+                          checked={Boolean(selectedResolutionIds[item.appointment.id])}
+                          onChange={() => toggleResolutionSelection(item.appointment.id)}
+                          type="checkbox"
+                        />
+                        <span>Select</span>
+                      </label>
+                      <div className="appointment-resolution-item-heading">
+                        <strong>{item.appointment.title}</strong>
+                        <span>{item.appointment.id} · {item.appointment.customer}</span>
+                      </div>
+                      <div className="appointment-resolution-chip-stack">
+                        <b className={`appointment-resolution-chip appointment-resolution-chip-priority-${item.priority.toLowerCase()}`}>
+                          {item.priority}
+                        </b>
+                        <b className={`appointment-resolution-chip appointment-resolution-chip-sla-${item.slaStatus}`}>
+                          {item.slaStatus === "breached"
+                            ? "SLA breached"
+                            : item.slaStatus === "at-risk"
+                              ? "At risk"
+                              : "On track"}
+                        </b>
+                        <b className={`appointment-resolution-chip appointment-resolution-chip-status-${item.resolutionStatus}`}>
+                          {resolutionStatusLabel(item.resolutionStatus)}
+                        </b>
+                      </div>
+                    </div>
+
+                    <div className="appointment-resolution-item-grid">
+                      <div>
+                        <span>Queue</span>
+                        <strong>{item.queueLabel}</strong>
+                      </div>
+                      <div>
+                        <span>Age</span>
+                        <strong>{item.ageHours.toFixed(1)}h</strong>
+                      </div>
+                      <div>
+                        <span>Owner</span>
+                        <strong>{item.ownerName}</strong>
+                      </div>
+                      <div>
+                        <span>Recommended</span>
+                        <strong>{item.recommendedAction}</strong>
+                      </div>
+                    </div>
+
+                    <p className="appointment-resolution-item-copy">
+                      {appointmentExceptionReason(item.queueKey, item.appointment)}
+                    </p>
+                    <div className="appointment-resolution-item-meta">
+                      <small>{item.appointment.vehicle} · {appointmentTimeRangeLabel(item.appointment)}</small>
+                      <em>
+                        {item.lastActionLabel}
+                        {item.snoozedUntilLabel ? ` · Until ${item.snoozedUntilLabel}` : ""}
+                      </em>
+                    </div>
+
+                    <div className="appointment-resolution-item-actions">
+                      <button type="button" onClick={() => selectAppointmentForDetail(item.appointment)}>
+                        Focus appointment
+                      </button>
+                      <button type="button" onClick={() => applyResolutionWorkbenchAction("assign", [item.appointment.id])}>
+                        Assign
+                      </button>
+                      <button type="button" onClick={() => applyResolutionWorkbenchAction("snooze", [item.appointment.id])}>
+                        Snooze
+                      </button>
+                      <button type="button" onClick={() => applyResolutionWorkbenchAction("escalate", [item.appointment.id])}>
+                        Escalate
+                      </button>
+                      <button type="button" onClick={() => applyResolutionWorkbenchAction("resolve", [item.appointment.id])}>
+                        Resolve
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="appointment-resolution-empty">
+                <strong>Workbench clear</strong>
+                <p>No exception items match the current queue focus and visibility settings.</p>
+              </div>
+            )}
           </section>
 
           <div className="appointment-board-controls">
