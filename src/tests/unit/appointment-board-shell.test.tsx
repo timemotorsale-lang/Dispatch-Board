@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   AppointmentBoardShell,
+  buildAppointmentExceptionQueues,
   buildOutcomeSuccessNotice,
   isProposedScheduleStartInPast,
   isUnscheduledDraftAppointment
@@ -20,6 +21,11 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Linked Tasks");
     expect(markup).toContain("Enterprise Controls");
     expect(markup).toContain("Upcoming Appointments");
+    expect(markup).toContain("Command Center Exception Queues");
+    expect(markup).toContain("Needs Scheduling");
+    expect(markup).toContain("Conflict Watch");
+    expect(markup).toContain("No-Show Recovery");
+    expect(markup).toContain("Follow-Up Required");
   });
 
   it("renders admin-provided board settings when available", () => {
@@ -84,6 +90,110 @@ describe("appointment board shell", () => {
         endsAtIso: null
       })
     ).toBe(false);
+  });
+
+  it("builds manager exception queues for scheduling gaps, conflicts, no-shows, and follow-up work", () => {
+    const queues = buildAppointmentExceptionQueues([
+      {
+        id: "APT-DRAFT",
+        title: "Follow-up Draft",
+        customer: "Amina Said",
+        vehicle: "Registration",
+        category: "dmv",
+        status: "draft",
+        staffId: "rayana",
+        staffName: "Rayana Hassan",
+        startMinutes: 0,
+        durationMinutes: 60,
+        phone: "612-555-0100",
+        complaint: "Draft needs scheduling",
+        location: "Front office",
+        confirmation: "Needs schedule placement",
+        taskAutomation: [],
+        governanceNotes: [],
+        startsAtIso: null,
+        endsAtIso: null
+      },
+      {
+        id: "APT-CONFLICT",
+        title: "Service / Repair",
+        customer: "Khalid Mohamud",
+        vehicle: "Brake Inspection",
+        category: "service",
+        status: "confirmed",
+        staffId: "brock",
+        staffName: "Brock Peterson",
+        startMinutes: 600,
+        durationMinutes: 60,
+        phone: "612-555-0101",
+        complaint: "Conflict active",
+        location: "Service bay",
+        confirmation: "Resource conflict needs manager review",
+        conflict: true,
+        taskAutomation: [],
+        governanceNotes: [],
+        startsAtIso: "2026-07-07T15:00:00.000Z",
+        endsAtIso: "2026-07-07T16:00:00.000Z"
+      },
+      {
+        id: "APT-NOSHOW",
+        title: "Test Drive",
+        customer: "Ahmed Ibrahim",
+        vehicle: "2018 Toyota Camry",
+        category: "sales",
+        status: "no-show",
+        staffId: "abdi",
+        staffName: "Abdi Farah",
+        startMinutes: 540,
+        durationMinutes: 60,
+        phone: "612-555-0102",
+        complaint: "Customer did not arrive",
+        location: "Sales floor",
+        confirmation: "No-show follow-up required",
+        attendanceStatus: "NO_SHOW",
+        followUpDispositionCode: "CALLBACK_REQUIRED",
+        taskAutomation: [],
+        governanceNotes: [],
+        startsAtIso: "2026-07-07T14:00:00.000Z",
+        endsAtIso: "2026-07-07T15:00:00.000Z"
+      },
+      {
+        id: "APT-FOLLOWUP",
+        title: "Vehicle Delivery",
+        customer: "Farah Abdi",
+        vehicle: "2021 Toyota RAV4",
+        category: "delivery",
+        status: "follow-up",
+        staffId: "mohamed",
+        staffName: "Mohamed Ali",
+        startMinutes: 780,
+        durationMinutes: 60,
+        phone: "612-555-0103",
+        complaint: "Delivery follow-up",
+        location: "Delivery bay",
+        confirmation: "Callback required",
+        needsFollowUp: true,
+        followUpDispositionCode: "FOLLOW_UP_APPOINTMENT_REQUIRED",
+        taskAutomation: [],
+        governanceNotes: [],
+        startsAtIso: "2026-07-07T18:00:00.000Z",
+        endsAtIso: "2026-07-07T19:00:00.000Z"
+      }
+    ] as any);
+
+    expect(queues.find((queue) => queue.key === "needs-scheduling")?.items.map((item) => item.id)).toEqual([
+      "APT-DRAFT"
+    ]);
+    expect(queues.find((queue) => queue.key === "conflict-watch")?.items.map((item) => item.id)).toEqual([
+      "APT-CONFLICT"
+    ]);
+    expect(queues.find((queue) => queue.key === "no-show-recovery")?.items.map((item) => item.id)).toEqual([
+      "APT-NOSHOW"
+    ]);
+    expect(queues.find((queue) => queue.key === "follow-up-required")?.items.map((item) => item.id)).toEqual([
+      "APT-NOSHOW",
+      "APT-FOLLOWUP"
+    ]);
   });
 
   it("detects proposed draft schedule starts that are already in the past", () => {

@@ -124,6 +124,21 @@ type Appointment = {
   governanceNotes: string[];
 };
 
+type AppointmentExceptionQueueKey =
+  | "needs-scheduling"
+  | "conflict-watch"
+  | "no-show-recovery"
+  | "follow-up-required";
+
+type AppointmentExceptionQueue = {
+  key: AppointmentExceptionQueueKey;
+  title: string;
+  description: string;
+  emptyMessage: string;
+  tone: "blue" | "amber" | "red" | "purple";
+  items: Appointment[];
+};
+
 type AppointmentReadModel = {
   id: string;
   appointmentNumber: string;
@@ -689,6 +704,18 @@ function formatTaskStatus(status: string) {
     .join(" ");
 }
 
+function formatWorkflowCodeLabel(value: string | null | undefined) {
+  if (!value) {
+    return "";
+  }
+
+  return value
+    .toLowerCase()
+    .split("_")
+    .map((word) => word[0]?.toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 function formatTaskDueAt(value: string, timezone = defaultTimezone) {
   return new Intl.DateTimeFormat("en-US", {
     weekday: "short",
@@ -704,6 +731,75 @@ export function isUnscheduledDraftAppointment(appointment: {
   endsAtIso?: string | null;
 }) {
   return appointment.status === "draft" && (!appointment.startsAtIso || !appointment.endsAtIso);
+}
+
+function sortAppointmentsForQueue(appointments: Appointment[]) {
+  return [...appointments].sort((left, right) => {
+    const leftIsUnscheduled = isUnscheduledDraftAppointment(left);
+    const rightIsUnscheduled = isUnscheduledDraftAppointment(right);
+
+    if (leftIsUnscheduled !== rightIsUnscheduled) {
+      return leftIsUnscheduled ? -1 : 1;
+    }
+
+    if (left.startMinutes !== right.startMinutes) {
+      return left.startMinutes - right.startMinutes;
+    }
+
+    return left.title.localeCompare(right.title);
+  });
+}
+
+export function buildAppointmentExceptionQueues(appointments: Appointment[]): AppointmentExceptionQueue[] {
+  return [
+    {
+      key: "needs-scheduling",
+      title: "Needs Scheduling",
+      description: "Drafts and generated follow-ups waiting for a real time window.",
+      emptyMessage: "No drafts are waiting for schedule placement.",
+      tone: "blue",
+      items: sortAppointmentsForQueue(
+        appointments.filter((appointment) => isUnscheduledDraftAppointment(appointment))
+      )
+    },
+    {
+      key: "conflict-watch",
+      title: "Conflict Watch",
+      description: "Appointments carrying a visible capacity, owner, or timing conflict.",
+      emptyMessage: "No active conflicts are visible in the current board scope.",
+      tone: "amber",
+      items: sortAppointmentsForQueue(appointments.filter((appointment) => appointment.conflict))
+    },
+    {
+      key: "no-show-recovery",
+      title: "No-Show Recovery",
+      description: "Appointments that require reason capture, callback handling, or recovery follow-up.",
+      emptyMessage: "No no-show recovery work is open right now.",
+      tone: "red",
+      items: sortAppointmentsForQueue(
+        appointments.filter(
+          (appointment) =>
+            appointment.status === "no-show" || appointment.attendanceStatus === "NO_SHOW"
+        )
+      )
+    },
+    {
+      key: "follow-up-required",
+      title: "Follow-Up Required",
+      description: "Completed or interrupted appointments that still need next-step ownership.",
+      emptyMessage: "No follow-up exceptions are waiting right now.",
+      tone: "purple",
+      items: sortAppointmentsForQueue(
+        appointments.filter(
+          (appointment) =>
+            appointment.needsFollowUp ||
+            appointment.status === "follow-up" ||
+            (Boolean(appointment.followUpDispositionCode) &&
+              appointment.followUpDispositionCode !== "NO_FOLLOW_UP_REQUIRED")
+        )
+      )
+    }
+  ];
 }
 
 function appointmentTimeLabel(appointment: Appointment) {
@@ -722,6 +818,31 @@ function appointmentTimeRangeLabel(appointment: Appointment) {
   return `${formatTime(appointment.startMinutes)} - ${formatTime(
     appointment.startMinutes + appointment.durationMinutes
   )} (${appointment.durationMinutes} min)`;
+}
+
+function appointmentExceptionReason(
+  queueKey: AppointmentExceptionQueueKey,
+  appointment: Appointment
+) {
+  if (queueKey === "needs-scheduling") {
+    return "Draft is active, but the board still needs a committed schedule window.";
+  }
+
+  if (queueKey === "conflict-watch") {
+    return appointment.confirmation || "Conflict flag is active and needs manager review.";
+  }
+
+  if (queueKey === "no-show-recovery") {
+    const disposition = formatWorkflowCodeLabel(appointment.followUpDispositionCode);
+    return disposition
+      ? `Recovery path: ${disposition}. Document the reason and next step before closing.`
+      : "No-show reason and recovery follow-up must be documented before closing.";
+  }
+
+  const disposition = formatWorkflowCodeLabel(appointment.followUpDispositionCode);
+  return disposition
+    ? `Next step required: ${disposition}.`
+    : appointment.confirmation || "This appointment still needs a documented follow-up action.";
 }
 
 function getInitials(name: string) {
@@ -1313,6 +1434,12 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     () => filteredAppointments.filter((appointment) => isUnscheduledDraftAppointment(appointment)),
     [filteredAppointments]
   );
+
+  const exceptionQueues = useMemo(
+    () => buildAppointmentExceptionQueues(filteredAppointments),
+    [filteredAppointments]
+  );
+  const activeExceptionQueueCount = exceptionQueues.filter((queue) => queue.items.length > 0).length;
 
   const scheduledFilteredAppointments = useMemo(
     () => filteredAppointments.filter((appointment) => !isUnscheduledDraftAppointment(appointment)),
@@ -2996,6 +3123,79 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
               </div>
             </section>
           ) : null}
+
+          <section className="appointment-exception-card" aria-labelledby="appointment-exception-queues">
+            <div className="appointment-section-heading">
+              <div>
+                <strong id="appointment-exception-queues">Command Center Exception Queues</strong>
+                <p>Manager-first queues for scheduling gaps, live conflicts, no-show recovery, and follow-up ownership.</p>
+              </div>
+              <span>
+                {activeExceptionQueueCount} active queue{activeExceptionQueueCount === 1 ? "" : "s"}
+              </span>
+            </div>
+            <div className="appointment-exception-grid">
+              {exceptionQueues.map((queue) => {
+                const visibleItems = queue.items.slice(0, 4);
+                const overflowCount = queue.items.length - visibleItems.length;
+
+                return (
+                  <section
+                    className={`appointment-exception-queue appointment-exception-queue-${queue.tone}`}
+                    key={queue.key}
+                    aria-label={queue.title}
+                  >
+                    <div className="appointment-exception-queue-header">
+                      <div>
+                        <strong>{queue.title}</strong>
+                        <p>{queue.description}</p>
+                      </div>
+                      <b>{queue.items.length}</b>
+                    </div>
+
+                    {visibleItems.length > 0 ? (
+                      <div className="appointment-exception-list">
+                        {visibleItems.map((appointment) => (
+                          <button
+                            className={
+                              selectedAppointment.id === appointment.id
+                                ? "appointment-exception-item appointment-exception-item-active"
+                                : "appointment-exception-item"
+                            }
+                            key={`${queue.key}-${appointment.id}`}
+                            onClick={() => selectAppointmentForDetail(appointment)}
+                            type="button"
+                          >
+                            <div className="appointment-exception-item-top">
+                              <strong>{appointment.title}</strong>
+                              <span>{appointment.id}</span>
+                            </div>
+                            <p>{appointmentExceptionReason(queue.key, appointment)}</p>
+                            <div className="appointment-exception-item-meta">
+                              <small>{appointment.customer} · {appointment.vehicle}</small>
+                              <em>
+                                {appointmentTimeLabel(appointment)} · {appointment.staffName ?? "Unassigned"}
+                              </em>
+                            </div>
+                          </button>
+                        ))}
+                        {overflowCount > 0 ? (
+                          <p className="appointment-exception-overflow">
+                            {overflowCount} more item{overflowCount === 1 ? "" : "s"} remain in this queue.
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <div className="appointment-exception-empty">
+                        <strong>Queue clear</strong>
+                        <p>{queue.emptyMessage}</p>
+                      </div>
+                    )}
+                  </section>
+                );
+              })}
+            </div>
+          </section>
 
           <div className="appointment-board-controls">
             <div className="appointment-view-tabs" aria-label="Appointment view">
