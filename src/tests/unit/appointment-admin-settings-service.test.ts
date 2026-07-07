@@ -18,8 +18,10 @@ import {
   getAppointmentBoardSettings,
   normalizeAppointmentAdminSettingsInput,
   normalizeAppointmentResourceUnavailabilityInput,
+  normalizeAppointmentResourceTypeUpdateInput,
   updateAppointmentLocationClosureForManager,
   updateAppointmentResourceForManager,
+  updateAppointmentResourceTypeForManager,
   updateAppointmentAdminSettings
 } from "@/server/services/appointment-admin-settings";
 import { createTestAuthStore } from "@/tests/support/auth-test-store";
@@ -79,6 +81,18 @@ function createRepository() {
       unavailability: []
     }
   ];
+  let resourceTypes: Awaited<ReturnType<AppointmentAdminSettingsRepository["listResourceTypes"]>> = [
+    {
+      id: "rt-staff",
+      code: "STAFF",
+      name: "Staff member",
+      kind: "STAFF",
+      defaultCapacityMode: ResourceCapacityMode.EXCLUSIVE,
+      defaultCapacity: 1,
+      defaultConflictPolicy: ResourceConflictPolicy.HARD_BLOCK,
+      isActive: true
+    }
+  ];
   let lastUpdate:
     | Parameters<AppointmentAdminSettingsRepository["updateLocationAndHours"]>[0]
     | null = null;
@@ -91,18 +105,7 @@ function createRepository() {
       return closures;
     },
     async listResourceTypes() {
-      return [
-        {
-          id: "rt-staff",
-          code: "STAFF",
-          name: "Staff member",
-          kind: "STAFF",
-          defaultCapacityMode: ResourceCapacityMode.EXCLUSIVE,
-          defaultCapacity: 1,
-          defaultConflictPolicy: ResourceConflictPolicy.HARD_BLOCK,
-          isActive: true
-        }
-      ];
+      return resourceTypes;
     },
     async listResources() {
       return resources;
@@ -155,6 +158,22 @@ function createRepository() {
       );
 
       return resources.find((resource) => resource.id === input.resourceId)!;
+    },
+    async updateResourceType(input) {
+      resourceTypes = resourceTypes.map((resourceType) =>
+        resourceType.id === input.resourceTypeId
+          ? {
+              ...resourceType,
+              name: input.name,
+              defaultCapacityMode: input.defaultCapacityMode,
+              defaultCapacity: input.defaultCapacity,
+              defaultConflictPolicy: input.defaultConflictPolicy,
+              isActive: input.isActive
+            }
+          : resourceType
+      );
+
+      return resourceTypes.find((resourceType) => resourceType.id === input.resourceTypeId)!;
     },
     async createResourceUnavailability(input) {
       const entry = {
@@ -504,6 +523,55 @@ describe("appointment admin settings service", () => {
       resourceName: "Abdi Farah",
       suggestedReduction: 1
     });
+  });
+
+  it("allows managers to update resource type defaults", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createRepository();
+
+    const settings = await updateAppointmentResourceTypeForManager(
+      manager,
+      {
+        resourceTypeId: "rt-staff",
+        name: "Staff advisor",
+        defaultCapacityMode: ResourceCapacityMode.CAPACITY,
+        defaultCapacity: 2,
+        defaultConflictPolicy: ResourceConflictPolicy.WARNING,
+        isActive: true
+      },
+      repository
+    );
+
+    expect(settings.resourceTypes[0]).toMatchObject({
+      id: "rt-staff",
+      name: "Staff advisor",
+      defaultCapacityMode: ResourceCapacityMode.CAPACITY,
+      defaultCapacity: 2,
+      defaultConflictPolicy: ResourceConflictPolicy.WARNING,
+      isActive: true
+    });
+    expect(settings.availabilityConfiguration.resourceTypeEditorReadiness.types[0]).toMatchObject({
+      name: "Staff advisor",
+      readiness: "READY"
+    });
+  });
+
+  it("rejects exclusive resource types with capacity above one", () => {
+    expect(() =>
+      normalizeAppointmentResourceTypeUpdateInput({
+        organizationId: "org-time-motor-sales",
+        resourceTypeId: "rt-staff",
+        update: {
+          resourceTypeId: "rt-staff",
+          name: "Staff member",
+          defaultCapacityMode: ResourceCapacityMode.EXCLUSIVE,
+          defaultCapacity: 2,
+          defaultConflictPolicy: ResourceConflictPolicy.HARD_BLOCK,
+          isActive: true
+        }
+      })
+    ).toThrow(/exclusive resource type/);
   });
 
   it("allows managers to create resource capacity reductions", async () => {

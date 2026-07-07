@@ -11,6 +11,7 @@ import type {
   AppointmentAdminSettingsInput,
   AppointmentLocationClosureInput,
   AppointmentOperatingWindowInput,
+  AppointmentResourceTypeUpdateInput,
   AppointmentResourceUnavailabilityInput,
   AppointmentResourceUpdateInput
 } from "@/server/services/appointment-admin-settings";
@@ -77,6 +78,7 @@ type AppointmentSettingsFormState = {
 };
 
 type ResourceFormState = Record<string, Omit<AppointmentResourceUpdateInput, "resourceId">>;
+type ResourceTypeFormState = Record<string, Omit<AppointmentResourceTypeUpdateInput, "resourceTypeId">>;
 type ClosureEditDraft = AppointmentLocationClosureInput & {
   id: string;
 };
@@ -151,6 +153,21 @@ function toResourceFormState(settings: AppointmentAdminSettings): ResourceFormSt
   );
 }
 
+function toResourceTypeFormState(settings: AppointmentAdminSettings): ResourceTypeFormState {
+  return Object.fromEntries(
+    settings.resourceTypes.map((resourceType) => [
+      resourceType.id,
+      {
+        name: resourceType.name,
+        defaultCapacityMode: resourceType.defaultCapacityMode,
+        defaultCapacity: resourceType.defaultCapacity,
+        defaultConflictPolicy: resourceType.defaultConflictPolicy,
+        isActive: resourceType.isActive
+      }
+    ])
+  );
+}
+
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium",
@@ -177,6 +194,9 @@ export function AppointmentAdminSettingsPanel({
   const [closureDraft, setClosureDraft] = useState(defaultClosureDraft);
   const [editingClosure, setEditingClosure] = useState<ClosureEditDraft | null>(null);
   const [resourceDrafts, setResourceDrafts] = useState(() => toResourceFormState(initialSettings));
+  const [resourceTypeDrafts, setResourceTypeDrafts] = useState(() =>
+    toResourceTypeFormState(initialSettings)
+  );
   const [unavailabilityDraft, setUnavailabilityDraft] = useState<AppointmentResourceUnavailabilityInput>({
     ...defaultUnavailabilityDraft,
     resourceId: initialSettings.resources[0]?.id ?? ""
@@ -229,6 +249,7 @@ export function AppointmentAdminSettingsPanel({
     setSettings(nextSettings);
     setFormState(toFormState(nextSettings));
     setResourceDrafts(toResourceFormState(nextSettings));
+    setResourceTypeDrafts(toResourceTypeFormState(nextSettings));
     setUnavailabilityDraft((current) => ({
       ...current,
       resourceId: nextSettings.resources.some((resource) => resource.id === current.resourceId)
@@ -450,6 +471,40 @@ export function AppointmentAdminSettingsPanel({
         body: draft,
         successMessage: "Resource settings saved."
       });
+    });
+  }
+
+  function updateResourceTypeDraft<K extends keyof Omit<AppointmentResourceTypeUpdateInput, "resourceTypeId">>(
+    resourceTypeId: string,
+    field: K,
+    value: Omit<AppointmentResourceTypeUpdateInput, "resourceTypeId">[K]
+  ) {
+    setResourceTypeDrafts((current) => ({
+      ...current,
+      [resourceTypeId]: {
+        ...current[resourceTypeId],
+        [field]: value
+      }
+    }));
+  }
+
+  function submitResourceTypeUpdate(resourceTypeId: string) {
+    const draft = resourceTypeDrafts[resourceTypeId];
+
+    if (!draft) {
+      setErrorMessage("Resource type settings could not be found.");
+      return;
+    }
+
+    startTransition(async () => {
+      await mutateAppointmentSettings(
+        `/api/settings/appointments/resource-types/${encodeURIComponent(resourceTypeId)}`,
+        {
+          method: "PATCH",
+          body: draft,
+          successMessage: "Resource type settings saved."
+        }
+      );
     });
   }
 
@@ -975,6 +1030,107 @@ export function AppointmentAdminSettingsPanel({
                   {resourceType.warnings.map((warning) => (
                     <p key={warning}>{warning}</p>
                   ))}
+                  {resourceTypeDrafts[resourceType.typeId] ? (
+                    <div className="settings-grid">
+                      <label className="field">
+                        <span>Type name</span>
+                        <input
+                          value={resourceTypeDrafts[resourceType.typeId].name}
+                          onChange={(event) =>
+                            updateResourceTypeDraft(
+                              resourceType.typeId,
+                              "name",
+                              event.target.value
+                            )
+                          }
+                        />
+                      </label>
+
+                      <label className="field">
+                        <span>Default mode</span>
+                        <select
+                          value={resourceTypeDrafts[resourceType.typeId].defaultCapacityMode}
+                          onChange={(event) =>
+                            updateResourceTypeDraft(
+                              resourceType.typeId,
+                              "defaultCapacityMode",
+                              event.target.value
+                            )
+                          }
+                        >
+                          {capacityModes.map((mode) => (
+                            <option key={mode.value} value={mode.value}>
+                              {mode.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="field">
+                        <span>Default capacity</span>
+                        <input
+                          min={1}
+                          type="number"
+                          value={resourceTypeDrafts[resourceType.typeId].defaultCapacity}
+                          onChange={(event) =>
+                            updateResourceTypeDraft(
+                              resourceType.typeId,
+                              "defaultCapacity",
+                              Number(event.target.value)
+                            )
+                          }
+                        />
+                      </label>
+
+                      <label className="field">
+                        <span>Default conflict policy</span>
+                        <select
+                          value={resourceTypeDrafts[resourceType.typeId].defaultConflictPolicy}
+                          onChange={(event) =>
+                            updateResourceTypeDraft(
+                              resourceType.typeId,
+                              "defaultConflictPolicy",
+                              event.target.value
+                            )
+                          }
+                        >
+                          {conflictPolicies.map((policy) => (
+                            <option key={policy.value} value={policy.value}>
+                              {policy.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="field">
+                        <span>Status</span>
+                        <select
+                          value={resourceTypeDrafts[resourceType.typeId].isActive ? "ACTIVE" : "INACTIVE"}
+                          onChange={(event) =>
+                            updateResourceTypeDraft(
+                              resourceType.typeId,
+                              "isActive",
+                              event.target.value === "ACTIVE"
+                            )
+                          }
+                        >
+                          <option value="ACTIVE">Active</option>
+                          <option value="INACTIVE">Inactive</option>
+                        </select>
+                      </label>
+
+                      <div className="form-actions">
+                        <button
+                          className="pill pill-primary"
+                          disabled={isPending}
+                          onClick={() => submitResourceTypeUpdate(resourceType.typeId)}
+                          type="button"
+                        >
+                          Save resource type
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               )
             )}
