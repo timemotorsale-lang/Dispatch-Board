@@ -118,6 +118,72 @@ function getDateOnly(value: Date) {
   return value.toISOString().slice(0, 10);
 }
 
+export function isEffectiveResourceOperatingWindowForLocalDate(input: {
+  operatingWindow: ResourceAvailabilityOperatingWindow;
+  localDate: string;
+}) {
+  const validFrom = getDateOnly(input.operatingWindow.validFrom);
+  const validTo = input.operatingWindow.validTo
+    ? getDateOnly(input.operatingWindow.validTo)
+    : null;
+
+  return validFrom <= input.localDate && (!validTo || validTo >= input.localDate);
+}
+
+export function compareResourceOperatingWindowPrecedence(
+  left: ResourceAvailabilityOperatingWindow,
+  right: ResourceAvailabilityOperatingWindow
+) {
+  const validFromDelta = right.validFrom.getTime() - left.validFrom.getTime();
+
+  if (validFromDelta !== 0) {
+    return validFromDelta;
+  }
+
+  const leftDuration = left.closesAtMinute - left.opensAtMinute;
+  const rightDuration = right.closesAtMinute - right.opensAtMinute;
+  const durationDelta = leftDuration - rightDuration;
+
+  if (durationDelta !== 0) {
+    return durationDelta;
+  }
+
+  if ((left.capacityOverride ?? null) !== (right.capacityOverride ?? null)) {
+    return left.capacityOverride === null || left.capacityOverride === undefined ? 1 : -1;
+  }
+
+  const leftValidTo = left.validTo?.getTime() ?? Number.MAX_SAFE_INTEGER;
+  const rightValidTo = right.validTo?.getTime() ?? Number.MAX_SAFE_INTEGER;
+  const validToDelta = leftValidTo - rightValidTo;
+
+  if (validToDelta !== 0) {
+    return validToDelta;
+  }
+
+  if (left.opensAtMinute !== right.opensAtMinute) {
+    return right.opensAtMinute - left.opensAtMinute;
+  }
+
+  return left.closesAtMinute - right.closesAtMinute;
+}
+
+export function getActiveResourceOperatingWindowsForLocalDate(input: {
+  businessDay: BusinessDay;
+  localDate: string;
+  operatingWindows: ResourceAvailabilityOperatingWindow[];
+}) {
+  return input.operatingWindows
+    .filter(
+      (window) =>
+        window.businessDay === input.businessDay &&
+        isEffectiveResourceOperatingWindowForLocalDate({
+          operatingWindow: window,
+          localDate: input.localDate
+        })
+    )
+    .sort(compareResourceOperatingWindowPrecedence);
+}
+
 function overlaps(leftStart: Date, leftEnd: Date, rightStart: Date, rightEnd: Date) {
   return leftStart < rightEnd && rightStart < leftEnd;
 }
@@ -228,13 +294,11 @@ export function evaluateResourceAvailability(input: {
     reasons.push("Required capacity exceeds configured resource capacity.");
   }
 
-  const activeWindows = input.operatingWindows
-    .filter(
-      (window) =>
-        window.businessDay === businessDay &&
-        isEffectiveForLocalDate({ ...window, localDate })
-    )
-    .sort((left, right) => left.opensAtMinute - right.opensAtMinute);
+  const activeWindows = getActiveResourceOperatingWindowsForLocalDate({
+    businessDay,
+    localDate,
+    operatingWindows: input.operatingWindows
+  });
   const matchingOperatingWindow =
     activeWindows
       .map((window) => {
@@ -254,6 +318,7 @@ export function evaluateResourceAvailability(input: {
             : Math.min(resource.capacity, window.capacityOverride);
 
         return {
+          sourceWindow: window,
           businessDay,
           opensAtMinute: window.opensAtMinute,
           closesAtMinute: window.closesAtMinute,
@@ -262,7 +327,10 @@ export function evaluateResourceAvailability(input: {
           capacity
         };
       })
-      .find((window) => startsAt >= window.startsAt && endsAt <= window.endsAt) ?? null;
+      .filter((window) => startsAt >= window.startsAt && endsAt <= window.endsAt)
+      .sort((left, right) =>
+        compareResourceOperatingWindowPrecedence(left.sourceWindow, right.sourceWindow)
+      )[0] ?? null;
 
   if (!matchingOperatingWindow) {
     reasons.push("Resource candidate is outside resource operating hours.");
@@ -338,7 +406,16 @@ export function evaluateResourceAvailability(input: {
     reservedCapacity,
     unavailableCapacity,
     availableCapacity,
-    matchingOperatingWindow,
+    matchingOperatingWindow: matchingOperatingWindow
+      ? {
+          businessDay: matchingOperatingWindow.businessDay,
+          opensAtMinute: matchingOperatingWindow.opensAtMinute,
+          closesAtMinute: matchingOperatingWindow.closesAtMinute,
+          startsAt: matchingOperatingWindow.startsAt,
+          endsAt: matchingOperatingWindow.endsAt,
+          capacity: matchingOperatingWindow.capacity
+        }
+      : null,
     overlappingReservations,
     overlappingUnavailability
   };

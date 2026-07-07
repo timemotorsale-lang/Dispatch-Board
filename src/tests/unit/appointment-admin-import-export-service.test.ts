@@ -174,6 +174,34 @@ function settingsFixture(): AppointmentAdminSettings {
           "Keep hard-block conflict warnings visible when managers change appointment volume."
         ]
       },
+      resourceCalendarRuntime: {
+        reviewedDateIso: "2026-07-07",
+        overlappingResourceCount: 0,
+        noRuntimeWindowResourceCount: 1,
+        precedenceRules: [
+          "Runtime prefers the most recent effective window when multiple resource windows overlap.",
+          "When start dates tie, narrower windows win over broader windows.",
+          "Capacity overrides stay bounded by the resource's configured capacity."
+        ],
+        resources: [
+          {
+            resourceId: "res-abdi",
+            resourceName: "Abdi Farah",
+            resourceTypeName: "Staff member",
+            runtimeStatus: "NO_WINDOW",
+            operatingWindowCount: 0,
+            overlappingWindowCount: 0,
+            overrideWindowCount: 0,
+            nextEffectiveDateIso: null,
+            nextEffectiveWindowLabel: null,
+            effectiveCapacity: null,
+            warnings: [
+              "No runtime operating windows are configured for this resource.",
+              "No effective operating window was found inside the current review horizon."
+            ]
+          }
+        ]
+      },
       resourceTypeEditorReadiness: {
         activeTypeCount: 1,
         inactiveTypeCount: 0,

@@ -234,6 +234,38 @@ describe("appointment resource availability service", () => {
     expect(result.reasons).toEqual(["Resource does not have enough available capacity."]);
   });
 
+  it("prefers the most recent and narrower matching operating window when overlaps exist", () => {
+    const result = evaluateResourceAvailability({
+      resource: staffAdvisor,
+      timezone,
+      operatingWindows: [
+        {
+          ...mondayWindow,
+          validFrom: new Date("2026-01-01T00:00:00.000Z")
+        },
+        {
+          ...mondayWindow,
+          opensAtMinute: 10 * 60,
+          closesAtMinute: 16 * 60,
+          capacityOverride: 1,
+          validFrom: new Date("2026-07-01T00:00:00.000Z")
+        }
+      ],
+      unavailability: [],
+      reservations: [],
+      startsAt: localInstant("2026-07-06", 11),
+      endsAt: localInstant("2026-07-06", 12),
+      requiredCapacity: 2
+    });
+
+    expect(result.effectiveWindowCapacity).toBe(1);
+    expect(result.matchingOperatingWindow).toMatchObject({
+      opensAtMinute: 10 * 60,
+      closesAtMinute: 16 * 60,
+      capacity: 1
+    });
+  });
+
   it("blocks full outages and inactive resources", () => {
     const outage: ResourceAvailabilityUnavailability = {
       type: "OUTAGE",

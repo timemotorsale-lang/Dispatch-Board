@@ -580,6 +580,12 @@ describe("appointment admin settings service", () => {
       resourceName: "Abdi Farah",
       suggestedReduction: 1
     });
+    expect(settings.availabilityConfiguration.resourceAvailability.resources[0]).toMatchObject({
+      readiness: "BLOCKED"
+    });
+    expect(settings.availabilityConfiguration.resourceCalendarRuntime.resources[0]).toMatchObject({
+      runtimeStatus: "NO_WINDOW"
+    });
   });
 
   it("allows managers to update resource type defaults", async () => {
@@ -716,6 +722,53 @@ describe("appointment admin settings service", () => {
     ]);
   });
 
+  it("surfaces overlap review and runtime precedence for overlapping resource windows", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createRepository();
+
+    await createAppointmentResourceOperatingWindowForManager(
+      manager,
+      {
+        resourceId: "res-abdi",
+        businessDay: BusinessDay.TUESDAY,
+        opensAt: "09:00",
+        closesAt: "18:00",
+        capacityOverride: null,
+        validFrom: "2026-07-07",
+        validTo: null,
+        reason: "Base advisor hours."
+      },
+      repository
+    );
+
+    const settings = await createAppointmentResourceOperatingWindowForManager(
+      manager,
+      {
+        resourceId: "res-abdi",
+        businessDay: BusinessDay.TUESDAY,
+        opensAt: "10:00",
+        closesAt: "16:00",
+        capacityOverride: 1,
+        validFrom: "2026-07-07",
+        validTo: null,
+        reason: "Training-day override."
+      },
+      repository
+    );
+
+    expect(settings.availabilityConfiguration.resourceAvailability.resources[0]).toMatchObject({
+      readiness: "WATCH"
+    });
+    expect(settings.availabilityConfiguration.resourceCalendarRuntime.resources[0]).toMatchObject({
+      runtimeStatus: "NEEDS_REVIEW",
+      overlappingWindowCount: 2,
+      nextEffectiveDateIso: "2026-07-07",
+      nextEffectiveWindowLabel: "10:00 - 16:00",
+      effectiveCapacity: 1
+    });
+  });
+
   it("allows managers to remove resource operating calendar windows with a reason", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
@@ -788,6 +841,21 @@ describe("appointment admin settings service", () => {
     const { usersByEmail } = await createTestAuthStore();
     const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
     const { repository } = createRepository();
+
+    await createAppointmentResourceOperatingWindowForManager(
+      manager,
+      {
+        resourceId: "res-abdi",
+        businessDay: BusinessDay.WEDNESDAY,
+        opensAt: "09:00",
+        closesAt: "18:00",
+        capacityOverride: null,
+        validFrom: "2026-07-08",
+        validTo: null,
+        reason: "Base advisor hours for coverage."
+      },
+      repository
+    );
 
     const settings = await createAppointmentResourceUnavailabilityForManager(
       manager,
