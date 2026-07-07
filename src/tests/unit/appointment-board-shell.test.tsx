@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import {
+  buildAppointmentAgendaSections,
   buildAppointmentAuditTimeline,
   buildAppointmentCommandCenterDigestPreview,
   buildAppointmentCommandCenterDigestSummaries,
@@ -12,6 +13,8 @@ import {
   buildAppointmentCommandCenterSubscriptionSummaries,
   buildAppointmentExecutiveReviewBrief,
   buildAppointmentExecutiveReviewModel,
+  buildAppointmentMonthCells,
+  buildAppointmentWeekColumns,
   AppointmentBoardShell,
   buildAppointmentExceptionQueues,
   buildAppointmentResolutionWorkbench,
@@ -56,6 +59,9 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Executive Review Suite");
     expect(markup).toContain("Daily Operations Brief");
     expect(markup).toContain("Executive Scorecard");
+    expect(markup).toContain("Staff");
+    expect(markup).toContain("Location");
+    expect(markup).toContain("Resource");
   });
 
   it("renders admin-provided board settings when available", () => {
@@ -510,6 +516,74 @@ describe("appointment board shell", () => {
     expect(brief).toContain("Trend watch:");
     expect(brief).toContain("Digest performance:");
     expect(brief).toContain("APT-ESC | Conflict Watch | Critical | breached | Brock Peterson");
+  });
+
+  it("builds agenda, week, and month board views from the visible appointment scope", () => {
+    const appointments = [
+      {
+        id: "APT-1",
+        title: "Service / Repair",
+        customer: "Khalid Mohamud",
+        vehicle: "Brake Inspection",
+        category: "service",
+        status: "confirmed",
+        staffId: "brock",
+        staffName: "Brock Peterson",
+        startMinutes: 600,
+        durationMinutes: 60,
+        phone: "612-555-0101",
+        complaint: "Conflict active",
+        location: "Service bay",
+        confirmation: "Resource conflict needs manager review",
+        taskAutomation: [],
+        governanceNotes: [],
+        startsAtIso: "2026-07-06T15:00:00.000Z",
+        endsAtIso: "2026-07-06T16:00:00.000Z"
+      },
+      {
+        id: "APT-2",
+        title: "Vehicle Delivery",
+        customer: "Farah Abdi",
+        vehicle: "2021 Toyota RAV4",
+        category: "delivery",
+        status: "follow-up",
+        staffId: "mohamed",
+        staffName: "Mohamed Ali",
+        startMinutes: 780,
+        durationMinutes: 60,
+        phone: "612-555-0103",
+        complaint: "Delivery follow-up",
+        location: "Delivery bay",
+        confirmation: "Callback required",
+        taskAutomation: [],
+        governanceNotes: [],
+        startsAtIso: "2026-07-08T18:00:00.000Z",
+        endsAtIso: "2026-07-08T19:00:00.000Z"
+      }
+    ] as any;
+
+    const agenda = buildAppointmentAgendaSections({
+      appointments,
+      timezone: "America/Chicago",
+      fallbackDateKey: "2026-07-06"
+    });
+    const week = buildAppointmentWeekColumns({
+      appointments,
+      timezone: "America/Chicago",
+      boardDateKey: "2026-07-06"
+    });
+    const month = buildAppointmentMonthCells({
+      appointments,
+      timezone: "America/Chicago",
+      boardDateKey: "2026-07-06"
+    });
+
+    expect(agenda).toHaveLength(2);
+    expect(agenda[0]?.items[0]?.id).toBe("APT-1");
+    expect(week.find((column) => column.dateKey === "2026-07-06")?.items).toHaveLength(1);
+    expect(week.find((column) => column.dateKey === "2026-07-08")?.items).toHaveLength(1);
+    expect(month.find((cell) => cell.dateKey === "2026-07-06")?.items).toHaveLength(1);
+    expect(month.find((cell) => cell.dateKey === "2026-07-08")?.items).toHaveLength(1);
   });
 
   it("classifies missing-time draft appointments as unscheduled board items", () => {
