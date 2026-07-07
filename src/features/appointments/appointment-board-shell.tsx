@@ -388,6 +388,26 @@ type AppointmentNotificationCenterItem = {
 
 type AppointmentNotificationFailureStatus = "open" | "retrying" | "re-queued" | "resolved";
 
+type AppointmentNotificationFanoutStatus = "active" | "suppressed" | "deduped";
+
+type AppointmentNotificationFanoutSource = {
+  id: string;
+  appointmentId: string;
+  sourceLane: AppointmentAuditTimelineLane;
+  title: string;
+  detail: string;
+  tone: "slate" | "blue" | "amber" | "red" | "purple" | "green";
+  urgency: AppointmentNotificationUrgency;
+  ownerLabel: string;
+  occurredAtLabel: string;
+  status: AppointmentNotificationFanoutStatus;
+  statusDetail: string;
+  generatedCount: number;
+  notificationLabels: string[];
+  deepLinkTarget: AppointmentNotificationDeepLinkTarget;
+  actionLabel: string;
+};
+
 type AppointmentNotificationFailureQueueItem = {
   id: string;
   sourceType: "runtime" | "handoff";
@@ -971,6 +991,24 @@ const initialNotificationReadStates: Record<string, AppointmentNotificationReadS
   "notification-runtime-digest-no-show-recovery": "unread",
   "notification-runtime-digest-shift-handoff": "unread",
   "notification-handoff-handoff-history-1": "unread"
+};
+
+const initialNotificationFanoutStates: Record<
+  string,
+  { status: AppointmentNotificationFanoutStatus; updatedAtLabel: string }
+> = {
+  "fanout-APT-10245-automation": {
+    status: "active",
+    updatedAtLabel: "Evaluated just now"
+  },
+  "fanout-APT-10248-appointment": {
+    status: "deduped",
+    updatedAtLabel: "Merged with breached SLA digest 10 min ago"
+  },
+  "fanout-APT-10253-appointment": {
+    status: "suppressed",
+    updatedAtLabel: "Suppressed during duplicate-review window"
+  }
 };
 
 const executiveReviewPresetOptions: Array<{
@@ -2338,6 +2376,18 @@ function notificationDeepLinkTargetLabel(target: AppointmentNotificationDeepLink
   return "Handoff package";
 }
 
+function notificationFanoutStatusLabel(status: AppointmentNotificationFanoutStatus) {
+  if (status === "suppressed") {
+    return "Suppressed";
+  }
+
+  if (status === "deduped") {
+    return "Deduped";
+  }
+
+  return "Active";
+}
+
 export function buildAppointmentCommandCenterDigestPreview(input: {
   digest: AppointmentCommandCenterDigestSummary;
   report: AppointmentCommandCenterReport;
@@ -2927,6 +2977,104 @@ export function buildAppointmentNotificationFailureQueue(input: {
 
     return severityOrder[left.severity] - severityOrder[right.severity];
   });
+}
+
+export function buildAppointmentNotificationFanoutSources(input: {
+  appointments: Appointment[];
+  resolutionStateByAppointmentId?: Record<string, AppointmentResolutionState>;
+  commandCenterAuditEvents?: AppointmentAuditTimelineEvent[];
+  fanoutStates?: Record<
+    string,
+    { status: AppointmentNotificationFanoutStatus; updatedAtLabel: string }
+  >;
+}) {
+  const resolutionStateByAppointmentId = input.resolutionStateByAppointmentId ?? {};
+  const fanoutStates = input.fanoutStates ?? {};
+
+  return input.appointments
+    .flatMap((appointment) =>
+      buildAppointmentAuditTimeline({
+        appointment,
+        resolutionState: resolutionStateByAppointmentId[appointment.id],
+        commandCenterEvents: input.commandCenterAuditEvents ?? []
+      })
+        .filter((event) => event.lane === "appointment" || event.lane === "automation" || event.lane === "manager")
+        .slice(0, 2)
+        .map((event) => {
+          const id = `fanout-${appointment.id}-${event.lane}`;
+          const fanoutState = fanoutStates[id];
+          const status = fanoutState?.status ?? "active";
+          const derivedNotificationLabels =
+            event.lane === "automation"
+              ? ["Manager Inbox", "Automation Review Queue"]
+              : event.title.includes("handoff")
+                ? ["Shift Handoff Digest", "Manager Inbox"]
+                : event.title.includes("Exception") || appointment.conflict || appointment.status === "no-show"
+                  ? ["Breached SLA Digest", "Manager Inbox"]
+                  : appointment.needsFollowUp
+                    ? ["Follow-Up Backlog Digest", "Manager Inbox"]
+                    : ["Manager Inbox"];
+
+          return {
+            id,
+            appointmentId: appointment.id,
+            sourceLane: event.lane,
+            title: event.title,
+            detail: event.detail,
+            tone: event.tone,
+            urgency:
+              event.lane === "automation"
+                ? "high"
+                : appointment.status === "no-show" || appointment.conflict
+                  ? "critical"
+                  : appointment.needsFollowUp
+                    ? "elevated"
+                    : "routine",
+            ownerLabel: event.actor,
+            occurredAtLabel: fanoutState?.updatedAtLabel ?? event.occurredAtLabel,
+            status,
+            statusDetail:
+              status === "suppressed"
+                ? "Fanout was intentionally suppressed inside the duplicate-review window."
+                : status === "deduped"
+                  ? "Fanout was merged into an existing notification stream to avoid duplication."
+                  : "Fanout is actively generating internal notification coverage.",
+            generatedCount: derivedNotificationLabels.length,
+            notificationLabels: derivedNotificationLabels,
+            deepLinkTarget:
+              event.lane === "automation"
+                ? "resolution-workbench"
+                : event.title.toLowerCase().includes("handoff")
+                  ? "handoff-package"
+                  : event.lane === "manager"
+                    ? "manager-timeline"
+                    : "detail-rail",
+            actionLabel:
+              status === "active" ? "Suppress fanout" : status === "suppressed" ? "Resume fanout" : "Re-emit"
+          } satisfies AppointmentNotificationFanoutSource;
+        })
+    )
+    .sort((left, right) => {
+      const urgencyOrder: Record<AppointmentNotificationUrgency, number> = {
+        critical: 0,
+        high: 1,
+        elevated: 2,
+        routine: 3
+      };
+      const statusOrder: Record<AppointmentNotificationFanoutStatus, number> = {
+        active: 0,
+        suppressed: 1,
+        deduped: 2
+      };
+
+      const statusDiff = statusOrder[left.status] - statusOrder[right.status];
+      if (statusDiff !== 0) {
+        return statusDiff;
+      }
+
+      return urgencyOrder[left.urgency] - urgencyOrder[right.urgency];
+    })
+    .slice(0, 10);
 }
 
 export function buildAppointmentCommandCenterHandoffPackage(input: {
@@ -3725,6 +3873,9 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     useState<AppointmentNotificationCenterFilter>("all");
   const [notificationPolicies, setNotificationPolicies] = useState(initialNotificationPolicies);
   const [notificationReadStates, setNotificationReadStates] = useState(initialNotificationReadStates);
+  const [notificationFanoutStates, setNotificationFanoutStates] = useState(
+    initialNotificationFanoutStates
+  );
   const [notificationFailureStates, setNotificationFailureStates] = useState(
     initialNotificationFailureStates
   );
@@ -4140,6 +4291,26 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     [notificationCenterItems]
   );
   const unreadNotificationCount = notificationCenterItems.filter((item) => item.readState === "unread").length;
+  const notificationFanoutSources = useMemo(
+    () =>
+      buildAppointmentNotificationFanoutSources({
+        appointments: boardAppointments,
+        resolutionStateByAppointmentId,
+        commandCenterAuditEvents,
+        fanoutStates: notificationFanoutStates
+      }),
+    [boardAppointments, commandCenterAuditEvents, notificationFanoutStates, resolutionStateByAppointmentId]
+  );
+  const notificationFanoutSummary = useMemo(
+    () => ({
+      total: notificationFanoutSources.length,
+      active: notificationFanoutSources.filter((item) => item.status === "active").length,
+      suppressed: notificationFanoutSources.filter((item) => item.status === "suppressed").length,
+      deduped: notificationFanoutSources.filter((item) => item.status === "deduped").length,
+      emittedNotifications: notificationFanoutSources.reduce((sum, item) => sum + item.generatedCount, 0)
+    }),
+    [notificationFanoutSources]
+  );
   const notificationFailureQueue = useMemo(
     () =>
       buildAppointmentNotificationFailureQueue({
@@ -4858,6 +5029,81 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
       const nextState = notification.readState === "read" ? "unread" : "read";
       setActionNotice(`${notification.title} marked ${nextState}.`);
     }
+  }
+
+  function updateNotificationFanoutState(sourceId: string) {
+    const source = notificationFanoutSources.find((item) => item.id === sourceId);
+    if (!source) {
+      setActionNotice("That notification source is no longer visible.");
+      return;
+    }
+
+    const nextStatus: AppointmentNotificationFanoutStatus =
+      source.status === "active" ? "suppressed" : source.status === "suppressed" ? "active" : "active";
+
+    setNotificationFanoutStates((current) => ({
+      ...current,
+      [sourceId]: {
+        status: nextStatus,
+        updatedAtLabel:
+          nextStatus === "suppressed"
+            ? "Suppressed just now"
+            : source.status === "deduped"
+              ? "Re-emitted just now"
+              : "Resumed just now"
+      }
+    }));
+
+    setCommandCenterAuditEvents((current) => [
+      {
+        id: `notification-fanout-${nextStatus}-${sourceId}-${current.length + 1}`,
+        appointmentId: source.appointmentId,
+        lane: source.sourceLane === "automation" ? "automation" : "manager",
+        tone: nextStatus === "suppressed" ? "amber" : "blue",
+        title: `Notification fanout ${nextStatus}`,
+        detail: `${source.title} fanout moved to ${notificationFanoutStatusLabel(nextStatus).toLowerCase()}.`,
+        actor: "Abdi Farah",
+        occurredAtLabel: "Just now"
+      },
+      ...current
+    ]);
+
+    setActionNotice(
+      `${source.title} fanout moved to ${notificationFanoutStatusLabel(nextStatus).toLowerCase()}.`
+    );
+  }
+
+  function openNotificationFanoutSource(source: AppointmentNotificationFanoutSource) {
+    const appointment =
+      boardAppointments.find((candidate) => candidate.id === source.appointmentId) ?? selectedAppointment;
+
+    selectAppointmentForDetail(appointment);
+
+    if (source.deepLinkTarget === "resolution-workbench") {
+      setResolutionFilter("all");
+      setReportQueueFilter("all");
+      setCommandCenterSearchPreset("all");
+      setCommandCenterSearchScope("appointments");
+      setActionNotice(`Opened ${appointment.id} in the resolution workbench from the fanout map.`);
+      return;
+    }
+
+    if (source.deepLinkTarget === "manager-timeline") {
+      setAuditTimelineFilter("manager");
+      setCommandCenterSearchPreset("manager-activity");
+      setCommandCenterSearchScope("timeline");
+      setActionNotice(`Opened ${appointment.id} in the manager timeline from the fanout map.`);
+      return;
+    }
+
+    if (source.deepLinkTarget === "handoff-package") {
+      setSelectedCommandCenterDigestId("digest-shift-handoff");
+      setAuditTimelineFilter("manager");
+      setActionNotice(`Opened ${appointment.id} in the handoff package from the fanout map.`);
+      return;
+    }
+
+    setActionNotice(`Opened ${appointment.id} in the detail rail from the fanout map.`);
   }
 
   function openNotificationDeepLink(item: AppointmentNotificationCenterItem) {
@@ -7758,6 +8004,88 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
                 {unreadNotificationCount} unread / {openNotificationFailureCount} failures
               </span>
             </div>
+
+            <section className="appointment-notification-fanout-card" aria-labelledby="appointment-notification-fanout">
+              <div className="appointment-command-center-panel-heading">
+                <div>
+                  <strong id="appointment-notification-fanout">Event Fanout &amp; Source Coverage</strong>
+                  <p>
+                    Show which appointment, automation, and manager events are producing notifications, which
+                    ones were suppressed, and which were merged into existing streams.
+                  </p>
+                </div>
+                <span>{notificationFanoutSummary.emittedNotifications} generated</span>
+              </div>
+
+              <div className="appointment-notification-fanout-summary">
+                <span>{notificationFanoutSummary.total} source events</span>
+                <span>{notificationFanoutSummary.active} active</span>
+                <span>{notificationFanoutSummary.suppressed} suppressed</span>
+                <span>{notificationFanoutSummary.deduped} deduped</span>
+              </div>
+
+              <div className="appointment-notification-fanout-list">
+                {notificationFanoutSources.map((source) => (
+                  <article className={`appointment-notification-fanout-item appointment-notification-fanout-item-${source.tone}`} key={source.id}>
+                    <div className="appointment-notification-center-item-top">
+                      <div>
+                        <strong>{source.title}</strong>
+                        <p>{source.detail}</p>
+                      </div>
+                      <div className="appointment-command-center-badge-stack">
+                        <span className="appointment-command-center-tag appointment-command-center-tag-blue">
+                          {source.sourceLane}
+                        </span>
+                        <span
+                          className={
+                            source.status === "active"
+                              ? "appointment-command-center-tag appointment-command-center-tag-green"
+                              : source.status === "suppressed"
+                                ? "appointment-command-center-tag appointment-command-center-tag-amber"
+                                : "appointment-command-center-tag appointment-command-center-tag-purple"
+                          }
+                        >
+                          {notificationFanoutStatusLabel(source.status)}
+                        </span>
+                        <span
+                          className={
+                            source.urgency === "critical"
+                              ? "appointment-command-center-tag appointment-command-center-tag-red"
+                              : source.urgency === "high"
+                                ? "appointment-command-center-tag appointment-command-center-tag-amber"
+                                : source.urgency === "elevated"
+                                  ? "appointment-command-center-tag appointment-command-center-tag-blue"
+                                  : "appointment-command-center-tag"
+                          }
+                        >
+                          {notificationUrgencyLabel(source.urgency)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="appointment-notification-center-item-meta">
+                      <span>{source.ownerLabel}</span>
+                      <span>{source.occurredAtLabel}</span>
+                      <strong>{source.generatedCount} notification{source.generatedCount === 1 ? "" : "s"}</strong>
+                    </div>
+
+                    <p className="appointment-notification-center-item-status">{source.statusDetail}</p>
+                    <p className="appointment-notification-center-item-status">
+                      Targets: {source.notificationLabels.join(" · ")} · {notificationDeepLinkTargetLabel(source.deepLinkTarget)}
+                    </p>
+
+                    <div className="appointment-command-center-item-actions">
+                      <button type="button" onClick={() => openNotificationFanoutSource(source)}>
+                        Open source
+                      </button>
+                      <button type="button" onClick={() => updateNotificationFanoutState(source.id)}>
+                        {source.actionLabel}
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
 
             <section className="appointment-notification-policy-card" aria-labelledby="appointment-notification-policy">
               <div className="appointment-command-center-panel-heading">

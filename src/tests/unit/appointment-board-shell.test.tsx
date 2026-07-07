@@ -9,6 +9,7 @@ import {
   buildAppointmentCommandCenterExport,
   buildAppointmentCommandCenterHandoffExport,
   buildAppointmentCommandCenterHandoffPackage,
+  buildAppointmentNotificationFanoutSources,
   buildAppointmentNotificationCenterItems,
   buildAppointmentNotificationFailureQueue,
   buildAppointmentCommandCenterRuntimeQueue,
@@ -73,6 +74,8 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Delivery Runtime Queue");
     expect(markup).toContain("Carry-Forward Handoff Package");
     expect(markup).toContain("Notification Center &amp; Failure Queues");
+    expect(markup).toContain("Event Fanout &amp; Source Coverage");
+    expect(markup).toContain("Suppress fanout");
     expect(markup).toContain("Notification Policy &amp; Deep Links");
     expect(markup).toContain("Manager Inbox");
     expect(markup).toContain("Open source");
@@ -869,6 +872,42 @@ describe("appointment board shell", () => {
     expect(failures.some((item) => item.queueLabel === "Handoff exception")).toBe(true);
     expect(failures.find((item) => item.id === "failure-runtime-digest-breached-sla")?.actionLabel).toBe(
       "Retry delivery"
+    );
+  });
+
+  it("builds event fanout sources from appointment and automation history", () => {
+    const fanout = buildAppointmentNotificationFanoutSources({
+      appointments: [
+        {
+          id: "APT-1",
+          title: "Service / Repair",
+          customer: "Ahmed Ibrahim",
+          vehicle: "2014 Ford Taurus",
+          category: "service",
+          status: "no-show",
+          staffId: "brock",
+          startMinutes: 540,
+          durationMinutes: 60,
+          phone: "(612) 555-0100",
+          complaint: "Brake noise",
+          location: "Service counter",
+          confirmation: "Confirmed by phone",
+          taskAutomation: ["Create callback task", "Draft follow-up appointment"],
+          governanceNotes: ["Manager review required."]
+        }
+      ] as any,
+      fanoutStates: {
+        "fanout-APT-1-automation": {
+          status: "suppressed",
+          updatedAtLabel: "Suppressed just now"
+        }
+      }
+    });
+
+    expect(fanout.some((item) => item.sourceLane === "automation")).toBe(true);
+    expect(fanout.some((item) => item.status === "suppressed")).toBe(true);
+    expect(fanout.find((item) => item.sourceLane === "automation")?.notificationLabels).toEqual(
+      expect.arrayContaining(["Manager Inbox", "Automation Review Queue"])
     );
   });
 
