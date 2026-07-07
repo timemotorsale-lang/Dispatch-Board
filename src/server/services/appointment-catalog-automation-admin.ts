@@ -130,10 +130,45 @@ export type AppointmentCatalogPurposeUsageSummary = {
   taskBlueprintCount: number;
   outcomeCodeCount: number;
   followUpDispositionCodeCount: number;
+  appointmentCount: number;
+  activeAppointmentCount: number;
+  completedAppointmentCount: number;
+  lastAppointmentAt: string | null;
   referenceCount: number;
   deleteRisk: "DRAFT_ONLY" | "PUBLISHED_REFERENCES";
   recommendation: "DELETE_ALLOWED" | "DEPRECATE_INSTEAD" | "REVIEW_BEFORE_CHANGE";
   warnings: string[];
+};
+
+export type AppointmentCatalogCodeUsageSummary = {
+  type: AppointmentCatalogCodeType;
+  code: string;
+  label: string;
+  deprecated: boolean;
+  systemRequired: boolean;
+  purposeCodes: string[];
+  purposeCount: number;
+  appointmentCount: number;
+  activeAppointmentCount: number;
+  completedAppointmentCount: number;
+  historyEventCount: number;
+  automationRuleCount: number;
+  taskBlueprintCount: number;
+  referenceCount: number;
+  lastUsedAt: string | null;
+  changeRisk: "NO_USAGE" | "LOW_USAGE" | "ACTIVE_USAGE" | "HIGH_USAGE";
+  recommendation: "SAFE_TO_CHANGE" | "REVIEW_BEFORE_CHANGE" | "DEPRECATE_INSTEAD";
+  warnings: string[];
+};
+
+export type AppointmentCatalogUsageAnalytics = {
+  generatedAt: string;
+  hasLiveAppointmentCounts: boolean;
+  appointmentTotalCount: number;
+  activeAppointmentTotalCount: number;
+  completedAppointmentTotalCount: number;
+  codeUsage: AppointmentCatalogCodeUsageSummary[];
+  highestRiskCodes: AppointmentCatalogCodeUsageSummary[];
 };
 
 export type AppointmentCatalogAutomationAdmin = AppointmentCatalogCore & {
@@ -148,6 +183,7 @@ export type AppointmentCatalogAutomationAdmin = AppointmentCatalogCore & {
     recentChanges: AppointmentCatalogChangeEventSummary[];
   };
   purposeUsage: AppointmentCatalogPurposeUsageSummary[];
+  usageAnalytics: AppointmentCatalogUsageAnalytics;
   editor: {
     canEdit: true;
     reasonMinimumCharacters: number;
@@ -250,6 +286,49 @@ type AppointmentCatalogChangeEventRecord = {
   occurredAt: Date;
 };
 
+export type AppointmentCatalogUsageMetrics = {
+  appointmentTotalCount: number;
+  activeAppointmentTotalCount: number;
+  completedAppointmentTotalCount: number;
+  purposeUsage: Record<
+    string,
+    {
+      appointmentCount: number;
+      activeAppointmentCount: number;
+      completedAppointmentCount: number;
+      lastAppointmentAt: string | null;
+    }
+  >;
+  outcomeUsage: Record<
+    string,
+    {
+      appointmentCount: number;
+      activeAppointmentCount: number;
+      completedAppointmentCount: number;
+      lastUsedAt: string | null;
+    }
+  >;
+  followUpDispositionUsage: Record<
+    string,
+    {
+      appointmentCount: number;
+      activeAppointmentCount: number;
+      completedAppointmentCount: number;
+      lastUsedAt: string | null;
+    }
+  >;
+  reasonUsage: Record<
+    string,
+    {
+      appointmentCount: number;
+      activeAppointmentCount: number;
+      completedAppointmentCount: number;
+      historyEventCount: number;
+      lastUsedAt: string | null;
+    }
+  >;
+};
+
 export type AppointmentCatalogAutomationAdminRepository = {
   getActiveVersion(organizationId: string): Promise<AppointmentCatalogVersionRecord | null>;
   getDraftVersion(organizationId: string): Promise<AppointmentCatalogVersionRecord | null>;
@@ -258,6 +337,7 @@ export type AppointmentCatalogAutomationAdminRepository = {
     organizationId: string,
     limit: number
   ): Promise<AppointmentCatalogChangeEventRecord[]>;
+  getUsageMetrics?: (organizationId: string) => Promise<AppointmentCatalogUsageMetrics>;
   createDraftVersion(input: {
     organizationId: string;
     version: number;
@@ -819,16 +899,64 @@ function withApprovalSnapshot(
   };
 }
 
+function emptyUsageMetrics(): AppointmentCatalogUsageMetrics {
+  return {
+    appointmentTotalCount: 0,
+    activeAppointmentTotalCount: 0,
+    completedAppointmentTotalCount: 0,
+    purposeUsage: {},
+    outcomeUsage: {},
+    followUpDispositionUsage: {},
+    reasonUsage: {}
+  };
+}
+
+function isActiveAppointmentStatus(status: unknown) {
+  return ["DRAFT", "REQUESTED", "SCHEDULED", "RESCHEDULED", "IN_PROGRESS"].includes(
+    String(status ?? "")
+  );
+}
+
+function isCompletedAppointmentStatus(status: unknown) {
+  return String(status ?? "") === "COMPLETED";
+}
+
+function maxIsoDate(values: Array<string | null | undefined>) {
+  return values
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1) ?? null;
+}
+
+function getPurposeCodeFromSnapshot(snapshot: unknown) {
+  if (!snapshot || typeof snapshot !== "object") {
+    return null;
+  }
+
+  const candidate = snapshot as Record<string, unknown>;
+  const rawCode = candidate.purposeCode ?? candidate.code;
+
+  return typeof rawCode === "string" && rawCode.trim() ? rawCode.trim().toUpperCase() : null;
+}
+
 function buildPurposeUsageSummaries(input: {
   catalog: AppointmentCatalogCore;
   publishedPurposeCodes: Set<string>;
+  usageMetrics: AppointmentCatalogUsageMetrics;
 }): AppointmentCatalogPurposeUsageSummary[] {
   return input.catalog.purposes.map((purpose) => {
     const automationRules = input.catalog.automationRules.filter(
       (rule) => rule.purposeCode === purpose.code
     );
     const enabledAutomationRuleCount = automationRules.filter((rule) => rule.enabled).length;
+    const appointmentUsage = input.usageMetrics.purposeUsage[purpose.code] ?? {
+      appointmentCount: 0,
+      activeAppointmentCount: 0,
+      completedAppointmentCount: 0,
+      lastAppointmentAt: null
+    };
     const referenceCount =
+      appointmentUsage.appointmentCount +
       automationRules.length +
       purpose.taskBlueprints.length +
       purpose.outcomeCodes.length +
@@ -843,6 +971,9 @@ function buildPurposeUsageSummaries(input: {
         : null,
       purpose.taskBlueprints.length > 0
         ? "Task blueprints will be affected by lifecycle changes."
+        : null,
+      appointmentUsage.appointmentCount > 0
+        ? `${appointmentUsage.appointmentCount} live appointment records reference this purpose.`
         : null
     ].filter((warning): warning is string => Boolean(warning));
 
@@ -854,9 +985,13 @@ function buildPurposeUsageSummaries(input: {
       taskBlueprintCount: purpose.taskBlueprints.length,
       outcomeCodeCount: purpose.outcomeCodes.length,
       followUpDispositionCodeCount: purpose.followUpDispositionCodes.length,
+      appointmentCount: appointmentUsage.appointmentCount,
+      activeAppointmentCount: appointmentUsage.activeAppointmentCount,
+      completedAppointmentCount: appointmentUsage.completedAppointmentCount,
+      lastAppointmentAt: appointmentUsage.lastAppointmentAt,
       referenceCount,
       deleteRisk: isPublished ? "PUBLISHED_REFERENCES" : "DRAFT_ONLY",
-      recommendation: isPublished
+      recommendation: isPublished || appointmentUsage.appointmentCount > 0
         ? "DEPRECATE_INSTEAD"
         : referenceCount > 0
           ? "REVIEW_BEFORE_CHANGE"
@@ -864,6 +999,195 @@ function buildPurposeUsageSummaries(input: {
       warnings
     };
   });
+}
+
+function getCodeUsageCounts(
+  metrics: AppointmentCatalogUsageMetrics,
+  type: AppointmentCatalogCodeType,
+  code: string
+) {
+  if (type === "OUTCOME") {
+    return {
+      appointmentCount: metrics.outcomeUsage[code]?.appointmentCount ?? 0,
+      activeAppointmentCount: metrics.outcomeUsage[code]?.activeAppointmentCount ?? 0,
+      completedAppointmentCount: metrics.outcomeUsage[code]?.completedAppointmentCount ?? 0,
+      historyEventCount: 0,
+      lastUsedAt: metrics.outcomeUsage[code]?.lastUsedAt ?? null
+    };
+  }
+
+  if (type === "FOLLOW_UP_DISPOSITION") {
+    return {
+      appointmentCount: metrics.followUpDispositionUsage[code]?.appointmentCount ?? 0,
+      activeAppointmentCount: metrics.followUpDispositionUsage[code]?.activeAppointmentCount ?? 0,
+      completedAppointmentCount: metrics.followUpDispositionUsage[code]?.completedAppointmentCount ?? 0,
+      historyEventCount: 0,
+      lastUsedAt: metrics.followUpDispositionUsage[code]?.lastUsedAt ?? null
+    };
+  }
+
+  return {
+    appointmentCount: metrics.reasonUsage[code]?.appointmentCount ?? 0,
+    activeAppointmentCount: metrics.reasonUsage[code]?.activeAppointmentCount ?? 0,
+    completedAppointmentCount: metrics.reasonUsage[code]?.completedAppointmentCount ?? 0,
+    historyEventCount: metrics.reasonUsage[code]?.historyEventCount ?? 0,
+    lastUsedAt: metrics.reasonUsage[code]?.lastUsedAt ?? null
+  };
+}
+
+function getCodePurposeReferences(
+  catalog: AppointmentCatalogCore,
+  type: AppointmentCatalogCodeType,
+  code: string
+) {
+  if (type === "REASON") {
+    return catalog.purposes.map((purpose) => purpose.code);
+  }
+
+  const field = type === "OUTCOME" ? "outcomeCodes" : "followUpDispositionCodes";
+
+  return catalog.purposes
+    .filter((purpose) => purpose[field].includes(code))
+    .map((purpose) => purpose.code);
+}
+
+function getCodeTaskBlueprintCount(
+  catalog: AppointmentCatalogCore,
+  type: AppointmentCatalogCodeType,
+  purposeCodes: string[]
+) {
+  if (type !== "OUTCOME") {
+    return 0;
+  }
+
+  return catalog.purposes
+    .filter((purpose) => purposeCodes.includes(purpose.code))
+    .reduce(
+      (total, purpose) =>
+        total +
+        purpose.taskBlueprints.filter((blueprint) =>
+          ["ON_OUTCOME", "ON_COMPLETION"].includes(blueprint.creationTiming)
+        ).length,
+      0
+    );
+}
+
+function buildCodeUsageSummaries(input: {
+  catalog: AppointmentCatalogCore;
+  usageMetrics: AppointmentCatalogUsageMetrics;
+}): AppointmentCatalogCodeUsageSummary[] {
+  const catalogEntries: Array<[AppointmentCatalogCodeType, string[]]> = [
+    ["OUTCOME", input.catalog.catalogs.outcomeCodes],
+    ["FOLLOW_UP_DISPOSITION", input.catalog.catalogs.followUpDispositionCodes],
+    ["REASON", input.catalog.catalogs.reasonCodes]
+  ];
+
+  return catalogEntries.flatMap(([type, codes]) =>
+    codes.map((code) => {
+      const detail = input.catalog.catalogs.codeDetails[codeDetailKey(type, code)];
+      const purposeCodes = getCodePurposeReferences(input.catalog, type, code);
+      const usage = getCodeUsageCounts(input.usageMetrics, type, code);
+      const automationRuleCount =
+        type === "REASON"
+          ? 0
+          : input.catalog.automationRules.filter((rule) => purposeCodes.includes(rule.purposeCode))
+              .length;
+      const taskBlueprintCount = getCodeTaskBlueprintCount(input.catalog, type, purposeCodes);
+      const referenceCount =
+        purposeCodes.length +
+        usage.appointmentCount +
+        usage.historyEventCount +
+        automationRuleCount +
+        taskBlueprintCount;
+      const highUsage = usage.appointmentCount >= 25 || referenceCount >= 12;
+      const activeUsage = usage.activeAppointmentCount > 0 || usage.historyEventCount > 0;
+      const changeRisk = highUsage
+        ? "HIGH_USAGE"
+        : activeUsage
+          ? "ACTIVE_USAGE"
+          : referenceCount > 0
+            ? "LOW_USAGE"
+            : "NO_USAGE";
+      const warnings = [
+        usage.appointmentCount > 0
+          ? `${usage.appointmentCount} appointment records use this code.`
+          : null,
+        usage.activeAppointmentCount > 0
+          ? `${usage.activeAppointmentCount} active appointments currently use this code.`
+          : null,
+        usage.historyEventCount > 0
+          ? `${usage.historyEventCount} history events reference this reason code.`
+          : null,
+        detail?.systemRequired ? "System-required code; do not remove from enterprise catalog." : null,
+        detail?.deprecated && usage.activeAppointmentCount > 0
+          ? "Deprecated code still appears on active appointments."
+          : null
+      ].filter((warning): warning is string => Boolean(warning));
+
+      return {
+        type,
+        code,
+        label: detail?.label ?? labelFromCode(code),
+        deprecated: detail?.deprecated ?? false,
+        systemRequired: detail?.systemRequired ?? systemRequiredCodesByType(type).has(code),
+        purposeCodes,
+        purposeCount: purposeCodes.length,
+        appointmentCount: usage.appointmentCount,
+        activeAppointmentCount: usage.activeAppointmentCount,
+        completedAppointmentCount: usage.completedAppointmentCount,
+        historyEventCount: usage.historyEventCount,
+        automationRuleCount,
+        taskBlueprintCount,
+        referenceCount,
+        lastUsedAt: usage.lastUsedAt,
+        changeRisk,
+        recommendation:
+          changeRisk === "HIGH_USAGE" || usage.appointmentCount > 0 || usage.historyEventCount > 0
+            ? "DEPRECATE_INSTEAD"
+            : changeRisk === "LOW_USAGE" || changeRisk === "ACTIVE_USAGE"
+              ? "REVIEW_BEFORE_CHANGE"
+              : "SAFE_TO_CHANGE",
+        warnings
+      };
+    })
+  );
+}
+
+function buildUsageAnalytics(input: {
+  catalog: AppointmentCatalogCore;
+  usageMetrics: AppointmentCatalogUsageMetrics;
+  hasLiveAppointmentCounts: boolean;
+}): AppointmentCatalogUsageAnalytics {
+  const codeUsage = buildCodeUsageSummaries({
+    catalog: input.catalog,
+    usageMetrics: input.usageMetrics
+  });
+  const riskRank: Record<AppointmentCatalogCodeUsageSummary["changeRisk"], number> = {
+    HIGH_USAGE: 4,
+    ACTIVE_USAGE: 3,
+    LOW_USAGE: 2,
+    NO_USAGE: 1
+  };
+
+  return {
+    generatedAt: new Date().toISOString(),
+    hasLiveAppointmentCounts: input.hasLiveAppointmentCounts,
+    appointmentTotalCount: input.usageMetrics.appointmentTotalCount,
+    activeAppointmentTotalCount: input.usageMetrics.activeAppointmentTotalCount,
+    completedAppointmentTotalCount: input.usageMetrics.completedAppointmentTotalCount,
+    codeUsage,
+    highestRiskCodes: [...codeUsage]
+      .sort((left, right) => {
+        const riskDelta = riskRank[right.changeRisk] - riskRank[left.changeRisk];
+
+        if (riskDelta !== 0) {
+          return riskDelta;
+        }
+
+        return right.referenceCount - left.referenceCount;
+      })
+      .slice(0, 6)
+  };
 }
 
 function summarizeVersion(
@@ -926,6 +1250,8 @@ function buildAdminModel(input: {
   activeVersion: AppointmentCatalogVersionRecord | null;
   draftVersion: AppointmentCatalogVersionRecord | null;
   recentChanges: AppointmentCatalogChangeEventRecord[];
+  usageMetrics: AppointmentCatalogUsageMetrics;
+  hasLiveAppointmentCounts: boolean;
 }) {
   const activeCatalog = input.activeVersion
     ? normalizeCatalogSnapshot(input.activeVersion.catalogSnapshot)
@@ -945,7 +1271,13 @@ function buildAdminModel(input: {
       : buildApprovalSummary({ status: "NOT_REQUIRED" });
   const purposeUsage = buildPurposeUsageSummaries({
     catalog: displayedCatalog,
-    publishedPurposeCodes: getPublishedPurposeCodes(input.activeVersion)
+    publishedPurposeCodes: getPublishedPurposeCodes(input.activeVersion),
+    usageMetrics: input.usageMetrics
+  });
+  const usageAnalytics = buildUsageAnalytics({
+    catalog: displayedCatalog,
+    usageMetrics: input.usageMetrics,
+    hasLiveAppointmentCounts: input.hasLiveAppointmentCounts
   });
 
   return {
@@ -961,6 +1293,7 @@ function buildAdminModel(input: {
       recentChanges: input.recentChanges.map(summarizeChangeEvent)
     },
     purposeUsage,
+    usageAnalytics,
     editor: {
       canEdit: true,
       reasonMinimumCharacters: 8,
@@ -990,6 +1323,161 @@ function unavailableCatalogPersistenceError() {
   return new Error(
     "Appointment catalog persistence is not available until the Prisma client is regenerated and the catalog migration is applied."
   );
+}
+
+function toIsoFromUnknown(value: unknown) {
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    const parsed = new Date(value);
+
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+  }
+
+  return null;
+}
+
+function incrementUsageBucket<T extends { lastUsedAt?: string | null; lastAppointmentAt?: string | null }>(
+  buckets: Record<string, T>,
+  code: string | null,
+  createBucket: () => T,
+  input: {
+    active?: boolean;
+    completed?: boolean;
+    historyEvent?: boolean;
+    usedAt?: string | null;
+  }
+) {
+  if (!code) {
+    return;
+  }
+
+  const bucket = buckets[code] ?? createBucket();
+  const mutableBucket = bucket as T & {
+    appointmentCount?: number;
+    activeAppointmentCount?: number;
+    completedAppointmentCount?: number;
+    historyEventCount?: number;
+    lastUsedAt?: string | null;
+    lastAppointmentAt?: string | null;
+  };
+
+  if (input.historyEvent) {
+    mutableBucket.historyEventCount = (mutableBucket.historyEventCount ?? 0) + 1;
+  } else {
+    mutableBucket.appointmentCount = (mutableBucket.appointmentCount ?? 0) + 1;
+    mutableBucket.activeAppointmentCount =
+      (mutableBucket.activeAppointmentCount ?? 0) + (input.active ? 1 : 0);
+    mutableBucket.completedAppointmentCount =
+      (mutableBucket.completedAppointmentCount ?? 0) + (input.completed ? 1 : 0);
+  }
+
+  if ("lastAppointmentAt" in mutableBucket) {
+    mutableBucket.lastAppointmentAt = maxIsoDate([mutableBucket.lastAppointmentAt, input.usedAt]);
+  } else {
+    mutableBucket.lastUsedAt = maxIsoDate([mutableBucket.lastUsedAt, input.usedAt]);
+  }
+
+  buckets[code] = bucket;
+}
+
+function buildUsageMetricsFromRecords(input: {
+  appointments: Array<Record<string, unknown>>;
+  historyEvents: Array<Record<string, unknown>>;
+}): AppointmentCatalogUsageMetrics {
+  const metrics = emptyUsageMetrics();
+
+  for (const appointment of input.appointments) {
+    const active = isActiveAppointmentStatus(appointment.bookingStatus);
+    const completed =
+      isCompletedAppointmentStatus(appointment.executionStatus) || Boolean(appointment.completedAt);
+    const usedAt =
+      toIsoFromUnknown(appointment.completedAt) ??
+      toIsoFromUnknown(appointment.updatedAt) ??
+      toIsoFromUnknown(appointment.createdAt);
+
+    metrics.appointmentTotalCount += 1;
+    metrics.activeAppointmentTotalCount += active ? 1 : 0;
+    metrics.completedAppointmentTotalCount += completed ? 1 : 0;
+
+    incrementUsageBucket(
+      metrics.purposeUsage,
+      getPurposeCodeFromSnapshot(appointment.purposeSnapshot),
+      () => ({
+        appointmentCount: 0,
+        activeAppointmentCount: 0,
+        completedAppointmentCount: 0,
+        lastAppointmentAt: null
+      }),
+      { active, completed, usedAt }
+    );
+    incrementUsageBucket(
+      metrics.outcomeUsage,
+      typeof appointment.outcomeCode === "string" ? appointment.outcomeCode : null,
+      () => ({
+        appointmentCount: 0,
+        activeAppointmentCount: 0,
+        completedAppointmentCount: 0,
+        lastUsedAt: null
+      }),
+      { active, completed, usedAt }
+    );
+    incrementUsageBucket(
+      metrics.followUpDispositionUsage,
+      typeof appointment.followUpDispositionCode === "string"
+        ? appointment.followUpDispositionCode
+        : null,
+      () => ({
+        appointmentCount: 0,
+        activeAppointmentCount: 0,
+        completedAppointmentCount: 0,
+        lastUsedAt: null
+      }),
+      { active, completed, usedAt }
+    );
+
+    for (const reasonCode of [
+      appointment.cancellationReasonCode,
+      appointment.confirmationDeclineReasonCode,
+      appointment.noShowReasonCode,
+      appointment.waitingReasonCode
+    ]) {
+      incrementUsageBucket(
+        metrics.reasonUsage,
+        typeof reasonCode === "string" ? reasonCode : null,
+        () => ({
+          appointmentCount: 0,
+          activeAppointmentCount: 0,
+          completedAppointmentCount: 0,
+          historyEventCount: 0,
+          lastUsedAt: null
+        }),
+        { active, completed, usedAt }
+      );
+    }
+  }
+
+  for (const event of input.historyEvents) {
+    incrementUsageBucket(
+      metrics.reasonUsage,
+      typeof event.reasonCode === "string" ? event.reasonCode : null,
+      () => ({
+        appointmentCount: 0,
+        activeAppointmentCount: 0,
+        completedAppointmentCount: 0,
+        historyEventCount: 0,
+        lastUsedAt: null
+      }),
+      {
+        historyEvent: true,
+        usedAt: toIsoFromUnknown(event.occurredAt) ?? toIsoFromUnknown(event.createdAt)
+      }
+    );
+  }
+
+  return metrics;
 }
 
 function selectCatalogVersion() {
@@ -1024,6 +1512,12 @@ export function createAppointmentCatalogAutomationAdminRepository(): Appointment
       findMany: (input: unknown) => Promise<AppointmentCatalogChangeEventRecord[]>;
       create: (input: unknown) => Promise<unknown>;
     };
+    appointment?: {
+      findMany: (input: unknown) => Promise<Array<Record<string, unknown>>>;
+    };
+    appointmentHistoryEvent?: {
+      findMany: (input: unknown) => Promise<Array<Record<string, unknown>>>;
+    };
     $transaction: <T>(callback: (transaction: {
       appointmentCatalogVersion: {
         create: (input: unknown) => Promise<AppointmentCatalogVersionRecord>;
@@ -1037,6 +1531,9 @@ export function createAppointmentCatalogAutomationAdminRepository(): Appointment
   };
   const hasCatalogDelegates = Boolean(
     catalogPrisma.appointmentCatalogVersion && catalogPrisma.appointmentCatalogChangeEvent
+  );
+  const hasAppointmentUsageDelegates = Boolean(
+    catalogPrisma.appointment && catalogPrisma.appointmentHistoryEvent
   );
 
   return {
@@ -1123,6 +1620,49 @@ export function createAppointmentCatalogAutomationAdminRepository(): Appointment
       } catch (error) {
         if (isCatalogPersistenceUnavailable(error)) {
           return [];
+        }
+
+        throw error;
+      }
+    },
+    async getUsageMetrics(organizationId) {
+      if (!hasAppointmentUsageDelegates) {
+        return emptyUsageMetrics();
+      }
+
+      try {
+        const [appointments, historyEvents] = await Promise.all([
+          catalogPrisma.appointment?.findMany({
+            where: { organizationId },
+            select: {
+              purposeSnapshot: true,
+              bookingStatus: true,
+              executionStatus: true,
+              completedAt: true,
+              updatedAt: true,
+              createdAt: true,
+              outcomeCode: true,
+              followUpDispositionCode: true,
+              cancellationReasonCode: true,
+              confirmationDeclineReasonCode: true,
+              noShowReasonCode: true,
+              waitingReasonCode: true
+            }
+          }) ?? Promise.resolve([]),
+          catalogPrisma.appointmentHistoryEvent?.findMany({
+            where: { appointment: { organizationId }, reasonCode: { not: null } },
+            select: {
+              reasonCode: true,
+              occurredAt: true,
+              createdAt: true
+            }
+          }) ?? Promise.resolve([])
+        ]);
+
+        return buildUsageMetricsFromRecords({ appointments, historyEvents });
+      } catch (error) {
+        if (isCatalogPersistenceUnavailable(error)) {
+          return emptyUsageMetrics();
         }
 
         throw error;
@@ -1257,16 +1797,19 @@ export function createAppointmentCatalogAutomationAdminRepository(): Appointment
 
 async function loadAdminModel(repository: AppointmentCatalogAutomationAdminRepository) {
   const organizationId = INITIAL_ORGANIZATION.id;
-  const [activeVersion, draftVersion, recentChanges] = await Promise.all([
+  const [activeVersion, draftVersion, recentChanges, usageMetrics] = await Promise.all([
     repository.getActiveVersion(organizationId),
     repository.getDraftVersion(organizationId),
-    repository.listRecentChanges(organizationId, 8)
+    repository.listRecentChanges(organizationId, 8),
+    repository.getUsageMetrics?.(organizationId) ?? Promise.resolve(emptyUsageMetrics())
   ]);
 
   return buildAdminModel({
     activeVersion,
     draftVersion,
-    recentChanges
+    recentChanges,
+    usageMetrics,
+    hasLiveAppointmentCounts: Boolean(repository.getUsageMetrics)
   });
 }
 

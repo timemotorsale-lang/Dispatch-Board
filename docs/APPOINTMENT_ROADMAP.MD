@@ -153,7 +153,7 @@ npm test
 npm run db:validate
 
 112 test files passed
-658 tests passed
+659 tests passed
 ```
 
 Focused validation during the Appointment Automation Operations Console block:
@@ -334,7 +334,7 @@ Recommended E4 next steps:
 | EAPT-055 | Recurrence and occurrence-exception controls | Not started |
 | EAPT-056 | Conflict resolution and manager override experience | Partial |
 | EAPT-057 | Bulk rescheduling and closure-impact workspace | Not started |
-| EAPT-058 | Purpose, template, outcome, reason administration | Partial; manager-visible purpose templates, outcome/follow-up/reason catalogs, structured outcome/follow-up/reason add/rename/remove/deprecate/reactivate editors, replacement guidance, deprecated-code validation warnings and new-configuration guards, code labels/descriptions in catalog snapshots, durable catalog version table, draft editing, validation, required reason capture, approval review workflow, activation approval gate, change events, purpose usage/reference warnings, purpose create, duplicate, deprecate, reactivate, and draft-only delete protection exist. Deeper appointment-count usage analytics remain. |
+| EAPT-058 | Purpose, template, outcome, reason administration | Partial; manager-visible purpose templates, outcome/follow-up/reason catalogs, structured outcome/follow-up/reason add/rename/remove/deprecate/reactivate editors, replacement guidance, deprecated-code validation warnings and new-configuration guards, live appointment-count usage analytics, highest-risk code ranking, code reference counts, purpose usage impact, code labels/descriptions in catalog snapshots, durable catalog version table, draft editing, validation, required reason capture, approval review workflow, activation approval gate, change events, purpose usage/reference warnings, purpose create, duplicate, deprecate, reactivate, and draft-only delete protection exist. Deeper usage trend analytics and exportable impact reports remain. |
 | EAPT-059 | Location, hours, closures, resource, capacity, availability administration | Partial; location profile, phone, weekday hours, scheduling status, closure create/edit/delete, resource status/capacity/conflict policy, resource outage/capacity-reduction windows, resource summary, and board wiring implemented |
 | EAPT-060 | Automation rule authoring and simulation | Partial; rule draft authoring, validation, catalog-derived hook candidates, and simulation-backed draft creation exist. Deeper condition/action builders remain. |
 | EAPT-061 | Automation activation, pause, retire, failure administration | Partial; rule activation, pause, retire, health dashboard, failure queue foundation, retry/replay/resolve/skip API contracts, and audit events exist. Runtime execution worker and seeded live failures remain. |

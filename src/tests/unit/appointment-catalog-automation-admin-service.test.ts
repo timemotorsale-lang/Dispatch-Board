@@ -10,8 +10,50 @@ import {
   updateAppointmentCatalogCodeForManager,
   updateAppointmentCatalogPurposeLifecycleForManager
 } from "@/server/services/appointment-catalog-automation-admin";
+import type { AppointmentCatalogUsageMetrics } from "@/server/services/appointment-catalog-automation-admin";
 import { createMemoryAppointmentCatalogRepository } from "@/tests/support/appointment-catalog-test-repository";
 import { createTestAuthStore } from "@/tests/support/auth-test-store";
+
+function testUsageMetrics(): AppointmentCatalogUsageMetrics {
+  return {
+    appointmentTotalCount: 32,
+    activeAppointmentTotalCount: 7,
+    completedAppointmentTotalCount: 20,
+    purposeUsage: {
+      "APT-TEST-DRIVE": {
+        appointmentCount: 12,
+        activeAppointmentCount: 3,
+        completedAppointmentCount: 8,
+        lastAppointmentAt: "2026-07-06T18:00:00.000Z"
+      }
+    },
+    outcomeUsage: {
+      "TEST_DRIVE_COMPLETED_FOLLOW_UP_REQUIRED": {
+        appointmentCount: 8,
+        activeAppointmentCount: 2,
+        completedAppointmentCount: 6,
+        lastUsedAt: "2026-07-06T18:00:00.000Z"
+      }
+    },
+    followUpDispositionUsage: {
+      "FOLLOW_UP_APPOINTMENT_REQUIRED": {
+        appointmentCount: 5,
+        activeAppointmentCount: 1,
+        completedAppointmentCount: 4,
+        lastUsedAt: "2026-07-06T17:30:00.000Z"
+      }
+    },
+    reasonUsage: {
+      "CUSTOMER_NO_SHOW": {
+        appointmentCount: 2,
+        activeAppointmentCount: 0,
+        completedAppointmentCount: 0,
+        historyEventCount: 4,
+        lastUsedAt: "2026-07-06T17:00:00.000Z"
+      }
+    }
+  };
+}
 
 describe("appointment catalog automation admin service", () => {
   it("builds a manager-visible catalog and automation admin model", async () => {
@@ -42,6 +84,52 @@ describe("appointment catalog automation admin service", () => {
       expect.arrayContaining(["LOCATION_CLOSED", "AUTOMATION_SIMULATED"])
     );
     expect(catalog.automationRules.some((rule) => rule.trigger === "ANY_TASK_REQUIRES_MEETING")).toBe(true);
+  });
+
+  it("adds live appointment-count usage analytics to purpose and code governance", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createMemoryAppointmentCatalogRepository({
+      usageMetrics: testUsageMetrics()
+    });
+
+    const catalog = await getAppointmentCatalogAutomationAdminForManager(manager, repository);
+    const testDriveUsage = catalog.purposeUsage.find(
+      (usage) => usage.purposeCode === "APT-TEST-DRIVE"
+    );
+    const outcomeUsage = catalog.usageAnalytics.codeUsage.find(
+      (usage) =>
+        usage.type === "OUTCOME" &&
+        usage.code === "TEST_DRIVE_COMPLETED_FOLLOW_UP_REQUIRED"
+    );
+    const reasonUsage = catalog.usageAnalytics.codeUsage.find(
+      (usage) => usage.type === "REASON" && usage.code === "CUSTOMER_NO_SHOW"
+    );
+
+    expect(catalog.usageAnalytics).toMatchObject({
+      hasLiveAppointmentCounts: true,
+      appointmentTotalCount: 32,
+      activeAppointmentTotalCount: 7,
+      completedAppointmentTotalCount: 20
+    });
+    expect(testDriveUsage).toMatchObject({
+      appointmentCount: 12,
+      activeAppointmentCount: 3,
+      completedAppointmentCount: 8,
+      recommendation: "DEPRECATE_INSTEAD"
+    });
+    expect(outcomeUsage).toMatchObject({
+      appointmentCount: 8,
+      activeAppointmentCount: 2,
+      changeRisk: "ACTIVE_USAGE",
+      recommendation: "DEPRECATE_INSTEAD"
+    });
+    expect(reasonUsage).toMatchObject({
+      appointmentCount: 2,
+      historyEventCount: 4,
+      recommendation: "DEPRECATE_INSTEAD"
+    });
+    expect(catalog.usageAnalytics.highestRiskCodes[0]?.referenceCount).toBeGreaterThan(0);
   });
 
   it("rejects non-manager access to catalog automation admin", async () => {

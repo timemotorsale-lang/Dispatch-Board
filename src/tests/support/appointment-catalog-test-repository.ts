@@ -1,6 +1,7 @@
 import type {
   AppointmentCatalogAutomationAdminRepository,
-  AppointmentCatalogChangeEventSummary
+  AppointmentCatalogChangeEventSummary,
+  AppointmentCatalogUsageMetrics
 } from "@/server/services/appointment-catalog-automation-admin";
 
 type VersionRecord = Awaited<
@@ -16,7 +17,9 @@ type ChangeEventRecord = {
   occurredAt: Date;
 };
 
-export function createMemoryAppointmentCatalogRepository() {
+export function createMemoryAppointmentCatalogRepository(input?: {
+  usageMetrics?: AppointmentCatalogUsageMetrics;
+}) {
   let activeVersion: VersionRecord = null;
   let draftVersion: VersionRecord = null;
   let latestVersion = 0;
@@ -55,6 +58,13 @@ export function createMemoryAppointmentCatalogRepository() {
     async listRecentChanges(_organizationId, limit) {
       return changeEvents.slice(0, limit);
     },
+    ...(input?.usageMetrics
+      ? {
+          async getUsageMetrics() {
+            return input.usageMetrics;
+          }
+        }
+      : {}),
     async createDraftVersion(input) {
       latestVersion = Math.max(latestVersion, input.version);
       draftVersion = {
