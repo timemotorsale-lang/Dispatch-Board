@@ -438,6 +438,40 @@ type AppointmentEnterpriseOpsQueue = {
   items: AppointmentEnterpriseOpsQueueItem[];
 };
 
+type AppointmentResourceViewItem = {
+  resourceLabel: string;
+  scheduledCount: number;
+  conflictCount: number;
+  followUpCount: number;
+  firstAppointmentId: string;
+  ownerLabels: string[];
+  utilizationLabel: string;
+  recommendedAction: string;
+};
+
+type AppointmentLocationViewItem = {
+  locationLabel: string;
+  scheduledCount: number;
+  conflictCount: number;
+  noShowCount: number;
+  followUpCount: number;
+  firstAppointmentId: string;
+  occupancyLabel: string;
+  recommendedAction: string;
+};
+
+type AppointmentVehicleViewItem = {
+  appointmentId: string;
+  vehicleLabel: string;
+  customer: string;
+  title: string;
+  statusLabel: string;
+  locationLabel: string;
+  ownerLabel: string;
+  timeLabel: string;
+  attentionLabel: string;
+};
+
 type AppointmentNotificationFailureQueueItem = {
   id: string;
   sourceType: "runtime" | "handoff";
@@ -3333,6 +3367,108 @@ export function buildAppointmentEnterpriseOpsQueues(input: {
   ] satisfies AppointmentEnterpriseOpsQueue[];
 }
 
+export function buildAppointmentResourceViewItems(input: { appointments: Appointment[] }) {
+  const grouped = new Map<string, Appointment[]>();
+
+  for (const appointment of input.appointments) {
+    const label = appointmentBoardLaneLabel(appointment, "resource");
+    const current = grouped.get(label) ?? [];
+    current.push(appointment);
+    grouped.set(label, current);
+  }
+
+  return Array.from(grouped.entries())
+    .map(([resourceLabel, appointments]) => ({
+      resourceLabel,
+      scheduledCount: appointments.length,
+      conflictCount: appointments.filter((appointment) => appointment.conflict).length,
+      followUpCount: appointments.filter(
+        (appointment) => appointment.needsFollowUp || appointment.status === "follow-up"
+      ).length,
+      firstAppointmentId: appointments[0]?.id ?? "",
+      ownerLabels: Array.from(new Set(appointments.map((appointment) => appointment.staffName ?? "Unassigned"))),
+      utilizationLabel:
+        appointments.length >= 4
+          ? "High load"
+          : appointments.length >= 2
+            ? "Balanced load"
+            : "Light load",
+      recommendedAction:
+        appointments.some((appointment) => appointment.conflict)
+          ? "Rebalance resource pressure before the next operating window."
+          : appointments.some((appointment) => appointment.needsFollowUp)
+            ? "Keep recovery work visible on this shared resource."
+            : "Monitor capacity and keep the lane flowing."
+    }))
+    .sort((left, right) => right.scheduledCount - left.scheduledCount || left.resourceLabel.localeCompare(right.resourceLabel));
+}
+
+export function buildAppointmentLocationViewItems(input: { appointments: Appointment[] }) {
+  const grouped = new Map<string, Appointment[]>();
+
+  for (const appointment of input.appointments) {
+    const current = grouped.get(appointment.location) ?? [];
+    current.push(appointment);
+    grouped.set(appointment.location, current);
+  }
+
+  return Array.from(grouped.entries())
+    .map(([locationLabel, appointments]) => ({
+      locationLabel,
+      scheduledCount: appointments.length,
+      conflictCount: appointments.filter((appointment) => appointment.conflict).length,
+      noShowCount: appointments.filter((appointment) => appointment.status === "no-show").length,
+      followUpCount: appointments.filter(
+        (appointment) => appointment.needsFollowUp || appointment.status === "follow-up"
+      ).length,
+      firstAppointmentId: appointments[0]?.id ?? "",
+      occupancyLabel:
+        appointments.length >= 4
+          ? "Dense operating surface"
+          : appointments.length >= 2
+            ? "Normal operating surface"
+            : "Low operating surface",
+      recommendedAction:
+        appointments.some((appointment) => appointment.conflict)
+          ? "Review lane pressure and rebalance staff or timing."
+          : appointments.some((appointment) => appointment.status === "no-show")
+            ? "Keep recovery outreach tied to this location."
+            : "Maintain location coverage and monitor incoming flow."
+    }))
+    .sort((left, right) => right.scheduledCount - left.scheduledCount || left.locationLabel.localeCompare(right.locationLabel));
+}
+
+export function buildAppointmentVehicleViewItems(input: { appointments: Appointment[] }) {
+  return [...input.appointments]
+    .sort((left, right) => {
+      const leftAttention = Number(Boolean(left.conflict || left.needsFollowUp || left.status === "no-show"));
+      const rightAttention = Number(Boolean(right.conflict || right.needsFollowUp || right.status === "no-show"));
+      if (leftAttention !== rightAttention) {
+        return rightAttention - leftAttention;
+      }
+
+      return left.vehicle.localeCompare(right.vehicle);
+    })
+    .map((appointment) => ({
+      appointmentId: appointment.id,
+      vehicleLabel: appointment.vehicle,
+      customer: appointment.customer,
+      title: appointment.title,
+      statusLabel: statusLabel(appointment.status),
+      locationLabel: appointment.location,
+      ownerLabel: appointment.staffName ?? "Unassigned",
+      timeLabel: appointmentTimeRangeLabel(appointment),
+      attentionLabel: appointment.conflict
+        ? "Conflict watch"
+        : appointment.status === "no-show"
+          ? "Recovery required"
+          : appointment.needsFollowUp || appointment.status === "follow-up"
+            ? "Follow-up active"
+            : "On track"
+    }))
+    .slice(0, 8);
+}
+
 export function buildAppointmentCommandCenterHandoffPackage(input: {
   report: AppointmentCommandCenterReport;
   exceptionQueues: AppointmentExceptionQueue[];
@@ -4719,6 +4855,18 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
       }),
     [boardLaneMode, scheduledFilteredAppointments, visibleStaffMembers]
   );
+  const resourceViewItems = useMemo(
+    () => buildAppointmentResourceViewItems({ appointments: scheduledFilteredAppointments }),
+    [scheduledFilteredAppointments]
+  );
+  const locationViewItems = useMemo(
+    () => buildAppointmentLocationViewItems({ appointments: scheduledFilteredAppointments }),
+    [scheduledFilteredAppointments]
+  );
+  const vehicleViewItems = useMemo(
+    () => buildAppointmentVehicleViewItems({ appointments: filteredAppointments }),
+    [filteredAppointments]
+  );
   const agendaSections = useMemo(
     () =>
       buildAppointmentAgendaSections({
@@ -5464,6 +5612,36 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
           : "follow-up-required"
     );
     setActionNotice(`Opened ${appointment.id} in the recovery queue from the enterprise ops suite.`);
+  }
+
+  function openResourceViewItem(item: AppointmentResourceViewItem) {
+    const appointment =
+      boardAppointments.find((candidate) => candidate.id === item.firstAppointmentId) ?? selectedAppointment;
+
+    setBoardLaneMode("resource");
+    setViewMode("day");
+    selectAppointmentForDetail(appointment);
+    setActionNotice(`Opened ${item.resourceLabel.toLowerCase()} in the resource board lens.`);
+  }
+
+  function openLocationViewItem(item: AppointmentLocationViewItem) {
+    const appointment =
+      boardAppointments.find((candidate) => candidate.id === item.firstAppointmentId) ?? selectedAppointment;
+
+    setBoardLaneMode("location");
+    setViewMode("day");
+    selectAppointmentForDetail(appointment);
+    setActionNotice(`Opened ${item.locationLabel.toLowerCase()} in the location board lens.`);
+  }
+
+  function openVehicleViewItem(item: AppointmentVehicleViewItem) {
+    const appointment =
+      boardAppointments.find((candidate) => candidate.id === item.appointmentId) ?? selectedAppointment;
+
+    setViewMode("agenda");
+    setQuery(item.vehicleLabel);
+    selectAppointmentForDetail(appointment);
+    setActionNotice(`Opened ${item.vehicleLabel.toLowerCase()} in the vehicle-focused agenda view.`);
   }
 
   function openNotificationFanoutSource(source: AppointmentNotificationFanoutSource) {
@@ -8906,6 +9084,175 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
                   </div>
                 </section>
               ))}
+            </div>
+          </section>
+
+          <section
+            className="appointment-operating-views-card"
+            aria-labelledby="appointment-operating-views"
+          >
+            <div className="appointment-section-heading">
+              <div>
+                <strong id="appointment-operating-views">Resource, Location &amp; Vehicle Views</strong>
+                <p>
+                  Review the board through resource, location, and vehicle operating perspectives, then jump
+                  straight into the matching lane or agenda context.
+                </p>
+              </div>
+              <span>
+                {resourceViewItems.length} resource / {locationViewItems.length} location / {vehicleViewItems.length} vehicle
+              </span>
+            </div>
+
+            <div className="appointment-operating-views-grid">
+              <section className="appointment-command-center-panel" aria-labelledby="appointment-resource-views">
+                <div className="appointment-command-center-panel-heading">
+                  <div>
+                    <strong id="appointment-resource-views">Resource Views</strong>
+                    <p>See where shared resources are overloaded, balanced, or carrying recovery work.</p>
+                  </div>
+                  <span>{resourceViewItems.length} lanes</span>
+                </div>
+
+                <div className="appointment-operating-view-list">
+                  {resourceViewItems.map((item) => (
+                    <article className="appointment-operating-view-item" key={item.resourceLabel}>
+                      <div className="appointment-notification-center-item-top">
+                        <div>
+                          <strong>{item.resourceLabel}</strong>
+                          <p>{item.recommendedAction}</p>
+                        </div>
+                        <div className="appointment-command-center-badge-stack">
+                          <span className="appointment-command-center-tag appointment-command-center-tag-blue">
+                            {item.scheduledCount} scheduled
+                          </span>
+                          <span
+                            className={
+                              item.conflictCount > 0
+                                ? "appointment-command-center-tag appointment-command-center-tag-red"
+                                : "appointment-command-center-tag appointment-command-center-tag-green"
+                            }
+                          >
+                            {item.conflictCount} conflicts
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="appointment-notification-center-item-meta">
+                        <span>{item.utilizationLabel}</span>
+                        <span>{item.followUpCount} follow-up</span>
+                        <strong>{item.ownerLabels.slice(0, 2).join(" · ")}</strong>
+                      </div>
+
+                      <div className="appointment-command-center-item-actions">
+                        <button type="button" onClick={() => openResourceViewItem(item)}>
+                          Open resource view
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+
+              <section className="appointment-command-center-panel" aria-labelledby="appointment-location-views">
+                <div className="appointment-command-center-panel-heading">
+                  <div>
+                    <strong id="appointment-location-views">Location Views</strong>
+                    <p>See dense locations, no-show pockets, and conflict pressure by operating surface.</p>
+                  </div>
+                  <span>{locationViewItems.length} surfaces</span>
+                </div>
+
+                <div className="appointment-operating-view-list">
+                  {locationViewItems.map((item) => (
+                    <article className="appointment-operating-view-item" key={item.locationLabel}>
+                      <div className="appointment-notification-center-item-top">
+                        <div>
+                          <strong>{item.locationLabel}</strong>
+                          <p>{item.recommendedAction}</p>
+                        </div>
+                        <div className="appointment-command-center-badge-stack">
+                          <span className="appointment-command-center-tag appointment-command-center-tag-blue">
+                            {item.scheduledCount} scheduled
+                          </span>
+                          <span
+                            className={
+                              item.noShowCount > 0
+                                ? "appointment-command-center-tag appointment-command-center-tag-amber"
+                                : "appointment-command-center-tag"
+                            }
+                          >
+                            {item.noShowCount} no-show
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="appointment-notification-center-item-meta">
+                        <span>{item.occupancyLabel}</span>
+                        <span>{item.conflictCount} conflicts</span>
+                        <strong>{item.followUpCount} follow-up</strong>
+                      </div>
+
+                      <div className="appointment-command-center-item-actions">
+                        <button type="button" onClick={() => openLocationViewItem(item)}>
+                          Open location view
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+
+              <section className="appointment-command-center-panel" aria-labelledby="appointment-vehicle-views">
+                <div className="appointment-command-center-panel-heading">
+                  <div>
+                    <strong id="appointment-vehicle-views">Vehicle Views</strong>
+                    <p>Keep vehicle-specific work, customer context, and active attention flags visible.</p>
+                  </div>
+                  <span>{vehicleViewItems.length} vehicles</span>
+                </div>
+
+                <div className="appointment-operating-view-list">
+                  {vehicleViewItems.map((item) => (
+                    <article className="appointment-operating-view-item" key={item.appointmentId}>
+                      <div className="appointment-notification-center-item-top">
+                        <div>
+                          <strong>{item.vehicleLabel}</strong>
+                          <p>{item.customer} · {item.title}</p>
+                        </div>
+                        <div className="appointment-command-center-badge-stack">
+                          <span className="appointment-command-center-tag appointment-command-center-tag-blue">
+                            {item.statusLabel}
+                          </span>
+                          <span
+                            className={
+                              item.attentionLabel === "On track"
+                                ? "appointment-command-center-tag appointment-command-center-tag-green"
+                                : item.attentionLabel === "Conflict watch"
+                                  ? "appointment-command-center-tag appointment-command-center-tag-red"
+                                  : "appointment-command-center-tag appointment-command-center-tag-amber"
+                            }
+                          >
+                            {item.attentionLabel}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="appointment-notification-center-item-meta">
+                        <span>{item.locationLabel}</span>
+                        <span>{item.timeLabel}</span>
+                        <strong>{item.ownerLabel}</strong>
+                      </div>
+
+                      <div className="appointment-command-center-item-actions">
+                        <button type="button" onClick={() => openVehicleViewItem(item)}>
+                          Open vehicle view
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
             </div>
           </section>
 

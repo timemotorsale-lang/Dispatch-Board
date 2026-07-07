@@ -10,9 +10,12 @@ import {
   buildAppointmentCommandCenterHandoffExport,
   buildAppointmentCommandCenterHandoffPackage,
   buildAppointmentEnterpriseOpsQueues,
+  buildAppointmentLocationViewItems,
   buildAppointmentNotificationFanoutSources,
   buildAppointmentNotificationCenterItems,
   buildAppointmentNotificationFailureQueue,
+  buildAppointmentResourceViewItems,
+  buildAppointmentVehicleViewItems,
   buildAppointmentCommandCenterRuntimeQueue,
   buildAppointmentCommandCenterReport,
   buildAppointmentCommandCenterSearchResults,
@@ -90,6 +93,13 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Automation Review");
     expect(markup).toContain("Automation Failures");
     expect(markup).toContain("Start watching");
+    expect(markup).toContain("Resource, Location &amp; Vehicle Views");
+    expect(markup).toContain("Resource Views");
+    expect(markup).toContain("Location Views");
+    expect(markup).toContain("Vehicle Views");
+    expect(markup).toContain("Open resource view");
+    expect(markup).toContain("Open location view");
+    expect(markup).toContain("Open vehicle view");
     expect(markup).toContain("Staff");
     expect(markup).toContain("Location");
     expect(markup).toContain("Resource");
@@ -994,6 +1004,58 @@ describe("appointment board shell", () => {
     expect(queues.find((queue) => queue.key === "confirmation-gap")?.items[0]?.appointmentId).toBe("APT-DRAFT");
     expect(queues.find((queue) => queue.key === "automation-review")?.items[0]?.appointmentId).toBe("APT-AUTO");
     expect(queues.find((queue) => queue.key === "automation-failure")?.items[0]?.appointmentId).toBe("APT-AUTO");
+  });
+
+  it("builds resource, location, and vehicle operating views", () => {
+    const appointments = [
+      {
+        id: "APT-SERVICE",
+        title: "Service / Repair",
+        customer: "Ahmed Ibrahim",
+        vehicle: "2014 Ford Taurus",
+        category: "service",
+        status: "confirmed",
+        staffId: "brock",
+        staffName: "Brock Peterson",
+        startMinutes: 540,
+        durationMinutes: 60,
+        phone: "612-555-0100",
+        complaint: "Brake noise",
+        location: "Service counter",
+        confirmation: "Confirmed by phone",
+        conflict: true,
+        taskAutomation: [],
+        governanceNotes: []
+      },
+      {
+        id: "APT-DELIVERY",
+        title: "Vehicle Delivery",
+        customer: "Farah Abdi",
+        vehicle: "2021 Toyota RAV4",
+        category: "delivery",
+        status: "follow-up",
+        staffId: "mohamed",
+        staffName: "Mohamed Ali",
+        startMinutes: 780,
+        durationMinutes: 60,
+        phone: "612-555-0101",
+        complaint: "Delivery follow-up",
+        location: "Delivery bay",
+        confirmation: "Callback required",
+        needsFollowUp: true,
+        taskAutomation: [],
+        governanceNotes: []
+      }
+    ] as any;
+
+    const resources = buildAppointmentResourceViewItems({ appointments });
+    const locations = buildAppointmentLocationViewItems({ appointments });
+    const vehicles = buildAppointmentVehicleViewItems({ appointments });
+
+    expect(resources.some((item) => item.resourceLabel === "Service Bay")).toBe(true);
+    expect(locations.some((item) => item.locationLabel === "Service counter")).toBe(true);
+    expect(vehicles[0]?.vehicleLabel).toBeDefined();
+    expect(vehicles.some((item) => item.attentionLabel !== "On track")).toBe(true);
   });
 
   it("classifies missing-time draft appointments as unscheduled board items", () => {
