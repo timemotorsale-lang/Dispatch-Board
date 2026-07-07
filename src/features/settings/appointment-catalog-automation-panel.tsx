@@ -173,6 +173,11 @@ export function AppointmentCatalogAutomationPanel({
       : codeEditorState.catalog === "FOLLOW_UP_DISPOSITION"
         ? selectedPurpose?.followUpDispositionCodes ?? []
         : catalog.catalogs.reasonCodes;
+  const selectedCodeUsage = codeEditorState.code
+    ? catalog.usageAnalytics.codeUsage.find(
+        (usage) => usage.type === codeEditorState.catalog && usage.code === codeEditorState.code
+      )
+    : null;
 
   function selectPurpose(purposeCode: string) {
     const purpose = catalog.purposes.find((candidate) => candidate.code === purposeCode);
@@ -815,6 +820,49 @@ export function AppointmentCatalogAutomationPanel({
             Every change creates a draft and requires approval before activation.
           </p>
 
+          <div className="appointment-catalog-detail-grid">
+            <div>
+              <span>Live appointment usage</span>
+              <strong>{catalog.usageAnalytics.appointmentTotalCount}</strong>
+              <small>
+                {catalog.usageAnalytics.hasLiveAppointmentCounts
+                  ? "Counts from appointment records."
+                  : "No live usage source connected."}
+              </small>
+            </div>
+            <div>
+              <span>Active usage</span>
+              <strong>{catalog.usageAnalytics.activeAppointmentTotalCount}</strong>
+              <small>{catalog.usageAnalytics.completedAppointmentTotalCount} completed records</small>
+            </div>
+            <div>
+              <span>Highest-risk code</span>
+              <strong>
+                {catalog.usageAnalytics.highestRiskCodes[0]?.label ?? "No code usage yet"}
+              </strong>
+              <small>
+                {catalog.usageAnalytics.highestRiskCodes[0]
+                  ? formatLabel(catalog.usageAnalytics.highestRiskCodes[0].changeRisk)
+                  : "Safe baseline"}
+              </small>
+            </div>
+          </div>
+
+          {selectedCodeUsage ? (
+            <div className="notice">
+              <p>
+                <strong>{selectedCodeUsage.label}</strong> has{" "}
+                {selectedCodeUsage.referenceCount} total references,{" "}
+                {selectedCodeUsage.appointmentCount} appointment records, and a{" "}
+                {formatLabel(selectedCodeUsage.changeRisk)} change risk.
+              </p>
+              <p>Recommendation: {formatLabel(selectedCodeUsage.recommendation)}.</p>
+              {selectedCodeUsage.warnings.map((warning) => (
+                <p key={warning}>{warning}</p>
+              ))}
+            </div>
+          ) : null}
+
           <div className="settings-form">
             <div className="settings-grid">
               <label className="field">
@@ -988,13 +1036,22 @@ export function AppointmentCatalogAutomationPanel({
             <div className="appointment-admin-record-list">
               {editableCatalogCodes.slice(0, 8).map((code) => {
                 const detail = catalog.catalogs.codeDetails[`${codeEditorState.catalog}:${code}`];
+                const usage = catalog.usageAnalytics.codeUsage.find(
+                  (candidate) =>
+                    candidate.type === codeEditorState.catalog && candidate.code === code
+                );
 
                 return (
                   <div className="appointment-admin-record" key={code}>
-                    <span>{formatLabel(codeEditorState.catalog)}</span>
+                    <span>
+                      {formatLabel(codeEditorState.catalog)}
+                      {usage ? ` • ${formatLabel(usage.changeRisk)}` : ""}
+                    </span>
                     <strong>{detail?.label ?? formatLabel(code)}</strong>
                     <small>
                       {code}
+                      {usage ? ` • ${usage.appointmentCount} appointments` : ""}
+                      {usage ? ` • ${usage.referenceCount} references` : ""}
                       {detail?.deprecated ? " • deprecated" : ""}
                       {detail?.replacementCode ? ` • use ${detail.replacementCode}` : ""}
                       {detail?.systemRequired ? " • system required" : ""}
@@ -1048,6 +1105,14 @@ export function AppointmentCatalogAutomationPanel({
                 <span>Automation links</span>
                 <strong>{selectedPurposeUsage.enabledAutomationRuleCount}</strong>
                 <small>{selectedPurposeUsage.automationRuleCount} total rule hooks</small>
+              </div>
+              <div>
+                <span>Appointment usage</span>
+                <strong>{selectedPurposeUsage.appointmentCount}</strong>
+                <small>
+                  {selectedPurposeUsage.activeAppointmentCount} active /{" "}
+                  {selectedPurposeUsage.completedAppointmentCount} completed
+                </small>
               </div>
             </div>
           ) : null}
