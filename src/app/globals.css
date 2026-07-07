@@ -7356,6 +7356,52 @@ code {
   border-radius: 16px;
 }
 
+.appointment-notification-fanout-card,
+.appointment-notification-fanout-list,
+.appointment-notification-fanout-summary {
+  display: grid;
+  gap: 10px;
+}
+
+.appointment-notification-fanout-card {
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #bfdbfe;
+  border-radius: 16px;
+}
+
+.appointment-notification-fanout-summary {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.appointment-notification-fanout-summary span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 10px;
+  color: #334155;
+  background: #f8fbff;
+  border: 1px solid #dbeafe;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.appointment-notification-fanout-item {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: #f8fbff;
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+}
+
+.appointment-notification-fanout-item-red { border-color: #fecaca; }
+.appointment-notification-fanout-item-purple { border-color: #ddd6fe; }
+.appointment-notification-fanout-item-amber { border-color: #fde68a; }
+.appointment-notification-fanout-item-blue { border-color: #bfdbfe; }
+.appointment-notification-fanout-item-green { border-color: #bbf7d0; }
+
 .appointment-notification-policy-grid,
 .appointment-notification-policy-fields,
 .appointment-notification-policy-summary {
@@ -9298,6 +9344,7 @@ code {
   .appointment-notification-policy-grid,
   .appointment-notification-policy-fields,
   .appointment-notification-policy-summary,
+  .appointment-notification-fanout-summary,
   .appointment-notification-center-grid,
   .appointment-modal-grid {
     grid-template-columns: 1fr;
