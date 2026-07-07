@@ -9,6 +9,7 @@ import {
   buildAppointmentCommandCenterExport,
   buildAppointmentCommandCenterHandoffExport,
   buildAppointmentCommandCenterHandoffPackage,
+  buildAppointmentEnterpriseOpsQueues,
   buildAppointmentNotificationFanoutSources,
   buildAppointmentNotificationCenterItems,
   buildAppointmentNotificationFailureQueue,
@@ -83,6 +84,12 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Manager Notification Inbox");
     expect(markup).toContain("Delivery Failure Queues");
     expect(markup).toContain("Retry delivery");
+    expect(markup).toContain("Enterprise Ops &amp; Automation Suite");
+    expect(markup).toContain("Confirmation Gaps");
+    expect(markup).toContain("Waitlist &amp; Recovery");
+    expect(markup).toContain("Automation Review");
+    expect(markup).toContain("Automation Failures");
+    expect(markup).toContain("Start watching");
     expect(markup).toContain("Staff");
     expect(markup).toContain("Location");
     expect(markup).toContain("Resource");
@@ -909,6 +916,84 @@ describe("appointment board shell", () => {
     expect(fanout.find((item) => item.sourceLane === "automation")?.notificationLabels).toEqual(
       expect.arrayContaining(["Manager Inbox", "Automation Review Queue"])
     );
+  });
+
+  it("builds enterprise ops queues for confirmation, recovery, and automation workflows", () => {
+    const queues = buildAppointmentEnterpriseOpsQueues({
+      appointments: [
+        {
+          id: "APT-DRAFT",
+          title: "Follow-up Draft",
+          customer: "Amina Said",
+          vehicle: "Registration",
+          category: "dmv",
+          status: "draft",
+          staffId: "rayana",
+          staffName: "Rayana Hassan",
+          startMinutes: 0,
+          durationMinutes: 60,
+          phone: "612-555-0100",
+          complaint: "Draft needs scheduling",
+          location: "Front office",
+          confirmation: "Needs schedule placement",
+          taskAutomation: [],
+          governanceNotes: [],
+          startsAtIso: null,
+          endsAtIso: null
+        },
+        {
+          id: "APT-AUTO",
+          title: "Service / Repair",
+          customer: "Ahmed Ibrahim",
+          vehicle: "2014 Ford Taurus",
+          category: "service",
+          status: "confirmed",
+          staffId: "brock",
+          staffName: "Brock Peterson",
+          startMinutes: 540,
+          durationMinutes: 60,
+          phone: "612-555-0101",
+          complaint: "Brake noise",
+          location: "Service counter",
+          confirmation: "Confirmed by phone",
+          taskAutomation: ["Create callback task", "Draft follow-up appointment"],
+          governanceNotes: []
+        }
+      ] as any,
+      notificationFanoutSources: [
+        {
+          id: "fanout-APT-AUTO-automation",
+          appointmentId: "APT-AUTO",
+          sourceLane: "automation",
+          title: "Automation bundle attached",
+          detail: "Runtime fanout exists",
+          tone: "blue",
+          urgency: "high",
+          ownerLabel: "Automation runtime",
+          occurredAtLabel: "Just now",
+          status: "suppressed",
+          statusDetail: "Suppressed in the duplicate-review window.",
+          generatedCount: 2,
+          notificationLabels: ["Manager Inbox", "Automation Review Queue"],
+          deepLinkTarget: "resolution-workbench",
+          actionLabel: "Resume fanout"
+        }
+      ] as any,
+      queueStates: {
+        "enterprise-confirmation-gap-APT-DRAFT": {
+          status: "open",
+          updatedAtLabel: "Needs outreach now"
+        },
+        "enterprise-automation-failure-APT-AUTO": {
+          status: "open",
+          updatedAtLabel: "Runtime recovery required"
+        }
+      }
+    });
+
+    expect(queues.find((queue) => queue.key === "confirmation-gap")?.items[0]?.appointmentId).toBe("APT-DRAFT");
+    expect(queues.find((queue) => queue.key === "automation-review")?.items[0]?.appointmentId).toBe("APT-AUTO");
+    expect(queues.find((queue) => queue.key === "automation-failure")?.items[0]?.appointmentId).toBe("APT-AUTO");
   });
 
   it("classifies missing-time draft appointments as unscheduled board items", () => {

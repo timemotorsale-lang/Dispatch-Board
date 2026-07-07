@@ -408,6 +408,36 @@ type AppointmentNotificationFanoutSource = {
   actionLabel: string;
 };
 
+type AppointmentEnterpriseOpsQueueKey =
+  | "confirmation-gap"
+  | "waitlist-recovery"
+  | "automation-review"
+  | "automation-failure";
+
+type AppointmentEnterpriseOpsQueueItemStatus = "open" | "watching" | "cleared";
+
+type AppointmentEnterpriseOpsQueueItem = {
+  id: string;
+  queueKey: AppointmentEnterpriseOpsQueueKey;
+  appointmentId: string;
+  title: string;
+  detail: string;
+  tone: "blue" | "amber" | "red" | "purple";
+  ownerLabel: string;
+  nextStepLabel: string;
+  eventCount: number;
+  status: AppointmentEnterpriseOpsQueueItemStatus;
+  actionLabel: string;
+};
+
+type AppointmentEnterpriseOpsQueue = {
+  key: AppointmentEnterpriseOpsQueueKey;
+  label: string;
+  description: string;
+  tone: "blue" | "amber" | "red" | "purple";
+  items: AppointmentEnterpriseOpsQueueItem[];
+};
+
 type AppointmentNotificationFailureQueueItem = {
   id: string;
   sourceType: "runtime" | "handoff";
@@ -1008,6 +1038,28 @@ const initialNotificationFanoutStates: Record<
   "fanout-APT-10253-appointment": {
     status: "suppressed",
     updatedAtLabel: "Suppressed during duplicate-review window"
+  }
+};
+
+const initialEnterpriseOpsQueueStates: Record<
+  string,
+  { status: AppointmentEnterpriseOpsQueueItemStatus; updatedAtLabel: string }
+> = {
+  "enterprise-confirmation-gap-APT-10247": {
+    status: "open",
+    updatedAtLabel: "Needs outreach now"
+  },
+  "enterprise-waitlist-recovery-APT-10255": {
+    status: "watching",
+    updatedAtLabel: "Follow-up scheduled for next window"
+  },
+  "enterprise-automation-review-APT-10245": {
+    status: "open",
+    updatedAtLabel: "Manager review required"
+  },
+  "enterprise-automation-failure-APT-10248": {
+    status: "open",
+    updatedAtLabel: "Runtime recovery required"
   }
 };
 
@@ -2388,6 +2440,34 @@ function notificationFanoutStatusLabel(status: AppointmentNotificationFanoutStat
   return "Active";
 }
 
+function enterpriseOpsQueueLabel(key: AppointmentEnterpriseOpsQueueKey) {
+  if (key === "confirmation-gap") {
+    return "Confirmation Gaps";
+  }
+
+  if (key === "waitlist-recovery") {
+    return "Waitlist & Recovery";
+  }
+
+  if (key === "automation-review") {
+    return "Automation Review";
+  }
+
+  return "Automation Failures";
+}
+
+function enterpriseOpsItemStatusLabel(status: AppointmentEnterpriseOpsQueueItemStatus) {
+  if (status === "watching") {
+    return "Watching";
+  }
+
+  if (status === "cleared") {
+    return "Cleared";
+  }
+
+  return "Open";
+}
+
 export function buildAppointmentCommandCenterDigestPreview(input: {
   digest: AppointmentCommandCenterDigestSummary;
   report: AppointmentCommandCenterReport;
@@ -3075,6 +3155,182 @@ export function buildAppointmentNotificationFanoutSources(input: {
       return urgencyOrder[left.urgency] - urgencyOrder[right.urgency];
     })
     .slice(0, 10);
+}
+
+export function buildAppointmentEnterpriseOpsQueues(input: {
+  appointments: Appointment[];
+  resolutionStateByAppointmentId?: Record<string, AppointmentResolutionState>;
+  commandCenterAuditEvents?: AppointmentAuditTimelineEvent[];
+  notificationFanoutSources?: AppointmentNotificationFanoutSource[];
+  queueStates?: Record<
+    string,
+    { status: AppointmentEnterpriseOpsQueueItemStatus; updatedAtLabel: string }
+  >;
+}) {
+  const resolutionStateByAppointmentId = input.resolutionStateByAppointmentId ?? {};
+  const queueStates = input.queueStates ?? {};
+  const fanoutByAppointmentId = new Map<string, AppointmentNotificationFanoutSource[]>();
+
+  for (const source of input.notificationFanoutSources ?? []) {
+    const sources = fanoutByAppointmentId.get(source.appointmentId) ?? [];
+    sources.push(source);
+    fanoutByAppointmentId.set(source.appointmentId, sources);
+  }
+
+  const allTimelineEvents = input.appointments.flatMap((appointment) =>
+    buildAppointmentAuditTimeline({
+      appointment,
+      resolutionState: resolutionStateByAppointmentId[appointment.id],
+      commandCenterEvents: input.commandCenterAuditEvents ?? []
+    })
+  );
+
+  function eventCountFor(appointmentId: string, lane?: AppointmentAuditTimelineLane) {
+    return allTimelineEvents.filter(
+      (event) => event.appointmentId === appointmentId && (!lane || event.lane === lane)
+    ).length;
+  }
+
+  function stateFor(id: string) {
+    return queueStates[id]?.status ?? "open";
+  }
+
+  function actionLabelFor(status: AppointmentEnterpriseOpsQueueItemStatus) {
+    return status === "open" ? "Start watching" : status === "watching" ? "Clear item" : "Re-open";
+  }
+
+  const confirmationGapItems = input.appointments
+    .filter(
+      (appointment) =>
+        appointment.status === "draft" ||
+        appointment.confirmation.toLowerCase().includes("hold") ||
+        appointment.confirmation.toLowerCase().includes("needs")
+    )
+    .map((appointment) => {
+      const id = `enterprise-confirmation-gap-${appointment.id}`;
+      const status = stateFor(id);
+
+      return {
+        id,
+        queueKey: "confirmation-gap",
+        appointmentId: appointment.id,
+        title: `${appointment.id} confirmation gap`,
+        detail: `${appointment.customer} still needs a committed confirmation path before this appointment is stable.`,
+        tone: "amber",
+        ownerLabel: appointment.staffName ?? "Appointment owner",
+        nextStepLabel: "Confirm the customer, lock the schedule posture, or move the item into a recovery path.",
+        eventCount: eventCountFor(appointment.id),
+        status,
+        actionLabel: actionLabelFor(status)
+      } satisfies AppointmentEnterpriseOpsQueueItem;
+    });
+
+  const waitlistRecoveryItems = input.appointments
+    .filter(
+      (appointment) =>
+        isUnscheduledDraftAppointment(appointment) ||
+        appointment.status === "no-show" ||
+        appointment.needsFollowUp === true
+    )
+    .map((appointment) => {
+      const id = `enterprise-waitlist-recovery-${appointment.id}`;
+      const status = stateFor(id);
+
+      return {
+        id,
+        queueKey: "waitlist-recovery",
+        appointmentId: appointment.id,
+        title: `${appointment.id} recovery path`,
+        detail: `${appointment.customer} needs a next-step operating path across waitlist, follow-up, or no-show recovery.`,
+        tone: appointment.status === "no-show" ? "red" : "blue",
+        ownerLabel: appointment.staffName ?? "Appointment owner",
+        nextStepLabel: "Place on the next viable slot, initiate outreach, or document why the recovery is parked.",
+        eventCount: eventCountFor(appointment.id),
+        status,
+        actionLabel: actionLabelFor(status)
+      } satisfies AppointmentEnterpriseOpsQueueItem;
+    });
+
+  const automationReviewItems = input.appointments
+    .filter(
+      (appointment) =>
+        appointment.taskAutomation.length > 0 ||
+        appointment.followUpDispositionCode === "MANAGER_REVIEW_REQUIRED" ||
+        fanoutByAppointmentId.get(appointment.id)?.some((source) => source.sourceLane === "automation")
+    )
+    .map((appointment) => {
+      const id = `enterprise-automation-review-${appointment.id}`;
+      const status = stateFor(id);
+      const automationSources = fanoutByAppointmentId.get(appointment.id) ?? [];
+
+      return {
+        id,
+        queueKey: "automation-review",
+        appointmentId: appointment.id,
+        title: `${appointment.id} automation review`,
+        detail: `${appointment.taskAutomation.length || automationSources.length} automation-driven action${
+          appointment.taskAutomation.length + automationSources.length === 1 ? "" : "s"
+        } are attached and need visible manager review posture.`,
+        tone: "purple",
+        ownerLabel: appointment.staffName ?? "Automation owner",
+        nextStepLabel: "Confirm whether automation should proceed, pause, or hand off to a manual decision.",
+        eventCount: eventCountFor(appointment.id, "automation"),
+        status,
+        actionLabel: actionLabelFor(status)
+      } satisfies AppointmentEnterpriseOpsQueueItem;
+    });
+
+  const automationFailureItems = (input.notificationFanoutSources ?? [])
+    .filter((source) => source.status !== "active")
+    .map((source) => {
+      const id = `enterprise-automation-failure-${source.appointmentId}`;
+      const status = stateFor(id);
+
+      return {
+        id,
+        queueKey: "automation-failure",
+        appointmentId: source.appointmentId,
+        title: `${source.appointmentId} automation fanout recovery`,
+        detail: `${source.title} fanout is ${notificationFanoutStatusLabel(source.status).toLowerCase()} and needs runtime recovery or explicit acceptance.`,
+        tone: source.status === "suppressed" ? "amber" : "red",
+        ownerLabel: source.ownerLabel,
+        nextStepLabel: "Resume, re-emit, or confirm that the suppression/dedupe decision should remain in place.",
+        eventCount: source.generatedCount,
+        status,
+        actionLabel: actionLabelFor(status)
+      } satisfies AppointmentEnterpriseOpsQueueItem;
+    });
+
+  return [
+    {
+      key: "confirmation-gap",
+      label: enterpriseOpsQueueLabel("confirmation-gap"),
+      description: "Appointments that still need a solid confirmation posture before they can be trusted operationally.",
+      tone: "amber",
+      items: confirmationGapItems
+    },
+    {
+      key: "waitlist-recovery",
+      label: enterpriseOpsQueueLabel("waitlist-recovery"),
+      description: "Unscheduled drafts, no-shows, and follow-up items that need a recovery path.",
+      tone: "blue",
+      items: waitlistRecoveryItems
+    },
+    {
+      key: "automation-review",
+      label: enterpriseOpsQueueLabel("automation-review"),
+      description: "Automation-driven work that still needs a manager-visible review posture.",
+      tone: "purple",
+      items: automationReviewItems
+    },
+    {
+      key: "automation-failure",
+      label: enterpriseOpsQueueLabel("automation-failure"),
+      description: "Suppressed or deduped automation fanout that may need manual recovery.",
+      tone: "red",
+      items: automationFailureItems
+    }
+  ] satisfies AppointmentEnterpriseOpsQueue[];
 }
 
 export function buildAppointmentCommandCenterHandoffPackage(input: {
@@ -3876,6 +4132,10 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   const [notificationFanoutStates, setNotificationFanoutStates] = useState(
     initialNotificationFanoutStates
   );
+  const [enterpriseOpsQueueStates, setEnterpriseOpsQueueStates] = useState(
+    initialEnterpriseOpsQueueStates
+  );
+  const [showClearedEnterpriseOpsItems, setShowClearedEnterpriseOpsItems] = useState(false);
   const [notificationFailureStates, setNotificationFailureStates] = useState(
     initialNotificationFailureStates
   );
@@ -4310,6 +4570,53 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
       emittedNotifications: notificationFanoutSources.reduce((sum, item) => sum + item.generatedCount, 0)
     }),
     [notificationFanoutSources]
+  );
+  const enterpriseOpsQueues = useMemo(
+    () =>
+      buildAppointmentEnterpriseOpsQueues({
+        appointments: boardAppointments,
+        resolutionStateByAppointmentId,
+        commandCenterAuditEvents,
+        notificationFanoutSources,
+        queueStates: enterpriseOpsQueueStates
+      }),
+    [
+      boardAppointments,
+      commandCenterAuditEvents,
+      enterpriseOpsQueueStates,
+      notificationFanoutSources,
+      resolutionStateByAppointmentId
+    ]
+  );
+  const visibleEnterpriseOpsQueues = useMemo(
+    () =>
+      enterpriseOpsQueues.map((queue) => ({
+        ...queue,
+        items: queue.items.filter((item) => showClearedEnterpriseOpsItems || item.status !== "cleared")
+      })),
+    [enterpriseOpsQueues, showClearedEnterpriseOpsItems]
+  );
+  const enterpriseOpsSummary = useMemo(
+    () => ({
+      queues: enterpriseOpsQueues.length,
+      open: enterpriseOpsQueues.reduce(
+        (sum, queue) => sum + queue.items.filter((item) => item.status === "open").length,
+        0
+      ),
+      watching: enterpriseOpsQueues.reduce(
+        (sum, queue) => sum + queue.items.filter((item) => item.status === "watching").length,
+        0
+      ),
+      cleared: enterpriseOpsQueues.reduce(
+        (sum, queue) => sum + queue.items.filter((item) => item.status === "cleared").length,
+        0
+      )
+    }),
+    [enterpriseOpsQueues]
+  );
+  const allEnterpriseOpsItems = useMemo(
+    () => enterpriseOpsQueues.flatMap((queue) => [...queue.items]) as AppointmentEnterpriseOpsQueueItem[],
+    [enterpriseOpsQueues]
   );
   const notificationFailureQueue = useMemo(
     () =>
@@ -5071,6 +5378,92 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     setActionNotice(
       `${source.title} fanout moved to ${notificationFanoutStatusLabel(nextStatus).toLowerCase()}.`
     );
+  }
+
+  function updateEnterpriseOpsQueueItem(itemId: string) {
+    const item = allEnterpriseOpsItems.find((candidate) => candidate.id === itemId);
+
+    if (!item) {
+      setActionNotice("That enterprise ops item is no longer visible.");
+      return;
+    }
+
+    const nextStatus: AppointmentEnterpriseOpsQueueItemStatus =
+      item.status === "open" ? "watching" : item.status === "watching" ? "cleared" : "open";
+
+    setEnterpriseOpsQueueStates((current) => ({
+      ...current,
+      [itemId]: {
+        status: nextStatus,
+        updatedAtLabel:
+          nextStatus === "watching"
+            ? "Watching just now"
+            : nextStatus === "cleared"
+              ? "Cleared just now"
+              : "Re-opened just now"
+      }
+    }));
+
+    setCommandCenterAuditEvents((current) => [
+      {
+        id: `enterprise-ops-${nextStatus}-${itemId}-${current.length + 1}`,
+        appointmentId: item.appointmentId,
+        lane: item.queueKey === "automation-review" || item.queueKey === "automation-failure" ? "automation" : "manager",
+        tone:
+          nextStatus === "cleared"
+            ? "green"
+            : nextStatus === "watching"
+              ? "blue"
+              : item.tone,
+        title: `${enterpriseOpsQueueLabel(item.queueKey)} ${enterpriseOpsItemStatusLabel(nextStatus).toLowerCase()}`,
+        detail: `${item.title} moved to ${enterpriseOpsItemStatusLabel(nextStatus).toLowerCase()} in the enterprise ops suite.`,
+        actor: "Abdi Farah",
+        occurredAtLabel: "Just now"
+      },
+      ...current
+    ]);
+
+    setActionNotice(
+      `${item.title} moved to ${enterpriseOpsItemStatusLabel(nextStatus).toLowerCase()} in the enterprise ops suite.`
+    );
+  }
+
+  function openEnterpriseOpsQueueItem(item: AppointmentEnterpriseOpsQueueItem) {
+    const appointment =
+      boardAppointments.find((candidate) => candidate.id === item.appointmentId) ?? selectedAppointment;
+
+    selectAppointmentForDetail(appointment);
+
+    if (item.queueKey === "automation-review" || item.queueKey === "automation-failure") {
+      setAuditTimelineFilter("automation");
+      setCommandCenterSearchPreset("all");
+      setCommandCenterSearchScope("timeline");
+      setActionNotice(`Opened ${appointment.id} in the automation timeline from the enterprise ops suite.`);
+      return;
+    }
+
+    if (item.queueKey === "confirmation-gap") {
+      setResolutionFilter("all");
+      setReportQueueFilter("all");
+      setActionNotice(`Opened ${appointment.id} in the detail rail for confirmation recovery.`);
+      return;
+    }
+
+    setResolutionFilter(
+      appointment.status === "no-show"
+        ? "no-show-recovery"
+        : isUnscheduledDraftAppointment(appointment)
+          ? "needs-scheduling"
+          : "follow-up-required"
+    );
+    setReportQueueFilter(
+      appointment.status === "no-show"
+        ? "no-show-recovery"
+        : isUnscheduledDraftAppointment(appointment)
+          ? "needs-scheduling"
+          : "follow-up-required"
+    );
+    setActionNotice(`Opened ${appointment.id} in the recovery queue from the enterprise ops suite.`);
   }
 
   function openNotificationFanoutSource(source: AppointmentNotificationFanoutSource) {
@@ -8411,6 +8804,108 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
                   ))}
                 </div>
               </section>
+            </div>
+          </section>
+
+          <section
+            className="appointment-enterprise-ops-suite-card"
+            aria-labelledby="appointment-enterprise-ops-suite"
+          >
+            <div className="appointment-section-heading">
+              <div>
+                <strong id="appointment-enterprise-ops-suite">Enterprise Ops &amp; Automation Suite</strong>
+                <p>
+                  Run larger operating queues for confirmation gaps, recovery paths, automation review, and
+                  automation-failure follow-through without leaving the board.
+                </p>
+              </div>
+              <span>
+                {enterpriseOpsSummary.open} open / {enterpriseOpsSummary.watching} watching
+              </span>
+            </div>
+
+            <div className="appointment-enterprise-ops-summary">
+              <span>{enterpriseOpsSummary.queues} queues</span>
+              <span>{enterpriseOpsSummary.open} open</span>
+              <span>{enterpriseOpsSummary.watching} watching</span>
+              <span>{enterpriseOpsSummary.cleared} cleared</span>
+            </div>
+
+            <label className="appointment-notification-center-toggle">
+              <input
+                checked={showClearedEnterpriseOpsItems}
+                onChange={(event) => setShowClearedEnterpriseOpsItems(event.target.checked)}
+                type="checkbox"
+              />
+              Show cleared enterprise ops items
+            </label>
+
+            <div className="appointment-enterprise-ops-grid">
+              {visibleEnterpriseOpsQueues.map((queue) => (
+                <section className="appointment-command-center-panel" aria-labelledby={`enterprise-ops-${queue.key}`} key={queue.key}>
+                  <div className="appointment-command-center-panel-heading">
+                    <div>
+                      <strong id={`enterprise-ops-${queue.key}`}>{queue.label}</strong>
+                      <p>{queue.description}</p>
+                    </div>
+                    <span>{queue.items.length} visible</span>
+                  </div>
+
+                  <div className="appointment-enterprise-ops-list">
+                    {queue.items.length === 0 ? (
+                      <article className="appointment-enterprise-ops-empty">
+                        <strong>No visible items</strong>
+                        <p>This queue is clear at the moment.</p>
+                      </article>
+                    ) : (
+                      queue.items.map((item) => (
+                        <article className={`appointment-enterprise-ops-item appointment-enterprise-ops-item-${queue.tone}`} key={item.id}>
+                          <div className="appointment-notification-center-item-top">
+                            <div>
+                              <strong>{item.title}</strong>
+                              <p>{item.detail}</p>
+                            </div>
+                            <div className="appointment-command-center-badge-stack">
+                              <span
+                                className={
+                                  item.status === "cleared"
+                                    ? "appointment-command-center-tag appointment-command-center-tag-green"
+                                    : item.status === "watching"
+                                      ? "appointment-command-center-tag appointment-command-center-tag-blue"
+                                      : queue.tone === "red"
+                                        ? "appointment-command-center-tag appointment-command-center-tag-red"
+                                        : queue.tone === "purple"
+                                          ? "appointment-command-center-tag appointment-command-center-tag-purple"
+                                          : queue.tone === "amber"
+                                            ? "appointment-command-center-tag appointment-command-center-tag-amber"
+                                            : "appointment-command-center-tag appointment-command-center-tag-blue"
+                                }
+                              >
+                                {enterpriseOpsItemStatusLabel(item.status)}
+                              </span>
+                              <span className="appointment-command-center-tag">{item.eventCount} events</span>
+                            </div>
+                          </div>
+
+                          <div className="appointment-notification-center-item-meta">
+                            <span>{item.ownerLabel}</span>
+                            <span>{item.nextStepLabel}</span>
+                          </div>
+
+                          <div className="appointment-command-center-item-actions">
+                            <button type="button" onClick={() => openEnterpriseOpsQueueItem(item)}>
+                              Open source
+                            </button>
+                            <button type="button" onClick={() => updateEnterpriseOpsQueueItem(item.id)}>
+                              {item.actionLabel}
+                            </button>
+                          </div>
+                        </article>
+                      ))
+                    )}
+                  </div>
+                </section>
+              ))}
             </div>
           </section>
 

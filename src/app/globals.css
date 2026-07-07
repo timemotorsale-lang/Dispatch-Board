@@ -7402,6 +7402,86 @@ code {
 .appointment-notification-fanout-item-blue { border-color: #bfdbfe; }
 .appointment-notification-fanout-item-green { border-color: #bbf7d0; }
 
+.appointment-enterprise-ops-suite-card,
+.appointment-enterprise-ops-summary,
+.appointment-enterprise-ops-grid,
+.appointment-enterprise-ops-list {
+  display: grid;
+  gap: 12px;
+}
+
+.appointment-enterprise-ops-suite-card {
+  margin: 0 12px 12px;
+  padding: 14px;
+  background: linear-gradient(180deg, #fbfdff 0%, #f8fafc 100%);
+  border: 1px solid #dbeafe;
+  border-radius: 18px;
+}
+
+.appointment-enterprise-ops-suite-card .appointment-section-heading {
+  align-items: flex-start;
+}
+
+.appointment-enterprise-ops-suite-card .appointment-section-heading > span {
+  display: inline-grid;
+  place-items: center;
+  min-height: 26px;
+  padding: 0 9px;
+  color: #334155;
+  background: #fff;
+  border: 1px solid #dbeafe;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.appointment-enterprise-ops-summary {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.appointment-enterprise-ops-summary span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 10px;
+  color: #334155;
+  background: #fff;
+  border: 1px solid #dbeafe;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.appointment-enterprise-ops-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.appointment-enterprise-ops-item,
+.appointment-enterprise-ops-empty {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+}
+
+.appointment-enterprise-ops-item-blue { border-color: #bfdbfe; }
+.appointment-enterprise-ops-item-amber { border-color: #fde68a; }
+.appointment-enterprise-ops-item-red { border-color: #fecaca; }
+.appointment-enterprise-ops-item-purple { border-color: #ddd6fe; }
+
+.appointment-enterprise-ops-empty strong {
+  color: #0f172a;
+  font-size: 12px;
+}
+
+.appointment-enterprise-ops-empty p {
+  margin: 0;
+  color: #64748b;
+  font-size: 11px;
+}
+
 .appointment-notification-policy-grid,
 .appointment-notification-policy-fields,
 .appointment-notification-policy-summary {
@@ -9345,6 +9425,8 @@ code {
   .appointment-notification-policy-fields,
   .appointment-notification-policy-summary,
   .appointment-notification-fanout-summary,
+  .appointment-enterprise-ops-summary,
+  .appointment-enterprise-ops-grid,
   .appointment-notification-center-grid,
   .appointment-modal-grid {
     grid-template-columns: 1fr;
