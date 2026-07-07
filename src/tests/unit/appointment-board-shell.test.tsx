@@ -5,6 +5,7 @@ import {
   buildAppointmentAuditTimeline,
   buildAppointmentCommandCenterExport,
   buildAppointmentCommandCenterReport,
+  buildAppointmentCommandCenterSearchResults,
   AppointmentBoardShell,
   buildAppointmentExceptionQueues,
   buildAppointmentResolutionWorkbench,
@@ -37,6 +38,8 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Timeline focus");
     expect(markup).toContain("Reporting &amp; Exports");
     expect(markup).toContain("Export preview");
+    expect(markup).toContain("Cross-Appointment Search");
+    expect(markup).toContain("Search scope");
   });
 
   it("renders admin-provided board settings when available", () => {
@@ -570,6 +573,125 @@ describe("appointment board shell", () => {
     expect(csvExport).toContain("\"APT-NOSHOW\"");
     expect(jsonExport).toContain("\"auditTimelineEvents\"");
     expect(jsonExport).toContain("\"Manager escalation recorded\"");
+  });
+
+  it("builds cross-appointment search results for appointment and manager activity discovery", () => {
+    const results = buildAppointmentCommandCenterSearchResults({
+      appointments: [
+        {
+          id: "APT-NOSHOW",
+          title: "Test Drive",
+          customer: "Ahmed Ibrahim",
+          vehicle: "2018 Toyota Camry",
+          category: "sales",
+          status: "no-show",
+          staffId: "abdi",
+          staffName: "Abdi Farah",
+          startMinutes: 540,
+          durationMinutes: 60,
+          phone: "612-555-0102",
+          complaint: "Customer did not arrive",
+          location: "Sales floor",
+          confirmation: "No-show follow-up required",
+          attendanceStatus: "NO_SHOW",
+          followUpDispositionCode: "CALLBACK_REQUIRED",
+          taskAutomation: ["No-show callback"],
+          governanceNotes: []
+        },
+        {
+          id: "APT-CONFLICT",
+          title: "Service / Repair",
+          customer: "Khalid Mohamud",
+          vehicle: "Brake Inspection",
+          category: "service",
+          status: "confirmed",
+          staffId: "brock",
+          staffName: "Brock Peterson",
+          startMinutes: 600,
+          durationMinutes: 60,
+          phone: "612-555-0101",
+          complaint: "Conflict active",
+          location: "Service bay",
+          confirmation: "Resource conflict needs manager review",
+          conflict: true,
+          taskAutomation: [],
+          governanceNotes: []
+        }
+      ] as any,
+      resolutionStateByAppointmentId: {
+        "APT-NOSHOW": {
+          status: "escalated",
+          ownerId: "abdi",
+          ownerName: "Abdi Farah",
+          updatedAtLabel: "Escalated just now"
+        }
+      },
+      query: "abdi",
+      preset: "manager-activity",
+      scope: "all",
+      commandCenterAuditEvents: [
+        {
+          id: "manager-event-1",
+          appointmentId: "APT-NOSHOW",
+          lane: "manager",
+          tone: "purple",
+          title: "Manager escalation recorded",
+          detail: "Escalated into the manager lane under Abdi Farah.",
+          actor: "Abdi Farah",
+          occurredAtLabel: "Just now"
+        }
+      ]
+    });
+
+    expect(results.length).toBeGreaterThan(0);
+    expect(results.every((result) => result.kind === "timeline")).toBe(true);
+    expect(results[0]?.title).toContain("APT-NOSHOW");
+    expect(results[0]?.badge).toContain("event");
+  });
+
+  it("finds appointment discovery results across ids, owners, and queue state", () => {
+    const results = buildAppointmentCommandCenterSearchResults({
+      appointments: [
+        {
+          id: "APT-FOLLOWUP",
+          title: "Vehicle Delivery",
+          customer: "Farah Abdi",
+          vehicle: "2021 Toyota RAV4",
+          category: "delivery",
+          status: "follow-up",
+          staffId: "mohamed",
+          staffName: "Mohamed Ali",
+          startMinutes: 780,
+          durationMinutes: 60,
+          phone: "612-555-0103",
+          complaint: "Delivery follow-up",
+          location: "Delivery bay",
+          confirmation: "Callback required",
+          needsFollowUp: true,
+          followUpDispositionCode: "FOLLOW_UP_APPOINTMENT_REQUIRED",
+          taskAutomation: [],
+          governanceNotes: []
+        }
+      ] as any,
+      resolutionStateByAppointmentId: {
+        "APT-FOLLOWUP": {
+          status: "assigned",
+          ownerId: "mohamed",
+          ownerName: "Mohamed Ali",
+          updatedAtLabel: "Assigned just now"
+        }
+      },
+      query: "mohamed",
+      preset: "all",
+      scope: "appointments"
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({
+      appointmentId: "APT-FOLLOWUP",
+      kind: "appointment"
+    });
+    expect(results[0]?.detail).toContain("Mohamed Ali");
   });
 
   it("detects proposed draft schedule starts that are already in the past", () => {
