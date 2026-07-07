@@ -24,6 +24,8 @@ describe("appointment catalog automation panel", () => {
     expect(markup).toContain("Delete risk");
     expect(markup).toContain("Versioned editor");
     expect(markup).toContain("Purpose lifecycle");
+    expect(markup).toContain("Structured code editors");
+    expect(markup).toContain("Outcome, follow-up, and reason catalogs");
     expect(markup).toContain("Automation simulation");
     expect(markup).toContain("Enabled rule hooks");
     expect(markup).toContain("Test Drive");
