@@ -7482,6 +7482,51 @@ code {
   font-size: 11px;
 }
 
+.appointment-operating-views-card,
+.appointment-operating-views-grid,
+.appointment-operating-view-list {
+  display: grid;
+  gap: 12px;
+}
+
+.appointment-operating-views-card {
+  margin: 0 12px 12px;
+  padding: 14px;
+  background: linear-gradient(180deg, #f8fbff 0%, #f1f5f9 100%);
+  border: 1px solid #dbeafe;
+  border-radius: 18px;
+}
+
+.appointment-operating-views-card .appointment-section-heading {
+  align-items: flex-start;
+}
+
+.appointment-operating-views-card .appointment-section-heading > span {
+  display: inline-grid;
+  place-items: center;
+  min-height: 26px;
+  padding: 0 9px;
+  color: #334155;
+  background: #fff;
+  border: 1px solid #dbeafe;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.appointment-operating-views-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.appointment-operating-view-item {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+}
+
 .appointment-notification-policy-grid,
 .appointment-notification-policy-fields,
 .appointment-notification-policy-summary {
@@ -9427,6 +9472,7 @@ code {
   .appointment-notification-fanout-summary,
   .appointment-enterprise-ops-summary,
   .appointment-enterprise-ops-grid,
+  .appointment-operating-views-grid,
   .appointment-notification-center-grid,
   .appointment-modal-grid {
     grid-template-columns: 1fr;
