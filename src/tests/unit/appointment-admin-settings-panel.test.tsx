@@ -112,9 +112,20 @@ function settingsFixture(): AppointmentAdminSettings {
         }
       },
       capacityOverrideReadiness: {
-        readyResourceCount: 0,
+        readyResourceCount: 1,
         needsConfigurationCount: 0,
         hardBlockExclusiveCount: 0,
+        quickDrafts: [
+          {
+            resourceId: "res-bay-1",
+            resourceName: "Service Bay 1",
+            currentCapacity: 2,
+            suggestedReduction: 1,
+            startsAtIso: "2026-07-07T09:00:00.000Z",
+            endsAtIso: "2026-07-07T18:00:00.000Z",
+            reasonTemplate: "Manager capacity override draft for Service Bay 1."
+          }
+        ],
         recommendations: []
       },
       resourceTypeEditorReadiness: {
@@ -152,6 +163,8 @@ describe("appointment admin settings panel", () => {
     expect(markup).toContain("Recurring templates");
     expect(markup).toContain("Manager reason");
     expect(markup).toContain("Create closure");
+    expect(markup).toContain("Capacity override drafts");
+    expect(markup).toContain("Use capacity override draft");
     expect(markup).toContain("Resource type editor readiness");
     expect(markup).toContain("Closure and resource-impact preview");
     expect(markup).toContain("Export and import preview foundation");

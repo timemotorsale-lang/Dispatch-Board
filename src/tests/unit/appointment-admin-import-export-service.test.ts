@@ -167,6 +167,7 @@ function settingsFixture(): AppointmentAdminSettings {
         readyResourceCount: 0,
         needsConfigurationCount: 1,
         hardBlockExclusiveCount: 1,
+        quickDrafts: [],
         recommendations: [
           "Review exclusive resources before enabling capacity overrides.",
           "Keep hard-block conflict warnings visible when managers change appointment volume."

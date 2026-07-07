@@ -518,6 +518,23 @@ export function AppointmentAdminSettingsPanel({
     });
   }
 
+  function loadCapacityOverrideDraft(
+    draft: AppointmentAdminSettings["availabilityConfiguration"]["capacityOverrideReadiness"]["quickDrafts"][number]
+  ) {
+    setUnavailabilityDraft({
+      resourceId: draft.resourceId,
+      type: "CAPACITY_REDUCTION",
+      startsAt: toDateTimeLocal(draft.startsAtIso),
+      endsAt: toDateTimeLocal(draft.endsAtIso),
+      capacityReduction: draft.suggestedReduction,
+      reason: draft.reasonTemplate
+    });
+    setErrorMessage("");
+    setSuccessMessage(
+      `Capacity override draft loaded for ${draft.resourceName}. Review it below, then add the resource window.`
+    );
+  }
+
   return (
     <div className="appointment-admin-stack">
       <form className="settings-form" onSubmit={handleSubmit}>
@@ -909,6 +926,35 @@ export function AppointmentAdminSettingsPanel({
                 (recommendation) => (
                   <p key={recommendation}>{recommendation}</p>
                 )
+              )}
+              {settings.availabilityConfiguration.capacityOverrideReadiness.quickDrafts.length > 0 ? (
+                <div className="appointment-admin-record-list">
+                  <strong>Capacity override drafts</strong>
+                  {settings.availabilityConfiguration.capacityOverrideReadiness.quickDrafts.map(
+                    (draft) => (
+                      <div className="appointment-admin-record" key={draft.resourceId}>
+                        <span>Capacity reduction draft</span>
+                        <strong>{draft.resourceName}</strong>
+                        <small>
+                          Reduce capacity by {draft.suggestedReduction} from{" "}
+                          {formatDateTime(draft.startsAtIso)} to {formatDateTime(draft.endsAtIso)}
+                        </small>
+                        <div className="form-actions">
+                          <button
+                            className="pill pill-secondary"
+                            disabled={isPending}
+                            onClick={() => loadCapacityOverrideDraft(draft)}
+                            type="button"
+                          >
+                            Use capacity override draft
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  )}
+                </div>
+              ) : (
+                <p>No capacity-mode resources are ready for override drafts yet.</p>
               )}
             </div>
           </div>

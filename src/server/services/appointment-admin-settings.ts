@@ -363,6 +363,15 @@ export type AppointmentAdminSettings = {
       readyResourceCount: number;
       needsConfigurationCount: number;
       hardBlockExclusiveCount: number;
+      quickDrafts: Array<{
+        resourceId: string;
+        resourceName: string;
+        currentCapacity: number;
+        suggestedReduction: number;
+        startsAtIso: string;
+        endsAtIso: string;
+        reasonTemplate: string;
+      }>;
       recommendations: string[];
     };
     resourceTypeEditorReadiness: {
@@ -1218,6 +1227,7 @@ function buildResourceAvailability(input: {
 
 function buildCapacityOverrideReadiness(input: {
   resources: AppointmentAdminResourceRecord[];
+  calendar: AppointmentAdminSettings["specialHoursCalendar"];
 }): AppointmentAdminSettings["availabilityConfiguration"]["capacityOverrideReadiness"] {
   const readyResources = input.resources.filter(
     (resource) =>
@@ -1246,11 +1256,26 @@ function buildCapacityOverrideReadiness(input: {
       ? "Keep hard-block conflict warnings visible when managers change appointment volume."
       : null
   ].filter((recommendation): recommendation is string => Boolean(recommendation));
+  const firstOpenDay = input.calendar.days.find(
+    (day) => day.status === "OPEN" && day.opensAt && day.closesAt
+  );
+  const quickDrafts = firstOpenDay
+    ? readyResources.map((resource) => ({
+        resourceId: resource.id,
+        resourceName: resource.name,
+        currentCapacity: resource.capacity,
+        suggestedReduction: 1,
+        startsAtIso: new Date(`${firstOpenDay.dateIso}T${firstOpenDay.opensAt}:00.000Z`).toISOString(),
+        endsAtIso: new Date(`${firstOpenDay.dateIso}T${firstOpenDay.closesAt}:00.000Z`).toISOString(),
+        reasonTemplate: `Manager capacity override draft for ${resource.name}.`
+      }))
+    : [];
 
   return {
     readyResourceCount: readyResources.length,
     needsConfigurationCount: needsConfiguration.length,
     hardBlockExclusiveCount,
+    quickDrafts,
     recommendations
   };
 }
@@ -1308,7 +1333,8 @@ function buildAvailabilityConfiguration(input: {
       calendar: input.specialHoursCalendar
     }),
     capacityOverrideReadiness: buildCapacityOverrideReadiness({
-      resources: input.resources
+      resources: input.resources,
+      calendar: input.specialHoursCalendar
     }),
     resourceTypeEditorReadiness: buildResourceTypeEditorReadiness({
       resourceTypes: input.resourceTypes,

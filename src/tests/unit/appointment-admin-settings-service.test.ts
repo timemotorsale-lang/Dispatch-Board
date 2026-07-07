@@ -499,6 +499,11 @@ describe("appointment admin settings service", () => {
     });
     expect(settings.availabilityConfiguration.capacityOverrideReadiness.readyResourceCount).toBe(1);
     expect(settings.availabilityConfiguration.resourceAvailability.summary.capacityResourceCount).toBe(1);
+    expect(settings.availabilityConfiguration.capacityOverrideReadiness.quickDrafts[0]).toMatchObject({
+      resourceId: "res-abdi",
+      resourceName: "Abdi Farah",
+      suggestedReduction: 1
+    });
   });
 
   it("allows managers to create resource capacity reductions", async () => {
