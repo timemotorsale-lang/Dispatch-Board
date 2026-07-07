@@ -7,7 +7,7 @@ import { createMemoryAppointmentCatalogRepository } from "@/tests/support/appoin
 import { createTestAuthStore } from "@/tests/support/auth-test-store";
 
 describe("appointment catalog automation panel", () => {
-  it("renders purpose catalog, automation simulation, and rule hooks", async () => {
+  it("renders purpose catalog, approval governance, usage guidance, and rule hooks", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
     const { repository } = createMemoryAppointmentCatalogRepository();
@@ -18,7 +18,12 @@ describe("appointment catalog automation panel", () => {
     );
 
     expect(markup).toContain("Approved appointment purposes");
+    expect(markup).toContain("Approval");
+    expect(markup).toContain("Review action");
+    expect(markup).toContain("Reference count");
+    expect(markup).toContain("Delete risk");
     expect(markup).toContain("Versioned editor");
+    expect(markup).toContain("Purpose lifecycle");
     expect(markup).toContain("Automation simulation");
     expect(markup).toContain("Enabled rule hooks");
     expect(markup).toContain("Test Drive");

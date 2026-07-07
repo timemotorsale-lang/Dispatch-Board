@@ -51,6 +51,13 @@ type AppointmentCatalogChangeAction =
   | "ACTIVATED"
   | "RETIRED";
 
+type AppointmentCatalogApprovalStatus =
+  | "NOT_REQUIRED"
+  | "PENDING_REVIEW"
+  | "APPROVED"
+  | "CHANGES_REQUESTED"
+  | "REJECTED";
+
 export type AppointmentAutomationSimulationInput = {
   purposeCode: string;
   outcomeCode: string;
@@ -92,6 +99,29 @@ export type AppointmentCatalogValidationSummary = {
   warnings: string[];
 };
 
+export type AppointmentCatalogApprovalSummary = {
+  status: AppointmentCatalogApprovalStatus;
+  requiredApproverRoleName: "General Manager";
+  reason: string | null;
+  reviewedByUserId: string | null;
+  reviewedAt: string | null;
+  activationBlocked: boolean;
+};
+
+export type AppointmentCatalogPurposeUsageSummary = {
+  purposeCode: string;
+  active: boolean;
+  automationRuleCount: number;
+  enabledAutomationRuleCount: number;
+  taskBlueprintCount: number;
+  outcomeCodeCount: number;
+  followUpDispositionCodeCount: number;
+  referenceCount: number;
+  deleteRisk: "DRAFT_ONLY" | "PUBLISHED_REFERENCES";
+  recommendation: "DELETE_ALLOWED" | "DEPRECATE_INSTEAD" | "REVIEW_BEFORE_CHANGE";
+  warnings: string[];
+};
+
 export type AppointmentCatalogAutomationAdmin = AppointmentCatalogCore & {
   versioning: {
     organizationId: string;
@@ -100,12 +130,15 @@ export type AppointmentCatalogAutomationAdmin = AppointmentCatalogCore & {
     draftVersion: AppointmentCatalogVersionSummary | null;
     displayedVersion: AppointmentCatalogVersionSummary;
     validation: AppointmentCatalogValidationSummary;
+    approval: AppointmentCatalogApprovalSummary;
     recentChanges: AppointmentCatalogChangeEventSummary[];
   };
+  purposeUsage: AppointmentCatalogPurposeUsageSummary[];
   editor: {
     canEdit: true;
     reasonMinimumCharacters: number;
     activationRequiresValidDraft: true;
+    activationRequiresApproval: true;
     editableApprovalModes: AppointmentTemplateApprovalMode[];
   };
 };
@@ -134,6 +167,11 @@ export type AppointmentCatalogPurposeDraftInput = {
 };
 
 export type AppointmentCatalogActivateInput = {
+  reason: string;
+};
+
+export type AppointmentCatalogApprovalReviewInput = {
+  action: "APPROVE" | "REQUEST_CHANGES" | "REJECT";
   reason: string;
 };
 
@@ -585,6 +623,113 @@ function validateCatalogCore(catalog: AppointmentCatalogCore): AppointmentCatalo
   };
 }
 
+function buildApprovalSummary(input?: {
+  status?: AppointmentCatalogApprovalStatus;
+  reason?: string | null;
+  reviewedByUserId?: string | null;
+  reviewedAt?: string | null;
+}): AppointmentCatalogApprovalSummary {
+  const status = input?.status ?? "PENDING_REVIEW";
+
+  return {
+    status,
+    requiredApproverRoleName: "General Manager",
+    reason: input?.reason ?? null,
+    reviewedByUserId: input?.reviewedByUserId ?? null,
+    reviewedAt: input?.reviewedAt ?? null,
+    activationBlocked: status !== "APPROVED"
+  };
+}
+
+function isApprovalStatus(value: unknown): value is AppointmentCatalogApprovalStatus {
+  return (
+    value === "NOT_REQUIRED" ||
+    value === "PENDING_REVIEW" ||
+    value === "APPROVED" ||
+    value === "CHANGES_REQUESTED" ||
+    value === "REJECTED"
+  );
+}
+
+function extractApprovalSummary(
+  validationSnapshot: unknown,
+  fallbackStatus: AppointmentCatalogApprovalStatus
+) {
+  if (!validationSnapshot || typeof validationSnapshot !== "object") {
+    return buildApprovalSummary({ status: fallbackStatus });
+  }
+
+  const candidate = validationSnapshot as {
+    approval?: Partial<AppointmentCatalogApprovalSummary>;
+  };
+  const approval = candidate.approval;
+
+  return buildApprovalSummary({
+    status: isApprovalStatus(approval?.status) ? approval.status : fallbackStatus,
+    reason: typeof approval?.reason === "string" ? approval.reason : null,
+    reviewedByUserId:
+      typeof approval?.reviewedByUserId === "string" ? approval.reviewedByUserId : null,
+    reviewedAt: typeof approval?.reviewedAt === "string" ? approval.reviewedAt : null
+  });
+}
+
+function withApprovalSnapshot(
+  validation: AppointmentCatalogValidationSummary,
+  approval: AppointmentCatalogApprovalSummary
+) {
+  return {
+    ...validation,
+    approval
+  };
+}
+
+function buildPurposeUsageSummaries(input: {
+  catalog: AppointmentCatalogCore;
+  publishedPurposeCodes: Set<string>;
+}): AppointmentCatalogPurposeUsageSummary[] {
+  return input.catalog.purposes.map((purpose) => {
+    const automationRules = input.catalog.automationRules.filter(
+      (rule) => rule.purposeCode === purpose.code
+    );
+    const enabledAutomationRuleCount = automationRules.filter((rule) => rule.enabled).length;
+    const referenceCount =
+      automationRules.length +
+      purpose.taskBlueprints.length +
+      purpose.outcomeCodes.length +
+      purpose.followUpDispositionCodes.length;
+    const isPublished = input.publishedPurposeCodes.has(purpose.code);
+    const warnings = [
+      isPublished
+        ? "Published purpose may be referenced by existing appointments or audit history."
+        : null,
+      enabledAutomationRuleCount > 0
+        ? "Enabled automation hooks reference this purpose."
+        : null,
+      purpose.taskBlueprints.length > 0
+        ? "Task blueprints will be affected by lifecycle changes."
+        : null
+    ].filter((warning): warning is string => Boolean(warning));
+
+    return {
+      purposeCode: purpose.code,
+      active: purpose.isActive,
+      automationRuleCount: automationRules.length,
+      enabledAutomationRuleCount,
+      taskBlueprintCount: purpose.taskBlueprints.length,
+      outcomeCodeCount: purpose.outcomeCodes.length,
+      followUpDispositionCodeCount: purpose.followUpDispositionCodes.length,
+      referenceCount,
+      deleteRisk: isPublished ? "PUBLISHED_REFERENCES" : "DRAFT_ONLY",
+      recommendation: isPublished
+        ? "DEPRECATE_INSTEAD"
+        : referenceCount > 0
+          ? "REVIEW_BEFORE_CHANGE"
+          : "DELETE_ALLOWED",
+      warnings
+    };
+  });
+}
+
 function summarizeVersion(
   record: AppointmentCatalogVersionRecord | null,
   fallback?: AppointmentCatalogVersionSummary
@@ -657,6 +802,15 @@ function buildAdminModel(input: {
   const draftVersion = summarizeVersion(input.draftVersion);
   const displayedVersion =
     draftVersion ?? activeVersion ?? baselineVersionSummary();
+  const approval = input.draftVersion
+    ? extractApprovalSummary(input.draftVersion.validationSnapshot, "PENDING_REVIEW")
+    : input.activeVersion
+      ? extractApprovalSummary(input.activeVersion.validationSnapshot, "APPROVED")
+      : buildApprovalSummary({ status: "NOT_REQUIRED" });
+  const purposeUsage = buildPurposeUsageSummaries({
+    catalog: displayedCatalog,
+    publishedPurposeCodes: getPublishedPurposeCodes(input.activeVersion)
+  });
 
   return {
     ...displayedCatalog,
@@ -667,12 +821,15 @@ function buildAdminModel(input: {
       draftVersion,
       displayedVersion,
       validation,
+      approval,
       recentChanges: input.recentChanges.map(summarizeChangeEvent)
     },
+    purposeUsage,
     editor: {
       canEdit: true,
       reasonMinimumCharacters: 8,
       activationRequiresValidDraft: true,
+      activationRequiresApproval: true,
       editableApprovalModes: [...editableApprovalModes]
     }
   } satisfies AppointmentCatalogAutomationAdmin;
@@ -1324,6 +1481,10 @@ export async function saveAppointmentCatalogDraftForManager(
       : getBaselineCatalogCore();
   const nextCatalog = applyPurposeDraftChange(currentCatalog, input);
   const validation = validateCatalogCore(nextCatalog);
+  const approval = buildApprovalSummary({
+    status: "PENDING_REVIEW",
+    reason: "Draft changed and requires General Manager approval before activation."
+  });
 
   if (!validation.isValid) {
     throw new Error(`Catalog draft is invalid: ${validation.errors.join(" ")}`);
@@ -1339,7 +1500,7 @@ export async function saveAppointmentCatalogDraftForManager(
       actorUserId: user.id,
       priorSnapshot: draftVersion.catalogSnapshot,
       catalogSnapshot: nextCatalog,
-      validationSnapshot: validation
+      validationSnapshot: withApprovalSnapshot(validation, approval)
     });
   } else {
     await repository.createDraftVersion({
@@ -1350,7 +1511,7 @@ export async function saveAppointmentCatalogDraftForManager(
       reason,
       actorUserId: user.id,
       catalogSnapshot: nextCatalog,
-      validationSnapshot: validation,
+      validationSnapshot: withApprovalSnapshot(validation, approval),
       action: "DRAFT_CREATED"
     });
   }
@@ -1383,6 +1544,10 @@ export async function updateAppointmentCatalogPurposeLifecycleForManager(
     publishedPurposeCodes: getPublishedPurposeCodes(activeVersion)
   });
   const validation = validateCatalogCore(nextCatalog);
+  const approval = buildApprovalSummary({
+    status: "PENDING_REVIEW",
+    reason: "Lifecycle change requires General Manager approval before activation."
+  });
 
   if (!validation.isValid) {
     throw new Error(`Catalog draft is invalid: ${validation.errors.join(" ")}`);
@@ -1401,7 +1566,7 @@ export async function updateAppointmentCatalogPurposeLifecycleForManager(
       actorUserId: user.id,
       priorSnapshot: draftVersion.catalogSnapshot,
       catalogSnapshot: nextCatalog,
-      validationSnapshot: validation
+      validationSnapshot: withApprovalSnapshot(validation, approval)
     });
   } else {
     await repository.createDraftVersion({
@@ -1412,10 +1577,57 @@ export async function updateAppointmentCatalogPurposeLifecycleForManager(
       reason,
       actorUserId: user.id,
       catalogSnapshot: nextCatalog,
-      validationSnapshot: validation,
+      validationSnapshot: withApprovalSnapshot(validation, approval),
       action: "DRAFT_CREATED"
     });
   }
+
+  return loadAdminModel(repository);
+}
+
+export async function reviewAppointmentCatalogDraftForManager(
+  user: AuthenticatedUser | null,
+  input: AppointmentCatalogApprovalReviewInput,
+  repository: AppointmentCatalogAutomationAdminRepository = createAppointmentCatalogAutomationAdminRepository()
+) {
+  assertCanManageCatalogAutomation(user);
+
+  const organizationId = INITIAL_ORGANIZATION.id;
+  const reason = normalizeReason(input.reason, "Review reason");
+  const draftVersion = await repository.getDraftVersion(organizationId);
+
+  if (!draftVersion) {
+    throw new Error("No draft catalog version is ready for review.");
+  }
+
+  const catalog = normalizeCatalogSnapshot(draftVersion.catalogSnapshot);
+  const validation = validateCatalogCore(catalog);
+  const statusByAction = {
+    APPROVE: "APPROVED",
+    REQUEST_CHANGES: "CHANGES_REQUESTED",
+    REJECT: "REJECTED"
+  } as const satisfies Record<
+    AppointmentCatalogApprovalReviewInput["action"],
+    AppointmentCatalogApprovalStatus
+  >;
+  const approval = buildApprovalSummary({
+    status: statusByAction[input.action],
+    reason,
+    reviewedByUserId: user.id,
+    reviewedAt: new Date().toISOString()
+  });
+
+  await repository.updateDraftVersion({
+    draftVersionId: draftVersion.id,
+    organizationId,
+    title: draftVersion.title,
+    description: draftVersion.description,
+    reason,
+    actorUserId: user.id,
+    priorSnapshot: draftVersion.catalogSnapshot,
+    catalogSnapshot: catalog,
+    validationSnapshot: withApprovalSnapshot(validation, approval)
+  });
 
   return loadAdminModel(repository);
 }
@@ -1437,9 +1649,14 @@ export async function activateAppointmentCatalogDraftForManager(
 
   const catalog = normalizeCatalogSnapshot(draftVersion.catalogSnapshot);
   const validation = validateCatalogCore(catalog);
+  const approval = extractApprovalSummary(draftVersion.validationSnapshot, "PENDING_REVIEW");
 
   if (!validation.isValid) {
     throw new Error(`Catalog draft is invalid: ${validation.errors.join(" ")}`);
+  }
+
+  if (approval.status !== "APPROVED") {
+    throw new Error("Catalog draft must be approved before activation.");
   }
 
   await repository.activateDraftVersion({
@@ -1449,7 +1666,7 @@ export async function activateAppointmentCatalogDraftForManager(
     actorUserId: user.id,
     priorSnapshot: draftVersion.catalogSnapshot,
     catalogSnapshot: catalog,
-    validationSnapshot: validation
+    validationSnapshot: withApprovalSnapshot(validation, approval)
   });
 
   return loadAdminModel(repository);

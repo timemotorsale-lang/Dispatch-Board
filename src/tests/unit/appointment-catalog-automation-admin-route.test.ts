@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   simulateAppointmentCatalogAutomationForManager: vi.fn(),
   saveAppointmentCatalogDraftForManager: vi.fn(),
   activateAppointmentCatalogDraftForManager: vi.fn(),
+  reviewAppointmentCatalogDraftForManager: vi.fn(),
   updateAppointmentCatalogPurposeLifecycleForManager: vi.fn()
 }));
 
@@ -21,6 +22,7 @@ vi.mock("@/server/services/appointment-catalog-automation-admin", () => ({
   saveAppointmentCatalogDraftForManager: mocks.saveAppointmentCatalogDraftForManager,
   activateAppointmentCatalogDraftForManager:
     mocks.activateAppointmentCatalogDraftForManager,
+  reviewAppointmentCatalogDraftForManager: mocks.reviewAppointmentCatalogDraftForManager,
   updateAppointmentCatalogPurposeLifecycleForManager:
     mocks.updateAppointmentCatalogPurposeLifecycleForManager
 }));
@@ -29,6 +31,7 @@ import { GET } from "@/app/api/settings/appointments/catalog/route";
 import { POST as POST_ACTIVATE } from "@/app/api/settings/appointments/catalog/activate/route";
 import { POST as POST_DRAFT } from "@/app/api/settings/appointments/catalog/draft/route";
 import { POST as POST_LIFECYCLE } from "@/app/api/settings/appointments/catalog/lifecycle/route";
+import { POST as POST_REVIEW } from "@/app/api/settings/appointments/catalog/review/route";
 import { POST } from "@/app/api/settings/appointments/catalog/simulate/route";
 
 const managerUser = {
@@ -84,6 +87,13 @@ describe("appointment catalog automation admin routes", () => {
     mocks.activateAppointmentCatalogDraftForManager.mockResolvedValue({
       ...catalog,
       versioning: { displayedSource: "ACTIVE" }
+    });
+    mocks.reviewAppointmentCatalogDraftForManager.mockResolvedValue({
+      ...catalog,
+      versioning: {
+        displayedSource: "DRAFT",
+        approval: { status: "APPROVED", activationBlocked: false }
+      }
     });
     mocks.updateAppointmentCatalogPurposeLifecycleForManager.mockResolvedValue({
       ...catalog,
@@ -187,6 +197,49 @@ describe("appointment catalog automation admin routes", () => {
       managerUser,
       payload
     );
+  });
+
+  it("reviews a draft catalog for managers", async () => {
+    const payload = {
+      action: "APPROVE",
+      reason: "Approve catalog draft for activation."
+    };
+    const response = await POST_REVIEW(
+      new Request("http://localhost/api/settings/appointments/catalog/review", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      })
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      catalog: {
+        ...catalog,
+        versioning: {
+          displayedSource: "DRAFT",
+          approval: { status: "APPROVED", activationBlocked: false }
+        }
+      }
+    });
+    expect(mocks.reviewAppointmentCatalogDraftForManager).toHaveBeenCalledWith(
+      managerUser,
+      payload
+    );
+  });
+
+  it("rejects malformed review payloads", async () => {
+    const response = await POST_REVIEW(
+      new Request("http://localhost/api/settings/appointments/catalog/review", {
+        method: "POST",
+        body: JSON.stringify({ action: "APPROVE" })
+      })
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Review action and reason are required."
+    });
+    expect(mocks.reviewAppointmentCatalogDraftForManager).not.toHaveBeenCalled();
   });
 
   it("updates purpose lifecycle for managers", async () => {

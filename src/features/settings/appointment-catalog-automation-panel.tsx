@@ -49,6 +49,8 @@ type LifecycleState = {
   reason: string;
 };
 
+type ReviewAction = "APPROVE" | "REQUEST_CHANGES" | "REJECT";
+
 function formatLabel(value: string) {
   return value
     .toLowerCase()
@@ -109,6 +111,8 @@ export function AppointmentCatalogAutomationPanel({
   );
   const [changeReason, setChangeReason] = useState("");
   const [activationReason, setActivationReason] = useState("");
+  const [reviewAction, setReviewAction] = useState<ReviewAction>("APPROVE");
+  const [reviewReason, setReviewReason] = useState("");
   const [lifecycleState, setLifecycleState] = useState<LifecycleState>({
     action: "DUPLICATE",
     purposeCode: "",
@@ -136,7 +140,12 @@ export function AppointmentCatalogAutomationPanel({
     [catalog.automationRules]
   );
   const canActivateDraft =
-    Boolean(catalog.versioning.draftVersion) && catalog.versioning.validation.isValid;
+    Boolean(catalog.versioning.draftVersion) &&
+    catalog.versioning.validation.isValid &&
+    catalog.versioning.approval.status === "APPROVED";
+  const selectedPurposeUsage = selectedPurpose
+    ? catalog.purposeUsage.find((usage) => usage.purposeCode === selectedPurpose.code)
+    : null;
 
   function selectPurpose(purposeCode: string) {
     const purpose = catalog.purposes.find((candidate) => candidate.code === purposeCode);
@@ -271,6 +280,39 @@ export function AppointmentCatalogAutomationPanel({
       handleCatalogResponse(payload);
       setSuccessMessage("Catalog draft activated. New scheduling behavior is now the active version.");
       setActivationReason("");
+    });
+  }
+
+  function reviewDraft() {
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    startTransition(async () => {
+      const response = await fetch("/api/settings/appointments/catalog/review", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          action: reviewAction,
+          reason: reviewReason
+        })
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            error?: string;
+            catalog?: AppointmentCatalogAutomationAdmin;
+          }
+        | null;
+
+      if (!response.ok) {
+        setErrorMessage(payload?.error ?? "Unable to review appointment catalog draft right now.");
+        return;
+      }
+
+      handleCatalogResponse(payload);
+      setSuccessMessage(`Catalog draft review saved: ${formatLabel(reviewAction)}.`);
+      setReviewReason("");
     });
   }
 
@@ -430,6 +472,15 @@ export function AppointmentCatalogAutomationPanel({
             <strong>{catalog.versioning.recentChanges.length}</strong>
             <small>append-only catalog change events</small>
           </div>
+          <div>
+            <span>Approval</span>
+            <strong>{formatLabel(catalog.versioning.approval.status)}</strong>
+            <small>
+              {catalog.versioning.approval.activationBlocked
+                ? "Activation is blocked until approval is recorded."
+                : "Approved for activation."}
+            </small>
+          </div>
         </div>
 
         {catalog.versioning.validation.errors.length > 0 ? (
@@ -450,6 +501,35 @@ export function AppointmentCatalogAutomationPanel({
 
         <div className="appointment-catalog-activation-row">
           <label className="field">
+            <span>Review action</span>
+            <select
+              value={reviewAction}
+              onChange={(event) => setReviewAction(event.target.value as ReviewAction)}
+              disabled={!catalog.versioning.draftVersion || isPending}
+            >
+              <option value="APPROVE">Approve draft</option>
+              <option value="REQUEST_CHANGES">Request changes</option>
+              <option value="REJECT">Reject draft</option>
+            </select>
+          </label>
+          <label className="field">
+            <span>Review reason</span>
+            <input
+              value={reviewReason}
+              onChange={(event) => setReviewReason(event.target.value)}
+              placeholder="Document approval or requested changes"
+              disabled={!catalog.versioning.draftVersion || isPending}
+            />
+          </label>
+          <button
+            className="pill pill-secondary"
+            disabled={!catalog.versioning.draftVersion || isPending}
+            onClick={reviewDraft}
+            type="button"
+          >
+            Save review
+          </button>
+          <label className="field">
             <span>Activation reason</span>
             <input
               value={activationReason}
@@ -463,7 +543,9 @@ export function AppointmentCatalogAutomationPanel({
             onClick={activateDraft}
             type="button"
           >
-            Activate draft
+            {catalog.versioning.approval.status === "APPROVED"
+              ? "Activate draft"
+              : "Approval required"}
           </button>
         </div>
       </section>
@@ -655,6 +737,38 @@ export function AppointmentCatalogAutomationPanel({
           <p>
             Save creates or updates a draft version. Activation is a separate audited manager action.
           </p>
+
+          {selectedPurposeUsage ? (
+            <div className="appointment-catalog-detail-grid">
+              <div>
+                <span>Reference count</span>
+                <strong>{selectedPurposeUsage.referenceCount}</strong>
+                <small>{formatLabel(selectedPurposeUsage.recommendation)}</small>
+              </div>
+              <div>
+                <span>Delete risk</span>
+                <strong>{formatLabel(selectedPurposeUsage.deleteRisk)}</strong>
+                <small>
+                  {selectedPurposeUsage.deleteRisk === "PUBLISHED_REFERENCES"
+                    ? "Use deprecation to preserve history."
+                    : "Hard delete allowed only while draft-only."}
+                </small>
+              </div>
+              <div>
+                <span>Automation links</span>
+                <strong>{selectedPurposeUsage.enabledAutomationRuleCount}</strong>
+                <small>{selectedPurposeUsage.automationRuleCount} total rule hooks</small>
+              </div>
+            </div>
+          ) : null}
+
+          {selectedPurposeUsage?.warnings.length ? (
+            <div className="notice">
+              {selectedPurposeUsage.warnings.map((warning) => (
+                <p key={warning}>{warning}</p>
+              ))}
+            </div>
+          ) : null}
 
           <form className="settings-form" onSubmit={saveDraft}>
             <div className="settings-grid">
