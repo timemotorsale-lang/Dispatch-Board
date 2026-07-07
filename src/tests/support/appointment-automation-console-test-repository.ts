@@ -24,6 +24,43 @@ export function createMemoryAppointmentAutomationOperationsRepository() {
     async listExecutionEvents(_organizationId, limit) {
       return executionEvents.slice(0, limit);
     },
+    async recordExecution(input) {
+      const execution: AppointmentAutomationExecutionRecord = {
+        id: `execution-${executions.length + 1}`,
+        organizationId: "org-time-motor-sales",
+        automationRuleId: null,
+        triggerCode: input.triggerCode,
+        purposeCode: input.purposeCode ?? null,
+        status: input.status ?? "PENDING",
+        sourceType: input.sourceType,
+        sourceReference: input.sourceReference ?? null,
+        inputSnapshot: input.inputSnapshot,
+        resultSnapshot: input.resultSnapshot ?? null,
+        failureCode: input.failureCode ?? null,
+        failureMessage: input.failureMessage ?? null,
+        attemptCount: input.attemptCount ?? 0,
+        maxAttempts: input.maxAttempts ?? 3,
+        nextRetryAt: input.nextRetryAt ?? null,
+        resolvedAt:
+          input.status === "RESOLVED" || input.status === "SKIPPED" ? now : null,
+        createdAt: now,
+        updatedAt: now
+      };
+      executions = [execution, ...executions];
+      executionEvents.unshift({
+        id: `execution-event-${executionEvents.length + 1}`,
+        action:
+          execution.status === "FAILED_RETRYABLE" || execution.status === "FAILED_TERMINAL"
+            ? "FAILED"
+            : execution.status === "REVIEW_REQUIRED"
+              ? "REVIEW_CREATED"
+              : "QUEUED",
+        reason: input.reason,
+        actorUserId: input.actorUserId ?? null,
+        occurredAt: now
+      });
+      return execution;
+    },
     async upsertRuleDraft(input) {
       const existing = rules.find((rule) => rule.ruleCode === input.ruleCode);
       const rule: AppointmentAutomationRuleRecord = {

@@ -88,6 +88,7 @@ export type AppointmentAutomationOperationsRepository = {
   listExecutions(organizationId: string): Promise<AppointmentAutomationExecutionRecord[]>;
   listRuleEvents(organizationId: string, limit: number): Promise<AppointmentAutomationEventRecord[]>;
   listExecutionEvents(organizationId: string, limit: number): Promise<AppointmentAutomationEventRecord[]>;
+  recordExecution(input: AutomationExecutionRecordInput): Promise<AppointmentAutomationExecutionRecord>;
   upsertRuleDraft(input: RuleMutationInput & {
     actorUserId: string;
     validation: RuleValidation;
@@ -116,6 +117,24 @@ export type RuleTransitionInput = {
 export type ExecutionTransitionInput = {
   executionId: string;
   action: "RETRY" | "REPLAY" | "RESOLVE" | "SKIP";
+  reason: string;
+};
+
+export type AutomationExecutionRecordInput = {
+  ruleCode?: string | null;
+  triggerCode: string;
+  purposeCode?: string | null;
+  sourceType: string;
+  sourceReference?: string | null;
+  inputSnapshot: unknown;
+  resultSnapshot?: unknown;
+  status?: ExecutionStatus;
+  failureCode?: string | null;
+  failureMessage?: string | null;
+  attemptCount?: number;
+  maxAttempts?: number;
+  nextRetryAt?: Date | null;
+  actorUserId?: string | null;
   reason: string;
 };
 
@@ -267,8 +286,21 @@ function summarizeRule(rule: AppointmentAutomationRuleRecord) {
 }
 
 function summarizeExecution(execution: AppointmentAutomationExecutionRecord) {
+  const inputSnapshot =
+    execution.inputSnapshot && typeof execution.inputSnapshot === "object"
+      ? (execution.inputSnapshot as Record<string, unknown>)
+      : null;
+  const resultSnapshot =
+    execution.resultSnapshot && typeof execution.resultSnapshot === "object"
+      ? (execution.resultSnapshot as Record<string, unknown>)
+      : null;
+
   return {
     id: execution.id,
+    automationRuleCode:
+      (typeof resultSnapshot?.automationRuleCode === "string" && resultSnapshot.automationRuleCode) ||
+      (typeof inputSnapshot?.automationRuleCode === "string" && inputSnapshot.automationRuleCode) ||
+      null,
     triggerCode: execution.triggerCode,
     purposeCode: execution.purposeCode,
     status: execution.status,
@@ -280,7 +312,8 @@ function summarizeExecution(execution: AppointmentAutomationExecutionRecord) {
     maxAttempts: execution.maxAttempts,
     nextRetryAt: toIso(execution.nextRetryAt),
     resolvedAt: toIso(execution.resolvedAt),
-    createdAt: execution.createdAt.toISOString()
+    createdAt: execution.createdAt.toISOString(),
+    updatedAt: execution.updatedAt.toISOString()
   };
 }
 
@@ -311,6 +344,21 @@ function unavailablePersistenceError() {
   );
 }
 
+function executionEventActionForStatus(status: ExecutionStatus): ExecutionAction {
+  switch (status) {
+    case "FAILED_RETRYABLE":
+    case "FAILED_TERMINAL":
+      return "FAILED";
+    case "REVIEW_REQUIRED":
+      return "REVIEW_CREATED";
+    case "PENDING":
+    case "SUCCEEDED":
+    case "SKIPPED":
+    case "RESOLVED":
+      return "QUEUED";
+  }
+}
+
 export function createAppointmentAutomationOperationsRepository(): AppointmentAutomationOperationsRepository {
   type AutomationTransaction = {
     appointmentAutomationRule: {
@@ -322,6 +370,8 @@ export function createAppointmentAutomationOperationsRepository(): AppointmentAu
       create: (input: unknown) => Promise<unknown>;
     };
     appointmentAutomationExecution: {
+      findMany: (input: unknown) => Promise<AppointmentAutomationExecutionRecord[]>;
+      create: (input: unknown) => Promise<AppointmentAutomationExecutionRecord>;
       update: (input: unknown) => Promise<AppointmentAutomationExecutionRecord>;
     };
     appointmentAutomationExecutionEvent: {
@@ -341,6 +391,7 @@ export function createAppointmentAutomationOperationsRepository(): AppointmentAu
     };
     appointmentAutomationExecution?: {
       findMany: (input: unknown) => Promise<AppointmentAutomationExecutionRecord[]>;
+      create: (input: unknown) => Promise<AppointmentAutomationExecutionRecord>;
       update: (input: unknown) => Promise<AppointmentAutomationExecutionRecord>;
     };
     appointmentAutomationExecutionEvent?: {
@@ -397,6 +448,55 @@ export function createAppointmentAutomationOperationsRepository(): AppointmentAu
         where: { organizationId },
         orderBy: [{ occurredAt: "desc" }],
         take: limit
+      });
+    },
+    async recordExecution(input) {
+      if (!hasDelegates) throw unavailablePersistenceError();
+      return automationPrisma.$transaction(async (transaction) => {
+        const resolvedRule = input.ruleCode
+          ? await transaction.appointmentAutomationRule.findFirst({
+              where: {
+                organizationId: INITIAL_ORGANIZATION.id,
+                ruleCode: input.ruleCode
+              }
+            })
+          : null;
+
+        const execution = await transaction.appointmentAutomationExecution.create({
+          data: {
+            organizationId: INITIAL_ORGANIZATION.id,
+            automationRuleId: resolvedRule?.id ?? null,
+            triggerCode: resolvedRule?.triggerCode ?? input.triggerCode,
+            purposeCode: resolvedRule?.purposeCode ?? input.purposeCode ?? null,
+            status: input.status ?? "PENDING",
+            sourceType: input.sourceType,
+            sourceReference: input.sourceReference ?? null,
+            inputSnapshot: toJsonValue(input.inputSnapshot),
+            resultSnapshot:
+              input.resultSnapshot === undefined ? undefined : toJsonValue(input.resultSnapshot),
+            failureCode: input.failureCode ?? null,
+            failureMessage: input.failureMessage ?? null,
+            attemptCount: input.attemptCount ?? 0,
+            maxAttempts: input.maxAttempts ?? 3,
+            nextRetryAt: input.nextRetryAt ?? null,
+            resolvedAt:
+              input.status === "RESOLVED" || input.status === "SKIPPED" ? new Date() : null
+          }
+        });
+
+        await transaction.appointmentAutomationExecutionEvent.create({
+          data: {
+            automationExecutionId: execution.id,
+            organizationId: INITIAL_ORGANIZATION.id,
+            actorUserId: input.actorUserId ?? null,
+            action: executionEventActionForStatus(execution.status),
+            reason: input.reason,
+            priorSnapshot: undefined,
+            newSnapshot: toJsonValue(execution)
+          }
+        });
+
+        return execution;
       });
     },
     async upsertRuleDraft(input) {
@@ -501,7 +601,77 @@ export function createAppointmentAutomationOperationsRepository(): AppointmentAu
     },
     async transitionExecution(input) {
       if (!hasDelegates) throw unavailablePersistenceError();
-      throw new Error(`Execution ${input.action.toLowerCase()} persistence will be available after runtime execution records are seeded.`);
+      return automationPrisma.$transaction(async (transaction) => {
+        const existingRecords = await transaction.appointmentAutomationExecution.findMany({
+          where: {
+            organizationId: INITIAL_ORGANIZATION.id,
+            id: input.executionId
+          },
+          take: 1
+        });
+        const existing = existingRecords[0] ?? null;
+
+        if (!existing) {
+          throw new Error("Automation execution is not queued.");
+        }
+
+        const now = new Date();
+        const nextByAction = {
+          RETRY: {
+            status: "PENDING" as const,
+            action: "RETRIED" as const,
+            attemptCount: existing.attemptCount + 1,
+            nextRetryAt: null,
+            resolvedAt: null
+          },
+          REPLAY: {
+            status: "PENDING" as const,
+            action: "REPLAYED" as const,
+            attemptCount: existing.attemptCount + 1,
+            nextRetryAt: null,
+            resolvedAt: null
+          },
+          RESOLVE: {
+            status: "RESOLVED" as const,
+            action: "RESOLVED" as const,
+            attemptCount: existing.attemptCount,
+            nextRetryAt: null,
+            resolvedAt: now
+          },
+          SKIP: {
+            status: "SKIPPED" as const,
+            action: "SKIPPED" as const,
+            attemptCount: existing.attemptCount,
+            nextRetryAt: null,
+            resolvedAt: now
+          }
+        } as const;
+
+        const next = nextByAction[input.action];
+        const execution = await transaction.appointmentAutomationExecution.update({
+          where: { id: input.executionId },
+          data: {
+            status: next.status,
+            attemptCount: next.attemptCount,
+            nextRetryAt: next.nextRetryAt,
+            resolvedAt: next.resolvedAt
+          }
+        });
+
+        await transaction.appointmentAutomationExecutionEvent.create({
+          data: {
+            automationExecutionId: execution.id,
+            organizationId: INITIAL_ORGANIZATION.id,
+            actorUserId: input.actorUserId,
+            action: next.action,
+            reason: input.reason,
+            priorSnapshot: toJsonValue(existing),
+            newSnapshot: toJsonValue(execution)
+          }
+        });
+
+        return execution;
+      });
     }
   };
 }
@@ -644,4 +814,21 @@ export async function transitionAppointmentAutomationExecutionForManager(
   });
 
   return getAppointmentAutomationOperationsConsoleForManager(user, repository);
+}
+
+export async function recordAppointmentAutomationExecution(
+  input: AutomationExecutionRecordInput,
+  repository: AppointmentAutomationOperationsRepository = createAppointmentAutomationOperationsRepository()
+) {
+  return repository.recordExecution({
+    ...input,
+    ruleCode: input.ruleCode ? normalizeCode(input.ruleCode, "Rule code") : null,
+    triggerCode: normalizeCode(input.triggerCode, "Trigger code"),
+    purposeCode: input.purposeCode ? normalizeCode(input.purposeCode, "Purpose code") : null,
+    sourceType: normalizeText(input.sourceType, "Source type"),
+    sourceReference: input.sourceReference?.trim() || null,
+    reason: normalizeReason(input.reason),
+    failureCode: input.failureCode?.trim() || null,
+    failureMessage: input.failureMessage?.trim() || null
+  });
 }

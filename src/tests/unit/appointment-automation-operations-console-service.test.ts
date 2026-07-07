@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   getAppointmentAutomationOperationsConsoleForManager,
+  recordAppointmentAutomationExecution,
   saveAppointmentAutomationRuleDraftForManager,
+  transitionAppointmentAutomationExecutionForManager,
   transitionAppointmentAutomationRuleForManager
 } from "@/server/services/appointment-automation-operations-console";
 import { createMemoryAppointmentAutomationOperationsRepository } from "@/tests/support/appointment-automation-console-test-repository";
@@ -102,6 +104,58 @@ describe("appointment automation operations console service", () => {
 
     expect(retired.rules[0].status).toBe("RETIRED");
     expect(retired.recentEvents[0].action).toBe("RETIRED");
+  });
+
+  it("records runtime executions and lets managers resolve queued execution work", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createMemoryAppointmentAutomationOperationsRepository();
+
+    await recordAppointmentAutomationExecution(
+      {
+        ruleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_APPOINTMENT",
+        triggerCode: "APPOINTMENT_OUTCOME_RECORDED",
+        purposeCode: "FOLLOW_UP_APPOINTMENT",
+        sourceType: "APPOINTMENT",
+        sourceReference: "appointment-1",
+        status: "REVIEW_REQUIRED",
+        reason: "Queue runtime review item for follow-up automation.",
+        actorUserId: manager?.id ?? null,
+        inputSnapshot: {
+          automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_APPOINTMENT"
+        },
+        resultSnapshot: {
+          automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_APPOINTMENT",
+          generatedAppointmentNumber: "FUP-APT-10245-001"
+        }
+      },
+      repository
+    );
+
+    const beforeResolve = await getAppointmentAutomationOperationsConsoleForManager(
+      manager,
+      repository
+    );
+
+    expect(beforeResolve.executions[0]).toMatchObject({
+      automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_APPOINTMENT",
+      status: "REVIEW_REQUIRED"
+    });
+    expect(beforeResolve.failureQueue).toHaveLength(1);
+
+    const resolved = await transitionAppointmentAutomationExecutionForManager(
+      manager,
+      {
+        executionId: beforeResolve.executions[0].id,
+        action: "RESOLVE",
+        reason: "Reviewed output and closed the runtime item."
+      },
+      repository
+    );
+
+    expect(resolved.executions[0].status).toBe("RESOLVED");
+    expect(resolved.failureQueue).toHaveLength(0);
+    expect(resolved.recentEvents[0].action).toBe("RESOLVED");
   });
 
   it("rejects non-manager access", async () => {
