@@ -272,9 +272,9 @@ Recommended next E5 slices:
 | ID | Remaining work | Status | Priority |
 | --- | --- | --- | --- |
 | EAPT-073 | Internal notification preferences, urgency, read state, retention | Not started | Medium |
-| EAPT-074 | Notification creation from appointment and automation events | Not started | Medium |
-| EAPT-075 | Notification center and appointment deep links | Not started | Medium |
-| EAPT-076 | Notification failure, retry, and suppression controls | Not started | Medium |
+| EAPT-074 | Notification creation from appointment and automation events | Partial; digest runtime and handoff events now produce manager-facing command-center notifications. Wider automation-source fanout remains. | Medium |
+| EAPT-075 | Notification center and appointment deep links | Partial; manager notification inbox now exists on the board. Dedicated deep links and cross-surface notification routes remain. | Medium |
+| EAPT-076 | Notification failure, retry, and suppression controls | Partial; failure queues plus retry, re-queue, resolve, and audit-friendly manager controls now exist on the board. Suppression policy and external delivery durability remain. | Medium |
 | EAPT-077 | Future outbound integration contract | Not started | Medium |
 | EAPT-078 | Future inbound command and external identity mapping contract | Not started | Medium |
 | EAPT-079 | Contract test harness with fake adapters | Not started | Medium |

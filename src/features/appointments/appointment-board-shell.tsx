@@ -319,6 +319,7 @@ type AppointmentCommandCenterRuntimeQueueItem = {
   recipientLabel: string;
   count: number;
   state: "queued" | "acknowledged" | "delivered";
+  updatedAtLabel: string;
   detail: string;
   actionLabel: string;
 };
@@ -340,6 +341,43 @@ type AppointmentCommandCenterHandoffHistoryEntry = {
   note: string;
   carryForwardCount: number;
   generatedAtLabel: string;
+};
+
+type AppointmentNotificationCenterFilter = "all" | "needs-review" | "acknowledged" | "delivered";
+
+type AppointmentNotificationCenterItem = {
+  id: string;
+  sourceType: "runtime" | "handoff";
+  sourceId: string;
+  title: string;
+  detail: string;
+  tone: "slate" | "blue" | "amber" | "red" | "purple" | "green";
+  status: "needs-review" | "acknowledged" | "delivered";
+  statusDetail: string;
+  channelLabel: string;
+  ownerLabel: string;
+  count: number;
+  occurredAtLabel: string;
+  actionLabel: string;
+};
+
+type AppointmentNotificationFailureStatus = "open" | "retrying" | "re-queued" | "resolved";
+
+type AppointmentNotificationFailureQueueItem = {
+  id: string;
+  sourceType: "runtime" | "handoff";
+  sourceId: string;
+  title: string;
+  detail: string;
+  tone: "amber" | "red" | "purple" | "blue" | "green";
+  severity: "medium" | "high";
+  queueLabel: string;
+  ownerLabel: string;
+  status: AppointmentNotificationFailureStatus;
+  statusDetail: string;
+  occurredAtLabel: string;
+  nextStepLabel: string;
+  actionLabel: string;
 };
 
 type AppointmentExecutiveReviewPreset =
@@ -846,6 +884,28 @@ const initialCommandCenterHandoffHistory: AppointmentCommandCenterHandoffHistory
     generatedAtLabel: "Today 4:20 PM"
   }
 ];
+
+const initialNotificationFailureStates: Record<
+  string,
+  { status: AppointmentNotificationFailureStatus; updatedAtLabel: string }
+> = {
+  "failure-runtime-digest-breached-sla": {
+    status: "open",
+    updatedAtLabel: "Escalated 5 min ago"
+  },
+  "failure-runtime-digest-no-show-recovery": {
+    status: "retrying",
+    updatedAtLabel: "Retry started 12 min ago"
+  },
+  "failure-runtime-digest-shift-handoff": {
+    status: "re-queued",
+    updatedAtLabel: "Re-queued for shift change"
+  },
+  "failure-handoff-handoff-history-1": {
+    status: "open",
+    updatedAtLabel: "Waiting on evening manager acceptance"
+  }
+};
 
 const executiveReviewPresetOptions: Array<{
   value: AppointmentExecutiveReviewPreset;
@@ -2152,6 +2212,34 @@ function commandCenterDigestCadenceLabel(cadence: AppointmentCommandCenterDigest
   return "Daily close";
 }
 
+function notificationCenterStatusLabel(status: AppointmentNotificationCenterItem["status"]) {
+  if (status === "needs-review") {
+    return "Needs review";
+  }
+
+  if (status === "acknowledged") {
+    return "Acknowledged";
+  }
+
+  return "Delivered";
+}
+
+function notificationFailureStatusLabel(status: AppointmentNotificationFailureStatus) {
+  if (status === "retrying") {
+    return "Retrying";
+  }
+
+  if (status === "re-queued") {
+    return "Re-queued";
+  }
+
+  if (status === "resolved") {
+    return "Resolved";
+  }
+
+  return "Open";
+}
+
 export function buildAppointmentCommandCenterDigestPreview(input: {
   digest: AppointmentCommandCenterDigestSummary;
   report: AppointmentCommandCenterReport;
@@ -2518,6 +2606,7 @@ export function buildAppointmentCommandCenterRuntimeQueue(input: {
         recipientLabel: digest.recipientLabel,
         count: digest.count,
         state,
+        updatedAtLabel: runtimeState?.updatedAtLabel ?? "Waiting for delivery",
         detail:
           state === "delivered"
             ? `${digest.label} was delivered and is waiting for downstream action if needed.`
@@ -2534,6 +2623,190 @@ export function buildAppointmentCommandCenterRuntimeQueue(input: {
               : "Re-queue"
       } satisfies AppointmentCommandCenterRuntimeQueueItem;
     });
+}
+
+export function buildAppointmentNotificationCenterItems(input: {
+  runtimeQueue: AppointmentCommandCenterRuntimeQueueItem[];
+  handoffHistory: AppointmentCommandCenterHandoffHistoryEntry[];
+}) {
+  const runtimeItems = input.runtimeQueue.map((item) => ({
+    id: `notification-runtime-${item.id}`,
+    sourceType: "runtime",
+    sourceId: item.id,
+    title: item.label,
+    detail: item.detail,
+    tone: item.tone,
+    status:
+      item.state === "queued"
+        ? "needs-review"
+        : item.state === "acknowledged"
+          ? "acknowledged"
+          : "delivered",
+    statusDetail:
+      item.state === "queued"
+        ? "Waiting for manager acknowledgment."
+        : item.state === "acknowledged"
+          ? "Manager acknowledged; delivery is still being monitored."
+          : "Delivery completed and logged for downstream follow-up.",
+    channelLabel: item.channelLabel,
+    ownerLabel: item.recipientLabel,
+    count: item.count,
+    occurredAtLabel: item.updatedAtLabel,
+    actionLabel:
+      item.state === "queued"
+        ? "Acknowledge"
+        : item.state === "acknowledged"
+          ? "Mark delivered"
+          : "Re-open"
+  })) satisfies AppointmentNotificationCenterItem[];
+
+  const handoffItems = input.handoffHistory.slice(0, 3).map((entry) => ({
+    id: `notification-handoff-${entry.id}`,
+    sourceType: "handoff",
+    sourceId: entry.id,
+    title: entry.status === "accepted" ? "Shift handoff accepted" : "Shift handoff ready for review",
+    detail: entry.note,
+    tone: entry.status === "accepted" ? "green" : "amber",
+    status: entry.status === "accepted" ? "delivered" : "needs-review",
+    statusDetail:
+      entry.status === "accepted"
+        ? "The next operating manager accepted the handoff package."
+        : "The carry-forward package is waiting for manager acceptance.",
+    channelLabel: "Shift handoff",
+    ownerLabel: entry.actor,
+    count: entry.carryForwardCount,
+    occurredAtLabel: entry.generatedAtLabel,
+    actionLabel: entry.status === "accepted" ? "Open timeline" : "Accept handoff"
+  })) satisfies AppointmentNotificationCenterItem[];
+
+  const statusOrder: Record<AppointmentNotificationCenterItem["status"], number> = {
+    "needs-review": 0,
+    acknowledged: 1,
+    delivered: 2
+  };
+
+  return [...runtimeItems, ...handoffItems].sort((left, right) => {
+    const statusDiff = statusOrder[left.status] - statusOrder[right.status];
+    if (statusDiff !== 0) {
+      return statusDiff;
+    }
+
+    return right.count - left.count;
+  });
+}
+
+export function buildAppointmentNotificationFailureQueue(input: {
+  runtimeQueue: AppointmentCommandCenterRuntimeQueueItem[];
+  handoffHistory: AppointmentCommandCenterHandoffHistoryEntry[];
+  failureStates?: Record<
+    string,
+    { status: AppointmentNotificationFailureStatus; updatedAtLabel: string }
+  >;
+}) {
+  const failureStates = input.failureStates ?? {};
+
+  const runtimeFailures = input.runtimeQueue
+    .filter((item) => item.state !== "delivered")
+    .map((item) => {
+      const id = `failure-runtime-${item.id}`;
+      const failureState = failureStates[id];
+      const status = failureState?.status ?? "open";
+
+      return {
+        id,
+        sourceType: "runtime",
+        sourceId: item.id,
+        title: `${item.label} still needs delivery recovery`,
+        detail: `${item.detail} Last runtime update: ${item.updatedAtLabel}.`,
+        tone: item.tone === "slate" ? "blue" : item.tone,
+        severity: item.tone === "red" || item.tone === "purple" ? "high" : "medium",
+        queueLabel: "Delivery exception",
+        ownerLabel: item.recipientLabel,
+        status,
+        statusDetail:
+          status === "retrying"
+            ? "Retry is in motion and still waiting for confirmation."
+            : status === "re-queued"
+              ? "The issue was re-queued for another operating pass."
+              : status === "resolved"
+                ? "Delivery issue was closed and documented."
+                : "Delivery path needs manager action before it falls through the cracks.",
+        occurredAtLabel: failureState?.updatedAtLabel ?? item.updatedAtLabel,
+        nextStepLabel:
+          item.channelLabel === "Shift handoff"
+            ? "Re-notify the incoming manager and confirm handoff readiness."
+            : `Confirm ${item.channelLabel.toLowerCase()} delivery and validate the owner response.`,
+        actionLabel:
+          status === "open"
+            ? "Retry delivery"
+            : status === "retrying"
+              ? "Re-queue"
+              : status === "re-queued"
+                ? "Resolve issue"
+                : "Re-open"
+      } satisfies AppointmentNotificationFailureQueueItem;
+    });
+
+  const handoffFailures = input.handoffHistory
+    .filter((entry) => entry.status === "prepared")
+    .map((entry) => {
+      const id = `failure-handoff-${entry.id}`;
+      const failureState = failureStates[id];
+      const status = failureState?.status ?? "open";
+
+      return {
+        id,
+        sourceType: "handoff",
+        sourceId: entry.id,
+        title: "Carry-forward handoff still waiting for acceptance",
+        detail: `${entry.carryForwardCount} carry-forward item${
+          entry.carryForwardCount === 1 ? "" : "s"
+        } are still pending. Note: ${entry.note}`,
+        tone: "amber",
+        severity: "medium",
+        queueLabel: "Handoff exception",
+        ownerLabel: entry.actor,
+        status,
+        statusDetail:
+          status === "retrying"
+            ? "A second handoff attempt is in motion."
+            : status === "re-queued"
+              ? "The handoff was returned to the next shift review queue."
+              : status === "resolved"
+                ? "The handoff gap was closed and documented."
+                : "The next manager has not accepted the package yet.",
+        occurredAtLabel: failureState?.updatedAtLabel ?? entry.generatedAtLabel,
+        nextStepLabel: "Confirm acceptance, re-send the package, or document why the handoff remains open.",
+        actionLabel:
+          status === "open"
+            ? "Retry handoff"
+            : status === "retrying"
+              ? "Re-queue"
+              : status === "re-queued"
+                ? "Resolve issue"
+                : "Re-open"
+      } satisfies AppointmentNotificationFailureQueueItem;
+    });
+
+  const severityOrder: Record<AppointmentNotificationFailureQueueItem["severity"], number> = {
+    high: 0,
+    medium: 1
+  };
+  const statusOrder: Record<AppointmentNotificationFailureStatus, number> = {
+    open: 0,
+    retrying: 1,
+    "re-queued": 2,
+    resolved: 3
+  };
+
+  return [...runtimeFailures, ...handoffFailures].sort((left, right) => {
+    const statusDiff = statusOrder[left.status] - statusOrder[right.status];
+    if (statusDiff !== 0) {
+      return statusDiff;
+    }
+
+    return severityOrder[left.severity] - severityOrder[right.severity];
+  });
 }
 
 export function buildAppointmentCommandCenterHandoffPackage(input: {
@@ -3328,6 +3601,12 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     initialCommandCenterHandoffHistory
   );
   const [commandCenterHandoffNote, setCommandCenterHandoffNote] = useState("");
+  const [notificationCenterFilter, setNotificationCenterFilter] =
+    useState<AppointmentNotificationCenterFilter>("all");
+  const [notificationFailureStates, setNotificationFailureStates] = useState(
+    initialNotificationFailureStates
+  );
+  const [showResolvedNotificationFailures, setShowResolvedNotificationFailures] = useState(false);
   const [executiveReviewPreset, setExecutiveReviewPreset] =
     useState<AppointmentExecutiveReviewPreset>("daily-ops");
   const [opsIntelligencePreset, setOpsIntelligencePreset] =
@@ -3711,6 +3990,49 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
       selectedAppointment
     ]
   );
+  const notificationCenterItems = useMemo(
+    () =>
+      buildAppointmentNotificationCenterItems({
+        runtimeQueue: commandCenterRuntimeQueue,
+        handoffHistory: commandCenterHandoffHistory
+      }),
+    [commandCenterHandoffHistory, commandCenterRuntimeQueue]
+  );
+  const filteredNotificationCenterItems = useMemo(
+    () =>
+      notificationCenterItems.filter(
+        (item) => notificationCenterFilter === "all" || item.status === notificationCenterFilter
+      ),
+    [notificationCenterFilter, notificationCenterItems]
+  );
+  const notificationCenterCounts = useMemo(
+    () => ({
+      all: notificationCenterItems.length,
+      "needs-review": notificationCenterItems.filter((item) => item.status === "needs-review").length,
+      acknowledged: notificationCenterItems.filter((item) => item.status === "acknowledged").length,
+      delivered: notificationCenterItems.filter((item) => item.status === "delivered").length
+    }),
+    [notificationCenterItems]
+  );
+  const notificationFailureQueue = useMemo(
+    () =>
+      buildAppointmentNotificationFailureQueue({
+        runtimeQueue: commandCenterRuntimeQueue,
+        handoffHistory: commandCenterHandoffHistory,
+        failureStates: notificationFailureStates
+      }),
+    [commandCenterHandoffHistory, commandCenterRuntimeQueue, notificationFailureStates]
+  );
+  const visibleNotificationFailureQueue = useMemo(
+    () =>
+      notificationFailureQueue.filter(
+        (item) => showResolvedNotificationFailures || item.status !== "resolved"
+      ),
+    [notificationFailureQueue, showResolvedNotificationFailures]
+  );
+  const openNotificationFailureCount = notificationFailureQueue.filter(
+    (item) => item.status !== "resolved"
+  ).length;
   const executiveReviewModel = useMemo(
     () =>
       buildAppointmentExecutiveReviewModel({
@@ -4379,10 +4701,136 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     } catch (error) {
       setActionNotice(
         error instanceof Error
-          ? `Could not copy handoff package: ${error.message}`
+        ? `Could not copy handoff package: ${error.message}`
           : "Could not copy handoff package."
       );
     }
+  }
+
+  function advanceNotificationCenterItem(item: AppointmentNotificationCenterItem) {
+    if (item.sourceType === "runtime") {
+      advanceCommandCenterRuntimeItem(item.sourceId);
+      return;
+    }
+
+    if (item.status === "needs-review") {
+      setCommandCenterHandoffHistory((current) =>
+        current.map((entry) =>
+          entry.id === item.sourceId
+            ? {
+                ...entry,
+                status: "accepted",
+                generatedAtLabel: "Accepted just now"
+              }
+            : entry
+        )
+      );
+      setCommandCenterAuditEvents((current) => [
+        {
+          id: `notification-handoff-accepted-${item.sourceId}-${current.length + 1}`,
+          appointmentId: selectedAppointment.id,
+          lane: "manager",
+          tone: "green",
+          title: "Notification center accepted handoff",
+          detail: `${item.title} was accepted from the notification center.`,
+          actor: "Abdi Farah",
+          occurredAtLabel: "Just now"
+        },
+        ...current
+      ]);
+      setActionNotice("Shift handoff was accepted from the notification center.");
+      return;
+    }
+
+    setAuditTimelineFilter("manager");
+    setActionNotice(`Opened ${item.title.toLowerCase()} in the manager timeline.`);
+  }
+
+  function advanceNotificationFailureItem(itemId: string) {
+    const failureItem = notificationFailureQueue.find((item) => item.id === itemId);
+
+    if (!failureItem) {
+      setActionNotice("That failure item is no longer visible.");
+      return;
+    }
+
+    const nextStatus: AppointmentNotificationFailureStatus =
+      failureItem.status === "open"
+        ? "retrying"
+        : failureItem.status === "retrying"
+          ? "re-queued"
+          : failureItem.status === "re-queued"
+            ? "resolved"
+            : "open";
+
+    const updatedAtLabel =
+      nextStatus === "retrying"
+        ? "Retry started just now"
+        : nextStatus === "re-queued"
+          ? "Re-queued just now"
+          : nextStatus === "resolved"
+            ? "Resolved just now"
+            : "Re-opened just now";
+
+    setNotificationFailureStates((current) => ({
+      ...current,
+      [itemId]: {
+        status: nextStatus,
+        updatedAtLabel
+      }
+    }));
+
+    if (failureItem.sourceType === "runtime") {
+      setCommandCenterRuntimeStates((current) => ({
+        ...current,
+        [failureItem.sourceId]: {
+          state:
+            nextStatus === "retrying"
+              ? "acknowledged"
+              : nextStatus === "resolved"
+                ? "delivered"
+                : "queued",
+          updatedAtLabel
+        }
+      }));
+    } else if (nextStatus === "resolved") {
+      setCommandCenterHandoffHistory((current) =>
+        current.map((entry) =>
+          entry.id === failureItem.sourceId
+            ? {
+                ...entry,
+                status: "accepted",
+                generatedAtLabel: updatedAtLabel
+              }
+            : entry
+        )
+      );
+    }
+
+    setCommandCenterAuditEvents((current) => [
+      {
+        id: `notification-failure-${nextStatus}-${itemId}-${current.length + 1}`,
+        appointmentId: selectedAppointment.id,
+        lane: "manager",
+        tone:
+          nextStatus === "resolved"
+            ? "green"
+            : nextStatus === "retrying"
+              ? "amber"
+              : nextStatus === "re-queued"
+                ? "blue"
+                : "red",
+        title: `Notification failure ${notificationFailureStatusLabel(nextStatus).toLowerCase()}`,
+        detail: `${failureItem.title} moved to ${notificationFailureStatusLabel(nextStatus).toLowerCase()} by the manager.`,
+        actor: "Abdi Farah",
+        occurredAtLabel: "Just now"
+      },
+      ...current
+    ]);
+
+    setActionNotice(
+      `${failureItem.title} moved to ${notificationFailureStatusLabel(nextStatus).toLowerCase()} in the failure queue.`
+    );
   }
 
   function applyCommandCenterSearchPreset(preset: AppointmentCommandCenterSearchPreset) {
@@ -7070,6 +7518,211 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
                       </article>
                     ))}
                   </div>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <section
+            className="appointment-notification-center-card"
+            aria-labelledby="appointment-notification-center"
+          >
+            <div className="appointment-section-heading">
+              <div>
+                <strong id="appointment-notification-center">Notification Center &amp; Failure Queues</strong>
+                <p>
+                  Keep manager-visible delivery notices, shift handoff signals, and recovery queues in one
+                  operational inbox.
+                </p>
+              </div>
+              <span>
+                {notificationCenterCounts["needs-review"]} needs review / {openNotificationFailureCount} failures
+              </span>
+            </div>
+
+            <div className="appointment-notification-center-grid">
+              <section className="appointment-command-center-panel" aria-labelledby="appointment-notification-inbox">
+                <div className="appointment-command-center-panel-heading">
+                  <div>
+                    <strong id="appointment-notification-inbox">Manager Notification Inbox</strong>
+                    <p>
+                      Review delivery events, acknowledgment posture, and shift handoff notifications without
+                      leaving the board.
+                    </p>
+                  </div>
+                  <span>{notificationCenterCounts.all} visible</span>
+                </div>
+
+                <div className="appointment-notification-center-filters" aria-label="Notification inbox filters">
+                  <button
+                    className={
+                      notificationCenterFilter === "all"
+                        ? "appointment-notification-center-filter appointment-notification-center-filter-active"
+                        : "appointment-notification-center-filter"
+                    }
+                    onClick={() => setNotificationCenterFilter("all")}
+                    type="button"
+                  >
+                    All <span>{notificationCenterCounts.all}</span>
+                  </button>
+                  <button
+                    className={
+                      notificationCenterFilter === "needs-review"
+                        ? "appointment-notification-center-filter appointment-notification-center-filter-active"
+                        : "appointment-notification-center-filter"
+                    }
+                    onClick={() => setNotificationCenterFilter("needs-review")}
+                    type="button"
+                  >
+                    Needs review <span>{notificationCenterCounts["needs-review"]}</span>
+                  </button>
+                  <button
+                    className={
+                      notificationCenterFilter === "acknowledged"
+                        ? "appointment-notification-center-filter appointment-notification-center-filter-active"
+                        : "appointment-notification-center-filter"
+                    }
+                    onClick={() => setNotificationCenterFilter("acknowledged")}
+                    type="button"
+                  >
+                    Acknowledged <span>{notificationCenterCounts.acknowledged}</span>
+                  </button>
+                  <button
+                    className={
+                      notificationCenterFilter === "delivered"
+                        ? "appointment-notification-center-filter appointment-notification-center-filter-active"
+                        : "appointment-notification-center-filter"
+                    }
+                    onClick={() => setNotificationCenterFilter("delivered")}
+                    type="button"
+                  >
+                    Delivered <span>{notificationCenterCounts.delivered}</span>
+                  </button>
+                </div>
+
+                <div className="appointment-notification-center-list">
+                  {filteredNotificationCenterItems.map((item) => (
+                    <article
+                      className={`appointment-notification-center-item appointment-notification-center-item-${item.tone}`}
+                      key={item.id}
+                    >
+                      <div className="appointment-notification-center-item-top">
+                        <div>
+                          <strong>{item.title}</strong>
+                          <p>{item.detail}</p>
+                        </div>
+                        <div className="appointment-command-center-badge-stack">
+                          <span className="appointment-command-center-tag appointment-command-center-tag-blue">
+                            {item.channelLabel}
+                          </span>
+                          <span
+                            className={
+                              item.status === "delivered"
+                                ? "appointment-command-center-tag appointment-command-center-tag-green"
+                                : item.status === "acknowledged"
+                                  ? "appointment-command-center-tag appointment-command-center-tag-amber"
+                                  : "appointment-command-center-tag appointment-command-center-tag-red"
+                            }
+                          >
+                            {notificationCenterStatusLabel(item.status)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="appointment-notification-center-item-meta">
+                        <span>{item.ownerLabel}</span>
+                        <span>{item.occurredAtLabel}</span>
+                        <strong>{item.count} item{item.count === 1 ? "" : "s"}</strong>
+                      </div>
+
+                      <p className="appointment-notification-center-item-status">{item.statusDetail}</p>
+
+                      <div className="appointment-command-center-item-actions">
+                        <button type="button" onClick={() => advanceNotificationCenterItem(item)}>
+                          {item.actionLabel}
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+
+              <section className="appointment-command-center-panel" aria-labelledby="appointment-notification-failures">
+                <div className="appointment-command-center-panel-heading">
+                  <div>
+                    <strong id="appointment-notification-failures">Delivery Failure Queues</strong>
+                    <p>
+                      Retry, re-queue, and resolve notification misses before they turn into silent operating
+                      gaps.
+                    </p>
+                  </div>
+                  <span>{openNotificationFailureCount} open</span>
+                </div>
+
+                <label className="appointment-notification-center-toggle">
+                  <input
+                    checked={showResolvedNotificationFailures}
+                    onChange={(event) => setShowResolvedNotificationFailures(event.target.checked)}
+                    type="checkbox"
+                  />
+                  Show resolved issues
+                </label>
+
+                <div className="appointment-notification-failure-list">
+                  {visibleNotificationFailureQueue.map((item) => (
+                    <article
+                      className={`appointment-notification-failure-item appointment-notification-failure-item-${item.tone}`}
+                      key={item.id}
+                    >
+                      <div className="appointment-notification-center-item-top">
+                        <div>
+                          <strong>{item.title}</strong>
+                          <p>{item.detail}</p>
+                        </div>
+                        <div className="appointment-command-center-badge-stack">
+                          <span
+                            className={
+                              item.severity === "high"
+                                ? "appointment-command-center-tag appointment-command-center-tag-red"
+                                : "appointment-command-center-tag appointment-command-center-tag-amber"
+                            }
+                          >
+                            {item.severity === "high" ? "High severity" : "Medium severity"}
+                          </span>
+                          <span
+                            className={
+                              item.status === "resolved"
+                                ? "appointment-command-center-tag appointment-command-center-tag-green"
+                                : item.status === "retrying"
+                                  ? "appointment-command-center-tag appointment-command-center-tag-amber"
+                                  : item.status === "re-queued"
+                                    ? "appointment-command-center-tag appointment-command-center-tag-blue"
+                                    : "appointment-command-center-tag appointment-command-center-tag-red"
+                            }
+                          >
+                            {notificationFailureStatusLabel(item.status)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="appointment-notification-center-item-meta">
+                        <span>{item.queueLabel}</span>
+                        <span>{item.ownerLabel}</span>
+                        <span>{item.occurredAtLabel}</span>
+                      </div>
+
+                      <p className="appointment-notification-center-item-status">{item.statusDetail}</p>
+                      <p className="appointment-notification-center-item-status">
+                        Next step: {item.nextStepLabel}
+                      </p>
+
+                      <div className="appointment-command-center-item-actions">
+                        <button type="button" onClick={() => advanceNotificationFailureItem(item.id)}>
+                          {item.actionLabel}
+                        </button>
+                      </div>
+                    </article>
+                  ))}
                 </div>
               </section>
             </div>
