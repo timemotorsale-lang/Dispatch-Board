@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 type SettingsWorkspaceNavProps = {
-  active: "settings" | "appointments" | "appointment-catalog" | "admin";
+  active: "settings" | "appointments" | "appointment-catalog" | "appointment-automation" | "admin";
   counts?: {
     duties: number;
     roles: number;
@@ -55,6 +55,17 @@ export function SettingsWorkspaceNav({ active, counts }: SettingsWorkspaceNavPro
         >
           <span>Catalog + automation</span>
           <small>Purpose templates, outcomes, reasons, rule hooks, and simulation.</small>
+        </Link>
+        <Link
+          className={
+            active === "appointment-automation"
+              ? "settings-rail-link settings-rail-link-active"
+              : "settings-rail-link"
+          }
+          href="/settings/appointments/automation"
+        >
+          <span>Automation console</span>
+          <small>Rule lifecycle, health, failures, retry, replay, and audit controls.</small>
         </Link>
       </div>
 

@@ -21,7 +21,7 @@ However, Enterprise Release 1.0 is not complete. The remaining work is mostly th
 | E2 | Scheduling, availability, recurrence, capacity | Mostly complete / gate-ready | Authoritative scheduling services, resource/staff availability, hard conflict, warning, waitlist, bulk, and quality gates exist as service foundations. |
 | E3 | Lifecycle, task orchestration, audit, automation | In progress | Live command execution, appointment board workflows, resource workflows, staff conflict controls, outcomes, linked-task read/display/navigation, task-detail draft appointment creation, board handoff, appointment activity-feed visibility, and follow-up automation are implemented. Automation-admin, failure/retry/replay, and final lifecycle coverage items remain. |
 | E4 | Appointment Command Center operating views | In progress but not gate-complete | The mockup-aligned board and detail rail exist, but full day/week/month/agenda/resource/location views, exception queues, saved views, and browser/accessibility evidence remain. |
-| E5 | Creation and administration | In progress / partial | Appointment Settings plus a versioned Catalog + Automation admin workspace now exist for manager-only location profile, phone, hours, status, closures, resource status/capacity/conflict policy, resource outages/capacity reductions, purpose templates, outcome/follow-up/reason catalogs, automation rule hooks, simulation previews, draft saves, validation, activation, and change reasons. Recurring/special-hours calendars, deeper rule authoring, pause/retire/failure controls, and import/export remain. |
+| E5 | Creation and administration | In progress / partial | Appointment Settings, a versioned Catalog + Automation admin workspace, and an Automation Operations Console now exist for manager-only location profile, phone, hours, status, closures, resource controls, purpose templates, outcome/follow-up/reason catalogs, rule hooks, simulation, draft/active catalog versions, required change reasons, rule lifecycle, health, failure queue, retry/replay readiness, and audit controls. Recurring/special-hours calendars, deeper runtime execution, notifications, and import/export remain. |
 | E6 | Owner, staff, and responsive workflows | Not started | Dedicated My Appointments, mobile workflows, participant read-only experience, responsive handoff, stale/offline safeguards, and real-device testing remain. |
 | E7 | Internal notifications and future integration contracts | Not started | Notification preferences, notification center, internal appointment notifications, failure handling, and stable future SMS/email/calendar/CRM/DMS contracts remain. |
 | E8 | Analytics and operational controls | Not started | KPI dictionary, reporting read models, reports, exports, audit, reconciliation, and reporting performance/privacy tests remain. |
@@ -112,7 +112,8 @@ Important context: this count understates the depth of E3 because EAPT-029 has b
 - Appointment Settings admin foundation at `/settings/appointments` for manager-only location profile, address, phone, operating hours, scheduling status, resource summaries, catalogs, and automation readiness
 - Appointment Settings V2 controls for location closure create/edit/delete, holiday/planned/emergency closure windows, resource status/capacity/conflict policy updates, and resource outage/capacity-reduction windows
 - Appointment Board header and create/schedule defaults now read from the admin location foundation with safe Lake Street fallbacks
-- Appointment Catalog + Automation admin workspace at `/settings/appointments/catalog` for manager-only purpose template review, outcome/follow-up/reason catalog visibility, automation rule hook visibility, and safe automation simulation before activation
+- Appointment Catalog + Automation admin workspace at `/settings/appointments/catalog` for manager-only purpose template review, outcome/follow-up/reason catalog visibility, automation rule hook visibility, safe automation simulation, draft saves, validation, activation, and catalog change reasons
+- Appointment Automation Operations Console at `/settings/appointments/automation` for manager-only rule lifecycle, health metrics, failure/review queue foundation, retry/replay controls, and audit-event visibility
 - Versioned appointment catalog editor with durable Prisma schema/migration, active/draft catalog versions, append-only catalog change events, required manager reason capture, draft validation, draft save, and activation
 
 ### Current validation evidence
@@ -125,15 +126,15 @@ npm run typecheck
 npm test
 npm run db:validate
 
-109 test files passed
-633 tests passed
+112 test files passed
+642 tests passed
 ```
 
-Focused validation during the Appointment Catalog Versioned Editor block:
+Focused validation during the Appointment Automation Operations Console block:
 
 ```text
 npm run typecheck
-npm test -- appointment-catalog-automation-admin-service.test.ts appointment-catalog-automation-admin-route.test.ts appointment-catalog-automation-panel.test.tsx
+npm test -- appointment-automation-operations-console-service.test.ts appointment-automation-operations-console-route.test.ts appointment-automation-operations-console-panel.test.tsx
 npm run lint
 npm run db:validate
 npm test
@@ -239,15 +240,15 @@ This is one of the largest remaining enterprise areas.
 | EAPT-057 | Bulk rescheduling and closure-impact workspace | Not started | Medium |
 | EAPT-058 | Purpose, template, outcome, and reason administration | Partial; manager-visible purpose templates, outcome/follow-up/reason catalogs, durable catalog version table, draft editing, validation, required reason capture, activation, and change events exist. Full create/delete workflows, approval workflow, and usage-aware deprecation remain. | High |
 | EAPT-059 | Location, hours, closures, resource, capacity, availability administration | Partial; location profile, phone, weekday hours, scheduling status, closure create/edit/delete, resource status/capacity/conflict policy, resource outage/capacity-reduction windows, resource summary, and Appointment Board wiring implemented | High |
-| EAPT-060 | Automation rule authoring and simulation | Partial; automation rule hooks and simulation preview exist. Deeper rule authoring and persistent rule activation controls remain. | High |
-| EAPT-061 | Automation activation, pause, retire, and failure administration | Not started for automation runtime; catalog activation exists, but rule pause/retire/failure lifecycle remains. | High |
+| EAPT-060 | Automation rule authoring and simulation | Partial; rule draft authoring, validation, catalog-derived hook candidates, and simulation-backed draft creation exist. Deeper condition/action builders remain. | High |
+| EAPT-061 | Automation activation, pause, retire, and failure administration | Partial; rule activation, pause, retire, health dashboard, failure queue foundation, retry/replay/resolve/skip API contracts, and audit events exist. Runtime execution worker and seeded live failures remain. | High |
 | EAPT-062 | Configuration import/export with validation and redaction | Not started | Medium |
 | EAPT-063 | Creation and administration workflow tests | Not started | High |
 
 Recommended next E5 slices:
 
 1. Add full purpose/template create, duplicate, deprecate, and usage-aware delete workflows.
-2. Add deeper automation rule authoring, approval, activation, pause, retire, failure handling, retry, and replay.
+2. Add deeper automation condition/action builders and runtime execution worker.
 3. Add recurring holiday templates and special-hours calendars.
 4. Add deeper resource availability calendars, capacity overrides by day, and resource type editors.
 5. Add configuration import/export with validation, redaction, and audit evidence.
