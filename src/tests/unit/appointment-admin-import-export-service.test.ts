@@ -118,6 +118,79 @@ function settingsFixture(): AppointmentAdminSettings {
         nextClosureName: null,
         nextClosureStartsAtIso: null
       }
+    },
+    availabilityConfiguration: {
+      recurringTemplates: [
+        {
+          code: "INDEPENDENCE_DAY",
+          name: "Independence Day",
+          category: "HOLIDAY",
+          recurrenceLabel: "Every July 4",
+          defaultClosureType: "HOLIDAY",
+          suggestedDateIso: "2027-07-04",
+          readiness: "READY",
+          action: "CREATE_CLOSURE_DRAFT",
+          notes: ["Confirm observed-date policy before activation."]
+        }
+      ],
+      resourceAvailability: {
+        horizonStartIso: "2026-07-07",
+        horizonEndIso: "2026-07-20",
+        resources: [
+          {
+            resourceId: "res-abdi",
+            resourceName: "Abdi Farah",
+            resourceTypeName: "Staff member",
+            resourceTypeKind: "STAFF",
+            status: "ACTIVE",
+            capacityMode: "EXCLUSIVE",
+            capacity: 1,
+            conflictPolicy: "HARD_BLOCK",
+            unavailableWindowCount: 0,
+            impactedDayCount: 0,
+            impactedDates: [],
+            nextImpactIso: null,
+            readiness: "READY",
+            warnings: [
+              "Exclusive resource; overlapping appointments should stay blocked unless policy changes."
+            ]
+          }
+        ],
+        summary: {
+          activeResourceCount: 1,
+          constrainedResourceCount: 0,
+          blockedResourceCount: 0,
+          capacityResourceCount: 0
+        }
+      },
+      capacityOverrideReadiness: {
+        readyResourceCount: 0,
+        needsConfigurationCount: 1,
+        hardBlockExclusiveCount: 1,
+        quickDrafts: [],
+        recommendations: [
+          "Review exclusive resources before enabling capacity overrides.",
+          "Keep hard-block conflict warnings visible when managers change appointment volume."
+        ]
+      },
+      resourceTypeEditorReadiness: {
+        activeTypeCount: 1,
+        inactiveTypeCount: 0,
+        types: [
+          {
+            typeId: "rt-staff",
+            code: "STAFF",
+            name: "Staff member",
+            kind: "STAFF",
+            defaultCapacityMode: "EXCLUSIVE",
+            defaultCapacity: 1,
+            defaultConflictPolicy: "HARD_BLOCK",
+            resourceCount: 1,
+            readiness: "READY",
+            warnings: []
+          }
+        ]
+      }
     }
   };
 }

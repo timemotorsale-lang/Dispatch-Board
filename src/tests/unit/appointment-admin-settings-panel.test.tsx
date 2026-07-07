@@ -85,6 +85,67 @@ function settingsFixture(): AppointmentAdminSettings {
         nextClosureName: null,
         nextClosureStartsAtIso: null
       }
+    },
+    availabilityConfiguration: {
+      recurringTemplates: [
+        {
+          code: "INDEPENDENCE_DAY",
+          name: "Independence Day",
+          category: "HOLIDAY",
+          recurrenceLabel: "Every July 4",
+          defaultClosureType: "HOLIDAY",
+          suggestedDateIso: "2027-07-04",
+          readiness: "READY",
+          action: "CREATE_CLOSURE_DRAFT",
+          notes: ["Confirm observed-date policy before activation."]
+        }
+      ],
+      resourceAvailability: {
+        horizonStartIso: "2026-07-07",
+        horizonEndIso: "2026-07-20",
+        resources: [],
+        summary: {
+          activeResourceCount: 0,
+          constrainedResourceCount: 0,
+          blockedResourceCount: 0,
+          capacityResourceCount: 0
+        }
+      },
+      capacityOverrideReadiness: {
+        readyResourceCount: 1,
+        needsConfigurationCount: 0,
+        hardBlockExclusiveCount: 0,
+        quickDrafts: [
+          {
+            resourceId: "res-bay-1",
+            resourceName: "Service Bay 1",
+            currentCapacity: 2,
+            suggestedReduction: 1,
+            startsAtIso: "2026-07-07T09:00:00.000Z",
+            endsAtIso: "2026-07-07T18:00:00.000Z",
+            reasonTemplate: "Manager capacity override draft for Service Bay 1."
+          }
+        ],
+        recommendations: []
+      },
+      resourceTypeEditorReadiness: {
+        activeTypeCount: 1,
+        inactiveTypeCount: 0,
+        types: [
+          {
+            typeId: "rt-staff",
+            code: "STAFF",
+            name: "Staff member",
+            kind: "STAFF",
+            defaultCapacityMode: "EXCLUSIVE",
+            defaultCapacity: 1,
+            defaultConflictPolicy: "HARD_BLOCK",
+            resourceCount: 0,
+            readiness: "NEEDS_REVIEW",
+            warnings: ["No resources currently use this type."]
+          }
+        ]
+      }
     }
   };
 }
@@ -97,6 +158,14 @@ describe("appointment admin settings panel", () => {
 
     expect(markup).toContain("Configuration portability");
     expect(markup).toContain("Special-hours calendar");
+    expect(markup).toContain("Availability configuration");
+    expect(markup).toContain("Enterprise readiness for hours, resources, and capacity");
+    expect(markup).toContain("Recurring templates");
+    expect(markup).toContain("Manager reason");
+    expect(markup).toContain("Create closure");
+    expect(markup).toContain("Capacity override drafts");
+    expect(markup).toContain("Use capacity override draft");
+    expect(markup).toContain("Resource type editor readiness");
     expect(markup).toContain("Closure and resource-impact preview");
     expect(markup).toContain("Export and import preview foundation");
     expect(markup).toContain("Generate export package");

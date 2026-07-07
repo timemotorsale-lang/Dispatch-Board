@@ -10,6 +10,7 @@ import {
 import { describe, expect, it } from "vitest";
 
 import {
+  applyRecurringAppointmentClosureTemplateForManager,
   type AppointmentAdminSettingsRepository,
   createAppointmentLocationClosureForManager,
   createAppointmentResourceUnavailabilityForManager,
@@ -393,6 +394,38 @@ describe("appointment admin settings service", () => {
     ]);
     expect(settings.specialHoursCalendar.summary.upcomingClosureCount).toBe(1);
     expect(settings.specialHoursCalendar.days.some((day) => day.status === "CLOSED")).toBe(true);
+    expect(settings.availabilityConfiguration.recurringTemplates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "INDEPENDENCE_DAY",
+          action: "CREATE_CLOSURE_DRAFT"
+        })
+      ])
+    );
+  });
+
+  it("allows managers to apply recurring closure templates", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createRepository();
+
+    const settings = await applyRecurringAppointmentClosureTemplateForManager(
+      manager,
+      {
+        templateCode: "INDEPENDENCE_DAY",
+        dateIso: "2026-07-04",
+        reason: "Annual holiday closure approved by manager."
+      },
+      repository
+    );
+
+    expect(settings.closures[0]).toMatchObject({
+      type: LocationClosureType.HOLIDAY,
+      name: "Independence Day",
+      reason:
+        "Annual holiday closure approved by manager. Template: Independence Day (INDEPENDENCE_DAY)."
+    });
+    expect(settings.specialHoursCalendar.summary.upcomingClosureCount).toBe(1);
   });
 
   it("allows managers to edit and delete location closures", async () => {
@@ -464,6 +497,13 @@ describe("appointment admin settings service", () => {
       capacity: 2,
       conflictPolicy: ResourceConflictPolicy.WARNING
     });
+    expect(settings.availabilityConfiguration.capacityOverrideReadiness.readyResourceCount).toBe(1);
+    expect(settings.availabilityConfiguration.resourceAvailability.summary.capacityResourceCount).toBe(1);
+    expect(settings.availabilityConfiguration.capacityOverrideReadiness.quickDrafts[0]).toMatchObject({
+      resourceId: "res-abdi",
+      resourceName: "Abdi Farah",
+      suggestedReduction: 1
+    });
   });
 
   it("allows managers to create resource capacity reductions", async () => {
@@ -495,6 +535,10 @@ describe("appointment admin settings service", () => {
     expect(settings.specialHoursCalendar.days.some((day) => day.status === "RESOURCE_IMPACT")).toBe(
       true
     );
+    expect(
+      settings.availabilityConfiguration.resourceAvailability.resources[0].impactedDayCount
+    ).toBeGreaterThan(0);
+    expect(settings.availabilityConfiguration.resourceAvailability.summary.constrainedResourceCount).toBe(1);
   });
 
   it("rejects malformed resource unavailability windows", () => {

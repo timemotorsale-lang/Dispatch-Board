@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getCurrentUser: vi.fn(),
   createAppointmentLocationClosureForManager: vi.fn(),
+  applyRecurringAppointmentClosureTemplateForManager: vi.fn(),
   updateAppointmentLocationClosureForManager: vi.fn(),
   deleteAppointmentLocationClosureForManager: vi.fn(),
   updateAppointmentResourceForManager: vi.fn(),
@@ -15,6 +16,8 @@ vi.mock("@/server/auth/current-user", () => ({
 
 vi.mock("@/server/services/appointment-admin-settings", () => ({
   createAppointmentLocationClosureForManager: mocks.createAppointmentLocationClosureForManager,
+  applyRecurringAppointmentClosureTemplateForManager:
+    mocks.applyRecurringAppointmentClosureTemplateForManager,
   updateAppointmentLocationClosureForManager: mocks.updateAppointmentLocationClosureForManager,
   deleteAppointmentLocationClosureForManager: mocks.deleteAppointmentLocationClosureForManager,
   updateAppointmentResourceForManager: mocks.updateAppointmentResourceForManager,
@@ -23,6 +26,7 @@ vi.mock("@/server/services/appointment-admin-settings", () => ({
 }));
 
 import { POST as POSTClosure } from "@/app/api/settings/appointments/closures/route";
+import { POST as POSTRecurringTemplateClosure } from "@/app/api/settings/appointments/recurring-templates/[templateCode]/closure/route";
 import {
   DELETE as DELETEClosure,
   PATCH as PATCHClosure
@@ -53,6 +57,7 @@ describe("appointment admin settings v2 routes", () => {
     vi.clearAllMocks();
     mocks.getCurrentUser.mockResolvedValue(managerUser);
     mocks.createAppointmentLocationClosureForManager.mockResolvedValue(settings);
+    mocks.applyRecurringAppointmentClosureTemplateForManager.mockResolvedValue(settings);
     mocks.updateAppointmentLocationClosureForManager.mockResolvedValue(settings);
     mocks.deleteAppointmentLocationClosureForManager.mockResolvedValue(settings);
     mocks.updateAppointmentResourceForManager.mockResolvedValue(settings);
@@ -80,6 +85,36 @@ describe("appointment admin settings v2 routes", () => {
     expect(mocks.createAppointmentLocationClosureForManager).toHaveBeenCalledWith(
       managerUser,
       payload
+    );
+  });
+
+  it("creates location closures from recurring templates for managers", async () => {
+    const payload = {
+      dateIso: "2026-07-04",
+      reason: "Annual holiday closure approved."
+    };
+
+    const response = await POSTRecurringTemplateClosure(
+      new Request(
+        "http://localhost/api/settings/appointments/recurring-templates/INDEPENDENCE_DAY/closure",
+        {
+          method: "POST",
+          body: JSON.stringify(payload)
+        }
+      ),
+      {
+        params: Promise.resolve({ templateCode: "INDEPENDENCE_DAY" })
+      }
+    );
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toEqual({ settings });
+    expect(mocks.applyRecurringAppointmentClosureTemplateForManager).toHaveBeenCalledWith(
+      managerUser,
+      {
+        templateCode: "INDEPENDENCE_DAY",
+        ...payload
+      }
     );
   });
 

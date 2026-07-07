@@ -187,6 +187,12 @@ export type AppointmentResourceUnavailabilityInput = {
   reason: string;
 };
 
+export type AppointmentRecurringTemplateClosureApplyInput = {
+  templateCode: string;
+  dateIso?: string | null;
+  reason: string;
+};
+
 export type NormalizedAppointmentOperatingWindowInput = {
   businessDay: BusinessDay;
   isOpen: boolean;
@@ -313,6 +319,76 @@ export type AppointmentAdminSettings = {
       upcomingResourceImpactCount: number;
       nextClosureName: string | null;
       nextClosureStartsAtIso: string | null;
+    };
+  };
+  availabilityConfiguration: {
+    recurringTemplates: Array<{
+      code: string;
+      name: string;
+      category: "HOLIDAY" | "OPERATIONS" | "EMERGENCY";
+      recurrenceLabel: string;
+      defaultClosureType: LocationClosureType;
+      suggestedDateIso: string | null;
+      readiness: "READY" | "NEEDS_REVIEW";
+      action: "CREATE_CLOSURE_DRAFT" | "REVIEW_TEMPLATE";
+      notes: string[];
+    }>;
+    resourceAvailability: {
+      horizonStartIso: string;
+      horizonEndIso: string;
+      resources: Array<{
+        resourceId: string;
+        resourceName: string;
+        resourceTypeName: string;
+        resourceTypeKind: string;
+        status: string;
+        capacityMode: string;
+        capacity: number;
+        conflictPolicy: string;
+        unavailableWindowCount: number;
+        impactedDayCount: number;
+        impactedDates: string[];
+        nextImpactIso: string | null;
+        readiness: "READY" | "WATCH" | "BLOCKED";
+        warnings: string[];
+      }>;
+      summary: {
+        activeResourceCount: number;
+        constrainedResourceCount: number;
+        blockedResourceCount: number;
+        capacityResourceCount: number;
+      };
+    };
+    capacityOverrideReadiness: {
+      readyResourceCount: number;
+      needsConfigurationCount: number;
+      hardBlockExclusiveCount: number;
+      quickDrafts: Array<{
+        resourceId: string;
+        resourceName: string;
+        currentCapacity: number;
+        suggestedReduction: number;
+        startsAtIso: string;
+        endsAtIso: string;
+        reasonTemplate: string;
+      }>;
+      recommendations: string[];
+    };
+    resourceTypeEditorReadiness: {
+      activeTypeCount: number;
+      inactiveTypeCount: number;
+      types: Array<{
+        typeId: string;
+        code: string;
+        name: string;
+        kind: string;
+        defaultCapacityMode: string;
+        defaultCapacity: number;
+        defaultConflictPolicy: string;
+        resourceCount: number;
+        readiness: "READY" | "NEEDS_REVIEW";
+        warnings: string[];
+      }>;
     };
   };
 };
@@ -916,6 +992,357 @@ function buildSpecialHoursCalendar(input: {
   };
 }
 
+function nextAnnualDateIso(input: { month: number; day: number; from: Date }) {
+  const year = input.from.getUTCFullYear();
+  const candidate = new Date(Date.UTC(year, input.month - 1, input.day));
+
+  if (candidate < startOfUtcDay(input.from)) {
+    candidate.setUTCFullYear(year + 1);
+  }
+
+  return localDateKey(candidate);
+}
+
+function nextNthWeekdayIso(input: {
+  month: number;
+  weekday: number;
+  occurrence: number;
+  from: Date;
+}) {
+  const findDate = (year: number) => {
+    const firstOfMonth = new Date(Date.UTC(year, input.month - 1, 1));
+    const offset = (input.weekday - firstOfMonth.getUTCDay() + 7) % 7;
+    const day = 1 + offset + (input.occurrence - 1) * 7;
+
+    return new Date(Date.UTC(year, input.month - 1, day));
+  };
+  const year = input.from.getUTCFullYear();
+  const candidate = findDate(year);
+
+  return localDateKey(candidate < startOfUtcDay(input.from) ? findDate(year + 1) : candidate);
+}
+
+function parseDateIso(value: string | null | undefined, label: string) {
+  const normalized = normalizeText(value, label, 10);
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    throw new Error(`${label} must use YYYY-MM-DD format.`);
+  }
+
+  const date = new Date(`${normalized}T00:00:00.000Z`);
+
+  if (Number.isNaN(date.getTime()) || localDateKey(date) !== normalized) {
+    throw new Error(`${label} must be a valid date.`);
+  }
+
+  return date;
+}
+
+function addMinutesToUtcDay(day: Date, minute: number) {
+  const next = new Date(day);
+  next.setUTCMinutes(next.getUTCMinutes() + minute);
+
+  return next;
+}
+
+function buildRecurringAvailabilityTemplates(input: {
+  horizonStart: Date;
+}): AppointmentAdminSettings["availabilityConfiguration"]["recurringTemplates"] {
+  return [
+    {
+      code: "NEW_YEAR_DAY",
+      name: "New Year's Day",
+      category: "HOLIDAY",
+      recurrenceLabel: "Every January 1",
+      defaultClosureType: LocationClosureType.HOLIDAY,
+      suggestedDateIso: nextAnnualDateIso({ month: 1, day: 1, from: input.horizonStart }),
+      readiness: "READY",
+      action: "CREATE_CLOSURE_DRAFT",
+      notes: ["Use for annual dealership closure planning."]
+    },
+    {
+      code: "INDEPENDENCE_DAY",
+      name: "Independence Day",
+      category: "HOLIDAY",
+      recurrenceLabel: "Every July 4",
+      defaultClosureType: LocationClosureType.HOLIDAY,
+      suggestedDateIso: nextAnnualDateIso({ month: 7, day: 4, from: input.horizonStart }),
+      readiness: "READY",
+      action: "CREATE_CLOSURE_DRAFT",
+      notes: ["Confirm observed-date policy before activation."]
+    },
+    {
+      code: "THANKSGIVING_DAY",
+      name: "Thanksgiving Day",
+      category: "HOLIDAY",
+      recurrenceLabel: "Fourth Thursday in November",
+      defaultClosureType: LocationClosureType.HOLIDAY,
+      suggestedDateIso: nextNthWeekdayIso({
+        month: 11,
+        weekday: 4,
+        occurrence: 4,
+        from: input.horizonStart
+      }),
+      readiness: "READY",
+      action: "CREATE_CLOSURE_DRAFT",
+      notes: ["Pair with Black Friday special-hours review when needed."]
+    },
+    {
+      code: "CHRISTMAS_DAY",
+      name: "Christmas Day",
+      category: "HOLIDAY",
+      recurrenceLabel: "Every December 25",
+      defaultClosureType: LocationClosureType.HOLIDAY,
+      suggestedDateIso: nextAnnualDateIso({ month: 12, day: 25, from: input.horizonStart }),
+      readiness: "READY",
+      action: "CREATE_CLOSURE_DRAFT",
+      notes: ["Confirm sales, service, and delivery coverage before publishing."]
+    },
+    {
+      code: "TEAM_TRAINING_BLOCK",
+      name: "Team training block",
+      category: "OPERATIONS",
+      recurrenceLabel: "Manager-selected date",
+      defaultClosureType: LocationClosureType.PLANNED,
+      suggestedDateIso: null,
+      readiness: "NEEDS_REVIEW",
+      action: "REVIEW_TEMPLATE",
+      notes: ["Use when a partial-day staffing change should reduce appointment capacity."]
+    },
+    {
+      code: "WEATHER_EMERGENCY",
+      name: "Weather emergency closure",
+      category: "EMERGENCY",
+      recurrenceLabel: "As needed",
+      defaultClosureType: LocationClosureType.EMERGENCY,
+      suggestedDateIso: null,
+      readiness: "NEEDS_REVIEW",
+      action: "REVIEW_TEMPLATE",
+      notes: ["Designed for same-day manager review with mandatory reason capture."]
+    }
+  ];
+}
+
+function getRecurringAvailabilityTemplate(
+  code: string,
+  horizonStart: Date
+): AppointmentAdminSettings["availabilityConfiguration"]["recurringTemplates"][number] | null {
+  const normalizedCode = normalizeText(code, "Recurring template", 80).toUpperCase();
+
+  return (
+    buildRecurringAvailabilityTemplates({ horizonStart }).find(
+      (template) => template.code === normalizedCode
+    ) ?? null
+  );
+}
+
+function buildClosureInputFromRecurringTemplate(input: {
+  location: AppointmentAdminLocationRecord;
+  template: AppointmentAdminSettings["availabilityConfiguration"]["recurringTemplates"][number];
+  applyInput: AppointmentRecurringTemplateClosureApplyInput;
+}): AppointmentLocationClosureInput {
+  if (input.template.action !== "CREATE_CLOSURE_DRAFT") {
+    throw new Error("Recurring template requires manager review before it can create a closure.");
+  }
+
+  const dateIso = input.applyInput.dateIso ?? input.template.suggestedDateIso;
+  const date = parseDateIso(dateIso, "Template closure date");
+  const businessDay = businessDayFromDate(date);
+  const operatingWindow = input.location.operatingWindows.find(
+    (window) => window.businessDay === businessDay && !window.validTo
+  );
+  const startsAt = operatingWindow
+    ? addMinutesToUtcDay(date, operatingWindow.opensAtMinute)
+    : date;
+  const endsAt = operatingWindow
+    ? addMinutesToUtcDay(date, operatingWindow.closesAtMinute)
+    : addUtcDays(date, 1);
+  const reason = normalizeText(input.applyInput.reason, "Template apply reason", 1000);
+
+  return {
+    type: input.template.defaultClosureType,
+    name: input.template.name,
+    startsAt: startsAt.toISOString(),
+    endsAt: endsAt.toISOString(),
+    reason: `${reason} Template: ${input.template.name} (${input.template.code}).`
+  };
+}
+
+function buildResourceAvailability(input: {
+  resources: AppointmentAdminResourceRecord[];
+  calendar: AppointmentAdminSettings["specialHoursCalendar"];
+}): AppointmentAdminSettings["availabilityConfiguration"]["resourceAvailability"] {
+  const resources = input.resources.map((resource) => {
+    const impactedDates = input.calendar.days
+      .filter((day) =>
+        resource.unavailability.some((entry) => overlapsDay(entry, new Date(`${day.dateIso}T00:00:00.000Z`)))
+      )
+      .map((day) => day.dateIso);
+    const warnings = [
+      resource.status !== SchedulableResourceStatus.ACTIVE
+        ? "Resource is not active for scheduling."
+        : null,
+      impactedDates.length > 0 ? "Resource has upcoming outage or capacity-reduction windows." : null,
+      resource.capacityMode === ResourceCapacityMode.EXCLUSIVE && resource.capacity <= 1
+        ? "Exclusive resource; overlapping appointments should stay blocked unless policy changes."
+        : null
+    ].filter((warning): warning is string => Boolean(warning));
+    const readiness: AppointmentAdminSettings["availabilityConfiguration"]["resourceAvailability"]["resources"][number]["readiness"] =
+      resource.status !== SchedulableResourceStatus.ACTIVE
+        ? "BLOCKED"
+        : impactedDates.length > 0
+          ? "WATCH"
+          : "READY";
+
+    return {
+      resourceId: resource.id,
+      resourceName: resource.name,
+      resourceTypeName: resource.resourceType.name,
+      resourceTypeKind: resource.resourceType.kind,
+      status: resource.status,
+      capacityMode: resource.capacityMode,
+      capacity: resource.capacity,
+      conflictPolicy: resource.conflictPolicy,
+      unavailableWindowCount: resource.unavailability.length,
+      impactedDayCount: impactedDates.length,
+      impactedDates,
+      nextImpactIso: impactedDates[0] ?? null,
+      readiness,
+      warnings
+    };
+  });
+
+  return {
+    horizonStartIso: input.calendar.horizonStartIso,
+    horizonEndIso: input.calendar.horizonEndIso,
+    resources,
+    summary: {
+      activeResourceCount: resources.filter((resource) => resource.status === SchedulableResourceStatus.ACTIVE).length,
+      constrainedResourceCount: resources.filter((resource) => resource.readiness === "WATCH").length,
+      blockedResourceCount: resources.filter((resource) => resource.readiness === "BLOCKED").length,
+      capacityResourceCount: resources.filter((resource) => resource.capacityMode === ResourceCapacityMode.CAPACITY).length
+    }
+  };
+}
+
+function buildCapacityOverrideReadiness(input: {
+  resources: AppointmentAdminResourceRecord[];
+  calendar: AppointmentAdminSettings["specialHoursCalendar"];
+}): AppointmentAdminSettings["availabilityConfiguration"]["capacityOverrideReadiness"] {
+  const readyResources = input.resources.filter(
+    (resource) =>
+      resource.status === SchedulableResourceStatus.ACTIVE &&
+      resource.capacityMode === ResourceCapacityMode.CAPACITY &&
+      resource.capacity > 1
+  );
+  const needsConfiguration = input.resources.filter(
+    (resource) =>
+      resource.status === SchedulableResourceStatus.ACTIVE &&
+      (resource.capacityMode !== ResourceCapacityMode.CAPACITY || resource.capacity <= 1)
+  );
+  const hardBlockExclusiveCount = input.resources.filter(
+    (resource) =>
+      resource.capacityMode === ResourceCapacityMode.EXCLUSIVE &&
+      resource.conflictPolicy === ResourceConflictPolicy.HARD_BLOCK
+  ).length;
+  const recommendations = [
+    needsConfiguration.length > 0
+      ? "Review exclusive resources before enabling capacity overrides."
+      : null,
+    readyResources.length > 0
+      ? "Capacity-mode resources are ready for future day-level override controls."
+      : null,
+    hardBlockExclusiveCount > 0
+      ? "Keep hard-block conflict warnings visible when managers change appointment volume."
+      : null
+  ].filter((recommendation): recommendation is string => Boolean(recommendation));
+  const firstOpenDay = input.calendar.days.find(
+    (day) => day.status === "OPEN" && day.opensAt && day.closesAt
+  );
+  const quickDrafts = firstOpenDay
+    ? readyResources.map((resource) => ({
+        resourceId: resource.id,
+        resourceName: resource.name,
+        currentCapacity: resource.capacity,
+        suggestedReduction: 1,
+        startsAtIso: new Date(`${firstOpenDay.dateIso}T${firstOpenDay.opensAt}:00.000Z`).toISOString(),
+        endsAtIso: new Date(`${firstOpenDay.dateIso}T${firstOpenDay.closesAt}:00.000Z`).toISOString(),
+        reasonTemplate: `Manager capacity override draft for ${resource.name}.`
+      }))
+    : [];
+
+  return {
+    readyResourceCount: readyResources.length,
+    needsConfigurationCount: needsConfiguration.length,
+    hardBlockExclusiveCount,
+    quickDrafts,
+    recommendations
+  };
+}
+
+function buildResourceTypeEditorReadiness(input: {
+  resourceTypes: AppointmentAdminResourceTypeRecord[];
+  resources: AppointmentAdminResourceRecord[];
+}): AppointmentAdminSettings["availabilityConfiguration"]["resourceTypeEditorReadiness"] {
+  const types = input.resourceTypes.map((resourceType) => {
+    const resourceCount = input.resources.filter(
+      (resource) => resource.resourceType.code === resourceType.code
+    ).length;
+    const warnings = [
+      !resourceType.isActive ? "Resource type is inactive and should stay protected from normal scheduling." : null,
+      resourceType.defaultCapacity <= 0 ? "Default capacity must be reviewed before managers can edit this type." : null,
+      resourceCount === 0 ? "No resources currently use this type." : null
+    ].filter((warning): warning is string => Boolean(warning));
+
+    return {
+      typeId: resourceType.id,
+      code: resourceType.code,
+      name: resourceType.name,
+      kind: resourceType.kind,
+      defaultCapacityMode: resourceType.defaultCapacityMode,
+      defaultCapacity: resourceType.defaultCapacity,
+      defaultConflictPolicy: resourceType.defaultConflictPolicy,
+      resourceCount,
+      readiness: warnings.length > 0 ? "NEEDS_REVIEW" as const : "READY" as const,
+      warnings
+    };
+  });
+
+  return {
+    activeTypeCount: types.filter((resourceType) =>
+      input.resourceTypes.some((candidate) => candidate.id === resourceType.typeId && candidate.isActive)
+    ).length,
+    inactiveTypeCount: types.filter((resourceType) =>
+      input.resourceTypes.some((candidate) => candidate.id === resourceType.typeId && !candidate.isActive)
+    ).length,
+    types
+  };
+}
+
+function buildAvailabilityConfiguration(input: {
+  resourceTypes: AppointmentAdminResourceTypeRecord[];
+  resources: AppointmentAdminResourceRecord[];
+  specialHoursCalendar: AppointmentAdminSettings["specialHoursCalendar"];
+}): AppointmentAdminSettings["availabilityConfiguration"] {
+  const horizonStart = new Date(`${input.specialHoursCalendar.horizonStartIso}T00:00:00.000Z`);
+
+  return {
+    recurringTemplates: buildRecurringAvailabilityTemplates({ horizonStart }),
+    resourceAvailability: buildResourceAvailability({
+      resources: input.resources,
+      calendar: input.specialHoursCalendar
+    }),
+    capacityOverrideReadiness: buildCapacityOverrideReadiness({
+      resources: input.resources,
+      calendar: input.specialHoursCalendar
+    }),
+    resourceTypeEditorReadiness: buildResourceTypeEditorReadiness({
+      resourceTypes: input.resourceTypes,
+      resources: input.resources
+    })
+  };
+}
+
 function toSettings(input: {
   location: AppointmentAdminLocationRecord;
   closures: AppointmentAdminLocationClosureRecord[];
@@ -923,6 +1350,11 @@ function toSettings(input: {
   resources: AppointmentAdminResourceRecord[];
 }): AppointmentAdminSettings {
   const operatingWindows = toWindowForm(input.location.operatingWindows);
+  const specialHoursCalendar = buildSpecialHoursCalendar({
+    windows: input.location.operatingWindows,
+    closures: input.closures,
+    resources: input.resources
+  });
 
   return {
     organization: input.location.organization,
@@ -950,10 +1382,11 @@ function toSettings(input: {
     resources: input.resources.map(serializeResource),
     catalogs: getCatalogs(),
     automationRules: getAutomationRules(),
-    specialHoursCalendar: buildSpecialHoursCalendar({
-      windows: input.location.operatingWindows,
-      closures: input.closures,
-      resources: input.resources
+    specialHoursCalendar,
+    availabilityConfiguration: buildAvailabilityConfiguration({
+      resourceTypes: input.resourceTypes,
+      resources: input.resources,
+      specialHoursCalendar
     })
   };
 }
@@ -1404,6 +1837,53 @@ export async function createAppointmentLocationClosureForManager(
       closure: input
     })
   );
+
+  return getAppointmentAdminSettings(repository);
+}
+
+export async function applyRecurringAppointmentClosureTemplateForManager(
+  user: AuthenticatedUser | null,
+  input: AppointmentRecurringTemplateClosureApplyInput,
+  repository: AppointmentAdminSettingsRepository = createAppointmentAdminSettingsRepository()
+) {
+  assertCanManageAppointmentAdminSettings(user);
+
+  const location = await repository.getLocation();
+
+  if (!location) {
+    throw new Error("Appointment location settings are not configured.");
+  }
+
+  const horizonStart = startOfUtcDay(new Date());
+  const template = getRecurringAvailabilityTemplate(input.templateCode, horizonStart);
+
+  if (!template) {
+    throw new Error("Recurring template is not configured.");
+  }
+
+  const closureInput = buildClosureInputFromRecurringTemplate({
+    location,
+    template,
+    applyInput: input
+  });
+  const normalizedInput = normalizeAppointmentLocationClosureInput({
+    locationId: location.id,
+    userId: user.id,
+    closure: closureInput
+  });
+  const existingClosures = await repository.listLocationClosures(location.id);
+  const duplicate = existingClosures.find(
+    (closure) =>
+      closure.name === normalizedInput.name &&
+      closure.type === normalizedInput.type &&
+      overlapsDay(closure, startOfUtcDay(normalizedInput.startsAt))
+  );
+
+  if (duplicate) {
+    throw new Error("A closure for this recurring template already exists on that date.");
+  }
+
+  await repository.createLocationClosure(normalizedInput);
 
   return getAppointmentAdminSettings(repository);
 }

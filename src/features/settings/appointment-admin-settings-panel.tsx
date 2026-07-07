@@ -188,6 +188,9 @@ export function AppointmentAdminSettingsPanel({
   const [configurationImportReason, setConfigurationImportReason] = useState("");
   const [configurationImportPreview, setConfigurationImportPreview] =
     useState<AppointmentAdminConfigurationImportPreview | null>(null);
+  const [recurringTemplateReasons, setRecurringTemplateReasons] = useState<Record<string, string>>(
+    {}
+  );
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -483,6 +486,55 @@ export function AppointmentAdminSettingsPanel({
     });
   }
 
+  function applyRecurringTemplate(
+    template: AppointmentAdminSettings["availabilityConfiguration"]["recurringTemplates"][number]
+  ) {
+    if (!template.suggestedDateIso || template.action !== "CREATE_CLOSURE_DRAFT") {
+      setErrorMessage("This recurring template needs manager review before it can create a closure.");
+      setSuccessMessage("");
+      return;
+    }
+
+    const reason =
+      recurringTemplateReasons[template.code]?.trim() ||
+      `Manager applied ${template.name} from recurring appointment availability templates.`;
+
+    startTransition(async () => {
+      await mutateAppointmentSettings(
+        `/api/settings/appointments/recurring-templates/${encodeURIComponent(template.code)}/closure`,
+        {
+          body: {
+            dateIso: template.suggestedDateIso,
+            reason
+          },
+          successMessage: `${template.name} closure created from recurring template.`,
+          onSuccess: () =>
+            setRecurringTemplateReasons((current) => ({
+              ...current,
+              [template.code]: ""
+            }))
+        }
+      );
+    });
+  }
+
+  function loadCapacityOverrideDraft(
+    draft: AppointmentAdminSettings["availabilityConfiguration"]["capacityOverrideReadiness"]["quickDrafts"][number]
+  ) {
+    setUnavailabilityDraft({
+      resourceId: draft.resourceId,
+      type: "CAPACITY_REDUCTION",
+      startsAt: toDateTimeLocal(draft.startsAtIso),
+      endsAt: toDateTimeLocal(draft.endsAtIso),
+      capacityReduction: draft.suggestedReduction,
+      reason: draft.reasonTemplate
+    });
+    setErrorMessage("");
+    setSuccessMessage(
+      `Capacity override draft loaded for ${draft.resourceName}. Review it below, then add the resource window.`
+    );
+  }
+
   return (
     <div className="appointment-admin-stack">
       <form className="settings-form" onSubmit={handleSubmit}>
@@ -742,6 +794,191 @@ export function AppointmentAdminSettingsPanel({
               ))}
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="panel-card settings-main-card">
+        <strong>Availability configuration</strong>
+        <h2>Enterprise readiness for hours, resources, and capacity</h2>
+        <p>
+          Review recurring closure templates, resource availability, capacity override readiness,
+          and resource-type editor safety before managers activate deeper scheduling controls.
+        </p>
+
+        <div className="appointment-catalog-detail-grid">
+          <div>
+            <span>Templates ready</span>
+            <strong>
+              {
+                settings.availabilityConfiguration.recurringTemplates.filter(
+                  (template) => template.readiness === "READY"
+                ).length
+              }
+            </strong>
+            <small>Recurring closure and operations templates prepared.</small>
+          </div>
+          <div>
+            <span>Constrained resources</span>
+            <strong>
+              {settings.availabilityConfiguration.resourceAvailability.summary.constrainedResourceCount}
+            </strong>
+            <small>
+              {settings.availabilityConfiguration.resourceAvailability.summary.blockedResourceCount} blocked
+              resources
+            </small>
+          </div>
+          <div>
+            <span>Capacity-ready resources</span>
+            <strong>
+              {settings.availabilityConfiguration.capacityOverrideReadiness.readyResourceCount}
+            </strong>
+            <small>
+              {
+                settings.availabilityConfiguration.capacityOverrideReadiness
+                  .needsConfigurationCount
+              }{" "}
+              need review
+            </small>
+          </div>
+        </div>
+
+        <div className="settings-grid">
+          <div className="appointment-admin-record-list">
+            <strong>Recurring templates</strong>
+            {settings.availabilityConfiguration.recurringTemplates.map((template) => (
+              <div className="appointment-admin-record" key={template.code}>
+                <span>
+                  {formatKind(template.category)} â€¢ {formatKind(template.readiness)}
+                </span>
+                <strong>{template.name}</strong>
+                <small>
+                  {template.recurrenceLabel}
+                  {template.suggestedDateIso ? ` â€¢ next: ${template.suggestedDateIso}` : ""}
+                </small>
+                {template.notes.map((note) => (
+                  <p key={note}>{note}</p>
+                ))}
+                {template.action === "CREATE_CLOSURE_DRAFT" && template.suggestedDateIso ? (
+                  <div className="form-actions">
+                    <label className="field appointment-admin-span">
+                      <span>Manager reason</span>
+                      <input
+                        value={recurringTemplateReasons[template.code] ?? ""}
+                        onChange={(event) =>
+                          setRecurringTemplateReasons((current) => ({
+                            ...current,
+                            [template.code]: event.target.value
+                          }))
+                        }
+                        placeholder={`Reason for applying ${template.name}`}
+                      />
+                    </label>
+                    <button
+                      className="pill pill-primary"
+                      disabled={isPending}
+                      onClick={() => applyRecurringTemplate(template)}
+                      type="button"
+                    >
+                      Create closure
+                    </button>
+                  </div>
+                ) : (
+                  <p>Review this template before it can create a closure.</p>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="appointment-admin-record-list">
+            <strong>Resource availability</strong>
+            {settings.availabilityConfiguration.resourceAvailability.resources.map((resource) => (
+              <div className="appointment-admin-record" key={resource.resourceId}>
+                <span>
+                  {formatKind(resource.readiness)} â€¢ {formatKind(resource.resourceTypeKind)}
+                </span>
+                <strong>{resource.resourceName}</strong>
+                <small>
+                  {resource.capacityMode} capacity {resource.capacity} â€¢{" "}
+                  {resource.impactedDayCount} impacted days
+                  {resource.nextImpactIso ? ` â€¢ next: ${resource.nextImpactIso}` : ""}
+                </small>
+                {resource.warnings.map((warning) => (
+                  <p key={warning}>{warning}</p>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="settings-grid">
+          <div className="appointment-admin-record-list">
+            <strong>Capacity override readiness</strong>
+            <div className="appointment-admin-record">
+              <span>Future manager control</span>
+              <strong>
+                {
+                  settings.availabilityConfiguration.capacityOverrideReadiness
+                    .hardBlockExclusiveCount
+                }{" "}
+                hard-block exclusive resources
+              </strong>
+              {settings.availabilityConfiguration.capacityOverrideReadiness.recommendations.map(
+                (recommendation) => (
+                  <p key={recommendation}>{recommendation}</p>
+                )
+              )}
+              {settings.availabilityConfiguration.capacityOverrideReadiness.quickDrafts.length > 0 ? (
+                <div className="appointment-admin-record-list">
+                  <strong>Capacity override drafts</strong>
+                  {settings.availabilityConfiguration.capacityOverrideReadiness.quickDrafts.map(
+                    (draft) => (
+                      <div className="appointment-admin-record" key={draft.resourceId}>
+                        <span>Capacity reduction draft</span>
+                        <strong>{draft.resourceName}</strong>
+                        <small>
+                          Reduce capacity by {draft.suggestedReduction} from{" "}
+                          {formatDateTime(draft.startsAtIso)} to {formatDateTime(draft.endsAtIso)}
+                        </small>
+                        <div className="form-actions">
+                          <button
+                            className="pill pill-secondary"
+                            disabled={isPending}
+                            onClick={() => loadCapacityOverrideDraft(draft)}
+                            type="button"
+                          >
+                            Use capacity override draft
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  )}
+                </div>
+              ) : (
+                <p>No capacity-mode resources are ready for override drafts yet.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="appointment-admin-record-list">
+            <strong>Resource type editor readiness</strong>
+            {settings.availabilityConfiguration.resourceTypeEditorReadiness.types.map(
+              (resourceType) => (
+                <div className="appointment-admin-record" key={resourceType.typeId}>
+                  <span>
+                    {formatKind(resourceType.kind)} â€¢ {formatKind(resourceType.readiness)}
+                  </span>
+                  <strong>{resourceType.name}</strong>
+                  <small>
+                    {resourceType.resourceCount} resources â€¢ default capacity{" "}
+                    {resourceType.defaultCapacity}
+                  </small>
+                  {resourceType.warnings.map((warning) => (
+                    <p key={warning}>{warning}</p>
+                  ))}
+                </div>
+              )
+            )}
+          </div>
         </div>
       </section>
 
