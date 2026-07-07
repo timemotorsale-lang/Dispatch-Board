@@ -18,8 +18,8 @@ npm run db:validate
 Vitest result:
 
 ```text
-112 test files passed
-659 tests passed
+115 test files passed
+667 tests passed
 ```
 
 Latest focused validation after the Appointment Automation Operations Console block:
@@ -43,7 +43,7 @@ Focused appointment-catalog service, route, UI, type, lint, schema, and full-sui
 | Authentication | Implemented | Login, logout, current-user route, sessions, and protected routes |
 | Users, roles, and duties | Implemented | Schema, APIs, services, policies, settings UI, and tests |
 | App settings | Implemented | Timezone, business days, generation time, manager API/UI, and tests |
-| Appointment admin settings foundation | Implemented as partial E5 admin foundation | Manager-only `/settings/appointments` workspace, protected appointment admin settings routes, location profile/address/phone/timezone/status editing, weekday appointment operating windows, location closure create/edit/delete, resource status/capacity/conflict-policy editing, resource outage/capacity-reduction windows, resource/catalog/automation readiness summaries, and Appointment Board header/create/schedule fallback wiring |
+| Appointment admin settings foundation | Implemented as partial E5 admin foundation | Manager-only `/settings/appointments` workspace, protected appointment admin settings routes, location profile/address/phone/timezone/status editing, weekday appointment operating windows, location closure create/edit/delete, resource status/capacity/conflict-policy editing, resource outage/capacity-reduction windows, resource/catalog/automation readiness summaries, preview-safe configuration export, import-preview validation, redaction reporting, and Appointment Board header/create/schedule fallback wiring |
 | Appointment catalog automation admin foundation | Implemented as partial E5 admin foundation | Manager-only `/settings/appointments/catalog` workspace, protected catalog/simulation/draft/activation/lifecycle/review/code-editor routes, purpose template read model, outcome/follow-up/reason catalog visibility, structured outcome/follow-up/reason code add/rename/remove/deprecate/reactivate controls, code replacement guidance, deprecated-code validation warnings and new-configuration guards, live appointment-count usage analytics, highest-risk code ranking, code reference counts, manager-ready code impact reports, purpose usage impact, code labels/descriptions in catalog snapshots, automation rule hook visibility, governance metrics, safe simulation preview, durable active/draft catalog versions, append-only change events, required reason capture, draft validation, approval review status, activation approval gate, purpose usage/reference warnings, draft save, activation, purpose create, duplicate, deprecate, reactivate, and draft-only delete protection |
 | Appointment automation operations console | Implemented as partial E5/E3 automation operations foundation | Manager-only `/settings/appointments/automation` workspace, automation rule schema/migration, rule lifecycle draft/activate/pause/retire APIs, health metrics, catalog-derived rule candidates, failure/review queue foundation, retry/replay/resolve/skip API contracts, required reason capture, audit event schema, and focused service/route/UI tests |
 | Task templates | Partially implemented | Schema, API, service, validation, seed data, tests, and prototype UI exist; production template administration remains incomplete |
