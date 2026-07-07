@@ -200,6 +200,8 @@ describe("appointment admin settings panel", () => {
     expect(markup).toContain("Day-level hours and capacity overrides");
     expect(markup).toContain("Add resource operating window");
     expect(markup).toContain("Existing operating windows");
+    expect(markup).toContain("Removal reason");
+    expect(markup).toContain("Remove operating window");
     expect(markup).toContain("Resource type editor readiness");
     expect(markup).toContain("Create governed resource type");
     expect(markup).toContain("Create resource type");

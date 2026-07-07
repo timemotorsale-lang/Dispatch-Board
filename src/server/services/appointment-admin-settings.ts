@@ -144,6 +144,7 @@ export type AppointmentAdminSettingsRepository = {
   createResourceType(input: NormalizedAppointmentResourceTypeCreateInput): Promise<AppointmentAdminResourceTypeRecord>;
   updateResourceType(input: NormalizedAppointmentResourceTypeUpdateInput): Promise<AppointmentAdminResourceTypeRecord>;
   createResourceOperatingWindow(input: NormalizedAppointmentResourceOperatingWindowInput): Promise<AppointmentAdminResourceOperatingWindowRecord>;
+  deleteResourceOperatingWindow(input: AppointmentResourceOperatingWindowDeleteInput): Promise<void>;
   createResourceUnavailability(input: NormalizedAppointmentResourceUnavailabilityInput): Promise<AppointmentAdminResourceUnavailabilityRecord>;
   updateLocationAndHours(input: {
     location: AppointmentAdminLocationInput;
@@ -232,6 +233,13 @@ export type AppointmentResourceOperatingWindowInput = {
   capacityOverride?: number | null;
   validFrom: string;
   validTo?: string | null;
+  reason: string;
+};
+
+export type AppointmentResourceOperatingWindowDeleteInput = {
+  locationId: string;
+  resourceId: string;
+  operatingWindowId: string;
   reason: string;
 };
 
@@ -1993,6 +2001,30 @@ export function createAppointmentAdminSettingsRepository(): AppointmentAdminSett
         }
       });
     },
+    async deleteResourceOperatingWindow(input) {
+      normalizeText(input.reason, "Resource operating window removal reason", 1000);
+
+      const operatingWindow = await prisma.resourceOperatingWindow.findFirst({
+        where: {
+          id: input.operatingWindowId,
+          resourceId: input.resourceId,
+          resource: {
+            locationId: input.locationId
+          }
+        },
+        select: { id: true }
+      });
+
+      if (!operatingWindow) {
+        throw new Error("Resource operating window is not configured for this appointment location.");
+      }
+
+      await prisma.resourceOperatingWindow.delete({
+        where: {
+          id: operatingWindow.id
+        }
+      });
+    },
     async createResourceUnavailability(input) {
       const resource = await prisma.schedulableResource.findFirst({
         where: {
@@ -2399,6 +2431,37 @@ export async function createAppointmentResourceOperatingWindowForManager(
       window: input
     })
   );
+
+  return getAppointmentAdminSettings(repository);
+}
+
+export async function deleteAppointmentResourceOperatingWindowForManager(
+  user: AuthenticatedUser | null,
+  input: {
+    resourceId: string;
+    operatingWindowId: string;
+    reason: string;
+  },
+  repository: AppointmentAdminSettingsRepository = createAppointmentAdminSettingsRepository()
+) {
+  assertCanManageAppointmentAdminSettings(user);
+
+  const location = await repository.getLocation();
+
+  if (!location) {
+    throw new Error("Appointment location settings are not configured.");
+  }
+
+  await repository.deleteResourceOperatingWindow({
+    locationId: location.id,
+    resourceId: normalizeText(input.resourceId, "Resource", 120),
+    operatingWindowId: normalizeText(
+      input.operatingWindowId,
+      "Resource operating window",
+      120
+    ),
+    reason: normalizeText(input.reason, "Resource operating window removal reason", 1000)
+  });
 
   return getAppointmentAdminSettings(repository);
 }

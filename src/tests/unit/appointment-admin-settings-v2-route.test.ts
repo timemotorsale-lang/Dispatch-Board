@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   createAppointmentResourceTypeForManager: vi.fn(),
   updateAppointmentResourceTypeForManager: vi.fn(),
   createAppointmentResourceOperatingWindowForManager: vi.fn(),
+  deleteAppointmentResourceOperatingWindowForManager: vi.fn(),
   createAppointmentResourceUnavailabilityForManager: vi.fn()
 }));
 
@@ -28,6 +29,8 @@ vi.mock("@/server/services/appointment-admin-settings", () => ({
   updateAppointmentResourceTypeForManager: mocks.updateAppointmentResourceTypeForManager,
   createAppointmentResourceOperatingWindowForManager:
     mocks.createAppointmentResourceOperatingWindowForManager,
+  deleteAppointmentResourceOperatingWindowForManager:
+    mocks.deleteAppointmentResourceOperatingWindowForManager,
   createAppointmentResourceUnavailabilityForManager:
     mocks.createAppointmentResourceUnavailabilityForManager
 }));
@@ -41,6 +44,7 @@ import {
 import { PATCH as PATCHResource } from "@/app/api/settings/appointments/resources/[resourceId]/route";
 import { POST as POSTResourceType } from "@/app/api/settings/appointments/resource-types/route";
 import { PATCH as PATCHResourceType } from "@/app/api/settings/appointments/resource-types/[resourceTypeId]/route";
+import { DELETE as DELETEResourceOperatingWindow } from "@/app/api/settings/appointments/resources/[resourceId]/operating-windows/[operatingWindowId]/route";
 import { POST as POSTResourceOperatingWindow } from "@/app/api/settings/appointments/resources/[resourceId]/operating-windows/route";
 import { POST as POSTResourceUnavailability } from "@/app/api/settings/appointments/resources/[resourceId]/unavailability/route";
 
@@ -74,6 +78,7 @@ describe("appointment admin settings v2 routes", () => {
     mocks.createAppointmentResourceTypeForManager.mockResolvedValue(settings);
     mocks.updateAppointmentResourceTypeForManager.mockResolvedValue(settings);
     mocks.createAppointmentResourceOperatingWindowForManager.mockResolvedValue(settings);
+    mocks.deleteAppointmentResourceOperatingWindowForManager.mockResolvedValue(settings);
     mocks.createAppointmentResourceUnavailabilityForManager.mockResolvedValue(settings);
   });
 
@@ -317,6 +322,39 @@ describe("appointment admin settings v2 routes", () => {
       {
         ...payload,
         resourceId: "res-abdi"
+      }
+    );
+  });
+
+  it("deletes resource operating windows for managers with a reason", async () => {
+    const payload = {
+      reason: "Temporary advisor calendar was replaced."
+    };
+
+    const response = await DELETEResourceOperatingWindow(
+      new Request(
+        "http://localhost/api/settings/appointments/resources/res-abdi/operating-windows/resource-window-1",
+        {
+          method: "DELETE",
+          body: JSON.stringify(payload)
+        }
+      ),
+      {
+        params: Promise.resolve({
+          resourceId: "res-abdi",
+          operatingWindowId: "resource-window-1"
+        })
+      }
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ settings });
+    expect(mocks.deleteAppointmentResourceOperatingWindowForManager).toHaveBeenCalledWith(
+      managerUser,
+      {
+        resourceId: "res-abdi",
+        operatingWindowId: "resource-window-1",
+        reason: payload.reason
       }
     );
   });

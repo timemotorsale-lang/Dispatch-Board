@@ -16,6 +16,7 @@ import {
   createAppointmentResourceOperatingWindowForManager,
   createAppointmentResourceTypeForManager,
   createAppointmentResourceUnavailabilityForManager,
+  deleteAppointmentResourceOperatingWindowForManager,
   deleteAppointmentLocationClosureForManager,
   getAppointmentBoardSettings,
   normalizeAppointmentAdminSettingsInput,
@@ -214,6 +215,22 @@ function createRepository() {
       );
 
       return entry;
+    },
+    async deleteResourceOperatingWindow(input) {
+      if (!input.reason.trim()) {
+        throw new Error("Resource operating window removal reason is required.");
+      }
+
+      resources = resources.map((resource) =>
+        resource.id === input.resourceId
+          ? {
+              ...resource,
+              operatingWindows: resource.operatingWindows.filter(
+                (window) => window.id !== input.operatingWindowId
+              )
+            }
+          : resource
+      );
     },
     async createResourceUnavailability(input) {
       const entry = {
@@ -697,6 +714,39 @@ describe("appointment admin settings service", () => {
         validFromIso: "2026-07-07"
       })
     ]);
+  });
+
+  it("allows managers to remove resource operating calendar windows with a reason", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createRepository();
+
+    const created = await createAppointmentResourceOperatingWindowForManager(
+      manager,
+      {
+        resourceId: "res-abdi",
+        businessDay: BusinessDay.MONDAY,
+        opensAt: "10:00",
+        closesAt: "16:00",
+        capacityOverride: 1,
+        validFrom: "2026-07-07",
+        validTo: null,
+        reason: "Temporary training coverage."
+      },
+      repository
+    );
+
+    const removed = await deleteAppointmentResourceOperatingWindowForManager(
+      manager,
+      {
+        resourceId: "res-abdi",
+        operatingWindowId: created.resources[0].operatingWindows[0].id,
+        reason: "Training coverage calendar replaced by normal hours."
+      },
+      repository
+    );
+
+    expect(removed.resources[0].operatingWindows).toEqual([]);
   });
 
   it("rejects malformed resource operating calendar windows", () => {

@@ -248,6 +248,9 @@ export function AppointmentAdminSettingsPanel({
       ...defaultResourceWindowDraft,
       resourceId: initialSettings.resources[0]?.id ?? ""
     });
+  const [resourceWindowRemovalReasons, setResourceWindowRemovalReasons] = useState<
+    Record<string, string>
+  >({});
   const [configurationExport, setConfigurationExport] =
     useState<AppointmentAdminConfigurationExport | null>(null);
   const [configurationExportText, setConfigurationExportText] = useState("");
@@ -411,6 +414,13 @@ export function AppointmentAdminSettingsPanel({
     applySettingsSnapshot(payload.settings);
     options.onSuccess?.();
     setSuccessMessage(options.successMessage);
+  }
+
+  function setResourceWindowRemovalReason(operatingWindowId: string, reason: string) {
+    setResourceWindowRemovalReasons((current) => ({
+      ...current,
+      [operatingWindowId]: reason
+    }));
   }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -642,6 +652,36 @@ export function AppointmentAdminSettingsPanel({
             setResourceWindowDraft({
               ...defaultResourceWindowDraft,
               resourceId: resourceWindowDraft.resourceId
+            })
+        }
+      );
+    });
+  }
+
+  function deleteResourceOperatingWindow(resourceId: string, operatingWindowId: string) {
+    const reason = resourceWindowRemovalReasons[operatingWindowId]?.trim();
+
+    if (!reason) {
+      setErrorMessage("Document why this resource operating window is being removed.");
+      setSuccessMessage("");
+      return;
+    }
+
+    startTransition(async () => {
+      await mutateAppointmentSettings(
+        `/api/settings/appointments/resources/${encodeURIComponent(resourceId)}/operating-windows/${encodeURIComponent(operatingWindowId)}`,
+        {
+          method: "DELETE",
+          body: {
+            reason
+          },
+          successMessage: "Resource operating calendar window removed.",
+          onSuccess: () =>
+            setResourceWindowRemovalReasons((current) => {
+              const next = { ...current };
+              delete next[operatingWindowId];
+
+              return next;
             })
         }
       );
@@ -1851,6 +1891,33 @@ export function AppointmentAdminSettingsPanel({
                       ? ` - capacity override ${window.capacityOverride}`
                       : " - default capacity"}
                   </small>
+                  <div className="settings-grid">
+                    <label className="field appointment-admin-span">
+                      <span>Removal reason</span>
+                      <input
+                        value={resourceWindowRemovalReasons[window.id] ?? ""}
+                        onChange={(event) =>
+                          setResourceWindowRemovalReason(window.id, event.target.value)
+                        }
+                        placeholder="Document why this operating window should be removed."
+                      />
+                    </label>
+                    <div className="form-actions">
+                      <button
+                        className="pill pill-secondary"
+                        disabled={isPending}
+                        onClick={() =>
+                          deleteResourceOperatingWindow(
+                            selectedResourceForWindow.id,
+                            window.id
+                          )
+                        }
+                        type="button"
+                      >
+                        Remove operating window
+                      </button>
+                    </div>
+                  </div>
                 </div>
               ))
             ) : (
