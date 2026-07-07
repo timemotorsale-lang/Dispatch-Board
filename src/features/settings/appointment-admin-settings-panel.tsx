@@ -13,6 +13,7 @@ import type {
   AppointmentOperatingWindowInput,
   AppointmentResourceTypeCreateInput,
   AppointmentResourceTypeUpdateInput,
+  AppointmentResourceOperatingWindowInput,
   AppointmentResourceUnavailabilityInput,
   AppointmentResourceUpdateInput
 } from "@/server/services/appointment-admin-settings";
@@ -115,6 +116,17 @@ const defaultUnavailabilityDraft: AppointmentResourceUnavailabilityInput = {
   startsAt: "2026-07-07T09:00",
   endsAt: "2026-07-07T18:00",
   capacityReduction: null,
+  reason: ""
+};
+
+const defaultResourceWindowDraft: AppointmentResourceOperatingWindowInput = {
+  resourceId: "",
+  businessDay: "MONDAY",
+  opensAt: "09:00",
+  closesAt: "18:00",
+  capacityOverride: null,
+  validFrom: "2026-07-07",
+  validTo: null,
   reason: ""
 };
 
@@ -231,6 +243,11 @@ export function AppointmentAdminSettingsPanel({
     ...defaultUnavailabilityDraft,
     resourceId: initialSettings.resources[0]?.id ?? ""
   });
+  const [resourceWindowDraft, setResourceWindowDraft] =
+    useState<AppointmentResourceOperatingWindowInput>({
+      ...defaultResourceWindowDraft,
+      resourceId: initialSettings.resources[0]?.id ?? ""
+    });
   const [configurationExport, setConfigurationExport] =
     useState<AppointmentAdminConfigurationExport | null>(null);
   const [configurationExportText, setConfigurationExportText] = useState("");
@@ -248,6 +265,9 @@ export function AppointmentAdminSettingsPanel({
   const resourcesByKind = countByKind(settings.resources);
   const selectedStatus = schedulingStatuses.find(
     (status) => status.value === formState.location.schedulingStatus
+  );
+  const selectedResourceForWindow = settings.resources.find(
+    (resource) => resource.id === resourceWindowDraft.resourceId
   );
 
   function updateLocationField<K extends keyof AppointmentLocationFormState>(
@@ -280,6 +300,12 @@ export function AppointmentAdminSettingsPanel({
     setFormState(toFormState(nextSettings));
     setResourceDrafts(toResourceFormState(nextSettings));
     setResourceTypeDrafts(toResourceTypeFormState(nextSettings));
+    setResourceWindowDraft((current) => ({
+      ...current,
+      resourceId: nextSettings.resources.some((resource) => resource.id === current.resourceId)
+        ? current.resourceId
+        : nextSettings.resources[0]?.id ?? ""
+    }));
     setUnavailabilityDraft((current) => ({
       ...current,
       resourceId: nextSettings.resources.some((resource) => resource.id === current.resourceId)
@@ -587,6 +613,35 @@ export function AppointmentAdminSettingsPanel({
             setUnavailabilityDraft({
               ...defaultUnavailabilityDraft,
               resourceId: unavailabilityDraft.resourceId
+            })
+        }
+      );
+    });
+  }
+
+  function submitResourceOperatingWindow(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!resourceWindowDraft.resourceId) {
+      setErrorMessage("Choose a resource before creating an operating calendar window.");
+      return;
+    }
+
+    startTransition(async () => {
+      await mutateAppointmentSettings(
+        `/api/settings/appointments/resources/${encodeURIComponent(resourceWindowDraft.resourceId)}/operating-windows`,
+        {
+          body: {
+            ...resourceWindowDraft,
+            capacityOverride: resourceWindowDraft.capacityOverride ?? null,
+            validTo: resourceWindowDraft.validTo || null
+          },
+          successMessage:
+            "Resource operating calendar saved. Availability checks can now use this resource-level schedule.",
+          onSuccess: () =>
+            setResourceWindowDraft({
+              ...defaultResourceWindowDraft,
+              resourceId: resourceWindowDraft.resourceId
             })
         }
       );
@@ -1640,6 +1695,171 @@ export function AppointmentAdminSettingsPanel({
             </div>
           </form>
         ) : null}
+
+        <form className="panel-card settings-main-card" onSubmit={submitResourceOperatingWindow}>
+          <strong>Resource operating calendar</strong>
+          <h2>Day-level hours and capacity overrides</h2>
+          <p>
+            Define when a specific staff member, bay, vehicle, room, or shared resource operates
+            differently from the dealership default hours.
+          </p>
+
+          <div className="settings-grid">
+            <label className="field">
+              <span>Resource</span>
+              <select
+                value={resourceWindowDraft.resourceId}
+                onChange={(event) =>
+                  setResourceWindowDraft((current) => ({
+                    ...current,
+                    resourceId: event.target.value
+                  }))
+                }
+                required
+              >
+                {settings.resources.map((resource) => (
+                  <option key={resource.id} value={resource.id}>
+                    {resource.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="field">
+              <span>Day</span>
+              <select
+                value={resourceWindowDraft.businessDay}
+                onChange={(event) =>
+                  setResourceWindowDraft((current) => ({
+                    ...current,
+                    businessDay: event.target.value
+                  }))
+                }
+              >
+                {businessDayOptions.map((day) => (
+                  <option key={day.value} value={day.value}>
+                    {day.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="field">
+              <span>Opens</span>
+              <input
+                type="time"
+                value={resourceWindowDraft.opensAt}
+                onChange={(event) =>
+                  setResourceWindowDraft((current) => ({ ...current, opensAt: event.target.value }))
+                }
+                required
+              />
+            </label>
+
+            <label className="field">
+              <span>Closes</span>
+              <input
+                type="time"
+                value={resourceWindowDraft.closesAt}
+                onChange={(event) =>
+                  setResourceWindowDraft((current) => ({
+                    ...current,
+                    closesAt: event.target.value
+                  }))
+                }
+                required
+              />
+            </label>
+
+            <label className="field">
+              <span>Capacity override</span>
+              <input
+                min={1}
+                placeholder="Use default"
+                type="number"
+                value={resourceWindowDraft.capacityOverride ?? ""}
+                onChange={(event) =>
+                  setResourceWindowDraft((current) => ({
+                    ...current,
+                    capacityOverride: event.target.value ? Number(event.target.value) : null
+                  }))
+                }
+              />
+            </label>
+
+            <label className="field">
+              <span>Valid from</span>
+              <input
+                type="date"
+                value={resourceWindowDraft.validFrom}
+                onChange={(event) =>
+                  setResourceWindowDraft((current) => ({
+                    ...current,
+                    validFrom: event.target.value
+                  }))
+                }
+                required
+              />
+            </label>
+
+            <label className="field">
+              <span>Valid to</span>
+              <input
+                type="date"
+                value={resourceWindowDraft.validTo ?? ""}
+                onChange={(event) =>
+                  setResourceWindowDraft((current) => ({
+                    ...current,
+                    validTo: event.target.value || null
+                  }))
+                }
+              />
+            </label>
+
+            <label className="field appointment-admin-span">
+              <span>Reason</span>
+              <textarea
+                value={resourceWindowDraft.reason}
+                onChange={(event) =>
+                  setResourceWindowDraft((current) => ({ ...current, reason: event.target.value }))
+                }
+                placeholder="Document why this resource has custom operating hours or capacity."
+                required
+              />
+            </label>
+          </div>
+
+          <div className="form-actions">
+            <button className="pill pill-primary" disabled={isPending} type="submit">
+              {isPending ? "Saving..." : "Add resource operating window"}
+            </button>
+          </div>
+
+          <div className="appointment-admin-record-list">
+            <strong>Existing operating windows</strong>
+            {selectedResourceForWindow?.operatingWindows.length ? (
+              selectedResourceForWindow.operatingWindows.map((window) => (
+                <div className="appointment-admin-record" key={window.id}>
+                  <span>{formatKind(window.businessDay)}</span>
+                  <strong>
+                    {window.opensAt} - {window.closesAt}
+                  </strong>
+                  <small>
+                    Valid from {window.validFromIso}
+                    {window.validToIso ? ` to ${window.validToIso}` : ""}
+                    {window.capacityOverride
+                      ? ` - capacity override ${window.capacityOverride}`
+                      : " - default capacity"}
+                  </small>
+                </div>
+              ))
+            ) : (
+              <p className="field-hint">
+                No resource-specific operating calendar windows configured yet.
+              </p>
+            )}
+          </div>
+        </form>
 
         <form className="panel-card settings-main-card" onSubmit={submitResourceUnavailability}>
           <strong>Resource availability</strong>

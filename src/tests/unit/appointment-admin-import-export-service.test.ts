@@ -81,6 +81,7 @@ function settingsFixture(): AppointmentAdminSettings {
           name: "Staff member",
           kind: "STAFF"
         },
+        operatingWindows: [],
         unavailability: []
       }
     ],

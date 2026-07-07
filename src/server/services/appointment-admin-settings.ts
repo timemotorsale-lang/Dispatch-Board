@@ -103,6 +103,16 @@ type AppointmentAdminResourceUnavailabilityRecord = {
   createdAt: Date;
 };
 
+type AppointmentAdminResourceOperatingWindowRecord = {
+  id: string;
+  businessDay: BusinessDay;
+  opensAtMinute: number;
+  closesAtMinute: number;
+  capacityOverride: number | null;
+  validFrom: Date;
+  validTo: Date | null;
+};
+
 type AppointmentAdminResourceRecord = {
   id: string;
   code: string;
@@ -118,6 +128,7 @@ type AppointmentAdminResourceRecord = {
     name: string;
     kind: string;
   };
+  operatingWindows: AppointmentAdminResourceOperatingWindowRecord[];
   unavailability: AppointmentAdminResourceUnavailabilityRecord[];
 };
 
@@ -132,6 +143,7 @@ export type AppointmentAdminSettingsRepository = {
   updateResource(input: NormalizedAppointmentResourceUpdateInput): Promise<AppointmentAdminResourceRecord>;
   createResourceType(input: NormalizedAppointmentResourceTypeCreateInput): Promise<AppointmentAdminResourceTypeRecord>;
   updateResourceType(input: NormalizedAppointmentResourceTypeUpdateInput): Promise<AppointmentAdminResourceTypeRecord>;
+  createResourceOperatingWindow(input: NormalizedAppointmentResourceOperatingWindowInput): Promise<AppointmentAdminResourceOperatingWindowRecord>;
   createResourceUnavailability(input: NormalizedAppointmentResourceUnavailabilityInput): Promise<AppointmentAdminResourceUnavailabilityRecord>;
   updateLocationAndHours(input: {
     location: AppointmentAdminLocationInput;
@@ -212,6 +224,17 @@ export type AppointmentResourceUnavailabilityInput = {
   reason: string;
 };
 
+export type AppointmentResourceOperatingWindowInput = {
+  resourceId: string;
+  businessDay: string;
+  opensAt: string;
+  closesAt: string;
+  capacityOverride?: number | null;
+  validFrom: string;
+  validTo?: string | null;
+  reason: string;
+};
+
 export type AppointmentRecurringTemplateClosureApplyInput = {
   templateCode: string;
   dateIso?: string | null;
@@ -283,6 +306,18 @@ export type NormalizedAppointmentResourceUnavailabilityInput = {
   createdByUserId: string;
 };
 
+export type NormalizedAppointmentResourceOperatingWindowInput = {
+  resourceId: string;
+  locationId: string;
+  businessDay: BusinessDay;
+  opensAtMinute: number;
+  closesAtMinute: number;
+  capacityOverride: number | null;
+  validFrom: Date;
+  validTo: Date | null;
+  reason: string;
+};
+
 export type AppointmentAdminSettings = {
   organization: {
     id: string;
@@ -310,7 +345,18 @@ export type AppointmentAdminSettings = {
     createdAtIso: string;
   }>;
   resourceTypes: AppointmentAdminResourceTypeRecord[];
-  resources: Array<Omit<AppointmentAdminResourceRecord, "unavailability"> & {
+  resources: Array<Omit<AppointmentAdminResourceRecord, "unavailability" | "operatingWindows"> & {
+    operatingWindows: Array<{
+      id: string;
+      businessDay: BusinessDay;
+      opensAt: string;
+      closesAt: string;
+      opensAtMinute: number;
+      closesAtMinute: number;
+      capacityOverride: number | null;
+      validFromIso: string;
+      validToIso: string | null;
+    }>;
     unavailability: Array<{
       id: string;
       type: string;
@@ -948,6 +994,51 @@ export function normalizeAppointmentResourceUnavailabilityInput(input: {
   };
 }
 
+export function normalizeAppointmentResourceOperatingWindowInput(input: {
+  locationId: string;
+  resourceId: string;
+  window: AppointmentResourceOperatingWindowInput;
+}): NormalizedAppointmentResourceOperatingWindowInput {
+  const businessDay = normalizeText(input.window?.businessDay, "Resource operating day", 20);
+
+  if (!orderedBusinessDays.includes(businessDay as BusinessDay)) {
+    throw new Error("Resource operating day is invalid.");
+  }
+
+  const opensAt = normalizeText(input.window?.opensAt, "Resource opening time", 5);
+  const closesAt = normalizeText(input.window?.closesAt, "Resource closing time", 5);
+  const opensAtMinute = parseTimeToMinute(opensAt, "Resource opening time");
+  const closesAtMinute = parseTimeToMinute(closesAt, "Resource closing time");
+
+  if (closesAtMinute <= opensAtMinute) {
+    throw new Error("Resource closing time must be after opening time.");
+  }
+
+  const validFrom = parseDateIso(input.window?.validFrom, "Resource window valid-from date");
+  const validTo = input.window?.validTo
+    ? parseDateIso(input.window.validTo, "Resource window valid-to date")
+    : null;
+
+  if (validTo && validTo < validFrom) {
+    throw new Error("Resource operating window valid-to date cannot be before valid-from date.");
+  }
+
+  return {
+    resourceId: normalizeText(input.resourceId, "Resource", 120),
+    locationId: normalizeText(input.locationId, "Resource location", 120),
+    businessDay: businessDay as BusinessDay,
+    opensAtMinute,
+    closesAtMinute,
+    capacityOverride:
+      input.window.capacityOverride === null || input.window.capacityOverride === undefined
+        ? null
+        : normalizePositiveInteger(input.window.capacityOverride, "Resource capacity override", 1000),
+    validFrom,
+    validTo,
+    reason: normalizeText(input.window?.reason, "Resource operating window reason", 1000)
+  };
+}
+
 function getCatalogs() {
   const outcomeCodes = new Set<string>();
   const followUpDispositionCodes = new Set<string>();
@@ -1010,6 +1101,17 @@ function serializeClosure(closure: AppointmentAdminLocationClosureRecord) {
 function serializeResource(resource: AppointmentAdminResourceRecord) {
   return {
     ...resource,
+    operatingWindows: resource.operatingWindows.map((window) => ({
+      id: window.id,
+      businessDay: window.businessDay,
+      opensAt: minuteToTime(window.opensAtMinute),
+      closesAt: minuteToTime(window.closesAtMinute),
+      opensAtMinute: window.opensAtMinute,
+      closesAtMinute: window.closesAtMinute,
+      capacityOverride: window.capacityOverride,
+      validFromIso: localDateKey(window.validFrom),
+      validToIso: window.validTo ? localDateKey(window.validTo) : null
+    })),
     unavailability: resource.unavailability.map((entry) => ({
       id: entry.id,
       type: entry.type,
@@ -1660,6 +1762,18 @@ export function createAppointmentAdminSettingsRepository(): AppointmentAdminSett
               kind: true
             }
           },
+          operatingWindows: {
+            select: {
+              id: true,
+              businessDay: true,
+              opensAtMinute: true,
+              closesAtMinute: true,
+              capacityOverride: true,
+              validFrom: true,
+              validTo: true
+            },
+            orderBy: [{ businessDay: "asc" }, { opensAtMinute: "asc" }, { validFrom: "asc" }]
+          },
           unavailability: {
             where: {
               endsAt: {
@@ -1760,6 +1874,18 @@ export function createAppointmentAdminSettingsRepository(): AppointmentAdminSett
               kind: true
             }
           },
+          operatingWindows: {
+            select: {
+              id: true,
+              businessDay: true,
+              opensAtMinute: true,
+              closesAtMinute: true,
+              capacityOverride: true,
+              validFrom: true,
+              validTo: true
+            },
+            orderBy: [{ businessDay: "asc" }, { opensAtMinute: "asc" }, { validFrom: "asc" }]
+          },
           unavailability: {
             where: {
               endsAt: {
@@ -1830,6 +1956,40 @@ export function createAppointmentAdminSettingsRepository(): AppointmentAdminSett
           defaultCapacity: true,
           defaultConflictPolicy: true,
           isActive: true
+        }
+      });
+    },
+    async createResourceOperatingWindow(input) {
+      const resource = await prisma.schedulableResource.findFirst({
+        where: {
+          id: input.resourceId,
+          locationId: input.locationId
+        },
+        select: { id: true }
+      });
+
+      if (!resource) {
+        throw new Error("Resource is not configured for this appointment location.");
+      }
+
+      return prisma.resourceOperatingWindow.create({
+        data: {
+          resourceId: input.resourceId,
+          businessDay: input.businessDay,
+          opensAtMinute: input.opensAtMinute,
+          closesAtMinute: input.closesAtMinute,
+          capacityOverride: input.capacityOverride,
+          validFrom: input.validFrom,
+          validTo: input.validTo
+        },
+        select: {
+          id: true,
+          businessDay: true,
+          opensAtMinute: true,
+          closesAtMinute: true,
+          capacityOverride: true,
+          validFrom: true,
+          validTo: true
         }
       });
     },
@@ -2213,6 +2373,30 @@ export async function updateAppointmentResourceTypeForManager(
       organizationId: location.organizationId,
       resourceTypeId: input.resourceTypeId,
       update: input
+    })
+  );
+
+  return getAppointmentAdminSettings(repository);
+}
+
+export async function createAppointmentResourceOperatingWindowForManager(
+  user: AuthenticatedUser | null,
+  input: AppointmentResourceOperatingWindowInput,
+  repository: AppointmentAdminSettingsRepository = createAppointmentAdminSettingsRepository()
+) {
+  assertCanManageAppointmentAdminSettings(user);
+
+  const location = await repository.getLocation();
+
+  if (!location) {
+    throw new Error("Appointment location settings are not configured.");
+  }
+
+  await repository.createResourceOperatingWindow(
+    normalizeAppointmentResourceOperatingWindowInput({
+      locationId: location.id,
+      resourceId: input.resourceId,
+      window: input
     })
   );
 

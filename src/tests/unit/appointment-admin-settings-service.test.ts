@@ -13,11 +13,13 @@ import {
   applyRecurringAppointmentClosureTemplateForManager,
   type AppointmentAdminSettingsRepository,
   createAppointmentLocationClosureForManager,
+  createAppointmentResourceOperatingWindowForManager,
   createAppointmentResourceTypeForManager,
   createAppointmentResourceUnavailabilityForManager,
   deleteAppointmentLocationClosureForManager,
   getAppointmentBoardSettings,
   normalizeAppointmentAdminSettingsInput,
+  normalizeAppointmentResourceOperatingWindowInput,
   normalizeAppointmentResourceUnavailabilityInput,
   normalizeAppointmentResourceTypeUpdateInput,
   updateAppointmentLocationClosureForManager,
@@ -79,6 +81,7 @@ function createRepository() {
         name: "Staff member",
         kind: "STAFF"
       },
+      operatingWindows: [],
       unavailability: []
     }
   ];
@@ -190,6 +193,27 @@ function createRepository() {
       );
 
       return resourceTypes.find((resourceType) => resourceType.id === input.resourceTypeId)!;
+    },
+    async createResourceOperatingWindow(input) {
+      const entry = {
+        id: `resource-window-${resources[0].operatingWindows.length + 1}`,
+        businessDay: input.businessDay,
+        opensAtMinute: input.opensAtMinute,
+        closesAtMinute: input.closesAtMinute,
+        capacityOverride: input.capacityOverride,
+        validFrom: input.validFrom,
+        validTo: input.validTo
+      };
+      resources = resources.map((resource) =>
+        resource.id === input.resourceId
+          ? {
+              ...resource,
+              operatingWindows: [...resource.operatingWindows, entry]
+            }
+          : resource
+      );
+
+      return entry;
     },
     async createResourceUnavailability(input) {
       const entry = {
@@ -642,6 +666,72 @@ describe("appointment admin settings service", () => {
         }
       })
     ).toThrow(/exclusive resource type/);
+  });
+
+  it("allows managers to create resource operating calendar windows", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createRepository();
+
+    const settings = await createAppointmentResourceOperatingWindowForManager(
+      manager,
+      {
+        resourceId: "res-abdi",
+        businessDay: BusinessDay.MONDAY,
+        opensAt: "10:00",
+        closesAt: "16:00",
+        capacityOverride: 1,
+        validFrom: "2026-07-07",
+        validTo: null,
+        reason: "Manager limited advisor calendar for training."
+      },
+      repository
+    );
+
+    expect(settings.resources[0].operatingWindows).toEqual([
+      expect.objectContaining({
+        businessDay: BusinessDay.MONDAY,
+        opensAt: "10:00",
+        closesAt: "16:00",
+        capacityOverride: 1,
+        validFromIso: "2026-07-07"
+      })
+    ]);
+  });
+
+  it("rejects malformed resource operating calendar windows", () => {
+    expect(() =>
+      normalizeAppointmentResourceOperatingWindowInput({
+        locationId: "loc-time-motor-sales-minneapolis",
+        resourceId: "res-abdi",
+        window: {
+          resourceId: "res-abdi",
+          businessDay: BusinessDay.MONDAY,
+          opensAt: "18:00",
+          closesAt: "09:00",
+          validFrom: "2026-07-07",
+          validTo: null,
+          reason: "Backwards operating window."
+        }
+      })
+    ).toThrow(/closing time/);
+
+    expect(() =>
+      normalizeAppointmentResourceOperatingWindowInput({
+        locationId: "loc-time-motor-sales-minneapolis",
+        resourceId: "res-abdi",
+        window: {
+          resourceId: "res-abdi",
+          businessDay: BusinessDay.FRIDAY,
+          opensAt: "09:00",
+          closesAt: "17:00",
+          capacityOverride: 0,
+          validFrom: "2026-07-07",
+          validTo: "2026-07-06",
+          reason: "Invalid date and capacity."
+        }
+      })
+    ).toThrow(/valid-to date/);
   });
 
   it("allows managers to create resource capacity reductions", async () => {
