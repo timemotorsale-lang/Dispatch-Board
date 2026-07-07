@@ -193,6 +193,31 @@ type AppointmentAuditTimelineEvent = {
 
 type AppointmentAuditTimelineFilter = "all" | AppointmentAuditTimelineLane;
 
+type AppointmentCommandCenterExportFormat = "summary" | "csv" | "audit-json";
+
+type AppointmentCommandCenterReportRow = {
+  appointmentId: string;
+  customer: string;
+  vehicle: string;
+  queueLabel: string;
+  priority: "Critical" | "High" | "Medium";
+  slaStatus: "on-track" | "at-risk" | "breached";
+  resolutionStatus: AppointmentResolutionStateStatus;
+  ownerName: string;
+  recommendedAction: string;
+};
+
+type AppointmentCommandCenterReport = {
+  generatedForLabel: string;
+  summary: {
+    visibleExceptions: number;
+    breachedSla: number;
+    escalated: number;
+    managerEvents: number;
+  };
+  rows: AppointmentCommandCenterReportRow[];
+};
+
 type AppointmentReadModel = {
   id: string;
   appointmentNumber: string;
@@ -1193,6 +1218,104 @@ export function buildAppointmentResolutionWorkbench(
   });
 }
 
+export function buildAppointmentCommandCenterReport(input: {
+  generatedForLabel: string;
+  workbenchItems: AppointmentResolutionWorkbenchItem[];
+  auditTimelineEvents: AppointmentAuditTimelineEvent[];
+}): AppointmentCommandCenterReport {
+  const rows: AppointmentCommandCenterReportRow[] = input.workbenchItems.map((item) => ({
+    appointmentId: item.appointment.id,
+    customer: item.appointment.customer,
+    vehicle: item.appointment.vehicle,
+    queueLabel: item.queueLabel,
+    priority: item.priority,
+    slaStatus: item.slaStatus,
+    resolutionStatus: item.resolutionStatus,
+    ownerName: item.ownerName,
+    recommendedAction: item.recommendedAction
+  }));
+
+  return {
+    generatedForLabel: input.generatedForLabel,
+    summary: {
+      visibleExceptions: rows.length,
+      breachedSla: rows.filter((row) => row.slaStatus === "breached").length,
+      escalated: rows.filter((row) => row.resolutionStatus === "escalated").length,
+      managerEvents: input.auditTimelineEvents.filter((event) => event.lane === "manager").length
+    },
+    rows
+  };
+}
+
+export function buildAppointmentCommandCenterExport(input: {
+  format: AppointmentCommandCenterExportFormat;
+  report: AppointmentCommandCenterReport;
+  auditTimelineEvents: AppointmentAuditTimelineEvent[];
+}): string {
+  if (input.format === "summary") {
+    const summary = input.report.summary;
+    const topRows = input.report.rows
+      .slice(0, 5)
+      .map(
+        (row) =>
+          `- ${row.appointmentId} | ${row.customer} | ${row.queueLabel} | ${row.priority} | ${row.slaStatus} | ${row.ownerName}`
+      )
+      .join("\n");
+
+    return [
+      `Appointment command center report - ${input.report.generatedForLabel}`,
+      `Visible exceptions: ${summary.visibleExceptions}`,
+      `Breached SLA: ${summary.breachedSla}`,
+      `Escalated: ${summary.escalated}`,
+      `Manager events in selected timeline: ${summary.managerEvents}`,
+      "",
+      "Visible queue items:",
+      topRows || "- None"
+    ].join("\n");
+  }
+
+  if (input.format === "csv") {
+    const header = [
+      "appointment_id",
+      "customer",
+      "vehicle",
+      "queue",
+      "priority",
+      "sla_status",
+      "resolution_status",
+      "owner",
+      "recommended_action"
+    ];
+
+    const rows = input.report.rows.map((row) =>
+      [
+        row.appointmentId,
+        row.customer,
+        row.vehicle,
+        row.queueLabel,
+        row.priority,
+        row.slaStatus,
+        row.resolutionStatus,
+        row.ownerName,
+        row.recommendedAction
+      ]
+        .map((value) => `"${String(value).replaceAll("\"", "\"\"")}"`)
+        .join(",")
+    );
+
+    return [header.join(","), ...rows].join("\n");
+  }
+
+  return JSON.stringify(
+    {
+      report: input.report,
+      auditTimelineEvents: input.auditTimelineEvents
+    },
+    null,
+    2
+  );
+}
+
 function appointmentTimeLabel(appointment: Appointment) {
   if (isUnscheduledDraftAppointment(appointment)) {
     return "Unscheduled";
@@ -1704,6 +1827,9 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   const [resolutionStateByAppointmentId, setResolutionStateByAppointmentId] = useState<Record<string, AppointmentResolutionState>>({});
   const [auditTimelineFilter, setAuditTimelineFilter] = useState<AppointmentAuditTimelineFilter>("all");
   const [commandCenterAuditEvents, setCommandCenterAuditEvents] = useState<AppointmentAuditTimelineEvent[]>([]);
+  const [reportQueueFilter, setReportQueueFilter] = useState<AppointmentResolutionWorkbenchFilter>("all");
+  const [reportOwnerFilter, setReportOwnerFilter] = useState("all");
+  const [reportExportFormat, setReportExportFormat] = useState<AppointmentCommandCenterExportFormat>("summary");
   const [detailRefreshKey, setDetailRefreshKey] = useState(0);
   const [actionNotice, setActionNotice] = useState("Operational command bridge ready. Persisted appointments can now use the live command API for check-in and no-show actions.");
 
@@ -1897,6 +2023,50 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     }),
     [selectedAppointmentAuditTimeline]
   );
+  const reportWorkbenchItems = useMemo(() => {
+    const queueScopedItems = buildAppointmentResolutionWorkbench(
+      filteredAppointments,
+      resolutionStateByAppointmentId,
+      {
+        filter: reportQueueFilter,
+        includeDormant: false,
+        sort: "priority"
+      }
+    );
+
+    if (reportOwnerFilter === "all") {
+      return queueScopedItems;
+    }
+
+    return queueScopedItems.filter((item) => {
+      const resolvedOwnerId =
+        resolutionStateByAppointmentId[item.appointment.id]?.ownerId ?? item.appointment.staffId;
+      return resolvedOwnerId === reportOwnerFilter;
+    });
+  }, [
+    filteredAppointments,
+    reportOwnerFilter,
+    reportQueueFilter,
+    resolutionStateByAppointmentId
+  ]);
+  const commandCenterReport = useMemo(
+    () =>
+      buildAppointmentCommandCenterReport({
+        generatedForLabel: `${businessDate} · Focus ${selectedAppointment.id}`,
+        workbenchItems: reportWorkbenchItems,
+        auditTimelineEvents: selectedAppointmentAuditTimeline
+      }),
+    [reportWorkbenchItems, selectedAppointment.id, selectedAppointmentAuditTimeline]
+  );
+  const commandCenterExportPreview = useMemo(
+    () =>
+      buildAppointmentCommandCenterExport({
+        format: reportExportFormat,
+        report: commandCenterReport,
+        auditTimelineEvents: selectedAppointmentAuditTimeline
+      }),
+    [commandCenterReport, reportExportFormat, selectedAppointmentAuditTimeline]
+  );
 
   const scheduledFilteredAppointments = useMemo(
     () => filteredAppointments.filter((appointment) => !isUnscheduledDraftAppointment(appointment)),
@@ -1987,6 +2157,24 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
       ...current,
       reasonNotes: ""
     }));
+  }
+
+  async function copyCommandCenterExportPreview() {
+    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+      setActionNotice("Export preview is ready. Copy is not available in this browser context.");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(commandCenterExportPreview);
+      setActionNotice(`Copied ${reportExportFormat.toUpperCase()} command-center export preview to clipboard.`);
+    } catch (error) {
+      setActionNotice(
+        error instanceof Error
+          ? `Could not copy export preview: ${error.message}`
+          : "Could not copy export preview."
+      );
+    }
   }
 
   function toggleResolutionSelection(appointmentId: string) {
@@ -4106,6 +4294,110 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
                 <p>The current timeline focus hides all visible history for this appointment.</p>
               </div>
             )}
+          </section>
+
+          <section className="appointment-reporting-card" aria-labelledby="appointment-reporting-exports">
+            <div className="appointment-section-heading">
+              <div>
+                <strong id="appointment-reporting-exports">Reporting & Exports</strong>
+                <p>
+                  Generate manager-ready summaries and exportable command-center snapshots from the
+                  current visible board scope.
+                </p>
+              </div>
+              <span>{commandCenterReport.rows.length} row{commandCenterReport.rows.length === 1 ? "" : "s"}</span>
+            </div>
+
+            <div className="appointment-reporting-summary">
+              <article>
+                <span>Visible Exceptions</span>
+                <strong>{commandCenterReport.summary.visibleExceptions}</strong>
+              </article>
+              <article>
+                <span>Breached SLA</span>
+                <strong>{commandCenterReport.summary.breachedSla}</strong>
+              </article>
+              <article>
+                <span>Escalated</span>
+                <strong>{commandCenterReport.summary.escalated}</strong>
+              </article>
+              <article>
+                <span>Manager Events</span>
+                <strong>{commandCenterReport.summary.managerEvents}</strong>
+              </article>
+            </div>
+
+            <div className="appointment-reporting-toolbar">
+              <div className="appointment-reporting-toolbar-group">
+                <label>
+                  Queue scope
+                  <select
+                    aria-label="Filter reporting queue scope"
+                    value={reportQueueFilter}
+                    onChange={(event) =>
+                      setReportQueueFilter(event.target.value as AppointmentResolutionWorkbenchFilter)
+                    }
+                  >
+                    <option value="all">All active queues</option>
+                    <option value="needs-scheduling">Needs scheduling</option>
+                    <option value="conflict-watch">Conflict watch</option>
+                    <option value="no-show-recovery">No-show recovery</option>
+                    <option value="follow-up-required">Follow-up required</option>
+                    <option value="breached-sla">Breached SLA</option>
+                    <option value="escalated">Escalated only</option>
+                  </select>
+                </label>
+                <label>
+                  Owner scope
+                  <select
+                    aria-label="Filter reporting owner scope"
+                    value={reportOwnerFilter}
+                    onChange={(event) => setReportOwnerFilter(event.target.value)}
+                  >
+                    <option value="all">All owners</option>
+                    {visibleStaffMembers.map((staff) => (
+                      <option key={staff.id} value={staff.id}>{staff.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Export format
+                  <select
+                    aria-label="Select export format"
+                    value={reportExportFormat}
+                    onChange={(event) =>
+                      setReportExportFormat(event.target.value as AppointmentCommandCenterExportFormat)
+                    }
+                  >
+                    <option value="summary">Manager summary</option>
+                    <option value="csv">CSV rows</option>
+                    <option value="audit-json">Audit JSON</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="appointment-reporting-toolbar-actions">
+                <button type="button" onClick={() => setActionNotice(`Prepared ${reportExportFormat.toUpperCase()} reporting snapshot for ${selectedAppointment.id}.`)}>
+                  Refresh snapshot
+                </button>
+                <button type="button" onClick={() => void copyCommandCenterExportPreview()}>
+                  Copy export
+                </button>
+              </div>
+            </div>
+
+            <div className="appointment-reporting-preview">
+              <div className="appointment-reporting-preview-heading">
+                <strong>Export preview</strong>
+                <span>{commandCenterReport.generatedForLabel}</span>
+              </div>
+              <textarea
+                aria-label="Command center export preview"
+                readOnly
+                rows={12}
+                value={commandCenterExportPreview}
+              />
+            </div>
           </section>
 
           <div className="appointment-board-controls">

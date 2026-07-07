@@ -6612,6 +6612,167 @@ code {
   font-size: 12px;
 }
 
+.appointment-reporting-card {
+  display: grid;
+  gap: 12px;
+  margin: 0 12px 12px;
+  padding: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  border: 1px solid #dbe5f2;
+  border-radius: 14px;
+}
+
+.appointment-reporting-card .appointment-section-heading {
+  align-items: flex-start;
+}
+
+.appointment-reporting-card .appointment-section-heading div {
+  display: grid;
+  gap: 3px;
+}
+
+.appointment-reporting-card .appointment-section-heading p {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.appointment-reporting-card .appointment-section-heading > span {
+  display: inline-grid;
+  place-items: center;
+  min-height: 26px;
+  padding: 0 9px;
+  color: #0f4aa7;
+  background: #e9f2ff;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.appointment-reporting-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.appointment-reporting-summary article {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #dbe5f2;
+  border-radius: 12px;
+}
+
+.appointment-reporting-summary span {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.appointment-reporting-summary strong {
+  color: #0f172a;
+  font-size: 18px;
+}
+
+.appointment-reporting-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.appointment-reporting-toolbar-group,
+.appointment-reporting-toolbar-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.appointment-reporting-toolbar-group label {
+  display: grid;
+  gap: 6px;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.appointment-reporting-toolbar-group select,
+.appointment-reporting-preview textarea {
+  min-height: 36px;
+  padding: 0 11px;
+  color: #253449;
+  background: #fff;
+  border: 1px solid #d8e2ef;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.appointment-reporting-toolbar-group select {
+  min-width: 170px;
+}
+
+.appointment-reporting-toolbar-actions button {
+  min-height: 34px;
+  padding: 0 11px;
+  color: #334155;
+  background: #fff;
+  border: 1px solid #d8e2ef;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.appointment-reporting-toolbar-actions button:last-child {
+  color: #fff;
+  background: #1d5eed;
+  border-color: #1d5eed;
+}
+
+.appointment-reporting-preview {
+  display: grid;
+  gap: 8px;
+}
+
+.appointment-reporting-preview-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.appointment-reporting-preview-heading strong {
+  color: #0f172a;
+  font-size: 12px;
+}
+
+.appointment-reporting-preview-heading span {
+  color: #64748b;
+  font-size: 10px;
+}
+
+.appointment-reporting-preview textarea {
+  width: 100%;
+  min-height: 220px;
+  padding: 10px 11px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
 .appointment-board-controls {
   display: flex;
   align-items: center;
@@ -7651,6 +7812,10 @@ code {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .appointment-reporting-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .appointment-search {
     width: min(100%, 520px);
   }
@@ -7671,6 +7836,10 @@ code {
 
   .appointment-resolution-item-top,
   .appointment-resolution-item-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .appointment-reporting-summary {
     grid-template-columns: 1fr;
   }
 
