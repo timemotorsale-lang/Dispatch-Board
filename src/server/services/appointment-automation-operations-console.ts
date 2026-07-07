@@ -9,6 +9,7 @@ import {
   simulateAppointmentCatalogAutomation,
   type AppointmentCatalogAutomationAdmin
 } from "@/server/services/appointment-catalog-automation-admin";
+import { runAppointmentAutomationRetryReplay } from "@/server/services/appointment-automation-retry-replay-engine";
 
 type RuleStatus = "DRAFT" | "ACTIVE" | "PAUSED" | "RETIRED";
 type RuleAction = "DRAFT_CREATED" | "DRAFT_UPDATED" | "ACTIVATED" | "PAUSED" | "RETIRED" | "SIMULATED";
@@ -86,9 +87,21 @@ export type AppointmentAutomationEventRecord = {
 export type AppointmentAutomationOperationsRepository = {
   listRules(organizationId: string): Promise<AppointmentAutomationRuleRecord[]>;
   listExecutions(organizationId: string): Promise<AppointmentAutomationExecutionRecord[]>;
+  getExecutionById(executionId: string): Promise<AppointmentAutomationExecutionRecord | null>;
   listRuleEvents(organizationId: string, limit: number): Promise<AppointmentAutomationEventRecord[]>;
   listExecutionEvents(organizationId: string, limit: number): Promise<AppointmentAutomationEventRecord[]>;
   recordExecution(input: AutomationExecutionRecordInput): Promise<AppointmentAutomationExecutionRecord>;
+  finalizeExecution(input: {
+    executionId: string;
+    status: Exclude<ExecutionStatus, "PENDING" | "RESOLVED" | "SKIPPED">;
+    reason: string;
+    actorUserId: string;
+    resultSnapshot?: unknown;
+    failureCode?: string | null;
+    failureMessage?: string | null;
+    nextRetryAt?: Date | null;
+    eventAction?: "RETRIED" | "REPLAYED" | "FAILED" | "REVIEW_CREATED" | null;
+  }): Promise<AppointmentAutomationExecutionRecord>;
   upsertRuleDraft(input: RuleMutationInput & {
     actorUserId: string;
     validation: RuleValidation;
@@ -434,6 +447,19 @@ export function createAppointmentAutomationOperationsRepository(): AppointmentAu
         throw error;
       }
     },
+    async getExecutionById(executionId) {
+      if (!hasDelegates) return null;
+      try {
+        const records = await automationPrisma.appointmentAutomationExecution!.findMany({
+          where: { organizationId: INITIAL_ORGANIZATION.id, id: executionId },
+          take: 1
+        });
+        return records[0] ?? null;
+      } catch (error) {
+        if (isPersistenceUnavailable(error)) return null;
+        throw error;
+      }
+    },
     async listRuleEvents(organizationId, limit) {
       if (!hasDelegates) return [];
       return automationPrisma.appointmentAutomationRuleChangeEvent!.findMany({
@@ -495,6 +521,54 @@ export function createAppointmentAutomationOperationsRepository(): AppointmentAu
             newSnapshot: toJsonValue(execution)
           }
         });
+
+        return execution;
+      });
+    },
+    async finalizeExecution(input) {
+      if (!hasDelegates) throw unavailablePersistenceError();
+      return automationPrisma.$transaction(async (transaction) => {
+        const existingRecords = await transaction.appointmentAutomationExecution.findMany({
+          where: {
+            organizationId: INITIAL_ORGANIZATION.id,
+            id: input.executionId
+          },
+          take: 1
+        });
+        const existing = existingRecords[0] ?? null;
+
+        if (!existing) {
+          throw new Error("Automation execution is not queued.");
+        }
+
+        const execution = await transaction.appointmentAutomationExecution.update({
+          where: { id: input.executionId },
+          data: {
+            status: input.status,
+            resultSnapshot:
+              input.resultSnapshot === undefined
+                ? existing.resultSnapshot
+                : toJsonValue(input.resultSnapshot),
+            failureCode: input.failureCode ?? null,
+            failureMessage: input.failureMessage ?? null,
+            nextRetryAt: input.nextRetryAt ?? null,
+            resolvedAt: null
+          }
+        });
+
+        if (input.eventAction) {
+          await transaction.appointmentAutomationExecutionEvent.create({
+            data: {
+              automationExecutionId: execution.id,
+              organizationId: INITIAL_ORGANIZATION.id,
+              actorUserId: input.actorUserId,
+              action: input.eventAction,
+              reason: input.reason,
+              priorSnapshot: toJsonValue(existing),
+              newSnapshot: toJsonValue(execution)
+            }
+          });
+        }
 
         return execution;
       });
@@ -658,17 +732,19 @@ export function createAppointmentAutomationOperationsRepository(): AppointmentAu
           }
         });
 
-        await transaction.appointmentAutomationExecutionEvent.create({
-          data: {
-            automationExecutionId: execution.id,
-            organizationId: INITIAL_ORGANIZATION.id,
-            actorUserId: input.actorUserId,
-            action: next.action,
-            reason: input.reason,
-            priorSnapshot: toJsonValue(existing),
-            newSnapshot: toJsonValue(execution)
-          }
-        });
+        if (input.action === "RESOLVE" || input.action === "SKIP") {
+          await transaction.appointmentAutomationExecutionEvent.create({
+            data: {
+              automationExecutionId: execution.id,
+              organizationId: INITIAL_ORGANIZATION.id,
+              actorUserId: input.actorUserId,
+              action: next.action,
+              reason: input.reason,
+              priorSnapshot: toJsonValue(existing),
+              newSnapshot: toJsonValue(execution)
+            }
+          });
+        }
 
         return execution;
       });
@@ -802,16 +878,84 @@ export async function transitionAppointmentAutomationRuleForManager(
 export async function transitionAppointmentAutomationExecutionForManager(
   user: AuthenticatedUser | null,
   input: ExecutionTransitionInput,
-  repository: AppointmentAutomationOperationsRepository = createAppointmentAutomationOperationsRepository()
+  repository: AppointmentAutomationOperationsRepository = createAppointmentAutomationOperationsRepository(),
+  dependencies?: {
+    retryReplayEngine?: typeof runAppointmentAutomationRetryReplay;
+    now?: Date;
+  }
 ) {
   assertCanManageAutomation(user);
 
-  await repository.transitionExecution({
+  const normalizedInput = {
     executionId: normalizeText(input.executionId, "Execution id"),
     action: input.action,
     reason: normalizeReason(input.reason),
     actorUserId: user.id
-  });
+  } as const;
+
+  await repository.transitionExecution(normalizedInput);
+
+  if (normalizedInput.action === "RETRY" || normalizedInput.action === "REPLAY") {
+    const execution = await repository.getExecutionById(normalizedInput.executionId);
+
+    if (!execution) {
+      throw new Error("Automation execution is not queued.");
+    }
+
+    const retryReplayEngine =
+      dependencies?.retryReplayEngine ?? runAppointmentAutomationRetryReplay;
+    let replayOutcome: {
+      status: Exclude<ExecutionStatus, "PENDING" | "RESOLVED" | "SKIPPED">;
+      resultSnapshot: Record<string, unknown>;
+      failureCode: string | null;
+      failureMessage: string | null;
+      nextRetryAt: Date | null;
+    };
+
+    try {
+      replayOutcome = await retryReplayEngine({
+        action: normalizedInput.action,
+        execution,
+        actorUserId: user.id,
+        now: dependencies?.now
+      });
+    } catch (error) {
+      const now = dependencies?.now ?? new Date();
+      const message =
+        error instanceof Error ? error.message : "Retry/replay engine failed unexpectedly.";
+      replayOutcome = {
+        status: "FAILED_RETRYABLE",
+        resultSnapshot: {
+          retryReplayAction: normalizedInput.action,
+          replayedAt: now.toISOString(),
+          failureCode: "RETRY_REPLAY_RUNTIME_ERROR",
+          failureMessage: message
+        },
+        failureCode: "RETRY_REPLAY_RUNTIME_ERROR",
+        failureMessage: message,
+        nextRetryAt: new Date(now.getTime() + 15 * 60 * 1000)
+      };
+    }
+
+    await repository.finalizeExecution({
+      executionId: normalizedInput.executionId,
+      status: replayOutcome.status,
+      reason: normalizedInput.reason,
+      actorUserId: user.id,
+      resultSnapshot: replayOutcome.resultSnapshot,
+      failureCode: replayOutcome.failureCode,
+      failureMessage: replayOutcome.failureMessage,
+      nextRetryAt: replayOutcome.nextRetryAt,
+      eventAction:
+        replayOutcome.status === "SUCCEEDED"
+          ? normalizedInput.action === "RETRY"
+            ? "RETRIED"
+            : "REPLAYED"
+          : replayOutcome.status === "REVIEW_REQUIRED"
+            ? "REVIEW_CREATED"
+            : "FAILED"
+    });
+  }
 
   return getAppointmentAutomationOperationsConsoleForManager(user, repository);
 }

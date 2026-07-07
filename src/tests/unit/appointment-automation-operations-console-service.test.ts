@@ -158,6 +158,66 @@ describe("appointment automation operations console service", () => {
     expect(resolved.recentEvents[0].action).toBe("RESOLVED");
   });
 
+  it("runs retry through the replay engine and records a completed retry event", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createMemoryAppointmentAutomationOperationsRepository();
+
+    await recordAppointmentAutomationExecution(
+      {
+        ruleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_TASK",
+        triggerCode: "APPOINTMENT_OUTCOME_RECORDED",
+        sourceType: "APPOINTMENT",
+        sourceReference: "appointment-1",
+        status: "FAILED_RETRYABLE",
+        reason: "Queue retryable runtime task failure.",
+        actorUserId: manager?.id ?? null,
+        inputSnapshot: {
+          automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_TASK"
+        },
+        resultSnapshot: {
+          automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_TASK"
+        },
+        failureCode: "SIMULATED_FAILURE",
+        failureMessage: "Temporary failure"
+      },
+      repository
+    );
+
+    const beforeRetry = await getAppointmentAutomationOperationsConsoleForManager(
+      manager,
+      repository
+    );
+
+    const retried = await transitionAppointmentAutomationExecutionForManager(
+      manager,
+      {
+        executionId: beforeRetry.executions[0].id,
+        action: "RETRY",
+        reason: "Run the automation again after fixing the source issue."
+      },
+      repository,
+      {
+        retryReplayEngine: async () => ({
+          status: "SUCCEEDED",
+          resultSnapshot: {
+            automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_TASK",
+            generatedFollowUpTaskId: "task-1"
+          },
+          failureCode: null,
+          failureMessage: null,
+          nextRetryAt: null
+        })
+      }
+    );
+
+    expect(retried.executions[0]).toMatchObject({
+      status: "SUCCEEDED",
+      failureCode: null
+    });
+    expect(retried.recentEvents[0].action).toBe("RETRIED");
+  });
+
   it("rejects non-manager access", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const staff = usersByEmail.get("jordan.sales@local.test") ?? null;
