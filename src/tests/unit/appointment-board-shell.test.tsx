@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildAppointmentAuditTimeline,
+  buildAppointmentCommandCenterDigestPreview,
+  buildAppointmentCommandCenterDigestSummaries,
   buildAppointmentCommandCenterExport,
   buildAppointmentCommandCenterReport,
   buildAppointmentCommandCenterSearchResults,
@@ -45,6 +47,10 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Saved Views &amp; Subscriptions");
     expect(markup).toContain("Save current view");
     expect(markup).toContain("My Watched Queues");
+    expect(markup).toContain("Notification Digests");
+    expect(markup).toContain("Digest Preview &amp; Delivery");
+    expect(markup).toContain("Shift Handoff Summary");
+    expect(markup).toContain("Send now");
   });
 
   it("renders admin-provided board settings when available", () => {
@@ -222,6 +228,167 @@ describe("appointment board shell", () => {
     expect(summaries.find((summary) => summary.watchType === "no-show-recovery")?.count).toBe(1);
     expect(summaries.find((summary) => summary.watchType === "follow-up-backlog")?.count).toBe(1);
     expect(summaries.find((summary) => summary.watchType === "manager-activity")?.count).toBeGreaterThan(0);
+  });
+
+  it("summarizes notification digests for exception queues and shift handoff", () => {
+    const summaries = buildAppointmentCommandCenterDigestSummaries({
+      appointments: [
+        {
+          id: "APT-NOSHOW",
+          title: "Test Drive",
+          customer: "Ahmed Ibrahim",
+          vehicle: "2018 Toyota Camry",
+          category: "sales",
+          status: "no-show",
+          staffId: "abdi",
+          staffName: "Abdi Farah",
+          startMinutes: 540,
+          durationMinutes: 60,
+          phone: "612-555-0102",
+          complaint: "Customer did not arrive",
+          location: "Sales floor",
+          confirmation: "No-show follow-up required",
+          attendanceStatus: "NO_SHOW",
+          followUpDispositionCode: "CALLBACK_REQUIRED",
+          taskAutomation: [],
+          governanceNotes: [],
+          startsAtIso: "2026-07-07T14:00:00.000Z",
+          endsAtIso: "2026-07-07T15:00:00.000Z"
+        },
+        {
+          id: "APT-ESC",
+          title: "Service / Repair",
+          customer: "Khalid Mohamud",
+          vehicle: "Brake Inspection",
+          category: "service",
+          status: "confirmed",
+          staffId: "brock",
+          staffName: "Brock Peterson",
+          startMinutes: 600,
+          durationMinutes: 60,
+          phone: "612-555-0101",
+          complaint: "Conflict active",
+          location: "Service bay",
+          confirmation: "Resource conflict needs manager review",
+          conflict: true,
+          taskAutomation: [],
+          governanceNotes: [],
+          startsAtIso: "2026-07-07T15:00:00.000Z",
+          endsAtIso: "2026-07-07T16:00:00.000Z"
+        }
+      ] as any,
+      resolutionStateByAppointmentId: {
+        "APT-ESC": {
+          status: "escalated",
+          ownerId: "brock",
+          ownerName: "Brock Peterson",
+          updatedAtLabel: "Just now"
+        }
+      },
+      commandCenterAuditEvents: [
+        {
+          id: "manager-1",
+          appointmentId: "APT-ESC",
+          lane: "manager",
+          tone: "purple",
+          title: "Manager escalation recorded",
+          detail: "Manager moved the conflict into an escalation lane.",
+          actor: "Abdi Farah",
+          occurredAtLabel: "Just now"
+        }
+      ],
+      digests: [
+        {
+          id: "digest-escalations",
+          label: "Escalation Digest",
+          description: "Escalated work.",
+          enabled: true,
+          watchType: "escalated",
+          channel: "email-summary",
+          cadence: "hourly",
+          recipientLabel: "General Manager"
+        },
+        {
+          id: "digest-shift-handoff",
+          label: "Shift Handoff Digest",
+          description: "Handoff scope.",
+          enabled: true,
+          watchType: "shift-handoff",
+          channel: "shift-handoff",
+          cadence: "shift-change",
+          recipientLabel: "Opening + Closing Manager"
+        }
+      ] as any
+    });
+
+    expect(summaries.find((summary) => summary.watchType === "escalated")?.count).toBe(1);
+    expect(summaries.find((summary) => summary.watchType === "shift-handoff")?.count).toBeGreaterThan(0);
+    expect(summaries.find((summary) => summary.watchType === "shift-handoff")?.headline).toContain(
+      "shift handoff"
+    );
+  });
+
+  it("builds a digest preview with delivery and queue context", () => {
+    const preview = buildAppointmentCommandCenterDigestPreview({
+      digest: {
+        id: "digest-escalations",
+        label: "Escalation Digest",
+        description: "Escalated work.",
+        enabled: true,
+        watchType: "escalated",
+        channel: "email-summary",
+        cadence: "hourly",
+        recipientLabel: "General Manager",
+        count: 1,
+        tone: "purple",
+        headline: "1 escalated appointment still needs ownership or resolution."
+      } as any,
+      report: {
+        generatedForLabel: "Monday, July 6, 2026 · Focus APT-ESC",
+        summary: {
+          visibleExceptions: 2,
+          breachedSla: 1,
+          escalated: 1,
+          managerEvents: 1
+        },
+        rows: [
+          {
+            appointmentId: "APT-ESC",
+            customer: "Khalid Mohamud",
+            vehicle: "Brake Inspection",
+            queueLabel: "Conflict Watch",
+            priority: "Critical",
+            slaStatus: "breached",
+            resolutionStatus: "escalated",
+            ownerName: "Brock Peterson",
+            recommendedAction: "Manager callback"
+          }
+        ]
+      },
+      focusedAppointment: {
+        id: "APT-ESC",
+        title: "Service / Repair",
+        customer: "Khalid Mohamud"
+      } as any,
+      auditTimelineEvents: [
+        {
+          id: "manager-1",
+          appointmentId: "APT-ESC",
+          lane: "manager",
+          tone: "purple",
+          title: "Manager escalation recorded",
+          detail: "Manager moved the conflict into an escalation lane.",
+          actor: "Abdi Farah",
+          occurredAtLabel: "Just now"
+        }
+      ],
+      businessDate: "Monday, July 6, 2026"
+    });
+
+    expect(preview).toContain("Appointment notification digest - Escalation Digest");
+    expect(preview).toContain("Recipients: General Manager");
+    expect(preview).toContain("Top queue items:");
+    expect(preview).toContain("APT-ESC | Conflict Watch | Critical | Brock Peterson | Manager callback");
   });
 
   it("classifies missing-time draft appointments as unscheduled board items", () => {

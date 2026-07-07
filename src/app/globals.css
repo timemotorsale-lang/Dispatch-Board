@@ -6660,6 +6660,225 @@ code {
   border-color: #bbf7d0;
 }
 
+.appointment-command-center-digests-card {
+  display: grid;
+  gap: 12px;
+  margin: 0 12px 12px;
+  padding: 14px;
+  background: linear-gradient(180deg, #fbfdff 0%, #f3f7ff 100%);
+  border: 1px solid #d7e5ff;
+  border-radius: 18px;
+}
+
+.appointment-command-center-digests-card .appointment-section-heading {
+  align-items: flex-start;
+}
+
+.appointment-command-center-digests-card .appointment-section-heading > span {
+  display: inline-grid;
+  place-items: center;
+  min-height: 26px;
+  padding: 0 9px;
+  color: #1d4ed8;
+  background: #fff;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.appointment-command-center-digests-grid,
+.appointment-command-center-shift-handoff-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.appointment-command-center-digest-rule-list,
+.appointment-command-center-digest-history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.appointment-command-center-digest-rule,
+.appointment-command-center-digest-history-item,
+.appointment-command-center-shift-handoff-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #d7e5ff;
+  border-radius: 14px;
+}
+
+.appointment-command-center-digest-rule-active {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.18);
+}
+
+.appointment-command-center-digest-rule-red { border-color: #fecaca; }
+.appointment-command-center-digest-rule-purple { border-color: #ddd6fe; }
+.appointment-command-center-digest-rule-amber { border-color: #fde68a; }
+.appointment-command-center-digest-rule-blue { border-color: #bfdbfe; }
+.appointment-command-center-digest-rule-green { border-color: #bbf7d0; }
+
+.appointment-command-center-digest-rule-top,
+.appointment-command-center-digest-history-top,
+.appointment-command-center-shift-handoff-heading,
+.appointment-command-center-digest-preview-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.appointment-command-center-digest-rule-top strong,
+.appointment-command-center-digest-history-top strong,
+.appointment-command-center-shift-handoff-heading strong,
+.appointment-command-center-digest-preview-heading strong {
+  color: #0f172a;
+  font-size: 12px;
+}
+
+.appointment-command-center-digest-rule-top p,
+.appointment-command-center-digest-history-top p,
+.appointment-command-center-digest-preview-heading span,
+.appointment-command-center-digest-history-item small {
+  margin: 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.appointment-command-center-digest-rule-summary,
+.appointment-command-center-digest-actions,
+.appointment-command-center-digest-preview-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.appointment-command-center-digest-rule-summary b,
+.appointment-command-center-digest-preview-summary span,
+.appointment-command-center-shift-handoff-heading span {
+  display: inline-grid;
+  place-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  color: #0f172a;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.appointment-command-center-digest-headline {
+  margin: 0;
+  color: #334155;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.appointment-command-center-digest-preferences {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.appointment-command-center-digest-preferences label,
+.appointment-command-center-digest-note-field {
+  display: grid;
+  gap: 6px;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.appointment-command-center-digest-preferences select,
+.appointment-command-center-digest-preferences input,
+.appointment-command-center-digest-note-field input,
+.appointment-command-center-digest-preview textarea {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 11px;
+  color: #253449;
+  background: #fff;
+  border: 1px solid #dce3ed;
+  border-radius: 12px;
+  outline: none;
+  font-size: 12px;
+}
+
+.appointment-command-center-digest-recipient-field {
+  grid-column: span 1;
+}
+
+.appointment-command-center-digest-preferences input,
+.appointment-command-center-digest-note-field input {
+  min-height: 38px;
+}
+
+.appointment-command-center-digest-preferences select:focus,
+.appointment-command-center-digest-preferences input:focus,
+.appointment-command-center-digest-note-field input:focus,
+.appointment-command-center-digest-preview textarea:focus {
+  border-color: #1d5eed;
+  box-shadow: 0 0 0 3px rgba(29, 94, 237, 0.12);
+}
+
+.appointment-command-center-shift-handoff-grid article {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  background: #f8fbff;
+  border: 1px solid #d7e5ff;
+  border-radius: 12px;
+}
+
+.appointment-command-center-shift-handoff-grid span {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.appointment-command-center-shift-handoff-grid strong {
+  color: #0f172a;
+  font-size: 18px;
+}
+
+.appointment-command-center-digest-preview {
+  display: grid;
+  gap: 8px;
+}
+
+.appointment-command-center-digest-preview textarea {
+  min-height: 220px;
+  padding: 10px 11px;
+  resize: vertical;
+}
+
+.appointment-command-center-digest-actions button {
+  min-height: 34px;
+  padding: 0 11px;
+  color: #334155;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.appointment-command-center-digest-actions button:last-child {
+  color: #fff;
+  background: #1d5eed;
+  border-color: #1d5eed;
+}
+
 .appointment-command-search-card {
   display: grid;
   gap: 12px;
@@ -8230,8 +8449,14 @@ code {
   }
 
   .appointment-command-search-results,
+  .appointment-command-center-digests-grid,
+  .appointment-command-center-shift-handoff-grid,
   .appointment-command-center-views-grid,
   .appointment-reporting-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .appointment-command-center-digest-preferences {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -8249,6 +8474,9 @@ code {
   .appointment-metric-grid,
   .appointment-upcoming-grid,
   .appointment-exception-grid,
+  .appointment-command-center-digests-grid,
+  .appointment-command-center-shift-handoff-grid,
+  .appointment-command-center-digest-preferences,
   .appointment-command-center-views-grid,
   .appointment-modal-grid {
     grid-template-columns: 1fr;
@@ -8270,6 +8498,10 @@ code {
   }
 
   .appointment-command-center-save-row,
+  .appointment-command-center-digest-rule-top,
+  .appointment-command-center-digest-history-top,
+  .appointment-command-center-shift-handoff-heading,
+  .appointment-command-center-digest-preview-heading,
   .appointment-command-center-saved-item-top,
   .appointment-command-center-subscription-top {
     align-items: stretch;
