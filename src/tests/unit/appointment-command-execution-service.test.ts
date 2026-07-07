@@ -747,4 +747,78 @@ describe("appointment command execution service", () => {
     });
     expect(lifecycleHarness.completedCommands).toEqual([]);
   });
+
+  it("records runtime automation executions after successful outcome-driven automation", async () => {
+    const commandHarness = createCommandRepositoryHarness({
+      appointment: {
+        id: "appointment-1",
+        appointmentNumber: "APT-10245",
+        organizationId: "org-time-motor-sales",
+        locationId: "loc-time-motor-sales-minneapolis",
+        ownerUserId: ownerUser.id,
+        title: "Service / Repair",
+        schedulingTimezone: "America/Chicago",
+        startsAt: new Date("2026-07-06T15:00:00.000Z"),
+        endsAt: new Date("2026-07-06T16:00:00.000Z"),
+        bookingStatus: "SCHEDULED",
+        confirmationStatus: "CONFIRMED",
+        attendanceStatus: "CHECKED_IN",
+        executionStatus: "FINISHED",
+        version: 3
+      }
+    });
+    const lifecycleHarness = createLifecycleRepositoryHarness();
+    const automationCalls: Array<{
+      actorUserId: string;
+      appointmentId: string | null;
+      commandType: string;
+      taskAutomationCount: number;
+      appointmentAutomationCount: number;
+    }> = [];
+
+    const result = await submitAndExecuteAppointmentCommand(
+      managerUser,
+      {
+        commandType: "COMPLETE",
+        appointmentId: "appointment-1",
+        expectedAppointmentVersion: 3,
+        idempotencyKey: "complete-and-automate-1",
+        correlationId: "corr-complete-1",
+        payload: {
+          outcomeCode: "COMPLETED",
+          followUpDispositionCode: "FOLLOW_UP_APPOINTMENT_REQUIRED",
+          customerReference: "Ahmed Ibrahim",
+          vehicleReference: "2014 Ford Taurus",
+          reasonCode: "OUTCOME_RECORDED",
+          reasonNotes: "Follow-up visit needed after inspection."
+        }
+      },
+      {
+        commandRepository: commandHarness.repository,
+        lifecycleRepository: lifecycleHarness.repository,
+        automationRecorder: async (input) => {
+          automationCalls.push({
+            actorUserId: input.actorUserId,
+            appointmentId: input.appointmentId,
+            commandType: input.commandType,
+            taskAutomationCount: input.plan.taskCreateEffects?.length ?? 0,
+            appointmentAutomationCount: input.plan.appointmentCreateEffects?.length ?? 0
+          });
+        },
+        now
+      }
+    );
+
+    expect(result.accepted).toBe(true);
+    expect(result.execution?.commandStatus).toBe("SUCCEEDED");
+    expect(automationCalls).toEqual([
+      {
+        actorUserId: managerUser.id,
+        appointmentId: "appointment-1",
+        commandType: "COMPLETE",
+        taskAutomationCount: 1,
+        appointmentAutomationCount: 1
+      }
+    ]);
+  });
 });

@@ -15,6 +15,7 @@ import {
   previewAppointmentStaffConflicts,
   type AppointmentStaffConflictPreviewOptions
 } from "@/server/services/appointment-staff-conflict-preview-service";
+import { recordAppointmentAutomationExecution } from "@/server/services/appointment-automation-operations-console";
 import {
   createAppointmentCommandRepository,
   type AppointmentCommandAppointmentRecord,
@@ -64,6 +65,87 @@ function getProposedScheduleWindow(payload: Record<string, unknown>) {
     proposedSchedulingTimezone:
       typeof payload.schedulingTimezone === "string" ? payload.schedulingTimezone : null
   } satisfies AppointmentStaffConflictPreviewOptions;
+}
+
+function purposeCodeFromSnapshot(value: unknown) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.purposeCode === "string" ? candidate.purposeCode : null;
+}
+
+async function recordLifecycleAutomationExecutions(input: {
+  actorUserId: string;
+  appointment: AppointmentCommandAppointmentRecord | null;
+  appointmentId: string | null;
+  commandType: AppointmentLifecycleExecutionCommand;
+  plan: ReturnType<typeof planAppointmentLifecycleCommandExecution>;
+}) {
+  const runtimeReason = "Record runtime automation execution after command completion.";
+  const sourceReference = input.appointmentId ?? input.appointment?.id ?? null;
+  const taskCreateEffects = input.plan.taskCreateEffects ?? [];
+  const appointmentCreateEffects = input.plan.appointmentCreateEffects ?? [];
+
+  const records = [
+    ...taskCreateEffects.map((effect) =>
+      recordAppointmentAutomationExecution({
+        ruleCode: effect.automationRuleCode,
+        triggerCode: "APPOINTMENT_OUTCOME_RECORDED",
+        sourceType: "APPOINTMENT",
+        sourceReference,
+        status: "SUCCEEDED",
+        actorUserId: input.actorUserId,
+        reason: runtimeReason,
+        inputSnapshot: {
+          automationRuleCode: effect.automationRuleCode,
+          commandType: input.commandType,
+          sourceAppointmentId: sourceReference,
+          sourceAppointmentNumber: input.appointment?.appointmentNumber ?? null,
+          followUpLinkCode: effect.linkCode
+        },
+        resultSnapshot: {
+          automationRuleCode: effect.automationRuleCode,
+          generatedTaskTitle: effect.title,
+          generatedTaskBoardDate: effect.boardDate,
+          workflowArea: effect.workflowArea
+        }
+      })
+    ),
+    ...appointmentCreateEffects.map((effect) =>
+      recordAppointmentAutomationExecution({
+        ruleCode:
+          purposeCodeFromSnapshot(effect.values.purposeSnapshot) === "FOLLOW_UP_APPOINTMENT"
+            ? "APPOINTMENT_OUTCOME_FOLLOW_UP_APPOINTMENT"
+            : null,
+        triggerCode: "APPOINTMENT_OUTCOME_RECORDED",
+        purposeCode: purposeCodeFromSnapshot(effect.values.purposeSnapshot),
+        sourceType: "APPOINTMENT",
+        sourceReference,
+        status: "SUCCEEDED",
+        actorUserId: input.actorUserId,
+        reason: runtimeReason,
+        inputSnapshot: {
+          automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_APPOINTMENT",
+          commandType: input.commandType,
+          sourceAppointmentId: sourceReference,
+          sourceAppointmentNumber: input.appointment?.appointmentNumber ?? null
+        },
+        resultSnapshot: {
+          automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_APPOINTMENT",
+          generatedAppointmentNumber: effect.values.appointmentNumber,
+          generatedAppointmentTitle: effect.values.title
+        }
+      })
+    )
+  ];
+
+  if (records.length === 0) {
+    return;
+  }
+
+  await Promise.allSettled(records);
 }
 
 function isLifecycleExecutionCommand(
@@ -206,6 +288,7 @@ export async function submitAndExecuteAppointmentCommand(
     commandRepository?: AppointmentCommandRepository;
     lifecycleRepository?: AppointmentLifecycleTransactionRepository;
     staffConflictPreview?: StaffConflictPreviewForSchedule;
+    automationRecorder?: typeof recordLifecycleAutomationExecutions;
     now?: Date;
   }
 ): Promise<AppointmentCommandExecutionResult> {
@@ -289,6 +372,18 @@ export async function submitAndExecuteAppointmentCommand(
     repository: lifecycleRepository,
     now
   });
+
+  if (user && execution.commandStatus === "SUCCEEDED") {
+    const automationRecorder =
+      dependencies?.automationRecorder ?? recordLifecycleAutomationExecutions;
+    await automationRecorder({
+      actorUserId: user.id,
+      appointment,
+      appointmentId: execution.appointment?.id ?? appointment?.id ?? null,
+      commandType: submitted.command.commandType,
+      plan
+    });
+  }
 
   return {
     ...submitted,

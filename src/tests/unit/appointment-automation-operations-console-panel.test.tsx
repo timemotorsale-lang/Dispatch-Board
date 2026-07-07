@@ -22,6 +22,7 @@ describe("appointment automation operations console panel", () => {
 
     expect(markup).toContain("Rule lifecycle control");
     expect(markup).toContain("Failure queue");
+    expect(markup).toContain("Runtime execution activity");
     expect(markup).toContain("Recent automation events");
     expect(markup).toContain("Any Task Requires Meeting");
   });
