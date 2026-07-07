@@ -345,19 +345,44 @@ type AppointmentCommandCenterHandoffHistoryEntry = {
 
 type AppointmentNotificationCenterFilter = "all" | "needs-review" | "acknowledged" | "delivered";
 
+type AppointmentNotificationReadState = "unread" | "read";
+
+type AppointmentNotificationUrgency = "routine" | "elevated" | "high" | "critical";
+
+type AppointmentNotificationDeepLinkTarget =
+  | "detail-rail"
+  | "resolution-workbench"
+  | "manager-timeline"
+  | "handoff-package";
+
+type AppointmentNotificationPolicy = {
+  id: string;
+  label: string;
+  description: string;
+  enabled: boolean;
+  urgency: AppointmentNotificationUrgency;
+  retentionDays: number;
+  suppressionWindowMinutes: number;
+  deepLinkTarget: AppointmentNotificationDeepLinkTarget;
+};
+
 type AppointmentNotificationCenterItem = {
   id: string;
   sourceType: "runtime" | "handoff";
   sourceId: string;
+  appointmentId: string;
   title: string;
   detail: string;
   tone: "slate" | "blue" | "amber" | "red" | "purple" | "green";
   status: "needs-review" | "acknowledged" | "delivered";
+  readState: AppointmentNotificationReadState;
+  urgency: AppointmentNotificationUrgency;
   statusDetail: string;
   channelLabel: string;
   ownerLabel: string;
   count: number;
   occurredAtLabel: string;
+  deepLinkTarget: AppointmentNotificationDeepLinkTarget;
   actionLabel: string;
 };
 
@@ -905,6 +930,47 @@ const initialNotificationFailureStates: Record<
     status: "open",
     updatedAtLabel: "Waiting on evening manager acceptance"
   }
+};
+
+const initialNotificationPolicies: AppointmentNotificationPolicy[] = [
+  {
+    id: "policy-manager-inbox",
+    label: "Manager Inbox",
+    description: "Visible board notifications that require manager review or acknowledgement.",
+    enabled: true,
+    urgency: "high",
+    retentionDays: 7,
+    suppressionWindowMinutes: 30,
+    deepLinkTarget: "detail-rail"
+  },
+  {
+    id: "policy-delivery-failures",
+    label: "Delivery Failures",
+    description: "Notification misses that need retry, re-queue, or closure before the next shift.",
+    enabled: true,
+    urgency: "critical",
+    retentionDays: 14,
+    suppressionWindowMinutes: 15,
+    deepLinkTarget: "resolution-workbench"
+  },
+  {
+    id: "policy-shift-handoffs",
+    label: "Shift Handoffs",
+    description: "Carry-forward notification and acceptance posture for opening and closing managers.",
+    enabled: true,
+    urgency: "elevated",
+    retentionDays: 3,
+    suppressionWindowMinutes: 45,
+    deepLinkTarget: "handoff-package"
+  }
+];
+
+const initialNotificationReadStates: Record<string, AppointmentNotificationReadState> = {
+  "notification-runtime-digest-breached-sla": "unread",
+  "notification-runtime-digest-escalations": "read",
+  "notification-runtime-digest-no-show-recovery": "unread",
+  "notification-runtime-digest-shift-handoff": "unread",
+  "notification-handoff-handoff-history-1": "unread"
 };
 
 const executiveReviewPresetOptions: Array<{
@@ -2240,6 +2306,38 @@ function notificationFailureStatusLabel(status: AppointmentNotificationFailureSt
   return "Open";
 }
 
+function notificationUrgencyLabel(urgency: AppointmentNotificationUrgency) {
+  if (urgency === "critical") {
+    return "Critical";
+  }
+
+  if (urgency === "high") {
+    return "High";
+  }
+
+  if (urgency === "elevated") {
+    return "Elevated";
+  }
+
+  return "Routine";
+}
+
+function notificationDeepLinkTargetLabel(target: AppointmentNotificationDeepLinkTarget) {
+  if (target === "detail-rail") {
+    return "Detail rail";
+  }
+
+  if (target === "resolution-workbench") {
+    return "Resolution workbench";
+  }
+
+  if (target === "manager-timeline") {
+    return "Manager timeline";
+  }
+
+  return "Handoff package";
+}
+
 export function buildAppointmentCommandCenterDigestPreview(input: {
   digest: AppointmentCommandCenterDigestSummary;
   report: AppointmentCommandCenterReport;
@@ -2628,11 +2726,21 @@ export function buildAppointmentCommandCenterRuntimeQueue(input: {
 export function buildAppointmentNotificationCenterItems(input: {
   runtimeQueue: AppointmentCommandCenterRuntimeQueueItem[];
   handoffHistory: AppointmentCommandCenterHandoffHistoryEntry[];
+  selectedAppointment: Appointment;
+  readStates?: Record<string, AppointmentNotificationReadState>;
+  policies?: AppointmentNotificationPolicy[];
 }) {
+  const readStates = input.readStates ?? {};
+  const managerInboxPolicy =
+    input.policies?.find((policy) => policy.id === "policy-manager-inbox") ?? null;
+  const shiftHandoffPolicy =
+    input.policies?.find((policy) => policy.id === "policy-shift-handoffs") ?? managerInboxPolicy;
+
   const runtimeItems = input.runtimeQueue.map((item) => ({
     id: `notification-runtime-${item.id}`,
     sourceType: "runtime",
     sourceId: item.id,
+    appointmentId: input.selectedAppointment.id,
     title: item.label,
     detail: item.detail,
     tone: item.tone,
@@ -2642,6 +2750,10 @@ export function buildAppointmentNotificationCenterItems(input: {
         : item.state === "acknowledged"
           ? "acknowledged"
           : "delivered",
+    readState: readStates[`notification-runtime-${item.id}`] ?? "unread",
+    urgency:
+      managerInboxPolicy?.urgency ??
+      (item.tone === "red" ? "critical" : item.tone === "purple" ? "high" : "elevated"),
     statusDetail:
       item.state === "queued"
         ? "Waiting for manager acknowledgment."
@@ -2652,6 +2764,10 @@ export function buildAppointmentNotificationCenterItems(input: {
     ownerLabel: item.recipientLabel,
     count: item.count,
     occurredAtLabel: item.updatedAtLabel,
+    deepLinkTarget:
+      item.channelLabel === "Shift handoff"
+        ? shiftHandoffPolicy?.deepLinkTarget ?? "handoff-package"
+        : managerInboxPolicy?.deepLinkTarget ?? "detail-rail",
     actionLabel:
       item.state === "queued"
         ? "Acknowledge"
@@ -2664,10 +2780,13 @@ export function buildAppointmentNotificationCenterItems(input: {
     id: `notification-handoff-${entry.id}`,
     sourceType: "handoff",
     sourceId: entry.id,
+    appointmentId: input.selectedAppointment.id,
     title: entry.status === "accepted" ? "Shift handoff accepted" : "Shift handoff ready for review",
     detail: entry.note,
     tone: entry.status === "accepted" ? "green" : "amber",
     status: entry.status === "accepted" ? "delivered" : "needs-review",
+    readState: readStates[`notification-handoff-${entry.id}`] ?? "unread",
+    urgency: shiftHandoffPolicy?.urgency ?? "elevated",
     statusDetail:
       entry.status === "accepted"
         ? "The next operating manager accepted the handoff package."
@@ -2676,6 +2795,7 @@ export function buildAppointmentNotificationCenterItems(input: {
     ownerLabel: entry.actor,
     count: entry.carryForwardCount,
     occurredAtLabel: entry.generatedAtLabel,
+    deepLinkTarget: shiftHandoffPolicy?.deepLinkTarget ?? "handoff-package",
     actionLabel: entry.status === "accepted" ? "Open timeline" : "Accept handoff"
   })) satisfies AppointmentNotificationCenterItem[];
 
@@ -3603,6 +3723,8 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   const [commandCenterHandoffNote, setCommandCenterHandoffNote] = useState("");
   const [notificationCenterFilter, setNotificationCenterFilter] =
     useState<AppointmentNotificationCenterFilter>("all");
+  const [notificationPolicies, setNotificationPolicies] = useState(initialNotificationPolicies);
+  const [notificationReadStates, setNotificationReadStates] = useState(initialNotificationReadStates);
   const [notificationFailureStates, setNotificationFailureStates] = useState(
     initialNotificationFailureStates
   );
@@ -3994,9 +4116,12 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     () =>
       buildAppointmentNotificationCenterItems({
         runtimeQueue: commandCenterRuntimeQueue,
-        handoffHistory: commandCenterHandoffHistory
+        handoffHistory: commandCenterHandoffHistory,
+        selectedAppointment,
+        readStates: notificationReadStates,
+        policies: notificationPolicies
       }),
-    [commandCenterHandoffHistory, commandCenterRuntimeQueue]
+    [commandCenterHandoffHistory, commandCenterRuntimeQueue, notificationPolicies, notificationReadStates, selectedAppointment]
   );
   const filteredNotificationCenterItems = useMemo(
     () =>
@@ -4014,6 +4139,7 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     }),
     [notificationCenterItems]
   );
+  const unreadNotificationCount = notificationCenterItems.filter((item) => item.readState === "unread").length;
   const notificationFailureQueue = useMemo(
     () =>
       buildAppointmentNotificationFailureQueue({
@@ -4707,6 +4833,77 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     }
   }
 
+  function updateNotificationPolicy(
+    policyId: string,
+    patch: Partial<
+      Pick<
+        AppointmentNotificationPolicy,
+        "urgency" | "retentionDays" | "suppressionWindowMinutes" | "deepLinkTarget" | "enabled"
+      >
+    >
+  ) {
+    setNotificationPolicies((current) =>
+      current.map((policy) => (policy.id === policyId ? { ...policy, ...patch } : policy))
+    );
+  }
+
+  function toggleNotificationReadState(itemId: string) {
+    setNotificationReadStates((current) => ({
+      ...current,
+      [itemId]: current[itemId] === "read" ? "unread" : "read"
+    }));
+
+    const notification = notificationCenterItems.find((item) => item.id === itemId);
+    if (notification) {
+      const nextState = notification.readState === "read" ? "unread" : "read";
+      setActionNotice(`${notification.title} marked ${nextState}.`);
+    }
+  }
+
+  function openNotificationDeepLink(item: AppointmentNotificationCenterItem) {
+    const appointment =
+      boardAppointments.find((candidate) => candidate.id === item.appointmentId) ?? selectedAppointment;
+
+    selectAppointmentForDetail(appointment);
+
+    if (item.deepLinkTarget === "resolution-workbench") {
+      if (item.sourceId === "digest-breached-sla") {
+        setResolutionFilter("breached-sla");
+        setReportQueueFilter("breached-sla");
+        setCommandCenterSearchPreset("breached-sla");
+        setCommandCenterSearchScope("appointments");
+      } else if (item.sourceId === "digest-no-show-recovery") {
+        setResolutionFilter("no-show-recovery");
+        setReportQueueFilter("no-show-recovery");
+        setCommandCenterSearchPreset("all");
+        setCommandCenterSearchScope("appointments");
+      } else {
+        setResolutionFilter("all");
+        setReportQueueFilter("all");
+      }
+
+      setActionNotice(`Opened ${appointment.id} and linked the notification to the resolution workbench.`);
+      return;
+    }
+
+    if (item.deepLinkTarget === "manager-timeline") {
+      setAuditTimelineFilter("manager");
+      setCommandCenterSearchPreset("manager-activity");
+      setCommandCenterSearchScope("timeline");
+      setActionNotice(`Opened ${appointment.id} in the manager timeline from the notification center.`);
+      return;
+    }
+
+    if (item.deepLinkTarget === "handoff-package") {
+      setAuditTimelineFilter("manager");
+      setSelectedCommandCenterDigestId("digest-shift-handoff");
+      setActionNotice(`Opened ${appointment.id} and focused the shift handoff package.`);
+      return;
+    }
+
+    setActionNotice(`Opened ${appointment.id} in the appointment detail rail from the notification center.`);
+  }
+
   function advanceNotificationCenterItem(item: AppointmentNotificationCenterItem) {
     if (item.sourceType === "runtime") {
       advanceCommandCenterRuntimeItem(item.sourceId);
@@ -4831,6 +5028,28 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     setActionNotice(
       `${failureItem.title} moved to ${notificationFailureStatusLabel(nextStatus).toLowerCase()} in the failure queue.`
     );
+  }
+
+  function openNotificationFailureSource(item: AppointmentNotificationFailureQueueItem) {
+    if (item.sourceType === "handoff") {
+      setSelectedCommandCenterDigestId("digest-shift-handoff");
+      setAuditTimelineFilter("manager");
+      setActionNotice("Opened the shift handoff package from the failure queue.");
+      return;
+    }
+
+    const relatedNotification = notificationCenterItems.find(
+      (candidate) => candidate.sourceType === "runtime" && candidate.sourceId === item.sourceId
+    );
+
+    if (relatedNotification) {
+      openNotificationDeepLink(relatedNotification);
+      return;
+    }
+
+    setResolutionFilter("all");
+    setReportQueueFilter("all");
+    setActionNotice(`Opened ${item.title.toLowerCase()} in the command center.`);
   }
 
   function applyCommandCenterSearchPreset(preset: AppointmentCommandCenterSearchPreset) {
@@ -7531,14 +7750,119 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
               <div>
                 <strong id="appointment-notification-center">Notification Center &amp; Failure Queues</strong>
                 <p>
-                  Keep manager-visible delivery notices, shift handoff signals, and recovery queues in one
-                  operational inbox.
+                  Keep manager-visible delivery notices, shift handoff signals, recovery queues, and policy
+                  controls in one operational inbox.
                 </p>
               </div>
               <span>
-                {notificationCenterCounts["needs-review"]} needs review / {openNotificationFailureCount} failures
+                {unreadNotificationCount} unread / {openNotificationFailureCount} failures
               </span>
             </div>
+
+            <section className="appointment-notification-policy-card" aria-labelledby="appointment-notification-policy">
+              <div className="appointment-command-center-panel-heading">
+                <div>
+                  <strong id="appointment-notification-policy">Notification Policy &amp; Deep Links</strong>
+                  <p>
+                    Govern urgency, read-state retention, suppression windows, and where each notification should
+                    take the manager next.
+                  </p>
+                </div>
+                <span>{notificationPolicies.filter((policy) => policy.enabled).length} active rules</span>
+              </div>
+
+              <div className="appointment-notification-policy-grid">
+                {notificationPolicies.map((policy) => (
+                  <article className="appointment-notification-policy-item" key={policy.id}>
+                    <div className="appointment-notification-center-item-top">
+                      <div>
+                        <strong>{policy.label}</strong>
+                        <p>{policy.description}</p>
+                      </div>
+                      <span
+                        className={
+                          policy.enabled
+                            ? "appointment-command-center-tag appointment-command-center-tag-green"
+                            : "appointment-command-center-tag"
+                        }
+                      >
+                        {policy.enabled ? "Enabled" : "Paused"}
+                      </span>
+                    </div>
+
+                    <div className="appointment-notification-policy-fields">
+                      <label>
+                        Urgency
+                        <select
+                          aria-label={`Urgency for ${policy.label}`}
+                          value={policy.urgency}
+                          onChange={(event) =>
+                            updateNotificationPolicy(policy.id, {
+                              urgency: event.target.value as AppointmentNotificationUrgency
+                            })
+                          }
+                        >
+                          <option value="routine">Routine</option>
+                          <option value="elevated">Elevated</option>
+                          <option value="high">High</option>
+                          <option value="critical">Critical</option>
+                        </select>
+                      </label>
+                      <label>
+                        Retention
+                        <select
+                          aria-label={`Retention for ${policy.label}`}
+                          value={String(policy.retentionDays)}
+                          onChange={(event) =>
+                            updateNotificationPolicy(policy.id, {
+                              retentionDays: Number(event.target.value)
+                            })
+                          }
+                        >
+                          <option value="3">3 days</option>
+                          <option value="7">7 days</option>
+                          <option value="14">14 days</option>
+                          <option value="30">30 days</option>
+                        </select>
+                      </label>
+                      <label>
+                        Deep link
+                        <select
+                          aria-label={`Deep link target for ${policy.label}`}
+                          value={policy.deepLinkTarget}
+                          onChange={(event) =>
+                            updateNotificationPolicy(policy.id, {
+                              deepLinkTarget: event.target.value as AppointmentNotificationDeepLinkTarget
+                            })
+                          }
+                        >
+                          <option value="detail-rail">Detail rail</option>
+                          <option value="resolution-workbench">Resolution workbench</option>
+                          <option value="manager-timeline">Manager timeline</option>
+                          <option value="handoff-package">Handoff package</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <div className="appointment-notification-policy-summary">
+                      <span>{notificationUrgencyLabel(policy.urgency)} urgency</span>
+                      <span>{policy.retentionDays}-day retention</span>
+                      <span>{policy.suppressionWindowMinutes}-min suppression</span>
+                      <span>{notificationDeepLinkTargetLabel(policy.deepLinkTarget)}</span>
+                    </div>
+
+                    <div className="appointment-command-center-item-actions">
+                      <button
+                        type="button"
+                        onClick={() => updateNotificationPolicy(policy.id, { enabled: !policy.enabled })}
+                      >
+                        {policy.enabled ? "Pause rule" : "Resume rule"}
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
 
             <div className="appointment-notification-center-grid">
               <section className="appointment-command-center-panel" aria-labelledby="appointment-notification-inbox">
@@ -7546,11 +7870,11 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
                   <div>
                     <strong id="appointment-notification-inbox">Manager Notification Inbox</strong>
                     <p>
-                      Review delivery events, acknowledgment posture, and shift handoff notifications without
-                      leaving the board.
+                      Review delivery events, acknowledgment posture, read state, and shift handoff notifications
+                      without leaving the board.
                     </p>
                   </div>
-                  <span>{notificationCenterCounts.all} visible</span>
+                  <span>{notificationCenterCounts.all} visible / {unreadNotificationCount} unread</span>
                 </div>
 
                 <div className="appointment-notification-center-filters" aria-label="Notification inbox filters">
@@ -7617,6 +7941,28 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
                           </span>
                           <span
                             className={
+                              item.readState === "read"
+                                ? "appointment-command-center-tag"
+                                : "appointment-command-center-tag appointment-command-center-tag-purple"
+                            }
+                          >
+                            {item.readState === "read" ? "Read" : "Unread"}
+                          </span>
+                          <span
+                            className={
+                              item.urgency === "critical"
+                                ? "appointment-command-center-tag appointment-command-center-tag-red"
+                                : item.urgency === "high"
+                                  ? "appointment-command-center-tag appointment-command-center-tag-amber"
+                                  : item.urgency === "elevated"
+                                    ? "appointment-command-center-tag appointment-command-center-tag-blue"
+                                    : "appointment-command-center-tag"
+                            }
+                          >
+                            {notificationUrgencyLabel(item.urgency)}
+                          </span>
+                          <span
+                            className={
                               item.status === "delivered"
                                 ? "appointment-command-center-tag appointment-command-center-tag-green"
                                 : item.status === "acknowledged"
@@ -7636,8 +7982,17 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
                       </div>
 
                       <p className="appointment-notification-center-item-status">{item.statusDetail}</p>
+                      <p className="appointment-notification-center-item-status">
+                        Deep link: {notificationDeepLinkTargetLabel(item.deepLinkTarget)} · Appointment {item.appointmentId}
+                      </p>
 
                       <div className="appointment-command-center-item-actions">
+                        <button type="button" onClick={() => openNotificationDeepLink(item)}>
+                          Open source
+                        </button>
+                        <button type="button" onClick={() => toggleNotificationReadState(item.id)}>
+                          Mark {item.readState === "read" ? "unread" : "read"}
+                        </button>
                         <button type="button" onClick={() => advanceNotificationCenterItem(item)}>
                           {item.actionLabel}
                         </button>
@@ -7717,6 +8072,9 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
                       </p>
 
                       <div className="appointment-command-center-item-actions">
+                        <button type="button" onClick={() => openNotificationFailureSource(item)}>
+                          Open source
+                        </button>
                         <button type="button" onClick={() => advanceNotificationFailureItem(item.id)}>
                           {item.actionLabel}
                         </button>

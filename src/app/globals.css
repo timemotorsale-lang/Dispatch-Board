@@ -6672,6 +6672,12 @@ code {
   border-color: #bbf7d0;
 }
 
+.appointment-command-center-tag-purple {
+  color: #7c3aed;
+  background: #f5f3ff;
+  border-color: #ddd6fe;
+}
+
 .appointment-command-center-digests-card {
   display: grid;
   gap: 12px;
@@ -7339,6 +7345,73 @@ code {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+.appointment-notification-policy-card {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #bfdbfe;
+  border-radius: 16px;
+}
+
+.appointment-notification-policy-grid,
+.appointment-notification-policy-fields,
+.appointment-notification-policy-summary {
+  display: grid;
+  gap: 10px;
+}
+
+.appointment-notification-policy-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.appointment-notification-policy-item {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  background: #f8fbff;
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+}
+
+.appointment-notification-policy-fields {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.appointment-notification-policy-fields label {
+  display: grid;
+  gap: 6px;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.appointment-notification-policy-fields select {
+  min-height: 36px;
+  padding: 0 10px;
+  color: #0f172a;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+}
+
+.appointment-notification-policy-summary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.appointment-notification-policy-summary span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 10px;
+  color: #334155;
+  background: #fff;
+  border: 1px solid #dbeafe;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
 }
 
 .appointment-notification-center-filters {
@@ -9222,6 +9295,9 @@ code {
   .appointment-command-center-shift-handoff-grid,
   .appointment-command-center-digest-preferences,
   .appointment-command-center-views-grid,
+  .appointment-notification-policy-grid,
+  .appointment-notification-policy-fields,
+  .appointment-notification-policy-summary,
   .appointment-notification-center-grid,
   .appointment-modal-grid {
     grid-template-columns: 1fr;

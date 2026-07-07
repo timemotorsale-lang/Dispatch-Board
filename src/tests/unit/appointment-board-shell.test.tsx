@@ -73,6 +73,10 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Delivery Runtime Queue");
     expect(markup).toContain("Carry-Forward Handoff Package");
     expect(markup).toContain("Notification Center &amp; Failure Queues");
+    expect(markup).toContain("Notification Policy &amp; Deep Links");
+    expect(markup).toContain("Manager Inbox");
+    expect(markup).toContain("Open source");
+    expect(markup).toContain("Mark read");
     expect(markup).toContain("Manager Notification Inbox");
     expect(markup).toContain("Delivery Failure Queues");
     expect(markup).toContain("Retry delivery");
@@ -786,10 +790,32 @@ describe("appointment board shell", () => {
           carryForwardCount: 4,
           generatedAtLabel: "Today 4:20 PM"
         }
-      ]
+      ],
+      selectedAppointment: {
+        id: "APT-BREACHED"
+      } as any,
+      readStates: {
+        "notification-runtime-digest-breached-sla": "read"
+      },
+      policies: [
+        {
+          id: "policy-manager-inbox",
+          urgency: "critical",
+          deepLinkTarget: "detail-rail"
+        },
+        {
+          id: "policy-shift-handoffs",
+          urgency: "elevated",
+          deepLinkTarget: "handoff-package"
+        }
+      ] as any
     });
 
-    expect(items[0]?.status).toBe("needs-review");
+    const runtimeItem = items.find((item) => item.id === "notification-runtime-digest-breached-sla");
+
+    expect(runtimeItem?.status).toBe("needs-review");
+    expect(runtimeItem?.readState).toBe("read");
+    expect(runtimeItem?.appointmentId).toBe("APT-BREACHED");
     expect(items.some((item) => item.title === "Shift handoff ready for review")).toBe(true);
   });
 
