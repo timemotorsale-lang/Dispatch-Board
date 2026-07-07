@@ -38,6 +38,17 @@ type PurposeEditState = {
   reasonCodesText: string;
 };
 
+type LifecycleAction = "CREATE" | "DUPLICATE" | "DEPRECATE" | "REACTIVATE" | "DELETE";
+
+type LifecycleState = {
+  action: LifecycleAction;
+  purposeCode: string;
+  name: string;
+  sourcePurposeCode: string;
+  category: string;
+  reason: string;
+};
+
 function formatLabel(value: string) {
   return value
     .toLowerCase()
@@ -98,6 +109,14 @@ export function AppointmentCatalogAutomationPanel({
   );
   const [changeReason, setChangeReason] = useState("");
   const [activationReason, setActivationReason] = useState("");
+  const [lifecycleState, setLifecycleState] = useState<LifecycleState>({
+    action: "DUPLICATE",
+    purposeCode: "",
+    name: "",
+    sourcePurposeCode: firstPurpose?.code ?? "",
+    category: firstPurpose?.category ?? "GENERAL",
+    reason: ""
+  });
   const [simulationDraft, setSimulationDraft] = useState<AppointmentAutomationSimulationInput>({
     purposeCode: firstPurpose?.code ?? "",
     outcomeCode: firstPurpose?.outcomeCodes[0] ?? "COMPLETED",
@@ -143,7 +162,10 @@ export function AppointmentCatalogAutomationPanel({
     }));
   }
 
-  function handleCatalogResponse(payload: { catalog?: AppointmentCatalogAutomationAdmin; error?: string } | null) {
+  function handleCatalogResponse(
+    payload: { catalog?: AppointmentCatalogAutomationAdmin; error?: string } | null,
+    preferredPurposeCode = selectedPurposeCode
+  ) {
     if (!payload?.catalog) {
       setErrorMessage(payload?.error ?? "Unable to update appointment catalog right now.");
       return;
@@ -151,6 +173,7 @@ export function AppointmentCatalogAutomationPanel({
 
     const nextCatalog = payload.catalog;
     const nextSelectedPurpose =
+      nextCatalog.purposes.find((purpose) => purpose.code === preferredPurposeCode) ??
       nextCatalog.purposes.find((purpose) => purpose.code === selectedPurposeCode) ??
       nextCatalog.purposes[0];
 
@@ -248,6 +271,68 @@ export function AppointmentCatalogAutomationPanel({
       handleCatalogResponse(payload);
       setSuccessMessage("Catalog draft activated. New scheduling behavior is now the active version.");
       setActivationReason("");
+    });
+  }
+
+  function updatePurposeLifecycle() {
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    startTransition(async () => {
+      const payload =
+        lifecycleState.action === "CREATE"
+          ? {
+              action: lifecycleState.action,
+              purposeCode: lifecycleState.purposeCode,
+              name: lifecycleState.name,
+              category: lifecycleState.category,
+              sourcePurposeCode: lifecycleState.sourcePurposeCode || undefined,
+              reason: lifecycleState.reason
+            }
+          : lifecycleState.action === "DUPLICATE"
+            ? {
+                action: lifecycleState.action,
+                sourcePurposeCode: lifecycleState.sourcePurposeCode,
+                purposeCode: lifecycleState.purposeCode,
+                name: lifecycleState.name,
+                reason: lifecycleState.reason
+              }
+            : {
+                action: lifecycleState.action,
+                purposeCode: selectedPurpose?.code ?? lifecycleState.purposeCode,
+                reason: lifecycleState.reason
+              };
+      const response = await fetch("/api/settings/appointments/catalog/lifecycle", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+      const responsePayload = (await response.json().catch(() => null)) as
+        | {
+            error?: string;
+            catalog?: AppointmentCatalogAutomationAdmin;
+          }
+        | null;
+
+      if (!response.ok) {
+        setErrorMessage(
+          responsePayload?.error ?? "Unable to update appointment purpose lifecycle right now."
+        );
+        return;
+      }
+
+      const preferredPurposeCode =
+        lifecycleState.action === "DELETE" ? selectedPurposeCode : lifecycleState.purposeCode;
+      handleCatalogResponse(responsePayload, preferredPurposeCode);
+      setSuccessMessage("Purpose lifecycle draft updated with documented reason.");
+      setLifecycleState((current) => ({
+        ...current,
+        purposeCode: "",
+        name: "",
+        reason: ""
+      }));
     });
   }
 
@@ -412,6 +497,155 @@ export function AppointmentCatalogAutomationPanel({
                 </small>
               </button>
             ))}
+          </div>
+        </article>
+
+        <article className="panel-card settings-main-card">
+          <strong>Purpose lifecycle</strong>
+          <h2>Create, duplicate, deprecate, or remove draft-only purposes</h2>
+          <p>
+            Lifecycle changes create a governed draft catalog. Published purposes are protected
+            from hard delete; managers should deprecate them so existing appointment history remains
+            intact.
+          </p>
+
+          <div className="settings-form">
+            <div className="settings-grid">
+              <label className="field">
+                <span>Lifecycle action</span>
+                <select
+                  value={lifecycleState.action}
+                  onChange={(event) =>
+                    setLifecycleState((current) => ({
+                      ...current,
+                      action: event.target.value as LifecycleAction
+                    }))
+                  }
+                >
+                  <option value="DUPLICATE">Duplicate existing purpose</option>
+                  <option value="CREATE">Create new purpose</option>
+                  <option value="DEPRECATE">Deprecate selected purpose</option>
+                  <option value="REACTIVATE">Reactivate selected purpose</option>
+                  <option value="DELETE">Delete draft-only purpose</option>
+                </select>
+              </label>
+
+              {lifecycleState.action === "CREATE" || lifecycleState.action === "DUPLICATE" ? (
+                <>
+                  <label className="field">
+                    <span>New purpose code</span>
+                    <input
+                      value={lifecycleState.purposeCode}
+                      onChange={(event) =>
+                        setLifecycleState((current) => ({
+                          ...current,
+                          purposeCode: event.target.value.toUpperCase()
+                        }))
+                      }
+                      placeholder="APT-CUSTOM-INSPECTION"
+                    />
+                  </label>
+                  <label className="field">
+                    <span>New purpose name</span>
+                    <input
+                      value={lifecycleState.name}
+                      onChange={(event) =>
+                        setLifecycleState((current) => ({
+                          ...current,
+                          name: event.target.value
+                        }))
+                      }
+                      placeholder="Custom Inspection"
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Source purpose</span>
+                    <select
+                      value={lifecycleState.sourcePurposeCode}
+                      onChange={(event) =>
+                        setLifecycleState((current) => ({
+                          ...current,
+                          sourcePurposeCode: event.target.value
+                        }))
+                      }
+                    >
+                      <option value="">Use default baseline</option>
+                      {catalog.purposes.map((purpose) => (
+                        <option key={purpose.code} value={purpose.code}>
+                          {purpose.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {lifecycleState.action === "CREATE" ? (
+                    <label className="field">
+                      <span>Category</span>
+                      <select
+                        value={lifecycleState.category}
+                        onChange={(event) =>
+                          setLifecycleState((current) => ({
+                            ...current,
+                            category: event.target.value
+                          }))
+                        }
+                      >
+                        {[
+                          "SALES",
+                          "DELIVERY",
+                          "SERVICE",
+                          "CUSTOMER_SERVICE",
+                          "ADMINISTRATION",
+                          "COLLECTIONS",
+                          "INVENTORY",
+                          "MARKETING",
+                          "INTERNAL",
+                          "CROSS_WORKFLOW",
+                          "GENERAL"
+                        ].map((category) => (
+                          <option key={category} value={category}>
+                            {formatLabel(category)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+                </>
+              ) : (
+                <div className="appointment-admin-record appointment-admin-span">
+                  <span>Selected purpose</span>
+                  <strong>{selectedPurpose?.name ?? "No purpose selected"}</strong>
+                  <small>
+                    {selectedPurpose?.code} •{" "}
+                    {selectedPurpose?.isActive ? "active" : "inactive/deprecated"}
+                  </small>
+                </div>
+              )}
+
+              <label className="field appointment-admin-span">
+                <span>Required lifecycle reason</span>
+                <input
+                  value={lifecycleState.reason}
+                  onChange={(event) =>
+                    setLifecycleState((current) => ({
+                      ...current,
+                      reason: event.target.value
+                    }))
+                  }
+                  placeholder="Document the manager-approved lifecycle reason"
+                />
+              </label>
+            </div>
+
+            <div className="form-actions">
+              <button
+                className="pill pill-primary"
+                disabled={isPending || !selectedPurpose}
+                onClick={updatePurposeLifecycle}
+                type="button"
+              >
+                Apply lifecycle draft
+              </button>
+            </div>
           </div>
         </article>
 

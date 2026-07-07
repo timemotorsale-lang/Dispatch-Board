@@ -1,8 +1,10 @@
 import type { Prisma } from "@prisma/client";
 
 import {
+  APPOINTMENT_TEMPLATE_CATEGORIES,
   INITIAL_APPOINTMENT_TEMPLATE_DEFINITIONS,
   type AppointmentTemplateApprovalMode,
+  type AppointmentTemplateCategory,
   type AppointmentTemplateDefinition,
   type AppointmentTemplateMissingInputBehavior,
   type AppointmentTemplateTaskBlueprint
@@ -134,6 +136,28 @@ export type AppointmentCatalogPurposeDraftInput = {
 export type AppointmentCatalogActivateInput = {
   reason: string;
 };
+
+export type AppointmentCatalogPurposeLifecycleInput =
+  | {
+      action: "CREATE";
+      purposeCode: string;
+      name: string;
+      reason: string;
+      sourcePurposeCode?: string;
+      category?: AppointmentTemplateCategory;
+    }
+  | {
+      action: "DUPLICATE";
+      purposeCode: string;
+      name: string;
+      reason: string;
+      sourcePurposeCode: string;
+    }
+  | {
+      action: "DEPRECATE" | "REACTIVATE" | "DELETE";
+      purposeCode: string;
+      reason: string;
+    };
 
 type AppointmentCatalogVersionRecord = {
   id: string;
@@ -303,6 +327,16 @@ function normalizeMissingInputBehavior(
   }
 
   return normalized as AppointmentTemplateMissingInputBehavior;
+}
+
+function normalizeCategory(value: unknown, fallback: AppointmentTemplateCategory) {
+  const normalized = typeof value === "string" ? value.trim().toUpperCase() : fallback;
+
+  if (!APPOINTMENT_TEMPLATE_CATEGORIES.includes(normalized as AppointmentTemplateCategory)) {
+    throw new Error("Appointment purpose category is not supported.");
+  }
+
+  return normalized as AppointmentTemplateCategory;
 }
 
 function toIso(value: Date | null) {
@@ -943,6 +977,125 @@ async function loadAdminModel(repository: AppointmentCatalogAutomationAdminRepos
   });
 }
 
+function buildLifecyclePurpose(input: {
+  source?: AppointmentCatalogPurpose;
+  purposeCode: string;
+  name: string;
+  category?: AppointmentTemplateCategory;
+}): AppointmentCatalogPurpose {
+  const source = input.source ?? getBaselineCatalogCore().purposes[0];
+
+  return {
+    ...source,
+    code: input.purposeCode,
+    name: input.name,
+    description: input.source
+      ? `Duplicated from ${source.code}. ${source.description}`
+      : "Manager-created appointment purpose awaiting final enterprise governance review.",
+    category: input.category ?? source.category,
+    version: 1,
+    isActive: true,
+    taskBlueprints: source.taskBlueprints.map((blueprint) => ({
+      ...blueprint,
+      code: `${input.purposeCode}-${blueprint.code}`.slice(0, 96)
+    })),
+    automationTriggers: uniqueSorted(source.automationTriggers.length > 0
+      ? source.automationTriggers
+      : ["MANUAL_MANAGER_REVIEW"])
+  };
+}
+
+function getPublishedPurposeCodes(activeVersion: AppointmentCatalogVersionRecord | null) {
+  const publishedCatalog = activeVersion
+    ? normalizeCatalogSnapshot(activeVersion.catalogSnapshot)
+    : getBaselineCatalogCore();
+
+  return new Set(publishedCatalog.purposes.map((purpose) => purpose.code));
+}
+
+function applyPurposeLifecycleChange(input: {
+  catalog: AppointmentCatalogCore;
+  lifecycle: AppointmentCatalogPurposeLifecycleInput;
+  publishedPurposeCodes: Set<string>;
+}) {
+  const action = input.lifecycle.action;
+  const purposeCode = normalizeCode(input.lifecycle.purposeCode, "Purpose code");
+  const existingPurpose = input.catalog.purposes.find(
+    (candidate) => candidate.code === purposeCode
+  );
+
+  if (action === "CREATE" || action === "DUPLICATE") {
+    if (existingPurpose) {
+      throw new Error("Appointment purpose code is already configured.");
+    }
+
+    const sourcePurposeCode =
+      "sourcePurposeCode" in input.lifecycle && input.lifecycle.sourcePurposeCode
+        ? normalizeCode(input.lifecycle.sourcePurposeCode, "Source purpose code")
+        : null;
+    const sourcePurpose = sourcePurposeCode
+      ? input.catalog.purposes.find((candidate) => candidate.code === sourcePurposeCode)
+      : undefined;
+
+    if (sourcePurposeCode && !sourcePurpose) {
+      throw new Error("Source appointment purpose is not configured.");
+    }
+
+    const name = normalizeOptionalText(input.lifecycle.name, "");
+
+    if (!name) {
+      throw new Error("Purpose name is required.");
+    }
+
+    const purpose = buildLifecyclePurpose({
+      source: sourcePurpose,
+      purposeCode,
+      name,
+      category:
+        action === "CREATE"
+          ? normalizeCategory(input.lifecycle.category, sourcePurpose?.category ?? "GENERAL")
+          : sourcePurpose?.category
+    });
+
+    return buildAppointmentCatalogCore({
+      purposes: uniqueSorted([...input.catalog.purposes.map((purpose) => purpose.code), purpose.code])
+        .map((code) =>
+          code === purpose.code
+            ? purpose
+            : input.catalog.purposes.find((candidate) => candidate.code === code)
+        )
+        .filter((purpose): purpose is AppointmentCatalogPurpose => Boolean(purpose)),
+      reasonCodes: input.catalog.catalogs.reasonCodes
+    });
+  }
+
+  if (!existingPurpose) {
+    throw new Error("Appointment purpose is not configured.");
+  }
+
+  if (action === "DELETE") {
+    if (input.publishedPurposeCodes.has(existingPurpose.code)) {
+      throw new Error(
+        "Published appointment purposes cannot be deleted because existing appointments may reference them. Deprecate the purpose instead."
+      );
+    }
+
+    return buildAppointmentCatalogCore({
+      purposes: input.catalog.purposes.filter((purpose) => purpose.code !== existingPurpose.code),
+      reasonCodes: input.catalog.catalogs.reasonCodes
+    });
+  }
+
+  const isActive = action === "REACTIVATE";
+
+  return buildAppointmentCatalogCore({
+    purposes: input.catalog.purposes.map((purpose) =>
+      purpose.code === existingPurpose.code ? { ...purpose, isActive } : purpose
+    ),
+    reasonCodes: input.catalog.catalogs.reasonCodes
+  });
+}
+
 function applyPurposeDraftChange(
   catalog: AppointmentCatalogCore,
   input: AppointmentCatalogPurposeDraftInput
@@ -1194,6 +1347,68 @@ export async function saveAppointmentCatalogDraftForManager(
       version: Math.max(latestVersionNumber, activeVersion?.version ?? 0, 0) + 1,
       title: "Draft appointment catalog",
       description: "Manager-edited draft catalog awaiting activation.",
+      reason,
+      actorUserId: user.id,
+      catalogSnapshot: nextCatalog,
+      validationSnapshot: validation,
+      action: "DRAFT_CREATED"
+    });
+  }
+
+  return loadAdminModel(repository);
+}
+
+export async function updateAppointmentCatalogPurposeLifecycleForManager(
+  user: AuthenticatedUser | null,
+  input: AppointmentCatalogPurposeLifecycleInput,
+  repository: AppointmentCatalogAutomationAdminRepository = createAppointmentCatalogAutomationAdminRepository()
+) {
+  assertCanManageCatalogAutomation(user);
+
+  const organizationId = INITIAL_ORGANIZATION.id;
+  const reason = normalizeReason(input.reason);
+  const [activeVersion, draftVersion, latestVersionNumber] = await Promise.all([
+    repository.getActiveVersion(organizationId),
+    repository.getDraftVersion(organizationId),
+    repository.getLatestVersionNumber(organizationId)
+  ]);
+  const currentCatalog = draftVersion
+    ? normalizeCatalogSnapshot(draftVersion.catalogSnapshot)
+    : activeVersion
+      ? normalizeCatalogSnapshot(activeVersion.catalogSnapshot)
+      : getBaselineCatalogCore();
+  const nextCatalog = applyPurposeLifecycleChange({
+    catalog: currentCatalog,
+    lifecycle: input,
+    publishedPurposeCodes: getPublishedPurposeCodes(activeVersion)
+  });
+  const validation = validateCatalogCore(nextCatalog);
+
+  if (!validation.isValid) {
+    throw new Error(`Catalog draft is invalid: ${validation.errors.join(" ")}`);
+  }
+
+  const title = "Draft appointment catalog";
+  const description = "Manager-edited draft catalog awaiting activation.";
+
+  if (draftVersion) {
+    await repository.updateDraftVersion({
+      draftVersionId: draftVersion.id,
+      organizationId,
+      title,
+      description,
+      reason,
+      actorUserId: user.id,
+      priorSnapshot: draftVersion.catalogSnapshot,
+      catalogSnapshot: nextCatalog,
+      validationSnapshot: validation
+    });
+  } else {
+    await repository.createDraftVersion({
+      organizationId,
+      version: Math.max(latestVersionNumber, activeVersion?.version ?? 0, 0) + 1,
+      title,
+      description,
       reason,
       actorUserId: user.id,
       catalogSnapshot: nextCatalog,
