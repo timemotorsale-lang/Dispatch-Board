@@ -7586,7 +7586,8 @@ code {
 }
 
 .appointment-view-tabs,
-.appointment-filter-row {
+.appointment-filter-row,
+.appointment-board-lane-modes {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -7622,6 +7623,23 @@ code {
 .appointment-filter-toggle {
   min-height: 36px;
   border-radius: 8px;
+}
+
+.appointment-board-lane-mode {
+  min-height: 36px;
+  padding: 0 11px;
+  color: #334155;
+  background: #fff;
+  border: 1px solid #dce3ed;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.appointment-board-lane-mode-active {
+  color: #fff;
+  background: #0f766e;
+  border-color: #0f766e;
 }
 
 .appointment-calendar-shell {
@@ -7927,6 +7945,127 @@ code {
 .appointment-detail-header span {
   color: #64748b;
   font-size: 11px;
+}
+
+.appointment-week-view,
+.appointment-month-view,
+.appointment-agenda-view {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  background: linear-gradient(180deg, #fbfdff 0%, #f5f8fd 100%);
+}
+
+.appointment-week-grid,
+.appointment-month-grid,
+.appointment-agenda-sections {
+  display: grid;
+  gap: 12px;
+}
+
+.appointment-week-grid {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.appointment-week-column,
+.appointment-month-cell,
+.appointment-agenda-section {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #e5eaf1;
+  border-radius: 14px;
+}
+
+.appointment-week-column-heading,
+.appointment-month-cell-top,
+.appointment-agenda-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.appointment-week-column-heading strong,
+.appointment-agenda-section-heading strong,
+.appointment-month-cell-top strong {
+  color: #0f172a;
+  font-size: 12px;
+}
+
+.appointment-week-column-heading span,
+.appointment-week-column small,
+.appointment-agenda-section-heading span,
+.appointment-month-cell-top span,
+.appointment-month-more {
+  color: #64748b;
+  font-size: 10px;
+}
+
+.appointment-week-column-list,
+.appointment-month-cell-list,
+.appointment-agenda-list {
+  display: grid;
+  gap: 8px;
+}
+
+.appointment-week-item,
+.appointment-month-item,
+.appointment-agenda-item {
+  display: grid;
+  gap: 4px;
+  padding: 10px 11px;
+  text-align: left;
+  background: #f8fbff;
+  border: 1px solid #dbe6f5;
+  border-radius: 12px;
+}
+
+.appointment-week-item span,
+.appointment-month-item span,
+.appointment-agenda-item span {
+  color: #64748b;
+  font-size: 10px;
+}
+
+.appointment-week-item strong,
+.appointment-month-item strong,
+.appointment-agenda-item strong {
+  color: #0f172a;
+  font-size: 12px;
+}
+
+.appointment-week-item small,
+.appointment-agenda-item small,
+.appointment-week-empty {
+  color: #475569;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.appointment-month-grid {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.appointment-month-cell {
+  min-height: 150px;
+  align-content: start;
+}
+
+.appointment-month-cell-muted {
+  opacity: 0.5;
+}
+
+.appointment-month-cell-active {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.18);
+}
+
+.appointment-agenda-item {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px 12px;
 }
 
 .appointment-status {
@@ -8616,6 +8755,8 @@ code {
   }
 
   .appointment-command-search-results,
+  .appointment-week-grid,
+  .appointment-month-grid,
   .appointment-executive-review-grid,
   .appointment-executive-review-metrics,
   .appointment-executive-review-trends,
@@ -8645,6 +8786,8 @@ code {
   .appointment-metric-grid,
   .appointment-upcoming-grid,
   .appointment-exception-grid,
+  .appointment-week-grid,
+  .appointment-month-grid,
   .appointment-executive-review-grid,
   .appointment-executive-review-metrics,
   .appointment-executive-review-trends,
@@ -8673,6 +8816,9 @@ code {
   }
 
   .appointment-command-center-save-row,
+  .appointment-week-column-heading,
+  .appointment-month-cell-top,
+  .appointment-agenda-section-heading,
   .appointment-executive-review-trend-top,
   .appointment-command-center-digest-rule-top,
   .appointment-command-center-digest-history-top,

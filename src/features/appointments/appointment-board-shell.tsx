@@ -344,6 +344,30 @@ type AppointmentExecutiveReviewModel = {
   digestPerformance: AppointmentExecutiveReviewDigestPerformance[];
 };
 
+type AppointmentBoardLaneMode = "staff" | "location" | "resource";
+
+type AppointmentAgendaSection = {
+  dateKey: string;
+  dateLabel: string;
+  items: Appointment[];
+};
+
+type AppointmentWeekDayColumn = {
+  dateKey: string;
+  dateLabel: string;
+  weekdayLabel: string;
+  items: Appointment[];
+  countLabel: string;
+};
+
+type AppointmentMonthCell = {
+  dateKey: string;
+  dayNumber: number;
+  isCurrentMonth: boolean;
+  isBoardDate: boolean;
+  items: Appointment[];
+};
+
 type AppointmentReadModel = {
   id: string;
   appointmentNumber: string;
@@ -1066,6 +1090,11 @@ const upcomingAppointments = [
 ];
 
 const viewModes: ViewMode[] = ["day", "week", "month", "agenda"];
+const boardLaneModes: Array<{ value: AppointmentBoardLaneMode; label: string }> = [
+  { value: "staff", label: "Staff" },
+  { value: "location", label: "Location" },
+  { value: "resource", label: "Resource" }
+];
 const hourLabels = ["9:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM", "5:00 PM", "6:00 PM"];
 const noShowReasonOptions = [
   { value: "CUSTOMER_NO_SHOW", label: "Customer did not arrive" },
@@ -2228,6 +2257,189 @@ function appointmentTimeRangeLabel(appointment: Appointment) {
   )} (${appointment.durationMinutes} min)`;
 }
 
+function addDaysToDateKey(dateKey: string, days: number) {
+  const base = new Date(`${dateKey}T00:00:00`);
+  base.setDate(base.getDate() + days);
+  return base.toISOString().slice(0, 10);
+}
+
+function appointmentDateKey(
+  appointment: Appointment,
+  timezone: string,
+  fallbackDateKey: string
+) {
+  if (!appointment.startsAtIso) {
+    return fallbackDateKey;
+  }
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: timezone
+  }).formatToParts(new Date(appointment.startsAtIso));
+
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+
+  if (!year || !month || !day) {
+    return fallbackDateKey;
+  }
+
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateKeyLabel(dateKey: string, timezone: string, options?: Intl.DateTimeFormatOptions) {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: timezone,
+    ...options
+  }).format(new Date(`${dateKey}T12:00:00`));
+}
+
+function appointmentBoardLaneLabel(
+  appointment: Appointment,
+  laneMode: AppointmentBoardLaneMode
+) {
+  if (laneMode === "staff") {
+    return appointment.staffName ?? "Unassigned";
+  }
+
+  if (laneMode === "location") {
+    return appointment.location;
+  }
+
+  if (appointment.category === "service") {
+    return "Service Bay";
+  }
+
+  if (appointment.category === "delivery") {
+    return "Delivery Lane";
+  }
+
+  if (appointment.category === "dmv" || appointment.category === "collections") {
+    return "Office Desk";
+  }
+
+  return "Showroom Resource";
+}
+
+function buildAppointmentBoardLanes(input: {
+  appointments: Appointment[];
+  laneMode: AppointmentBoardLaneMode;
+  staffMembers: StaffMember[];
+}) {
+  if (input.laneMode === "staff") {
+    return input.staffMembers.map((staff) => staff.name);
+  }
+
+  const labels = Array.from(
+    new Set(input.appointments.map((appointment) => appointmentBoardLaneLabel(appointment, input.laneMode)))
+  );
+
+  return labels.length > 0 ? labels : [input.laneMode === "location" ? "Board Location" : "Shared Resource"];
+}
+
+export function buildAppointmentAgendaSections(input: {
+  appointments: Appointment[];
+  timezone: string;
+  fallbackDateKey: string;
+}) {
+  const grouped = new Map<string, Appointment[]>();
+
+  for (const appointment of input.appointments) {
+    const dateKey = appointmentDateKey(appointment, input.timezone, input.fallbackDateKey);
+    const current = grouped.get(dateKey) ?? [];
+    current.push(appointment);
+    grouped.set(dateKey, current);
+  }
+
+  return Array.from(grouped.entries())
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(
+      ([dateKey, items]) =>
+        ({
+          dateKey,
+          dateLabel: formatDateKeyLabel(dateKey, input.timezone, {
+            weekday: "long",
+            month: "long",
+            day: "numeric"
+          }),
+          items: [...items].sort((left, right) => left.startMinutes - right.startMinutes)
+        }) satisfies AppointmentAgendaSection
+    );
+}
+
+export function buildAppointmentWeekColumns(input: {
+  appointments: Appointment[];
+  timezone: string;
+  boardDateKey: string;
+}) {
+  const itemsByDate = new Map<string, Appointment[]>();
+
+  for (const appointment of input.appointments) {
+    const dateKey = appointmentDateKey(appointment, input.timezone, input.boardDateKey);
+    const current = itemsByDate.get(dateKey) ?? [];
+    current.push(appointment);
+    itemsByDate.set(dateKey, current);
+  }
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const dateKey = addDaysToDateKey(input.boardDateKey, index);
+    const items = [...(itemsByDate.get(dateKey) ?? [])].sort(
+      (left, right) => left.startMinutes - right.startMinutes
+    );
+
+    return {
+      dateKey,
+      dateLabel: formatDateKeyLabel(dateKey, input.timezone, { month: "short", day: "numeric" }),
+      weekdayLabel: formatDateKeyLabel(dateKey, input.timezone, { weekday: "short" }),
+      items,
+      countLabel: `${items.length} appointment${items.length === 1 ? "" : "s"}`
+    } satisfies AppointmentWeekDayColumn;
+  });
+}
+
+export function buildAppointmentMonthCells(input: {
+  appointments: Appointment[];
+  timezone: string;
+  boardDateKey: string;
+}) {
+  const boardDate = new Date(`${input.boardDateKey}T12:00:00`);
+  const startOfMonth = new Date(boardDate.getFullYear(), boardDate.getMonth(), 1);
+  const startWeekday = startOfMonth.getDay();
+  const gridStart = new Date(startOfMonth);
+  gridStart.setDate(startOfMonth.getDate() - startWeekday);
+
+  const itemsByDate = new Map<string, Appointment[]>();
+  for (const appointment of input.appointments) {
+    const dateKey = appointmentDateKey(appointment, input.timezone, input.boardDateKey);
+    const current = itemsByDate.get(dateKey) ?? [];
+    current.push(appointment);
+    itemsByDate.set(dateKey, current);
+  }
+
+  return Array.from({ length: 35 }, (_, index) => {
+    const current = new Date(gridStart);
+    current.setDate(gridStart.getDate() + index);
+    const dateKey = current.toISOString().slice(0, 10);
+    const items = [...(itemsByDate.get(dateKey) ?? [])].sort(
+      (left, right) => left.startMinutes - right.startMinutes
+    );
+
+    return {
+      dateKey,
+      dayNumber: current.getDate(),
+      isCurrentMonth: current.getMonth() === boardDate.getMonth(),
+      isBoardDate: dateKey === input.boardDateKey,
+      items
+    } satisfies AppointmentMonthCell;
+  });
+}
+
 function appointmentExceptionReason(
   queueKey: AppointmentExceptionQueueKey,
   appointment: Appointment
@@ -2653,6 +2865,7 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   const [statusFilter, setStatusFilter] = useState<AppointmentStatus | "all">("all");
   const [conflictsOnly, setConflictsOnly] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("day");
+  const [boardLaneMode, setBoardLaneMode] = useState<AppointmentBoardLaneMode>("staff");
   const [draftOpen, setDraftOpen] = useState(false);
   const [noShowOpen, setNoShowOpen] = useState(false);
   const [isCommandPending, setIsCommandPending] = useState(false);
@@ -3135,6 +3348,42 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   const scheduledFilteredAppointments = useMemo(
     () => filteredAppointments.filter((appointment) => !isUnscheduledDraftAppointment(appointment)),
     [filteredAppointments]
+  );
+  const boardLanes = useMemo(
+    () =>
+      buildAppointmentBoardLanes({
+        appointments: scheduledFilteredAppointments,
+        laneMode: boardLaneMode,
+        staffMembers: visibleStaffMembers
+      }),
+    [boardLaneMode, scheduledFilteredAppointments, visibleStaffMembers]
+  );
+  const agendaSections = useMemo(
+    () =>
+      buildAppointmentAgendaSections({
+        appointments: scheduledFilteredAppointments,
+        timezone: boardTimezone,
+        fallbackDateKey: defaultBoardDate
+      }),
+    [boardTimezone, scheduledFilteredAppointments]
+  );
+  const weekColumns = useMemo(
+    () =>
+      buildAppointmentWeekColumns({
+        appointments: scheduledFilteredAppointments,
+        timezone: boardTimezone,
+        boardDateKey: defaultBoardDate
+      }),
+    [boardTimezone, scheduledFilteredAppointments]
+  );
+  const monthCells = useMemo(
+    () =>
+      buildAppointmentMonthCells({
+        appointments: scheduledFilteredAppointments,
+        timezone: boardTimezone,
+        boardDateKey: defaultBoardDate
+      }),
+    [boardTimezone, scheduledFilteredAppointments]
   );
   const selectedAppointmentIsUnscheduledDraft =
     selectedAppointment.dataSource === "live" &&
@@ -3738,6 +3987,39 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
       ) as Record<string, true>
     );
   }, [resolutionWorkbenchItems]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const savedViewMode = window.localStorage.getItem("appointment-board-view-mode");
+    const savedLaneMode = window.localStorage.getItem("appointment-board-lane-mode");
+
+    if (savedViewMode && viewModes.includes(savedViewMode as ViewMode)) {
+      setViewMode(savedViewMode as ViewMode);
+    }
+
+    if (savedLaneMode && boardLaneModes.some((mode) => mode.value === savedLaneMode)) {
+      setBoardLaneMode(savedLaneMode as AppointmentBoardLaneMode);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem("appointment-board-view-mode", viewMode);
+  }, [viewMode]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem("appointment-board-lane-mode", boardLaneMode);
+  }, [boardLaneMode]);
 
   useEffect(() => {
     let isActive = true;
@@ -6446,18 +6728,41 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
                 Conflicts Only
               </button>
             </div>
+            <div className="appointment-board-lane-modes" aria-label="Board lens">
+              {boardLaneModes.map((mode) => (
+                <button
+                  className={
+                    boardLaneMode === mode.value
+                      ? "appointment-board-lane-mode appointment-board-lane-mode-active"
+                      : "appointment-board-lane-mode"
+                  }
+                  key={mode.value}
+                  onClick={() => setBoardLaneMode(mode.value)}
+                  type="button"
+                >
+                  {mode.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {viewMode === "day" ? (
             <div className="appointment-calendar-shell">
               <div className="appointment-calendar-header">
                 <div className="appointment-all-day">All Day</div>
-                {visibleStaffMembers.map((staff) => (
-                  <div className="appointment-staff-header" key={staff.id}>
-                    <span className="appointment-avatar">{staff.initials}</span>
+                {boardLanes.map((lane) => (
+                  <div className="appointment-staff-header" key={lane}>
+                    <span className="appointment-avatar">
+                      {lane
+                        .split(" ")
+                        .filter(Boolean)
+                        .slice(0, 2)
+                        .map((part) => part[0]?.toUpperCase())
+                        .join("")}
+                    </span>
                     <div>
-                      <strong>{staff.name}</strong>
-                      <small>{staff.role}</small>
+                      <strong>{lane}</strong>
+                      <small>{boardLaneMode[0].toUpperCase() + boardLaneMode.slice(1)} lane</small>
                     </div>
                   </div>
                 ))}
@@ -6468,9 +6773,9 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
                     <span key={hour} style={{ top: `${index * 66}px` }}>{hour}</span>
                   ))}
                 </div>
-                {visibleStaffMembers.map((staff) => (
-                  <div className="appointment-staff-column" key={staff.id}>
-                    {scheduledFilteredAppointments.filter((appointment) => appointment.staffId === staff.id).map((appointment) => {
+                {boardLanes.map((lane) => (
+                  <div className="appointment-staff-column" key={lane}>
+                    {scheduledFilteredAppointments.filter((appointment) => appointmentBoardLaneLabel(appointment, boardLaneMode) === lane).map((appointment) => {
                       const meta = categoryMeta[appointment.category];
                       const top = Math.max(0, ((appointment.startMinutes - 540) / 60) * 66);
                       const height = Math.max(58, (appointment.durationMinutes / 60) * 66);
@@ -6485,7 +6790,11 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
                           <span>{formatTime(appointment.startMinutes)}</span>
                           <strong>{appointment.title}</strong>
                           <small>{appointment.customer}</small>
-                          <small>{appointment.vehicle}</small>
+                          <small>
+                            {boardLaneMode === "staff"
+                              ? appointment.location
+                              : appointment.staffName ?? "Unassigned"}
+                          </small>
                           {appointment.conflict ? <b>Conflict warning</b> : null}
                         </button>
                       );
@@ -6497,10 +6806,137 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
                 </div>
               </div>
             </div>
+          ) : viewMode === "week" ? (
+            <section className="appointment-week-view" aria-labelledby="appointment-week-view">
+              <div className="appointment-section-heading">
+                <div>
+                  <strong id="appointment-week-view">Week View</strong>
+                  <p>Review the current operating week with the same filters and board lens carried across the surface.</p>
+                </div>
+                <span>{weekColumns.reduce((total, column) => total + column.items.length, 0)} scheduled</span>
+              </div>
+              <div className="appointment-week-grid">
+                {weekColumns.map((column) => (
+                  <article className="appointment-week-column" key={column.dateKey}>
+                    <div className="appointment-week-column-heading">
+                      <strong>{column.weekdayLabel}</strong>
+                      <span>{column.dateLabel}</span>
+                    </div>
+                    <small>{column.countLabel}</small>
+                    <div className="appointment-week-column-list">
+                      {column.items.length > 0 ? (
+                        column.items.map((appointment) => (
+                          <button
+                            className="appointment-week-item"
+                            key={appointment.id}
+                            onClick={() => selectAppointmentForDetail(appointment)}
+                            type="button"
+                          >
+                            <span>{appointmentTimeLabel(appointment)}</span>
+                            <strong>{appointment.title}</strong>
+                            <small>
+                              {appointment.customer} · {appointmentBoardLaneLabel(appointment, boardLaneMode)}
+                            </small>
+                          </button>
+                        ))
+                      ) : (
+                        <p className="appointment-week-empty">No appointments in the current filtered scope.</p>
+                      )}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : viewMode === "month" ? (
+            <section className="appointment-month-view" aria-labelledby="appointment-month-view">
+              <div className="appointment-section-heading">
+                <div>
+                  <strong id="appointment-month-view">Month View</strong>
+                  <p>Spot appointment density, thin days, and hot spots without losing enterprise board filters.</p>
+                </div>
+                <span>{monthCells.filter((cell) => cell.items.length > 0).length} active day cells</span>
+              </div>
+              <div className="appointment-month-grid">
+                {monthCells.map((cell) => (
+                  <article
+                    className={
+                      cell.isBoardDate
+                        ? "appointment-month-cell appointment-month-cell-active"
+                        : cell.isCurrentMonth
+                          ? "appointment-month-cell"
+                          : "appointment-month-cell appointment-month-cell-muted"
+                    }
+                    key={cell.dateKey}
+                  >
+                    <div className="appointment-month-cell-top">
+                      <strong>{cell.dayNumber}</strong>
+                      <span>{cell.items.length} item{cell.items.length === 1 ? "" : "s"}</span>
+                    </div>
+                    <div className="appointment-month-cell-list">
+                      {cell.items.slice(0, 2).map((appointment) => (
+                        <button
+                          className="appointment-month-item"
+                          key={appointment.id}
+                          onClick={() => selectAppointmentForDetail(appointment)}
+                          type="button"
+                        >
+                          <span>{appointmentTimeLabel(appointment)}</span>
+                          <strong>{appointment.title}</strong>
+                        </button>
+                      ))}
+                      {cell.items.length > 2 ? (
+                        <p className="appointment-month-more">
+                          {cell.items.length - 2} more appointment{cell.items.length - 2 === 1 ? "" : "s"}
+                        </p>
+                      ) : null}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : viewMode === "agenda" ? (
+            <section className="appointment-agenda-view" aria-labelledby="appointment-agenda-view">
+              <div className="appointment-section-heading">
+                <div>
+                  <strong id="appointment-agenda-view">Agenda View</strong>
+                  <p>Manager-friendly running list grouped by operating day with board-lens context preserved.</p>
+                </div>
+                <span>{agendaSections.length} day group{agendaSections.length === 1 ? "" : "s"}</span>
+              </div>
+              <div className="appointment-agenda-sections">
+                {agendaSections.map((section) => (
+                  <article className="appointment-agenda-section" key={section.dateKey}>
+                    <div className="appointment-agenda-section-heading">
+                      <strong>{section.dateLabel}</strong>
+                      <span>{section.items.length} appointment{section.items.length === 1 ? "" : "s"}</span>
+                    </div>
+                    <div className="appointment-agenda-list">
+                      {section.items.map((appointment) => (
+                        <button
+                          className="appointment-agenda-item"
+                          key={appointment.id}
+                          onClick={() => selectAppointmentForDetail(appointment)}
+                          type="button"
+                        >
+                          <div>
+                            <strong>{appointment.title}</strong>
+                            <small>{appointment.customer} · {appointment.vehicle}</small>
+                          </div>
+                          <div>
+                            <span>{appointmentTimeRangeLabel(appointment)}</span>
+                            <small>{appointmentBoardLaneLabel(appointment, boardLaneMode)}</small>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
           ) : (
             <div className="appointment-alt-view">
               <CalendarDays size={34} aria-hidden="true" />
-              <strong>{viewMode[0].toUpperCase() + viewMode.slice(1)} view shell</strong>
+              <strong>Additional view shell</strong>
               <p>The command surface is ready; live scheduling data will reuse the same enterprise controls, permissions, and audit rules.</p>
               <div className="appointment-alt-list">
                 {scheduledFilteredAppointments.slice(0, 5).map((appointment) => (

@@ -20,7 +20,7 @@ However, the full Enterprise Release 1.0 roadmap is not complete yet. The remain
 | --- | --- | --- |
 | Product direction | Approved | The product purpose and enterprise scope are approved. |
 | Appointment foundation | Strongly implemented | Core model, commands, permissions, audit, scheduling services, and resource/staff foundations exist. |
-| Appointment Board UI | In progress with substantial live workflow | The visible board exists, many detail-rail workflows are live, and the command center now includes exception queues, resolution workbench, saved views, watched subscriptions, notification digests, and an executive review suite. |
+| Appointment Board UI | In progress with substantial live workflow | The visible board exists, many detail-rail workflows are live, and the command center now includes exception queues, resolution workbench, saved views, watched subscriptions, notification digests, executive review, and working day/week/month/agenda views with board-lens switching. |
 | Enterprise admin | In progress / partial | Managers now have Appointment Settings, a versioned Catalog + Automation workspace, and an Automation Operations Console for location profile, phone, hours, closures, recurring-template-to-closure apply flow, special-hours calendar preview, recurring template readiness, resource availability summaries, resource-specific operating calendars with day-level hours/capacity override windows, reason-required removal controls, overlap/runtime review, precedence guidance, next-effective-window preview, bulk multi-day apply/replace controls, capacity override readiness and quick drafts, resource type create/edit/deactivate controls, resource controls, purpose templates, outcome/follow-up/reason catalogs, code deprecation/reactivation with replacement guidance, rule hooks, simulation, draft/active catalog versions, required change reasons, rule lifecycle, health, failure queue, retry/replay readiness, preview-safe configuration export, import-preview validation, redaction reporting, and audit controls. Recurring series automation, notifications, and import apply remain. |
 | Task-to-appointment orchestration | In progress with live vertical slice | Follow-up automation, task-detail create-linked-draft workflow, live browser proof, board scheduling handoff, and appointment-to-task navigation exist. Automation-rule authoring/runtime remains. |
 | Reporting and analytics | In progress / partial | Reporting exports, command-center scorecards, executive review briefs, and visible KPI summaries now exist. Reconciled KPI dictionary, durable reporting read models, and enterprise reconciliation remain. |
@@ -302,11 +302,11 @@ Superseded prior E3 next steps:
 | EAPT-040 | Route shell, access control, navigation, global error boundaries | Partial |
 | EAPT-041 | Date, location, resource, search, filter, saved-view controls | Partial; day/date shell, search/filter controls, saved views, watched subscriptions, and command-center preset flows exist. Week/month/resource/location view expansion remains. |
 | EAPT-042 | KPI strip with reconciled definitions and drill-down filters | Partial; visible appointment metrics, command-center reporting summary, and executive review scorecards/briefs exist. Reconciled KPI dictionary and deeper drill-down model remain. |
-| EAPT-043 | Today queue and Agenda view | Not started |
-| EAPT-044 | Day schedule with staff and resource modes | Partial |
-| EAPT-045 | Week view | Not started |
-| EAPT-046 | Month view | Not started |
-| EAPT-047 | Staff, vehicle, resource, and location schedule views | Not started |
+| EAPT-043 | Today queue and Agenda view | Partial; agenda view now exists inside the board shell, but richer queue-specific operating lanes remain. |
+| EAPT-044 | Day schedule with staff and resource modes | Partial; day schedule is live and now supports persisted staff/location/resource board-lens switching. |
+| EAPT-045 | Week view | Partial; a working week surface now exists, but deeper density/reconciliation behavior remains. |
+| EAPT-046 | Month view | Partial; a working month surface now exists, but deeper summary and navigation behavior remains. |
+| EAPT-047 | Staff, vehicle, resource, and location schedule views | Partial; staff/location/resource board-lens switching exists. Dedicated vehicle and deeper resource/location schedule views remain. |
 | EAPT-048 | Appointment detail workspace and sticky action region | Partial |
 | EAPT-049 | History, linked work, conflict, outcome, follow-up panels | Partial |
 | EAPT-050 | Waitlist, no-show, follow-up, confirmation, automation review, failure queues | Partial; no-show recovery, follow-up, escalation, and digest review queues now exist in the command center. Waitlist queue, confirmation queue, and automation-failure queue remain. |
