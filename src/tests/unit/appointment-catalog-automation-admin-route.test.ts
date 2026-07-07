@@ -5,7 +5,8 @@ const mocks = vi.hoisted(() => ({
   getAppointmentCatalogAutomationAdminForManager: vi.fn(),
   simulateAppointmentCatalogAutomationForManager: vi.fn(),
   saveAppointmentCatalogDraftForManager: vi.fn(),
-  activateAppointmentCatalogDraftForManager: vi.fn()
+  activateAppointmentCatalogDraftForManager: vi.fn(),
+  updateAppointmentCatalogPurposeLifecycleForManager: vi.fn()
 }));
 
 vi.mock("@/server/auth/current-user", () => ({
@@ -19,12 +20,15 @@ vi.mock("@/server/services/appointment-catalog-automation-admin", () => ({
     mocks.simulateAppointmentCatalogAutomationForManager,
   saveAppointmentCatalogDraftForManager: mocks.saveAppointmentCatalogDraftForManager,
   activateAppointmentCatalogDraftForManager:
-    mocks.activateAppointmentCatalogDraftForManager
+    mocks.activateAppointmentCatalogDraftForManager,
+  updateAppointmentCatalogPurposeLifecycleForManager:
+    mocks.updateAppointmentCatalogPurposeLifecycleForManager
 }));
 
 import { GET } from "@/app/api/settings/appointments/catalog/route";
 import { POST as POST_ACTIVATE } from "@/app/api/settings/appointments/catalog/activate/route";
 import { POST as POST_DRAFT } from "@/app/api/settings/appointments/catalog/draft/route";
+import { POST as POST_LIFECYCLE } from "@/app/api/settings/appointments/catalog/lifecycle/route";
 import { POST } from "@/app/api/settings/appointments/catalog/simulate/route";
 
 const managerUser = {
@@ -80,6 +84,10 @@ describe("appointment catalog automation admin routes", () => {
     mocks.activateAppointmentCatalogDraftForManager.mockResolvedValue({
       ...catalog,
       versioning: { displayedSource: "ACTIVE" }
+    });
+    mocks.updateAppointmentCatalogPurposeLifecycleForManager.mockResolvedValue({
+      ...catalog,
+      versioning: { displayedSource: "DRAFT" }
     });
   });
 
@@ -179,6 +187,49 @@ describe("appointment catalog automation admin routes", () => {
       managerUser,
       payload
     );
+  });
+
+  it("updates purpose lifecycle for managers", async () => {
+    const payload = {
+      action: "DUPLICATE",
+      sourcePurposeCode: "APT-TEST-DRIVE",
+      purposeCode: "APT-VIP-TEST-DRIVE",
+      name: "VIP Test Drive",
+      reason: "Duplicate test drive purpose for VIP customers."
+    };
+    const response = await POST_LIFECYCLE(
+      new Request("http://localhost/api/settings/appointments/catalog/lifecycle", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      })
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      catalog: {
+        ...catalog,
+        versioning: { displayedSource: "DRAFT" }
+      }
+    });
+    expect(mocks.updateAppointmentCatalogPurposeLifecycleForManager).toHaveBeenCalledWith(
+      managerUser,
+      payload
+    );
+  });
+
+  it("rejects malformed lifecycle payloads", async () => {
+    const response = await POST_LIFECYCLE(
+      new Request("http://localhost/api/settings/appointments/catalog/lifecycle", {
+        method: "POST",
+        body: JSON.stringify({ action: "CREATE" })
+      })
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Lifecycle action, purpose code, and reason are required."
+    });
+    expect(mocks.updateAppointmentCatalogPurposeLifecycleForManager).not.toHaveBeenCalled();
   });
 
   it("maps manager access failures to 403", async () => {

@@ -5,7 +5,8 @@ import {
   getAppointmentCatalogAutomationAdminForManager,
   saveAppointmentCatalogDraftForManager,
   simulateAppointmentCatalogAutomation,
-  simulateAppointmentCatalogAutomationForManager
+  simulateAppointmentCatalogAutomationForManager,
+  updateAppointmentCatalogPurposeLifecycleForManager
 } from "@/server/services/appointment-catalog-automation-admin";
 import { createMemoryAppointmentCatalogRepository } from "@/tests/support/appointment-catalog-test-repository";
 import { createTestAuthStore } from "@/tests/support/auth-test-store";
@@ -157,6 +158,101 @@ describe("appointment catalog automation admin service", () => {
         repository
       )
     ).rejects.toThrow(/minimum duration cannot exceed default duration/);
+  });
+
+  it("creates a manager-authored purpose as a draft catalog lifecycle change", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createMemoryAppointmentCatalogRepository();
+
+    const catalog = await updateAppointmentCatalogPurposeLifecycleForManager(
+      manager,
+      {
+        action: "CREATE",
+        purposeCode: "APT-CUSTOM-INSPECTION",
+        name: "Custom Inspection",
+        category: "SERVICE",
+        reason: "Create custom inspection purpose for manager-approved appointment intake."
+      },
+      repository
+    );
+
+    expect(catalog.versioning.displayedSource).toBe("DRAFT");
+    expect(catalog.purposes.find((purpose) => purpose.code === "APT-CUSTOM-INSPECTION")).toMatchObject({
+      name: "Custom Inspection",
+      category: "SERVICE",
+      isActive: true
+    });
+    expect(catalog.versioning.recentChanges[0]).toMatchObject({
+      action: "DRAFT_CREATED"
+    });
+  });
+
+  it("duplicates an existing purpose and allows draft-only deletion", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createMemoryAppointmentCatalogRepository();
+
+    let catalog = await updateAppointmentCatalogPurposeLifecycleForManager(
+      manager,
+      {
+        action: "DUPLICATE",
+        sourcePurposeCode: "APT-TEST-DRIVE",
+        purposeCode: "APT-VIP-TEST-DRIVE",
+        name: "VIP Test Drive",
+        reason: "Duplicate test drive purpose for VIP customer appointment handling."
+      },
+      repository
+    );
+
+    expect(catalog.purposes.find((purpose) => purpose.code === "APT-VIP-TEST-DRIVE")).toMatchObject({
+      name: "VIP Test Drive",
+      category: "SALES"
+    });
+
+    catalog = await updateAppointmentCatalogPurposeLifecycleForManager(
+      manager,
+      {
+        action: "DELETE",
+        purposeCode: "APT-VIP-TEST-DRIVE",
+        reason: "Remove draft-only VIP purpose after manager review."
+      },
+      repository
+    );
+
+    expect(catalog.purposes.map((purpose) => purpose.code)).not.toContain("APT-VIP-TEST-DRIVE");
+  });
+
+  it("blocks hard deletion of published purposes and requires deprecation instead", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createMemoryAppointmentCatalogRepository();
+
+    await expect(
+      updateAppointmentCatalogPurposeLifecycleForManager(
+        manager,
+        {
+          action: "DELETE",
+          purposeCode: "APT-TEST-DRIVE",
+          reason: "Attempt unsafe hard delete of published purpose."
+        },
+        repository
+      )
+    ).rejects.toThrow(/Published appointment purposes cannot be deleted/);
+
+    const catalog = await updateAppointmentCatalogPurposeLifecycleForManager(
+      manager,
+      {
+        action: "DEPRECATE",
+        purposeCode: "APT-TEST-DRIVE",
+        reason: "Deprecate test drive purpose after manager replacement approval."
+      },
+      repository
+    );
+
+    expect(catalog.purposes.find((purpose) => purpose.code === "APT-TEST-DRIVE")?.isActive).toBe(
+      false
+    );
   });
 
   it("shows missing-input behavior in simulations", () => {
