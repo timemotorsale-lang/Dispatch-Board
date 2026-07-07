@@ -218,6 +218,27 @@ type AppointmentCommandCenterReport = {
   rows: AppointmentCommandCenterReportRow[];
 };
 
+type AppointmentCommandCenterSearchPreset =
+  | "all"
+  | "breached-sla"
+  | "escalated"
+  | "snoozed"
+  | "resolved"
+  | "manager-activity";
+
+type AppointmentCommandCenterSearchScope = "all" | "appointments" | "timeline";
+
+type AppointmentCommandCenterSearchResult = {
+  id: string;
+  appointmentId: string;
+  kind: "appointment" | "timeline";
+  title: string;
+  subtitle: string;
+  detail: string;
+  badge: string;
+  tone: "slate" | "blue" | "amber" | "red" | "purple" | "green";
+};
+
 type AppointmentReadModel = {
   id: string;
   appointmentNumber: string;
@@ -1316,6 +1337,166 @@ export function buildAppointmentCommandCenterExport(input: {
   );
 }
 
+export function buildAppointmentCommandCenterSearchResults(input: {
+  appointments: Appointment[];
+  resolutionStateByAppointmentId?: Record<string, AppointmentResolutionState>;
+  query: string;
+  preset?: AppointmentCommandCenterSearchPreset;
+  scope?: AppointmentCommandCenterSearchScope;
+  commandCenterAuditEvents?: AppointmentAuditTimelineEvent[];
+}): AppointmentCommandCenterSearchResult[] {
+  const resolutionStateByAppointmentId = input.resolutionStateByAppointmentId ?? {};
+  const preset = input.preset ?? "all";
+  const scope = input.scope ?? "all";
+  const normalizedQuery = input.query.trim().toLowerCase();
+  const allTimelineEvents = input.appointments.flatMap((appointment) =>
+    buildAppointmentAuditTimeline({
+      appointment,
+      resolutionState: resolutionStateByAppointmentId[appointment.id],
+      commandCenterEvents: input.commandCenterAuditEvents ?? []
+    })
+  );
+
+  const workbenchItems = buildAppointmentResolutionWorkbench(
+    input.appointments,
+    resolutionStateByAppointmentId,
+    {
+      includeDormant: true,
+      sort: "priority"
+    }
+  );
+
+  const appointmentResults =
+    scope === "timeline"
+      ? []
+      : workbenchItems
+          .filter((item) => {
+            if (preset === "breached-sla") {
+              return item.slaStatus === "breached";
+            }
+
+            if (preset === "escalated") {
+              return item.resolutionStatus === "escalated";
+            }
+
+            if (preset === "snoozed") {
+              return item.resolutionStatus === "snoozed";
+            }
+
+            if (preset === "resolved") {
+              return item.resolutionStatus === "resolved";
+            }
+
+            if (preset === "manager-activity") {
+              return false;
+            }
+
+            return true;
+          })
+          .filter((item) => {
+            if (!normalizedQuery) {
+              return true;
+            }
+
+            const searchTarget = [
+              item.appointment.id,
+              item.appointment.title,
+              item.appointment.customer,
+              item.appointment.vehicle,
+              item.ownerName,
+              item.queueLabel,
+              item.recommendedAction,
+              item.resolutionStatus,
+              item.slaStatus
+            ]
+              .join(" ")
+              .toLowerCase();
+
+            return searchTarget.includes(normalizedQuery);
+          })
+          .map(
+            (item) =>
+              ({
+                id: `appointment-${item.appointment.id}`,
+                appointmentId: item.appointment.id,
+                kind: "appointment",
+                title: `${item.appointment.id} · ${item.appointment.customer}`,
+                subtitle: `${item.appointment.title} · ${item.queueLabel}`,
+                detail: `${item.ownerName} · ${item.priority} priority · ${item.slaStatus} SLA · ${item.recommendedAction}`,
+                badge: resolutionStatusLabel(item.resolutionStatus),
+                tone:
+                  item.slaStatus === "breached"
+                    ? "red"
+                    : item.resolutionStatus === "escalated"
+                      ? "purple"
+                      : item.slaStatus === "at-risk"
+                        ? "amber"
+                        : "blue"
+              }) satisfies AppointmentCommandCenterSearchResult
+          );
+
+  const timelineResults =
+    scope === "appointments"
+      ? []
+      : allTimelineEvents
+          .filter((event) => {
+            if (preset === "manager-activity") {
+              return event.lane === "manager";
+            }
+
+            if (preset === "escalated") {
+              return event.title.toLowerCase().includes("escalat") || event.detail.toLowerCase().includes("escalat");
+            }
+
+            if (preset === "snoozed") {
+              return event.title.toLowerCase().includes("snooz") || event.detail.toLowerCase().includes("snooz");
+            }
+
+            if (preset === "resolved") {
+              return event.title.toLowerCase().includes("resolved") || event.detail.toLowerCase().includes("resolved");
+            }
+
+            if (preset === "breached-sla") {
+              return false;
+            }
+
+            return true;
+          })
+          .filter((event) => {
+            if (!normalizedQuery) {
+              return true;
+            }
+
+            return [
+              event.appointmentId,
+              event.title,
+              event.detail,
+              event.actor,
+              event.lane
+            ]
+              .join(" ")
+              .toLowerCase()
+              .includes(normalizedQuery);
+          })
+          .map(
+            (event) =>
+              ({
+                id: `timeline-${event.id}`,
+                appointmentId: event.appointmentId,
+                kind: "timeline",
+                title: `${event.appointmentId} · ${event.title}`,
+                subtitle: `${event.actor} · ${event.occurredAtLabel}`,
+                detail: event.detail,
+                badge: `${event.lane[0].toUpperCase() + event.lane.slice(1)} event`,
+                tone: event.tone
+              }) satisfies AppointmentCommandCenterSearchResult
+          );
+
+  return [...appointmentResults, ...timelineResults].sort((left, right) =>
+    left.appointmentId.localeCompare(right.appointmentId) || left.title.localeCompare(right.title)
+  );
+}
+
 function appointmentTimeLabel(appointment: Appointment) {
   if (isUnscheduledDraftAppointment(appointment)) {
     return "Unscheduled";
@@ -1830,6 +2011,11 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   const [reportQueueFilter, setReportQueueFilter] = useState<AppointmentResolutionWorkbenchFilter>("all");
   const [reportOwnerFilter, setReportOwnerFilter] = useState("all");
   const [reportExportFormat, setReportExportFormat] = useState<AppointmentCommandCenterExportFormat>("summary");
+  const [commandCenterSearchQuery, setCommandCenterSearchQuery] = useState("");
+  const [commandCenterSearchPreset, setCommandCenterSearchPreset] =
+    useState<AppointmentCommandCenterSearchPreset>("all");
+  const [commandCenterSearchScope, setCommandCenterSearchScope] =
+    useState<AppointmentCommandCenterSearchScope>("all");
   const [detailRefreshKey, setDetailRefreshKey] = useState(0);
   const [actionNotice, setActionNotice] = useState("Operational command bridge ready. Persisted appointments can now use the live command API for check-in and no-show actions.");
 
@@ -2067,6 +2253,39 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
       }),
     [commandCenterReport, reportExportFormat, selectedAppointmentAuditTimeline]
   );
+  const allCommandCenterAuditTimelineEvents = useMemo(
+    () =>
+      boardAppointments.flatMap((appointment) =>
+        buildAppointmentAuditTimeline({
+          appointment,
+          resolutionState: resolutionStateByAppointmentId[appointment.id],
+          commandCenterEvents: commandCenterAuditEvents
+        })
+      ),
+    [boardAppointments, commandCenterAuditEvents, resolutionStateByAppointmentId]
+  );
+  const commandCenterSearchResults = useMemo(
+    () =>
+      buildAppointmentCommandCenterSearchResults({
+        appointments: boardAppointments,
+        resolutionStateByAppointmentId,
+        query: commandCenterSearchQuery,
+        preset: commandCenterSearchPreset,
+        scope: commandCenterSearchScope,
+        commandCenterAuditEvents
+      }),
+    [
+      boardAppointments,
+      commandCenterAuditEvents,
+      commandCenterSearchPreset,
+      commandCenterSearchQuery,
+      commandCenterSearchScope,
+      resolutionStateByAppointmentId
+    ]
+  );
+  const commandCenterSearchResultCountLabel = `${commandCenterSearchResults.length} result${
+    commandCenterSearchResults.length === 1 ? "" : "s"
+  }`;
 
   const scheduledFilteredAppointments = useMemo(
     () => filteredAppointments.filter((appointment) => !isUnscheduledDraftAppointment(appointment)),
@@ -2175,6 +2394,34 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
           : "Could not copy export preview."
       );
     }
+  }
+
+  function applyCommandCenterSearchPreset(preset: AppointmentCommandCenterSearchPreset) {
+    setCommandCenterSearchPreset(preset);
+    if (preset === "manager-activity") {
+      setCommandCenterSearchScope("timeline");
+      setAuditTimelineFilter("manager");
+    } else {
+      setCommandCenterSearchScope("all");
+      setAuditTimelineFilter("all");
+    }
+  }
+
+  function focusCommandCenterSearchResult(result: AppointmentCommandCenterSearchResult) {
+    const appointment =
+      boardAppointments.find((candidate) => candidate.id === result.appointmentId) ?? selectedAppointment;
+
+    selectAppointmentForDetail(appointment);
+    if (result.kind === "timeline") {
+      const eventMatch = allCommandCenterAuditTimelineEvents.find((event) => `timeline-${event.id}` === result.id);
+      if (eventMatch) {
+        setAuditTimelineFilter(eventMatch.lane);
+      }
+    } else {
+      setAuditTimelineFilter("all");
+    }
+
+    setActionNotice(`Focused ${result.appointmentId} from cross-appointment command-center search.`);
   }
 
   function toggleResolutionSelection(appointmentId: string) {
@@ -4232,6 +4479,124 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
               <div className="appointment-resolution-empty">
                 <strong>Workbench clear</strong>
                 <p>No exception items match the current queue focus and visibility settings.</p>
+              </div>
+            )}
+          </section>
+
+          <section className="appointment-command-search-card" aria-labelledby="appointment-command-search">
+            <div className="appointment-section-heading">
+              <div>
+                <strong id="appointment-command-search">Cross-Appointment Search</strong>
+                <p>
+                  Search queue items, manager actions, and timeline history across the full visible
+                  command-center scope.
+                </p>
+              </div>
+              <span>{commandCenterSearchResultCountLabel}</span>
+            </div>
+
+            <div className="appointment-command-search-presets" aria-label="Saved search presets">
+              <button
+                className={commandCenterSearchPreset === "all" ? "appointment-command-search-preset appointment-command-search-preset-active" : "appointment-command-search-preset"}
+                type="button"
+                onClick={() => applyCommandCenterSearchPreset("all")}
+              >
+                All
+              </button>
+              <button
+                className={commandCenterSearchPreset === "breached-sla" ? "appointment-command-search-preset appointment-command-search-preset-active" : "appointment-command-search-preset"}
+                type="button"
+                onClick={() => applyCommandCenterSearchPreset("breached-sla")}
+              >
+                Breached SLA
+              </button>
+              <button
+                className={commandCenterSearchPreset === "escalated" ? "appointment-command-search-preset appointment-command-search-preset-active" : "appointment-command-search-preset"}
+                type="button"
+                onClick={() => applyCommandCenterSearchPreset("escalated")}
+              >
+                Escalated
+              </button>
+              <button
+                className={commandCenterSearchPreset === "snoozed" ? "appointment-command-search-preset appointment-command-search-preset-active" : "appointment-command-search-preset"}
+                type="button"
+                onClick={() => applyCommandCenterSearchPreset("snoozed")}
+              >
+                Snoozed
+              </button>
+              <button
+                className={commandCenterSearchPreset === "resolved" ? "appointment-command-search-preset appointment-command-search-preset-active" : "appointment-command-search-preset"}
+                type="button"
+                onClick={() => applyCommandCenterSearchPreset("resolved")}
+              >
+                Resolved
+              </button>
+              <button
+                className={commandCenterSearchPreset === "manager-activity" ? "appointment-command-search-preset appointment-command-search-preset-active" : "appointment-command-search-preset"}
+                type="button"
+                onClick={() => applyCommandCenterSearchPreset("manager-activity")}
+              >
+                Manager activity
+              </button>
+            </div>
+
+            <div className="appointment-command-search-toolbar">
+              <label className="appointment-command-search-field">
+                <Search size={16} aria-hidden="true" />
+                <input
+                  aria-label="Search command center items"
+                  placeholder="Search appointment ID, customer, vehicle, owner, queue, or timeline event..."
+                  type="search"
+                  value={commandCenterSearchQuery}
+                  onChange={(event) => setCommandCenterSearchQuery(event.target.value)}
+                />
+              </label>
+              <label>
+                Search scope
+                <select
+                  aria-label="Filter search scope"
+                  value={commandCenterSearchScope}
+                  onChange={(event) =>
+                    setCommandCenterSearchScope(event.target.value as AppointmentCommandCenterSearchScope)
+                  }
+                >
+                  <option value="all">Appointments + timeline</option>
+                  <option value="appointments">Appointments only</option>
+                  <option value="timeline">Timeline only</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="appointment-command-search-summary">
+              <span>{resolutionWorkbenchItems.length} indexed queue items</span>
+              <span>{allCommandCenterAuditTimelineEvents.length} indexed timeline events</span>
+              <span>{selectedAppointment.id} currently focused</span>
+            </div>
+
+            {commandCenterSearchResults.length > 0 ? (
+              <div className="appointment-command-search-results">
+                {commandCenterSearchResults.slice(0, 12).map((result) => (
+                  <article className={`appointment-command-search-result appointment-command-search-result-${result.tone}`} key={result.id}>
+                    <div className="appointment-command-search-result-top">
+                      <div>
+                        <strong>{result.title}</strong>
+                        <span>{result.subtitle}</span>
+                      </div>
+                      <b>{result.badge}</b>
+                    </div>
+                    <p>{result.detail}</p>
+                    <div className="appointment-command-search-result-actions">
+                      <button type="button" onClick={() => focusCommandCenterSearchResult(result)}>
+                        Open appointment
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="appointment-command-search-empty">
+                <strong>No matching command-center results</strong>
+                <p>Try another preset, widen the scope, or search by appointment ID, customer, owner, or timeline wording.</p>
               </div>
             )}
           </section>
