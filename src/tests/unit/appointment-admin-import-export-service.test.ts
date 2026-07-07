@@ -90,7 +90,35 @@ function settingsFixture(): AppointmentAdminSettings {
       followUpDispositionCodes: [],
       reasonCodes: []
     },
-    automationRules: []
+    automationRules: [],
+    specialHoursCalendar: {
+      horizonStartIso: "2026-07-07",
+      horizonEndIso: "2026-07-20",
+      days: [
+        {
+          dateIso: "2026-07-07",
+          businessDay: "TUESDAY",
+          status: "OPEN",
+          label: "Open",
+          opensAt: "09:00",
+          closesAt: "18:00",
+          closureIds: [],
+          closureNames: [],
+          resourceImpactCount: 0,
+          resourceImpactNames: [],
+          warnings: []
+        }
+      ],
+      summary: {
+        openDayCount: 1,
+        closedDayCount: 0,
+        resourceImpactDayCount: 0,
+        upcomingClosureCount: 0,
+        upcomingResourceImpactCount: 0,
+        nextClosureName: null,
+        nextClosureStartsAtIso: null
+      }
+    }
   };
 }
 
