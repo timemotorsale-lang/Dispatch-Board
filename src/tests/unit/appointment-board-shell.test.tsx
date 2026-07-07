@@ -7,6 +7,9 @@ import {
   buildAppointmentCommandCenterDigestPreview,
   buildAppointmentCommandCenterDigestSummaries,
   buildAppointmentCommandCenterExport,
+  buildAppointmentCommandCenterHandoffExport,
+  buildAppointmentCommandCenterHandoffPackage,
+  buildAppointmentCommandCenterRuntimeQueue,
   buildAppointmentCommandCenterReport,
   buildAppointmentCommandCenterSearchResults,
   buildAppointmentCommandCenterSavedViewDescription,
@@ -64,6 +67,9 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Ops Intelligence Suite");
     expect(markup).toContain("Operational Intelligence");
     expect(markup).toContain("Leadership export package");
+    expect(markup).toContain("Runtime &amp; Handoffs");
+    expect(markup).toContain("Delivery Runtime Queue");
+    expect(markup).toContain("Carry-Forward Handoff Package");
     expect(markup).toContain("Staff");
     expect(markup).toContain("Location");
     expect(markup).toContain("Resource");
@@ -675,6 +681,78 @@ describe("appointment board shell", () => {
     expect(exportPreview).toContain("Drilldowns:");
     expect(exportPreview).toContain("Digest analytics:");
     expect(exportPreview).toContain("Embedded executive review brief");
+  });
+
+  it("builds a runtime queue from enabled digests and current state", () => {
+    const queue = buildAppointmentCommandCenterRuntimeQueue({
+      digests: [
+        {
+          id: "digest-escalations",
+          label: "Escalation Digest",
+          enabled: true,
+          tone: "purple",
+          channel: "email-summary",
+          recipientLabel: "General Manager",
+          count: 2
+        },
+        {
+          id: "digest-follow-up-backlog",
+          label: "Follow-Up Backlog Digest",
+          enabled: false,
+          tone: "amber",
+          channel: "email-summary",
+          recipientLabel: "Managers",
+          count: 1
+        }
+      ] as any,
+      runtimeStates: {
+        "digest-escalations": {
+          state: "acknowledged",
+          updatedAtLabel: "Acknowledged 15 min ago"
+        }
+      }
+    });
+
+    expect(queue).toHaveLength(1);
+    expect(queue[0]?.state).toBe("acknowledged");
+    expect(queue[0]?.actionLabel).toBe("Mark delivered");
+  });
+
+  it("builds a carry-forward handoff package and export", () => {
+    const handoffPackage = buildAppointmentCommandCenterHandoffPackage({
+      report: {
+        summary: {
+          visibleExceptions: 4
+        }
+      } as any,
+      exceptionQueues: [
+        { key: "needs-scheduling", items: [{ id: "APT-DRAFT" }] },
+        { key: "conflict-watch", items: [{ id: "APT-CONFLICT" }] },
+        { key: "no-show-recovery", items: [{ id: "APT-NOSHOW" }] },
+        { key: "follow-up-required", items: [{ id: "APT-FOLLOW" }] }
+      ] as any,
+      selectedAppointment: {
+        id: "APT-NOSHOW"
+      } as any
+    });
+
+    expect(handoffPackage.carryForwardCount).toBe(4);
+    expect(handoffPackage.sections.find((section) => section.label === "Recovery follow-up")?.count).toBe(2);
+
+    const exportPreview = buildAppointmentCommandCenterHandoffExport({
+      businessDate: "Monday, July 6, 2026",
+      handoffPackage,
+      selectedAppointment: {
+        id: "APT-NOSHOW",
+        title: "Test Drive",
+        customer: "Ahmed Ibrahim"
+      } as any,
+      note: "Call customer first and rebalance service bay coverage."
+    });
+
+    expect(exportPreview).toContain("Appointment command center handoff package");
+    expect(exportPreview).toContain("Carry-forward count: 4");
+    expect(exportPreview).toContain("Manager note: Call customer first and rebalance service bay coverage.");
   });
 
   it("classifies missing-time draft appointments as unscheduled board items", () => {

@@ -311,6 +311,37 @@ type AppointmentCommandCenterDigestHistoryEntry = {
   generatedAtLabel: string;
 };
 
+type AppointmentCommandCenterRuntimeQueueItem = {
+  id: string;
+  label: string;
+  tone: "slate" | "blue" | "amber" | "red" | "purple" | "green";
+  channelLabel: string;
+  recipientLabel: string;
+  count: number;
+  state: "queued" | "acknowledged" | "delivered";
+  detail: string;
+  actionLabel: string;
+};
+
+type AppointmentCommandCenterHandoffPackage = {
+  headline: string;
+  carryForwardCount: number;
+  sections: Array<{
+    label: string;
+    count: number;
+    detail: string;
+  }>;
+};
+
+type AppointmentCommandCenterHandoffHistoryEntry = {
+  id: string;
+  status: "prepared" | "accepted";
+  actor: string;
+  note: string;
+  carryForwardCount: number;
+  generatedAtLabel: string;
+};
+
 type AppointmentExecutiveReviewPreset =
   | "daily-ops"
   | "sla-risk"
@@ -791,6 +822,28 @@ const initialCommandCenterDigestHistory: AppointmentCommandCenterDigestHistoryEn
     status: "previewed",
     reason: "Prepared for afternoon handoff.",
     generatedAtLabel: "Today 2:10 PM"
+  }
+];
+
+const initialCommandCenterRuntimeStates: Record<
+  string,
+  { state: AppointmentCommandCenterRuntimeQueueItem["state"]; updatedAtLabel: string }
+> = {
+  "digest-breached-sla": { state: "queued", updatedAtLabel: "Due now" },
+  "digest-escalations": { state: "acknowledged", updatedAtLabel: "Acknowledged 15 min ago" },
+  "digest-no-show-recovery": { state: "queued", updatedAtLabel: "Queue refreshed just now" },
+  "digest-follow-up-backlog": { state: "queued", updatedAtLabel: "Waiting for close review" },
+  "digest-shift-handoff": { state: "queued", updatedAtLabel: "Shift change in 45 min" }
+};
+
+const initialCommandCenterHandoffHistory: AppointmentCommandCenterHandoffHistoryEntry[] = [
+  {
+    id: "handoff-history-1",
+    status: "prepared",
+    actor: "Abdi Farah",
+    note: "Prepared carry-forward package for the evening manager.",
+    carryForwardCount: 4,
+    generatedAtLabel: "Today 4:20 PM"
   }
 ];
 
@@ -2442,6 +2495,112 @@ export function buildAppointmentOpsLeadershipExport(input: {
   ].join("\n");
 }
 
+export function buildAppointmentCommandCenterRuntimeQueue(input: {
+  digests: AppointmentCommandCenterDigestSummary[];
+  runtimeStates?: Record<
+    string,
+    { state: AppointmentCommandCenterRuntimeQueueItem["state"]; updatedAtLabel: string }
+  >;
+}) {
+  const runtimeStates = input.runtimeStates ?? {};
+
+  return input.digests
+    .filter((digest) => digest.enabled)
+    .map((digest) => {
+      const runtimeState = runtimeStates[digest.id];
+      const state = runtimeState?.state ?? "queued";
+
+      return {
+        id: digest.id,
+        label: digest.label,
+        tone: digest.tone,
+        channelLabel: commandCenterDigestChannelLabel(digest.channel),
+        recipientLabel: digest.recipientLabel,
+        count: digest.count,
+        state,
+        detail:
+          state === "delivered"
+            ? `${digest.label} was delivered and is waiting for downstream action if needed.`
+            : state === "acknowledged"
+              ? `${digest.label} was acknowledged and is being monitored by the manager lane.`
+              : `${digest.label} is queued for operational delivery with ${digest.count} item${
+                  digest.count === 1 ? "" : "s"
+                } in scope.`,
+        actionLabel:
+          state === "queued"
+            ? "Acknowledge"
+            : state === "acknowledged"
+              ? "Mark delivered"
+              : "Re-queue"
+      } satisfies AppointmentCommandCenterRuntimeQueueItem;
+    });
+}
+
+export function buildAppointmentCommandCenterHandoffPackage(input: {
+  report: AppointmentCommandCenterReport;
+  exceptionQueues: AppointmentExceptionQueue[];
+  selectedAppointment: Appointment;
+}) {
+  const noShowRecoveryCount =
+    input.exceptionQueues.find((queue) => queue.key === "no-show-recovery")?.items.length ?? 0;
+  const followUpBacklogCount =
+    input.exceptionQueues.find((queue) => queue.key === "follow-up-required")?.items.length ?? 0;
+  const conflictWatchCount =
+    input.exceptionQueues.find((queue) => queue.key === "conflict-watch")?.items.length ?? 0;
+  const needsSchedulingCount =
+    input.exceptionQueues.find((queue) => queue.key === "needs-scheduling")?.items.length ?? 0;
+
+  return {
+    headline: `${input.report.summary.visibleExceptions} live exception item${
+      input.report.summary.visibleExceptions === 1 ? "" : "s"
+    } are carrying into the next operating handoff.`,
+    carryForwardCount:
+      noShowRecoveryCount +
+      followUpBacklogCount +
+      conflictWatchCount +
+      needsSchedulingCount,
+    sections: [
+      {
+        label: "Needs scheduling",
+        count: needsSchedulingCount,
+        detail: "Draft appointments still missing a committed operating window."
+      },
+      {
+        label: "Conflict watch",
+        count: conflictWatchCount,
+        detail: "Appointments that still need capacity, staff, or resource rebalance."
+      },
+      {
+        label: "Recovery follow-up",
+        count: noShowRecoveryCount + followUpBacklogCount,
+        detail: `Customer-save work anchored by ${input.selectedAppointment.id} and the visible follow-up queue.`
+      }
+    ]
+  } satisfies AppointmentCommandCenterHandoffPackage;
+}
+
+export function buildAppointmentCommandCenterHandoffExport(input: {
+  businessDate: string;
+  handoffPackage: AppointmentCommandCenterHandoffPackage;
+  selectedAppointment: Appointment;
+  note: string;
+}) {
+  return [
+    "Appointment command center handoff package",
+    `Business date: ${input.businessDate}`,
+    `Headline: ${input.handoffPackage.headline}`,
+    `Focused appointment: ${input.selectedAppointment.id} · ${input.selectedAppointment.title} · ${input.selectedAppointment.customer}`,
+    `Carry-forward count: ${input.handoffPackage.carryForwardCount}`,
+    "",
+    "Carry-forward sections:",
+    ...input.handoffPackage.sections.map(
+      (section) => `- ${section.label}: ${section.count} (${section.detail})`
+    ),
+    "",
+    `Manager note: ${input.note || "No additional handoff note recorded."}`
+  ].join("\n");
+}
+
 function appointmentTimeLabel(appointment: Appointment) {
   if (isUnscheduledDraftAppointment(appointment)) {
     return "Unscheduled";
@@ -3162,6 +3321,13 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   const [commandCenterDigestHistory, setCommandCenterDigestHistory] = useState(
     initialCommandCenterDigestHistory
   );
+  const [commandCenterRuntimeStates, setCommandCenterRuntimeStates] = useState(
+    initialCommandCenterRuntimeStates
+  );
+  const [commandCenterHandoffHistory, setCommandCenterHandoffHistory] = useState(
+    initialCommandCenterHandoffHistory
+  );
+  const [commandCenterHandoffNote, setCommandCenterHandoffNote] = useState("");
   const [executiveReviewPreset, setExecutiveReviewPreset] =
     useState<AppointmentExecutiveReviewPreset>("daily-ops");
   const [opsIntelligencePreset, setOpsIntelligencePreset] =
@@ -3514,6 +3680,37 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   const enabledCommandCenterDigestCount = commandCenterDigestSummaries.filter(
     (digest) => digest.enabled
   ).length;
+  const commandCenterRuntimeQueue = useMemo(
+    () =>
+      buildAppointmentCommandCenterRuntimeQueue({
+        digests: commandCenterDigestSummaries,
+        runtimeStates: commandCenterRuntimeStates
+      }),
+    [commandCenterDigestSummaries, commandCenterRuntimeStates]
+  );
+  const commandCenterHandoffPackage = useMemo(
+    () =>
+      buildAppointmentCommandCenterHandoffPackage({
+        report: commandCenterReport,
+        exceptionQueues,
+        selectedAppointment
+      }),
+    [commandCenterReport, exceptionQueues, selectedAppointment]
+  );
+  const commandCenterHandoffExport = useMemo(
+    () =>
+      buildAppointmentCommandCenterHandoffExport({
+        businessDate,
+        handoffPackage: commandCenterHandoffPackage,
+        selectedAppointment,
+        note: commandCenterHandoffNote
+      }),
+    [
+      commandCenterHandoffNote,
+      commandCenterHandoffPackage,
+      selectedAppointment
+    ]
+  );
   const executiveReviewModel = useMemo(
     () =>
       buildAppointmentExecutiveReviewModel({
@@ -3922,6 +4119,15 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     ]);
 
     if (status === "sent") {
+      if (selectedCommandCenterDigestSummary) {
+        setCommandCenterRuntimeStates((current) => ({
+          ...current,
+          [selectedCommandCenterDigestSummary.id]: {
+            state: "delivered",
+            updatedAtLabel: "Delivered just now"
+          }
+        }));
+      }
       setCommandCenterAuditEvents((current) => [
         {
           id: `digest-sent-${selectedCommandCenterDigestSummary.id}-${current.length + 1}`,
@@ -4089,6 +4295,92 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
         error instanceof Error
           ? `Could not copy ops intelligence export: ${error.message}`
           : "Could not copy ops intelligence export."
+      );
+    }
+  }
+
+  function advanceCommandCenterRuntimeItem(itemId: string) {
+    setCommandCenterRuntimeStates((current) => {
+      const existing = current[itemId];
+      const nextState =
+        existing?.state === "queued"
+          ? "acknowledged"
+          : existing?.state === "acknowledged"
+            ? "delivered"
+            : "queued";
+
+      return {
+        ...current,
+        [itemId]: {
+          state: nextState,
+          updatedAtLabel:
+            nextState === "queued"
+              ? "Re-queued just now"
+              : nextState === "acknowledged"
+                ? "Acknowledged just now"
+                : "Delivered just now"
+        }
+      };
+    });
+
+    const queueItem = commandCenterRuntimeQueue.find((item) => item.id === itemId);
+    if (queueItem) {
+      setActionNotice(`${queueItem.label} moved through the runtime queue.`);
+    }
+  }
+
+  function recordCommandCenterHandoff(status: "prepared" | "accepted") {
+    const note = commandCenterHandoffNote.trim() || "No additional handoff note recorded.";
+
+    setCommandCenterHandoffHistory((current) => [
+      {
+        id: `handoff-${status}-${current.length + 1}`,
+        status,
+        actor: "Abdi Farah",
+        note,
+        carryForwardCount: commandCenterHandoffPackage.carryForwardCount,
+        generatedAtLabel: status === "accepted" ? "Accepted just now" : "Prepared just now"
+      },
+      ...current
+    ]);
+
+    setCommandCenterAuditEvents((current) => [
+      {
+        id: `handoff-${status}-${current.length + 1}`,
+        appointmentId: selectedAppointment.id,
+        lane: "manager",
+        tone: status === "accepted" ? "green" : "blue",
+        title: status === "accepted" ? "Shift handoff accepted" : "Shift handoff prepared",
+        detail: `${status === "accepted" ? "Accepted" : "Prepared"} handoff package for ${
+          commandCenterHandoffPackage.carryForwardCount
+        } carry-forward item${commandCenterHandoffPackage.carryForwardCount === 1 ? "" : "s"}. Note: ${note}`,
+        actor: "Abdi Farah",
+        occurredAtLabel: "Just now"
+      },
+      ...current
+    ]);
+
+    setActionNotice(
+      status === "accepted"
+        ? "Shift handoff was accepted and recorded in the manager timeline."
+        : "Shift handoff package was prepared and recorded in the manager timeline."
+    );
+  }
+
+  async function copyCommandCenterHandoffExport() {
+    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+      setActionNotice("Handoff package is ready. Copy is not available in this browser context.");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(commandCenterHandoffExport);
+      setActionNotice("Copied handoff package to clipboard.");
+    } catch (error) {
+      setActionNotice(
+        error instanceof Error
+          ? `Could not copy handoff package: ${error.message}`
+          : "Could not copy handoff package."
       );
     }
   }
@@ -6603,6 +6895,178 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
                         <small>
                           {commandCenterDigestChannelLabel(entry.channel)} · {entry.recipientLabel} · {entry.generatedAtLabel}
                         </small>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <section
+            className="appointment-runtime-handoffs-card"
+            aria-labelledby="appointment-runtime-handoffs"
+          >
+            <div className="appointment-section-heading">
+              <div>
+                <strong id="appointment-runtime-handoffs">Runtime &amp; Handoffs</strong>
+                <p>
+                  Close the loop between digest creation, operational acknowledgment, carry-forward
+                  packaging, and shift handoff acceptance.
+                </p>
+              </div>
+              <span>
+                {commandCenterRuntimeQueue.length} runtime item{commandCenterRuntimeQueue.length === 1 ? "" : "s"}
+              </span>
+            </div>
+
+            <div className="appointment-runtime-handoffs-grid">
+              <section className="appointment-command-center-panel" aria-labelledby="appointment-runtime-queue">
+                <div className="appointment-command-center-panel-heading">
+                  <div>
+                    <strong id="appointment-runtime-queue">Delivery Runtime Queue</strong>
+                    <p>Track whether each digest is queued, acknowledged, delivered, or re-queued for follow-up.</p>
+                  </div>
+                  <span>{commandCenterRuntimeQueue.filter((item) => item.state === "queued").length} queued</span>
+                </div>
+
+                <div className="appointment-runtime-queue-list">
+                  {commandCenterRuntimeQueue.map((item) => (
+                    <article className={`appointment-runtime-queue-item appointment-runtime-queue-item-${item.tone}`} key={item.id}>
+                      <div className="appointment-runtime-queue-top">
+                        <div>
+                          <strong>{item.label}</strong>
+                          <p>{item.detail}</p>
+                        </div>
+                        <div className="appointment-command-center-badge-stack">
+                          <span className="appointment-command-center-tag appointment-command-center-tag-blue">
+                            {item.channelLabel}
+                          </span>
+                          <span
+                            className={
+                              item.state === "delivered"
+                                ? "appointment-command-center-tag appointment-command-center-tag-green"
+                                : item.state === "acknowledged"
+                                  ? "appointment-command-center-tag appointment-command-center-tag-amber"
+                                  : "appointment-command-center-tag appointment-command-center-tag-red"
+                            }
+                          >
+                            {item.state}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="appointment-runtime-queue-meta">
+                        <span>{item.recipientLabel}</span>
+                        <strong>{item.count} item{item.count === 1 ? "" : "s"}</strong>
+                      </div>
+
+                      <div className="appointment-command-center-item-actions">
+                        <button type="button" onClick={() => advanceCommandCenterRuntimeItem(item.id)}>
+                          {item.actionLabel}
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+
+              <section className="appointment-command-center-panel" aria-labelledby="appointment-handoff-package">
+                <div className="appointment-command-center-panel-heading">
+                  <div>
+                    <strong id="appointment-handoff-package">Carry-Forward Handoff Package</strong>
+                    <p>
+                      Package unresolved work for the next manager shift with an export, recorded note,
+                      and explicit acceptance trail.
+                    </p>
+                  </div>
+                  <span>{commandCenterHandoffPackage.carryForwardCount} carry-forward</span>
+                </div>
+
+                <div className="appointment-command-center-shift-handoff-card">
+                  <div className="appointment-command-center-shift-handoff-heading">
+                    <strong>Handoff overview</strong>
+                    <span>{selectedAppointment.id}</span>
+                  </div>
+                  <p className="appointment-command-center-digest-headline">
+                    {commandCenterHandoffPackage.headline}
+                  </p>
+                  <div className="appointment-runtime-handoff-sections">
+                    {commandCenterHandoffPackage.sections.map((section) => (
+                      <article key={section.label}>
+                        <span>{section.label}</span>
+                        <strong>{section.count}</strong>
+                        <p>{section.detail}</p>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+
+                <label className="appointment-command-center-digest-note-field">
+                  Handoff note
+                  <input
+                    aria-label="Shift handoff note"
+                    onChange={(event) => setCommandCenterHandoffNote(event.target.value)}
+                    placeholder="Summarize what the next manager should know first."
+                    type="text"
+                    value={commandCenterHandoffNote}
+                  />
+                </label>
+
+                <div className="appointment-runtime-handoff-export">
+                  <div className="appointment-command-center-digest-preview-heading">
+                    <strong>Handoff export preview</strong>
+                    <span>{businessDate}</span>
+                  </div>
+                  <textarea
+                    aria-label="Handoff export preview"
+                    readOnly
+                    rows={11}
+                    value={commandCenterHandoffExport}
+                  />
+                </div>
+
+                <div className="appointment-runtime-handoff-actions">
+                  <button type="button" onClick={() => recordCommandCenterHandoff("prepared")}>
+                    Prepare handoff
+                  </button>
+                  <button type="button" onClick={() => void copyCommandCenterHandoffExport()}>
+                    Copy handoff
+                  </button>
+                  <button type="button" onClick={() => recordCommandCenterHandoff("accepted")}>
+                    Accept handoff
+                  </button>
+                </div>
+
+                <div className="appointment-runtime-handoff-history">
+                  <div className="appointment-command-center-digest-preview-heading">
+                    <strong>Handoff history</strong>
+                    <span>{commandCenterHandoffHistory.length} recorded</span>
+                  </div>
+                  <div className="appointment-command-center-digest-history-list">
+                    {commandCenterHandoffHistory.slice(0, 5).map((entry) => (
+                      <article className="appointment-command-center-digest-history-item" key={entry.id}>
+                        <div className="appointment-command-center-digest-history-top">
+                          <div>
+                            <strong>{entry.status === "accepted" ? "Handoff accepted" : "Handoff prepared"}</strong>
+                            <p>{entry.note}</p>
+                          </div>
+                          <div className="appointment-command-center-badge-stack">
+                            <span
+                              className={
+                                entry.status === "accepted"
+                                  ? "appointment-command-center-tag appointment-command-center-tag-green"
+                                  : "appointment-command-center-tag appointment-command-center-tag-blue"
+                              }
+                            >
+                              {entry.status}
+                            </span>
+                            <span className="appointment-command-center-tag appointment-command-center-tag-amber">
+                              {entry.carryForwardCount} carry-forward
+                            </span>
+                          </div>
+                        </div>
+                        <small>{entry.actor} · {entry.generatedAtLabel}</small>
                       </article>
                     ))}
                   </div>
