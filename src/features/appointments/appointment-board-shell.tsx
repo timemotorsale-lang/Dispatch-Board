@@ -279,6 +279,38 @@ type AppointmentCommandCenterSubscriptionSummary = {
   tone: "slate" | "blue" | "amber" | "red" | "purple";
 };
 
+type AppointmentCommandCenterDigestChannel = "in-app" | "email-summary" | "shift-handoff";
+
+type AppointmentCommandCenterDigestCadence = "hourly" | "shift-change" | "daily-close";
+
+type AppointmentCommandCenterDigestPreference = {
+  id: string;
+  label: string;
+  description: string;
+  enabled: boolean;
+  watchType: AppointmentCommandCenterSubscription["watchType"] | "shift-handoff";
+  channel: AppointmentCommandCenterDigestChannel;
+  cadence: AppointmentCommandCenterDigestCadence;
+  recipientLabel: string;
+};
+
+type AppointmentCommandCenterDigestSummary = AppointmentCommandCenterDigestPreference & {
+  count: number;
+  tone: "slate" | "blue" | "amber" | "red" | "purple";
+  headline: string;
+};
+
+type AppointmentCommandCenterDigestHistoryEntry = {
+  id: string;
+  digestLabel: string;
+  channel: AppointmentCommandCenterDigestChannel;
+  recipientLabel: string;
+  count: number;
+  status: "previewed" | "sent";
+  reason: string;
+  generatedAtLabel: string;
+};
+
 type AppointmentReadModel = {
   id: string;
   appointmentNumber: string;
@@ -591,6 +623,82 @@ const initialCommandCenterSubscriptions: AppointmentCommandCenterSubscription[] 
     description: "Watch manager-lane actions and decision history events.",
     enabled: true,
     watchType: "manager-activity"
+  }
+];
+
+const initialCommandCenterDigests: AppointmentCommandCenterDigestPreference[] = [
+  {
+    id: "digest-breached-sla",
+    label: "Breached SLA Digest",
+    description: "Push urgent appointment exceptions that have already crossed the SLA line.",
+    enabled: true,
+    watchType: "breached-sla",
+    channel: "in-app",
+    cadence: "hourly",
+    recipientLabel: "General Manager + Service Lead"
+  },
+  {
+    id: "digest-escalations",
+    label: "Escalation Digest",
+    description: "Summarize escalated workbench items that still need a manager decision.",
+    enabled: true,
+    watchType: "escalated",
+    channel: "email-summary",
+    cadence: "hourly",
+    recipientLabel: "General Manager"
+  },
+  {
+    id: "digest-no-show-recovery",
+    label: "No-Show Recovery Digest",
+    description: "Keep missed arrivals and callback recovery visible during the day.",
+    enabled: true,
+    watchType: "no-show-recovery",
+    channel: "in-app",
+    cadence: "shift-change",
+    recipientLabel: "Sales Desk"
+  },
+  {
+    id: "digest-follow-up-backlog",
+    label: "Follow-Up Backlog Digest",
+    description: "Highlight follow-up buildup before it rolls into the next operating window.",
+    enabled: false,
+    watchType: "follow-up-backlog",
+    channel: "email-summary",
+    cadence: "daily-close",
+    recipientLabel: "Managers"
+  },
+  {
+    id: "digest-shift-handoff",
+    label: "Shift Handoff Digest",
+    description: "Package the command-center summary needed for opening and closing manager handoff.",
+    enabled: true,
+    watchType: "shift-handoff",
+    channel: "shift-handoff",
+    cadence: "shift-change",
+    recipientLabel: "Opening + Closing Manager"
+  }
+];
+
+const initialCommandCenterDigestHistory: AppointmentCommandCenterDigestHistoryEntry[] = [
+  {
+    id: "digest-history-1",
+    digestLabel: "Escalation Digest",
+    channel: "email-summary",
+    recipientLabel: "General Manager",
+    count: 2,
+    status: "sent",
+    reason: "Hourly escalation sweep before lunch.",
+    generatedAtLabel: "Today 11:45 AM"
+  },
+  {
+    id: "digest-history-2",
+    digestLabel: "Shift Handoff Digest",
+    channel: "shift-handoff",
+    recipientLabel: "Opening + Closing Manager",
+    count: 4,
+    status: "previewed",
+    reason: "Prepared for afternoon handoff.",
+    generatedAtLabel: "Today 2:10 PM"
   }
 ];
 
@@ -1724,6 +1832,168 @@ export function buildAppointmentCommandCenterSubscriptionSummaries(input: {
   });
 }
 
+function commandCenterDigestHeadline(
+  watchType: AppointmentCommandCenterDigestPreference["watchType"],
+  count: number,
+  managerEventCount: number
+) {
+  if (watchType === "breached-sla") {
+    return `${count} breached SLA item${count === 1 ? "" : "s"} need urgent manager attention.`;
+  }
+
+  if (watchType === "escalated") {
+    return `${count} escalated appointment${count === 1 ? "" : "s"} still need ownership or resolution.`;
+  }
+
+  if (watchType === "no-show-recovery") {
+    return `${count} no-show recovery case${count === 1 ? "" : "s"} are waiting on outreach.`;
+  }
+
+  if (watchType === "follow-up-backlog") {
+    return `${count} follow-up backlog item${count === 1 ? "" : "s"} should be cleared before close.`;
+  }
+
+  if (watchType === "manager-activity") {
+    return `${count} manager-lane event${count === 1 ? "" : "s"} are visible in the active board scope.`;
+  }
+
+  return `${count} live exception item${count === 1 ? "" : "s"} and ${managerEventCount} manager event${
+    managerEventCount === 1 ? "" : "s"
+  } are ready for shift handoff.`;
+}
+
+export function buildAppointmentCommandCenterDigestSummaries(input: {
+  appointments: Appointment[];
+  resolutionStateByAppointmentId?: Record<string, AppointmentResolutionState>;
+  commandCenterAuditEvents?: AppointmentAuditTimelineEvent[];
+  digests: AppointmentCommandCenterDigestPreference[];
+}): AppointmentCommandCenterDigestSummary[] {
+  const resolutionStateByAppointmentId = input.resolutionStateByAppointmentId ?? {};
+  const activeQueues = buildAppointmentExceptionQueues(
+    input.appointments.filter((appointment) => {
+      const status = resolutionStateByAppointmentId[appointment.id]?.status;
+      return status !== "resolved" && status !== "snoozed";
+    })
+  );
+  const workbenchItems = buildAppointmentResolutionWorkbench(
+    input.appointments,
+    resolutionStateByAppointmentId,
+    {
+      includeDormant: false,
+      sort: "priority"
+    }
+  );
+  const managerEventCount = input.appointments.flatMap((appointment) =>
+    buildAppointmentAuditTimeline({
+      appointment,
+      resolutionState: resolutionStateByAppointmentId[appointment.id],
+      commandCenterEvents: input.commandCenterAuditEvents ?? []
+    }).filter((event) => event.lane === "manager")
+  ).length;
+
+  return input.digests.map((digest) => {
+    let count = 0;
+    let tone: AppointmentCommandCenterDigestSummary["tone"] = "blue";
+
+    if (digest.watchType === "breached-sla") {
+      count = workbenchItems.filter((item) => item.slaStatus === "breached").length;
+      tone = "red";
+    } else if (digest.watchType === "escalated") {
+      count = workbenchItems.filter((item) => item.resolutionStatus === "escalated").length;
+      tone = "purple";
+    } else if (digest.watchType === "no-show-recovery") {
+      count = activeQueues.find((queue) => queue.key === "no-show-recovery")?.items.length ?? 0;
+      tone = "red";
+    } else if (digest.watchType === "follow-up-backlog") {
+      count = activeQueues.find((queue) => queue.key === "follow-up-required")?.items.length ?? 0;
+      tone = "amber";
+    } else if (digest.watchType === "manager-activity") {
+      count = managerEventCount;
+      tone = "blue";
+    } else {
+      count = workbenchItems.length;
+      tone = "blue";
+    }
+
+    return {
+      ...digest,
+      count,
+      tone,
+      headline: commandCenterDigestHeadline(digest.watchType, count, managerEventCount)
+    };
+  });
+}
+
+function commandCenterDigestChannelLabel(channel: AppointmentCommandCenterDigestChannel) {
+  if (channel === "in-app") {
+    return "In-app alert";
+  }
+
+  if (channel === "email-summary") {
+    return "Email summary";
+  }
+
+  return "Shift handoff";
+}
+
+function commandCenterDigestCadenceLabel(cadence: AppointmentCommandCenterDigestCadence) {
+  if (cadence === "hourly") {
+    return "Hourly";
+  }
+
+  if (cadence === "shift-change") {
+    return "Shift change";
+  }
+
+  return "Daily close";
+}
+
+export function buildAppointmentCommandCenterDigestPreview(input: {
+  digest: AppointmentCommandCenterDigestSummary;
+  report: AppointmentCommandCenterReport;
+  focusedAppointment: Appointment;
+  auditTimelineEvents: AppointmentAuditTimelineEvent[];
+  businessDate: string;
+}) {
+  const topRows = input.report.rows.slice(0, 3);
+  const lines = [
+    `Appointment notification digest - ${input.digest.label}`,
+    `Business date: ${input.businessDate}`,
+    `Delivery: ${commandCenterDigestChannelLabel(input.digest.channel)} · ${commandCenterDigestCadenceLabel(
+      input.digest.cadence
+    )}`,
+    `Recipients: ${input.digest.recipientLabel}`,
+    `Headline: ${input.digest.headline}`,
+    "",
+    `Visible exceptions: ${input.report.summary.visibleExceptions}`,
+    `Breached SLA: ${input.report.summary.breachedSla}`,
+    `Escalated: ${input.report.summary.escalated}`,
+    `Manager events: ${input.report.summary.managerEvents}`
+  ];
+
+  if (input.digest.watchType === "shift-handoff") {
+    lines.push(
+      "",
+      `Shift handoff focus: ${input.focusedAppointment.id} · ${input.focusedAppointment.title}`,
+      `Focused customer: ${input.focusedAppointment.customer}`,
+      `Focused timeline events: ${input.auditTimelineEvents.length}`
+    );
+  }
+
+  if (topRows.length > 0) {
+    lines.push("", "Top queue items:");
+    for (const row of topRows) {
+      lines.push(
+        `- ${row.appointmentId} | ${row.queueLabel} | ${row.priority} | ${row.ownerName} | ${row.recommendedAction}`
+      );
+    }
+  } else {
+    lines.push("", "No visible exception rows matched the current command-center scope.");
+  }
+
+  return lines.join("\n");
+}
+
 function appointmentTimeLabel(appointment: Appointment) {
   if (isUnscheduledDraftAppointment(appointment)) {
     return "Unscheduled";
@@ -2252,6 +2522,14 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   const [commandCenterSubscriptions, setCommandCenterSubscriptions] = useState(
     initialCommandCenterSubscriptions
   );
+  const [commandCenterDigests, setCommandCenterDigests] = useState(initialCommandCenterDigests);
+  const [selectedCommandCenterDigestId, setSelectedCommandCenterDigestId] = useState(
+    initialCommandCenterDigests[0]?.id ?? ""
+  );
+  const [commandCenterDigestReason, setCommandCenterDigestReason] = useState("");
+  const [commandCenterDigestHistory, setCommandCenterDigestHistory] = useState(
+    initialCommandCenterDigestHistory
+  );
   const [detailRefreshKey, setDetailRefreshKey] = useState(0);
   const [actionNotice, setActionNotice] = useState("Operational command bridge ready. Persisted appointments can now use the live command API for check-in and no-show actions.");
 
@@ -2560,6 +2838,46 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   const enabledCommandCenterSubscriptionCount = commandCenterSubscriptionSummaries.filter(
     (subscription) => subscription.enabled
   ).length;
+  const commandCenterDigestSummaries = useMemo(
+    () =>
+      buildAppointmentCommandCenterDigestSummaries({
+        appointments: boardAppointments,
+        resolutionStateByAppointmentId,
+        commandCenterAuditEvents,
+        digests: commandCenterDigests
+      }),
+    [
+      boardAppointments,
+      commandCenterAuditEvents,
+      commandCenterDigests,
+      resolutionStateByAppointmentId
+    ]
+  );
+  const selectedCommandCenterDigestSummary =
+    commandCenterDigestSummaries.find((digest) => digest.id === selectedCommandCenterDigestId) ??
+    commandCenterDigestSummaries[0] ??
+    null;
+  const commandCenterDigestPreview = useMemo(
+    () =>
+      selectedCommandCenterDigestSummary
+        ? buildAppointmentCommandCenterDigestPreview({
+            digest: selectedCommandCenterDigestSummary,
+            report: commandCenterReport,
+            focusedAppointment: selectedAppointment,
+            auditTimelineEvents: selectedAppointmentAuditTimeline,
+            businessDate
+          })
+        : "",
+    [
+      commandCenterReport,
+      selectedAppointment,
+      selectedAppointmentAuditTimeline,
+      selectedCommandCenterDigestSummary
+    ]
+  );
+  const enabledCommandCenterDigestCount = commandCenterDigestSummaries.filter(
+    (digest) => digest.enabled
+  ).length;
 
   const scheduledFilteredAppointments = useMemo(
     () => filteredAppointments.filter((appointment) => !isUnscheduledDraftAppointment(appointment)),
@@ -2775,6 +3093,116 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     setSavedViewDraftName("");
     setActiveCommandCenterViewId("");
     setActionNotice(`Opened watch "${subscription.label}" in the command center.`);
+  }
+
+  function updateCommandCenterDigestPreference(
+    digestId: string,
+    patch: Partial<
+      Pick<AppointmentCommandCenterDigestPreference, "channel" | "cadence" | "recipientLabel" | "enabled">
+    >
+  ) {
+    setCommandCenterDigests((current) =>
+      current.map((digest) => (digest.id === digestId ? { ...digest, ...patch } : digest))
+    );
+  }
+
+  function focusCommandCenterDigest(digest: AppointmentCommandCenterDigestSummary) {
+    setSelectedCommandCenterDigestId(digest.id);
+    setCommandCenterDigestReason("");
+
+    if (digest.watchType === "shift-handoff") {
+      setCommandCenterSearchPreset("manager-activity");
+      setCommandCenterSearchScope("all");
+      setResolutionFilter("all");
+      setReportQueueFilter("all");
+      setAuditTimelineFilter("manager");
+      setReportOwnerFilter("all");
+      setCommandCenterSearchQuery("");
+      setActiveCommandCenterViewId("");
+      setActionNotice(`Opened digest "${digest.label}" and loaded the shift-handoff command-center scope.`);
+      return;
+    }
+
+    openCommandCenterSubscription({
+      id: digest.id,
+      label: digest.label,
+      description: digest.description,
+      enabled: digest.enabled,
+      count: digest.count,
+      watchType: digest.watchType,
+      tone: digest.tone
+    });
+    setSelectedCommandCenterDigestId(digest.id);
+  }
+
+  async function copyCommandCenterDigestPreview() {
+    if (!selectedCommandCenterDigestSummary) {
+      setActionNotice("Choose a digest before copying its preview.");
+      return;
+    }
+
+    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+      setActionNotice("Digest preview is ready. Copy is not available in this browser context.");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(commandCenterDigestPreview);
+      setActionNotice(`Copied "${selectedCommandCenterDigestSummary.label}" preview to clipboard.`);
+    } catch (error) {
+      setActionNotice(
+        error instanceof Error
+          ? `Could not copy digest preview: ${error.message}`
+          : "Could not copy digest preview."
+      );
+    }
+  }
+
+  function recordCommandCenterDigest(status: "previewed" | "sent") {
+    if (!selectedCommandCenterDigestSummary) {
+      setActionNotice("Choose a digest before previewing or sending.");
+      return;
+    }
+
+    const reason = commandCenterDigestReason.trim() || "No additional manager note was recorded.";
+    const generatedAtLabel = status === "sent" ? "Just now" : "Previewed just now";
+
+    setCommandCenterDigestHistory((current) => [
+      {
+        id: `${selectedCommandCenterDigestSummary.id}-${status}-${current.length + 1}`,
+        digestLabel: selectedCommandCenterDigestSummary.label,
+        channel: selectedCommandCenterDigestSummary.channel,
+        recipientLabel: selectedCommandCenterDigestSummary.recipientLabel,
+        count: selectedCommandCenterDigestSummary.count,
+        status,
+        reason,
+        generatedAtLabel
+      },
+      ...current
+    ]);
+
+    if (status === "sent") {
+      setCommandCenterAuditEvents((current) => [
+        {
+          id: `digest-sent-${selectedCommandCenterDigestSummary.id}-${current.length + 1}`,
+          appointmentId: selectedAppointment.id,
+          lane: "manager",
+          tone: "blue",
+          title: "Notification digest sent",
+          detail: `${selectedCommandCenterDigestSummary.label} sent via ${commandCenterDigestChannelLabel(
+            selectedCommandCenterDigestSummary.channel
+          )} to ${selectedCommandCenterDigestSummary.recipientLabel}. Reason: ${reason}`,
+          actor: "Abdi Farah",
+          occurredAtLabel: "Just now"
+        },
+        ...current
+      ]);
+      setActionNotice(
+        `Sent "${selectedCommandCenterDigestSummary.label}" to ${selectedCommandCenterDigestSummary.recipientLabel}.`
+      );
+    } else {
+      setActionNotice(`Prepared "${selectedCommandCenterDigestSummary.label}" preview for manager review.`);
+    }
   }
 
   function applyCommandCenterSearchPreset(preset: AppointmentCommandCenterSearchPreset) {
@@ -5003,6 +5431,260 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
                       </div>
                     </article>
                   ))}
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <section
+            className="appointment-command-center-digests-card"
+            aria-labelledby="appointment-command-center-digests"
+          >
+            <div className="appointment-section-heading">
+              <div>
+                <strong id="appointment-command-center-digests">Notification Digests</strong>
+                <p>
+                  Deliver manager-safe command-center summaries with delivery preferences, shift handoff
+                  packaging, and an audit-friendly history of what was prepared or sent.
+                </p>
+              </div>
+              <span>
+                {enabledCommandCenterDigestCount} enabled / {commandCenterDigestSummaries.length}
+              </span>
+            </div>
+
+            <div className="appointment-command-center-digests-grid">
+              <section className="appointment-command-center-panel" aria-labelledby="appointment-digest-rules">
+                <div className="appointment-command-center-panel-heading">
+                  <div>
+                    <strong id="appointment-digest-rules">Digest Rules</strong>
+                    <p>Each digest can target a different queue, audience, delivery channel, and operating rhythm.</p>
+                  </div>
+                  <span>{enabledCommandCenterDigestCount} live</span>
+                </div>
+
+                <div className="appointment-command-center-digest-rule-list">
+                  {commandCenterDigestSummaries.map((digest) => {
+                    const isSelected = digest.id === selectedCommandCenterDigestSummary?.id;
+
+                    return (
+                      <article
+                        className={
+                          isSelected
+                            ? `appointment-command-center-digest-rule appointment-command-center-digest-rule-${digest.tone} appointment-command-center-digest-rule-active`
+                            : `appointment-command-center-digest-rule appointment-command-center-digest-rule-${digest.tone}`
+                        }
+                        key={digest.id}
+                      >
+                        <div className="appointment-command-center-digest-rule-top">
+                          <div>
+                            <strong>{digest.label}</strong>
+                            <p>{digest.description}</p>
+                          </div>
+                          <div className="appointment-command-center-digest-rule-summary">
+                            <b>{digest.count}</b>
+                            <span
+                              className={
+                                digest.enabled
+                                  ? "appointment-command-center-tag appointment-command-center-tag-green"
+                                  : "appointment-command-center-tag"
+                              }
+                            >
+                              {digest.enabled ? "Enabled" : "Paused"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <p className="appointment-command-center-digest-headline">{digest.headline}</p>
+
+                        <div className="appointment-command-center-digest-preferences">
+                          <label>
+                            Channel
+                            <select
+                              aria-label={`Channel for ${digest.label}`}
+                              onChange={(event) =>
+                                updateCommandCenterDigestPreference(digest.id, {
+                                  channel: event.target.value as AppointmentCommandCenterDigestChannel
+                                })
+                              }
+                              value={digest.channel}
+                            >
+                              <option value="in-app">In-app alert</option>
+                              <option value="email-summary">Email summary</option>
+                              <option value="shift-handoff">Shift handoff</option>
+                            </select>
+                          </label>
+                          <label>
+                            Cadence
+                            <select
+                              aria-label={`Cadence for ${digest.label}`}
+                              onChange={(event) =>
+                                updateCommandCenterDigestPreference(digest.id, {
+                                  cadence: event.target.value as AppointmentCommandCenterDigestCadence
+                                })
+                              }
+                              value={digest.cadence}
+                            >
+                              <option value="hourly">Hourly</option>
+                              <option value="shift-change">Shift change</option>
+                              <option value="daily-close">Daily close</option>
+                            </select>
+                          </label>
+                          <label className="appointment-command-center-digest-recipient-field">
+                            Recipients
+                            <input
+                              aria-label={`Recipients for ${digest.label}`}
+                              onChange={(event) =>
+                                updateCommandCenterDigestPreference(digest.id, {
+                                  recipientLabel: event.target.value
+                                })
+                              }
+                              type="text"
+                              value={digest.recipientLabel}
+                            />
+                          </label>
+                        </div>
+
+                        <div className="appointment-command-center-item-actions">
+                          <button type="button" onClick={() => focusCommandCenterDigest(digest)}>
+                            Preview digest
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateCommandCenterDigestPreference(digest.id, {
+                                enabled: !digest.enabled
+                              })
+                            }
+                          >
+                            {digest.enabled ? "Pause digest" : "Resume digest"}
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section className="appointment-command-center-panel" aria-labelledby="appointment-digest-preview">
+                <div className="appointment-command-center-panel-heading">
+                  <div>
+                    <strong id="appointment-digest-preview">Digest Preview &amp; Delivery</strong>
+                    <p>
+                      Review the outbound summary, add a manager note, and document exactly what was
+                      previewed or sent.
+                    </p>
+                  </div>
+                  <span>{selectedCommandCenterDigestSummary?.label ?? "No digest selected"}</span>
+                </div>
+
+                <div className="appointment-command-center-digest-preview-summary">
+                  <span>{selectedCommandCenterDigestSummary?.count ?? 0} items in scope</span>
+                  <span>
+                    {selectedCommandCenterDigestSummary
+                      ? commandCenterDigestChannelLabel(selectedCommandCenterDigestSummary.channel)
+                      : "No channel"}
+                  </span>
+                  <span>
+                    {selectedCommandCenterDigestSummary
+                      ? commandCenterDigestCadenceLabel(selectedCommandCenterDigestSummary.cadence)
+                      : "No cadence"}
+                  </span>
+                </div>
+
+                <div className="appointment-command-center-shift-handoff-card">
+                  <div className="appointment-command-center-shift-handoff-heading">
+                    <strong>Shift Handoff Summary</strong>
+                    <span>{selectedAppointment.id}</span>
+                  </div>
+                  <div className="appointment-command-center-shift-handoff-grid">
+                    <article>
+                      <span>Visible Exceptions</span>
+                      <strong>{commandCenterReport.summary.visibleExceptions}</strong>
+                    </article>
+                    <article>
+                      <span>Breached SLA</span>
+                      <strong>{commandCenterReport.summary.breachedSla}</strong>
+                    </article>
+                    <article>
+                      <span>Escalated</span>
+                      <strong>{commandCenterReport.summary.escalated}</strong>
+                    </article>
+                    <article>
+                      <span>Manager Events</span>
+                      <strong>{commandCenterReport.summary.managerEvents}</strong>
+                    </article>
+                  </div>
+                  <p className="appointment-command-center-digest-headline">
+                    Focused appointment: {selectedAppointment.title} for {selectedAppointment.customer} ·{" "}
+                    {appointmentTimeRangeLabel(selectedAppointment)}
+                  </p>
+                </div>
+
+                <label className="appointment-command-center-digest-note-field">
+                  Manager note / digest reason
+                  <input
+                    aria-label="Manager note for notification digest"
+                    onChange={(event) => setCommandCenterDigestReason(event.target.value)}
+                    placeholder="Why is this digest being prepared or sent right now?"
+                    type="text"
+                    value={commandCenterDigestReason}
+                  />
+                </label>
+
+                <div className="appointment-command-center-digest-preview">
+                  <div className="appointment-command-center-digest-preview-heading">
+                    <strong>Outbound preview</strong>
+                    <span>{selectedCommandCenterDigestSummary?.recipientLabel ?? "No recipients selected"}</span>
+                  </div>
+                  <textarea
+                    aria-label="Notification digest preview"
+                    readOnly
+                    rows={12}
+                    value={commandCenterDigestPreview}
+                  />
+                </div>
+
+                <div className="appointment-command-center-digest-actions">
+                  <button type="button" onClick={() => recordCommandCenterDigest("previewed")}>
+                    Preview digest
+                  </button>
+                  <button type="button" onClick={() => void copyCommandCenterDigestPreview()}>
+                    Copy preview
+                  </button>
+                  <button type="button" onClick={() => recordCommandCenterDigest("sent")}>
+                    Send now
+                  </button>
+                </div>
+
+                <div className="appointment-command-center-digest-history">
+                  <div className="appointment-command-center-digest-preview-heading">
+                    <strong>Digest history</strong>
+                    <span>{commandCenterDigestHistory.length} recorded</span>
+                  </div>
+                  <div className="appointment-command-center-digest-history-list">
+                    {commandCenterDigestHistory.slice(0, 5).map((entry) => (
+                      <article className="appointment-command-center-digest-history-item" key={entry.id}>
+                        <div className="appointment-command-center-digest-history-top">
+                          <div>
+                            <strong>{entry.digestLabel}</strong>
+                            <p>{entry.reason}</p>
+                          </div>
+                          <div className="appointment-command-center-badge-stack">
+                            <span className="appointment-command-center-tag">
+                              {entry.status === "sent" ? "Sent" : "Previewed"}
+                            </span>
+                            <span className="appointment-command-center-tag appointment-command-center-tag-blue">
+                              {entry.count} items
+                            </span>
+                          </div>
+                        </div>
+                        <small>
+                          {commandCenterDigestChannelLabel(entry.channel)} · {entry.recipientLabel} · {entry.generatedAtLabel}
+                        </small>
+                      </article>
+                    ))}
+                  </div>
                 </div>
               </section>
             </div>
