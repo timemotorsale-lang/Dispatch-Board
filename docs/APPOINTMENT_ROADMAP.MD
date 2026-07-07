@@ -21,7 +21,7 @@ However, the full Enterprise Release 1.0 roadmap is not complete yet. The remain
 | Product direction | Approved | The product purpose and enterprise scope are approved. |
 | Appointment foundation | Strongly implemented | Core model, commands, permissions, audit, scheduling services, and resource/staff foundations exist. |
 | Appointment Board UI | In progress with substantial live workflow | The visible board exists and many detail-rail workflows are live. |
-| Enterprise admin | In progress / partial | Managers now have Appointment Settings, versioned Catalog + Automation administration, and an Automation Operations Console for location profile, hours, closures, resource controls, purpose templates, outcome/follow-up/reason catalogs, rule hooks, simulation, draft/active catalog versions, rule lifecycle, health, failure queue, retry/replay readiness, and audit controls. Recurring/special-hours calendars, deeper runtime execution, notifications, and import/export remain. |
+| Enterprise admin | In progress / partial | Managers now have Appointment Settings, a versioned Catalog + Automation workspace, and an Automation Operations Console for location profile, phone, hours, closures, resource controls, purpose templates, outcome/follow-up/reason catalogs, rule hooks, simulation, draft/active catalog versions, required change reasons, rule lifecycle, health, failure queue, retry/replay readiness, and audit controls. Recurring/special-hours calendars, deeper runtime execution, notifications, and import/export remain. |
 | Task-to-appointment orchestration | In progress with live vertical slice | Follow-up automation, task-detail create-linked-draft workflow, live browser proof, board scheduling handoff, and appointment-to-task navigation exist. Automation-rule authoring/runtime remains. |
 | Reporting and analytics | Pending | KPI definitions, reporting models, exports, and reconciliation are not built yet. |
 | Notifications | Pending | Internal notifications and future integration contracts remain. |
@@ -140,6 +140,7 @@ Important context: the package count understates the depth of the work already c
 - Appointment Board header and create/schedule payload defaults now read from the admin location foundation with safe Lake Street fallbacks.
 - Appointment Catalog + Automation admin workspace at `/settings/appointments/catalog` for manager-only purpose template review, outcome/follow-up/reason catalog visibility, automation rule hook visibility, safe automation simulation, draft saves, validation, activation, and catalog change reasons.
 - Appointment Automation Operations Console at `/settings/appointments/automation` for manager-only rule lifecycle, health metrics, failure/review queue foundation, retry/replay controls, and audit-event visibility.
+- Versioned appointment catalog editor with durable Prisma schema/migration, active/draft catalog versions, append-only catalog change events, required manager reason capture, draft validation, draft save, and activation.
 
 ### 4.5 Current validation evidence
 

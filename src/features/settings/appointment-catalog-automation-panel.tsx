@@ -407,7 +407,7 @@ export function AppointmentCatalogAutomationPanel({
                 <span>{purpose.category}</span>
                 <strong>{purpose.name}</strong>
                 <small>
-                  {purpose.defaultDurationMinutes} min ? {formatLabel(purpose.approvalMode)} ? v
+                  {purpose.defaultDurationMinutes} min • {formatLabel(purpose.approvalMode)} • v
                   {purpose.version}
                 </small>
               </button>
@@ -780,7 +780,7 @@ export function AppointmentCatalogAutomationPanel({
                     <span>{formatLabel(action.source)}</span>
                     <strong>{action.title}</strong>
                     <small>
-                      {formatLabel(action.creationTiming)} ? {formatLabel(action.ownerPolicy)} ?{" "}
+                      {formatLabel(action.creationTiming)} • {formatLabel(action.ownerPolicy)} •{" "}
                       {formatLabel(action.blockingEffect)}
                     </small>
                   </div>
@@ -816,7 +816,7 @@ export function AppointmentCatalogAutomationPanel({
               <span>{formatLabel(rule.trigger)}</span>
               <strong>{rule.purposeName}</strong>
               <small>
-                {formatLabel(rule.missingInputBehavior)} ? {rule.taskBlueprintCount} blueprints ?{" "}
+                {formatLabel(rule.missingInputBehavior)} • {rule.taskBlueprintCount} blueprints •{" "}
                 {rule.outcomeBlueprintCount} outcome actions
               </small>
             </article>
