@@ -7308,6 +7308,133 @@ code {
   resize: vertical;
 }
 
+.appointment-notification-center-card {
+  display: grid;
+  gap: 12px;
+  margin: 0 12px 12px;
+  padding: 14px;
+  background: linear-gradient(180deg, #f8fbff 0%, #eff6ff 100%);
+  border: 1px solid #bfdbfe;
+  border-radius: 18px;
+}
+
+.appointment-notification-center-card .appointment-section-heading {
+  align-items: flex-start;
+}
+
+.appointment-notification-center-card .appointment-section-heading > span {
+  display: inline-grid;
+  place-items: center;
+  min-height: 26px;
+  padding: 0 9px;
+  color: #1d4ed8;
+  background: #fff;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.appointment-notification-center-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.appointment-notification-center-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.appointment-notification-center-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  color: #1e293b;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.appointment-notification-center-filter-active {
+  color: #fff;
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.appointment-notification-center-filter span {
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.appointment-notification-center-list,
+.appointment-notification-failure-list {
+  display: grid;
+  gap: 10px;
+}
+
+.appointment-notification-center-item,
+.appointment-notification-failure-item {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #bfdbfe;
+  border-radius: 14px;
+}
+
+.appointment-notification-center-item-red,
+.appointment-notification-failure-item-red { border-color: #fecaca; }
+.appointment-notification-center-item-purple,
+.appointment-notification-failure-item-purple { border-color: #ddd6fe; }
+.appointment-notification-center-item-amber,
+.appointment-notification-failure-item-amber { border-color: #fde68a; }
+.appointment-notification-center-item-blue,
+.appointment-notification-failure-item-blue { border-color: #bfdbfe; }
+.appointment-notification-center-item-green,
+.appointment-notification-failure-item-green { border-color: #bbf7d0; }
+
+.appointment-notification-center-item-top,
+.appointment-notification-center-item-meta {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.appointment-notification-center-item-top strong {
+  color: #0f172a;
+  font-size: 12px;
+}
+
+.appointment-notification-center-item-top p,
+.appointment-notification-center-item-meta span,
+.appointment-notification-center-item-status {
+  margin: 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.appointment-notification-center-item-meta strong {
+  color: #0f172a;
+  font-size: 11px;
+}
+
+.appointment-notification-center-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #1e293b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .appointment-runtime-handoff-actions {
   display: flex;
   align-items: center;
@@ -9095,6 +9222,7 @@ code {
   .appointment-command-center-shift-handoff-grid,
   .appointment-command-center-digest-preferences,
   .appointment-command-center-views-grid,
+  .appointment-notification-center-grid,
   .appointment-modal-grid {
     grid-template-columns: 1fr;
   }
@@ -9117,6 +9245,8 @@ code {
   .appointment-command-center-save-row,
   .appointment-runtime-queue-top,
   .appointment-runtime-queue-meta,
+  .appointment-notification-center-item-top,
+  .appointment-notification-center-item-meta,
   .appointment-week-column-heading,
   .appointment-month-cell-top,
   .appointment-agenda-section-heading,

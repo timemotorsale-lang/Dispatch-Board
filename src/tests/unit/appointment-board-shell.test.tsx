@@ -9,6 +9,8 @@ import {
   buildAppointmentCommandCenterExport,
   buildAppointmentCommandCenterHandoffExport,
   buildAppointmentCommandCenterHandoffPackage,
+  buildAppointmentNotificationCenterItems,
+  buildAppointmentNotificationFailureQueue,
   buildAppointmentCommandCenterRuntimeQueue,
   buildAppointmentCommandCenterReport,
   buildAppointmentCommandCenterSearchResults,
@@ -70,6 +72,10 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Runtime &amp; Handoffs");
     expect(markup).toContain("Delivery Runtime Queue");
     expect(markup).toContain("Carry-Forward Handoff Package");
+    expect(markup).toContain("Notification Center &amp; Failure Queues");
+    expect(markup).toContain("Manager Notification Inbox");
+    expect(markup).toContain("Delivery Failure Queues");
+    expect(markup).toContain("Retry delivery");
     expect(markup).toContain("Staff");
     expect(markup).toContain("Location");
     expect(markup).toContain("Resource");
@@ -753,6 +759,91 @@ describe("appointment board shell", () => {
     expect(exportPreview).toContain("Appointment command center handoff package");
     expect(exportPreview).toContain("Carry-forward count: 4");
     expect(exportPreview).toContain("Manager note: Call customer first and rebalance service bay coverage.");
+  });
+
+  it("builds notification center items from runtime delivery and handoff history", () => {
+    const items = buildAppointmentNotificationCenterItems({
+      runtimeQueue: [
+        {
+          id: "digest-breached-sla",
+          label: "Breached SLA Digest",
+          tone: "red",
+          channelLabel: "In-app alert",
+          recipientLabel: "General Manager + Service Lead",
+          count: 3,
+          state: "queued",
+          updatedAtLabel: "Due now",
+          detail: "Digest is queued for operational delivery.",
+          actionLabel: "Acknowledge"
+        }
+      ] as any,
+      handoffHistory: [
+        {
+          id: "handoff-history-1",
+          status: "prepared",
+          actor: "Abdi Farah",
+          note: "Prepared carry-forward package for the evening manager.",
+          carryForwardCount: 4,
+          generatedAtLabel: "Today 4:20 PM"
+        }
+      ]
+    });
+
+    expect(items[0]?.status).toBe("needs-review");
+    expect(items.some((item) => item.title === "Shift handoff ready for review")).toBe(true);
+  });
+
+  it("builds a failure queue for notification delivery gaps", () => {
+    const failures = buildAppointmentNotificationFailureQueue({
+      runtimeQueue: [
+        {
+          id: "digest-breached-sla",
+          label: "Breached SLA Digest",
+          tone: "red",
+          channelLabel: "In-app alert",
+          recipientLabel: "General Manager + Service Lead",
+          count: 3,
+          state: "queued",
+          updatedAtLabel: "Due now",
+          detail: "Digest is queued for operational delivery.",
+          actionLabel: "Acknowledge"
+        },
+        {
+          id: "digest-escalations",
+          label: "Escalation Digest",
+          tone: "purple",
+          channelLabel: "Email summary",
+          recipientLabel: "General Manager",
+          count: 2,
+          state: "acknowledged",
+          updatedAtLabel: "Acknowledged 15 min ago",
+          detail: "Digest was acknowledged and is being monitored.",
+          actionLabel: "Mark delivered"
+        }
+      ] as any,
+      handoffHistory: [
+        {
+          id: "handoff-history-1",
+          status: "prepared",
+          actor: "Abdi Farah",
+          note: "Prepared carry-forward package for the evening manager.",
+          carryForwardCount: 4,
+          generatedAtLabel: "Today 4:20 PM"
+        }
+      ],
+      failureStates: {
+        "failure-runtime-digest-breached-sla": {
+          status: "open",
+          updatedAtLabel: "Escalated 5 min ago"
+        }
+      }
+    });
+
+    expect(failures.some((item) => item.queueLabel === "Delivery exception")).toBe(true);
+    expect(failures.some((item) => item.queueLabel === "Handoff exception")).toBe(true);
+    expect(failures.find((item) => item.id === "failure-runtime-digest-breached-sla")?.actionLabel).toBe(
+      "Retry delivery"
+    );
   });
 
   it("classifies missing-time draft appointments as unscheduled board items", () => {

@@ -24,7 +24,7 @@ However, the full Enterprise Release 1.0 roadmap is not complete yet. The remain
 | Enterprise admin | In progress / partial | Managers now have Appointment Settings, a versioned Catalog + Automation workspace, and an Automation Operations Console for location profile, phone, hours, closures, recurring-template-to-closure apply flow, special-hours calendar preview, recurring template readiness, resource availability summaries, resource-specific operating calendars with day-level hours/capacity override windows, reason-required removal controls, overlap/runtime review, precedence guidance, next-effective-window preview, bulk multi-day apply/replace controls, capacity override readiness and quick drafts, resource type create/edit/deactivate controls, resource controls, purpose templates, outcome/follow-up/reason catalogs, code deprecation/reactivation with replacement guidance, rule hooks, simulation, draft/active catalog versions, required change reasons, rule lifecycle, health, failure queue, retry/replay readiness, preview-safe configuration export, import-preview validation, redaction reporting, and audit controls. Recurring series automation, notifications, and import apply remain. |
 | Task-to-appointment orchestration | In progress with live vertical slice | Follow-up automation, task-detail create-linked-draft workflow, live browser proof, board scheduling handoff, and appointment-to-task navigation exist. Automation-rule authoring/runtime remains. |
 | Reporting and analytics | In progress / partial | Reporting exports, command-center scorecards, executive review briefs, KPI drilldowns, digest analytics, leadership export packaging, and visible operational summaries now exist. Reconciled KPI dictionary, durable reporting read models, and enterprise reconciliation remain. |
-| Notifications | In progress / partial | Internal notification digest controls, delivery preferences, preview/send workflow, runtime acknowledgment/delivery queue, shift handoff acceptance trail, and digest history now exist inside the command center. Durable notification center, broader failure handling, and future integration contracts remain. |
+| Notifications | In progress / partial | Internal notification digest controls, delivery preferences, preview/send workflow, runtime acknowledgment/delivery queue, manager notification inbox, failure retry/re-queue/resolve queues, shift handoff acceptance trail, and digest history now exist inside the command center. Deep links, retention, suppression policy, external integrations, and future contract wiring remain. |
 | Release readiness | Pending | Browser tests, accessibility, security, load, deployment, backup/restore, and pilot evidence remain. |
 
 ## 3. Progress dashboard
@@ -375,10 +375,10 @@ Recommended E5 next steps:
 
 | ID | Work package | Status |
 | --- | --- | --- |
-| EAPT-073 | Notification preferences, urgency, read state, retention | Not started |
-| EAPT-074 | Notification creation from appointment and automation events | Not started |
-| EAPT-075 | Notification center and appointment deep links | Not started |
-| EAPT-076 | Notification failure, retry, suppression controls | Not started |
+| EAPT-073 | Notification preferences, urgency, read state, retention | Partial; manager inbox filters, visible status posture, and failure-state progression exist. Durable user-level preferences, retention rules, and urgency policies remain. |
+| EAPT-074 | Notification creation from appointment and automation events | Partial; digest runtime, handoff notices, and manager command-center notifications now materialize from board operations. Broader automation-event fanout remains. |
+| EAPT-075 | Notification center and appointment deep links | Partial; manager notification inbox exists inside the board command center. Cross-surface deep links and dedicated notification destinations remain. |
+| EAPT-076 | Notification failure, retry, suppression controls | Partial; failure queues, retry, re-queue, resolve, and audit-friendly manager controls now exist in the board command center. Suppression policy and durable external delivery contracts remain. |
 | EAPT-077 | Versioned outbound event contract | Not started |
 | EAPT-078 | Versioned inbound command and external identity mapping contract | Not started |
 | EAPT-079 | Contract test harness with fake adapters | Not started |
