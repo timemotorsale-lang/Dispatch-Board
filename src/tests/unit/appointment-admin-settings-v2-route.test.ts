@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   updateAppointmentResourceForManager: vi.fn(),
   createAppointmentResourceTypeForManager: vi.fn(),
   updateAppointmentResourceTypeForManager: vi.fn(),
+  createAppointmentResourceOperatingWindowBatchForManager: vi.fn(),
   createAppointmentResourceOperatingWindowForManager: vi.fn(),
   deleteAppointmentResourceOperatingWindowForManager: vi.fn(),
   createAppointmentResourceUnavailabilityForManager: vi.fn()
@@ -27,6 +28,8 @@ vi.mock("@/server/services/appointment-admin-settings", () => ({
   updateAppointmentResourceForManager: mocks.updateAppointmentResourceForManager,
   createAppointmentResourceTypeForManager: mocks.createAppointmentResourceTypeForManager,
   updateAppointmentResourceTypeForManager: mocks.updateAppointmentResourceTypeForManager,
+  createAppointmentResourceOperatingWindowBatchForManager:
+    mocks.createAppointmentResourceOperatingWindowBatchForManager,
   createAppointmentResourceOperatingWindowForManager:
     mocks.createAppointmentResourceOperatingWindowForManager,
   deleteAppointmentResourceOperatingWindowForManager:
@@ -45,6 +48,7 @@ import { PATCH as PATCHResource } from "@/app/api/settings/appointments/resource
 import { POST as POSTResourceType } from "@/app/api/settings/appointments/resource-types/route";
 import { PATCH as PATCHResourceType } from "@/app/api/settings/appointments/resource-types/[resourceTypeId]/route";
 import { DELETE as DELETEResourceOperatingWindow } from "@/app/api/settings/appointments/resources/[resourceId]/operating-windows/[operatingWindowId]/route";
+import { POST as POSTBulkResourceOperatingWindow } from "@/app/api/settings/appointments/resources/[resourceId]/operating-windows/bulk/route";
 import { POST as POSTResourceOperatingWindow } from "@/app/api/settings/appointments/resources/[resourceId]/operating-windows/route";
 import { POST as POSTResourceUnavailability } from "@/app/api/settings/appointments/resources/[resourceId]/unavailability/route";
 
@@ -77,6 +81,7 @@ describe("appointment admin settings v2 routes", () => {
     mocks.updateAppointmentResourceForManager.mockResolvedValue(settings);
     mocks.createAppointmentResourceTypeForManager.mockResolvedValue(settings);
     mocks.updateAppointmentResourceTypeForManager.mockResolvedValue(settings);
+    mocks.createAppointmentResourceOperatingWindowBatchForManager.mockResolvedValue(settings);
     mocks.createAppointmentResourceOperatingWindowForManager.mockResolvedValue(settings);
     mocks.deleteAppointmentResourceOperatingWindowForManager.mockResolvedValue(settings);
     mocks.createAppointmentResourceUnavailabilityForManager.mockResolvedValue(settings);
@@ -318,6 +323,42 @@ describe("appointment admin settings v2 routes", () => {
     expect(response.status).toBe(201);
     await expect(response.json()).resolves.toEqual({ settings });
     expect(mocks.createAppointmentResourceOperatingWindowForManager).toHaveBeenCalledWith(
+      managerUser,
+      {
+        ...payload,
+        resourceId: "res-abdi"
+      }
+    );
+  });
+
+  it("creates bulk resource operating windows for managers", async () => {
+    const payload = {
+      businessDays: ["MONDAY", "TUESDAY", "WEDNESDAY"],
+      opensAt: "09:00",
+      closesAt: "17:00",
+      capacityOverride: null,
+      validFrom: "2026-07-07",
+      validTo: null,
+      replaceExisting: true,
+      reason: "Apply advisor summer schedule."
+    };
+
+    const response = await POSTBulkResourceOperatingWindow(
+      new Request(
+        "http://localhost/api/settings/appointments/resources/res-abdi/operating-windows/bulk",
+        {
+          method: "POST",
+          body: JSON.stringify(payload)
+        }
+      ),
+      {
+        params: Promise.resolve({ resourceId: "res-abdi" })
+      }
+    );
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toEqual({ settings });
+    expect(mocks.createAppointmentResourceOperatingWindowBatchForManager).toHaveBeenCalledWith(
       managerUser,
       {
         ...payload,

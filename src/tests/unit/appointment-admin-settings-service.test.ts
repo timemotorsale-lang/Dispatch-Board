@@ -13,6 +13,7 @@ import {
   applyRecurringAppointmentClosureTemplateForManager,
   type AppointmentAdminSettingsRepository,
   createAppointmentLocationClosureForManager,
+  createAppointmentResourceOperatingWindowBatchForManager,
   createAppointmentResourceOperatingWindowForManager,
   createAppointmentResourceTypeForManager,
   createAppointmentResourceUnavailabilityForManager,
@@ -215,6 +216,29 @@ function createRepository() {
       );
 
       return entry;
+    },
+    async applyResourceOperatingWindowBatch(input) {
+      resources = resources.map((resource) =>
+        resource.id === input.resourceId
+          ? {
+              ...resource,
+              operatingWindows: [
+                ...resource.operatingWindows.filter(
+                  (window) => !input.replacementWindowIds.includes(window.id)
+                ),
+                ...input.businessDays.map((businessDay, index) => ({
+                  id: `resource-window-bulk-${resource.operatingWindows.length + index + 1}`,
+                  businessDay,
+                  opensAtMinute: input.opensAtMinute,
+                  closesAtMinute: input.closesAtMinute,
+                  capacityOverride: input.capacityOverride,
+                  validFrom: input.validFrom,
+                  validTo: input.validTo
+                }))
+              ]
+            }
+          : resource
+      );
     },
     async deleteResourceOperatingWindow(input) {
       if (!input.reason.trim()) {
@@ -767,6 +791,72 @@ describe("appointment admin settings service", () => {
       nextEffectiveWindowLabel: "10:00 - 16:00",
       effectiveCapacity: 1
     });
+  });
+
+  it("applies bulk resource operating windows across multiple days", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createRepository();
+
+    const settings = await createAppointmentResourceOperatingWindowBatchForManager(
+      manager,
+      {
+        resourceId: "res-abdi",
+        businessDays: [BusinessDay.MONDAY, BusinessDay.TUESDAY, BusinessDay.WEDNESDAY],
+        opensAt: "09:00",
+        closesAt: "17:00",
+        capacityOverride: null,
+        validFrom: "2026-07-07",
+        validTo: null,
+        replaceExisting: false,
+        reason: "Apply advisor summer schedule."
+      },
+      repository
+    );
+
+    expect(settings.resources[0].operatingWindows).toHaveLength(3);
+    expect(settings.resources[0].operatingWindows.map((window) => window.businessDay)).toEqual(
+      expect.arrayContaining([BusinessDay.MONDAY, BusinessDay.TUESDAY, BusinessDay.WEDNESDAY])
+    );
+  });
+
+  it("requires replace-existing mode before bulk schedules overwrite overlaps", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createRepository();
+
+    await createAppointmentResourceOperatingWindowForManager(
+      manager,
+      {
+        resourceId: "res-abdi",
+        businessDay: BusinessDay.MONDAY,
+        opensAt: "09:00",
+        closesAt: "18:00",
+        capacityOverride: null,
+        validFrom: "2026-07-07",
+        validTo: null,
+        reason: "Existing advisor schedule."
+      },
+      repository
+    );
+
+    await expect(
+      createAppointmentResourceOperatingWindowBatchForManager(
+        manager,
+        {
+          resourceId: "res-abdi",
+          businessDays: [BusinessDay.MONDAY],
+          opensAt: "10:00",
+          closesAt: "16:00",
+          capacityOverride: 1,
+          validFrom: "2026-07-07",
+          validTo: null,
+          replaceExisting: false,
+          reason: "Try to override without replace mode."
+        },
+        repository
+      )
+    ).rejects.toThrow(/Enable replace existing windows/);
   });
 
   it("allows managers to remove resource operating calendar windows with a reason", async () => {

@@ -229,6 +229,10 @@ describe("appointment admin settings panel", () => {
     expect(markup).toContain("Resource operating calendar");
     expect(markup).toContain("Day-level hours and capacity overrides");
     expect(markup).toContain("Add resource operating window");
+    expect(markup).toContain("Bulk resource calendar editor");
+    expect(markup).toContain("Apply the same schedule across multiple days");
+    expect(markup).toContain("Replace overlapping windows");
+    expect(markup).toContain("Apply bulk schedule");
     expect(markup).toContain("Existing operating windows");
     expect(markup).toContain("Removal reason");
     expect(markup).toContain("Remove operating window");
