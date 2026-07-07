@@ -24,6 +24,57 @@ enum LocationSchedulingStatus {
   RETIRED
 }
 
+enum AppointmentCatalogVersionStatus {
+  DRAFT
+  ACTIVE
+  RETIRED
+}
+
+enum AppointmentCatalogChangeAction {
+  SEEDED
+  DRAFT_CREATED
+  DRAFT_UPDATED
+  ACTIVATED
+  RETIRED
+}
+
+enum AppointmentAutomationRuleStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  RETIRED
+}
+
+enum AppointmentAutomationRuleAction {
+  DRAFT_CREATED
+  DRAFT_UPDATED
+  ACTIVATED
+  PAUSED
+  RETIRED
+  SIMULATED
+}
+
+enum AppointmentAutomationExecutionStatus {
+  PENDING
+  REVIEW_REQUIRED
+  SUCCEEDED
+  FAILED_RETRYABLE
+  FAILED_TERMINAL
+  SKIPPED
+  RESOLVED
+}
+
+enum AppointmentAutomationExecutionAction {
+  QUEUED
+  SIMULATED
+  FAILED
+  RETRIED
+  REPLAYED
+  REVIEW_CREATED
+  RESOLVED
+  SKIPPED
+}
+
 enum LocationClosureType {
   HOLIDAY
   PLANNED
@@ -325,6 +376,13 @@ model User {
   appointmentCommandLedgerEntries AppointmentCommandLedger[] @relation("AppointmentCommandLedgerActorUser")
   schedulableResources    SchedulableResource[] @relation("SchedulableResourceUser")
   createdResourceUnavailability ResourceUnavailability[] @relation("ResourceUnavailabilityCreatedByUser")
+  createdAppointmentCatalogVersions AppointmentCatalogVersion[] @relation("AppointmentCatalogVersionCreatedByUser")
+  activatedAppointmentCatalogVersions AppointmentCatalogVersion[] @relation("AppointmentCatalogVersionActivatedByUser")
+  appointmentCatalogChangeEvents AppointmentCatalogChangeEvent[] @relation("AppointmentCatalogChangeEventActorUser")
+  createdAppointmentAutomationRules AppointmentAutomationRule[] @relation("AppointmentAutomationRuleCreatedByUser")
+  activatedAppointmentAutomationRules AppointmentAutomationRule[] @relation("AppointmentAutomationRuleActivatedByUser")
+  appointmentAutomationRuleChangeEvents AppointmentAutomationRuleChangeEvent[] @relation("AppointmentAutomationRuleChangeEventActorUser")
+  appointmentAutomationExecutionEvents AppointmentAutomationExecutionEvent[] @relation("AppointmentAutomationExecutionEventActorUser")
 
   @@index([isActive])
 }
@@ -421,6 +479,12 @@ model Organization {
   vehicles     Vehicle[]
   resourceTypes SchedulableResourceType[]
   resources    SchedulableResource[]
+  appointmentCatalogVersions AppointmentCatalogVersion[]
+  appointmentCatalogChangeEvents AppointmentCatalogChangeEvent[]
+  appointmentAutomationRules AppointmentAutomationRule[]
+  appointmentAutomationExecutions AppointmentAutomationExecution[]
+  appointmentAutomationRuleChangeEvents AppointmentAutomationRuleChangeEvent[]
+  appointmentAutomationExecutionEvents AppointmentAutomationExecutionEvent[]
 }
 
 model Location {
@@ -484,6 +548,161 @@ model LocationClosure {
 
   @@index([locationId, startsAt, endsAt])
   @@index([createdByUserId])
+}
+
+model AppointmentCatalogVersion {
+  id                 String                          @id @default(cuid())
+  organizationId     String
+  version            Int
+  status             AppointmentCatalogVersionStatus @default(DRAFT)
+  title              String
+  description        String?
+  reason             String
+  catalogSnapshot    Json
+  validationSnapshot Json
+  createdByUserId    String?
+  activatedByUserId  String?
+  activatedAt        DateTime?
+  retiredAt          DateTime?
+  createdAt          DateTime                        @default(now())
+  updatedAt          DateTime                        @updatedAt
+  organization       Organization                    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdByUser      User?                           @relation("AppointmentCatalogVersionCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  activatedByUser    User?                           @relation("AppointmentCatalogVersionActivatedByUser", fields: [activatedByUserId], references: [id], onDelete: SetNull)
+  changeEvents       AppointmentCatalogChangeEvent[]
+  automationRules    AppointmentAutomationRule[]
+
+  @@unique([organizationId, version])
+  @@index([organizationId, status])
+  @@index([createdByUserId])
+  @@index([activatedByUserId])
+}
+
+model AppointmentCatalogChangeEvent {
+  id                 String                         @id @default(cuid())
+  catalogVersionId   String
+  organizationId     String
+  actorUserId        String?
+  action             AppointmentCatalogChangeAction
+  reason             String
+  priorSnapshot      Json?
+  newSnapshot        Json
+  validationSnapshot Json?
+  occurredAt         DateTime                       @default(now())
+  createdAt          DateTime                       @default(now())
+  catalogVersion     AppointmentCatalogVersion      @relation(fields: [catalogVersionId], references: [id], onDelete: Cascade)
+  organization       Organization                   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  actorUser          User?                          @relation("AppointmentCatalogChangeEventActorUser", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([catalogVersionId, occurredAt])
+  @@index([organizationId, action, occurredAt])
+  @@index([actorUserId, occurredAt])
+}
+
+model AppointmentAutomationRule {
+  id                 String                          @id @default(cuid())
+  organizationId     String
+  catalogVersionId   String?
+  ruleCode           String
+  name               String
+  description        String?
+  triggerCode        String
+  purposeCode        String
+  status             AppointmentAutomationRuleStatus @default(DRAFT)
+  priority           Int                             @default(100)
+  missingInputBehavior String
+  validationSnapshot Json
+  simulationSnapshot Json?
+  reason             String
+  createdByUserId    String?
+  activatedByUserId  String?
+  activatedAt        DateTime?
+  pausedAt           DateTime?
+  retiredAt          DateTime?
+  createdAt          DateTime                        @default(now())
+  updatedAt          DateTime                        @updatedAt
+  organization       Organization                    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  catalogVersion     AppointmentCatalogVersion?      @relation(fields: [catalogVersionId], references: [id], onDelete: SetNull)
+  createdByUser      User?                           @relation("AppointmentAutomationRuleCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  activatedByUser    User?                           @relation("AppointmentAutomationRuleActivatedByUser", fields: [activatedByUserId], references: [id], onDelete: SetNull)
+  changeEvents       AppointmentAutomationRuleChangeEvent[]
+  executions         AppointmentAutomationExecution[]
+
+  @@unique([organizationId, ruleCode])
+  @@index([organizationId, status])
+  @@index([triggerCode, status])
+  @@index([purposeCode, status])
+  @@index([catalogVersionId])
+}
+
+model AppointmentAutomationRuleChangeEvent {
+  id                 String                          @id @default(cuid())
+  automationRuleId   String
+  organizationId     String
+  actorUserId        String?
+  action             AppointmentAutomationRuleAction
+  reason             String
+  priorSnapshot      Json?
+  newSnapshot        Json
+  validationSnapshot Json?
+  occurredAt         DateTime                        @default(now())
+  createdAt          DateTime                        @default(now())
+  automationRule     AppointmentAutomationRule       @relation(fields: [automationRuleId], references: [id], onDelete: Cascade)
+  organization       Organization                    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  actorUser          User?                           @relation("AppointmentAutomationRuleChangeEventActorUser", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([automationRuleId, occurredAt])
+  @@index([organizationId, action, occurredAt])
+  @@index([actorUserId, occurredAt])
+}
+
+model AppointmentAutomationExecution {
+  id                 String                               @id @default(cuid())
+  organizationId     String
+  automationRuleId   String?
+  triggerCode        String
+  purposeCode        String?
+  status             AppointmentAutomationExecutionStatus @default(PENDING)
+  sourceType         String
+  sourceReference    String?
+  inputSnapshot      Json
+  resultSnapshot     Json?
+  failureCode        String?
+  failureMessage     String?
+  attemptCount       Int                                  @default(0)
+  maxAttempts        Int                                  @default(3)
+  nextRetryAt        DateTime?
+  resolvedAt         DateTime?
+  createdAt          DateTime                             @default(now())
+  updatedAt          DateTime                             @updatedAt
+  organization       Organization                         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  automationRule     AppointmentAutomationRule?           @relation(fields: [automationRuleId], references: [id], onDelete: SetNull)
+  events             AppointmentAutomationExecutionEvent[]
+
+  @@index([organizationId, status, createdAt])
+  @@index([automationRuleId, status, createdAt])
+  @@index([triggerCode, status])
+  @@index([failureCode, status])
+}
+
+model AppointmentAutomationExecutionEvent {
+  id                    String                               @id @default(cuid())
+  automationExecutionId  String
+  organizationId         String
+  actorUserId            String?
+  action                 AppointmentAutomationExecutionAction
+  reason                 String
+  priorSnapshot          Json?
+  newSnapshot            Json
+  occurredAt             DateTime                            @default(now())
+  createdAt              DateTime                            @default(now())
+  automationExecution    AppointmentAutomationExecution       @relation(fields: [automationExecutionId], references: [id], onDelete: Cascade)
+  organization           Organization                         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  actorUser              User?                                @relation("AppointmentAutomationExecutionEventActorUser", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([automationExecutionId, occurredAt])
+  @@index([organizationId, action, occurredAt])
+  @@index([actorUserId, occurredAt])
 }
 
 model Appointment {

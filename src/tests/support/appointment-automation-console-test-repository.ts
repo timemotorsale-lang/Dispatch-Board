@@ -1,0 +1,124 @@
+import type {
+  AppointmentAutomationExecutionRecord,
+  AppointmentAutomationOperationsRepository,
+  AppointmentAutomationRuleRecord
+} from "@/server/services/appointment-automation-operations-console";
+
+export function createMemoryAppointmentAutomationOperationsRepository() {
+  const now = new Date("2026-07-06T19:00:00.000Z");
+  let rules: AppointmentAutomationRuleRecord[] = [];
+  let executions: AppointmentAutomationExecutionRecord[] = [];
+  const ruleEvents: Awaited<ReturnType<AppointmentAutomationOperationsRepository["listRuleEvents"]>> = [];
+  const executionEvents: Awaited<ReturnType<AppointmentAutomationOperationsRepository["listExecutionEvents"]>> = [];
+
+  const repository: AppointmentAutomationOperationsRepository = {
+    async listRules() {
+      return rules;
+    },
+    async listExecutions() {
+      return executions;
+    },
+    async listRuleEvents(_organizationId, limit) {
+      return ruleEvents.slice(0, limit);
+    },
+    async listExecutionEvents(_organizationId, limit) {
+      return executionEvents.slice(0, limit);
+    },
+    async upsertRuleDraft(input) {
+      const existing = rules.find((rule) => rule.ruleCode === input.ruleCode);
+      const rule: AppointmentAutomationRuleRecord = {
+        id: existing?.id ?? `rule-${rules.length + 1}`,
+        organizationId: "org-time-motor-sales",
+        catalogVersionId: null,
+        ruleCode: input.ruleCode,
+        name: input.name,
+        description: input.description ?? null,
+        triggerCode: input.triggerCode,
+        purposeCode: input.purposeCode,
+        status: "DRAFT",
+        priority: input.priority ?? 100,
+        missingInputBehavior: input.validation.missingInputBehavior,
+        validationSnapshot: input.validation,
+        simulationSnapshot: input.simulation,
+        reason: input.reason,
+        createdByUserId: input.actorUserId,
+        activatedByUserId: null,
+        activatedAt: null,
+        pausedAt: null,
+        retiredAt: null,
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now
+      };
+      rules = existing
+        ? rules.map((candidate) => candidate.ruleCode === rule.ruleCode ? rule : candidate)
+        : [...rules, rule];
+      ruleEvents.unshift({
+        id: `rule-event-${ruleEvents.length + 1}`,
+        action: existing ? "DRAFT_UPDATED" : "DRAFT_CREATED",
+        reason: input.reason,
+        actorUserId: input.actorUserId,
+        occurredAt: now
+      });
+      return rule;
+    },
+    async transitionRule(input) {
+      const existing = rules.find((rule) => rule.ruleCode === input.ruleCode);
+      if (!existing) throw new Error("Automation rule is not configured.");
+      const statusByAction = { ACTIVATE: "ACTIVE", PAUSE: "PAUSED", RETIRE: "RETIRED" } as const;
+      const eventByAction = { ACTIVATE: "ACTIVATED", PAUSE: "PAUSED", RETIRE: "RETIRED" } as const;
+      const nextRule: AppointmentAutomationRuleRecord = {
+        ...existing,
+        status: statusByAction[input.action],
+        reason: input.reason,
+        activatedByUserId: input.action === "ACTIVATE" ? input.actorUserId : existing.activatedByUserId,
+        activatedAt: input.action === "ACTIVATE" ? now : existing.activatedAt,
+        pausedAt: input.action === "PAUSE" ? now : existing.pausedAt,
+        retiredAt: input.action === "RETIRE" ? now : existing.retiredAt,
+        updatedAt: now
+      };
+      rules = rules.map((rule) => rule.ruleCode === nextRule.ruleCode ? nextRule : rule);
+      ruleEvents.unshift({
+        id: `rule-event-${ruleEvents.length + 1}`,
+        action: eventByAction[input.action],
+        reason: input.reason,
+        actorUserId: input.actorUserId,
+        occurredAt: now
+      });
+      return nextRule;
+    },
+    async transitionExecution(input) {
+      const existing = executions.find((execution) => execution.id === input.executionId);
+      if (!existing) throw new Error("Automation execution is not queued.");
+      const statusByAction = {
+        RETRY: "PENDING",
+        REPLAY: "PENDING",
+        RESOLVE: "RESOLVED",
+        SKIP: "SKIPPED"
+      } as const;
+      const nextExecution: AppointmentAutomationExecutionRecord = {
+        ...existing,
+        status: statusByAction[input.action],
+        resolvedAt: ["RESOLVE", "SKIP"].includes(input.action) ? now : existing.resolvedAt,
+        updatedAt: now
+      };
+      executions = executions.map((execution) =>
+        execution.id === nextExecution.id ? nextExecution : execution
+      );
+      executionEvents.unshift({
+        id: `execution-event-${executionEvents.length + 1}`,
+        action: input.action === "RETRY" ? "RETRIED" : input.action === "REPLAY" ? "REPLAYED" : input.action === "RESOLVE" ? "RESOLVED" : "SKIPPED",
+        reason: input.reason,
+        actorUserId: input.actorUserId,
+        occurredAt: now
+      });
+      return nextExecution;
+    }
+  };
+
+  return {
+    repository,
+    seedExecution(execution: AppointmentAutomationExecutionRecord) {
+      executions = [...executions, execution];
+    }
+  };
+}
