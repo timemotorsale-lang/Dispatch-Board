@@ -13,6 +13,8 @@ import {
   buildAppointmentCommandCenterSubscriptionSummaries,
   buildAppointmentExecutiveReviewBrief,
   buildAppointmentExecutiveReviewModel,
+  buildAppointmentOpsIntelligenceModel,
+  buildAppointmentOpsLeadershipExport,
   buildAppointmentMonthCells,
   buildAppointmentWeekColumns,
   AppointmentBoardShell,
@@ -59,6 +61,9 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Executive Review Suite");
     expect(markup).toContain("Daily Operations Brief");
     expect(markup).toContain("Executive Scorecard");
+    expect(markup).toContain("Ops Intelligence Suite");
+    expect(markup).toContain("Operational Intelligence");
+    expect(markup).toContain("Leadership export package");
     expect(markup).toContain("Staff");
     expect(markup).toContain("Location");
     expect(markup).toContain("Resource");
@@ -584,6 +589,92 @@ describe("appointment board shell", () => {
     expect(week.find((column) => column.dateKey === "2026-07-08")?.items).toHaveLength(1);
     expect(month.find((cell) => cell.dateKey === "2026-07-06")?.items).toHaveLength(1);
     expect(month.find((cell) => cell.dateKey === "2026-07-08")?.items).toHaveLength(1);
+  });
+
+  it("builds ops intelligence metrics, drilldowns, and digest analytics", () => {
+    const model = buildAppointmentOpsIntelligenceModel({
+      report: {
+        generatedForLabel: "Monday, July 6, 2026 · Focus APT-ESC",
+        summary: {
+          visibleExceptions: 5,
+          breachedSla: 1,
+          escalated: 2,
+          managerEvents: 3
+        },
+        rows: []
+      } as any,
+      exceptionQueues: [
+        { key: "no-show-recovery", items: [{ id: "APT-NOSHOW" }] },
+        { key: "follow-up-required", items: [{ id: "APT-FOLLOW" }, { id: "APT-FOLLOW-2" }] }
+      ] as any,
+      subscriptions: [
+        { label: "Breached SLA", enabled: true, count: 1 },
+        { label: "Escalations", enabled: true, count: 2 },
+        { label: "Follow-Up Backlog", enabled: false, count: 2 }
+      ] as any,
+      digests: [
+        { enabled: true },
+        { enabled: true },
+        { enabled: false }
+      ] as any,
+      digestHistory: [
+        { status: "sent" },
+        { status: "previewed" },
+        { status: "sent" }
+      ] as any
+    });
+
+    expect(model.headline).toContain("escalated");
+    expect(model.metrics.find((metric) => metric.label === "Digest send rate")?.value).toBe("67%");
+    expect(model.drilldowns.find((drilldown) => drilldown.label === "Escalation drilldown")?.count).toBe(2);
+    expect(model.digestAnalytics.find((metric) => metric.label === "Most active watch")?.value).toBe(
+      "Escalations"
+    );
+  });
+
+  it("builds an ops intelligence leadership export package", () => {
+    const exportPreview = buildAppointmentOpsLeadershipExport({
+      preset: "leadership-daily",
+      businessDate: "Monday, July 6, 2026",
+      model: {
+        headline: "2 escalated and 1 breached item define the highest operational pressure right now.",
+        metrics: [
+          {
+            label: "Queue coverage",
+            value: "5",
+            tone: "blue",
+            detail: "Visible command-center exception items."
+          }
+        ],
+        drilldowns: [
+          {
+            label: "Escalation drilldown",
+            count: 2,
+            detail: "Manager-owned workbench items.",
+            actionHint: "Open escalated workbench scope",
+            tone: "purple",
+            filter: "escalated"
+          }
+        ],
+        digestAnalytics: [
+          {
+            label: "Sent vs previewed",
+            value: "2 / 1",
+            detail: "Recent digest history split."
+          }
+        ]
+      } as any,
+      report: {
+        rows: [{ appointmentId: "APT-ESC" }]
+      } as any,
+      executiveBrief: "Embedded executive review brief"
+    });
+
+    expect(exportPreview).toContain("Appointment ops intelligence export - Leadership Daily");
+    expect(exportPreview).toContain("Operational scorecard:");
+    expect(exportPreview).toContain("Drilldowns:");
+    expect(exportPreview).toContain("Digest analytics:");
+    expect(exportPreview).toContain("Embedded executive review brief");
   });
 
   it("classifies missing-time draft appointments as unscheduled board items", () => {

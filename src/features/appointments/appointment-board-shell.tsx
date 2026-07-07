@@ -344,6 +344,41 @@ type AppointmentExecutiveReviewModel = {
   digestPerformance: AppointmentExecutiveReviewDigestPerformance[];
 };
 
+type AppointmentOpsIntelligencePreset =
+  | "leadership-daily"
+  | "service-recovery"
+  | "digest-health"
+  | "escalation-review";
+
+type AppointmentOpsIntelligenceMetric = {
+  label: string;
+  value: string;
+  tone: "blue" | "amber" | "red" | "purple" | "green";
+  detail: string;
+};
+
+type AppointmentOpsIntelligenceDrilldown = {
+  label: string;
+  count: number;
+  detail: string;
+  actionHint: string;
+  tone: "blue" | "amber" | "red" | "purple" | "green";
+  filter: AppointmentResolutionWorkbenchFilter | "manager-activity";
+};
+
+type AppointmentOpsIntelligenceDigestMetric = {
+  label: string;
+  value: string;
+  detail: string;
+};
+
+type AppointmentOpsIntelligenceModel = {
+  headline: string;
+  metrics: AppointmentOpsIntelligenceMetric[];
+  drilldowns: AppointmentOpsIntelligenceDrilldown[];
+  digestAnalytics: AppointmentOpsIntelligenceDigestMetric[];
+};
+
 type AppointmentBoardLaneMode = "staff" | "location" | "resource";
 
 type AppointmentAgendaSection = {
@@ -783,6 +818,33 @@ const executiveReviewPresetOptions: Array<{
     value: "leadership-close",
     label: "Close Brief",
     description: "Package the day-end command-center story and handoff posture."
+  }
+];
+
+const opsIntelligencePresetOptions: Array<{
+  value: AppointmentOpsIntelligencePreset;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "leadership-daily",
+    label: "Leadership Daily",
+    description: "Balanced operational intelligence for daily leadership review."
+  },
+  {
+    value: "service-recovery",
+    label: "Service Recovery",
+    description: "Focus on customer-save, no-show, and follow-up pressure."
+  },
+  {
+    value: "digest-health",
+    label: "Digest Health",
+    description: "Review notification coverage, preview/send patterns, and delivery posture."
+  },
+  {
+    value: "escalation-review",
+    label: "Escalation Review",
+    description: "Pull the command center into escalations and breached SLA work."
   }
 ];
 
@@ -2239,6 +2301,147 @@ export function buildAppointmentExecutiveReviewBrief(input: {
   ].join("\n");
 }
 
+export function buildAppointmentOpsIntelligenceModel(input: {
+  report: AppointmentCommandCenterReport;
+  exceptionQueues: AppointmentExceptionQueue[];
+  subscriptions: AppointmentCommandCenterSubscriptionSummary[];
+  digests: AppointmentCommandCenterDigestSummary[];
+  digestHistory: AppointmentCommandCenterDigestHistoryEntry[];
+}) {
+  const noShowRecoveryCount =
+    input.exceptionQueues.find((queue) => queue.key === "no-show-recovery")?.items.length ?? 0;
+  const followUpBacklogCount =
+    input.exceptionQueues.find((queue) => queue.key === "follow-up-required")?.items.length ?? 0;
+  const sentDigestCount = input.digestHistory.filter((entry) => entry.status === "sent").length;
+  const previewedDigestCount = input.digestHistory.filter((entry) => entry.status === "previewed").length;
+  const enabledWatchCount = input.subscriptions.filter((subscription) => subscription.enabled).length;
+  const enabledDigestCount = input.digests.filter((digest) => digest.enabled).length;
+  const digestSendRate =
+    sentDigestCount + previewedDigestCount === 0
+      ? 0
+      : Math.round((sentDigestCount / (sentDigestCount + previewedDigestCount)) * 100);
+
+  return {
+    headline:
+      input.report.summary.escalated > 0 || input.report.summary.breachedSla > 0
+        ? `${input.report.summary.escalated} escalated and ${input.report.summary.breachedSla} breached item${
+            input.report.summary.breachedSla === 1 ? "" : "s"
+          } define the highest operational pressure right now.`
+        : "Operational pressure is balanced with no escalated or breached work leading the board.",
+    metrics: [
+      {
+        label: "Queue coverage",
+        value: `${input.report.summary.visibleExceptions}`,
+        tone: input.report.summary.visibleExceptions >= 6 ? "amber" : "blue",
+        detail: "Visible command-center exception items under the current board scope."
+      },
+      {
+        label: "Customer save load",
+        value: `${noShowRecoveryCount + followUpBacklogCount}`,
+        tone: noShowRecoveryCount + followUpBacklogCount >= 4 ? "amber" : "green",
+        detail: "Combined no-show recovery and follow-up backlog volume."
+      },
+      {
+        label: "Watch coverage",
+        value: `${enabledWatchCount}/${input.subscriptions.length}`,
+        tone: enabledWatchCount >= 3 ? "green" : "blue",
+        detail: "Active watched queues available to managers in the command center."
+      },
+      {
+        label: "Digest send rate",
+        value: `${digestSendRate}%`,
+        tone: digestSendRate >= 60 ? "green" : digestSendRate >= 35 ? "amber" : "red",
+        detail: "Sent digests divided by total visible previewed + sent digest history."
+      }
+    ],
+    drilldowns: [
+      {
+        label: "Breached SLA drilldown",
+        count: input.report.summary.breachedSla,
+        detail: "Items already outside SLA and likely to require leadership intervention.",
+        actionHint: "Open breached SLA reporting scope",
+        tone: input.report.summary.breachedSla > 0 ? "red" : "green",
+        filter: "breached-sla"
+      },
+      {
+        label: "Escalation drilldown",
+        count: input.report.summary.escalated,
+        detail: "Manager-owned workbench items still waiting on a decision or handoff.",
+        actionHint: "Open escalated workbench scope",
+        tone: input.report.summary.escalated > 0 ? "purple" : "green",
+        filter: "escalated"
+      },
+      {
+        label: "Recovery drilldown",
+        count: noShowRecoveryCount + followUpBacklogCount,
+        detail: "Customer-save pressure across no-show and follow-up queues.",
+        actionHint: "Open follow-up recovery scope",
+        tone: noShowRecoveryCount + followUpBacklogCount > 0 ? "amber" : "green",
+        filter: "follow-up-required"
+      },
+      {
+        label: "Manager activity drilldown",
+        count: input.report.summary.managerEvents,
+        detail: "Manager-lane activity visible in the active timeline scope.",
+        actionHint: "Open manager activity search",
+        tone: input.report.summary.managerEvents > 0 ? "blue" : "green",
+        filter: "manager-activity"
+      }
+    ],
+    digestAnalytics: [
+      {
+        label: "Enabled digests",
+        value: `${enabledDigestCount}/${input.digests.length}`,
+        detail: "Digest definitions currently active for leadership and shift visibility."
+      },
+      {
+        label: "Sent vs previewed",
+        value: `${sentDigestCount} / ${previewedDigestCount}`,
+        detail: "Recent command-center digest history split between delivery and preview."
+      },
+      {
+        label: "Most active watch",
+        value:
+          [...input.subscriptions].sort((left, right) => right.count - left.count)[0]?.label ?? "None",
+        detail: "Highest-volume watched queue in the visible command-center scope."
+      }
+    ]
+  } satisfies AppointmentOpsIntelligenceModel;
+}
+
+export function buildAppointmentOpsLeadershipExport(input: {
+  preset: AppointmentOpsIntelligencePreset;
+  businessDate: string;
+  model: AppointmentOpsIntelligenceModel;
+  report: AppointmentCommandCenterReport;
+  executiveBrief: string;
+}) {
+  const presetLabel =
+    opsIntelligencePresetOptions.find((option) => option.value === input.preset)?.label ?? input.preset;
+
+  return [
+    `Appointment ops intelligence export - ${presetLabel}`,
+    `Business date: ${input.businessDate}`,
+    `Headline: ${input.model.headline}`,
+    "",
+    "Operational scorecard:",
+    ...input.model.metrics.map((metric) => `- ${metric.label}: ${metric.value} (${metric.detail})`),
+    "",
+    "Drilldowns:",
+    ...input.model.drilldowns.map(
+      (drilldown) => `- ${drilldown.label}: ${drilldown.count} (${drilldown.detail})`
+    ),
+    "",
+    "Digest analytics:",
+    ...input.model.digestAnalytics.map((metric) => `- ${metric.label}: ${metric.value} (${metric.detail})`),
+    "",
+    "Embedded executive brief:",
+    input.executiveBrief,
+    "",
+    `Visible report rows: ${input.report.rows.length}`
+  ].join("\n");
+}
+
 function appointmentTimeLabel(appointment: Appointment) {
   if (isUnscheduledDraftAppointment(appointment)) {
     return "Unscheduled";
@@ -2961,6 +3164,8 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   );
   const [executiveReviewPreset, setExecutiveReviewPreset] =
     useState<AppointmentExecutiveReviewPreset>("daily-ops");
+  const [opsIntelligencePreset, setOpsIntelligencePreset] =
+    useState<AppointmentOpsIntelligencePreset>("leadership-daily");
   const [detailRefreshKey, setDetailRefreshKey] = useState(0);
   const [actionNotice, setActionNotice] = useState("Operational command bridge ready. Persisted appointments can now use the live command API for check-in and no-show actions.");
 
@@ -3342,6 +3547,39 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
       executiveReviewModel,
       executiveReviewPreset,
       selectedAppointment
+    ]
+  );
+  const opsIntelligenceModel = useMemo(
+    () =>
+      buildAppointmentOpsIntelligenceModel({
+        report: commandCenterReport,
+        exceptionQueues,
+        subscriptions: commandCenterSubscriptionSummaries,
+        digests: commandCenterDigestSummaries,
+        digestHistory: commandCenterDigestHistory
+      }),
+    [
+      commandCenterDigestHistory,
+      commandCenterDigestSummaries,
+      commandCenterReport,
+      commandCenterSubscriptionSummaries,
+      exceptionQueues
+    ]
+  );
+  const opsLeadershipExport = useMemo(
+    () =>
+      buildAppointmentOpsLeadershipExport({
+        preset: opsIntelligencePreset,
+        businessDate,
+        model: opsIntelligenceModel,
+        report: commandCenterReport,
+        executiveBrief: executiveReviewBrief
+      }),
+    [
+      commandCenterReport,
+      executiveReviewBrief,
+      opsIntelligenceModel,
+      opsIntelligencePreset
     ]
   );
 
@@ -3766,6 +4004,91 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
         error instanceof Error
           ? `Could not copy executive review brief: ${error.message}`
           : "Could not copy executive review brief."
+      );
+    }
+  }
+
+  function applyOpsIntelligencePreset(preset: AppointmentOpsIntelligencePreset) {
+    setOpsIntelligencePreset(preset);
+
+    if (preset === "service-recovery") {
+      setResolutionFilter("follow-up-required");
+      setReportQueueFilter("follow-up-required");
+      setCommandCenterSearchPreset("all");
+      setCommandCenterSearchScope("appointments");
+      setAuditTimelineFilter("all");
+      setActionNotice("Loaded the Service Recovery ops intelligence preset.");
+      return;
+    }
+
+    if (preset === "digest-health") {
+      setResolutionFilter("all");
+      setReportQueueFilter("all");
+      setCommandCenterSearchPreset("manager-activity");
+      setCommandCenterSearchScope("timeline");
+      setAuditTimelineFilter("manager");
+      setActionNotice("Loaded the Digest Health ops intelligence preset.");
+      return;
+    }
+
+    if (preset === "escalation-review") {
+      setResolutionFilter("escalated");
+      setReportQueueFilter("breached-sla");
+      setCommandCenterSearchPreset("escalated");
+      setCommandCenterSearchScope("all");
+      setAuditTimelineFilter("manager");
+      setActionNotice("Loaded the Escalation Review ops intelligence preset.");
+      return;
+    }
+
+    setResolutionFilter("all");
+    setReportQueueFilter("all");
+    setCommandCenterSearchPreset("all");
+    setCommandCenterSearchScope("all");
+    setAuditTimelineFilter("all");
+    setActionNotice("Loaded the Leadership Daily ops intelligence preset.");
+  }
+
+  function openOpsDrilldown(drilldown: AppointmentOpsIntelligenceDrilldown) {
+    if (drilldown.filter === "manager-activity") {
+      setCommandCenterSearchPreset("manager-activity");
+      setCommandCenterSearchScope("timeline");
+      setAuditTimelineFilter("manager");
+      setActionNotice(`Opened ${drilldown.label.toLowerCase()} in the command center.`);
+      return;
+    }
+
+    setResolutionFilter(drilldown.filter);
+    setReportQueueFilter(drilldown.filter);
+    if (drilldown.filter === "breached-sla") {
+      setCommandCenterSearchPreset("breached-sla");
+      setCommandCenterSearchScope("appointments");
+    } else if (drilldown.filter === "escalated") {
+      setCommandCenterSearchPreset("escalated");
+      setCommandCenterSearchScope("all");
+      setAuditTimelineFilter("manager");
+    } else {
+      setCommandCenterSearchPreset("all");
+      setCommandCenterSearchScope("appointments");
+    }
+
+    setActionNotice(`Opened ${drilldown.label.toLowerCase()} in the command center.`);
+  }
+
+  async function copyOpsLeadershipExport() {
+    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+      setActionNotice("Ops intelligence export is ready. Copy is not available in this browser context.");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(opsLeadershipExport);
+      setActionNotice("Copied ops intelligence export package to clipboard.");
+    } catch (error) {
+      setActionNotice(
+        error instanceof Error
+          ? `Could not copy ops intelligence export: ${error.message}`
+          : "Could not copy ops intelligence export."
       );
     }
   }
@@ -6691,6 +7014,139 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
                   </button>
                   <button type="button" onClick={() => void copyExecutiveReviewBrief()}>
                     Copy brief
+                  </button>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <section
+            className="appointment-ops-intelligence-card"
+            aria-labelledby="appointment-ops-intelligence"
+          >
+            <div className="appointment-section-heading">
+              <div>
+                <strong id="appointment-ops-intelligence">Ops Intelligence Suite</strong>
+                <p>
+                  Combine reporting presets, KPI drilldowns, digest-health analytics, and a leadership
+                  export package into one manager-ready command-center layer.
+                </p>
+              </div>
+              <span>{opsIntelligencePresetOptions.find((option) => option.value === opsIntelligencePreset)?.label}</span>
+            </div>
+
+            <div className="appointment-ops-intelligence-presets" aria-label="Ops intelligence presets">
+              {opsIntelligencePresetOptions.map((preset) => (
+                <button
+                  className={
+                    opsIntelligencePreset === preset.value
+                      ? "appointment-ops-intelligence-preset appointment-ops-intelligence-preset-active"
+                      : "appointment-ops-intelligence-preset"
+                  }
+                  key={preset.value}
+                  onClick={() => applyOpsIntelligencePreset(preset.value)}
+                  type="button"
+                >
+                  <strong>{preset.label}</strong>
+                  <span>{preset.description}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="appointment-ops-intelligence-grid">
+              <section className="appointment-command-center-panel" aria-labelledby="appointment-ops-intelligence-kpis">
+                <div className="appointment-command-center-panel-heading">
+                  <div>
+                    <strong id="appointment-ops-intelligence-kpis">Operational Intelligence</strong>
+                    <p>{opsIntelligenceModel.headline}</p>
+                  </div>
+                  <span>{commandCenterReport.rows.length} rows in scope</span>
+                </div>
+
+                <div className="appointment-ops-intelligence-metrics">
+                  {opsIntelligenceModel.metrics.map((metric) => (
+                    <article
+                      className={`appointment-ops-intelligence-metric appointment-ops-intelligence-metric-${metric.tone}`}
+                      key={metric.label}
+                    >
+                      <span>{metric.label}</span>
+                      <strong>{metric.value}</strong>
+                      <p>{metric.detail}</p>
+                    </article>
+                  ))}
+                </div>
+
+                <div className="appointment-ops-intelligence-drilldowns">
+                  {opsIntelligenceModel.drilldowns.map((drilldown) => (
+                    <article className="appointment-ops-intelligence-drilldown" key={drilldown.label}>
+                      <div className="appointment-ops-intelligence-drilldown-top">
+                        <strong>{drilldown.label}</strong>
+                        <span
+                          className={
+                            drilldown.tone === "red"
+                              ? "appointment-command-center-tag appointment-command-center-tag-red"
+                              : drilldown.tone === "amber"
+                                ? "appointment-command-center-tag appointment-command-center-tag-amber"
+                                : drilldown.tone === "purple"
+                                  ? "appointment-command-center-tag appointment-command-center-tag-blue"
+                                  : drilldown.tone === "green"
+                                    ? "appointment-command-center-tag appointment-command-center-tag-green"
+                                    : "appointment-command-center-tag appointment-command-center-tag-blue"
+                          }
+                        >
+                          {drilldown.count}
+                        </span>
+                      </div>
+                      <p>{drilldown.detail}</p>
+                      <button type="button" onClick={() => openOpsDrilldown(drilldown)}>
+                        {drilldown.actionHint}
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              </section>
+
+              <section className="appointment-command-center-panel" aria-labelledby="appointment-ops-intelligence-export">
+                <div className="appointment-command-center-panel-heading">
+                  <div>
+                    <strong id="appointment-ops-intelligence-export">Digest Effectiveness &amp; Leadership Export</strong>
+                    <p>
+                      Review send behavior, notification coverage, and package a leadership-ready export
+                      without leaving the board.
+                    </p>
+                  </div>
+                  <span>{commandCenterDigestHistory.length} digest events</span>
+                </div>
+
+                <div className="appointment-ops-intelligence-digest-analytics">
+                  {opsIntelligenceModel.digestAnalytics.map((metric) => (
+                    <article key={metric.label}>
+                      <span>{metric.label}</span>
+                      <strong>{metric.value}</strong>
+                      <p>{metric.detail}</p>
+                    </article>
+                  ))}
+                </div>
+
+                <div className="appointment-ops-intelligence-export-preview">
+                  <div className="appointment-command-center-digest-preview-heading">
+                    <strong>Leadership export package</strong>
+                    <span>{businessDate}</span>
+                  </div>
+                  <textarea
+                    aria-label="Ops intelligence export preview"
+                    readOnly
+                    rows={12}
+                    value={opsLeadershipExport}
+                  />
+                </div>
+
+                <div className="appointment-ops-intelligence-actions">
+                  <button type="button" onClick={() => applyOpsIntelligencePreset(opsIntelligencePreset)}>
+                    Refresh package
+                  </button>
+                  <button type="button" onClick={() => void copyOpsLeadershipExport()}>
+                    Copy export
                   </button>
                 </div>
               </section>

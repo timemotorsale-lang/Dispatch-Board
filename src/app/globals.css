@@ -7046,6 +7046,161 @@ code {
   resize: vertical;
 }
 
+.appointment-ops-intelligence-card {
+  display: grid;
+  gap: 12px;
+  margin: 0 12px 12px;
+  padding: 14px;
+  background: linear-gradient(180deg, #f8fffd 0%, #effcf7 100%);
+  border: 1px solid #bbf7d0;
+  border-radius: 18px;
+}
+
+.appointment-ops-intelligence-card .appointment-section-heading {
+  align-items: flex-start;
+}
+
+.appointment-ops-intelligence-card .appointment-section-heading > span {
+  display: inline-grid;
+  place-items: center;
+  min-height: 26px;
+  padding: 0 9px;
+  color: #166534;
+  background: #fff;
+  border: 1px solid #bbf7d0;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.appointment-ops-intelligence-presets,
+.appointment-ops-intelligence-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.appointment-ops-intelligence-preset,
+.appointment-ops-intelligence-actions button,
+.appointment-ops-intelligence-drilldown button {
+  min-height: 34px;
+  padding: 10px 12px;
+  color: #166534;
+  background: #fff;
+  border: 1px solid #bbf7d0;
+  border-radius: 14px;
+  cursor: pointer;
+}
+
+.appointment-ops-intelligence-preset {
+  display: grid;
+  gap: 4px;
+  min-width: 180px;
+  text-align: left;
+}
+
+.appointment-ops-intelligence-preset strong {
+  color: #166534;
+  font-size: 12px;
+}
+
+.appointment-ops-intelligence-preset span {
+  color: #15803d;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.appointment-ops-intelligence-preset-active,
+.appointment-ops-intelligence-actions button:last-child {
+  color: #fff;
+  background: #0f766e;
+  border-color: #0f766e;
+}
+
+.appointment-ops-intelligence-preset-active strong,
+.appointment-ops-intelligence-preset-active span {
+  color: #fff;
+}
+
+.appointment-ops-intelligence-grid,
+.appointment-ops-intelligence-metrics,
+.appointment-ops-intelligence-drilldowns,
+.appointment-ops-intelligence-digest-analytics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.appointment-ops-intelligence-metric,
+.appointment-ops-intelligence-drilldown,
+.appointment-ops-intelligence-digest-analytics article {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #bbf7d0;
+  border-radius: 14px;
+}
+
+.appointment-ops-intelligence-metric-blue { border-color: #bfdbfe; }
+.appointment-ops-intelligence-metric-amber { border-color: #fde68a; }
+.appointment-ops-intelligence-metric-red { border-color: #fecaca; }
+.appointment-ops-intelligence-metric-purple { border-color: #ddd6fe; }
+.appointment-ops-intelligence-metric-green { border-color: #bbf7d0; }
+
+.appointment-ops-intelligence-metric span,
+.appointment-ops-intelligence-digest-analytics span {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.appointment-ops-intelligence-metric strong,
+.appointment-ops-intelligence-drilldown-top strong,
+.appointment-ops-intelligence-digest-analytics strong {
+  color: #0f172a;
+}
+
+.appointment-ops-intelligence-metric strong,
+.appointment-ops-intelligence-digest-analytics strong {
+  font-size: 22px;
+}
+
+.appointment-ops-intelligence-metric p,
+.appointment-ops-intelligence-drilldown p,
+.appointment-ops-intelligence-digest-analytics p {
+  margin: 0;
+  color: #475569;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.appointment-ops-intelligence-drilldown-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.appointment-ops-intelligence-export-preview {
+  display: grid;
+  gap: 8px;
+}
+
+.appointment-ops-intelligence-export-preview textarea {
+  width: 100%;
+  min-height: 260px;
+  padding: 10px 11px;
+  color: #253449;
+  background: #fff;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  resize: vertical;
+}
+
 .appointment-command-search-card {
   display: grid;
   gap: 12px;
@@ -8757,6 +8912,10 @@ code {
   .appointment-command-search-results,
   .appointment-week-grid,
   .appointment-month-grid,
+  .appointment-ops-intelligence-grid,
+  .appointment-ops-intelligence-metrics,
+  .appointment-ops-intelligence-drilldowns,
+  .appointment-ops-intelligence-digest-analytics,
   .appointment-executive-review-grid,
   .appointment-executive-review-metrics,
   .appointment-executive-review-trends,
@@ -8788,6 +8947,10 @@ code {
   .appointment-exception-grid,
   .appointment-week-grid,
   .appointment-month-grid,
+  .appointment-ops-intelligence-grid,
+  .appointment-ops-intelligence-metrics,
+  .appointment-ops-intelligence-drilldowns,
+  .appointment-ops-intelligence-digest-analytics,
   .appointment-executive-review-grid,
   .appointment-executive-review-metrics,
   .appointment-executive-review-trends,
