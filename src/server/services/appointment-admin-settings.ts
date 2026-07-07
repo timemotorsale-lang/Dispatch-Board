@@ -3,7 +3,9 @@ import {
   LocationClosureType,
   ResourceCapacityMode,
   ResourceConflictPolicy,
+  ResourceVisibilityClass,
   ResourceUnavailabilityType,
+  SchedulableResourceKind,
   SchedulableResourceStatus,
   type LocationSchedulingStatus
 } from "@prisma/client";
@@ -35,6 +37,8 @@ const validResourceStatuses = new Set<string>(Object.values(SchedulableResourceS
 const validResourceCapacityModes = new Set<string>(Object.values(ResourceCapacityMode));
 const validResourceConflictPolicies = new Set<string>(Object.values(ResourceConflictPolicy));
 const validResourceUnavailabilityTypes = new Set<string>(Object.values(ResourceUnavailabilityType));
+const validResourceKinds = new Set<string>(Object.values(SchedulableResourceKind));
+const validResourceVisibilityClasses = new Set<string>(Object.values(ResourceVisibilityClass));
 
 type AppointmentAdminLocationRecord = {
   id: string;
@@ -99,6 +103,16 @@ type AppointmentAdminResourceUnavailabilityRecord = {
   createdAt: Date;
 };
 
+type AppointmentAdminResourceOperatingWindowRecord = {
+  id: string;
+  businessDay: BusinessDay;
+  opensAtMinute: number;
+  closesAtMinute: number;
+  capacityOverride: number | null;
+  validFrom: Date;
+  validTo: Date | null;
+};
+
 type AppointmentAdminResourceRecord = {
   id: string;
   code: string;
@@ -114,6 +128,7 @@ type AppointmentAdminResourceRecord = {
     name: string;
     kind: string;
   };
+  operatingWindows: AppointmentAdminResourceOperatingWindowRecord[];
   unavailability: AppointmentAdminResourceUnavailabilityRecord[];
 };
 
@@ -126,6 +141,10 @@ export type AppointmentAdminSettingsRepository = {
   updateLocationClosure(input: NormalizedAppointmentLocationClosureUpdateInput): Promise<AppointmentAdminLocationClosureRecord>;
   deleteLocationClosure(input: AppointmentLocationClosureDeleteInput): Promise<void>;
   updateResource(input: NormalizedAppointmentResourceUpdateInput): Promise<AppointmentAdminResourceRecord>;
+  createResourceType(input: NormalizedAppointmentResourceTypeCreateInput): Promise<AppointmentAdminResourceTypeRecord>;
+  updateResourceType(input: NormalizedAppointmentResourceTypeUpdateInput): Promise<AppointmentAdminResourceTypeRecord>;
+  createResourceOperatingWindow(input: NormalizedAppointmentResourceOperatingWindowInput): Promise<AppointmentAdminResourceOperatingWindowRecord>;
+  deleteResourceOperatingWindow(input: AppointmentResourceOperatingWindowDeleteInput): Promise<void>;
   createResourceUnavailability(input: NormalizedAppointmentResourceUnavailabilityInput): Promise<AppointmentAdminResourceUnavailabilityRecord>;
   updateLocationAndHours(input: {
     location: AppointmentAdminLocationInput;
@@ -178,12 +197,49 @@ export type AppointmentResourceUpdateInput = {
   conflictPolicy: string;
 };
 
+export type AppointmentResourceTypeUpdateInput = {
+  resourceTypeId: string;
+  name: string;
+  defaultCapacityMode: string;
+  defaultCapacity: number;
+  defaultConflictPolicy: string;
+  isActive: boolean;
+};
+
+export type AppointmentResourceTypeCreateInput = {
+  code: string;
+  name: string;
+  kind: string;
+  defaultCapacityMode: string;
+  defaultCapacity: number;
+  defaultConflictPolicy: string;
+  visibilityClass: string;
+};
+
 export type AppointmentResourceUnavailabilityInput = {
   resourceId: string;
   type: string;
   startsAt: string;
   endsAt: string;
   capacityReduction?: number | null;
+  reason: string;
+};
+
+export type AppointmentResourceOperatingWindowInput = {
+  resourceId: string;
+  businessDay: string;
+  opensAt: string;
+  closesAt: string;
+  capacityOverride?: number | null;
+  validFrom: string;
+  validTo?: string | null;
+  reason: string;
+};
+
+export type AppointmentResourceOperatingWindowDeleteInput = {
+  locationId: string;
+  resourceId: string;
+  operatingWindowId: string;
   reason: string;
 };
 
@@ -226,6 +282,27 @@ export type NormalizedAppointmentResourceUpdateInput = {
   conflictPolicy: ResourceConflictPolicy;
 };
 
+export type NormalizedAppointmentResourceTypeUpdateInput = {
+  resourceTypeId: string;
+  organizationId: string;
+  name: string;
+  defaultCapacityMode: ResourceCapacityMode;
+  defaultCapacity: number;
+  defaultConflictPolicy: ResourceConflictPolicy;
+  isActive: boolean;
+};
+
+export type NormalizedAppointmentResourceTypeCreateInput = {
+  organizationId: string;
+  code: string;
+  name: string;
+  kind: SchedulableResourceKind;
+  defaultCapacityMode: ResourceCapacityMode;
+  defaultCapacity: number;
+  defaultConflictPolicy: ResourceConflictPolicy;
+  visibilityClass: ResourceVisibilityClass;
+};
+
 export type NormalizedAppointmentResourceUnavailabilityInput = {
   resourceId: string;
   locationId: string;
@@ -235,6 +312,18 @@ export type NormalizedAppointmentResourceUnavailabilityInput = {
   capacityReduction: number | null;
   reason: string;
   createdByUserId: string;
+};
+
+export type NormalizedAppointmentResourceOperatingWindowInput = {
+  resourceId: string;
+  locationId: string;
+  businessDay: BusinessDay;
+  opensAtMinute: number;
+  closesAtMinute: number;
+  capacityOverride: number | null;
+  validFrom: Date;
+  validTo: Date | null;
+  reason: string;
 };
 
 export type AppointmentAdminSettings = {
@@ -264,7 +353,18 @@ export type AppointmentAdminSettings = {
     createdAtIso: string;
   }>;
   resourceTypes: AppointmentAdminResourceTypeRecord[];
-  resources: Array<Omit<AppointmentAdminResourceRecord, "unavailability"> & {
+  resources: Array<Omit<AppointmentAdminResourceRecord, "unavailability" | "operatingWindows"> & {
+    operatingWindows: Array<{
+      id: string;
+      businessDay: BusinessDay;
+      opensAt: string;
+      closesAt: string;
+      opensAtMinute: number;
+      closesAtMinute: number;
+      capacityOverride: number | null;
+      validFromIso: string;
+      validToIso: string | null;
+    }>;
     unavailability: Array<{
       id: string;
       type: string;
@@ -452,6 +552,16 @@ function normalizePositiveInteger(value: unknown, label: string, maxValue = 1000
 
   if (normalized > maxValue) {
     throw new Error(`${label} must be ${maxValue} or fewer.`);
+  }
+
+  return normalized;
+}
+
+function normalizeStableCode(value: unknown, label: string, maxLength: number) {
+  const normalized = normalizeText(value, label, maxLength).toUpperCase().replace(/\s+/g, "_");
+
+  if (!/^[A-Z0-9][A-Z0-9_-]*$/.test(normalized)) {
+    throw new Error(`${label} must use letters, numbers, dashes, or underscores.`);
   }
 
   return normalized;
@@ -748,6 +858,108 @@ export function normalizeAppointmentResourceUpdateInput(input: {
   };
 }
 
+export function normalizeAppointmentResourceTypeUpdateInput(input: {
+  organizationId: string;
+  resourceTypeId: string;
+  update: AppointmentResourceTypeUpdateInput;
+}): NormalizedAppointmentResourceTypeUpdateInput {
+  const defaultCapacityMode = normalizeText(
+    input.update?.defaultCapacityMode,
+    "Resource type capacity mode",
+    40
+  );
+  const defaultConflictPolicy = normalizeText(
+    input.update?.defaultConflictPolicy,
+    "Resource type conflict policy",
+    40
+  );
+  const defaultCapacity = normalizePositiveInteger(
+    input.update?.defaultCapacity,
+    "Resource type default capacity",
+    1000
+  );
+
+  if (!validResourceCapacityModes.has(defaultCapacityMode)) {
+    throw new Error("Resource type capacity mode is invalid.");
+  }
+
+  if (!validResourceConflictPolicies.has(defaultConflictPolicy)) {
+    throw new Error("Resource type conflict policy is invalid.");
+  }
+
+  if (defaultCapacityMode === "EXCLUSIVE" && defaultCapacity !== 1) {
+    throw new Error("An exclusive resource type must have default capacity 1.");
+  }
+
+  return {
+    resourceTypeId: normalizeText(input.resourceTypeId, "Resource type", 120),
+    organizationId: normalizeText(input.organizationId, "Resource type organization", 120),
+    name: normalizeText(input.update?.name, "Resource type name", 120),
+    defaultCapacityMode: defaultCapacityMode as ResourceCapacityMode,
+    defaultCapacity,
+    defaultConflictPolicy: defaultConflictPolicy as ResourceConflictPolicy,
+    isActive: Boolean(input.update?.isActive)
+  };
+}
+
+export function normalizeAppointmentResourceTypeCreateInput(input: {
+  organizationId: string;
+  create: AppointmentResourceTypeCreateInput;
+}): NormalizedAppointmentResourceTypeCreateInput {
+  const kind = normalizeText(input.create?.kind, "Resource type kind", 40);
+  const defaultCapacityMode = normalizeText(
+    input.create?.defaultCapacityMode,
+    "Resource type capacity mode",
+    40
+  );
+  const defaultConflictPolicy = normalizeText(
+    input.create?.defaultConflictPolicy,
+    "Resource type conflict policy",
+    40
+  );
+  const visibilityClass = normalizeText(
+    input.create?.visibilityClass,
+    "Resource type visibility class",
+    40
+  );
+  const defaultCapacity = normalizePositiveInteger(
+    input.create?.defaultCapacity,
+    "Resource type default capacity",
+    1000
+  );
+
+  if (!validResourceKinds.has(kind)) {
+    throw new Error("Resource type kind is invalid.");
+  }
+
+  if (!validResourceCapacityModes.has(defaultCapacityMode)) {
+    throw new Error("Resource type capacity mode is invalid.");
+  }
+
+  if (!validResourceConflictPolicies.has(defaultConflictPolicy)) {
+    throw new Error("Resource type conflict policy is invalid.");
+  }
+
+  if (!validResourceVisibilityClasses.has(visibilityClass)) {
+    throw new Error("Resource type visibility class is invalid.");
+  }
+
+  if (defaultCapacityMode === "EXCLUSIVE" && defaultCapacity !== 1) {
+    throw new Error("An exclusive resource type must have default capacity 1.");
+  }
+
+  return {
+    organizationId: normalizeText(input.organizationId, "Resource type organization", 120),
+    code: normalizeStableCode(input.create?.code, "Resource type code", 80),
+    name: normalizeText(input.create?.name, "Resource type name", 120),
+    kind: kind as SchedulableResourceKind,
+    defaultCapacityMode: defaultCapacityMode as ResourceCapacityMode,
+    defaultCapacity,
+    defaultConflictPolicy: defaultConflictPolicy as ResourceConflictPolicy,
+    visibilityClass: visibilityClass as ResourceVisibilityClass
+  };
+}
+
 export function normalizeAppointmentResourceUnavailabilityInput(input: {
   locationId: string;
   resourceId: string;
@@ -787,6 +999,51 @@ export function normalizeAppointmentResourceUnavailabilityInput(input: {
     capacityReduction,
     reason: normalizeText(input.unavailability?.reason, "Resource unavailability reason", 1000),
     createdByUserId: normalizeText(input.userId, "Resource unavailability creator", 120)
+  };
+}
+
+export function normalizeAppointmentResourceOperatingWindowInput(input: {
+  locationId: string;
+  resourceId: string;
+  window: AppointmentResourceOperatingWindowInput;
+}): NormalizedAppointmentResourceOperatingWindowInput {
+  const businessDay = normalizeText(input.window?.businessDay, "Resource operating day", 20);
+
+  if (!orderedBusinessDays.includes(businessDay as BusinessDay)) {
+    throw new Error("Resource operating day is invalid.");
+  }
+
+  const opensAt = normalizeText(input.window?.opensAt, "Resource opening time", 5);
+  const closesAt = normalizeText(input.window?.closesAt, "Resource closing time", 5);
+  const opensAtMinute = parseTimeToMinute(opensAt, "Resource opening time");
+  const closesAtMinute = parseTimeToMinute(closesAt, "Resource closing time");
+
+  if (closesAtMinute <= opensAtMinute) {
+    throw new Error("Resource closing time must be after opening time.");
+  }
+
+  const validFrom = parseDateIso(input.window?.validFrom, "Resource window valid-from date");
+  const validTo = input.window?.validTo
+    ? parseDateIso(input.window.validTo, "Resource window valid-to date")
+    : null;
+
+  if (validTo && validTo < validFrom) {
+    throw new Error("Resource operating window valid-to date cannot be before valid-from date.");
+  }
+
+  return {
+    resourceId: normalizeText(input.resourceId, "Resource", 120),
+    locationId: normalizeText(input.locationId, "Resource location", 120),
+    businessDay: businessDay as BusinessDay,
+    opensAtMinute,
+    closesAtMinute,
+    capacityOverride:
+      input.window.capacityOverride === null || input.window.capacityOverride === undefined
+        ? null
+        : normalizePositiveInteger(input.window.capacityOverride, "Resource capacity override", 1000),
+    validFrom,
+    validTo,
+    reason: normalizeText(input.window?.reason, "Resource operating window reason", 1000)
   };
 }
 
@@ -852,6 +1109,17 @@ function serializeClosure(closure: AppointmentAdminLocationClosureRecord) {
 function serializeResource(resource: AppointmentAdminResourceRecord) {
   return {
     ...resource,
+    operatingWindows: resource.operatingWindows.map((window) => ({
+      id: window.id,
+      businessDay: window.businessDay,
+      opensAt: minuteToTime(window.opensAtMinute),
+      closesAt: minuteToTime(window.closesAtMinute),
+      opensAtMinute: window.opensAtMinute,
+      closesAtMinute: window.closesAtMinute,
+      capacityOverride: window.capacityOverride,
+      validFromIso: localDateKey(window.validFrom),
+      validToIso: window.validTo ? localDateKey(window.validTo) : null
+    })),
     unavailability: resource.unavailability.map((entry) => ({
       id: entry.id,
       type: entry.type,
@@ -1502,6 +1770,18 @@ export function createAppointmentAdminSettingsRepository(): AppointmentAdminSett
               kind: true
             }
           },
+          operatingWindows: {
+            select: {
+              id: true,
+              businessDay: true,
+              opensAtMinute: true,
+              closesAtMinute: true,
+              capacityOverride: true,
+              validFrom: true,
+              validTo: true
+            },
+            orderBy: [{ businessDay: "asc" }, { opensAtMinute: "asc" }, { validFrom: "asc" }]
+          },
           unavailability: {
             where: {
               endsAt: {
@@ -1602,6 +1882,18 @@ export function createAppointmentAdminSettingsRepository(): AppointmentAdminSett
               kind: true
             }
           },
+          operatingWindows: {
+            select: {
+              id: true,
+              businessDay: true,
+              opensAtMinute: true,
+              closesAtMinute: true,
+              capacityOverride: true,
+              validFrom: true,
+              validTo: true
+            },
+            orderBy: [{ businessDay: "asc" }, { opensAtMinute: "asc" }, { validFrom: "asc" }]
+          },
           unavailability: {
             where: {
               endsAt: {
@@ -1621,6 +1913,115 @@ export function createAppointmentAdminSettingsRepository(): AppointmentAdminSett
             orderBy: [{ startsAt: "asc" }, { createdAt: "asc" }],
             take: 8
           }
+        }
+      });
+    },
+    async createResourceType(input) {
+      return prisma.schedulableResourceType.create({
+        data: {
+          organizationId: input.organizationId,
+          code: input.code,
+          name: input.name,
+          kind: input.kind,
+          defaultCapacityMode: input.defaultCapacityMode,
+          defaultCapacity: input.defaultCapacity,
+          defaultConflictPolicy: input.defaultConflictPolicy,
+          visibilityClass: input.visibilityClass,
+          attributeSchema: {},
+          isActive: true
+        },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          kind: true,
+          defaultCapacityMode: true,
+          defaultCapacity: true,
+          defaultConflictPolicy: true,
+          isActive: true
+        }
+      });
+    },
+    async updateResourceType(input) {
+      return prisma.schedulableResourceType.update({
+        where: {
+          id: input.resourceTypeId,
+          organizationId: input.organizationId
+        },
+        data: {
+          name: input.name,
+          defaultCapacityMode: input.defaultCapacityMode,
+          defaultCapacity: input.defaultCapacity,
+          defaultConflictPolicy: input.defaultConflictPolicy,
+          isActive: input.isActive
+        },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          kind: true,
+          defaultCapacityMode: true,
+          defaultCapacity: true,
+          defaultConflictPolicy: true,
+          isActive: true
+        }
+      });
+    },
+    async createResourceOperatingWindow(input) {
+      const resource = await prisma.schedulableResource.findFirst({
+        where: {
+          id: input.resourceId,
+          locationId: input.locationId
+        },
+        select: { id: true }
+      });
+
+      if (!resource) {
+        throw new Error("Resource is not configured for this appointment location.");
+      }
+
+      return prisma.resourceOperatingWindow.create({
+        data: {
+          resourceId: input.resourceId,
+          businessDay: input.businessDay,
+          opensAtMinute: input.opensAtMinute,
+          closesAtMinute: input.closesAtMinute,
+          capacityOverride: input.capacityOverride,
+          validFrom: input.validFrom,
+          validTo: input.validTo
+        },
+        select: {
+          id: true,
+          businessDay: true,
+          opensAtMinute: true,
+          closesAtMinute: true,
+          capacityOverride: true,
+          validFrom: true,
+          validTo: true
+        }
+      });
+    },
+    async deleteResourceOperatingWindow(input) {
+      normalizeText(input.reason, "Resource operating window removal reason", 1000);
+
+      const operatingWindow = await prisma.resourceOperatingWindow.findFirst({
+        where: {
+          id: input.operatingWindowId,
+          resourceId: input.resourceId,
+          resource: {
+            locationId: input.locationId
+          }
+        },
+        select: { id: true }
+      });
+
+      if (!operatingWindow) {
+        throw new Error("Resource operating window is not configured for this appointment location.");
+      }
+
+      await prisma.resourceOperatingWindow.delete({
+        where: {
+          id: operatingWindow.id
         }
       });
     },
@@ -1954,6 +2355,113 @@ export async function updateAppointmentResourceForManager(
       update: input
     })
   );
+
+  return getAppointmentAdminSettings(repository);
+}
+
+export async function createAppointmentResourceTypeForManager(
+  user: AuthenticatedUser | null,
+  input: AppointmentResourceTypeCreateInput,
+  repository: AppointmentAdminSettingsRepository = createAppointmentAdminSettingsRepository()
+) {
+  assertCanManageAppointmentAdminSettings(user);
+
+  const location = await repository.getLocation();
+
+  if (!location) {
+    throw new Error("Appointment location settings are not configured.");
+  }
+
+  const normalizedInput = normalizeAppointmentResourceTypeCreateInput({
+    organizationId: location.organizationId,
+    create: input
+  });
+  const existingTypes = await repository.listResourceTypes(location.organizationId);
+
+  if (existingTypes.some((resourceType) => resourceType.code === normalizedInput.code)) {
+    throw new Error("Resource type code already exists.");
+  }
+
+  await repository.createResourceType(normalizedInput);
+
+  return getAppointmentAdminSettings(repository);
+}
+
+export async function updateAppointmentResourceTypeForManager(
+  user: AuthenticatedUser | null,
+  input: AppointmentResourceTypeUpdateInput,
+  repository: AppointmentAdminSettingsRepository = createAppointmentAdminSettingsRepository()
+) {
+  assertCanManageAppointmentAdminSettings(user);
+
+  const location = await repository.getLocation();
+
+  if (!location) {
+    throw new Error("Appointment location settings are not configured.");
+  }
+
+  await repository.updateResourceType(
+    normalizeAppointmentResourceTypeUpdateInput({
+      organizationId: location.organizationId,
+      resourceTypeId: input.resourceTypeId,
+      update: input
+    })
+  );
+
+  return getAppointmentAdminSettings(repository);
+}
+
+export async function createAppointmentResourceOperatingWindowForManager(
+  user: AuthenticatedUser | null,
+  input: AppointmentResourceOperatingWindowInput,
+  repository: AppointmentAdminSettingsRepository = createAppointmentAdminSettingsRepository()
+) {
+  assertCanManageAppointmentAdminSettings(user);
+
+  const location = await repository.getLocation();
+
+  if (!location) {
+    throw new Error("Appointment location settings are not configured.");
+  }
+
+  await repository.createResourceOperatingWindow(
+    normalizeAppointmentResourceOperatingWindowInput({
+      locationId: location.id,
+      resourceId: input.resourceId,
+      window: input
+    })
+  );
+
+  return getAppointmentAdminSettings(repository);
+}
+
+export async function deleteAppointmentResourceOperatingWindowForManager(
+  user: AuthenticatedUser | null,
+  input: {
+    resourceId: string;
+    operatingWindowId: string;
+    reason: string;
+  },
+  repository: AppointmentAdminSettingsRepository = createAppointmentAdminSettingsRepository()
+) {
+  assertCanManageAppointmentAdminSettings(user);
+
+  const location = await repository.getLocation();
+
+  if (!location) {
+    throw new Error("Appointment location settings are not configured.");
+  }
+
+  await repository.deleteResourceOperatingWindow({
+    locationId: location.id,
+    resourceId: normalizeText(input.resourceId, "Resource", 120),
+    operatingWindowId: normalizeText(
+      input.operatingWindowId,
+      "Resource operating window",
+      120
+    ),
+    reason: normalizeText(input.reason, "Resource operating window removal reason", 1000)
+  });
 
   return getAppointmentAdminSettings(repository);
 }

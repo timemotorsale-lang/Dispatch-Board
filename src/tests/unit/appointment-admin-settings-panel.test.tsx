@@ -50,7 +50,38 @@ function settingsFixture(): AppointmentAdminSettings {
         isActive: true
       }
     ],
-    resources: [],
+    resources: [
+      {
+        id: "res-abdi",
+        code: "STAFF-ABDI",
+        name: "Abdi Farah",
+        status: "ACTIVE",
+        capacityMode: "EXCLUSIVE",
+        capacity: 1,
+        conflictPolicy: "HARD_BLOCK",
+        userId: "user-abdi",
+        vehicleId: null,
+        resourceType: {
+          code: "STAFF",
+          name: "Staff member",
+          kind: "STAFF"
+        },
+        operatingWindows: [
+          {
+            id: "resource-window-1",
+            businessDay: "MONDAY",
+            opensAt: "10:00",
+            closesAt: "16:00",
+            opensAtMinute: 600,
+            closesAtMinute: 960,
+            capacityOverride: 1,
+            validFromIso: "2026-07-07",
+            validToIso: null
+          }
+        ],
+        unavailability: []
+      }
+    ],
     catalogs: {
       purposes: [],
       outcomeCodes: [],
@@ -165,7 +196,17 @@ describe("appointment admin settings panel", () => {
     expect(markup).toContain("Create closure");
     expect(markup).toContain("Capacity override drafts");
     expect(markup).toContain("Use capacity override draft");
+    expect(markup).toContain("Resource operating calendar");
+    expect(markup).toContain("Day-level hours and capacity overrides");
+    expect(markup).toContain("Add resource operating window");
+    expect(markup).toContain("Existing operating windows");
+    expect(markup).toContain("Removal reason");
+    expect(markup).toContain("Remove operating window");
     expect(markup).toContain("Resource type editor readiness");
+    expect(markup).toContain("Create governed resource type");
+    expect(markup).toContain("Create resource type");
+    expect(markup).toContain("Default conflict policy");
+    expect(markup).toContain("Save resource type");
     expect(markup).toContain("Closure and resource-impact preview");
     expect(markup).toContain("Export and import preview foundation");
     expect(markup).toContain("Generate export package");

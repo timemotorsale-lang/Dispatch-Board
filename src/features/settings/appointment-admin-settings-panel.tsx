@@ -11,6 +11,9 @@ import type {
   AppointmentAdminSettingsInput,
   AppointmentLocationClosureInput,
   AppointmentOperatingWindowInput,
+  AppointmentResourceTypeCreateInput,
+  AppointmentResourceTypeUpdateInput,
+  AppointmentResourceOperatingWindowInput,
   AppointmentResourceUnavailabilityInput,
   AppointmentResourceUpdateInput
 } from "@/server/services/appointment-admin-settings";
@@ -65,6 +68,23 @@ const unavailabilityTypes = [
   { value: "OTHER", label: "Other" }
 ] as const;
 
+const resourceKindOptions = [
+  { value: "STAFF", label: "Staff" },
+  { value: "VEHICLE", label: "Vehicle" },
+  { value: "SERVICE_BAY", label: "Service bay" },
+  { value: "ROOM", label: "Room" },
+  { value: "EQUIPMENT", label: "Equipment" },
+  { value: "POOL", label: "Pool" },
+  { value: "LOCATION", label: "Location" },
+  { value: "OTHER", label: "Other" }
+] as const;
+
+const visibilityClassOptions = [
+  { value: "OPERATIONAL", label: "Operational" },
+  { value: "LIMITED", label: "Limited" },
+  { value: "RESTRICTED", label: "Restricted" }
+] as const;
+
 type AppointmentAdminSettingsPanelProps = {
   initialSettings: AppointmentAdminSettings;
 };
@@ -77,6 +97,7 @@ type AppointmentSettingsFormState = {
 };
 
 type ResourceFormState = Record<string, Omit<AppointmentResourceUpdateInput, "resourceId">>;
+type ResourceTypeFormState = Record<string, Omit<AppointmentResourceTypeUpdateInput, "resourceTypeId">>;
 type ClosureEditDraft = AppointmentLocationClosureInput & {
   id: string;
 };
@@ -96,6 +117,27 @@ const defaultUnavailabilityDraft: AppointmentResourceUnavailabilityInput = {
   endsAt: "2026-07-07T18:00",
   capacityReduction: null,
   reason: ""
+};
+
+const defaultResourceWindowDraft: AppointmentResourceOperatingWindowInput = {
+  resourceId: "",
+  businessDay: "MONDAY",
+  opensAt: "09:00",
+  closesAt: "18:00",
+  capacityOverride: null,
+  validFrom: "2026-07-07",
+  validTo: null,
+  reason: ""
+};
+
+const defaultResourceTypeDraft: AppointmentResourceTypeCreateInput = {
+  code: "",
+  name: "",
+  kind: "OTHER",
+  defaultCapacityMode: "EXCLUSIVE",
+  defaultCapacity: 1,
+  defaultConflictPolicy: "HARD_BLOCK",
+  visibilityClass: "OPERATIONAL"
 };
 
 function toFormState(settings: AppointmentAdminSettings): AppointmentSettingsFormState {
@@ -151,6 +193,21 @@ function toResourceFormState(settings: AppointmentAdminSettings): ResourceFormSt
   );
 }
 
+function toResourceTypeFormState(settings: AppointmentAdminSettings): ResourceTypeFormState {
+  return Object.fromEntries(
+    settings.resourceTypes.map((resourceType) => [
+      resourceType.id,
+      {
+        name: resourceType.name,
+        defaultCapacityMode: resourceType.defaultCapacityMode,
+        defaultCapacity: resourceType.defaultCapacity,
+        defaultConflictPolicy: resourceType.defaultConflictPolicy,
+        isActive: resourceType.isActive
+      }
+    ])
+  );
+}
+
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium",
@@ -177,10 +234,23 @@ export function AppointmentAdminSettingsPanel({
   const [closureDraft, setClosureDraft] = useState(defaultClosureDraft);
   const [editingClosure, setEditingClosure] = useState<ClosureEditDraft | null>(null);
   const [resourceDrafts, setResourceDrafts] = useState(() => toResourceFormState(initialSettings));
+  const [resourceTypeDrafts, setResourceTypeDrafts] = useState(() =>
+    toResourceTypeFormState(initialSettings)
+  );
+  const [resourceTypeCreateDraft, setResourceTypeCreateDraft] =
+    useState<AppointmentResourceTypeCreateInput>(defaultResourceTypeDraft);
   const [unavailabilityDraft, setUnavailabilityDraft] = useState<AppointmentResourceUnavailabilityInput>({
     ...defaultUnavailabilityDraft,
     resourceId: initialSettings.resources[0]?.id ?? ""
   });
+  const [resourceWindowDraft, setResourceWindowDraft] =
+    useState<AppointmentResourceOperatingWindowInput>({
+      ...defaultResourceWindowDraft,
+      resourceId: initialSettings.resources[0]?.id ?? ""
+    });
+  const [resourceWindowRemovalReasons, setResourceWindowRemovalReasons] = useState<
+    Record<string, string>
+  >({});
   const [configurationExport, setConfigurationExport] =
     useState<AppointmentAdminConfigurationExport | null>(null);
   const [configurationExportText, setConfigurationExportText] = useState("");
@@ -198,6 +268,9 @@ export function AppointmentAdminSettingsPanel({
   const resourcesByKind = countByKind(settings.resources);
   const selectedStatus = schedulingStatuses.find(
     (status) => status.value === formState.location.schedulingStatus
+  );
+  const selectedResourceForWindow = settings.resources.find(
+    (resource) => resource.id === resourceWindowDraft.resourceId
   );
 
   function updateLocationField<K extends keyof AppointmentLocationFormState>(
@@ -229,6 +302,13 @@ export function AppointmentAdminSettingsPanel({
     setSettings(nextSettings);
     setFormState(toFormState(nextSettings));
     setResourceDrafts(toResourceFormState(nextSettings));
+    setResourceTypeDrafts(toResourceTypeFormState(nextSettings));
+    setResourceWindowDraft((current) => ({
+      ...current,
+      resourceId: nextSettings.resources.some((resource) => resource.id === current.resourceId)
+        ? current.resourceId
+        : nextSettings.resources[0]?.id ?? ""
+    }));
     setUnavailabilityDraft((current) => ({
       ...current,
       resourceId: nextSettings.resources.some((resource) => resource.id === current.resourceId)
@@ -334,6 +414,13 @@ export function AppointmentAdminSettingsPanel({
     applySettingsSnapshot(payload.settings);
     options.onSuccess?.();
     setSuccessMessage(options.successMessage);
+  }
+
+  function setResourceWindowRemovalReason(operatingWindowId: string, reason: string) {
+    setResourceWindowRemovalReasons((current) => ({
+      ...current,
+      [operatingWindowId]: reason
+    }));
   }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -453,6 +540,62 @@ export function AppointmentAdminSettingsPanel({
     });
   }
 
+  function updateResourceTypeDraft<K extends keyof Omit<AppointmentResourceTypeUpdateInput, "resourceTypeId">>(
+    resourceTypeId: string,
+    field: K,
+    value: Omit<AppointmentResourceTypeUpdateInput, "resourceTypeId">[K]
+  ) {
+    setResourceTypeDrafts((current) => ({
+      ...current,
+      [resourceTypeId]: {
+        ...current[resourceTypeId],
+        [field]: value
+      }
+    }));
+  }
+
+  function updateResourceTypeCreateDraft<K extends keyof AppointmentResourceTypeCreateInput>(
+    field: K,
+    value: AppointmentResourceTypeCreateInput[K]
+  ) {
+    setResourceTypeCreateDraft((current) => ({
+      ...current,
+      [field]: value
+    }));
+  }
+
+  function submitResourceTypeCreate(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    startTransition(async () => {
+      await mutateAppointmentSettings("/api/settings/appointments/resource-types", {
+        body: resourceTypeCreateDraft,
+        successMessage: "Resource type created.",
+        onSuccess: () => setResourceTypeCreateDraft(defaultResourceTypeDraft)
+      });
+    });
+  }
+
+  function submitResourceTypeUpdate(resourceTypeId: string) {
+    const draft = resourceTypeDrafts[resourceTypeId];
+
+    if (!draft) {
+      setErrorMessage("Resource type settings could not be found.");
+      return;
+    }
+
+    startTransition(async () => {
+      await mutateAppointmentSettings(
+        `/api/settings/appointments/resource-types/${encodeURIComponent(resourceTypeId)}`,
+        {
+          method: "PATCH",
+          body: draft,
+          successMessage: "Resource type settings saved."
+        }
+      );
+    });
+  }
+
   function submitResourceUnavailability(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -480,6 +623,65 @@ export function AppointmentAdminSettingsPanel({
             setUnavailabilityDraft({
               ...defaultUnavailabilityDraft,
               resourceId: unavailabilityDraft.resourceId
+            })
+        }
+      );
+    });
+  }
+
+  function submitResourceOperatingWindow(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!resourceWindowDraft.resourceId) {
+      setErrorMessage("Choose a resource before creating an operating calendar window.");
+      return;
+    }
+
+    startTransition(async () => {
+      await mutateAppointmentSettings(
+        `/api/settings/appointments/resources/${encodeURIComponent(resourceWindowDraft.resourceId)}/operating-windows`,
+        {
+          body: {
+            ...resourceWindowDraft,
+            capacityOverride: resourceWindowDraft.capacityOverride ?? null,
+            validTo: resourceWindowDraft.validTo || null
+          },
+          successMessage:
+            "Resource operating calendar saved. Availability checks can now use this resource-level schedule.",
+          onSuccess: () =>
+            setResourceWindowDraft({
+              ...defaultResourceWindowDraft,
+              resourceId: resourceWindowDraft.resourceId
+            })
+        }
+      );
+    });
+  }
+
+  function deleteResourceOperatingWindow(resourceId: string, operatingWindowId: string) {
+    const reason = resourceWindowRemovalReasons[operatingWindowId]?.trim();
+
+    if (!reason) {
+      setErrorMessage("Document why this resource operating window is being removed.");
+      setSuccessMessage("");
+      return;
+    }
+
+    startTransition(async () => {
+      await mutateAppointmentSettings(
+        `/api/settings/appointments/resources/${encodeURIComponent(resourceId)}/operating-windows/${encodeURIComponent(operatingWindowId)}`,
+        {
+          method: "DELETE",
+          body: {
+            reason
+          },
+          successMessage: "Resource operating calendar window removed.",
+          onSuccess: () =>
+            setResourceWindowRemovalReasons((current) => {
+              const next = { ...current };
+              delete next[operatingWindowId];
+
+              return next;
             })
         }
       );
@@ -961,6 +1163,116 @@ export function AppointmentAdminSettingsPanel({
 
           <div className="appointment-admin-record-list">
             <strong>Resource type editor readiness</strong>
+            <form className="appointment-admin-record" onSubmit={submitResourceTypeCreate}>
+              <span>Create governed resource type</span>
+              <strong>New appointment resource type</strong>
+              <small>
+                Codes and kinds are immutable after creation. Use inactive status instead of delete
+                when a type has operational history.
+              </small>
+
+              <div className="settings-grid">
+                <label className="field">
+                  <span>Code</span>
+                  <input
+                    value={resourceTypeCreateDraft.code}
+                    onChange={(event) => updateResourceTypeCreateDraft("code", event.target.value)}
+                    placeholder="SERVICE_BAY"
+                    required
+                  />
+                </label>
+
+                <label className="field">
+                  <span>Name</span>
+                  <input
+                    value={resourceTypeCreateDraft.name}
+                    onChange={(event) => updateResourceTypeCreateDraft("name", event.target.value)}
+                    placeholder="Service bay"
+                    required
+                  />
+                </label>
+
+                <label className="field">
+                  <span>Kind</span>
+                  <select
+                    value={resourceTypeCreateDraft.kind}
+                    onChange={(event) => updateResourceTypeCreateDraft("kind", event.target.value)}
+                  >
+                    {resourceKindOptions.map((kind) => (
+                      <option key={kind.value} value={kind.value}>
+                        {kind.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="field">
+                  <span>Default mode</span>
+                  <select
+                    value={resourceTypeCreateDraft.defaultCapacityMode}
+                    onChange={(event) =>
+                      updateResourceTypeCreateDraft("defaultCapacityMode", event.target.value)
+                    }
+                  >
+                    {capacityModes.map((mode) => (
+                      <option key={mode.value} value={mode.value}>
+                        {mode.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="field">
+                  <span>Default capacity</span>
+                  <input
+                    min={1}
+                    type="number"
+                    value={resourceTypeCreateDraft.defaultCapacity}
+                    onChange={(event) =>
+                      updateResourceTypeCreateDraft("defaultCapacity", Number(event.target.value))
+                    }
+                  />
+                </label>
+
+                <label className="field">
+                  <span>Default conflict policy</span>
+                  <select
+                    value={resourceTypeCreateDraft.defaultConflictPolicy}
+                    onChange={(event) =>
+                      updateResourceTypeCreateDraft("defaultConflictPolicy", event.target.value)
+                    }
+                  >
+                    {conflictPolicies.map((policy) => (
+                      <option key={policy.value} value={policy.value}>
+                        {policy.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="field">
+                  <span>Visibility</span>
+                  <select
+                    value={resourceTypeCreateDraft.visibilityClass}
+                    onChange={(event) =>
+                      updateResourceTypeCreateDraft("visibilityClass", event.target.value)
+                    }
+                  >
+                    {visibilityClassOptions.map((visibility) => (
+                      <option key={visibility.value} value={visibility.value}>
+                        {visibility.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="form-actions">
+                <button className="pill pill-primary" disabled={isPending} type="submit">
+                  Create resource type
+                </button>
+              </div>
+            </form>
             {settings.availabilityConfiguration.resourceTypeEditorReadiness.types.map(
               (resourceType) => (
                 <div className="appointment-admin-record" key={resourceType.typeId}>
@@ -975,6 +1287,107 @@ export function AppointmentAdminSettingsPanel({
                   {resourceType.warnings.map((warning) => (
                     <p key={warning}>{warning}</p>
                   ))}
+                  {resourceTypeDrafts[resourceType.typeId] ? (
+                    <div className="settings-grid">
+                      <label className="field">
+                        <span>Type name</span>
+                        <input
+                          value={resourceTypeDrafts[resourceType.typeId].name}
+                          onChange={(event) =>
+                            updateResourceTypeDraft(
+                              resourceType.typeId,
+                              "name",
+                              event.target.value
+                            )
+                          }
+                        />
+                      </label>
+
+                      <label className="field">
+                        <span>Default mode</span>
+                        <select
+                          value={resourceTypeDrafts[resourceType.typeId].defaultCapacityMode}
+                          onChange={(event) =>
+                            updateResourceTypeDraft(
+                              resourceType.typeId,
+                              "defaultCapacityMode",
+                              event.target.value
+                            )
+                          }
+                        >
+                          {capacityModes.map((mode) => (
+                            <option key={mode.value} value={mode.value}>
+                              {mode.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="field">
+                        <span>Default capacity</span>
+                        <input
+                          min={1}
+                          type="number"
+                          value={resourceTypeDrafts[resourceType.typeId].defaultCapacity}
+                          onChange={(event) =>
+                            updateResourceTypeDraft(
+                              resourceType.typeId,
+                              "defaultCapacity",
+                              Number(event.target.value)
+                            )
+                          }
+                        />
+                      </label>
+
+                      <label className="field">
+                        <span>Default conflict policy</span>
+                        <select
+                          value={resourceTypeDrafts[resourceType.typeId].defaultConflictPolicy}
+                          onChange={(event) =>
+                            updateResourceTypeDraft(
+                              resourceType.typeId,
+                              "defaultConflictPolicy",
+                              event.target.value
+                            )
+                          }
+                        >
+                          {conflictPolicies.map((policy) => (
+                            <option key={policy.value} value={policy.value}>
+                              {policy.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="field">
+                        <span>Status</span>
+                        <select
+                          value={resourceTypeDrafts[resourceType.typeId].isActive ? "ACTIVE" : "INACTIVE"}
+                          onChange={(event) =>
+                            updateResourceTypeDraft(
+                              resourceType.typeId,
+                              "isActive",
+                              event.target.value === "ACTIVE"
+                            )
+                          }
+                        >
+                          <option value="ACTIVE">Active</option>
+                          <option value="INACTIVE">Inactive</option>
+                        </select>
+                      </label>
+
+                      <div className="form-actions">
+                        <button
+                          className="pill pill-primary"
+                          disabled={isPending}
+                          onClick={() => submitResourceTypeUpdate(resourceType.typeId)}
+                          type="button"
+                        >
+                          Save resource type
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               )
             )}
@@ -1322,6 +1735,198 @@ export function AppointmentAdminSettingsPanel({
             </div>
           </form>
         ) : null}
+
+        <form className="panel-card settings-main-card" onSubmit={submitResourceOperatingWindow}>
+          <strong>Resource operating calendar</strong>
+          <h2>Day-level hours and capacity overrides</h2>
+          <p>
+            Define when a specific staff member, bay, vehicle, room, or shared resource operates
+            differently from the dealership default hours.
+          </p>
+
+          <div className="settings-grid">
+            <label className="field">
+              <span>Resource</span>
+              <select
+                value={resourceWindowDraft.resourceId}
+                onChange={(event) =>
+                  setResourceWindowDraft((current) => ({
+                    ...current,
+                    resourceId: event.target.value
+                  }))
+                }
+                required
+              >
+                {settings.resources.map((resource) => (
+                  <option key={resource.id} value={resource.id}>
+                    {resource.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="field">
+              <span>Day</span>
+              <select
+                value={resourceWindowDraft.businessDay}
+                onChange={(event) =>
+                  setResourceWindowDraft((current) => ({
+                    ...current,
+                    businessDay: event.target.value
+                  }))
+                }
+              >
+                {businessDayOptions.map((day) => (
+                  <option key={day.value} value={day.value}>
+                    {day.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="field">
+              <span>Opens</span>
+              <input
+                type="time"
+                value={resourceWindowDraft.opensAt}
+                onChange={(event) =>
+                  setResourceWindowDraft((current) => ({ ...current, opensAt: event.target.value }))
+                }
+                required
+              />
+            </label>
+
+            <label className="field">
+              <span>Closes</span>
+              <input
+                type="time"
+                value={resourceWindowDraft.closesAt}
+                onChange={(event) =>
+                  setResourceWindowDraft((current) => ({
+                    ...current,
+                    closesAt: event.target.value
+                  }))
+                }
+                required
+              />
+            </label>
+
+            <label className="field">
+              <span>Capacity override</span>
+              <input
+                min={1}
+                placeholder="Use default"
+                type="number"
+                value={resourceWindowDraft.capacityOverride ?? ""}
+                onChange={(event) =>
+                  setResourceWindowDraft((current) => ({
+                    ...current,
+                    capacityOverride: event.target.value ? Number(event.target.value) : null
+                  }))
+                }
+              />
+            </label>
+
+            <label className="field">
+              <span>Valid from</span>
+              <input
+                type="date"
+                value={resourceWindowDraft.validFrom}
+                onChange={(event) =>
+                  setResourceWindowDraft((current) => ({
+                    ...current,
+                    validFrom: event.target.value
+                  }))
+                }
+                required
+              />
+            </label>
+
+            <label className="field">
+              <span>Valid to</span>
+              <input
+                type="date"
+                value={resourceWindowDraft.validTo ?? ""}
+                onChange={(event) =>
+                  setResourceWindowDraft((current) => ({
+                    ...current,
+                    validTo: event.target.value || null
+                  }))
+                }
+              />
+            </label>
+
+            <label className="field appointment-admin-span">
+              <span>Reason</span>
+              <textarea
+                value={resourceWindowDraft.reason}
+                onChange={(event) =>
+                  setResourceWindowDraft((current) => ({ ...current, reason: event.target.value }))
+                }
+                placeholder="Document why this resource has custom operating hours or capacity."
+                required
+              />
+            </label>
+          </div>
+
+          <div className="form-actions">
+            <button className="pill pill-primary" disabled={isPending} type="submit">
+              {isPending ? "Saving..." : "Add resource operating window"}
+            </button>
+          </div>
+
+          <div className="appointment-admin-record-list">
+            <strong>Existing operating windows</strong>
+            {selectedResourceForWindow?.operatingWindows.length ? (
+              selectedResourceForWindow.operatingWindows.map((window) => (
+                <div className="appointment-admin-record" key={window.id}>
+                  <span>{formatKind(window.businessDay)}</span>
+                  <strong>
+                    {window.opensAt} - {window.closesAt}
+                  </strong>
+                  <small>
+                    Valid from {window.validFromIso}
+                    {window.validToIso ? ` to ${window.validToIso}` : ""}
+                    {window.capacityOverride
+                      ? ` - capacity override ${window.capacityOverride}`
+                      : " - default capacity"}
+                  </small>
+                  <div className="settings-grid">
+                    <label className="field appointment-admin-span">
+                      <span>Removal reason</span>
+                      <input
+                        value={resourceWindowRemovalReasons[window.id] ?? ""}
+                        onChange={(event) =>
+                          setResourceWindowRemovalReason(window.id, event.target.value)
+                        }
+                        placeholder="Document why this operating window should be removed."
+                      />
+                    </label>
+                    <div className="form-actions">
+                      <button
+                        className="pill pill-secondary"
+                        disabled={isPending}
+                        onClick={() =>
+                          deleteResourceOperatingWindow(
+                            selectedResourceForWindow.id,
+                            window.id
+                          )
+                        }
+                        type="button"
+                      >
+                        Remove operating window
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="field-hint">
+                No resource-specific operating calendar windows configured yet.
+              </p>
+            )}
+          </div>
+        </form>
 
         <form className="panel-card settings-main-card" onSubmit={submitResourceUnavailability}>
           <strong>Resource availability</strong>

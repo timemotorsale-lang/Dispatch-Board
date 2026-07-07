@@ -13,13 +13,19 @@ import {
   applyRecurringAppointmentClosureTemplateForManager,
   type AppointmentAdminSettingsRepository,
   createAppointmentLocationClosureForManager,
+  createAppointmentResourceOperatingWindowForManager,
+  createAppointmentResourceTypeForManager,
   createAppointmentResourceUnavailabilityForManager,
+  deleteAppointmentResourceOperatingWindowForManager,
   deleteAppointmentLocationClosureForManager,
   getAppointmentBoardSettings,
   normalizeAppointmentAdminSettingsInput,
+  normalizeAppointmentResourceOperatingWindowInput,
   normalizeAppointmentResourceUnavailabilityInput,
+  normalizeAppointmentResourceTypeUpdateInput,
   updateAppointmentLocationClosureForManager,
   updateAppointmentResourceForManager,
+  updateAppointmentResourceTypeForManager,
   updateAppointmentAdminSettings
 } from "@/server/services/appointment-admin-settings";
 import { createTestAuthStore } from "@/tests/support/auth-test-store";
@@ -76,7 +82,20 @@ function createRepository() {
         name: "Staff member",
         kind: "STAFF"
       },
+      operatingWindows: [],
       unavailability: []
+    }
+  ];
+  let resourceTypes: Awaited<ReturnType<AppointmentAdminSettingsRepository["listResourceTypes"]>> = [
+    {
+      id: "rt-staff",
+      code: "STAFF",
+      name: "Staff member",
+      kind: "STAFF",
+      defaultCapacityMode: ResourceCapacityMode.EXCLUSIVE,
+      defaultCapacity: 1,
+      defaultConflictPolicy: ResourceConflictPolicy.HARD_BLOCK,
+      isActive: true
     }
   ];
   let lastUpdate:
@@ -91,18 +110,7 @@ function createRepository() {
       return closures;
     },
     async listResourceTypes() {
-      return [
-        {
-          id: "rt-staff",
-          code: "STAFF",
-          name: "Staff member",
-          kind: "STAFF",
-          defaultCapacityMode: ResourceCapacityMode.EXCLUSIVE,
-          defaultCapacity: 1,
-          defaultConflictPolicy: ResourceConflictPolicy.HARD_BLOCK,
-          isActive: true
-        }
-      ];
+      return resourceTypes;
     },
     async listResources() {
       return resources;
@@ -155,6 +163,74 @@ function createRepository() {
       );
 
       return resources.find((resource) => resource.id === input.resourceId)!;
+    },
+    async createResourceType(input) {
+      const resourceType = {
+        id: `rt-${input.code.toLowerCase()}`,
+        code: input.code,
+        name: input.name,
+        kind: input.kind,
+        defaultCapacityMode: input.defaultCapacityMode,
+        defaultCapacity: input.defaultCapacity,
+        defaultConflictPolicy: input.defaultConflictPolicy,
+        isActive: true
+      };
+      resourceTypes = [...resourceTypes, resourceType];
+
+      return resourceType;
+    },
+    async updateResourceType(input) {
+      resourceTypes = resourceTypes.map((resourceType) =>
+        resourceType.id === input.resourceTypeId
+          ? {
+              ...resourceType,
+              name: input.name,
+              defaultCapacityMode: input.defaultCapacityMode,
+              defaultCapacity: input.defaultCapacity,
+              defaultConflictPolicy: input.defaultConflictPolicy,
+              isActive: input.isActive
+            }
+          : resourceType
+      );
+
+      return resourceTypes.find((resourceType) => resourceType.id === input.resourceTypeId)!;
+    },
+    async createResourceOperatingWindow(input) {
+      const entry = {
+        id: `resource-window-${resources[0].operatingWindows.length + 1}`,
+        businessDay: input.businessDay,
+        opensAtMinute: input.opensAtMinute,
+        closesAtMinute: input.closesAtMinute,
+        capacityOverride: input.capacityOverride,
+        validFrom: input.validFrom,
+        validTo: input.validTo
+      };
+      resources = resources.map((resource) =>
+        resource.id === input.resourceId
+          ? {
+              ...resource,
+              operatingWindows: [...resource.operatingWindows, entry]
+            }
+          : resource
+      );
+
+      return entry;
+    },
+    async deleteResourceOperatingWindow(input) {
+      if (!input.reason.trim()) {
+        throw new Error("Resource operating window removal reason is required.");
+      }
+
+      resources = resources.map((resource) =>
+        resource.id === input.resourceId
+          ? {
+              ...resource,
+              operatingWindows: resource.operatingWindows.filter(
+                (window) => window.id !== input.operatingWindowId
+              )
+            }
+          : resource
+      );
     },
     async createResourceUnavailability(input) {
       const entry = {
@@ -504,6 +580,208 @@ describe("appointment admin settings service", () => {
       resourceName: "Abdi Farah",
       suggestedReduction: 1
     });
+  });
+
+  it("allows managers to update resource type defaults", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createRepository();
+
+    const settings = await updateAppointmentResourceTypeForManager(
+      manager,
+      {
+        resourceTypeId: "rt-staff",
+        name: "Staff advisor",
+        defaultCapacityMode: ResourceCapacityMode.CAPACITY,
+        defaultCapacity: 2,
+        defaultConflictPolicy: ResourceConflictPolicy.WARNING,
+        isActive: true
+      },
+      repository
+    );
+
+    expect(settings.resourceTypes[0]).toMatchObject({
+      id: "rt-staff",
+      name: "Staff advisor",
+      defaultCapacityMode: ResourceCapacityMode.CAPACITY,
+      defaultCapacity: 2,
+      defaultConflictPolicy: ResourceConflictPolicy.WARNING,
+      isActive: true
+    });
+    expect(settings.availabilityConfiguration.resourceTypeEditorReadiness.types[0]).toMatchObject({
+      name: "Staff advisor",
+      readiness: "READY"
+    });
+  });
+
+  it("allows managers to create governed resource types", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createRepository();
+
+    const settings = await createAppointmentResourceTypeForManager(
+      manager,
+      {
+        code: "SERVICE_BAY",
+        name: "Service bay",
+        kind: "SERVICE_BAY",
+        defaultCapacityMode: ResourceCapacityMode.CAPACITY,
+        defaultCapacity: 2,
+        defaultConflictPolicy: ResourceConflictPolicy.WARNING,
+        visibilityClass: "OPERATIONAL"
+      },
+      repository
+    );
+
+    expect(settings.resourceTypes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "SERVICE_BAY",
+          name: "Service bay",
+          kind: "SERVICE_BAY",
+          defaultCapacityMode: ResourceCapacityMode.CAPACITY,
+          defaultCapacity: 2
+        })
+      ])
+    );
+  });
+
+  it("rejects duplicate resource type codes", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createRepository();
+
+    await expect(
+      createAppointmentResourceTypeForManager(
+        manager,
+        {
+          code: "STAFF",
+          name: "Duplicate staff",
+          kind: "STAFF",
+          defaultCapacityMode: ResourceCapacityMode.EXCLUSIVE,
+          defaultCapacity: 1,
+          defaultConflictPolicy: ResourceConflictPolicy.HARD_BLOCK,
+          visibilityClass: "OPERATIONAL"
+        },
+        repository
+      )
+    ).rejects.toThrow(/already exists/);
+  });
+
+  it("rejects exclusive resource types with capacity above one", () => {
+    expect(() =>
+      normalizeAppointmentResourceTypeUpdateInput({
+        organizationId: "org-time-motor-sales",
+        resourceTypeId: "rt-staff",
+        update: {
+          resourceTypeId: "rt-staff",
+          name: "Staff member",
+          defaultCapacityMode: ResourceCapacityMode.EXCLUSIVE,
+          defaultCapacity: 2,
+          defaultConflictPolicy: ResourceConflictPolicy.HARD_BLOCK,
+          isActive: true
+        }
+      })
+    ).toThrow(/exclusive resource type/);
+  });
+
+  it("allows managers to create resource operating calendar windows", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createRepository();
+
+    const settings = await createAppointmentResourceOperatingWindowForManager(
+      manager,
+      {
+        resourceId: "res-abdi",
+        businessDay: BusinessDay.MONDAY,
+        opensAt: "10:00",
+        closesAt: "16:00",
+        capacityOverride: 1,
+        validFrom: "2026-07-07",
+        validTo: null,
+        reason: "Manager limited advisor calendar for training."
+      },
+      repository
+    );
+
+    expect(settings.resources[0].operatingWindows).toEqual([
+      expect.objectContaining({
+        businessDay: BusinessDay.MONDAY,
+        opensAt: "10:00",
+        closesAt: "16:00",
+        capacityOverride: 1,
+        validFromIso: "2026-07-07"
+      })
+    ]);
+  });
+
+  it("allows managers to remove resource operating calendar windows with a reason", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createRepository();
+
+    const created = await createAppointmentResourceOperatingWindowForManager(
+      manager,
+      {
+        resourceId: "res-abdi",
+        businessDay: BusinessDay.MONDAY,
+        opensAt: "10:00",
+        closesAt: "16:00",
+        capacityOverride: 1,
+        validFrom: "2026-07-07",
+        validTo: null,
+        reason: "Temporary training coverage."
+      },
+      repository
+    );
+
+    const removed = await deleteAppointmentResourceOperatingWindowForManager(
+      manager,
+      {
+        resourceId: "res-abdi",
+        operatingWindowId: created.resources[0].operatingWindows[0].id,
+        reason: "Training coverage calendar replaced by normal hours."
+      },
+      repository
+    );
+
+    expect(removed.resources[0].operatingWindows).toEqual([]);
+  });
+
+  it("rejects malformed resource operating calendar windows", () => {
+    expect(() =>
+      normalizeAppointmentResourceOperatingWindowInput({
+        locationId: "loc-time-motor-sales-minneapolis",
+        resourceId: "res-abdi",
+        window: {
+          resourceId: "res-abdi",
+          businessDay: BusinessDay.MONDAY,
+          opensAt: "18:00",
+          closesAt: "09:00",
+          validFrom: "2026-07-07",
+          validTo: null,
+          reason: "Backwards operating window."
+        }
+      })
+    ).toThrow(/closing time/);
+
+    expect(() =>
+      normalizeAppointmentResourceOperatingWindowInput({
+        locationId: "loc-time-motor-sales-minneapolis",
+        resourceId: "res-abdi",
+        window: {
+          resourceId: "res-abdi",
+          businessDay: BusinessDay.FRIDAY,
+          opensAt: "09:00",
+          closesAt: "17:00",
+          capacityOverride: 0,
+          validFrom: "2026-07-07",
+          validTo: "2026-07-06",
+          reason: "Invalid date and capacity."
+        }
+      })
+    ).toThrow(/valid-to date/);
   });
 
   it("allows managers to create resource capacity reductions", async () => {
