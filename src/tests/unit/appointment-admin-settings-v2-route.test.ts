@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   updateAppointmentLocationClosureForManager: vi.fn(),
   deleteAppointmentLocationClosureForManager: vi.fn(),
   updateAppointmentResourceForManager: vi.fn(),
+  createAppointmentResourceTypeForManager: vi.fn(),
   updateAppointmentResourceTypeForManager: vi.fn(),
   createAppointmentResourceUnavailabilityForManager: vi.fn()
 }));
@@ -22,6 +23,7 @@ vi.mock("@/server/services/appointment-admin-settings", () => ({
   updateAppointmentLocationClosureForManager: mocks.updateAppointmentLocationClosureForManager,
   deleteAppointmentLocationClosureForManager: mocks.deleteAppointmentLocationClosureForManager,
   updateAppointmentResourceForManager: mocks.updateAppointmentResourceForManager,
+  createAppointmentResourceTypeForManager: mocks.createAppointmentResourceTypeForManager,
   updateAppointmentResourceTypeForManager: mocks.updateAppointmentResourceTypeForManager,
   createAppointmentResourceUnavailabilityForManager:
     mocks.createAppointmentResourceUnavailabilityForManager
@@ -34,6 +36,7 @@ import {
   PATCH as PATCHClosure
 } from "@/app/api/settings/appointments/closures/[closureId]/route";
 import { PATCH as PATCHResource } from "@/app/api/settings/appointments/resources/[resourceId]/route";
+import { POST as POSTResourceType } from "@/app/api/settings/appointments/resource-types/route";
 import { PATCH as PATCHResourceType } from "@/app/api/settings/appointments/resource-types/[resourceTypeId]/route";
 import { POST as POSTResourceUnavailability } from "@/app/api/settings/appointments/resources/[resourceId]/unavailability/route";
 
@@ -64,6 +67,7 @@ describe("appointment admin settings v2 routes", () => {
     mocks.updateAppointmentLocationClosureForManager.mockResolvedValue(settings);
     mocks.deleteAppointmentLocationClosureForManager.mockResolvedValue(settings);
     mocks.updateAppointmentResourceForManager.mockResolvedValue(settings);
+    mocks.createAppointmentResourceTypeForManager.mockResolvedValue(settings);
     mocks.updateAppointmentResourceTypeForManager.mockResolvedValue(settings);
     mocks.createAppointmentResourceUnavailabilityForManager.mockResolvedValue(settings);
   });
@@ -192,6 +196,32 @@ describe("appointment admin settings v2 routes", () => {
       ...payload,
       resourceId: "res-abdi"
     });
+  });
+
+  it("creates resource types for managers", async () => {
+    const payload = {
+      code: "SERVICE_BAY",
+      name: "Service bay",
+      kind: "SERVICE_BAY",
+      defaultCapacityMode: "CAPACITY",
+      defaultCapacity: 2,
+      defaultConflictPolicy: "WARNING",
+      visibilityClass: "OPERATIONAL"
+    };
+
+    const response = await POSTResourceType(
+      new Request("http://localhost/api/settings/appointments/resource-types", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      })
+    );
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toEqual({ settings });
+    expect(mocks.createAppointmentResourceTypeForManager).toHaveBeenCalledWith(
+      managerUser,
+      payload
+    );
   });
 
   it("updates resource type defaults for managers", async () => {

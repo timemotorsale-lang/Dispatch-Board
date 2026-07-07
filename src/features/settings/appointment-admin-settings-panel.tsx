@@ -11,6 +11,7 @@ import type {
   AppointmentAdminSettingsInput,
   AppointmentLocationClosureInput,
   AppointmentOperatingWindowInput,
+  AppointmentResourceTypeCreateInput,
   AppointmentResourceTypeUpdateInput,
   AppointmentResourceUnavailabilityInput,
   AppointmentResourceUpdateInput
@@ -66,6 +67,23 @@ const unavailabilityTypes = [
   { value: "OTHER", label: "Other" }
 ] as const;
 
+const resourceKindOptions = [
+  { value: "STAFF", label: "Staff" },
+  { value: "VEHICLE", label: "Vehicle" },
+  { value: "SERVICE_BAY", label: "Service bay" },
+  { value: "ROOM", label: "Room" },
+  { value: "EQUIPMENT", label: "Equipment" },
+  { value: "POOL", label: "Pool" },
+  { value: "LOCATION", label: "Location" },
+  { value: "OTHER", label: "Other" }
+] as const;
+
+const visibilityClassOptions = [
+  { value: "OPERATIONAL", label: "Operational" },
+  { value: "LIMITED", label: "Limited" },
+  { value: "RESTRICTED", label: "Restricted" }
+] as const;
+
 type AppointmentAdminSettingsPanelProps = {
   initialSettings: AppointmentAdminSettings;
 };
@@ -98,6 +116,16 @@ const defaultUnavailabilityDraft: AppointmentResourceUnavailabilityInput = {
   endsAt: "2026-07-07T18:00",
   capacityReduction: null,
   reason: ""
+};
+
+const defaultResourceTypeDraft: AppointmentResourceTypeCreateInput = {
+  code: "",
+  name: "",
+  kind: "OTHER",
+  defaultCapacityMode: "EXCLUSIVE",
+  defaultCapacity: 1,
+  defaultConflictPolicy: "HARD_BLOCK",
+  visibilityClass: "OPERATIONAL"
 };
 
 function toFormState(settings: AppointmentAdminSettings): AppointmentSettingsFormState {
@@ -197,6 +225,8 @@ export function AppointmentAdminSettingsPanel({
   const [resourceTypeDrafts, setResourceTypeDrafts] = useState(() =>
     toResourceTypeFormState(initialSettings)
   );
+  const [resourceTypeCreateDraft, setResourceTypeCreateDraft] =
+    useState<AppointmentResourceTypeCreateInput>(defaultResourceTypeDraft);
   const [unavailabilityDraft, setUnavailabilityDraft] = useState<AppointmentResourceUnavailabilityInput>({
     ...defaultUnavailabilityDraft,
     resourceId: initialSettings.resources[0]?.id ?? ""
@@ -486,6 +516,28 @@ export function AppointmentAdminSettingsPanel({
         [field]: value
       }
     }));
+  }
+
+  function updateResourceTypeCreateDraft<K extends keyof AppointmentResourceTypeCreateInput>(
+    field: K,
+    value: AppointmentResourceTypeCreateInput[K]
+  ) {
+    setResourceTypeCreateDraft((current) => ({
+      ...current,
+      [field]: value
+    }));
+  }
+
+  function submitResourceTypeCreate(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    startTransition(async () => {
+      await mutateAppointmentSettings("/api/settings/appointments/resource-types", {
+        body: resourceTypeCreateDraft,
+        successMessage: "Resource type created.",
+        onSuccess: () => setResourceTypeCreateDraft(defaultResourceTypeDraft)
+      });
+    });
   }
 
   function submitResourceTypeUpdate(resourceTypeId: string) {
@@ -1016,6 +1068,116 @@ export function AppointmentAdminSettingsPanel({
 
           <div className="appointment-admin-record-list">
             <strong>Resource type editor readiness</strong>
+            <form className="appointment-admin-record" onSubmit={submitResourceTypeCreate}>
+              <span>Create governed resource type</span>
+              <strong>New appointment resource type</strong>
+              <small>
+                Codes and kinds are immutable after creation. Use inactive status instead of delete
+                when a type has operational history.
+              </small>
+
+              <div className="settings-grid">
+                <label className="field">
+                  <span>Code</span>
+                  <input
+                    value={resourceTypeCreateDraft.code}
+                    onChange={(event) => updateResourceTypeCreateDraft("code", event.target.value)}
+                    placeholder="SERVICE_BAY"
+                    required
+                  />
+                </label>
+
+                <label className="field">
+                  <span>Name</span>
+                  <input
+                    value={resourceTypeCreateDraft.name}
+                    onChange={(event) => updateResourceTypeCreateDraft("name", event.target.value)}
+                    placeholder="Service bay"
+                    required
+                  />
+                </label>
+
+                <label className="field">
+                  <span>Kind</span>
+                  <select
+                    value={resourceTypeCreateDraft.kind}
+                    onChange={(event) => updateResourceTypeCreateDraft("kind", event.target.value)}
+                  >
+                    {resourceKindOptions.map((kind) => (
+                      <option key={kind.value} value={kind.value}>
+                        {kind.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="field">
+                  <span>Default mode</span>
+                  <select
+                    value={resourceTypeCreateDraft.defaultCapacityMode}
+                    onChange={(event) =>
+                      updateResourceTypeCreateDraft("defaultCapacityMode", event.target.value)
+                    }
+                  >
+                    {capacityModes.map((mode) => (
+                      <option key={mode.value} value={mode.value}>
+                        {mode.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="field">
+                  <span>Default capacity</span>
+                  <input
+                    min={1}
+                    type="number"
+                    value={resourceTypeCreateDraft.defaultCapacity}
+                    onChange={(event) =>
+                      updateResourceTypeCreateDraft("defaultCapacity", Number(event.target.value))
+                    }
+                  />
+                </label>
+
+                <label className="field">
+                  <span>Default conflict policy</span>
+                  <select
+                    value={resourceTypeCreateDraft.defaultConflictPolicy}
+                    onChange={(event) =>
+                      updateResourceTypeCreateDraft("defaultConflictPolicy", event.target.value)
+                    }
+                  >
+                    {conflictPolicies.map((policy) => (
+                      <option key={policy.value} value={policy.value}>
+                        {policy.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="field">
+                  <span>Visibility</span>
+                  <select
+                    value={resourceTypeCreateDraft.visibilityClass}
+                    onChange={(event) =>
+                      updateResourceTypeCreateDraft("visibilityClass", event.target.value)
+                    }
+                  >
+                    {visibilityClassOptions.map((visibility) => (
+                      <option key={visibility.value} value={visibility.value}>
+                        {visibility.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="form-actions">
+                <button className="pill pill-primary" disabled={isPending} type="submit">
+                  Create resource type
+                </button>
+              </div>
+            </form>
             {settings.availabilityConfiguration.resourceTypeEditorReadiness.types.map(
               (resourceType) => (
                 <div className="appointment-admin-record" key={resourceType.typeId}>

@@ -166,6 +166,8 @@ describe("appointment admin settings panel", () => {
     expect(markup).toContain("Capacity override drafts");
     expect(markup).toContain("Use capacity override draft");
     expect(markup).toContain("Resource type editor readiness");
+    expect(markup).toContain("Create governed resource type");
+    expect(markup).toContain("Create resource type");
     expect(markup).toContain("Default conflict policy");
     expect(markup).toContain("Save resource type");
     expect(markup).toContain("Closure and resource-impact preview");

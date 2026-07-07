@@ -13,6 +13,7 @@ import {
   applyRecurringAppointmentClosureTemplateForManager,
   type AppointmentAdminSettingsRepository,
   createAppointmentLocationClosureForManager,
+  createAppointmentResourceTypeForManager,
   createAppointmentResourceUnavailabilityForManager,
   deleteAppointmentLocationClosureForManager,
   getAppointmentBoardSettings,
@@ -158,6 +159,21 @@ function createRepository() {
       );
 
       return resources.find((resource) => resource.id === input.resourceId)!;
+    },
+    async createResourceType(input) {
+      const resourceType = {
+        id: `rt-${input.code.toLowerCase()}`,
+        code: input.code,
+        name: input.name,
+        kind: input.kind,
+        defaultCapacityMode: input.defaultCapacityMode,
+        defaultCapacity: input.defaultCapacity,
+        defaultConflictPolicy: input.defaultConflictPolicy,
+        isActive: true
+      };
+      resourceTypes = [...resourceTypes, resourceType];
+
+      return resourceType;
     },
     async updateResourceType(input) {
       resourceTypes = resourceTypes.map((resourceType) =>
@@ -555,6 +571,60 @@ describe("appointment admin settings service", () => {
       name: "Staff advisor",
       readiness: "READY"
     });
+  });
+
+  it("allows managers to create governed resource types", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createRepository();
+
+    const settings = await createAppointmentResourceTypeForManager(
+      manager,
+      {
+        code: "SERVICE_BAY",
+        name: "Service bay",
+        kind: "SERVICE_BAY",
+        defaultCapacityMode: ResourceCapacityMode.CAPACITY,
+        defaultCapacity: 2,
+        defaultConflictPolicy: ResourceConflictPolicy.WARNING,
+        visibilityClass: "OPERATIONAL"
+      },
+      repository
+    );
+
+    expect(settings.resourceTypes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "SERVICE_BAY",
+          name: "Service bay",
+          kind: "SERVICE_BAY",
+          defaultCapacityMode: ResourceCapacityMode.CAPACITY,
+          defaultCapacity: 2
+        })
+      ])
+    );
+  });
+
+  it("rejects duplicate resource type codes", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createRepository();
+
+    await expect(
+      createAppointmentResourceTypeForManager(
+        manager,
+        {
+          code: "STAFF",
+          name: "Duplicate staff",
+          kind: "STAFF",
+          defaultCapacityMode: ResourceCapacityMode.EXCLUSIVE,
+          defaultCapacity: 1,
+          defaultConflictPolicy: ResourceConflictPolicy.HARD_BLOCK,
+          visibilityClass: "OPERATIONAL"
+        },
+        repository
+      )
+    ).rejects.toThrow(/already exists/);
   });
 
   it("rejects exclusive resource types with capacity above one", () => {

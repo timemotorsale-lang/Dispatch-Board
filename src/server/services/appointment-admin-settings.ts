@@ -3,7 +3,9 @@ import {
   LocationClosureType,
   ResourceCapacityMode,
   ResourceConflictPolicy,
+  ResourceVisibilityClass,
   ResourceUnavailabilityType,
+  SchedulableResourceKind,
   SchedulableResourceStatus,
   type LocationSchedulingStatus
 } from "@prisma/client";
@@ -35,6 +37,8 @@ const validResourceStatuses = new Set<string>(Object.values(SchedulableResourceS
 const validResourceCapacityModes = new Set<string>(Object.values(ResourceCapacityMode));
 const validResourceConflictPolicies = new Set<string>(Object.values(ResourceConflictPolicy));
 const validResourceUnavailabilityTypes = new Set<string>(Object.values(ResourceUnavailabilityType));
+const validResourceKinds = new Set<string>(Object.values(SchedulableResourceKind));
+const validResourceVisibilityClasses = new Set<string>(Object.values(ResourceVisibilityClass));
 
 type AppointmentAdminLocationRecord = {
   id: string;
@@ -126,6 +130,7 @@ export type AppointmentAdminSettingsRepository = {
   updateLocationClosure(input: NormalizedAppointmentLocationClosureUpdateInput): Promise<AppointmentAdminLocationClosureRecord>;
   deleteLocationClosure(input: AppointmentLocationClosureDeleteInput): Promise<void>;
   updateResource(input: NormalizedAppointmentResourceUpdateInput): Promise<AppointmentAdminResourceRecord>;
+  createResourceType(input: NormalizedAppointmentResourceTypeCreateInput): Promise<AppointmentAdminResourceTypeRecord>;
   updateResourceType(input: NormalizedAppointmentResourceTypeUpdateInput): Promise<AppointmentAdminResourceTypeRecord>;
   createResourceUnavailability(input: NormalizedAppointmentResourceUnavailabilityInput): Promise<AppointmentAdminResourceUnavailabilityRecord>;
   updateLocationAndHours(input: {
@@ -188,6 +193,16 @@ export type AppointmentResourceTypeUpdateInput = {
   isActive: boolean;
 };
 
+export type AppointmentResourceTypeCreateInput = {
+  code: string;
+  name: string;
+  kind: string;
+  defaultCapacityMode: string;
+  defaultCapacity: number;
+  defaultConflictPolicy: string;
+  visibilityClass: string;
+};
+
 export type AppointmentResourceUnavailabilityInput = {
   resourceId: string;
   type: string;
@@ -244,6 +259,17 @@ export type NormalizedAppointmentResourceTypeUpdateInput = {
   defaultCapacity: number;
   defaultConflictPolicy: ResourceConflictPolicy;
   isActive: boolean;
+};
+
+export type NormalizedAppointmentResourceTypeCreateInput = {
+  organizationId: string;
+  code: string;
+  name: string;
+  kind: SchedulableResourceKind;
+  defaultCapacityMode: ResourceCapacityMode;
+  defaultCapacity: number;
+  defaultConflictPolicy: ResourceConflictPolicy;
+  visibilityClass: ResourceVisibilityClass;
 };
 
 export type NormalizedAppointmentResourceUnavailabilityInput = {
@@ -472,6 +498,16 @@ function normalizePositiveInteger(value: unknown, label: string, maxValue = 1000
 
   if (normalized > maxValue) {
     throw new Error(`${label} must be ${maxValue} or fewer.`);
+  }
+
+  return normalized;
+}
+
+function normalizeStableCode(value: unknown, label: string, maxLength: number) {
+  const normalized = normalizeText(value, label, maxLength).toUpperCase().replace(/\s+/g, "_");
+
+  if (!/^[A-Z0-9][A-Z0-9_-]*$/.test(normalized)) {
+    throw new Error(`${label} must use letters, numbers, dashes, or underscores.`);
   }
 
   return normalized;
@@ -809,6 +845,64 @@ export function normalizeAppointmentResourceTypeUpdateInput(input: {
     defaultCapacity,
     defaultConflictPolicy: defaultConflictPolicy as ResourceConflictPolicy,
     isActive: Boolean(input.update?.isActive)
+  };
+}
+
+export function normalizeAppointmentResourceTypeCreateInput(input: {
+  organizationId: string;
+  create: AppointmentResourceTypeCreateInput;
+}): NormalizedAppointmentResourceTypeCreateInput {
+  const kind = normalizeText(input.create?.kind, "Resource type kind", 40);
+  const defaultCapacityMode = normalizeText(
+    input.create?.defaultCapacityMode,
+    "Resource type capacity mode",
+    40
+  );
+  const defaultConflictPolicy = normalizeText(
+    input.create?.defaultConflictPolicy,
+    "Resource type conflict policy",
+    40
+  );
+  const visibilityClass = normalizeText(
+    input.create?.visibilityClass,
+    "Resource type visibility class",
+    40
+  );
+  const defaultCapacity = normalizePositiveInteger(
+    input.create?.defaultCapacity,
+    "Resource type default capacity",
+    1000
+  );
+
+  if (!validResourceKinds.has(kind)) {
+    throw new Error("Resource type kind is invalid.");
+  }
+
+  if (!validResourceCapacityModes.has(defaultCapacityMode)) {
+    throw new Error("Resource type capacity mode is invalid.");
+  }
+
+  if (!validResourceConflictPolicies.has(defaultConflictPolicy)) {
+    throw new Error("Resource type conflict policy is invalid.");
+  }
+
+  if (!validResourceVisibilityClasses.has(visibilityClass)) {
+    throw new Error("Resource type visibility class is invalid.");
+  }
+
+  if (defaultCapacityMode === "EXCLUSIVE" && defaultCapacity !== 1) {
+    throw new Error("An exclusive resource type must have default capacity 1.");
+  }
+
+  return {
+    organizationId: normalizeText(input.organizationId, "Resource type organization", 120),
+    code: normalizeStableCode(input.create?.code, "Resource type code", 80),
+    name: normalizeText(input.create?.name, "Resource type name", 120),
+    kind: kind as SchedulableResourceKind,
+    defaultCapacityMode: defaultCapacityMode as ResourceCapacityMode,
+    defaultCapacity,
+    defaultConflictPolicy: defaultConflictPolicy as ResourceConflictPolicy,
+    visibilityClass: visibilityClass as ResourceVisibilityClass
   };
 }
 
@@ -1688,6 +1782,32 @@ export function createAppointmentAdminSettingsRepository(): AppointmentAdminSett
         }
       });
     },
+    async createResourceType(input) {
+      return prisma.schedulableResourceType.create({
+        data: {
+          organizationId: input.organizationId,
+          code: input.code,
+          name: input.name,
+          kind: input.kind,
+          defaultCapacityMode: input.defaultCapacityMode,
+          defaultCapacity: input.defaultCapacity,
+          defaultConflictPolicy: input.defaultConflictPolicy,
+          visibilityClass: input.visibilityClass,
+          attributeSchema: {},
+          isActive: true
+        },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          kind: true,
+          defaultCapacityMode: true,
+          defaultCapacity: true,
+          defaultConflictPolicy: true,
+          isActive: true
+        }
+      });
+    },
     async updateResourceType(input) {
       return prisma.schedulableResourceType.update({
         where: {
@@ -2043,6 +2163,34 @@ export async function updateAppointmentResourceForManager(
       update: input
     })
   );
+
+  return getAppointmentAdminSettings(repository);
+}
+
+export async function createAppointmentResourceTypeForManager(
+  user: AuthenticatedUser | null,
+  input: AppointmentResourceTypeCreateInput,
+  repository: AppointmentAdminSettingsRepository = createAppointmentAdminSettingsRepository()
+) {
+  assertCanManageAppointmentAdminSettings(user);
+
+  const location = await repository.getLocation();
+
+  if (!location) {
+    throw new Error("Appointment location settings are not configured.");
+  }
+
+  const normalizedInput = normalizeAppointmentResourceTypeCreateInput({
+    organizationId: location.organizationId,
+    create: input
+  });
+  const existingTypes = await repository.listResourceTypes(location.organizationId);
+
+  if (existingTypes.some((resourceType) => resourceType.code === normalizedInput.code)) {
+    throw new Error("Resource type code already exists.");
+  }
+
+  await repository.createResourceType(normalizedInput);
 
   return getAppointmentAdminSettings(repository);
 }
