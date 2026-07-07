@@ -289,6 +289,32 @@ export type AppointmentAdminSettings = {
     enabled: boolean;
     missingInputBehavior: string;
   }>;
+  specialHoursCalendar: {
+    horizonStartIso: string;
+    horizonEndIso: string;
+    days: Array<{
+      dateIso: string;
+      businessDay: BusinessDay;
+      status: "OPEN" | "CLOSED" | "RESOURCE_IMPACT";
+      label: string;
+      opensAt: string | null;
+      closesAt: string | null;
+      closureIds: string[];
+      closureNames: string[];
+      resourceImpactCount: number;
+      resourceImpactNames: string[];
+      warnings: string[];
+    }>;
+    summary: {
+      openDayCount: number;
+      closedDayCount: number;
+      resourceImpactDayCount: number;
+      upcomingClosureCount: number;
+      upcomingResourceImpactCount: number;
+      nextClosureName: string | null;
+      nextClosureStartsAtIso: string | null;
+    };
+  };
 };
 
 export type AppointmentBoardSettings = {
@@ -763,6 +789,133 @@ function serializeResource(resource: AppointmentAdminResourceRecord) {
   };
 }
 
+function localDateKey(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function startOfUtcDay(date: Date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+function addUtcDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+
+  return next;
+}
+
+function businessDayFromDate(date: Date): BusinessDay {
+  const day = date.getUTCDay();
+
+  return (
+    [
+      BusinessDay.SUNDAY,
+      BusinessDay.MONDAY,
+      BusinessDay.TUESDAY,
+      BusinessDay.WEDNESDAY,
+      BusinessDay.THURSDAY,
+      BusinessDay.FRIDAY,
+      BusinessDay.SATURDAY
+    ] as const
+  )[day];
+}
+
+function minutesToTime(value: number | null) {
+  if (value === null) {
+    return null;
+  }
+
+  const hours = Math.floor(value / 60);
+  const minutes = value % 60;
+
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function overlapsDay(input: { startsAt: Date; endsAt: Date }, dayStart: Date) {
+  const dayEnd = addUtcDays(dayStart, 1);
+
+  return input.startsAt < dayEnd && input.endsAt > dayStart;
+}
+
+function buildSpecialHoursCalendar(input: {
+  windows: AppointmentAdminOperatingWindowRecord[];
+  closures: AppointmentAdminLocationClosureRecord[];
+  resources: AppointmentAdminResourceRecord[];
+}): AppointmentAdminSettings["specialHoursCalendar"] {
+  const earliestClosure = input.closures
+    .map((closure) => closure.startsAt)
+    .sort((left, right) => left.getTime() - right.getTime())[0];
+  const horizonStart = startOfUtcDay(earliestClosure ?? new Date());
+  const horizonEnd = addUtcDays(horizonStart, 13);
+  const windowsByDay = new Map(
+    input.windows.map((window) => [window.businessDay, window])
+  );
+  const resourceImpacts = input.resources.flatMap((resource) =>
+    resource.unavailability.map((entry) => ({
+      ...entry,
+      resourceName: resource.name
+    }))
+  );
+  const days = Array.from({ length: 14 }, (_, index) => {
+    const day = addUtcDays(horizonStart, index);
+    const businessDay = businessDayFromDate(day);
+    const window = windowsByDay.get(businessDay);
+    const closures = input.closures.filter((closure) => overlapsDay(closure, day));
+    const impacts = resourceImpacts.filter((impact) => overlapsDay(impact, day));
+    const isOpen = Boolean(window);
+    const status: AppointmentAdminSettings["specialHoursCalendar"]["days"][number]["status"] =
+      closures.length > 0
+        ? "CLOSED"
+        : impacts.length > 0
+          ? "RESOURCE_IMPACT"
+          : isOpen
+            ? "OPEN"
+            : "CLOSED";
+    const warnings = [
+      closures.length > 0 ? "Location closure blocks appointment scheduling." : null,
+      impacts.length > 0 ? "Resource availability is reduced on this day." : null,
+      !isOpen && closures.length === 0 ? "No operating window configured for this day." : null
+    ].filter((warning): warning is string => Boolean(warning));
+
+    return {
+      dateIso: localDateKey(day),
+      businessDay,
+      status,
+      label:
+        status === "CLOSED"
+          ? closures[0]?.name ?? "Closed"
+          : status === "RESOURCE_IMPACT"
+            ? "Resource impact"
+            : "Open",
+      opensAt: minutesToTime(window?.opensAtMinute ?? null),
+      closesAt: minutesToTime(window?.closesAtMinute ?? null),
+      closureIds: closures.map((closure) => closure.id),
+      closureNames: closures.map((closure) => closure.name),
+      resourceImpactCount: impacts.length,
+      resourceImpactNames: [...new Set(impacts.map((impact) => impact.resourceName))],
+      warnings
+    };
+  });
+  const upcomingClosures = input.closures
+    .filter((closure) => closure.endsAt >= horizonStart)
+    .sort((left, right) => left.startsAt.getTime() - right.startsAt.getTime());
+
+  return {
+    horizonStartIso: localDateKey(horizonStart),
+    horizonEndIso: localDateKey(horizonEnd),
+    days,
+    summary: {
+      openDayCount: days.filter((day) => day.status === "OPEN").length,
+      closedDayCount: days.filter((day) => day.status === "CLOSED").length,
+      resourceImpactDayCount: days.filter((day) => day.status === "RESOURCE_IMPACT").length,
+      upcomingClosureCount: upcomingClosures.length,
+      upcomingResourceImpactCount: resourceImpacts.length,
+      nextClosureName: upcomingClosures[0]?.name ?? null,
+      nextClosureStartsAtIso: upcomingClosures[0]?.startsAt.toISOString() ?? null
+    }
+  };
+}
+
 function toSettings(input: {
   location: AppointmentAdminLocationRecord;
   closures: AppointmentAdminLocationClosureRecord[];
@@ -796,7 +949,12 @@ function toSettings(input: {
     resourceTypes: input.resourceTypes,
     resources: input.resources.map(serializeResource),
     catalogs: getCatalogs(),
-    automationRules: getAutomationRules()
+    automationRules: getAutomationRules(),
+    specialHoursCalendar: buildSpecialHoursCalendar({
+      windows: input.location.operatingWindows,
+      closures: input.closures,
+      resources: input.resources
+    })
   };
 }
 

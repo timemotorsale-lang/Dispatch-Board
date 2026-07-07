@@ -391,6 +391,8 @@ describe("appointment admin settings service", () => {
         reason: "Dealership holiday closure."
       })
     ]);
+    expect(settings.specialHoursCalendar.summary.upcomingClosureCount).toBe(1);
+    expect(settings.specialHoursCalendar.days.some((day) => day.status === "CLOSED")).toBe(true);
   });
 
   it("allows managers to edit and delete location closures", async () => {
@@ -489,6 +491,10 @@ describe("appointment admin settings service", () => {
         reason: "Partial staffing coverage."
       })
     ]);
+    expect(settings.specialHoursCalendar.summary.upcomingResourceImpactCount).toBe(1);
+    expect(settings.specialHoursCalendar.days.some((day) => day.status === "RESOURCE_IMPACT")).toBe(
+      true
+    );
   });
 
   it("rejects malformed resource unavailability windows", () => {

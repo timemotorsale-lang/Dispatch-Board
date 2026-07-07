@@ -689,6 +689,63 @@ export function AppointmentAdminSettingsPanel({
       </form>
 
       <section className="panel-card settings-main-card">
+        <strong>Special-hours calendar</strong>
+        <h2>Closure and resource-impact preview</h2>
+        <p>
+          Review the next scheduling horizon generated from weekly operating hours, location
+          closures, and resource outage/capacity windows before managers create more appointments.
+        </p>
+
+        <div className="appointment-catalog-detail-grid">
+          <div>
+            <span>Open days</span>
+            <strong>{settings.specialHoursCalendar.summary.openDayCount}</strong>
+            <small>
+              {settings.specialHoursCalendar.horizonStartIso} through{" "}
+              {settings.specialHoursCalendar.horizonEndIso}
+            </small>
+          </div>
+          <div>
+            <span>Closed days</span>
+            <strong>{settings.specialHoursCalendar.summary.closedDayCount}</strong>
+            <small>
+              {settings.specialHoursCalendar.summary.nextClosureName ?? "No upcoming closure"}
+            </small>
+          </div>
+          <div>
+            <span>Resource-impact days</span>
+            <strong>{settings.specialHoursCalendar.summary.resourceImpactDayCount}</strong>
+            <small>
+              {settings.specialHoursCalendar.summary.upcomingResourceImpactCount} resource windows
+            </small>
+          </div>
+        </div>
+
+        <div className="appointment-admin-record-list">
+          {settings.specialHoursCalendar.days.slice(0, 14).map((day) => (
+            <div className="appointment-admin-record" key={day.dateIso}>
+              <span>
+                {formatKind(day.businessDay)} • {formatKind(day.status)}
+              </span>
+              <strong>{day.dateIso}</strong>
+              <small>
+                {day.opensAt && day.closesAt
+                  ? `${day.opensAt} - ${day.closesAt}`
+                  : "No open hours"}
+                {day.closureNames.length > 0 ? ` • ${day.closureNames.join(", ")}` : ""}
+                {day.resourceImpactNames.length > 0
+                  ? ` • ${day.resourceImpactNames.join(", ")}`
+                  : ""}
+              </small>
+              {day.warnings.map((warning) => (
+                <p key={warning}>{warning}</p>
+              ))}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel-card settings-main-card">
         <strong>Configuration portability</strong>
         <h2>Export and import preview foundation</h2>
         <p>
