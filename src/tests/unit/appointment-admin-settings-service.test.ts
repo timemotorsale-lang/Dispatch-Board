@@ -393,6 +393,14 @@ describe("appointment admin settings service", () => {
     ]);
     expect(settings.specialHoursCalendar.summary.upcomingClosureCount).toBe(1);
     expect(settings.specialHoursCalendar.days.some((day) => day.status === "CLOSED")).toBe(true);
+    expect(settings.availabilityConfiguration.recurringTemplates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "INDEPENDENCE_DAY",
+          action: "CREATE_CLOSURE_DRAFT"
+        })
+      ])
+    );
   });
 
   it("allows managers to edit and delete location closures", async () => {
@@ -464,6 +472,8 @@ describe("appointment admin settings service", () => {
       capacity: 2,
       conflictPolicy: ResourceConflictPolicy.WARNING
     });
+    expect(settings.availabilityConfiguration.capacityOverrideReadiness.readyResourceCount).toBe(1);
+    expect(settings.availabilityConfiguration.resourceAvailability.summary.capacityResourceCount).toBe(1);
   });
 
   it("allows managers to create resource capacity reductions", async () => {
@@ -495,6 +505,10 @@ describe("appointment admin settings service", () => {
     expect(settings.specialHoursCalendar.days.some((day) => day.status === "RESOURCE_IMPACT")).toBe(
       true
     );
+    expect(
+      settings.availabilityConfiguration.resourceAvailability.resources[0].impactedDayCount
+    ).toBeGreaterThan(0);
+    expect(settings.availabilityConfiguration.resourceAvailability.summary.constrainedResourceCount).toBe(1);
   });
 
   it("rejects malformed resource unavailability windows", () => {

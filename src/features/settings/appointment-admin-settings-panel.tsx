@@ -746,6 +746,135 @@ export function AppointmentAdminSettingsPanel({
       </section>
 
       <section className="panel-card settings-main-card">
+        <strong>Availability configuration</strong>
+        <h2>Enterprise readiness for hours, resources, and capacity</h2>
+        <p>
+          Review recurring closure templates, resource availability, capacity override readiness,
+          and resource-type editor safety before managers activate deeper scheduling controls.
+        </p>
+
+        <div className="appointment-catalog-detail-grid">
+          <div>
+            <span>Templates ready</span>
+            <strong>
+              {
+                settings.availabilityConfiguration.recurringTemplates.filter(
+                  (template) => template.readiness === "READY"
+                ).length
+              }
+            </strong>
+            <small>Recurring closure and operations templates prepared.</small>
+          </div>
+          <div>
+            <span>Constrained resources</span>
+            <strong>
+              {settings.availabilityConfiguration.resourceAvailability.summary.constrainedResourceCount}
+            </strong>
+            <small>
+              {settings.availabilityConfiguration.resourceAvailability.summary.blockedResourceCount} blocked
+              resources
+            </small>
+          </div>
+          <div>
+            <span>Capacity-ready resources</span>
+            <strong>
+              {settings.availabilityConfiguration.capacityOverrideReadiness.readyResourceCount}
+            </strong>
+            <small>
+              {
+                settings.availabilityConfiguration.capacityOverrideReadiness
+                  .needsConfigurationCount
+              }{" "}
+              need review
+            </small>
+          </div>
+        </div>
+
+        <div className="settings-grid">
+          <div className="appointment-admin-record-list">
+            <strong>Recurring templates</strong>
+            {settings.availabilityConfiguration.recurringTemplates.map((template) => (
+              <div className="appointment-admin-record" key={template.code}>
+                <span>
+                  {formatKind(template.category)} â€¢ {formatKind(template.readiness)}
+                </span>
+                <strong>{template.name}</strong>
+                <small>
+                  {template.recurrenceLabel}
+                  {template.suggestedDateIso ? ` â€¢ next: ${template.suggestedDateIso}` : ""}
+                </small>
+                {template.notes.map((note) => (
+                  <p key={note}>{note}</p>
+                ))}
+              </div>
+            ))}
+          </div>
+
+          <div className="appointment-admin-record-list">
+            <strong>Resource availability</strong>
+            {settings.availabilityConfiguration.resourceAvailability.resources.map((resource) => (
+              <div className="appointment-admin-record" key={resource.resourceId}>
+                <span>
+                  {formatKind(resource.readiness)} â€¢ {formatKind(resource.resourceTypeKind)}
+                </span>
+                <strong>{resource.resourceName}</strong>
+                <small>
+                  {resource.capacityMode} capacity {resource.capacity} â€¢{" "}
+                  {resource.impactedDayCount} impacted days
+                  {resource.nextImpactIso ? ` â€¢ next: ${resource.nextImpactIso}` : ""}
+                </small>
+                {resource.warnings.map((warning) => (
+                  <p key={warning}>{warning}</p>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="settings-grid">
+          <div className="appointment-admin-record-list">
+            <strong>Capacity override readiness</strong>
+            <div className="appointment-admin-record">
+              <span>Future manager control</span>
+              <strong>
+                {
+                  settings.availabilityConfiguration.capacityOverrideReadiness
+                    .hardBlockExclusiveCount
+                }{" "}
+                hard-block exclusive resources
+              </strong>
+              {settings.availabilityConfiguration.capacityOverrideReadiness.recommendations.map(
+                (recommendation) => (
+                  <p key={recommendation}>{recommendation}</p>
+                )
+              )}
+            </div>
+          </div>
+
+          <div className="appointment-admin-record-list">
+            <strong>Resource type editor readiness</strong>
+            {settings.availabilityConfiguration.resourceTypeEditorReadiness.types.map(
+              (resourceType) => (
+                <div className="appointment-admin-record" key={resourceType.typeId}>
+                  <span>
+                    {formatKind(resourceType.kind)} â€¢ {formatKind(resourceType.readiness)}
+                  </span>
+                  <strong>{resourceType.name}</strong>
+                  <small>
+                    {resourceType.resourceCount} resources â€¢ default capacity{" "}
+                    {resourceType.defaultCapacity}
+                  </small>
+                  {resourceType.warnings.map((warning) => (
+                    <p key={warning}>{warning}</p>
+                  ))}
+                </div>
+              )
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="panel-card settings-main-card">
         <strong>Configuration portability</strong>
         <h2>Export and import preview foundation</h2>
         <p>
