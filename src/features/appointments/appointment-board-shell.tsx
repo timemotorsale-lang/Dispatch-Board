@@ -178,6 +178,21 @@ type AppointmentResolutionWorkbenchItem = {
   lastActionLabel: string;
 };
 
+type AppointmentAuditTimelineLane = "appointment" | "task" | "automation" | "manager";
+
+type AppointmentAuditTimelineEvent = {
+  id: string;
+  appointmentId: string;
+  lane: AppointmentAuditTimelineLane;
+  tone: "slate" | "blue" | "amber" | "red" | "purple" | "green";
+  title: string;
+  detail: string;
+  actor: string;
+  occurredAtLabel: string;
+};
+
+type AppointmentAuditTimelineFilter = "all" | AppointmentAuditTimelineLane;
+
 type AppointmentReadModel = {
   id: string;
   appointmentNumber: string;
@@ -946,6 +961,142 @@ function appointmentResolutionRecommendation(
   return "Assign next step";
 }
 
+function appointmentAuditTimestampLabel(
+  appointment: Appointment,
+  offsetMinutes = 0
+) {
+  if (isUnscheduledDraftAppointment(appointment)) {
+    const hours = 9 + Math.floor(offsetMinutes / 60);
+    const minutes = offsetMinutes % 60;
+    const period = hours >= 12 ? "PM" : "AM";
+    const hour = hours % 12 || 12;
+    return `Today ${hour}:${minutes.toString().padStart(2, "0")} ${period}`;
+  }
+
+  return `Today ${formatTime(Math.min(appointment.startMinutes + offsetMinutes, 18 * 60))}`;
+}
+
+function appointmentAuditDetailForResolution(
+  status: AppointmentResolutionStateStatus,
+  appointment: Appointment,
+  resolutionState?: AppointmentResolutionState
+) {
+  const ownerName = resolutionState?.ownerName ?? appointment.staffName ?? "Manager";
+  const note = resolutionState?.note ? ` Reason: ${resolutionState.note}` : "";
+
+  if (status === "assigned") {
+    return `Assigned to ${ownerName} from the command-center workbench.${note}`;
+  }
+
+  if (status === "snoozed") {
+    return `Snoozed until ${resolutionState?.snoozedUntilLabel ?? "the next work window"} for controlled follow-up.${note}`;
+  }
+
+  if (status === "escalated") {
+    return `Escalated into the manager lane under ${ownerName}.${note}`;
+  }
+
+  if (status === "resolved") {
+    return `Resolved from the command-center workbench with audited closure context.${note}`;
+  }
+
+  return "Waiting for manager action.";
+}
+
+export function buildAppointmentAuditTimeline(input: {
+  appointment: Appointment;
+  resolutionState?: AppointmentResolutionState;
+  commandCenterEvents?: AppointmentAuditTimelineEvent[];
+}): AppointmentAuditTimelineEvent[] {
+  const { appointment, resolutionState } = input;
+  const commandCenterEvents = (input.commandCenterEvents ?? []).filter(
+    (event) => event.appointmentId === appointment.id
+  );
+  const events: AppointmentAuditTimelineEvent[] = [];
+
+  events.push({
+    id: `${appointment.id}-created`,
+    appointmentId: appointment.id,
+    lane: "appointment",
+    tone: "slate",
+    title: "Appointment visible on board",
+    detail: `${appointment.title} for ${appointment.customer} entered the enterprise board with ${appointment.confirmation.toLowerCase()}.`,
+    actor: appointment.staffName ?? "Board scheduler",
+    occurredAtLabel: appointmentAuditTimestampLabel(appointment, -45)
+  });
+
+  if (appointment.taskAutomation.length > 0) {
+    events.push({
+      id: `${appointment.id}-automation`,
+      appointmentId: appointment.id,
+      lane: "automation",
+      tone: "blue",
+      title: "Automation bundle attached",
+      detail: `Prepared ${appointment.taskAutomation.length} workflow item${appointment.taskAutomation.length === 1 ? "" : "s"}: ${appointment.taskAutomation.slice(0, 2).join(", ")}${appointment.taskAutomation.length > 2 ? ", and more." : "."}`,
+      actor: "Automation runtime",
+      occurredAtLabel: appointmentAuditTimestampLabel(appointment, -30)
+    });
+  }
+
+  if (appointment.linkedTasks && appointment.linkedTasks.length > 0) {
+    events.push({
+      id: `${appointment.id}-task-link`,
+      appointmentId: appointment.id,
+      lane: "task",
+      tone: "purple",
+      title: "Linked tasks synchronized",
+      detail: `${appointment.linkedTasks.length} linked task${appointment.linkedTasks.length === 1 ? "" : "s"} remain visible from the board detail rail.`,
+      actor: appointment.linkedTasks[0]?.assignedUserName ?? "Task service",
+      occurredAtLabel: appointmentAuditTimestampLabel(appointment, -18)
+    });
+  }
+
+  const primaryQueue = appointmentPrimaryExceptionQueue(appointment);
+  if (primaryQueue) {
+    events.push({
+      id: `${appointment.id}-queue`,
+      appointmentId: appointment.id,
+      lane: "appointment",
+      tone:
+        primaryQueue === "no-show-recovery"
+          ? "red"
+          : primaryQueue === "conflict-watch"
+            ? "amber"
+            : primaryQueue === "follow-up-required"
+              ? "purple"
+              : "blue",
+      title: "Exception queue surfaced",
+      detail: appointmentExceptionReason(primaryQueue, appointment),
+      actor: "Command center",
+      occurredAtLabel: appointmentAuditTimestampLabel(appointment, -5)
+    });
+  }
+
+  if (resolutionState && resolutionState.status !== "open") {
+    events.push({
+      id: `${appointment.id}-resolution-${resolutionState.status}`,
+      appointmentId: appointment.id,
+      lane: "manager",
+      tone:
+        resolutionState.status === "resolved"
+          ? "green"
+          : resolutionState.status === "escalated"
+            ? "purple"
+            : resolutionState.status === "snoozed"
+              ? "amber"
+              : "blue",
+      title: `${resolutionStatusLabel(resolutionState.status)} in workbench`,
+      detail: appointmentAuditDetailForResolution(resolutionState.status, appointment, resolutionState),
+      actor: resolutionState.ownerName ?? "General Manager",
+      occurredAtLabel: resolutionState.updatedAtLabel ?? "Just now"
+    });
+  }
+
+  events.push(...commandCenterEvents);
+
+  return events.reverse();
+}
+
 export function buildAppointmentResolutionWorkbench(
   appointments: Appointment[],
   resolutionStateByAppointmentId: Record<string, AppointmentResolutionState> = {},
@@ -1551,6 +1702,8 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   const [resolutionNote, setResolutionNote] = useState("");
   const [selectedResolutionIds, setSelectedResolutionIds] = useState<Record<string, true>>({});
   const [resolutionStateByAppointmentId, setResolutionStateByAppointmentId] = useState<Record<string, AppointmentResolutionState>>({});
+  const [auditTimelineFilter, setAuditTimelineFilter] = useState<AppointmentAuditTimelineFilter>("all");
+  const [commandCenterAuditEvents, setCommandCenterAuditEvents] = useState<AppointmentAuditTimelineEvent[]>([]);
   const [detailRefreshKey, setDetailRefreshKey] = useState(0);
   const [actionNotice, setActionNotice] = useState("Operational command bridge ready. Persisted appointments can now use the live command API for check-in and no-show actions.");
 
@@ -1720,14 +1873,35 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   );
   const breachedResolutionCount = resolutionWorkbenchItems.filter((item) => item.slaStatus === "breached").length;
   const escalatedResolutionCount = resolutionWorkbenchItems.filter((item) => item.resolutionStatus === "escalated").length;
+  const selectedAppointment =
+    boardAppointments.find((appointment) => appointment.id === selectedId) ?? filteredAppointments[0] ?? boardAppointments[0];
+  const selectedAppointmentAuditTimeline = useMemo(
+    () =>
+      buildAppointmentAuditTimeline({
+        appointment: selectedAppointment,
+        resolutionState: resolutionStateByAppointmentId[selectedAppointment.id],
+        commandCenterEvents: commandCenterAuditEvents
+      }).filter((event) => auditTimelineFilter === "all" || event.lane === auditTimelineFilter),
+    [
+      auditTimelineFilter,
+      commandCenterAuditEvents,
+      resolutionStateByAppointmentId,
+      selectedAppointment
+    ]
+  );
+  const auditTimelineCounts = useMemo(
+    () => ({
+      manager: selectedAppointmentAuditTimeline.filter((event) => event.lane === "manager").length,
+      automation: selectedAppointmentAuditTimeline.filter((event) => event.lane === "automation").length,
+      task: selectedAppointmentAuditTimeline.filter((event) => event.lane === "task").length
+    }),
+    [selectedAppointmentAuditTimeline]
+  );
 
   const scheduledFilteredAppointments = useMemo(
     () => filteredAppointments.filter((appointment) => !isUnscheduledDraftAppointment(appointment)),
     [filteredAppointments]
   );
-
-  const selectedAppointment =
-    boardAppointments.find((appointment) => appointment.id === selectedId) ?? filteredAppointments[0] ?? boardAppointments[0];
   const selectedAppointmentIsUnscheduledDraft =
     selectedAppointment.dataSource === "live" &&
     isUnscheduledDraftAppointment(selectedAppointment);
@@ -1909,6 +2083,68 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
       }
 
       return next;
+    });
+
+    setCommandCenterAuditEvents((current) => {
+      const nextEvents: AppointmentAuditTimelineEvent[] = [];
+
+      for (const appointmentId of appointmentIds) {
+        const appointment = boardAppointments.find((candidate) => candidate.id === appointmentId);
+        if (!appointment) {
+          continue;
+        }
+
+        nextEvents.push({
+          id: `${appointmentId}-${action}-${current.length + nextEvents.length + 1}`,
+          appointmentId,
+          lane: "manager",
+          tone:
+            action === "resolve"
+              ? "green"
+              : action === "escalate"
+                ? "purple"
+                : action === "snooze"
+                  ? "amber"
+                  : "blue",
+          title:
+            action === "assign"
+              ? "Owner assigned from workbench"
+              : action === "snooze"
+                ? "Exception snoozed"
+                : action === "escalate"
+                  ? "Manager escalation recorded"
+                  : "Exception resolved",
+          detail: appointmentAuditDetailForResolution(
+            action === "assign"
+              ? "assigned"
+              : action === "snooze"
+                ? "snoozed"
+                : action === "escalate"
+                  ? "escalated"
+                  : "resolved",
+            appointment,
+            {
+              status:
+                action === "assign"
+                  ? "assigned"
+                  : action === "snooze"
+                    ? "snoozed"
+                    : action === "escalate"
+                      ? "escalated"
+                      : "resolved",
+              ownerId: assignee.id,
+              ownerName: assignee.name,
+              note: resolutionNote.trim() || undefined,
+              snoozedUntilLabel: action === "snooze" ? "Tomorrow 9:00 AM" : undefined,
+              updatedAtLabel: "Just now"
+            }
+          ),
+          actor: assignee.name,
+          occurredAtLabel: "Just now"
+        });
+      }
+
+      return [...nextEvents, ...current];
     });
 
     setSelectedResolutionIds({});
@@ -3808,6 +4044,66 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
               <div className="appointment-resolution-empty">
                 <strong>Workbench clear</strong>
                 <p>No exception items match the current queue focus and visibility settings.</p>
+              </div>
+            )}
+          </section>
+
+          <section className="appointment-audit-timeline-card" aria-labelledby="appointment-audit-timeline">
+            <div className="appointment-section-heading">
+              <div>
+                <strong id="appointment-audit-timeline">Command Center Audit Timeline</strong>
+                <p>
+                  Focused history for {selectedAppointment.id}, including appointment state, linked work,
+                  automation context, and manager decisions.
+                </p>
+              </div>
+              <span>{selectedAppointmentAuditTimeline.length} event{selectedAppointmentAuditTimeline.length === 1 ? "" : "s"}</span>
+            </div>
+
+            <div className="appointment-audit-timeline-toolbar">
+              <div className="appointment-audit-timeline-summary">
+                <span>{auditTimelineCounts.manager} manager</span>
+                <span>{auditTimelineCounts.automation} automation</span>
+                <span>{auditTimelineCounts.task} task</span>
+              </div>
+              <label>
+                Timeline focus
+                <select
+                  aria-label="Filter audit timeline events"
+                  value={auditTimelineFilter}
+                  onChange={(event) =>
+                    setAuditTimelineFilter(event.target.value as AppointmentAuditTimelineFilter)
+                  }
+                >
+                  <option value="all">All events</option>
+                  <option value="appointment">Appointment</option>
+                  <option value="task">Task</option>
+                  <option value="automation">Automation</option>
+                  <option value="manager">Manager</option>
+                </select>
+              </label>
+            </div>
+
+            {selectedAppointmentAuditTimeline.length > 0 ? (
+              <div className="appointment-audit-timeline-list">
+                {selectedAppointmentAuditTimeline.map((event) => (
+                  <article className={`appointment-audit-timeline-item appointment-audit-timeline-item-${event.tone}`} key={event.id}>
+                    <div className="appointment-audit-timeline-dot" aria-hidden="true" />
+                    <div className="appointment-audit-timeline-content">
+                      <div className="appointment-audit-timeline-top">
+                        <strong>{event.title}</strong>
+                        <span>{event.occurredAtLabel}</span>
+                      </div>
+                      <p>{event.detail}</p>
+                      <small>{event.actor} · {event.lane[0].toUpperCase() + event.lane.slice(1)} lane</small>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="appointment-audit-timeline-empty">
+                <strong>No matching events</strong>
+                <p>The current timeline focus hides all visible history for this appointment.</p>
               </div>
             )}
           </section>

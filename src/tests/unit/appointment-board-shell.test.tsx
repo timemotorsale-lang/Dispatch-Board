@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import {
+  buildAppointmentAuditTimeline,
   AppointmentBoardShell,
   buildAppointmentExceptionQueues,
   buildAppointmentResolutionWorkbench,
@@ -30,6 +31,8 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Resolution Workbench");
     expect(markup).toContain("Queue focus");
     expect(markup).toContain("Select visible");
+    expect(markup).toContain("Command Center Audit Timeline");
+    expect(markup).toContain("Timeline focus");
   });
 
   it("renders admin-provided board settings when available", () => {
@@ -360,6 +363,72 @@ describe("appointment board shell", () => {
     expect(workbenchItems.map((item) => item.appointment.id)).toEqual(["APT-DRAFT"]);
     expect(workbenchItems[0]?.resolutionStatus).toBe("snoozed");
     expect(workbenchItems[0]?.snoozedUntilLabel).toBe("Tomorrow 9:00 AM");
+  });
+
+  it("builds an audit timeline with baseline history and manager actions", () => {
+    const timeline = buildAppointmentAuditTimeline({
+      appointment: {
+        id: "APT-NOSHOW",
+        title: "Test Drive",
+        customer: "Ahmed Ibrahim",
+        vehicle: "2018 Toyota Camry",
+        category: "sales",
+        status: "no-show",
+        staffId: "abdi",
+        staffName: "Abdi Farah",
+        startMinutes: 540,
+        durationMinutes: 60,
+        phone: "612-555-0102",
+        complaint: "Customer did not arrive",
+        location: "Sales floor",
+        confirmation: "No-show follow-up required",
+        attendanceStatus: "NO_SHOW",
+        followUpDispositionCode: "CALLBACK_REQUIRED",
+        taskAutomation: ["No-show callback", "Lead recovery"],
+        linkedTasks: [
+          {
+            id: "task-link-1",
+            taskId: "TASK-1",
+            title: "Call customer back",
+            status: "IN_PROGRESS",
+            dueAt: "2026-07-07T16:00:00.000Z",
+            assignedUserName: "Abdi Farah",
+            linkType: "FOLLOW_UP",
+            linkTitle: "Lead recovery",
+            explanation: null,
+            isRequired: true,
+            blocksAppointment: false,
+            appointmentRequiredForTask: false
+          }
+        ],
+        governanceNotes: []
+      } as any,
+      resolutionState: {
+        status: "escalated",
+        ownerId: "abdi",
+        ownerName: "Abdi Farah",
+        note: "Customer asked for manager callback.",
+        updatedAtLabel: "Escalated just now"
+      },
+      commandCenterEvents: [
+        {
+          id: "manual-event-1",
+          appointmentId: "APT-NOSHOW",
+          lane: "manager",
+          tone: "purple",
+          title: "Manager escalation recorded",
+          detail: "Escalated into the manager lane under Abdi Farah.",
+          actor: "Abdi Farah",
+          occurredAtLabel: "Just now"
+        }
+      ]
+    });
+
+    expect(timeline[0]?.title).toBe("Manager escalation recorded");
+    expect(timeline.map((event) => event.lane)).toEqual(
+      expect.arrayContaining(["manager", "automation", "task", "appointment"])
+    );
+    expect(timeline.some((event) => event.title === "Exception queue surfaced")).toBe(true);
   });
 
   it("detects proposed draft schedule starts that are already in the past", () => {
