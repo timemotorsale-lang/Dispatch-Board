@@ -7201,6 +7201,138 @@ code {
   resize: vertical;
 }
 
+.appointment-runtime-handoffs-card {
+  display: grid;
+  gap: 12px;
+  margin: 0 12px 12px;
+  padding: 14px;
+  background: linear-gradient(180deg, #fffef8 0%, #fefce8 100%);
+  border: 1px solid #fde68a;
+  border-radius: 18px;
+}
+
+.appointment-runtime-handoffs-card .appointment-section-heading {
+  align-items: flex-start;
+}
+
+.appointment-runtime-handoffs-card .appointment-section-heading > span {
+  display: inline-grid;
+  place-items: center;
+  min-height: 26px;
+  padding: 0 9px;
+  color: #92400e;
+  background: #fff;
+  border: 1px solid #fde68a;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.appointment-runtime-handoffs-grid,
+.appointment-runtime-handoff-sections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.appointment-runtime-queue-list {
+  display: grid;
+  gap: 10px;
+}
+
+.appointment-runtime-queue-item,
+.appointment-runtime-handoff-sections article {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #fde68a;
+  border-radius: 14px;
+}
+
+.appointment-runtime-queue-item-red { border-color: #fecaca; }
+.appointment-runtime-queue-item-purple { border-color: #ddd6fe; }
+.appointment-runtime-queue-item-amber { border-color: #fde68a; }
+.appointment-runtime-queue-item-blue { border-color: #bfdbfe; }
+.appointment-runtime-queue-item-green { border-color: #bbf7d0; }
+
+.appointment-runtime-queue-top,
+.appointment-runtime-queue-meta {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.appointment-runtime-queue-top strong,
+.appointment-runtime-handoff-sections strong {
+  color: #0f172a;
+  font-size: 12px;
+}
+
+.appointment-runtime-queue-top p,
+.appointment-runtime-handoff-sections p,
+.appointment-runtime-queue-meta span {
+  margin: 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.appointment-runtime-queue-meta strong,
+.appointment-runtime-handoff-sections strong {
+  color: #0f172a;
+}
+
+.appointment-runtime-handoff-sections span {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.appointment-runtime-handoff-export {
+  display: grid;
+  gap: 8px;
+}
+
+.appointment-runtime-handoff-export textarea {
+  width: 100%;
+  min-height: 240px;
+  padding: 10px 11px;
+  color: #253449;
+  background: #fff;
+  border: 1px solid #fde68a;
+  border-radius: 12px;
+  resize: vertical;
+}
+
+.appointment-runtime-handoff-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.appointment-runtime-handoff-actions button {
+  min-height: 34px;
+  padding: 0 11px;
+  color: #92400e;
+  background: #fff;
+  border: 1px solid #fde68a;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.appointment-runtime-handoff-actions button:last-child {
+  color: #fff;
+  background: #d97706;
+  border-color: #d97706;
+}
+
 .appointment-command-search-card {
   display: grid;
   gap: 12px;
@@ -8912,6 +9044,8 @@ code {
   .appointment-command-search-results,
   .appointment-week-grid,
   .appointment-month-grid,
+  .appointment-runtime-handoffs-grid,
+  .appointment-runtime-handoff-sections,
   .appointment-ops-intelligence-grid,
   .appointment-ops-intelligence-metrics,
   .appointment-ops-intelligence-drilldowns,
@@ -8947,6 +9081,8 @@ code {
   .appointment-exception-grid,
   .appointment-week-grid,
   .appointment-month-grid,
+  .appointment-runtime-handoffs-grid,
+  .appointment-runtime-handoff-sections,
   .appointment-ops-intelligence-grid,
   .appointment-ops-intelligence-metrics,
   .appointment-ops-intelligence-drilldowns,
@@ -8979,6 +9115,8 @@ code {
   }
 
   .appointment-command-center-save-row,
+  .appointment-runtime-queue-top,
+  .appointment-runtime-queue-meta,
   .appointment-week-column-heading,
   .appointment-month-cell-top,
   .appointment-agenda-section-heading,
