@@ -3,6 +3,10 @@
 import { useState, useTransition } from "react";
 
 import type {
+  AppointmentAdminConfigurationExport,
+  AppointmentAdminConfigurationImportPreview
+} from "@/server/services/appointment-admin-import-export";
+import type {
   AppointmentAdminSettings,
   AppointmentAdminSettingsInput,
   AppointmentLocationClosureInput,
@@ -177,6 +181,13 @@ export function AppointmentAdminSettingsPanel({
     ...defaultUnavailabilityDraft,
     resourceId: initialSettings.resources[0]?.id ?? ""
   });
+  const [configurationExport, setConfigurationExport] =
+    useState<AppointmentAdminConfigurationExport | null>(null);
+  const [configurationExportText, setConfigurationExportText] = useState("");
+  const [configurationImportText, setConfigurationImportText] = useState("");
+  const [configurationImportReason, setConfigurationImportReason] = useState("");
+  const [configurationImportPreview, setConfigurationImportPreview] =
+    useState<AppointmentAdminConfigurationImportPreview | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -221,6 +232,69 @@ export function AppointmentAdminSettingsPanel({
         ? current.resourceId
         : nextSettings.resources[0]?.id ?? ""
     }));
+  }
+
+  function generateConfigurationExport() {
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    startTransition(async () => {
+      const response = await fetch("/api/settings/appointments/configuration/export");
+      const payload = (await response.json().catch(() => null)) as {
+        exportPackage?: AppointmentAdminConfigurationExport;
+        error?: string;
+      } | null;
+
+      if (!response.ok || !payload?.exportPackage) {
+        setErrorMessage(payload?.error ?? "Unable to generate appointment configuration export.");
+        return;
+      }
+
+      setConfigurationExport(payload.exportPackage);
+      setConfigurationExportText(JSON.stringify(payload.exportPackage, null, 2));
+      setConfigurationImportText(JSON.stringify(payload.exportPackage, null, 2));
+      setSuccessMessage("Preview-safe appointment configuration export generated.");
+    });
+  }
+
+  function previewConfigurationImport() {
+    setErrorMessage("");
+    setSuccessMessage("");
+    setConfigurationImportPreview(null);
+
+    let packageSnapshot: unknown;
+
+    try {
+      packageSnapshot = JSON.parse(configurationImportText);
+    } catch {
+      setErrorMessage("Import preview requires a valid JSON configuration package.");
+      return;
+    }
+
+    startTransition(async () => {
+      const response = await fetch("/api/settings/appointments/configuration/import-preview", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          packageSnapshot,
+          reason: configurationImportReason
+        })
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        preview?: AppointmentAdminConfigurationImportPreview;
+        error?: string;
+      } | null;
+
+      if (!response.ok || !payload?.preview) {
+        setErrorMessage(payload?.error ?? "Unable to preview appointment configuration import.");
+        return;
+      }
+
+      setConfigurationImportPreview(payload.preview);
+      setSuccessMessage("Import preview generated. Apply remains intentionally disabled.");
+    });
   }
 
   async function mutateAppointmentSettings(
@@ -613,6 +687,132 @@ export function AppointmentAdminSettingsPanel({
           </button>
         </div>
       </form>
+
+      <section className="panel-card settings-main-card">
+        <strong>Configuration portability</strong>
+        <h2>Export and import preview foundation</h2>
+        <p>
+          Generate a preview-safe appointment admin configuration package for manager review,
+          backup, or future import. Import apply is intentionally disabled until rollback,
+          approval, and activation controls are added.
+        </p>
+
+        <div className="appointment-catalog-detail-grid">
+          <div>
+            <span>Export mode</span>
+            <strong>Preview safe</strong>
+            <small>Portable package with user and vehicle identifiers redacted.</small>
+          </div>
+          <div>
+            <span>Last export</span>
+            <strong>{configurationExport ? configurationExport.manifest.purposeCount : 0}</strong>
+            <small>{configurationExport ? "purpose templates included" : "No export generated yet"}</small>
+          </div>
+          <div>
+            <span>Import apply</span>
+            <strong>Disabled</strong>
+            <small>Preview and validation only in this foundation.</small>
+          </div>
+        </div>
+
+        <div className="form-actions">
+          <button
+            className="pill pill-primary"
+            disabled={isPending}
+            onClick={generateConfigurationExport}
+            type="button"
+          >
+            Generate export package
+          </button>
+        </div>
+
+        {configurationExport ? (
+          <div className="appointment-admin-record-list">
+            <div className="appointment-admin-record">
+              <span>Export manifest</span>
+              <strong>{configurationExport.location.name}</strong>
+              <small>
+                {configurationExport.manifest.operatingWindowCount} operating windows •{" "}
+                {configurationExport.manifest.resourceCount} resources •{" "}
+                {configurationExport.manifest.automationRuleCount} automation rules
+              </small>
+              <p>
+                Redacted {configurationExport.redaction.redactedFieldCount} sensitive identifier
+                fields for portable review.
+              </p>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="settings-grid">
+          <label className="field appointment-admin-span">
+            <span>Export package JSON</span>
+            <textarea
+              value={configurationExportText}
+              onChange={(event) => setConfigurationExportText(event.target.value)}
+              placeholder="Generate an export to review the portable JSON package."
+              rows={8}
+            />
+          </label>
+
+          <label className="field appointment-admin-span">
+            <span>Import preview JSON</span>
+            <textarea
+              value={configurationImportText}
+              onChange={(event) => setConfigurationImportText(event.target.value)}
+              placeholder="Paste an appointment admin configuration package to validate."
+              rows={8}
+            />
+          </label>
+
+          <label className="field appointment-admin-span">
+            <span>Required import preview reason</span>
+            <input
+              value={configurationImportReason}
+              onChange={(event) => setConfigurationImportReason(event.target.value)}
+              placeholder="Document why this package is being reviewed"
+            />
+          </label>
+        </div>
+
+        <div className="form-actions">
+          <button
+            className="pill pill-secondary"
+            disabled={isPending || !configurationImportText}
+            onClick={previewConfigurationImport}
+            type="button"
+          >
+            Preview import validation
+          </button>
+        </div>
+
+        {configurationImportPreview ? (
+          <div className="appointment-admin-record-list">
+            <div className="appointment-admin-record">
+              <span>Import preview</span>
+              <strong>
+                {configurationImportPreview.validation.isValidPackage
+                  ? "Package structure valid"
+                  : "Package has validation errors"}
+              </strong>
+              <small>
+                {configurationImportPreview.summary.purposeCount} purposes •{" "}
+                {configurationImportPreview.summary.resourceCount} resources •{" "}
+                {configurationImportPreview.summary.redactedFieldCount} redactions
+              </small>
+              {configurationImportPreview.validation.errors.map((error) => (
+                <p key={error}>Error: {error}</p>
+              ))}
+              {configurationImportPreview.validation.warnings.map((warning) => (
+                <p key={warning}>Warning: {warning}</p>
+              ))}
+              {configurationImportPreview.reviewChecklist.map((item) => (
+                <p key={item}>Checklist: {item}</p>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </section>
 
       <section className="appointment-admin-ops-grid">
         <form className="panel-card settings-main-card" onSubmit={submitClosure}>

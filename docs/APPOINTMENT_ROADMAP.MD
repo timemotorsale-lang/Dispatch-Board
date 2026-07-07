@@ -21,7 +21,7 @@ However, the full Enterprise Release 1.0 roadmap is not complete yet. The remain
 | Product direction | Approved | The product purpose and enterprise scope are approved. |
 | Appointment foundation | Strongly implemented | Core model, commands, permissions, audit, scheduling services, and resource/staff foundations exist. |
 | Appointment Board UI | In progress with substantial live workflow | The visible board exists and many detail-rail workflows are live. |
-| Enterprise admin | In progress / partial | Managers now have Appointment Settings, a versioned Catalog + Automation workspace, and an Automation Operations Console for location profile, phone, hours, closures, resource controls, purpose templates, outcome/follow-up/reason catalogs, code deprecation/reactivation with replacement guidance, rule hooks, simulation, draft/active catalog versions, required change reasons, rule lifecycle, health, failure queue, retry/replay readiness, and audit controls. Recurring/special-hours calendars, deeper runtime execution, notifications, and import/export remain. |
+| Enterprise admin | In progress / partial | Managers now have Appointment Settings, a versioned Catalog + Automation workspace, and an Automation Operations Console for location profile, phone, hours, closures, resource controls, purpose templates, outcome/follow-up/reason catalogs, code deprecation/reactivation with replacement guidance, rule hooks, simulation, draft/active catalog versions, required change reasons, rule lifecycle, health, failure queue, retry/replay readiness, preview-safe configuration export, import-preview validation, redaction reporting, and audit controls. Recurring/special-hours calendars, deeper runtime execution, notifications, and import apply remain. |
 | Task-to-appointment orchestration | In progress with live vertical slice | Follow-up automation, task-detail create-linked-draft workflow, live browser proof, board scheduling handoff, and appointment-to-task navigation exist. Automation-rule authoring/runtime remains. |
 | Reporting and analytics | Pending | KPI definitions, reporting models, exports, and reconciliation are not built yet. |
 | Notifications | Pending | Internal notifications and future integration contracts remain. |
@@ -152,8 +152,8 @@ npm run typecheck
 npm test
 npm run db:validate
 
-112 test files passed
-659 tests passed
+115 test files passed
+667 tests passed
 ```
 
 Focused validation during the Appointment Automation Operations Console block:
@@ -338,7 +338,7 @@ Recommended E4 next steps:
 | EAPT-059 | Location, hours, closures, resource, capacity, availability administration | Partial; location profile, phone, weekday hours, scheduling status, closure create/edit/delete, resource status/capacity/conflict policy, resource outage/capacity-reduction windows, resource summary, and board wiring implemented |
 | EAPT-060 | Automation rule authoring and simulation | Partial; rule draft authoring, validation, catalog-derived hook candidates, and simulation-backed draft creation exist. Deeper condition/action builders remain. |
 | EAPT-061 | Automation activation, pause, retire, failure administration | Partial; rule activation, pause, retire, health dashboard, failure queue foundation, retry/replay/resolve/skip API contracts, and audit events exist. Runtime execution worker and seeded live failures remain. |
-| EAPT-062 | Configuration import/export with validation and redaction | Not started |
+| EAPT-062 | Configuration import/export with validation and redaction | Partial; preview-safe configuration export, portable redaction markers, export manifest, import-preview validation, manager-only routes, UI review workspace, and focused service/route/UI tests exist. Destructive import apply, rollback, approval, activation, and audit-event persistence remain. |
 | EAPT-063 | Creation and administration workflow tests | Not started |
 
 Recommended E5 next steps:
@@ -347,7 +347,7 @@ Recommended E5 next steps:
 2. Add deeper automation condition/action builders and runtime execution worker.
 3. Add recurring holiday templates and special-hours calendars.
 4. Add deeper resource availability calendars, capacity overrides by day, and resource type editors.
-5. Add configuration import/export with validation, redaction, and audit evidence.
+5. Add import apply controls with diff confirmation, rollback, approval, activation, and audit evidence.
 
 ## E6 — Owner, staff, and responsive workflows
 
