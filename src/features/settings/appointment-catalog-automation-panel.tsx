@@ -50,6 +50,18 @@ type LifecycleState = {
 };
 
 type ReviewAction = "APPROVE" | "REQUEST_CHANGES" | "REJECT";
+type CatalogCodeType = "OUTCOME" | "FOLLOW_UP_DISPOSITION" | "REASON";
+type CatalogCodeAction = "ADD" | "RENAME" | "REMOVE";
+
+type CodeEditorState = {
+  catalog: CatalogCodeType;
+  action: CatalogCodeAction;
+  code: string;
+  nextCode: string;
+  label: string;
+  description: string;
+  reason: string;
+};
 
 function formatLabel(value: string) {
   return value
@@ -113,6 +125,15 @@ export function AppointmentCatalogAutomationPanel({
   const [activationReason, setActivationReason] = useState("");
   const [reviewAction, setReviewAction] = useState<ReviewAction>("APPROVE");
   const [reviewReason, setReviewReason] = useState("");
+  const [codeEditorState, setCodeEditorState] = useState<CodeEditorState>({
+    catalog: "OUTCOME",
+    action: "ADD",
+    code: "",
+    nextCode: "",
+    label: "",
+    description: "",
+    reason: ""
+  });
   const [lifecycleState, setLifecycleState] = useState<LifecycleState>({
     action: "DUPLICATE",
     purposeCode: "",
@@ -146,6 +167,12 @@ export function AppointmentCatalogAutomationPanel({
   const selectedPurposeUsage = selectedPurpose
     ? catalog.purposeUsage.find((usage) => usage.purposeCode === selectedPurpose.code)
     : null;
+  const editableCatalogCodes =
+    codeEditorState.catalog === "OUTCOME"
+      ? selectedPurpose?.outcomeCodes ?? []
+      : codeEditorState.catalog === "FOLLOW_UP_DISPOSITION"
+        ? selectedPurpose?.followUpDispositionCodes ?? []
+        : catalog.catalogs.reasonCodes;
 
   function selectPurpose(purposeCode: string) {
     const purpose = catalog.purposes.find((candidate) => candidate.code === purposeCode);
@@ -373,6 +400,53 @@ export function AppointmentCatalogAutomationPanel({
         ...current,
         purposeCode: "",
         name: "",
+        reason: ""
+      }));
+    });
+  }
+
+  function updateCatalogCode() {
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    startTransition(async () => {
+      const response = await fetch("/api/settings/appointments/catalog/codes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          catalog: codeEditorState.catalog,
+          action: codeEditorState.action,
+          purposeCode:
+            codeEditorState.catalog === "REASON" ? undefined : selectedPurpose?.code,
+          code: codeEditorState.code,
+          nextCode: codeEditorState.nextCode || undefined,
+          label: codeEditorState.label || undefined,
+          description: codeEditorState.description || undefined,
+          reason: codeEditorState.reason
+        })
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            error?: string;
+            catalog?: AppointmentCatalogAutomationAdmin;
+          }
+        | null;
+
+      if (!response.ok) {
+        setErrorMessage(payload?.error ?? "Unable to update appointment catalog code right now.");
+        return;
+      }
+
+      handleCatalogResponse(payload);
+      setSuccessMessage("Structured catalog code draft updated with documented reason.");
+      setCodeEditorState((current) => ({
+        ...current,
+        code: "",
+        nextCode: "",
+        label: "",
+        description: "",
         reason: ""
       }));
     });
@@ -726,6 +800,185 @@ export function AppointmentCatalogAutomationPanel({
                 type="button"
               >
                 Apply lifecycle draft
+              </button>
+            </div>
+          </div>
+        </article>
+
+        <article className="panel-card settings-main-card">
+          <strong>Structured code editors</strong>
+          <h2>Outcome, follow-up, and reason catalogs</h2>
+          <p>
+            Add, rename, or remove governed catalog codes without editing comma-separated lists.
+            Every change creates a draft and requires approval before activation.
+          </p>
+
+          <div className="settings-form">
+            <div className="settings-grid">
+              <label className="field">
+                <span>Catalog</span>
+                <select
+                  value={codeEditorState.catalog}
+                  onChange={(event) =>
+                    setCodeEditorState((current) => ({
+                      ...current,
+                      catalog: event.target.value as CatalogCodeType,
+                      code: ""
+                    }))
+                  }
+                >
+                  <option value="OUTCOME">Selected purpose outcomes</option>
+                  <option value="FOLLOW_UP_DISPOSITION">Selected purpose follow-ups</option>
+                  <option value="REASON">Global reason catalog</option>
+                </select>
+              </label>
+
+              <label className="field">
+                <span>Action</span>
+                <select
+                  value={codeEditorState.action}
+                  onChange={(event) =>
+                    setCodeEditorState((current) => ({
+                      ...current,
+                      action: event.target.value as CatalogCodeAction
+                    }))
+                  }
+                >
+                  <option value="ADD">Add code</option>
+                  <option value="RENAME">Rename code</option>
+                  <option value="REMOVE">Remove code</option>
+                </select>
+              </label>
+
+              {codeEditorState.action === "ADD" ? (
+                <label className="field">
+                  <span>New code</span>
+                  <input
+                    value={codeEditorState.code}
+                    onChange={(event) =>
+                      setCodeEditorState((current) => ({
+                        ...current,
+                        code: event.target.value.toUpperCase()
+                      }))
+                    }
+                    placeholder="CUSTOMER_APPROVED"
+                  />
+                </label>
+              ) : (
+                <label className="field">
+                  <span>Existing code</span>
+                  <select
+                    value={codeEditorState.code}
+                    onChange={(event) =>
+                      setCodeEditorState((current) => ({
+                        ...current,
+                        code: event.target.value
+                      }))
+                    }
+                  >
+                    <option value="">Select code</option>
+                    {editableCatalogCodes.map((code) => (
+                      <option key={code} value={code}>
+                        {catalog.catalogs.codeDetails[
+                          `${codeEditorState.catalog}:${code}`
+                        ]?.label ?? formatLabel(code)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+
+              {codeEditorState.action === "RENAME" ? (
+                <label className="field">
+                  <span>Replacement code</span>
+                  <input
+                    value={codeEditorState.nextCode}
+                    onChange={(event) =>
+                      setCodeEditorState((current) => ({
+                        ...current,
+                        nextCode: event.target.value.toUpperCase()
+                      }))
+                    }
+                    placeholder="CUSTOMER_APPROVED_WITH_NOTES"
+                  />
+                </label>
+              ) : null}
+
+              {codeEditorState.action !== "REMOVE" ? (
+                <>
+                  <label className="field">
+                    <span>Display label</span>
+                    <input
+                      value={codeEditorState.label}
+                      onChange={(event) =>
+                        setCodeEditorState((current) => ({
+                          ...current,
+                          label: event.target.value
+                        }))
+                      }
+                      placeholder="Customer approved"
+                    />
+                  </label>
+                  <label className="field appointment-admin-span">
+                    <span>Description</span>
+                    <textarea
+                      value={codeEditorState.description}
+                      onChange={(event) =>
+                        setCodeEditorState((current) => ({
+                          ...current,
+                          description: event.target.value
+                        }))
+                      }
+                      placeholder="Explain when managers should use this catalog code."
+                    />
+                  </label>
+                </>
+              ) : null}
+
+              <label className="field appointment-admin-span">
+                <span>Required code-change reason</span>
+                <input
+                  value={codeEditorState.reason}
+                  onChange={(event) =>
+                    setCodeEditorState((current) => ({
+                      ...current,
+                      reason: event.target.value
+                    }))
+                  }
+                  placeholder="Document why this catalog code is changing"
+                />
+              </label>
+            </div>
+
+            <div className="appointment-admin-record-list">
+              {editableCatalogCodes.slice(0, 8).map((code) => {
+                const detail = catalog.catalogs.codeDetails[`${codeEditorState.catalog}:${code}`];
+
+                return (
+                  <div className="appointment-admin-record" key={code}>
+                    <span>{formatLabel(codeEditorState.catalog)}</span>
+                    <strong>{detail?.label ?? formatLabel(code)}</strong>
+                    <small>
+                      {code}
+                      {detail?.systemRequired ? " • system required" : ""}
+                    </small>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="form-actions">
+              <button
+                className="pill pill-primary"
+                disabled={
+                  isPending ||
+                  !selectedPurpose ||
+                  (codeEditorState.catalog !== "REASON" && !selectedPurpose)
+                }
+                onClick={updateCatalogCode}
+                type="button"
+              >
+                Apply code draft
               </button>
             </div>
           </div>

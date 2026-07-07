@@ -7,6 +7,7 @@ import {
   saveAppointmentCatalogDraftForManager,
   simulateAppointmentCatalogAutomation,
   simulateAppointmentCatalogAutomationForManager,
+  updateAppointmentCatalogCodeForManager,
   updateAppointmentCatalogPurposeLifecycleForManager
 } from "@/server/services/appointment-catalog-automation-admin";
 import { createMemoryAppointmentCatalogRepository } from "@/tests/support/appointment-catalog-test-repository";
@@ -237,6 +238,125 @@ describe("appointment catalog automation admin service", () => {
       status: "APPROVED",
       activationBlocked: false
     });
+  });
+
+  it("adds and renames structured outcome codes with labels", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createMemoryAppointmentCatalogRepository();
+
+    let catalog = await updateAppointmentCatalogCodeForManager(
+      manager,
+      {
+        catalog: "OUTCOME",
+        action: "ADD",
+        purposeCode: "APT-TEST-DRIVE",
+        code: "CUSTOMER_APPROVED",
+        label: "Customer approved",
+        description: "Customer approved the test drive next step.",
+        reason: "Add customer-approved outcome for test drive governance."
+      },
+      repository
+    );
+
+    expect(
+      catalog.purposes.find((purpose) => purpose.code === "APT-TEST-DRIVE")?.outcomeCodes
+    ).toContain("CUSTOMER_APPROVED");
+    expect(catalog.catalogs.codeDetails["OUTCOME:CUSTOMER_APPROVED"]).toMatchObject({
+      label: "Customer approved",
+      description: "Customer approved the test drive next step."
+    });
+    expect(catalog.versioning.approval.status).toBe("PENDING_REVIEW");
+
+    catalog = await updateAppointmentCatalogCodeForManager(
+      manager,
+      {
+        catalog: "OUTCOME",
+        action: "RENAME",
+        purposeCode: "APT-TEST-DRIVE",
+        code: "CUSTOMER_APPROVED",
+        nextCode: "CUSTOMER_APPROVED_WITH_NOTES",
+        label: "Customer approved with notes",
+        reason: "Rename outcome to match manager reporting language."
+      },
+      repository
+    );
+
+    expect(
+      catalog.purposes.find((purpose) => purpose.code === "APT-TEST-DRIVE")?.outcomeCodes
+    ).toContain("CUSTOMER_APPROVED_WITH_NOTES");
+    expect(catalog.catalogs.codeDetails["OUTCOME:CUSTOMER_APPROVED"]).toBeUndefined();
+    expect(catalog.catalogs.codeDetails["OUTCOME:CUSTOMER_APPROVED_WITH_NOTES"]).toMatchObject({
+      label: "Customer approved with notes"
+    });
+  });
+
+  it("edits reason codes and protects system-required reasons", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createMemoryAppointmentCatalogRepository();
+
+    const catalog = await updateAppointmentCatalogCodeForManager(
+      manager,
+      {
+        catalog: "REASON",
+        action: "ADD",
+        code: "MANAGER_POLICY_EXCEPTION",
+        label: "Manager policy exception",
+        reason: "Add policy exception reason for catalog governance."
+      },
+      repository
+    );
+
+    expect(catalog.catalogs.reasonCodes).toContain("MANAGER_POLICY_EXCEPTION");
+    expect(catalog.catalogs.codeDetails["REASON:MANAGER_POLICY_EXCEPTION"]).toMatchObject({
+      label: "Manager policy exception"
+    });
+
+    await expect(
+      updateAppointmentCatalogCodeForManager(
+        manager,
+        {
+          catalog: "REASON",
+          action: "REMOVE",
+          code: "AUTOMATION_SIMULATED",
+          reason: "Attempt unsafe removal of system reason."
+        },
+        repository
+      )
+    ).rejects.toThrow(/System-required reason codes cannot be renamed or removed/);
+  });
+
+  it("prevents removing the final outcome or follow-up code from a purpose", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createMemoryAppointmentCatalogRepository();
+
+    await saveAppointmentCatalogDraftForManager(
+      manager,
+      {
+        purposeCode: "APT-TEST-DRIVE",
+        reason: "Prepare single-outcome draft for removal validation.",
+        changes: {
+          outcomeCodes: ["ONLY_ONE_OUTCOME"]
+        }
+      },
+      repository
+    );
+
+    await expect(
+      updateAppointmentCatalogCodeForManager(
+        manager,
+        {
+          catalog: "OUTCOME",
+          action: "REMOVE",
+          purposeCode: "APT-TEST-DRIVE",
+          code: "ONLY_ONE_OUTCOME",
+          reason: "Attempt removal of final outcome."
+        },
+        repository
+      )
+    ).rejects.toThrow(/at least one configured code/);
   });
 
   it("creates a manager-authored purpose as a draft catalog lifecycle change", async () => {

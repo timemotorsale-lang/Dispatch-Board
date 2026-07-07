@@ -58,11 +58,21 @@ type AppointmentCatalogApprovalStatus =
   | "CHANGES_REQUESTED"
   | "REJECTED";
 
+type AppointmentCatalogCodeType = "OUTCOME" | "FOLLOW_UP_DISPOSITION" | "REASON";
+
 export type AppointmentAutomationSimulationInput = {
   purposeCode: string;
   outcomeCode: string;
   followUpDispositionCode: string;
   missingRequiredFields?: string[];
+};
+
+export type AppointmentCatalogCodeDetail = {
+  code: string;
+  type: AppointmentCatalogCodeType;
+  label: string;
+  description: string;
+  systemRequired: boolean;
 };
 
 type AppointmentCatalogPurpose = ReturnType<typeof buildPurpose>;
@@ -175,6 +185,17 @@ export type AppointmentCatalogApprovalReviewInput = {
   reason: string;
 };
 
+export type AppointmentCatalogCodeEditorInput = {
+  catalog: AppointmentCatalogCodeType;
+  action: "ADD" | "RENAME" | "REMOVE";
+  purposeCode?: string;
+  code: string;
+  nextCode?: string;
+  label?: string;
+  description?: string;
+  reason: string;
+};
+
 export type AppointmentCatalogPurposeLifecycleInput =
   | {
       action: "CREATE";
@@ -279,6 +300,30 @@ function uniqueSorted(values: string[]) {
   return [...new Set(values)].sort((left, right) => left.localeCompare(right));
 }
 
+function labelFromCode(code: string) {
+  return code
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function codeDetailKey(type: AppointmentCatalogCodeType, code: string) {
+  return `${type}:${code}`;
+}
+
+function systemRequiredCodesByType(type: AppointmentCatalogCodeType) {
+  if (type === "FOLLOW_UP_DISPOSITION") {
+    return new Set<string>(liveFollowUpDispositionCodes);
+  }
+
+  if (type === "REASON") {
+    return new Set<string>(operationalReasonCodes);
+  }
+
+  return new Set<string>();
+}
+
 function normalizeCode(value: unknown, label: string) {
   const normalized = typeof value === "string" ? value.trim().toUpperCase() : "";
 
@@ -291,6 +336,20 @@ function normalizeCode(value: unknown, label: string) {
 
 function normalizeOptionalText(value: unknown, fallback: string) {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function normalizeCatalogCodeType(value: unknown) {
+  const normalized = typeof value === "string" ? value.trim().toUpperCase() : "";
+
+  if (
+    normalized !== "OUTCOME" &&
+    normalized !== "FOLLOW_UP_DISPOSITION" &&
+    normalized !== "REASON"
+  ) {
+    throw new Error("Catalog code type is not supported.");
+  }
+
+  return normalized as AppointmentCatalogCodeType;
 }
 
 function normalizeReason(reason: unknown, label = "Change reason") {
@@ -470,9 +529,45 @@ function buildAutomationRule(
   };
 }
 
+function buildCodeDetails(input: {
+  outcomeCodes: string[];
+  followUpDispositionCodes: string[];
+  reasonCodes: string[];
+  existingDetails?: Record<string, AppointmentCatalogCodeDetail>;
+}) {
+  const details: Record<string, AppointmentCatalogCodeDetail> = {};
+
+  for (const [type, codes] of [
+    ["OUTCOME", input.outcomeCodes],
+    ["FOLLOW_UP_DISPOSITION", input.followUpDispositionCodes],
+    ["REASON", input.reasonCodes]
+  ] as const) {
+    const systemRequiredCodes = systemRequiredCodesByType(type);
+
+    for (const code of codes) {
+      const key = codeDetailKey(type, code);
+      const existing = input.existingDetails?.[key];
+
+      details[key] = {
+        code,
+        type,
+        label: normalizeOptionalText(existing?.label, labelFromCode(code)),
+        description: normalizeOptionalText(
+          existing?.description,
+          `${labelFromCode(code)} catalog code.`
+        ),
+        systemRequired: existing?.systemRequired ?? systemRequiredCodes.has(code)
+      };
+    }
+  }
+
+  return details;
+}
+
 function buildAppointmentCatalogCore(input?: {
   purposes?: AppointmentCatalogPurpose[];
   reasonCodes?: string[];
+  codeDetails?: Record<string, AppointmentCatalogCodeDetail>;
 }) {
   const templates = getCatalogTemplates();
   const purposes = input?.purposes ?? templates.map(buildPurpose);
@@ -487,6 +582,12 @@ function buildAppointmentCatalogCore(input?: {
     ...purposes.flatMap((purpose) => purpose.hardConflictCodes),
     ...purposes.flatMap((purpose) => purpose.warningCodes)
   ]);
+  const codeDetails = buildCodeDetails({
+    outcomeCodes,
+    followUpDispositionCodes,
+    reasonCodes,
+    existingDetails: input?.codeDetails
+  });
   const automationRules = purposes.flatMap((purpose) =>
     purpose.automationTriggers.map((trigger) => buildAutomationRule(purpose, trigger))
   );
@@ -496,7 +597,8 @@ function buildAppointmentCatalogCore(input?: {
     catalogs: {
       outcomeCodes,
       followUpDispositionCodes,
-      reasonCodes
+      reasonCodes,
+      codeDetails
     },
     automationRules,
     governance: {
@@ -548,6 +650,15 @@ function normalizeCatalogSnapshot(value: unknown) {
   const purposes = Array.isArray(candidate.purposes)
     ? candidate.purposes.filter(looksLikePurpose)
     : [];
+  const codeDetails =
+    candidate.catalogs &&
+    typeof candidate.catalogs === "object" &&
+    "codeDetails" in candidate.catalogs &&
+    candidate.catalogs.codeDetails &&
+    typeof candidate.catalogs.codeDetails === "object" &&
+    !Array.isArray(candidate.catalogs.codeDetails)
+      ? (candidate.catalogs.codeDetails as Record<string, AppointmentCatalogCodeDetail>)
+      : undefined;
 
   if (purposes.length === 0) {
     return getBaselineCatalogCore();
@@ -557,7 +668,8 @@ function normalizeCatalogSnapshot(value: unknown) {
     purposes,
     reasonCodes: Array.isArray(candidate.catalogs?.reasonCodes)
       ? candidate.catalogs.reasonCodes.filter((code): code is string => typeof code === "string")
-      : []
+      : [],
+    codeDetails
   });
 }
 
@@ -1222,7 +1334,8 @@ function applyPurposeLifecycleChange(input: {
             : input.catalog.purposes.find((candidate) => candidate.code === code)
         )
         .filter((purpose): purpose is AppointmentCatalogPurpose => Boolean(purpose)),
-      reasonCodes: input.catalog.catalogs.reasonCodes
+      reasonCodes: input.catalog.catalogs.reasonCodes,
+      codeDetails: input.catalog.catalogs.codeDetails
     });
   }
 
@@ -1239,7 +1352,8 @@ function applyPurposeLifecycleChange(input: {
 
     return buildAppointmentCatalogCore({
       purposes: input.catalog.purposes.filter((purpose) => purpose.code !== existingPurpose.code),
-      reasonCodes: input.catalog.catalogs.reasonCodes
+      reasonCodes: input.catalog.catalogs.reasonCodes,
+      codeDetails: input.catalog.catalogs.codeDetails
     });
   }
 
@@ -1249,7 +1363,8 @@ function applyPurposeLifecycleChange(input: {
     purposes: input.catalog.purposes.map((purpose) =>
       purpose.code === existingPurpose.code ? { ...purpose, isActive } : purpose
     ),
-    reasonCodes: input.catalog.catalogs.reasonCodes
+    reasonCodes: input.catalog.catalogs.reasonCodes,
+    codeDetails: input.catalog.catalogs.codeDetails
   });
 }
 
@@ -1331,7 +1446,161 @@ function applyPurposeDraftChange(
       changes.reasonCodes,
       "Reason codes",
       catalog.catalogs.reasonCodes
-    )
+    ),
+    codeDetails: catalog.catalogs.codeDetails
+  });
+}
+
+function applyCatalogCodeEditorChange(
+  catalog: AppointmentCatalogCore,
+  input: AppointmentCatalogCodeEditorInput
+) {
+  const catalogType = normalizeCatalogCodeType(input.catalog);
+  const action = input.action;
+  const code = normalizeCode(input.code, "Catalog code");
+  const nextCode =
+    action === "RENAME" ? normalizeCode(input.nextCode, "Replacement catalog code") : code;
+  const label = normalizeOptionalText(input.label, labelFromCode(nextCode));
+  const description = normalizeOptionalText(
+    input.description,
+    `${labelFromCode(nextCode)} catalog code.`
+  );
+  const codeDetails = { ...catalog.catalogs.codeDetails };
+
+  function upsertCodeDetail(type: AppointmentCatalogCodeType, detailCode: string) {
+    const key = codeDetailKey(type, detailCode);
+
+    codeDetails[key] = {
+      code: detailCode,
+      type,
+      label,
+      description,
+      systemRequired: codeDetails[key]?.systemRequired ?? systemRequiredCodesByType(type).has(detailCode)
+    };
+  }
+
+  function removeCodeDetail(type: AppointmentCatalogCodeType, detailCode: string) {
+    delete codeDetails[codeDetailKey(type, detailCode)];
+  }
+
+  if (catalogType === "REASON") {
+    if (systemRequiredCodesByType("REASON").has(code)) {
+      throw new Error("System-required reason codes cannot be renamed or removed.");
+    }
+
+    const reasonCodes = [...catalog.catalogs.reasonCodes];
+    const exists = reasonCodes.includes(code);
+
+    if (action === "ADD") {
+      if (exists) {
+        throw new Error("Reason code is already configured.");
+      }
+      upsertCodeDetail("REASON", code);
+
+      return buildAppointmentCatalogCore({
+        purposes: catalog.purposes,
+        reasonCodes: [...reasonCodes, code],
+        codeDetails
+      });
+    }
+
+    if (!exists) {
+      throw new Error("Reason code is not configured.");
+    }
+
+    if (action === "REMOVE") {
+      removeCodeDetail("REASON", code);
+
+      return buildAppointmentCatalogCore({
+        purposes: catalog.purposes,
+        reasonCodes: reasonCodes.filter((candidate) => candidate !== code),
+        codeDetails
+      });
+    }
+
+    if (reasonCodes.includes(nextCode)) {
+      throw new Error("Replacement reason code is already configured.");
+    }
+
+    removeCodeDetail("REASON", code);
+    upsertCodeDetail("REASON", nextCode);
+
+    return buildAppointmentCatalogCore({
+      purposes: catalog.purposes,
+      reasonCodes: reasonCodes.map((candidate) => (candidate === code ? nextCode : candidate)),
+      codeDetails
+    });
+  }
+
+  const purposeCode = normalizeCode(input.purposeCode, "Purpose code");
+  const purpose = catalog.purposes.find((candidate) => candidate.code === purposeCode);
+
+  if (!purpose) {
+    throw new Error("Appointment purpose is not configured.");
+  }
+
+  const field = catalogType === "OUTCOME" ? "outcomeCodes" : "followUpDispositionCodes";
+  const values = [...purpose[field]];
+  const exists = values.includes(code);
+
+  if (action === "ADD") {
+    if (exists) {
+      throw new Error("Catalog code is already configured for this purpose.");
+    }
+    upsertCodeDetail(catalogType, code);
+
+    return buildAppointmentCatalogCore({
+      purposes: catalog.purposes.map((candidate) =>
+        candidate.code === purpose.code
+          ? { ...candidate, [field]: uniqueSorted([...values, code]) }
+          : candidate
+      ),
+      reasonCodes: catalog.catalogs.reasonCodes,
+      codeDetails
+    });
+  }
+
+  if (!exists) {
+    throw new Error("Catalog code is not configured for this purpose.");
+  }
+
+  if (action === "REMOVE") {
+    if (values.length <= 1) {
+      throw new Error("Each purpose must keep at least one configured code.");
+    }
+    removeCodeDetail(catalogType, code);
+
+    return buildAppointmentCatalogCore({
+      purposes: catalog.purposes.map((candidate) =>
+        candidate.code === purpose.code
+          ? { ...candidate, [field]: values.filter((candidateCode) => candidateCode !== code) }
+          : candidate
+      ),
+      reasonCodes: catalog.catalogs.reasonCodes,
+      codeDetails
+    });
+  }
+
+  if (values.includes(nextCode)) {
+    throw new Error("Replacement catalog code is already configured for this purpose.");
+  }
+
+  removeCodeDetail(catalogType, code);
+  upsertCodeDetail(catalogType, nextCode);
+
+  return buildAppointmentCatalogCore({
+    purposes: catalog.purposes.map((candidate) =>
+      candidate.code === purpose.code
+        ? {
+            ...candidate,
+            [field]: uniqueSorted(
+              values.map((candidateCode) => (candidateCode === code ? nextCode : candidateCode))
+            )
+          }
+        : candidate
+    ),
+    reasonCodes: catalog.catalogs.reasonCodes,
+    codeDetails
   });
 }
 
@@ -1547,6 +1816,68 @@ export async function updateAppointmentCatalogPurposeLifecycleForManager(
   const approval = buildApprovalSummary({
     status: "PENDING_REVIEW",
     reason: "Lifecycle change requires General Manager approval before activation."
+  });
+
+  if (!validation.isValid) {
+    throw new Error(`Catalog draft is invalid: ${validation.errors.join(" ")}`);
+  }
+
+  const title = "Draft appointment catalog";
+  const description = "Manager-edited draft catalog awaiting activation.";
+
+  if (draftVersion) {
+    await repository.updateDraftVersion({
+      draftVersionId: draftVersion.id,
+      organizationId,
+      title,
+      description,
+      reason,
+      actorUserId: user.id,
+      priorSnapshot: draftVersion.catalogSnapshot,
+      catalogSnapshot: nextCatalog,
+      validationSnapshot: withApprovalSnapshot(validation, approval)
+    });
+  } else {
+    await repository.createDraftVersion({
+      organizationId,
+      version: Math.max(latestVersionNumber, activeVersion?.version ?? 0, 0) + 1,
+      title,
+      description,
+      reason,
+      actorUserId: user.id,
+      catalogSnapshot: nextCatalog,
+      validationSnapshot: withApprovalSnapshot(validation, approval),
+      action: "DRAFT_CREATED"
+    });
+  }
+
+  return loadAdminModel(repository);
+}
+
+export async function updateAppointmentCatalogCodeForManager(
+  user: AuthenticatedUser | null,
+  input: AppointmentCatalogCodeEditorInput,
+  repository: AppointmentCatalogAutomationAdminRepository = createAppointmentCatalogAutomationAdminRepository()
+) {
+  assertCanManageCatalogAutomation(user);
+
+  const organizationId = INITIAL_ORGANIZATION.id;
+  const reason = normalizeReason(input.reason);
+  const [activeVersion, draftVersion, latestVersionNumber] = await Promise.all([
+    repository.getActiveVersion(organizationId),
+    repository.getDraftVersion(organizationId),
+    repository.getLatestVersionNumber(organizationId)
+  ]);
+  const currentCatalog = draftVersion
+    ? normalizeCatalogSnapshot(draftVersion.catalogSnapshot)
+    : activeVersion
+      ? normalizeCatalogSnapshot(activeVersion.catalogSnapshot)
+      : getBaselineCatalogCore();
+  const nextCatalog = applyCatalogCodeEditorChange(currentCatalog, input);
+  const validation = validateCatalogCore(nextCatalog);
+  const approval = buildApprovalSummary({
+    status: "PENDING_REVIEW",
+    reason: "Catalog code edit requires General Manager approval before activation."
   });
 
   if (!validation.isValid) {
