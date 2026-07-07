@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   AppointmentBoardShell,
   buildAppointmentExceptionQueues,
+  buildAppointmentResolutionWorkbench,
   buildOutcomeSuccessNotice,
   isProposedScheduleStartInPast,
   isUnscheduledDraftAppointment
@@ -26,6 +27,9 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Conflict Watch");
     expect(markup).toContain("No-Show Recovery");
     expect(markup).toContain("Follow-Up Required");
+    expect(markup).toContain("Resolution Workbench");
+    expect(markup).toContain("Queue focus");
+    expect(markup).toContain("Select visible");
   });
 
   it("renders admin-provided board settings when available", () => {
@@ -194,6 +198,168 @@ describe("appointment board shell", () => {
       "APT-NOSHOW",
       "APT-FOLLOWUP"
     ]);
+  });
+
+  it("builds a sorted resolution workbench and hides dormant items by default", () => {
+    const workbenchItems = buildAppointmentResolutionWorkbench(
+      [
+        {
+          id: "APT-SNOOZED",
+          title: "Draft Follow-Up",
+          customer: "Amina Said",
+          vehicle: "Registration",
+          category: "dmv",
+          status: "draft",
+          staffId: "rayana",
+          staffName: "Rayana Hassan",
+          startMinutes: 0,
+          durationMinutes: 60,
+          phone: "612-555-0100",
+          complaint: "Draft needs scheduling",
+          location: "Front office",
+          confirmation: "Needs schedule placement",
+          taskAutomation: [],
+          governanceNotes: [],
+          startsAtIso: null,
+          endsAtIso: null
+        },
+        {
+          id: "APT-CONFLICT",
+          title: "Service / Repair",
+          customer: "Khalid Mohamud",
+          vehicle: "Brake Inspection",
+          category: "service",
+          status: "confirmed",
+          staffId: "brock",
+          staffName: "Brock Peterson",
+          startMinutes: 600,
+          durationMinutes: 60,
+          phone: "612-555-0101",
+          complaint: "Conflict active",
+          location: "Service bay",
+          confirmation: "Resource conflict needs manager review",
+          conflict: true,
+          taskAutomation: [],
+          governanceNotes: [],
+          startsAtIso: "2026-07-07T15:00:00.000Z",
+          endsAtIso: "2026-07-07T16:00:00.000Z"
+        },
+        {
+          id: "APT-NOSHOW",
+          title: "Test Drive",
+          customer: "Ahmed Ibrahim",
+          vehicle: "2018 Toyota Camry",
+          category: "sales",
+          status: "no-show",
+          staffId: "abdi",
+          staffName: "Abdi Farah",
+          startMinutes: 540,
+          durationMinutes: 60,
+          phone: "612-555-0102",
+          complaint: "Customer did not arrive",
+          location: "Sales floor",
+          confirmation: "No-show follow-up required",
+          attendanceStatus: "NO_SHOW",
+          followUpDispositionCode: "CALLBACK_REQUIRED",
+          taskAutomation: [],
+          governanceNotes: [],
+          startsAtIso: "2026-07-07T14:00:00.000Z",
+          endsAtIso: "2026-07-07T15:00:00.000Z"
+        }
+      ] as any,
+      {
+        "APT-SNOOZED": {
+          status: "snoozed",
+          ownerId: "rayana",
+          ownerName: "Rayana Hassan",
+          snoozedUntilLabel: "Tomorrow 9:00 AM",
+          updatedAtLabel: "Snoozed just now"
+        },
+        "APT-CONFLICT": {
+          status: "escalated",
+          ownerId: "abdi",
+          ownerName: "Abdi Farah",
+          updatedAtLabel: "Escalated just now"
+        }
+      },
+      {
+        sort: "priority"
+      }
+    );
+
+    expect(workbenchItems.map((item) => item.appointment.id)).toEqual([
+      "APT-NOSHOW",
+      "APT-CONFLICT"
+    ]);
+    expect(workbenchItems[0]?.priority).toBe("Critical");
+    expect(workbenchItems[0]?.slaStatus).toBe("breached");
+    expect(workbenchItems[1]?.resolutionStatus).toBe("escalated");
+  });
+
+  it("can include dormant items and filter workbench results", () => {
+    const workbenchItems = buildAppointmentResolutionWorkbench(
+      [
+        {
+          id: "APT-DRAFT",
+          title: "Draft Follow-Up",
+          customer: "Amina Said",
+          vehicle: "Registration",
+          category: "dmv",
+          status: "draft",
+          staffId: "rayana",
+          staffName: "Rayana Hassan",
+          startMinutes: 0,
+          durationMinutes: 60,
+          phone: "612-555-0100",
+          complaint: "Draft needs scheduling",
+          location: "Front office",
+          confirmation: "Needs schedule placement",
+          taskAutomation: [],
+          governanceNotes: [],
+          startsAtIso: null,
+          endsAtIso: null
+        },
+        {
+          id: "APT-CONFLICT",
+          title: "Service / Repair",
+          customer: "Khalid Mohamud",
+          vehicle: "Brake Inspection",
+          category: "service",
+          status: "confirmed",
+          staffId: "brock",
+          staffName: "Brock Peterson",
+          startMinutes: 600,
+          durationMinutes: 60,
+          phone: "612-555-0101",
+          complaint: "Conflict active",
+          location: "Service bay",
+          confirmation: "Resource conflict needs manager review",
+          conflict: true,
+          taskAutomation: [],
+          governanceNotes: [],
+          startsAtIso: "2026-07-07T15:00:00.000Z",
+          endsAtIso: "2026-07-07T16:00:00.000Z"
+        }
+      ] as any,
+      {
+        "APT-DRAFT": {
+          status: "snoozed",
+          ownerId: "rayana",
+          ownerName: "Rayana Hassan",
+          snoozedUntilLabel: "Tomorrow 9:00 AM",
+          updatedAtLabel: "Snoozed just now"
+        }
+      },
+      {
+        includeDormant: true,
+        filter: "needs-scheduling",
+        sort: "age"
+      }
+    );
+
+    expect(workbenchItems.map((item) => item.appointment.id)).toEqual(["APT-DRAFT"]);
+    expect(workbenchItems[0]?.resolutionStatus).toBe("snoozed");
+    expect(workbenchItems[0]?.snoozedUntilLabel).toBe("Tomorrow 9:00 AM");
   });
 
   it("detects proposed draft schedule starts that are already in the past", () => {
