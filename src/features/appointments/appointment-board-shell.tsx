@@ -311,6 +311,39 @@ type AppointmentCommandCenterDigestHistoryEntry = {
   generatedAtLabel: string;
 };
 
+type AppointmentExecutiveReviewPreset =
+  | "daily-ops"
+  | "sla-risk"
+  | "customer-recovery"
+  | "leadership-close";
+
+type AppointmentExecutiveReviewMetric = {
+  label: string;
+  value: string;
+  tone: "blue" | "amber" | "red" | "purple" | "green";
+  detail: string;
+};
+
+type AppointmentExecutiveReviewTrend = {
+  label: string;
+  status: "stable" | "watch" | "risk";
+  value: string;
+  detail: string;
+};
+
+type AppointmentExecutiveReviewDigestPerformance = {
+  label: string;
+  value: string;
+  detail: string;
+};
+
+type AppointmentExecutiveReviewModel = {
+  headline: string;
+  metrics: AppointmentExecutiveReviewMetric[];
+  trends: AppointmentExecutiveReviewTrend[];
+  digestPerformance: AppointmentExecutiveReviewDigestPerformance[];
+};
+
 type AppointmentReadModel = {
   id: string;
   appointmentNumber: string;
@@ -699,6 +732,33 @@ const initialCommandCenterDigestHistory: AppointmentCommandCenterDigestHistoryEn
     status: "previewed",
     reason: "Prepared for afternoon handoff.",
     generatedAtLabel: "Today 2:10 PM"
+  }
+];
+
+const executiveReviewPresetOptions: Array<{
+  value: AppointmentExecutiveReviewPreset;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "daily-ops",
+    label: "Daily Ops",
+    description: "Balanced view across open queues, manager activity, and reporting."
+  },
+  {
+    value: "sla-risk",
+    label: "SLA Risk",
+    description: "Pull leadership directly into breached and escalation-heavy work."
+  },
+  {
+    value: "customer-recovery",
+    label: "Recovery",
+    description: "Center no-show, follow-up, and customer-save work."
+  },
+  {
+    value: "leadership-close",
+    label: "Close Brief",
+    description: "Package the day-end command-center story and handoff posture."
   }
 ];
 
@@ -1994,6 +2054,162 @@ export function buildAppointmentCommandCenterDigestPreview(input: {
   return lines.join("\n");
 }
 
+function appointmentExecutiveTrendStatus(
+  count: number,
+  warningThreshold: number,
+  riskThreshold: number
+) {
+  if (count >= riskThreshold) {
+    return "risk" as const;
+  }
+
+  if (count >= warningThreshold) {
+    return "watch" as const;
+  }
+
+  return "stable" as const;
+}
+
+export function buildAppointmentExecutiveReviewModel(input: {
+  report: AppointmentCommandCenterReport;
+  exceptionQueues: AppointmentExceptionQueue[];
+  selectedAppointmentAuditTimeline: AppointmentAuditTimelineEvent[];
+  subscriptions: AppointmentCommandCenterSubscriptionSummary[];
+  digests: AppointmentCommandCenterDigestSummary[];
+  digestHistory: AppointmentCommandCenterDigestHistoryEntry[];
+}): AppointmentExecutiveReviewModel {
+  const noShowRecoveryCount =
+    input.exceptionQueues.find((queue) => queue.key === "no-show-recovery")?.items.length ?? 0;
+  const followUpBacklogCount =
+    input.exceptionQueues.find((queue) => queue.key === "follow-up-required")?.items.length ?? 0;
+  const enabledSubscriptions = input.subscriptions.filter((subscription) => subscription.enabled).length;
+  const enabledDigests = input.digests.filter((digest) => digest.enabled).length;
+  const sentDigestCount = input.digestHistory.filter((entry) => entry.status === "sent").length;
+  const previewedDigestCount = input.digestHistory.filter((entry) => entry.status === "previewed").length;
+
+  return {
+    headline:
+      input.report.summary.breachedSla > 0
+        ? `${input.report.summary.breachedSla} breached SLA item${input.report.summary.breachedSla === 1 ? "" : "s"} require leadership attention.`
+        : "Board operations are stable with no breached SLA items in the current review scope.",
+    metrics: [
+      {
+        label: "Visible exceptions",
+        value: `${input.report.summary.visibleExceptions}`,
+        tone: input.report.summary.visibleExceptions >= 6 ? "amber" : "blue",
+        detail: "Current command-center workbench items visible in the active scope."
+      },
+      {
+        label: "Breached SLA",
+        value: `${input.report.summary.breachedSla}`,
+        tone: input.report.summary.breachedSla > 0 ? "red" : "green",
+        detail: "Exceptions that have already crossed the target response window."
+      },
+      {
+        label: "Escalated work",
+        value: `${input.report.summary.escalated}`,
+        tone: input.report.summary.escalated > 0 ? "purple" : "green",
+        detail: "Workbench items that still require a manager decision or handoff."
+      },
+      {
+        label: "Digest coverage",
+        value: `${enabledDigests}/${input.digests.length}`,
+        tone: enabledDigests === input.digests.length ? "green" : "blue",
+        detail: "Enabled executive-facing notification digests currently watching the board."
+      }
+    ],
+    trends: [
+      {
+        label: "SLA pressure",
+        status: appointmentExecutiveTrendStatus(input.report.summary.breachedSla, 1, 2),
+        value: `${input.report.summary.breachedSla} breached`,
+        detail: input.report.summary.breachedSla > 0
+          ? "Leadership intervention is recommended before the next review cycle."
+          : "No breached items are visible in the executive scope."
+      },
+      {
+        label: "Customer recovery",
+        status: appointmentExecutiveTrendStatus(noShowRecoveryCount + followUpBacklogCount, 2, 4),
+        value: `${noShowRecoveryCount + followUpBacklogCount} recovery items`,
+        detail: `${noShowRecoveryCount} no-show recovery and ${followUpBacklogCount} follow-up backlog item${
+          noShowRecoveryCount + followUpBacklogCount === 1 ? "" : "s"
+        }.`
+      },
+      {
+        label: "Manager workload",
+        status: appointmentExecutiveTrendStatus(input.report.summary.escalated, 1, 3),
+        value: `${input.selectedAppointmentAuditTimeline.filter((event) => event.lane === "manager").length} manager events`,
+        detail: "Focused manager-lane activity visible for the selected appointment and current review scope."
+      },
+      {
+        label: "Watch readiness",
+        status: appointmentExecutiveTrendStatus(enabledSubscriptions, 2, 4) === "risk" ? "stable" : "watch",
+        value: `${enabledSubscriptions}/${input.subscriptions.length} subscriptions`,
+        detail: `${sentDigestCount} digests sent and ${previewedDigestCount} previewed in the visible history.`
+      }
+    ],
+    digestPerformance: [
+      {
+        label: "Delivered digests",
+        value: `${sentDigestCount}`,
+        detail: "Notification digests that were sent from the command center history."
+      },
+      {
+        label: "Previewed digests",
+        value: `${previewedDigestCount}`,
+        detail: "Prepared but not yet delivered digests still visible for review."
+      },
+      {
+        label: "Most used channel",
+        value:
+          input.digestHistory.filter((entry) => entry.channel === "email-summary").length >=
+          input.digestHistory.filter((entry) => entry.channel === "in-app").length
+            ? "Email summary"
+            : "In-app alert",
+        detail: "Based on the recent digest history visible in the command center."
+      }
+    ]
+  };
+}
+
+export function buildAppointmentExecutiveReviewBrief(input: {
+  preset: AppointmentExecutiveReviewPreset;
+  businessDate: string;
+  model: AppointmentExecutiveReviewModel;
+  report: AppointmentCommandCenterReport;
+  selectedAppointment: Appointment;
+}) {
+  const presetLabel =
+    executiveReviewPresetOptions.find((option) => option.value === input.preset)?.label ?? input.preset;
+  const topRows = input.report.rows.slice(0, 3);
+
+  return [
+    `Appointment executive review brief - ${presetLabel}`,
+    `Business date: ${input.businessDate}`,
+    `Headline: ${input.model.headline}`,
+    `Focused appointment: ${input.selectedAppointment.id} · ${input.selectedAppointment.title} · ${input.selectedAppointment.customer}`,
+    "",
+    "Scorecard:",
+    ...input.model.metrics.map((metric) => `- ${metric.label}: ${metric.value} (${metric.detail})`),
+    "",
+    "Trend watch:",
+    ...input.model.trends.map((trend) => `- ${trend.label}: ${trend.value} (${trend.detail})`),
+    "",
+    "Digest performance:",
+    ...input.model.digestPerformance.map(
+      (metric) => `- ${metric.label}: ${metric.value} (${metric.detail})`
+    ),
+    "",
+    "Top visible queue items:",
+    ...(topRows.length > 0
+      ? topRows.map(
+          (row) =>
+            `- ${row.appointmentId} | ${row.queueLabel} | ${row.priority} | ${row.slaStatus} | ${row.ownerName}`
+        )
+      : ["- None"])
+  ].join("\n");
+}
+
 function appointmentTimeLabel(appointment: Appointment) {
   if (isUnscheduledDraftAppointment(appointment)) {
     return "Unscheduled";
@@ -2530,6 +2746,8 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   const [commandCenterDigestHistory, setCommandCenterDigestHistory] = useState(
     initialCommandCenterDigestHistory
   );
+  const [executiveReviewPreset, setExecutiveReviewPreset] =
+    useState<AppointmentExecutiveReviewPreset>("daily-ops");
   const [detailRefreshKey, setDetailRefreshKey] = useState(0);
   const [actionNotice, setActionNotice] = useState("Operational command bridge ready. Persisted appointments can now use the live command API for check-in and no-show actions.");
 
@@ -2878,6 +3096,41 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   const enabledCommandCenterDigestCount = commandCenterDigestSummaries.filter(
     (digest) => digest.enabled
   ).length;
+  const executiveReviewModel = useMemo(
+    () =>
+      buildAppointmentExecutiveReviewModel({
+        report: commandCenterReport,
+        exceptionQueues,
+        selectedAppointmentAuditTimeline,
+        subscriptions: commandCenterSubscriptionSummaries,
+        digests: commandCenterDigestSummaries,
+        digestHistory: commandCenterDigestHistory
+      }),
+    [
+      commandCenterDigestHistory,
+      commandCenterDigestSummaries,
+      commandCenterReport,
+      commandCenterSubscriptionSummaries,
+      exceptionQueues,
+      selectedAppointmentAuditTimeline
+    ]
+  );
+  const executiveReviewBrief = useMemo(
+    () =>
+      buildAppointmentExecutiveReviewBrief({
+        preset: executiveReviewPreset,
+        businessDate,
+        model: executiveReviewModel,
+        report: commandCenterReport,
+        selectedAppointment
+      }),
+    [
+      commandCenterReport,
+      executiveReviewModel,
+      executiveReviewPreset,
+      selectedAppointment
+    ]
+  );
 
   const scheduledFilteredAppointments = useMemo(
     () => filteredAppointments.filter((appointment) => !isUnscheduledDraftAppointment(appointment)),
@@ -3202,6 +3455,69 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
       );
     } else {
       setActionNotice(`Prepared "${selectedCommandCenterDigestSummary.label}" preview for manager review.`);
+    }
+  }
+
+  function applyExecutiveReviewPreset(preset: AppointmentExecutiveReviewPreset) {
+    setExecutiveReviewPreset(preset);
+
+    if (preset === "sla-risk") {
+      setResolutionFilter("breached-sla");
+      setReportQueueFilter("breached-sla");
+      setReportOwnerFilter("all");
+      setCommandCenterSearchPreset("breached-sla");
+      setCommandCenterSearchScope("appointments");
+      setAuditTimelineFilter("manager");
+      setActionNotice("Loaded the SLA Risk executive review preset into the command center.");
+      return;
+    }
+
+    if (preset === "customer-recovery") {
+      setResolutionFilter("no-show-recovery");
+      setReportQueueFilter("follow-up-required");
+      setReportOwnerFilter("all");
+      setCommandCenterSearchPreset("all");
+      setCommandCenterSearchScope("appointments");
+      setAuditTimelineFilter("all");
+      setActionNotice("Loaded the Customer Recovery executive review preset into the command center.");
+      return;
+    }
+
+    if (preset === "leadership-close") {
+      setResolutionFilter("all");
+      setReportQueueFilter("all");
+      setReportOwnerFilter("all");
+      setCommandCenterSearchPreset("manager-activity");
+      setCommandCenterSearchScope("all");
+      setAuditTimelineFilter("manager");
+      setActionNotice("Loaded the Leadership Close executive review preset into the command center.");
+      return;
+    }
+
+    setResolutionFilter("all");
+    setReportQueueFilter("all");
+    setReportOwnerFilter("all");
+    setCommandCenterSearchPreset("all");
+    setCommandCenterSearchScope("all");
+    setAuditTimelineFilter("all");
+    setActionNotice("Loaded the Daily Ops executive review preset into the command center.");
+  }
+
+  async function copyExecutiveReviewBrief() {
+    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+      setActionNotice("Executive review brief is ready. Copy is not available in this browser context.");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(executiveReviewBrief);
+      setActionNotice("Copied executive review brief to clipboard.");
+    } catch (error) {
+      setActionNotice(
+        error instanceof Error
+          ? `Could not copy executive review brief: ${error.message}`
+          : "Could not copy executive review brief."
+      );
     }
   }
 
@@ -5969,6 +6285,133 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
                 rows={12}
                 value={commandCenterExportPreview}
               />
+            </div>
+          </section>
+
+          <section
+            className="appointment-executive-review-card"
+            aria-labelledby="appointment-executive-review"
+          >
+            <div className="appointment-section-heading">
+              <div>
+                <strong id="appointment-executive-review">Executive Review Suite</strong>
+                <p>
+                  Turn the command-center surface into a leadership-ready review with scorecards, trend
+                  watch, digest performance, and a reusable daily operations brief.
+                </p>
+              </div>
+              <span>{executiveReviewPresetOptions.find((option) => option.value === executiveReviewPreset)?.label}</span>
+            </div>
+
+            <div className="appointment-executive-review-presets" aria-label="Executive review presets">
+              {executiveReviewPresetOptions.map((preset) => (
+                <button
+                  className={
+                    executiveReviewPreset === preset.value
+                      ? "appointment-executive-review-preset appointment-executive-review-preset-active"
+                      : "appointment-executive-review-preset"
+                  }
+                  key={preset.value}
+                  onClick={() => applyExecutiveReviewPreset(preset.value)}
+                  type="button"
+                >
+                  <strong>{preset.label}</strong>
+                  <span>{preset.description}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="appointment-executive-review-grid">
+              <section className="appointment-command-center-panel" aria-labelledby="appointment-executive-scorecard">
+                <div className="appointment-command-center-panel-heading">
+                  <div>
+                    <strong id="appointment-executive-scorecard">Executive Scorecard</strong>
+                    <p>{executiveReviewModel.headline}</p>
+                  </div>
+                  <span>{commandCenterReport.generatedForLabel}</span>
+                </div>
+
+                <div className="appointment-executive-review-metrics">
+                  {executiveReviewModel.metrics.map((metric) => (
+                    <article
+                      className={`appointment-executive-review-metric appointment-executive-review-metric-${metric.tone}`}
+                      key={metric.label}
+                    >
+                      <span>{metric.label}</span>
+                      <strong>{metric.value}</strong>
+                      <p>{metric.detail}</p>
+                    </article>
+                  ))}
+                </div>
+
+                <div className="appointment-executive-review-trends">
+                  {executiveReviewModel.trends.map((trend) => (
+                    <article className="appointment-executive-review-trend" key={trend.label}>
+                      <div className="appointment-executive-review-trend-top">
+                        <strong>{trend.label}</strong>
+                        <span
+                          className={
+                            trend.status === "risk"
+                              ? "appointment-command-center-tag appointment-command-center-tag-red"
+                              : trend.status === "watch"
+                                ? "appointment-command-center-tag appointment-command-center-tag-amber"
+                                : "appointment-command-center-tag appointment-command-center-tag-green"
+                          }
+                        >
+                          {trend.status === "risk" ? "Risk" : trend.status === "watch" ? "Watch" : "Stable"}
+                        </span>
+                      </div>
+                      <b>{trend.value}</b>
+                      <p>{trend.detail}</p>
+                    </article>
+                  ))}
+                </div>
+              </section>
+
+              <section className="appointment-command-center-panel" aria-labelledby="appointment-executive-brief">
+                <div className="appointment-command-center-panel-heading">
+                  <div>
+                    <strong id="appointment-executive-brief">Daily Operations Brief</strong>
+                    <p>
+                      Leadership-ready summary of the current command-center scope, selected preset, and
+                      top visible queue pressure.
+                    </p>
+                  </div>
+                  <span>{selectedAppointment.id}</span>
+                </div>
+
+                <div className="appointment-executive-review-digest-performance">
+                  {executiveReviewModel.digestPerformance.map((item) => (
+                    <article key={item.label}>
+                      <span>{item.label}</span>
+                      <strong>{item.value}</strong>
+                      <p>{item.detail}</p>
+                    </article>
+                  ))}
+                </div>
+
+                <div className="appointment-executive-review-brief">
+                  <div className="appointment-command-center-digest-preview-heading">
+                    <strong>Leadership brief preview</strong>
+                    <span>{businessDate}</span>
+                  </div>
+                  <textarea
+                    aria-label="Executive review brief preview"
+                    readOnly
+                    rows={12}
+                    value={executiveReviewBrief}
+                  />
+                </div>
+
+                <div className="appointment-executive-review-actions">
+                  <button type="button" onClick={() => applyExecutiveReviewPreset(executiveReviewPreset)}>
+                    Refresh preset
+                  </button>
+                  <button type="button" onClick={() => void copyExecutiveReviewBrief()}>
+                    Copy brief
+                  </button>
+                </div>
+              </section>
             </div>
           </section>
 

@@ -10,6 +10,8 @@ import {
   buildAppointmentCommandCenterSearchResults,
   buildAppointmentCommandCenterSavedViewDescription,
   buildAppointmentCommandCenterSubscriptionSummaries,
+  buildAppointmentExecutiveReviewBrief,
+  buildAppointmentExecutiveReviewModel,
   AppointmentBoardShell,
   buildAppointmentExceptionQueues,
   buildAppointmentResolutionWorkbench,
@@ -51,6 +53,9 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Digest Preview &amp; Delivery");
     expect(markup).toContain("Shift Handoff Summary");
     expect(markup).toContain("Send now");
+    expect(markup).toContain("Executive Review Suite");
+    expect(markup).toContain("Daily Operations Brief");
+    expect(markup).toContain("Executive Scorecard");
   });
 
   it("renders admin-provided board settings when available", () => {
@@ -389,6 +394,122 @@ describe("appointment board shell", () => {
     expect(preview).toContain("Recipients: General Manager");
     expect(preview).toContain("Top queue items:");
     expect(preview).toContain("APT-ESC | Conflict Watch | Critical | Brock Peterson | Manager callback");
+  });
+
+  it("builds an executive review model from command-center state", () => {
+    const report = {
+      generatedForLabel: "Monday, July 6, 2026 · Focus APT-ESC",
+      summary: {
+        visibleExceptions: 3,
+        breachedSla: 1,
+        escalated: 1,
+        managerEvents: 2
+      },
+      rows: [
+        {
+          appointmentId: "APT-ESC",
+          customer: "Khalid Mohamud",
+          vehicle: "Brake Inspection",
+          queueLabel: "Conflict Watch",
+          priority: "Critical",
+          slaStatus: "breached",
+          resolutionStatus: "escalated",
+          ownerName: "Brock Peterson",
+          recommendedAction: "Manager callback"
+        }
+      ]
+    } as any;
+
+    const model = buildAppointmentExecutiveReviewModel({
+      report,
+      exceptionQueues: [
+        { key: "no-show-recovery", items: [{ id: "APT-NOSHOW" }] },
+        { key: "follow-up-required", items: [{ id: "APT-FOLLOW" }, { id: "APT-FOLLOW-2" }] }
+      ] as any,
+      selectedAppointmentAuditTimeline: [
+        { lane: "manager" },
+        { lane: "automation" }
+      ] as any,
+      subscriptions: [
+        { enabled: true },
+        { enabled: true },
+        { enabled: false }
+      ] as any,
+      digests: [
+        { enabled: true },
+        { enabled: true },
+        { enabled: false }
+      ] as any,
+      digestHistory: [
+        { status: "sent", channel: "email-summary" },
+        { status: "previewed", channel: "in-app" },
+        { status: "sent", channel: "email-summary" }
+      ] as any
+    });
+
+    expect(model.headline).toContain("breached SLA");
+    expect(model.metrics.find((metric) => metric.label === "Breached SLA")?.value).toBe("1");
+    expect(model.trends.find((trend) => trend.label === "Customer recovery")?.value).toContain(
+      "3 recovery items"
+    );
+    expect(
+      model.digestPerformance.find((metric) => metric.label === "Delivered digests")?.value
+    ).toBe("2");
+  });
+
+  it("builds an executive review brief with scorecard and trend sections", () => {
+    const brief = buildAppointmentExecutiveReviewBrief({
+      preset: "daily-ops",
+      businessDate: "Monday, July 6, 2026",
+      model: {
+        headline: "Board operations are stable.",
+        metrics: [
+          {
+            label: "Visible exceptions",
+            value: "3",
+            tone: "blue",
+            detail: "Current command-center workbench items visible in the active scope."
+          }
+        ],
+        trends: [
+          {
+            label: "SLA pressure",
+            status: "watch",
+            value: "1 breached",
+            detail: "Leadership intervention is recommended."
+          }
+        ],
+        digestPerformance: [
+          {
+            label: "Delivered digests",
+            value: "2",
+            detail: "Notification digests sent from the command center."
+          }
+        ]
+      } as any,
+      report: {
+        rows: [
+          {
+            appointmentId: "APT-ESC",
+            queueLabel: "Conflict Watch",
+            priority: "Critical",
+            slaStatus: "breached",
+            ownerName: "Brock Peterson"
+          }
+        ]
+      } as any,
+      selectedAppointment: {
+        id: "APT-ESC",
+        title: "Service / Repair",
+        customer: "Khalid Mohamud"
+      } as any
+    });
+
+    expect(brief).toContain("Appointment executive review brief - Daily Ops");
+    expect(brief).toContain("Scorecard:");
+    expect(brief).toContain("Trend watch:");
+    expect(brief).toContain("Digest performance:");
+    expect(brief).toContain("APT-ESC | Conflict Watch | Critical | breached | Brock Peterson");
   });
 
   it("classifies missing-time draft appointments as unscheduled board items", () => {
