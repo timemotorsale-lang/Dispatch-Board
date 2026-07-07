@@ -73,6 +73,10 @@ export type AppointmentCatalogCodeDetail = {
   label: string;
   description: string;
   systemRequired: boolean;
+  deprecated: boolean;
+  replacementCode: string | null;
+  deprecatedReason: string | null;
+  deprecatedAt: string | null;
 };
 
 type AppointmentCatalogPurpose = ReturnType<typeof buildPurpose>;
@@ -187,10 +191,11 @@ export type AppointmentCatalogApprovalReviewInput = {
 
 export type AppointmentCatalogCodeEditorInput = {
   catalog: AppointmentCatalogCodeType;
-  action: "ADD" | "RENAME" | "REMOVE";
+  action: "ADD" | "RENAME" | "REMOVE" | "DEPRECATE" | "REACTIVATE";
   purposeCode?: string;
   code: string;
   nextCode?: string;
+  replacementCode?: string;
   label?: string;
   description?: string;
   reason: string;
@@ -556,7 +561,11 @@ function buildCodeDetails(input: {
           existing?.description,
           `${labelFromCode(code)} catalog code.`
         ),
-        systemRequired: existing?.systemRequired ?? systemRequiredCodes.has(code)
+        systemRequired: existing?.systemRequired ?? systemRequiredCodes.has(code),
+        deprecated: existing?.deprecated ?? false,
+        replacementCode: existing?.replacementCode ?? null,
+        deprecatedReason: existing?.deprecatedReason ?? null,
+        deprecatedAt: existing?.deprecatedAt ?? null
       };
     }
   }
@@ -706,6 +715,21 @@ function validateCatalogCore(catalog: AppointmentCatalogCore): AppointmentCatalo
 
     if (purpose.followUpDispositionCodes.length === 0) {
       errors.push(`${purpose.code} must include at least one follow-up disposition code.`);
+    }
+
+    for (const [type, codes] of [
+      ["OUTCOME", purpose.outcomeCodes],
+      ["FOLLOW_UP_DISPOSITION", purpose.followUpDispositionCodes]
+    ] as const) {
+      for (const code of codes) {
+        const detail = catalog.catalogs.codeDetails[codeDetailKey(type, code)];
+
+        if (detail?.deprecated) {
+          warnings.push(
+            `${purpose.code} still references deprecated ${type.toLowerCase()} code ${code}.`
+          );
+        }
+      }
     }
 
     if (purpose.automationTriggers.length === 0) {
@@ -1380,6 +1404,26 @@ function applyPurposeDraftChange(
   }
 
   const changes = input.changes ?? {};
+  const nextOutcomeCodes = normalizeCodeList(changes.outcomeCodes, "Outcome codes", purpose.outcomeCodes);
+  const nextFollowUpDispositionCodes = normalizeCodeList(
+    changes.followUpDispositionCodes,
+    "Follow-up disposition codes",
+    purpose.followUpDispositionCodes
+  );
+
+  for (const [type, codes, currentCodes] of [
+    ["OUTCOME", nextOutcomeCodes, purpose.outcomeCodes],
+    ["FOLLOW_UP_DISPOSITION", nextFollowUpDispositionCodes, purpose.followUpDispositionCodes]
+  ] as const) {
+    for (const code of codes) {
+      const detail = catalog.catalogs.codeDetails[codeDetailKey(type, code)];
+
+      if (detail?.deprecated && !currentCodes.includes(code)) {
+        throw new Error(`Deprecated ${type.toLowerCase()} code ${code} cannot be added to new configuration.`);
+      }
+    }
+  }
+
   const nextPurpose: AppointmentCatalogPurpose = {
     ...purpose,
     name: normalizeOptionalText(changes.name, purpose.name),
@@ -1430,12 +1474,8 @@ function applyPurposeDraftChange(
       changes.missingInputBehavior,
       purpose.missingInputBehavior
     ),
-    outcomeCodes: normalizeCodeList(changes.outcomeCodes, "Outcome codes", purpose.outcomeCodes),
-    followUpDispositionCodes: normalizeCodeList(
-      changes.followUpDispositionCodes,
-      "Follow-up disposition codes",
-      purpose.followUpDispositionCodes
-    )
+    outcomeCodes: nextOutcomeCodes,
+    followUpDispositionCodes: nextFollowUpDispositionCodes
   };
 
   return buildAppointmentCatalogCore({
@@ -1460,6 +1500,10 @@ function applyCatalogCodeEditorChange(
   const code = normalizeCode(input.code, "Catalog code");
   const nextCode =
     action === "RENAME" ? normalizeCode(input.nextCode, "Replacement catalog code") : code;
+  const replacementCode =
+    action === "DEPRECATE" && input.replacementCode
+      ? normalizeCode(input.replacementCode, "Replacement catalog code")
+      : null;
   const label = normalizeOptionalText(input.label, labelFromCode(nextCode));
   const description = normalizeOptionalText(
     input.description,
@@ -1469,13 +1513,18 @@ function applyCatalogCodeEditorChange(
 
   function upsertCodeDetail(type: AppointmentCatalogCodeType, detailCode: string) {
     const key = codeDetailKey(type, detailCode);
+    const existing = codeDetails[key];
 
     codeDetails[key] = {
       code: detailCode,
       type,
       label,
       description,
-      systemRequired: codeDetails[key]?.systemRequired ?? systemRequiredCodesByType(type).has(detailCode)
+      systemRequired: existing?.systemRequired ?? systemRequiredCodesByType(type).has(detailCode),
+      deprecated: existing?.deprecated ?? false,
+      replacementCode: existing?.replacementCode ?? null,
+      deprecatedReason: existing?.deprecatedReason ?? null,
+      deprecatedAt: existing?.deprecatedAt ?? null
     };
   }
 
@@ -1483,9 +1532,42 @@ function applyCatalogCodeEditorChange(
     delete codeDetails[codeDetailKey(type, detailCode)];
   }
 
+  function setDeprecatedCodeDetail(input: {
+    type: AppointmentCatalogCodeType;
+    detailCode: string;
+    deprecated: boolean;
+    reason: string;
+  }) {
+    const key = codeDetailKey(input.type, input.detailCode);
+    const existing = codeDetails[key];
+
+    if (!existing) {
+      throw new Error("Catalog code detail is not configured.");
+    }
+
+    if (input.deprecated && replacementCode) {
+      const replacement = codeDetails[codeDetailKey(input.type, replacementCode)];
+
+      if (!replacement || replacement.deprecated) {
+        throw new Error("Replacement catalog code must be configured and active.");
+      }
+    }
+
+    codeDetails[key] = {
+      ...existing,
+      deprecated: input.deprecated,
+      replacementCode: input.deprecated ? replacementCode : null,
+      deprecatedReason: input.deprecated ? normalizeReason(input.reason, "Deprecation reason") : null,
+      deprecatedAt: input.deprecated ? new Date().toISOString() : null
+    };
+  }
+
   if (catalogType === "REASON") {
-    if (systemRequiredCodesByType("REASON").has(code)) {
-      throw new Error("System-required reason codes cannot be renamed or removed.");
+    if (
+      systemRequiredCodesByType("REASON").has(code) &&
+      ["RENAME", "REMOVE", "DEPRECATE"].includes(action)
+    ) {
+      throw new Error("System-required reason codes cannot be renamed, removed, or deprecated.");
     }
 
     const reasonCodes = [...catalog.catalogs.reasonCodes];
@@ -1506,6 +1588,21 @@ function applyCatalogCodeEditorChange(
 
     if (!exists) {
       throw new Error("Reason code is not configured.");
+    }
+
+    if (action === "DEPRECATE" || action === "REACTIVATE") {
+      setDeprecatedCodeDetail({
+        type: "REASON",
+        detailCode: code,
+        deprecated: action === "DEPRECATE",
+        reason: input.reason
+      });
+
+      return buildAppointmentCatalogCore({
+        purposes: catalog.purposes,
+        reasonCodes,
+        codeDetails
+      });
     }
 
     if (action === "REMOVE") {
@@ -1547,6 +1644,11 @@ function applyCatalogCodeEditorChange(
     if (exists) {
       throw new Error("Catalog code is already configured for this purpose.");
     }
+    const existingDetail = codeDetails[codeDetailKey(catalogType, code)];
+
+    if (existingDetail?.deprecated) {
+      throw new Error("Deprecated catalog codes cannot be added to new configuration.");
+    }
     upsertCodeDetail(catalogType, code);
 
     return buildAppointmentCatalogCore({
@@ -1562,6 +1664,21 @@ function applyCatalogCodeEditorChange(
 
   if (!exists) {
     throw new Error("Catalog code is not configured for this purpose.");
+  }
+
+  if (action === "DEPRECATE" || action === "REACTIVATE") {
+    setDeprecatedCodeDetail({
+      type: catalogType,
+      detailCode: code,
+      deprecated: action === "DEPRECATE",
+      reason: input.reason
+    });
+
+    return buildAppointmentCatalogCore({
+      purposes: catalog.purposes,
+      reasonCodes: catalog.catalogs.reasonCodes,
+      codeDetails
+    });
   }
 
   if (action === "REMOVE") {

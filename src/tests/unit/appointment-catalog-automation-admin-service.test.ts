@@ -324,7 +324,110 @@ describe("appointment catalog automation admin service", () => {
         },
         repository
       )
-    ).rejects.toThrow(/System-required reason codes cannot be renamed or removed/);
+    ).rejects.toThrow(/System-required reason codes cannot be renamed, removed, or deprecated/);
+  });
+
+  it("deprecates and reactivates structured catalog codes with replacement guidance", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createMemoryAppointmentCatalogRepository();
+
+    let catalog = await updateAppointmentCatalogCodeForManager(
+      manager,
+      {
+        catalog: "OUTCOME",
+        action: "DEPRECATE",
+        purposeCode: "APT-TEST-DRIVE",
+        code: "TEST_DRIVE_COMPLETED_FOLLOW_UP_REQUIRED",
+        replacementCode: "TEST_DRIVE_COMPLETED_PURCHASE_STARTED",
+        reason: "Deprecate generic completed outcome in favor of follow-up-specific reporting."
+      },
+      repository
+    );
+
+    expect(catalog.catalogs.codeDetails["OUTCOME:TEST_DRIVE_COMPLETED_FOLLOW_UP_REQUIRED"]).toMatchObject({
+      deprecated: true,
+      replacementCode: "TEST_DRIVE_COMPLETED_PURCHASE_STARTED",
+      deprecatedReason:
+        "Deprecate generic completed outcome in favor of follow-up-specific reporting."
+    });
+    expect(catalog.versioning.validation.warnings).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("deprecated outcome code TEST_DRIVE_COMPLETED_FOLLOW_UP_REQUIRED")
+      ])
+    );
+
+    catalog = await updateAppointmentCatalogCodeForManager(
+      manager,
+      {
+        catalog: "OUTCOME",
+        action: "REACTIVATE",
+        purposeCode: "APT-TEST-DRIVE",
+        code: "TEST_DRIVE_COMPLETED_FOLLOW_UP_REQUIRED",
+        reason: "Reactivate completed outcome after manager review."
+      },
+      repository
+    );
+
+    expect(catalog.catalogs.codeDetails["OUTCOME:TEST_DRIVE_COMPLETED_FOLLOW_UP_REQUIRED"]).toMatchObject({
+      deprecated: false,
+      replacementCode: null,
+      deprecatedReason: null,
+      deprecatedAt: null
+    });
+  });
+
+  it("blocks deprecated catalog codes from being added to new configuration", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createMemoryAppointmentCatalogRepository();
+
+    await updateAppointmentCatalogCodeForManager(
+      manager,
+      {
+        catalog: "OUTCOME",
+        action: "DEPRECATE",
+        purposeCode: "APT-TEST-DRIVE",
+        code: "TEST_DRIVE_COMPLETED_FOLLOW_UP_REQUIRED",
+        replacementCode: "TEST_DRIVE_COMPLETED_PURCHASE_STARTED",
+        reason: "Deprecate completed outcome before testing new configuration guard."
+      },
+      repository
+    );
+
+    await expect(
+      saveAppointmentCatalogDraftForManager(
+        manager,
+        {
+          purposeCode: "APT-SERVICE-INTAKE",
+          reason: "Attempt to add deprecated outcome to service intake.",
+          changes: {
+            outcomeCodes: ["SERVICE_COMPLETED", "TEST_DRIVE_COMPLETED_FOLLOW_UP_REQUIRED"]
+          }
+        },
+        repository
+      )
+    ).rejects.toThrow(/Deprecated outcome code TEST_DRIVE_COMPLETED_FOLLOW_UP_REQUIRED cannot be added/);
+  });
+
+  it("protects system-required reason codes from deprecation", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createMemoryAppointmentCatalogRepository();
+
+    await expect(
+      updateAppointmentCatalogCodeForManager(
+        manager,
+        {
+          catalog: "REASON",
+          action: "DEPRECATE",
+          code: "AUTOMATION_SIMULATED",
+          replacementCode: "CATALOG_DRAFT_UPDATED",
+          reason: "Attempt unsafe deprecation of system-required reason."
+        },
+        repository
+      )
+    ).rejects.toThrow(/System-required reason codes cannot be renamed, removed, or deprecated/);
   });
 
   it("prevents removing the final outcome or follow-up code from a purpose", async () => {

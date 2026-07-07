@@ -51,7 +51,7 @@ type LifecycleState = {
 
 type ReviewAction = "APPROVE" | "REQUEST_CHANGES" | "REJECT";
 type CatalogCodeType = "OUTCOME" | "FOLLOW_UP_DISPOSITION" | "REASON";
-type CatalogCodeAction = "ADD" | "RENAME" | "REMOVE";
+type CatalogCodeAction = "ADD" | "RENAME" | "REMOVE" | "DEPRECATE" | "REACTIVATE";
 
 type CodeEditorState = {
   catalog: CatalogCodeType;
@@ -422,6 +422,8 @@ export function AppointmentCatalogAutomationPanel({
             codeEditorState.catalog === "REASON" ? undefined : selectedPurpose?.code,
           code: codeEditorState.code,
           nextCode: codeEditorState.nextCode || undefined,
+          replacementCode:
+            codeEditorState.action === "DEPRECATE" ? codeEditorState.nextCode || undefined : undefined,
           label: codeEditorState.label || undefined,
           description: codeEditorState.description || undefined,
           reason: codeEditorState.reason
@@ -846,6 +848,8 @@ export function AppointmentCatalogAutomationPanel({
                 >
                   <option value="ADD">Add code</option>
                   <option value="RENAME">Rename code</option>
+                  <option value="DEPRECATE">Deprecate code</option>
+                  <option value="REACTIVATE">Reactivate code</option>
                   <option value="REMOVE">Remove code</option>
                 </select>
               </label>
@@ -888,23 +892,54 @@ export function AppointmentCatalogAutomationPanel({
                 </label>
               )}
 
-              {codeEditorState.action === "RENAME" ? (
+              {codeEditorState.action === "RENAME" || codeEditorState.action === "DEPRECATE" ? (
                 <label className="field">
-                  <span>Replacement code</span>
-                  <input
-                    value={codeEditorState.nextCode}
-                    onChange={(event) =>
-                      setCodeEditorState((current) => ({
-                        ...current,
-                        nextCode: event.target.value.toUpperCase()
-                      }))
-                    }
-                    placeholder="CUSTOMER_APPROVED_WITH_NOTES"
-                  />
+                  <span>
+                    {codeEditorState.action === "RENAME"
+                      ? "Replacement code"
+                      : "Use instead / replacement"}
+                  </span>
+                  {codeEditorState.action === "DEPRECATE" ? (
+                    <select
+                      value={codeEditorState.nextCode}
+                      onChange={(event) =>
+                        setCodeEditorState((current) => ({
+                          ...current,
+                          nextCode: event.target.value
+                        }))
+                      }
+                    >
+                      <option value="">No replacement selected</option>
+                      {editableCatalogCodes
+                        .filter((code) => code !== codeEditorState.code)
+                        .map((code) => {
+                          const detail =
+                            catalog.catalogs.codeDetails[`${codeEditorState.catalog}:${code}`];
+
+                          return (
+                            <option key={code} value={code} disabled={detail?.deprecated}>
+                              {detail?.label ?? formatLabel(code)}
+                              {detail?.deprecated ? " (deprecated)" : ""}
+                            </option>
+                          );
+                        })}
+                    </select>
+                  ) : (
+                    <input
+                      value={codeEditorState.nextCode}
+                      onChange={(event) =>
+                        setCodeEditorState((current) => ({
+                          ...current,
+                          nextCode: event.target.value.toUpperCase()
+                        }))
+                      }
+                      placeholder="CUSTOMER_APPROVED_WITH_NOTES"
+                    />
+                  )}
                 </label>
               ) : null}
 
-              {codeEditorState.action !== "REMOVE" ? (
+              {codeEditorState.action === "ADD" || codeEditorState.action === "RENAME" ? (
                 <>
                   <label className="field">
                     <span>Display label</span>
@@ -960,6 +995,8 @@ export function AppointmentCatalogAutomationPanel({
                     <strong>{detail?.label ?? formatLabel(code)}</strong>
                     <small>
                       {code}
+                      {detail?.deprecated ? " • deprecated" : ""}
+                      {detail?.replacementCode ? ` • use ${detail.replacementCode}` : ""}
                       {detail?.systemRequired ? " • system required" : ""}
                     </small>
                   </div>

@@ -19,20 +19,20 @@ Vitest result:
 
 ```text
 112 test files passed
-642 tests passed
+658 tests passed
 ```
 
 Latest focused validation after the Appointment Automation Operations Console block:
 
 ```text
 npm run typecheck
-npm test -- appointment-automation-operations-console-service.test.ts appointment-automation-operations-console-route.test.ts appointment-automation-operations-console-panel.test.tsx
+npm test -- appointment-catalog-automation-admin-service.test.ts appointment-catalog-automation-admin-route.test.ts appointment-catalog-automation-panel.test.tsx
 npm run lint
 npm run db:validate
 npm test
 ```
 
-Focused type, route, service, UI, lint, schema, and full-suite validation passed. The authored task-to-appointment Playwright e2e spec was not executed during this checkpoint because local Playwright Chromium is not installed. Production build, database migration deployment, and production deployment were not rerun during this checkpoint.
+Focused appointment-catalog service, route, UI, type, lint, schema, and full-suite validation passed. The authored task-to-appointment Playwright e2e spec was not executed during this checkpoint because local Playwright Chromium is not installed. Production build, database migration deployment, and production deployment were not rerun during this checkpoint.
 
 ## Implemented Foundation
 
@@ -44,7 +44,7 @@ Focused type, route, service, UI, lint, schema, and full-suite validation passed
 | Users, roles, and duties | Implemented | Schema, APIs, services, policies, settings UI, and tests |
 | App settings | Implemented | Timezone, business days, generation time, manager API/UI, and tests |
 | Appointment admin settings foundation | Implemented as partial E5 admin foundation | Manager-only `/settings/appointments` workspace, protected appointment admin settings routes, location profile/address/phone/timezone/status editing, weekday appointment operating windows, location closure create/edit/delete, resource status/capacity/conflict-policy editing, resource outage/capacity-reduction windows, resource/catalog/automation readiness summaries, and Appointment Board header/create/schedule fallback wiring |
-| Appointment catalog automation admin foundation | Implemented as partial E5 admin foundation | Manager-only `/settings/appointments/catalog` workspace, protected catalog/simulation/draft/activation/lifecycle/review/code-editor routes, purpose template read model, outcome/follow-up/reason catalog visibility, structured outcome/follow-up/reason code add/rename/remove controls, code labels/descriptions in catalog snapshots, automation rule hook visibility, governance metrics, safe simulation preview, durable active/draft catalog versions, append-only change events, required reason capture, draft validation, approval review status, activation approval gate, purpose usage/reference warnings, draft save, activation, purpose create, duplicate, deprecate, reactivate, and draft-only delete protection |
+| Appointment catalog automation admin foundation | Implemented as partial E5 admin foundation | Manager-only `/settings/appointments/catalog` workspace, protected catalog/simulation/draft/activation/lifecycle/review/code-editor routes, purpose template read model, outcome/follow-up/reason catalog visibility, structured outcome/follow-up/reason code add/rename/remove/deprecate/reactivate controls, code replacement guidance, deprecated-code validation warnings and new-configuration guards, code labels/descriptions in catalog snapshots, automation rule hook visibility, governance metrics, safe simulation preview, durable active/draft catalog versions, append-only change events, required reason capture, draft validation, approval review status, activation approval gate, purpose usage/reference warnings, draft save, activation, purpose create, duplicate, deprecate, reactivate, and draft-only delete protection |
 | Appointment automation operations console | Implemented as partial E5/E3 automation operations foundation | Manager-only `/settings/appointments/automation` workspace, automation rule schema/migration, rule lifecycle draft/activate/pause/retire APIs, health metrics, catalog-derived rule candidates, failure/review queue foundation, retry/replay/resolve/skip API contracts, required reason capture, audit event schema, and focused service/route/UI tests |
 | Task templates | Partially implemented | Schema, API, service, validation, seed data, tests, and prototype UI exist; production template administration remains incomplete |
 | Daily board generation | Implemented | Input loading, idempotent task generation, run tracking, manual trigger, scheduled route, and tests |
