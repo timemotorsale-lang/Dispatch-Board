@@ -150,6 +150,8 @@ describe("appointment admin settings panel", () => {
     expect(markup).toContain("Availability configuration");
     expect(markup).toContain("Enterprise readiness for hours, resources, and capacity");
     expect(markup).toContain("Recurring templates");
+    expect(markup).toContain("Manager reason");
+    expect(markup).toContain("Create closure");
     expect(markup).toContain("Resource type editor readiness");
     expect(markup).toContain("Closure and resource-impact preview");
     expect(markup).toContain("Export and import preview foundation");

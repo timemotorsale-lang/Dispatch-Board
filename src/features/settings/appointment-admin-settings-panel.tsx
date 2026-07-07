@@ -188,6 +188,9 @@ export function AppointmentAdminSettingsPanel({
   const [configurationImportReason, setConfigurationImportReason] = useState("");
   const [configurationImportPreview, setConfigurationImportPreview] =
     useState<AppointmentAdminConfigurationImportPreview | null>(null);
+  const [recurringTemplateReasons, setRecurringTemplateReasons] = useState<Record<string, string>>(
+    {}
+  );
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -478,6 +481,38 @@ export function AppointmentAdminSettingsPanel({
               ...defaultUnavailabilityDraft,
               resourceId: unavailabilityDraft.resourceId
             })
+        }
+      );
+    });
+  }
+
+  function applyRecurringTemplate(
+    template: AppointmentAdminSettings["availabilityConfiguration"]["recurringTemplates"][number]
+  ) {
+    if (!template.suggestedDateIso || template.action !== "CREATE_CLOSURE_DRAFT") {
+      setErrorMessage("This recurring template needs manager review before it can create a closure.");
+      setSuccessMessage("");
+      return;
+    }
+
+    const reason =
+      recurringTemplateReasons[template.code]?.trim() ||
+      `Manager applied ${template.name} from recurring appointment availability templates.`;
+
+    startTransition(async () => {
+      await mutateAppointmentSettings(
+        `/api/settings/appointments/recurring-templates/${encodeURIComponent(template.code)}/closure`,
+        {
+          body: {
+            dateIso: template.suggestedDateIso,
+            reason
+          },
+          successMessage: `${template.name} closure created from recurring template.`,
+          onSuccess: () =>
+            setRecurringTemplateReasons((current) => ({
+              ...current,
+              [template.code]: ""
+            }))
         }
       );
     });
@@ -806,6 +841,33 @@ export function AppointmentAdminSettingsPanel({
                 {template.notes.map((note) => (
                   <p key={note}>{note}</p>
                 ))}
+                {template.action === "CREATE_CLOSURE_DRAFT" && template.suggestedDateIso ? (
+                  <div className="form-actions">
+                    <label className="field appointment-admin-span">
+                      <span>Manager reason</span>
+                      <input
+                        value={recurringTemplateReasons[template.code] ?? ""}
+                        onChange={(event) =>
+                          setRecurringTemplateReasons((current) => ({
+                            ...current,
+                            [template.code]: event.target.value
+                          }))
+                        }
+                        placeholder={`Reason for applying ${template.name}`}
+                      />
+                    </label>
+                    <button
+                      className="pill pill-primary"
+                      disabled={isPending}
+                      onClick={() => applyRecurringTemplate(template)}
+                      type="button"
+                    >
+                      Create closure
+                    </button>
+                  </div>
+                ) : (
+                  <p>Review this template before it can create a closure.</p>
+                )}
               </div>
             ))}
           </div>

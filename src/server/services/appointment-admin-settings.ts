@@ -187,6 +187,12 @@ export type AppointmentResourceUnavailabilityInput = {
   reason: string;
 };
 
+export type AppointmentRecurringTemplateClosureApplyInput = {
+  templateCode: string;
+  dateIso?: string | null;
+  reason: string;
+};
+
 export type NormalizedAppointmentOperatingWindowInput = {
   businessDay: BusinessDay;
   isOpen: boolean;
@@ -1007,6 +1013,29 @@ function nextNthWeekdayIso(input: {
   return localDateKey(candidate < startOfUtcDay(input.from) ? findDate(year + 1) : candidate);
 }
 
+function parseDateIso(value: string | null | undefined, label: string) {
+  const normalized = normalizeText(value, label, 10);
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    throw new Error(`${label} must use YYYY-MM-DD format.`);
+  }
+
+  const date = new Date(`${normalized}T00:00:00.000Z`);
+
+  if (Number.isNaN(date.getTime()) || localDateKey(date) !== normalized) {
+    throw new Error(`${label} must be a valid date.`);
+  }
+
+  return date;
+}
+
+function addMinutesToUtcDay(day: Date, minute: number) {
+  const next = new Date(day);
+  next.setUTCMinutes(next.getUTCMinutes() + minute);
+
+  return next;
+}
+
 function buildRecurringAvailabilityTemplates(input: {
   horizonStart: Date;
 }): AppointmentAdminSettings["availabilityConfiguration"]["recurringTemplates"] {
@@ -1083,6 +1112,51 @@ function buildRecurringAvailabilityTemplates(input: {
       notes: ["Designed for same-day manager review with mandatory reason capture."]
     }
   ];
+}
+
+function getRecurringAvailabilityTemplate(
+  code: string,
+  horizonStart: Date
+): AppointmentAdminSettings["availabilityConfiguration"]["recurringTemplates"][number] | null {
+  const normalizedCode = normalizeText(code, "Recurring template", 80).toUpperCase();
+
+  return (
+    buildRecurringAvailabilityTemplates({ horizonStart }).find(
+      (template) => template.code === normalizedCode
+    ) ?? null
+  );
+}
+
+function buildClosureInputFromRecurringTemplate(input: {
+  location: AppointmentAdminLocationRecord;
+  template: AppointmentAdminSettings["availabilityConfiguration"]["recurringTemplates"][number];
+  applyInput: AppointmentRecurringTemplateClosureApplyInput;
+}): AppointmentLocationClosureInput {
+  if (input.template.action !== "CREATE_CLOSURE_DRAFT") {
+    throw new Error("Recurring template requires manager review before it can create a closure.");
+  }
+
+  const dateIso = input.applyInput.dateIso ?? input.template.suggestedDateIso;
+  const date = parseDateIso(dateIso, "Template closure date");
+  const businessDay = businessDayFromDate(date);
+  const operatingWindow = input.location.operatingWindows.find(
+    (window) => window.businessDay === businessDay && !window.validTo
+  );
+  const startsAt = operatingWindow
+    ? addMinutesToUtcDay(date, operatingWindow.opensAtMinute)
+    : date;
+  const endsAt = operatingWindow
+    ? addMinutesToUtcDay(date, operatingWindow.closesAtMinute)
+    : addUtcDays(date, 1);
+  const reason = normalizeText(input.applyInput.reason, "Template apply reason", 1000);
+
+  return {
+    type: input.template.defaultClosureType,
+    name: input.template.name,
+    startsAt: startsAt.toISOString(),
+    endsAt: endsAt.toISOString(),
+    reason: `${reason} Template: ${input.template.name} (${input.template.code}).`
+  };
 }
 
 function buildResourceAvailability(input: {
@@ -1737,6 +1811,53 @@ export async function createAppointmentLocationClosureForManager(
       closure: input
     })
   );
+
+  return getAppointmentAdminSettings(repository);
+}
+
+export async function applyRecurringAppointmentClosureTemplateForManager(
+  user: AuthenticatedUser | null,
+  input: AppointmentRecurringTemplateClosureApplyInput,
+  repository: AppointmentAdminSettingsRepository = createAppointmentAdminSettingsRepository()
+) {
+  assertCanManageAppointmentAdminSettings(user);
+
+  const location = await repository.getLocation();
+
+  if (!location) {
+    throw new Error("Appointment location settings are not configured.");
+  }
+
+  const horizonStart = startOfUtcDay(new Date());
+  const template = getRecurringAvailabilityTemplate(input.templateCode, horizonStart);
+
+  if (!template) {
+    throw new Error("Recurring template is not configured.");
+  }
+
+  const closureInput = buildClosureInputFromRecurringTemplate({
+    location,
+    template,
+    applyInput: input
+  });
+  const normalizedInput = normalizeAppointmentLocationClosureInput({
+    locationId: location.id,
+    userId: user.id,
+    closure: closureInput
+  });
+  const existingClosures = await repository.listLocationClosures(location.id);
+  const duplicate = existingClosures.find(
+    (closure) =>
+      closure.name === normalizedInput.name &&
+      closure.type === normalizedInput.type &&
+      overlapsDay(closure, startOfUtcDay(normalizedInput.startsAt))
+  );
+
+  if (duplicate) {
+    throw new Error("A closure for this recurring template already exists on that date.");
+  }
+
+  await repository.createLocationClosure(normalizedInput);
 
   return getAppointmentAdminSettings(repository);
 }
