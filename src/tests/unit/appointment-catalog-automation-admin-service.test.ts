@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   activateAppointmentCatalogDraftForManager,
   getAppointmentCatalogAutomationAdminForManager,
+  reviewAppointmentCatalogDraftForManager,
   saveAppointmentCatalogDraftForManager,
   simulateAppointmentCatalogAutomation,
   simulateAppointmentCatalogAutomationForManager,
@@ -24,7 +25,15 @@ describe("appointment catalog automation admin service", () => {
       activePurposeCount: 12
     });
     expect(catalog.versioning.displayedSource).toBe("BASELINE");
+    expect(catalog.versioning.approval).toMatchObject({
+      status: "NOT_REQUIRED",
+      activationBlocked: true
+    });
     expect(catalog.purposes.map((purpose) => purpose.code)).toContain("APT-TEST-DRIVE");
+    expect(catalog.purposeUsage.find((usage) => usage.purposeCode === "APT-TEST-DRIVE")).toMatchObject({
+      deleteRisk: "PUBLISHED_REFERENCES",
+      recommendation: "DEPRECATE_INSTEAD"
+    });
     expect(catalog.catalogs.followUpDispositionCodes).toEqual(
       expect.arrayContaining(["FOLLOW_UP_APPOINTMENT_REQUIRED", "NO_FOLLOW_UP_REQUIRED"])
     );
@@ -120,6 +129,25 @@ describe("appointment catalog automation admin service", () => {
       repository
     );
 
+    await expect(
+      activateAppointmentCatalogDraftForManager(
+        manager,
+        {
+          reason: "Attempt activation before approval."
+        },
+        repository
+      )
+    ).rejects.toThrow(/must be approved/);
+
+    await reviewAppointmentCatalogDraftForManager(
+      manager,
+      {
+        action: "APPROVE",
+        reason: "Approve service catalog update for activation."
+      },
+      repository
+    );
+
     const catalog = await activateAppointmentCatalogDraftForManager(
       manager,
       {
@@ -132,6 +160,10 @@ describe("appointment catalog automation admin service", () => {
     expect(catalog.versioning.activeVersion).toMatchObject({
       version: 1,
       status: "ACTIVE"
+    });
+    expect(catalog.versioning.approval).toMatchObject({
+      status: "APPROVED",
+      activationBlocked: false
     });
     expect(catalog.versioning.draftVersion).toBeNull();
     expect(catalog.versioning.recentChanges[0]).toMatchObject({
@@ -158,6 +190,53 @@ describe("appointment catalog automation admin service", () => {
         repository
       )
     ).rejects.toThrow(/minimum duration cannot exceed default duration/);
+  });
+
+  it("records draft approval decisions with required reasons", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createMemoryAppointmentCatalogRepository();
+
+    await saveAppointmentCatalogDraftForManager(
+      manager,
+      {
+        purposeCode: "APT-SERVICE-INTAKE",
+        reason: "Prepare draft for review decision testing.",
+        changes: {
+          defaultDurationMinutes: 45
+        }
+      },
+      repository
+    );
+
+    let catalog = await reviewAppointmentCatalogDraftForManager(
+      manager,
+      {
+        action: "REQUEST_CHANGES",
+        reason: "Need better documented duration rationale before activation."
+      },
+      repository
+    );
+
+    expect(catalog.versioning.approval).toMatchObject({
+      status: "CHANGES_REQUESTED",
+      activationBlocked: true,
+      reviewedByUserId: manager?.id
+    });
+
+    catalog = await reviewAppointmentCatalogDraftForManager(
+      manager,
+      {
+        action: "APPROVE",
+        reason: "Approved after manager review of duration rationale."
+      },
+      repository
+    );
+
+    expect(catalog.versioning.approval).toMatchObject({
+      status: "APPROVED",
+      activationBlocked: false
+    });
   });
 
   it("creates a manager-authored purpose as a draft catalog lifecycle change", async () => {
