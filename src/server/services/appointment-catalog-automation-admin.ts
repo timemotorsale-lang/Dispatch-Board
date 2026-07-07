@@ -169,6 +169,27 @@ export type AppointmentCatalogUsageAnalytics = {
   completedAppointmentTotalCount: number;
   codeUsage: AppointmentCatalogCodeUsageSummary[];
   highestRiskCodes: AppointmentCatalogCodeUsageSummary[];
+  impactReports: AppointmentCatalogImpactReport[];
+  highestImpactReports: AppointmentCatalogImpactReport[];
+};
+
+export type AppointmentCatalogImpactReport = {
+  reportId: string;
+  type: AppointmentCatalogCodeType;
+  code: string;
+  label: string;
+  summary: string;
+  reviewLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  recommendedAction: "CHANGE_ALLOWED" | "MANAGER_REVIEW" | "DEPRECATE_WITH_REPLACEMENT";
+  affectedPurposeCodes: string[];
+  affectedAppointmentCount: number;
+  affectedActiveAppointmentCount: number;
+  affectedCompletedAppointmentCount: number;
+  affectedHistoryEventCount: number;
+  affectedAutomationRuleCount: number;
+  affectedTaskBlueprintCount: number;
+  lastUsedAt: string | null;
+  managerChecklist: string[];
 };
 
 export type AppointmentCatalogAutomationAdmin = AppointmentCatalogCore & {
@@ -1153,6 +1174,101 @@ function buildCodeUsageSummaries(input: {
   );
 }
 
+function buildImpactReportForCode(
+  usage: AppointmentCatalogCodeUsageSummary
+): AppointmentCatalogImpactReport {
+  const reviewLevel: AppointmentCatalogImpactReport["reviewLevel"] =
+    usage.changeRisk === "HIGH_USAGE"
+      ? "CRITICAL"
+      : usage.activeAppointmentCount > 0 || usage.historyEventCount > 0
+        ? "HIGH"
+        : usage.referenceCount >= 4
+          ? "MEDIUM"
+          : "LOW";
+  const recommendedAction: AppointmentCatalogImpactReport["recommendedAction"] =
+    usage.appointmentCount > 0 || usage.historyEventCount > 0
+      ? "DEPRECATE_WITH_REPLACEMENT"
+      : usage.referenceCount > 0 || usage.systemRequired
+        ? "MANAGER_REVIEW"
+        : "CHANGE_ALLOWED";
+  const summary =
+    usage.referenceCount === 0
+      ? `${usage.label} is not currently referenced by the catalog or appointment records.`
+      : `${usage.label} affects ${usage.referenceCount} total references across ${usage.purposeCount} purposes, ${usage.appointmentCount} appointments, and ${usage.historyEventCount} history events.`;
+  const managerChecklist = [
+    usage.systemRequired ? "Confirm this system-required code must remain available." : null,
+    usage.purposeCount > 0
+      ? `Review affected purposes: ${usage.purposeCodes.slice(0, 4).join(", ")}${usage.purposeCodes.length > 4 ? ", ..." : ""}.`
+      : null,
+    usage.activeAppointmentCount > 0
+      ? "Do not rename or remove while active appointments still use this code."
+      : null,
+    usage.appointmentCount > 0 || usage.historyEventCount > 0
+      ? "Prefer deprecation with a replacement code so historical reporting remains stable."
+      : null,
+    usage.automationRuleCount > 0
+      ? "Review automation rules and simulations before activation."
+      : null,
+    usage.taskBlueprintCount > 0
+      ? "Confirm generated task blueprints still map to the intended outcome."
+      : null,
+    usage.deprecated && usage.activeAppointmentCount === 0
+      ? "Confirm the deprecated code can stay hidden from new configuration while history remains queryable."
+      : null
+  ].filter((item): item is string => Boolean(item));
+
+  return {
+    reportId: `${usage.type}:${usage.code}`,
+    type: usage.type,
+    code: usage.code,
+    label: usage.label,
+    summary,
+    reviewLevel,
+    recommendedAction,
+    affectedPurposeCodes: usage.purposeCodes,
+    affectedAppointmentCount: usage.appointmentCount,
+    affectedActiveAppointmentCount: usage.activeAppointmentCount,
+    affectedCompletedAppointmentCount: usage.completedAppointmentCount,
+    affectedHistoryEventCount: usage.historyEventCount,
+    affectedAutomationRuleCount: usage.automationRuleCount,
+    affectedTaskBlueprintCount: usage.taskBlueprintCount,
+    lastUsedAt: usage.lastUsedAt,
+    managerChecklist:
+      managerChecklist.length > 0
+        ? managerChecklist
+        : ["Document the reason and run validation before activation."]
+  };
+}
+
+function buildImpactReports(codeUsage: AppointmentCatalogCodeUsageSummary[]) {
+  const reports = codeUsage.map(buildImpactReportForCode);
+  const rank: Record<AppointmentCatalogImpactReport["reviewLevel"], number> = {
+    CRITICAL: 4,
+    HIGH: 3,
+    MEDIUM: 2,
+    LOW: 1
+  };
+
+  return {
+    reports,
+    highestImpactReports: [...reports]
+      .sort((left, right) => {
+        const levelDelta = rank[right.reviewLevel] - rank[left.reviewLevel];
+
+        if (levelDelta !== 0) {
+          return levelDelta;
+        }
+
+        return (
+          right.affectedAppointmentCount +
+          right.affectedHistoryEventCount -
+          (left.affectedAppointmentCount + left.affectedHistoryEventCount)
+        );
+      })
+      .slice(0, 6)
+  };
+}
+
 function buildUsageAnalytics(input: {
   catalog: AppointmentCatalogCore;
   usageMetrics: AppointmentCatalogUsageMetrics;
@@ -1168,6 +1284,7 @@ function buildUsageAnalytics(input: {
     LOW_USAGE: 2,
     NO_USAGE: 1
   };
+  const impactReports = buildImpactReports(codeUsage);
 
   return {
     generatedAt: new Date().toISOString(),
@@ -1186,7 +1303,9 @@ function buildUsageAnalytics(input: {
 
         return right.referenceCount - left.referenceCount;
       })
-      .slice(0, 6)
+      .slice(0, 6),
+    impactReports: impactReports.reports,
+    highestImpactReports: impactReports.highestImpactReports
   };
 }
 

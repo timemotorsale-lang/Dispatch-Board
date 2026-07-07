@@ -54,6 +54,9 @@ describe("appointment catalog automation panel", () => {
     expect(markup).toContain("Live appointment usage");
     expect(markup).toContain("Highest-risk code");
     expect(markup).toContain("Appointment usage");
+    expect(markup).toContain("Impact report");
+    expect(markup).toContain("Affected records");
+    expect(markup).toContain("Checklist:");
     expect(markup).toContain("Versioned editor");
     expect(markup).toContain("Purpose lifecycle");
     expect(markup).toContain("Structured code editors");

@@ -178,6 +178,14 @@ export function AppointmentCatalogAutomationPanel({
         (usage) => usage.type === codeEditorState.catalog && usage.code === codeEditorState.code
       )
     : null;
+  const selectedImpactReport = codeEditorState.code
+    ? catalog.usageAnalytics.impactReports.find(
+        (report) =>
+          report.type === codeEditorState.catalog && report.code === codeEditorState.code
+      )
+    : null;
+  const highlightedImpactReport =
+    selectedImpactReport ?? catalog.usageAnalytics.highestImpactReports[0] ?? null;
 
   function selectPurpose(purposeCode: string) {
     const purpose = catalog.purposes.find((candidate) => candidate.code === purposeCode);
@@ -859,6 +867,41 @@ export function AppointmentCatalogAutomationPanel({
               <p>Recommendation: {formatLabel(selectedCodeUsage.recommendation)}.</p>
               {selectedCodeUsage.warnings.map((warning) => (
                 <p key={warning}>{warning}</p>
+              ))}
+            </div>
+          ) : null}
+
+          {highlightedImpactReport ? (
+            <div className="appointment-catalog-detail-grid">
+              <div>
+                <span>Impact report</span>
+                <strong>{formatLabel(highlightedImpactReport.reviewLevel)}</strong>
+                <small>{formatLabel(highlightedImpactReport.recommendedAction)}</small>
+              </div>
+              <div>
+                <span>Affected records</span>
+                <strong>{highlightedImpactReport.affectedAppointmentCount}</strong>
+                <small>
+                  {highlightedImpactReport.affectedActiveAppointmentCount} active /{" "}
+                  {highlightedImpactReport.affectedCompletedAppointmentCount} completed
+                </small>
+              </div>
+              <div>
+                <span>History + automation</span>
+                <strong>
+                  {highlightedImpactReport.affectedHistoryEventCount +
+                    highlightedImpactReport.affectedAutomationRuleCount}
+                </strong>
+                <small>{highlightedImpactReport.affectedTaskBlueprintCount} task blueprints</small>
+              </div>
+            </div>
+          ) : null}
+
+          {highlightedImpactReport ? (
+            <div className="notice">
+              <p>{highlightedImpactReport.summary}</p>
+              {highlightedImpactReport.managerChecklist.map((item) => (
+                <p key={item}>Checklist: {item}</p>
               ))}
             </div>
           ) : null}

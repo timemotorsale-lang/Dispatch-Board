@@ -105,6 +105,11 @@ describe("appointment catalog automation admin service", () => {
     const reasonUsage = catalog.usageAnalytics.codeUsage.find(
       (usage) => usage.type === "REASON" && usage.code === "CUSTOMER_NO_SHOW"
     );
+    const outcomeImpactReport = catalog.usageAnalytics.impactReports.find(
+      (report) =>
+        report.type === "OUTCOME" &&
+        report.code === "TEST_DRIVE_COMPLETED_FOLLOW_UP_REQUIRED"
+    );
 
     expect(catalog.usageAnalytics).toMatchObject({
       hasLiveAppointmentCounts: true,
@@ -130,6 +135,17 @@ describe("appointment catalog automation admin service", () => {
       recommendation: "DEPRECATE_INSTEAD"
     });
     expect(catalog.usageAnalytics.highestRiskCodes[0]?.referenceCount).toBeGreaterThan(0);
+    expect(outcomeImpactReport).toMatchObject({
+      reviewLevel: "HIGH",
+      recommendedAction: "DEPRECATE_WITH_REPLACEMENT",
+      affectedAppointmentCount: 8,
+      affectedActiveAppointmentCount: 2
+    });
+    expect(outcomeImpactReport?.managerChecklist).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("Prefer deprecation with a replacement code")
+      ])
+    );
   });
 
   it("rejects non-manager access to catalog automation admin", async () => {
