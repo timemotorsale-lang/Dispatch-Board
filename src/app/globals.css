@@ -5974,6 +5974,184 @@ code {
   outline-offset: 1px;
 }
 
+.appointment-exception-card {
+  display: grid;
+  gap: 12px;
+  margin: 0 12px 12px;
+  padding: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+}
+
+.appointment-exception-card .appointment-section-heading {
+  align-items: flex-start;
+}
+
+.appointment-exception-card .appointment-section-heading div {
+  display: grid;
+  gap: 3px;
+}
+
+.appointment-exception-card .appointment-section-heading p {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.appointment-exception-card .appointment-section-heading > span {
+  display: inline-grid;
+  place-items: center;
+  min-height: 26px;
+  padding: 0 9px;
+  color: #0f4aa7;
+  background: #e9f2ff;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.appointment-exception-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.appointment-exception-queue {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.appointment-exception-queue-blue { border-color: #bfdbfe; background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%); }
+.appointment-exception-queue-amber { border-color: #fde68a; background: linear-gradient(180deg, #fffdf4 0%, #ffffff 100%); }
+.appointment-exception-queue-red { border-color: #fecdd3; background: linear-gradient(180deg, #fff7f7 0%, #ffffff 100%); }
+.appointment-exception-queue-purple { border-color: #ddd6fe; background: linear-gradient(180deg, #fbf8ff 0%, #ffffff 100%); }
+
+.appointment-exception-queue-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.appointment-exception-queue-header > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.appointment-exception-queue-header strong {
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.appointment-exception-queue-header p {
+  margin: 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.appointment-exception-queue-header b {
+  display: inline-grid;
+  place-items: center;
+  min-width: 30px;
+  min-height: 28px;
+  padding: 0 8px;
+  color: #1e293b;
+  background: #f8fafc;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.appointment-exception-list {
+  display: grid;
+  gap: 8px;
+}
+
+.appointment-exception-item {
+  display: grid;
+  gap: 6px;
+  padding: 10px 11px;
+  text-align: left;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.appointment-exception-item-active {
+  border-color: #8bb4f8;
+  box-shadow: 0 0 0 2px rgba(29, 94, 237, 0.12);
+}
+
+.appointment-exception-item-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.appointment-exception-item-top strong {
+  color: #0f172a;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.appointment-exception-item-top span {
+  flex: 0 0 auto;
+  color: #475569;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+}
+
+.appointment-exception-item p {
+  margin: 0;
+  color: #334155;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.appointment-exception-item-meta {
+  display: grid;
+  gap: 3px;
+}
+
+.appointment-exception-item-meta small,
+.appointment-exception-item-meta em {
+  color: #64748b;
+  font-size: 10px;
+  line-height: 1.4;
+  font-style: normal;
+}
+
+.appointment-exception-overflow,
+.appointment-exception-empty p {
+  margin: 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.appointment-exception-empty {
+  display: grid;
+  gap: 4px;
+  padding: 8px 1px 2px;
+}
+
+.appointment-exception-empty strong {
+  color: #0f172a;
+  font-size: 12px;
+}
+
 .appointment-board-controls {
   display: flex;
   align-items: center;
@@ -7022,6 +7200,7 @@ code {
 @media (max-width: 760px) {
   .appointment-metric-grid,
   .appointment-upcoming-grid,
+  .appointment-exception-grid,
   .appointment-modal-grid {
     grid-template-columns: 1fr;
   }
