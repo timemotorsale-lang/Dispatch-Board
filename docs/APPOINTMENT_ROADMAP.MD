@@ -267,7 +267,7 @@ Remaining E2 work:
 | EAPT-030 | Appointment-task link persistence, read models, and handoff navigation | Complete initial live slice; linked-task read/detail and appointment-to-task navigation implemented |
 | EAPT-031 | Appointment-template task blueprint generation | Not started |
 | EAPT-032 | Create appointment from any task workflow | Complete initial task-detail workflow with live browser proof; automated e2e execution awaits local Playwright browser install |
-| EAPT-033 | Task-to-appointment automation runtime | Not started / partial outcome automation exists |
+| EAPT-033 | Task-to-appointment automation runtime | Partial implementation exists; outcome-driven runtime records now persist and replay safely, broader task-trigger automation remains |
 | EAPT-034 | Rule versioning, simulation, activation, pause, retirement | Not started |
 | EAPT-035 | Automation review, failure, retry, replay services | Not started |
 | EAPT-036 | Activity history for appointment and automation events | Complete initial Activity Feed merge for appointment history; automation failure/replay visibility remains |

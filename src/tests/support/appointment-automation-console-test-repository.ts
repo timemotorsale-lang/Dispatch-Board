@@ -18,6 +18,9 @@ export function createMemoryAppointmentAutomationOperationsRepository() {
     async listExecutions() {
       return executions;
     },
+    async getExecutionById(executionId) {
+      return executions.find((execution) => execution.id === executionId) ?? null;
+    },
     async listRuleEvents(_organizationId, limit) {
       return ruleEvents.slice(0, limit);
     },
@@ -59,6 +62,33 @@ export function createMemoryAppointmentAutomationOperationsRepository() {
         actorUserId: input.actorUserId ?? null,
         occurredAt: now
       });
+      return execution;
+    },
+    async finalizeExecution(input) {
+      const existing = executions.find((execution) => execution.id === input.executionId);
+      if (!existing) throw new Error("Automation execution is not queued.");
+      const execution: AppointmentAutomationExecutionRecord = {
+        ...existing,
+        status: input.status,
+        resultSnapshot: input.resultSnapshot ?? existing.resultSnapshot,
+        failureCode: input.failureCode ?? null,
+        failureMessage: input.failureMessage ?? null,
+        nextRetryAt: input.nextRetryAt ?? null,
+        resolvedAt: null,
+        updatedAt: now
+      };
+      executions = executions.map((candidate) =>
+        candidate.id === execution.id ? execution : candidate
+      );
+      if (input.eventAction) {
+        executionEvents.unshift({
+          id: `execution-event-${executionEvents.length + 1}`,
+          action: input.eventAction,
+          reason: input.reason,
+          actorUserId: input.actorUserId,
+          occurredAt: now
+        });
+      }
       return execution;
     },
     async upsertRuleDraft(input) {
@@ -141,13 +171,15 @@ export function createMemoryAppointmentAutomationOperationsRepository() {
       executions = executions.map((execution) =>
         execution.id === nextExecution.id ? nextExecution : execution
       );
-      executionEvents.unshift({
-        id: `execution-event-${executionEvents.length + 1}`,
-        action: input.action === "RETRY" ? "RETRIED" : input.action === "REPLAY" ? "REPLAYED" : input.action === "RESOLVE" ? "RESOLVED" : "SKIPPED",
-        reason: input.reason,
-        actorUserId: input.actorUserId,
-        occurredAt: now
-      });
+      if (input.action === "RESOLVE" || input.action === "SKIP") {
+        executionEvents.unshift({
+          id: `execution-event-${executionEvents.length + 1}`,
+          action: input.action === "RESOLVE" ? "RESOLVED" : "SKIPPED",
+          reason: input.reason,
+          actorUserId: input.actorUserId,
+          occurredAt: now
+        });
+      }
       return nextExecution;
     }
   };
