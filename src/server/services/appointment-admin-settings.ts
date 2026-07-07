@@ -148,6 +148,7 @@ export type AppointmentAdminSettingsRepository = {
   createResourceType(input: NormalizedAppointmentResourceTypeCreateInput): Promise<AppointmentAdminResourceTypeRecord>;
   updateResourceType(input: NormalizedAppointmentResourceTypeUpdateInput): Promise<AppointmentAdminResourceTypeRecord>;
   createResourceOperatingWindow(input: NormalizedAppointmentResourceOperatingWindowInput): Promise<AppointmentAdminResourceOperatingWindowRecord>;
+  applyResourceOperatingWindowBatch(input: NormalizedAppointmentResourceOperatingWindowBatchInput): Promise<void>;
   deleteResourceOperatingWindow(input: AppointmentResourceOperatingWindowDeleteInput): Promise<void>;
   createResourceUnavailability(input: NormalizedAppointmentResourceUnavailabilityInput): Promise<AppointmentAdminResourceUnavailabilityRecord>;
   updateLocationAndHours(input: {
@@ -240,6 +241,18 @@ export type AppointmentResourceOperatingWindowInput = {
   reason: string;
 };
 
+export type AppointmentResourceOperatingWindowBatchInput = {
+  resourceId: string;
+  businessDays: string[];
+  opensAt: string;
+  closesAt: string;
+  capacityOverride?: number | null;
+  validFrom: string;
+  validTo?: string | null;
+  replaceExisting: boolean;
+  reason: string;
+};
+
 export type AppointmentResourceOperatingWindowDeleteInput = {
   locationId: string;
   resourceId: string;
@@ -327,6 +340,20 @@ export type NormalizedAppointmentResourceOperatingWindowInput = {
   capacityOverride: number | null;
   validFrom: Date;
   validTo: Date | null;
+  reason: string;
+};
+
+export type NormalizedAppointmentResourceOperatingWindowBatchInput = {
+  resourceId: string;
+  locationId: string;
+  businessDays: BusinessDay[];
+  opensAtMinute: number;
+  closesAtMinute: number;
+  capacityOverride: number | null;
+  validFrom: Date;
+  validTo: Date | null;
+  replaceExisting: boolean;
+  replacementWindowIds: string[];
   reason: string;
 };
 
@@ -1070,6 +1097,72 @@ export function normalizeAppointmentResourceOperatingWindowInput(input: {
   };
 }
 
+export function normalizeAppointmentResourceOperatingWindowBatchInput(input: {
+  locationId: string;
+  resourceId: string;
+  window: AppointmentResourceOperatingWindowBatchInput;
+  replacementWindowIds?: string[];
+}): NormalizedAppointmentResourceOperatingWindowBatchInput {
+  const normalizedBusinessDays = Array.from(
+    new Set(
+      (input.window.businessDays ?? []).map((businessDay) =>
+        normalizeText(businessDay, "Resource operating day", 20)
+      )
+    )
+  );
+
+  if (normalizedBusinessDays.length === 0) {
+    throw new Error("At least one resource operating day is required.");
+  }
+
+  normalizedBusinessDays.forEach((businessDay) => {
+    if (!orderedBusinessDays.includes(businessDay as BusinessDay)) {
+      throw new Error("Resource operating day is invalid.");
+    }
+  });
+
+  const opensAt = normalizeText(input.window?.opensAt, "Resource opening time", 5);
+  const closesAt = normalizeText(input.window?.closesAt, "Resource closing time", 5);
+  const opensAtMinute = parseTimeToMinute(opensAt, "Resource opening time");
+  const closesAtMinute = parseTimeToMinute(closesAt, "Resource closing time");
+
+  if (closesAtMinute <= opensAtMinute) {
+    throw new Error("Resource closing time must be after opening time.");
+  }
+
+  const validFrom = parseDateIso(input.window?.validFrom, "Resource window valid-from date");
+  const validTo = input.window?.validTo
+    ? parseDateIso(input.window.validTo, "Resource window valid-to date")
+    : null;
+
+  if (validTo && validTo < validFrom) {
+    throw new Error("Resource operating window valid-to date cannot be before valid-from date.");
+  }
+
+  return {
+    resourceId: normalizeText(input.resourceId, "Resource", 120),
+    locationId: normalizeText(input.locationId, "Resource location", 120),
+    businessDays: normalizedBusinessDays as BusinessDay[],
+    opensAtMinute,
+    closesAtMinute,
+    capacityOverride:
+      input.window.capacityOverride === null || input.window.capacityOverride === undefined
+        ? null
+        : normalizePositiveInteger(input.window.capacityOverride, "Resource capacity override", 1000),
+    validFrom,
+    validTo,
+    replaceExisting: Boolean(input.window.replaceExisting),
+    replacementWindowIds: Array.from(
+      new Set(
+        (input.replacementWindowIds ?? []).map((windowId) =>
+          normalizeText(windowId, "Resource operating window", 120)
+        )
+      )
+    ),
+    reason: normalizeText(input.window?.reason, "Resource operating window reason", 1000)
+  };
+}
+
 function getCatalogs() {
   const outcomeCodes = new Set<string>();
   const followUpDispositionCodes = new Set<string>();
@@ -1256,6 +1349,29 @@ function getOverlappingResourceWindowIds(resource: AppointmentAdminResourceRecor
   }
 
   return overlappingIds;
+}
+
+function getReplacementWindowIdsForBulkResourceWindow(input: {
+  resource: AppointmentAdminResourceRecord;
+  businessDays: BusinessDay[];
+  opensAtMinute: number;
+  closesAtMinute: number;
+  validFrom: Date;
+  validTo: Date | null;
+}) {
+  return input.resource.operatingWindows
+    .filter(
+      (window) =>
+        input.businessDays.includes(window.businessDay) &&
+        dateRangesOverlap(input.validFrom, input.validTo, window.validFrom, window.validTo) &&
+        minuteRangesOverlap(
+          input.opensAtMinute,
+          input.closesAtMinute,
+          window.opensAtMinute,
+          window.closesAtMinute
+        )
+    )
+    .map((window) => window.id);
 }
 
 function getNextEffectiveResourceWindow(input: {
@@ -2186,6 +2302,46 @@ export function createAppointmentAdminSettingsRepository(): AppointmentAdminSett
         }
       });
     },
+    async applyResourceOperatingWindowBatch(input) {
+      normalizeText(input.reason, "Resource operating window reason", 1000);
+
+      await prisma.$transaction(async (transaction) => {
+        const resource = await transaction.schedulableResource.findFirst({
+          where: {
+            id: input.resourceId,
+            locationId: input.locationId
+          },
+          select: { id: true }
+        });
+
+        if (!resource) {
+          throw new Error("Resource is not configured for this appointment location.");
+        }
+
+        if (input.replaceExisting && input.replacementWindowIds.length > 0) {
+          await transaction.resourceOperatingWindow.deleteMany({
+            where: {
+              id: {
+                in: input.replacementWindowIds
+              },
+              resourceId: input.resourceId
+            }
+          });
+        }
+
+        await transaction.resourceOperatingWindow.createMany({
+          data: input.businessDays.map((businessDay) => ({
+            resourceId: input.resourceId,
+            businessDay,
+            opensAtMinute: input.opensAtMinute,
+            closesAtMinute: input.closesAtMinute,
+            capacityOverride: input.capacityOverride,
+            validFrom: input.validFrom,
+            validTo: input.validTo
+          }))
+        });
+      });
+    },
     async deleteResourceOperatingWindow(input) {
       normalizeText(input.reason, "Resource operating window removal reason", 1000);
 
@@ -2616,6 +2772,54 @@ export async function createAppointmentResourceOperatingWindowForManager(
       window: input
     })
   );
+
+  return getAppointmentAdminSettings(repository);
+}
+
+export async function createAppointmentResourceOperatingWindowBatchForManager(
+  user: AuthenticatedUser | null,
+  input: AppointmentResourceOperatingWindowBatchInput,
+  repository: AppointmentAdminSettingsRepository = createAppointmentAdminSettingsRepository()
+) {
+  assertCanManageAppointmentAdminSettings(user);
+
+  const location = await repository.getLocation();
+
+  if (!location) {
+    throw new Error("Appointment location settings are not configured.");
+  }
+
+  const normalizedDraft = normalizeAppointmentResourceOperatingWindowBatchInput({
+    locationId: location.id,
+    resourceId: input.resourceId,
+    window: input
+  });
+  const resources = await repository.listResources(location.id);
+  const resource = resources.find((candidate) => candidate.id === normalizedDraft.resourceId);
+
+  if (!resource) {
+    throw new Error("Resource is not configured for this appointment location.");
+  }
+
+  const replacementWindowIds = getReplacementWindowIdsForBulkResourceWindow({
+    resource,
+    businessDays: normalizedDraft.businessDays,
+    opensAtMinute: normalizedDraft.opensAtMinute,
+    closesAtMinute: normalizedDraft.closesAtMinute,
+    validFrom: normalizedDraft.validFrom,
+    validTo: normalizedDraft.validTo
+  });
+
+  if (replacementWindowIds.length > 0 && !normalizedDraft.replaceExisting) {
+    throw new Error(
+      "Selected resource days already have overlapping operating windows. Enable replace existing windows to continue."
+    );
+  }
+
+  await repository.applyResourceOperatingWindowBatch({
+    ...normalizedDraft,
+    replacementWindowIds
+  });
 
   return getAppointmentAdminSettings(repository);
 }

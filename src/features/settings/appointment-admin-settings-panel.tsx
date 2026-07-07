@@ -11,6 +11,7 @@ import type {
   AppointmentAdminSettingsInput,
   AppointmentLocationClosureInput,
   AppointmentOperatingWindowInput,
+  AppointmentResourceOperatingWindowBatchInput,
   AppointmentResourceTypeCreateInput,
   AppointmentResourceTypeUpdateInput,
   AppointmentResourceOperatingWindowInput,
@@ -127,6 +128,18 @@ const defaultResourceWindowDraft: AppointmentResourceOperatingWindowInput = {
   capacityOverride: null,
   validFrom: "2026-07-07",
   validTo: null,
+  reason: ""
+};
+
+const defaultBulkResourceWindowDraft: AppointmentResourceOperatingWindowBatchInput = {
+  resourceId: "",
+  businessDays: ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"],
+  opensAt: "09:00",
+  closesAt: "18:00",
+  capacityOverride: null,
+  validFrom: "2026-07-07",
+  validTo: null,
+  replaceExisting: false,
   reason: ""
 };
 
@@ -248,6 +261,11 @@ export function AppointmentAdminSettingsPanel({
       ...defaultResourceWindowDraft,
       resourceId: initialSettings.resources[0]?.id ?? ""
     });
+  const [bulkResourceWindowDraft, setBulkResourceWindowDraft] =
+    useState<AppointmentResourceOperatingWindowBatchInput>({
+      ...defaultBulkResourceWindowDraft,
+      resourceId: initialSettings.resources[0]?.id ?? ""
+    });
   const [resourceWindowRemovalReasons, setResourceWindowRemovalReasons] = useState<
     Record<string, string>
   >({});
@@ -304,6 +322,12 @@ export function AppointmentAdminSettingsPanel({
     setResourceDrafts(toResourceFormState(nextSettings));
     setResourceTypeDrafts(toResourceTypeFormState(nextSettings));
     setResourceWindowDraft((current) => ({
+      ...current,
+      resourceId: nextSettings.resources.some((resource) => resource.id === current.resourceId)
+        ? current.resourceId
+        : nextSettings.resources[0]?.id ?? ""
+    }));
+    setBulkResourceWindowDraft((current) => ({
       ...current,
       resourceId: nextSettings.resources.some((resource) => resource.id === current.resourceId)
         ? current.resourceId
@@ -652,6 +676,46 @@ export function AppointmentAdminSettingsPanel({
             setResourceWindowDraft({
               ...defaultResourceWindowDraft,
               resourceId: resourceWindowDraft.resourceId
+            })
+        }
+      );
+    });
+  }
+
+  function toggleBulkResourceBusinessDay(businessDay: string) {
+    setBulkResourceWindowDraft((current) => ({
+      ...current,
+      businessDays: current.businessDays.includes(businessDay)
+        ? current.businessDays.filter((candidate) => candidate !== businessDay)
+        : [...current.businessDays, businessDay]
+    }));
+  }
+
+  function submitBulkResourceOperatingWindow(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!bulkResourceWindowDraft.resourceId) {
+      setErrorMessage("Choose a resource before applying a bulk operating calendar.");
+      return;
+    }
+
+    startTransition(async () => {
+      await mutateAppointmentSettings(
+        `/api/settings/appointments/resources/${encodeURIComponent(bulkResourceWindowDraft.resourceId)}/operating-windows/bulk`,
+        {
+          body: {
+            ...bulkResourceWindowDraft,
+            capacityOverride: bulkResourceWindowDraft.capacityOverride ?? null,
+            validTo: bulkResourceWindowDraft.validTo || null
+          },
+          successMessage: bulkResourceWindowDraft.replaceExisting
+            ? "Bulk resource schedule applied and overlapping windows were replaced."
+            : "Bulk resource schedule applied.",
+          onSuccess: () =>
+            setBulkResourceWindowDraft({
+              ...defaultBulkResourceWindowDraft,
+              resourceId: bulkResourceWindowDraft.resourceId,
+              businessDays: bulkResourceWindowDraft.businessDays
             })
         }
       );
@@ -1973,6 +2037,163 @@ export function AppointmentAdminSettingsPanel({
                 No resource-specific operating calendar windows configured yet.
               </p>
             )}
+          </div>
+        </form>
+
+        <form className="panel-card settings-main-card" onSubmit={submitBulkResourceOperatingWindow}>
+          <strong>Bulk resource calendar editor</strong>
+          <h2>Apply the same schedule across multiple days</h2>
+          <p>
+            Set one operating window across multiple weekdays at once. You can also replace
+            overlapping windows for the selected days when the new schedule should take over.
+          </p>
+
+          <div className="settings-grid">
+            <label className="field">
+              <span>Resource</span>
+              <select
+                value={bulkResourceWindowDraft.resourceId}
+                onChange={(event) =>
+                  setBulkResourceWindowDraft((current) => ({
+                    ...current,
+                    resourceId: event.target.value
+                  }))
+                }
+                required
+              >
+                {settings.resources.map((resource) => (
+                  <option key={resource.id} value={resource.id}>
+                    {resource.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="field appointment-admin-span">
+              <span>Days</span>
+              <div className="settings-grid">
+                {businessDayOptions.map((day) => (
+                  <label className="field" key={day.value}>
+                    <span>{day.label}</span>
+                    <input
+                      checked={bulkResourceWindowDraft.businessDays.includes(day.value)}
+                      onChange={() => toggleBulkResourceBusinessDay(day.value)}
+                      type="checkbox"
+                    />
+                  </label>
+                ))}
+              </div>
+            </label>
+
+            <label className="field">
+              <span>Opens</span>
+              <input
+                type="time"
+                value={bulkResourceWindowDraft.opensAt}
+                onChange={(event) =>
+                  setBulkResourceWindowDraft((current) => ({
+                    ...current,
+                    opensAt: event.target.value
+                  }))
+                }
+                required
+              />
+            </label>
+
+            <label className="field">
+              <span>Closes</span>
+              <input
+                type="time"
+                value={bulkResourceWindowDraft.closesAt}
+                onChange={(event) =>
+                  setBulkResourceWindowDraft((current) => ({
+                    ...current,
+                    closesAt: event.target.value
+                  }))
+                }
+                required
+              />
+            </label>
+
+            <label className="field">
+              <span>Capacity override</span>
+              <input
+                min={1}
+                placeholder="Use default"
+                type="number"
+                value={bulkResourceWindowDraft.capacityOverride ?? ""}
+                onChange={(event) =>
+                  setBulkResourceWindowDraft((current) => ({
+                    ...current,
+                    capacityOverride: event.target.value ? Number(event.target.value) : null
+                  }))
+                }
+              />
+            </label>
+
+            <label className="field">
+              <span>Valid from</span>
+              <input
+                type="date"
+                value={bulkResourceWindowDraft.validFrom}
+                onChange={(event) =>
+                  setBulkResourceWindowDraft((current) => ({
+                    ...current,
+                    validFrom: event.target.value
+                  }))
+                }
+                required
+              />
+            </label>
+
+            <label className="field">
+              <span>Valid to</span>
+              <input
+                type="date"
+                value={bulkResourceWindowDraft.validTo ?? ""}
+                onChange={(event) =>
+                  setBulkResourceWindowDraft((current) => ({
+                    ...current,
+                    validTo: event.target.value || null
+                  }))
+                }
+              />
+            </label>
+
+            <label className="field">
+              <span>Replace overlapping windows</span>
+              <input
+                checked={bulkResourceWindowDraft.replaceExisting}
+                onChange={(event) =>
+                  setBulkResourceWindowDraft((current) => ({
+                    ...current,
+                    replaceExisting: event.target.checked
+                  }))
+                }
+                type="checkbox"
+              />
+            </label>
+
+            <label className="field appointment-admin-span">
+              <span>Reason</span>
+              <textarea
+                value={bulkResourceWindowDraft.reason}
+                onChange={(event) =>
+                  setBulkResourceWindowDraft((current) => ({
+                    ...current,
+                    reason: event.target.value
+                  }))
+                }
+                placeholder="Document why this bulk schedule is being applied."
+                required
+              />
+            </label>
+          </div>
+
+          <div className="form-actions">
+            <button className="pill pill-primary" disabled={isPending} type="submit">
+              {isPending ? "Saving..." : "Apply bulk schedule"}
+            </button>
           </div>
         </form>
 
