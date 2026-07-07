@@ -239,6 +239,46 @@ type AppointmentCommandCenterSearchResult = {
   tone: "slate" | "blue" | "amber" | "red" | "purple" | "green";
 };
 
+type AppointmentCommandCenterSavedViewConfig = {
+  searchQuery: string;
+  searchPreset: AppointmentCommandCenterSearchPreset;
+  searchScope: AppointmentCommandCenterSearchScope;
+  resolutionFilter: AppointmentResolutionWorkbenchFilter;
+  reportQueueFilter: AppointmentResolutionWorkbenchFilter;
+  reportOwnerFilter: string;
+  auditTimelineFilter: AppointmentAuditTimelineFilter;
+};
+
+type AppointmentCommandCenterSavedView = {
+  id: string;
+  name: string;
+  description: string;
+  config: AppointmentCommandCenterSavedViewConfig;
+};
+
+type AppointmentCommandCenterSubscription = {
+  id: string;
+  label: string;
+  description: string;
+  enabled: boolean;
+  watchType:
+    | "breached-sla"
+    | "escalated"
+    | "no-show-recovery"
+    | "follow-up-backlog"
+    | "manager-activity";
+};
+
+type AppointmentCommandCenterSubscriptionSummary = {
+  id: string;
+  label: string;
+  description: string;
+  enabled: boolean;
+  count: number;
+  watchType: AppointmentCommandCenterSubscription["watchType"];
+  tone: "slate" | "blue" | "amber" | "red" | "purple";
+};
+
 type AppointmentReadModel = {
   id: string;
   appointmentNumber: string;
@@ -469,6 +509,90 @@ const defaultLocationId = "loc-time-motor-sales-minneapolis";
 const defaultTimezone = "America/Chicago";
 const resolutionWorkbenchReferenceMinutes = 15 * 60 + 30;
 const defaultResolutionOwnerId = "abdi";
+const defaultSavedViewId = "ops-triage";
+
+const initialSavedCommandCenterViews: AppointmentCommandCenterSavedView[] = [
+  {
+    id: "ops-triage",
+    name: "Operations Triage",
+    description: "All active queues with broad search and all timeline lanes visible.",
+    config: {
+      searchQuery: "",
+      searchPreset: "all",
+      searchScope: "all",
+      resolutionFilter: "all",
+      reportQueueFilter: "all",
+      reportOwnerFilter: "all",
+      auditTimelineFilter: "all"
+    }
+  },
+  {
+    id: "sla-breach-review",
+    name: "SLA Breach Review",
+    description: "Focus on breached items and escalation-ready manager cleanup.",
+    config: {
+      searchQuery: "",
+      searchPreset: "breached-sla",
+      searchScope: "appointments",
+      resolutionFilter: "breached-sla",
+      reportQueueFilter: "breached-sla",
+      reportOwnerFilter: "all",
+      auditTimelineFilter: "manager"
+    }
+  },
+  {
+    id: "manager-activity-lane",
+    name: "Manager Activity Lane",
+    description: "Resume directly into manager action history and escalation events.",
+    config: {
+      searchQuery: "",
+      searchPreset: "manager-activity",
+      searchScope: "timeline",
+      resolutionFilter: "escalated",
+      reportQueueFilter: "escalated",
+      reportOwnerFilter: "all",
+      auditTimelineFilter: "manager"
+    }
+  }
+];
+
+const initialCommandCenterSubscriptions: AppointmentCommandCenterSubscription[] = [
+  {
+    id: "watch-breached-sla",
+    label: "Breached SLA",
+    description: "Watch all exception items that have already crossed the SLA line.",
+    enabled: true,
+    watchType: "breached-sla"
+  },
+  {
+    id: "watch-escalations",
+    label: "Escalations",
+    description: "Watch escalated appointment workbench items needing manager action.",
+    enabled: true,
+    watchType: "escalated"
+  },
+  {
+    id: "watch-no-show-recovery",
+    label: "No-Show Recovery",
+    description: "Track open no-show recovery work and callback follow-up.",
+    enabled: true,
+    watchType: "no-show-recovery"
+  },
+  {
+    id: "watch-follow-up-backlog",
+    label: "Follow-Up Backlog",
+    description: "Track follow-up queue buildup across the visible board scope.",
+    enabled: false,
+    watchType: "follow-up-backlog"
+  },
+  {
+    id: "watch-manager-activity",
+    label: "Manager Activity",
+    description: "Watch manager-lane actions and decision history events.",
+    enabled: true,
+    watchType: "manager-activity"
+  }
+];
 
 const outcomeOptions = [
   { value: "COMPLETED", label: "Completed" },
@@ -1497,6 +1621,109 @@ export function buildAppointmentCommandCenterSearchResults(input: {
   );
 }
 
+export function buildAppointmentCommandCenterSavedViewDescription(
+  config: AppointmentCommandCenterSavedViewConfig
+) {
+  const parts = [
+    config.searchPreset === "all" ? "All active work" : `Preset: ${config.searchPreset.replaceAll("-", " ")}`,
+    config.searchScope === "all" ? "appointments + timeline" : `${config.searchScope} only`,
+    config.searchQuery ? `query "${config.searchQuery}"` : null,
+    config.auditTimelineFilter === "all" ? "all timeline lanes" : `${config.auditTimelineFilter} lane`
+  ].filter(Boolean);
+
+  return parts.join(" · ");
+}
+
+export function buildAppointmentCommandCenterSubscriptionSummaries(input: {
+  appointments: Appointment[];
+  resolutionStateByAppointmentId?: Record<string, AppointmentResolutionState>;
+  commandCenterAuditEvents?: AppointmentAuditTimelineEvent[];
+  subscriptions: AppointmentCommandCenterSubscription[];
+}): AppointmentCommandCenterSubscriptionSummary[] {
+  const resolutionStateByAppointmentId = input.resolutionStateByAppointmentId ?? {};
+  const activeQueues = buildAppointmentExceptionQueues(
+    input.appointments.filter((appointment) => {
+      const status = resolutionStateByAppointmentId[appointment.id]?.status;
+      return status !== "resolved" && status !== "snoozed";
+    })
+  );
+  const workbenchItems = buildAppointmentResolutionWorkbench(
+    input.appointments,
+    resolutionStateByAppointmentId,
+    {
+      includeDormant: false,
+      sort: "priority"
+    }
+  );
+  const managerEvents = input.appointments.flatMap((appointment) =>
+    buildAppointmentAuditTimeline({
+      appointment,
+      resolutionState: resolutionStateByAppointmentId[appointment.id],
+      commandCenterEvents: input.commandCenterAuditEvents ?? []
+    }).filter((event) => event.lane === "manager")
+  );
+
+  return input.subscriptions.map((subscription) => {
+    if (subscription.watchType === "breached-sla") {
+      return {
+        id: subscription.id,
+        label: subscription.label,
+        description: subscription.description,
+        enabled: subscription.enabled,
+        count: workbenchItems.filter((item) => item.slaStatus === "breached").length,
+        watchType: subscription.watchType,
+        tone: "red"
+      };
+    }
+
+    if (subscription.watchType === "escalated") {
+      return {
+        id: subscription.id,
+        label: subscription.label,
+        description: subscription.description,
+        enabled: subscription.enabled,
+        count: workbenchItems.filter((item) => item.resolutionStatus === "escalated").length,
+        watchType: subscription.watchType,
+        tone: "purple"
+      };
+    }
+
+    if (subscription.watchType === "no-show-recovery") {
+      return {
+        id: subscription.id,
+        label: subscription.label,
+        description: subscription.description,
+        enabled: subscription.enabled,
+        count: activeQueues.find((queue) => queue.key === "no-show-recovery")?.items.length ?? 0,
+        watchType: subscription.watchType,
+        tone: "red"
+      };
+    }
+
+    if (subscription.watchType === "follow-up-backlog") {
+      return {
+        id: subscription.id,
+        label: subscription.label,
+        description: subscription.description,
+        enabled: subscription.enabled,
+        count: activeQueues.find((queue) => queue.key === "follow-up-required")?.items.length ?? 0,
+        watchType: subscription.watchType,
+        tone: "amber"
+      };
+    }
+
+    return {
+      id: subscription.id,
+      label: subscription.label,
+      description: subscription.description,
+      enabled: subscription.enabled,
+      count: managerEvents.length,
+      watchType: subscription.watchType,
+      tone: "blue"
+    };
+  });
+}
+
 function appointmentTimeLabel(appointment: Appointment) {
   if (isUnscheduledDraftAppointment(appointment)) {
     return "Unscheduled";
@@ -2016,6 +2243,15 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     useState<AppointmentCommandCenterSearchPreset>("all");
   const [commandCenterSearchScope, setCommandCenterSearchScope] =
     useState<AppointmentCommandCenterSearchScope>("all");
+  const [savedCommandCenterViews, setSavedCommandCenterViews] = useState(
+    initialSavedCommandCenterViews
+  );
+  const [defaultCommandCenterViewId, setDefaultCommandCenterViewId] = useState(defaultSavedViewId);
+  const [activeCommandCenterViewId, setActiveCommandCenterViewId] = useState(defaultSavedViewId);
+  const [savedViewDraftName, setSavedViewDraftName] = useState("");
+  const [commandCenterSubscriptions, setCommandCenterSubscriptions] = useState(
+    initialCommandCenterSubscriptions
+  );
   const [detailRefreshKey, setDetailRefreshKey] = useState(0);
   const [actionNotice, setActionNotice] = useState("Operational command bridge ready. Persisted appointments can now use the live command API for check-in and no-show actions.");
 
@@ -2286,6 +2522,44 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   const commandCenterSearchResultCountLabel = `${commandCenterSearchResults.length} result${
     commandCenterSearchResults.length === 1 ? "" : "s"
   }`;
+  const currentCommandCenterViewConfig = useMemo(
+    () => ({
+      searchQuery: commandCenterSearchQuery,
+      searchPreset: commandCenterSearchPreset,
+      searchScope: commandCenterSearchScope,
+      resolutionFilter,
+      reportQueueFilter,
+      reportOwnerFilter,
+      auditTimelineFilter
+    }),
+    [
+      auditTimelineFilter,
+      commandCenterSearchPreset,
+      commandCenterSearchQuery,
+      commandCenterSearchScope,
+      reportOwnerFilter,
+      reportQueueFilter,
+      resolutionFilter
+    ]
+  );
+  const commandCenterSubscriptionSummaries = useMemo(
+    () =>
+      buildAppointmentCommandCenterSubscriptionSummaries({
+        appointments: boardAppointments,
+        resolutionStateByAppointmentId,
+        commandCenterAuditEvents,
+        subscriptions: commandCenterSubscriptions
+      }),
+    [
+      boardAppointments,
+      commandCenterAuditEvents,
+      commandCenterSubscriptions,
+      resolutionStateByAppointmentId
+    ]
+  );
+  const enabledCommandCenterSubscriptionCount = commandCenterSubscriptionSummaries.filter(
+    (subscription) => subscription.enabled
+  ).length;
 
   const scheduledFilteredAppointments = useMemo(
     () => filteredAppointments.filter((appointment) => !isUnscheduledDraftAppointment(appointment)),
@@ -2394,6 +2668,113 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
           : "Could not copy export preview."
       );
     }
+  }
+
+  function applySavedCommandCenterView(view: AppointmentCommandCenterSavedView) {
+    setCommandCenterSearchQuery(view.config.searchQuery);
+    setCommandCenterSearchPreset(view.config.searchPreset);
+    setCommandCenterSearchScope(view.config.searchScope);
+    setResolutionFilter(view.config.resolutionFilter);
+    setReportQueueFilter(view.config.reportQueueFilter);
+    setReportOwnerFilter(view.config.reportOwnerFilter);
+    setAuditTimelineFilter(view.config.auditTimelineFilter);
+    setActiveCommandCenterViewId(view.id);
+    setSavedViewDraftName(view.name);
+    setActionNotice(`Loaded saved view "${view.name}" into the command center.`);
+  }
+
+  function saveCurrentCommandCenterView() {
+    const trimmedName = savedViewDraftName.trim();
+    const existingView = activeCommandCenterViewId
+      ? savedCommandCenterViews.find((view) => view.id === activeCommandCenterViewId)
+      : undefined;
+    const fallbackName = trimmedName.length > 0 ? trimmedName : existingView?.name ?? "Working View";
+    const nextId = existingView?.id ?? `saved-view-${savedCommandCenterViews.length + 1}`;
+    const nextView: AppointmentCommandCenterSavedView = {
+      id: nextId,
+      name: fallbackName,
+      description: buildAppointmentCommandCenterSavedViewDescription(currentCommandCenterViewConfig),
+      config: currentCommandCenterViewConfig
+    };
+
+    setSavedCommandCenterViews((current) => {
+      if (existingView) {
+        return current.map((view) => (view.id === existingView.id ? nextView : view));
+      }
+
+      return [...current, nextView];
+    });
+    setActiveCommandCenterViewId(nextId);
+    setSavedViewDraftName("");
+    setActionNotice(`Saved command-center view "${nextView.name}" for quick resume.`);
+  }
+
+  function setSavedCommandCenterViewAsStartup(viewId: string) {
+    setDefaultCommandCenterViewId(viewId);
+    const view = savedCommandCenterViews.find((candidate) => candidate.id === viewId);
+    setActionNotice(
+      view
+        ? `"${view.name}" will open as the startup command-center view next time.`
+        : "Startup command-center view updated."
+    );
+  }
+
+  function toggleCommandCenterSubscription(subscriptionId: string) {
+    setCommandCenterSubscriptions((current) =>
+      current.map((subscription) =>
+        subscription.id === subscriptionId
+          ? { ...subscription, enabled: !subscription.enabled }
+          : subscription
+      )
+    );
+    const subscription = commandCenterSubscriptions.find((candidate) => candidate.id === subscriptionId);
+    if (subscription) {
+      setActionNotice(
+        `${subscription.enabled ? "Paused" : "Resumed"} watch "${subscription.label}" in the command center.`
+      );
+    }
+  }
+
+  function openCommandCenterSubscription(
+    subscription: AppointmentCommandCenterSubscriptionSummary
+  ) {
+    setCommandCenterSearchQuery("");
+
+    if (subscription.watchType === "breached-sla") {
+      setCommandCenterSearchPreset("breached-sla");
+      setCommandCenterSearchScope("appointments");
+      setResolutionFilter("breached-sla");
+      setReportQueueFilter("breached-sla");
+      setAuditTimelineFilter("all");
+    } else if (subscription.watchType === "escalated") {
+      setCommandCenterSearchPreset("escalated");
+      setCommandCenterSearchScope("all");
+      setResolutionFilter("escalated");
+      setReportQueueFilter("escalated");
+      setAuditTimelineFilter("manager");
+    } else if (subscription.watchType === "no-show-recovery") {
+      setCommandCenterSearchPreset("all");
+      setCommandCenterSearchScope("appointments");
+      setResolutionFilter("no-show-recovery");
+      setReportQueueFilter("no-show-recovery");
+      setAuditTimelineFilter("all");
+    } else if (subscription.watchType === "follow-up-backlog") {
+      setCommandCenterSearchPreset("all");
+      setCommandCenterSearchScope("appointments");
+      setResolutionFilter("follow-up-required");
+      setReportQueueFilter("follow-up-required");
+      setAuditTimelineFilter("all");
+    } else {
+      setCommandCenterSearchPreset("manager-activity");
+      setCommandCenterSearchScope("timeline");
+      setResolutionFilter("escalated");
+      setReportQueueFilter("escalated");
+      setAuditTimelineFilter("manager");
+    }
+
+    setSavedViewDraftName("");
+    setActiveCommandCenterViewId("");
+    setActionNotice(`Opened watch "${subscription.label}" in the command center.`);
   }
 
   function applyCommandCenterSearchPreset(preset: AppointmentCommandCenterSearchPreset) {
@@ -4481,6 +4862,150 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
                 <p>No exception items match the current queue focus and visibility settings.</p>
               </div>
             )}
+          </section>
+
+          <section
+            className="appointment-command-center-views-card"
+            aria-labelledby="appointment-command-center-views"
+          >
+            <div className="appointment-section-heading">
+              <div>
+                <strong id="appointment-command-center-views">Saved Views &amp; Subscriptions</strong>
+                <p>
+                  Save manager workspaces, reopen them in one click, and keep watched queues ready for
+                  shift handoffs and exception monitoring.
+                </p>
+              </div>
+              <span>
+                {savedCommandCenterViews.length} saved Â· {enabledCommandCenterSubscriptionCount} watched
+              </span>
+            </div>
+
+            <div className="appointment-command-center-views-grid">
+              <section className="appointment-command-center-panel" aria-labelledby="appointment-saved-views">
+                <div className="appointment-command-center-panel-heading">
+                  <div>
+                    <strong id="appointment-saved-views">Saved Views</strong>
+                    <p>Capture the current queue, search, timeline, and reporting focus for repeat manager workflows.</p>
+                  </div>
+                  <span>{savedCommandCenterViews.length} saved</span>
+                </div>
+
+                <div className="appointment-command-center-save-row">
+                  <label>
+                    View name
+                    <input
+                      aria-label="Saved command center view name"
+                      onChange={(event) => setSavedViewDraftName(event.target.value)}
+                      placeholder="Name this manager view"
+                      type="text"
+                      value={savedViewDraftName}
+                    />
+                  </label>
+                  <button type="button" onClick={saveCurrentCommandCenterView}>
+                    Save current view
+                  </button>
+                </div>
+
+                <div className="appointment-command-center-saved-list">
+                  {savedCommandCenterViews.map((view) => {
+                    const isStartup = view.id === defaultCommandCenterViewId;
+                    const isActive = view.id === activeCommandCenterViewId;
+
+                    return (
+                      <article
+                        className={
+                          isActive
+                            ? "appointment-command-center-saved-item appointment-command-center-saved-item-active"
+                            : "appointment-command-center-saved-item"
+                        }
+                        key={view.id}
+                      >
+                        <div className="appointment-command-center-saved-item-top">
+                          <div>
+                            <strong>{view.name}</strong>
+                            <p>{view.description}</p>
+                          </div>
+                          <div className="appointment-command-center-badge-stack">
+                            {isStartup ? (
+                              <span className="appointment-command-center-tag appointment-command-center-tag-blue">
+                                Startup
+                              </span>
+                            ) : null}
+                            {isActive ? (
+                              <span className="appointment-command-center-tag appointment-command-center-tag-green">
+                                Active
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div className="appointment-command-center-item-actions">
+                          <button type="button" onClick={() => applySavedCommandCenterView(view)}>
+                            Open view
+                          </button>
+                          <button type="button" onClick={() => setSavedCommandCenterViewAsStartup(view.id)}>
+                            {isStartup ? "Startup view" : "Make startup"}
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section
+                className="appointment-command-center-panel"
+                aria-labelledby="appointment-command-center-subscriptions"
+              >
+                <div className="appointment-command-center-panel-heading">
+                  <div>
+                    <strong id="appointment-command-center-subscriptions">My Watched Queues</strong>
+                    <p>Keep high-risk exception lanes visible even when the board focus changes across the day.</p>
+                  </div>
+                  <span>
+                    {enabledCommandCenterSubscriptionCount} enabled / {commandCenterSubscriptionSummaries.length}
+                  </span>
+                </div>
+
+                <div className="appointment-command-center-subscription-list">
+                  {commandCenterSubscriptionSummaries.map((subscription) => (
+                    <article
+                      className={`appointment-command-center-subscription appointment-command-center-subscription-${subscription.tone}`}
+                      key={subscription.id}
+                    >
+                      <div className="appointment-command-center-subscription-top">
+                        <div>
+                          <strong>{subscription.label}</strong>
+                          <p>{subscription.description}</p>
+                        </div>
+                        <div className="appointment-command-center-subscription-summary">
+                          <b>{subscription.count}</b>
+                          <span
+                            className={
+                              subscription.enabled
+                                ? "appointment-command-center-tag appointment-command-center-tag-green"
+                                : "appointment-command-center-tag"
+                            }
+                          >
+                            {subscription.enabled ? "Watching" : "Paused"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="appointment-command-center-item-actions">
+                        <button type="button" onClick={() => openCommandCenterSubscription(subscription)}>
+                          Open watch
+                        </button>
+                        <button type="button" onClick={() => toggleCommandCenterSubscription(subscription.id)}>
+                          {subscription.enabled ? "Pause watch" : "Resume watch"}
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            </div>
           </section>
 
           <section className="appointment-command-search-card" aria-labelledby="appointment-command-search">

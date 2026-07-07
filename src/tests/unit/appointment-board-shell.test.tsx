@@ -6,6 +6,8 @@ import {
   buildAppointmentCommandCenterExport,
   buildAppointmentCommandCenterReport,
   buildAppointmentCommandCenterSearchResults,
+  buildAppointmentCommandCenterSavedViewDescription,
+  buildAppointmentCommandCenterSubscriptionSummaries,
   AppointmentBoardShell,
   buildAppointmentExceptionQueues,
   buildAppointmentResolutionWorkbench,
@@ -40,6 +42,9 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Export preview");
     expect(markup).toContain("Cross-Appointment Search");
     expect(markup).toContain("Search scope");
+    expect(markup).toContain("Saved Views &amp; Subscriptions");
+    expect(markup).toContain("Save current view");
+    expect(markup).toContain("My Watched Queues");
   });
 
   it("renders admin-provided board settings when available", () => {
@@ -78,6 +83,145 @@ describe("appointment board shell", () => {
     ).toBe(
       "Outcome saved for APT-10245. Completion, outcome, follow-up, history, and command ledger were updated. Draft follow-up appointment created: FUP-APT-10245-MOCK. 1 follow-up task created."
     );
+  });
+
+  it("builds a readable description for saved command-center views", () => {
+    expect(
+      buildAppointmentCommandCenterSavedViewDescription({
+        searchQuery: "brock",
+        searchPreset: "escalated",
+        searchScope: "timeline",
+        resolutionFilter: "escalated",
+        reportQueueFilter: "escalated",
+        reportOwnerFilter: "brock",
+        auditTimelineFilter: "manager"
+      } as any)
+    ).toBe('Preset: escalated · timeline only · query "brock" · manager lane');
+  });
+
+  it("summarizes watched queue subscriptions for the command center", () => {
+    const summaries = buildAppointmentCommandCenterSubscriptionSummaries({
+      appointments: [
+        {
+          id: "APT-DRAFT",
+          title: "Follow-up Draft",
+          customer: "Amina Said",
+          vehicle: "Registration",
+          category: "dmv",
+          status: "draft",
+          staffId: "rayana",
+          staffName: "Rayana Hassan",
+          startMinutes: 0,
+          durationMinutes: 60,
+          phone: "612-555-0100",
+          complaint: "Draft needs scheduling",
+          location: "Front office",
+          confirmation: "Needs schedule placement",
+          taskAutomation: [],
+          governanceNotes: [],
+          startsAtIso: null,
+          endsAtIso: null
+        },
+        {
+          id: "APT-NOSHOW",
+          title: "Test Drive",
+          customer: "Ahmed Ibrahim",
+          vehicle: "2018 Toyota Camry",
+          category: "sales",
+          status: "no-show",
+          staffId: "abdi",
+          staffName: "Abdi Farah",
+          startMinutes: 540,
+          durationMinutes: 60,
+          phone: "612-555-0102",
+          complaint: "Customer did not arrive",
+          location: "Sales floor",
+          confirmation: "No-show follow-up required",
+          attendanceStatus: "NO_SHOW",
+          followUpDispositionCode: "CALLBACK_REQUIRED",
+          taskAutomation: [],
+          governanceNotes: [],
+          startsAtIso: "2026-07-07T14:00:00.000Z",
+          endsAtIso: "2026-07-07T15:00:00.000Z"
+        },
+        {
+          id: "APT-ESC",
+          title: "Service / Repair",
+          customer: "Khalid Mohamud",
+          vehicle: "Brake Inspection",
+          category: "service",
+          status: "confirmed",
+          staffId: "brock",
+          staffName: "Brock Peterson",
+          startMinutes: 600,
+          durationMinutes: 60,
+          phone: "612-555-0101",
+          complaint: "Conflict active",
+          location: "Service bay",
+          confirmation: "Resource conflict needs manager review",
+          conflict: true,
+          taskAutomation: [],
+          governanceNotes: [],
+          startsAtIso: "2026-07-07T15:00:00.000Z",
+          endsAtIso: "2026-07-07T16:00:00.000Z"
+        }
+      ] as any,
+      resolutionStateByAppointmentId: {
+        "APT-ESC": {
+          status: "escalated",
+          ownerId: "brock",
+          ownerName: "Brock Peterson",
+          updatedAtLabel: "Just now"
+        }
+      },
+      commandCenterAuditEvents: [
+        {
+          id: "manager-1",
+          appointmentId: "APT-ESC",
+          lane: "manager",
+          tone: "purple",
+          title: "Manager escalation recorded",
+          detail: "Manager moved the conflict into an escalation lane.",
+          actor: "Abdi Farah",
+          occurredAtLabel: "Just now"
+        }
+      ],
+      subscriptions: [
+        {
+          id: "watch-escalations",
+          label: "Escalations",
+          description: "Escalated work.",
+          enabled: true,
+          watchType: "escalated"
+        },
+        {
+          id: "watch-no-show-recovery",
+          label: "No-Show Recovery",
+          description: "Missed arrivals.",
+          enabled: true,
+          watchType: "no-show-recovery"
+        },
+        {
+          id: "watch-follow-up-backlog",
+          label: "Follow-Up Backlog",
+          description: "Follow-up work.",
+          enabled: false,
+          watchType: "follow-up-backlog"
+        },
+        {
+          id: "watch-manager-activity",
+          label: "Manager Activity",
+          description: "Manager lane events.",
+          enabled: true,
+          watchType: "manager-activity"
+        }
+      ] as any
+    });
+
+    expect(summaries.find((summary) => summary.watchType === "escalated")?.count).toBe(1);
+    expect(summaries.find((summary) => summary.watchType === "no-show-recovery")?.count).toBe(1);
+    expect(summaries.find((summary) => summary.watchType === "follow-up-backlog")?.count).toBe(1);
+    expect(summaries.find((summary) => summary.watchType === "manager-activity")?.count).toBeGreaterThan(0);
   });
 
   it("classifies missing-time draft appointments as unscheduled board items", () => {
