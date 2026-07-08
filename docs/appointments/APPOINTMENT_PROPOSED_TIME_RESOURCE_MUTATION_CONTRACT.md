@@ -2,7 +2,7 @@
 
 **Slice:** EAPT-029AG  
 **Status:** Implemented initial API/UI mutation boundary  
-**Surface:** `/appointments`, `POST /api/appointments/:id/resource-requirements/:requirementId/candidate-proposals`, and `POST /api/appointments/:id/resource-reservations/:reservationId/hold`
+**Surface:** `/appointments`, `POST /api/appointments/:id/resource-requirements/:requirementId/candidate-proposals`, `POST /api/appointments/:id/resource-reservations/:reservationId/hold`, and `POST /api/appointments/:id/resource-reservations/:reservationId/warning-override`
 
 ## Purpose
 
@@ -19,6 +19,7 @@ Unscheduled draft appointments need to reserve resources for the slot the manage
 - If the same resource is already proposed for the same requirement and same proposed window, the service returns the existing proposal instead of creating a duplicate.
 - If the same resource is proposed for a different window, prior proposed reservations for that requirement are cancelled and a new proposal is created for the new window.
 - Hold now validates and rechecks the proposed reservation window, so a missing-time draft can hold a proposed candidate before the final Schedule command persists the appointment time.
+- Warning override now accepts the same optional proposed schedule fields, uses the proposed reservation window for missing-time drafts, and records proposed-slot metadata on the warning-override history event.
 - The hold action still enforces manager/owner authority, expected version, current availability, warning overrides, and documented reason notes.
 
 ## Non-claims
@@ -34,4 +35,5 @@ Unscheduled draft appointments need to reserve resources for the slot the manage
 - Focused route coverage proves proposed schedule fields are parsed and passed to the resource proposal service.
 - Focused service coverage proves a missing-time draft can create a proposed resource reservation for the proposed window.
 - Focused hold coverage proves a missing-time draft can hold a proposed resource candidate using the reservation window.
+- Focused warning-override coverage proves an unscheduled draft can record a warning override with proposed-slot metadata instead of requiring persisted appointment times.
 - Full validation confirms lint, type-check, unit coverage, and Prisma schema validation remain clean.

@@ -114,6 +114,14 @@ function createRepositoryHarness(options?: { failHistory?: boolean }) {
   const createdTaskLinks: AppointmentLifecyclePersistedTaskLink[] = [];
   const removedTaskLinks: AppointmentLifecyclePersistedTaskLink[] = [];
   const historyEvents: AppointmentLifecyclePersistedHistoryEvent[] = [];
+  const activityEvents: Array<{
+    boardDayId: string;
+    actorUserId: string | null;
+    taskId: string;
+    eventType: string;
+    message: string;
+    metadata: Record<string, unknown>;
+  }> = [];
   const commandCompletions: AppointmentLifecycleCommandLedgerCompletion[] = [];
 
   function snapshot() {
@@ -125,6 +133,7 @@ function createRepositoryHarness(options?: { failHistory?: boolean }) {
       createdTaskLinks: [...createdTaskLinks],
       removedTaskLinks: [...removedTaskLinks],
       historyEvents: [...historyEvents],
+      activityEvents: [...activityEvents],
       commandCompletions: [...commandCompletions]
     };
   }
@@ -137,6 +146,7 @@ function createRepositoryHarness(options?: { failHistory?: boolean }) {
     createdTaskLinks.splice(0, createdTaskLinks.length, ...state.createdTaskLinks);
     removedTaskLinks.splice(0, removedTaskLinks.length, ...state.removedTaskLinks);
     historyEvents.splice(0, historyEvents.length, ...state.historyEvents);
+    activityEvents.splice(0, activityEvents.length, ...state.activityEvents);
     commandCompletions.splice(0, commandCompletions.length, ...state.commandCompletions);
   }
 
@@ -247,6 +257,10 @@ function createRepositoryHarness(options?: { failHistory?: boolean }) {
       return records;
     },
 
+    async createActivityEvents(input) {
+      activityEvents.push(...input.events);
+    },
+
     async completeCommand(completion) {
       commandCompletions.push(completion);
       return completion;
@@ -273,6 +287,7 @@ function createRepositoryHarness(options?: { failHistory?: boolean }) {
     createdTasks,
     createdTaskLinks,
     historyEvents,
+    activityEvents,
     releasedReservations,
     removedTaskLinks,
     repository
@@ -405,6 +420,25 @@ describe("appointment lifecycle transaction execution", () => {
         appointmentId: appointment.id,
         taskId: "task-1",
         linkCode: "OUTCOME_CALLBACK_REQUIRED"
+      }
+    ]);
+    expect(harness.activityEvents).toEqual([
+      {
+        boardDayId: "board-day-1",
+        actorUserId: managerUser.id,
+        taskId: "task-1",
+        eventType: "task.appointment_follow_up_created",
+        message:
+          "Appointment APT-10245 generated follow-up task Callback required for appointment APT-10245.",
+        metadata: {
+          appointmentId: appointment.id,
+          appointmentNumber: appointment.appointmentNumber,
+          automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_TASK",
+          templateVersion: 1,
+          linkCode: "OUTCOME_CALLBACK_REQUIRED",
+          linkType: "FOLLOW_UP",
+          generatedTaskTitle: "Callback required for appointment APT-10245"
+        }
       }
     ]);
     expect(harness.historyEvents.map((event) => event.eventType)).toEqual([

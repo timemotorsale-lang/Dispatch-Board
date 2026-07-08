@@ -9,6 +9,7 @@ import type {
   AppointmentReservationReleaseRecord
 } from "@/server/appointments/appointment-reservation-commit-service";
 import {
+  type AppointmentLifecycleActivityEventCreate,
   type AppointmentLifecycleCommandLedgerCompletion,
   type AppointmentLifecyclePersistedAppointment,
   type AppointmentLifecyclePersistedHistoryEvent,
@@ -88,6 +89,11 @@ type AppointmentLifecycleTransactionClient = {
       data: Record<string, unknown>;
       select: typeof persistedHistoryEventSelect;
     }): Promise<AppointmentLifecyclePersistedHistoryEvent>;
+  };
+  activityEvent: {
+    create(input: {
+      data: Record<string, unknown>;
+    }): Promise<unknown>;
   };
   appointmentCommandLedger: {
     update(input: {
@@ -408,6 +414,17 @@ function toHistoryData(input: ReturnType<typeof normalizeAppointmentHistoryEvent
   };
 }
 
+function toActivityEventData(input: AppointmentLifecycleActivityEventCreate) {
+  return {
+    boardDayId: input.boardDayId,
+    ...(input.actorUserId ? { actorUserId: input.actorUserId } : {}),
+    taskId: input.taskId,
+    eventType: input.eventType,
+    message: input.message,
+    metadata: asInputJson(input.metadata)
+  };
+}
+
 function createTransactionAdapter(tx: AppointmentLifecycleTransactionClient): AppointmentLifecycleTransaction {
   return {
     createAppointment(effect) {
@@ -571,6 +588,14 @@ function createTransactionAdapter(tx: AppointmentLifecycleTransactionClient): Ap
       }
 
       return events;
+    },
+
+    async createActivityEvents(input) {
+      for (const event of input.events) {
+        await tx.activityEvent.create({
+          data: toActivityEventData(event)
+        });
+      }
     },
 
     async completeCommand(completion) {

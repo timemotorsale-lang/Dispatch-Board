@@ -40,6 +40,15 @@ export type AppointmentLifecyclePersistedHistoryEvent = {
   eventType: string;
 };
 
+export type AppointmentLifecycleActivityEventCreate = {
+  boardDayId: string;
+  actorUserId: string | null;
+  taskId: string;
+  eventType: string;
+  message: string;
+  metadata: Record<string, unknown>;
+};
+
 export type AppointmentLifecycleCommandLedgerCompletion = {
   commandId: string;
   status: AppointmentCommandStatus;
@@ -79,6 +88,9 @@ export type AppointmentLifecycleTransaction = {
     appointmentId: string;
     events: ReturnType<typeof normalizeAppointmentHistoryEvent>[];
   }): Promise<AppointmentLifecyclePersistedHistoryEvent[]>;
+  createActivityEvents(input: {
+    events: AppointmentLifecycleActivityEventCreate[];
+  }): Promise<void>;
   completeCommand(
     completion: AppointmentLifecycleCommandLedgerCompletion
   ): Promise<AppointmentLifecycleCommandLedgerCompletion>;
@@ -209,6 +221,55 @@ function createResultSnapshot(input: {
   };
 }
 
+function getGeneratedTaskActivityType(effect: AppointmentLifecycleTaskCreateEffect) {
+  return effect.linkType === "FOLLOW_UP"
+    ? "task.appointment_follow_up_created"
+    : "task.appointment_linked_created";
+}
+
+function getGeneratedTaskActivityMessage(input: {
+  appointment: AppointmentLifecyclePersistedAppointment | null;
+  effect: AppointmentLifecycleTaskCreateEffect;
+}) {
+  const appointmentLabel = input.appointment?.appointmentNumber ?? "appointment";
+
+  if (input.effect.linkType === "FOLLOW_UP") {
+    return `Appointment ${appointmentLabel} generated follow-up task ${input.effect.title}.`;
+  }
+
+  return `Appointment ${appointmentLabel} generated linked task ${input.effect.title}.`;
+}
+
+function buildGeneratedTaskActivityEvents(input: {
+  appointment: AppointmentLifecyclePersistedAppointment | null;
+  createdTasks: AppointmentLifecyclePersistedTask[];
+  taskCreateEffects: AppointmentLifecycleTaskCreateEffect[];
+}): AppointmentLifecycleActivityEventCreate[] {
+  return input.createdTasks.map((task, index) => {
+    const effect = input.taskCreateEffects[index];
+
+    return {
+      boardDayId: task.boardDayId,
+      actorUserId: effect.createdByUserId,
+      taskId: task.id,
+      eventType: getGeneratedTaskActivityType(effect),
+      message: getGeneratedTaskActivityMessage({
+        appointment: input.appointment,
+        effect
+      }),
+      metadata: {
+        appointmentId: input.appointment?.id ?? null,
+        appointmentNumber: input.appointment?.appointmentNumber ?? null,
+        automationRuleCode: effect.automationRuleCode,
+        templateVersion: effect.templateVersion,
+        linkCode: effect.linkCode,
+        linkType: effect.linkType,
+        generatedTaskTitle: effect.title
+      }
+    };
+  });
+}
+
 async function recordRejectedPlan(input: {
   plan: AppointmentLifecycleCommandExecutionPlan;
   repository: AppointmentLifecycleTransactionRepository;
@@ -296,6 +357,13 @@ export async function executeAppointmentLifecycleCommandPlan(input: {
 
     const taskCreateEffects = input.plan.taskCreateEffects ?? [];
     const createdTasks = await transaction.createTasks(taskCreateEffects);
+    await transaction.createActivityEvents({
+      events: buildGeneratedTaskActivityEvents({
+        appointment,
+        createdTasks,
+        taskCreateEffects
+      })
+    });
     const createdTaskLinks = await transaction.createTaskLinks({
       appointmentId,
       links: [

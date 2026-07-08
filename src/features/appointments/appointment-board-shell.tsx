@@ -9032,6 +9032,21 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
         "resource-warning-override",
         selectedAppointment.recordId
       );
+      const proposedScheduleWindow = selectedAppointmentIsUnscheduledDraft
+        ? (() => {
+            const startsAt = localDateTimeToMinneapolisIso(
+              scheduleDraft.localDate,
+              scheduleDraft.startTime,
+              selectedAppointment.schedulingTimezone ?? boardTimezone
+            );
+
+            return {
+              proposedStartsAt: startsAt,
+              proposedEndsAt: addMinutesToIso(startsAt, scheduleDraft.durationMinutes),
+              proposedSchedulingTimezone: selectedAppointment.schedulingTimezone ?? boardTimezone
+            };
+          })()
+        : {};
       const reasonText =
         availability.reasons.length > 0
           ? availability.reasons.join(" ")
@@ -9047,10 +9062,15 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
             expectedAppointmentVersion: selectedAppointment.recordVersion,
             reasonCode: "RESOURCE_WARNING_OVERRIDDEN",
             reasonNotes: buildResourceReasonNote(
-              `Manager accepted warning for ${recommendation.selectedReservation.resourceName} on ${recommendation.label}: ${reasonText}`,
+              `Manager accepted warning for ${recommendation.selectedReservation.resourceName} on ${recommendation.label}${
+                selectedAppointmentIsUnscheduledDraft
+                  ? ` for proposed slot ${scheduleDraft.localDate} ${scheduleDraft.startTime}`
+                  : ""
+              }: ${reasonText}`,
               userReason
             ),
-            correlationId
+            correlationId,
+            ...proposedScheduleWindow
           })
         }
       );

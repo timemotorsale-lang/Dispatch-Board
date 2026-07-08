@@ -283,6 +283,9 @@ export type OverrideAppointmentResourceWarningInput = {
   reasonCode: string;
   reasonNotes: string;
   correlationId?: string | null;
+  proposedStartsAt?: Date | null;
+  proposedEndsAt?: Date | null;
+  proposedSchedulingTimezone?: string | null;
 };
 
 function assertAuthenticated(user: AuthenticatedUser | null) {
@@ -1137,14 +1140,17 @@ export async function overrideAppointmentResourceWarning(
     throw new Error("Resource warning overrides can only be recorded for draft appointments.");
   }
 
-  if (!appointment.startsAt || !appointment.endsAt || appointment.endsAt <= appointment.startsAt) {
-    throw new Error("Resource warning override requires a valid appointment time window.");
-  }
-
   const proposal = findProposedReservation(appointment, reservationId);
 
   if (!proposal) {
     throw new Error("Resource candidate proposal not found for this appointment.");
+  }
+
+  const proposedStartsAt = proposal.reservation.startsAt ?? input.proposedStartsAt ?? appointment.startsAt;
+  const proposedEndsAt = proposal.reservation.endsAt ?? input.proposedEndsAt ?? appointment.endsAt;
+
+  if (!proposedStartsAt || !proposedEndsAt || proposedEndsAt <= proposedStartsAt) {
+    throw new Error("Resource warning override requires a valid appointment time window.");
   }
 
   const access = await database.userLocationAccess.findFirst({
@@ -1184,12 +1190,12 @@ export async function overrideAppointmentResourceWarning(
 
   const availability = evaluateResourceAvailability({
     resource: toAvailabilityResource(proposal.reservation.resource),
-    timezone: appointment.schedulingTimezone,
+    timezone: input.proposedSchedulingTimezone ?? appointment.schedulingTimezone,
     operatingWindows: toOperatingWindows(proposal.reservation.resource),
     unavailability: toUnavailability(proposal.reservation.resource),
     reservations: toReservations(proposal.reservation.resource),
-    startsAt: proposal.reservation.startsAt,
-    endsAt: proposal.reservation.endsAt,
+    startsAt: proposedStartsAt,
+    endsAt: proposedEndsAt,
     requiredCapacity: proposal.reservation.capacityUnits
   });
 
@@ -1236,7 +1242,10 @@ export async function overrideAppointmentResourceWarning(
       requirementId: proposal.requirement.id,
       reservationId: proposal.reservation.id,
       resourceId: proposal.reservation.resourceId,
-      warningKey
+      warningKey,
+      proposedStartsAt: input.proposedStartsAt?.toISOString() ?? null,
+      proposedEndsAt: input.proposedEndsAt?.toISOString() ?? null,
+      proposedSchedulingTimezone: input.proposedSchedulingTimezone ?? null
     },
     occurredAt: now
   });
