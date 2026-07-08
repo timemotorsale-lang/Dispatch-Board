@@ -12,9 +12,11 @@ import {
   buildAppointmentKpiDictionary,
   buildAppointmentEnterpriseOpsQueues,
   buildAppointmentLocationViewItems,
+  buildAppointmentNotificationContractEntries,
   buildAppointmentNotificationFanoutSources,
   buildAppointmentNotificationCenterItems,
   buildAppointmentNotificationFailureQueue,
+  buildAppointmentNotificationSuppressionGovernance,
   buildAppointmentResourceViewItems,
   buildAppointmentRuntimePersistenceSummary,
   buildAppointmentScheduleAnalyticsModel,
@@ -95,6 +97,9 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Event Fanout &amp; Source Coverage");
     expect(markup).toContain("Suppress fanout");
     expect(markup).toContain("Notification Policy &amp; Deep Links");
+    expect(markup).toContain("Notification Contracts");
+    expect(markup).toContain("Suppression Governance");
+    expect(markup).toContain("Open policy");
     expect(markup).toContain("Manager Inbox");
     expect(markup).toContain("Open source");
     expect(markup).toContain("Mark read");
@@ -989,6 +994,97 @@ describe("appointment board shell", () => {
     expect(failures.find((item) => item.id === "failure-runtime-digest-breached-sla")?.actionLabel).toBe(
       "Retry delivery"
     );
+  });
+
+  it("builds notification contract entries from policy definitions", () => {
+    const contracts = buildAppointmentNotificationContractEntries({
+      policies: [
+        {
+          id: "policy-manager-inbox",
+          label: "Manager Inbox",
+          description: "Manager-facing alerts.",
+          enabled: true,
+          urgency: "high",
+          retentionDays: 7,
+          suppressionWindowMinutes: 30,
+          deepLinkTarget: "detail-rail"
+        },
+        {
+          id: "policy-shift-handoffs",
+          label: "Shift Handoffs",
+          description: "Opening and closing handoff.",
+          enabled: false,
+          urgency: "elevated",
+          retentionDays: 3,
+          suppressionWindowMinutes: 45,
+          deepLinkTarget: "handoff-package"
+        }
+      ] as any
+    });
+
+    expect(contracts.find((entry) => entry.policyId === "policy-manager-inbox")?.versionLabel).toBe(
+      "v1.manager-inbox"
+    );
+    expect(contracts.find((entry) => entry.policyId === "policy-shift-handoffs")?.statusLabel).toBe(
+      "Paused"
+    );
+  });
+
+  it("builds suppression governance items from suppressed and deduped fanout", () => {
+    const governance = buildAppointmentNotificationSuppressionGovernance({
+      fanoutSources: [
+        {
+          id: "fanout-apt-1-manager",
+          appointmentId: "APT-1",
+          sourceLane: "manager",
+          title: "Manager escalation recorded",
+          detail: "Escalation is present.",
+          tone: "purple",
+          urgency: "high",
+          ownerLabel: "Abdi Farah",
+          occurredAtLabel: "Just now",
+          status: "suppressed",
+          statusDetail: "Suppressed.",
+          generatedCount: 2,
+          notificationLabels: ["Manager Inbox"],
+          deepLinkTarget: "detail-rail",
+          actionLabel: "Resume fanout"
+        },
+        {
+          id: "fanout-apt-2-automation",
+          appointmentId: "APT-2",
+          sourceLane: "automation",
+          title: "Automation reminder emitted",
+          detail: "Reminder exists.",
+          tone: "blue",
+          urgency: "elevated",
+          ownerLabel: "System",
+          occurredAtLabel: "2 min ago",
+          status: "deduped",
+          statusDetail: "Deduped.",
+          generatedCount: 2,
+          notificationLabels: ["Automation Review Queue"],
+          deepLinkTarget: "resolution-workbench",
+          actionLabel: "Re-emit"
+        }
+      ] as any,
+      policies: [
+        {
+          id: "policy-manager-inbox",
+          label: "Manager Inbox",
+          deepLinkTarget: "detail-rail"
+        },
+        {
+          id: "policy-delivery-failures",
+          label: "Delivery Failures",
+          deepLinkTarget: "resolution-workbench"
+        }
+      ] as any
+    });
+
+    expect(governance).toHaveLength(2);
+    expect(governance[0]?.status).toBe("suppressed");
+    expect(governance.find((item) => item.status === "deduped")?.policyLabel).toBe("Delivery Failures");
   });
 
   it("builds a runtime persistence summary from queue, inbox, and failures", () => {

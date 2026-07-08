@@ -470,6 +470,34 @@ type AppointmentNotificationFanoutSource = {
   actionLabel: string;
 };
 
+type AppointmentNotificationContractEntry = {
+  id: string;
+  policyId: string;
+  label: string;
+  versionLabel: string;
+  producerLabel: string;
+  consumerLabel: string;
+  routingLabel: string;
+  suppressionLabel: string;
+  statusLabel: string;
+  actionLabel: string;
+};
+
+type AppointmentNotificationSuppressionGovernanceItem = {
+  id: string;
+  sourceId: string;
+  appointmentId: string;
+  title: string;
+  detail: string;
+  policyLabel: string;
+  status: AppointmentNotificationFanoutStatus;
+  tone: "amber" | "purple";
+  ownerLabel: string;
+  occurredAtLabel: string;
+  nextStepLabel: string;
+  actionLabel: string;
+};
+
 type AppointmentEnterpriseOpsQueueKey =
   | "confirmation-gap"
   | "waitlist-recovery"
@@ -3485,6 +3513,112 @@ export function buildAppointmentNotificationFailureQueue(input: {
   });
 }
 
+function notificationContractMetadata(policyId: string) {
+  if (policyId === "policy-delivery-failures") {
+    return {
+      producerLabel: "Runtime delivery + failure queue",
+      consumerLabel: "Resolution workbench + manager inbox",
+      versionLabel: "v1.failure-governance",
+      suppressionLabel: "15-minute suppression with retry/re-queue audit"
+    };
+  }
+
+  if (policyId === "policy-shift-handoffs") {
+    return {
+      producerLabel: "Shift handoff runtime",
+      consumerLabel: "Opening + closing manager",
+      versionLabel: "v1.handoff",
+      suppressionLabel: "45-minute suppression to avoid duplicate handoff pings"
+    };
+  }
+
+  return {
+    producerLabel: "Appointment + manager events",
+    consumerLabel: "Manager inbox + detail rail",
+    versionLabel: "v1.manager-inbox",
+    suppressionLabel: "30-minute suppression for duplicate operational notices"
+  };
+}
+
+function notificationPolicyLabelForSource(
+  source: Pick<AppointmentNotificationFanoutSource, "deepLinkTarget">,
+  policies: AppointmentNotificationPolicy[]
+) {
+  if (source.deepLinkTarget === "handoff-package") {
+    return policies.find((policy) => policy.id === "policy-shift-handoffs")?.label ?? "Shift Handoffs";
+  }
+
+  if (source.deepLinkTarget === "resolution-workbench") {
+    return (
+      policies.find((policy) => policy.id === "policy-delivery-failures")?.label ??
+      "Delivery Failures"
+    );
+  }
+
+  return policies.find((policy) => policy.id === "policy-manager-inbox")?.label ?? "Manager Inbox";
+}
+
+export function buildAppointmentNotificationContractEntries(input: {
+  policies: AppointmentNotificationPolicy[];
+}): AppointmentNotificationContractEntry[] {
+  return input.policies.map((policy) => {
+    const metadata = notificationContractMetadata(policy.id);
+
+    return {
+      id: `contract-${policy.id}`,
+      policyId: policy.id,
+      label: policy.label,
+      versionLabel: metadata.versionLabel,
+      producerLabel: metadata.producerLabel,
+      consumerLabel: metadata.consumerLabel,
+      routingLabel: notificationDeepLinkTargetLabel(policy.deepLinkTarget),
+      suppressionLabel: `${policy.suppressionWindowMinutes}-minute window · ${metadata.suppressionLabel}`,
+      statusLabel: policy.enabled ? "Enabled" : "Paused",
+      actionLabel: policy.enabled ? "Open policy" : "Review pause"
+    } satisfies AppointmentNotificationContractEntry;
+  });
+}
+
+export function buildAppointmentNotificationSuppressionGovernance(input: {
+  fanoutSources: AppointmentNotificationFanoutSource[];
+  policies: AppointmentNotificationPolicy[];
+}) {
+  const items = input.fanoutSources
+    .filter((source) => source.status !== "active")
+    .map<AppointmentNotificationSuppressionGovernanceItem>((source) => ({
+      id: `governance-${source.id}`,
+      sourceId: source.id,
+      appointmentId: source.appointmentId,
+      title:
+        source.status === "suppressed"
+          ? `${source.title} is suppressed under policy`
+          : `${source.title} was deduped into an existing stream`,
+      detail:
+        source.status === "suppressed"
+          ? `${source.detail} A manager or rule retained the suppression decision inside the active review window.`
+          : `${source.detail} Fanout was merged into an existing stream and should be reviewed for replay or acceptance.`,
+      policyLabel: notificationPolicyLabelForSource(source, input.policies),
+      status: source.status,
+      tone: source.status === "suppressed" ? "amber" : "purple",
+      ownerLabel: source.ownerLabel,
+      occurredAtLabel: source.occurredAtLabel,
+      nextStepLabel:
+        source.status === "suppressed"
+          ? "Resume delivery or confirm suppression should stay in force."
+          : "Re-emit the stream or document why dedupe remains correct.",
+      actionLabel: source.status === "suppressed" ? "Review suppression" : "Review dedupe"
+    }))
+    .sort((left, right) => {
+      if (left.status !== right.status) {
+        return left.status === "suppressed" ? -1 : 1;
+      }
+
+      return left.title.localeCompare(right.title);
+    });
+
+  return items;
+}
+
 export function buildAppointmentNotificationFanoutSources(input: {
   appointments: Appointment[];
   resolutionStateByAppointmentId?: Record<string, AppointmentResolutionState>;
@@ -5462,6 +5596,18 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     }),
     [notificationFanoutSources]
   );
+  const notificationContractEntries = useMemo(
+    () => buildAppointmentNotificationContractEntries({ policies: notificationPolicies }),
+    [notificationPolicies]
+  );
+  const notificationSuppressionGovernanceItems = useMemo(
+    () =>
+      buildAppointmentNotificationSuppressionGovernance({
+        fanoutSources: notificationFanoutSources,
+        policies: notificationPolicies
+      }),
+    [notificationFanoutSources, notificationPolicies]
+  );
   const enterpriseOpsQueues = useMemo(
     () =>
       buildAppointmentEnterpriseOpsQueues({
@@ -6486,9 +6632,78 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
       >
     >
   ) {
+    const currentPolicy = notificationPolicies.find((policy) => policy.id === policyId);
+
+    if (!currentPolicy) {
+      setActionNotice("That notification policy is no longer visible.");
+      return;
+    }
+
+    const nextPolicy = { ...currentPolicy, ...patch };
+
     setNotificationPolicies((current) =>
-      current.map((policy) => (policy.id === policyId ? { ...policy, ...patch } : policy))
+      current.map((policy) => (policy.id === policyId ? nextPolicy : policy))
     );
+
+    setCommandCenterAuditEvents((current) => [
+      {
+        id: `notification-policy-${policyId}-${current.length + 1}`,
+        appointmentId: selectedAppointment.id,
+        lane: "manager",
+        tone: patch.enabled === false ? "amber" : "blue",
+        title: "Notification policy updated",
+        detail: `${currentPolicy.label} now routes to ${notificationDeepLinkTargetLabel(
+          nextPolicy.deepLinkTarget
+        )} with ${nextPolicy.suppressionWindowMinutes}-minute suppression and ${nextPolicy.retentionDays}-day retention.`,
+        actor: "Abdi Farah",
+        occurredAtLabel: "Just now"
+      },
+      ...current
+    ]);
+
+    appendRuntimeDeliveryLedgerEntry({
+      sourceType: "runtime",
+      appointmentId: selectedAppointment.id,
+      title: `${currentPolicy.label} policy updated`,
+      detail: `${notificationUrgencyLabel(nextPolicy.urgency)} urgency · ${nextPolicy.retentionDays}-day retention · ${nextPolicy.suppressionWindowMinutes}-minute suppression.`,
+      tone: nextPolicy.enabled ? "blue" : "amber",
+      statusLabel: nextPolicy.enabled ? "Active" : "Paused",
+      occurredAtLabel: "Updated just now"
+    });
+
+    setActionNotice(`${currentPolicy.label} policy updated with new governance settings.`);
+  }
+
+  function focusNotificationContractEntry(entry: AppointmentNotificationContractEntry) {
+    if (entry.policyId === "policy-shift-handoffs") {
+      setSelectedCommandCenterDigestId("digest-shift-handoff");
+      setAuditTimelineFilter("manager");
+      setActionNotice("Opened the shift handoff notification contract and focused handoff routing.");
+      return;
+    }
+
+    if (entry.policyId === "policy-delivery-failures") {
+      setNotificationCenterFilter("needs-review");
+      setShowResolvedNotificationFailures(false);
+      setResolutionFilter("all");
+      setReportQueueFilter("all");
+      setActionNotice("Opened the delivery-failure contract and focused unresolved delivery recovery.");
+      return;
+    }
+
+    setNotificationCenterFilter("all");
+    setActionNotice("Opened the manager inbox notification contract.");
+  }
+
+  function openNotificationGovernanceItem(item: AppointmentNotificationSuppressionGovernanceItem) {
+    const source = notificationFanoutSources.find((candidate) => candidate.id === item.sourceId);
+
+    if (source) {
+      openNotificationFanoutSource(source);
+      return;
+    }
+
+    setActionNotice("That suppression governance item is no longer visible.");
   }
 
   function toggleNotificationReadState(itemId: string) {
@@ -9816,6 +10031,124 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
                   </p>
                 </div>
                 <span>{notificationPolicies.filter((policy) => policy.enabled).length} active rules</span>
+              </div>
+
+              <div className="appointment-notification-contracts-grid">
+                <section
+                  className="appointment-command-center-panel"
+                  aria-labelledby="appointment-notification-contracts"
+                >
+                  <div className="appointment-command-center-panel-heading">
+                    <div>
+                      <strong id="appointment-notification-contracts">Notification Contracts</strong>
+                      <p>
+                        Define the internal stream, version, routing, and suppression posture for each
+                        manager-facing notification contract.
+                      </p>
+                    </div>
+                    <span>{notificationContractEntries.length} contracts</span>
+                  </div>
+
+                  <div className="appointment-notification-contract-list">
+                    {notificationContractEntries.map((entry) => (
+                      <article className="appointment-notification-contract-item" key={entry.id}>
+                        <div className="appointment-notification-center-item-top">
+                          <div>
+                            <strong>{entry.label}</strong>
+                            <p>{entry.producerLabel} → {entry.consumerLabel}</p>
+                          </div>
+                          <div className="appointment-command-center-badge-stack">
+                            <span className="appointment-command-center-tag appointment-command-center-tag-blue">
+                              {entry.versionLabel}
+                            </span>
+                            <span
+                              className={
+                                entry.statusLabel === "Enabled"
+                                  ? "appointment-command-center-tag appointment-command-center-tag-green"
+                                  : "appointment-command-center-tag appointment-command-center-tag-amber"
+                              }
+                            >
+                              {entry.statusLabel}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="appointment-notification-center-item-meta">
+                          <span>{entry.routingLabel}</span>
+                          <strong>{entry.suppressionLabel}</strong>
+                        </div>
+
+                        <div className="appointment-command-center-item-actions">
+                          <button type="button" onClick={() => focusNotificationContractEntry(entry)}>
+                            {entry.actionLabel}
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+
+                <section
+                  className="appointment-command-center-panel"
+                  aria-labelledby="appointment-notification-suppression-governance"
+                >
+                  <div className="appointment-command-center-panel-heading">
+                    <div>
+                      <strong id="appointment-notification-suppression-governance">
+                        Suppression Governance
+                      </strong>
+                      <p>
+                        Review suppressed and deduped notification decisions as governed operating items
+                        before they silently age out.
+                      </p>
+                    </div>
+                    <span>{notificationSuppressionGovernanceItems.length} governed items</span>
+                  </div>
+
+                  <div className="appointment-notification-contract-list">
+                    {notificationSuppressionGovernanceItems.length > 0 ? (
+                      notificationSuppressionGovernanceItems.map((item) => (
+                        <article className="appointment-notification-contract-item" key={item.id}>
+                          <div className="appointment-notification-center-item-top">
+                            <div>
+                              <strong>{item.title}</strong>
+                              <p>{item.detail}</p>
+                            </div>
+                            <div className="appointment-command-center-badge-stack">
+                              <span
+                                className={
+                                  item.status === "suppressed"
+                                    ? "appointment-command-center-tag appointment-command-center-tag-amber"
+                                    : "appointment-command-center-tag appointment-command-center-tag-purple"
+                                }
+                              >
+                                {notificationFanoutStatusLabel(item.status)}
+                              </span>
+                              <span className="appointment-command-center-tag">{item.policyLabel}</span>
+                            </div>
+                          </div>
+
+                          <div className="appointment-notification-center-item-meta">
+                            <span>{item.ownerLabel}</span>
+                            <span>{item.occurredAtLabel}</span>
+                            <strong>{item.nextStepLabel}</strong>
+                          </div>
+
+                          <div className="appointment-command-center-item-actions">
+                            <button type="button" onClick={() => openNotificationGovernanceItem(item)}>
+                              {item.actionLabel}
+                            </button>
+                          </div>
+                        </article>
+                      ))
+                    ) : (
+                      <div className="appointment-notification-center-empty">
+                        <strong>No governed suppression items</strong>
+                        <p>All visible notification fanout is active and not currently deduped or suppressed.</p>
+                      </div>
+                    )}
+                  </div>
+                </section>
               </div>
 
               <div className="appointment-notification-policy-grid">

@@ -7373,6 +7373,38 @@ code {
   gap: 12px;
 }
 
+.appointment-notification-contracts-grid,
+.appointment-notification-contract-list {
+  display: grid;
+  gap: 12px;
+}
+
+.appointment-notification-contracts-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.appointment-notification-contract-item,
+.appointment-notification-center-empty {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: #f8fbff;
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+}
+
+.appointment-notification-center-empty strong {
+  color: #0f172a;
+  font-size: 12px;
+}
+
+.appointment-notification-center-empty p {
+  margin: 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .appointment-notification-policy-card {
   display: grid;
   gap: 12px;
@@ -9537,6 +9569,7 @@ code {
   .appointment-runtime-persistence-metrics,
   .appointment-schedule-analytics-metrics,
   .appointment-schedule-analytics-grid,
+  .appointment-notification-contracts-grid,
   .appointment-reporting-kpi-grid,
   .appointment-reporting-read-model-grid,
   .appointment-ops-intelligence-grid,
@@ -9596,6 +9629,7 @@ code {
   .appointment-notification-policy-fields,
   .appointment-notification-policy-summary,
   .appointment-notification-fanout-summary,
+  .appointment-notification-contracts-grid,
   .appointment-enterprise-ops-summary,
   .appointment-enterprise-ops-grid,
   .appointment-schedule-analytics-metrics,
