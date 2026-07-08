@@ -227,6 +227,7 @@ function createAppointment(
         }
       }
     ],
+    automationExecutions: [],
     ...overrides
   };
 }
@@ -519,6 +520,89 @@ describe("appointment read service", () => {
       bookingStatus: "DRAFT",
       sourceReference: scheduled.id
     });
+  });
+
+  it("returns recent automation execution summaries for live board visibility", async () => {
+    const appointment = createAppointment({
+      automationExecutions: [
+        {
+          id: "execution-review",
+          automationRuleId: "rule-follow-up",
+          triggerCode: "APPOINTMENT_OUTCOME_RECORDED",
+          purposeCode: "FOLLOW_UP_APPOINTMENT",
+          status: "REVIEW_REQUIRED",
+          sourceType: "APPOINTMENT",
+          sourceReference: "appointment-1",
+          inputSnapshot: {
+            automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_APPOINTMENT"
+          },
+          resultSnapshot: {
+            automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_APPOINTMENT",
+            generatedAppointmentNumber: "FUP-APT-10245-001"
+          },
+          failureCode: null,
+          failureMessage: null,
+          attemptCount: 1,
+          maxAttempts: 3,
+          nextRetryAt: null,
+          resolvedAt: null,
+          createdAt: new Date("2026-07-06T16:05:00.000Z"),
+          updatedAt: new Date("2026-07-06T16:10:00.000Z")
+        },
+        {
+          id: "execution-failure",
+          automationRuleId: "rule-task",
+          triggerCode: "APPOINTMENT_OUTCOME_RECORDED",
+          purposeCode: "FOLLOW_UP_TASK",
+          status: "FAILED_RETRYABLE",
+          sourceType: "APPOINTMENT",
+          sourceReference: "appointment-1",
+          inputSnapshot: {
+            automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_TASK"
+          },
+          resultSnapshot: {
+            automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_TASK"
+          },
+          failureCode: "TRANSIENT_FAILURE",
+          failureMessage: "Task service timed out.",
+          attemptCount: 2,
+          maxAttempts: 3,
+          nextRetryAt: new Date("2026-07-06T16:30:00.000Z"),
+          resolvedAt: null,
+          createdAt: new Date("2026-07-06T15:45:00.000Z"),
+          updatedAt: new Date("2026-07-06T16:12:00.000Z")
+        }
+      ]
+    });
+
+    const result = await listAppointmentReadModels(
+      managerUser,
+      {
+        locationId: "loc-time-motor-sales-minneapolis",
+        windowStart,
+        windowEnd
+      },
+      createAppointmentReadRepositoryHarness({
+        appointments: [appointment]
+      }),
+      now
+    );
+
+    expect(result.appointments[0].automationExecutions).toEqual([
+      expect.objectContaining({
+        id: "execution-review",
+        automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_APPOINTMENT",
+        status: "REVIEW_REQUIRED",
+        generatedAppointmentNumber: "FUP-APT-10245-001"
+      }),
+      expect.objectContaining({
+        id: "execution-failure",
+        automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_TASK",
+        status: "FAILED_RETRYABLE",
+        failureCode: "TRANSIENT_FAILURE",
+        failureMessage: "Task service timed out."
+      })
+    ]);
   });
 
   it("rejects unauthenticated users and users without active schedule access", async () => {

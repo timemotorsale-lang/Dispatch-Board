@@ -10,7 +10,10 @@ import type {
 } from "@/server/appointments/appointment-domain";
 import { prisma } from "@/server/db/client";
 
-type AppointmentReadDatabase = Pick<PrismaClient, "appointment" | "userLocationAccess">;
+type AppointmentReadDatabase = Pick<
+  PrismaClient,
+  "appointment" | "userLocationAccess" | "appointmentAutomationExecution"
+>;
 
 const appointmentReadSelect = {
   id: true,
@@ -162,6 +165,26 @@ const appointmentReadLocationAccessSelect = {
   validTo: true
 } as const;
 
+const appointmentReadAutomationExecutionSelect = {
+  id: true,
+  automationRuleId: true,
+  triggerCode: true,
+  purposeCode: true,
+  status: true,
+  sourceType: true,
+  sourceReference: true,
+  inputSnapshot: true,
+  resultSnapshot: true,
+  failureCode: true,
+  failureMessage: true,
+  attemptCount: true,
+  maxAttempts: true,
+  nextRetryAt: true,
+  resolvedAt: true,
+  createdAt: true,
+  updatedAt: true
+} as const;
+
 export type AppointmentReadUserSummaryRecord = {
   id: string;
   name: string;
@@ -243,6 +266,26 @@ export type AppointmentReadResourceReservationRecord = {
   };
 };
 
+export type AppointmentReadAutomationExecutionRecord = {
+  id: string;
+  automationRuleId: string | null;
+  triggerCode: string;
+  purposeCode: string | null;
+  status: string;
+  sourceType: string;
+  sourceReference: string | null;
+  inputSnapshot: unknown;
+  resultSnapshot: unknown;
+  failureCode: string | null;
+  failureMessage: string | null;
+  attemptCount: number;
+  maxAttempts: number;
+  nextRetryAt: Date | null;
+  resolvedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 export type AppointmentReadAppointmentRecord = {
   id: string;
   appointmentNumber: string;
@@ -278,6 +321,7 @@ export type AppointmentReadAppointmentRecord = {
   vehicles: AppointmentReadVehicleRecord[];
   taskLinks: AppointmentReadTaskLinkRecord[];
   resourceReservations: AppointmentReadResourceReservationRecord[];
+  automationExecutions: AppointmentReadAutomationExecutionRecord[];
 };
 
 export type AppointmentReadLocationAccessRecord = {
@@ -337,7 +381,7 @@ export function createAppointmentReadRepository(
     },
 
     async listAppointmentsForLocationWindow(input) {
-      return database.appointment.findMany({
+      const appointments = await database.appointment.findMany({
         where: {
           locationId: input.locationId,
           OR: [
@@ -368,6 +412,44 @@ export function createAppointmentReadRepository(
         select: appointmentReadSelect,
         orderBy: [{ startsAt: "asc" }, { appointmentNumber: "asc" }, { id: "asc" }]
       });
+
+      if (appointments.length === 0) {
+        return [];
+      }
+
+      const appointmentIds = appointments.map((appointment) => appointment.id);
+      const automationExecutions = await database.appointmentAutomationExecution.findMany({
+        where: {
+          sourceType: "APPOINTMENT",
+          sourceReference: {
+            in: appointmentIds
+          }
+        },
+        select: appointmentReadAutomationExecutionSelect,
+        orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }]
+      });
+      const automationExecutionsByAppointmentId = new Map<
+        string,
+        AppointmentReadAutomationExecutionRecord[]
+      >();
+
+      for (const execution of automationExecutions) {
+        if (!execution.sourceReference) {
+          continue;
+        }
+
+        const records = automationExecutionsByAppointmentId.get(execution.sourceReference) ?? [];
+
+        if (records.length < 5) {
+          records.push(execution);
+          automationExecutionsByAppointmentId.set(execution.sourceReference, records);
+        }
+      }
+
+      return appointments.map((appointment) => ({
+        ...appointment,
+        automationExecutions: automationExecutionsByAppointmentId.get(appointment.id) ?? []
+      }));
     }
   };
 }

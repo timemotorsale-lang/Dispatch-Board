@@ -84,6 +84,25 @@ type StaffMember = {
   initials: string;
 };
 
+type AppointmentAutomationExecution = {
+  id: string;
+  automationRuleCode: string | null;
+  triggerCode: string;
+  purposeCode: string | null;
+  status: string;
+  sourceType: string;
+  failureCode: string | null;
+  failureMessage: string | null;
+  attemptCount: number;
+  maxAttempts: number;
+  nextRetryAt: string | null;
+  resolvedAt: string | null;
+  generatedTaskTitle: string | null;
+  generatedAppointmentNumber: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type Appointment = {
   id: string;
   recordId?: string;
@@ -116,6 +135,7 @@ type Appointment = {
   conflict?: boolean;
   needsFollowUp?: boolean;
   taskAutomation: string[];
+  automationExecutions?: AppointmentAutomationExecution[];
   linkedTasks?: Array<{
     id: string;
     taskId: string;
@@ -872,6 +892,7 @@ type AppointmentReadModel = {
     blocksAppointment: boolean;
     appointmentRequiredForTask: boolean;
   }>;
+  automationExecutions: AppointmentAutomationExecution[];
   visibility: {
     canMutate: boolean;
     relationship: string;
@@ -1854,6 +1875,92 @@ function formatTaskDueAt(value: string, timezone = defaultTimezone) {
   }).format(new Date(value));
 }
 
+function formatAutomationExecutionStatus(status: string) {
+  return status
+    .toLowerCase()
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function isAutomationExecutionReviewStatus(status: string) {
+  return status === "REVIEW_REQUIRED";
+}
+
+function isAutomationExecutionFailureStatus(status: string) {
+  return status === "FAILED_RETRYABLE" || status === "FAILED_TERMINAL";
+}
+
+function automationExecutionTone(
+  status: string
+): AppointmentAuditTimelineEvent["tone"] {
+  if (status === "SUCCEEDED" || status === "RESOLVED") {
+    return "green";
+  }
+
+  if (status === "REVIEW_REQUIRED") {
+    return "purple";
+  }
+
+  if (status === "FAILED_RETRYABLE") {
+    return "amber";
+  }
+
+  if (status === "FAILED_TERMINAL") {
+    return "red";
+  }
+
+  return "blue";
+}
+
+function automationExecutionLabel(execution: AppointmentAutomationExecution) {
+  return execution.automationRuleCode ?? execution.purposeCode ?? execution.triggerCode;
+}
+
+function automationExecutionTitle(execution: AppointmentAutomationExecution) {
+  if (execution.status === "REVIEW_REQUIRED") {
+    return "Automation review required";
+  }
+
+  if (execution.status === "FAILED_RETRYABLE") {
+    return "Automation retry queued";
+  }
+
+  if (execution.status === "FAILED_TERMINAL") {
+    return "Automation failure recorded";
+  }
+
+  if (execution.status === "RESOLVED") {
+    return "Automation review resolved";
+  }
+
+  if (execution.status === "SKIPPED") {
+    return "Automation execution skipped";
+  }
+
+  if (execution.status === "SUCCEEDED") {
+    return "Automation execution succeeded";
+  }
+
+  return "Automation execution updated";
+}
+
+function automationExecutionDetail(execution: AppointmentAutomationExecution) {
+  if (execution.failureMessage) {
+    return execution.failureMessage;
+  }
+
+  if (execution.generatedAppointmentNumber) {
+    return `Generated follow-up appointment ${execution.generatedAppointmentNumber}.`;
+  }
+
+  if (execution.generatedTaskTitle) {
+    return `Generated follow-up task ${execution.generatedTaskTitle}.`;
+  }
+
+  return `${automationExecutionLabel(execution)} is ${formatAutomationExecutionStatus(execution.status).toLowerCase()} on attempt ${execution.attemptCount}/${execution.maxAttempts}.`;
+}
+
 export function isUnscheduledDraftAppointment(appointment: {
   status: string;
   startsAtIso?: string | null;
@@ -2094,7 +2201,23 @@ export function buildAppointmentAuditTimeline(input: {
     occurredAtLabel: appointmentAuditTimestampLabel(appointment, -45)
   });
 
-  if (appointment.taskAutomation.length > 0) {
+  if (appointment.automationExecutions && appointment.automationExecutions.length > 0) {
+    for (const execution of appointment.automationExecutions.slice(0, 2)) {
+      events.push({
+        id: `${appointment.id}-automation-${execution.id}`,
+        appointmentId: appointment.id,
+        lane: "automation",
+        tone: automationExecutionTone(execution.status),
+        title: automationExecutionTitle(execution),
+        detail: automationExecutionDetail(execution),
+        actor: "Automation runtime",
+        occurredAtLabel: formatTaskDueAt(
+          execution.updatedAt,
+          appointment.schedulingTimezone ?? defaultTimezone
+        )
+      });
+    }
+  } else if (appointment.taskAutomation.length > 0) {
     events.push({
       id: `${appointment.id}-automation`,
       appointmentId: appointment.id,
@@ -4108,6 +4231,9 @@ export function buildAppointmentEnterpriseOpsQueues(input: {
   const automationReviewItems = input.appointments
     .filter(
       (appointment) =>
+        (appointment.automationExecutions ?? []).some((execution) =>
+          isAutomationExecutionReviewStatus(execution.status)
+        ) ||
         appointment.taskAutomation.length > 0 ||
         appointment.followUpDispositionCode === "MANAGER_REVIEW_REQUIRED" ||
         fanoutByAppointmentId.get(appointment.id)?.some((source) => source.sourceLane === "automation")
@@ -4116,40 +4242,93 @@ export function buildAppointmentEnterpriseOpsQueues(input: {
       const id = `enterprise-automation-review-${appointment.id}`;
       const status = stateFor(id);
       const automationSources = fanoutByAppointmentId.get(appointment.id) ?? [];
+      const reviewExecutions = (appointment.automationExecutions ?? []).filter((execution) =>
+        isAutomationExecutionReviewStatus(execution.status)
+      );
+      const automationActionCount =
+        reviewExecutions.length +
+        appointment.taskAutomation.length +
+        automationSources.length;
+      const automationReviewDetail =
+        reviewExecutions.length > 0
+          ? `${reviewExecutions.length} runtime execution${
+              reviewExecutions.length === 1 ? "" : "s"
+            } need manager review.`
+          : `${appointment.taskAutomation.length || automationSources.length} automation-driven action${
+              automationActionCount === 1 ? "" : "s"
+            } are attached and need visible manager review posture.`;
 
       return {
         id,
         queueKey: "automation-review",
         appointmentId: appointment.id,
         title: `${appointment.id} automation review`,
-        detail: `${appointment.taskAutomation.length || automationSources.length} automation-driven action${
-          appointment.taskAutomation.length + automationSources.length === 1 ? "" : "s"
-        } are attached and need visible manager review posture.`,
+        detail: automationReviewDetail,
         tone: "purple",
         ownerLabel: appointment.staffName ?? "Automation owner",
         nextStepLabel: "Confirm whether automation should proceed, pause, or hand off to a manual decision.",
-        eventCount: eventCountFor(appointment.id, "automation"),
+        eventCount: Math.max(eventCountFor(appointment.id, "automation"), automationActionCount),
         status,
         actionLabel: actionLabelFor(status)
       } satisfies AppointmentEnterpriseOpsQueueItem;
     });
 
-  const automationFailureItems = (input.notificationFanoutSources ?? [])
-    .filter((source) => source.status !== "active")
-    .map((source) => {
-      const id = `enterprise-automation-failure-${source.appointmentId}`;
+  const automationFailureItems = input.appointments
+    .filter((appointment) => {
+      const failureExecutions = (appointment.automationExecutions ?? []).filter((execution) =>
+        isAutomationExecutionFailureStatus(execution.status)
+      );
+      const fanoutFailures =
+        fanoutByAppointmentId.get(appointment.id)?.filter((source) => source.status !== "active") ?? [];
+
+      return failureExecutions.length > 0 || fanoutFailures.length > 0;
+    })
+    .map((appointment) => {
+      const id = `enterprise-automation-failure-${appointment.id}`;
       const status = stateFor(id);
+      const failureExecutions = (appointment.automationExecutions ?? []).filter((execution) =>
+        isAutomationExecutionFailureStatus(execution.status)
+      );
+      const fanoutFailures =
+        fanoutByAppointmentId.get(appointment.id)?.filter((source) => source.status !== "active") ?? [];
+      const leadFailureExecution = failureExecutions[0] ?? null;
+      const leadFanoutFailure = fanoutFailures[0] ?? null;
+      const hasTerminalFailure = failureExecutions.some(
+        (execution) => execution.status === "FAILED_TERMINAL"
+      );
+      const detailParts = [];
+
+      if (leadFailureExecution) {
+        detailParts.push(
+          leadFailureExecution.failureMessage ??
+            `${failureExecutions.length} automation execution${
+              failureExecutions.length === 1 ? "" : "s"
+            } failed and need recovery.`
+        );
+      }
+
+      if (leadFanoutFailure) {
+        detailParts.push(
+          `${leadFanoutFailure.title} fanout is ${notificationFanoutStatusLabel(
+            leadFanoutFailure.status
+          ).toLowerCase()} and still needs follow-through.`
+        );
+      }
 
       return {
         id,
         queueKey: "automation-failure",
-        appointmentId: source.appointmentId,
-        title: `${source.appointmentId} automation fanout recovery`,
-        detail: `${source.title} fanout is ${notificationFanoutStatusLabel(source.status).toLowerCase()} and needs runtime recovery or explicit acceptance.`,
-        tone: source.status === "suppressed" ? "amber" : "red",
-        ownerLabel: source.ownerLabel,
-        nextStepLabel: "Resume, re-emit, or confirm that the suppression/dedupe decision should remain in place.",
-        eventCount: source.generatedCount,
+        appointmentId: appointment.id,
+        title: `${appointment.id} automation recovery`,
+        detail: detailParts.join(" "),
+        tone: hasTerminalFailure || failureExecutions.length > 0 ? "red" : "amber",
+        ownerLabel: appointment.staffName ?? leadFanoutFailure?.ownerLabel ?? "Automation owner",
+        nextStepLabel:
+          "Open the detail rail, review runtime failure history, and continue recovery in the automation console when needed.",
+        eventCount: Math.max(
+          eventCountFor(appointment.id, "automation"),
+          failureExecutions.length + fanoutFailures.length
+        ),
         status,
         actionLabel: actionLabelFor(status)
       } satisfies AppointmentEnterpriseOpsQueueItem;
@@ -4989,7 +5168,25 @@ function mapReadModelToAppointment(appointment: AppointmentReadModel): Appointme
         ? appointment.taskLinks.map(
             (taskLink) => `${taskLink.linkTitle ?? taskLink.linkType}: ${taskLink.taskTitle ?? taskLink.taskId}`
           )
-        : ["No linked tasks yet"],
+        : [],
+    automationExecutions: appointment.automationExecutions.map((execution) => ({
+      id: execution.id,
+      automationRuleCode: execution.automationRuleCode,
+      triggerCode: execution.triggerCode,
+      purposeCode: execution.purposeCode,
+      status: execution.status,
+      sourceType: execution.sourceType,
+      failureCode: execution.failureCode,
+      failureMessage: execution.failureMessage,
+      attemptCount: execution.attemptCount,
+      maxAttempts: execution.maxAttempts,
+      nextRetryAt: execution.nextRetryAt,
+      resolvedAt: execution.resolvedAt,
+      generatedTaskTitle: execution.generatedTaskTitle,
+      generatedAppointmentNumber: execution.generatedAppointmentNumber,
+      createdAt: execution.createdAt,
+      updatedAt: execution.updatedAt
+    })),
     linkedTasks: appointment.taskLinks.map((taskLink) => ({
       id: taskLink.id,
       taskId: taskLink.taskId,
@@ -5009,6 +5206,11 @@ function mapReadModelToAppointment(appointment: AppointmentReadModel): Appointme
         ? "You can update this appointment."
         : "Read-only for your current appointment permissions.",
       `Live record v${appointment.version}.`,
+      appointment.automationExecutions.length > 0
+        ? `${appointment.automationExecutions.length} automation execution record${
+            appointment.automationExecutions.length === 1 ? "" : "s"
+          } are attached to this appointment.`
+        : "No automation execution has been recorded for this appointment yet.",
       "Changes use the command ledger and audit history."
     ]
   };
@@ -13489,17 +13691,72 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
                       </div>
                     </div>
                   ))
-                : selectedAppointment.taskAutomation.map((task, index) => (
-                    <div className="appointment-task-row" key={task}>
+                : selectedAppointment.taskAutomation.length > 0
+                  ? selectedAppointment.taskAutomation.map((task, index) => (
+                      <div className="appointment-task-row" key={task}>
+                        <span>{index + 1}</span>
+                        <div>
+                          <strong>{task}</strong>
+                          <small>{index === 0 ? "In Progress" : "Not Started"}</small>
+                        </div>
+                      </div>
+                    ))
+                  : (
+                    <p className="appointment-readiness-copy">
+                      No linked tasks are attached to this appointment yet.
+                    </p>
+                    )}
+            </div>
+          </div>
+
+          {selectedAppointment.dataSource === "live" ? (
+            <div className="appointment-detail-section">
+              <div className="appointment-section-heading">
+                <strong>
+                  Automation Runtime ({selectedAppointment.automationExecutions?.length ?? 0})
+                </strong>
+                <Link className="appointment-task-link" href="/settings/appointments/automation">
+                  Open automation console
+                </Link>
+              </div>
+              {selectedAppointment.automationExecutions &&
+              selectedAppointment.automationExecutions.length > 0 ? (
+                <div className="appointment-task-stack">
+                  {selectedAppointment.automationExecutions.map((execution, index) => (
+                    <div className="appointment-task-row" key={execution.id}>
                       <span>{index + 1}</span>
                       <div>
-                        <strong>{task}</strong>
-                        <small>{index === 0 ? "In Progress" : "Not Started"}</small>
+                        <strong>{automationExecutionTitle(execution)}</strong>
+                        <small>
+                          {automationExecutionLabel(execution)} ·{" "}
+                          {formatAutomationExecutionStatus(execution.status)} · Updated{" "}
+                          {formatTaskDueAt(
+                            execution.updatedAt,
+                            selectedAppointment.schedulingTimezone ?? defaultTimezone
+                          )}
+                        </small>
+                        <small>{automationExecutionDetail(execution)}</small>
+                        {execution.nextRetryAt ? (
+                          <small>
+                            Next retry{" "}
+                            {formatTaskDueAt(
+                              execution.nextRetryAt,
+                              selectedAppointment.schedulingTimezone ?? defaultTimezone
+                            )}
+                          </small>
+                        ) : null}
                       </div>
                     </div>
                   ))}
+                </div>
+              ) : (
+                <p className="appointment-readiness-copy">
+                  Live automation runtime has not recorded any execution history for this appointment
+                  yet.
+                </p>
+              )}
             </div>
-          </div>
+          ) : null}
 
           <div className="appointment-detail-section">
             <strong>Enterprise Controls</strong>

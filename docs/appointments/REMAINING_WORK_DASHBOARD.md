@@ -186,18 +186,18 @@ E3 is the active implementation area.
 | EAPT-032 | Create appointment from any task workflow | Complete initial task-detail workflow with live browser proof; automated e2e execution awaits local Playwright browser install | High |
 | EAPT-033 | Task-to-appointment automation runtime | Partial implementation exists; outcome-driven runtime records now persist and replay safely, broader task-trigger automation remains | High |
 | EAPT-034 | Automation rule versioning, simulation, activation, pause, retirement | Not started | High |
-| EAPT-035 | Automation review, failure, retry, and replay services | Partial implementation exists; manager retry/replay/resolve/skip controls and duplicate-safe follow-up replays are live, broader failure classes and background processing remain | High |
-| EAPT-036 | Activity history for appointment and automation events | Complete initial Activity Feed merge for appointment history; automation failure/replay visibility remains | Medium |
+| EAPT-035 | Automation review, failure, retry, and replay services | Partial implementation exists; manager retry/replay/resolve/skip controls, duplicate-safe follow-up replays, and board-visible appointment automation runtime/failure visibility are live, broader failure classes and background processing remain | High |
+| EAPT-036 | Activity history for appointment and automation events | Partial; appointment history plus appointment-level automation runtime timeline/detail visibility are live, but broader replay/failure audit continuity still remains | Medium |
 | EAPT-037 | Optimistic concurrency on every appointment mutation | Partial implementation exists; full audit still pending | High |
 | EAPT-038 | Lifecycle, permission, orchestration, audit, and automation test suite | Partial unit coverage exists; critical scenario suite remains | High |
 
 Recommended next E3 slices:
 
 1. Enable local Playwright browser installation and run the authored task detail to linked draft to Appointment Board schedule e2e test.
-2. Automation failure/retry/replay visibility.
-3. Automation rule authoring/simulation/activation controls.
-4. Template-driven task blueprint generation.
-5. Broader lifecycle, concurrency, and browser workflow validation.
+2. Automation rule authoring/simulation/activation controls.
+3. Template-driven task blueprint generation.
+4. Broader lifecycle, concurrency, and browser workflow validation.
+5. Deeper background failure classes and durable replay worker coverage.
 
 ## E4 remaining work
 
