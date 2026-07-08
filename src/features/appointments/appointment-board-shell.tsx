@@ -472,6 +472,50 @@ type AppointmentVehicleViewItem = {
   attentionLabel: string;
 };
 
+type AppointmentScheduleAnalyticsPreset =
+  | "resource-balance"
+  | "location-flow"
+  | "reconciliation-watch";
+
+type AppointmentScheduleAnalyticsMetric = {
+  label: string;
+  value: string;
+  tone: "blue" | "amber" | "red" | "purple" | "green";
+  detail: string;
+};
+
+type AppointmentScheduleAnalyticsLane = {
+  label: string;
+  lens: AppointmentBoardLaneMode;
+  scheduledCount: number;
+  conflictCount: number;
+  noShowCount: number;
+  followUpCount: number;
+  firstAppointmentId: string;
+  loadLabel: string;
+  varianceLabel: string;
+  actionHint: string;
+};
+
+type AppointmentScheduleReconciliationItem = {
+  id: string;
+  appointmentId: string;
+  lens: AppointmentBoardLaneMode;
+  scopeLabel: string;
+  title: string;
+  detail: string;
+  tone: "blue" | "amber" | "red" | "purple";
+  actionLabel: string;
+};
+
+type AppointmentScheduleAnalyticsModel = {
+  headline: string;
+  summaryLabel: string;
+  metrics: AppointmentScheduleAnalyticsMetric[];
+  laneSummaries: AppointmentScheduleAnalyticsLane[];
+  reconciliationItems: AppointmentScheduleReconciliationItem[];
+};
+
 type AppointmentNotificationFailureQueueItem = {
   id: string;
   sourceType: "runtime" | "handoff";
@@ -3469,6 +3513,266 @@ export function buildAppointmentVehicleViewItems(input: { appointments: Appointm
     .slice(0, 8);
 }
 
+export function buildAppointmentScheduleAnalyticsModel(input: {
+  appointments: Appointment[];
+  preset: AppointmentScheduleAnalyticsPreset;
+}) {
+  const scheduledAppointments = input.appointments.filter(
+    (appointment) => !isUnscheduledDraftAppointment(appointment)
+  );
+  const unscheduledDraftCount = input.appointments.filter((appointment) =>
+    isUnscheduledDraftAppointment(appointment)
+  ).length;
+  const conflictCount = input.appointments.filter((appointment) => appointment.conflict).length;
+  const noShowCount = input.appointments.filter((appointment) => appointment.status === "no-show").length;
+  const followUpCount = input.appointments.filter(
+    (appointment) => appointment.needsFollowUp || appointment.status === "follow-up"
+  ).length;
+
+  const groupLaneItems = (
+    buildLabel: (appointment: Appointment) => string,
+    lens: AppointmentBoardLaneMode
+  ) =>
+    Array.from(
+      input.appointments.reduce<Map<string, Appointment[]>>((grouped, appointment) => {
+        const label = buildLabel(appointment);
+        const current = grouped.get(label) ?? [];
+        current.push(appointment);
+        grouped.set(label, current);
+
+        return grouped;
+      }, new Map())
+    )
+      .map(([label, appointments]) => ({
+        label,
+        lens,
+        scheduledCount: appointments.filter(
+          (appointment) => !isUnscheduledDraftAppointment(appointment)
+        ).length,
+        conflictCount: appointments.filter((appointment) => appointment.conflict).length,
+        noShowCount: appointments.filter((appointment) => appointment.status === "no-show").length,
+        followUpCount: appointments.filter(
+          (appointment) => appointment.needsFollowUp || appointment.status === "follow-up"
+        ).length,
+        firstAppointmentId: appointments[0]?.id ?? "",
+        loadLabel:
+          appointments.length >= 4
+            ? "High pressure"
+            : appointments.length >= 2
+              ? "Balanced load"
+              : "Light load",
+        varianceLabel:
+          appointments.some((appointment) => appointment.conflict)
+            ? "Conflict variance active"
+            : appointments.some((appointment) => appointment.status === "no-show")
+              ? "Recovery variance active"
+              : appointments.some((appointment) => isUnscheduledDraftAppointment(appointment))
+                ? "Draft demand still waiting"
+                : "Operating within visible tolerance",
+        actionHint:
+          lens === "resource"
+            ? "Open analytics lane"
+            : lens === "location"
+              ? "Open location pressure"
+              : "Open owner coverage"
+      }))
+      .sort((left, right) => {
+        const leftScore =
+          left.conflictCount * 5 +
+          left.noShowCount * 4 +
+          left.followUpCount * 3 +
+          left.scheduledCount;
+        const rightScore =
+          right.conflictCount * 5 +
+          right.noShowCount * 4 +
+          right.followUpCount * 3 +
+          right.scheduledCount;
+
+        return rightScore - leftScore || left.label.localeCompare(right.label);
+      })
+      .slice(0, 5);
+
+  const resourceLanes = groupLaneItems(
+    (appointment) => appointmentBoardLaneLabel(appointment, "resource"),
+    "resource"
+  );
+  const locationLanes = groupLaneItems((appointment) => appointment.location, "location");
+  const staffLanes = groupLaneItems(
+    (appointment) => appointment.staffName ?? appointment.staffId ?? "Unassigned",
+    "staff"
+  );
+
+  const reconciliationItems = input.appointments
+    .map<AppointmentScheduleReconciliationItem | null>((appointment) => {
+      const scopeLabel = `${appointment.staffName ?? "Unassigned"} Â· ${appointment.location}`;
+
+      if (appointment.conflict) {
+        return {
+          id: `${appointment.id}-conflict`,
+          appointmentId: appointment.id,
+          lens: "resource",
+          scopeLabel,
+          title: `${appointment.id} still carries an unresolved conflict`,
+          detail: `${appointment.title} for ${appointment.customer} is still pressuring a shared resource or staffing lane.`,
+          tone: "red",
+          actionLabel: "Review conflict"
+        } satisfies AppointmentScheduleReconciliationItem;
+      }
+
+      if (isUnscheduledDraftAppointment(appointment)) {
+        return {
+          id: `${appointment.id}-draft`,
+          appointmentId: appointment.id,
+          lens: "staff",
+          scopeLabel,
+          title: `${appointment.id} is still missing a committed operating slot`,
+          detail: `${appointment.title} remains unscheduled, so demand is visible but not yet reconciled into the day plan.`,
+          tone: "purple",
+          actionLabel: "Place draft"
+        } satisfies AppointmentScheduleReconciliationItem;
+      }
+
+      if (appointment.status === "no-show") {
+        return {
+          id: `${appointment.id}-no-show`,
+          appointmentId: appointment.id,
+          lens: "location",
+          scopeLabel,
+          title: `${appointment.id} needs no-show recovery reconciliation`,
+          detail: `${appointment.customer} did not arrive, so the location schedule and recovery queue still need a clean next step.`,
+          tone: "amber",
+          actionLabel: "Open recovery"
+        } satisfies AppointmentScheduleReconciliationItem;
+      }
+
+      if (appointment.needsFollowUp || appointment.status === "follow-up") {
+        return {
+          id: `${appointment.id}-follow-up`,
+          appointmentId: appointment.id,
+          lens: "staff",
+          scopeLabel,
+          title: `${appointment.id} is still carrying follow-up work`,
+          detail: `${appointment.title} has post-visit work that should stay reconciled with owner coverage and customer outreach.`,
+          tone: "blue",
+          actionLabel: "Open follow-up"
+        } satisfies AppointmentScheduleReconciliationItem;
+      }
+
+      return null;
+    })
+    .filter((item): item is AppointmentScheduleReconciliationItem => item !== null)
+    .slice(0, 6);
+
+  if (input.preset === "location-flow") {
+    return {
+      headline: `${locationLanes.length} visible operating surfaces are carrying ${scheduledAppointments.length} scheduled appointments with ${noShowCount} no-show pocket${
+        noShowCount === 1 ? "" : "s"
+      } still affecting flow.`,
+      summaryLabel: `${locationLanes.length} locations Â· ${reconciliationItems.length} reconciliation items`,
+      metrics: [
+        {
+          label: "Scheduled flow",
+          value: `${scheduledAppointments.length}`,
+          tone: "blue",
+          detail: "Scheduled appointments currently contributing to location throughput."
+        },
+        {
+          label: "No-show pockets",
+          value: `${noShowCount}`,
+          tone: noShowCount > 0 ? "amber" : "green",
+          detail: "Appointments that still need location recovery or queue cleanup."
+        },
+        {
+          label: "Location conflicts",
+          value: `${locationLanes.filter((lane) => lane.conflictCount > 0).length}`,
+          tone: conflictCount > 0 ? "red" : "green",
+          detail: "Operating surfaces that still show conflict pressure."
+        },
+        {
+          label: "Reconciliation queue",
+          value: `${reconciliationItems.length}`,
+          tone: reconciliationItems.length > 0 ? "purple" : "green",
+          detail: "Visible items that still need human schedule reconciliation."
+        }
+      ],
+      laneSummaries: locationLanes,
+      reconciliationItems
+    } satisfies AppointmentScheduleAnalyticsModel;
+  }
+
+  if (input.preset === "reconciliation-watch") {
+    return {
+      headline: `${reconciliationItems.length} visible reconciliation item${
+        reconciliationItems.length === 1 ? "" : "s"
+      } are still carrying customer, owner, or operating follow-through.`,
+      summaryLabel: `${staffLanes.length} owners Â· ${unscheduledDraftCount} unscheduled drafts`,
+      metrics: [
+        {
+          label: "Recovery load",
+          value: `${noShowCount + followUpCount}`,
+          tone: noShowCount + followUpCount > 0 ? "amber" : "green",
+          detail: "No-show and follow-up work still requiring active owner coverage."
+        },
+        {
+          label: "Unscheduled demand",
+          value: `${unscheduledDraftCount}`,
+          tone: unscheduledDraftCount > 0 ? "purple" : "green",
+          detail: "Draft appointments that still need committed placement."
+        },
+        {
+          label: "Conflict carryover",
+          value: `${conflictCount}`,
+          tone: conflictCount > 0 ? "red" : "green",
+          detail: "Appointments still carrying resource or staffing variance."
+        },
+        {
+          label: "Owner hotspots",
+          value: `${staffLanes.filter((lane) => lane.followUpCount + lane.noShowCount + lane.conflictCount > 0).length}`,
+          tone: "blue",
+          detail: "Owners currently carrying the most recovery or reconciliation load."
+        }
+      ],
+      laneSummaries: staffLanes,
+      reconciliationItems
+    } satisfies AppointmentScheduleAnalyticsModel;
+  }
+
+  return {
+    headline: `${resourceLanes.length} resource lanes are carrying ${scheduledAppointments.length} scheduled appointments with ${conflictCount} active conflict${
+      conflictCount === 1 ? "" : "s"
+    } still needing reconciliation.`,
+    summaryLabel: `${resourceLanes.length} resources Â· ${reconciliationItems.length} reconciliation items`,
+    metrics: [
+      {
+        label: "Scheduled load",
+        value: `${scheduledAppointments.length}`,
+        tone: "blue",
+        detail: "Appointments now occupying visible resource capacity."
+      },
+      {
+        label: "Conflict hotspots",
+        value: `${resourceLanes.filter((lane) => lane.conflictCount > 0).length}`,
+        tone: conflictCount > 0 ? "red" : "green",
+        detail: "Resource lanes that still need rebalance or manager review."
+      },
+      {
+        label: "Follow-up pressure",
+        value: `${followUpCount}`,
+        tone: followUpCount > 0 ? "amber" : "green",
+        detail: "Appointments still carrying recovery or follow-up load."
+      },
+      {
+        label: "Unscheduled demand",
+        value: `${unscheduledDraftCount}`,
+        tone: unscheduledDraftCount > 0 ? "purple" : "green",
+        detail: "Draft demand visible to the board but not yet committed into capacity."
+      }
+    ],
+    laneSummaries: resourceLanes,
+    reconciliationItems
+  } satisfies AppointmentScheduleAnalyticsModel;
+}
+
 export function buildAppointmentCommandCenterHandoffPackage(input: {
   report: AppointmentCommandCenterReport;
   exceptionQueues: AppointmentExceptionQueue[];
@@ -4278,6 +4582,8 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   const [showResolvedNotificationFailures, setShowResolvedNotificationFailures] = useState(false);
   const [executiveReviewPreset, setExecutiveReviewPreset] =
     useState<AppointmentExecutiveReviewPreset>("daily-ops");
+  const [scheduleAnalyticsPreset, setScheduleAnalyticsPreset] =
+    useState<AppointmentScheduleAnalyticsPreset>("resource-balance");
   const [opsIntelligencePreset, setOpsIntelligencePreset] =
     useState<AppointmentOpsIntelligencePreset>("leadership-daily");
   const [detailRefreshKey, setDetailRefreshKey] = useState(0);
@@ -4867,6 +5173,14 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     () => buildAppointmentVehicleViewItems({ appointments: filteredAppointments }),
     [filteredAppointments]
   );
+  const scheduleAnalyticsModel = useMemo(
+    () =>
+      buildAppointmentScheduleAnalyticsModel({
+        appointments: filteredAppointments,
+        preset: scheduleAnalyticsPreset
+      }),
+    [filteredAppointments, scheduleAnalyticsPreset]
+  );
   const agendaSections = useMemo(
     () =>
       buildAppointmentAgendaSections({
@@ -5268,6 +5582,93 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     setCommandCenterSearchScope("all");
     setAuditTimelineFilter("all");
     setActionNotice("Loaded the Daily Ops executive review preset into the command center.");
+  }
+
+  function applyScheduleAnalyticsPreset(preset: AppointmentScheduleAnalyticsPreset) {
+    setScheduleAnalyticsPreset(preset);
+
+    if (preset === "location-flow") {
+      setBoardLaneMode("location");
+      setViewMode("day");
+      setResolutionFilter("all");
+      setReportQueueFilter("all");
+      setCommandCenterSearchPreset("all");
+      setCommandCenterSearchScope("appointments");
+      setActionNotice("Loaded the Location Flow schedule analytics preset.");
+      return;
+    }
+
+    if (preset === "reconciliation-watch") {
+      setBoardLaneMode("staff");
+      setViewMode("agenda");
+      setResolutionFilter("all");
+      setReportQueueFilter("all");
+      setCommandCenterSearchPreset("all");
+      setCommandCenterSearchScope("appointments");
+      setActionNotice("Loaded the Reconciliation Watch schedule analytics preset.");
+      return;
+    }
+
+    setBoardLaneMode("resource");
+    setViewMode("day");
+    setResolutionFilter("conflict-watch");
+    setReportQueueFilter("conflict-watch");
+    setCommandCenterSearchPreset("all");
+    setCommandCenterSearchScope("appointments");
+    setActionNotice("Loaded the Resource Balance schedule analytics preset.");
+  }
+
+  function openScheduleAnalyticsLane(item: AppointmentScheduleAnalyticsLane) {
+    const appointment =
+      boardAppointments.find((candidate) => candidate.id === item.firstAppointmentId) ?? selectedAppointment;
+
+    setBoardLaneMode(item.lens);
+    setViewMode("day");
+    selectAppointmentForDetail(appointment);
+
+    if (item.conflictCount > 0) {
+      setResolutionFilter("conflict-watch");
+      setReportQueueFilter("conflict-watch");
+    } else if (item.noShowCount > 0) {
+      setResolutionFilter("no-show-recovery");
+      setReportQueueFilter("no-show-recovery");
+    } else if (item.followUpCount > 0) {
+      setResolutionFilter("follow-up-required");
+      setReportQueueFilter("follow-up-required");
+    } else {
+      setResolutionFilter("all");
+      setReportQueueFilter("all");
+    }
+
+    setActionNotice(`Opened ${item.label.toLowerCase()} from schedule analytics in the ${item.lens} board lens.`);
+  }
+
+  function openScheduleReconciliationItem(item: AppointmentScheduleReconciliationItem) {
+    const appointment =
+      boardAppointments.find((candidate) => candidate.id === item.appointmentId) ?? selectedAppointment;
+
+    setBoardLaneMode(item.lens);
+    selectAppointmentForDetail(appointment);
+
+    if (item.tone === "red") {
+      setViewMode("day");
+      setResolutionFilter("conflict-watch");
+      setReportQueueFilter("conflict-watch");
+    } else if (item.tone === "amber") {
+      setViewMode("agenda");
+      setResolutionFilter("no-show-recovery");
+      setReportQueueFilter("no-show-recovery");
+    } else if (item.tone === "purple") {
+      setViewMode("day");
+      setResolutionFilter("needs-scheduling");
+      setReportQueueFilter("needs-scheduling");
+    } else {
+      setViewMode("agenda");
+      setResolutionFilter("follow-up-required");
+      setReportQueueFilter("follow-up-required");
+    }
+
+    setActionNotice(`Opened ${appointment.id} from the schedule reconciliation queue.`);
   }
 
   async function copyExecutiveReviewBrief() {
@@ -9247,6 +9648,181 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
                       <div className="appointment-command-center-item-actions">
                         <button type="button" onClick={() => openVehicleViewItem(item)}>
                           Open vehicle view
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <section
+            className="appointment-schedule-analytics-card"
+            aria-labelledby="appointment-schedule-analytics"
+          >
+            <div className="appointment-section-heading">
+              <div>
+                <strong id="appointment-schedule-analytics">Schedule Analytics &amp; Reconciliation</strong>
+                <p>
+                  Review lane pressure, operating flow, and visible reconciliation work before issues
+                  turn into schedule drift.
+                </p>
+              </div>
+              <span>{scheduleAnalyticsModel.summaryLabel}</span>
+            </div>
+
+            <div className="appointment-command-search-presets" aria-label="Schedule analytics presets">
+              {[
+                { value: "resource-balance", label: "Resource balance" },
+                { value: "location-flow", label: "Location flow" },
+                { value: "reconciliation-watch", label: "Reconciliation watch" }
+              ].map((preset) => (
+                <button
+                  className={
+                    scheduleAnalyticsPreset === preset.value
+                      ? "appointment-command-search-preset appointment-command-search-preset-active"
+                      : "appointment-command-search-preset"
+                  }
+                  key={preset.value}
+                  type="button"
+                  onClick={() =>
+                    applyScheduleAnalyticsPreset(
+                      preset.value as AppointmentScheduleAnalyticsPreset
+                    )
+                  }
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+
+            <p className="appointment-schedule-analytics-headline">{scheduleAnalyticsModel.headline}</p>
+
+            <div className="appointment-schedule-analytics-metrics">
+              {scheduleAnalyticsModel.metrics.map((metric) => (
+                <article className="appointment-schedule-analytics-metric" key={metric.label}>
+                  <div className="appointment-notification-center-item-top">
+                    <div>
+                      <strong>{metric.label}</strong>
+                      <p>{metric.detail}</p>
+                    </div>
+                    <span
+                      className={
+                        metric.tone === "red"
+                          ? "appointment-command-center-tag appointment-command-center-tag-red"
+                          : metric.tone === "amber"
+                            ? "appointment-command-center-tag appointment-command-center-tag-amber"
+                            : metric.tone === "purple"
+                              ? "appointment-command-center-tag appointment-command-center-tag-purple"
+                              : metric.tone === "green"
+                                ? "appointment-command-center-tag appointment-command-center-tag-green"
+                                : "appointment-command-center-tag appointment-command-center-tag-blue"
+                      }
+                    >
+                      {metric.value}
+                    </span>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <div className="appointment-schedule-analytics-grid">
+              <section className="appointment-command-center-panel" aria-labelledby="appointment-lane-pressure">
+                <div className="appointment-command-center-panel-heading">
+                  <div>
+                    <strong id="appointment-lane-pressure">Lane Pressure</strong>
+                    <p>
+                      Highest-pressure lanes across the current preset, ranked by conflicts, recovery, and
+                      scheduled load.
+                    </p>
+                  </div>
+                  <span>{scheduleAnalyticsModel.laneSummaries.length} visible</span>
+                </div>
+
+                <div className="appointment-operating-view-list">
+                  {scheduleAnalyticsModel.laneSummaries.map((item) => (
+                    <article className="appointment-operating-view-item" key={`${item.lens}-${item.label}`}>
+                      <div className="appointment-notification-center-item-top">
+                        <div>
+                          <strong>{item.label}</strong>
+                          <p>{item.varianceLabel}</p>
+                        </div>
+                        <div className="appointment-command-center-badge-stack">
+                          <span className="appointment-command-center-tag appointment-command-center-tag-blue">
+                            {item.scheduledCount} scheduled
+                          </span>
+                          <span
+                            className={
+                              item.conflictCount > 0
+                                ? "appointment-command-center-tag appointment-command-center-tag-red"
+                                : item.noShowCount > 0 || item.followUpCount > 0
+                                  ? "appointment-command-center-tag appointment-command-center-tag-amber"
+                                  : "appointment-command-center-tag appointment-command-center-tag-green"
+                            }
+                          >
+                            {item.loadLabel}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="appointment-notification-center-item-meta">
+                        <span>{item.conflictCount} conflicts</span>
+                        <span>{item.noShowCount} no-show</span>
+                        <strong>{item.followUpCount} follow-up</strong>
+                      </div>
+
+                      <div className="appointment-command-center-item-actions">
+                        <button type="button" onClick={() => openScheduleAnalyticsLane(item)}>
+                          {item.actionHint}
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+
+              <section
+                className="appointment-command-center-panel"
+                aria-labelledby="appointment-reconciliation-queue"
+              >
+                <div className="appointment-command-center-panel-heading">
+                  <div>
+                    <strong id="appointment-reconciliation-queue">Reconciliation Queue</strong>
+                    <p>
+                      Visible schedule items that still need a human decision before the operating picture
+                      is trustworthy.
+                    </p>
+                  </div>
+                  <span>{scheduleAnalyticsModel.reconciliationItems.length} items</span>
+                </div>
+
+                <div className="appointment-operating-view-list">
+                  {scheduleAnalyticsModel.reconciliationItems.map((item) => (
+                    <article className="appointment-operating-view-item" key={item.id}>
+                      <div className="appointment-notification-center-item-top">
+                        <div>
+                          <strong>{item.title}</strong>
+                          <p>{item.detail}</p>
+                        </div>
+                        <span
+                          className={
+                            item.tone === "red"
+                              ? "appointment-command-center-tag appointment-command-center-tag-red"
+                              : item.tone === "amber"
+                                ? "appointment-command-center-tag appointment-command-center-tag-amber"
+                                : item.tone === "purple"
+                                  ? "appointment-command-center-tag appointment-command-center-tag-purple"
+                                  : "appointment-command-center-tag appointment-command-center-tag-blue"
+                          }
+                        >
+                          {item.scopeLabel}
+                        </span>
+                      </div>
+
+                      <div className="appointment-command-center-item-actions">
+                        <button type="button" onClick={() => openScheduleReconciliationItem(item)}>
+                          {item.actionLabel}
                         </button>
                       </div>
                     </article>
