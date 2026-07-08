@@ -218,6 +218,44 @@ type AppointmentCommandCenterReport = {
   rows: AppointmentCommandCenterReportRow[];
 };
 
+type AppointmentKpiDictionaryKey =
+  | "visible-exceptions"
+  | "breached-sla"
+  | "escalated-work"
+  | "manager-events"
+  | "no-show-recovery"
+  | "follow-up-backlog";
+
+type AppointmentKpiDictionaryEntry = {
+  key: AppointmentKpiDictionaryKey;
+  label: string;
+  value: string;
+  tone: "blue" | "amber" | "red" | "purple" | "green";
+  definition: string;
+  reportingWindowLabel: string;
+  sourceLabel: string;
+  actionLabel: string;
+};
+
+type AppointmentReportingReadModelDimension = "category" | "owner" | "location";
+
+type AppointmentReportingReadModelRow = {
+  dimensionLabel: string;
+  scheduledCount: number;
+  confirmedCount: number;
+  inFlightCount: number;
+  noShowCount: number;
+  followUpCount: number;
+  conflictCount: number;
+  coverageLabel: string;
+};
+
+type AppointmentReportingReadModel = {
+  headline: string;
+  sourceLabel: string;
+  rows: AppointmentReportingReadModelRow[];
+};
+
 type AppointmentCommandCenterSearchPreset =
   | "all"
   | "breached-sla"
@@ -2062,6 +2100,184 @@ export function buildAppointmentCommandCenterReport(input: {
     },
     rows
   };
+}
+
+export function buildAppointmentKpiDictionary(input: {
+  report: AppointmentCommandCenterReport;
+  exceptionQueues: AppointmentExceptionQueue[];
+  reportingWindowLabel: string;
+  timezoneLabel: string;
+}) {
+  const noShowRecoveryCount =
+    input.exceptionQueues.find((queue) => queue.key === "no-show-recovery")?.items.length ?? 0;
+  const followUpBacklogCount =
+    input.exceptionQueues.find((queue) => queue.key === "follow-up-required")?.items.length ?? 0;
+
+  return [
+    {
+      key: "visible-exceptions",
+      label: "Visible Exceptions",
+      value: `${input.report.summary.visibleExceptions}`,
+      tone: input.report.summary.visibleExceptions >= 6 ? "amber" : "blue",
+      definition:
+        "Active workbench rows visible in the current reporting scope after queue and owner filtering are applied.",
+      reportingWindowLabel: input.reportingWindowLabel,
+      sourceLabel: `Command-center read scope · ${input.timezoneLabel}`,
+      actionLabel: "Open all exceptions"
+    },
+    {
+      key: "breached-sla",
+      label: "Breached SLA",
+      value: `${input.report.summary.breachedSla}`,
+      tone: input.report.summary.breachedSla > 0 ? "red" : "green",
+      definition:
+        "Visible workbench items whose response age is already outside the target service window.",
+      reportingWindowLabel: input.reportingWindowLabel,
+      sourceLabel: `Resolution workbench SLA model · ${input.timezoneLabel}`,
+      actionLabel: "Open breached SLA"
+    },
+    {
+      key: "escalated-work",
+      label: "Escalated Work",
+      value: `${input.report.summary.escalated}`,
+      tone: input.report.summary.escalated > 0 ? "purple" : "green",
+      definition:
+        "Visible items explicitly escalated for manager attention, handoff, or operating intervention.",
+      reportingWindowLabel: input.reportingWindowLabel,
+      sourceLabel: `Resolution status ledger · ${input.timezoneLabel}`,
+      actionLabel: "Open escalations"
+    },
+    {
+      key: "manager-events",
+      label: "Manager Events",
+      value: `${input.report.summary.managerEvents}`,
+      tone: input.report.summary.managerEvents > 0 ? "blue" : "green",
+      definition:
+        "Manager-lane audit events visible in the current timeline scope and reporting snapshot.",
+      reportingWindowLabel: input.reportingWindowLabel,
+      sourceLabel: `Audit timeline manager lane · ${input.timezoneLabel}`,
+      actionLabel: "Open manager activity"
+    },
+    {
+      key: "no-show-recovery",
+      label: "No-Show Recovery",
+      value: `${noShowRecoveryCount}`,
+      tone: noShowRecoveryCount > 0 ? "amber" : "green",
+      definition:
+        "Appointments in the no-show recovery queue that still require outreach, rescheduling, or documented closure.",
+      reportingWindowLabel: input.reportingWindowLabel,
+      sourceLabel: `Exception queue read model · ${input.timezoneLabel}`,
+      actionLabel: "Open no-show recovery"
+    },
+    {
+      key: "follow-up-backlog",
+      label: "Follow-Up Backlog",
+      value: `${followUpBacklogCount}`,
+      tone: followUpBacklogCount > 0 ? "amber" : "green",
+      definition:
+        "Appointments still carrying follow-up workload that should be closed before the next operating window.",
+      reportingWindowLabel: input.reportingWindowLabel,
+      sourceLabel: `Exception queue read model · ${input.timezoneLabel}`,
+      actionLabel: "Open follow-up backlog"
+    }
+  ] satisfies AppointmentKpiDictionaryEntry[];
+}
+
+export function buildAppointmentReportingReadModel(input: {
+  appointments: Appointment[];
+  dimension: AppointmentReportingReadModelDimension;
+  timezoneLabel: string;
+}) {
+  const grouped = input.appointments.reduce<Map<string, Appointment[]>>((map, appointment) => {
+    const key =
+      input.dimension === "category"
+        ? categoryMeta[appointment.category].label
+        : input.dimension === "owner"
+          ? appointment.staffName ?? "Unassigned"
+          : appointment.location;
+    const current = map.get(key) ?? [];
+    current.push(appointment);
+    map.set(key, current);
+    return map;
+  }, new Map());
+
+  const rows = Array.from(grouped.entries())
+    .map(([dimensionLabel, appointments]) => {
+      const scheduledCount = appointments.filter(
+        (appointment) => !isUnscheduledDraftAppointment(appointment)
+      ).length;
+      const confirmedCount = appointments.filter((appointment) => appointment.status === "confirmed").length;
+      const inFlightCount = appointments.filter(
+        (appointment) =>
+          appointment.status === "checked-in" || appointment.status === "in-progress"
+      ).length;
+      const noShowCount = appointments.filter((appointment) => appointment.status === "no-show").length;
+      const followUpCount = appointments.filter(
+        (appointment) => appointment.status === "follow-up" || appointment.needsFollowUp
+      ).length;
+      const conflictCount = appointments.filter((appointment) => appointment.conflict).length;
+
+      return {
+        dimensionLabel,
+        scheduledCount,
+        confirmedCount,
+        inFlightCount,
+        noShowCount,
+        followUpCount,
+        conflictCount,
+        coverageLabel:
+          conflictCount > 0
+            ? "Needs reconciliation"
+            : noShowCount > 0 || followUpCount > 0
+              ? "Recovery in motion"
+              : scheduledCount >= 4
+                ? "High volume"
+                : "Balanced"
+      } satisfies AppointmentReportingReadModelRow;
+    })
+    .sort((left, right) => {
+      const leftScore =
+        left.conflictCount * 5 +
+        left.noShowCount * 4 +
+        left.followUpCount * 3 +
+        left.scheduledCount;
+      const rightScore =
+        right.conflictCount * 5 +
+        right.noShowCount * 4 +
+        right.followUpCount * 3 +
+        right.scheduledCount;
+      return rightScore - leftScore || left.dimensionLabel.localeCompare(right.dimensionLabel);
+    });
+
+  const dimensionLabel =
+    input.dimension === "category"
+      ? "category"
+      : input.dimension === "owner"
+        ? "owner"
+        : "location";
+
+  return {
+    headline: `${rows.length} ${dimensionLabel} reporting row${rows.length === 1 ? "" : "s"} are visible in the current board scope.`,
+    sourceLabel: `Reporting read model snapshot · ${input.timezoneLabel}`,
+    rows
+  } satisfies AppointmentReportingReadModel;
+}
+
+export function buildAppointmentReportingReadModelExport(input: {
+  model: AppointmentReportingReadModel;
+  dimension: AppointmentReportingReadModelDimension;
+}) {
+  return [
+    `Appointment reporting read model - ${input.dimension}`,
+    `Headline: ${input.model.headline}`,
+    `Source: ${input.model.sourceLabel}`,
+    "",
+    "Rows:",
+    ...input.model.rows.map(
+      (row) =>
+        `- ${row.dimensionLabel} | scheduled ${row.scheduledCount} | confirmed ${row.confirmedCount} | in flight ${row.inFlightCount} | no-show ${row.noShowCount} | follow-up ${row.followUpCount} | conflicts ${row.conflictCount} | ${row.coverageLabel}`
+    )
+  ].join("\n");
 }
 
 export function buildAppointmentCommandCenterExport(input: {
@@ -4668,6 +4884,8 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   const [reportQueueFilter, setReportQueueFilter] = useState<AppointmentResolutionWorkbenchFilter>("all");
   const [reportOwnerFilter, setReportOwnerFilter] = useState("all");
   const [reportExportFormat, setReportExportFormat] = useState<AppointmentCommandCenterExportFormat>("summary");
+  const [reportingReadModelDimension, setReportingReadModelDimension] =
+    useState<AppointmentReportingReadModelDimension>("category");
   const [commandCenterSearchQuery, setCommandCenterSearchQuery] = useState("");
   const [commandCenterSearchPreset, setCommandCenterSearchPreset] =
     useState<AppointmentCommandCenterSearchPreset>("all");
@@ -5026,6 +5244,33 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
         auditTimelineEvents: selectedAppointmentAuditTimeline
       }),
     [commandCenterReport, reportExportFormat, selectedAppointmentAuditTimeline]
+  );
+  const appointmentKpiDictionary = useMemo(
+    () =>
+      buildAppointmentKpiDictionary({
+        report: commandCenterReport,
+        exceptionQueues,
+        reportingWindowLabel: commandCenterReport.generatedForLabel,
+        timezoneLabel: boardTimezone
+      }),
+    [boardTimezone, commandCenterReport, exceptionQueues]
+  );
+  const reportingReadModel = useMemo(
+    () =>
+      buildAppointmentReportingReadModel({
+        appointments: filteredAppointments,
+        dimension: reportingReadModelDimension,
+        timezoneLabel: boardTimezone
+      }),
+    [boardTimezone, filteredAppointments, reportingReadModelDimension]
+  );
+  const reportingReadModelExport = useMemo(
+    () =>
+      buildAppointmentReportingReadModelExport({
+        model: reportingReadModel,
+        dimension: reportingReadModelDimension
+      }),
+    [reportingReadModel, reportingReadModelDimension]
   );
   const allCommandCenterAuditTimelineEvents = useMemo(
     () =>
@@ -5532,6 +5777,58 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
           : "Could not copy export preview."
       );
     }
+  }
+
+  function focusKpiDictionaryEntry(entry: AppointmentKpiDictionaryEntry) {
+    if (entry.key === "breached-sla") {
+      setReportQueueFilter("breached-sla");
+      setResolutionFilter("breached-sla");
+      setCommandCenterSearchPreset("breached-sla");
+      setCommandCenterSearchScope("appointments");
+      setActionNotice("Focused the breached SLA KPI definition in reporting and the workbench.");
+      return;
+    }
+
+    if (entry.key === "escalated-work") {
+      setReportQueueFilter("escalated");
+      setResolutionFilter("escalated");
+      setCommandCenterSearchPreset("escalated");
+      setCommandCenterSearchScope("all");
+      setActionNotice("Focused the escalated work KPI definition in reporting and the workbench.");
+      return;
+    }
+
+    if (entry.key === "manager-events") {
+      setAuditTimelineFilter("manager");
+      setCommandCenterSearchPreset("manager-activity");
+      setCommandCenterSearchScope("timeline");
+      setActionNotice("Focused the manager activity KPI definition in the audit timeline.");
+      return;
+    }
+
+    if (entry.key === "no-show-recovery") {
+      setReportQueueFilter("no-show-recovery");
+      setResolutionFilter("no-show-recovery");
+      setCommandCenterSearchPreset("all");
+      setCommandCenterSearchScope("appointments");
+      setActionNotice("Focused the no-show recovery KPI definition in the reporting scope.");
+      return;
+    }
+
+    if (entry.key === "follow-up-backlog") {
+      setReportQueueFilter("follow-up-required");
+      setResolutionFilter("follow-up-required");
+      setCommandCenterSearchPreset("all");
+      setCommandCenterSearchScope("appointments");
+      setActionNotice("Focused the follow-up backlog KPI definition in the reporting scope.");
+      return;
+    }
+
+    setReportQueueFilter("all");
+    setResolutionFilter("all");
+    setCommandCenterSearchPreset("all");
+    setCommandCenterSearchScope("all");
+    setActionNotice("Focused the visible exceptions KPI definition in the reporting scope.");
   }
 
   function applySavedCommandCenterView(view: AppointmentCommandCenterSavedView) {
@@ -10489,6 +10786,132 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
                 <span>Manager Events</span>
                 <strong>{commandCenterReport.summary.managerEvents}</strong>
               </article>
+            </div>
+
+            <div className="appointment-reporting-kpi-dictionary">
+              <div className="appointment-reporting-preview-heading">
+                <strong>KPI Dictionary</strong>
+                <span>{appointmentKpiDictionary.length} defined</span>
+              </div>
+
+              <div className="appointment-reporting-kpi-grid">
+                {appointmentKpiDictionary.map((entry) => (
+                  <article className="appointment-reporting-kpi-item" key={entry.key}>
+                    <div className="appointment-notification-center-item-top">
+                      <div>
+                        <strong>{entry.label}</strong>
+                        <p>{entry.definition}</p>
+                      </div>
+                      <span
+                        className={
+                          entry.tone === "red"
+                            ? "appointment-command-center-tag appointment-command-center-tag-red"
+                            : entry.tone === "amber"
+                              ? "appointment-command-center-tag appointment-command-center-tag-amber"
+                              : entry.tone === "purple"
+                                ? "appointment-command-center-tag appointment-command-center-tag-purple"
+                                : entry.tone === "green"
+                                  ? "appointment-command-center-tag appointment-command-center-tag-green"
+                                  : "appointment-command-center-tag appointment-command-center-tag-blue"
+                        }
+                      >
+                        {entry.value}
+                      </span>
+                    </div>
+
+                    <div className="appointment-notification-center-item-meta">
+                      <span>{entry.reportingWindowLabel}</span>
+                      <strong>{entry.sourceLabel}</strong>
+                    </div>
+
+                    <div className="appointment-command-center-item-actions">
+                      <button type="button" onClick={() => focusKpiDictionaryEntry(entry)}>
+                        {entry.actionLabel}
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+
+            <div className="appointment-reporting-read-model-card">
+              <div className="appointment-reporting-preview-heading">
+                <strong>Reporting Read Model</strong>
+                <span>{reportingReadModel.sourceLabel}</span>
+              </div>
+
+              <p className="appointment-runtime-persistence-headline">{reportingReadModel.headline}</p>
+
+              <div className="appointment-reporting-toolbar">
+                <div className="appointment-reporting-toolbar-group">
+                  <label>
+                    Read model dimension
+                    <select
+                      aria-label="Filter reporting read model dimension"
+                      value={reportingReadModelDimension}
+                      onChange={(event) =>
+                        setReportingReadModelDimension(
+                          event.target.value as AppointmentReportingReadModelDimension
+                        )
+                      }
+                    >
+                      <option value="category">Category</option>
+                      <option value="owner">Owner</option>
+                      <option value="location">Location</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div className="appointment-reporting-toolbar-actions">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setActionNotice(
+                        `Prepared ${reportingReadModelDimension} reporting read model for ${selectedAppointment.id}.`
+                      )
+                    }
+                  >
+                    Refresh read model
+                  </button>
+                </div>
+              </div>
+
+              <div className="appointment-reporting-read-model-grid">
+                {reportingReadModel.rows.slice(0, 6).map((row) => (
+                  <article className="appointment-reporting-read-model-item" key={row.dimensionLabel}>
+                    <div className="appointment-notification-center-item-top">
+                      <div>
+                        <strong>{row.dimensionLabel}</strong>
+                        <p>{row.coverageLabel}</p>
+                      </div>
+                      <span className="appointment-command-center-tag appointment-command-center-tag-blue">
+                        {row.scheduledCount} scheduled
+                      </span>
+                    </div>
+
+                    <div className="appointment-reporting-read-model-metrics">
+                      <span>Confirmed: {row.confirmedCount}</span>
+                      <span>In flight: {row.inFlightCount}</span>
+                      <span>No-show: {row.noShowCount}</span>
+                      <span>Follow-up: {row.followUpCount}</span>
+                      <span>Conflicts: {row.conflictCount}</span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              <div className="appointment-reporting-preview">
+                <div className="appointment-reporting-preview-heading">
+                  <strong>Read model export preview</strong>
+                  <span>{reportingReadModelDimension}</span>
+                </div>
+                <textarea
+                  aria-label="Reporting read model export preview"
+                  readOnly
+                  rows={10}
+                  value={reportingReadModelExport}
+                />
+              </div>
             </div>
 
             <div className="appointment-reporting-toolbar">

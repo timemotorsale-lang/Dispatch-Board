@@ -24,7 +24,7 @@ However, Enterprise Release 1.0 is not complete. The remaining work is mostly th
 | E5 | Creation and administration | In progress / partial | Appointment Settings, a versioned Catalog + Automation admin workspace, and an Automation Operations Console now exist for manager-only location profile, phone, hours, status, closures, recurring-template-to-closure apply flow, special-hours calendar preview, recurring template readiness, resource availability summaries, resource-specific operating calendars with day-level hours/capacity override windows, reason-required removal controls, overlap/runtime review, precedence guidance, next-effective-window preview, bulk multi-day apply/replace controls, capacity override readiness and quick drafts, resource type create/edit/deactivate controls, resource controls, purpose templates, outcome/follow-up/reason catalogs, code deprecation/reactivation with replacement guidance, rule hooks, simulation, draft/active catalog versions, required change reasons, rule lifecycle, health, failure queue, retry/replay readiness, preview-safe configuration export, import-preview validation, redaction reporting, and audit controls. Recurring series automation, notifications, and import apply remain. |
 | E6 | Owner, staff, and responsive workflows | Not started | Dedicated My Appointments, mobile workflows, participant read-only experience, responsive handoff, stale/offline safeguards, and real-device testing remain. |
 | E7 | Internal notifications and future integration contracts | In progress / partial | Internal notification digest rules, delivery preferences, preview/send workflow, runtime acknowledgment/delivery queue, browser-persisted runtime continuity, runtime checkpointing, manager inbox, urgency/retention/deep-link policy controls, event-to-notification fanout coverage, suppression/deduped source visibility, read-state handling, carry-forward handoff packaging, acceptance trail, runtime delivery ledger history, and digest history exist inside the command center. Durable notification center, broader failure handling, and stable future SMS/email/calendar/CRM/DMS contracts remain. |
-| E8 | Analytics and operational controls | In progress / partial | Command-center reporting exports, executive scorecards, trend watch, KPI drilldowns, digest-health analytics, leadership brief/export generation, and visible schedule analytics/reconciliation snapshots exist. KPI dictionary, durable reporting read models, enterprise reconciliation, and reporting performance/privacy tests remain. |
+| E8 | Analytics and operational controls | In progress / partial | Command-center reporting exports, executive scorecards, trend watch, KPI drilldowns, digest-health analytics, leadership brief/export generation, visible schedule analytics/reconciliation snapshots, KPI dictionary definitions, and reporting read-model grouping by category/owner/location exist. Durable reporting read models at broader enterprise scale, enterprise reconciliation, and reporting performance/privacy tests remain. |
 | E9 | Enterprise hardening and release qualification | Not started | Security review, WCAG audit, load/soak testing, observability, backup/restore, rollback drills, end-to-end traceability, and release signoff remain. |
 | E10 | Pilot and production rollout | Not started | Pilot, production configuration, training, launch, measurement, go/no-go, and stabilization remain. |
 
@@ -207,7 +207,7 @@ The Appointment Board shell exists, but the formal command-center milestone is n
 | EAPT-039 | Approve final information architecture and responsive interaction spec | Partial | High |
 | EAPT-040 | Route shell, access control, navigation, global error boundaries | Partial | High |
 | EAPT-041 | Date, location, resource, search, filter, saved-view controls | Partial | High |
-| EAPT-042 | KPI strip with reconciled definitions and drill-down filters | Partial | Medium |
+| EAPT-042 | KPI strip with reconciled definitions and drill-down filters | Partial; KPI dictionary definitions and drilldown-ready reporting actions now exist alongside the visible metric strip. | Medium |
 | EAPT-043 | Today queue and Agenda view | Not started | Medium |
 | EAPT-044 | Day schedule with staff and resource modes | Partial | High |
 | EAPT-045 | Week view | Not started | Medium |
@@ -286,7 +286,7 @@ Note: external SMS, email, external calendar, CRM, and DMS integrations are inte
 
 | ID | Remaining work | Status | Priority |
 | --- | --- | --- | --- |
-| EAPT-081 | KPI dictionary and timezone/reporting definitions | Not started | High |
+| EAPT-081 | KPI dictionary and timezone/reporting definitions | Partial; timezone-aware KPI definitions, reporting source labels, and manager drilldown actions now exist in the command center. Broader enterprise reconciliation and durable governance remain. | High |
 | EAPT-082 | Reporting read models isolated from mutation paths | Not started | High |
 | EAPT-083 | Volume, confirmation, attendance, no-show, cancellation, rescheduling reports | Not started | Medium |
 | EAPT-084 | Outcome, conversion, follow-up, and readiness reports | Not started | Medium |
