@@ -42,11 +42,13 @@ function createRuntimeRepositoryHarness(input?: {
   ownerUserId?: string | null;
   existingFollowUpAppointment?: { id: string; appointmentNumber: string; title: string } | null;
   existingFollowUpTask?: { taskId: string; taskTitle: string; linkCode: string } | null;
+  existingTaskAppointment?: { id: string; appointmentNumber: string; title: string } | null;
 }) {
   const createdAppointments: Array<{ appointmentNumber: string; title: string }> = [];
   const createdTasks: Array<{ taskTitle: string; linkCode: string }> = [];
   let existingFollowUpAppointment = input?.existingFollowUpAppointment ?? null;
   let existingFollowUpTask = input?.existingFollowUpTask ?? null;
+  let existingTaskAppointment = input?.existingTaskAppointment ?? null;
 
   const repository: AppointmentAutomationRetryReplayRepository = {
     async findSourceAppointmentById(appointmentId) {
@@ -70,8 +72,27 @@ function createRuntimeRepositoryHarness(input?: {
           }
         : null;
     },
+    async findSourceTaskById(taskId) {
+      return taskId === "task-1"
+        ? {
+            id: "task-1",
+            boardDayId: "board-day-1",
+            assignedUserId: "user-owner",
+            title: "Call lender and verify packet",
+            description: "Confirm remaining lender items and next steps.",
+            status: "BLOCKED",
+            workflowArea: "SALES",
+            dueAt: new Date("2026-07-08T17:00:00.000Z"),
+            customerReference: "Ahmed Ibrahim",
+            vehicleReference: "2014 Ford Taurus"
+          }
+        : null;
+    },
     async findGeneratedFollowUpAppointment() {
       return existingFollowUpAppointment;
+    },
+    async findGeneratedTaskAppointment() {
+      return existingTaskAppointment;
     },
     async findGeneratedFollowUpTask() {
       return existingFollowUpTask;
@@ -87,6 +108,18 @@ function createRuntimeRepositoryHarness(input?: {
         title: input.title
       };
       return existingFollowUpAppointment;
+    },
+    async createGeneratedTaskAppointment(input) {
+      createdAppointments.push({
+        appointmentNumber: input.appointmentNumber,
+        title: input.title
+      });
+      existingTaskAppointment = {
+        id: "generated-task-appointment-1",
+        appointmentNumber: input.appointmentNumber,
+        title: input.title
+      };
+      return existingTaskAppointment;
     },
     async createGeneratedFollowUpTask(input) {
       createdTasks.push({
@@ -181,5 +214,36 @@ describe("appointment automation retry/replay engine", () => {
       status: "REVIEW_REQUIRED",
       failureCode: "AUTOMATION_RULE_NOT_SUPPORTED"
     });
+  });
+
+  it("replays task-sourced automation executions by regenerating the missing appointment", async () => {
+    const harness = createRuntimeRepositoryHarness();
+
+    const outcome = await runAppointmentAutomationRetryReplay({
+      action: "REPLAY",
+      execution: createExecution({
+        triggerCode: "BLOCKED_TASK_REVIEW",
+        purposeCode: "APT-TASK-MEETING",
+        sourceType: "TASK",
+        sourceReference: "task-1",
+        inputSnapshot: {
+          automationRuleCode: "RULE-BLOCKED-TASK-REVIEW",
+          automationRuleVersion: 2,
+          purposeCode: "APT-TASK-MEETING"
+        },
+        resultSnapshot: {
+          automationRuleCode: "RULE-BLOCKED-TASK-REVIEW",
+          automationRuleVersion: 2,
+          purposeCode: "APT-TASK-MEETING"
+        }
+      }),
+      actorUserId: "user-manager",
+      repository: harness.repository
+    });
+
+    expect(outcome.status).toBe("SUCCEEDED");
+    expect(outcome.resultSnapshot.createdFollowUpAppointmentCount).toBe(1);
+    expect(outcome.resultSnapshot.generatedAppointmentNumber).toBeTruthy();
+    expect(harness.createdAppointments).toHaveLength(1);
   });
 });

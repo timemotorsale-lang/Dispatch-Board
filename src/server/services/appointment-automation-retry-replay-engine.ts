@@ -1,5 +1,9 @@
 import type { Prisma } from "@prisma/client";
 
+import {
+  createAppointmentPurposeSnapshot,
+  getInitialAppointmentTemplateDefinition
+} from "@/server/appointments/appointment-template-domain";
 import type { AppointmentAutomationExecutionRecord } from "@/server/services/appointment-automation-operations-console";
 import { prisma } from "@/server/db/client";
 
@@ -40,6 +44,19 @@ type ExistingFollowUpTaskRecord = {
   linkCode: string;
 };
 
+type SourceTaskRecord = {
+  id: string;
+  boardDayId: string;
+  assignedUserId: string;
+  title: string;
+  description: string;
+  status: string;
+  workflowArea: string;
+  dueAt: Date;
+  customerReference: string | null;
+  vehicleReference: string | null;
+};
+
 export type AppointmentAutomationRetryReplayOutcome = {
   status: RetryReplayStatus;
   resultSnapshot: Record<string, unknown>;
@@ -50,8 +67,13 @@ export type AppointmentAutomationRetryReplayOutcome = {
 
 export type AppointmentAutomationRetryReplayRepository = {
   findSourceAppointmentById(appointmentId: string): Promise<SourceAppointmentRecord | null>;
+  findSourceTaskById(taskId: string): Promise<SourceTaskRecord | null>;
   findGeneratedFollowUpAppointment(
     sourceAppointmentId: string
+  ): Promise<ExistingFollowUpAppointmentRecord | null>;
+  findGeneratedTaskAppointment(
+    sourceTaskId: string,
+    automationRuleCode: string
   ): Promise<ExistingFollowUpAppointmentRecord | null>;
   findGeneratedFollowUpTask(
     sourceAppointmentId: string,
@@ -62,6 +84,15 @@ export type AppointmentAutomationRetryReplayRepository = {
     appointmentNumber: string;
     title: string;
     followUpNotes: string | null;
+  }): Promise<ExistingFollowUpAppointmentRecord>;
+  createGeneratedTaskAppointment(input: {
+    sourceTask: SourceTaskRecord;
+    automationRuleCode: string;
+    automationRuleVersion: number | null;
+    appointmentNumber: string;
+    purposeCode: string;
+    title: string;
+    triggerCode: string;
   }): Promise<ExistingFollowUpAppointmentRecord>;
   createGeneratedFollowUpTask(input: {
     sourceAppointment: SourceAppointmentRecord;
@@ -217,6 +248,10 @@ function getFollowUpAppointmentNumber(sourceAppointment: SourceAppointmentRecord
   return `FUP-${sourceAppointment.appointmentNumber}-${now.getTime().toString(36).toUpperCase()}`;
 }
 
+function getTaskAutomationAppointmentNumber(sourceTask: SourceTaskRecord, now: Date) {
+  return `APT-AUTO-${sourceTask.id.toUpperCase()}-${now.getTime().toString(36).toUpperCase()}`;
+}
+
 function createDefaultRepository(): AppointmentAutomationRetryReplayRepository {
   type AppointmentDelegate = {
     findUnique: (input: unknown) => Promise<SourceAppointmentRecord | null>;
@@ -244,6 +279,7 @@ function createDefaultRepository(): AppointmentAutomationRetryReplayRepository {
   };
 
   type TaskDelegate = {
+    findUnique: (input: unknown) => Promise<SourceTaskRecord | null>;
     create: (input: unknown) => Promise<{ id: string; title: string }>;
   };
 
@@ -281,6 +317,23 @@ function createDefaultRepository(): AppointmentAutomationRetryReplayRepository {
         }
       });
     },
+    async findSourceTaskById(taskId) {
+      return automationPrisma.task.findUnique({
+        where: { id: taskId },
+        select: {
+          id: true,
+          boardDayId: true,
+          assignedUserId: true,
+          title: true,
+          description: true,
+          status: true,
+          workflowArea: true,
+          dueAt: true,
+          customerReference: true,
+          vehicleReference: true
+        }
+      });
+    },
     async findGeneratedFollowUpAppointment(sourceAppointmentId) {
       const appointments = await automationPrisma.appointment.findMany({
         where: {
@@ -300,6 +353,28 @@ function createDefaultRepository(): AppointmentAutomationRetryReplayRepository {
         appointments.find((appointment) => {
           const purposeSnapshot = asObject(appointment.purposeSnapshot);
           return asString(purposeSnapshot?.automationRuleCode) === "APPOINTMENT_OUTCOME_FOLLOW_UP_APPOINTMENT";
+        }) ?? null
+      );
+    },
+    async findGeneratedTaskAppointment(sourceTaskId, automationRuleCode) {
+      const appointments = await automationPrisma.appointment.findMany({
+        where: {
+          sourceType: "AUTOMATION",
+          sourceReference: sourceTaskId
+        },
+        select: {
+          id: true,
+          appointmentNumber: true,
+          title: true,
+          purposeSnapshot: true,
+          sourceReference: true
+        }
+      });
+
+      return (
+        appointments.find((appointment) => {
+          const purposeSnapshot = asObject(appointment.purposeSnapshot);
+          return asString(purposeSnapshot?.automationRuleCode) === automationRuleCode;
         }) ?? null
       );
     },
@@ -363,6 +438,74 @@ function createDefaultRepository(): AppointmentAutomationRetryReplayRepository {
             sourceAppointmentNumber: input.sourceAppointment.appointmentNumber,
             sourceTitle: input.sourceAppointment.title,
             followUpDispositionCode: input.sourceAppointment.followUpDispositionCode
+          })
+        },
+        select: {
+          id: true,
+          appointmentNumber: true,
+          title: true
+        }
+      });
+    },
+    async createGeneratedTaskAppointment(input) {
+      const template = getInitialAppointmentTemplateDefinition(input.purposeCode);
+
+      return automationPrisma.appointment.create({
+        data: {
+          appointmentNumber: input.appointmentNumber,
+          organizationId: "org-time-motor-sales",
+          locationId: "loc-time-motor-sales-minneapolis",
+          ownerUserId: input.sourceTask.assignedUserId,
+          createdByUserId: input.sourceTask.assignedUserId,
+          sourceType: "AUTOMATION",
+          sourceReference: input.sourceTask.id,
+          title: input.title,
+          schedulingTimezone: "America/Chicago",
+          startsAt: null,
+          endsAt: null,
+          bookingStatus: "DRAFT",
+          version: 1,
+          purposeSnapshot: toJsonValue(
+            template
+              ? {
+                  ...createAppointmentPurposeSnapshot(template),
+                  purposeCode: template.code,
+                  automationRuleCode: input.automationRuleCode,
+                  automationRuleVersion: input.automationRuleVersion ?? 1,
+                  triggerCode: input.triggerCode,
+                  sourceTaskId: input.sourceTask.id,
+                  sourceTaskTitle: input.sourceTask.title,
+                  meetingReason: input.sourceTask.description
+                }
+              : {
+                  purposeCode: input.purposeCode,
+                  automationRuleCode: input.automationRuleCode,
+                  automationRuleVersion: input.automationRuleVersion ?? 1,
+                  triggerCode: input.triggerCode,
+                  sourceTaskId: input.sourceTask.id,
+                  sourceTaskTitle: input.sourceTask.title,
+                  meetingReason: input.sourceTask.description
+                }
+          ),
+          customerSnapshot: input.sourceTask.customerReference
+            ? toJsonValue({
+                displayName: input.sourceTask.customerReference
+              })
+            : undefined,
+          vehicleSnapshot: input.sourceTask.vehicleReference
+            ? toJsonValue({
+                displayName: input.sourceTask.vehicleReference,
+                vehicleNumber: input.sourceTask.vehicleReference
+              })
+            : undefined,
+          sourceSnapshot: toJsonValue({
+            taskId: input.sourceTask.id,
+            taskTitle: input.sourceTask.title,
+            taskStatus: input.sourceTask.status,
+            workflowArea: input.sourceTask.workflowArea,
+            automationRuleCode: input.automationRuleCode,
+            automationRuleVersion: input.automationRuleVersion ?? 1,
+            triggerCode: input.triggerCode
           })
         },
         select: {
@@ -466,13 +609,86 @@ export async function runAppointmentAutomationRetryReplay(input: {
     });
   }
 
-  if (input.execution.sourceType !== "APPOINTMENT" || !input.execution.sourceReference) {
+  if (!input.execution.sourceReference) {
     return createFailureOutcome({
       status: "FAILED_TERMINAL",
       execution: input.execution,
       action: input.action,
       failureCode: "SOURCE_REFERENCE_NOT_SUPPORTED",
-      failureMessage: "Only appointment-sourced automation executions can be retried or replayed right now."
+      failureMessage: "This automation execution is missing its source reference."
+    });
+  }
+
+  if (input.execution.sourceType === "TASK") {
+    const sourceTask = await repository.findSourceTaskById(input.execution.sourceReference);
+
+    if (!sourceTask) {
+      return createFailureOutcome({
+        status: "FAILED_TERMINAL",
+        execution: input.execution,
+        action: input.action,
+        failureCode: "SOURCE_TASK_NOT_FOUND",
+        failureMessage: "The source task for this automation execution no longer exists."
+      });
+    }
+
+    const existingAppointment = await repository.findGeneratedTaskAppointment(
+      sourceTask.id,
+      automationRuleCode
+    );
+    const generatedAppointment =
+      existingAppointment ??
+      (await repository.createGeneratedTaskAppointment({
+        sourceTask,
+        automationRuleCode,
+        automationRuleVersion:
+          typeof asObject(input.execution.inputSnapshot)?.automationRuleVersion === "number"
+            ? (asObject(input.execution.inputSnapshot)?.automationRuleVersion as number)
+            : typeof asObject(input.execution.resultSnapshot)?.automationRuleVersion === "number"
+              ? (asObject(input.execution.resultSnapshot)?.automationRuleVersion as number)
+              : null,
+        appointmentNumber:
+          asString(asObject(input.execution.resultSnapshot)?.generatedAppointmentNumber) ??
+          getTaskAutomationAppointmentNumber(sourceTask, now),
+        purposeCode:
+          asString(asObject(input.execution.resultSnapshot)?.purposeCode) ??
+          asString(asObject(input.execution.inputSnapshot)?.purposeCode) ??
+          input.execution.purposeCode ??
+          "APT-TASK-MEETING",
+        title:
+          asString(asObject(input.execution.resultSnapshot)?.generatedAppointmentTitle) ??
+          `Automated: ${sourceTask.title}`,
+        triggerCode: input.execution.triggerCode
+      }));
+
+    return {
+      status: "SUCCEEDED",
+      resultSnapshot: {
+        ...asObject(input.execution.resultSnapshot),
+        retryReplayAction: input.action,
+        replayedAt: new Date().toISOString(),
+        createdFollowUpAppointmentCount: existingAppointment ? 0 : 1,
+        createdFollowUpTaskCount: 0,
+        existingFollowUpAppointmentNumber: existingAppointment?.appointmentNumber ?? null,
+        existingFollowUpTaskId: null,
+        generatedFollowUpAppointmentNumber: generatedAppointment.appointmentNumber,
+        generatedFollowUpTaskId: null,
+        generatedAppointmentNumber: generatedAppointment.appointmentNumber,
+        generatedAppointmentTitle: generatedAppointment.title
+      },
+      failureCode: null,
+      failureMessage: null,
+      nextRetryAt: null
+    };
+  }
+
+  if (input.execution.sourceType !== "APPOINTMENT") {
+    return createFailureOutcome({
+      status: "FAILED_TERMINAL",
+      execution: input.execution,
+      action: input.action,
+      failureCode: "SOURCE_REFERENCE_NOT_SUPPORTED",
+      failureMessage: "Only appointment and task automation executions are replayable right now."
     });
   }
 

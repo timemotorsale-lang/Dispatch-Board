@@ -49,6 +49,8 @@ describe("appointment automation operations console service", () => {
     expect(console.ruleHealth.totalRules).toBeGreaterThan(1);
     expect(console.rules.find((rule) => rule.ruleCode === "RULE-TEST-DRIVE-FOLLOW-UP")).toMatchObject({
       ruleCode: "RULE-TEST-DRIVE-FOLLOW-UP",
+      version: 1,
+      catalogVersionId: console.catalogVersion.id,
       status: "DRAFT",
       source: "CONFIGURED_RULE",
       simulation: expect.objectContaining({
@@ -61,6 +63,44 @@ describe("appointment automation operations console service", () => {
     expect(console.rules.some((rule) => rule.source === "CATALOG_CANDIDATE")).toBe(true);
     expect(console.recentEvents[0]).toMatchObject({
       action: "DRAFT_CREATED"
+    });
+  });
+
+  it("increments the saved rule version when a draft is updated", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createMemoryAppointmentAutomationOperationsRepository();
+
+    await saveAppointmentAutomationRuleDraftForManager(
+      manager,
+      {
+        ruleCode: "RULE-TASK-MEETING",
+        name: "Task meeting automation",
+        triggerCode: "ANY_TASK_REQUIRES_MEETING",
+        purposeCode: "APT-TASK-MEETING",
+        reason: "Create first version."
+      },
+      repository
+    );
+
+    const console = await saveAppointmentAutomationRuleDraftForManager(
+      manager,
+      {
+        ruleCode: "RULE-TASK-MEETING",
+        name: "Task meeting automation revised",
+        triggerCode: "ANY_TASK_REQUIRES_MEETING",
+        purposeCode: "APT-TASK-MEETING",
+        reason: "Update the draft after review."
+      },
+      repository
+    );
+
+    expect(console.rules.find((rule) => rule.ruleCode === "RULE-TASK-MEETING")).toMatchObject({
+      name: "Task meeting automation revised",
+      version: 2
+    });
+    expect(console.recentEvents[0]).toMatchObject({
+      action: "DRAFT_UPDATED"
     });
   });
 
@@ -156,10 +196,14 @@ describe("appointment automation operations console service", () => {
         reason: "Queue runtime review item for follow-up automation.",
         actorUserId: manager?.id ?? null,
         inputSnapshot: {
-          automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_APPOINTMENT"
+          automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_APPOINTMENT",
+          automationRuleVersion: 3,
+          catalogVersionId: "catalog-version-1"
         },
         resultSnapshot: {
           automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_APPOINTMENT",
+          automationRuleVersion: 3,
+          catalogVersionId: "catalog-version-1",
           generatedAppointmentNumber: "FUP-APT-10245-001"
         }
       },
@@ -173,6 +217,8 @@ describe("appointment automation operations console service", () => {
 
     expect(beforeResolve.executions[0]).toMatchObject({
       automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_APPOINTMENT",
+      automationRuleVersion: 3,
+      catalogVersionId: "catalog-version-1",
       status: "REVIEW_REQUIRED"
     });
     expect(beforeResolve.failureQueue).toHaveLength(1);

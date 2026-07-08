@@ -106,10 +106,14 @@ export type AppointmentReadResourceReservationSummary = {
 export type AppointmentReadAutomationExecutionSummary = {
   id: string;
   automationRuleCode: string | null;
+  automationRuleVersion: number | null;
+  catalogVersionId: string | null;
   triggerCode: string;
   purposeCode: string | null;
   status: string;
   sourceType: string;
+  sourceTaskId: string | null;
+  sourceTaskTitle: string | null;
   failureCode: string | null;
   failureMessage: string | null;
   attemptCount: number;
@@ -402,10 +406,22 @@ function toAutomationExecutionSummary(
     automationRuleCode:
       stringFromSnapshot(execution.resultSnapshot, "automationRuleCode") ??
       stringFromSnapshot(execution.inputSnapshot, "automationRuleCode"),
+    automationRuleVersion:
+      numberFromSnapshot(execution.resultSnapshot, "automationRuleVersion") ??
+      numberFromSnapshot(execution.inputSnapshot, "automationRuleVersion"),
+    catalogVersionId:
+      stringFromSnapshot(execution.resultSnapshot, "catalogVersionId") ??
+      stringFromSnapshot(execution.inputSnapshot, "catalogVersionId"),
     triggerCode: execution.triggerCode,
     purposeCode: execution.purposeCode,
     status: execution.status,
     sourceType: execution.sourceType,
+    sourceTaskId:
+      stringFromSnapshot(execution.resultSnapshot, "sourceTaskId") ??
+      stringFromSnapshot(execution.inputSnapshot, "sourceTaskId"),
+    sourceTaskTitle:
+      stringFromSnapshot(execution.resultSnapshot, "sourceTaskTitle") ??
+      stringFromSnapshot(execution.inputSnapshot, "sourceTaskTitle"),
     failureCode: execution.failureCode,
     failureMessage: execution.failureMessage,
     attemptCount: execution.attemptCount,
