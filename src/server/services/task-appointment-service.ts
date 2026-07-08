@@ -5,6 +5,10 @@ import {
   INITIAL_MINNEAPOLIS_LOCATION,
   INITIAL_ORGANIZATION
 } from "@/server/appointments/location-foundation";
+import {
+  createAppointmentPurposeSnapshot,
+  getInitialAppointmentTemplateDefinition
+} from "@/server/appointments/appointment-template-domain";
 import { isManager } from "@/server/policies/access";
 import type { AppointmentCommandExecutionResult } from "@/server/services/appointment-command-execution-service";
 import { submitAndExecuteAppointmentCommand } from "@/server/services/appointment-command-execution-service";
@@ -23,11 +27,24 @@ export type TaskAppointmentDraftResult = {
   taskId: string;
 };
 
+export type TaskAppointmentDraftOptions = {
+  automationRuleCode?: string | null;
+  automationRuleVersion?: number | null;
+  purposeCode?: string | null;
+  sourceType?: "TASK" | "AUTOMATION";
+  triggerCode?: string | null;
+  activityEventType?: string;
+  activityMessage?: string;
+  metadata?: Record<string, unknown>;
+  skipActivityRecord?: boolean;
+};
+
 type TaskAppointmentDraftDependencies = {
   commandExecutor?: typeof submitAndExecuteAppointmentCommand;
   now?: Date;
   recordActivity?: typeof recordBoardActivityEvent;
   taskReader?: (user: AuthenticatedUser | null, taskId: string) => Promise<TaskReadModel | null>;
+  draftOptions?: TaskAppointmentDraftOptions;
 };
 
 type NormalizedTaskAppointmentDraftInput = {
@@ -138,6 +155,40 @@ function buildDraftTitle(input: NormalizedTaskAppointmentDraftInput, task: TaskR
   return input.title ?? `Appointment for ${task.title}`;
 }
 
+function buildPurposeSnapshot(input: {
+  task: TaskReadModel;
+  reasonNotes: string;
+  options: TaskAppointmentDraftOptions | undefined;
+}) {
+  const purposeCode = input.options?.purposeCode?.trim().toUpperCase() ?? null;
+  const template = purposeCode ? getInitialAppointmentTemplateDefinition(purposeCode) : null;
+
+  if (template) {
+    return {
+      ...createAppointmentPurposeSnapshot(template),
+      purposeCode: template.code,
+      automationRuleCode: input.options?.automationRuleCode ?? null,
+      automationRuleVersion: input.options?.automationRuleVersion ?? null,
+      triggerCode: input.options?.triggerCode ?? null,
+      sourceTaskId: input.task.id,
+      sourceTaskTitle: input.task.title,
+      meetingReason: input.reasonNotes
+    };
+  }
+
+  return {
+    category: "TASK_MEETING",
+    categoryLabel: "Task meeting / appointment",
+    reason: input.reasonNotes,
+    sourceTaskId: input.task.id,
+    sourceTaskTitle: input.task.title,
+    automationRuleCode: input.options?.automationRuleCode ?? null,
+    automationRuleVersion: input.options?.automationRuleVersion ?? null,
+    triggerCode: input.options?.triggerCode ?? null,
+    ...(purposeCode ? { purposeCode } : {})
+  };
+}
+
 function getExecutionError(result: AppointmentCommandExecutionResult) {
   return (
     result.command.errorMessage ||
@@ -191,18 +242,16 @@ export async function createAppointmentDraftFromTask(
         appointmentNumber,
         ownerUserId,
         title,
-        sourceType: "TASK",
+        sourceType: dependencies.draftOptions?.sourceType ?? "TASK",
         sourceReference: task.id,
         startsAt: null,
         endsAt: null,
         schedulingTimezone: INITIAL_MINNEAPOLIS_LOCATION.timezone,
-        purposeSnapshot: {
-          category: "TASK_MEETING",
-          categoryLabel: "Task meeting / appointment",
-          reason: normalizedInput.reasonNotes,
-          sourceTaskId: task.id,
-          sourceTaskTitle: task.title
-        },
+        purposeSnapshot: buildPurposeSnapshot({
+          task,
+          reasonNotes: normalizedInput.reasonNotes,
+          options: dependencies.draftOptions
+        }),
         customerSnapshot: task.customerReference
           ? {
               displayName: task.customerReference
@@ -222,7 +271,10 @@ export async function createAppointmentDraftFromTask(
           boardDate: task.boardDate,
           assignedUserId: task.assignedUser.id,
           assignedUserName: task.assignedUser.name,
-          reasonNotes: normalizedInput.reasonNotes
+          reasonNotes: normalizedInput.reasonNotes,
+          automationRuleCode: dependencies.draftOptions?.automationRuleCode ?? null,
+          automationRuleVersion: dependencies.draftOptions?.automationRuleVersion ?? null,
+          triggerCode: dependencies.draftOptions?.triggerCode ?? null
         },
         taskLinks: [
           {
@@ -234,7 +286,7 @@ export async function createAppointmentDraftFromTask(
             explanation: normalizedInput.reasonNotes,
             isRequired: true,
             blocksAppointment: false,
-            appointmentRequiredForTask: false
+            appointmentRequiredForTask: false,
           }
         ]
       }
@@ -250,19 +302,27 @@ export async function createAppointmentDraftFromTask(
   const persistedAppointmentNumber = commandResult.execution.appointment.appointmentNumber;
   const recordActivity = dependencies.recordActivity ?? recordBoardActivityEvent;
 
-  await recordActivity({
-    actorUserId: actor.id,
-    boardDayId: task.boardDayId,
-    eventType: "task.appointment_draft_created",
-    message: `${actor.name} created draft appointment ${persistedAppointmentNumber} from ${task.title}.`,
-    metadata: {
-      appointmentId,
-      appointmentNumber: persistedAppointmentNumber,
-      appointmentTitle: title,
-      reasonNotes: normalizedInput.reasonNotes
-    },
-    taskId: task.id
-  });
+  if (!dependencies.draftOptions?.skipActivityRecord) {
+    await recordActivity({
+      actorUserId: actor.id,
+      boardDayId: task.boardDayId,
+      eventType: dependencies.draftOptions?.activityEventType ?? "task.appointment_draft_created",
+      message:
+        dependencies.draftOptions?.activityMessage ??
+        `${actor.name} created draft appointment ${persistedAppointmentNumber} from ${task.title}.`,
+      metadata: {
+        appointmentId,
+        appointmentNumber: persistedAppointmentNumber,
+        appointmentTitle: title,
+        reasonNotes: normalizedInput.reasonNotes,
+        automationRuleCode: dependencies.draftOptions?.automationRuleCode ?? null,
+        automationRuleVersion: dependencies.draftOptions?.automationRuleVersion ?? null,
+        triggerCode: dependencies.draftOptions?.triggerCode ?? null,
+        ...(dependencies.draftOptions?.metadata ?? {})
+      },
+      taskId: task.id
+    });
+  }
 
   return {
     appointmentId,

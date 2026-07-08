@@ -4,6 +4,8 @@ import { normalizeBoardDate } from "@/server/validation/board-date";
 
 const taskCreateAllowedKeys = new Set([
   "assignedUserId",
+  "appointmentAutomationReasonNotes",
+  "appointmentAutomationTriggerCode",
   "blockerReason",
   "boardDate",
   "customerReference",
@@ -20,6 +22,8 @@ const workflowAreaValues = new Set(Object.values(WorkflowArea));
 
 export type NormalizedTaskCreateInput = {
   assignedUserId: string;
+  appointmentAutomationReasonNotes?: string;
+  appointmentAutomationTriggerCode?: string;
   blockerReason?: string;
   boardDate: string;
   customerReference?: string;
@@ -186,6 +190,25 @@ export function normalizeTaskCreateInput(value: unknown): NormalizedTaskCreateIn
 
   if (customerReference) {
     normalizedInput.customerReference = customerReference;
+  }
+
+  const appointmentAutomationTriggerCode = normalizeOptionalText(
+    input.appointmentAutomationTriggerCode,
+    "appointmentAutomationTriggerCode"
+  );
+
+  if (appointmentAutomationTriggerCode) {
+    normalizedInput.appointmentAutomationTriggerCode =
+      appointmentAutomationTriggerCode.toUpperCase();
+  }
+
+  const appointmentAutomationReasonNotes = normalizeOptionalText(
+    input.appointmentAutomationReasonNotes,
+    "appointmentAutomationReasonNotes"
+  );
+
+  if (appointmentAutomationReasonNotes) {
+    normalizedInput.appointmentAutomationReasonNotes = appointmentAutomationReasonNotes;
   }
 
   if (normalizedInput.status === TaskStatus.BLOCKED && !normalizedInput.blockerReason) {

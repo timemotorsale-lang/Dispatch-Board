@@ -382,4 +382,56 @@ describe("task create service", () => {
     ).rejects.toThrow("Manager access required.");
     expect(readTasks()).toHaveLength(0);
   });
+
+  it("runs task-to-appointment automation when a trigger code is provided at creation time", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-18T15:30:00.000Z"));
+
+    try {
+      const { usersByEmail } = await createTestAuthStore();
+      const managerUser = usersByEmail.get("morgan.manager@local.test") ?? null;
+      const assignee = usersByEmail.get("jordan.sales@local.test");
+      const { repository, readTasks } = createTaskCreateRepositoryHarness(
+        [...usersByEmail.values()].map((user) => ({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          isActive: user.isActive
+        }))
+      );
+      const taskAppointmentAutomationRunner = vi.fn().mockResolvedValue({
+        taskId: "task-1",
+        triggerCode: "ANY_TASK_REQUIRES_MEETING",
+        evaluatedRuleCount: 1,
+        createdAppointmentCount: 1,
+        executions: []
+      });
+
+      await createManualTask(
+        managerUser,
+        {
+          assignedUserId: assignee?.id,
+          appointmentAutomationReasonNotes: "Schedule a planning call after the task opens.",
+          appointmentAutomationTriggerCode: "any_task_requires_meeting",
+          boardDate: "2026-06-18",
+          dueAt: "2026-06-18T17:00:00.000Z",
+          title: "Review financing packet",
+          workflowArea: WorkflowArea.SALES
+        },
+        repository,
+        {
+          taskAppointmentAutomationRunner
+        }
+      );
+
+      expect(readTasks()).toHaveLength(1);
+      expect(taskAppointmentAutomationRunner).toHaveBeenCalledWith(managerUser, {
+        reasonNotes: "Schedule a planning call after the task opens.",
+        taskId: "task-1",
+        triggerCode: "ANY_TASK_REQUIRES_MEETING"
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

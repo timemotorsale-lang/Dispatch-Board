@@ -129,6 +129,13 @@ describe("task status service", () => {
     const { usersByEmail } = await createTestAuthStore();
     const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
     const { repository, readActivityEvents, readTask } = createTaskStatusRepository();
+    const taskAppointmentAutomationRunner = vi.fn().mockResolvedValue({
+      taskId: "task-1",
+      triggerCode: "BLOCKED_TASK_REVIEW",
+      evaluatedRuleCount: 0,
+      createdAppointmentCount: 0,
+      executions: []
+    });
 
     const result = await updateTaskStatus(
       staffUser,
@@ -137,7 +144,10 @@ describe("task status service", () => {
         status: "BLOCKED",
         blockerReason: "  Waiting on lender paperwork.  "
       },
-      repository
+      repository,
+      {
+        taskAppointmentAutomationRunner
+      }
     );
 
     expect(result).toEqual<TaskStatusUpdateResult>({
@@ -245,6 +255,13 @@ describe("task status service", () => {
         reviewedByUserId: "user-morgan.manager@local.test"
       })
     ]);
+    const taskAppointmentAutomationRunner = vi.fn().mockResolvedValue({
+      taskId: "task-1",
+      triggerCode: "BLOCKED_TASK_REVIEW",
+      evaluatedRuleCount: 0,
+      createdAppointmentCount: 0,
+      executions: []
+    });
 
     const result = await updateTaskStatus(
       managerUser,
@@ -253,7 +270,10 @@ describe("task status service", () => {
         status: "BLOCKED",
         blockerReason: " Waiting on final manager sign-off details. "
       },
-      repository
+      repository,
+      {
+        taskAppointmentAutomationRunner
+      }
     );
 
     expect(result).toMatchObject({
@@ -653,6 +673,38 @@ describe("task status service", () => {
         repair_status: "Completed",
         next_step: "Send to QC"
       }
+    });
+  });
+
+  it("runs blocked-task appointment automation after a task is marked blocked", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+    const { repository } = createTaskStatusRepository();
+    const taskAppointmentAutomationRunner = vi.fn().mockResolvedValue({
+      taskId: "task-1",
+      triggerCode: "BLOCKED_TASK_REVIEW",
+      evaluatedRuleCount: 1,
+      createdAppointmentCount: 1,
+      executions: []
+    });
+
+    await updateTaskStatus(
+      staffUser,
+      "task-1",
+      {
+        status: "BLOCKED",
+        blockerReason: "Waiting on lender paperwork."
+      },
+      repository,
+      {
+        taskAppointmentAutomationRunner
+      }
+    );
+
+    expect(taskAppointmentAutomationRunner).toHaveBeenCalledWith(staffUser, {
+      reasonNotes: "Waiting on lender paperwork.",
+      taskId: "task-1",
+      triggerCode: "BLOCKED_TASK_REVIEW"
     });
   });
 });
