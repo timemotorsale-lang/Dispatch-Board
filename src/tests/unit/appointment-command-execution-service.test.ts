@@ -191,6 +191,8 @@ function createLifecycleRepositoryHarness() {
           }));
         },
 
+        async createActivityEvents() {},
+
         async completeCommand(completion) {
           completedCommands.push(completion.commandId);
           return completion;

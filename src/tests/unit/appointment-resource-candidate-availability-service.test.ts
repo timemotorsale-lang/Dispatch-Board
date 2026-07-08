@@ -118,7 +118,9 @@ function appointment(
   };
 }
 
-function warningAppointment(): AppointmentResourceCandidateAvailabilityAppointmentRecord {
+function warningAppointment(
+  overrides: Partial<AppointmentResourceCandidateAvailabilityAppointmentRecord> = {}
+): AppointmentResourceCandidateAvailabilityAppointmentRecord {
   const baseAppointment = appointment();
   const baseRequirement = baseAppointment.resourceRequirements[0];
   const baseReservation = baseRequirement.reservations[0];
@@ -150,7 +152,8 @@ function warningAppointment(): AppointmentResourceCandidateAvailabilityAppointme
           }
         ]
       }
-    ]
+    ],
+    ...overrides
   };
 }
 
@@ -834,7 +837,12 @@ describe("appointment resource warning override service", () => {
     access?: AppointmentResourceCandidateAvailabilityLocationAccessRecord | null;
     appointmentUpdateCount?: number;
   }) {
-    const createdHistory: Array<{ eventType?: string; priorValue?: unknown; newValue?: unknown }> = [];
+    const createdHistory: Array<{
+      eventType?: string;
+      priorValue?: unknown;
+      newValue?: unknown;
+      metadata?: unknown;
+    }> = [];
 
     return {
       createdHistory,
@@ -864,7 +872,14 @@ describe("appointment resource warning override service", () => {
               }
             },
             appointmentHistoryEvent: {
-              async create(createInput: { data: { eventType?: string; priorValue?: unknown; newValue?: unknown } }) {
+              async create(createInput: {
+                data: {
+                  eventType?: string;
+                  priorValue?: unknown;
+                  newValue?: unknown;
+                  metadata?: unknown;
+                };
+              }) {
                 createdHistory.push(createInput.data);
               }
             }
@@ -909,6 +924,47 @@ describe("appointment resource warning override service", () => {
       newValue: {
         status: "OVERRIDDEN"
       }
+    });
+  });
+
+  it("records resource warning overrides for unscheduled drafts using the proposed reservation window", async () => {
+    const harness = database({
+      appointment: warningAppointment({
+        startsAt: null,
+        endsAt: null
+      })
+    });
+
+    const result = await overrideAppointmentResourceWarning(
+      managerUser,
+      "appointment-1",
+      {
+        reservationId: "reservation-proposed",
+        expectedAppointmentVersion: 3,
+        reasonCode: "RESOURCE_WARNING_OVERRIDDEN",
+        reasonNotes: "Manager accepts the proposed-slot warning because jobs are staggered.",
+        correlationId: "correlation-warning-proposed",
+        proposedStartsAt: new Date("2026-07-06T15:00:00.000Z"),
+        proposedEndsAt: new Date("2026-07-06T16:00:00.000Z"),
+        proposedSchedulingTimezone: "America/Chicago"
+      },
+      harness.database,
+      now
+    );
+
+    expect(result).toMatchObject({
+      reservationId: "reservation-proposed",
+      status: "OVERRIDDEN",
+      appointmentVersion: 4
+    });
+    expect(harness.createdHistory).toHaveLength(1);
+    expect(harness.createdHistory[0]).toMatchObject({
+      eventType: "WARNING_OVERRIDDEN",
+      metadata: expect.objectContaining({
+        proposedStartsAt: "2026-07-06T15:00:00.000Z",
+        proposedEndsAt: "2026-07-06T16:00:00.000Z",
+        proposedSchedulingTimezone: "America/Chicago"
+      })
     });
   });
 

@@ -3,6 +3,7 @@
   GenerationRunStatus,
   GenerationTriggerType,
   type GenerationRun,
+  type SchedulerFailureStage,
   type WorkflowArea
 } from "@prisma/client";
 
@@ -62,7 +63,43 @@ export type CreateMissingGeneratedTasksSummary = {
 export type GenerationRunFailureContext = {
   generationRunId: string;
   generationRunStatus: GenerationRunStatus;
+  failureCode: GenerationFailureCode;
+  failureStage: GenerationFailureStage;
+  failureDiagnostic: GenerationFailureDiagnostic;
   safeErrorMessage: string;
+};
+
+export type GenerationFailureCode =
+  | "INPUT_LOADING_FAILED"
+  | "BOARD_DAY_PREPARATION_FAILED"
+  | "CANDIDATE_BUILD_FAILED"
+  | "EXISTING_TASK_LOOKUP_FAILED"
+  | "TASK_CREATION_FAILED"
+  | "BOARD_FINALIZATION_FAILED"
+  | "UNKNOWN_INTERNAL_FAILURE";
+
+export type GenerationFailureStage = SchedulerFailureStage;
+
+const SCHEDULER_FAILURE_STAGE = {
+  PREFLIGHT: "PREFLIGHT",
+  GENERATION_RUN: "GENERATION_RUN",
+  POST_RUN_FINALIZE: "POST_RUN_FINALIZE"
+} as const satisfies Record<string, GenerationFailureStage>;
+
+export type GenerationFailureDiagnostic = {
+  failureCode: GenerationFailureCode;
+  failureStage: GenerationFailureStage;
+  phase: string;
+  safeErrorMessage: string;
+  errorName: string;
+  durationMs: number;
+  boardDayId: string | null;
+  usersConsidered: number;
+  templatesConsidered: number;
+  tasksCreated: number;
+  tasksSkippedAsDuplicates: number;
+  tasksAlreadyExisting: number;
+  manualTasksPreserved: number | null;
 };
 
 export type GenerationRunSummary = Pick<
@@ -90,7 +127,10 @@ type GenerationFailureSummary = {
   boardDate: string;
   triggeredBy: "manual" | "scheduled";
   triggeredByUserId: string | null;
+  failureCode: GenerationFailureCode;
+  failureStage: GenerationFailureStage;
   phase: string;
+  safeErrorMessage: string;
   durationMs: number;
   errorName: string;
   boardDayId: string | null;
@@ -100,6 +140,7 @@ type GenerationFailureSummary = {
   tasksSkippedAsDuplicates: number;
   tasksAlreadyExisting: number;
   manualTasksPreserved: number | null;
+  failureDiagnostic: GenerationFailureDiagnostic;
 };
 
 function buildGeneratedTaskIdentityKey(boardDayId: string, sourceTemplateId: string, assignedUserId: string) {
@@ -245,11 +286,17 @@ function getErrorName(error: unknown) {
 
 function buildFailureContext(
   generationRunId: string,
+  failureCode: GenerationFailureCode,
+  failureStage: GenerationFailureStage,
+  failureDiagnostic: GenerationFailureDiagnostic,
   safeErrorMessage: string
 ): GenerationRunFailureContext {
   return {
     generationRunId,
     generationRunStatus: GenerationRunStatus.FAILED,
+    failureCode,
+    failureStage,
+    failureDiagnostic,
     safeErrorMessage
   };
 }
@@ -279,6 +326,10 @@ export function getGenerationRunFailureContext(error: unknown): GenerationRunFai
   if (
     typeof candidate.generationRunId !== "string" ||
     candidate.generationRunStatus !== GenerationRunStatus.FAILED ||
+    typeof candidate.failureCode !== "string" ||
+    typeof candidate.failureStage !== "string" ||
+    !candidate.failureDiagnostic ||
+    typeof candidate.failureDiagnostic !== "object" ||
     typeof candidate.safeErrorMessage !== "string"
   ) {
     return null;
@@ -287,7 +338,86 @@ export function getGenerationRunFailureContext(error: unknown): GenerationRunFai
   return {
     generationRunId: candidate.generationRunId,
     generationRunStatus: candidate.generationRunStatus,
+    failureCode: candidate.failureCode as GenerationFailureCode,
+    failureStage: candidate.failureStage as GenerationFailureStage,
+    failureDiagnostic: candidate.failureDiagnostic as GenerationFailureDiagnostic,
     safeErrorMessage: candidate.safeErrorMessage
+  };
+}
+
+function classifyFailurePhase(phase: string): {
+  failureCode: GenerationFailureCode;
+  failureStage: GenerationFailureStage;
+} {
+  switch (phase) {
+    case "loading_inputs":
+      return {
+        failureCode: "INPUT_LOADING_FAILED",
+        failureStage: SCHEDULER_FAILURE_STAGE.GENERATION_RUN
+      };
+    case "ensuring_board_day":
+    case "marking_board_day_in_progress":
+      return {
+        failureCode: "BOARD_DAY_PREPARATION_FAILED",
+        failureStage: SCHEDULER_FAILURE_STAGE.GENERATION_RUN
+      };
+    case "building_candidates":
+      return {
+        failureCode: "CANDIDATE_BUILD_FAILED",
+        failureStage: SCHEDULER_FAILURE_STAGE.GENERATION_RUN
+      };
+    case "loading_existing_tasks":
+      return {
+        failureCode: "EXISTING_TASK_LOOKUP_FAILED",
+        failureStage: SCHEDULER_FAILURE_STAGE.GENERATION_RUN
+      };
+    case "creating_tasks":
+      return {
+        failureCode: "TASK_CREATION_FAILED",
+        failureStage: SCHEDULER_FAILURE_STAGE.GENERATION_RUN
+      };
+    case "marking_board_day_generated":
+      return {
+        failureCode: "BOARD_FINALIZATION_FAILED",
+        failureStage: SCHEDULER_FAILURE_STAGE.POST_RUN_FINALIZE
+      };
+    default:
+      return {
+        failureCode: "UNKNOWN_INTERNAL_FAILURE",
+        failureStage: SCHEDULER_FAILURE_STAGE.GENERATION_RUN
+      };
+  }
+}
+
+function buildFailureDiagnostic(input: {
+  failureCode: GenerationFailureCode;
+  failureStage: GenerationFailureStage;
+  phase: string;
+  safeErrorMessage: string;
+  errorName: string;
+  durationMs: number;
+  boardDayId: string | null;
+  usersConsidered: number;
+  templatesConsidered: number;
+  tasksCreated: number;
+  tasksSkippedAsDuplicates: number;
+  tasksAlreadyExisting: number;
+  manualTasksPreserved: number | null;
+}): GenerationFailureDiagnostic {
+  return {
+    failureCode: input.failureCode,
+    failureStage: input.failureStage,
+    phase: input.phase,
+    safeErrorMessage: input.safeErrorMessage,
+    errorName: input.errorName,
+    durationMs: input.durationMs,
+    boardDayId: input.boardDayId,
+    usersConsidered: input.usersConsidered,
+    templatesConsidered: input.templatesConsidered,
+    tasksCreated: input.tasksCreated,
+    tasksSkippedAsDuplicates: input.tasksSkippedAsDuplicates,
+    tasksAlreadyExisting: input.tasksAlreadyExisting,
+    manualTasksPreserved: input.manualTasksPreserved
   };
 }
 
@@ -488,13 +618,14 @@ export async function createMissingGeneratedTasksForDate(
     const finishedAt = now();
     const durationMs = finishedAt.getTime() - startedAt.getTime();
     const safeErrorMessage = toSafeErrorMessage(error);
-    const failureSummary: GenerationFailureSummary = {
-      boardDate: normalizedBoardDate,
-      triggeredBy: toSummaryTrigger(triggerMetadata.triggeredBy),
-      triggeredByUserId: triggerMetadata.triggeredByUserId,
+    const { failureCode, failureStage } = classifyFailurePhase(phase);
+    const failureDiagnostic = buildFailureDiagnostic({
+      failureCode,
+      failureStage,
       phase,
-      durationMs,
+      safeErrorMessage,
       errorName: getErrorName(error),
+      durationMs,
       boardDayId,
       usersConsidered,
       templatesConsidered,
@@ -502,6 +633,25 @@ export async function createMissingGeneratedTasksForDate(
       tasksSkippedAsDuplicates,
       tasksAlreadyExisting,
       manualTasksPreserved
+    });
+    const failureSummary: GenerationFailureSummary = {
+      boardDate: normalizedBoardDate,
+      triggeredBy: toSummaryTrigger(triggerMetadata.triggeredBy),
+      triggeredByUserId: triggerMetadata.triggeredByUserId,
+      failureCode,
+      failureStage,
+      phase,
+      safeErrorMessage,
+      durationMs,
+      errorName: failureDiagnostic.errorName,
+      boardDayId,
+      usersConsidered,
+      templatesConsidered,
+      tasksCreated,
+      tasksSkippedAsDuplicates,
+      tasksAlreadyExisting,
+      manualTasksPreserved,
+      failureDiagnostic
     };
 
     if (boardDayId && !boardWasGeneratedBeforeAttempt) {
@@ -519,7 +669,16 @@ export async function createMissingGeneratedTasksForDate(
       errorMessage: safeErrorMessage
     });
 
-    throw attachGenerationRunFailureContext(error, buildFailureContext(generationRun.id, safeErrorMessage));
+    throw attachGenerationRunFailureContext(
+      error,
+      buildFailureContext(
+        generationRun.id,
+        failureCode,
+        failureStage,
+        failureDiagnostic,
+        safeErrorMessage
+      )
+    );
   }
 }
 

@@ -1,13 +1,36 @@
 ﻿import type { ReactNode } from "react";
-import { AlertCircle, CalendarDays, CheckCircle2, ChevronRight, CircleUserRound, Clock3, Layers3, Search, ShieldAlert, UsersRound } from "lucide-react";
+import {
+  AlertCircle,
+  CalendarClock,
+  CalendarDays,
+  CheckCircle2,
+  ChevronRight,
+  CircleUserRound,
+  Clock3,
+  Layers3,
+  Search,
+  ShieldAlert,
+  ShieldCheck,
+  Siren,
+  TriangleAlert,
+  UsersRound,
+  Wrench
+} from "lucide-react";
 import Link from "next/link";
 
 import { EmptyStateCard } from "@/components/ui/state-card";
-import { formatBoardEnumLabel, type BoardFilters, type BoardGroupMode, type BoardPresentation } from "./board-grouping";
 import type { ActivityFeedEvent } from "@/server/services/activity-feed";
-import type { BoardReadModel, BoardReadTask } from "@/server/services/board-read";
+import type {
+  BoardReadLatestGeneration,
+  BoardReadModel,
+  BoardReadSchedulerFailure,
+  BoardReadSchedulerHealth,
+  BoardReadTask
+} from "@/server/services/board-read";
 import type { ActiveUserSummary } from "@/server/services/user-summary";
 import { listProjectCardSummaries } from "@/features/projects/project-data";
+import type { BoardGenerationActionFeedback } from "./board-generation-feedback";
+import { formatBoardEnumLabel, type BoardFilters, type BoardGroupMode, type BoardPresentation } from "./board-grouping";
 
 type Task = Omit<BoardReadTask, "assignedUser"> & { assignedUser: BoardReadTask["assignedUser"] | null };
 
@@ -76,6 +99,368 @@ function getBoardStatusLabel(
   }
 
   return "Board pending";
+}
+
+function formatBoardDateTime(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
+function formatSchedulerHealthStatus(status: BoardReadSchedulerHealth["status"]) {
+  if (status === "healthy") {
+    return "Healthy";
+  }
+
+  if (status === "attention") {
+    return "Needs attention";
+  }
+
+  return "Waiting";
+}
+
+function formatReadinessStatus(status: BoardReadSchedulerHealth["readiness"]["status"]) {
+  if (status === "ready") {
+    return "Ready";
+  }
+
+  if (status === "attention") {
+    return "Needs attention";
+  }
+
+  return "Partially known";
+}
+
+function formatReadinessCheckStatus(
+  status: BoardReadSchedulerHealth["readiness"]["checks"][number]["status"]
+) {
+  if (status === "ready") {
+    return "Ready";
+  }
+
+  if (status === "attention") {
+    return "Attention";
+  }
+
+  return "Unknown";
+}
+
+function formatBoardGenerationState(state: BoardReadSchedulerHealth["boardGenerationStatus"]["state"]) {
+  if (state === "not_created") {
+    return "No board yet";
+  }
+
+  if (state === "not_started") {
+    return "Board not started";
+  }
+
+  if (state === "in_progress") {
+    return "Board generating";
+  }
+
+  if (state === "generated") {
+    return "Board generated";
+  }
+
+  return "Board failed";
+}
+
+function formatExpectedRunWindow(value: boolean | null) {
+  if (value === null) {
+    return "Expected run window unknown";
+  }
+
+  return value ? "Should have run by now" : "Run window not reached yet";
+}
+
+function formatAttemptState(state: NonNullable<BoardReadSchedulerHealth["latestScheduledAttempt"]>["attemptState"]) {
+  return formatBoardEnumLabel(state);
+}
+
+function formatGenerationLabel(run: BoardReadLatestGeneration | null) {
+  if (!run) {
+    return "No run recorded";
+  }
+
+  return `${run.triggeredBy === "scheduled" ? "Automatic" : "Manual"} ${run.status}`;
+}
+
+function formatFailureLabel(failure: BoardReadSchedulerFailure | null) {
+  if (!failure) {
+    return "No failure recorded";
+  }
+
+  return `${failure.triggeredBy === "scheduled" ? "Automatic" : "Manual"} ${failure.source === "scheduled_attempt" ? "attempt" : "run"} failed`;
+}
+
+function getHealthToneClass(status: BoardReadSchedulerHealth["status"]) {
+  if (status === "healthy") {
+    return "scheduler-health-good";
+  }
+
+  if (status === "attention") {
+    return "scheduler-health-alert";
+  }
+
+  return "scheduler-health-waiting";
+}
+
+function HealthCard({
+  detail,
+  eyebrow,
+  icon,
+  title
+}: {
+  detail: string;
+  eyebrow: string;
+  icon: ReactNode;
+  title: string;
+}) {
+  return (
+    <article className="scheduler-health-card">
+      <span className="scheduler-health-card-icon">{icon}</span>
+      <div className="scheduler-health-card-copy">
+        <span>{eyebrow}</span>
+        <strong>{title}</strong>
+        <small>{detail}</small>
+      </div>
+    </article>
+  );
+}
+
+export function SchedulerHealthPanel({
+  boardDate,
+  generationFeedback,
+  isRetryPending = false,
+  onRetryRequested,
+  schedulerHealth
+}: {
+  boardDate: string;
+  generationFeedback?: BoardGenerationActionFeedback;
+  isRetryPending?: boolean;
+  onRetryRequested?(): void;
+  schedulerHealth: BoardReadSchedulerHealth;
+}) {
+  const guidance = schedulerHealth.guidance;
+  const latestScheduledAttempt = schedulerHealth.latestScheduledAttempt;
+  const latestManualRun = schedulerHealth.latestManualRun;
+  const lastSuccess = schedulerHealth.lastSuccess;
+  const lastFailure = schedulerHealth.lastFailure;
+  const showRetryAction = Boolean(onRetryRequested && guidance.safeToRetry && guidance.retryLabel);
+  const showUnauthorizedSummary = Boolean(
+    schedulerHealth.unauthorizedSummary &&
+      (schedulerHealth.unauthorizedSummary.repeated ||
+        latestScheduledAttempt?.attemptState === "unauthorized")
+  );
+
+  return (
+    <section className={`scheduler-health-panel ${getHealthToneClass(schedulerHealth.status)}`}>
+      <header className="scheduler-health-header">
+        <div className="scheduler-health-header-copy">
+          <p className="section-kicker">Manager generation health</p>
+          <h2>{formatBoardDate(boardDate, true)}</h2>
+          <p>{guidance.title}</p>
+          <small>{schedulerHealth.managerMessage}</small>
+          <small>{schedulerHealth.nextStepMessage}</small>
+        </div>
+        <div className="scheduler-health-status-stack">
+          <span className={`scheduler-health-badge ${getHealthToneClass(schedulerHealth.status)}`}>
+            {formatSchedulerHealthStatus(schedulerHealth.status)}
+          </span>
+          <span className="scheduler-health-flag">
+            {guidance.actionRequired ? "Manager action needed" : "No manager action needed"}
+          </span>
+          <span className="scheduler-health-flag scheduler-health-flag-muted">
+            {formatExpectedRunWindow(schedulerHealth.expectedToHaveRunByNow)}
+          </span>
+          {guidance.safeToRetry ? (
+            <span className="scheduler-health-flag scheduler-health-flag-muted">
+              Safe to retry
+            </span>
+          ) : null}
+        </div>
+      </header>
+
+      {showRetryAction ? (
+        <div className="scheduler-health-actions">
+          <button
+            className="pill pill-action board-generate-button"
+            disabled={isRetryPending}
+            onClick={onRetryRequested}
+            type="button"
+          >
+            {isRetryPending ? "Generating..." : guidance.retryLabel}
+          </button>
+        </div>
+      ) : null}
+
+      {generationFeedback ? (
+        <div
+          className={
+            generationFeedback.tone === "error"
+              ? "notice notice-danger board-feedback"
+              : "notice board-feedback"
+          }
+          role={generationFeedback.tone === "error" ? "alert" : "status"}
+        >
+          <p>
+            <strong>{generationFeedback.message}</strong>
+            {generationFeedback.detail ? ` ${generationFeedback.detail}` : ""}
+          </p>
+        </div>
+      ) : null}
+
+      {!generationFeedback && isRetryPending ? (
+        <div className="notice board-feedback" role="status">
+          <p>
+            <strong>Generating board...</strong> The latest run evidence will refresh below when the request finishes.
+          </p>
+        </div>
+      ) : null}
+
+      <div className="scheduler-health-summary-grid">
+        <HealthCard
+          detail={
+            schedulerHealth.boardGenerationStatus.generatedAt
+              ? `Completed ${formatBoardDateTime(schedulerHealth.boardGenerationStatus.generatedAt)}`
+              : formatExpectedRunWindow(schedulerHealth.expectedToHaveRunByNow)
+          }
+          eyebrow="Board status"
+          icon={<ShieldCheck size={18} />}
+          title={formatBoardGenerationState(schedulerHealth.boardGenerationStatus.state)}
+        />
+        <HealthCard
+          detail={
+            latestScheduledAttempt
+              ? `${formatAttemptState(latestScheduledAttempt.attemptState)} at ${formatBoardDateTime(latestScheduledAttempt.completedAt ?? latestScheduledAttempt.receivedAt)}`
+              : "No scheduled attempt evidence for this board date."
+          }
+          eyebrow="Latest scheduled"
+          icon={<CalendarClock size={18} />}
+          title={
+            latestScheduledAttempt
+              ? latestScheduledAttempt.managerMessage
+              : "No automatic run recorded"
+          }
+        />
+        <HealthCard
+          detail={
+            latestManualRun
+              ? `${formatBoardDateTime(latestManualRun.attemptedAt)}${latestManualRun.summary ? ` • ${latestManualRun.summary}` : ""}`
+              : "No manual retry has been recorded for this board date."
+          }
+          eyebrow="Latest manual"
+          icon={<Wrench size={18} />}
+          title={formatGenerationLabel(latestManualRun)}
+        />
+        <HealthCard
+          detail={
+            lastSuccess
+              ? `${formatBoardDateTime(lastSuccess.attemptedAt)}${lastSuccess.summary ? ` • ${lastSuccess.summary}` : ""}`
+              : "No successful generation has been recorded for this board date."
+          }
+          eyebrow="Last success"
+          icon={<CheckCircle2 size={18} />}
+          title={
+            lastSuccess
+              ? `${lastSuccess.triggeredBy === "scheduled" ? "Automatic" : "Manual"} success`
+              : "No success yet"
+          }
+        />
+        <HealthCard
+          detail={
+            lastFailure
+              ? `${formatBoardDateTime(lastFailure.occurredAt)}${lastFailure.failureCode ? ` • ${formatBoardEnumLabel(lastFailure.failureCode)}` : ""}`
+              : "No failed generation is currently recorded for this board date."
+          }
+          eyebrow="Last failure"
+          icon={<Siren size={18} />}
+          title={lastFailure ? lastFailure.managerMessage : formatFailureLabel(lastFailure)}
+        />
+        <HealthCard
+          detail={
+            schedulerHealth.latestSkipReason
+              ? `${formatBoardDateTime(schedulerHealth.latestSkipReason.occurredAt)} • ${schedulerHealth.latestSkipReason.managerMessage}`
+              : "No skip reason is currently recorded for this board date."
+          }
+          eyebrow="Latest skip"
+          icon={<TriangleAlert size={18} />}
+          title={
+            schedulerHealth.latestSkipReason
+              ? formatBoardEnumLabel(schedulerHealth.latestSkipReason.code)
+              : "No skip recorded"
+          }
+        />
+      </div>
+
+      <div className="scheduler-health-secondary-grid">
+        {showUnauthorizedSummary && schedulerHealth.unauthorizedSummary ? (
+          <article className="scheduler-health-detail-panel">
+            <div className="scheduler-health-detail-header">
+              <span className="scheduler-health-card-icon">
+                <ShieldAlert size={18} />
+              </span>
+              <div className="scheduler-health-detail-copy">
+                <span>Unauthorized scheduled requests</span>
+                <strong>{schedulerHealth.unauthorizedSummary.managerMessage}</strong>
+                <small>{schedulerHealth.unauthorizedSummary.nextStepMessage}</small>
+              </div>
+            </div>
+            <div className="scheduler-readiness-list">
+              <div className="scheduler-readiness-item">
+                <strong>Count</strong>
+                <span className="scheduler-readiness-status scheduler-readiness-status-attention">
+                  {schedulerHealth.unauthorizedSummary.count}
+                </span>
+                <small>
+                  Latest blocked request at{" "}
+                  {formatBoardDateTime(schedulerHealth.unauthorizedSummary.latestOccurredAt)}
+                  {schedulerHealth.unauthorizedSummary.latestReasonCode
+                    ? ` • ${formatBoardEnumLabel(schedulerHealth.unauthorizedSummary.latestReasonCode)}`
+                    : ""}
+                </small>
+              </div>
+            </div>
+          </article>
+        ) : null}
+
+        <article className="scheduler-health-detail-panel">
+          <div className="scheduler-health-detail-header">
+            <span className="scheduler-health-card-icon">
+              <ShieldCheck size={18} />
+            </span>
+            <div className="scheduler-health-detail-copy">
+              <span>Scheduler readiness</span>
+              <strong>{formatReadinessStatus(schedulerHealth.readiness.status)}</strong>
+              <small>{schedulerHealth.readiness.summary}</small>
+            </div>
+          </div>
+          <div className="scheduler-readiness-list">
+            {schedulerHealth.readiness.checks.map((check) => (
+              <div className="scheduler-readiness-item" key={check.code}>
+                <strong>{check.label}</strong>
+                <span
+                  className={
+                    check.status === "ready"
+                      ? "scheduler-readiness-status scheduler-readiness-status-ready"
+                      : check.status === "attention"
+                        ? "scheduler-readiness-status scheduler-readiness-status-attention"
+                        : "scheduler-readiness-status scheduler-readiness-status-unknown"
+                  }
+                >
+                  {formatReadinessCheckStatus(check.status)}
+                </span>
+                <small>{check.detail}</small>
+              </div>
+            ))}
+          </div>
+        </article>
+      </div>
+    </section>
+  );
 }
 
 export function BoardHero({

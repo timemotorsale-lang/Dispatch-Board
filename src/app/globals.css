@@ -2526,6 +2526,43 @@ code {
 .board-hero .pill-action { color: #fff; background: #075ad9; border-color: #075ad9; box-shadow: 0 6px 15px rgba(7,90,217,.18); }
 .board-hero .board-feedback { position: fixed; right: 20px; bottom: 20px; z-index: 50; max-width: 360px; padding: 10px 14px; border-radius: 7px; pointer-events: none; }
 
+.scheduler-health-panel { display: grid; gap: 16px; padding: 18px; background: linear-gradient(180deg,#ffffff 0%,#f8fbff 100%); border: 1px solid #dde7f3; border-radius: 18px; box-shadow: 0 10px 28px rgba(27,45,72,.055); }
+.scheduler-health-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.scheduler-health-header-copy { display: grid; gap: 6px; min-width: 0; }
+.scheduler-health-header-copy h2 { margin: 0; color: #132238; font-size: 24px; letter-spacing: -.03em; }
+.scheduler-health-header-copy > p { margin: 0; color: #233247; font-size: 14px; font-weight: 700; line-height: 1.45; }
+.scheduler-health-header-copy > small { color: #67768a; font-size: 12px; line-height: 1.5; }
+.scheduler-health-status-stack { display: grid; justify-items: end; gap: 8px; min-width: 190px; }
+.scheduler-health-badge { display: inline-flex; align-items: center; justify-content: center; min-height: 34px; padding: 0 12px; border-radius: 999px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.scheduler-health-good .scheduler-health-badge { color: #166534; background: #eaf8ef; }
+.scheduler-health-alert .scheduler-health-badge { color: #b42318; background: #fff0f1; }
+.scheduler-health-waiting .scheduler-health-badge { color: #8a5a00; background: #fff8df; }
+.scheduler-health-flag { display: inline-flex; align-items: center; justify-content: center; min-height: 30px; padding: 0 11px; color: #203045; background: #edf4ff; border: 1px solid #d3e1f8; border-radius: 999px; font-size: 11px; font-weight: 700; text-align: center; }
+.scheduler-health-flag-muted { color: #5f7086; background: #f6f8fb; border-color: #e1e7ef; }
+.scheduler-health-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.scheduler-health-summary-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+.scheduler-health-card { display: grid; grid-template-columns: 40px minmax(0,1fr); gap: 12px; padding: 14px; background: #fff; border: 1px solid #e1e8f1; border-radius: 15px; min-width: 0; }
+.scheduler-health-card-icon { display: inline-grid; place-items: center; width: 40px; height: 40px; color: #075ad9; background: #ebf3ff; border-radius: 13px; }
+.scheduler-health-card-copy { display: grid; gap: 4px; min-width: 0; }
+.scheduler-health-card-copy > span { color: #6f7d90; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.scheduler-health-card-copy strong { color: #152238; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+.scheduler-health-card-copy small { color: #64748b; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.scheduler-health-secondary-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+.scheduler-health-detail-panel { display: grid; gap: 14px; padding: 16px; background: #fff; border: 1px solid #e1e8f1; border-radius: 16px; min-width: 0; }
+.scheduler-health-detail-header { display: flex; align-items: flex-start; gap: 12px; }
+.scheduler-health-detail-copy { display: grid; gap: 4px; min-width: 0; }
+.scheduler-health-detail-copy > span { color: #6f7d90; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.scheduler-health-detail-copy strong { color: #152238; font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; }
+.scheduler-health-detail-copy small { color: #64748b; font-size: 12px; line-height: 1.55; overflow-wrap: anywhere; }
+.scheduler-readiness-list { display: grid; gap: 10px; }
+.scheduler-readiness-item { display: grid; gap: 4px; padding: 12px; background: #f8fbff; border: 1px solid #e1ebf5; border-radius: 14px; }
+.scheduler-readiness-item strong { color: #152238; font-size: 13px; line-height: 1.4; }
+.scheduler-readiness-item small { color: #64748b; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.scheduler-readiness-status { display: inline-flex; align-items: center; justify-content: center; width: fit-content; min-height: 26px; padding: 0 10px; border-radius: 999px; font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.scheduler-readiness-status-ready { color: #166534; background: #eaf8ef; }
+.scheduler-readiness-status-attention { color: #b42318; background: #fff0f1; }
+.scheduler-readiness-status-unknown { color: #8a5a00; background: #fff8df; }
+
 .metric-strip { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 12px; }
 .metric-card { display: grid; grid-template-columns: 44px minmax(0,1fr); align-items: start; gap: 12px; min-height: 104px; padding: 16px; background: #fff; border: 1px solid #e2e7ef; border-radius: 14px; box-shadow: 0 6px 18px rgba(27,45,72,.045); }
 .metric-card { width: 100%; color: inherit; text-align: left; cursor: pointer; transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease; }
@@ -2780,6 +2817,8 @@ code {
 .project-feed-meta { display: grid; justify-items: end; gap: 6px; color: #607188; font-size: 11px; }
 
 @media (max-width: 1240px) {
+  .scheduler-health-summary-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .scheduler-health-secondary-grid { grid-template-columns: 1fr; }
   .metric-strip { grid-template-columns: repeat(3,minmax(0,1fr)); }
   .operations-strip { grid-template-columns: 1fr 1fr; }.operations-strip article:last-child { grid-column: 1 / -1; }
   .board-and-rail { grid-template-columns: minmax(0,1fr); }.operations-rail { position: static; grid-template-columns: repeat(3,minmax(0,1fr)); max-height: none; overflow: visible; }
@@ -2828,12 +2867,18 @@ code {
   .app-frame { display: block; }
   .app-sidebar { position: fixed; left: 0; width: 230px; transform: translateX(-102%); transition: transform .2s ease; box-shadow: 18px 0 40px rgba(4,12,24,.22); }.app-sidebar-open { transform: translateX(0); }.sidebar-close,.topbar-menu { display: grid; }.sidebar-scrim { position: fixed; inset: 0; z-index: 35; display: block; padding: 0; background: rgba(3,11,22,.48); border: 0; }
   .app-topbar { min-height: 64px; padding: 0 14px; }.app-content { padding: 14px; }
+  .scheduler-health-header { align-items: stretch; flex-direction: column; }
+  .scheduler-health-status-stack { justify-items: start; min-width: 0; }
   .board-hero { align-items: flex-start; flex-direction: column; }.board-hero-actions { width: 100%; justify-content: space-between; }.filter-row { grid-template-columns: repeat(3,minmax(0,1fr)); }.board-search { grid-column: span 2; }
   .operations-rail { grid-template-columns: 1fr 1fr; }.operations-rail .rail-card:last-child { grid-column: 1 / -1; }
 }
 
 @media (max-width: 720px) {
   .topbar-title span,.topbar-profile > div:last-child,.topbar-actions > .topbar-icon:first-child { display: none; }.topbar-profile { padding-left: 8px; }.topbar-popover { right: -6px; width: min(300px, calc(100vw - 22px)); }.app-content { padding: 11px; }.dispatch-board-page { gap: 10px; }
+  .scheduler-health-panel { padding: 14px; }
+  .scheduler-health-header-copy h2 { font-size: 21px; }
+  .scheduler-health-summary-grid { grid-template-columns: 1fr; }
+  .scheduler-health-secondary-grid { grid-template-columns: 1fr; }
   .board-hero h1 { font-size: 24px; }.operating-status { display: none; }.board-hero .board-toolbar { width: 100%; }.board-hero .board-toolbar-row { align-items: stretch; flex-direction: column; }.board-hero .board-date-field { width: 100%; }.board-hero .board-toolbar-actions { display: grid; grid-template-columns: repeat(3,1fr); }.board-hero .pill { width: 100%; padding: 0 8px; }
   .metric-strip { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; }.metric-card { min-width: 158px; scroll-snap-align: start; }
   .operations-strip { grid-template-columns: 1fr; }.operations-strip article:last-child { grid-column: auto; }.flow-list { justify-content: flex-start; overflow-x: auto; }.team-load { overflow-x: auto; }

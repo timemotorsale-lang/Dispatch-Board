@@ -27,6 +27,7 @@ The generated task:
 - carries the appointment customer and vehicle references when supplied by the board;
 - is linked to the appointment with link type `FOLLOW_UP`;
 - records automation metadata through the task template snapshot;
+- emits a board activity event on the generated task day so automation-created follow-up work is visible in the Dispatch Board activity timeline;
 - is created in the same transaction as appointment completion, task link creation, appointment history, and command completion.
 
 ## Transaction Rule
@@ -62,4 +63,3 @@ When automation creates a task, the appointment command plan includes:
 - Configurable due-time and owner-routing rules.
 - Browser workflow coverage for the complete → generated task path.
 - Browser workflow coverage for generated follow-up tasks.
-- Activity-feed event emission for generated follow-up tasks.
