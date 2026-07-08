@@ -2539,6 +2539,7 @@ code {
 .scheduler-health-waiting .scheduler-health-badge { color: #8a5a00; background: #fff8df; }
 .scheduler-health-flag { display: inline-flex; align-items: center; justify-content: center; min-height: 30px; padding: 0 11px; color: #203045; background: #edf4ff; border: 1px solid #d3e1f8; border-radius: 999px; font-size: 11px; font-weight: 700; text-align: center; }
 .scheduler-health-flag-muted { color: #5f7086; background: #f6f8fb; border-color: #e1e7ef; }
+.scheduler-health-actions { display: flex; flex-wrap: wrap; gap: 12px; }
 .scheduler-health-summary-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
 .scheduler-health-card { display: grid; grid-template-columns: 40px minmax(0,1fr); gap: 12px; padding: 14px; background: #fff; border: 1px solid #e1e8f1; border-radius: 15px; min-width: 0; }
 .scheduler-health-card-icon { display: inline-grid; place-items: center; width: 40px; height: 40px; color: #075ad9; background: #ebf3ff; border-radius: 13px; }
@@ -2546,6 +2547,21 @@ code {
 .scheduler-health-card-copy > span { color: #6f7d90; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 .scheduler-health-card-copy strong { color: #152238; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
 .scheduler-health-card-copy small { color: #64748b; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.scheduler-health-secondary-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+.scheduler-health-detail-panel { display: grid; gap: 14px; padding: 16px; background: #fff; border: 1px solid #e1e8f1; border-radius: 16px; min-width: 0; }
+.scheduler-health-detail-header { display: flex; align-items: flex-start; gap: 12px; }
+.scheduler-health-detail-copy { display: grid; gap: 4px; min-width: 0; }
+.scheduler-health-detail-copy > span { color: #6f7d90; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.scheduler-health-detail-copy strong { color: #152238; font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; }
+.scheduler-health-detail-copy small { color: #64748b; font-size: 12px; line-height: 1.55; overflow-wrap: anywhere; }
+.scheduler-readiness-list { display: grid; gap: 10px; }
+.scheduler-readiness-item { display: grid; gap: 4px; padding: 12px; background: #f8fbff; border: 1px solid #e1ebf5; border-radius: 14px; }
+.scheduler-readiness-item strong { color: #152238; font-size: 13px; line-height: 1.4; }
+.scheduler-readiness-item small { color: #64748b; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.scheduler-readiness-status { display: inline-flex; align-items: center; justify-content: center; width: fit-content; min-height: 26px; padding: 0 10px; border-radius: 999px; font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.scheduler-readiness-status-ready { color: #166534; background: #eaf8ef; }
+.scheduler-readiness-status-attention { color: #b42318; background: #fff0f1; }
+.scheduler-readiness-status-unknown { color: #8a5a00; background: #fff8df; }
 
 .metric-strip { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 12px; }
 .metric-card { display: grid; grid-template-columns: 44px minmax(0,1fr); align-items: start; gap: 12px; min-height: 104px; padding: 16px; background: #fff; border: 1px solid #e2e7ef; border-radius: 14px; box-shadow: 0 6px 18px rgba(27,45,72,.045); }
@@ -2802,6 +2818,7 @@ code {
 
 @media (max-width: 1240px) {
   .scheduler-health-summary-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .scheduler-health-secondary-grid { grid-template-columns: 1fr; }
   .metric-strip { grid-template-columns: repeat(3,minmax(0,1fr)); }
   .operations-strip { grid-template-columns: 1fr 1fr; }.operations-strip article:last-child { grid-column: 1 / -1; }
   .board-and-rail { grid-template-columns: minmax(0,1fr); }.operations-rail { position: static; grid-template-columns: repeat(3,minmax(0,1fr)); max-height: none; overflow: visible; }
@@ -2861,6 +2878,7 @@ code {
   .scheduler-health-panel { padding: 14px; }
   .scheduler-health-header-copy h2 { font-size: 21px; }
   .scheduler-health-summary-grid { grid-template-columns: 1fr; }
+  .scheduler-health-secondary-grid { grid-template-columns: 1fr; }
   .board-hero h1 { font-size: 24px; }.operating-status { display: none; }.board-hero .board-toolbar { width: 100%; }.board-hero .board-toolbar-row { align-items: stretch; flex-direction: column; }.board-hero .board-date-field { width: 100%; }.board-hero .board-toolbar-actions { display: grid; grid-template-columns: repeat(3,1fr); }.board-hero .pill { width: 100%; padding: 0 8px; }
   .metric-strip { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; }.metric-card { min-width: 158px; scroll-snap-align: start; }
   .operations-strip { grid-template-columns: 1fr; }.operations-strip article:last-child { grid-column: auto; }.flow-list { justify-content: flex-start; overflow-x: auto; }.team-load { overflow-x: auto; }

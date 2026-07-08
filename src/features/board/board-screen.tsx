@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
 import { EmptyStateCard, ErrorStateCard, LoadingStateCard } from "@/components/ui/state-card";
 import { useLiveRefresh } from "@/hooks/use-live-refresh";
@@ -19,6 +19,7 @@ import {
   formatBoardDate,
   type Metric
 } from "./board-dashboard";
+import type { BoardGenerationActionFeedback } from "./board-generation-feedback";
 import {
   DEFAULT_BOARD_FILTERS,
   getBoardPresentation,
@@ -37,6 +38,19 @@ type BoardScreenProps = {
 
 type BoardApiPayload = BoardReadLookupResult & { error?: string };
 type ActivityApiPayload = { date: string; events: ActivityFeedEvent[]; error?: string };
+type ManualBoardGenerationResponse = {
+  status: "success" | "failed";
+  boardDate: string;
+  generationRunId: string | null;
+  createdTaskCount: number | null;
+  skippedExistingTaskCount: number | null;
+  alreadyExistingTaskCount: number | null;
+  summary: string | null;
+  errorMessage: string | null;
+  latestGeneration: {
+    attemptedAt: string;
+  } | null;
+};
 type BoardLoadState =
   | { status: "loading"; date: string }
   | { status: "ready"; date: string; board: BoardReadModel }
@@ -58,6 +72,27 @@ function hasActiveBoardFilters(filters: BoardFilters) {
       filters.workflowArea ||
       filters.searchText.trim()
   );
+}
+
+function buildGenerationFeedback(
+  payload: ManualBoardGenerationResponse
+): Exclude<BoardGenerationActionFeedback, null> {
+  if (payload.status === "failed") {
+    return {
+      tone: "error",
+      message: "Generation failed.",
+      detail: payload.errorMessage ?? "Unable to generate the board right now."
+    };
+  }
+
+  const createdTaskCount = payload.createdTaskCount ?? 0;
+  const skippedTaskCount = payload.skippedExistingTaskCount ?? 0;
+
+  return {
+    tone: "success",
+    message: "Board generated.",
+    detail: payload.summary ?? `${createdTaskCount} tasks created | ${skippedTaskCount} duplicates skipped`
+  };
 }
 
 function createMetrics(board: BoardReadModel): Metric[] {
@@ -129,6 +164,8 @@ export function BoardScreen({
   const [filters, setFilters] = useState<BoardFilters>(DEFAULT_BOARD_FILTERS);
   const [activityEvents, setActivityEvents] = useState<ActivityFeedEvent[]>([]);
   const [schedulerHealth, setSchedulerHealth] = useState<BoardReadSchedulerHealth | null>(null);
+  const [generationFeedback, setGenerationFeedback] = useState<BoardGenerationActionFeedback>(null);
+  const [isGeneratePending, startGenerateTransition] = useTransition();
   const loadStateRef = useRef<BoardLoadState>(loadState);
   const refreshModeRef = useRef<"blocking" | "silent">("blocking");
   const boardPrimaryRef = useRef<HTMLDivElement | null>(null);
@@ -259,6 +296,55 @@ export function BoardScreen({
     setFilters((current) => ({ ...current, [key]: value }));
   }
 
+  function handleGenerateBoard() {
+    setGenerationFeedback(null);
+
+    startGenerateTransition(async () => {
+      const response = await fetch("/api/board/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          boardDate: selectedBoardDate
+        })
+      });
+
+      const payload = (await response.json().catch(() => null)) as
+        | (ManualBoardGenerationResponse & { error?: string })
+        | { error?: string }
+        | null;
+      const hasStatus = payload && "status" in payload;
+
+      if (!response.ok || (hasStatus && payload.status === "failed")) {
+        const detail =
+          payload && "errorMessage" in payload && typeof payload.errorMessage === "string"
+            ? payload.errorMessage
+            : payload?.error ?? "Unable to generate the board right now.";
+
+        setGenerationFeedback({
+          tone: "error",
+          message: "Generation failed.",
+          detail
+        });
+        requestBoardReload();
+        return;
+      }
+
+      if (!payload || !("status" in payload)) {
+        setGenerationFeedback({
+          tone: "error",
+          message: "Generation failed.",
+          detail: "Unable to generate the board right now."
+        });
+        return;
+      }
+
+      setGenerationFeedback(buildGenerationFeedback(payload));
+      requestBoardReload();
+    });
+  }
+
   function handleMetricSelect(metricKey: Metric["metricKey"]) {
     setGroupMode(metricKey ? "status" : "assignee");
     setFilters((current) => ({
@@ -315,16 +401,20 @@ export function BoardScreen({
             <BoardToolbar
               assignableUsers={assignableUsers}
               boardDate={selectedBoardDate}
+              generationFeedback={generationFeedback}
               generationStatus={board?.generationStatus}
+              isGeneratePending={isGeneratePending}
               isManager={isManager}
               latestGeneration={board?.latestGeneration}
               onBoardDateChange={(date) => {
                 setSelectedBoardDate(date);
+                setGenerationFeedback(null);
                 refreshModeRef.current = "blocking";
                 setIsRefreshing(false);
                 setSchedulerHealth(null);
                 setLoadState({ status: "loading", date });
               }}
+              onGenerateBoard={handleGenerateBoard}
               onBoardRefreshRequested={requestBoardReload}
             />
           </>
@@ -336,6 +426,9 @@ export function BoardScreen({
       {isManager && schedulerHealth ? (
         <SchedulerHealthPanel
           boardDate={loadState.date}
+          generationFeedback={generationFeedback}
+          isRetryPending={isGeneratePending}
+          onRetryRequested={handleGenerateBoard}
           schedulerHealth={schedulerHealth}
         />
       ) : null}

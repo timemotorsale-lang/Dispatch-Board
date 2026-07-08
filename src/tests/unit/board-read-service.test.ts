@@ -12,7 +12,7 @@ import {
   WorkflowArea,
   type AppSetting
 } from "@prisma/client";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { BoardReadRepository } from "@/server/repositories/board-read-repository";
 import type { SchedulerAttemptsRepository } from "@/server/repositories/scheduler-attempts-repository";
@@ -202,7 +202,7 @@ function createSchedulerAttemptsRepository(
   };
 }
 
-function createAppSettingsRepository() {
+function createAppSettingsRepository(overrides: Partial<AppSetting> = {}) {
   const settings: AppSetting = {
     id: "dispatch-board-settings",
     dailyGenerationTime: "09:00",
@@ -216,7 +216,8 @@ function createAppSettingsRepository() {
       BusinessDay.SATURDAY
     ],
     createdAt: new Date("2026-06-17T08:00:00.000Z"),
-    updatedAt: new Date("2026-06-17T08:00:00.000Z")
+    updatedAt: new Date("2026-06-17T08:00:00.000Z"),
+    ...overrides
   };
 
   return {
@@ -229,7 +230,22 @@ function createAppSettingsRepository() {
   };
 }
 
+const originalCronSecret = process.env.CRON_SECRET;
+
 describe("board read service", () => {
+  beforeEach(() => {
+    process.env.CRON_SECRET = "test-cron-secret";
+  });
+
+  afterEach(() => {
+    if (typeof originalCronSecret === "string") {
+      process.env.CRON_SECRET = originalCronSecret;
+      return;
+    }
+
+    delete process.env.CRON_SECRET;
+  });
+
   it("returns a normalized board read model for an authenticated staff user", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
@@ -396,6 +412,11 @@ describe("board read service", () => {
         status: "healthy",
         expectedToHaveRunByNow: true,
         needsAttention: false,
+        guidance: {
+          code: "healthy",
+          actionRequired: false,
+          safeToRetry: false
+        },
         latestScheduledAttempt: {
           id: "scheduler-attempt-1",
           attemptState: "succeeded",
@@ -407,6 +428,10 @@ describe("board read service", () => {
           triggeredBy: "scheduled"
         },
         latestSkipReason: null,
+        unauthorizedSummary: null,
+        readiness: {
+          status: "ready"
+        },
         boardGenerationStatus: {
           state: "generated",
           latestGenerationStatus: "success"
@@ -428,13 +453,19 @@ describe("board read service", () => {
       now: () => new Date("2026-06-18T15:30:00.000Z")
     });
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       date: "2026-06-18",
       board: null,
       schedulerHealth: {
         status: "attention",
         expectedToHaveRunByNow: true,
         needsAttention: true,
+        guidance: {
+          code: "no_scheduled_evidence",
+          actionRequired: true,
+          safeToRetry: true,
+          retryLabel: "Generate Board Manually"
+        },
         managerMessage: "No scheduled generation evidence has been recorded for 2026-06-18 yet.",
         nextStepMessage:
           "Verify the production scheduler is enabled and that cron requests are reaching the app.",
@@ -443,6 +474,10 @@ describe("board read service", () => {
         lastSuccess: null,
         lastFailure: null,
         latestSkipReason: null,
+        unauthorizedSummary: null,
+        readiness: {
+          status: "attention"
+        },
         boardGenerationStatus: {
           state: "not_created",
           generatedAt: null,
@@ -507,5 +542,108 @@ describe("board read service", () => {
         }
       })
     });
+  });
+
+  it("surfaces repeated unauthorized scheduled requests as a manager-visible signal", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const harness = createBoardReadRepositoryHarness();
+
+    const result = await getBoardReadModelForDate(manager, "2026-06-18", {
+      repository: harness.repository,
+      schedulerAttemptsRepository: createSchedulerAttemptsRepository([
+        {
+          id: "scheduler-attempt-2",
+          boardDate: "2026-06-18",
+          receivedAt: "2026-06-18T15:01:00.000Z",
+          completedAt: "2026-06-18T15:01:02.000Z",
+          attemptState: SchedulerAttemptState.UNAUTHORIZED,
+          authorizationOutcome: SchedulerAuthorizationOutcome.UNAUTHORIZED,
+          managerMessage: "Scheduled request was blocked because the cron secret did not match.",
+          unauthorizedReasonCode: "SECRET_MISMATCH"
+        },
+        {
+          id: "scheduler-attempt-1",
+          boardDate: "2026-06-18",
+          receivedAt: "2026-06-18T14:59:00.000Z",
+          completedAt: "2026-06-18T14:59:01.000Z",
+          attemptState: SchedulerAttemptState.UNAUTHORIZED,
+          authorizationOutcome: SchedulerAuthorizationOutcome.UNAUTHORIZED,
+          managerMessage: "Scheduled request was blocked because the cron secret did not match.",
+          unauthorizedReasonCode: "SECRET_MISMATCH"
+        }
+      ]),
+      appSettingsRepository: createAppSettingsRepository(),
+      now: () => new Date("2026-06-18T15:30:00.000Z")
+    });
+
+    expect(result.schedulerHealth).toMatchObject({
+      status: "attention",
+      guidance: {
+        code: "unauthorized_scheduled_request",
+        actionRequired: true,
+        safeToRetry: true,
+        retryLabel: "Generate Board Manually"
+      },
+      unauthorizedSummary: {
+        count: 2,
+        repeated: true,
+        latestReasonCode: "SECRET_MISMATCH"
+      },
+      readiness: {
+        status: "ready"
+      }
+    });
+  });
+
+  it("reports app-known readiness gaps when cron secret or generation settings are invalid", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const harness = createBoardReadRepositoryHarness();
+
+    delete process.env.CRON_SECRET;
+
+    const result = await getBoardReadModelForDate(manager, "2026-06-18", {
+      repository: harness.repository,
+      schedulerAttemptsRepository: createSchedulerAttemptsRepository([]),
+      appSettingsRepository: createAppSettingsRepository({
+        dailyGenerationTime: "25:99",
+        timezone: "",
+        businessDays: []
+      }),
+      now: () => new Date("2026-06-18T15:30:00.000Z")
+    });
+
+    expect(result.schedulerHealth).toMatchObject({
+      status: "attention",
+      guidance: {
+        code: "settings_invalid",
+        actionRequired: true,
+        safeToRetry: false
+      },
+      readiness: {
+        status: "attention"
+      }
+    });
+    expect(result.schedulerHealth.readiness.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "cron_secret",
+          status: "attention"
+        }),
+        expect.objectContaining({
+          code: "generation_timezone",
+          status: "attention"
+        }),
+        expect.objectContaining({
+          code: "generation_time",
+          status: "attention"
+        }),
+        expect.objectContaining({
+          code: "business_days",
+          status: "attention"
+        })
+      ])
+    );
   });
 });

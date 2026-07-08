@@ -2,6 +2,7 @@
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { canViewFullBoard } from "@/server/policies/access";
+import { createAppSettingsRepository } from "@/server/repositories/app-settings-repository";
 import {
   createBoardReadRepository,
   type BoardReadRepository,
@@ -22,6 +23,7 @@ import {
   type SchedulerAttemptEvidence,
   type SchedulerFailureStageValue
 } from "@/server/services/scheduler-attempts";
+import { normalizeAppSettings } from "@/server/validation/app-settings";
 import { getBoardDateInTimeZone, normalizeBoardDate } from "@/server/validation/board-date";
 
 type BoardReadUserSummary = {
@@ -111,17 +113,74 @@ export type BoardReadBoardGenerationHealth = {
   latestGenerationStatus: BoardReadLatestGeneration["status"] | "none";
 };
 
+export type BoardReadSchedulerGuidanceCode =
+  | "healthy"
+  | "settings_invalid"
+  | "no_scheduled_evidence"
+  | "unauthorized_scheduled_request"
+  | "scheduled_failed"
+  | "scheduled_skipped_before_generation_time"
+  | "scheduled_skipped_non_business_day"
+  | "scheduled_skipped_already_generated"
+  | "scheduled_skipped_configuration"
+  | "generation_running"
+  | "scheduled_request_in_progress"
+  | "unknown";
+
+export type BoardReadSchedulerGuidance = {
+  code: BoardReadSchedulerGuidanceCode;
+  title: string;
+  message: string;
+  nextStep: string;
+  actionRequired: boolean;
+  safeToRetry: boolean;
+  retryLabel: string | null;
+};
+
+export type BoardReadUnauthorizedSchedulerSummary = {
+  count: number;
+  latestAttemptId: string;
+  latestOccurredAt: string;
+  latestReasonCode: string | null;
+  repeated: boolean;
+  managerMessage: string;
+  nextStepMessage: string;
+};
+
+export type BoardReadSchedulerReadinessCheckStatus = "ready" | "attention" | "unknown";
+
+export type BoardReadSchedulerReadinessCheck = {
+  code:
+    | "cron_secret"
+    | "generation_timezone"
+    | "generation_time"
+    | "business_days"
+    | "scheduled_evidence";
+  label: string;
+  status: BoardReadSchedulerReadinessCheckStatus;
+  detail: string;
+};
+
+export type BoardReadSchedulerReadiness = {
+  status: BoardReadSchedulerReadinessCheckStatus;
+  summary: string;
+  checks: BoardReadSchedulerReadinessCheck[];
+};
+
 export type BoardReadSchedulerHealth = {
   status: BoardReadSchedulerHealthStatus;
   expectedToHaveRunByNow: boolean | null;
   needsAttention: boolean;
   managerMessage: string;
   nextStepMessage: string;
+  guidance: BoardReadSchedulerGuidance;
   latestScheduledAttempt: SchedulerAttemptEvidence | null;
   latestManualRun: BoardReadLatestGeneration | null;
   lastSuccess: BoardReadLatestGeneration | null;
   lastFailure: BoardReadSchedulerFailure | null;
   latestSkipReason: BoardReadSchedulerSkip | null;
+  unauthorizedSummary: BoardReadUnauthorizedSchedulerSummary | null;
+  readiness: BoardReadSchedulerReadiness;
   boardGenerationStatus: BoardReadBoardGenerationHealth;
 };
 
@@ -159,6 +218,12 @@ type BoardReadDependencies = {
 };
 
 type BoardReadTodayDependencies = BoardReadDependencies;
+
+type BoardReadSettingsSnapshot = {
+  dailyGenerationTime: string;
+  timezone: string;
+  businessDays: string[];
+};
 
 function normalizeOptionalText(value: string | null | undefined) {
   const normalizedValue = value?.trim();
@@ -318,7 +383,14 @@ function parseGenerationTimeToMinutes(dailyGenerationTime: string) {
   const hours = Number.parseInt(hoursText ?? "", 10);
   const minutes = Number.parseInt(minutesText ?? "", 10);
 
-  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+  if (
+    !Number.isFinite(hours) ||
+    !Number.isFinite(minutes) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
     throw new Error("Daily generation time must use HH:mm format.");
   }
 
@@ -434,6 +506,381 @@ function toLatestSkipReason(latestScheduledAttempt: SchedulerAttemptEvidence | n
   };
 }
 
+function isValidTimeZone(timezone: string) {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: timezone }).format(new Date());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function buildUnauthorizedSummary(
+  unauthorizedAttempts: SchedulerAttemptEvidence[]
+): BoardReadUnauthorizedSchedulerSummary | null {
+  const latestUnauthorizedAttempt = unauthorizedAttempts[0] ?? null;
+
+  if (!latestUnauthorizedAttempt) {
+    return null;
+  }
+
+  const repeated = unauthorizedAttempts.length > 1;
+
+  return {
+    count: unauthorizedAttempts.length,
+    latestAttemptId: latestUnauthorizedAttempt.id,
+    latestOccurredAt:
+      latestUnauthorizedAttempt.completedAt ?? latestUnauthorizedAttempt.receivedAt,
+    latestReasonCode: latestUnauthorizedAttempt.unauthorizedReasonCode,
+    repeated,
+    managerMessage: repeated
+      ? `${unauthorizedAttempts.length} unauthorized scheduled requests were blocked for this board date.`
+      : latestUnauthorizedAttempt.managerMessage,
+    nextStepMessage: repeated
+      ? "Confirm the deployed cron secret matches the scheduler configuration and review whether the repeated blocked hits are expected."
+      : "Check the production cron secret and scheduler configuration for this scheduled route."
+  };
+}
+
+function createReadinessCheck(
+  code: BoardReadSchedulerReadinessCheck["code"],
+  label: string,
+  status: BoardReadSchedulerReadinessCheckStatus,
+  detail: string
+): BoardReadSchedulerReadinessCheck {
+  return {
+    code,
+    label,
+    status,
+    detail
+  };
+}
+
+function buildSchedulerReadiness(input: {
+  rawSettings: BoardReadSettingsSnapshot | null;
+  latestScheduledAttempt: SchedulerAttemptEvidence | null;
+  expectedToHaveRunByNow: boolean | null;
+}): BoardReadSchedulerReadiness {
+  const checks: BoardReadSchedulerReadinessCheck[] = [];
+  const cronSecret = process.env.CRON_SECRET?.trim();
+
+  checks.push(
+    createReadinessCheck(
+      "cron_secret",
+      "CRON_SECRET",
+      cronSecret ? "ready" : "attention",
+      cronSecret
+        ? "The app runtime has a cron secret configured."
+        : "The app runtime does not currently have a cron secret configured."
+    )
+  );
+
+  if (!input.rawSettings) {
+    checks.push(
+      createReadinessCheck(
+        "generation_timezone",
+        "Generation timezone",
+        "unknown",
+        "Generation settings were not loaded in this read path."
+      ),
+      createReadinessCheck(
+        "generation_time",
+        "Generation time",
+        "unknown",
+        "Generation settings were not loaded in this read path."
+      ),
+      createReadinessCheck(
+        "business_days",
+        "Business days",
+        "unknown",
+        "Generation settings were not loaded in this read path."
+      )
+    );
+  } else {
+    const timezone = input.rawSettings.timezone.trim();
+    const dailyGenerationTime = input.rawSettings.dailyGenerationTime.trim();
+
+    checks.push(
+      createReadinessCheck(
+        "generation_timezone",
+        "Generation timezone",
+        timezone && isValidTimeZone(timezone) ? "ready" : "attention",
+        timezone
+          ? isValidTimeZone(timezone)
+            ? `Generation timezone is set to ${timezone}.`
+            : `Generation timezone "${input.rawSettings.timezone}" is not valid.`
+          : "Generation timezone is blank."
+      )
+    );
+    checks.push(
+      createReadinessCheck(
+        "generation_time",
+        "Generation time",
+        (() => {
+          try {
+            parseGenerationTimeToMinutes(dailyGenerationTime);
+            return "ready" as const;
+          } catch {
+            return "attention" as const;
+          }
+        })(),
+        (() => {
+          try {
+            parseGenerationTimeToMinutes(dailyGenerationTime);
+            return `Generation time is set to ${dailyGenerationTime}.`;
+          } catch {
+            return `Generation time "${input.rawSettings.dailyGenerationTime}" is not valid HH:mm format.`;
+          }
+        })()
+      )
+    );
+    checks.push(
+      createReadinessCheck(
+        "business_days",
+        "Business days",
+        input.rawSettings.businessDays.length > 0 ? "ready" : "attention",
+        input.rawSettings.businessDays.length > 0
+          ? `${input.rawSettings.businessDays.length} business day${input.rawSettings.businessDays.length === 1 ? "" : "s"} configured.`
+          : "No business days are configured for automatic generation."
+      )
+    );
+  }
+
+  checks.push(
+    createReadinessCheck(
+      "scheduled_evidence",
+      "Scheduled evidence",
+      (() => {
+        if (input.latestScheduledAttempt) {
+          return "ready" as const;
+        }
+
+        if (input.expectedToHaveRunByNow === true) {
+          return "attention" as const;
+        }
+
+        if (input.expectedToHaveRunByNow === false) {
+          return "ready" as const;
+        }
+
+        return "unknown" as const;
+      })(),
+      (() => {
+        if (input.latestScheduledAttempt) {
+          return `Scheduled evidence was recorded at ${input.latestScheduledAttempt.completedAt ?? input.latestScheduledAttempt.receivedAt}.`;
+        }
+
+        if (input.expectedToHaveRunByNow === true) {
+          return "The app expected scheduled traffic by now, but no scheduled evidence has been recorded for this board date.";
+        }
+
+        if (input.expectedToHaveRunByNow === false) {
+          return "The expected run window has not arrived yet, so missing scheduled evidence is normal.";
+        }
+
+        return "The app cannot tell from this view whether scheduled evidence should already exist.";
+      })()
+    )
+  );
+
+  const hasAttention = checks.some((check) => check.status === "attention");
+  const hasUnknown = checks.some((check) => check.status === "unknown");
+  const scheduledEvidenceCheck = checks.find((check) => check.code === "scheduled_evidence");
+  const configurationAttention = checks.some(
+    (check) =>
+      check.status === "attention" &&
+      check.code !== "scheduled_evidence"
+  );
+
+  return {
+    status: hasAttention ? "attention" : hasUnknown ? "unknown" : "ready",
+    summary: hasAttention
+      ? configurationAttention
+        ? "App-known readiness checks found setup gaps that can stop automatic board generation."
+        : scheduledEvidenceCheck?.status === "attention"
+          ? "The app looks ready to receive scheduler traffic, but it has not recorded a scheduled request for this board date yet."
+          : "App-known readiness checks need attention."
+      : hasUnknown
+        ? "The app can only partially evaluate scheduler readiness from this view."
+        : "App-known readiness checks look ready from inside the app.",
+    checks
+  };
+}
+
+function buildSchedulerGuidance(input: {
+  boardDate: string;
+  expectedToHaveRunByNow: boolean | null;
+  settingsErrorMessage: string | null;
+  latestScheduledAttempt: SchedulerAttemptEvidence | null;
+  latestGeneration: LatestGenerationStatus | null;
+}): BoardReadSchedulerGuidance {
+  if (input.settingsErrorMessage) {
+    return {
+      code: "settings_invalid",
+      title: "Automatic generation settings need attention",
+      message:
+        "Scheduler health could not verify the expected run window because generation settings are invalid.",
+      nextStep: "Review generation timezone, daily generation time, and business days before relying on the automatic run.",
+      actionRequired: true,
+      safeToRetry: false,
+      retryLabel: null
+    };
+  }
+
+  if (input.latestGeneration?.status === "running") {
+    return {
+      code: "generation_running",
+      title: "A generation run is currently in progress",
+      message:
+        "The board generation engine is still running for this board date.",
+      nextStep: "Wait for the run to finish and refresh the board health in a moment.",
+      actionRequired: false,
+      safeToRetry: false,
+      retryLabel: null
+    };
+  }
+
+  if (!input.latestScheduledAttempt) {
+    return {
+      code: "no_scheduled_evidence",
+      title: "No scheduled generation evidence has been recorded yet",
+      message: `No scheduled generation evidence has been recorded for ${input.boardDate} yet.`,
+      nextStep:
+        input.expectedToHaveRunByNow
+          ? "Verify the production scheduler is enabled and that cron requests are reaching the app."
+          : "Wait for the configured generation window or generate the board manually if the team needs it sooner.",
+      actionRequired: input.expectedToHaveRunByNow === true,
+      safeToRetry: input.expectedToHaveRunByNow === true,
+      retryLabel: input.expectedToHaveRunByNow === true ? "Generate Board Manually" : null
+    };
+  }
+
+  if (input.latestScheduledAttempt.attemptState === "unauthorized") {
+    return {
+      code: "unauthorized_scheduled_request",
+      title: "Scheduled request was blocked by authorization",
+      message: input.latestScheduledAttempt.managerMessage,
+      nextStep:
+        "Check the production cron secret and scheduler authorization headers, then generate the board manually if the team needs it now.",
+      actionRequired: true,
+      safeToRetry: true,
+      retryLabel: "Generate Board Manually"
+    };
+  }
+
+  if (input.latestScheduledAttempt.attemptState === "failed") {
+    return {
+      code: "scheduled_failed",
+      title: "Automatic generation failed",
+      message: input.latestScheduledAttempt.managerMessage,
+      nextStep:
+        "Review the failed run details and retry manually if the board still needs to be generated.",
+      actionRequired: true,
+      safeToRetry: true,
+      retryLabel: "Retry Board Generation"
+    };
+  }
+
+  if (input.latestScheduledAttempt.attemptState === "skipped") {
+    if (
+      input.latestScheduledAttempt.skipReasonCode === "CONFIGURATION_MISSING" ||
+      input.latestScheduledAttempt.skipReasonCode === "CONFIGURATION_INVALID"
+    ) {
+      return {
+        code: "scheduled_skipped_configuration",
+        title: "Automatic generation was skipped because configuration is not ready",
+        message: input.latestScheduledAttempt.managerMessage,
+        nextStep:
+          "Fix the scheduler or generation configuration before relying on the next automatic run.",
+        actionRequired: true,
+        safeToRetry: false,
+        retryLabel: null
+      };
+    }
+
+    if (input.latestScheduledAttempt.skipReasonCode === "BEFORE_GENERATION_TIME") {
+      return {
+        code: "scheduled_skipped_before_generation_time",
+        title: "Automatic generation has not reached its scheduled time yet",
+        message: input.latestScheduledAttempt.managerMessage,
+        nextStep:
+          input.expectedToHaveRunByNow === true
+            ? "Verify the scheduler runs again after the configured time, or generate the board manually if the team needs it now."
+            : "Wait for the configured generation time, or generate the board manually if you want the board early.",
+        actionRequired: input.expectedToHaveRunByNow === true,
+        safeToRetry: true,
+        retryLabel: "Generate Board Early"
+      };
+    }
+
+    if (input.latestScheduledAttempt.skipReasonCode === "NON_BUSINESS_DAY") {
+      return {
+        code: "scheduled_skipped_non_business_day",
+        title: "Automatic generation skipped this non-business day",
+        message: input.latestScheduledAttempt.managerMessage,
+        nextStep:
+          "No action is needed unless this day should be treated as an exception and you want to generate the board manually.",
+        actionRequired: false,
+        safeToRetry: false,
+        retryLabel: null
+      };
+    }
+
+    if (input.latestScheduledAttempt.skipReasonCode === "ALREADY_GENERATED") {
+      return {
+        code: "scheduled_skipped_already_generated",
+        title: "Automatic generation skipped because the board already exists",
+        message: input.latestScheduledAttempt.managerMessage,
+        nextStep: "No action is needed unless you want to review the existing board or trigger an intentional manual rerun.",
+        actionRequired: false,
+        safeToRetry: false,
+        retryLabel: null
+      };
+    }
+  }
+
+  if (input.latestScheduledAttempt.attemptState === "succeeded") {
+    return {
+      code: "healthy",
+      title: "Automatic generation completed successfully",
+      message: input.latestScheduledAttempt.managerMessage,
+      nextStep: "No action is needed unless you want to review or retry the board manually.",
+      actionRequired: false,
+      safeToRetry: false,
+      retryLabel: null
+    };
+  }
+
+  if (
+    input.latestScheduledAttempt.attemptState === "received" ||
+    input.latestScheduledAttempt.attemptState === "started"
+  ) {
+    return {
+      code: "scheduled_request_in_progress",
+      title: "Scheduled request is still in progress",
+      message: input.latestScheduledAttempt.managerMessage,
+      nextStep:
+        "Wait for the scheduled request to finish, then refresh this board health view.",
+      actionRequired: false,
+      safeToRetry: false,
+      retryLabel: null
+    };
+  }
+
+  return {
+    code: "unknown",
+    title: "Scheduler health needs another look",
+    message: input.latestScheduledAttempt.managerMessage,
+    nextStep:
+      input.expectedToHaveRunByNow
+        ? "Confirm the scheduled request completed and generate the board manually if needed."
+        : "Wait for the scheduled request to finish or check again after the run window.",
+    actionRequired: input.expectedToHaveRunByNow === true,
+    safeToRetry: input.expectedToHaveRunByNow === true,
+    retryLabel: input.expectedToHaveRunByNow === true ? "Generate Board Manually" : null
+  };
+}
+
 function deriveExpectedToHaveRunByNow(input: {
   boardDate: string;
   now: Date;
@@ -471,8 +918,10 @@ function buildSchedulerHealth(input: {
   schedulerAttempts: SchedulerAttemptEvidence[];
   expectedToHaveRunByNow: boolean | null;
   settingsErrorMessage: string | null;
+  rawSettings: BoardReadSettingsSnapshot | null;
 }): BoardReadSchedulerHealth {
   const latestScheduledAttempt = input.schedulerAttempts[0] ?? null;
+  const latestGeneration = input.generationStatuses[0] ?? null;
   const latestManualRun =
     input.generationStatuses.find((generation) => generation.triggeredBy === "manual") ?? null;
   const lastSuccess =
@@ -483,133 +932,57 @@ function buildSchedulerHealth(input: {
     input.schedulerAttempts.find((attempt) => attempt.attemptState === "failed") ?? null;
   const latestSkipReason = toLatestSkipReason(latestScheduledAttempt);
   const boardGenerationStatus = buildBoardGenerationStatus(input.board);
+  const unauthorizedAttempts = input.schedulerAttempts.filter(
+    (attempt) => attempt.attemptState === "unauthorized"
+  );
+  const unauthorizedSummary = buildUnauthorizedSummary(unauthorizedAttempts);
+  const readiness = buildSchedulerReadiness({
+    rawSettings: input.rawSettings,
+    latestScheduledAttempt,
+    expectedToHaveRunByNow: input.expectedToHaveRunByNow
+  });
   const schedulerFailure = toFailureSummary(
     toBoardReadLatestGeneration(lastFailureGeneration),
     latestFailedAttempt
   );
   const latestManualRunRead = toBoardReadLatestGeneration(latestManualRun);
   const lastSuccessRead = toBoardReadLatestGeneration(lastSuccess);
+  const guidance = buildSchedulerGuidance({
+    boardDate: input.boardDate,
+    expectedToHaveRunByNow: input.expectedToHaveRunByNow,
+    settingsErrorMessage: input.settingsErrorMessage,
+    latestScheduledAttempt,
+    latestGeneration
+  });
 
-  if (input.settingsErrorMessage) {
-    return {
-      status: "attention",
-      expectedToHaveRunByNow: null,
-      needsAttention: true,
-      managerMessage:
-        "Scheduler health could not verify the expected run window because generation settings are invalid.",
-      nextStepMessage: "Review generation timezone, daily generation time, and business days.",
-      latestScheduledAttempt,
-      latestManualRun: latestManualRunRead,
-      lastSuccess: lastSuccessRead,
-      lastFailure: schedulerFailure,
-      latestSkipReason,
-      boardGenerationStatus
-    };
-  }
-
-  if (!latestScheduledAttempt) {
-    return {
-      status: input.expectedToHaveRunByNow ? "attention" : "waiting",
-      expectedToHaveRunByNow: input.expectedToHaveRunByNow,
-      needsAttention: Boolean(input.expectedToHaveRunByNow),
-      managerMessage: `No scheduled generation evidence has been recorded for ${input.boardDate} yet.`,
-      nextStepMessage: input.expectedToHaveRunByNow
-        ? "Verify the production scheduler is enabled and that cron requests are reaching the app."
-        : "Wait for the configured generation window or trigger a manual generation if needed.",
-      latestScheduledAttempt: null,
-      latestManualRun: latestManualRunRead,
-      lastSuccess: lastSuccessRead,
-      lastFailure: schedulerFailure,
-      latestSkipReason: null,
-      boardGenerationStatus
-    };
-  }
-
-  if (latestScheduledAttempt.attemptState === "unauthorized") {
-    return {
-      status: "attention",
-      expectedToHaveRunByNow: input.expectedToHaveRunByNow,
-      needsAttention: true,
-      managerMessage: latestScheduledAttempt.managerMessage,
-      nextStepMessage: "Check the production cron secret and scheduler authorization headers.",
-      latestScheduledAttempt,
-      latestManualRun: latestManualRunRead,
-      lastSuccess: lastSuccessRead,
-      lastFailure: schedulerFailure,
-      latestSkipReason,
-      boardGenerationStatus
-    };
-  }
-
-  if (latestScheduledAttempt.attemptState === "failed") {
-    return {
-      status: "attention",
-      expectedToHaveRunByNow: input.expectedToHaveRunByNow,
-      needsAttention: true,
-      managerMessage: latestScheduledAttempt.managerMessage,
-      nextStepMessage: "Review the failed run details and retry manually if the board still needs to be generated.",
-      latestScheduledAttempt,
-      latestManualRun: latestManualRunRead,
-      lastSuccess: lastSuccessRead,
-      lastFailure: schedulerFailure,
-      latestSkipReason,
-      boardGenerationStatus
-    };
-  }
-
-  if (latestScheduledAttempt.attemptState === "skipped") {
-    const needsAttention =
-      latestScheduledAttempt.skipReasonCode === "CONFIGURATION_MISSING" ||
-      latestScheduledAttempt.skipReasonCode === "CONFIGURATION_INVALID" ||
-      (latestScheduledAttempt.skipReasonCode === "BEFORE_GENERATION_TIME" &&
-        input.expectedToHaveRunByNow === true);
-
-    return {
-      status: needsAttention ? "attention" : "waiting",
-      expectedToHaveRunByNow: input.expectedToHaveRunByNow,
-      needsAttention,
-      managerMessage: latestScheduledAttempt.managerMessage,
-      nextStepMessage: needsAttention
-        ? "Fix the scheduler configuration or verify another scheduled run will still occur."
-        : "No action is needed unless the board should already exist.",
-      latestScheduledAttempt,
-      latestManualRun: latestManualRunRead,
-      lastSuccess: lastSuccessRead,
-      lastFailure: schedulerFailure,
-      latestSkipReason,
-      boardGenerationStatus
-    };
-  }
-
-  if (latestScheduledAttempt.attemptState === "succeeded") {
-    return {
-      status: "healthy",
-      expectedToHaveRunByNow: input.expectedToHaveRunByNow,
-      needsAttention: false,
-      managerMessage: latestScheduledAttempt.managerMessage,
-      nextStepMessage: "No action is needed unless you want to review or retry the board manually.",
-      latestScheduledAttempt,
-      latestManualRun: latestManualRunRead,
-      lastSuccess: lastSuccessRead,
-      lastFailure: schedulerFailure,
-      latestSkipReason,
-      boardGenerationStatus
-    };
-  }
+  const status: BoardReadSchedulerHealthStatus =
+    guidance.code === "healthy" ||
+    guidance.code === "scheduled_skipped_non_business_day" ||
+    guidance.code === "scheduled_skipped_already_generated"
+      ? "healthy"
+      : guidance.code === "generation_running" ||
+          guidance.code === "scheduled_request_in_progress" ||
+          (guidance.code === "scheduled_skipped_before_generation_time" &&
+            guidance.actionRequired === false) ||
+          (guidance.code === "no_scheduled_evidence" && guidance.actionRequired === false)
+        ? "waiting"
+        : "attention";
 
   return {
-    status: input.expectedToHaveRunByNow ? "attention" : "waiting",
-    expectedToHaveRunByNow: input.expectedToHaveRunByNow,
-    needsAttention: Boolean(input.expectedToHaveRunByNow),
-    managerMessage: latestScheduledAttempt.managerMessage,
-    nextStepMessage: input.expectedToHaveRunByNow
-      ? "Confirm the scheduled request completed and generate the board manually if needed."
-      : "Wait for the scheduled request to finish.",
+    status,
+    expectedToHaveRunByNow:
+      guidance.code === "settings_invalid" ? null : input.expectedToHaveRunByNow,
+    needsAttention: guidance.actionRequired,
+    managerMessage: guidance.message,
+    nextStepMessage: guidance.nextStep,
+    guidance,
     latestScheduledAttempt,
     latestManualRun: latestManualRunRead,
     lastSuccess: lastSuccessRead,
     lastFailure: schedulerFailure,
     latestSkipReason,
+    unauthorizedSummary,
+    readiness,
     boardGenerationStatus
   };
 }
@@ -698,6 +1071,8 @@ export async function getBoardReadModelForDate(
   const schedulerAttemptsRepository =
     dependencies.schedulerAttemptsRepository ??
     (dependencies.repository ? null : createSchedulerAttemptsRepository());
+  const appSettingsRepository =
+    dependencies.appSettingsRepository ?? (dependencies.repository ? null : createAppSettingsRepository());
   const now = dependencies.now ?? (() => new Date());
   const boardDay = await repository.findBoardDayByDate(normalizedBoardDate);
   const generationStatuses = generationTasksRepository
@@ -709,17 +1084,25 @@ export async function getBoardReadModelForDate(
     : [];
   let expectedToHaveRunByNow: boolean | null = null;
   let settingsErrorMessage: string | null = null;
+  let rawSettings: BoardReadSettingsSnapshot | null = null;
 
-  if (dependencies.appSettingsRepository || !dependencies.repository) {
+  if (appSettingsRepository) {
     try {
-      const settings = await getGenerationSettings(dependencies.appSettingsRepository);
+      const settings = await appSettingsRepository.getOrCreateAppSettings();
+
+      rawSettings = {
+        dailyGenerationTime: settings.dailyGenerationTime,
+        timezone: settings.timezone,
+        businessDays: [...settings.businessDays]
+      };
+      const normalizedSettings = normalizeAppSettings(rawSettings);
 
       expectedToHaveRunByNow = deriveExpectedToHaveRunByNow({
         boardDate: normalizedBoardDate,
         now: now(),
-        timezone: settings.timezone,
-        dailyGenerationTime: settings.dailyGenerationTime,
-        businessDays: settings.businessDays
+        timezone: normalizedSettings.timezone,
+        dailyGenerationTime: normalizedSettings.dailyGenerationTime,
+        businessDays: normalizedSettings.businessDays
       });
     } catch (error) {
       settingsErrorMessage =
@@ -737,7 +1120,8 @@ export async function getBoardReadModelForDate(
     generationStatuses,
     schedulerAttempts,
     expectedToHaveRunByNow,
-    settingsErrorMessage
+    settingsErrorMessage,
+    rawSettings
   });
 
   if (!boardDay) {

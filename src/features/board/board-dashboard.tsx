@@ -19,7 +19,6 @@ import {
 import Link from "next/link";
 
 import { EmptyStateCard } from "@/components/ui/state-card";
-import { formatBoardEnumLabel, type BoardFilters, type BoardGroupMode, type BoardPresentation } from "./board-grouping";
 import type { ActivityFeedEvent } from "@/server/services/activity-feed";
 import type {
   BoardReadLatestGeneration,
@@ -30,6 +29,8 @@ import type {
 } from "@/server/services/board-read";
 import type { ActiveUserSummary } from "@/server/services/user-summary";
 import { listProjectCardSummaries } from "@/features/projects/project-data";
+import type { BoardGenerationActionFeedback } from "./board-generation-feedback";
+import { formatBoardEnumLabel, type BoardFilters, type BoardGroupMode, type BoardPresentation } from "./board-grouping";
 
 type Task = Omit<BoardReadTask, "assignedUser"> & { assignedUser: BoardReadTask["assignedUser"] | null };
 
@@ -121,6 +122,32 @@ function formatSchedulerHealthStatus(status: BoardReadSchedulerHealth["status"])
   return "Waiting";
 }
 
+function formatReadinessStatus(status: BoardReadSchedulerHealth["readiness"]["status"]) {
+  if (status === "ready") {
+    return "Ready";
+  }
+
+  if (status === "attention") {
+    return "Needs attention";
+  }
+
+  return "Partially known";
+}
+
+function formatReadinessCheckStatus(
+  status: BoardReadSchedulerHealth["readiness"]["checks"][number]["status"]
+) {
+  if (status === "ready") {
+    return "Ready";
+  }
+
+  if (status === "attention") {
+    return "Attention";
+  }
+
+  return "Unknown";
+}
+
 function formatBoardGenerationState(state: BoardReadSchedulerHealth["boardGenerationStatus"]["state"]) {
   if (state === "not_created") {
     return "No board yet";
@@ -206,15 +233,28 @@ function HealthCard({
 
 export function SchedulerHealthPanel({
   boardDate,
+  generationFeedback,
+  isRetryPending = false,
+  onRetryRequested,
   schedulerHealth
 }: {
   boardDate: string;
+  generationFeedback?: BoardGenerationActionFeedback;
+  isRetryPending?: boolean;
+  onRetryRequested?(): void;
   schedulerHealth: BoardReadSchedulerHealth;
 }) {
+  const guidance = schedulerHealth.guidance;
   const latestScheduledAttempt = schedulerHealth.latestScheduledAttempt;
   const latestManualRun = schedulerHealth.latestManualRun;
   const lastSuccess = schedulerHealth.lastSuccess;
   const lastFailure = schedulerHealth.lastFailure;
+  const showRetryAction = Boolean(onRetryRequested && guidance.safeToRetry && guidance.retryLabel);
+  const showUnauthorizedSummary = Boolean(
+    schedulerHealth.unauthorizedSummary &&
+      (schedulerHealth.unauthorizedSummary.repeated ||
+        latestScheduledAttempt?.attemptState === "unauthorized")
+  );
 
   return (
     <section className={`scheduler-health-panel ${getHealthToneClass(schedulerHealth.status)}`}>
@@ -222,7 +262,8 @@ export function SchedulerHealthPanel({
         <div className="scheduler-health-header-copy">
           <p className="section-kicker">Manager generation health</p>
           <h2>{formatBoardDate(boardDate, true)}</h2>
-          <p>{schedulerHealth.managerMessage}</p>
+          <p>{guidance.title}</p>
+          <small>{schedulerHealth.managerMessage}</small>
           <small>{schedulerHealth.nextStepMessage}</small>
         </div>
         <div className="scheduler-health-status-stack">
@@ -230,13 +271,55 @@ export function SchedulerHealthPanel({
             {formatSchedulerHealthStatus(schedulerHealth.status)}
           </span>
           <span className="scheduler-health-flag">
-            {schedulerHealth.needsAttention ? "Manager action needed" : "No manager action needed"}
+            {guidance.actionRequired ? "Manager action needed" : "No manager action needed"}
           </span>
           <span className="scheduler-health-flag scheduler-health-flag-muted">
             {formatExpectedRunWindow(schedulerHealth.expectedToHaveRunByNow)}
           </span>
+          {guidance.safeToRetry ? (
+            <span className="scheduler-health-flag scheduler-health-flag-muted">
+              Safe to retry
+            </span>
+          ) : null}
         </div>
       </header>
+
+      {showRetryAction ? (
+        <div className="scheduler-health-actions">
+          <button
+            className="pill pill-action board-generate-button"
+            disabled={isRetryPending}
+            onClick={onRetryRequested}
+            type="button"
+          >
+            {isRetryPending ? "Generating..." : guidance.retryLabel}
+          </button>
+        </div>
+      ) : null}
+
+      {generationFeedback ? (
+        <div
+          className={
+            generationFeedback.tone === "error"
+              ? "notice notice-danger board-feedback"
+              : "notice board-feedback"
+          }
+          role={generationFeedback.tone === "error" ? "alert" : "status"}
+        >
+          <p>
+            <strong>{generationFeedback.message}</strong>
+            {generationFeedback.detail ? ` ${generationFeedback.detail}` : ""}
+          </p>
+        </div>
+      ) : null}
+
+      {!generationFeedback && isRetryPending ? (
+        <div className="notice board-feedback" role="status">
+          <p>
+            <strong>Generating board...</strong> The latest run evidence will refresh below when the request finishes.
+          </p>
+        </div>
+      ) : null}
 
       <div className="scheduler-health-summary-grid">
         <HealthCard
@@ -311,6 +394,70 @@ export function SchedulerHealthPanel({
               : "No skip recorded"
           }
         />
+      </div>
+
+      <div className="scheduler-health-secondary-grid">
+        {showUnauthorizedSummary && schedulerHealth.unauthorizedSummary ? (
+          <article className="scheduler-health-detail-panel">
+            <div className="scheduler-health-detail-header">
+              <span className="scheduler-health-card-icon">
+                <ShieldAlert size={18} />
+              </span>
+              <div className="scheduler-health-detail-copy">
+                <span>Unauthorized scheduled requests</span>
+                <strong>{schedulerHealth.unauthorizedSummary.managerMessage}</strong>
+                <small>{schedulerHealth.unauthorizedSummary.nextStepMessage}</small>
+              </div>
+            </div>
+            <div className="scheduler-readiness-list">
+              <div className="scheduler-readiness-item">
+                <strong>Count</strong>
+                <span className="scheduler-readiness-status scheduler-readiness-status-attention">
+                  {schedulerHealth.unauthorizedSummary.count}
+                </span>
+                <small>
+                  Latest blocked request at{" "}
+                  {formatBoardDateTime(schedulerHealth.unauthorizedSummary.latestOccurredAt)}
+                  {schedulerHealth.unauthorizedSummary.latestReasonCode
+                    ? ` • ${formatBoardEnumLabel(schedulerHealth.unauthorizedSummary.latestReasonCode)}`
+                    : ""}
+                </small>
+              </div>
+            </div>
+          </article>
+        ) : null}
+
+        <article className="scheduler-health-detail-panel">
+          <div className="scheduler-health-detail-header">
+            <span className="scheduler-health-card-icon">
+              <ShieldCheck size={18} />
+            </span>
+            <div className="scheduler-health-detail-copy">
+              <span>Scheduler readiness</span>
+              <strong>{formatReadinessStatus(schedulerHealth.readiness.status)}</strong>
+              <small>{schedulerHealth.readiness.summary}</small>
+            </div>
+          </div>
+          <div className="scheduler-readiness-list">
+            {schedulerHealth.readiness.checks.map((check) => (
+              <div className="scheduler-readiness-item" key={check.code}>
+                <strong>{check.label}</strong>
+                <span
+                  className={
+                    check.status === "ready"
+                      ? "scheduler-readiness-status scheduler-readiness-status-ready"
+                      : check.status === "attention"
+                        ? "scheduler-readiness-status scheduler-readiness-status-attention"
+                        : "scheduler-readiness-status scheduler-readiness-status-unknown"
+                  }
+                >
+                  {formatReadinessCheckStatus(check.status)}
+                </span>
+                <small>{check.detail}</small>
+              </div>
+            ))}
+          </div>
+        </article>
       </div>
     </section>
   );

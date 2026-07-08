@@ -188,10 +188,21 @@ describe("board dashboard task board", () => {
     const markup = renderToStaticMarkup(
       <SchedulerHealthPanel
         boardDate="2026-06-18"
+        onRetryRequested={() => undefined}
         schedulerHealth={{
           status: "attention",
           expectedToHaveRunByNow: true,
           needsAttention: true,
+          guidance: {
+            code: "scheduled_failed",
+            title: "Automatic generation failed",
+            message: "Scheduled generation failed before the board was created.",
+            nextStep:
+              "Review the failed run details and retry manually if the board still needs to be generated.",
+            actionRequired: true,
+            safeToRetry: true,
+            retryLabel: "Retry Board Generation"
+          },
           managerMessage: "Scheduled generation failed before the board was created.",
           nextStepMessage: "Review the failed run details and retry manually if the board still needs to be generated.",
           latestScheduledAttempt: {
@@ -274,6 +285,53 @@ describe("board dashboard task board", () => {
             failureStage: "GENERATION_RUN"
           },
           latestSkipReason: null,
+          unauthorizedSummary: {
+            count: 2,
+            latestAttemptId: "scheduler-attempt-0",
+            latestOccurredAt: "2026-06-18T13:55:00.000Z",
+            latestReasonCode: "SECRET_MISMATCH",
+            repeated: true,
+            managerMessage: "2 unauthorized scheduled requests were blocked for this board date.",
+            nextStepMessage:
+              "Confirm the deployed cron secret matches the scheduler configuration and review whether the repeated blocked hits are expected."
+          },
+          readiness: {
+            status: "attention",
+            summary:
+              "App-known readiness checks found setup gaps that can stop automatic board generation.",
+            checks: [
+              {
+                code: "cron_secret",
+                label: "CRON_SECRET",
+                status: "attention",
+                detail: "The app runtime does not currently have a cron secret configured."
+              },
+              {
+                code: "generation_timezone",
+                label: "Generation timezone",
+                status: "ready",
+                detail: "Generation timezone is set to America/Chicago."
+              },
+              {
+                code: "generation_time",
+                label: "Generation time",
+                status: "ready",
+                detail: "Generation time is set to 09:00."
+              },
+              {
+                code: "business_days",
+                label: "Business days",
+                status: "ready",
+                detail: "6 business days configured."
+              },
+              {
+                code: "scheduled_evidence",
+                label: "Scheduled evidence",
+                status: "ready",
+                detail: "Scheduled evidence was recorded at 2026-06-18T14:00:04.000Z."
+              }
+            ]
+          },
           boardGenerationStatus: {
             state: "failed",
             generatedAt: null,
@@ -285,9 +343,14 @@ describe("board dashboard task board", () => {
 
     expect(markup).toContain("Manager generation health");
     expect(markup).toContain("Needs attention");
+    expect(markup).toContain("Automatic generation failed");
+    expect(markup).toContain("Retry Board Generation");
     expect(markup).toContain("Latest scheduled");
     expect(markup).toContain("Latest manual");
     expect(markup).toContain("Last failure");
+    expect(markup).toContain("Unauthorized scheduled requests");
+    expect(markup).toContain("Scheduler readiness");
+    expect(markup).toContain("CRON_SECRET");
     expect(markup).toContain("Scheduled generation failed before the board was created.");
   });
 
