@@ -51,7 +51,7 @@ Approximate package-level progress:
 - In progress / partial: 16 of 114 roadmap packages
 - Not started: 68 of 114 roadmap packages
 
-Important context: this count understates the depth of E3 because EAPT-029 has been implemented as many smaller vertical slices through EAPT-029AG. The Appointment Board has more real workflow implementation than the simple parent package count shows.
+Important context: this count understates the depth of E3 because EAPT-029 has been implemented as many smaller vertical slices through EAPT-029AH. The Appointment Board has more real workflow implementation than the simple parent package count shows.
 
 ## Completed or substantially implemented
 
@@ -84,6 +84,7 @@ Important context: this count understates the depth of E3 because EAPT-029 has b
 - Proposed-time staff warning override
 - Proposed-time resource candidate availability preview
 - Proposed-time resource proposal and hold mutation
+- Availability-assisted scheduling recommendations for unscheduled drafts
 - Resource planning preview
 - Resource requirement attachment
 - Resource candidate proposal
@@ -194,9 +195,9 @@ Recommended next E3 slices:
 
 1. Enable local Playwright browser installation and run the authored task detail to linked draft to Appointment Board schedule e2e test.
 2. Automation failure/retry/replay visibility.
-3. Availability-assisted scheduling recommendations for unscheduled drafts.
-4. Automation rule authoring/simulation/activation controls.
-5. Template-driven task blueprint generation.
+3. Automation rule authoring/simulation/activation controls.
+4. Template-driven task blueprint generation.
+5. Broader lifecycle, concurrency, and browser workflow validation.
 
 ## E4 remaining work
 
