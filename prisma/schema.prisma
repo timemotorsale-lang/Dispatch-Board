@@ -338,6 +338,29 @@ enum GenerationTriggerType {
   MANUAL
 }
 
+enum SchedulerAttemptState {
+  RECEIVED
+  UNAUTHORIZED
+  STARTED
+  SKIPPED
+  SUCCEEDED
+  FAILED
+}
+
+enum SchedulerAuthorizationOutcome {
+  PENDING
+  AUTHORIZED
+  UNAUTHORIZED
+  SYSTEM_MISCONFIGURED
+}
+
+enum SchedulerTriggerSource {
+  PLATFORM_CRON
+  EXTERNAL_SCHEDULER
+  MANUAL_HTTP_TEST
+  UNKNOWN
+}
+
 // Placeholder model for the v0.1.0 foundation migration.
 // Domain models are intentionally deferred to later milestones.
 model BootstrapMarker {
@@ -1289,4 +1312,30 @@ model GenerationRun {
   triggeredByUser   User?                 @relation("GenerationRunTriggeredByUser", fields: [triggeredByUserId], references: [id], onDelete: SetNull)
 
   @@index([boardDate, startedAt])
+}
+
+model SchedulerAttempt {
+  id                   String                        @id @default(cuid())
+  boardDate            DateTime                      @db.Date
+  triggerType          GenerationTriggerType         @default(SCHEDULED)
+  triggerSource        SchedulerTriggerSource        @default(UNKNOWN)
+  routePath            String
+  requestMethod        String
+  receivedAt           DateTime                      @default(now())
+  startedAt            DateTime?
+  completedAt          DateTime?
+  attemptState         SchedulerAttemptState         @default(RECEIVED)
+  authorizationOutcome SchedulerAuthorizationOutcome @default(PENDING)
+  generationRunId      String?
+  managerMessage       String
+  unauthorizedReasonCode String?
+  failureCode          String?
+  safeErrorMessage     String?
+  createdAt            DateTime                      @default(now())
+  updatedAt            DateTime                      @updatedAt
+
+  @@index([boardDate, receivedAt])
+  @@index([attemptState, receivedAt])
+  @@index([authorizationOutcome, receivedAt])
+  @@index([generationRunId])
 }
