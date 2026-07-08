@@ -13,7 +13,10 @@ import {
   getGenerationSettings,
   type GenerationSettings
 } from "@/server/services/app-settings-service";
-import type { ScheduledBoardGenerationResult } from "@/server/services/board-generation";
+import type {
+  ScheduledBoardGenerationResult,
+  ScheduledSkipReasonCode
+} from "@/server/services/board-generation";
 import { getBoardDateInTimeZone, normalizeBoardDate } from "@/server/validation/board-date";
 import { DEFAULT_APP_SETTINGS } from "@/server/validation/app-settings";
 
@@ -53,10 +56,18 @@ export type SchedulerAttemptEvidence = {
   authorizationOutcome: SchedulerAuthorizationOutcomeValue;
   generationRunId: string | null;
   managerMessage: string;
+  skipReasonCode: ScheduledSkipReasonCodeValue | null;
   unauthorizedReasonCode: string | null;
   failureCode: string | null;
   safeErrorMessage: string | null;
 };
+
+export type ScheduledSkipReasonCodeValue =
+  | "NON_BUSINESS_DAY"
+  | "BEFORE_GENERATION_TIME"
+  | "ALREADY_GENERATED"
+  | "CONFIGURATION_MISSING"
+  | "CONFIGURATION_INVALID";
 
 type SchedulerAttemptsDependencies = {
   repository?: SchedulerAttemptsRepository;
@@ -121,6 +132,10 @@ function toRepositoryAuthorizationOutcome(
 }
 
 function toEvidence(record: SchedulerAttemptRecord): SchedulerAttemptEvidence {
+  const schedulerAttemptWithSkipReason = record as SchedulerAttemptRecord & {
+    skipReasonCode?: ScheduledSkipReasonCodeValue | null;
+  };
+
   return {
     id: record.id,
     boardDate: record.boardDate.toISOString().slice(0, 10),
@@ -135,10 +150,15 @@ function toEvidence(record: SchedulerAttemptRecord): SchedulerAttemptEvidence {
     authorizationOutcome: toServiceAuthorizationOutcome(record.authorizationOutcome),
     generationRunId: record.generationRunId ?? null,
     managerMessage: record.managerMessage,
+    skipReasonCode: schedulerAttemptWithSkipReason.skipReasonCode ?? null,
     unauthorizedReasonCode: record.unauthorizedReasonCode ?? null,
     failureCode: record.failureCode ?? null,
     safeErrorMessage: record.safeErrorMessage ?? null
   };
+}
+
+function toRepositorySkipReasonCode(skipReasonCode: ScheduledSkipReasonCode): ScheduledSkipReasonCodeValue {
+  return skipReasonCode;
 }
 
 function inferTriggerSource(request: Request) {
@@ -284,13 +304,18 @@ export async function recordSchedulerAttemptResult(
       managerMessage:
         result.summary ?? `Scheduled generation succeeded for ${normalizeBoardDate(result.boardDate)}.`,
       completedAt: now(),
-      generationRunId: result.generationRunId
+      generationRunId: result.generationRunId,
+      skipReasonCode: null
     });
 
     return toEvidence(record);
   }
 
   if (result.status === "skipped") {
+    if (!result.skipReasonCode) {
+      throw new Error("Scheduled skip results require a skip reason code.");
+    }
+
     const record = await repository.updateSchedulerAttempt({
       id: attemptId,
       attemptState: SchedulerAttemptState.SKIPPED,
@@ -298,7 +323,8 @@ export async function recordSchedulerAttemptResult(
       managerMessage:
         result.summary ?? `Scheduled generation was skipped for ${normalizeBoardDate(result.boardDate)}.`,
       completedAt: now(),
-      generationRunId: result.generationRunId
+      generationRunId: result.generationRunId,
+      skipReasonCode: toRepositorySkipReasonCode(result.skipReasonCode)
     });
 
     return toEvidence(record);
@@ -313,6 +339,7 @@ export async function recordSchedulerAttemptResult(
     managerMessage: safeErrorMessage,
     completedAt: now(),
     generationRunId: result.generationRunId,
+    skipReasonCode: null,
     failureCode: "SCHEDULED_GENERATION_FAILED",
     safeErrorMessage
   });
@@ -333,6 +360,7 @@ export async function recordFailedSchedulerAttempt(
     authorizationOutcome: toRepositoryAuthorizationOutcome(input.authorizationOutcome),
     managerMessage: safeErrorMessage,
     completedAt: now(),
+    skipReasonCode: null,
     failureCode: input.failureCode ?? "SCHEDULED_REQUEST_FAILED",
     safeErrorMessage
   });

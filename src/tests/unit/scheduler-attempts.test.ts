@@ -37,6 +37,7 @@ function createSchedulerAttemptsRepositoryHarness() {
         authorizationOutcome: SchedulerAuthorizationOutcome.PENDING,
         generationRunId: null,
         managerMessage: input.managerMessage,
+        skipReasonCode: null,
         unauthorizedReasonCode: null,
         failureCode: null,
         safeErrorMessage: null,
@@ -63,6 +64,8 @@ function createSchedulerAttemptsRepositoryHarness() {
       attempt.completedAt = input.completedAt === undefined ? attempt.completedAt : input.completedAt;
       attempt.generationRunId =
         input.generationRunId === undefined ? attempt.generationRunId : input.generationRunId;
+      attempt.skipReasonCode =
+        input.skipReasonCode === undefined ? attempt.skipReasonCode : input.skipReasonCode;
       attempt.unauthorizedReasonCode =
         input.unauthorizedReasonCode === undefined
           ? attempt.unauthorizedReasonCode
@@ -191,6 +194,7 @@ describe("scheduler attempts service", () => {
         createdTaskCount: 3,
         skippedExistingTaskCount: 1,
         alreadyExistingTaskCount: 1,
+        skipReasonCode: null,
         summary: "3 tasks created",
         errorMessage: null,
         latestGeneration: null
@@ -207,6 +211,52 @@ describe("scheduler attempts service", () => {
       authorizationOutcome: "authorized",
       generationRunId: "generation-run-7",
       managerMessage: "3 tasks created"
+    });
+  });
+
+  it("records normalized skip reasons for scheduled skip outcomes", async () => {
+    const harness = createSchedulerAttemptsRepositoryHarness();
+    const received = await createReceivedSchedulerAttempt(
+      new Request("http://localhost/api/cron/generate-board"),
+      {
+        repository: harness.repository,
+        now: () => new Date("2026-07-08T15:00:00.000Z"),
+        getGenerationSettings: async () => ({
+          dailyGenerationTime: "09:00",
+          timezone: "America/Chicago",
+          businessDays: []
+        })
+      }
+    );
+
+    const skipped = await recordSchedulerAttemptResult(
+      received.id,
+      {
+        status: "skipped",
+        boardDate: "2026-07-08",
+        generationRunId: null,
+        createdTaskCount: 0,
+        skippedExistingTaskCount: 0,
+        alreadyExistingTaskCount: null,
+        skipReasonCode: "BEFORE_GENERATION_TIME",
+        summary:
+          "Skipped scheduled generation because America/Chicago has not reached the configured daily generation time of 09:00.",
+        errorMessage: null,
+        latestGeneration: null
+      },
+      {
+        repository: harness.repository,
+        now: () => new Date("2026-07-08T15:00:02.000Z")
+      }
+    );
+
+    expect(skipped).toMatchObject({
+      id: received.id,
+      attemptState: "skipped",
+      authorizationOutcome: "authorized",
+      skipReasonCode: "BEFORE_GENERATION_TIME",
+      managerMessage:
+        "Skipped scheduled generation because America/Chicago has not reached the configured daily generation time of 09:00."
     });
   });
 

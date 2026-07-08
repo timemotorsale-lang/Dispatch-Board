@@ -12,6 +12,12 @@ import { prisma } from "@/server/db/client";
 type SchedulerAttemptsDatabase = Pick<PrismaClient, "schedulerAttempt">;
 
 export type SchedulerAttemptRecord = SchedulerAttempt;
+export type SchedulerAttemptSkipReasonCode =
+  | "NON_BUSINESS_DAY"
+  | "BEFORE_GENERATION_TIME"
+  | "ALREADY_GENERATED"
+  | "CONFIGURATION_MISSING"
+  | "CONFIGURATION_INVALID";
 
 export type CreateSchedulerAttemptInput = {
   boardDate: string;
@@ -31,6 +37,7 @@ export type UpdateSchedulerAttemptInput = {
   completedAt?: Date | null;
   generationRunId?: string | null;
   unauthorizedReasonCode?: string | null;
+  skipReasonCode?: SchedulerAttemptSkipReasonCode | null;
   failureCode?: string | null;
   safeErrorMessage?: string | null;
 };
@@ -78,6 +85,7 @@ export function createSchedulerAttemptsRepository(
           ...(input.unauthorizedReasonCode !== undefined
             ? { unauthorizedReasonCode: input.unauthorizedReasonCode }
             : {}),
+          ...(input.skipReasonCode !== undefined ? { skipReasonCode: input.skipReasonCode } : {}),
           ...(input.failureCode !== undefined ? { failureCode: input.failureCode } : {}),
           ...(input.safeErrorMessage !== undefined ? { safeErrorMessage: input.safeErrorMessage } : {})
         }

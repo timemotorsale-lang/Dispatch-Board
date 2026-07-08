@@ -372,6 +372,7 @@ describe("board generation service", () => {
       createdTaskCount: 1,
       skippedExistingTaskCount: 0,
       alreadyExistingTaskCount: 0,
+      skipReasonCode: null,
       errorMessage: null,
       summary: "1 tasks created • 0 duplicates skipped • 0 manual tasks preserved"
     });
@@ -435,6 +436,7 @@ describe("board generation service", () => {
       status: "failed",
       boardDate: "2026-06-17",
       generationRunId: "generation-run-1",
+      skipReasonCode: null,
       errorMessage: "Template insert failed."
     });
     expect(result.latestGeneration).toMatchObject({
@@ -471,6 +473,7 @@ describe("board generation service", () => {
       generationRunId: "generation-run-1",
       createdTaskCount: 1,
       skippedExistingTaskCount: 0,
+      skipReasonCode: null,
       errorMessage: null,
       summary: "1 tasks created • 0 duplicates skipped • 0 manual tasks preserved"
     });
@@ -521,6 +524,7 @@ describe("board generation service", () => {
       createdTaskCount: 0,
       skippedExistingTaskCount: 0,
       alreadyExistingTaskCount: null,
+      skipReasonCode: "NON_BUSINESS_DAY",
       summary: "Skipped scheduled generation because sunday is not configured as a business day.",
       errorMessage: null,
       latestGeneration: null
@@ -549,6 +553,7 @@ describe("board generation service", () => {
       createdTaskCount: 0,
       skippedExistingTaskCount: 0,
       alreadyExistingTaskCount: null,
+      skipReasonCode: "BEFORE_GENERATION_TIME",
       summary:
         "Skipped scheduled generation because America/Chicago has not reached the configured daily generation time of 09:00.",
       errorMessage: null,
@@ -578,6 +583,7 @@ describe("board generation service", () => {
       status: "skipped",
       boardDate: "2026-06-17",
       generationRunId: "generation-run-1",
+      skipReasonCode: "ALREADY_GENERATED",
       summary: "Skipped scheduled generation because the board for 2026-06-17 is already generated."
     });
     expect(secondResult.latestGeneration).toMatchObject({
@@ -647,5 +653,61 @@ describe("board generation service", () => {
         generatedByUserId: null
       })
     ]);
+  });
+
+  it("classifies missing scheduler configuration as a normalized scheduled skip", async () => {
+    const harness = createGenerationTasksRepositoryHarness();
+
+    const result = await triggerScheduledBoardGeneration({
+      repository: harness.repository,
+      loadGenerationInputs: harness.loadGenerationInputs,
+      getGenerationSettings: async () => {
+        throw new Error("App settings require a timezone.");
+      },
+      now: createNowSequence("2026-06-17T15:00:00.000Z")
+    });
+
+    expect(result).toEqual({
+      status: "skipped",
+      boardDate: "2026-06-17",
+      generationRunId: null,
+      createdTaskCount: 0,
+      skippedExistingTaskCount: 0,
+      alreadyExistingTaskCount: null,
+      skipReasonCode: "CONFIGURATION_MISSING",
+      summary:
+        "Skipped scheduled generation because required scheduler or app configuration is missing.",
+      errorMessage: null,
+      latestGeneration: null
+    });
+    expect(harness.readGenerationRuns()).toHaveLength(0);
+  });
+
+  it("classifies invalid scheduler configuration as a normalized scheduled skip", async () => {
+    const harness = createGenerationTasksRepositoryHarness();
+
+    const result = await triggerScheduledBoardGeneration({
+      repository: harness.repository,
+      loadGenerationInputs: harness.loadGenerationInputs,
+      getGenerationSettings: async () =>
+        createGenerationSettings({
+          timezone: "Invalid/Timezone"
+        }),
+      now: createNowSequence("2026-06-17T15:00:00.000Z")
+    });
+
+    expect(result).toEqual({
+      status: "skipped",
+      boardDate: "2026-06-17",
+      generationRunId: null,
+      createdTaskCount: 0,
+      skippedExistingTaskCount: 0,
+      alreadyExistingTaskCount: null,
+      skipReasonCode: "CONFIGURATION_INVALID",
+      summary: "Skipped scheduled generation because scheduler or app configuration is invalid.",
+      errorMessage: null,
+      latestGeneration: null
+    });
+    expect(harness.readGenerationRuns()).toHaveLength(0);
   });
 });

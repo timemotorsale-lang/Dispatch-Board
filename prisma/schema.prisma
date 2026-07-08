@@ -361,6 +361,14 @@ enum SchedulerTriggerSource {
   UNKNOWN
 }
 
+enum SchedulerSkipReasonCode {
+  NON_BUSINESS_DAY
+  BEFORE_GENERATION_TIME
+  ALREADY_GENERATED
+  CONFIGURATION_MISSING
+  CONFIGURATION_INVALID
+}
+
 // Placeholder model for the v0.1.0 foundation migration.
 // Domain models are intentionally deferred to later milestones.
 model BootstrapMarker {
@@ -1328,6 +1336,7 @@ model SchedulerAttempt {
   authorizationOutcome SchedulerAuthorizationOutcome @default(PENDING)
   generationRunId      String?
   managerMessage       String
+  skipReasonCode       SchedulerSkipReasonCode?
   unauthorizedReasonCode String?
   failureCode          String?
   safeErrorMessage     String?
