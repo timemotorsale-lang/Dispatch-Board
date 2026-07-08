@@ -15,6 +15,7 @@ import {
   buildAppointmentNotificationCenterItems,
   buildAppointmentNotificationFailureQueue,
   buildAppointmentResourceViewItems,
+  buildAppointmentScheduleAnalyticsModel,
   buildAppointmentVehicleViewItems,
   buildAppointmentCommandCenterRuntimeQueue,
   buildAppointmentCommandCenterReport,
@@ -100,6 +101,14 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Open resource view");
     expect(markup).toContain("Open location view");
     expect(markup).toContain("Open vehicle view");
+    expect(markup).toContain("Schedule Analytics &amp; Reconciliation");
+    expect(markup).toContain("Resource balance");
+    expect(markup).toContain("Location flow");
+    expect(markup).toContain("Reconciliation watch");
+    expect(markup).toContain("Lane Pressure");
+    expect(markup).toContain("Reconciliation Queue");
+    expect(markup).toContain("Open analytics lane");
+    expect(markup).toContain("Review conflict");
     expect(markup).toContain("Staff");
     expect(markup).toContain("Location");
     expect(markup).toContain("Resource");
@@ -280,6 +289,83 @@ describe("appointment board shell", () => {
     expect(summaries.find((summary) => summary.watchType === "no-show-recovery")?.count).toBe(1);
     expect(summaries.find((summary) => summary.watchType === "follow-up-backlog")?.count).toBe(1);
     expect(summaries.find((summary) => summary.watchType === "manager-activity")?.count).toBeGreaterThan(0);
+  });
+
+  it("builds schedule analytics and reconciliation for resource pressure", () => {
+    const model = buildAppointmentScheduleAnalyticsModel({
+      preset: "resource-balance",
+      appointments: [
+        {
+          id: "APT-CONFLICT",
+          title: "Service / Repair",
+          customer: "Khalid Mohamud",
+          vehicle: "Brake Inspection",
+          category: "service",
+          status: "confirmed",
+          staffId: "brock",
+          staffName: "Brock Peterson",
+          startMinutes: 600,
+          durationMinutes: 60,
+          phone: "612-555-0101",
+          complaint: "Conflict active",
+          location: "Service bay",
+          confirmation: "Resource conflict needs manager review",
+          conflict: true,
+          taskAutomation: [],
+          governanceNotes: [],
+          startsAtIso: "2026-07-07T15:00:00.000Z",
+          endsAtIso: "2026-07-07T16:00:00.000Z"
+        },
+        {
+          id: "APT-FOLLOW",
+          title: "Vehicle Delivery",
+          customer: "Yusuf Mohamed",
+          vehicle: "2020 Camry",
+          category: "delivery",
+          status: "follow-up",
+          staffId: "mohamed",
+          staffName: "Mohamed Ali",
+          startMinutes: 780,
+          durationMinutes: 45,
+          phone: "612-555-0199",
+          complaint: "Delivery recap",
+          location: "Front office",
+          confirmation: "Follow-up needed",
+          needsFollowUp: true,
+          taskAutomation: [],
+          governanceNotes: [],
+          startsAtIso: "2026-07-07T18:00:00.000Z",
+          endsAtIso: "2026-07-07T18:45:00.000Z"
+        },
+        {
+          id: "APT-DRAFT",
+          title: "Documentation / DMV",
+          customer: "Amina Said",
+          vehicle: "Registration",
+          category: "dmv",
+          status: "draft",
+          staffId: "rayana",
+          staffName: "Rayana Hassan",
+          startMinutes: 0,
+          durationMinutes: 60,
+          phone: "612-555-0100",
+          complaint: "Needs scheduling",
+          location: "Front office",
+          confirmation: "Draft not yet placed",
+          taskAutomation: [],
+          governanceNotes: [],
+          startsAtIso: null,
+          endsAtIso: null
+        }
+      ] as any
+    });
+
+    expect(model.headline).toContain("resource lanes");
+    expect(model.metrics.map((metric) => metric.label)).toContain("Conflict hotspots");
+    expect(model.laneSummaries.length).toBeGreaterThan(0);
+    expect(model.reconciliationItems.map((item) => item.actionLabel)).toEqual(
+      expect.arrayContaining(["Review conflict", "Open follow-up", "Place draft"])
+    );
   });
 
   it("summarizes notification digests for exception queues and shift handoff", () => {

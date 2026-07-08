@@ -7527,6 +7527,60 @@ code {
   border-radius: 14px;
 }
 
+.appointment-schedule-analytics-card,
+.appointment-schedule-analytics-metrics,
+.appointment-schedule-analytics-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.appointment-schedule-analytics-card {
+  margin: 0 12px 12px;
+  padding: 14px;
+  background: linear-gradient(180deg, #fffaf5 0%, #f8fafc 100%);
+  border: 1px solid #fed7aa;
+  border-radius: 18px;
+}
+
+.appointment-schedule-analytics-card .appointment-section-heading {
+  align-items: flex-start;
+}
+
+.appointment-schedule-analytics-card .appointment-section-heading > span {
+  display: inline-grid;
+  place-items: center;
+  min-height: 26px;
+  padding: 0 9px;
+  color: #7c2d12;
+  background: #fff;
+  border: 1px solid #fed7aa;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.appointment-schedule-analytics-headline {
+  margin: 0;
+  color: #7c2d12;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.appointment-schedule-analytics-metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.appointment-schedule-analytics-metric {
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #fed7aa;
+  border-radius: 14px;
+}
+
+.appointment-schedule-analytics-grid {
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+}
+
 .appointment-notification-policy-grid,
 .appointment-notification-policy-fields,
 .appointment-notification-policy-summary {
@@ -9417,6 +9471,8 @@ code {
   .appointment-month-grid,
   .appointment-runtime-handoffs-grid,
   .appointment-runtime-handoff-sections,
+  .appointment-schedule-analytics-metrics,
+  .appointment-schedule-analytics-grid,
   .appointment-ops-intelligence-grid,
   .appointment-ops-intelligence-metrics,
   .appointment-ops-intelligence-drilldowns,
@@ -9472,6 +9528,8 @@ code {
   .appointment-notification-fanout-summary,
   .appointment-enterprise-ops-summary,
   .appointment-enterprise-ops-grid,
+  .appointment-schedule-analytics-metrics,
+  .appointment-schedule-analytics-grid,
   .appointment-operating-views-grid,
   .appointment-notification-center-grid,
   .appointment-modal-grid {
