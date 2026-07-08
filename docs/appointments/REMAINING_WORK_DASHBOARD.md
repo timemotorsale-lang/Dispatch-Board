@@ -8,7 +8,7 @@
 
 ## Executive snapshot
 
-The Appointment Board is no longer just a visual mockup. It now has a live command foundation, server-side permissions, scheduling previews, seeded schedulable staff resources, resource workflows, staff conflict handling, unscheduled draft scheduling, past-time schedule protection, outcome capture, follow-up automation, linked-task display/navigation, task-detail create-appointment flow, Appointment Board handoff, and appointment history in the Activity Feed.
+The Appointment Board is no longer just a visual mockup. It now has a live command foundation, server-side permissions, scheduling previews, seeded schedulable staff resources, resource workflows, staff conflict handling, unscheduled draft scheduling, past-time schedule protection, outcome capture, follow-up automation, template-driven task blueprint generation, linked-task display/navigation, task-detail create-appointment flow, Appointment Board handoff, and appointment history in the Activity Feed.
 
 However, Enterprise Release 1.0 is not complete. The remaining work is mostly the enterprise finish: expanded command-center views, administration/settings completion, task-to-appointment automation runtime, durable notification center/runtime, durable analytics/reporting models, production hardening, browser/accessibility evidence, and rollout.
 
@@ -36,7 +36,7 @@ This is an approximate planning view. A roadmap package is only marked complete 
 | --- | ---: | ---: | ---: | ---: | --- |
 | E1 | 12 | 11 | 1 | 0 | Ready for approval after EAPT-006 admin gap is accepted or completed |
 | E2 | 13 | 13 | 0 | 0 | Ready for review |
-| E3 | 13 | 6 | 2 | 5 | In progress |
+| E3 | 13 | 7 | 2 | 4 | In progress |
 | E4 | 14 | 0 | 9 | 5 | In progress, not gate-ready |
 | E5 | 11 | 0 | 4 | 7 | In progress, not gate-ready |
 | E6 | 9 | 0 | 0 | 9 | Not started |
@@ -102,6 +102,7 @@ Important context: this count understates the depth of E3 because EAPT-029 has b
 - Outcome and follow-up capture
 - Outcome-driven follow-up task automation
 - Outcome-driven follow-up draft appointment automation
+- Template-driven appointment task blueprint generation across draft, approval, schedule, check-in, outcome, and completion lifecycle checkpoints
 - Generated draft visibility and selection after outcome automation
 - Linked task read-model/detail-rail display
 - Appointment-to-task navigation from linked task rows
@@ -182,7 +183,7 @@ E3 is the active implementation area.
 | --- | --- | --- | --- |
 | EAPT-029 | Finish outcome/reason/correction/follow-up workflow coverage beyond current slices | In progress | High |
 | EAPT-030 | Appointment-task link persistence, read models, and handoff navigation | Complete initial live slice; linked-task read/detail and appointment-to-task navigation implemented | High |
-| EAPT-031 | Appointment-template task blueprint generation | Not started | High |
+| EAPT-031 | Appointment-template task blueprint generation | Complete initial lifecycle-backed slice; template blueprint tasks now generate during draft, approval, schedule, check-in, outcome, and completion flows with transactional links/activity evidence | High |
 | EAPT-032 | Create appointment from any task workflow | Complete initial task-detail workflow with live browser proof; automated e2e execution awaits local Playwright browser install | High |
 | EAPT-033 | Task-to-appointment automation runtime | Partial implementation exists; outcome-driven runtime records now persist and replay safely, broader task-trigger automation remains | High |
 | EAPT-034 | Automation rule versioning, simulation, activation, pause, retirement | Partial; visible catalog candidates, simulation evidence, activation-readiness guidance, configured-rule lifecycle controls, and activation safety gates are live in the automation console, but durable rule-version linkage and richer authoring remain | High |
@@ -194,10 +195,9 @@ E3 is the active implementation area.
 Recommended next E3 slices:
 
 1. Enable local Playwright browser installation and run the authored task detail to linked draft to Appointment Board schedule e2e test.
-2. Template-driven task blueprint generation.
-3. Broader lifecycle, concurrency, and browser workflow validation.
-4. Deeper background failure classes and durable replay worker coverage.
-5. Durable rule-version linkage on historical executions.
+2. Broader lifecycle, concurrency, and browser workflow validation.
+3. Deeper background failure classes and durable replay worker coverage.
+4. Durable rule-version linkage on historical executions.
 
 ## E4 remaining work
 

@@ -534,10 +534,14 @@ describe("appointment read service", () => {
           sourceType: "APPOINTMENT",
           sourceReference: "appointment-1",
           inputSnapshot: {
-            automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_APPOINTMENT"
+            automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_APPOINTMENT",
+            automationRuleVersion: 3,
+            catalogVersionId: "catalog-version-1"
           },
           resultSnapshot: {
             automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_APPOINTMENT",
+            automationRuleVersion: 3,
+            catalogVersionId: "catalog-version-1",
             generatedAppointmentNumber: "FUP-APT-10245-001"
           },
           failureCode: null,
@@ -592,6 +596,8 @@ describe("appointment read service", () => {
       expect.objectContaining({
         id: "execution-review",
         automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_APPOINTMENT",
+        automationRuleVersion: 3,
+        catalogVersionId: "catalog-version-1",
         status: "REVIEW_REQUIRED",
         generatedAppointmentNumber: "FUP-APT-10245-001"
       }),
@@ -603,6 +609,84 @@ describe("appointment read service", () => {
         failureMessage: "Task service timed out."
       })
     ]);
+  });
+
+  it("shows task-sourced automation history on generated automated appointments", async () => {
+    const automatedDraft = createAppointment({
+      id: "appointment-auto-1",
+      appointmentNumber: "APT-TASK-AUTO-001",
+      bookingStatus: "DRAFT",
+      startsAt: null,
+      endsAt: null,
+      sourceType: "AUTOMATION",
+      sourceReference: "task-1",
+      title: "Blocked task review: Call lender and verify packet",
+      automationExecutions: [
+        {
+          id: "execution-task-auto-1",
+          automationRuleId: "rule-blocked-task-review",
+          triggerCode: "BLOCKED_TASK_REVIEW",
+          purposeCode: "APT-TASK-MEETING",
+          status: "SUCCEEDED",
+          sourceType: "TASK",
+          sourceReference: "task-1",
+          inputSnapshot: {
+            automationRuleCode: "RULE-BLOCKED-TASK-REVIEW",
+            automationRuleVersion: 2,
+            catalogVersionId: "catalog-version-2",
+            sourceTaskId: "task-1",
+            sourceTaskTitle: "Call lender and verify packet"
+          },
+          resultSnapshot: {
+            automationRuleCode: "RULE-BLOCKED-TASK-REVIEW",
+            automationRuleVersion: 2,
+            catalogVersionId: "catalog-version-2",
+            sourceTaskId: "task-1",
+            sourceTaskTitle: "Call lender and verify packet",
+            generatedAppointmentNumber: "APT-TASK-AUTO-001"
+          },
+          failureCode: null,
+          failureMessage: null,
+          attemptCount: 1,
+          maxAttempts: 3,
+          nextRetryAt: null,
+          resolvedAt: null,
+          createdAt: new Date("2026-07-06T16:05:00.000Z"),
+          updatedAt: new Date("2026-07-06T16:10:00.000Z")
+        }
+      ]
+    });
+
+    const result = await listAppointmentReadModels(
+      managerUser,
+      {
+        locationId: "loc-time-motor-sales-minneapolis",
+        windowStart,
+        windowEnd
+      },
+      createAppointmentReadRepositoryHarness({
+        appointments: [automatedDraft]
+      }),
+      now
+    );
+
+    expect(result.appointments[0]).toMatchObject({
+      appointmentNumber: "APT-TASK-AUTO-001",
+      sourceType: "AUTOMATION",
+      sourceReference: "task-1",
+      automationExecutions: [
+        {
+          automationRuleCode: "RULE-BLOCKED-TASK-REVIEW",
+          automationRuleVersion: 2,
+          catalogVersionId: "catalog-version-2",
+          sourceType: "TASK",
+          sourceTaskId: "task-1",
+          sourceTaskTitle: "Call lender and verify packet",
+          generatedAppointmentNumber: "APT-TASK-AUTO-001",
+          status: "SUCCEEDED"
+        }
+      ]
+    });
   });
 
   it("rejects unauthenticated users and users without active schedule access", async () => {

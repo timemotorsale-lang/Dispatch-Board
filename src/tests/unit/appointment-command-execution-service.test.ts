@@ -63,7 +63,11 @@ function createCommandRepositoryHarness(input?: {
     confirmationStatus: "CONFIRMED",
     attendanceStatus: "EXPECTED",
     executionStatus: "NOT_STARTED",
-    version: 3
+    version: 3,
+    purposeSnapshot: null,
+    customerSnapshot: null,
+    vehicleSnapshot: null,
+    sourceSnapshot: null
   };
   const access: AppointmentCommandLocationAccessRecord = {
     userId: managerUser.id,
@@ -271,7 +275,11 @@ describe("appointment command execution service", () => {
         confirmationStatus: "PENDING",
         attendanceStatus: "EXPECTED",
         executionStatus: "NOT_STARTED",
-        version: 3
+        version: 3,
+        purposeSnapshot: null,
+        customerSnapshot: null,
+        vehicleSnapshot: null,
+        sourceSnapshot: null
       }
     });
     const lifecycleHarness = createLifecycleRepositoryHarness();
@@ -360,7 +368,11 @@ describe("appointment command execution service", () => {
         confirmationStatus: "PENDING",
         attendanceStatus: "EXPECTED",
         executionStatus: "NOT_STARTED",
-        version: 3
+        version: 3,
+        purposeSnapshot: null,
+        customerSnapshot: null,
+        vehicleSnapshot: null,
+        sourceSnapshot: null
       },
       heldReservationCandidates: [
         {
@@ -441,7 +453,11 @@ describe("appointment command execution service", () => {
         confirmationStatus: "NOT_REQUIRED",
         attendanceStatus: "EXPECTED",
         executionStatus: "NOT_STARTED",
-        version: 3
+        version: 3,
+        purposeSnapshot: null,
+        customerSnapshot: null,
+        vehicleSnapshot: null,
+        sourceSnapshot: null
       }
     });
     const lifecycleHarness = createLifecycleRepositoryHarness();
@@ -534,7 +550,11 @@ describe("appointment command execution service", () => {
         confirmationStatus: "NOT_REQUIRED",
         attendanceStatus: "EXPECTED",
         executionStatus: "NOT_STARTED",
-        version: 3
+        version: 3,
+        purposeSnapshot: null,
+        customerSnapshot: null,
+        vehicleSnapshot: null,
+        sourceSnapshot: null
       }
     });
     const lifecycleHarness = createLifecycleRepositoryHarness();
@@ -766,7 +786,11 @@ describe("appointment command execution service", () => {
         confirmationStatus: "CONFIRMED",
         attendanceStatus: "CHECKED_IN",
         executionStatus: "FINISHED",
-        version: 3
+        version: 3,
+        purposeSnapshot: null,
+        customerSnapshot: null,
+        vehicleSnapshot: null,
+        sourceSnapshot: null
       }
     });
     const lifecycleHarness = createLifecycleRepositoryHarness();

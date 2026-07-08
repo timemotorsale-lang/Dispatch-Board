@@ -104,6 +104,7 @@ export type AppointmentAutomationOperationsRepository = {
   }): Promise<AppointmentAutomationExecutionRecord>;
   upsertRuleDraft(input: RuleMutationInput & {
     actorUserId: string;
+    catalogVersionId: string | null;
     validation: RuleValidation;
     simulation: unknown;
   }): Promise<AppointmentAutomationRuleRecord>;
@@ -199,6 +200,30 @@ function toJsonValue(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
+function withResolvedRuleSnapshotContext(input: {
+  snapshot: unknown;
+  resolvedRule: AppointmentAutomationRuleRecord | null;
+  fallbackRuleCode: string | null;
+}) {
+  const snapshot = isPlainObject(input.snapshot) ? input.snapshot : {};
+
+  return {
+    ...snapshot,
+    automationRuleCode:
+      (typeof snapshot.automationRuleCode === "string" && snapshot.automationRuleCode) ||
+      input.resolvedRule?.ruleCode ||
+      input.fallbackRuleCode ||
+      null,
+    automationRuleVersion:
+      (typeof snapshot.automationRuleVersion === "number" && snapshot.automationRuleVersion) ||
+      (input.resolvedRule ? versionFromSnapshot(input.resolvedRule.validationSnapshot) : null),
+    catalogVersionId:
+      (typeof snapshot.catalogVersionId === "string" && snapshot.catalogVersionId) ||
+      input.resolvedRule?.catalogVersionId ||
+      null
+  };
+}
+
 function formatLabel(value: string) {
   return value
     .toLowerCase()
@@ -246,6 +271,16 @@ function validateRule(input: {
 type RuleValidation = ReturnType<typeof validateRule> & { missingInputBehavior: string };
 type RuleSimulation = ReturnType<typeof simulateAppointmentCatalogAutomation>;
 
+function versionFromSnapshot(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return 1;
+  }
+
+  const version = (value as Record<string, unknown>).version;
+
+  return typeof version === "number" && version > 0 ? version : 1;
+}
+
 function simulationForPurpose(purposeCode: string, catalog: AppointmentCatalogAutomationAdmin) {
   const purpose = catalog.purposes.find((candidate) => candidate.code === purposeCode);
 
@@ -274,13 +309,20 @@ function baselineRuleCandidates(catalog: AppointmentCatalogAutomationAdmin) {
     status: "DRAFT" as RuleStatus,
     priority: 100,
     missingInputBehavior: rule.missingInputBehavior,
-    validationSnapshot: validateRule({
-      ruleCode: `${rule.purposeCode}-${rule.trigger}`,
-      triggerCode: rule.trigger,
-      purposeCode: rule.purposeCode,
-      catalog
-    }),
-    simulationSnapshot: simulationForPurpose(rule.purposeCode, catalog),
+    validationSnapshot: {
+      ...validateRule({
+        ruleCode: `${rule.purposeCode}-${rule.trigger}`,
+        triggerCode: rule.trigger,
+        purposeCode: rule.purposeCode,
+        catalog
+      }),
+      version: 1
+    },
+    simulationSnapshot: {
+      ...simulationForPurpose(rule.purposeCode, catalog),
+      version: 1,
+      catalogVersionId: catalog.versioning.displayedVersion.id
+    },
     reason: "Catalog-derived candidate rule.",
     createdByUserId: null,
     activatedByUserId: null,
@@ -342,14 +384,17 @@ function summarizeRule(rule: AppointmentAutomationRuleRecord) {
   const simulation = readRuleSimulation(rule);
   const activation = summarizeRuleActivation(rule);
   const isCandidate = rule.id.startsWith("candidate-");
+  const version = versionFromSnapshot(rule.validationSnapshot);
 
   return {
     id: rule.id,
     ruleCode: rule.ruleCode,
+    version,
     name: rule.name,
     description: rule.description,
     triggerCode: rule.triggerCode,
     purposeCode: rule.purposeCode,
+    catalogVersionId: rule.catalogVersionId,
     status: rule.status,
     priority: rule.priority,
     missingInputBehavior: rule.missingInputBehavior,
@@ -442,6 +487,16 @@ function summarizeExecution(execution: AppointmentAutomationExecutionRecord) {
       (typeof resultSnapshot?.automationRuleCode === "string" && resultSnapshot.automationRuleCode) ||
       (typeof inputSnapshot?.automationRuleCode === "string" && inputSnapshot.automationRuleCode) ||
       null,
+    automationRuleVersion:
+      (typeof resultSnapshot?.automationRuleVersion === "number" &&
+        resultSnapshot.automationRuleVersion) ||
+      (typeof inputSnapshot?.automationRuleVersion === "number" &&
+        inputSnapshot.automationRuleVersion) ||
+      null,
+    catalogVersionId:
+      (typeof resultSnapshot?.catalogVersionId === "string" && resultSnapshot.catalogVersionId) ||
+      (typeof inputSnapshot?.catalogVersionId === "string" && inputSnapshot.catalogVersionId) ||
+      null,
     triggerCode: execution.triggerCode,
     purposeCode: execution.purposeCode,
     status: execution.status,
@@ -504,6 +559,7 @@ export function createAppointmentAutomationOperationsRepository(): AppointmentAu
   type AutomationTransaction = {
     appointmentAutomationRule: {
       findFirst: (input: unknown) => Promise<AppointmentAutomationRuleRecord | null>;
+      create: (input: unknown) => Promise<AppointmentAutomationRuleRecord>;
       upsert: (input: unknown) => Promise<AppointmentAutomationRuleRecord>;
       update: (input: unknown) => Promise<AppointmentAutomationRuleRecord>;
     };
@@ -523,6 +579,7 @@ export function createAppointmentAutomationOperationsRepository(): AppointmentAu
     appointmentAutomationRule?: {
       findMany: (input: unknown) => Promise<AppointmentAutomationRuleRecord[]>;
       findFirst: (input: unknown) => Promise<AppointmentAutomationRuleRecord | null>;
+      create: (input: unknown) => Promise<AppointmentAutomationRuleRecord>;
       upsert: (input: unknown) => Promise<AppointmentAutomationRuleRecord>;
       update: (input: unknown) => Promise<AppointmentAutomationRuleRecord>;
     };
@@ -625,9 +682,23 @@ export function createAppointmentAutomationOperationsRepository(): AppointmentAu
             status: input.status ?? "PENDING",
             sourceType: input.sourceType,
             sourceReference: input.sourceReference ?? null,
-            inputSnapshot: toJsonValue(input.inputSnapshot),
+            inputSnapshot: toJsonValue(
+              withResolvedRuleSnapshotContext({
+                snapshot: input.inputSnapshot,
+                resolvedRule,
+                fallbackRuleCode: input.ruleCode ?? null
+              })
+            ),
             resultSnapshot:
-              input.resultSnapshot === undefined ? undefined : toJsonValue(input.resultSnapshot),
+              input.resultSnapshot === undefined
+                ? undefined
+                : toJsonValue(
+                    withResolvedRuleSnapshotContext({
+                      snapshot: input.resultSnapshot,
+                      resolvedRule,
+                      fallbackRuleCode: input.ruleCode ?? null
+                    })
+                  ),
             failureCode: input.failureCode ?? null,
             failureMessage: input.failureMessage ?? null,
             attemptCount: input.attemptCount ?? 0,
@@ -707,41 +778,56 @@ export function createAppointmentAutomationOperationsRepository(): AppointmentAu
         const prior = await transaction.appointmentAutomationRule.findFirst({
           where: { organizationId: INITIAL_ORGANIZATION.id, ruleCode: input.ruleCode }
         });
-        const rule = await transaction.appointmentAutomationRule.upsert({
-          where: {
-            organizationId_ruleCode: {
-              organizationId: INITIAL_ORGANIZATION.id,
-              ruleCode: input.ruleCode
-            }
-          },
-          create: {
-            organizationId: INITIAL_ORGANIZATION.id,
-            ruleCode: input.ruleCode,
-            name: input.name,
-            description: input.description ?? null,
-            triggerCode: input.triggerCode,
-            purposeCode: input.purposeCode,
-            status: "DRAFT",
-            priority: input.priority ?? 100,
-            missingInputBehavior: input.validation.missingInputBehavior,
-            validationSnapshot: toJsonValue(input.validation),
-            simulationSnapshot: toJsonValue(input.simulation),
-            reason: input.reason,
-            createdByUserId: input.actorUserId
-          },
-          update: {
-            name: input.name,
-            description: input.description ?? null,
-            triggerCode: input.triggerCode,
-            purposeCode: input.purposeCode,
-            status: "DRAFT",
-            priority: input.priority ?? 100,
-            missingInputBehavior: input.validation.missingInputBehavior,
-            validationSnapshot: toJsonValue(input.validation),
-            simulationSnapshot: toJsonValue(input.simulation),
-            reason: input.reason
-          }
+        const nextVersion = prior ? versionFromSnapshot(prior.validationSnapshot) + 1 : 1;
+        const validationSnapshot = toJsonValue({
+          ...input.validation,
+          version: nextVersion
         });
+        const simulationSnapshot = toJsonValue({
+          ...(isPlainObject(input.simulation) ? input.simulation : { value: input.simulation }),
+          version: nextVersion,
+          catalogVersionId: input.catalogVersionId
+        });
+        const rule = prior
+          ? await transaction.appointmentAutomationRule.update({
+              where: {
+                organizationId_ruleCode: {
+                  organizationId: INITIAL_ORGANIZATION.id,
+                  ruleCode: input.ruleCode
+                }
+              },
+              data: {
+                catalogVersionId: input.catalogVersionId,
+                name: input.name,
+                description: input.description ?? null,
+                triggerCode: input.triggerCode,
+                purposeCode: input.purposeCode,
+                status: "DRAFT",
+                priority: input.priority ?? 100,
+                missingInputBehavior: input.validation.missingInputBehavior,
+                validationSnapshot,
+                simulationSnapshot,
+                reason: input.reason
+              }
+            })
+          : await transaction.appointmentAutomationRule.create({
+              data: {
+                organizationId: INITIAL_ORGANIZATION.id,
+                catalogVersionId: input.catalogVersionId,
+                ruleCode: input.ruleCode,
+                name: input.name,
+                description: input.description ?? null,
+                triggerCode: input.triggerCode,
+                purposeCode: input.purposeCode,
+                status: "DRAFT",
+                priority: input.priority ?? 100,
+                missingInputBehavior: input.validation.missingInputBehavior,
+                validationSnapshot,
+                simulationSnapshot,
+                reason: input.reason,
+                createdByUserId: input.actorUserId
+              }
+            });
         await transaction.appointmentAutomationRuleChangeEvent.create({
           data: {
             automationRuleId: rule.id,
@@ -751,7 +837,7 @@ export function createAppointmentAutomationOperationsRepository(): AppointmentAu
             reason: input.reason,
             priorSnapshot: prior ? toJsonValue(prior) : undefined,
             newSnapshot: toJsonValue(rule),
-            validationSnapshot: toJsonValue(input.validation)
+            validationSnapshot
           }
         });
         return rule;
@@ -899,6 +985,7 @@ async function buildRuleDraft(input: RuleMutationInput, catalog: AppointmentCata
     ruleCode,
     triggerCode,
     purposeCode,
+    catalogVersionId: catalog.versioning.displayedVersion.id,
     name: normalizeText(input.name, "Rule name"),
     description: input.description?.trim() || null,
     priority: input.priority ?? 100,

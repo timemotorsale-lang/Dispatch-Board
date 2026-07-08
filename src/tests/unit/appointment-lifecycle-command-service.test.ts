@@ -303,6 +303,96 @@ describe("appointment lifecycle command execution planner", () => {
     });
   });
 
+  it("plans schedule-time template blueprint tasks for template-backed appointments", () => {
+    const draftAppointment: AppointmentLifecycleCommandAppointment = {
+      ...appointment,
+      title: "Test Drive",
+      startsAt: null,
+      endsAt: null,
+      bookingStatus: "DRAFT",
+      confirmationStatus: "PENDING",
+      purposeSnapshot: {
+        purposeCode: "APT-TEST-DRIVE",
+        version: 1
+      },
+      customerSnapshot: {
+        displayName: "Ahmed Ibrahim"
+      },
+      vehicleSnapshot: {
+        displayName: "2014 Ford Taurus"
+      }
+    };
+    const plan = planAppointmentLifecycleCommandExecution(
+      baseCommand({
+        commandType: "SCHEDULE",
+        appointment: draftAppointment,
+        payload: {
+          startsAt,
+          endsAt
+        }
+      })
+    );
+
+    expect(plan).toMatchObject({
+      executable: true,
+      taskCreateEffects: [
+        {
+          automationRuleCode:
+            "APPOINTMENT_TEMPLATE_BLUEPRINT_APT_TEST_DRIVE_PREP_VEHICLE_READY",
+          triggerCode: "APPOINTMENT_SCHEDULED",
+          templateVersion: 1,
+          templateBlueprintCode: "PREP-VEHICLE-READY",
+          creationTiming: "ON_SCHEDULE",
+          title: "Vehicle availability and readiness",
+          assignedUserId: ownerUser.id,
+          createdByUserId: managerUser.id,
+          boardDate: "2026-07-06",
+          workflowArea: "SALES",
+          customerReference: "Ahmed Ibrahim",
+          vehicleReference: "2014 Ford Taurus",
+          linkType: "PREPARATION",
+          linkCode: "APT_TEST_DRIVE_1_ON_SCHEDULE_PREP_VEHICLE_READY",
+          blocksAppointment: true
+        },
+        {
+          automationRuleCode:
+            "APPOINTMENT_TEMPLATE_BLUEPRINT_APT_TEST_DRIVE_PREP_KEYS_ROUTE",
+          triggerCode: "APPOINTMENT_SCHEDULED",
+          templateVersion: 1,
+          templateBlueprintCode: "PREP-KEYS-ROUTE",
+          creationTiming: "ON_SCHEDULE",
+          title: "Keys and route readiness",
+          assignedUserId: ownerUser.id,
+          createdByUserId: managerUser.id,
+          boardDate: "2026-07-06",
+          workflowArea: "SALES",
+          customerReference: "Ahmed Ibrahim",
+          vehicleReference: "2014 Ford Taurus",
+          linkType: "PREPARATION",
+          linkCode: "APT_TEST_DRIVE_1_ON_SCHEDULE_PREP_KEYS_ROUTE",
+          blocksAppointment: true
+        }
+      ],
+      historyEffects: [
+        {
+          eventType: "SCHEDULED"
+        },
+        {
+          eventType: "TASK_LINKED",
+          newValue: {
+            generatedTaskCount: 2,
+            blueprintCodes: ["PREP-VEHICLE-READY", "PREP-KEYS-ROUTE"],
+            triggerCodes: ["APPOINTMENT_SCHEDULED", "APPOINTMENT_SCHEDULED"]
+          }
+        }
+      ],
+      commandResultSnapshot: {
+        automatedTaskCount: 2,
+        templateBlueprintTaskCount: 2
+      }
+    });
+  });
+
   it("plans manager-only approval as scheduling commitment with approved history", () => {
     const pendingAppointment: AppointmentLifecycleCommandAppointment = {
       ...appointment,
@@ -879,6 +969,93 @@ describe("appointment lifecycle command execution planner", () => {
       ],
       commandResultSnapshot: {
         automatedTaskCount: 1
+      }
+    });
+  });
+
+  it("keeps template outcome blueprints alongside disposition follow-up automation", () => {
+    const finishedAppointment: AppointmentLifecycleCommandAppointment = {
+      ...appointment,
+      title: "Test Drive",
+      executionStatus: "FINISHED",
+      purposeSnapshot: {
+        purposeCode: "APT-TEST-DRIVE",
+        version: 1
+      },
+      customerSnapshot: {
+        displayName: "Ahmed Ibrahim"
+      },
+      vehicleSnapshot: {
+        displayName: "2014 Ford Taurus"
+      }
+    };
+    const plan = planAppointmentLifecycleCommandExecution(
+      baseCommand({
+        commandType: "COMPLETE",
+        appointment: finishedAppointment,
+        payload: {
+          outcomeCode: "FOLLOW_UP_REQUIRED",
+          outcomeNotes: "Customer wants a follow-up call after the drive.",
+          followUpDispositionCode: "CALLBACK_REQUIRED",
+          followUpNotes: "Call customer tomorrow morning.",
+          reasonCode: "OUTCOME_RECORDED",
+          reasonNotes: "Result captured after test drive."
+        }
+      })
+    );
+
+    expect(plan).toMatchObject({
+      executable: true,
+      taskCreateEffects: [
+        {
+          automationRuleCode:
+            "APPOINTMENT_TEMPLATE_BLUEPRINT_APT_TEST_DRIVE_FOLLOW_UP_TEST_DRIVE",
+          triggerCode: "APPOINTMENT_OUTCOME_RECORDED",
+          templateVersion: 1,
+          templateBlueprintCode: "FOLLOW-UP-TEST-DRIVE",
+          creationTiming: "ON_OUTCOME",
+          title: "Test-drive follow-up",
+          customerReference: "Ahmed Ibrahim",
+          vehicleReference: "2014 Ford Taurus"
+        },
+        {
+          automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_TASK",
+          triggerCode: "APPOINTMENT_OUTCOME_RECORDED",
+          templateVersion: 1,
+          templateBlueprintCode: null,
+          creationTiming: "ON_OUTCOME",
+          title: "Callback required for appointment APT-10245",
+          customerReference: "Ahmed Ibrahim",
+          vehicleReference: "2014 Ford Taurus"
+        }
+      ],
+      historyEffects: [
+        {
+          eventType: "COMPLETED"
+        },
+        {
+          eventType: "OUTCOME_RECORDED"
+        },
+        {
+          eventType: "TASK_LINKED",
+          newValue: {
+            generatedTaskCount: 1,
+            blueprintCodes: ["FOLLOW-UP-TEST-DRIVE"],
+            triggerCodes: ["APPOINTMENT_OUTCOME_RECORDED"]
+          }
+        },
+        {
+          eventType: "TASK_LINKED",
+          newValue: {
+            automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_TASK",
+            followUpDispositionCode: "CALLBACK_REQUIRED"
+          }
+        }
+      ],
+      commandResultSnapshot: {
+        automatedTaskCount: 2,
+        templateBlueprintTaskCount: 1,
+        automatedFollowUpAppointmentCount: 0
       }
     });
   });

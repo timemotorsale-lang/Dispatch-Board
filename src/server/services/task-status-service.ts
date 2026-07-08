@@ -3,6 +3,7 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { canUpdateAssignedWork, isManager } from "@/server/policies/access";
 import { recordBoardActivityEvent } from "@/server/services/activity-feed";
+import { runTaskAppointmentAutomationForTaskEvent } from "@/server/services/task-appointment-automation-service";
 import {
   createTaskStatusRepository,
   type TaskStatusRepository
@@ -399,7 +400,10 @@ export async function updateTaskStatus(
   user: AuthenticatedUser | null,
   taskId: string,
   input: unknown,
-  repository: TaskStatusRepository = createTaskStatusRepository()
+  repository: TaskStatusRepository = createTaskStatusRepository(),
+  dependencies?: {
+    taskAppointmentAutomationRunner?: typeof runTaskAppointmentAutomationForTaskEvent;
+  }
 ) {
   const normalizedTaskId = normalizeTaskId(taskId);
   const normalizedInput = normalizeTaskStatusUpdateInput(input);
@@ -434,6 +438,17 @@ export async function updateTaskStatus(
         nextStatus: normalizedInput.status,
         previousStatus
       }
+    });
+  }
+
+  if (normalizedInput.status === TaskStatus.BLOCKED) {
+    const taskAppointmentAutomationRunner =
+      dependencies?.taskAppointmentAutomationRunner ?? runTaskAppointmentAutomationForTaskEvent;
+
+    await taskAppointmentAutomationRunner(authenticatedUser, {
+      reasonNotes: normalizedInput.blockerReason ?? null,
+      taskId: normalizedTaskId,
+      triggerCode: "BLOCKED_TASK_REVIEW"
     });
   }
 

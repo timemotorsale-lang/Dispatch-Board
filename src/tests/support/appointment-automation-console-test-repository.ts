@@ -93,10 +93,18 @@ export function createMemoryAppointmentAutomationOperationsRepository() {
     },
     async upsertRuleDraft(input) {
       const existing = rules.find((rule) => rule.ruleCode === input.ruleCode);
+      const nextVersion =
+        existing &&
+        existing.validationSnapshot &&
+        typeof existing.validationSnapshot === "object" &&
+        !Array.isArray(existing.validationSnapshot) &&
+        typeof (existing.validationSnapshot as { version?: unknown }).version === "number"
+          ? ((existing.validationSnapshot as { version: number }).version + 1)
+          : 1;
       const rule: AppointmentAutomationRuleRecord = {
         id: existing?.id ?? `rule-${rules.length + 1}`,
         organizationId: "org-time-motor-sales",
-        catalogVersionId: null,
+        catalogVersionId: input.catalogVersionId,
         ruleCode: input.ruleCode,
         name: input.name,
         description: input.description ?? null,
@@ -105,10 +113,24 @@ export function createMemoryAppointmentAutomationOperationsRepository() {
         status: "DRAFT",
         priority: input.priority ?? 100,
         missingInputBehavior: input.validation.missingInputBehavior,
-        validationSnapshot: input.validation,
-        simulationSnapshot: input.simulation,
+        validationSnapshot: {
+          ...input.validation,
+          version: nextVersion
+        },
+        simulationSnapshot:
+          input.simulation && typeof input.simulation === "object" && !Array.isArray(input.simulation)
+            ? {
+                ...input.simulation,
+                version: nextVersion,
+                catalogVersionId: input.catalogVersionId
+              }
+            : {
+                value: input.simulation,
+                version: nextVersion,
+                catalogVersionId: input.catalogVersionId
+              },
         reason: input.reason,
-        createdByUserId: input.actorUserId,
+        createdByUserId: existing?.createdByUserId ?? input.actorUserId,
         activatedByUserId: null,
         activatedAt: null,
         pausedAt: null,

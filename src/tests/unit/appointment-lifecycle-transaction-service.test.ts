@@ -367,6 +367,128 @@ describe("appointment lifecycle transaction execution", () => {
     ]);
   });
 
+  it("creates schedule-time template blueprint tasks and links during execution", async () => {
+    const plan = planAppointmentLifecycleCommandExecution(
+      baseCommand({
+        commandType: "SCHEDULE",
+        appointment: {
+          ...appointment,
+          title: "Test Drive",
+          startsAt: null,
+          endsAt: null,
+          bookingStatus: "DRAFT",
+          confirmationStatus: "PENDING",
+          purposeSnapshot: {
+            purposeCode: "APT-TEST-DRIVE",
+            version: 1
+          },
+          customerSnapshot: {
+            displayName: "Ahmed Ibrahim"
+          },
+          vehicleSnapshot: {
+            displayName: "2014 Ford Taurus"
+          }
+        },
+        payload: {
+          startsAt,
+          endsAt
+        }
+      })
+    );
+    const harness = createRepositoryHarness();
+    const result = await executeAppointmentLifecycleCommandPlan({
+      plan,
+      repository: harness.repository,
+      now
+    });
+
+    expect(result).toMatchObject({
+      executed: true,
+      commandStatus: "SUCCEEDED",
+      createdTaskCount: 2,
+      createdTaskLinkCount: 2,
+      historyEventCount: 2,
+      resultSnapshot: expect.objectContaining({
+        automatedTaskCount: 2,
+        templateBlueprintTaskCount: 2,
+        createdTaskCount: 2,
+        createdTaskLinkCount: 2
+      })
+    });
+    expect(harness.createdTasks).toEqual([
+      {
+        id: "task-1",
+        title: "Vehicle availability and readiness",
+        boardDayId: "board-day-1"
+      },
+      {
+        id: "task-2",
+        title: "Keys and route readiness",
+        boardDayId: "board-day-2"
+      }
+    ]);
+    expect(harness.createdTaskLinks).toEqual([
+      {
+        id: "link-1",
+        appointmentId: appointment.id,
+        taskId: "task-1",
+        linkCode: "APT_TEST_DRIVE_1_ON_SCHEDULE_PREP_VEHICLE_READY"
+      },
+      {
+        id: "link-2",
+        appointmentId: appointment.id,
+        taskId: "task-2",
+        linkCode: "APT_TEST_DRIVE_1_ON_SCHEDULE_PREP_KEYS_ROUTE"
+      }
+    ]);
+    expect(harness.activityEvents).toEqual([
+      {
+        boardDayId: "board-day-1",
+        actorUserId: managerUser.id,
+        taskId: "task-1",
+        eventType: "task.appointment_linked_created",
+        message: "Appointment APT-10245 generated linked task Vehicle availability and readiness.",
+        metadata: {
+          appointmentId: appointment.id,
+          appointmentNumber: appointment.appointmentNumber,
+          automationRuleCode:
+            "APPOINTMENT_TEMPLATE_BLUEPRINT_APT_TEST_DRIVE_PREP_VEHICLE_READY",
+          triggerCode: "APPOINTMENT_SCHEDULED",
+          templateVersion: 1,
+          templateBlueprintCode: "PREP-VEHICLE-READY",
+          creationTiming: "ON_SCHEDULE",
+          linkCode: "APT_TEST_DRIVE_1_ON_SCHEDULE_PREP_VEHICLE_READY",
+          linkType: "PREPARATION",
+          generatedTaskTitle: "Vehicle availability and readiness"
+        }
+      },
+      {
+        boardDayId: "board-day-2",
+        actorUserId: managerUser.id,
+        taskId: "task-2",
+        eventType: "task.appointment_linked_created",
+        message: "Appointment APT-10245 generated linked task Keys and route readiness.",
+        metadata: {
+          appointmentId: appointment.id,
+          appointmentNumber: appointment.appointmentNumber,
+          automationRuleCode:
+            "APPOINTMENT_TEMPLATE_BLUEPRINT_APT_TEST_DRIVE_PREP_KEYS_ROUTE",
+          triggerCode: "APPOINTMENT_SCHEDULED",
+          templateVersion: 1,
+          templateBlueprintCode: "PREP-KEYS-ROUTE",
+          creationTiming: "ON_SCHEDULE",
+          linkCode: "APT_TEST_DRIVE_1_ON_SCHEDULE_PREP_KEYS_ROUTE",
+          linkType: "PREPARATION",
+          generatedTaskTitle: "Keys and route readiness"
+        }
+      }
+    ]);
+    expect(harness.historyEvents.map((event) => event.eventType)).toEqual([
+      "SCHEDULED",
+      "TASK_LINKED"
+    ]);
+  });
+
   it("creates automated follow-up tasks and links during completion execution", async () => {
     const plan = planAppointmentLifecycleCommandExecution(
       baseCommand({
@@ -434,7 +556,10 @@ describe("appointment lifecycle transaction execution", () => {
           appointmentId: appointment.id,
           appointmentNumber: appointment.appointmentNumber,
           automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_TASK",
+          triggerCode: "APPOINTMENT_OUTCOME_RECORDED",
           templateVersion: 1,
+          templateBlueprintCode: null,
+          creationTiming: "ON_OUTCOME",
           linkCode: "OUTCOME_CALLBACK_REQUIRED",
           linkType: "FOLLOW_UP",
           generatedTaskTitle: "Callback required for appointment APT-10245"

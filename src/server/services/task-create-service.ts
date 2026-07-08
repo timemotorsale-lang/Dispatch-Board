@@ -4,6 +4,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { canManageAssignments } from "@/server/policies/access";
 import { ActivityEventType } from "@/server/services/activity-events";
 import { recordBoardActivityEvent } from "@/server/services/activity-feed";
+import { runTaskAppointmentAutomationForTaskEvent } from "@/server/services/task-appointment-automation-service";
 import {
   createTaskCreateRepository,
   type CreatedTaskRecord,
@@ -148,7 +149,10 @@ function toManualTaskCreateResult(task: CreatedTaskRecord): ManualTaskCreateResu
 export async function createManualTask(
   user: AuthenticatedUser | null,
   input: unknown,
-  repository: TaskCreateRepository = createTaskCreateRepository()
+  repository: TaskCreateRepository = createTaskCreateRepository(),
+  dependencies?: {
+    taskAppointmentAutomationRunner?: typeof runTaskAppointmentAutomationForTaskEvent;
+  }
 ) {
   const authenticatedUser = assertCanCreateManualTasks(user);
   const normalizedInput = normalizeTaskCreateInput(input);
@@ -214,6 +218,17 @@ export async function createManualTask(
         assignedUserName: task.assignedUser.name,
         requiresManagerApproval: task.requiresManagerApproval
       }
+    });
+  }
+
+  if (normalizedInput.appointmentAutomationTriggerCode) {
+    const taskAppointmentAutomationRunner =
+      dependencies?.taskAppointmentAutomationRunner ?? runTaskAppointmentAutomationForTaskEvent;
+
+    await taskAppointmentAutomationRunner(authenticatedUser, {
+      reasonNotes: normalizedInput.appointmentAutomationReasonNotes ?? null,
+      taskId: task.id,
+      triggerCode: normalizedInput.appointmentAutomationTriggerCode
     });
   }
 

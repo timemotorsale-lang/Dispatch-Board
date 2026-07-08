@@ -418,12 +418,34 @@ export function createAppointmentReadRepository(
       }
 
       const appointmentIds = appointments.map((appointment) => appointment.id);
+      const automatedTaskSourceReferences = appointments
+        .filter(
+          (appointment) =>
+            appointment.sourceType === "AUTOMATION" &&
+            typeof appointment.sourceReference === "string" &&
+            appointment.sourceReference.trim()
+        )
+        .map((appointment) => appointment.sourceReference as string);
       const automationExecutions = await database.appointmentAutomationExecution.findMany({
         where: {
-          sourceType: "APPOINTMENT",
-          sourceReference: {
-            in: appointmentIds
-          }
+          OR: [
+            {
+              sourceType: "APPOINTMENT",
+              sourceReference: {
+                in: appointmentIds
+              }
+            },
+            ...(automatedTaskSourceReferences.length > 0
+              ? [
+                  {
+                    sourceType: "TASK",
+                    sourceReference: {
+                      in: automatedTaskSourceReferences
+                    }
+                  }
+                ]
+              : [])
+          ]
         },
         select: appointmentReadAutomationExecutionSelect,
         orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }]
@@ -432,17 +454,40 @@ export function createAppointmentReadRepository(
         string,
         AppointmentReadAutomationExecutionRecord[]
       >();
+      const automatedAppointmentsByTaskId = new Map<string, string[]>();
+
+      for (const appointment of appointments) {
+        if (
+          appointment.sourceType !== "AUTOMATION" ||
+          !appointment.sourceReference ||
+          !appointment.sourceReference.trim()
+        ) {
+          continue;
+        }
+
+        const linkedAppointmentIds =
+          automatedAppointmentsByTaskId.get(appointment.sourceReference) ?? [];
+        linkedAppointmentIds.push(appointment.id);
+        automatedAppointmentsByTaskId.set(appointment.sourceReference, linkedAppointmentIds);
+      }
 
       for (const execution of automationExecutions) {
         if (!execution.sourceReference) {
           continue;
         }
 
-        const records = automationExecutionsByAppointmentId.get(execution.sourceReference) ?? [];
+        const targetAppointmentIds =
+          execution.sourceType === "TASK"
+            ? automatedAppointmentsByTaskId.get(execution.sourceReference) ?? []
+            : [execution.sourceReference];
 
-        if (records.length < 5) {
-          records.push(execution);
-          automationExecutionsByAppointmentId.set(execution.sourceReference, records);
+        for (const appointmentId of targetAppointmentIds) {
+          const records = automationExecutionsByAppointmentId.get(appointmentId) ?? [];
+
+          if (records.length < 5) {
+            records.push(execution);
+            automationExecutionsByAppointmentId.set(appointmentId, records);
+          }
         }
       }
 

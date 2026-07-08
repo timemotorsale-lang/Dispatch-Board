@@ -43,7 +43,11 @@ const appointmentCommandAppointmentSelect = {
   confirmationStatus: true,
   attendanceStatus: true,
   executionStatus: true,
-  version: true
+  version: true,
+  purposeSnapshot: true,
+  customerSnapshot: true,
+  vehicleSnapshot: true,
+  sourceSnapshot: true
 } satisfies Prisma.AppointmentSelect;
 
 const appointmentCommandLedgerSelect = {
