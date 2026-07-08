@@ -261,7 +261,10 @@ function buildGeneratedTaskActivityEvents(input: {
         appointmentId: input.appointment?.id ?? null,
         appointmentNumber: input.appointment?.appointmentNumber ?? null,
         automationRuleCode: effect.automationRuleCode,
+        triggerCode: effect.triggerCode,
         templateVersion: effect.templateVersion,
+        templateBlueprintCode: effect.templateBlueprintCode,
+        creationTiming: effect.creationTiming,
         linkCode: effect.linkCode,
         linkType: effect.linkType,
         generatedTaskTitle: effect.title

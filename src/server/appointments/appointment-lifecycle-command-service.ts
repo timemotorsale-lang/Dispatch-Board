@@ -21,6 +21,11 @@ import {
   canMutateAppointment,
   canTransferAppointmentOwnership
 } from "@/server/policies/access";
+import {
+  getInitialAppointmentTemplateDefinition,
+  type AppointmentTemplateDefinition,
+  type AppointmentTemplateTaskBlueprint
+} from "@/server/appointments/appointment-template-domain";
 
 export const APPOINTMENT_LIFECYCLE_EXECUTION_COMMANDS = [
   "CREATE_DRAFT",
@@ -58,6 +63,10 @@ export type AppointmentLifecycleCommandAppointment = {
   attendanceStatus: AppointmentAttendanceStatus;
   executionStatus: AppointmentExecutionStatus;
   version: number;
+  purposeSnapshot?: Record<string, unknown> | null;
+  customerSnapshot?: Record<string, unknown> | null;
+  vehicleSnapshot?: Record<string, unknown> | null;
+  sourceSnapshot?: Record<string, unknown> | null;
 };
 
 export type AppointmentLifecycleTaskLinkEffect = {
@@ -75,7 +84,10 @@ export type AppointmentLifecycleTaskLinkEffect = {
 export type AppointmentLifecycleTaskCreateEffect = {
   action: "CREATE_TASK";
   automationRuleCode: string;
+  triggerCode: string;
   templateVersion: number;
+  templateBlueprintCode: string | null;
+  creationTiming: AppointmentTemplateTaskBlueprint["creationTiming"];
   title: string;
   description: string;
   assignedUserId: string;
@@ -332,6 +344,267 @@ function snapshotFromReference(value: string | null, key: string) {
   return value ? { [key]: value } : null;
 }
 
+function snapshotObject(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function snapshotString(value: unknown, keys: string | string[]) {
+  const source = snapshotObject(value);
+
+  if (!source) {
+    return null;
+  }
+
+  for (const key of Array.isArray(keys) ? keys : [keys]) {
+    const candidate = source[key];
+
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  return null;
+}
+
+function snapshotNumber(value: unknown, key: string) {
+  const source = snapshotObject(value);
+  const candidate = source?.[key];
+
+  return typeof candidate === "number" ? candidate : null;
+}
+
+function normalizeLinkCodeSegment(value: string) {
+  return value
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function resolveReferenceLabel(input: {
+  directReference: string | null | undefined;
+  payloadSnapshot: unknown;
+  appointmentSnapshot: unknown;
+}) {
+  return (
+    optionalText(input.directReference) ??
+    snapshotString(input.payloadSnapshot, "displayName") ??
+    snapshotString(input.appointmentSnapshot, "displayName")
+  );
+}
+
+function resolveTemplateDefinition(input: {
+  appointment: AppointmentLifecycleCommandAppointment | null;
+  payload: AppointmentLifecycleCommandPayload | undefined;
+}) {
+  const purposeSnapshot =
+    input.payload?.purposeSnapshot !== undefined
+      ? input.payload.purposeSnapshot
+      : input.appointment?.purposeSnapshot;
+  const templateCode = snapshotString(purposeSnapshot, ["purposeCode", "code"]);
+
+  if (!templateCode) {
+    return null;
+  }
+
+  const template = getInitialAppointmentTemplateDefinition(templateCode);
+
+  if (!template) {
+    return null;
+  }
+
+  return {
+    template,
+    templateVersion: snapshotNumber(purposeSnapshot, "version") ?? template.version
+  };
+}
+
+function blueprintTriggerCode(
+  creationTiming: AppointmentTemplateTaskBlueprint["creationTiming"]
+) {
+  switch (creationTiming) {
+    case "ON_DRAFT":
+      return "APPOINTMENT_DRAFT_CREATED";
+    case "ON_APPROVAL":
+      return "APPOINTMENT_APPROVED";
+    case "ON_SCHEDULE":
+      return "APPOINTMENT_SCHEDULED";
+    case "ON_CHECK_IN":
+      return "APPOINTMENT_CHECKED_IN";
+    case "ON_OUTCOME":
+      return "APPOINTMENT_OUTCOME_RECORDED";
+    case "ON_COMPLETION":
+      return "APPOINTMENT_COMPLETED";
+  }
+}
+
+function blueprintDueAt(input: {
+  creationTiming: AppointmentTemplateTaskBlueprint["creationTiming"];
+  appointment: AppointmentLifecycleCommandAppointment | null;
+  now: Date;
+}) {
+  if (input.creationTiming === "ON_OUTCOME" || input.creationTiming === "ON_COMPLETION") {
+    return addBusinessDays(input.now, 1);
+  }
+
+  if (input.creationTiming === "ON_CHECK_IN") {
+    return input.now;
+  }
+
+  return input.appointment?.startsAt ?? input.now;
+}
+
+function resolveBlueprintAssignedUserId(input: {
+  blueprint: AppointmentTemplateTaskBlueprint;
+  appointment: AppointmentLifecycleCommandAppointment | null;
+  actor: AuthenticatedUser | null;
+}) {
+  if (input.blueprint.ownerPolicy === "MANAGER_REVIEW") {
+    return input.actor?.id ?? input.appointment?.ownerUserId ?? null;
+  }
+
+  if (input.blueprint.ownerPolicy === "SOURCE_TASK_ASSIGNEE") {
+    return (
+      snapshotString(input.appointment?.sourceSnapshot, "assignedUserId") ??
+      input.appointment?.ownerUserId ??
+      input.actor?.id ??
+      null
+    );
+  }
+
+  return input.appointment?.ownerUserId ?? input.actor?.id ?? null;
+}
+
+function buildBlueprintTaskDescription(input: {
+  appointmentNumber: string;
+  appointmentTitle: string;
+  blueprint: AppointmentTemplateTaskBlueprint;
+  template: AppointmentTemplateDefinition;
+}) {
+  return [
+    `Auto-created from appointment ${input.appointmentNumber}: ${input.appointmentTitle}.`,
+    `Template: ${input.template.code} v${input.template.version}.`,
+    `Blueprint: ${input.blueprint.code}.`,
+    `Creation timing: ${input.blueprint.creationTiming}.`
+  ].join("\n");
+}
+
+function buildTemplateBlueprintTaskEffects(input: {
+  appointment: AppointmentLifecycleCommandAppointment | null;
+  actor: AuthenticatedUser | null;
+  payload: AppointmentLifecycleCommandPayload | undefined;
+  creationTimings: AppointmentTemplateTaskBlueprint["creationTiming"][];
+  now: Date;
+}): AppointmentLifecycleTaskCreateEffect[] {
+  const templateEntry = resolveTemplateDefinition({
+    appointment: input.appointment,
+    payload: input.payload
+  });
+
+  if (!templateEntry) {
+    return [];
+  }
+
+  const appointmentNumber =
+    input.appointment?.appointmentNumber ?? optionalText(input.payload?.appointmentNumber);
+  const appointmentTitle =
+    input.appointment?.title ?? optionalText(input.payload?.title) ?? "Appointment";
+  const customerReference = resolveReferenceLabel({
+    directReference: input.payload?.customerReference,
+    payloadSnapshot: input.payload?.customerSnapshot,
+    appointmentSnapshot: input.appointment?.customerSnapshot
+  });
+  const vehicleReference = resolveReferenceLabel({
+    directReference: input.payload?.vehicleReference,
+    payloadSnapshot: input.payload?.vehicleSnapshot,
+    appointmentSnapshot: input.appointment?.vehicleSnapshot
+  });
+
+  if (!appointmentNumber) {
+    return [];
+  }
+
+  return templateEntry.template.taskBlueprints.flatMap((blueprint) => {
+    if (!input.creationTimings.includes(blueprint.creationTiming)) {
+      return [];
+    }
+
+    const assignedUserId = resolveBlueprintAssignedUserId({
+      blueprint,
+      appointment: input.appointment,
+      actor: input.actor
+    });
+    const createdByUserId = input.actor?.id ?? assignedUserId;
+
+    if (!assignedUserId || !createdByUserId) {
+      return [];
+    }
+
+    const dueAt = blueprintDueAt({
+      creationTiming: blueprint.creationTiming,
+      appointment: input.appointment,
+      now: input.now
+    });
+
+    return [
+      {
+        action: "CREATE_TASK" as const,
+        automationRuleCode: `APPOINTMENT_TEMPLATE_BLUEPRINT_${normalizeLinkCodeSegment(templateEntry.template.code)}_${normalizeLinkCodeSegment(blueprint.code)}`,
+        triggerCode: blueprintTriggerCode(blueprint.creationTiming),
+        templateVersion: templateEntry.templateVersion,
+        templateBlueprintCode: blueprint.code,
+        creationTiming: blueprint.creationTiming,
+        title: blueprint.title,
+        description: buildBlueprintTaskDescription({
+          appointmentNumber,
+          appointmentTitle,
+          blueprint,
+          template: templateEntry.template
+        }),
+        assignedUserId,
+        createdByUserId,
+        boardDate: dueAt.toISOString().slice(0, 10),
+        dueAt,
+        status: "NOT_STARTED" as const,
+        workflowArea: inferTaskWorkflowArea(appointmentTitle, "NO_FOLLOW_UP_REQUIRED"),
+        sourceType: "TEMPLATE" as const,
+        requiresManagerApproval: blueprint.ownerPolicy === "MANAGER_REVIEW",
+        customerReference,
+        vehicleReference,
+        linkType: blueprint.linkType,
+        linkCode: `${normalizeLinkCodeSegment(templateEntry.template.code)}_${templateEntry.templateVersion}_${blueprint.creationTiming}_${normalizeLinkCodeSegment(blueprint.code)}`,
+        linkTitle: blueprint.title,
+        linkExplanation: `Generated from ${templateEntry.template.code} template blueprint ${blueprint.code}.`,
+        blocksAppointment: blueprint.blockingEffect !== "NONE",
+        blocksTask: true
+      }
+    ];
+  });
+}
+
+function buildTemplateTaskHistoryEffect(input: {
+  command: AppointmentLifecycleCommandInput;
+  count: number;
+  appointmentNumber: string;
+  taskEffects: AppointmentLifecycleTaskCreateEffect[];
+}) {
+  return buildHistoryEffect({
+    command: { ...input.command, now: input.command.now ?? new Date() },
+    eventType: "TASK_LINKED",
+    message: `Appointment ${input.appointmentNumber} generated ${input.count} template blueprint task request${input.count === 1 ? "" : "s"}.`,
+    reasonCode: optionalText(input.command.payload?.reasonCode),
+    reasonNotes: optionalText(input.command.payload?.reasonNotes),
+    priorValue: null,
+    newValue: {
+      generatedTaskCount: input.count,
+      blueprintCodes: input.taskEffects.map((effect) => effect.templateBlueprintCode),
+      triggerCodes: input.taskEffects.map((effect) => effect.triggerCode)
+    }
+  });
+}
+
 function buildOutcomeFollowUpAppointmentEffects(input: {
   appointment: AppointmentLifecycleCommandAppointment;
   actor: AuthenticatedUser | null;
@@ -416,12 +689,25 @@ function buildOutcomeFollowUpTaskEffects(input: {
     followUpDispositionCode: input.followUpDispositionCode
   });
   const followUpNotes = input.followUpNotes ?? "Follow-up required from appointment outcome.";
+  const customerReference = resolveReferenceLabel({
+    directReference: input.payload?.customerReference,
+    payloadSnapshot: input.payload?.customerSnapshot,
+    appointmentSnapshot: input.appointment.customerSnapshot
+  });
+  const vehicleReference = resolveReferenceLabel({
+    directReference: input.payload?.vehicleReference,
+    payloadSnapshot: input.payload?.vehicleSnapshot,
+    appointmentSnapshot: input.appointment.vehicleSnapshot
+  });
 
   return [
     {
       action: "CREATE_TASK",
       automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_TASK",
+      triggerCode: "APPOINTMENT_OUTCOME_RECORDED",
       templateVersion: 1,
+      templateBlueprintCode: null,
+      creationTiming: "ON_OUTCOME",
       title,
       description: [
         `Auto-created from completed appointment ${input.appointment.appointmentNumber}: ${input.appointment.title}.`,
@@ -436,8 +722,8 @@ function buildOutcomeFollowUpTaskEffects(input: {
       workflowArea: inferTaskWorkflowArea(input.appointment.title, input.followUpDispositionCode),
       sourceType: "MANAGER",
       requiresManagerApproval: input.followUpDispositionCode === "MANAGER_REVIEW_REQUIRED",
-      customerReference: optionalText(input.payload?.customerReference),
-      vehicleReference: optionalText(input.payload?.vehicleReference),
+      customerReference,
+      vehicleReference,
       linkType: "FOLLOW_UP",
       linkCode: `OUTCOME_${input.followUpDispositionCode}`,
       linkTitle: "Outcome follow-up task",
@@ -700,6 +986,13 @@ function buildCreateDraftPlan(
     "Appointment number"
   );
   const title = requiredText(input.payload?.title, "Appointment title");
+  const templateTaskCreateEffects = buildTemplateBlueprintTaskEffects({
+    appointment: null,
+    actor: input.actor,
+    payload: input.payload,
+    creationTimings: ["ON_DRAFT"],
+    now
+  });
   const effect: AppointmentLifecycleAppointmentCreateEffect = {
     operation: "CREATE",
     values: {
@@ -733,6 +1026,7 @@ function buildCreateDraftPlan(
     rejectionCode: null,
     rejectionReasons: [],
     appointmentEffect: effect,
+    taskCreateEffects: templateTaskCreateEffects,
     reservationEffects: [],
     taskLinkEffects: input.payload?.taskLinks ?? [],
     historyEffects: [
@@ -741,12 +1035,24 @@ function buildCreateDraftPlan(
         eventType: "CREATED",
         message: `Appointment ${appointmentNumber} draft created.`,
         newValue: effect.values
-      })
+      }),
+      ...(templateTaskCreateEffects.length > 0
+        ? [
+            buildTemplateTaskHistoryEffect({
+              command: { ...input, now },
+              count: templateTaskCreateEffects.length,
+              appointmentNumber,
+              taskEffects: templateTaskCreateEffects
+            })
+          ]
+        : [])
     ],
     commandResultSnapshot: {
       appointmentNumber,
       bookingStatus: "DRAFT",
-      taskLinkCount: input.payload?.taskLinks?.length ?? 0
+      taskLinkCount: input.payload?.taskLinks?.length ?? 0,
+      automatedTaskCount: templateTaskCreateEffects.length,
+      templateBlueprintTaskCount: templateTaskCreateEffects.length
     }
   };
 }
@@ -809,6 +1115,13 @@ function buildApprovePlan(
     bookingStatus: "SCHEDULED",
     schedulingTimezone: input.payload?.schedulingTimezone ?? appointment.schedulingTimezone
   };
+  const templateTaskCreateEffects = buildTemplateBlueprintTaskEffects({
+    appointment,
+    actor: input.actor,
+    payload: input.payload,
+    creationTimings: ["ON_APPROVAL"],
+    now: input.now ?? new Date()
+  });
 
   return {
     commandId: input.commandId,
@@ -823,6 +1136,7 @@ function buildApprovePlan(
       set,
       incrementVersion: 1
     },
+    taskCreateEffects: templateTaskCreateEffects,
     reservationEffects:
       input.payload?.reservationCandidates && input.payload.reservationCandidates.length > 0
         ? [
@@ -845,13 +1159,25 @@ function buildApprovePlan(
           bookingStatus: appointment.bookingStatus
         },
         newValue: set
-      })
+      }),
+      ...(templateTaskCreateEffects.length > 0
+        ? [
+            buildTemplateTaskHistoryEffect({
+              command: input,
+              count: templateTaskCreateEffects.length,
+              appointmentNumber: appointment.appointmentNumber,
+              taskEffects: templateTaskCreateEffects
+            })
+          ]
+        : [])
     ],
     commandResultSnapshot: {
       appointmentId: appointment.id,
       approved: true,
       bookingStatus: "SCHEDULED",
-      reservationCandidateCount: input.payload?.reservationCandidates?.length ?? 0
+      reservationCandidateCount: input.payload?.reservationCandidates?.length ?? 0,
+      automatedTaskCount: templateTaskCreateEffects.length,
+      templateBlueprintTaskCount: templateTaskCreateEffects.length
     }
   };
 }
@@ -1048,6 +1374,14 @@ function buildSchedulePlan(
   };
   const reasonCode = optionalText(input.payload?.reasonCode);
   const reasonNotes = optionalText(input.payload?.reasonNotes);
+  const now = input.now ?? new Date();
+  const templateTaskCreateEffects = buildTemplateBlueprintTaskEffects({
+    appointment,
+    actor: input.actor,
+    payload: input.payload,
+    creationTimings: ["ON_SCHEDULE"],
+    now
+  });
 
   return {
     commandId: input.commandId,
@@ -1062,6 +1396,7 @@ function buildSchedulePlan(
       set,
       incrementVersion: 1
     },
+    taskCreateEffects: templateTaskCreateEffects,
     reservationEffects:
       input.payload?.reservationCandidates && input.payload.reservationCandidates.length > 0
         ? [
@@ -1086,12 +1421,24 @@ function buildSchedulePlan(
           bookingStatus: appointment.bookingStatus
         },
         newValue: set
-      })
+      }),
+      ...(templateTaskCreateEffects.length > 0
+        ? [
+            buildTemplateTaskHistoryEffect({
+              command: { ...input, now },
+              count: templateTaskCreateEffects.length,
+              appointmentNumber: appointment.appointmentNumber,
+              taskEffects: templateTaskCreateEffects
+            })
+          ]
+        : [])
     ],
     commandResultSnapshot: {
       appointmentId: appointment.id,
       bookingStatus: "SCHEDULED",
-      reservationCandidateCount: input.payload?.reservationCandidates?.length ?? 0
+      reservationCandidateCount: input.payload?.reservationCandidates?.length ?? 0,
+      automatedTaskCount: templateTaskCreateEffects.length,
+      templateBlueprintTaskCount: templateTaskCreateEffects.length
     }
   };
 }
@@ -1424,6 +1771,13 @@ function buildCheckInPlan(
     attendanceStatus: "CHECKED_IN",
     checkedInAt: now
   };
+  const templateTaskCreateEffects = buildTemplateBlueprintTaskEffects({
+    appointment,
+    actor: input.actor,
+    payload: input.payload,
+    creationTimings: ["ON_CHECK_IN"],
+    now
+  });
 
   return {
     commandId: input.commandId,
@@ -1438,6 +1792,7 @@ function buildCheckInPlan(
       set,
       incrementVersion: 1
     },
+    taskCreateEffects: templateTaskCreateEffects,
     reservationEffects: [],
     taskLinkEffects: input.payload?.taskLinks ?? [],
     historyEffects: [
@@ -1449,11 +1804,23 @@ function buildCheckInPlan(
           attendanceStatus: appointment.attendanceStatus
         },
         newValue: set
-      })
+      }),
+      ...(templateTaskCreateEffects.length > 0
+        ? [
+            buildTemplateTaskHistoryEffect({
+              command: { ...input, now },
+              count: templateTaskCreateEffects.length,
+              appointmentNumber: appointment.appointmentNumber,
+              taskEffects: templateTaskCreateEffects
+            })
+          ]
+        : [])
     ],
     commandResultSnapshot: {
       appointmentId: appointment.id,
-      attendanceStatus: "CHECKED_IN"
+      attendanceStatus: "CHECKED_IN",
+      automatedTaskCount: templateTaskCreateEffects.length,
+      templateBlueprintTaskCount: templateTaskCreateEffects.length
     }
   };
 }
@@ -1742,7 +2109,14 @@ function buildCompletePlan(
   );
   const outcomeNotes = optionalText(input.payload?.outcomeNotes);
   const followUpNotes = optionalText(input.payload?.followUpNotes);
-  const taskCreateEffects = buildOutcomeFollowUpTaskEffects({
+  const templateTaskCreateEffects = buildTemplateBlueprintTaskEffects({
+    appointment,
+    actor: input.actor,
+    payload: input.payload,
+    creationTimings: ["ON_OUTCOME", "ON_COMPLETION"],
+    now
+  });
+  const followUpTaskCreateEffects = buildOutcomeFollowUpTaskEffects({
     appointment,
     actor: input.actor,
     payload: input.payload,
@@ -1750,6 +2124,7 @@ function buildCompletePlan(
     followUpNotes,
     now
   });
+  const taskCreateEffects = [...templateTaskCreateEffects, ...followUpTaskCreateEffects];
   const appointmentCreateEffects = buildOutcomeFollowUpAppointmentEffects({
     appointment,
     actor: input.actor,
@@ -1821,7 +2196,17 @@ function buildCompletePlan(
           followUpNotes
         }
       }),
-      ...(taskCreateEffects.length > 0
+      ...(templateTaskCreateEffects.length > 0
+        ? [
+            buildTemplateTaskHistoryEffect({
+              command: { ...input, now },
+              count: templateTaskCreateEffects.length,
+              appointmentNumber: appointment.appointmentNumber,
+              taskEffects: templateTaskCreateEffects
+            })
+          ]
+        : []),
+      ...(followUpTaskCreateEffects.length > 0
         ? [
             buildHistoryEffect({
               command: { ...input, now },
@@ -1831,8 +2216,8 @@ function buildCompletePlan(
               reasonNotes,
               priorValue: null,
               newValue: {
-                automationRuleCode: taskCreateEffects[0].automationRuleCode,
-                taskTitle: taskCreateEffects[0].title,
+                automationRuleCode: followUpTaskCreateEffects[0].automationRuleCode,
+                taskTitle: followUpTaskCreateEffects[0].title,
                 followUpDispositionCode
               }
             })
@@ -1863,6 +2248,7 @@ function buildCompletePlan(
       followUpDispositionCode,
       releaseReservationCount: input.payload?.releaseReservations?.length ?? 0,
       automatedTaskCount: taskCreateEffects.length,
+      templateBlueprintTaskCount: templateTaskCreateEffects.length,
       automatedFollowUpAppointmentCount: appointmentCreateEffects.length,
       generatedFollowUpAppointmentNumbers: appointmentCreateEffects.map(
         (effect) => effect.values.appointmentNumber

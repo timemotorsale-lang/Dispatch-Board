@@ -76,6 +76,12 @@ function purposeCodeFromSnapshot(value: unknown) {
   return typeof candidate.purposeCode === "string" ? candidate.purposeCode : null;
 }
 
+function snapshotRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
 async function recordLifecycleAutomationExecutions(input: {
   actorUserId: string;
   appointment: AppointmentCommandAppointmentRecord | null;
@@ -92,7 +98,7 @@ async function recordLifecycleAutomationExecutions(input: {
     ...taskCreateEffects.map((effect) =>
       recordAppointmentAutomationExecution({
         ruleCode: effect.automationRuleCode,
-        triggerCode: "APPOINTMENT_OUTCOME_RECORDED",
+        triggerCode: effect.triggerCode,
         sourceType: "APPOINTMENT",
         sourceReference,
         status: "SUCCEEDED",
@@ -109,7 +115,9 @@ async function recordLifecycleAutomationExecutions(input: {
           automationRuleCode: effect.automationRuleCode,
           generatedTaskTitle: effect.title,
           generatedTaskBoardDate: effect.boardDate,
-          workflowArea: effect.workflowArea
+          workflowArea: effect.workflowArea,
+          templateBlueprintCode: effect.templateBlueprintCode,
+          creationTiming: effect.creationTiming
         }
       })
     ),
@@ -193,7 +201,11 @@ function toLifecycleAppointment(
     confirmationStatus: appointment.confirmationStatus,
     attendanceStatus: appointment.attendanceStatus,
     executionStatus: appointment.executionStatus,
-    version: appointment.version
+    version: appointment.version,
+    purposeSnapshot: snapshotRecord(appointment.purposeSnapshot),
+    customerSnapshot: snapshotRecord(appointment.customerSnapshot),
+    vehicleSnapshot: snapshotRecord(appointment.vehicleSnapshot),
+    sourceSnapshot: snapshotRecord(appointment.sourceSnapshot)
   };
 }
 
