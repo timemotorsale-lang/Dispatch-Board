@@ -767,6 +767,34 @@ type AppointmentMonthCell = {
   items: Appointment[];
 };
 
+type AppointmentCommandCenterWorkflowSource =
+  | "resolution-workbench"
+  | "search"
+  | "saved-view"
+  | "subscription"
+  | "digest"
+  | "notification"
+  | "analytics"
+  | "reporting";
+
+type AppointmentCommandCenterWorkflowEntry = {
+  id: string;
+  source: AppointmentCommandCenterWorkflowSource;
+  label: string;
+  detail: string;
+  appointmentId: string;
+  viewMode: ViewMode;
+  boardLaneMode: AppointmentBoardLaneMode;
+  resolutionFilter: AppointmentResolutionWorkbenchFilter;
+  reportQueueFilter: AppointmentResolutionWorkbenchFilter;
+  commandCenterSearchPreset: AppointmentCommandCenterSearchPreset;
+  commandCenterSearchScope: AppointmentCommandCenterSearchScope;
+  auditTimelineFilter: AppointmentAuditTimelineFilter;
+  notificationCenterFilter: AppointmentNotificationCenterFilter;
+  selectedCommandCenterDigestId?: string;
+  timestampLabel: string;
+};
+
 type AppointmentRuntimePersistenceState = {
   commandCenterRuntimeStates: Record<
     string,
@@ -787,6 +815,8 @@ type AppointmentRuntimePersistenceState = {
   notificationPreferences: AppointmentNotificationPreference[];
   notificationCenterFilter: AppointmentNotificationCenterFilter;
   showResolvedNotificationFailures: boolean;
+  commandCenterWorkflowContext: AppointmentCommandCenterWorkflowEntry | null;
+  commandCenterWorkflowTrail: AppointmentCommandCenterWorkflowEntry[];
   commandCenterHandoffNote: string;
   runtimeDeliveryLedger: AppointmentRuntimeDeliveryLedgerEntry[];
   runtimeCheckpointLabel: string;
@@ -5304,6 +5334,11 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     initialNotificationFailureStates
   );
   const [showResolvedNotificationFailures, setShowResolvedNotificationFailures] = useState(false);
+  const [commandCenterWorkflowContext, setCommandCenterWorkflowContext] =
+    useState<AppointmentCommandCenterWorkflowEntry | null>(null);
+  const [commandCenterWorkflowTrail, setCommandCenterWorkflowTrail] = useState<
+    AppointmentCommandCenterWorkflowEntry[]
+  >([]);
   const [executiveReviewPreset, setExecutiveReviewPreset] =
     useState<AppointmentExecutiveReviewPreset>("daily-ops");
   const [scheduleAnalyticsPreset, setScheduleAnalyticsPreset] =
@@ -5432,6 +5467,12 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     if (typeof persisted.showResolvedNotificationFailures === "boolean") {
       setShowResolvedNotificationFailures(persisted.showResolvedNotificationFailures);
     }
+    if (persisted.commandCenterWorkflowContext) {
+      setCommandCenterWorkflowContext(persisted.commandCenterWorkflowContext);
+    }
+    if (persisted.commandCenterWorkflowTrail) {
+      setCommandCenterWorkflowTrail(persisted.commandCenterWorkflowTrail);
+    }
     if (typeof persisted.commandCenterHandoffNote === "string") {
       setCommandCenterHandoffNote(persisted.commandCenterHandoffNote);
     }
@@ -5461,6 +5502,8 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
       notificationReadStates,
       notificationCenterFilter,
       showResolvedNotificationFailures,
+      commandCenterWorkflowContext,
+      commandCenterWorkflowTrail,
       commandCenterHandoffNote,
       runtimeDeliveryLedger,
       runtimeCheckpointLabel
@@ -5481,6 +5524,8 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     notificationPreferences,
     notificationCenterFilter,
     notificationReadStates,
+    commandCenterWorkflowContext,
+    commandCenterWorkflowTrail,
     runtimeCheckpointLabel,
     runtimeDeliveryLedger,
     runtimePersistenceHydrated,
@@ -5575,6 +5620,10 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   const escalatedResolutionCount = resolutionWorkbenchItems.filter((item) => item.resolutionStatus === "escalated").length;
   const selectedAppointment =
     boardAppointments.find((appointment) => appointment.id === selectedId) ?? filteredAppointments[0] ?? boardAppointments[0];
+  const workflowContextAppointment =
+    (commandCenterWorkflowContext
+      ? boardAppointments.find((appointment) => appointment.id === commandCenterWorkflowContext.appointmentId)
+      : null) ?? selectedAppointment;
   const selectedAppointmentAuditTimeline = useMemo(
     () =>
       buildAppointmentAuditTimeline({
@@ -6248,6 +6297,48 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     }));
   }
 
+  function recordCommandCenterWorkflowContext(
+    input: Omit<AppointmentCommandCenterWorkflowEntry, "id" | "timestampLabel">
+  ) {
+    const entry: AppointmentCommandCenterWorkflowEntry = {
+      ...input,
+      id: `workflow-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      timestampLabel: "Just now"
+    };
+
+    setCommandCenterWorkflowContext(entry);
+    setCommandCenterWorkflowTrail((current) => [entry, ...current].slice(0, 6));
+  }
+
+  function reopenCommandCenterWorkflow(entry: AppointmentCommandCenterWorkflowEntry) {
+    setViewMode(entry.viewMode);
+    setBoardLaneMode(entry.boardLaneMode);
+    setResolutionFilter(entry.resolutionFilter);
+    setReportQueueFilter(entry.reportQueueFilter);
+    setCommandCenterSearchPreset(entry.commandCenterSearchPreset);
+    setCommandCenterSearchScope(entry.commandCenterSearchScope);
+    setAuditTimelineFilter(entry.auditTimelineFilter);
+    setNotificationCenterFilter(entry.notificationCenterFilter);
+
+    if (entry.selectedCommandCenterDigestId) {
+      setSelectedCommandCenterDigestId(entry.selectedCommandCenterDigestId);
+    }
+
+    const appointment =
+      boardAppointments.find((candidate) => candidate.id === entry.appointmentId) ?? selectedAppointment;
+    selectAppointmentForDetail(appointment);
+    setCommandCenterWorkflowContext({
+      ...entry,
+      timestampLabel: "Resumed just now"
+    });
+    setActionNotice(`Resumed workflow "${entry.label}".`);
+  }
+
+  function clearCommandCenterWorkflowContext() {
+    setCommandCenterWorkflowContext(null);
+    setActionNotice("Cleared the active command-center workflow context.");
+  }
+
   async function copyCommandCenterExportPreview() {
     if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
       setActionNotice("Export preview is ready. Copy is not available in this browser context.");
@@ -6315,6 +6406,21 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     setResolutionFilter("all");
     setCommandCenterSearchPreset("all");
     setCommandCenterSearchScope("all");
+    recordCommandCenterWorkflowContext({
+      source: "reporting",
+      label: `KPI · ${entry.label}`,
+      detail: entry.definition,
+      appointmentId: selectedAppointment.id,
+      viewMode,
+      boardLaneMode,
+      resolutionFilter: "all",
+      reportQueueFilter: "all",
+      commandCenterSearchPreset: "all",
+      commandCenterSearchScope: "all",
+      auditTimelineFilter,
+      notificationCenterFilter,
+      selectedCommandCenterDigestId
+    });
     setActionNotice("Focused the visible exceptions KPI definition in the reporting scope.");
   }
 
@@ -6329,15 +6435,60 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     if (snapshot.id === "snapshot-reconciliation-watch") {
       setScheduleAnalyticsPreset("reconciliation-watch");
       setViewMode("agenda");
+      recordCommandCenterWorkflowContext({
+        source: "reporting",
+        label: snapshot.label,
+        detail: snapshot.detail,
+        appointmentId: selectedAppointment.id,
+        viewMode: "agenda",
+        boardLaneMode,
+        resolutionFilter,
+        reportQueueFilter,
+        commandCenterSearchPreset,
+        commandCenterSearchScope,
+        auditTimelineFilter,
+        notificationCenterFilter,
+        selectedCommandCenterDigestId
+      });
       setActionNotice("Opened the reconciliation reporting snapshot and focused analytics carryover.");
       return;
     }
 
     if (snapshot.id === "snapshot-reporting-read-model") {
+      recordCommandCenterWorkflowContext({
+        source: "reporting",
+        label: snapshot.label,
+        detail: snapshot.detail,
+        appointmentId: selectedAppointment.id,
+        viewMode,
+        boardLaneMode,
+        resolutionFilter,
+        reportQueueFilter,
+        commandCenterSearchPreset,
+        commandCenterSearchScope,
+        auditTimelineFilter,
+        notificationCenterFilter,
+        selectedCommandCenterDigestId
+      });
       setActionNotice(`Prepared the ${reportingReadModelDimension} reporting read model snapshot for review.`);
       return;
     }
 
+    recordCommandCenterWorkflowContext({
+      source: "reporting",
+      label: snapshot.label,
+      detail: snapshot.detail,
+      appointmentId: selectedAppointment.id,
+      viewMode,
+      boardLaneMode,
+      resolutionFilter,
+      reportQueueFilter,
+      commandCenterSearchPreset,
+      commandCenterSearchScope,
+      auditTimelineFilter,
+      notificationCenterFilter,
+      selectedCommandCenterDigestId
+    });
     setActionNotice(`Prepared the manager summary snapshot for ${selectedAppointment.id}.`);
   }
 
@@ -6370,6 +6521,21 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     setAuditTimelineFilter(view.config.auditTimelineFilter);
     setActiveCommandCenterViewId(view.id);
     setSavedViewDraftName(view.name);
+    recordCommandCenterWorkflowContext({
+      source: "saved-view",
+      label: view.name,
+      detail: view.description,
+      appointmentId: selectedAppointment.id,
+      viewMode,
+      boardLaneMode,
+      resolutionFilter: view.config.resolutionFilter,
+      reportQueueFilter: view.config.reportQueueFilter,
+      commandCenterSearchPreset: view.config.searchPreset,
+      commandCenterSearchScope: view.config.searchScope,
+      auditTimelineFilter: view.config.auditTimelineFilter,
+      notificationCenterFilter,
+      selectedCommandCenterDigestId
+    });
     setActionNotice(`Loaded saved view "${view.name}" into the command center.`);
   }
 
@@ -6464,6 +6630,47 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
 
     setSavedViewDraftName("");
     setActiveCommandCenterViewId("");
+    recordCommandCenterWorkflowContext({
+      source: "subscription",
+      label: subscription.label,
+      detail: subscription.description,
+      appointmentId: selectedAppointment.id,
+      viewMode,
+      boardLaneMode,
+      resolutionFilter:
+        subscription.watchType === "breached-sla"
+          ? "breached-sla"
+          : subscription.watchType === "escalated"
+            ? "escalated"
+            : subscription.watchType === "no-show-recovery"
+              ? "no-show-recovery"
+              : subscription.watchType === "follow-up-backlog"
+                ? "follow-up-required"
+                : "escalated",
+      reportQueueFilter:
+        subscription.watchType === "breached-sla"
+          ? "breached-sla"
+          : subscription.watchType === "escalated"
+            ? "escalated"
+            : subscription.watchType === "no-show-recovery"
+              ? "no-show-recovery"
+              : subscription.watchType === "follow-up-backlog"
+                ? "follow-up-required"
+                : "escalated",
+      commandCenterSearchPreset:
+        subscription.watchType === "breached-sla"
+          ? "breached-sla"
+          : subscription.watchType === "escalated"
+            ? "escalated"
+            : subscription.watchType === "manager-activity"
+              ? "manager-activity"
+              : "all",
+      commandCenterSearchScope:
+        subscription.watchType === "manager-activity" ? "timeline" : "appointments",
+      auditTimelineFilter: subscription.watchType === "manager-activity" || subscription.watchType === "escalated" ? "manager" : "all",
+      notificationCenterFilter,
+      selectedCommandCenterDigestId
+    });
     setActionNotice(`Opened watch "${subscription.label}" in the command center.`);
   }
 
@@ -6687,6 +6894,35 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
       setReportQueueFilter("all");
     }
 
+    recordCommandCenterWorkflowContext({
+      source: "analytics",
+      label: item.label,
+      detail: `${item.loadLabel} · ${item.varianceLabel}`,
+      appointmentId: appointment.id,
+      viewMode: "day",
+      boardLaneMode: item.lens,
+      resolutionFilter:
+        item.conflictCount > 0
+          ? "conflict-watch"
+          : item.noShowCount > 0
+            ? "no-show-recovery"
+            : item.followUpCount > 0
+              ? "follow-up-required"
+              : "all",
+      reportQueueFilter:
+        item.conflictCount > 0
+          ? "conflict-watch"
+          : item.noShowCount > 0
+            ? "no-show-recovery"
+            : item.followUpCount > 0
+              ? "follow-up-required"
+              : "all",
+      commandCenterSearchPreset,
+      commandCenterSearchScope,
+      auditTimelineFilter,
+      notificationCenterFilter,
+      selectedCommandCenterDigestId
+    });
     setActionNotice(`Opened ${item.label.toLowerCase()} from schedule analytics in the ${item.lens} board lens.`);
   }
 
@@ -6715,6 +6951,36 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
       setReportQueueFilter("follow-up-required");
     }
 
+    recordCommandCenterWorkflowContext({
+      source: "analytics",
+      label: item.title,
+      detail: item.detail,
+      appointmentId: appointment.id,
+      viewMode:
+        item.tone === "red" || item.tone === "purple" ? "day" : "agenda",
+      boardLaneMode: item.lens,
+      resolutionFilter:
+        item.tone === "red"
+          ? "conflict-watch"
+          : item.tone === "amber"
+            ? "no-show-recovery"
+            : item.tone === "purple"
+              ? "needs-scheduling"
+              : "follow-up-required",
+      reportQueueFilter:
+        item.tone === "red"
+          ? "conflict-watch"
+          : item.tone === "amber"
+            ? "no-show-recovery"
+            : item.tone === "purple"
+              ? "needs-scheduling"
+              : "follow-up-required",
+      commandCenterSearchPreset,
+      commandCenterSearchScope,
+      auditTimelineFilter,
+      notificationCenterFilter,
+      selectedCommandCenterDigestId
+    });
     setActionNotice(`Opened ${appointment.id} from the schedule reconciliation queue.`);
   }
 
@@ -6859,6 +7125,21 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     setShowResolvedNotificationFailures(false);
     setAuditTimelineFilter("manager");
     setSelectedCommandCenterDigestId("digest-shift-handoff");
+    recordCommandCenterWorkflowContext({
+      source: "notification",
+      label: "Runtime delivery recovery",
+      detail: "Unresolved notification delivery and handoff recovery work is in focus.",
+      appointmentId: selectedAppointment.id,
+      viewMode,
+      boardLaneMode,
+      resolutionFilter,
+      reportQueueFilter,
+      commandCenterSearchPreset,
+      commandCenterSearchScope,
+      auditTimelineFilter: "manager",
+      notificationCenterFilter: "needs-review",
+      selectedCommandCenterDigestId: "digest-shift-handoff"
+    });
     setActionNotice("Focused unresolved delivery and handoff recovery work.");
   }
 
@@ -7471,6 +7752,32 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
         setReportQueueFilter("all");
       }
 
+      recordCommandCenterWorkflowContext({
+        source: "notification",
+        label: item.title,
+        detail: item.detail,
+        appointmentId: appointment.id,
+        viewMode,
+        boardLaneMode,
+        resolutionFilter:
+          item.sourceId === "digest-breached-sla"
+            ? "breached-sla"
+            : item.sourceId === "digest-no-show-recovery"
+              ? "no-show-recovery"
+              : "all",
+        reportQueueFilter:
+          item.sourceId === "digest-breached-sla"
+            ? "breached-sla"
+            : item.sourceId === "digest-no-show-recovery"
+              ? "no-show-recovery"
+              : "all",
+        commandCenterSearchPreset:
+          item.sourceId === "digest-breached-sla" ? "breached-sla" : "all",
+        commandCenterSearchScope: "appointments",
+        auditTimelineFilter,
+        notificationCenterFilter,
+        selectedCommandCenterDigestId
+      });
       setActionNotice(`Opened ${appointment.id} and linked the notification to the resolution workbench.`);
       return;
     }
@@ -7479,6 +7786,21 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
       setAuditTimelineFilter("manager");
       setCommandCenterSearchPreset("manager-activity");
       setCommandCenterSearchScope("timeline");
+      recordCommandCenterWorkflowContext({
+        source: "notification",
+        label: item.title,
+        detail: item.detail,
+        appointmentId: appointment.id,
+        viewMode,
+        boardLaneMode,
+        resolutionFilter,
+        reportQueueFilter,
+        commandCenterSearchPreset: "manager-activity",
+        commandCenterSearchScope: "timeline",
+        auditTimelineFilter: "manager",
+        notificationCenterFilter,
+        selectedCommandCenterDigestId
+      });
       setActionNotice(`Opened ${appointment.id} in the manager timeline from the notification center.`);
       return;
     }
@@ -7486,10 +7808,40 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     if (item.deepLinkTarget === "handoff-package") {
       setAuditTimelineFilter("manager");
       setSelectedCommandCenterDigestId("digest-shift-handoff");
+      recordCommandCenterWorkflowContext({
+        source: "notification",
+        label: item.title,
+        detail: item.detail,
+        appointmentId: appointment.id,
+        viewMode,
+        boardLaneMode,
+        resolutionFilter,
+        reportQueueFilter,
+        commandCenterSearchPreset,
+        commandCenterSearchScope,
+        auditTimelineFilter: "manager",
+        notificationCenterFilter,
+        selectedCommandCenterDigestId: "digest-shift-handoff"
+      });
       setActionNotice(`Opened ${appointment.id} and focused the shift handoff package.`);
       return;
     }
 
+    recordCommandCenterWorkflowContext({
+      source: "notification",
+      label: item.title,
+      detail: item.detail,
+      appointmentId: appointment.id,
+      viewMode,
+      boardLaneMode,
+      resolutionFilter,
+      reportQueueFilter,
+      commandCenterSearchPreset,
+      commandCenterSearchScope,
+      auditTimelineFilter,
+      notificationCenterFilter,
+      selectedCommandCenterDigestId
+    });
     setActionNotice(`Opened ${appointment.id} in the appointment detail rail from the notification center.`);
   }
 
@@ -7692,6 +8044,21 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
       setAuditTimelineFilter("all");
     }
 
+    recordCommandCenterWorkflowContext({
+      source: "search",
+      label: result.title,
+      detail: result.detail,
+      appointmentId: appointment.id,
+      viewMode,
+      boardLaneMode,
+      resolutionFilter,
+      reportQueueFilter,
+      commandCenterSearchPreset,
+      commandCenterSearchScope,
+      auditTimelineFilter: result.kind === "timeline" ? auditTimelineFilter : "all",
+      notificationCenterFilter,
+      selectedCommandCenterDigestId
+    });
     setActionNotice(`Focused ${result.appointmentId} from cross-appointment command-center search.`);
   }
 
@@ -7858,20 +8225,80 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
 
     const itemCountLabel = `${appointmentIds.length} exception item${appointmentIds.length === 1 ? "" : "s"}`;
     if (action === "assign") {
+      recordCommandCenterWorkflowContext({
+        source: "resolution-workbench",
+        label: "Bulk assign from workbench",
+        detail: `${itemCountLabel} assigned to ${assignee.name}${noteSuffix || "."}`,
+        appointmentId: appointmentIds[0] ?? selectedAppointment.id,
+        viewMode,
+        boardLaneMode,
+        resolutionFilter,
+        reportQueueFilter,
+        commandCenterSearchPreset,
+        commandCenterSearchScope,
+        auditTimelineFilter,
+        notificationCenterFilter,
+        selectedCommandCenterDigestId
+      });
       setActionNotice(`Assigned ${itemCountLabel} to ${assignee.name}.${noteSuffix}`);
       return;
     }
 
     if (action === "snooze") {
+      recordCommandCenterWorkflowContext({
+        source: "resolution-workbench",
+        label: "Bulk snooze from workbench",
+        detail: `${itemCountLabel} snoozed until tomorrow 9:00 AM${noteSuffix || "."}`,
+        appointmentId: appointmentIds[0] ?? selectedAppointment.id,
+        viewMode,
+        boardLaneMode,
+        resolutionFilter,
+        reportQueueFilter,
+        commandCenterSearchPreset,
+        commandCenterSearchScope,
+        auditTimelineFilter,
+        notificationCenterFilter,
+        selectedCommandCenterDigestId
+      });
       setActionNotice(`Snoozed ${itemCountLabel} until tomorrow 9:00 AM.${noteSuffix}`);
       return;
     }
 
     if (action === "escalate") {
+      recordCommandCenterWorkflowContext({
+        source: "resolution-workbench",
+        label: "Bulk escalation from workbench",
+        detail: `${itemCountLabel} escalated into the manager resolution lane${noteSuffix || "."}`,
+        appointmentId: appointmentIds[0] ?? selectedAppointment.id,
+        viewMode,
+        boardLaneMode,
+        resolutionFilter,
+        reportQueueFilter,
+        commandCenterSearchPreset,
+        commandCenterSearchScope,
+        auditTimelineFilter,
+        notificationCenterFilter,
+        selectedCommandCenterDigestId
+      });
       setActionNotice(`Escalated ${itemCountLabel} into the manager resolution lane.${noteSuffix}`);
       return;
     }
 
+    recordCommandCenterWorkflowContext({
+      source: "resolution-workbench",
+      label: "Bulk resolution from workbench",
+      detail: `${itemCountLabel} resolved from the command center workbench${noteSuffix || "."}`,
+      appointmentId: appointmentIds[0] ?? selectedAppointment.id,
+      viewMode,
+      boardLaneMode,
+      resolutionFilter,
+      reportQueueFilter,
+      commandCenterSearchPreset,
+      commandCenterSearchScope,
+      auditTimelineFilter,
+      notificationCenterFilter,
+      selectedCommandCenterDigestId
+    });
     setActionNotice(`Resolved ${itemCountLabel} from the command center workbench.${noteSuffix}`);
   }
 
@@ -9785,6 +10212,133 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
                 <p>No exception items match the current queue focus and visibility settings.</p>
               </div>
             )}
+          </section>
+
+          <section
+            className="appointment-command-center-views-card"
+            aria-labelledby="appointment-workflow-continuity"
+          >
+            <div className="appointment-section-heading">
+              <div>
+                <strong id="appointment-workflow-continuity">Workflow Continuity</strong>
+                <p>
+                  Keep command-center focus durable when managers move between search, queues, saved
+                  views, notifications, analytics, and reporting.
+                </p>
+              </div>
+              <span>
+                {commandCenterWorkflowTrail.length} recent workflow{commandCenterWorkflowTrail.length === 1 ? "" : "s"}
+              </span>
+            </div>
+
+            <div className="appointment-command-center-views-grid">
+              <section className="appointment-command-center-panel" aria-labelledby="appointment-current-workflow">
+                <div className="appointment-command-center-panel-heading">
+                  <div>
+                    <strong id="appointment-current-workflow">Current Workflow Focus</strong>
+                    <p>
+                      Resume the latest manager path without rebuilding filters or losing the focused
+                      appointment.
+                    </p>
+                  </div>
+                  <span>{commandCenterWorkflowContext?.timestampLabel ?? "No active workflow"}</span>
+                </div>
+
+                <div className="appointment-notification-contract-list">
+                  {commandCenterWorkflowContext ? (
+                    <article className="appointment-notification-contract-item">
+                      <div className="appointment-notification-center-item-top">
+                        <div>
+                          <strong>{commandCenterWorkflowContext.label}</strong>
+                          <p>{commandCenterWorkflowContext.detail}</p>
+                        </div>
+                        <span className="appointment-command-center-tag appointment-command-center-tag-blue">
+                          {commandCenterWorkflowContext.source.replaceAll("-", " ")}
+                        </span>
+                      </div>
+
+                      <div className="appointment-notification-center-item-meta">
+                        <span>{workflowContextAppointment.id}</span>
+                        <span>{commandCenterWorkflowContext.viewMode} view</span>
+                        <strong>{commandCenterWorkflowContext.boardLaneMode} lanes</strong>
+                      </div>
+
+                      <div className="appointment-command-center-item-actions">
+                        <button type="button" onClick={() => reopenCommandCenterWorkflow(commandCenterWorkflowContext)}>
+                          Resume workflow
+                        </button>
+                        <button type="button" onClick={() => selectAppointmentForDetail(workflowContextAppointment)}>
+                          Open appointment
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSavedViewDraftName(commandCenterWorkflowContext.label);
+                            setActionNotice(`Loaded "${commandCenterWorkflowContext.label}" into the saved-view draft name.`);
+                          }}
+                        >
+                          Save as view
+                        </button>
+                        <button type="button" onClick={() => clearCommandCenterWorkflowContext()}>
+                          Clear workflow
+                        </button>
+                      </div>
+                    </article>
+                  ) : (
+                    <div className="appointment-notification-center-empty">
+                      <strong>No active workflow context</strong>
+                      <p>Open a queue, search result, saved view, notification, analytics item, or reporting surface to build a resumable workflow trail.</p>
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <section className="appointment-command-center-panel" aria-labelledby="appointment-workflow-trail">
+                <div className="appointment-command-center-panel-heading">
+                  <div>
+                    <strong id="appointment-workflow-trail">Recent Workflow Trail</strong>
+                    <p>
+                      Reopen recent command-center contexts when the same operating pattern returns
+                      during the shift.
+                    </p>
+                  </div>
+                  <span>{commandCenterWorkflowTrail.length} stored</span>
+                </div>
+
+                <div className="appointment-notification-contract-list">
+                  {commandCenterWorkflowTrail.length > 0 ? (
+                    commandCenterWorkflowTrail.map((entry) => (
+                      <article className="appointment-notification-contract-item" key={entry.id}>
+                        <div className="appointment-notification-center-item-top">
+                          <div>
+                            <strong>{entry.label}</strong>
+                            <p>{entry.detail}</p>
+                          </div>
+                          <span className="appointment-command-center-tag">{entry.timestampLabel}</span>
+                        </div>
+
+                        <div className="appointment-notification-center-item-meta">
+                          <span>{entry.appointmentId}</span>
+                          <span>{entry.source.replaceAll("-", " ")}</span>
+                          <strong>{entry.viewMode} / {entry.boardLaneMode}</strong>
+                        </div>
+
+                        <div className="appointment-command-center-item-actions">
+                          <button type="button" onClick={() => reopenCommandCenterWorkflow(entry)}>
+                            Reopen workflow
+                          </button>
+                        </div>
+                      </article>
+                    ))
+                  ) : (
+                    <div className="appointment-notification-center-empty">
+                      <strong>No workflow trail yet</strong>
+                      <p>Recent manager work will appear here after you move through queues, search, or reporting contexts.</p>
+                    </div>
+                  )}
+                </div>
+              </section>
+            </div>
           </section>
 
           <section
