@@ -1,8 +1,8 @@
 import {
   SchedulerAttemptState,
   SchedulerAuthorizationOutcome,
-  SchedulerFailureStage,
-  SchedulerTriggerSource
+  type SchedulerFailureStage,
+  type SchedulerTriggerSource
 } from "@prisma/client";
 
 import {
@@ -101,11 +101,24 @@ type RecordFailedSchedulerAttemptInput = {
   error: unknown;
 };
 
+const SCHEDULER_TRIGGER_SOURCE = {
+  PLATFORM_CRON: "PLATFORM_CRON",
+  EXTERNAL_SCHEDULER: "EXTERNAL_SCHEDULER",
+  MANUAL_HTTP_TEST: "MANUAL_HTTP_TEST",
+  UNKNOWN: "UNKNOWN"
+} as const satisfies Record<string, SchedulerTriggerSource>;
+
+const SCHEDULER_FAILURE_STAGE = {
+  PREFLIGHT: "PREFLIGHT",
+  GENERATION_RUN: "GENERATION_RUN",
+  POST_RUN_FINALIZE: "POST_RUN_FINALIZE"
+} as const satisfies Record<string, SchedulerFailureStageValue>;
+
 const triggerSourceByHint = new Map<string, SchedulerTriggerSource>([
-  ["platform_cron", SchedulerTriggerSource.PLATFORM_CRON],
-  ["external_scheduler", SchedulerTriggerSource.EXTERNAL_SCHEDULER],
-  ["manual_http_test", SchedulerTriggerSource.MANUAL_HTTP_TEST],
-  ["unknown", SchedulerTriggerSource.UNKNOWN]
+  ["platform_cron", SCHEDULER_TRIGGER_SOURCE.PLATFORM_CRON],
+  ["external_scheduler", SCHEDULER_TRIGGER_SOURCE.EXTERNAL_SCHEDULER],
+  ["manual_http_test", SCHEDULER_TRIGGER_SOURCE.MANUAL_HTTP_TEST],
+  ["unknown", SCHEDULER_TRIGGER_SOURCE.UNKNOWN]
 ]);
 
 function readBearerToken(value: string | null) {
@@ -209,14 +222,14 @@ function inferTriggerSource(request: Request) {
   const userAgent = request.headers.get("user-agent")?.toLowerCase() ?? "";
 
   if (userAgent.includes("vercel") || userAgent.includes("cron")) {
-    return SchedulerTriggerSource.PLATFORM_CRON;
+    return SCHEDULER_TRIGGER_SOURCE.PLATFORM_CRON;
   }
 
   if (request.headers.get("origin") || request.headers.get("referer")) {
-    return SchedulerTriggerSource.MANUAL_HTTP_TEST;
+    return SCHEDULER_TRIGGER_SOURCE.MANUAL_HTTP_TEST;
   }
 
-  return SchedulerTriggerSource.UNKNOWN;
+  return SCHEDULER_TRIGGER_SOURCE.UNKNOWN;
 }
 
 function toSafeErrorMessage(error: unknown) {
@@ -410,7 +423,7 @@ export async function recordSchedulerAttemptResult(
     completedAt: now(),
     generationRunId: result.generationRunId,
     skipReasonCode: null,
-    failureStage: result.failureStage ?? SchedulerFailureStage.GENERATION_RUN,
+    failureStage: result.failureStage ?? SCHEDULER_FAILURE_STAGE.GENERATION_RUN,
     failureCode: result.failureCode ?? "SCHEDULED_GENERATION_FAILED",
     failureDiagnostic: result.failureDiagnostic ?? null,
     safeErrorMessage
@@ -427,7 +440,7 @@ export async function recordFailedSchedulerAttempt(
   const now = dependencies.now ?? (() => new Date());
   const safeErrorMessage = toSafeErrorMessage(input.error);
   const failureCode = input.failureCode ?? "SCHEDULED_REQUEST_FAILED";
-  const failureStage = input.failureStage ?? SchedulerFailureStage.PREFLIGHT;
+  const failureStage = input.failureStage ?? SCHEDULER_FAILURE_STAGE.PREFLIGHT;
   const failureDiagnostic =
     input.failureDiagnostic ??
     buildPreflightFailureDiagnostic({

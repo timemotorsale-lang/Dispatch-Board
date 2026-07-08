@@ -1,11 +1,33 @@
 ﻿import type { ReactNode } from "react";
-import { AlertCircle, CalendarDays, CheckCircle2, ChevronRight, CircleUserRound, Clock3, Layers3, Search, ShieldAlert, UsersRound } from "lucide-react";
+import {
+  AlertCircle,
+  CalendarClock,
+  CalendarDays,
+  CheckCircle2,
+  ChevronRight,
+  CircleUserRound,
+  Clock3,
+  Layers3,
+  Search,
+  ShieldAlert,
+  ShieldCheck,
+  Siren,
+  TriangleAlert,
+  UsersRound,
+  Wrench
+} from "lucide-react";
 import Link from "next/link";
 
 import { EmptyStateCard } from "@/components/ui/state-card";
 import { formatBoardEnumLabel, type BoardFilters, type BoardGroupMode, type BoardPresentation } from "./board-grouping";
 import type { ActivityFeedEvent } from "@/server/services/activity-feed";
-import type { BoardReadModel, BoardReadTask } from "@/server/services/board-read";
+import type {
+  BoardReadLatestGeneration,
+  BoardReadModel,
+  BoardReadSchedulerFailure,
+  BoardReadSchedulerHealth,
+  BoardReadTask
+} from "@/server/services/board-read";
 import type { ActiveUserSummary } from "@/server/services/user-summary";
 import { listProjectCardSummaries } from "@/features/projects/project-data";
 
@@ -76,6 +98,222 @@ function getBoardStatusLabel(
   }
 
   return "Board pending";
+}
+
+function formatBoardDateTime(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
+function formatSchedulerHealthStatus(status: BoardReadSchedulerHealth["status"]) {
+  if (status === "healthy") {
+    return "Healthy";
+  }
+
+  if (status === "attention") {
+    return "Needs attention";
+  }
+
+  return "Waiting";
+}
+
+function formatBoardGenerationState(state: BoardReadSchedulerHealth["boardGenerationStatus"]["state"]) {
+  if (state === "not_created") {
+    return "No board yet";
+  }
+
+  if (state === "not_started") {
+    return "Board not started";
+  }
+
+  if (state === "in_progress") {
+    return "Board generating";
+  }
+
+  if (state === "generated") {
+    return "Board generated";
+  }
+
+  return "Board failed";
+}
+
+function formatExpectedRunWindow(value: boolean | null) {
+  if (value === null) {
+    return "Expected run window unknown";
+  }
+
+  return value ? "Should have run by now" : "Run window not reached yet";
+}
+
+function formatAttemptState(state: NonNullable<BoardReadSchedulerHealth["latestScheduledAttempt"]>["attemptState"]) {
+  return formatBoardEnumLabel(state);
+}
+
+function formatGenerationLabel(run: BoardReadLatestGeneration | null) {
+  if (!run) {
+    return "No run recorded";
+  }
+
+  return `${run.triggeredBy === "scheduled" ? "Automatic" : "Manual"} ${run.status}`;
+}
+
+function formatFailureLabel(failure: BoardReadSchedulerFailure | null) {
+  if (!failure) {
+    return "No failure recorded";
+  }
+
+  return `${failure.triggeredBy === "scheduled" ? "Automatic" : "Manual"} ${failure.source === "scheduled_attempt" ? "attempt" : "run"} failed`;
+}
+
+function getHealthToneClass(status: BoardReadSchedulerHealth["status"]) {
+  if (status === "healthy") {
+    return "scheduler-health-good";
+  }
+
+  if (status === "attention") {
+    return "scheduler-health-alert";
+  }
+
+  return "scheduler-health-waiting";
+}
+
+function HealthCard({
+  detail,
+  eyebrow,
+  icon,
+  title
+}: {
+  detail: string;
+  eyebrow: string;
+  icon: ReactNode;
+  title: string;
+}) {
+  return (
+    <article className="scheduler-health-card">
+      <span className="scheduler-health-card-icon">{icon}</span>
+      <div className="scheduler-health-card-copy">
+        <span>{eyebrow}</span>
+        <strong>{title}</strong>
+        <small>{detail}</small>
+      </div>
+    </article>
+  );
+}
+
+export function SchedulerHealthPanel({
+  boardDate,
+  schedulerHealth
+}: {
+  boardDate: string;
+  schedulerHealth: BoardReadSchedulerHealth;
+}) {
+  const latestScheduledAttempt = schedulerHealth.latestScheduledAttempt;
+  const latestManualRun = schedulerHealth.latestManualRun;
+  const lastSuccess = schedulerHealth.lastSuccess;
+  const lastFailure = schedulerHealth.lastFailure;
+
+  return (
+    <section className={`scheduler-health-panel ${getHealthToneClass(schedulerHealth.status)}`}>
+      <header className="scheduler-health-header">
+        <div className="scheduler-health-header-copy">
+          <p className="section-kicker">Manager generation health</p>
+          <h2>{formatBoardDate(boardDate, true)}</h2>
+          <p>{schedulerHealth.managerMessage}</p>
+          <small>{schedulerHealth.nextStepMessage}</small>
+        </div>
+        <div className="scheduler-health-status-stack">
+          <span className={`scheduler-health-badge ${getHealthToneClass(schedulerHealth.status)}`}>
+            {formatSchedulerHealthStatus(schedulerHealth.status)}
+          </span>
+          <span className="scheduler-health-flag">
+            {schedulerHealth.needsAttention ? "Manager action needed" : "No manager action needed"}
+          </span>
+          <span className="scheduler-health-flag scheduler-health-flag-muted">
+            {formatExpectedRunWindow(schedulerHealth.expectedToHaveRunByNow)}
+          </span>
+        </div>
+      </header>
+
+      <div className="scheduler-health-summary-grid">
+        <HealthCard
+          detail={
+            schedulerHealth.boardGenerationStatus.generatedAt
+              ? `Completed ${formatBoardDateTime(schedulerHealth.boardGenerationStatus.generatedAt)}`
+              : formatExpectedRunWindow(schedulerHealth.expectedToHaveRunByNow)
+          }
+          eyebrow="Board status"
+          icon={<ShieldCheck size={18} />}
+          title={formatBoardGenerationState(schedulerHealth.boardGenerationStatus.state)}
+        />
+        <HealthCard
+          detail={
+            latestScheduledAttempt
+              ? `${formatAttemptState(latestScheduledAttempt.attemptState)} at ${formatBoardDateTime(latestScheduledAttempt.completedAt ?? latestScheduledAttempt.receivedAt)}`
+              : "No scheduled attempt evidence for this board date."
+          }
+          eyebrow="Latest scheduled"
+          icon={<CalendarClock size={18} />}
+          title={
+            latestScheduledAttempt
+              ? latestScheduledAttempt.managerMessage
+              : "No automatic run recorded"
+          }
+        />
+        <HealthCard
+          detail={
+            latestManualRun
+              ? `${formatBoardDateTime(latestManualRun.attemptedAt)}${latestManualRun.summary ? ` • ${latestManualRun.summary}` : ""}`
+              : "No manual retry has been recorded for this board date."
+          }
+          eyebrow="Latest manual"
+          icon={<Wrench size={18} />}
+          title={formatGenerationLabel(latestManualRun)}
+        />
+        <HealthCard
+          detail={
+            lastSuccess
+              ? `${formatBoardDateTime(lastSuccess.attemptedAt)}${lastSuccess.summary ? ` • ${lastSuccess.summary}` : ""}`
+              : "No successful generation has been recorded for this board date."
+          }
+          eyebrow="Last success"
+          icon={<CheckCircle2 size={18} />}
+          title={
+            lastSuccess
+              ? `${lastSuccess.triggeredBy === "scheduled" ? "Automatic" : "Manual"} success`
+              : "No success yet"
+          }
+        />
+        <HealthCard
+          detail={
+            lastFailure
+              ? `${formatBoardDateTime(lastFailure.occurredAt)}${lastFailure.failureCode ? ` • ${formatBoardEnumLabel(lastFailure.failureCode)}` : ""}`
+              : "No failed generation is currently recorded for this board date."
+          }
+          eyebrow="Last failure"
+          icon={<Siren size={18} />}
+          title={lastFailure ? lastFailure.managerMessage : formatFailureLabel(lastFailure)}
+        />
+        <HealthCard
+          detail={
+            schedulerHealth.latestSkipReason
+              ? `${formatBoardDateTime(schedulerHealth.latestSkipReason.occurredAt)} • ${schedulerHealth.latestSkipReason.managerMessage}`
+              : "No skip reason is currently recorded for this board date."
+          }
+          eyebrow="Latest skip"
+          icon={<TriangleAlert size={18} />}
+          title={
+            schedulerHealth.latestSkipReason
+              ? formatBoardEnumLabel(schedulerHealth.latestSkipReason.code)
+              : "No skip recorded"
+          }
+        />
+      </div>
+    </section>
+  );
 }
 
 export function BoardHero({

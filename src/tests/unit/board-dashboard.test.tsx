@@ -5,6 +5,7 @@ import {
   MetricStrip,
   OperationalRail,
   OperationsStrip,
+  SchedulerHealthPanel,
   StaffDutyStrip,
   TaskBoard
 } from "@/features/board/board-dashboard";
@@ -181,6 +182,113 @@ describe("board dashboard task board", () => {
 
     expect(markup).toContain("Open queue");
     expect(markup).toContain("/manager-review?date=2026-06-18&amp;focus=BLOCKED");
+  });
+
+  it("renders the manager scheduler health panel from the server read model", () => {
+    const markup = renderToStaticMarkup(
+      <SchedulerHealthPanel
+        boardDate="2026-06-18"
+        schedulerHealth={{
+          status: "attention",
+          expectedToHaveRunByNow: true,
+          needsAttention: true,
+          managerMessage: "Scheduled generation failed before the board was created.",
+          nextStepMessage: "Review the failed run details and retry manually if the board still needs to be generated.",
+          latestScheduledAttempt: {
+            id: "scheduler-attempt-1",
+            boardDate: "2026-06-18",
+            triggerType: "scheduled",
+            triggerSource: "platform_cron",
+            routePath: "/api/cron/generate-board",
+            requestMethod: "GET",
+            receivedAt: "2026-06-18T14:00:00.000Z",
+            startedAt: null,
+            completedAt: "2026-06-18T14:00:04.000Z",
+            attemptState: "failed",
+            authorizationOutcome: "authorized",
+            generationRunId: "generation-run-7",
+            managerMessage: "Scheduled generation failed before the board was created.",
+            skipReasonCode: null,
+            unauthorizedReasonCode: null,
+            failureStage: "GENERATION_RUN",
+            failureCode: "TASK_CREATION_FAILED",
+            failureDiagnostic: {
+              failureCode: "TASK_CREATION_FAILED",
+              failureStage: "GENERATION_RUN",
+              phase: "creating_tasks",
+              safeErrorMessage: "Scheduled generation failed before the board was created.",
+              errorName: "Error",
+              durationMs: 4000,
+              boardDayId: "board-day-1",
+              usersConsidered: 3,
+              templatesConsidered: 5,
+              tasksCreated: 1,
+              tasksSkippedAsDuplicates: 0,
+              tasksAlreadyExisting: 0,
+              manualTasksPreserved: 0
+            },
+            safeErrorMessage: "Scheduled generation failed before the board was created."
+          },
+          latestManualRun: {
+            generationRunId: "generation-run-8",
+            status: "success",
+            triggeredBy: "manual",
+            startedAt: "2026-06-18T14:10:00.000Z",
+            finishedAt: "2026-06-18T14:10:03.000Z",
+            attemptedAt: "2026-06-18T14:10:03.000Z",
+            createdTaskCount: 4,
+            skippedExistingTaskCount: 0,
+            alreadyExistingTaskCount: 0,
+            manualTasksPreservedCount: 0,
+            summary: "4 tasks created",
+            errorMessage: null,
+            failureCode: null,
+            failureStage: null,
+            failureDiagnostic: null
+          },
+          lastSuccess: {
+            generationRunId: "generation-run-8",
+            status: "success",
+            triggeredBy: "manual",
+            startedAt: "2026-06-18T14:10:00.000Z",
+            finishedAt: "2026-06-18T14:10:03.000Z",
+            attemptedAt: "2026-06-18T14:10:03.000Z",
+            createdTaskCount: 4,
+            skippedExistingTaskCount: 0,
+            alreadyExistingTaskCount: 0,
+            manualTasksPreservedCount: 0,
+            summary: "4 tasks created",
+            errorMessage: null,
+            failureCode: null,
+            failureStage: null,
+            failureDiagnostic: null
+          },
+          lastFailure: {
+            source: "scheduled_attempt",
+            triggeredBy: "scheduled",
+            occurredAt: "2026-06-18T14:00:04.000Z",
+            generationRunId: "generation-run-7",
+            schedulerAttemptId: "scheduler-attempt-1",
+            managerMessage: "Scheduled generation failed before the board was created.",
+            failureCode: "TASK_CREATION_FAILED",
+            failureStage: "GENERATION_RUN"
+          },
+          latestSkipReason: null,
+          boardGenerationStatus: {
+            state: "failed",
+            generatedAt: null,
+            latestGenerationStatus: "failed"
+          }
+        }}
+      />
+    );
+
+    expect(markup).toContain("Manager generation health");
+    expect(markup).toContain("Needs attention");
+    expect(markup).toContain("Latest scheduled");
+    expect(markup).toContain("Latest manual");
+    expect(markup).toContain("Last failure");
+    expect(markup).toContain("Scheduled generation failed before the board was created.");
   });
 
   it("renders a compact projects hub entry in place of the old workflow flow card", () => {

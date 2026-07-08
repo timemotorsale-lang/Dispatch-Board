@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { EmptyStateCard, ErrorStateCard, LoadingStateCard } from "@/components/ui/state-card";
 import { useLiveRefresh } from "@/hooks/use-live-refresh";
 import type { ActivityFeedEvent } from "@/server/services/activity-feed";
-import type { BoardReadModel } from "@/server/services/board-read";
+import type { BoardReadLookupResult, BoardReadModel, BoardReadSchedulerHealth } from "@/server/services/board-read";
 import type { ActiveUserSummary } from "@/server/services/user-summary";
 
 import {
@@ -14,6 +14,7 @@ import {
   MetricStrip,
   OperationsStrip,
   OperationalRail,
+  SchedulerHealthPanel,
   TaskBoard,
   formatBoardDate,
   type Metric
@@ -34,7 +35,7 @@ type BoardScreenProps = {
   initialDateError: string | null;
 };
 
-type BoardApiPayload = { date: string; board: BoardReadModel | null; error?: string };
+type BoardApiPayload = BoardReadLookupResult & { error?: string };
 type ActivityApiPayload = { date: string; events: ActivityFeedEvent[]; error?: string };
 type BoardLoadState =
   | { status: "loading"; date: string }
@@ -127,6 +128,7 @@ export function BoardScreen({
   const [groupMode, setGroupMode] = useState<BoardGroupMode>("assignee");
   const [filters, setFilters] = useState<BoardFilters>(DEFAULT_BOARD_FILTERS);
   const [activityEvents, setActivityEvents] = useState<ActivityFeedEvent[]>([]);
+  const [schedulerHealth, setSchedulerHealth] = useState<BoardReadSchedulerHealth | null>(null);
   const loadStateRef = useRef<BoardLoadState>(loadState);
   const refreshModeRef = useRef<"blocking" | "silent">("blocking");
   const boardPrimaryRef = useRef<HTMLDivElement | null>(null);
@@ -150,6 +152,7 @@ export function BoardScreen({
         }
 
         if (response.status === 404 && payload) {
+          setSchedulerHealth(payload.schedulerHealth);
           setIsRefreshing(false);
           if (refreshModeRef.current === "silent" && loadStateRef.current.status === "ready") {
             return;
@@ -163,6 +166,9 @@ export function BoardScreen({
         }
 
         if (!response.ok || !payload?.board) {
+          if (payload?.schedulerHealth) {
+            setSchedulerHealth(payload.schedulerHealth);
+          }
           setIsRefreshing(false);
           if (refreshModeRef.current === "silent" && loadStateRef.current.status === "ready") {
             return;
@@ -175,6 +181,7 @@ export function BoardScreen({
           return;
         }
 
+        setSchedulerHealth(payload.schedulerHealth);
         setIsRefreshing(false);
         refreshModeRef.current = "blocking";
         setLoadState({ status: "ready", date: payload.date, board: payload.board });
@@ -315,6 +322,7 @@ export function BoardScreen({
                 setSelectedBoardDate(date);
                 refreshModeRef.current = "blocking";
                 setIsRefreshing(false);
+                setSchedulerHealth(null);
                 setLoadState({ status: "loading", date });
               }}
               onBoardRefreshRequested={requestBoardReload}
@@ -324,6 +332,13 @@ export function BoardScreen({
       />
 
       {initialDateError ? <div className="board-notice board-notice-danger">{initialDateError}</div> : null}
+
+      {isManager && schedulerHealth ? (
+        <SchedulerHealthPanel
+          boardDate={loadState.date}
+          schedulerHealth={schedulerHealth}
+        />
+      ) : null}
 
       {loadState.status === "error" ? (
         <ErrorStateCard

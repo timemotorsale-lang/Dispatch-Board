@@ -2,8 +2,8 @@
   BoardGenerationStatus,
   GenerationRunStatus,
   GenerationTriggerType,
-  SchedulerFailureStage,
   type GenerationRun,
+  type SchedulerFailureStage,
   type WorkflowArea
 } from "@prisma/client";
 
@@ -79,6 +79,12 @@ export type GenerationFailureCode =
   | "UNKNOWN_INTERNAL_FAILURE";
 
 export type GenerationFailureStage = SchedulerFailureStage;
+
+const SCHEDULER_FAILURE_STAGE = {
+  PREFLIGHT: "PREFLIGHT",
+  GENERATION_RUN: "GENERATION_RUN",
+  POST_RUN_FINALIZE: "POST_RUN_FINALIZE"
+} as const satisfies Record<string, GenerationFailureStage>;
 
 export type GenerationFailureDiagnostic = {
   failureCode: GenerationFailureCode;
@@ -347,38 +353,38 @@ function classifyFailurePhase(phase: string): {
     case "loading_inputs":
       return {
         failureCode: "INPUT_LOADING_FAILED",
-        failureStage: SchedulerFailureStage.GENERATION_RUN
+        failureStage: SCHEDULER_FAILURE_STAGE.GENERATION_RUN
       };
     case "ensuring_board_day":
     case "marking_board_day_in_progress":
       return {
         failureCode: "BOARD_DAY_PREPARATION_FAILED",
-        failureStage: SchedulerFailureStage.GENERATION_RUN
+        failureStage: SCHEDULER_FAILURE_STAGE.GENERATION_RUN
       };
     case "building_candidates":
       return {
         failureCode: "CANDIDATE_BUILD_FAILED",
-        failureStage: SchedulerFailureStage.GENERATION_RUN
+        failureStage: SCHEDULER_FAILURE_STAGE.GENERATION_RUN
       };
     case "loading_existing_tasks":
       return {
         failureCode: "EXISTING_TASK_LOOKUP_FAILED",
-        failureStage: SchedulerFailureStage.GENERATION_RUN
+        failureStage: SCHEDULER_FAILURE_STAGE.GENERATION_RUN
       };
     case "creating_tasks":
       return {
         failureCode: "TASK_CREATION_FAILED",
-        failureStage: SchedulerFailureStage.GENERATION_RUN
+        failureStage: SCHEDULER_FAILURE_STAGE.GENERATION_RUN
       };
     case "marking_board_day_generated":
       return {
         failureCode: "BOARD_FINALIZATION_FAILED",
-        failureStage: SchedulerFailureStage.POST_RUN_FINALIZE
+        failureStage: SCHEDULER_FAILURE_STAGE.POST_RUN_FINALIZE
       };
     default:
       return {
         failureCode: "UNKNOWN_INTERNAL_FAILURE",
-        failureStage: SchedulerFailureStage.GENERATION_RUN
+        failureStage: SCHEDULER_FAILURE_STAGE.GENERATION_RUN
       };
   }
 }
