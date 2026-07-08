@@ -324,6 +324,19 @@ type AppointmentCommandCenterRuntimeQueueItem = {
   actionLabel: string;
 };
 
+type AppointmentRuntimePersistenceSummaryMetric = {
+  label: string;
+  value: string;
+  tone: "blue" | "amber" | "red" | "purple" | "green";
+  detail: string;
+};
+
+type AppointmentRuntimePersistenceSummary = {
+  headline: string;
+  checkpointLabel: string;
+  metrics: AppointmentRuntimePersistenceSummaryMetric[];
+};
+
 type AppointmentCommandCenterHandoffPackage = {
   headline: string;
   carryForwardCount: number;
@@ -341,6 +354,17 @@ type AppointmentCommandCenterHandoffHistoryEntry = {
   note: string;
   carryForwardCount: number;
   generatedAtLabel: string;
+};
+
+type AppointmentRuntimeDeliveryLedgerEntry = {
+  id: string;
+  sourceType: "runtime" | "handoff" | "failure" | "checkpoint";
+  appointmentId: string;
+  title: string;
+  detail: string;
+  tone: "blue" | "amber" | "red" | "purple" | "green";
+  statusLabel: string;
+  occurredAtLabel: string;
 };
 
 type AppointmentNotificationCenterFilter = "all" | "needs-review" | "acknowledged" | "delivered";
@@ -623,6 +647,23 @@ type AppointmentMonthCell = {
   isCurrentMonth: boolean;
   isBoardDate: boolean;
   items: Appointment[];
+};
+
+type AppointmentRuntimePersistenceState = {
+  commandCenterRuntimeStates: Record<
+    string,
+    { state: AppointmentCommandCenterRuntimeQueueItem["state"]; updatedAtLabel: string }
+  >;
+  commandCenterDigestHistory: AppointmentCommandCenterDigestHistoryEntry[];
+  commandCenterHandoffHistory: AppointmentCommandCenterHandoffHistoryEntry[];
+  notificationFailureStates: Record<
+    string,
+    { status: AppointmentNotificationFailureStatus; updatedAtLabel: string }
+  >;
+  notificationReadStates: Record<string, AppointmentNotificationReadState>;
+  commandCenterHandoffNote: string;
+  runtimeDeliveryLedger: AppointmentRuntimeDeliveryLedgerEntry[];
+  runtimeCheckpointLabel: string;
 };
 
 type AppointmentReadModel = {
@@ -1037,6 +1078,31 @@ const initialCommandCenterHandoffHistory: AppointmentCommandCenterHandoffHistory
     generatedAtLabel: "Today 4:20 PM"
   }
 ];
+
+const initialRuntimeDeliveryLedger: AppointmentRuntimeDeliveryLedgerEntry[] = [
+  {
+    id: "runtime-ledger-1",
+    sourceType: "runtime",
+    appointmentId: "APT-10245",
+    title: "Escalation Digest acknowledged",
+    detail: "General Manager acknowledged the escalation digest and kept it under active delivery watch.",
+    tone: "purple",
+    statusLabel: "Acknowledged",
+    occurredAtLabel: "Today 11:45 AM"
+  },
+  {
+    id: "runtime-ledger-2",
+    sourceType: "handoff",
+    appointmentId: "APT-10245",
+    title: "Shift handoff prepared",
+    detail: "Carry-forward package was prepared for the next operating manager.",
+    tone: "blue",
+    statusLabel: "Prepared",
+    occurredAtLabel: "Today 4:20 PM"
+  }
+];
+
+const APPOINTMENT_RUNTIME_PERSISTENCE_STORAGE_KEY = "appointment-board-runtime-persistence-v1";
 
 const initialNotificationFailureStates: Record<
   string,
@@ -2931,6 +2997,72 @@ export function buildAppointmentCommandCenterRuntimeQueue(input: {
     });
 }
 
+export function buildAppointmentRuntimePersistenceSummary(input: {
+  runtimeQueue: AppointmentCommandCenterRuntimeQueueItem[];
+  handoffHistory: AppointmentCommandCenterHandoffHistoryEntry[];
+  notificationFailures: AppointmentNotificationFailureQueueItem[];
+  notificationCenterItems: AppointmentNotificationCenterItem[];
+  checkpointLabel?: string;
+}) {
+  const queuedCount = input.runtimeQueue.filter((item) => item.state === "queued").length;
+  const acknowledgedCount = input.runtimeQueue.filter((item) => item.state === "acknowledged").length;
+  const openFailureCount = input.notificationFailures.filter((item) => item.status !== "resolved").length;
+  const unreadCount = input.notificationCenterItems.filter((item) => item.readState === "unread").length;
+  const pendingHandoffCount = input.handoffHistory.filter((item) => item.status === "prepared").length;
+
+  return {
+    headline: `${queuedCount + acknowledgedCount} runtime delivery item${
+      queuedCount + acknowledgedCount === 1 ? "" : "s"
+    } and ${openFailureCount} recovery item${
+      openFailureCount === 1 ? "" : "s"
+    } still need continuity across shifts and reloads.`,
+    checkpointLabel: input.checkpointLabel ?? "Not yet checkpointed",
+    metrics: [
+      {
+        label: "Queued runtime",
+        value: `${queuedCount}`,
+        tone: queuedCount > 0 ? "red" : "green",
+        detail: "Digest deliveries that are still waiting for manager acknowledgment."
+      },
+      {
+        label: "Acknowledged watch",
+        value: `${acknowledgedCount}`,
+        tone: acknowledgedCount > 0 ? "amber" : "green",
+        detail: "Deliveries acknowledged by a manager but not yet fully closed."
+      },
+      {
+        label: "Open recovery",
+        value: `${openFailureCount}`,
+        tone: openFailureCount > 0 ? "purple" : "green",
+        detail: "Runtime or handoff failures that still need retry, re-queue, or closure."
+      },
+      {
+        label: "Unread inbox",
+        value: `${unreadCount}`,
+        tone: unreadCount > 0 ? "blue" : "green",
+        detail: `${pendingHandoffCount} handoff item${
+          pendingHandoffCount === 1 ? "" : "s"
+        } still waiting for acceptance.`
+      }
+    ]
+  } satisfies AppointmentRuntimePersistenceSummary;
+}
+
+export function parseAppointmentRuntimePersistenceState(raw: string | null) {
+  if (!raw) {
+    return {} as Partial<AppointmentRuntimePersistenceState>;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<AppointmentRuntimePersistenceState> | null;
+    return parsed && typeof parsed === "object"
+      ? parsed
+      : ({} as Partial<AppointmentRuntimePersistenceState>);
+  } catch {
+    return {} as Partial<AppointmentRuntimePersistenceState>;
+  }
+}
+
 export function buildAppointmentNotificationCenterItems(input: {
   runtimeQueue: AppointmentCommandCenterRuntimeQueueItem[];
   handoffHistory: AppointmentCommandCenterHandoffHistoryEntry[];
@@ -4565,6 +4697,9 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     initialCommandCenterHandoffHistory
   );
   const [commandCenterHandoffNote, setCommandCenterHandoffNote] = useState("");
+  const [runtimeDeliveryLedger, setRuntimeDeliveryLedger] = useState(initialRuntimeDeliveryLedger);
+  const [runtimeCheckpointLabel, setRuntimeCheckpointLabel] = useState("Not yet checkpointed");
+  const [runtimePersistenceHydrated, setRuntimePersistenceHydrated] = useState(false);
   const [notificationCenterFilter, setNotificationCenterFilter] =
     useState<AppointmentNotificationCenterFilter>("all");
   const [notificationPolicies, setNotificationPolicies] = useState(initialNotificationPolicies);
@@ -4668,6 +4803,75 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
       isActive = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const persisted = parseAppointmentRuntimePersistenceState(
+      window.localStorage.getItem(APPOINTMENT_RUNTIME_PERSISTENCE_STORAGE_KEY)
+    );
+
+    if (persisted.commandCenterRuntimeStates) {
+      setCommandCenterRuntimeStates(persisted.commandCenterRuntimeStates);
+    }
+    if (persisted.commandCenterDigestHistory) {
+      setCommandCenterDigestHistory(persisted.commandCenterDigestHistory);
+    }
+    if (persisted.commandCenterHandoffHistory) {
+      setCommandCenterHandoffHistory(persisted.commandCenterHandoffHistory);
+    }
+    if (persisted.notificationFailureStates) {
+      setNotificationFailureStates(persisted.notificationFailureStates);
+    }
+    if (persisted.notificationReadStates) {
+      setNotificationReadStates(persisted.notificationReadStates);
+    }
+    if (typeof persisted.commandCenterHandoffNote === "string") {
+      setCommandCenterHandoffNote(persisted.commandCenterHandoffNote);
+    }
+    if (persisted.runtimeDeliveryLedger) {
+      setRuntimeDeliveryLedger(persisted.runtimeDeliveryLedger);
+    }
+    if (typeof persisted.runtimeCheckpointLabel === "string") {
+      setRuntimeCheckpointLabel(persisted.runtimeCheckpointLabel);
+    }
+
+    setRuntimePersistenceHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!runtimePersistenceHydrated || typeof window === "undefined") {
+      return;
+    }
+
+    const snapshot: AppointmentRuntimePersistenceState = {
+      commandCenterRuntimeStates,
+      commandCenterDigestHistory,
+      commandCenterHandoffHistory,
+      notificationFailureStates,
+      notificationReadStates,
+      commandCenterHandoffNote,
+      runtimeDeliveryLedger,
+      runtimeCheckpointLabel
+    };
+
+    window.localStorage.setItem(
+      APPOINTMENT_RUNTIME_PERSISTENCE_STORAGE_KEY,
+      JSON.stringify(snapshot)
+    );
+  }, [
+    commandCenterDigestHistory,
+    commandCenterHandoffHistory,
+    commandCenterHandoffNote,
+    commandCenterRuntimeStates,
+    notificationFailureStates,
+    notificationReadStates,
+    runtimeCheckpointLabel,
+    runtimeDeliveryLedger,
+    runtimePersistenceHydrated
+  ]);
 
   const boardAppointments = useMemo(
     () =>
@@ -5079,6 +5283,23 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   const openNotificationFailureCount = notificationFailureQueue.filter(
     (item) => item.status !== "resolved"
   ).length;
+  const runtimePersistenceSummary = useMemo(
+    () =>
+      buildAppointmentRuntimePersistenceSummary({
+        runtimeQueue: commandCenterRuntimeQueue,
+        handoffHistory: commandCenterHandoffHistory,
+        notificationFailures: notificationFailureQueue,
+        notificationCenterItems,
+        checkpointLabel: runtimeCheckpointLabel
+      }),
+    [
+      commandCenterHandoffHistory,
+      commandCenterRuntimeQueue,
+      notificationCenterItems,
+      notificationFailureQueue,
+      runtimeCheckpointLabel
+    ]
+  );
   const executiveReviewModel = useMemo(
     () =>
       buildAppointmentExecutiveReviewModel({
@@ -5774,38 +5995,127 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     }
   }
 
-  function advanceCommandCenterRuntimeItem(itemId: string) {
-    setCommandCenterRuntimeStates((current) => {
-      const existing = current[itemId];
-      const nextState =
-        existing?.state === "queued"
-          ? "acknowledged"
-          : existing?.state === "acknowledged"
-            ? "delivered"
-            : "queued";
+  function appendRuntimeDeliveryLedgerEntry(
+    entry: Omit<AppointmentRuntimeDeliveryLedgerEntry, "id">
+  ) {
+    setRuntimeDeliveryLedger((current) => [
+      {
+        id: `runtime-ledger-${current.length + 1}`,
+        ...entry
+      },
+      ...current
+    ].slice(0, 12));
+  }
 
+  function recordRuntimePersistenceCheckpoint() {
+    const checkpointLabel = "Checkpoint saved just now";
+    setRuntimeCheckpointLabel(checkpointLabel);
+    appendRuntimeDeliveryLedgerEntry({
+      sourceType: "checkpoint",
+      appointmentId: selectedAppointment.id,
+      title: "Runtime persistence checkpoint recorded",
+      detail: `${openNotificationFailureCount} delivery failure item${
+        openNotificationFailureCount === 1 ? "" : "s"
+      }, ${unreadNotificationCount} unread notification${
+        unreadNotificationCount === 1 ? "" : "s"
+      }, and ${commandCenterHandoffHistory.filter((entry) => entry.status === "prepared").length} pending handoff item${
+        commandCenterHandoffHistory.filter((entry) => entry.status === "prepared").length === 1 ? "" : "s"
+      } were written into the runtime checkpoint.`,
+      tone: "green",
+      statusLabel: "Checkpointed",
+      occurredAtLabel: checkpointLabel
+    });
+    setActionNotice("Runtime persistence checkpoint recorded for the current command-center state.");
+  }
+
+  function focusRuntimeDeliveryRecovery() {
+    setNotificationCenterFilter("needs-review");
+    setShowResolvedNotificationFailures(false);
+    setAuditTimelineFilter("manager");
+    setSelectedCommandCenterDigestId("digest-shift-handoff");
+    setActionNotice("Focused unresolved delivery and handoff recovery work.");
+  }
+
+  function advanceCommandCenterRuntimeItem(itemId: string) {
+    const queueItem = commandCenterRuntimeQueue.find((item) => item.id === itemId);
+    const currentState = commandCenterRuntimeStates[itemId]?.state ?? "queued";
+    const nextState =
+      currentState === "queued"
+        ? "acknowledged"
+        : currentState === "acknowledged"
+          ? "delivered"
+          : "queued";
+    const updatedAtLabel =
+      nextState === "queued"
+        ? "Re-queued just now"
+        : nextState === "acknowledged"
+          ? "Acknowledged just now"
+          : "Delivered just now";
+
+    setCommandCenterRuntimeStates((current) => {
       return {
         ...current,
         [itemId]: {
           state: nextState,
-          updatedAtLabel:
-            nextState === "queued"
-              ? "Re-queued just now"
-              : nextState === "acknowledged"
-                ? "Acknowledged just now"
-                : "Delivered just now"
+          updatedAtLabel
         }
       };
     });
 
-    const queueItem = commandCenterRuntimeQueue.find((item) => item.id === itemId);
     if (queueItem) {
+      const digestHistoryChannel: AppointmentCommandCenterDigestChannel =
+        queueItem.channelLabel === "In-app alert"
+          ? "in-app"
+          : queueItem.channelLabel === "Shift handoff"
+            ? "shift-handoff"
+            : "email-summary";
+      const digestHistoryStatus: AppointmentCommandCenterDigestHistoryEntry["status"] =
+        nextState === "delivered" ? "sent" : "previewed";
+
+      setCommandCenterDigestHistory((current) => [
+        {
+          id: `digest-history-runtime-${itemId}-${current.length + 1}`,
+          digestLabel: queueItem.label,
+          channel: digestHistoryChannel,
+          recipientLabel: queueItem.recipientLabel,
+          count: queueItem.count,
+          status: digestHistoryStatus,
+          reason:
+            nextState === "delivered"
+              ? "Runtime delivery marked complete from the command center."
+              : nextState === "acknowledged"
+                ? "Runtime delivery acknowledged for active monitoring."
+                : "Runtime delivery re-queued for another pass.",
+          generatedAtLabel: updatedAtLabel
+        },
+        ...current
+      ].slice(0, 8));
+      appendRuntimeDeliveryLedgerEntry({
+        sourceType: "runtime",
+        appointmentId: selectedAppointment.id,
+        title: `${queueItem.label} ${nextState === "delivered" ? "delivered" : nextState}`,
+        detail: `${queueItem.label} moved to ${nextState} for ${queueItem.recipientLabel}.`,
+        tone:
+          nextState === "delivered"
+            ? "green"
+            : nextState === "acknowledged"
+              ? "amber"
+              : "blue",
+        statusLabel:
+          nextState === "delivered"
+            ? "Delivered"
+            : nextState === "acknowledged"
+              ? "Acknowledged"
+              : "Re-queued",
+        occurredAtLabel: updatedAtLabel
+      });
       setActionNotice(`${queueItem.label} moved through the runtime queue.`);
     }
   }
 
   function recordCommandCenterHandoff(status: "prepared" | "accepted") {
     const note = commandCenterHandoffNote.trim() || "No additional handoff note recorded.";
+    const generatedAtLabel = status === "accepted" ? "Accepted just now" : "Prepared just now";
 
     setCommandCenterHandoffHistory((current) => [
       {
@@ -5814,7 +6124,7 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
         actor: "Abdi Farah",
         note,
         carryForwardCount: commandCenterHandoffPackage.carryForwardCount,
-        generatedAtLabel: status === "accepted" ? "Accepted just now" : "Prepared just now"
+        generatedAtLabel
       },
       ...current
     ]);
@@ -5834,6 +6144,16 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
       },
       ...current
     ]);
+
+    appendRuntimeDeliveryLedgerEntry({
+      sourceType: "handoff",
+      appointmentId: selectedAppointment.id,
+      title: status === "accepted" ? "Shift handoff accepted" : "Shift handoff prepared",
+      detail: note,
+      tone: status === "accepted" ? "green" : "blue",
+      statusLabel: status === "accepted" ? "Accepted" : "Prepared",
+      occurredAtLabel: generatedAtLabel
+    });
 
     setActionNotice(
       status === "accepted"
@@ -5883,6 +6203,15 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     const notification = notificationCenterItems.find((item) => item.id === itemId);
     if (notification) {
       const nextState = notification.readState === "read" ? "unread" : "read";
+      appendRuntimeDeliveryLedgerEntry({
+        sourceType: "runtime",
+        appointmentId: notification.appointmentId,
+        title: `${notification.title} marked ${nextState}`,
+        detail: `${notification.channelLabel} notification was marked ${nextState} from the manager inbox.`,
+        tone: nextState === "read" ? "green" : "blue",
+        statusLabel: nextState === "read" ? "Read" : "Unread",
+        occurredAtLabel: nextState === "read" ? "Read just now" : "Re-opened just now"
+      });
       setActionNotice(`${notification.title} marked ${nextState}.`);
     }
   }
@@ -6153,6 +6482,15 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
         },
         ...current
       ]);
+      appendRuntimeDeliveryLedgerEntry({
+        sourceType: "handoff",
+        appointmentId: selectedAppointment.id,
+        title: "Shift handoff accepted from notification center",
+        detail: `${item.title} was accepted from the manager inbox.`,
+        tone: "green",
+        statusLabel: "Accepted",
+        occurredAtLabel: "Accepted just now"
+      });
       setActionNotice("Shift handoff was accepted from the notification center.");
       return;
     }
@@ -6242,6 +6580,23 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
       },
       ...current
     ]);
+
+    appendRuntimeDeliveryLedgerEntry({
+      sourceType: "failure",
+      appointmentId: selectedAppointment.id,
+      title: `${failureItem.title} ${notificationFailureStatusLabel(nextStatus).toLowerCase()}`,
+      detail: `${failureItem.queueLabel} moved to ${notificationFailureStatusLabel(nextStatus).toLowerCase()}.`,
+      tone:
+        nextStatus === "resolved"
+          ? "green"
+          : nextStatus === "retrying"
+            ? "amber"
+            : nextStatus === "re-queued"
+              ? "blue"
+              : "red",
+      statusLabel: notificationFailureStatusLabel(nextStatus),
+      occurredAtLabel: updatedAtLabel
+    });
 
     setActionNotice(
       `${failureItem.title} moved to ${notificationFailureStatusLabel(nextStatus).toLowerCase()} in the failure queue.`
@@ -8952,6 +9307,101 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
                           </div>
                         </div>
                         <small>{entry.actor} · {entry.generatedAtLabel}</small>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              </section>
+
+              <section
+                className="appointment-command-center-panel"
+                aria-labelledby="appointment-runtime-persistence"
+              >
+                <div className="appointment-command-center-panel-heading">
+                  <div>
+                    <strong id="appointment-runtime-persistence">Delivery Persistence &amp; Recovery</strong>
+                    <p>
+                      Keep runtime state durable across reloads and shifts, then review the recovery
+                      trail in one manager-visible ledger.
+                    </p>
+                  </div>
+                  <span>{runtimePersistenceSummary.checkpointLabel}</span>
+                </div>
+
+                <p className="appointment-runtime-persistence-headline">
+                  {runtimePersistenceSummary.headline}
+                </p>
+
+                <div className="appointment-runtime-persistence-metrics">
+                  {runtimePersistenceSummary.metrics.map((metric) => (
+                    <article className="appointment-runtime-persistence-metric" key={metric.label}>
+                      <div className="appointment-runtime-queue-top">
+                        <div>
+                          <strong>{metric.label}</strong>
+                          <p>{metric.detail}</p>
+                        </div>
+                        <span
+                          className={
+                            metric.tone === "red"
+                              ? "appointment-command-center-tag appointment-command-center-tag-red"
+                              : metric.tone === "amber"
+                                ? "appointment-command-center-tag appointment-command-center-tag-amber"
+                                : metric.tone === "purple"
+                                  ? "appointment-command-center-tag appointment-command-center-tag-purple"
+                                  : metric.tone === "green"
+                                    ? "appointment-command-center-tag appointment-command-center-tag-green"
+                                    : "appointment-command-center-tag appointment-command-center-tag-blue"
+                          }
+                        >
+                          {metric.value}
+                        </span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+
+                <div className="appointment-runtime-handoff-actions">
+                  <button type="button" onClick={() => recordRuntimePersistenceCheckpoint()}>
+                    Checkpoint runtime
+                  </button>
+                  <button type="button" onClick={() => focusRuntimeDeliveryRecovery()}>
+                    Open unresolved delivery
+                  </button>
+                </div>
+
+                <div className="appointment-runtime-persistence-ledger">
+                  <div className="appointment-command-center-digest-preview-heading">
+                    <strong>Delivery ledger</strong>
+                    <span>{runtimeDeliveryLedger.length} recorded</span>
+                  </div>
+                  <div className="appointment-command-center-digest-history-list">
+                    {runtimeDeliveryLedger.slice(0, 6).map((entry) => (
+                      <article className="appointment-command-center-digest-history-item" key={entry.id}>
+                        <div className="appointment-command-center-digest-history-top">
+                          <div>
+                            <strong>{entry.title}</strong>
+                            <p>{entry.detail}</p>
+                          </div>
+                          <div className="appointment-command-center-badge-stack">
+                            <span
+                              className={
+                                entry.tone === "red"
+                                  ? "appointment-command-center-tag appointment-command-center-tag-red"
+                                  : entry.tone === "amber"
+                                    ? "appointment-command-center-tag appointment-command-center-tag-amber"
+                                    : entry.tone === "purple"
+                                      ? "appointment-command-center-tag appointment-command-center-tag-purple"
+                                      : entry.tone === "green"
+                                        ? "appointment-command-center-tag appointment-command-center-tag-green"
+                                        : "appointment-command-center-tag appointment-command-center-tag-blue"
+                              }
+                            >
+                              {entry.statusLabel}
+                            </span>
+                            <span className="appointment-command-center-tag">{entry.sourceType}</span>
+                          </div>
+                        </div>
+                        <small>{entry.appointmentId} Â· {entry.occurredAtLabel}</small>
                       </article>
                     ))}
                   </div>

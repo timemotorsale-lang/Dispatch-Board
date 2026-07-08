@@ -15,9 +15,11 @@ import {
   buildAppointmentNotificationCenterItems,
   buildAppointmentNotificationFailureQueue,
   buildAppointmentResourceViewItems,
+  buildAppointmentRuntimePersistenceSummary,
   buildAppointmentScheduleAnalyticsModel,
   buildAppointmentVehicleViewItems,
   buildAppointmentCommandCenterRuntimeQueue,
+  parseAppointmentRuntimePersistenceState,
   buildAppointmentCommandCenterReport,
   buildAppointmentCommandCenterSearchResults,
   buildAppointmentCommandCenterSavedViewDescription,
@@ -78,6 +80,10 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Runtime &amp; Handoffs");
     expect(markup).toContain("Delivery Runtime Queue");
     expect(markup).toContain("Carry-Forward Handoff Package");
+    expect(markup).toContain("Delivery Persistence &amp; Recovery");
+    expect(markup).toContain("Checkpoint runtime");
+    expect(markup).toContain("Open unresolved delivery");
+    expect(markup).toContain("Delivery ledger");
     expect(markup).toContain("Notification Center &amp; Failure Queues");
     expect(markup).toContain("Event Fanout &amp; Source Coverage");
     expect(markup).toContain("Suppress fanout");
@@ -976,6 +982,91 @@ describe("appointment board shell", () => {
     expect(failures.find((item) => item.id === "failure-runtime-digest-breached-sla")?.actionLabel).toBe(
       "Retry delivery"
     );
+  });
+
+  it("builds a runtime persistence summary from queue, inbox, and failures", () => {
+    const summary = buildAppointmentRuntimePersistenceSummary({
+      runtimeQueue: [
+        {
+          id: "digest-breached-sla",
+          label: "Breached SLA Digest",
+          tone: "red",
+          channelLabel: "In-app alert",
+          recipientLabel: "General Manager + Service Lead",
+          count: 3,
+          state: "queued",
+          updatedAtLabel: "Due now",
+          detail: "Digest is queued for operational delivery.",
+          actionLabel: "Acknowledge"
+        },
+        {
+          id: "digest-escalations",
+          label: "Escalation Digest",
+          tone: "purple",
+          channelLabel: "Email summary",
+          recipientLabel: "General Manager",
+          count: 2,
+          state: "acknowledged",
+          updatedAtLabel: "Acknowledged 15 min ago",
+          detail: "Digest was acknowledged and is being monitored.",
+          actionLabel: "Mark delivered"
+        }
+      ] as any,
+      handoffHistory: [
+        {
+          id: "handoff-history-1",
+          status: "prepared",
+          actor: "Abdi Farah",
+          note: "Prepared carry-forward package.",
+          carryForwardCount: 4,
+          generatedAtLabel: "Today 4:20 PM"
+        }
+      ],
+      notificationFailures: [
+        {
+          id: "failure-runtime-digest-breached-sla",
+          status: "open"
+        },
+        {
+          id: "failure-handoff-handoff-history-1",
+          status: "resolved"
+        }
+      ] as any,
+      notificationCenterItems: [
+        {
+          id: "notification-runtime-digest-breached-sla",
+          readState: "unread"
+        },
+        {
+          id: "notification-handoff-handoff-history-1",
+          readState: "read"
+        }
+      ] as any,
+      checkpointLabel: "Checkpoint saved just now"
+    });
+
+    expect(summary.checkpointLabel).toBe("Checkpoint saved just now");
+    expect(summary.headline).toContain("runtime delivery item");
+    expect(summary.metrics.find((metric) => metric.label === "Open recovery")?.value).toBe("1");
+    expect(summary.metrics.find((metric) => metric.label === "Unread inbox")?.detail).toContain(
+      "1 handoff item"
+    );
+  });
+
+  it("parses persisted runtime state safely", () => {
+    expect(parseAppointmentRuntimePersistenceState(null)).toEqual({});
+    expect(parseAppointmentRuntimePersistenceState("not-json")).toEqual({});
+    expect(
+      parseAppointmentRuntimePersistenceState(
+        JSON.stringify({
+          runtimeCheckpointLabel: "Checkpoint saved just now",
+          commandCenterHandoffNote: "Incoming manager should review no-shows first."
+        })
+      )
+    ).toMatchObject({
+      runtimeCheckpointLabel: "Checkpoint saved just now",
+      commandCenterHandoffNote: "Incoming manager should review no-shows first."
+    });
   });
 
   it("builds event fanout sources from appointment and automation history", () => {
