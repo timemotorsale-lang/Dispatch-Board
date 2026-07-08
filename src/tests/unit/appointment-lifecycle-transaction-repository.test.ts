@@ -16,6 +16,7 @@ function createDatabaseHarness() {
   const taskCreates: Record<string, unknown>[] = [];
   const taskLinkCreates: Record<string, unknown>[] = [];
   const historyCreates: Record<string, unknown>[] = [];
+  const activityCreates: Record<string, unknown>[] = [];
   const commandUpdates: Array<{
     where: Record<string, unknown>;
     data: Record<string, unknown>;
@@ -175,6 +176,14 @@ function createDatabaseHarness() {
         };
       }
     },
+    activityEvent: {
+      async create(input: { data: Record<string, unknown> }) {
+        activityCreates.push(input.data);
+        return {
+          id: `activity-${activityCreates.length}`
+        };
+      }
+    },
     appointmentCommandLedger: {
       async update(input: { where: Record<string, unknown>; data: Record<string, unknown> }) {
         commandUpdates.push({
@@ -208,6 +217,7 @@ function createDatabaseHarness() {
     commandUpdates,
     database,
     deletedTaskLinkIds,
+    activityCreates,
     historyCreates,
     committedHeldReservationIds,
     reservationCreates,
@@ -333,6 +343,27 @@ describe("appointment lifecycle Prisma transaction repository", () => {
           }
         ]
       });
+      await tx.createActivityEvents({
+        events: [
+          {
+            boardDayId: tasks[0].boardDayId,
+            actorUserId: "user-manager",
+            taskId: tasks[0].id,
+            eventType: "task.appointment_follow_up_created",
+            message:
+              "Appointment APT-10245 generated follow-up task Callback required for appointment APT-10245.",
+            metadata: {
+              appointmentId: appointment.id,
+              appointmentNumber: appointment.appointmentNumber,
+              automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_TASK",
+              templateVersion: 1,
+              linkCode: "OUTCOME_CALLBACK_REQUIRED",
+              linkType: "FOLLOW_UP",
+              generatedTaskTitle: "Callback required for appointment APT-10245"
+            }
+          }
+        ]
+      });
       const completion = await tx.completeCommand({
         commandId: "cmd-1",
         status: "SUCCEEDED",
@@ -412,6 +443,14 @@ describe("appointment lifecycle Prisma transaction repository", () => {
         appointmentId: "appointment-1",
         eventType: "SCHEDULED",
         correlationId: "corr-1"
+      })
+    ]);
+    expect(harness.activityCreates).toEqual([
+      expect.objectContaining({
+        boardDayId: "board-day-1",
+        actorUserId: "user-manager",
+        taskId: "task-1",
+        eventType: "task.appointment_follow_up_created"
       })
     ]);
     expect(harness.commandUpdates).toEqual([

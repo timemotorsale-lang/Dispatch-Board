@@ -5,6 +5,7 @@ import {
   MetricStrip,
   OperationalRail,
   OperationsStrip,
+  SchedulerHealthPanel,
   StaffDutyStrip,
   TaskBoard
 } from "@/features/board/board-dashboard";
@@ -181,6 +182,176 @@ describe("board dashboard task board", () => {
 
     expect(markup).toContain("Open queue");
     expect(markup).toContain("/manager-review?date=2026-06-18&amp;focus=BLOCKED");
+  });
+
+  it("renders the manager scheduler health panel from the server read model", () => {
+    const markup = renderToStaticMarkup(
+      <SchedulerHealthPanel
+        boardDate="2026-06-18"
+        onRetryRequested={() => undefined}
+        schedulerHealth={{
+          status: "attention",
+          expectedToHaveRunByNow: true,
+          needsAttention: true,
+          guidance: {
+            code: "scheduled_failed",
+            title: "Automatic generation failed",
+            message: "Scheduled generation failed before the board was created.",
+            nextStep:
+              "Review the failed run details and retry manually if the board still needs to be generated.",
+            actionRequired: true,
+            safeToRetry: true,
+            retryLabel: "Retry Board Generation"
+          },
+          managerMessage: "Scheduled generation failed before the board was created.",
+          nextStepMessage: "Review the failed run details and retry manually if the board still needs to be generated.",
+          latestScheduledAttempt: {
+            id: "scheduler-attempt-1",
+            boardDate: "2026-06-18",
+            triggerType: "scheduled",
+            triggerSource: "platform_cron",
+            routePath: "/api/cron/generate-board",
+            requestMethod: "GET",
+            receivedAt: "2026-06-18T14:00:00.000Z",
+            startedAt: null,
+            completedAt: "2026-06-18T14:00:04.000Z",
+            attemptState: "failed",
+            authorizationOutcome: "authorized",
+            generationRunId: "generation-run-7",
+            managerMessage: "Scheduled generation failed before the board was created.",
+            skipReasonCode: null,
+            unauthorizedReasonCode: null,
+            failureStage: "GENERATION_RUN",
+            failureCode: "TASK_CREATION_FAILED",
+            failureDiagnostic: {
+              failureCode: "TASK_CREATION_FAILED",
+              failureStage: "GENERATION_RUN",
+              phase: "creating_tasks",
+              safeErrorMessage: "Scheduled generation failed before the board was created.",
+              errorName: "Error",
+              durationMs: 4000,
+              boardDayId: "board-day-1",
+              usersConsidered: 3,
+              templatesConsidered: 5,
+              tasksCreated: 1,
+              tasksSkippedAsDuplicates: 0,
+              tasksAlreadyExisting: 0,
+              manualTasksPreserved: 0
+            },
+            safeErrorMessage: "Scheduled generation failed before the board was created."
+          },
+          latestManualRun: {
+            generationRunId: "generation-run-8",
+            status: "success",
+            triggeredBy: "manual",
+            startedAt: "2026-06-18T14:10:00.000Z",
+            finishedAt: "2026-06-18T14:10:03.000Z",
+            attemptedAt: "2026-06-18T14:10:03.000Z",
+            createdTaskCount: 4,
+            skippedExistingTaskCount: 0,
+            alreadyExistingTaskCount: 0,
+            manualTasksPreservedCount: 0,
+            summary: "4 tasks created",
+            errorMessage: null,
+            failureCode: null,
+            failureStage: null,
+            failureDiagnostic: null
+          },
+          lastSuccess: {
+            generationRunId: "generation-run-8",
+            status: "success",
+            triggeredBy: "manual",
+            startedAt: "2026-06-18T14:10:00.000Z",
+            finishedAt: "2026-06-18T14:10:03.000Z",
+            attemptedAt: "2026-06-18T14:10:03.000Z",
+            createdTaskCount: 4,
+            skippedExistingTaskCount: 0,
+            alreadyExistingTaskCount: 0,
+            manualTasksPreservedCount: 0,
+            summary: "4 tasks created",
+            errorMessage: null,
+            failureCode: null,
+            failureStage: null,
+            failureDiagnostic: null
+          },
+          lastFailure: {
+            source: "scheduled_attempt",
+            triggeredBy: "scheduled",
+            occurredAt: "2026-06-18T14:00:04.000Z",
+            generationRunId: "generation-run-7",
+            schedulerAttemptId: "scheduler-attempt-1",
+            managerMessage: "Scheduled generation failed before the board was created.",
+            failureCode: "TASK_CREATION_FAILED",
+            failureStage: "GENERATION_RUN"
+          },
+          latestSkipReason: null,
+          unauthorizedSummary: {
+            count: 2,
+            latestAttemptId: "scheduler-attempt-0",
+            latestOccurredAt: "2026-06-18T13:55:00.000Z",
+            latestReasonCode: "SECRET_MISMATCH",
+            repeated: true,
+            managerMessage: "2 unauthorized scheduled requests were blocked for this board date.",
+            nextStepMessage:
+              "Confirm the deployed cron secret matches the scheduler configuration and review whether the repeated blocked hits are expected."
+          },
+          readiness: {
+            status: "attention",
+            summary:
+              "App-known readiness checks found setup gaps that can stop automatic board generation.",
+            checks: [
+              {
+                code: "cron_secret",
+                label: "CRON_SECRET",
+                status: "attention",
+                detail: "The app runtime does not currently have a cron secret configured."
+              },
+              {
+                code: "generation_timezone",
+                label: "Generation timezone",
+                status: "ready",
+                detail: "Generation timezone is set to America/Chicago."
+              },
+              {
+                code: "generation_time",
+                label: "Generation time",
+                status: "ready",
+                detail: "Generation time is set to 09:00."
+              },
+              {
+                code: "business_days",
+                label: "Business days",
+                status: "ready",
+                detail: "6 business days configured."
+              },
+              {
+                code: "scheduled_evidence",
+                label: "Scheduled evidence",
+                status: "ready",
+                detail: "Scheduled evidence was recorded at 2026-06-18T14:00:04.000Z."
+              }
+            ]
+          },
+          boardGenerationStatus: {
+            state: "failed",
+            generatedAt: null,
+            latestGenerationStatus: "failed"
+          }
+        }}
+      />
+    );
+
+    expect(markup).toContain("Manager generation health");
+    expect(markup).toContain("Needs attention");
+    expect(markup).toContain("Automatic generation failed");
+    expect(markup).toContain("Retry Board Generation");
+    expect(markup).toContain("Latest scheduled");
+    expect(markup).toContain("Latest manual");
+    expect(markup).toContain("Last failure");
+    expect(markup).toContain("Unauthorized scheduled requests");
+    expect(markup).toContain("Scheduler readiness");
+    expect(markup).toContain("CRON_SECRET");
+    expect(markup).toContain("Scheduled generation failed before the board was created.");
   });
 
   it("renders a compact projects hub entry in place of the old workflow flow card", () => {

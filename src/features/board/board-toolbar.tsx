@@ -8,21 +8,8 @@ import { useRouter } from "next/navigation";
 import type { BoardReadLatestGeneration } from "@/server/services/board-read";
 import type { ActiveUserSummary } from "@/server/services/user-summary";
 
+import type { BoardGenerationActionFeedback } from "./board-generation-feedback";
 import { formatBoardEnumLabel } from "./board-grouping";
-
-type ManualBoardGenerationResponse = {
-  status: "success" | "failed";
-  boardDate: string;
-  generationRunId: string | null;
-  createdTaskCount: number | null;
-  skippedExistingTaskCount: number | null;
-  alreadyExistingTaskCount: number | null;
-  summary: string | null;
-  errorMessage: string | null;
-  latestGeneration: {
-    attemptedAt: string;
-  } | null;
-};
 
 type ManualTaskCreateResponse = {
   task: {
@@ -34,25 +21,15 @@ type ManualTaskCreateResponse = {
 type BoardToolbarProps = {
   assignableUsers: ActiveUserSummary[];
   boardDate: string;
+  generationFeedback: BoardGenerationActionFeedback;
   generationStatus: string | undefined;
+  isGeneratePending: boolean;
   isManager: boolean;
   latestGeneration: BoardReadLatestGeneration | null | undefined;
   onBoardDateChange(boardDate: string): void;
+  onGenerateBoard(): void;
   onBoardRefreshRequested(): void;
 };
-
-type FeedbackState =
-  | {
-      tone: "success";
-      message: string;
-      detail: string | null;
-    }
-  | {
-      tone: "error";
-      message: string;
-      detail: string | null;
-    }
-  | null;
 
 type TaskFormState = {
   assignedUserId: string;
@@ -100,17 +77,6 @@ function createInitialTaskFormState(assignableUsers: ActiveUserSummary[]): TaskF
     title: "",
     vehicleReference: "",
     workflowArea: WorkflowArea.INVENTORY
-  };
-}
-
-function buildSuccessMessage(payload: ManualBoardGenerationResponse) {
-  const createdTaskCount = payload.createdTaskCount ?? 0;
-  const skippedTaskCount = payload.skippedExistingTaskCount ?? 0;
-  const summaryParts = [`${createdTaskCount} tasks created`, `${skippedTaskCount} duplicates skipped`];
-
-  return {
-    message: "Board generated.",
-    detail: payload.summary ?? summaryParts.join(" | ")
   };
 }
 
@@ -199,16 +165,18 @@ function getGenerationHealthMessage(
 export function BoardToolbar({
   assignableUsers,
   boardDate,
+  generationFeedback,
   generationStatus,
+  isGeneratePending,
   isManager,
   latestGeneration,
   onBoardDateChange,
+  onGenerateBoard,
   onBoardRefreshRequested
 }: BoardToolbarProps) {
   const router = useRouter();
-  const [isGeneratePending, startGenerateTransition] = useTransition();
   const [isTaskPending, startTaskTransition] = useTransition();
-  const [feedback, setFeedback] = useState<FeedbackState>(null);
+  const [taskFeedback, setTaskFeedback] = useState<BoardGenerationActionFeedback>(null);
   const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
   const [taskFormState, setTaskFormState] = useState<TaskFormState>(() =>
     createInitialTaskFormState(assignableUsers)
@@ -220,7 +188,7 @@ export function BoardToolbar({
       return;
     }
 
-    setFeedback(null);
+    setTaskFeedback(null);
     onBoardDateChange(nextBoardDate);
     router.replace(buildBoardUrl(nextBoardDate));
   }
@@ -239,64 +207,9 @@ export function BoardToolbar({
     setIsCreateTaskOpen(true);
   }
 
-  function handleGenerate() {
-    setFeedback(null);
-
-    startGenerateTransition(async () => {
-      const response = await fetch("/api/board/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          boardDate
-        })
-      });
-
-      const payload = (await response.json().catch(() => null)) as
-        | (ManualBoardGenerationResponse & { error?: string })
-        | { error?: string }
-        | null;
-      const hasStatus = payload && "status" in payload;
-
-      if (!response.ok || (hasStatus && payload.status === "failed")) {
-        const detail =
-          payload && "errorMessage" in payload && typeof payload.errorMessage === "string"
-            ? payload.errorMessage
-            : payload?.error ?? "Unable to generate the board right now.";
-
-        setFeedback({
-          tone: "error",
-          message: "Generation failed.",
-          detail
-        });
-        onBoardRefreshRequested();
-        return;
-      }
-
-      if (!payload || !("status" in payload) || payload.status !== "success") {
-        setFeedback({
-          tone: "error",
-          message: "Generation failed.",
-          detail: "Unable to generate the board right now."
-        });
-        return;
-      }
-
-      const nextFeedback = buildSuccessMessage(payload);
-
-      setFeedback({
-        tone: "success",
-        message: nextFeedback.message,
-        detail: nextFeedback.detail
-      });
-      onBoardRefreshRequested();
-    });
-  }
-
   function handleCreateTaskSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setFeedback(null);
+    setTaskFeedback(null);
 
     startTaskTransition(async () => {
       const response = await fetch("/api/tasks", {
@@ -331,7 +244,7 @@ export function BoardToolbar({
         | null;
 
       if (!response.ok || !payload || !("task" in payload) || !payload.task) {
-        setFeedback({
+        setTaskFeedback({
           tone: "error",
           message: "Task creation failed.",
           detail: payload?.error ?? "Unable to create the task right now."
@@ -339,7 +252,7 @@ export function BoardToolbar({
         return;
       }
 
-      setFeedback({
+      setTaskFeedback({
         tone: "success",
         message: "Task created.",
         detail: `${payload.task.title} was added to ${boardDate}.`
@@ -394,7 +307,7 @@ export function BoardToolbar({
               <button
                 className="pill pill-action board-generate-button"
                 disabled={isGeneratePending}
-                onClick={handleGenerate}
+                onClick={onGenerateBoard}
                 type="button"
               >
                 {isGeneratePending
@@ -424,23 +337,23 @@ export function BoardToolbar({
         </div>
       ) : null}
 
-      {feedback ? (
+      {generationFeedback ? (
         <div
           className={
-            feedback.tone === "error"
+            generationFeedback.tone === "error"
               ? "notice notice-danger board-feedback"
               : "notice board-feedback"
           }
-          role={feedback.tone === "error" ? "alert" : "status"}
+          role={generationFeedback.tone === "error" ? "alert" : "status"}
         >
           <p>
-            <strong>{feedback.message}</strong>
-            {feedback.detail ? ` ${feedback.detail}` : ""}
+            <strong>{generationFeedback.message}</strong>
+            {generationFeedback.detail ? ` ${generationFeedback.detail}` : ""}
           </p>
         </div>
       ) : null}
 
-      {!feedback && isGeneratePending ? (
+      {!generationFeedback && isGeneratePending ? (
         <div className="notice board-feedback" role="status">
           <p>
             <strong>Generating board...</strong> This can take a moment. Repeated clicks are disabled until the run finishes.
@@ -448,7 +361,23 @@ export function BoardToolbar({
         </div>
       ) : null}
 
-      {!feedback && isTaskPending ? (
+      {taskFeedback ? (
+        <div
+          className={
+            taskFeedback.tone === "error"
+              ? "notice notice-danger board-feedback"
+              : "notice board-feedback"
+          }
+          role={taskFeedback.tone === "error" ? "alert" : "status"}
+        >
+          <p>
+            <strong>{taskFeedback.message}</strong>
+            {taskFeedback.detail ? ` ${taskFeedback.detail}` : ""}
+          </p>
+        </div>
+      ) : null}
+
+      {!taskFeedback && isTaskPending ? (
         <div className="notice board-feedback" role="status">
           <p>
             <strong>Creating task...</strong> Your task is being saved to the selected board date.

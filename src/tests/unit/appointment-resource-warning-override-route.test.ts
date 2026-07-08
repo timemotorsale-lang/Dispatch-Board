@@ -88,7 +88,52 @@ describe("appointment resource warning override route", () => {
         expectedAppointmentVersion: 3,
         reasonCode: "RESOURCE_WARNING_OVERRIDDEN",
         reasonNotes: "Manager accepts a warning-level bay overlap.",
-        correlationId: "correlation-warning-1"
+        correlationId: "correlation-warning-1",
+        proposedStartsAt: null,
+        proposedEndsAt: null,
+        proposedSchedulingTimezone: null
+      }
+    );
+  });
+
+  it("passes proposed schedule windows for unscheduled draft resource warning overrides", async () => {
+    const response = await POST(
+      new Request(
+        "http://localhost/api/appointments/appointment-1/resource-reservations/reservation-proposed/warning-override",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            expectedAppointmentVersion: 3,
+            reasonCode: "RESOURCE_WARNING_OVERRIDDEN",
+            reasonNotes: "Manager accepts a proposed-slot bay overlap.",
+            correlationId: "corr-proposed-resource-warning",
+            proposedStartsAt: "2026-07-06T16:00:00.000Z",
+            proposedEndsAt: "2026-07-06T17:00:00.000Z",
+            proposedSchedulingTimezone: "America/Chicago"
+          })
+        }
+      ),
+      {
+        params: Promise.resolve({
+          id: "appointment-1",
+          reservationId: "reservation-proposed"
+        })
+      }
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.overrideAppointmentResourceWarning).toHaveBeenCalledWith(
+      managerUser,
+      "appointment-1",
+      {
+        reservationId: "reservation-proposed",
+        expectedAppointmentVersion: 3,
+        reasonCode: "RESOURCE_WARNING_OVERRIDDEN",
+        reasonNotes: "Manager accepts a proposed-slot bay overlap.",
+        correlationId: "corr-proposed-resource-warning",
+        proposedStartsAt: new Date("2026-07-06T16:00:00.000Z"),
+        proposedEndsAt: new Date("2026-07-06T17:00:00.000Z"),
+        proposedSchedulingTimezone: "America/Chicago"
       }
     );
   });

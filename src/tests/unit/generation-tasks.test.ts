@@ -931,6 +931,23 @@ describe("generation tasks service", () => {
     expect(getGenerationRunFailureContext(thrownError)).toEqual({
       generationRunId: "generation-run-1",
       generationRunStatus: GenerationRunStatus.FAILED,
+      failureCode: "INPUT_LOADING_FAILED",
+      failureStage: "GENERATION_RUN",
+      failureDiagnostic: {
+        failureCode: "INPUT_LOADING_FAILED",
+        failureStage: "GENERATION_RUN",
+        phase: "loading_inputs",
+        safeErrorMessage: "Input loading failed during preparation.",
+        errorName: "Error",
+        durationMs: 4000,
+        boardDayId: null,
+        usersConsidered: 0,
+        templatesConsidered: 0,
+        tasksCreated: 0,
+        tasksSkippedAsDuplicates: 0,
+        tasksAlreadyExisting: 0,
+        manualTasksPreserved: null
+      },
       safeErrorMessage: "Input loading failed during preparation."
     });
     expect(harness.readGenerationRuns()).toEqual([
@@ -943,7 +960,10 @@ describe("generation tasks service", () => {
           boardDate: "2026-06-17",
           triggeredBy: "scheduled",
           triggeredByUserId: null,
+          failureCode: "INPUT_LOADING_FAILED",
+          failureStage: "GENERATION_RUN",
           phase: "loading_inputs",
+          safeErrorMessage: "Input loading failed during preparation.",
           durationMs: 4000,
           errorName: "Error",
           boardDayId: null,
@@ -952,7 +972,22 @@ describe("generation tasks service", () => {
           tasksCreated: 0,
           tasksSkippedAsDuplicates: 0,
           tasksAlreadyExisting: 0,
-          manualTasksPreserved: null
+          manualTasksPreserved: null,
+          failureDiagnostic: {
+            failureCode: "INPUT_LOADING_FAILED",
+            failureStage: "GENERATION_RUN",
+            phase: "loading_inputs",
+            safeErrorMessage: "Input loading failed during preparation.",
+            errorName: "Error",
+            durationMs: 4000,
+            boardDayId: null,
+            usersConsidered: 0,
+            templatesConsidered: 0,
+            tasksCreated: 0,
+            tasksSkippedAsDuplicates: 0,
+            tasksAlreadyExisting: 0,
+            manualTasksPreserved: null
+          }
         }
       })
     ]);
@@ -1052,6 +1087,15 @@ describe("generation tasks service", () => {
     expect(getGenerationRunFailureContext(thrownError)).toEqual({
       generationRunId: "generation-run-1",
       generationRunStatus: GenerationRunStatus.FAILED,
+      failureCode: "TASK_CREATION_FAILED",
+      failureStage: "GENERATION_RUN",
+      failureDiagnostic: expect.objectContaining({
+        failureCode: "TASK_CREATION_FAILED",
+        failureStage: "GENERATION_RUN",
+        phase: "creating_tasks",
+        safeErrorMessage: "Task insert failed for the sales template.",
+        tasksCreated: 1
+      }),
       safeErrorMessage: "Task insert failed for the sales template."
     });
     expect(harness.readGenerationRuns()[0]).toEqual(
@@ -1059,14 +1103,23 @@ describe("generation tasks service", () => {
         status: GenerationRunStatus.FAILED,
         errorMessage: "Task insert failed for the sales template.",
         summary: expect.objectContaining({
+          failureCode: "TASK_CREATION_FAILED",
+          failureStage: "GENERATION_RUN",
           phase: "creating_tasks",
+          safeErrorMessage: "Task insert failed for the sales template.",
           boardDayId: "board-day-1",
           usersConsidered: 2,
           templatesConsidered: 2,
           tasksCreated: 1,
           tasksSkippedAsDuplicates: 0,
           tasksAlreadyExisting: 0,
-          manualTasksPreserved: 0
+          manualTasksPreserved: 0,
+          failureDiagnostic: expect.objectContaining({
+            failureCode: "TASK_CREATION_FAILED",
+            failureStage: "GENERATION_RUN",
+            phase: "creating_tasks",
+            safeErrorMessage: "Task insert failed for the sales template."
+          })
         })
       })
     );
@@ -1152,6 +1205,14 @@ describe("generation tasks service", () => {
     expect(getGenerationRunFailureContext(thrownError)).toEqual({
       generationRunId: "generation-run-1",
       generationRunStatus: GenerationRunStatus.FAILED,
+      failureCode: "CANDIDATE_BUILD_FAILED",
+      failureStage: "GENERATION_RUN",
+      failureDiagnostic: expect.objectContaining({
+        failureCode: "CANDIDATE_BUILD_FAILED",
+        failureStage: "GENERATION_RUN",
+        phase: "building_candidates",
+        safeErrorMessage: "Task template defaultDueTime must use HH:mm format."
+      }),
       safeErrorMessage: "Task template defaultDueTime must use HH:mm format."
     });
   });

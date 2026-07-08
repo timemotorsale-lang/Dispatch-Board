@@ -10,6 +10,9 @@ import {
 } from "@/server/services/app-settings-service";
 import {
   createMissingGeneratedTasksForDate,
+  type GenerationFailureCode,
+  type GenerationFailureDiagnostic,
+  type GenerationFailureStage,
   getGenerationRunFailureContext,
   listGenerationRunsForDate,
   type CreateMissingGeneratedTasksDependencies,
@@ -26,10 +29,21 @@ type BoardGenerationSharedResult = {
   createdTaskCount: number | null;
   skippedExistingTaskCount: number | null;
   alreadyExistingTaskCount: number | null;
+  skipReasonCode: ScheduledSkipReasonCode | null;
   summary: string | null;
   errorMessage: string | null;
+  failureCode: GenerationFailureCode | null;
+  failureStage: GenerationFailureStage | null;
+  failureDiagnostic: GenerationFailureDiagnostic | null;
   latestGeneration: LatestGenerationStatus | null;
 };
+
+export type ScheduledSkipReasonCode =
+  | "NON_BUSINESS_DAY"
+  | "BEFORE_GENERATION_TIME"
+  | "ALREADY_GENERATED"
+  | "CONFIGURATION_MISSING"
+  | "CONFIGURATION_INVALID";
 
 export type LatestGenerationStatus = {
   generationRunId: string;
@@ -45,6 +59,9 @@ export type LatestGenerationStatus = {
   manualTasksPreservedCount: number | null;
   summary: string | null;
   errorMessage: string | null;
+  failureCode: GenerationFailureCode | null;
+  failureStage: GenerationFailureStage | null;
+  failureDiagnostic: GenerationFailureDiagnostic | null;
 };
 
 export type ManualBoardGenerationResult =
@@ -88,6 +105,11 @@ const weekdayByIndex = [
   BusinessDay.SATURDAY
 ] as const;
 
+const configurationMissingPattern =
+  /(not configured|require(?:s|d)?\s+(?:a|at least one|valid)?\s*(?:timezone|daily generation time|business day)|missing)/i;
+const configurationInvalidPattern =
+  /(invalid|must use HH:mm|must be valid|unable to resolve local time|invalid time zone specified)/i;
+
 function getTimePart(parts: Intl.DateTimeFormatPart[], type: "hour" | "minute") {
   return parts.find((part) => part.type === type)?.value ?? "";
 }
@@ -112,6 +134,74 @@ function readSummaryText(summary: GenerationRunSummary["summary"], key: string) 
   const value = summaryObject?.[key];
 
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function readFailureDiagnostic(summary: GenerationRunSummary["summary"]): GenerationFailureDiagnostic | null {
+  const summaryObject = readSummaryObject(summary);
+  const value = summaryObject?.failureDiagnostic;
+
+  if (!isPlainObject(value)) {
+    return null;
+  }
+
+  const failureCode = typeof value.failureCode === "string" ? value.failureCode.trim() : "";
+  const failureStage = typeof value.failureStage === "string" ? value.failureStage.trim() : "";
+  const phase = typeof value.phase === "string" ? value.phase.trim() : "";
+  const safeErrorMessage =
+    typeof value.safeErrorMessage === "string" ? value.safeErrorMessage.trim() : "";
+  const errorName = typeof value.errorName === "string" ? value.errorName.trim() : "";
+  const durationMs = value.durationMs;
+  const boardDayId = typeof value.boardDayId === "string" && value.boardDayId.trim() ? value.boardDayId : null;
+  const usersConsidered = value.usersConsidered;
+  const templatesConsidered = value.templatesConsidered;
+  const tasksCreated = value.tasksCreated;
+  const tasksSkippedAsDuplicates = value.tasksSkippedAsDuplicates;
+  const tasksAlreadyExisting = value.tasksAlreadyExisting;
+  const manualTasksPreserved = value.manualTasksPreserved;
+
+  if (
+    !failureCode ||
+    !failureStage ||
+    !phase ||
+    !safeErrorMessage ||
+    !errorName ||
+    typeof durationMs !== "number" ||
+    !Number.isFinite(durationMs) ||
+    typeof usersConsidered !== "number" ||
+    !Number.isFinite(usersConsidered) ||
+    typeof templatesConsidered !== "number" ||
+    !Number.isFinite(templatesConsidered) ||
+    typeof tasksCreated !== "number" ||
+    !Number.isFinite(tasksCreated) ||
+    typeof tasksSkippedAsDuplicates !== "number" ||
+    !Number.isFinite(tasksSkippedAsDuplicates) ||
+    typeof tasksAlreadyExisting !== "number" ||
+    !Number.isFinite(tasksAlreadyExisting) ||
+    (manualTasksPreserved !== null &&
+      (typeof manualTasksPreserved !== "number" || !Number.isFinite(manualTasksPreserved)))
+  ) {
+    return null;
+  }
+
+  return {
+    failureCode: failureCode as GenerationFailureCode,
+    failureStage: failureStage as GenerationFailureStage,
+    phase,
+    safeErrorMessage,
+    errorName,
+    durationMs,
+    boardDayId,
+    usersConsidered,
+    templatesConsidered,
+    tasksCreated,
+    tasksSkippedAsDuplicates,
+    tasksAlreadyExisting,
+    manualTasksPreserved
+  };
 }
 
 function toLatestStatusLabel(status: GenerationRunStatus) {
@@ -147,7 +237,33 @@ function buildGenerationSummary(run: GenerationRunSummary) {
   return summaryParts.length > 0 ? summaryParts.join(" • ") : null;
 }
 
+function readFailureCode(summary: GenerationRunSummary["summary"]) {
+  const failureDiagnostic = readFailureDiagnostic(summary);
+
+  if (failureDiagnostic) {
+    return failureDiagnostic.failureCode;
+  }
+
+  const value = readSummaryText(summary, "failureCode");
+
+  return value ? (value as GenerationFailureCode) : null;
+}
+
+function readFailureStage(summary: GenerationRunSummary["summary"]) {
+  const failureDiagnostic = readFailureDiagnostic(summary);
+
+  if (failureDiagnostic) {
+    return failureDiagnostic.failureStage;
+  }
+
+  const value = readSummaryText(summary, "failureStage");
+
+  return value ? (value as GenerationFailureStage) : null;
+}
+
 function toLatestGenerationStatus(run: GenerationRunSummary): LatestGenerationStatus {
+  const failureDiagnostic = readFailureDiagnostic(run.summary);
+
   return {
     generationRunId: run.id,
     boardDate: run.boardDate,
@@ -161,7 +277,10 @@ function toLatestGenerationStatus(run: GenerationRunSummary): LatestGenerationSt
     alreadyExistingTaskCount: readSummaryNumber(run.summary, "tasksAlreadyExisting"),
     manualTasksPreservedCount: readSummaryNumber(run.summary, "manualTasksPreserved"),
     summary: buildGenerationSummary(run),
-    errorMessage: run.errorMessage
+    errorMessage: run.errorMessage,
+    failureCode: readFailureCode(run.summary),
+    failureStage: readFailureStage(run.summary),
+    failureDiagnostic
   };
 }
 
@@ -221,6 +340,78 @@ function parseDailyGenerationTime(dailyGenerationTime: string) {
   return hours * 60 + minutes;
 }
 
+function getFallbackBoardDate(now: Date) {
+  return getBoardDateInTimeZone(now, "America/Chicago");
+}
+
+function classifyScheduledConfigurationSkipReason(error: unknown): ScheduledSkipReasonCode | null {
+  const message = error instanceof Error ? error.message.replace(/\s+/g, " ").trim() : "";
+
+  if (!message) {
+    return null;
+  }
+
+  if (configurationMissingPattern.test(message)) {
+    return "CONFIGURATION_MISSING";
+  }
+
+  if (configurationInvalidPattern.test(message)) {
+    return "CONFIGURATION_INVALID";
+  }
+
+  return null;
+}
+
+function createScheduledSkipResult(input: {
+  boardDate: string;
+  generationRunId?: string | null;
+  createdTaskCount?: number | null;
+  skippedExistingTaskCount?: number | null;
+  alreadyExistingTaskCount?: number | null;
+  skipReasonCode: ScheduledSkipReasonCode;
+  summary: string;
+  latestGeneration?: LatestGenerationStatus | null;
+}): ScheduledBoardGenerationResult {
+  return {
+    status: "skipped",
+    boardDate: input.boardDate,
+    generationRunId: input.generationRunId ?? null,
+    createdTaskCount: input.createdTaskCount ?? 0,
+    skippedExistingTaskCount: input.skippedExistingTaskCount ?? 0,
+    alreadyExistingTaskCount: input.alreadyExistingTaskCount ?? null,
+    skipReasonCode: input.skipReasonCode,
+    summary: input.summary,
+    errorMessage: null,
+    failureCode: null,
+    failureStage: null,
+    failureDiagnostic: null,
+    latestGeneration: input.latestGeneration ?? null
+  };
+}
+
+function createScheduledConfigurationSkipResult(
+  scheduledAttemptedAt: Date,
+  error: unknown
+): ScheduledBoardGenerationResult | null {
+  const skipReasonCode = classifyScheduledConfigurationSkipReason(error);
+
+  if (!skipReasonCode) {
+    return null;
+  }
+
+  const boardDate = getFallbackBoardDate(scheduledAttemptedAt);
+  const summary =
+    skipReasonCode === "CONFIGURATION_MISSING"
+      ? "Skipped scheduled generation because required scheduler or app configuration is missing."
+      : "Skipped scheduled generation because scheduler or app configuration is invalid.";
+
+  return createScheduledSkipResult({
+    boardDate,
+    skipReasonCode,
+    summary
+  });
+}
+
 function getBusinessDayForBoardDate(boardDate: string) {
   const normalizedBoardDate = normalizeBoardDate(boardDate);
   const utcDay = new Date(`${normalizedBoardDate}T00:00:00.000Z`).getUTCDay();
@@ -276,8 +467,12 @@ async function runBoardGenerationForDate(
       skippedExistingTaskCount: result.skippedExistingTaskCount,
       alreadyExistingTaskCount:
         latestGeneration?.alreadyExistingTaskCount ?? result.skippedExistingTaskCount,
+      skipReasonCode: null,
       summary: latestGeneration?.summary ?? null,
       errorMessage: null,
+      failureCode: null,
+      failureStage: null,
+      failureDiagnostic: null,
       latestGeneration
     };
   } catch (error) {
@@ -291,8 +486,13 @@ async function runBoardGenerationForDate(
       createdTaskCount: latestGeneration?.createdTaskCount ?? null,
       skippedExistingTaskCount: latestGeneration?.skippedExistingTaskCount ?? null,
       alreadyExistingTaskCount: latestGeneration?.alreadyExistingTaskCount ?? null,
+      skipReasonCode: null,
       summary: latestGeneration?.summary ?? null,
       errorMessage: failureContext?.safeErrorMessage ?? normalizeFailureMessage(error),
+      failureCode: failureContext?.failureCode ?? latestGeneration?.failureCode ?? null,
+      failureStage: failureContext?.failureStage ?? latestGeneration?.failureStage ?? null,
+      failureDiagnostic:
+        failureContext?.failureDiagnostic ?? latestGeneration?.failureDiagnostic ?? null,
       latestGeneration
     };
   }
@@ -320,6 +520,16 @@ export async function getLatestGenerationStatusForDate(
   return latestRun ? toLatestGenerationStatus(latestRun) : null;
 }
 
+export async function listLatestGenerationStatusesForDate(
+  boardDate: string,
+  repository: Pick<GenerationTasksRepository, "listGenerationRunsForDate"> = createGenerationTasksRepository()
+): Promise<LatestGenerationStatus[]> {
+  const normalizedBoardDate = normalizeBoardDate(boardDate);
+  const runs = await listGenerationRunsForDate(normalizedBoardDate, repository);
+
+  return runs.map(toLatestGenerationStatus);
+}
+
 export async function triggerManualBoardGeneration(
   user: AuthenticatedUser | null,
   boardDate: string,
@@ -343,23 +553,49 @@ export async function triggerScheduledBoardGeneration(
 ): Promise<ScheduledBoardGenerationResult> {
   const now = dependencies.now ?? (() => new Date());
   const loadSettings = dependencies.getGenerationSettings ?? getGenerationSettings;
-  const settings = await loadSettings();
   const scheduledAttemptedAt = now();
-  const boardDate = getBoardDateInTimeZone(scheduledAttemptedAt, settings.timezone);
-  const boardBusinessDay = getBusinessDayForBoardDate(boardDate);
+  let settings: GenerationSettings;
+
+  try {
+    settings = await loadSettings();
+  } catch (error) {
+    const configurationSkipResult = createScheduledConfigurationSkipResult(
+      scheduledAttemptedAt,
+      error
+    );
+
+    if (configurationSkipResult) {
+      return configurationSkipResult;
+    }
+
+    throw error;
+  }
+
+  let boardDate: string;
+  let boardBusinessDay: BusinessDay;
+
+  try {
+    boardDate = getBoardDateInTimeZone(scheduledAttemptedAt, settings.timezone);
+    boardBusinessDay = getBusinessDayForBoardDate(boardDate);
+  } catch (error) {
+    const configurationSkipResult = createScheduledConfigurationSkipResult(
+      scheduledAttemptedAt,
+      error
+    );
+
+    if (configurationSkipResult) {
+      return configurationSkipResult;
+    }
+
+    throw error;
+  }
 
   if (!settings.businessDays.includes(boardBusinessDay)) {
-    return {
-      status: "skipped",
+    return createScheduledSkipResult({
       boardDate,
-      generationRunId: null,
-      createdTaskCount: 0,
-      skippedExistingTaskCount: 0,
-      alreadyExistingTaskCount: null,
-      summary: `Skipped scheduled generation because ${boardBusinessDay.toLowerCase()} is not configured as a business day.`,
-      errorMessage: null,
-      latestGeneration: null
-    };
+      skipReasonCode: "NON_BUSINESS_DAY",
+      summary: `Skipped scheduled generation because ${boardBusinessDay.toLowerCase()} is not configured as a business day.`
+    });
   }
 
   const latestGeneration = await getLatestGenerationStatusForDate(
@@ -368,37 +604,62 @@ export async function triggerScheduledBoardGeneration(
   );
 
   if (latestGeneration?.status === "success") {
-    return {
-      status: "skipped",
+    return createScheduledSkipResult({
       boardDate,
       generationRunId: latestGeneration.generationRunId,
       createdTaskCount: latestGeneration.createdTaskCount,
       skippedExistingTaskCount: latestGeneration.skippedExistingTaskCount,
       alreadyExistingTaskCount: latestGeneration.alreadyExistingTaskCount,
+      skipReasonCode: "ALREADY_GENERATED",
       summary: `Skipped scheduled generation because the board for ${boardDate} is already generated.`,
-      errorMessage: null,
       latestGeneration
-    };
+    });
   }
 
-  const currentLocalMinutes = getMinutesSinceMidnightInTimeZone(
-    scheduledAttemptedAt,
-    settings.timezone
-  );
-  const configuredGenerationMinutes = parseDailyGenerationTime(settings.dailyGenerationTime);
+  let currentLocalMinutes: number;
+
+  try {
+    currentLocalMinutes = getMinutesSinceMidnightInTimeZone(scheduledAttemptedAt, settings.timezone);
+  } catch (error) {
+    const configurationSkipResult = createScheduledConfigurationSkipResult(
+      scheduledAttemptedAt,
+      error
+    );
+
+    if (configurationSkipResult) {
+      return configurationSkipResult;
+    }
+
+    throw error;
+  }
+  let configuredGenerationMinutes: number;
+
+  try {
+    configuredGenerationMinutes = parseDailyGenerationTime(settings.dailyGenerationTime);
+  } catch (error) {
+    const configurationSkipResult = createScheduledConfigurationSkipResult(
+      scheduledAttemptedAt,
+      error
+    );
+
+    if (configurationSkipResult) {
+      return configurationSkipResult;
+    }
+
+    throw error;
+  }
 
   if (currentLocalMinutes < configuredGenerationMinutes) {
-    return {
-      status: "skipped",
+    return createScheduledSkipResult({
       boardDate,
       generationRunId: latestGeneration?.generationRunId ?? null,
       createdTaskCount: latestGeneration?.createdTaskCount ?? 0,
       skippedExistingTaskCount: latestGeneration?.skippedExistingTaskCount ?? 0,
       alreadyExistingTaskCount: latestGeneration?.alreadyExistingTaskCount ?? null,
+      skipReasonCode: "BEFORE_GENERATION_TIME",
       summary: `Skipped scheduled generation because ${settings.timezone} has not reached the configured daily generation time of ${settings.dailyGenerationTime}.`,
-      errorMessage: null,
       latestGeneration
-    };
+    });
   }
 
   return runBoardGenerationForDate(
