@@ -24,6 +24,15 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import {
+  buildAppointmentNotificationContractHarness,
+  buildAppointmentNotificationInboundContracts,
+  buildAppointmentNotificationOutboundContracts
+} from "@/features/appointments/appointment-notification-integration-contracts";
+import {
+  buildAppointmentReportingFreshnessSummary,
+  buildAppointmentReportingSnapshotEntries
+} from "@/features/appointments/appointment-reporting-snapshots";
 
 type AppointmentCategory =
   | "sales"
@@ -498,6 +507,49 @@ type AppointmentNotificationSuppressionGovernanceItem = {
   actionLabel: string;
 };
 
+type AppointmentNotificationPreferenceRetentionMode =
+  | "policy-window"
+  | "retain-until-read"
+  | "shift-only";
+
+type AppointmentNotificationPreferenceSuppressionMode =
+  | "auto"
+  | "manager-review"
+  | "no-suppression";
+
+type AppointmentNotificationPreference = {
+  id: string;
+  label: string;
+  description: string;
+  recipientLabel: string;
+  channelLabel: string;
+  enabled: boolean;
+  retentionMode: AppointmentNotificationPreferenceRetentionMode;
+  suppressionMode: AppointmentNotificationPreferenceSuppressionMode;
+};
+
+type AppointmentNotificationDurabilityMetric = {
+  label: string;
+  value: string;
+  detail: string;
+  tone: "blue" | "amber" | "red" | "purple" | "green";
+};
+
+type AppointmentNotificationDurabilityAlert = {
+  id: string;
+  label: string;
+  detail: string;
+  tone: "amber" | "red" | "purple" | "green";
+  actionLabel: string;
+};
+
+type AppointmentNotificationDurabilitySummary = {
+  headline: string;
+  checkpointLabel: string;
+  metrics: AppointmentNotificationDurabilityMetric[];
+  alerts: AppointmentNotificationDurabilityAlert[];
+};
+
 type AppointmentEnterpriseOpsQueueKey =
   | "confirmation-gap"
   | "waitlist-recovery"
@@ -727,6 +779,14 @@ type AppointmentRuntimePersistenceState = {
     { status: AppointmentNotificationFailureStatus; updatedAtLabel: string }
   >;
   notificationReadStates: Record<string, AppointmentNotificationReadState>;
+  notificationPolicies: AppointmentNotificationPolicy[];
+  notificationFanoutStates: Record<
+    string,
+    { status: AppointmentNotificationFanoutStatus; updatedAtLabel: string }
+  >;
+  notificationPreferences: AppointmentNotificationPreference[];
+  notificationCenterFilter: AppointmentNotificationCenterFilter;
+  showResolvedNotificationFailures: boolean;
   commandCenterHandoffNote: string;
   runtimeDeliveryLedger: AppointmentRuntimeDeliveryLedgerEntry[];
   runtimeCheckpointLabel: string;
@@ -1222,6 +1282,49 @@ const initialNotificationPolicies: AppointmentNotificationPolicy[] = [
     retentionDays: 3,
     suppressionWindowMinutes: 45,
     deepLinkTarget: "handoff-package"
+  }
+];
+
+const initialNotificationPreferences: AppointmentNotificationPreference[] = [
+  {
+    id: "preference-manager-inbox",
+    label: "Manager Inbox Delivery",
+    description: "Keep manager-facing in-app operational alerts visible until ownership is clear.",
+    recipientLabel: "General Manager",
+    channelLabel: "In-app alert",
+    enabled: true,
+    retentionMode: "retain-until-read",
+    suppressionMode: "manager-review"
+  },
+  {
+    id: "preference-delivery-failures",
+    label: "Delivery Failure Recovery",
+    description: "Escalate failed notification delivery into the recovery queue until it is closed.",
+    recipientLabel: "General Manager + Service Lead",
+    channelLabel: "Recovery queue",
+    enabled: true,
+    retentionMode: "policy-window",
+    suppressionMode: "no-suppression"
+  },
+  {
+    id: "preference-shift-handoffs",
+    label: "Shift Handoff Carry Forward",
+    description: "Carry unresolved operating items into the next shift with governed notification posture.",
+    recipientLabel: "Opening + Closing Manager",
+    channelLabel: "Shift handoff",
+    enabled: true,
+    retentionMode: "shift-only",
+    suppressionMode: "auto"
+  },
+  {
+    id: "preference-digest-summaries",
+    label: "Digest Summary Packaging",
+    description: "Keep summary digests enabled so managers can package and review queue movement in bulk.",
+    recipientLabel: "Leadership + Managers",
+    channelLabel: "Email summary",
+    enabled: true,
+    retentionMode: "policy-window",
+    suppressionMode: "auto"
   }
 ];
 
@@ -2828,6 +2931,30 @@ function notificationFanoutStatusLabel(status: AppointmentNotificationFanoutStat
   return "Active";
 }
 
+function notificationPreferenceRetentionLabel(mode: AppointmentNotificationPreferenceRetentionMode) {
+  if (mode === "retain-until-read") {
+    return "Retain until read";
+  }
+
+  if (mode === "shift-only") {
+    return "Current shift only";
+  }
+
+  return "Follow policy window";
+}
+
+function notificationPreferenceSuppressionLabel(mode: AppointmentNotificationPreferenceSuppressionMode) {
+  if (mode === "manager-review") {
+    return "Manager review before suppress";
+  }
+
+  if (mode === "no-suppression") {
+    return "Never auto-suppress";
+  }
+
+  return "Auto suppression allowed";
+}
+
 function enterpriseOpsQueueLabel(key: AppointmentEnterpriseOpsQueueKey) {
   if (key === "confirmation-gap") {
     return "Confirmation Gaps";
@@ -3617,6 +3744,115 @@ export function buildAppointmentNotificationSuppressionGovernance(input: {
     });
 
   return items;
+}
+
+export function buildAppointmentNotificationDurabilitySummary(input: {
+  checkpointLabel: string;
+  policies: AppointmentNotificationPolicy[];
+  preferences: AppointmentNotificationPreference[];
+  fanoutSources: AppointmentNotificationFanoutSource[];
+  failureQueue: AppointmentNotificationFailureQueueItem[];
+  notificationCenterItems: AppointmentNotificationCenterItem[];
+}): AppointmentNotificationDurabilitySummary {
+  const enabledPolicies = input.policies.filter((policy) => policy.enabled).length;
+  const enabledPreferences = input.preferences.filter((preference) => preference.enabled).length;
+  const governedSuppressions = input.fanoutSources.filter((source) => source.status !== "active");
+  const unresolvedFailures = input.failureQueue.filter((item) => item.status !== "resolved");
+  const unreadItems = input.notificationCenterItems.filter((item) => item.readState === "unread");
+
+  const alerts: AppointmentNotificationDurabilityAlert[] = [];
+
+  if (unresolvedFailures.length > 0) {
+    alerts.push({
+      id: "durability-alert-failures",
+      label: "Delivery recovery remains open",
+      detail: `${unresolvedFailures.length} notification recovery item${
+        unresolvedFailures.length === 1 ? "" : "s"
+      } still need retry, re-queue, or closure.`,
+      tone: unresolvedFailures.some((item) => item.severity === "high") ? "red" : "amber",
+      actionLabel: "Open recovery"
+    });
+  }
+
+  if (governedSuppressions.length > 0) {
+    alerts.push({
+      id: "durability-alert-governance",
+      label: "Suppression governance needs review",
+      detail: `${governedSuppressions.length} fanout source${
+        governedSuppressions.length === 1 ? "" : "s"
+      } are currently suppressed or deduped under runtime governance.`,
+      tone: governedSuppressions.some((item) => item.status === "suppressed") ? "amber" : "purple",
+      actionLabel: "Open governance"
+    });
+  }
+
+  const disabledPreferences = input.preferences.filter((preference) => !preference.enabled);
+  if (disabledPreferences.length > 0) {
+    alerts.push({
+      id: "durability-alert-preferences",
+      label: "One or more delivery preferences are paused",
+      detail: `${disabledPreferences.length} preference${
+        disabledPreferences.length === 1 ? "" : "s"
+      } are disabled and may reduce visible notification coverage.`,
+      tone: "amber",
+      actionLabel: "Review preferences"
+    });
+  }
+
+  if (alerts.length === 0) {
+    alerts.push({
+      id: "durability-alert-healthy",
+      label: "Notification runtime is healthy",
+      detail: "Policies, delivery preferences, suppression posture, and recovery queues are currently in a healthy operating range.",
+      tone: "green",
+      actionLabel: "Checkpoint runtime"
+    });
+  }
+
+  return {
+    headline: "Notification runtime durability keeps recovery, suppression, and retention posture visible across manager shifts.",
+    checkpointLabel: input.checkpointLabel,
+    metrics: [
+      {
+        label: "Active policies",
+        value: `${enabledPolicies}/${input.policies.length}`,
+        detail: `${input.policies.length - enabledPolicies} policy rule${
+          input.policies.length - enabledPolicies === 1 ? "" : "s"
+        } are currently paused.`,
+        tone: enabledPolicies === input.policies.length ? "green" : "amber"
+      },
+      {
+        label: "Enabled preferences",
+        value: `${enabledPreferences}/${input.preferences.length}`,
+        detail: "Delivery preferences decide whether manager inbox, digest, recovery, and handoff coverage stay active.",
+        tone: enabledPreferences === input.preferences.length ? "green" : "amber"
+      },
+      {
+        label: "Governed suppressions",
+        value: String(governedSuppressions.length),
+        detail: "Suppressed and deduped sources remain visible until a manager accepts or reverses the decision.",
+        tone: governedSuppressions.length > 0 ? "purple" : "green"
+      },
+      {
+        label: "Unread retained",
+        value: String(unreadItems.length),
+        detail: `${unreadItems.length} inbox item${unreadItems.length === 1 ? "" : "s"} are still retained as unread and should remain visible across runtime checkpoints.`,
+        tone: unreadItems.length > 0 ? "blue" : "green"
+      },
+      {
+        label: "Open recovery",
+        value: String(unresolvedFailures.length),
+        detail: "Delivery recovery stays durable until every failure is resolved or explicitly re-opened.",
+        tone:
+          unresolvedFailures.length === 0
+            ? "green"
+            : unresolvedFailures.some((item) => item.severity === "high")
+              ? "red"
+              : "amber"
+      }
+    ],
+    alerts
+  };
 }
 
 export function buildAppointmentNotificationFanoutSources(input: {
@@ -5055,6 +5291,7 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   const [notificationCenterFilter, setNotificationCenterFilter] =
     useState<AppointmentNotificationCenterFilter>("all");
   const [notificationPolicies, setNotificationPolicies] = useState(initialNotificationPolicies);
+  const [notificationPreferences, setNotificationPreferences] = useState(initialNotificationPreferences);
   const [notificationReadStates, setNotificationReadStates] = useState(initialNotificationReadStates);
   const [notificationFanoutStates, setNotificationFanoutStates] = useState(
     initialNotificationFanoutStates
@@ -5177,8 +5414,23 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     if (persisted.notificationFailureStates) {
       setNotificationFailureStates(persisted.notificationFailureStates);
     }
+    if (persisted.notificationPolicies) {
+      setNotificationPolicies(persisted.notificationPolicies);
+    }
+    if (persisted.notificationPreferences) {
+      setNotificationPreferences(persisted.notificationPreferences);
+    }
     if (persisted.notificationReadStates) {
       setNotificationReadStates(persisted.notificationReadStates);
+    }
+    if (persisted.notificationFanoutStates) {
+      setNotificationFanoutStates(persisted.notificationFanoutStates);
+    }
+    if (persisted.notificationCenterFilter) {
+      setNotificationCenterFilter(persisted.notificationCenterFilter);
+    }
+    if (typeof persisted.showResolvedNotificationFailures === "boolean") {
+      setShowResolvedNotificationFailures(persisted.showResolvedNotificationFailures);
     }
     if (typeof persisted.commandCenterHandoffNote === "string") {
       setCommandCenterHandoffNote(persisted.commandCenterHandoffNote);
@@ -5203,7 +5455,12 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
       commandCenterDigestHistory,
       commandCenterHandoffHistory,
       notificationFailureStates,
+      notificationPolicies,
+      notificationFanoutStates,
+      notificationPreferences,
       notificationReadStates,
+      notificationCenterFilter,
+      showResolvedNotificationFailures,
       commandCenterHandoffNote,
       runtimeDeliveryLedger,
       runtimeCheckpointLabel
@@ -5219,10 +5476,15 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     commandCenterHandoffNote,
     commandCenterRuntimeStates,
     notificationFailureStates,
+    notificationFanoutStates,
+    notificationPolicies,
+    notificationPreferences,
+    notificationCenterFilter,
     notificationReadStates,
     runtimeCheckpointLabel,
     runtimeDeliveryLedger,
-    runtimePersistenceHydrated
+    runtimePersistenceHydrated,
+    showResolvedNotificationFailures
   ]);
 
   const boardAppointments = useMemo(
@@ -5600,6 +5862,30 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     () => buildAppointmentNotificationContractEntries({ policies: notificationPolicies }),
     [notificationPolicies]
   );
+  const notificationOutboundContracts = useMemo(
+    () =>
+      buildAppointmentNotificationOutboundContracts({
+        appointmentId: selectedAppointment.id,
+        policies: notificationPolicies,
+        fanoutSources: notificationFanoutSources
+      }),
+    [notificationFanoutSources, notificationPolicies, selectedAppointment.id]
+  );
+  const notificationInboundContracts = useMemo(
+    () =>
+      buildAppointmentNotificationInboundContracts({
+        policies: notificationPolicies
+      }),
+    [notificationPolicies]
+  );
+  const notificationContractHarnessResults = useMemo(
+    () =>
+      buildAppointmentNotificationContractHarness({
+        outboundContracts: notificationOutboundContracts,
+        inboundContracts: notificationInboundContracts
+      }),
+    [notificationInboundContracts, notificationOutboundContracts]
+  );
   const notificationSuppressionGovernanceItems = useMemo(
     () =>
       buildAppointmentNotificationSuppressionGovernance({
@@ -5674,6 +5960,25 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   const openNotificationFailureCount = notificationFailureQueue.filter(
     (item) => item.status !== "resolved"
   ).length;
+  const notificationDurabilitySummary = useMemo(
+    () =>
+      buildAppointmentNotificationDurabilitySummary({
+        checkpointLabel: runtimeCheckpointLabel,
+        policies: notificationPolicies,
+        preferences: notificationPreferences,
+        fanoutSources: notificationFanoutSources,
+        failureQueue: notificationFailureQueue,
+        notificationCenterItems
+      }),
+    [
+      notificationCenterItems,
+      notificationFailureQueue,
+      notificationFanoutSources,
+      notificationPolicies,
+      notificationPreferences,
+      runtimeCheckpointLabel
+    ]
+  );
   const runtimePersistenceSummary = useMemo(
     () =>
       buildAppointmentRuntimePersistenceSummary({
@@ -5792,6 +6097,42 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
         preset: scheduleAnalyticsPreset
       }),
     [filteredAppointments, scheduleAnalyticsPreset]
+  );
+  const reportingSnapshotEntries = useMemo(
+    () =>
+      buildAppointmentReportingSnapshotEntries({
+        generatedForLabel: commandCenterReport.generatedForLabel,
+        selectedAppointmentId: selectedAppointment.id,
+        reportRowCount: commandCenterReport.rows.length,
+        readModelDimension: reportingReadModelDimension,
+        readModelRowCount: reportingReadModel.rows.length,
+        reconciliationCount: scheduleAnalyticsModel.reconciliationItems.length
+      }),
+    [
+      commandCenterReport.generatedForLabel,
+      commandCenterReport.rows.length,
+      reportingReadModel.rows.length,
+      reportingReadModelDimension,
+      scheduleAnalyticsModel.reconciliationItems.length,
+      selectedAppointment.id
+    ]
+  );
+  const reportingFreshnessSummary = useMemo(
+    () =>
+      buildAppointmentReportingFreshnessSummary({
+        snapshotEntries: reportingSnapshotEntries,
+        kpiCount: appointmentKpiDictionary.length,
+        visibleExceptions: commandCenterReport.summary.visibleExceptions,
+        breachedSla: commandCenterReport.summary.breachedSla,
+        reconciliationCount: scheduleAnalyticsModel.reconciliationItems.length
+      }),
+    [
+      appointmentKpiDictionary.length,
+      commandCenterReport.summary.breachedSla,
+      commandCenterReport.summary.visibleExceptions,
+      reportingSnapshotEntries,
+      scheduleAnalyticsModel.reconciliationItems.length
+    ]
   );
   const agendaSections = useMemo(
     () =>
@@ -5975,6 +6316,48 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     setCommandCenterSearchPreset("all");
     setCommandCenterSearchScope("all");
     setActionNotice("Focused the visible exceptions KPI definition in the reporting scope.");
+  }
+
+  function focusReportingSnapshot(snapshotId: string) {
+    const snapshot = reportingSnapshotEntries.find((item) => item.id === snapshotId);
+
+    if (!snapshot) {
+      setActionNotice("That reporting snapshot is no longer visible.");
+      return;
+    }
+
+    if (snapshot.id === "snapshot-reconciliation-watch") {
+      setScheduleAnalyticsPreset("reconciliation-watch");
+      setViewMode("agenda");
+      setActionNotice("Opened the reconciliation reporting snapshot and focused analytics carryover.");
+      return;
+    }
+
+    if (snapshot.id === "snapshot-reporting-read-model") {
+      setActionNotice(`Prepared the ${reportingReadModelDimension} reporting read model snapshot for review.`);
+      return;
+    }
+
+    setActionNotice(`Prepared the manager summary snapshot for ${selectedAppointment.id}.`);
+  }
+
+  function focusReportingFreshnessMetric(label: string) {
+    if (label === "Breached SLA pressure") {
+      setReportQueueFilter("breached-sla");
+      setResolutionFilter("breached-sla");
+      setActionNotice("Focused breached SLA reporting freshness.");
+      return;
+    }
+
+    if (label === "Reconciliation carryover") {
+      setScheduleAnalyticsPreset("reconciliation-watch");
+      setActionNotice("Focused reconciliation carryover inside analytics freshness.");
+      return;
+    }
+
+    setReportQueueFilter("all");
+    setResolutionFilter("all");
+    setActionNotice(`Reviewed ${label.toLowerCase()} in reporting freshness.`);
   }
 
   function applySavedCommandCenterView(view: AppointmentCommandCenterSavedView) {
@@ -6695,6 +7078,50 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     setActionNotice("Opened the manager inbox notification contract.");
   }
 
+  function focusNotificationOutboundContract(contractId: string) {
+    const contract = notificationOutboundContracts.find((item) => item.id === contractId);
+
+    if (!contract) {
+      setActionNotice("That outbound contract is no longer visible.");
+      return;
+    }
+
+    setNotificationCenterFilter("all");
+    setAuditTimelineFilter("manager");
+    setActionNotice(`Opened the ${contract.adapterLabel.toLowerCase()} outbound contract surface.`);
+  }
+
+  function focusNotificationInboundContract(contractId: string) {
+    const contract = notificationInboundContracts.find((item) => item.id === contractId);
+
+    if (!contract) {
+      setActionNotice("That inbound contract is no longer visible.");
+      return;
+    }
+
+    if (contract.id === "inbound-replay") {
+      setNotificationCenterFilter("needs-review");
+      setShowResolvedNotificationFailures(false);
+      setActionNotice("Opened the replay inbound command and focused unresolved notification recovery.");
+      return;
+    }
+
+    setNotificationCenterFilter("all");
+    setActionNotice(`Opened the ${contract.commandLabel.toLowerCase()} inbound command contract.`);
+  }
+
+  function focusNotificationContractHarness(resultId: string) {
+    const result = notificationContractHarnessResults.find((item) => item.id === resultId);
+
+    if (!result) {
+      setActionNotice("That contract harness result is no longer visible.");
+      return;
+    }
+
+    setNotificationCenterFilter("all");
+    setActionNotice(`Reviewed the ${result.adapterLabel.toLowerCase()} contract harness posture.`);
+  }
+
   function openNotificationGovernanceItem(item: AppointmentNotificationSuppressionGovernanceItem) {
     const source = notificationFanoutSources.find((candidate) => candidate.id === item.sourceId);
 
@@ -6704,6 +7131,109 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     }
 
     setActionNotice("That suppression governance item is no longer visible.");
+  }
+
+  function toggleNotificationPreference(preferenceId: string) {
+    const preference = notificationPreferences.find((item) => item.id === preferenceId);
+
+    if (!preference) {
+      setActionNotice("That notification preference is no longer visible.");
+      return;
+    }
+
+    const nextPreference = {
+      ...preference,
+      enabled: !preference.enabled
+    };
+
+    setNotificationPreferences((current) =>
+      current.map((item) => (item.id === preferenceId ? nextPreference : item))
+    );
+
+    setCommandCenterAuditEvents((current) => [
+      {
+        id: `notification-preference-${preferenceId}-${current.length + 1}`,
+        appointmentId: selectedAppointment.id,
+        lane: "manager",
+        tone: nextPreference.enabled ? "blue" : "amber",
+        title: "Notification preference updated",
+        detail: `${preference.label} is now ${nextPreference.enabled ? "enabled" : "paused"} for ${preference.recipientLabel}.`,
+        actor: "Abdi Farah",
+        occurredAtLabel: "Just now"
+      },
+      ...current
+    ]);
+
+    appendRuntimeDeliveryLedgerEntry({
+      sourceType: "runtime",
+      appointmentId: selectedAppointment.id,
+      title: `${preference.label} ${nextPreference.enabled ? "enabled" : "paused"}`,
+      detail: `${preference.channelLabel} delivery for ${preference.recipientLabel} was ${
+        nextPreference.enabled ? "re-enabled" : "paused"
+      } inside the notification runtime.`,
+      tone: nextPreference.enabled ? "blue" : "amber",
+      statusLabel: nextPreference.enabled ? "Enabled" : "Paused",
+      occurredAtLabel: nextPreference.enabled ? "Enabled just now" : "Paused just now"
+    });
+
+    setActionNotice(`${preference.label} ${nextPreference.enabled ? "enabled" : "paused"}.`);
+  }
+
+  function focusNotificationDurabilityAlert(alert: AppointmentNotificationDurabilityAlert) {
+    if (alert.actionLabel === "Open recovery") {
+      focusRuntimeDeliveryRecovery();
+      return;
+    }
+
+    if (alert.actionLabel === "Open governance") {
+      setNotificationCenterFilter("all");
+      setShowResolvedNotificationFailures(false);
+      setActionNotice("Focused notification suppression governance.");
+      return;
+    }
+
+    if (alert.actionLabel === "Review preferences") {
+      setNotificationCenterFilter("all");
+      setActionNotice("Focused notification delivery preferences.");
+      return;
+    }
+
+    recordRuntimePersistenceCheckpoint();
+  }
+
+  function trimRetainedNotificationReads() {
+    const readIds = Object.entries(notificationReadStates)
+      .filter(([, state]) => state === "read")
+      .map(([id]) => id);
+
+    if (readIds.length === 0) {
+      setActionNotice("No retained read notifications needed trimming.");
+      return;
+    }
+
+    setNotificationReadStates((current) => {
+      const next = { ...current };
+
+      for (const id of readIds) {
+        delete next[id];
+      }
+
+      return next;
+    });
+
+    appendRuntimeDeliveryLedgerEntry({
+      sourceType: "runtime",
+      appointmentId: selectedAppointment.id,
+      title: "Read notification retention trimmed",
+      detail: `${readIds.length} retained read notification item${
+        readIds.length === 1 ? "" : "s"
+      } were trimmed from the runtime snapshot.`,
+      tone: "green",
+      statusLabel: "Trimmed",
+      occurredAtLabel: "Trimmed just now"
+    });
+
+    setActionNotice(`Trimmed ${readIds.length} retained read notification item${readIds.length === 1 ? "" : "s"}.`);
   }
 
   function toggleNotificationReadState(itemId: string) {
@@ -10036,6 +10566,138 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
               <div className="appointment-notification-contracts-grid">
                 <section
                   className="appointment-command-center-panel"
+                  aria-labelledby="appointment-notification-durability"
+                >
+                  <div className="appointment-command-center-panel-heading">
+                    <div>
+                      <strong id="appointment-notification-durability">Durability &amp; Retention</strong>
+                      <p>
+                        Keep delivery recovery, retention posture, suppression governance, and runtime
+                        checkpoint health visible across manager shifts.
+                      </p>
+                    </div>
+                    <span>{notificationDurabilitySummary.checkpointLabel}</span>
+                  </div>
+
+                  <div className="appointment-notification-contract-list">
+                    {notificationDurabilitySummary.metrics.map((metric) => (
+                      <article className="appointment-notification-contract-item" key={metric.label}>
+                        <div className="appointment-notification-center-item-top">
+                          <div>
+                            <strong>{metric.label}</strong>
+                            <p>{metric.detail}</p>
+                          </div>
+                          <span
+                            className={
+                              metric.tone === "red"
+                                ? "appointment-command-center-tag appointment-command-center-tag-red"
+                                : metric.tone === "amber"
+                                  ? "appointment-command-center-tag appointment-command-center-tag-amber"
+                                  : metric.tone === "purple"
+                                    ? "appointment-command-center-tag appointment-command-center-tag-purple"
+                                    : metric.tone === "green"
+                                      ? "appointment-command-center-tag appointment-command-center-tag-green"
+                                      : "appointment-command-center-tag appointment-command-center-tag-blue"
+                            }
+                          >
+                            {metric.value}
+                          </span>
+                        </div>
+                      </article>
+                    ))}
+
+                    {notificationDurabilitySummary.alerts.map((alert) => (
+                      <article className="appointment-notification-contract-item" key={alert.id}>
+                        <div className="appointment-notification-center-item-top">
+                          <div>
+                            <strong>{alert.label}</strong>
+                            <p>{alert.detail}</p>
+                          </div>
+                          <span
+                            className={
+                              alert.tone === "red"
+                                ? "appointment-command-center-tag appointment-command-center-tag-red"
+                                : alert.tone === "amber"
+                                  ? "appointment-command-center-tag appointment-command-center-tag-amber"
+                                  : alert.tone === "purple"
+                                    ? "appointment-command-center-tag appointment-command-center-tag-purple"
+                                    : "appointment-command-center-tag appointment-command-center-tag-green"
+                            }
+                          >
+                            {alert.tone === "green" ? "Healthy" : "Needs review"}
+                          </span>
+                        </div>
+
+                        <div className="appointment-command-center-item-actions">
+                          <button type="button" onClick={() => focusNotificationDurabilityAlert(alert)}>
+                            {alert.actionLabel}
+                          </button>
+                          <button type="button" onClick={() => trimRetainedNotificationReads()}>
+                            Trim retained reads
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+
+                <section
+                  className="appointment-command-center-panel"
+                  aria-labelledby="appointment-notification-preferences"
+                >
+                  <div className="appointment-command-center-panel-heading">
+                    <div>
+                      <strong id="appointment-notification-preferences">Delivery Preferences</strong>
+                      <p>
+                        Govern who receives durable operational notification coverage and how each stream
+                        behaves when retention and suppression rules apply.
+                      </p>
+                    </div>
+                    <span>{notificationPreferences.filter((item) => item.enabled).length} enabled</span>
+                  </div>
+
+                  <div className="appointment-notification-contract-list">
+                    {notificationPreferences.map((preference) => (
+                      <article className="appointment-notification-contract-item" key={preference.id}>
+                        <div className="appointment-notification-center-item-top">
+                          <div>
+                            <strong>{preference.label}</strong>
+                            <p>{preference.description}</p>
+                          </div>
+                          <div className="appointment-command-center-badge-stack">
+                            <span className="appointment-command-center-tag appointment-command-center-tag-blue">
+                              {preference.channelLabel}
+                            </span>
+                            <span
+                              className={
+                                preference.enabled
+                                  ? "appointment-command-center-tag appointment-command-center-tag-green"
+                                  : "appointment-command-center-tag appointment-command-center-tag-amber"
+                              }
+                            >
+                              {preference.enabled ? "Enabled" : "Paused"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="appointment-notification-center-item-meta">
+                          <span>{preference.recipientLabel}</span>
+                          <span>{notificationPreferenceRetentionLabel(preference.retentionMode)}</span>
+                          <strong>{notificationPreferenceSuppressionLabel(preference.suppressionMode)}</strong>
+                        </div>
+
+                        <div className="appointment-command-center-item-actions">
+                          <button type="button" onClick={() => toggleNotificationPreference(preference.id)}>
+                            {preference.enabled ? "Pause preference" : "Enable preference"}
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+
+                <section
+                  className="appointment-command-center-panel"
                   aria-labelledby="appointment-notification-contracts"
                 >
                   <div className="appointment-command-center-panel-heading">
@@ -10081,6 +10743,134 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
                         <div className="appointment-command-center-item-actions">
                           <button type="button" onClick={() => focusNotificationContractEntry(entry)}>
                             {entry.actionLabel}
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+
+                <section
+                  className="appointment-command-center-panel"
+                  aria-labelledby="appointment-notification-outbound-contracts"
+                >
+                  <div className="appointment-command-center-panel-heading">
+                    <div>
+                      <strong id="appointment-notification-outbound-contracts">
+                        Future Outbound Contracts
+                      </strong>
+                      <p>
+                        Define the versioned outbound payloads that future SMS, email, calendar, CRM,
+                        and DMS adapters must honor without changing board governance.
+                      </p>
+                    </div>
+                    <span>{notificationOutboundContracts.length} adapters</span>
+                  </div>
+
+                  <div className="appointment-notification-contract-list">
+                    {notificationOutboundContracts.map((contract) => (
+                      <article className="appointment-notification-contract-item" key={contract.id}>
+                        <div className="appointment-notification-center-item-top">
+                          <div>
+                            <strong>{contract.adapterLabel}</strong>
+                            <p>{contract.detail}</p>
+                          </div>
+                          <div className="appointment-command-center-badge-stack">
+                            <span className="appointment-command-center-tag appointment-command-center-tag-blue">
+                              {contract.versionLabel}
+                            </span>
+                            <span className="appointment-command-center-tag appointment-command-center-tag-green">
+                              {contract.statusLabel}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="appointment-notification-center-item-meta">
+                          <span>{contract.eventLabel}</span>
+                          <span>{contract.deliveryKeyLabel}</span>
+                          <strong>{contract.redactionLabel}</strong>
+                        </div>
+
+                        <div className="appointment-command-center-item-actions">
+                          <button type="button" onClick={() => focusNotificationOutboundContract(contract.id)}>
+                            {contract.actionLabel}
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+
+                <section
+                  className="appointment-command-center-panel"
+                  aria-labelledby="appointment-notification-inbound-contracts"
+                >
+                  <div className="appointment-command-center-panel-heading">
+                    <div>
+                      <strong id="appointment-notification-inbound-contracts">
+                        Inbound Commands &amp; Harness
+                      </strong>
+                      <p>
+                        Keep replay, acknowledgement, and recovery commands versioned so future adapters
+                        can prove compatibility before they touch live runtime behavior.
+                      </p>
+                    </div>
+                    <span>{notificationContractHarnessResults.length} harness checks</span>
+                  </div>
+
+                  <div className="appointment-notification-contract-list">
+                    {notificationInboundContracts.map((contract) => (
+                      <article className="appointment-notification-contract-item" key={contract.id}>
+                        <div className="appointment-notification-center-item-top">
+                          <div>
+                            <strong>{contract.commandLabel}</strong>
+                            <p>{contract.conflictLabel}</p>
+                          </div>
+                          <span className="appointment-command-center-tag appointment-command-center-tag-blue">
+                            {contract.versionLabel}
+                          </span>
+                        </div>
+
+                        <div className="appointment-notification-center-item-meta">
+                          <span>{contract.routingLabel}</span>
+                          <span>{contract.idempotencyLabel}</span>
+                          <strong>{contract.actorLabel}</strong>
+                        </div>
+
+                        <div className="appointment-command-center-item-actions">
+                          <button type="button" onClick={() => focusNotificationInboundContract(contract.id)}>
+                            {contract.actionLabel}
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+
+                    {notificationContractHarnessResults.map((result) => (
+                      <article className="appointment-notification-contract-item" key={result.id}>
+                        <div className="appointment-notification-center-item-top">
+                          <div>
+                            <strong>{result.adapterLabel}</strong>
+                            <p>{result.detail}</p>
+                          </div>
+                          <div className="appointment-command-center-badge-stack">
+                            <span className="appointment-command-center-tag appointment-command-center-tag-blue">
+                              {result.directionLabel}
+                            </span>
+                            <span
+                              className={
+                                result.status === "ready"
+                                  ? "appointment-command-center-tag appointment-command-center-tag-green"
+                                  : "appointment-command-center-tag appointment-command-center-tag-amber"
+                              }
+                            >
+                              {result.status === "ready" ? "Ready" : "Needs review"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="appointment-command-center-item-actions">
+                          <button type="button" onClick={() => focusNotificationContractHarness(result.id)}>
+                            {result.actionLabel}
                           </button>
                         </div>
                       </article>
@@ -11119,6 +11909,92 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
                 <span>Manager Events</span>
                 <strong>{commandCenterReport.summary.managerEvents}</strong>
               </article>
+            </div>
+
+            <div className="appointment-notification-contracts-grid">
+              <section className="appointment-command-center-panel" aria-labelledby="appointment-reporting-snapshots">
+                <div className="appointment-command-center-panel-heading">
+                  <div>
+                    <strong id="appointment-reporting-snapshots">Reporting Snapshots</strong>
+                    <p>
+                      Package manager summary, read model, and reconciliation reporting surfaces into
+                      repeatable export snapshots.
+                    </p>
+                  </div>
+                  <span>{reportingSnapshotEntries.length} snapshots</span>
+                </div>
+
+                <div className="appointment-notification-contract-list">
+                  {reportingSnapshotEntries.map((snapshot) => (
+                    <article className="appointment-notification-contract-item" key={snapshot.id}>
+                      <div className="appointment-notification-center-item-top">
+                        <div>
+                          <strong>{snapshot.label}</strong>
+                          <p>{snapshot.detail}</p>
+                        </div>
+                        <span className="appointment-command-center-tag appointment-command-center-tag-blue">
+                          {snapshot.versionLabel}
+                        </span>
+                      </div>
+
+                      <div className="appointment-notification-center-item-meta">
+                        <span>{snapshot.scopeLabel}</span>
+                        <strong>{snapshot.rowCountLabel}</strong>
+                      </div>
+
+                      <div className="appointment-command-center-item-actions">
+                        <button type="button" onClick={() => focusReportingSnapshot(snapshot.id)}>
+                          {snapshot.actionLabel}
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+
+              <section className="appointment-command-center-panel" aria-labelledby="appointment-analytics-freshness">
+                <div className="appointment-command-center-panel-heading">
+                  <div>
+                    <strong id="appointment-analytics-freshness">Analytics Freshness</strong>
+                    <p>{reportingFreshnessSummary.headline}</p>
+                  </div>
+                  <span>{commandCenterReport.generatedForLabel}</span>
+                </div>
+
+                <div className="appointment-notification-contract-list">
+                  {reportingFreshnessSummary.metrics.map((metric) => (
+                    <article className="appointment-notification-contract-item" key={metric.label}>
+                      <div className="appointment-notification-center-item-top">
+                        <div>
+                          <strong>{metric.label}</strong>
+                          <p>{metric.detail}</p>
+                        </div>
+                        <span
+                          className={
+                            metric.tone === "red"
+                              ? "appointment-command-center-tag appointment-command-center-tag-red"
+                              : metric.tone === "amber"
+                                ? "appointment-command-center-tag appointment-command-center-tag-amber"
+                                : metric.tone === "purple"
+                                  ? "appointment-command-center-tag appointment-command-center-tag-purple"
+                                  : metric.tone === "green"
+                                    ? "appointment-command-center-tag appointment-command-center-tag-green"
+                                    : "appointment-command-center-tag appointment-command-center-tag-blue"
+                          }
+                        >
+                          {metric.value}
+                        </span>
+                      </div>
+
+                      <div className="appointment-command-center-item-actions">
+                        <button type="button" onClick={() => focusReportingFreshnessMetric(metric.label)}>
+                          Review freshness
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
             </div>
 
             <div className="appointment-reporting-kpi-dictionary">
