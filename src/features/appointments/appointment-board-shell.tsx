@@ -957,6 +957,34 @@ type AppointmentStaffConflictPreview = {
   reasons: string[];
 };
 
+type AppointmentAvailabilityRecommendations = {
+  appointmentId: string;
+  appointmentNumber: string;
+  bookingStatus: string;
+  templateCode: string;
+  templateSource: "PURPOSE_SNAPSHOT" | "TASK_FALLBACK" | "GENERAL_FALLBACK";
+  windowStartLocalDate: string;
+  windowEndLocalDate: string;
+  searchedCandidateCount: number;
+  truncated: boolean;
+  candidateCount: number;
+  ownerStaffCount: number;
+  requiredParticipantCount: number;
+  selectedResourceCount: number;
+  candidates: Array<{
+    candidateRank: number;
+    score: number;
+    localDate: string;
+    startMinuteOfDay: number;
+    startsAt: Date;
+    endsAt: Date | null;
+    status: "AVAILABLE" | "WARNING";
+    canCommit: boolean;
+    explanation: string[];
+    reasons: string[];
+  }>;
+};
+
 type AppointmentResourcePlanning = {
   appointmentId: string;
   appointmentNumber: string;
@@ -5172,6 +5200,16 @@ function localDateTimeToMinneapolisIso(localDate: string, time: string, timezone
   return candidate.toISOString();
 }
 
+function minuteOfDayToTimeInput(totalMinutes: number) {
+  const normalizedMinutes = Math.max(0, Math.min(23 * 60 + 59, totalMinutes));
+  const hours = Math.floor(normalizedMinutes / 60)
+    .toString()
+    .padStart(2, "0");
+  const minutes = (normalizedMinutes % 60).toString().padStart(2, "0");
+
+  return `${hours}:${minutes}`;
+}
+
 export function isProposedScheduleStartInPast(input: {
   localDate: string;
   startTime: string;
@@ -5253,6 +5291,10 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   const [isReadinessLoading, setIsReadinessLoading] = useState(false);
   const [staffConflictPreview, setStaffConflictPreview] = useState<AppointmentStaffConflictPreview | null>(null);
   const [isStaffConflictLoading, setIsStaffConflictLoading] = useState(false);
+  const [availabilityRecommendations, setAvailabilityRecommendations] =
+    useState<AppointmentAvailabilityRecommendations | null>(null);
+  const [isAvailabilityRecommendationsLoading, setIsAvailabilityRecommendationsLoading] =
+    useState(false);
   const [staffWarningOverrideSaving, setStaffWarningOverrideSaving] = useState(false);
   const [staffWarningReason, setStaffWarningReason] = useState("");
   const [overriddenStaffWarnings, setOverriddenStaffWarnings] = useState<Record<string, true>>({});
@@ -8485,6 +8527,90 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   useEffect(() => {
     let isActive = true;
 
+    async function loadAvailabilityRecommendations() {
+      if (
+        selectedAppointment.status !== "draft" ||
+        !selectedAppointment.recordId ||
+        !selectedAppointmentIsUnscheduledDraft
+      ) {
+        setAvailabilityRecommendations(null);
+        setIsAvailabilityRecommendationsLoading(false);
+        return;
+      }
+
+      setIsAvailabilityRecommendationsLoading(true);
+
+      try {
+        const startsAt = localDateTimeToMinneapolisIso(
+          scheduleDraft.localDate,
+          scheduleDraft.startTime,
+          selectedAppointment.schedulingTimezone ?? boardTimezone
+        );
+        const endsAt = addMinutesToIso(startsAt, scheduleDraft.durationMinutes);
+        const params = new URLSearchParams({
+          proposedStartsAt: startsAt,
+          proposedEndsAt: endsAt,
+          proposedSchedulingTimezone: selectedAppointment.schedulingTimezone ?? boardTimezone,
+          maximumCandidates: "5",
+          searchHorizonDays: "5"
+        });
+        const response = await fetch(
+          `/api/appointments/${encodeURIComponent(selectedAppointment.recordId)}/availability-recommendations?${params.toString()}`
+        );
+        const result = (await response.json().catch(() => null)) as
+          | {
+              availabilityRecommendations?: AppointmentAvailabilityRecommendations;
+              error?: string;
+            }
+          | null;
+
+        if (!isActive) {
+          return;
+        }
+
+        if (!response.ok || !result?.availabilityRecommendations) {
+          throw new Error(result?.error || "Unable to load availability recommendations.");
+        }
+
+        setAvailabilityRecommendations(result.availabilityRecommendations);
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        setAvailabilityRecommendations(null);
+        setActionNotice(
+          error instanceof Error
+            ? `Availability recommendations could not load: ${error.message}`
+            : "Availability recommendations could not load."
+        );
+      } finally {
+        if (isActive) {
+          setIsAvailabilityRecommendationsLoading(false);
+        }
+      }
+    }
+
+    void loadAvailabilityRecommendations();
+
+    return () => {
+      isActive = false;
+    };
+  }, [
+    boardTimezone,
+    detailRefreshKey,
+    scheduleDraft.durationMinutes,
+    scheduleDraft.localDate,
+    scheduleDraft.startTime,
+    selectedAppointment.recordId,
+    selectedAppointment.schedulingTimezone,
+    selectedAppointment.status,
+    selectedAppointmentIsUnscheduledDraft
+  ]);
+
+  useEffect(() => {
+    let isActive = true;
+
     async function loadScheduleReadiness() {
       if (selectedAppointment.status !== "draft" || !selectedAppointment.recordId) {
         setScheduleReadiness(null);
@@ -9611,6 +9737,27 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     } finally {
       setIsCommandPending(false);
     }
+  }
+
+  function applyAvailabilityRecommendation(
+    recommendation: AppointmentAvailabilityRecommendations["candidates"][number]
+  ) {
+    setScheduleDraft((current) => ({
+      ...current,
+      localDate: recommendation.localDate,
+      startTime: minuteOfDayToTimeInput(recommendation.startMinuteOfDay)
+    }));
+    setActionNotice(
+      `Applied suggested slot ${formatDateKeyLabel(
+        recommendation.localDate,
+        selectedAppointment.schedulingTimezone ?? boardTimezone,
+        {
+          weekday: "short",
+          month: "short",
+          day: "numeric"
+        }
+      )} at ${formatTime(recommendation.startMinuteOfDay)} to the scheduling form.`
+    );
   }
 
   async function submitOperationalCommand(commandType: OperationalCommand) {
@@ -13463,6 +13610,84 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
               <p className="appointment-resource-copy">
                 This submits the existing SCHEDULE command with the selected Minneapolis time window, expected version, idempotency key, staff-conflict validation, and history reason.
               </p>
+              <div className="appointment-section-heading">
+                <strong>Availability Suggestions</strong>
+                <span className={`appointment-readiness-chip appointment-readiness-${availabilityRecommendations?.candidateCount ? "ready" : "warning"}`}>
+                  {isAvailabilityRecommendationsLoading
+                    ? "Loading"
+                    : availabilityRecommendations?.candidateCount
+                      ? `${availabilityRecommendations.candidateCount} found`
+                      : "No suggestions"}
+                </span>
+              </div>
+              {availabilityRecommendations ? (
+                availabilityRecommendations.candidates.length > 0 ? (
+                  <div className="appointment-resource-stack">
+                    {availabilityRecommendations.candidates.map((candidate) => {
+                      const isSelectedSuggestion =
+                        scheduleDraft.localDate === candidate.localDate &&
+                        scheduleDraft.startTime ===
+                          minuteOfDayToTimeInput(candidate.startMinuteOfDay);
+
+                      return (
+                        <div
+                          className={`appointment-resource-row appointment-resource-row-${candidate.status.toLowerCase()}`}
+                          key={`${candidate.localDate}-${candidate.startMinuteOfDay}`}
+                        >
+                          <div>
+                            <strong>
+                              {formatDateKeyLabel(
+                                candidate.localDate,
+                                selectedAppointment.schedulingTimezone ?? boardTimezone,
+                                {
+                                  weekday: "short",
+                                  month: "short",
+                                  day: "numeric"
+                                }
+                              )}{" "}
+                              at {formatTime(candidate.startMinuteOfDay)}
+                            </strong>
+                            <small>
+                              Rank {candidate.candidateRank} Â· Score {candidate.score} Â·{" "}
+                              {candidate.status === "AVAILABLE"
+                                ? "Ready to schedule"
+                                : "Needs warning review"}
+                            </small>
+                            <small>
+                              {candidate.reasons.length > 0
+                                ? candidate.reasons.join(" ")
+                                : candidate.explanation.join(" ")}
+                            </small>
+                          </div>
+                          <button
+                            className="appointment-resource-action"
+                            disabled={isCommandPending || isSelectedSuggestion}
+                            onClick={() => applyAvailabilityRecommendation(candidate)}
+                            type="button"
+                          >
+                            {isSelectedSuggestion ? "Selected Slot" : "Use Suggestion"}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="appointment-readiness-copy">
+                    No recommended slots were found in the current search window. Try a different date, time, or duration.
+                  </p>
+                )
+              ) : (
+                <p className="appointment-readiness-copy">
+                  {isAvailabilityRecommendationsLoading
+                    ? "Searching for nearby schedulable slots..."
+                    : "Availability suggestions will appear for this unscheduled draft after the current slot is evaluated."}
+                </p>
+              )}
+              {availabilityRecommendations ? (
+                <p className="appointment-resource-copy">
+                  Suggestions are ranked from the live availability search using the current draft duration, required staff, selected resources, and the chosen starting slot as the search anchor.
+                </p>
+              ) : null}
               {selectedUnscheduledDraftStartsInPast ? (
                 <p className="appointment-resource-copy appointment-resource-warning">
                   Choose a current or future time before scheduling this draft.
