@@ -19,8 +19,12 @@ describe("appointment automation operations console service", () => {
     const console = await getAppointmentAutomationOperationsConsoleForManager(manager, repository);
 
     expect(console.ruleHealth.totalRules).toBeGreaterThan(10);
+    expect(console.ruleHealth.candidateRules).toBeGreaterThan(10);
+    expect(console.ruleHealth.configuredRules).toBe(0);
     expect(console.ruleHealth.draftRules).toBe(console.ruleHealth.totalRules);
     expect(console.rules.some((rule) => rule.triggerCode === "ANY_TASK_REQUIRES_MEETING")).toBe(true);
+    expect(console.rules.some((rule) => rule.simulation.hasEvidence)).toBe(true);
+    expect(console.rules.some((rule) => rule.activation.canActivate === false)).toBe(true);
     expect(console.safetyControls.everyChangeRequiresReason).toBe(true);
   });
 
@@ -41,14 +45,44 @@ describe("appointment automation operations console service", () => {
       repository
     );
 
-    expect(console.ruleHealth.totalRules).toBe(1);
-    expect(console.rules[0]).toMatchObject({
+    expect(console.ruleHealth.configuredRules).toBe(1);
+    expect(console.ruleHealth.totalRules).toBeGreaterThan(1);
+    expect(console.rules.find((rule) => rule.ruleCode === "RULE-TEST-DRIVE-FOLLOW-UP")).toMatchObject({
       ruleCode: "RULE-TEST-DRIVE-FOLLOW-UP",
-      status: "DRAFT"
+      status: "DRAFT",
+      source: "CONFIGURED_RULE",
+      simulation: expect.objectContaining({
+        hasEvidence: true
+      }),
+      activation: expect.objectContaining({
+        canActivate: true
+      })
     });
+    expect(console.rules.some((rule) => rule.source === "CATALOG_CANDIDATE")).toBe(true);
     expect(console.recentEvents[0]).toMatchObject({
       action: "DRAFT_CREATED"
     });
+  });
+
+  it("rejects activating a catalog candidate before it is saved as a configured draft", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createMemoryAppointmentAutomationOperationsRepository();
+    const console = await getAppointmentAutomationOperationsConsoleForManager(manager, repository);
+    const candidateRule = console.rules.find((rule) => rule.source === "CATALOG_CANDIDATE");
+
+    expect(candidateRule).toBeTruthy();
+    await expect(
+      transitionAppointmentAutomationRuleForManager(
+        manager,
+        {
+          ruleCode: candidateRule!.ruleCode,
+          action: "ACTIVATE",
+          reason: "Attempt to activate a catalog candidate directly."
+        },
+        repository
+      )
+    ).rejects.toThrow(/not configured/i);
   });
 
   it("activates, pauses, and retires a configured rule with reasons", async () => {

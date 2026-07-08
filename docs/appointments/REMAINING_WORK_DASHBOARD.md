@@ -185,7 +185,7 @@ E3 is the active implementation area.
 | EAPT-031 | Appointment-template task blueprint generation | Not started | High |
 | EAPT-032 | Create appointment from any task workflow | Complete initial task-detail workflow with live browser proof; automated e2e execution awaits local Playwright browser install | High |
 | EAPT-033 | Task-to-appointment automation runtime | Partial implementation exists; outcome-driven runtime records now persist and replay safely, broader task-trigger automation remains | High |
-| EAPT-034 | Automation rule versioning, simulation, activation, pause, retirement | Not started | High |
+| EAPT-034 | Automation rule versioning, simulation, activation, pause, retirement | Partial; visible catalog candidates, simulation evidence, activation-readiness guidance, configured-rule lifecycle controls, and activation safety gates are live in the automation console, but durable rule-version linkage and richer authoring remain | High |
 | EAPT-035 | Automation review, failure, retry, and replay services | Partial implementation exists; manager retry/replay/resolve/skip controls, duplicate-safe follow-up replays, and board-visible appointment automation runtime/failure visibility are live, broader failure classes and background processing remain | High |
 | EAPT-036 | Activity history for appointment and automation events | Partial; appointment history plus appointment-level automation runtime timeline/detail visibility are live, but broader replay/failure audit continuity still remains | Medium |
 | EAPT-037 | Optimistic concurrency on every appointment mutation | Partial implementation exists; full audit still pending | High |
@@ -194,10 +194,10 @@ E3 is the active implementation area.
 Recommended next E3 slices:
 
 1. Enable local Playwright browser installation and run the authored task detail to linked draft to Appointment Board schedule e2e test.
-2. Automation rule authoring/simulation/activation controls.
-3. Template-driven task blueprint generation.
-4. Broader lifecycle, concurrency, and browser workflow validation.
-5. Deeper background failure classes and durable replay worker coverage.
+2. Template-driven task blueprint generation.
+3. Broader lifecycle, concurrency, and browser workflow validation.
+4. Deeper background failure classes and durable replay worker coverage.
+5. Durable rule-version linkage on historical executions.
 
 ## E4 remaining work
 
@@ -241,8 +241,8 @@ This is one of the largest remaining enterprise areas.
 | EAPT-057 | Bulk rescheduling and closure-impact workspace | Not started | Medium |
 | EAPT-058 | Purpose, template, outcome, and reason administration | Partial; manager-visible purpose templates, outcome/follow-up/reason catalogs, structured outcome/follow-up/reason add/rename/remove/deprecate/reactivate editors, replacement guidance, deprecated-code validation warnings and new-configuration guards, live appointment-count usage analytics, highest-risk code ranking, code reference counts, manager-ready code impact reports, purpose usage impact, code labels/descriptions in catalog snapshots, durable catalog version table, draft editing, validation, required reason capture, approval review workflow, activation approval gate, change events, purpose usage/reference warnings, purpose create, duplicate, deprecate, reactivate, and draft-only delete protection exist. Deeper usage trend analytics and exportable impact report files remain. | High |
 | EAPT-059 | Location, hours, closures, resource, capacity, availability administration | Partial; location profile, phone, weekday hours, scheduling status, closure create/edit/delete, recurring-template-to-closure apply flow, special-hours calendar preview, recurring closure template readiness, resource availability summaries, resource-specific operating calendars with persisted day-level hours/capacity override windows, reason-required removal controls, overlap/runtime review, precedence guidance, next-effective-window preview, bulk multi-day apply/replace controls, capacity override readiness and quick drafts, resource type create/edit/deactivate controls, resource-impact day summaries, resource status/capacity/conflict policy, resource outage/capacity-reduction windows, resource summary, and Appointment Board wiring implemented. Recurring series automation remains. | High |
-| EAPT-060 | Automation rule authoring and simulation | Partial; rule draft authoring, validation, catalog-derived hook candidates, and simulation-backed draft creation exist. Deeper condition/action builders remain. | High |
-| EAPT-061 | Automation activation, pause, retire, and failure administration | Partial; rule activation, pause, retire, health dashboard, failure queue foundation, retry/replay/resolve/skip API contracts, and audit events exist. Runtime execution worker and seeded live failures remain. | High |
+| EAPT-060 | Automation rule authoring and simulation | Partial; rule draft authoring, validation, persistent-plus-candidate rule visibility, simulation-backed draft creation, and activation-readiness visibility exist. Deeper condition/action builders remain. | High |
+| EAPT-061 | Automation activation, pause, retire, and failure administration | Partial; rule activation, pause, retire, activation safety gates, health dashboard, failure queue foundation, retry/replay/resolve/skip API contracts, and audit events exist. Runtime execution worker and seeded live failures remain. | High |
 | EAPT-062 | Configuration import/export with validation and redaction | Partial; preview-safe configuration export, portable redaction markers, export manifest, import-preview validation, manager-only routes, UI review workspace, and focused service/route/UI tests exist. Destructive import apply, rollback, approval, activation, and audit-event persistence remain. | Medium |
 | EAPT-063 | Creation and administration workflow tests | Not started | High |
 
