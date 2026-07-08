@@ -9,6 +9,7 @@ import {
   buildAppointmentCommandCenterExport,
   buildAppointmentCommandCenterHandoffExport,
   buildAppointmentCommandCenterHandoffPackage,
+  buildAppointmentKpiDictionary,
   buildAppointmentEnterpriseOpsQueues,
   buildAppointmentLocationViewItems,
   buildAppointmentNotificationFanoutSources,
@@ -17,6 +18,8 @@ import {
   buildAppointmentResourceViewItems,
   buildAppointmentRuntimePersistenceSummary,
   buildAppointmentScheduleAnalyticsModel,
+  buildAppointmentReportingReadModel,
+  buildAppointmentReportingReadModelExport,
   buildAppointmentVehicleViewItems,
   buildAppointmentCommandCenterRuntimeQueue,
   parseAppointmentRuntimePersistenceState,
@@ -61,6 +64,10 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Command Center Audit Timeline");
     expect(markup).toContain("Timeline focus");
     expect(markup).toContain("Reporting &amp; Exports");
+    expect(markup).toContain("KPI Dictionary");
+    expect(markup).toContain("Reporting Read Model");
+    expect(markup).toContain("Read model dimension");
+    expect(markup).toContain("Read model export preview");
     expect(markup).toContain("Export preview");
     expect(markup).toContain("Cross-Appointment Search");
     expect(markup).toContain("Search scope");
@@ -1067,6 +1074,91 @@ describe("appointment board shell", () => {
       runtimeCheckpointLabel: "Checkpoint saved just now",
       commandCenterHandoffNote: "Incoming manager should review no-shows first."
     });
+  });
+
+  it("builds a KPI dictionary from reporting scope and exception queues", () => {
+    const dictionary = buildAppointmentKpiDictionary({
+      report: {
+        generatedForLabel: "Tuesday, July 7, 2026 · Focus APT-10245",
+        summary: {
+          visibleExceptions: 6,
+          breachedSla: 2,
+          escalated: 1,
+          managerEvents: 4
+        },
+        rows: []
+      },
+      exceptionQueues: [
+        { key: "no-show-recovery", items: [{ id: "APT-1" }] },
+        { key: "follow-up-required", items: [{ id: "APT-2" }, { id: "APT-3" }] }
+      ] as any,
+      reportingWindowLabel: "Tuesday, July 7, 2026 · Focus APT-10245",
+      timezoneLabel: "America/Chicago"
+    });
+
+    expect(dictionary).toHaveLength(6);
+    expect(dictionary.find((entry) => entry.key === "breached-sla")?.actionLabel).toBe(
+      "Open breached SLA"
+    );
+    expect(dictionary.find((entry) => entry.key === "follow-up-backlog")?.value).toBe("2");
+  });
+
+  it("builds a reporting read model and export by dimension", () => {
+    const model = buildAppointmentReportingReadModel({
+      appointments: [
+        {
+          id: "APT-1",
+          title: "Service / Repair",
+          customer: "Ahmed Ibrahim",
+          vehicle: "2014 Ford Taurus",
+          category: "service",
+          status: "confirmed",
+          staffId: "brock",
+          staffName: "Brock Peterson",
+          startMinutes: 540,
+          durationMinutes: 60,
+          phone: "(612) 555-0100",
+          complaint: "Brake noise",
+          location: "Service counter",
+          confirmation: "Confirmed by phone",
+          taskAutomation: [],
+          governanceNotes: [],
+          conflict: true
+        },
+        {
+          id: "APT-2",
+          title: "Test Drive",
+          customer: "Amina Said",
+          vehicle: "2018 Toyota Camry",
+          category: "sales",
+          status: "no-show",
+          staffId: "abdi",
+          staffName: "Abdi Farah",
+          startMinutes: 600,
+          durationMinutes: 45,
+          phone: "(612) 555-0101",
+          complaint: "Customer did not arrive",
+          location: "Sales floor",
+          confirmation: "No-show follow-up required",
+          taskAutomation: [],
+          governanceNotes: [],
+          needsFollowUp: true
+        }
+      ] as any,
+      dimension: "location",
+      timezoneLabel: "America/Chicago"
+    });
+
+    expect(model.headline).toContain("reporting row");
+    expect(model.rows[0]?.dimensionLabel).toBeDefined();
+
+    const exportPreview = buildAppointmentReportingReadModelExport({
+      model,
+      dimension: "location"
+    });
+
+    expect(exportPreview).toContain("Appointment reporting read model - location");
+    expect(exportPreview).toContain("Source: Reporting read model snapshot");
   });
 
   it("builds event fanout sources from appointment and automation history", () => {

@@ -8222,6 +8222,43 @@ code {
   font-size: 18px;
 }
 
+.appointment-reporting-kpi-dictionary,
+.appointment-reporting-kpi-grid,
+.appointment-reporting-read-model-card,
+.appointment-reporting-read-model-grid,
+.appointment-reporting-read-model-metrics {
+  display: grid;
+  gap: 10px;
+}
+
+.appointment-reporting-kpi-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.appointment-reporting-kpi-item,
+.appointment-reporting-read-model-item {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #dbe5f2;
+  border-radius: 12px;
+}
+
+.appointment-reporting-read-model-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.appointment-reporting-read-model-metrics {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.appointment-reporting-read-model-metrics span {
+  color: #475569;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .appointment-reporting-toolbar {
   display: flex;
   align-items: flex-end;
@@ -9500,6 +9537,8 @@ code {
   .appointment-runtime-persistence-metrics,
   .appointment-schedule-analytics-metrics,
   .appointment-schedule-analytics-grid,
+  .appointment-reporting-kpi-grid,
+  .appointment-reporting-read-model-grid,
   .appointment-ops-intelligence-grid,
   .appointment-ops-intelligence-metrics,
   .appointment-ops-intelligence-drilldowns,
@@ -9539,6 +9578,9 @@ code {
   .appointment-runtime-handoff-sections,
   .appointment-runtime-persistence-metrics,
   .appointment-ops-intelligence-grid,
+  .appointment-reporting-kpi-grid,
+  .appointment-reporting-read-model-grid,
+  .appointment-reporting-read-model-metrics,
   .appointment-ops-intelligence-metrics,
   .appointment-ops-intelligence-drilldowns,
   .appointment-ops-intelligence-digest-analytics,
