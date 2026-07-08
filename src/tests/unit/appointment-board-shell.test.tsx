@@ -16,6 +16,7 @@ import {
   buildAppointmentNotificationFanoutSources,
   buildAppointmentNotificationCenterItems,
   buildAppointmentNotificationFailureQueue,
+  buildAppointmentNotificationDurabilitySummary,
   buildAppointmentNotificationSuppressionGovernance,
   buildAppointmentResourceViewItems,
   buildAppointmentRuntimePersistenceSummary,
@@ -66,11 +67,15 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Command Center Audit Timeline");
     expect(markup).toContain("Timeline focus");
     expect(markup).toContain("Reporting &amp; Exports");
+    expect(markup).toContain("Reporting Snapshots");
+    expect(markup).toContain("Analytics Freshness");
     expect(markup).toContain("KPI Dictionary");
     expect(markup).toContain("Reporting Read Model");
     expect(markup).toContain("Read model dimension");
     expect(markup).toContain("Read model export preview");
     expect(markup).toContain("Export preview");
+    expect(markup).toContain("Review snapshot");
+    expect(markup).toContain("Review freshness");
     expect(markup).toContain("Cross-Appointment Search");
     expect(markup).toContain("Search scope");
     expect(markup).toContain("Saved Views &amp; Subscriptions");
@@ -97,7 +102,15 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Event Fanout &amp; Source Coverage");
     expect(markup).toContain("Suppress fanout");
     expect(markup).toContain("Notification Policy &amp; Deep Links");
+    expect(markup).toContain("Durability &amp; Retention");
+    expect(markup).toContain("Delivery Preferences");
+    expect(markup).toContain("Trim retained reads");
     expect(markup).toContain("Notification Contracts");
+    expect(markup).toContain("Future Outbound Contracts");
+    expect(markup).toContain("Inbound Commands &amp; Harness");
+    expect(markup).toContain("Review outbound contract");
+    expect(markup).toContain("Review inbound command");
+    expect(markup).toContain("Review harness");
     expect(markup).toContain("Suppression Governance");
     expect(markup).toContain("Open policy");
     expect(markup).toContain("Manager Inbox");
@@ -1087,6 +1100,61 @@ describe("appointment board shell", () => {
     expect(governance.find((item) => item.status === "deduped")?.policyLabel).toBe("Delivery Failures");
   });
 
+  it("builds a notification durability summary from policies, preferences, fanout, failures, and inbox state", () => {
+    const summary = buildAppointmentNotificationDurabilitySummary({
+      checkpointLabel: "Checkpoint saved just now",
+      policies: [
+        {
+          id: "policy-manager-inbox",
+          enabled: true
+        },
+        {
+          id: "policy-shift-handoffs",
+          enabled: false
+        }
+      ] as any,
+      preferences: [
+        {
+          id: "preference-manager-inbox",
+          enabled: true
+        },
+        {
+          id: "preference-shift-handoffs",
+          enabled: false
+        }
+      ] as any,
+      fanoutSources: [
+        {
+          id: "fanout-apt-1",
+          status: "suppressed"
+        }
+      ] as any,
+      failureQueue: [
+        {
+          id: "failure-1",
+          status: "open",
+          severity: "high"
+        }
+      ] as any,
+      notificationCenterItems: [
+        {
+          id: "notification-1",
+          readState: "unread"
+        },
+        {
+          id: "notification-2",
+          readState: "read"
+        }
+      ] as any
+    });
+
+    expect(summary.checkpointLabel).toBe("Checkpoint saved just now");
+    expect(summary.metrics.find((metric) => metric.label === "Active policies")?.value).toBe("1/2");
+    expect(summary.metrics.find((metric) => metric.label === "Governed suppressions")?.value).toBe("1");
+    expect(summary.alerts.some((alert) => alert.actionLabel === "Open recovery")).toBe(true);
+    expect(summary.alerts.some((alert) => alert.actionLabel === "Review preferences")).toBe(true);
+  });
+
   it("builds a runtime persistence summary from queue, inbox, and failures", () => {
     const summary = buildAppointmentRuntimePersistenceSummary({
       runtimeQueue: [
@@ -1163,12 +1231,28 @@ describe("appointment board shell", () => {
       parseAppointmentRuntimePersistenceState(
         JSON.stringify({
           runtimeCheckpointLabel: "Checkpoint saved just now",
-          commandCenterHandoffNote: "Incoming manager should review no-shows first."
+          commandCenterHandoffNote: "Incoming manager should review no-shows first.",
+          notificationCenterFilter: "needs-review",
+          showResolvedNotificationFailures: true,
+          notificationPreferences: [
+            {
+              id: "preference-manager-inbox",
+              enabled: true
+            }
+          ]
         })
       )
     ).toMatchObject({
       runtimeCheckpointLabel: "Checkpoint saved just now",
-      commandCenterHandoffNote: "Incoming manager should review no-shows first."
+      commandCenterHandoffNote: "Incoming manager should review no-shows first.",
+      notificationCenterFilter: "needs-review",
+      showResolvedNotificationFailures: true,
+      notificationPreferences: [
+        {
+          id: "preference-manager-inbox",
+          enabled: true
+        }
+      ]
     });
   });
 
