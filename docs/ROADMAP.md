@@ -1,6 +1,6 @@
 # Time Motor Sales Dispatch Board Roadmap
 
-**Last updated:** 2026-07-05
+**Last updated:** 2026-07-08
 **Roadmap status:** Dispatch Board foundation implemented; Enterprise Appointment E1 in progress
 **Primary goal:** Preserve and harden the working Dispatch Board while delivering the approved Enterprise Appointment Command Center.
 
@@ -180,6 +180,75 @@ Current execution order:
 | DB-054 | [ ]    | Add integration tests for API and validation       | Cover route-level auth, validation, and common mutation failures.                 | API behavior stays consistent under expected failure cases.                            |
 | DB-055 | [x]    | Add end-to-end tests for daily workflow            | Test login, generation, task updates, blockers, review, and activity visibility.  | The main daily workflow passes in browser-level testing.                               |
 | DB-056 | [ ]    | Finalize README, setup docs, and release checklist | Finish project docs, local commands, environment guidance, and MVP release steps. | Another developer can set up, run, test, and understand the app from the docs.         |
+
+
+---
+
+## v0.6.1 - Production scheduler verification
+
+**Goal:** Make automatic daily board generation observable, diagnosable, and manager-operable in production so the team can prove whether autonomous generation is healthy without guessing.
+
+**Exit criteria:** The app stores durable evidence for scheduled generation attempts, managers can see what happened and what to do next, and the repository contains a repeatable production verification workflow for scheduler wiring and secrets.
+
+### Milestone M1 - Scheduler Evidence Foundation
+
+**Purpose:** Make every scheduled attempt leave trustworthy evidence.
+
+| ID             | Status | GitHub issue / task card                            | Codex-sized scope                                                                                   | Acceptance criteria                                                                                   |
+| -------------- | ------ | --------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| PROD-SCHED-001 | [x]    | Define scheduler verification contract              | Document the durable states and payload shape for scheduled generation evidence and skip/fail paths. | Scheduled attempts have an approved contract for `received`, `unauthorized`, `skipped`, `started`, `succeeded`, and `failed`. |
+| PROD-SCHED-002 | [ ]    | Persist cron request evidence                       | Record every cron hit with timestamp, trigger source, and authorization outcome.                    | Each scheduled route hit leaves durable evidence even when generation does not proceed.               |
+| PROD-SCHED-003 | [ ]    | Persist scheduled skip reasons                      | Store explicit skip reasons such as non-business-day, before-generation-time, already-generated, or config-missing. | Scheduled skips are queryable and distinguishable without reading logs.                              |
+| PROD-SCHED-004 | [ ]    | Persist sanitized failure diagnostics               | Save safe failure details for scheduled generation without leaking secrets or protected runtime data. | Failed scheduled runs store a manager-safe error reason and preserve retryability.                    |
+| PROD-SCHED-005 | [ ]    | Add scheduler health read model                     | Build a server read model that summarizes latest scheduled run, latest manual run, last success, last failure, and today's board state. | One server-side read can power a manager health panel without reconstructing state in the UI.         |
+
+### Milestone M2 - Manager Visibility and Operations
+
+**Purpose:** Let a manager answer "did it run, what happened, and what should I do next?" from inside the app.
+
+| ID             | Status | GitHub issue / task card                            | Codex-sized scope                                                                                   | Acceptance criteria                                                                                   |
+| -------------- | ------ | --------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| PROD-SCHED-006 | [ ]    | Add manager generation health panel                | Expose the scheduler health read model in a manager-only board or settings surface.                 | Managers can see today's board status, latest scheduled run, latest manual run, and last success/failure. |
+| PROD-SCHED-007 | [ ]    | Add generation guidance states                      | Show clear next-step guidance for unauthorized, skipped, failed, running, and never-fired states.  | The UI explains what happened and what the manager should check or do next.                          |
+| PROD-SCHED-008 | [ ]    | Link retry actions to visible run evidence          | Keep manual retry idempotent and tie retry outcomes back to the visible generation health surface.  | A manager can retry safely and see the retry reflected in the health panel immediately after refresh. |
+| PROD-SCHED-009 | [ ]    | Surface repeated unauthorized cron attempts         | Highlight suspicious or misconfigured unauthorized scheduler hits in the manager-visible health surface. | Unauthorized scheduler traffic is visible as a config/security signal rather than silent failure.     |
+
+### Milestone M3 - Deployment Readiness and Verification
+
+**Purpose:** Give the team an operator-ready production verification workflow.
+
+| ID             | Status | GitHub issue / task card                            | Codex-sized scope                                                                                   | Acceptance criteria                                                                                   |
+| -------------- | ------ | --------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| PROD-SCHED-010 | [ ]    | Add production scheduler readiness checks           | Report whether required scheduler prerequisites are present, especially `CRON_SECRET` and schedule settings. | The app can distinguish likely configuration gaps from application failures.                         |
+| PROD-SCHED-011 | [ ]    | Write scheduler deployment verification runbook     | Add a repo-owned runbook for validating scheduler wiring, secret headers, expected behavior, and first-run checks. | Another operator can follow the docs to validate scheduler setup without tribal knowledge.           |
+| PROD-SCHED-012 | [ ]    | Upgrade release checklist with scheduler proof gate | Expand release readiness steps to require first successful scheduled evidence and troubleshooting checks. | The release checklist contains explicit production scheduler validation gates instead of vague reminders. |
+
+### Milestone M4 - Production Prove-Out
+
+**Purpose:** Close the loop with tests and a real production validation process.
+
+| ID             | Status | GitHub issue / task card                            | Codex-sized scope                                                                                   | Acceptance criteria                                                                                   |
+| -------------- | ------ | --------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| PROD-SCHED-013 | [ ]    | Add scheduler verification test coverage            | Cover authorized, unauthorized, skipped, success, and failed scheduled flows plus the health read model. | Automated tests fail if scheduler evidence, health reporting, or retry visibility regress.           |
+| PROD-SCHED-014 | [ ]    | Execute first live scheduler validation checklist   | Use the new health panel, docs, and release checklist to verify the first real autonomous production run. | The team can prove that a live scheduled board generation fired successfully in production.          |
+
+### Recommended execution order inside v0.6.1
+
+1. `PROD-SCHED-001` through `PROD-SCHED-005`
+2. `PROD-SCHED-006` through `PROD-SCHED-009`
+3. `PROD-SCHED-010` through `PROD-SCHED-012`
+4. `PROD-SCHED-013`
+5. `PROD-SCHED-014`
+
+### Architecture notes for v0.6.1
+
+- Keep the scheduler verification workflow inside the existing Dispatch Board app. Do not create a separate scheduler service at this stage.
+- The scheduled route remains the single production entrypoint for autonomous generation; manual generation remains the manager retry path.
+- Scheduled and manual runs must continue to use the same shared generation engine so retry behavior stays consistent and idempotent.
+- Treat scheduler-attempt evidence as a first-class operational record, not as UI-derived inference.
+- Sanitize failure details so manager visibility improves without exposing secrets, connection strings, or protected runtime information.
+- Manager-facing health surfaces must answer three questions quickly: `did it fire`, `what happened`, and `what should I do next`.
+- Prefer additive slices that touch schema, service, read model, UI, tests, and docs in small reviewable increments rather than one broad rewrite.
 
 
 ---

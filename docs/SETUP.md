@@ -123,6 +123,8 @@ The app exposes a protected scheduled-generation route at:
 
 - `/api/cron/generate-board`
 
+Expected scheduled attempt states, skip reasons, and manager-safe operational meanings are defined in [docs/SCHEDULER_VERIFICATION_CONTRACT.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/SCHEDULER_VERIFICATION_CONTRACT.md).
+
 Provide either of these headers:
 
 - `Authorization: Bearer <CRON_SECRET>`
@@ -146,6 +148,13 @@ Production checklist for auto-generation:
 2. Set `CRON_SECRET` in the deployment environment.
 3. Set the desired generation time, timezone, and business days in `/settings`.
 4. Confirm the first production day by checking the board and activity feed after the configured local generation time.
+
+Use the scheduler verification contract as the meaning baseline for what you should expect to see:
+
+- `unauthorized` means the route was hit but the secret wiring is wrong
+- `skipped` means the route fired but intentionally did not generate
+- `succeeded` means the autonomous generation path completed cleanly
+- `failed` means the scheduler path needs operational attention before it is considered healthy
 
 ### Non-Vercel hosting
 

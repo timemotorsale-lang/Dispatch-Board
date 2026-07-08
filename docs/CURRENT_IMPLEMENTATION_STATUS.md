@@ -1,6 +1,6 @@
 # Current Implementation Status
 
-**Verified:** 2026-07-07  
+**Verified:** 2026-07-08  
 **Purpose:** Evidence-based snapshot of the repository during Enterprise Appointment implementation
 **Supersedes:** Stale “pre-implementation” statements in older planning documents
 
@@ -54,6 +54,7 @@ Focused appointment board command-center validation passed for notification dige
 | Assignment recommendations | Implemented | Recommendation rules, explanations, manager override, and tests |
 | Automated tests | Implemented | Unit, integration, and browser workflow coverage |
 | Setup and release documentation | Implemented but evolving | README, setup guide, architecture, roadmap, and release checklist |
+| Production scheduler verification contract | Implemented as documentation baseline | `docs/SCHEDULER_VERIFICATION_CONTRACT.md` defines durable scheduled states, required fields, skip reason taxonomy, manager-safe failure expectations, and manual-vs-scheduled operational boundaries; persistence, health read model, and production prove-out remain pending |
 | Production deployment readiness | Not verified in this baseline | Deployment configuration exists; release checklist still requires production evidence |
 | Appointment organization/location foundation | Implemented | Additive Prisma schema and migration, configured Minneapolis address/telephone/weekday hours, draft activation state, validation, General Manager policy, and focused tests |
 | Appointment aggregate foundation | Implemented | Independent lifecycle states, ownership, timing, version, snapshots, exception documentation, SQL safeguards, authorization policies, and focused tests |

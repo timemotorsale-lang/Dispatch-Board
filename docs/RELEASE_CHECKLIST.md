@@ -4,6 +4,7 @@ Use this checklist before calling the Dispatch Board MVP release-ready.
 
 ## 1. Environment readiness
 
+- [ ] Scheduler verification expectations are understood from [docs/SCHEDULER_VERIFICATION_CONTRACT.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/SCHEDULER_VERIFICATION_CONTRACT.md).
 - [ ] Required environment variables are documented in [docs/SETUP.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/SETUP.md).
 - [ ] `.env.example` is complete for local development.
 - [ ] No real secrets are committed to the repository.
@@ -31,6 +32,7 @@ Use this checklist before calling the Dispatch Board MVP release-ready.
 - [ ] A staff user can open My Tasks and a task detail page.
 - [ ] Manual board generation works from the board surface.
 - [ ] Scheduled board generation runs automatically after the configured local generation time.
+- [ ] Any scheduled unauthorized, skipped, succeeded, or failed evidence is interpreted using the scheduler verification contract instead of ad hoc log reading.
 - [ ] No obvious loading, empty, or error-state gaps block the main board, task, settings, or activity views.
 
 ## 4. Core MVP workflow verification

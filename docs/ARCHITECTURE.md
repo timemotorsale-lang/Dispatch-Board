@@ -2,9 +2,9 @@
 
 **Document:** Architecture  
 **Version:** v0.2.0 living baseline
-**Last updated:** 2026-07-05
+**Last updated:** 2026-07-08
 **Status:** Dispatch Board implemented; Enterprise Appointment E1 in progress
-**Source documents:** `docs/PRODUCT_SPEC.md`, `docs/MVP_SCOPE.md`, `docs/CURRENT_IMPLEMENTATION_STATUS.md`, `docs/appointments/`, `docs/The Guide To Vibe Coding.md`
+**Source documents:** `docs/PRODUCT_SPEC.md`, `docs/MVP_SCOPE.md`, `docs/CURRENT_IMPLEMENTATION_STATUS.md`, `docs/SCHEDULER_VERIFICATION_CONTRACT.md`, `docs/appointments/`, `docs/The Guide To Vibe Coding.md`
 
 ---
 
@@ -457,6 +457,19 @@ If generation runs twice for the same date, it should not create duplicate gener
 - A failed generation should record a `GenerationRun` with `status = failed`.
 - The manager should see that generation failed.
 - Manual retry should use the same idempotent generation logic.
+
+### Scheduler Verification Contract
+
+Production scheduler verification follows [`docs/SCHEDULER_VERIFICATION_CONTRACT.md`](SCHEDULER_VERIFICATION_CONTRACT.md).
+
+That contract defines:
+
+- scheduler-attempt states `received`, `unauthorized`, `skipped`, `started`, `succeeded`, and `failed`
+- explicit skip reason codes instead of free-form skip text
+- manager-safe failure evidence
+- the separation between scheduled attempts and manual retries
+
+Until the full v0.6.1 scheduler evidence work is implemented, the route and generation service may expose only part of this contract in transient responses. Durable scheduler evidence, health read models, and production verification workflow should align to the contract document rather than inventing separate state meanings.
 
 ---
 
