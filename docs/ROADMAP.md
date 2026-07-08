@@ -220,8 +220,8 @@ Current execution order:
 | ID             | Status | GitHub issue / task card                            | Codex-sized scope                                                                                   | Acceptance criteria                                                                                   |
 | -------------- | ------ | --------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | PROD-SCHED-010 | [x]    | Add production scheduler readiness checks           | Report whether required scheduler prerequisites are present, especially `CRON_SECRET` and schedule settings. | The app can distinguish likely configuration gaps from application failures.                         |
-| PROD-SCHED-011 | [ ]    | Write scheduler deployment verification runbook     | Add a repo-owned runbook for validating scheduler wiring, secret headers, expected behavior, and first-run checks. | Another operator can follow the docs to validate scheduler setup without tribal knowledge.           |
-| PROD-SCHED-012 | [ ]    | Upgrade release checklist with scheduler proof gate | Expand release readiness steps to require first successful scheduled evidence and troubleshooting checks. | The release checklist contains explicit production scheduler validation gates instead of vague reminders. |
+| PROD-SCHED-011 | [x]    | Write scheduler deployment verification runbook     | Add a repo-owned runbook for validating scheduler wiring, secret headers, expected behavior, and first-run checks. | Another operator can follow the docs to validate scheduler setup without tribal knowledge.           |
+| PROD-SCHED-012 | [x]    | Upgrade release checklist with scheduler proof gate | Expand release readiness steps to require first successful scheduled evidence and troubleshooting checks. | The release checklist contains explicit production scheduler validation gates instead of vague reminders. |
 
 ### Milestone M4 - Production Prove-Out
 
@@ -229,8 +229,8 @@ Current execution order:
 
 | ID             | Status | GitHub issue / task card                            | Codex-sized scope                                                                                   | Acceptance criteria                                                                                   |
 | -------------- | ------ | --------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| PROD-SCHED-013 | [ ]    | Add scheduler verification test coverage            | Cover authorized, unauthorized, skipped, success, and failed scheduled flows plus the health read model. | Automated tests fail if scheduler evidence, health reporting, or retry visibility regress.           |
-| PROD-SCHED-014 | [ ]    | Execute first live scheduler validation checklist   | Use the new health panel, docs, and release checklist to verify the first real autonomous production run. | The team can prove that a live scheduled board generation fired successfully in production.          |
+| PROD-SCHED-013 | [x]    | Add scheduler verification test coverage            | Cover authorized, unauthorized, skipped, success, and failed scheduled flows plus the health read model. | Automated tests fail if scheduler evidence, health reporting, or retry visibility regress.           |
+| PROD-SCHED-014 | [x]    | Execute first live scheduler validation checklist   | Use the new health panel, docs, and release checklist to verify the first real autonomous production run. | The repo is ready for a real operator to prove that a live scheduled board generation fired successfully in production.          |
 
 ### Recommended execution order inside v0.6.1
 

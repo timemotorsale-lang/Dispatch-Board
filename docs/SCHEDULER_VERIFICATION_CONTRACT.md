@@ -3,7 +3,7 @@
 **Document:** Scheduler verification contract  
 **Version:** v0.6.1 baseline  
 **Last updated:** 2026-07-08  
-**Status:** Approved documentation contract; persistence, health read model, and manager operations UI remain in progress
+**Status:** Approved documentation contract; scheduler evidence persistence, health read model, manager operations UI, readiness checks, and operator verification workflow are implemented; live production validation remains pending
 
 ---
 
@@ -29,9 +29,9 @@ This contract applies to scheduled board generation attempts only.
 
 Current implementation note:
 
-- The current route and service already return `skipped`, `failed`, and transient `success` responses.
-- This contract standardizes the durable terminal success state as `succeeded`.
-- Future implementation work should map the current transient response label `success` to durable scheduler evidence state `succeeded`.
+- The scheduled route records durable scheduler-attempt evidence.
+- The durable terminal scheduler success state is `succeeded`.
+- The shared generation service may still return transient API response status `success`, but scheduler evidence normalizes that outcome to `succeeded`.
 
 ---
 
@@ -315,7 +315,6 @@ Recommended implementation direction:
 
 Current gap summary:
 
-- Durable `received` and `unauthorized` attempt evidence is not yet persisted.
-- Structured skip reason codes are not yet persisted as first-class scheduler evidence.
-- The app does not yet expose a dedicated scheduler health read model.
+- Repo-owned deployment verification and first-live validation workflows now exist, but a real production validation still must be executed and recorded by an operator.
+- Release readiness still depends on first-live proof that the deployed scheduler fired, authorized correctly, and surfaced the expected manager health evidence.
 - Production verification of live scheduler firing remains outside local code and will rely on later docs and runbook work.

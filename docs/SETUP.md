@@ -125,6 +125,11 @@ The app exposes a protected scheduled-generation route at:
 
 Expected scheduled attempt states, skip reasons, and manager-safe operational meanings are defined in [docs/SCHEDULER_VERIFICATION_CONTRACT.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/SCHEDULER_VERIFICATION_CONTRACT.md).
 
+Deployment validation and first-live proof should use:
+
+- [docs/SCHEDULER_DEPLOYMENT_VERIFICATION_RUNBOOK.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/SCHEDULER_DEPLOYMENT_VERIFICATION_RUNBOOK.md)
+- [docs/SCHEDULER_FIRST_LIVE_VALIDATION_WORKFLOW.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/SCHEDULER_FIRST_LIVE_VALIDATION_WORKFLOW.md)
+
 Provide either of these headers:
 
 - `Authorization: Bearer <CRON_SECRET>`
@@ -147,7 +152,8 @@ Production checklist for auto-generation:
 1. Deploy the app with `vercel.json` included.
 2. Set `CRON_SECRET` in the deployment environment.
 3. Set the desired generation time, timezone, and business days in `/settings`.
-4. Confirm the first production day by checking the board and activity feed after the configured local generation time.
+4. Follow the scheduler deployment runbook before relying on autonomous generation.
+5. Record the first live validation using the first-live validation workflow after the configured local generation time.
 
 Use the scheduler verification contract as the meaning baseline for what you should expect to see:
 
@@ -155,6 +161,8 @@ Use the scheduler verification contract as the meaning baseline for what you sho
 - `skipped` means the route fired but intentionally did not generate
 - `succeeded` means the autonomous generation path completed cleanly
 - `failed` means the scheduler path needs operational attention before it is considered healthy
+
+For release gating, do not stop at a casual spot-check. Use the release checklist and the first-live validation workflow to capture the first real scheduled evidence in a repeatable way.
 
 ### Non-Vercel hosting
 
@@ -294,6 +302,7 @@ npx playwright install chromium
 
 - Confirm `CRON_SECRET` is set in `.env`.
 - Confirm the request sends either the bearer token or the `x-cron-secret` header.
+- For deployed environments, use the scheduler deployment runbook to verify both the app runtime secret and the scheduler caller secret wiring.
 
 ### PowerShell blocks npm execution
 

@@ -646,4 +646,95 @@ describe("board read service", () => {
       ])
     );
   });
+
+  it("keeps latest scheduled evidence distinct from the latest manual retry evidence", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const harness = createBoardReadRepositoryHarness({
+      boardDays: [
+        {
+          id: "board-day-3",
+          date: "2026-06-18",
+          generationStatus: BoardGenerationStatus.GENERATED,
+          generatedAt: "2026-06-18T15:10:00.000Z"
+        }
+      ]
+    });
+
+    const result = await getBoardReadModelForDate(manager, "2026-06-18", {
+      repository: harness.repository,
+      generationTasksRepository: createGenerationRunsRepository([
+        {
+          id: "generation-run-manual-1",
+          boardDate: "2026-06-18",
+          startedAt: "2026-06-18T15:08:00.000Z",
+          finishedAt: "2026-06-18T15:10:00.000Z",
+          status: GenerationRunStatus.SUCCEEDED,
+          triggeredBy: GenerationTriggerType.MANUAL,
+          triggeredByUserId: manager?.id ?? null,
+          summary: {
+            tasksCreated: 4,
+            tasksSkippedAsDuplicates: 0,
+            manualTasksPreserved: 1
+          }
+        },
+        {
+          id: "generation-run-scheduled-1",
+          boardDate: "2026-06-18",
+          startedAt: "2026-06-18T14:58:00.000Z",
+          finishedAt: "2026-06-18T15:00:00.000Z",
+          status: GenerationRunStatus.FAILED,
+          triggeredBy: GenerationTriggerType.SCHEDULED,
+          summary: {
+            failureCode: "TASK_CREATION_FAILED",
+            failureStage: "GENERATION_RUN"
+          },
+          errorMessage: "Scheduled generation failed before the board was created."
+        }
+      ]),
+      schedulerAttemptsRepository: createSchedulerAttemptsRepository([
+        {
+          id: "scheduler-attempt-failed",
+          boardDate: "2026-06-18",
+          receivedAt: "2026-06-18T14:58:00.000Z",
+          completedAt: "2026-06-18T15:00:00.000Z",
+          attemptState: SchedulerAttemptState.FAILED,
+          authorizationOutcome: SchedulerAuthorizationOutcome.AUTHORIZED,
+          generationRunId: "generation-run-scheduled-1",
+          managerMessage: "Scheduled generation failed before the board was created.",
+          failureCode: "TASK_CREATION_FAILED",
+          failureStage: "GENERATION_RUN",
+          safeErrorMessage: "Scheduled generation failed before the board was created."
+        }
+      ]),
+      appSettingsRepository: createAppSettingsRepository(),
+      now: () => new Date("2026-06-18T16:00:00.000Z")
+    });
+
+    expect(result.schedulerHealth).toMatchObject({
+      status: "attention",
+      guidance: {
+        code: "scheduled_failed",
+        safeToRetry: true
+      },
+      latestScheduledAttempt: {
+        id: "scheduler-attempt-failed",
+        attemptState: "failed",
+        generationRunId: "generation-run-scheduled-1"
+      },
+      latestManualRun: {
+        generationRunId: "generation-run-manual-1",
+        triggeredBy: "manual",
+        status: "success"
+      },
+      lastSuccess: {
+        generationRunId: "generation-run-manual-1",
+        triggeredBy: "manual"
+      },
+      lastFailure: {
+        generationRunId: "generation-run-scheduled-1",
+        triggeredBy: "scheduled"
+      }
+    });
+  });
 });

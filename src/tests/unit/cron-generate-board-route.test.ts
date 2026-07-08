@@ -83,6 +83,26 @@ describe("scheduled generation cron route", () => {
     expect(mocks.recordSchedulerAttemptResult).not.toHaveBeenCalled();
   });
 
+  it("records a secret mismatch as unauthorized scheduler evidence", async () => {
+    const response = await GET(
+      new Request("http://localhost/api/cron/generate-board", {
+        headers: {
+          "x-cron-secret": "wrong-secret"
+        }
+      })
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({
+      error: "Unauthorized cron request."
+    });
+    expect(mocks.recordUnauthorizedSchedulerAttempt).toHaveBeenCalledWith(
+      "scheduler-attempt-1",
+      "SECRET_MISMATCH"
+    );
+    expect(mocks.triggerScheduledBoardGeneration).not.toHaveBeenCalled();
+  });
+
   it("returns a structured success response for authorized requests", async () => {
     mocks.triggerScheduledBoardGeneration.mockResolvedValue({
       status: "success",
@@ -165,6 +185,57 @@ describe("scheduled generation cron route", () => {
       alreadyExistingTaskCount: null,
       summary: null,
       errorMessage: "Input loading failed.",
+      latestGeneration: null
+    });
+  });
+
+  it("returns a structured skipped response for authorized requests", async () => {
+    mocks.triggerScheduledBoardGeneration.mockResolvedValue({
+      status: "skipped",
+      boardDate: "2026-06-17",
+      generationRunId: null,
+      createdTaskCount: 0,
+      skippedExistingTaskCount: 0,
+      alreadyExistingTaskCount: null,
+      skipReasonCode: "BEFORE_GENERATION_TIME",
+      summary:
+        "Skipped scheduled generation because America/Chicago has not reached the configured daily generation time of 09:00.",
+      errorMessage: null,
+      failureCode: null,
+      failureStage: null,
+      failureDiagnostic: null,
+      latestGeneration: null
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/cron/generate-board", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer dispatch-cron-secret"
+        }
+      })
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      status: "skipped",
+      boardDate: "2026-06-17",
+      skipReasonCode: "BEFORE_GENERATION_TIME"
+    });
+    expect(mocks.recordSchedulerAttemptResult).toHaveBeenCalledWith("scheduler-attempt-1", {
+      status: "skipped",
+      boardDate: "2026-06-17",
+      generationRunId: null,
+      createdTaskCount: 0,
+      skippedExistingTaskCount: 0,
+      alreadyExistingTaskCount: null,
+      skipReasonCode: "BEFORE_GENERATION_TIME",
+      summary:
+        "Skipped scheduled generation because America/Chicago has not reached the configured daily generation time of 09:00.",
+      errorMessage: null,
+      failureCode: null,
+      failureStage: null,
+      failureDiagnostic: null,
       latestGeneration: null
     });
   });
