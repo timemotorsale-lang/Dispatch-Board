@@ -190,14 +190,14 @@ export function AppointmentAutomationOperationsConsolePanel({ initialConsole }: 
     <div className="appointment-catalog-admin-stack">
       <section className="appointment-catalog-metric-grid">
         <article className="settings-summary-card">
-          <span>Total rules</span>
+          <span>Visible rules</span>
           <strong>{consoleModel.ruleHealth.totalRules}</strong>
-          <small>{consoleModel.ruleHealth.activeRules} active</small>
+          <small>{consoleModel.ruleHealth.configuredRules} configured</small>
         </article>
         <article className="settings-summary-card">
-          <span>Paused</span>
-          <strong>{consoleModel.ruleHealth.pausedRules}</strong>
-          <small>{consoleModel.ruleHealth.draftRules} draft</small>
+          <span>Catalog candidates</span>
+          <strong>{consoleModel.ruleHealth.candidateRules}</strong>
+          <small>{consoleModel.ruleHealth.activeRules} active</small>
         </article>
         <article className="settings-summary-card">
           <span>Failure queue</span>
@@ -208,6 +208,38 @@ export function AppointmentAutomationOperationsConsolePanel({ initialConsole }: 
           <span>Pending review</span>
           <strong>{consoleModel.ruleHealth.pendingReviewItems}</strong>
           <small>{consoleModel.executions.length} recent executions</small>
+        </article>
+      </section>
+
+      <section className="settings-overview-grid">
+        <article className="panel-card settings-callout-card">
+          <strong>Catalog governance</strong>
+          <h2>{consoleModel.catalogGovernance.displayedVersionTitle}</h2>
+          <p>
+            {formatLabel(consoleModel.catalogGovernance.displayedSource)} source ·{" "}
+            {formatLabel(consoleModel.catalogGovernance.displayedVersionStatus)} version
+          </p>
+          <small>
+            Approval {formatLabel(consoleModel.catalogGovernance.approvalStatus)}
+            {consoleModel.catalogGovernance.activationBlocked
+              ? " · catalog activation is currently blocked"
+              : " · catalog activation is currently allowed"}
+          </small>
+        </article>
+
+        <article className="panel-card settings-callout-card">
+          <strong>Validation posture</strong>
+          <h2>
+            {consoleModel.catalogGovernance.validation.isValid ? "Catalog valid" : "Catalog needs review"}
+          </h2>
+          <p>
+            {consoleModel.catalogGovernance.validation.errors.length} errors ·{" "}
+            {consoleModel.catalogGovernance.validation.warnings.length} warnings
+          </p>
+          <small>
+            Rules inherit validation context from the displayed appointment catalog and need
+            simulation evidence before activation.
+          </small>
         </article>
       </section>
 
@@ -231,7 +263,8 @@ export function AppointmentAutomationOperationsConsolePanel({ initialConsole }: 
                 <span>{rule.status}</span>
                 <strong>{rule.name}</strong>
                 <small>
-                  {formatLabel(rule.triggerCode)} • {rule.purposeCode}
+                  {formatLabel(rule.triggerCode)} • {rule.purposeCode} •{" "}
+                  {rule.source === "CATALOG_CANDIDATE" ? "Catalog candidate" : "Configured rule"}
                 </small>
               </button>
             ))}
@@ -314,6 +347,87 @@ export function AppointmentAutomationOperationsConsolePanel({ initialConsole }: 
             </div>
           </form>
 
+          {selectedRule ? (
+            <div className="appointment-admin-record-list">
+              <div className="appointment-admin-record">
+                <span>Rule source</span>
+                <strong>
+                  {selectedRule.source === "CATALOG_CANDIDATE" ? "Catalog candidate" : "Configured rule"}
+                </strong>
+                <small>
+                  {selectedRule.source === "CATALOG_CANDIDATE"
+                    ? "Save the candidate as a draft before lifecycle actions can run."
+                    : "Persisted rule with lifecycle and audit controls enabled."}
+                </small>
+              </div>
+              <div className="appointment-admin-record">
+                <span>Validation</span>
+                <strong>{selectedRule.validation.isValid ? "Valid" : "Blocked"}</strong>
+                <small>
+                  {selectedRule.validation.errors.length} errors •{" "}
+                  {selectedRule.validation.warnings.length} warnings
+                </small>
+              </div>
+              <div className="appointment-admin-record">
+                <span>Simulation evidence</span>
+                <strong>{selectedRule.simulation.hasEvidence ? "Available" : "Missing"}</strong>
+                <small>
+                  {selectedRule.simulation.generatedTaskCount} tasks •{" "}
+                  {selectedRule.simulation.generatesFollowUpAppointment
+                    ? "follow-up appointment"
+                    : "no appointment"}
+                </small>
+              </div>
+            </div>
+          ) : null}
+
+          {selectedRule ? (
+            <div className="appointment-admin-record-list">
+              <div className="appointment-admin-record">
+                <span>Activation readiness</span>
+                <strong>{selectedRule.activation.canActivate ? "Ready" : "Blocked"}</strong>
+                <small>
+                  Missing-input behavior: {formatLabel(selectedRule.simulation.missingInputBehavior)}
+                </small>
+              </div>
+              <div className="appointment-admin-record">
+                <span>Simulation impact</span>
+                <strong>
+                  {selectedRule.simulation.generatedFollowUpAppointmentStatus ?? "Task-only or no appointment"}
+                </strong>
+                <small>
+                  {selectedRule.simulation.managerReviewRequired
+                    ? "Simulation predicts manager review involvement."
+                    : "Simulation does not require manager review."}
+                </small>
+              </div>
+            </div>
+          ) : null}
+
+          {selectedRule?.validation.errors.length ? (
+            <div className="notice notice-danger">
+              {selectedRule.validation.errors.map((errorMessage) => (
+                <p key={errorMessage}>{errorMessage}</p>
+              ))}
+            </div>
+          ) : null}
+
+          {selectedRule?.activation.blockers.length ? (
+            <div className="notice notice-danger">
+              {selectedRule.activation.blockers.map((blocker) => (
+                <p key={blocker}>{blocker}</p>
+              ))}
+            </div>
+          ) : null}
+
+          {selectedRule?.validation.warnings.length ? (
+            <div className="notice">
+              {selectedRule.validation.warnings.map((warning) => (
+                <p key={warning}>{warning}</p>
+              ))}
+            </div>
+          ) : null}
+
           <div className="appointment-catalog-activation-row">
             <label className="field">
               <span>Lifecycle reason</span>
@@ -326,7 +440,7 @@ export function AppointmentAutomationOperationsConsolePanel({ initialConsole }: 
             <div className="form-actions">
               <button
                 className="pill pill-primary"
-                disabled={isPending || !selectedRule}
+                disabled={isPending || !selectedRule || !selectedRule.activation.canActivate}
                 onClick={() => transitionRule("ACTIVATE")}
                 type="button"
               >
@@ -334,7 +448,7 @@ export function AppointmentAutomationOperationsConsolePanel({ initialConsole }: 
               </button>
               <button
                 className="pill pill-secondary"
-                disabled={isPending || !selectedRule}
+                disabled={isPending || !selectedRule || !selectedRule.lifecycle.canPause}
                 onClick={() => transitionRule("PAUSE")}
                 type="button"
               >
@@ -342,7 +456,7 @@ export function AppointmentAutomationOperationsConsolePanel({ initialConsole }: 
               </button>
               <button
                 className="pill pill-danger"
-                disabled={isPending || !selectedRule}
+                disabled={isPending || !selectedRule || !selectedRule.lifecycle.canRetire}
                 onClick={() => transitionRule("RETIRE")}
                 type="button"
               >

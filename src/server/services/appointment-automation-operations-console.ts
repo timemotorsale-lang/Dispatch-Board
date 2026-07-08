@@ -207,6 +207,10 @@ function formatLabel(value: string) {
     .join(" ");
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 function validateRule(input: {
   ruleCode: string;
   triggerCode: string;
@@ -239,6 +243,24 @@ function validateRule(input: {
   };
 }
 
+type RuleValidation = ReturnType<typeof validateRule> & { missingInputBehavior: string };
+type RuleSimulation = ReturnType<typeof simulateAppointmentCatalogAutomation>;
+
+function simulationForPurpose(purposeCode: string, catalog: AppointmentCatalogAutomationAdmin) {
+  const purpose = catalog.purposes.find((candidate) => candidate.code === purposeCode);
+
+  return purpose
+    ? simulateAppointmentCatalogAutomation(
+        {
+          purposeCode,
+          outcomeCode: purpose.outcomeCodes[0] ?? "COMPLETED",
+          followUpDispositionCode: purpose.followUpDispositionCodes[0] ?? "NO_FOLLOW_UP_REQUIRED"
+        },
+        catalog
+      )
+    : null;
+}
+
 function baselineRuleCandidates(catalog: AppointmentCatalogAutomationAdmin) {
   return catalog.automationRules.map((rule) => ({
     id: `candidate-${rule.id}`,
@@ -258,7 +280,7 @@ function baselineRuleCandidates(catalog: AppointmentCatalogAutomationAdmin) {
       purposeCode: rule.purposeCode,
       catalog
     }),
-    simulationSnapshot: null,
+    simulationSnapshot: simulationForPurpose(rule.purposeCode, catalog),
     reason: "Catalog-derived candidate rule.",
     createdByUserId: null,
     activatedByUserId: null,
@@ -270,10 +292,56 @@ function baselineRuleCandidates(catalog: AppointmentCatalogAutomationAdmin) {
   }));
 }
 
-function summarizeRule(rule: AppointmentAutomationRuleRecord) {
+function readRuleValidation(rule: AppointmentAutomationRuleRecord) {
   const validation = rule.validationSnapshot as
     | { isValid?: boolean; errors?: string[]; warnings?: string[] }
     | null;
+
+  return {
+    isValid: Boolean(validation?.isValid ?? true),
+    errors: validation?.errors ?? [],
+    warnings: validation?.warnings ?? []
+  };
+}
+
+function readRuleSimulation(rule: AppointmentAutomationRuleRecord) {
+  return isPlainObject(rule.simulationSnapshot) ? (rule.simulationSnapshot as RuleSimulation) : null;
+}
+
+function summarizeRuleActivation(rule: AppointmentAutomationRuleRecord) {
+  const validation = readRuleValidation(rule);
+  const simulation = readRuleSimulation(rule);
+  const blockers: string[] = [];
+  const isCandidate = rule.id.startsWith("candidate-");
+
+  if (isCandidate) {
+    blockers.push("Save this catalog candidate as a persisted draft before activation.");
+  }
+
+  if (!validation.isValid) {
+    blockers.push("Rule validation must pass before activation.");
+  }
+
+  if (!simulation) {
+    blockers.push("Simulation evidence is required before activation.");
+  }
+
+  if (rule.status === "ACTIVE") {
+    blockers.push("Rule is already active.");
+  }
+
+  return {
+    canActivate: blockers.length === 0,
+    blockers,
+    warnings: validation.warnings
+  };
+}
+
+function summarizeRule(rule: AppointmentAutomationRuleRecord) {
+  const validation = readRuleValidation(rule);
+  const simulation = readRuleSimulation(rule);
+  const activation = summarizeRuleActivation(rule);
+  const isCandidate = rule.id.startsWith("candidate-");
 
   return {
     id: rule.id,
@@ -285,10 +353,34 @@ function summarizeRule(rule: AppointmentAutomationRuleRecord) {
     status: rule.status,
     priority: rule.priority,
     missingInputBehavior: rule.missingInputBehavior,
-    validation: {
-      isValid: Boolean(validation?.isValid ?? true),
-      errors: validation?.errors ?? [],
-      warnings: validation?.warnings ?? []
+    source: isCandidate ? ("CATALOG_CANDIDATE" as const) : ("CONFIGURED_RULE" as const),
+    validation,
+    simulation: simulation
+      ? {
+          hasEvidence: true,
+          warningCount: simulation.validation.warnings.length,
+          generatedTaskCount: simulation.actions.generatedTaskActions.length,
+          generatesFollowUpAppointment: Boolean(simulation.actions.generatedAppointmentAction),
+          generatedFollowUpAppointmentStatus:
+            simulation.actions.generatedAppointmentAction?.status ?? null,
+          managerReviewRequired: simulation.actions.managerReviewRequired,
+          missingInputBehavior: simulation.missingInputBehavior.behavior,
+          blockedByMissingInput: simulation.missingInputBehavior.blocked
+        }
+      : {
+          hasEvidence: false,
+          warningCount: 0,
+          generatedTaskCount: 0,
+          generatesFollowUpAppointment: false,
+          generatedFollowUpAppointmentStatus: null,
+          managerReviewRequired: false,
+          missingInputBehavior: rule.missingInputBehavior,
+          blockedByMissingInput: false
+        },
+    activation,
+    lifecycle: {
+      canPause: !isCandidate && rule.status === "ACTIVE",
+      canRetire: !isCandidate && rule.status !== "RETIRED"
     },
     reason: rule.reason,
     activatedAt: toIso(rule.activatedAt),
@@ -296,6 +388,42 @@ function summarizeRule(rule: AppointmentAutomationRuleRecord) {
     retiredAt: toIso(rule.retiredAt),
     updatedAt: rule.updatedAt.toISOString()
   };
+}
+
+function mergeVisibleRules(
+  persistedRules: AppointmentAutomationRuleRecord[],
+  catalog: AppointmentCatalogAutomationAdmin
+) {
+  const byRuleCode = new Map<string, AppointmentAutomationRuleRecord>();
+
+  for (const rule of persistedRules) {
+    byRuleCode.set(rule.ruleCode, rule);
+  }
+
+  for (const candidate of baselineRuleCandidates(catalog)) {
+    if (!byRuleCode.has(candidate.ruleCode)) {
+      byRuleCode.set(candidate.ruleCode, candidate);
+    }
+  }
+
+  return Array.from(byRuleCode.values()).sort((left, right) => {
+    const leftIsCandidate = left.id.startsWith("candidate-");
+    const rightIsCandidate = right.id.startsWith("candidate-");
+
+    if (leftIsCandidate !== rightIsCandidate) {
+      return leftIsCandidate ? 1 : -1;
+    }
+
+    if (left.status !== right.status) {
+      return left.status.localeCompare(right.status);
+    }
+
+    if (left.priority !== right.priority) {
+      return left.priority - right.priority;
+    }
+
+    return left.ruleCode.localeCompare(right.ruleCode);
+  });
 }
 
 function summarizeExecution(execution: AppointmentAutomationExecutionRecord) {
@@ -752,8 +880,6 @@ export function createAppointmentAutomationOperationsRepository(): AppointmentAu
   };
 }
 
-type RuleValidation = ReturnType<typeof validateRule> & { missingInputBehavior: string };
-
 async function buildRuleDraft(input: RuleMutationInput, catalog: AppointmentCatalogAutomationAdmin) {
   const ruleCode = normalizeCode(input.ruleCode, "Rule code");
   const triggerCode = normalizeCode(input.triggerCode, "Trigger code");
@@ -763,16 +889,7 @@ async function buildRuleDraft(input: RuleMutationInput, catalog: AppointmentCata
     ...validateRule({ ruleCode, triggerCode, purposeCode, catalog }),
     missingInputBehavior: purpose?.missingInputBehavior ?? "CREATE_REVIEW_ITEM"
   };
-  const simulation = purpose
-    ? simulateAppointmentCatalogAutomation(
-        {
-          purposeCode,
-          outcomeCode: purpose.outcomeCodes[0] ?? "COMPLETED",
-          followUpDispositionCode: purpose.followUpDispositionCodes[0] ?? "NO_FOLLOW_UP_REQUIRED"
-        },
-        catalog
-      )
-    : null;
+  const simulation = simulationForPurpose(purposeCode, catalog);
 
   if (!validation.isValid) {
     throw new Error(`Automation rule is invalid: ${validation.errors.join(" ")}`);
@@ -805,17 +922,29 @@ export async function getAppointmentAutomationOperationsConsoleForManager(
     repository.listRuleEvents(organizationId, 10),
     repository.listExecutionEvents(organizationId, 10)
   ]);
-  const rules = persistedRules.length > 0 ? persistedRules : baselineRuleCandidates(catalog);
+  const rules = mergeVisibleRules(persistedRules, catalog);
   const summarizedRules = rules.map(summarizeRule);
   const summarizedExecutions = executions.map(summarizeExecution);
   const failedExecutions = summarizedExecutions.filter((execution) =>
     ["FAILED_RETRYABLE", "FAILED_TERMINAL", "REVIEW_REQUIRED"].includes(execution.status)
   );
+  const configuredRuleCount = summarizedRules.filter((rule) => rule.source === "CONFIGURED_RULE").length;
+  const candidateRuleCount = summarizedRules.filter((rule) => rule.source === "CATALOG_CANDIDATE").length;
 
   return {
     catalogVersion: catalog.versioning.displayedVersion,
+    catalogGovernance: {
+      displayedSource: catalog.versioning.displayedSource,
+      displayedVersionTitle: catalog.versioning.displayedVersion.title,
+      displayedVersionStatus: catalog.versioning.displayedVersion.status,
+      approvalStatus: catalog.versioning.approval.status,
+      activationBlocked: catalog.versioning.approval.activationBlocked,
+      validation: catalog.versioning.validation
+    },
     ruleHealth: {
       totalRules: summarizedRules.length,
+      configuredRules: configuredRuleCount,
+      candidateRules: candidateRuleCount,
       activeRules: summarizedRules.filter((rule) => rule.status === "ACTIVE").length,
       draftRules: summarizedRules.filter((rule) => rule.status === "DRAFT").length,
       pausedRules: summarizedRules.filter((rule) => rule.status === "PAUSED").length,
@@ -865,12 +994,31 @@ export async function transitionAppointmentAutomationRuleForManager(
 ) {
   assertCanManageAutomation(user);
 
-  await repository.transitionRule({
+  const normalizedInput = {
     ruleCode: normalizeCode(input.ruleCode, "Rule code"),
     action: input.action,
     reason: normalizeReason(input.reason),
     actorUserId: user.id
-  });
+  } as const;
+
+  if (normalizedInput.action === "ACTIVATE") {
+    const existingRule =
+      (await repository
+        .listRules(INITIAL_ORGANIZATION.id)
+        .then((rules) => rules.find((rule) => rule.ruleCode === normalizedInput.ruleCode) ?? null));
+
+    if (!existingRule) {
+      throw new Error("Automation rule is not configured.");
+    }
+
+    const activation = summarizeRuleActivation(existingRule);
+
+    if (!activation.canActivate) {
+      throw new Error(`Automation rule cannot activate: ${activation.blockers.join(" ")}`);
+    }
+  }
+
+  await repository.transitionRule(normalizedInput);
 
   return getAppointmentAutomationOperationsConsoleForManager(user, repository);
 }
