@@ -64,6 +64,10 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Resolution Workbench");
     expect(markup).toContain("Queue focus");
     expect(markup).toContain("Select visible");
+    expect(markup).toContain("Workflow Continuity");
+    expect(markup).toContain("Current Workflow Focus");
+    expect(markup).toContain("Recent Workflow Trail");
+    expect(markup).toContain("No active workflow context");
     expect(markup).toContain("Command Center Audit Timeline");
     expect(markup).toContain("Timeline focus");
     expect(markup).toContain("Reporting &amp; Exports");
@@ -1234,6 +1238,22 @@ describe("appointment board shell", () => {
           commandCenterHandoffNote: "Incoming manager should review no-shows first.",
           notificationCenterFilter: "needs-review",
           showResolvedNotificationFailures: true,
+          commandCenterWorkflowContext: {
+            id: "workflow-1",
+            source: "search",
+            label: "APT-10245 from search",
+            detail: "Reopen from cross-appointment search.",
+            appointmentId: "APT-10245",
+            viewMode: "day",
+            boardLaneMode: "staff",
+            resolutionFilter: "all",
+            reportQueueFilter: "all",
+            commandCenterSearchPreset: "all",
+            commandCenterSearchScope: "appointments",
+            auditTimelineFilter: "all",
+            notificationCenterFilter: "all",
+            timestampLabel: "Just now"
+          },
           notificationPreferences: [
             {
               id: "preference-manager-inbox",
@@ -1247,6 +1267,22 @@ describe("appointment board shell", () => {
       commandCenterHandoffNote: "Incoming manager should review no-shows first.",
       notificationCenterFilter: "needs-review",
       showResolvedNotificationFailures: true,
+      commandCenterWorkflowContext: {
+        id: "workflow-1",
+        source: "search",
+        label: "APT-10245 from search",
+        detail: "Reopen from cross-appointment search.",
+        appointmentId: "APT-10245",
+        viewMode: "day",
+        boardLaneMode: "staff",
+        resolutionFilter: "all",
+        reportQueueFilter: "all",
+        commandCenterSearchPreset: "all",
+        commandCenterSearchScope: "appointments",
+        auditTimelineFilter: "all",
+        notificationCenterFilter: "all",
+        timestampLabel: "Just now"
+      },
       notificationPreferences: [
         {
           id: "preference-manager-inbox",
