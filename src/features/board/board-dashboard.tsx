@@ -59,11 +59,40 @@ function getRecommendationSummary(task: Task) {
   return null;
 }
 
-export function BoardHero({ boardDate, status, toolbar }: { boardDate: string; status?: string; toolbar: ReactNode }) {
+function getBoardStatusLabel(
+  generationStatus: string | undefined,
+  latestGeneration: BoardReadModel["latestGeneration"] | undefined
+) {
+  if (latestGeneration?.status === "failed" || generationStatus === "FAILED") {
+    return "Generation needs attention";
+  }
+
+  if (latestGeneration?.status === "running" || generationStatus === "IN_PROGRESS") {
+    return "Generation running";
+  }
+
+  if (generationStatus === "GENERATED") {
+    return "Board active";
+  }
+
+  return "Board pending";
+}
+
+export function BoardHero({
+  boardDate,
+  generationStatus,
+  latestGeneration,
+  toolbar
+}: {
+  boardDate: string;
+  generationStatus?: string;
+  latestGeneration?: BoardReadModel["latestGeneration"];
+  toolbar: ReactNode;
+}) {
   return (
     <section className="board-hero">
       <div><p className="section-kicker">Daily dispatch board</p><h1>{formatBoardDate(boardDate)}</h1><p>One board. Everyone in the loop.</p></div>
-      <div className="board-hero-actions"><span className="operating-status"><span />{status === "GENERATED" ? "Board active" : "Board pending"}</span>{toolbar}</div>
+      <div className="board-hero-actions"><span className="operating-status"><span />{getBoardStatusLabel(generationStatus, latestGeneration)}</span>{toolbar}</div>
     </section>
   );
 }
@@ -202,12 +231,16 @@ function TaskCard({ task }: { task: Task }) {
 
 export function TaskBoard({
   boardDate,
+  generationStatus,
+  latestGeneration,
   isFiltered,
   isManager,
   presentation,
   taskCount
 }: {
   boardDate: string;
+  generationStatus: string;
+  latestGeneration: BoardReadModel["latestGeneration"];
   isFiltered: boolean;
   isManager: boolean;
   presentation: BoardPresentation;
@@ -220,9 +253,13 @@ export function TaskBoard({
           <EmptyStateCard
             eyebrow="Board empty"
             message={
-              isManager
-                ? "This board exists, but no tasks have been created for it yet. Generate the board again or add a manual task to get the day moving."
-                : "This board exists, but no work has been added yet. A manager can generate the board or create the first task."
+              generationStatus === "FAILED"
+                ? isManager
+                  ? `Generation did not finish cleanly for this board. ${latestGeneration?.errorMessage ?? "Review the generation status above and retry the board to rebuild today's plan."}`
+                  : "Generation did not finish cleanly for this board yet. A manager can retry it to rebuild today's plan."
+                : isManager
+                  ? "This board exists, but no tasks have been created for it yet. Generate the board again or add a manual task to get the day moving."
+                  : "This board exists, but no work has been added yet. A manager can generate the board or create the first task."
             }
             title={`No tasks on ${formatBoardDate(boardDate, true)}`}
           />

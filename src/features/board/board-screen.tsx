@@ -298,7 +298,8 @@ export function BoardScreen({
     <section className="dispatch-board-page">
       <BoardHero
         boardDate={loadState.date}
-        status={board?.generationStatus}
+        generationStatus={board?.generationStatus}
+        latestGeneration={board?.latestGeneration}
         toolbar={
           <>
             <span className={getLiveStatusTone(isRefreshing)}>
@@ -307,7 +308,9 @@ export function BoardScreen({
             <BoardToolbar
               assignableUsers={assignableUsers}
               boardDate={selectedBoardDate}
+              generationStatus={board?.generationStatus}
               isManager={isManager}
+              latestGeneration={board?.latestGeneration}
               onBoardDateChange={(date) => {
                 setSelectedBoardDate(date);
                 refreshModeRef.current = "blocking";
@@ -372,6 +375,8 @@ export function BoardScreen({
               />
               <TaskBoard
                 boardDate={loadState.date}
+                generationStatus={board.generationStatus}
+                latestGeneration={board.latestGeneration}
                 isFiltered={isFiltered}
                 isManager={isManager}
                 presentation={presentation}

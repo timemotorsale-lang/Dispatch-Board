@@ -85,6 +85,13 @@ export type FailGenerationRunInput = {
 export type GenerationTasksRepository = {
   supportsActivityEvents?: boolean;
   getOrCreateBoardDay(boardDate: string): Promise<BoardDayRecord>;
+  markBoardDayGenerationStarted(boardDayId: string): Promise<BoardDayRecord>;
+  markBoardDayGenerationSucceeded(input: {
+    boardDayId: string;
+    generatedAt: Date;
+    generatedByUserId: string | null;
+  }): Promise<BoardDayRecord>;
+  markBoardDayGenerationFailed(boardDayId: string): Promise<BoardDayRecord>;
   listExistingGeneratedTasks(boardDayId: string): Promise<ExistingGeneratedTaskRecord[]>;
   countManualTasks(boardDayId: string): Promise<number>;
   createGeneratedTask(input: CreateGeneratedTaskInput): Promise<CreatedGeneratedTaskRecord | null>;
@@ -111,6 +118,41 @@ export function createGenerationTasksRepository(
         update: {},
         create: {
           date: toBoardDateValue(boardDate)
+        }
+      });
+    },
+
+    async markBoardDayGenerationStarted(boardDayId) {
+      return database.boardDay.update({
+        where: {
+          id: boardDayId
+        },
+        data: {
+          generationStatus: "IN_PROGRESS"
+        }
+      });
+    },
+
+    async markBoardDayGenerationSucceeded(input) {
+      return database.boardDay.update({
+        where: {
+          id: input.boardDayId
+        },
+        data: {
+          generationStatus: "GENERATED",
+          generatedAt: input.generatedAt,
+          generatedByUserId: input.generatedByUserId
+        }
+      });
+    },
+
+    async markBoardDayGenerationFailed(boardDayId) {
+      return database.boardDay.update({
+        where: {
+          id: boardDayId
+        },
+        data: {
+          generationStatus: "FAILED"
         }
       });
     },

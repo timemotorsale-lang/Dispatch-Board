@@ -1,4 +1,5 @@
 ﻿import {
+  BoardGenerationStatus,
   GenerationRunStatus,
   GenerationTriggerType,
   type GenerationRun,
@@ -378,6 +379,7 @@ export async function createMissingGeneratedTasksForDate(
 
   let phase = "loading_inputs";
   let boardDayId: string | null = null;
+  let boardWasGeneratedBeforeAttempt = false;
   let usersConsidered = 0;
   let templatesConsidered = 0;
   let tasksCreated = 0;
@@ -393,6 +395,14 @@ export async function createMissingGeneratedTasksForDate(
     const boardDay = await repository.getOrCreateBoardDay(normalizedBoardDate);
 
     boardDayId = boardDay.id;
+    boardWasGeneratedBeforeAttempt =
+      boardDay.generationStatus === BoardGenerationStatus.GENERATED || boardDay.generatedAt !== null;
+
+    if (!boardWasGeneratedBeforeAttempt) {
+      phase = "marking_board_day_in_progress";
+      await repository.markBoardDayGenerationStarted(boardDay.id);
+    }
+
     phase = "building_candidates";
     const taskCandidates = buildGeneratedTaskCandidates(
       normalizedBoardDate,
@@ -450,6 +460,13 @@ export async function createMissingGeneratedTasksForDate(
       durationMs
     };
 
+    phase = "marking_board_day_generated";
+    await repository.markBoardDayGenerationSucceeded({
+      boardDayId: boardDay.id,
+      generatedAt: finishedAt,
+      generatedByUserId: triggerMetadata.triggeredByUserId
+    });
+
     await repository.completeGenerationRun({
       id: generationRun.id,
       finishedAt,
@@ -486,6 +503,14 @@ export async function createMissingGeneratedTasksForDate(
       tasksAlreadyExisting,
       manualTasksPreserved
     };
+
+    if (boardDayId && !boardWasGeneratedBeforeAttempt) {
+      try {
+        await repository.markBoardDayGenerationFailed(boardDayId);
+      } catch {
+        // Preserve the original failure while making a best effort to reflect board state.
+      }
+    }
 
     await repository.failGenerationRun({
       id: generationRun.id,

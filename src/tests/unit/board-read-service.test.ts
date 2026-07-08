@@ -1,6 +1,9 @@
 import {
   BoardGenerationStatus,
   BusinessDay,
+  GenerationRunStatus,
+  GenerationTriggerType,
+  Prisma,
   TaskSourceType,
   TaskStatus,
   WorkflowArea,
@@ -106,6 +109,39 @@ function createBoardReadRepositoryHarness(options: {
   };
 }
 
+function createGenerationRunsRepository(
+  runs: Array<{
+    id: string;
+    boardDate: string;
+    startedAt: string;
+    finishedAt?: string | null;
+    status: GenerationRunStatus;
+    triggeredBy: GenerationTriggerType;
+    triggeredByUserId?: string | null;
+    summary: Prisma.JsonValue;
+    errorMessage?: string | null;
+  }> = []
+) {
+  return {
+    async listGenerationRunsForDate(boardDate: string) {
+      return runs
+        .filter((run) => run.boardDate === boardDate)
+        .map((run) => ({
+          id: run.id,
+          boardDate: new Date(`${run.boardDate}T00:00:00.000Z`),
+          startedAt: new Date(run.startedAt),
+          finishedAt: run.finishedAt ? new Date(run.finishedAt) : null,
+          status: run.status,
+          triggeredBy: run.triggeredBy,
+          triggeredByUserId: run.triggeredByUserId ?? null,
+          summary: run.summary,
+          errorMessage: run.errorMessage ?? null
+        }))
+        .sort((left, right) => right.startedAt.getTime() - left.startedAt.getTime());
+    }
+  };
+}
+
 function createAppSettingsRepository() {
   const settings: AppSetting = {
     id: "dispatch-board-settings",
@@ -207,7 +243,22 @@ describe("board read service", () => {
     });
 
     const result = await getBoardReadModelForDate(staffUser, "2026-06-17", {
-      repository: harness.repository
+      repository: harness.repository,
+      generationTasksRepository: createGenerationRunsRepository([
+        {
+          id: "generation-run-1",
+          boardDate: "2026-06-17",
+          startedAt: "2026-06-17T14:28:00.000Z",
+          finishedAt: "2026-06-17T14:30:00.000Z",
+          status: GenerationRunStatus.SUCCEEDED,
+          triggeredBy: GenerationTriggerType.SCHEDULED,
+          summary: {
+            tasksCreated: 2,
+            tasksSkippedAsDuplicates: 0,
+            manualTasksPreserved: 0
+          }
+        }
+      ])
     });
 
     expect(result).toMatchObject({
@@ -216,6 +267,13 @@ describe("board read service", () => {
         id: "board-day-1",
         date: "2026-06-17",
         generationStatus: "GENERATED",
+        latestGeneration: {
+          generationRunId: "generation-run-1",
+          status: "success",
+          triggeredBy: "scheduled",
+          attemptedAt: "2026-06-17T14:30:00.000Z",
+          summary: "2 tasks created • 0 duplicates skipped • 0 manual tasks preserved"
+        },
         taskCount: 2,
         statusCounts: {
           IN_PROGRESS: 1,

@@ -269,6 +269,16 @@ function createGenerationTasksHarness(
   let tasks = [...(options.tasks ?? [])];
   let generationRuns = [...(options.generationRuns ?? [])];
 
+  function requireBoardDay(boardDayId: string) {
+    const boardDay = boardDays.find((candidate) => candidate.id === boardDayId);
+
+    if (!boardDay) {
+      throw new Error(`Unknown board day ${boardDayId}.`);
+    }
+
+    return boardDay;
+  }
+
   const repository: NonNullable<CreateMissingGeneratedTasksDependencies["repository"]> = {
     async getOrCreateBoardDay(boardDate) {
       const boardDateValue = new Date(`${boardDate}T00:00:00.000Z`);
@@ -293,6 +303,32 @@ function createGenerationTasksHarness(
       boardDays = [...boardDays, createdBoardDay];
 
       return createdBoardDay;
+    },
+
+    async markBoardDayGenerationStarted(boardDayId) {
+      const boardDay = requireBoardDay(boardDayId);
+
+      boardDay.generationStatus = BoardGenerationStatus.IN_PROGRESS;
+
+      return boardDay;
+    },
+
+    async markBoardDayGenerationSucceeded(input) {
+      const boardDay = requireBoardDay(input.boardDayId);
+
+      boardDay.generationStatus = BoardGenerationStatus.GENERATED;
+      boardDay.generatedAt = input.generatedAt;
+      boardDay.generatedByUserId = input.generatedByUserId;
+
+      return boardDay;
+    },
+
+    async markBoardDayGenerationFailed(boardDayId) {
+      const boardDay = requireBoardDay(boardDayId);
+
+      boardDay.generationStatus = BoardGenerationStatus.FAILED;
+
+      return boardDay;
     },
 
     async listExistingGeneratedTasks(boardDayId) {
@@ -512,6 +548,13 @@ describe("generation tasks service", () => {
     ]);
 
     expect(harness.readBoardDays()).toHaveLength(1);
+    expect(harness.readBoardDays()[0]).toEqual(
+      expect.objectContaining({
+        generationStatus: BoardGenerationStatus.GENERATED,
+        generatedAt: new Date("2026-06-17T08:00:05.000Z"),
+        generatedByUserId: "user-manager"
+      })
+    );
     expect(harness.readTasks()).toEqual([
       expect.objectContaining({
         title: "Review inventory status",
@@ -913,6 +956,7 @@ describe("generation tasks service", () => {
         }
       })
     ]);
+    expect(harness.readBoardDays()).toEqual([]);
     expect(harness.readTasks()).toHaveLength(0);
   });
 
@@ -1026,6 +1070,13 @@ describe("generation tasks service", () => {
         })
       })
     );
+    expect(harness.readBoardDays()).toEqual([
+      expect.objectContaining({
+        generationStatus: BoardGenerationStatus.FAILED,
+        generatedAt: null,
+        generatedByUserId: null
+      })
+    ]);
     expect(harness.readTasks()).toEqual([
       expect.objectContaining({
         sourceTemplateId: "template-inventory"

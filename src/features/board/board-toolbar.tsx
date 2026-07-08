@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 
 import { useRouter } from "next/navigation";
 
+import type { BoardReadLatestGeneration } from "@/server/services/board-read";
 import type { ActiveUserSummary } from "@/server/services/user-summary";
 
 import { formatBoardEnumLabel } from "./board-grouping";
@@ -33,7 +34,9 @@ type ManualTaskCreateResponse = {
 type BoardToolbarProps = {
   assignableUsers: ActiveUserSummary[];
   boardDate: string;
+  generationStatus: string | undefined;
   isManager: boolean;
+  latestGeneration: BoardReadLatestGeneration | null | undefined;
   onBoardDateChange(boardDate: string): void;
   onBoardRefreshRequested(): void;
 };
@@ -119,10 +122,86 @@ function buildBoardUrl(boardDate: string) {
   return `/board?date=${encodeURIComponent(boardDate)}`;
 }
 
+function formatGenerationTimestamp(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    month: "short",
+    day: "numeric"
+  }).format(new Date(value));
+}
+
+function getGenerationHealthMessage(
+  generationStatus: string | undefined,
+  latestGeneration: BoardReadLatestGeneration | null | undefined,
+  isManager: boolean
+) {
+  if (latestGeneration?.status === "failed") {
+    return {
+      tone: "danger" as const,
+      message: `Last ${latestGeneration.triggeredBy === "scheduled" ? "automatic" : "manual"} run failed at ${formatGenerationTimestamp(latestGeneration.attemptedAt)}.`,
+      detail:
+        latestGeneration.errorMessage ??
+        latestGeneration.summary ??
+        (isManager
+          ? "Retry is safe after you review the failure."
+          : "A manager can review the failure and retry safely.")
+    };
+  }
+
+  if (latestGeneration?.status === "running") {
+    return {
+      tone: "neutral" as const,
+      message: `${latestGeneration.triggeredBy === "scheduled" ? "Automatic" : "Manual"} generation is running.`,
+      detail: `Started ${formatGenerationTimestamp(latestGeneration.startedAt)}.`
+    };
+  }
+
+  if (latestGeneration?.status === "success") {
+    return {
+      tone: "neutral" as const,
+      message: `Last ${latestGeneration.triggeredBy === "scheduled" ? "automatic" : "manual"} run succeeded at ${formatGenerationTimestamp(latestGeneration.attemptedAt)}.`,
+      detail: latestGeneration.summary ?? "The board generation service completed successfully."
+    };
+  }
+
+  if (generationStatus === "FAILED") {
+    return {
+      tone: "danger" as const,
+      message: "Board generation needs attention.",
+      detail: isManager
+        ? "The board exists, but no successful generation run is recorded for it yet. Retry is safe."
+        : "The board exists, but no successful generation run is recorded for it yet."
+    };
+  }
+
+  if (generationStatus === "IN_PROGRESS") {
+    return {
+      tone: "neutral" as const,
+      message: "Board generation is in progress.",
+      detail: "Refresh in a moment to see whether the run completed cleanly."
+    };
+  }
+
+  if (generationStatus === "NOT_STARTED") {
+    return {
+      tone: "neutral" as const,
+      message: "No generation run has completed for this board yet.",
+      detail: isManager
+        ? "The scheduler may not have reached the configured time yet, or a manager can trigger the first run."
+        : "The scheduler may not have reached the configured time yet."
+    };
+  }
+
+  return null;
+}
+
 export function BoardToolbar({
   assignableUsers,
   boardDate,
+  generationStatus,
   isManager,
+  latestGeneration,
   onBoardDateChange,
   onBoardRefreshRequested
 }: BoardToolbarProps) {
@@ -134,6 +213,7 @@ export function BoardToolbar({
   const [taskFormState, setTaskFormState] = useState<TaskFormState>(() =>
     createInitialTaskFormState(assignableUsers)
   );
+  const generationHealth = getGenerationHealthMessage(generationStatus, latestGeneration, isManager);
 
   function handleDateChange(nextBoardDate: string) {
     if (!nextBoardDate) {
@@ -317,12 +397,32 @@ export function BoardToolbar({
                 onClick={handleGenerate}
                 type="button"
               >
-                {isGeneratePending ? "Generating..." : "Generate Board"}
+                {isGeneratePending
+                  ? "Generating..."
+                  : latestGeneration?.status === "failed"
+                    ? "Retry Board Generation"
+                    : "Generate Board"}
               </button>
             </>
           ) : null}
         </div>
       </div>
+
+      {generationHealth ? (
+        <div
+          className={
+            generationHealth.tone === "danger"
+              ? "notice notice-danger board-feedback"
+              : "notice board-feedback"
+          }
+          role={generationHealth.tone === "danger" ? "alert" : "status"}
+        >
+          <p>
+            <strong>{generationHealth.message}</strong>
+            {generationHealth.detail ? ` ${generationHealth.detail}` : ""}
+          </p>
+        </div>
+      ) : null}
 
       {feedback ? (
         <div

@@ -7,10 +7,15 @@ import {
   type BoardReadRepository,
   type BoardReadTaskRecord
 } from "@/server/repositories/board-read-repository";
+import { createGenerationTasksRepository } from "@/server/repositories/generation-tasks-repository";
 import {
   getGenerationSettings,
   type AppSettingsRepository
 } from "@/server/services/app-settings-service";
+import {
+  getLatestGenerationStatusForDate,
+  type LatestGenerationStatus
+} from "@/server/services/board-generation";
 import { getBoardDateInTimeZone, normalizeBoardDate } from "@/server/validation/board-date";
 
 type BoardReadUserSummary = {
@@ -55,11 +60,27 @@ export type BoardReadTask = {
   completedAt: string | null;
 };
 
+export type BoardReadLatestGeneration = {
+  generationRunId: string;
+  status: "running" | "success" | "failed";
+  triggeredBy: "manual" | "scheduled";
+  startedAt: string;
+  finishedAt: string | null;
+  attemptedAt: string;
+  createdTaskCount: number | null;
+  skippedExistingTaskCount: number | null;
+  alreadyExistingTaskCount: number | null;
+  manualTasksPreservedCount: number | null;
+  summary: string | null;
+  errorMessage: string | null;
+};
+
 export type BoardReadModel = {
   id: string;
   date: string;
   generationStatus: string;
   generatedAt: string | null;
+  latestGeneration: BoardReadLatestGeneration | null;
   taskCount: number;
   statusCounts: Record<string, number>;
   sourceCounts: {
@@ -77,6 +98,10 @@ export type BoardReadLookupResult = {
 
 type BoardReadDependencies = {
   repository?: BoardReadRepository;
+  generationTasksRepository?: Pick<
+    ReturnType<typeof createGenerationTasksRepository>,
+    "listGenerationRunsForDate"
+  >;
 };
 
 type BoardReadTodayDependencies = BoardReadDependencies & {
@@ -211,6 +236,29 @@ function toTaskSummary(task: BoardReadTaskRecord): BoardReadTask {
   };
 }
 
+function toBoardReadLatestGeneration(
+  latestGeneration: LatestGenerationStatus | null
+): BoardReadLatestGeneration | null {
+  if (!latestGeneration) {
+    return null;
+  }
+
+  return {
+    generationRunId: latestGeneration.generationRunId,
+    status: latestGeneration.status,
+    triggeredBy: latestGeneration.triggeredBy,
+    startedAt: latestGeneration.startedAt.toISOString(),
+    finishedAt: latestGeneration.finishedAt?.toISOString() ?? null,
+    attemptedAt: latestGeneration.attemptedAt.toISOString(),
+    createdTaskCount: latestGeneration.createdTaskCount,
+    skippedExistingTaskCount: latestGeneration.skippedExistingTaskCount,
+    alreadyExistingTaskCount: latestGeneration.alreadyExistingTaskCount,
+    manualTasksPreservedCount: latestGeneration.manualTasksPreservedCount,
+    summary: latestGeneration.summary,
+    errorMessage: latestGeneration.errorMessage
+  };
+}
+
 function createStatusCounts(tasks: BoardReadTask[]) {
   const counts = Object.fromEntries(Object.values(TaskStatus).map((status) => [status, 0])) as Record<
     string,
@@ -252,13 +300,15 @@ function toBoardReadModel(
     generatedAt: Date | null;
   },
   boardDate: string,
-  tasks: BoardReadTask[]
+  tasks: BoardReadTask[],
+  latestGeneration: LatestGenerationStatus | null
 ): BoardReadModel {
   return {
     id: boardDay.id,
     date: boardDate,
     generationStatus: boardDay.generationStatus,
     generatedAt: boardDay.generatedAt?.toISOString() ?? null,
+    latestGeneration: toBoardReadLatestGeneration(latestGeneration),
     taskCount: tasks.length,
     statusCounts: createStatusCounts(tasks),
     sourceCounts: createSourceCounts(tasks),
@@ -287,7 +337,13 @@ export async function getBoardReadModelForDate(
 
   const normalizedBoardDate = normalizeBoardDate(boardDate);
   const repository = dependencies.repository ?? createBoardReadRepository();
+  const generationTasksRepository =
+    dependencies.generationTasksRepository ??
+    (dependencies.repository ? null : createGenerationTasksRepository());
   const boardDay = await repository.findBoardDayByDate(normalizedBoardDate);
+  const latestGeneration = generationTasksRepository
+    ? await getLatestGenerationStatusForDate(normalizedBoardDate, generationTasksRepository)
+    : null;
 
   if (!boardDay) {
     return {
@@ -300,7 +356,7 @@ export async function getBoardReadModelForDate(
 
   return {
     date: normalizedBoardDate,
-    board: toBoardReadModel(boardDay, normalizedBoardDate, tasks)
+    board: toBoardReadModel(boardDay, normalizedBoardDate, tasks, latestGeneration)
   };
 }
 
