@@ -152,6 +152,16 @@ function createGenerationTasksRepositoryHarness(
   const tasks: StoredTask[] = [];
   const generationRuns: StoredGenerationRun[] = [];
 
+  function requireBoardDay(boardDayId: string) {
+    const boardDay = boardDays.find((candidate) => candidate.id === boardDayId);
+
+    if (!boardDay) {
+      throw new Error(`Unknown board day ${boardDayId}.`);
+    }
+
+    return boardDay;
+  }
+
   const repository: GenerationTasksRepository = {
     async getOrCreateBoardDay(boardDate) {
       const existingBoardDay = boardDays.find(
@@ -173,6 +183,32 @@ function createGenerationTasksRepositoryHarness(
       };
 
       boardDays.push(boardDay);
+
+      return boardDay;
+    },
+
+    async markBoardDayGenerationStarted(boardDayId) {
+      const boardDay = requireBoardDay(boardDayId);
+
+      boardDay.generationStatus = BoardGenerationStatus.IN_PROGRESS;
+
+      return boardDay;
+    },
+
+    async markBoardDayGenerationSucceeded(input) {
+      const boardDay = requireBoardDay(input.boardDayId);
+
+      boardDay.generationStatus = BoardGenerationStatus.GENERATED;
+      boardDay.generatedAt = input.generatedAt;
+      boardDay.generatedByUserId = input.generatedByUserId;
+
+      return boardDay;
+    },
+
+    async markBoardDayGenerationFailed(boardDayId) {
+      const boardDay = requireBoardDay(boardDayId);
+
+      boardDay.generationStatus = BoardGenerationStatus.FAILED;
 
       return boardDay;
     },
@@ -308,6 +344,9 @@ function createGenerationTasksRepositoryHarness(
   return {
     repository,
     loadGenerationInputs: async () => generationInput,
+    readBoardDays() {
+      return boardDays;
+    },
     readGenerationRuns() {
       return generationRuns;
     }
@@ -343,6 +382,13 @@ describe("board generation service", () => {
       createdTaskCount: 1,
       skippedExistingTaskCount: 0
     });
+    expect(harness.readBoardDays()).toEqual([
+      expect.objectContaining({
+        generationStatus: BoardGenerationStatus.GENERATED,
+        generatedByUserId: manager?.id,
+        generatedAt: new Date("2026-06-17T08:00:04.000Z")
+      })
+    ]);
 
     const latestGeneration = await getLatestGenerationStatusForDate("2026-06-17", harness.repository);
 
@@ -397,6 +443,13 @@ describe("board generation service", () => {
       triggeredBy: "manual",
       errorMessage: "Template insert failed."
     });
+    expect(harness.readBoardDays()).toEqual([
+      expect.objectContaining({
+        generationStatus: BoardGenerationStatus.FAILED,
+        generatedAt: null,
+        generatedByUserId: null
+      })
+    ]);
   });
 
   it("runs scheduled generation through the shared workflow using the configured timezone and records a scheduled run", async () => {
@@ -563,6 +616,36 @@ describe("board generation service", () => {
     expect(harness.readGenerationRuns().map((run) => run.triggeredBy)).toEqual([
       GenerationTriggerType.SCHEDULED,
       GenerationTriggerType.MANUAL
+    ]);
+  });
+
+  it("preserves an already generated board day when a later retry fails", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const harness = createGenerationTasksRepositoryHarness();
+
+    await triggerScheduledBoardGeneration({
+      repository: harness.repository,
+      loadGenerationInputs: harness.loadGenerationInputs,
+      getGenerationSettings: async () => createGenerationSettings(),
+      now: createNowSequence("2026-06-17T15:00:00.000Z", "2026-06-17T15:00:03.000Z")
+    });
+
+    const failedRetry = await triggerManualBoardGeneration(manager, "2026-06-17", {
+      repository: harness.repository,
+      loadGenerationInputs: async () => {
+        throw new Error("Generation inputs unavailable during retry.");
+      },
+      now: createNowSequence("2026-06-17T16:00:00.000Z", "2026-06-17T16:00:02.000Z")
+    });
+
+    expect(failedRetry.status).toBe("failed");
+    expect(harness.readBoardDays()).toEqual([
+      expect.objectContaining({
+        generationStatus: BoardGenerationStatus.GENERATED,
+        generatedAt: new Date("2026-06-17T15:00:03.000Z"),
+        generatedByUserId: null
+      })
     ]);
   });
 });

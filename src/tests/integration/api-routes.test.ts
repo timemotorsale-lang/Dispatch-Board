@@ -402,6 +402,29 @@ function createRouteHarness(authUsers: AuthenticatedUser[]) {
     async getOrCreateBoardDay(boardDate) {
       return ensureBoardDay(boardDate);
     },
+    async markBoardDayGenerationStarted(boardDayId) {
+      const boardDay = getBoardDay(boardDayId);
+
+      boardDay.generationStatus = BoardGenerationStatus.IN_PROGRESS;
+
+      return boardDay;
+    },
+    async markBoardDayGenerationSucceeded(input) {
+      const boardDay = getBoardDay(input.boardDayId);
+
+      boardDay.generationStatus = BoardGenerationStatus.GENERATED;
+      boardDay.generatedAt = input.generatedAt;
+      boardDay.generatedByUserId = input.generatedByUserId;
+
+      return boardDay;
+    },
+    async markBoardDayGenerationFailed(boardDayId) {
+      const boardDay = getBoardDay(boardDayId);
+
+      boardDay.generationStatus = BoardGenerationStatus.FAILED;
+
+      return boardDay;
+    },
     async listExistingGeneratedTasks(boardDayId) {
       return tasks
         .filter(

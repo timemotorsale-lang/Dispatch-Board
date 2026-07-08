@@ -38,6 +38,20 @@ const boardPayload = {
     date: "2026-06-17",
     generationStatus: "GENERATED",
     generatedAt: "2026-06-17T14:30:00.000Z",
+    latestGeneration: {
+      generationRunId: "generation-run-1",
+      status: "success",
+      triggeredBy: "scheduled",
+      startedAt: "2026-06-17T14:28:00.000Z",
+      finishedAt: "2026-06-17T14:30:00.000Z",
+      attemptedAt: "2026-06-17T14:30:00.000Z",
+      createdTaskCount: 1,
+      skippedExistingTaskCount: 0,
+      alreadyExistingTaskCount: 0,
+      manualTasksPreservedCount: 0,
+      summary: "1 tasks created • 0 duplicates skipped • 0 manual tasks preserved",
+      errorMessage: null
+    },
     taskCount: 1,
     statusCounts: {
       NOT_STARTED: 1
