@@ -1,7 +1,9 @@
 import {
+  Prisma,
   GenerationTriggerType,
   PrismaClient,
   type SchedulerAttempt,
+  type SchedulerFailureStage,
   type SchedulerAttemptState,
   type SchedulerAuthorizationOutcome,
   type SchedulerTriggerSource
@@ -38,7 +40,9 @@ export type UpdateSchedulerAttemptInput = {
   generationRunId?: string | null;
   unauthorizedReasonCode?: string | null;
   skipReasonCode?: SchedulerAttemptSkipReasonCode | null;
+  failureStage?: SchedulerFailureStage | null;
   failureCode?: string | null;
+  failureDiagnostic?: Prisma.InputJsonValue | null;
   safeErrorMessage?: string | null;
 };
 
@@ -86,7 +90,14 @@ export function createSchedulerAttemptsRepository(
             ? { unauthorizedReasonCode: input.unauthorizedReasonCode }
             : {}),
           ...(input.skipReasonCode !== undefined ? { skipReasonCode: input.skipReasonCode } : {}),
+          ...(input.failureStage !== undefined ? { failureStage: input.failureStage } : {}),
           ...(input.failureCode !== undefined ? { failureCode: input.failureCode } : {}),
+          ...(input.failureDiagnostic !== undefined
+            ? {
+                failureDiagnostic:
+                  input.failureDiagnostic === null ? Prisma.JsonNull : input.failureDiagnostic
+              }
+            : {}),
           ...(input.safeErrorMessage !== undefined ? { safeErrorMessage: input.safeErrorMessage } : {})
         }
       });

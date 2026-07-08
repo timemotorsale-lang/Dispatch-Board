@@ -437,12 +437,22 @@ describe("board generation service", () => {
       boardDate: "2026-06-17",
       generationRunId: "generation-run-1",
       skipReasonCode: null,
+      failureCode: "TASK_CREATION_FAILED",
+      failureStage: "GENERATION_RUN",
+      failureDiagnostic: expect.objectContaining({
+        failureCode: "TASK_CREATION_FAILED",
+        failureStage: "GENERATION_RUN",
+        phase: "creating_tasks",
+        safeErrorMessage: "Template insert failed."
+      }),
       errorMessage: "Template insert failed."
     });
     expect(result.latestGeneration).toMatchObject({
       generationRunId: "generation-run-1",
       status: "failed",
       triggeredBy: "manual",
+      failureCode: "TASK_CREATION_FAILED",
+      failureStage: "GENERATION_RUN",
       errorMessage: "Template insert failed."
     });
     expect(harness.readBoardDays()).toEqual([
@@ -527,6 +537,9 @@ describe("board generation service", () => {
       skipReasonCode: "NON_BUSINESS_DAY",
       summary: "Skipped scheduled generation because sunday is not configured as a business day.",
       errorMessage: null,
+      failureCode: null,
+      failureStage: null,
+      failureDiagnostic: null,
       latestGeneration: null
     });
     expect(harness.readGenerationRuns()).toHaveLength(0);
@@ -557,6 +570,9 @@ describe("board generation service", () => {
       summary:
         "Skipped scheduled generation because America/Chicago has not reached the configured daily generation time of 09:00.",
       errorMessage: null,
+      failureCode: null,
+      failureStage: null,
+      failureDiagnostic: null,
       latestGeneration: null
     });
     expect(harness.readGenerationRuns()).toHaveLength(0);
@@ -678,6 +694,9 @@ describe("board generation service", () => {
       summary:
         "Skipped scheduled generation because required scheduler or app configuration is missing.",
       errorMessage: null,
+      failureCode: null,
+      failureStage: null,
+      failureDiagnostic: null,
       latestGeneration: null
     });
     expect(harness.readGenerationRuns()).toHaveLength(0);
@@ -706,6 +725,9 @@ describe("board generation service", () => {
       skipReasonCode: "CONFIGURATION_INVALID",
       summary: "Skipped scheduled generation because scheduler or app configuration is invalid.",
       errorMessage: null,
+      failureCode: null,
+      failureStage: null,
+      failureDiagnostic: null,
       latestGeneration: null
     });
     expect(harness.readGenerationRuns()).toHaveLength(0);

@@ -39,7 +39,9 @@ function createSchedulerAttemptsRepositoryHarness() {
         managerMessage: input.managerMessage,
         skipReasonCode: null,
         unauthorizedReasonCode: null,
+        failureStage: null,
         failureCode: null,
+        failureDiagnostic: null,
         safeErrorMessage: null,
         createdAt: input.receivedAt,
         updatedAt: input.receivedAt
@@ -70,7 +72,13 @@ function createSchedulerAttemptsRepositoryHarness() {
         input.unauthorizedReasonCode === undefined
           ? attempt.unauthorizedReasonCode
           : input.unauthorizedReasonCode;
+      attempt.failureStage =
+        input.failureStage === undefined ? attempt.failureStage : input.failureStage;
       attempt.failureCode = input.failureCode === undefined ? attempt.failureCode : input.failureCode;
+      attempt.failureDiagnostic =
+        input.failureDiagnostic === undefined
+          ? attempt.failureDiagnostic
+          : (input.failureDiagnostic as StoredSchedulerAttempt["failureDiagnostic"]);
       attempt.safeErrorMessage =
         input.safeErrorMessage === undefined ? attempt.safeErrorMessage : input.safeErrorMessage;
       attempt.updatedAt = input.completedAt ?? input.startedAt ?? attempt.updatedAt;
@@ -292,8 +300,84 @@ describe("scheduler attempts service", () => {
       id: received.id,
       attemptState: "failed",
       authorizationOutcome: "system_misconfigured",
+      failureStage: "PREFLIGHT",
       failureCode: "DATABASE_DOWN",
+      failureDiagnostic: expect.objectContaining({
+        failureCode: "DATABASE_DOWN",
+        failureStage: "PREFLIGHT",
+        phase: "request_preflight",
+        safeErrorMessage: "Scheduled generation failed due to a protected internal error."
+      }),
       safeErrorMessage: "Scheduled generation failed due to a protected internal error."
+    });
+  });
+
+  it("persists structured diagnostics for scheduled generation failures", async () => {
+    const harness = createSchedulerAttemptsRepositoryHarness();
+    const received = await createReceivedSchedulerAttempt(
+      new Request("http://localhost/api/cron/generate-board"),
+      {
+        repository: harness.repository,
+        now: () => new Date("2026-07-08T15:00:00.000Z"),
+        getGenerationSettings: async () => ({
+          dailyGenerationTime: "09:00",
+          timezone: "America/Chicago",
+          businessDays: []
+        })
+      }
+    );
+
+    const failed = await recordSchedulerAttemptResult(
+      received.id,
+      {
+        status: "failed",
+        boardDate: "2026-07-08",
+        generationRunId: "generation-run-8",
+        createdTaskCount: 1,
+        skippedExistingTaskCount: 0,
+        alreadyExistingTaskCount: 0,
+        skipReasonCode: null,
+        summary: "Task creation failed after one task was created.",
+        errorMessage: "Task creation failed after one task was created.",
+        failureCode: "TASK_CREATION_FAILED",
+        failureStage: "GENERATION_RUN",
+        failureDiagnostic: {
+          failureCode: "TASK_CREATION_FAILED",
+          failureStage: "GENERATION_RUN",
+          phase: "creating_tasks",
+          safeErrorMessage: "Task creation failed after one task was created.",
+          errorName: "Error",
+          durationMs: 5000,
+          boardDayId: "board-day-4",
+          usersConsidered: 2,
+          templatesConsidered: 3,
+          tasksCreated: 1,
+          tasksSkippedAsDuplicates: 0,
+          tasksAlreadyExisting: 0,
+          manualTasksPreserved: 0
+        },
+        latestGeneration: null
+      },
+      {
+        repository: harness.repository,
+        now: () => new Date("2026-07-08T15:00:04.000Z")
+      }
+    );
+
+    expect(failed).toMatchObject({
+      id: received.id,
+      attemptState: "failed",
+      authorizationOutcome: "authorized",
+      generationRunId: "generation-run-8",
+      failureCode: "TASK_CREATION_FAILED",
+      failureStage: "GENERATION_RUN",
+      failureDiagnostic: expect.objectContaining({
+        failureCode: "TASK_CREATION_FAILED",
+        failureStage: "GENERATION_RUN",
+        phase: "creating_tasks",
+        tasksCreated: 1
+      }),
+      safeErrorMessage: "Task creation failed after one task was created."
     });
   });
 });

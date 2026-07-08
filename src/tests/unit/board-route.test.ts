@@ -85,6 +85,59 @@ const boardPayload = {
         completedAt: null
       }
     ]
+  },
+  schedulerHealth: {
+    status: "healthy",
+    expectedToHaveRunByNow: true,
+    needsAttention: false,
+    managerMessage: "Board generated successfully.",
+    nextStepMessage: "No action is needed unless you want to review or retry the board manually.",
+    latestScheduledAttempt: {
+      id: "scheduler-attempt-1",
+      boardDate: "2026-06-17",
+      triggerType: "scheduled",
+      triggerSource: "platform_cron",
+      routePath: "/api/cron/generate-board",
+      requestMethod: "GET",
+      receivedAt: "2026-06-17T14:28:00.000Z",
+      startedAt: null,
+      completedAt: "2026-06-17T14:30:00.000Z",
+      attemptState: "succeeded",
+      authorizationOutcome: "authorized",
+      generationRunId: "generation-run-1",
+      managerMessage: "Board generated successfully.",
+      skipReasonCode: null,
+      unauthorizedReasonCode: null,
+      failureStage: null,
+      failureCode: null,
+      failureDiagnostic: null,
+      safeErrorMessage: null
+    },
+    latestManualRun: null,
+    lastSuccess: {
+      generationRunId: "generation-run-1",
+      status: "success",
+      triggeredBy: "scheduled",
+      startedAt: "2026-06-17T14:28:00.000Z",
+      finishedAt: "2026-06-17T14:30:00.000Z",
+      attemptedAt: "2026-06-17T14:30:00.000Z",
+      createdTaskCount: 1,
+      skippedExistingTaskCount: 0,
+      alreadyExistingTaskCount: 0,
+      manualTasksPreservedCount: 0,
+      summary: "1 tasks created â€¢ 0 duplicates skipped â€¢ 0 manual tasks preserved",
+      errorMessage: null,
+      failureCode: null,
+      failureStage: null,
+      failureDiagnostic: null
+    },
+    lastFailure: null,
+    latestSkipReason: null,
+    boardGenerationStatus: {
+      state: "generated",
+      generatedAt: "2026-06-17T14:30:00.000Z",
+      latestGenerationStatus: "success"
+    }
   }
 };
 
@@ -115,7 +168,25 @@ describe("board read routes", () => {
   it("returns an empty-board 404 payload for a missing date", async () => {
     mocks.getBoardReadModelForDate.mockResolvedValue({
       date: "2026-06-18",
-      board: null
+      board: null,
+      schedulerHealth: {
+        status: "attention",
+        expectedToHaveRunByNow: true,
+        needsAttention: true,
+        managerMessage: "No scheduled generation evidence has been recorded for 2026-06-18 yet.",
+        nextStepMessage:
+          "Verify the production scheduler is enabled and that cron requests are reaching the app.",
+        latestScheduledAttempt: null,
+        latestManualRun: null,
+        lastSuccess: null,
+        lastFailure: null,
+        latestSkipReason: null,
+        boardGenerationStatus: {
+          state: "not_created",
+          generatedAt: null,
+          latestGenerationStatus: "none"
+        }
+      }
     });
 
     const response = await getBoardForDate(new Request("http://localhost/api/board/2026-06-18"), {
@@ -128,6 +199,24 @@ describe("board read routes", () => {
     await expect(response.json()).resolves.toEqual({
       date: "2026-06-18",
       board: null,
+      schedulerHealth: {
+        status: "attention",
+        expectedToHaveRunByNow: true,
+        needsAttention: true,
+        managerMessage: "No scheduled generation evidence has been recorded for 2026-06-18 yet.",
+        nextStepMessage:
+          "Verify the production scheduler is enabled and that cron requests are reaching the app.",
+        latestScheduledAttempt: null,
+        latestManualRun: null,
+        lastSuccess: null,
+        lastFailure: null,
+        latestSkipReason: null,
+        boardGenerationStatus: {
+          state: "not_created",
+          generatedAt: null,
+          latestGenerationStatus: "none"
+        }
+      },
       error: "No board exists for 2026-06-18 yet."
     });
   });

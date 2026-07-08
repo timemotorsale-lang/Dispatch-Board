@@ -1,6 +1,7 @@
 import {
   SchedulerAttemptState,
   SchedulerAuthorizationOutcome,
+  SchedulerFailureStage,
   SchedulerTriggerSource
 } from "@prisma/client";
 
@@ -17,6 +18,10 @@ import type {
   ScheduledBoardGenerationResult,
   ScheduledSkipReasonCode
 } from "@/server/services/board-generation";
+import type {
+  GenerationFailureDiagnostic,
+  GenerationFailureStage
+} from "@/server/services/generation-tasks";
 import { getBoardDateInTimeZone, normalizeBoardDate } from "@/server/validation/board-date";
 import { DEFAULT_APP_SETTINGS } from "@/server/validation/app-settings";
 
@@ -58,7 +63,9 @@ export type SchedulerAttemptEvidence = {
   managerMessage: string;
   skipReasonCode: ScheduledSkipReasonCodeValue | null;
   unauthorizedReasonCode: string | null;
+  failureStage: SchedulerFailureStageValue | null;
   failureCode: string | null;
+  failureDiagnostic: SchedulerFailureDiagnosticValue | null;
   safeErrorMessage: string | null;
 };
 
@@ -68,6 +75,16 @@ export type ScheduledSkipReasonCodeValue =
   | "ALREADY_GENERATED"
   | "CONFIGURATION_MISSING"
   | "CONFIGURATION_INVALID";
+
+export type SchedulerFailureStageValue = GenerationFailureStage;
+
+export type SchedulerFailureDiagnosticValue = Omit<
+  GenerationFailureDiagnostic,
+  "failureCode" | "failureStage"
+> & {
+  failureCode: string;
+  failureStage: SchedulerFailureStageValue;
+};
 
 type SchedulerAttemptsDependencies = {
   repository?: SchedulerAttemptsRepository;
@@ -79,6 +96,8 @@ type RecordFailedSchedulerAttemptInput = {
   attemptId: string;
   authorizationOutcome: Exclude<SchedulerAuthorizationOutcomeValue, "unauthorized">;
   failureCode?: string;
+  failureStage?: SchedulerFailureStageValue;
+  failureDiagnostic?: SchedulerFailureDiagnosticValue | null;
   error: unknown;
 };
 
@@ -113,6 +132,12 @@ function toServiceTriggerSource(source: SchedulerTriggerSource): SchedulerTrigge
   return source.toLowerCase() as SchedulerTriggerSourceValue;
 }
 
+function toServiceFailureStage(
+  stage: SchedulerFailureStage | null | undefined
+): SchedulerFailureStageValue | null {
+  return stage ?? null;
+}
+
 function toRepositoryAuthorizationOutcome(
   outcome: SchedulerAuthorizationOutcomeValue
 ): SchedulerAuthorizationOutcome {
@@ -131,9 +156,19 @@ function toRepositoryAuthorizationOutcome(
   return SchedulerAuthorizationOutcome.SYSTEM_MISCONFIGURED;
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function readFailureDiagnostic(value: unknown): SchedulerFailureDiagnosticValue | null {
+  return isPlainObject(value) ? (value as SchedulerFailureDiagnosticValue) : null;
+}
+
 function toEvidence(record: SchedulerAttemptRecord): SchedulerAttemptEvidence {
-  const schedulerAttemptWithSkipReason = record as SchedulerAttemptRecord & {
+  const schedulerAttemptWithObservability = record as SchedulerAttemptRecord & {
     skipReasonCode?: ScheduledSkipReasonCodeValue | null;
+    failureStage?: SchedulerFailureStage | null;
+    failureDiagnostic?: unknown;
   };
 
   return {
@@ -150,9 +185,11 @@ function toEvidence(record: SchedulerAttemptRecord): SchedulerAttemptEvidence {
     authorizationOutcome: toServiceAuthorizationOutcome(record.authorizationOutcome),
     generationRunId: record.generationRunId ?? null,
     managerMessage: record.managerMessage,
-    skipReasonCode: schedulerAttemptWithSkipReason.skipReasonCode ?? null,
+    skipReasonCode: schedulerAttemptWithObservability.skipReasonCode ?? null,
     unauthorizedReasonCode: record.unauthorizedReasonCode ?? null,
+    failureStage: toServiceFailureStage(schedulerAttemptWithObservability.failureStage),
     failureCode: record.failureCode ?? null,
+    failureDiagnostic: readFailureDiagnostic(schedulerAttemptWithObservability.failureDiagnostic),
     safeErrorMessage: record.safeErrorMessage ?? null
   };
 }
@@ -198,6 +235,31 @@ function toSafeErrorMessage(error: unknown) {
   }
 
   return normalizedMessage.slice(0, 300);
+}
+
+function buildPreflightFailureDiagnostic(input: {
+  failureCode: string;
+  failureStage: SchedulerFailureStageValue;
+  safeErrorMessage: string;
+  error: unknown;
+}): SchedulerFailureDiagnosticValue | null {
+  const errorName = input.error instanceof Error && input.error.name ? input.error.name : "UnknownError";
+
+  return {
+    failureCode: input.failureCode,
+    failureStage: input.failureStage,
+    phase: "request_preflight",
+    safeErrorMessage: input.safeErrorMessage,
+    errorName,
+    durationMs: 0,
+    boardDayId: null,
+    usersConsidered: 0,
+    templatesConsidered: 0,
+    tasksCreated: 0,
+    tasksSkippedAsDuplicates: 0,
+    tasksAlreadyExisting: 0,
+    manualTasksPreserved: null
+  };
 }
 
 async function resolveBoardDateForReceivedAttempt(
@@ -305,7 +367,11 @@ export async function recordSchedulerAttemptResult(
         result.summary ?? `Scheduled generation succeeded for ${normalizeBoardDate(result.boardDate)}.`,
       completedAt: now(),
       generationRunId: result.generationRunId,
-      skipReasonCode: null
+      skipReasonCode: null,
+      failureStage: null,
+      failureCode: null,
+      failureDiagnostic: null,
+      safeErrorMessage: null
     });
 
     return toEvidence(record);
@@ -324,7 +390,11 @@ export async function recordSchedulerAttemptResult(
         result.summary ?? `Scheduled generation was skipped for ${normalizeBoardDate(result.boardDate)}.`,
       completedAt: now(),
       generationRunId: result.generationRunId,
-      skipReasonCode: toRepositorySkipReasonCode(result.skipReasonCode)
+      skipReasonCode: toRepositorySkipReasonCode(result.skipReasonCode),
+      failureStage: null,
+      failureCode: null,
+      failureDiagnostic: null,
+      safeErrorMessage: null
     });
 
     return toEvidence(record);
@@ -340,7 +410,9 @@ export async function recordSchedulerAttemptResult(
     completedAt: now(),
     generationRunId: result.generationRunId,
     skipReasonCode: null,
-    failureCode: "SCHEDULED_GENERATION_FAILED",
+    failureStage: result.failureStage ?? SchedulerFailureStage.GENERATION_RUN,
+    failureCode: result.failureCode ?? "SCHEDULED_GENERATION_FAILED",
+    failureDiagnostic: result.failureDiagnostic ?? null,
     safeErrorMessage
   });
 
@@ -354,6 +426,16 @@ export async function recordFailedSchedulerAttempt(
   const repository = dependencies.repository ?? createSchedulerAttemptsRepository();
   const now = dependencies.now ?? (() => new Date());
   const safeErrorMessage = toSafeErrorMessage(input.error);
+  const failureCode = input.failureCode ?? "SCHEDULED_REQUEST_FAILED";
+  const failureStage = input.failureStage ?? SchedulerFailureStage.PREFLIGHT;
+  const failureDiagnostic =
+    input.failureDiagnostic ??
+    buildPreflightFailureDiagnostic({
+      failureCode,
+      failureStage,
+      safeErrorMessage,
+      error: input.error
+    });
   const record = await repository.updateSchedulerAttempt({
     id: input.attemptId,
     attemptState: SchedulerAttemptState.FAILED,
@@ -361,7 +443,9 @@ export async function recordFailedSchedulerAttempt(
     managerMessage: safeErrorMessage,
     completedAt: now(),
     skipReasonCode: null,
-    failureCode: input.failureCode ?? "SCHEDULED_REQUEST_FAILED",
+    failureStage,
+    failureCode,
+    failureDiagnostic,
     safeErrorMessage
   });
 

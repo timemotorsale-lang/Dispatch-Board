@@ -4,6 +4,9 @@ import {
   GenerationRunStatus,
   GenerationTriggerType,
   Prisma,
+  SchedulerAttemptState,
+  SchedulerAuthorizationOutcome,
+  SchedulerTriggerSource,
   TaskSourceType,
   TaskStatus,
   WorkflowArea,
@@ -12,6 +15,7 @@ import {
 import { describe, expect, it } from "vitest";
 
 import type { BoardReadRepository } from "@/server/repositories/board-read-repository";
+import type { SchedulerAttemptsRepository } from "@/server/repositories/scheduler-attempts-repository";
 import {
   getBoardReadModelForDate,
   getBoardReadModelForToday
@@ -142,6 +146,62 @@ function createGenerationRunsRepository(
   };
 }
 
+function createSchedulerAttemptsRepository(
+  attempts: Array<{
+    id: string;
+    boardDate: string;
+    receivedAt: string;
+    completedAt?: string | null;
+    attemptState: SchedulerAttemptState;
+    authorizationOutcome: SchedulerAuthorizationOutcome;
+    triggerSource?: SchedulerTriggerSource;
+    generationRunId?: string | null;
+    managerMessage: string;
+    skipReasonCode?: string | null;
+    unauthorizedReasonCode?: string | null;
+    failureStage?: "PREFLIGHT" | "GENERATION_RUN" | "POST_RUN_FINALIZE" | null;
+    failureCode?: string | null;
+    failureDiagnostic?: Prisma.JsonValue | null;
+    safeErrorMessage?: string | null;
+  }> = []
+): SchedulerAttemptsRepository {
+  return {
+    async createSchedulerAttempt() {
+      throw new Error("Not implemented in test harness.");
+    },
+    async updateSchedulerAttempt() {
+      throw new Error("Not implemented in test harness.");
+    },
+    async listSchedulerAttemptsForDate(boardDate: string) {
+      return attempts
+        .filter((attempt) => attempt.boardDate === boardDate)
+        .map((attempt) => ({
+          id: attempt.id,
+          boardDate: new Date(`${attempt.boardDate}T00:00:00.000Z`),
+          triggerType: GenerationTriggerType.SCHEDULED,
+          triggerSource: attempt.triggerSource ?? SchedulerTriggerSource.PLATFORM_CRON,
+          routePath: "/api/cron/generate-board",
+          requestMethod: "GET",
+          receivedAt: new Date(attempt.receivedAt),
+          startedAt: null,
+          completedAt: attempt.completedAt ? new Date(attempt.completedAt) : null,
+          attemptState: attempt.attemptState,
+          authorizationOutcome: attempt.authorizationOutcome,
+          generationRunId: attempt.generationRunId ?? null,
+          managerMessage: attempt.managerMessage,
+          skipReasonCode: attempt.skipReasonCode ?? null,
+          unauthorizedReasonCode: attempt.unauthorizedReasonCode ?? null,
+          failureStage: attempt.failureStage ?? null,
+          failureCode: attempt.failureCode ?? null,
+          failureDiagnostic: attempt.failureDiagnostic ?? null,
+          safeErrorMessage: attempt.safeErrorMessage ?? null,
+          createdAt: new Date(attempt.receivedAt),
+          updatedAt: new Date(attempt.completedAt ?? attempt.receivedAt)
+        }));
+    }
+  };
+}
+
 function createAppSettingsRepository() {
   const settings: AppSetting = {
     id: "dispatch-board-settings",
@@ -258,7 +318,21 @@ describe("board read service", () => {
             manualTasksPreserved: 0
           }
         }
-      ])
+      ]),
+      schedulerAttemptsRepository: createSchedulerAttemptsRepository([
+        {
+          id: "scheduler-attempt-1",
+          boardDate: "2026-06-17",
+          receivedAt: "2026-06-17T14:28:00.000Z",
+          completedAt: "2026-06-17T14:30:00.000Z",
+          attemptState: SchedulerAttemptState.SUCCEEDED,
+          authorizationOutcome: SchedulerAuthorizationOutcome.AUTHORIZED,
+          generationRunId: "generation-run-1",
+          managerMessage: "2 tasks created"
+        }
+      ]),
+      appSettingsRepository: createAppSettingsRepository(),
+      now: () => new Date("2026-06-17T15:30:00.000Z")
     });
 
     expect(result).toMatchObject({
@@ -317,6 +391,26 @@ describe("board read service", () => {
             vehicleReference: "2019 Camry"
           }
         ]
+      },
+      schedulerHealth: {
+        status: "healthy",
+        expectedToHaveRunByNow: true,
+        needsAttention: false,
+        latestScheduledAttempt: {
+          id: "scheduler-attempt-1",
+          attemptState: "succeeded",
+          generationRunId: "generation-run-1"
+        },
+        latestManualRun: null,
+        lastSuccess: {
+          generationRunId: "generation-run-1",
+          triggeredBy: "scheduled"
+        },
+        latestSkipReason: null,
+        boardGenerationStatus: {
+          state: "generated",
+          latestGenerationStatus: "success"
+        }
       }
     });
     expect(result.board?.generatedAt).toBe("2026-06-17T14:30:00.000Z");
@@ -328,12 +422,33 @@ describe("board read service", () => {
     const harness = createBoardReadRepositoryHarness();
 
     const result = await getBoardReadModelForDate(manager, "2026-06-18", {
-      repository: harness.repository
+      repository: harness.repository,
+      schedulerAttemptsRepository: createSchedulerAttemptsRepository([]),
+      appSettingsRepository: createAppSettingsRepository(),
+      now: () => new Date("2026-06-18T15:30:00.000Z")
     });
 
     expect(result).toEqual({
       date: "2026-06-18",
-      board: null
+      board: null,
+      schedulerHealth: {
+        status: "attention",
+        expectedToHaveRunByNow: true,
+        needsAttention: true,
+        managerMessage: "No scheduled generation evidence has been recorded for 2026-06-18 yet.",
+        nextStepMessage:
+          "Verify the production scheduler is enabled and that cron requests are reaching the app.",
+        latestScheduledAttempt: null,
+        latestManualRun: null,
+        lastSuccess: null,
+        lastFailure: null,
+        latestSkipReason: null,
+        boardGenerationStatus: {
+          state: "not_created",
+          generatedAt: null,
+          latestGenerationStatus: "none"
+        }
+      }
     });
   });
 
@@ -374,6 +489,7 @@ describe("board read service", () => {
     const result = await getBoardReadModelForToday(manager, {
       repository: harness.repository,
       appSettingsRepository: createAppSettingsRepository(),
+      schedulerAttemptsRepository: createSchedulerAttemptsRepository([]),
       now: () => new Date("2026-06-18T02:30:00.000Z")
     });
 
@@ -382,6 +498,13 @@ describe("board read service", () => {
       board: expect.objectContaining({
         id: "board-day-2",
         date: "2026-06-17"
+      }),
+      schedulerHealth: expect.objectContaining({
+        boardGenerationStatus: {
+          state: "generated",
+          generatedAt: null,
+          latestGenerationStatus: "none"
+        }
       })
     });
   });

@@ -10,6 +10,9 @@ import {
 } from "@/server/services/app-settings-service";
 import {
   createMissingGeneratedTasksForDate,
+  type GenerationFailureCode,
+  type GenerationFailureDiagnostic,
+  type GenerationFailureStage,
   getGenerationRunFailureContext,
   listGenerationRunsForDate,
   type CreateMissingGeneratedTasksDependencies,
@@ -29,6 +32,9 @@ type BoardGenerationSharedResult = {
   skipReasonCode: ScheduledSkipReasonCode | null;
   summary: string | null;
   errorMessage: string | null;
+  failureCode: GenerationFailureCode | null;
+  failureStage: GenerationFailureStage | null;
+  failureDiagnostic: GenerationFailureDiagnostic | null;
   latestGeneration: LatestGenerationStatus | null;
 };
 
@@ -53,6 +59,9 @@ export type LatestGenerationStatus = {
   manualTasksPreservedCount: number | null;
   summary: string | null;
   errorMessage: string | null;
+  failureCode: GenerationFailureCode | null;
+  failureStage: GenerationFailureStage | null;
+  failureDiagnostic: GenerationFailureDiagnostic | null;
 };
 
 export type ManualBoardGenerationResult =
@@ -127,6 +136,74 @@ function readSummaryText(summary: GenerationRunSummary["summary"], key: string) 
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function readFailureDiagnostic(summary: GenerationRunSummary["summary"]): GenerationFailureDiagnostic | null {
+  const summaryObject = readSummaryObject(summary);
+  const value = summaryObject?.failureDiagnostic;
+
+  if (!isPlainObject(value)) {
+    return null;
+  }
+
+  const failureCode = typeof value.failureCode === "string" ? value.failureCode.trim() : "";
+  const failureStage = typeof value.failureStage === "string" ? value.failureStage.trim() : "";
+  const phase = typeof value.phase === "string" ? value.phase.trim() : "";
+  const safeErrorMessage =
+    typeof value.safeErrorMessage === "string" ? value.safeErrorMessage.trim() : "";
+  const errorName = typeof value.errorName === "string" ? value.errorName.trim() : "";
+  const durationMs = value.durationMs;
+  const boardDayId = typeof value.boardDayId === "string" && value.boardDayId.trim() ? value.boardDayId : null;
+  const usersConsidered = value.usersConsidered;
+  const templatesConsidered = value.templatesConsidered;
+  const tasksCreated = value.tasksCreated;
+  const tasksSkippedAsDuplicates = value.tasksSkippedAsDuplicates;
+  const tasksAlreadyExisting = value.tasksAlreadyExisting;
+  const manualTasksPreserved = value.manualTasksPreserved;
+
+  if (
+    !failureCode ||
+    !failureStage ||
+    !phase ||
+    !safeErrorMessage ||
+    !errorName ||
+    typeof durationMs !== "number" ||
+    !Number.isFinite(durationMs) ||
+    typeof usersConsidered !== "number" ||
+    !Number.isFinite(usersConsidered) ||
+    typeof templatesConsidered !== "number" ||
+    !Number.isFinite(templatesConsidered) ||
+    typeof tasksCreated !== "number" ||
+    !Number.isFinite(tasksCreated) ||
+    typeof tasksSkippedAsDuplicates !== "number" ||
+    !Number.isFinite(tasksSkippedAsDuplicates) ||
+    typeof tasksAlreadyExisting !== "number" ||
+    !Number.isFinite(tasksAlreadyExisting) ||
+    (manualTasksPreserved !== null &&
+      (typeof manualTasksPreserved !== "number" || !Number.isFinite(manualTasksPreserved)))
+  ) {
+    return null;
+  }
+
+  return {
+    failureCode: failureCode as GenerationFailureCode,
+    failureStage: failureStage as GenerationFailureStage,
+    phase,
+    safeErrorMessage,
+    errorName,
+    durationMs,
+    boardDayId,
+    usersConsidered,
+    templatesConsidered,
+    tasksCreated,
+    tasksSkippedAsDuplicates,
+    tasksAlreadyExisting,
+    manualTasksPreserved
+  };
+}
+
 function toLatestStatusLabel(status: GenerationRunStatus) {
   if (status === GenerationRunStatus.SUCCEEDED) {
     return "success" as const;
@@ -160,7 +237,33 @@ function buildGenerationSummary(run: GenerationRunSummary) {
   return summaryParts.length > 0 ? summaryParts.join(" • ") : null;
 }
 
+function readFailureCode(summary: GenerationRunSummary["summary"]) {
+  const failureDiagnostic = readFailureDiagnostic(summary);
+
+  if (failureDiagnostic) {
+    return failureDiagnostic.failureCode;
+  }
+
+  const value = readSummaryText(summary, "failureCode");
+
+  return value ? (value as GenerationFailureCode) : null;
+}
+
+function readFailureStage(summary: GenerationRunSummary["summary"]) {
+  const failureDiagnostic = readFailureDiagnostic(summary);
+
+  if (failureDiagnostic) {
+    return failureDiagnostic.failureStage;
+  }
+
+  const value = readSummaryText(summary, "failureStage");
+
+  return value ? (value as GenerationFailureStage) : null;
+}
+
 function toLatestGenerationStatus(run: GenerationRunSummary): LatestGenerationStatus {
+  const failureDiagnostic = readFailureDiagnostic(run.summary);
+
   return {
     generationRunId: run.id,
     boardDate: run.boardDate,
@@ -174,7 +277,10 @@ function toLatestGenerationStatus(run: GenerationRunSummary): LatestGenerationSt
     alreadyExistingTaskCount: readSummaryNumber(run.summary, "tasksAlreadyExisting"),
     manualTasksPreservedCount: readSummaryNumber(run.summary, "manualTasksPreserved"),
     summary: buildGenerationSummary(run),
-    errorMessage: run.errorMessage
+    errorMessage: run.errorMessage,
+    failureCode: readFailureCode(run.summary),
+    failureStage: readFailureStage(run.summary),
+    failureDiagnostic
   };
 }
 
@@ -276,6 +382,9 @@ function createScheduledSkipResult(input: {
     skipReasonCode: input.skipReasonCode,
     summary: input.summary,
     errorMessage: null,
+    failureCode: null,
+    failureStage: null,
+    failureDiagnostic: null,
     latestGeneration: input.latestGeneration ?? null
   };
 }
@@ -361,6 +470,9 @@ async function runBoardGenerationForDate(
       skipReasonCode: null,
       summary: latestGeneration?.summary ?? null,
       errorMessage: null,
+      failureCode: null,
+      failureStage: null,
+      failureDiagnostic: null,
       latestGeneration
     };
   } catch (error) {
@@ -377,6 +489,10 @@ async function runBoardGenerationForDate(
       skipReasonCode: null,
       summary: latestGeneration?.summary ?? null,
       errorMessage: failureContext?.safeErrorMessage ?? normalizeFailureMessage(error),
+      failureCode: failureContext?.failureCode ?? latestGeneration?.failureCode ?? null,
+      failureStage: failureContext?.failureStage ?? latestGeneration?.failureStage ?? null,
+      failureDiagnostic:
+        failureContext?.failureDiagnostic ?? latestGeneration?.failureDiagnostic ?? null,
       latestGeneration
     };
   }
@@ -402,6 +518,16 @@ export async function getLatestGenerationStatusForDate(
   const [latestRun] = await listGenerationRunsForDate(normalizedBoardDate, repository);
 
   return latestRun ? toLatestGenerationStatus(latestRun) : null;
+}
+
+export async function listLatestGenerationStatusesForDate(
+  boardDate: string,
+  repository: Pick<GenerationTasksRepository, "listGenerationRunsForDate"> = createGenerationTasksRepository()
+): Promise<LatestGenerationStatus[]> {
+  const normalizedBoardDate = normalizeBoardDate(boardDate);
+  const runs = await listGenerationRunsForDate(normalizedBoardDate, repository);
+
+  return runs.map(toLatestGenerationStatus);
 }
 
 export async function triggerManualBoardGeneration(

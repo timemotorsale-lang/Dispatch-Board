@@ -369,6 +369,12 @@ enum SchedulerSkipReasonCode {
   CONFIGURATION_INVALID
 }
 
+enum SchedulerFailureStage {
+  PREFLIGHT
+  GENERATION_RUN
+  POST_RUN_FINALIZE
+}
+
 // Placeholder model for the v0.1.0 foundation migration.
 // Domain models are intentionally deferred to later milestones.
 model BootstrapMarker {
@@ -1338,7 +1344,9 @@ model SchedulerAttempt {
   managerMessage       String
   skipReasonCode       SchedulerSkipReasonCode?
   unauthorizedReasonCode String?
+  failureStage         SchedulerFailureStage?
   failureCode          String?
+  failureDiagnostic    Json?
   safeErrorMessage     String?
   createdAt            DateTime                      @default(now())
   updatedAt            DateTime                      @updatedAt
