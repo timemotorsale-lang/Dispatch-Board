@@ -1452,6 +1452,44 @@ describe("appointment board shell", () => {
           location: "Service counter",
           confirmation: "Confirmed by phone",
           taskAutomation: ["Create callback task", "Draft follow-up appointment"],
+          automationExecutions: [
+            {
+              id: "execution-review",
+              automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_APPOINTMENT",
+              triggerCode: "APPOINTMENT_OUTCOME_RECORDED",
+              purposeCode: "FOLLOW_UP_APPOINTMENT",
+              status: "REVIEW_REQUIRED",
+              sourceType: "APPOINTMENT",
+              failureCode: null,
+              failureMessage: null,
+              attemptCount: 1,
+              maxAttempts: 3,
+              nextRetryAt: null,
+              resolvedAt: null,
+              generatedTaskTitle: null,
+              generatedAppointmentNumber: "FUP-APT-AUTO-001",
+              createdAt: "2026-07-07T14:00:00.000Z",
+              updatedAt: "2026-07-07T14:05:00.000Z"
+            },
+            {
+              id: "execution-failure",
+              automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_TASK",
+              triggerCode: "APPOINTMENT_OUTCOME_RECORDED",
+              purposeCode: "FOLLOW_UP_TASK",
+              status: "FAILED_RETRYABLE",
+              sourceType: "APPOINTMENT",
+              failureCode: "TRANSIENT_FAILURE",
+              failureMessage: "Task service timed out.",
+              attemptCount: 2,
+              maxAttempts: 3,
+              nextRetryAt: "2026-07-07T14:30:00.000Z",
+              resolvedAt: null,
+              generatedTaskTitle: null,
+              generatedAppointmentNumber: null,
+              createdAt: "2026-07-07T13:50:00.000Z",
+              updatedAt: "2026-07-07T14:10:00.000Z"
+            }
+          ],
           governanceNotes: []
         }
       ] as any,
@@ -1489,6 +1527,9 @@ describe("appointment board shell", () => {
     expect(queues.find((queue) => queue.key === "confirmation-gap")?.items[0]?.appointmentId).toBe("APT-DRAFT");
     expect(queues.find((queue) => queue.key === "automation-review")?.items[0]?.appointmentId).toBe("APT-AUTO");
     expect(queues.find((queue) => queue.key === "automation-failure")?.items[0]?.appointmentId).toBe("APT-AUTO");
+    expect(queues.find((queue) => queue.key === "automation-failure")?.items[0]?.detail).toContain(
+      "Task service timed out."
+    );
   });
 
   it("builds resource, location, and vehicle operating views", () => {
@@ -1855,6 +1896,26 @@ describe("appointment board shell", () => {
         attendanceStatus: "NO_SHOW",
         followUpDispositionCode: "CALLBACK_REQUIRED",
         taskAutomation: ["No-show callback", "Lead recovery"],
+        automationExecutions: [
+          {
+            id: "execution-review",
+            automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_TASK",
+            triggerCode: "APPOINTMENT_OUTCOME_RECORDED",
+            purposeCode: "FOLLOW_UP_TASK",
+            status: "REVIEW_REQUIRED",
+            sourceType: "APPOINTMENT",
+            failureCode: null,
+            failureMessage: null,
+            attemptCount: 1,
+            maxAttempts: 3,
+            nextRetryAt: null,
+            resolvedAt: null,
+            generatedTaskTitle: "Call customer back",
+            generatedAppointmentNumber: null,
+            createdAt: "2026-07-07T15:55:00.000Z",
+            updatedAt: "2026-07-07T16:00:00.000Z"
+          }
+        ],
         linkedTasks: [
           {
             id: "task-link-1",
@@ -1899,6 +1960,7 @@ describe("appointment board shell", () => {
       expect.arrayContaining(["manager", "automation", "task", "appointment"])
     );
     expect(timeline.some((event) => event.title === "Exception queue surfaced")).toBe(true);
+    expect(timeline.some((event) => event.title === "Automation review required")).toBe(true);
   });
 
   it("builds a command-center report snapshot from visible workbench items", () => {

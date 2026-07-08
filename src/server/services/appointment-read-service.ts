@@ -14,6 +14,7 @@ import {
 import {
   createAppointmentReadRepository,
   type AppointmentReadAppointmentRecord,
+  type AppointmentReadAutomationExecutionRecord,
   type AppointmentReadLocationAccessRecord,
   type AppointmentReadParticipantRecord,
   type AppointmentReadRepository,
@@ -102,6 +103,25 @@ export type AppointmentReadResourceReservationSummary = {
   capacityUnits: number;
 };
 
+export type AppointmentReadAutomationExecutionSummary = {
+  id: string;
+  automationRuleCode: string | null;
+  triggerCode: string;
+  purposeCode: string | null;
+  status: string;
+  sourceType: string;
+  failureCode: string | null;
+  failureMessage: string | null;
+  attemptCount: number;
+  maxAttempts: number;
+  nextRetryAt: string | null;
+  resolvedAt: string | null;
+  generatedTaskTitle: string | null;
+  generatedAppointmentNumber: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type AppointmentReadVisibility = {
   relationship: AppointmentReadViewerRelationship;
   dataAccessLevel: AppointmentDataAccessLevel;
@@ -131,6 +151,7 @@ export type AppointmentReadModel = {
   participants: AppointmentReadParticipantSummary[];
   taskLinks: AppointmentReadTaskLinkSummary[];
   resourceReservations: AppointmentReadResourceReservationSummary[];
+  automationExecutions: AppointmentReadAutomationExecutionSummary[];
   outcomeCode: string | null;
   outcomeNotes: string | null;
   followUpDispositionCode: string | null;
@@ -373,6 +394,34 @@ function toParticipantSummary(
   };
 }
 
+function toAutomationExecutionSummary(
+  execution: AppointmentReadAutomationExecutionRecord
+): AppointmentReadAutomationExecutionSummary {
+  return {
+    id: execution.id,
+    automationRuleCode:
+      stringFromSnapshot(execution.resultSnapshot, "automationRuleCode") ??
+      stringFromSnapshot(execution.inputSnapshot, "automationRuleCode"),
+    triggerCode: execution.triggerCode,
+    purposeCode: execution.purposeCode,
+    status: execution.status,
+    sourceType: execution.sourceType,
+    failureCode: execution.failureCode,
+    failureMessage: execution.failureMessage,
+    attemptCount: execution.attemptCount,
+    maxAttempts: execution.maxAttempts,
+    nextRetryAt: execution.nextRetryAt?.toISOString() ?? null,
+    resolvedAt: execution.resolvedAt?.toISOString() ?? null,
+    generatedTaskTitle: stringFromSnapshot(execution.resultSnapshot, "generatedTaskTitle"),
+    generatedAppointmentNumber: stringFromSnapshot(
+      execution.resultSnapshot,
+      "generatedAppointmentNumber"
+    ),
+    createdAt: execution.createdAt.toISOString(),
+    updatedAt: execution.updatedAt.toISOString()
+  };
+}
+
 function getViewerRelationship(input: {
   actor: AuthenticatedUser;
   appointment: AppointmentReadAppointmentRecord;
@@ -474,6 +523,9 @@ function toAppointmentReadModel(input: {
       endsAt: reservation.endsAt.toISOString(),
       capacityUnits: reservation.capacityUnits
     })),
+    automationExecutions: input.appointment.automationExecutions.map((execution) =>
+      toAutomationExecutionSummary(execution)
+    ),
     outcomeCode: input.appointment.outcomeCode,
     outcomeNotes: input.appointment.outcomeNotes,
     followUpDispositionCode: input.appointment.followUpDispositionCode,
