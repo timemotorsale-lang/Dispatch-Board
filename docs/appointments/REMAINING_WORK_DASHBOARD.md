@@ -188,7 +188,7 @@ E3 is the active implementation area.
 | EAPT-033 | Task-to-appointment automation runtime | Partial implementation exists; outcome-driven runtime records now persist and replay safely, broader task-trigger automation remains | High |
 | EAPT-034 | Automation rule versioning, simulation, activation, pause, retirement | Partial; visible catalog candidates, simulation evidence, activation-readiness guidance, configured-rule lifecycle controls, and activation safety gates are live in the automation console, but durable rule-version linkage and richer authoring remain | High |
 | EAPT-035 | Automation review, failure, retry, and replay services | Partial implementation exists; manager retry/replay/resolve/skip controls, duplicate-safe follow-up replays, and board-visible appointment automation runtime/failure visibility are live, broader failure classes and background processing remain | High |
-| EAPT-036 | Activity history for appointment and automation events | Partial; appointment history plus appointment-level automation runtime timeline/detail visibility are live, but broader replay/failure audit continuity still remains | Medium |
+| EAPT-036 | Activity history for appointment and automation events | Partial; appointment history, automation-console audit context, and appointment-board replay/recovery timeline continuity are live, but broader background failure-event coverage and cross-channel correlation still remain | Medium |
 | EAPT-037 | Optimistic concurrency on every appointment mutation | Partial implementation exists; full audit still pending | High |
 | EAPT-038 | Lifecycle, permission, orchestration, audit, and automation test suite | Partial unit coverage exists; critical scenario suite remains | High |
 

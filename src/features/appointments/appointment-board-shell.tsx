@@ -101,6 +101,8 @@ type AppointmentAutomationExecution = {
   maxAttempts: number;
   nextRetryAt: string | null;
   resolvedAt: string | null;
+  retryReplayAction?: string | null;
+  replayedAt?: string | null;
   generatedTaskTitle: string | null;
   generatedAppointmentNumber: string | null;
   createdAt: string;
@@ -1946,6 +1948,22 @@ function automationExecutionContextLabel(execution: AppointmentAutomationExecuti
 }
 
 function automationExecutionTitle(execution: AppointmentAutomationExecution) {
+  if (execution.status === "SUCCEEDED" && execution.retryReplayAction === "RETRY") {
+    return "Automation retry succeeded";
+  }
+
+  if (execution.status === "SUCCEEDED" && execution.retryReplayAction === "REPLAY") {
+    return "Automation replay succeeded";
+  }
+
+  if (execution.status === "REVIEW_REQUIRED" && execution.retryReplayAction === "RETRY") {
+    return "Automation retry still needs review";
+  }
+
+  if (execution.status === "REVIEW_REQUIRED" && execution.retryReplayAction === "REPLAY") {
+    return "Automation replay still needs review";
+  }
+
   if (execution.status === "REVIEW_REQUIRED") {
     return "Automation review required";
   }
@@ -1974,21 +1992,27 @@ function automationExecutionTitle(execution: AppointmentAutomationExecution) {
 }
 
 function automationExecutionDetail(execution: AppointmentAutomationExecution) {
+  const recoveryLabel = execution.retryReplayAction
+    ? `Recovery: ${formatAutomationExecutionStatus(execution.retryReplayAction)}.`
+    : "";
+
   if (execution.failureMessage) {
-    return automationExecutionContextLabel(execution)
+    const base = automationExecutionContextLabel(execution)
       ? `${execution.failureMessage} (${automationExecutionContextLabel(execution)})`
       : execution.failureMessage;
+
+    return recoveryLabel ? `${base} ${recoveryLabel}` : base;
   }
 
   if (execution.generatedAppointmentNumber) {
-    return `Generated follow-up appointment ${execution.generatedAppointmentNumber}.${automationExecutionContextLabel(execution) ? ` ${automationExecutionContextLabel(execution)}.` : ""}`;
+    return `Generated follow-up appointment ${execution.generatedAppointmentNumber}.${automationExecutionContextLabel(execution) ? ` ${automationExecutionContextLabel(execution)}.` : ""}${recoveryLabel ? ` ${recoveryLabel}` : ""}`;
   }
 
   if (execution.generatedTaskTitle) {
-    return `Generated follow-up task ${execution.generatedTaskTitle}.${automationExecutionContextLabel(execution) ? ` ${automationExecutionContextLabel(execution)}.` : ""}`;
+    return `Generated follow-up task ${execution.generatedTaskTitle}.${automationExecutionContextLabel(execution) ? ` ${automationExecutionContextLabel(execution)}.` : ""}${recoveryLabel ? ` ${recoveryLabel}` : ""}`;
   }
 
-  return `${automationExecutionLabel(execution)} is ${formatAutomationExecutionStatus(execution.status).toLowerCase()} on attempt ${execution.attemptCount}/${execution.maxAttempts}.${automationExecutionContextLabel(execution) ? ` ${automationExecutionContextLabel(execution)}.` : ""}`;
+  return `${automationExecutionLabel(execution)} is ${formatAutomationExecutionStatus(execution.status).toLowerCase()} on attempt ${execution.attemptCount}/${execution.maxAttempts}.${automationExecutionContextLabel(execution) ? ` ${automationExecutionContextLabel(execution)}.` : ""}${recoveryLabel ? ` ${recoveryLabel}` : ""}`;
 }
 
 export function buildAppointmentVersionConflictNotice(input: {
@@ -2255,7 +2279,7 @@ export function buildAppointmentAuditTimeline(input: {
         detail: automationExecutionDetail(execution),
         actor: "Automation runtime",
         occurredAtLabel: formatTaskDueAt(
-          execution.updatedAt,
+          execution.replayedAt ?? execution.updatedAt,
           appointment.schedulingTimezone ?? defaultTimezone
         )
       });
@@ -5231,6 +5255,8 @@ function mapReadModelToAppointment(appointment: AppointmentReadModel): Appointme
       resolvedAt: execution.resolvedAt,
       generatedTaskTitle: execution.generatedTaskTitle,
       generatedAppointmentNumber: execution.generatedAppointmentNumber,
+      retryReplayAction: execution.retryReplayAction,
+      replayedAt: execution.replayedAt,
       createdAt: execution.createdAt,
       updatedAt: execution.updatedAt
     })),

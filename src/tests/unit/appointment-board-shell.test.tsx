@@ -1941,6 +1941,8 @@ describe("appointment board shell", () => {
             maxAttempts: 3,
             nextRetryAt: null,
             resolvedAt: null,
+            retryReplayAction: "REPLAY",
+            replayedAt: "2026-07-07T16:05:00.000Z",
             sourceTaskId: "TASK-1",
             sourceTaskTitle: "Call customer back",
             generatedTaskTitle: "Call customer back",
@@ -1993,10 +1995,15 @@ describe("appointment board shell", () => {
       expect.arrayContaining(["manager", "automation", "task", "appointment"])
     );
     expect(timeline.some((event) => event.title === "Exception queue surfaced")).toBe(true);
-    expect(timeline.some((event) => event.title === "Automation review required")).toBe(true);
-    expect(timeline.find((event) => event.title === "Automation review required")?.detail).toContain(
-      "task Call customer back"
+    expect(timeline.some((event) => event.title === "Automation replay still needs review")).toBe(
+      true
     );
+    expect(
+      timeline.find((event) => event.title === "Automation replay still needs review")?.detail
+    ).toContain("task Call customer back");
+    expect(
+      timeline.find((event) => event.title === "Automation replay still needs review")?.detail
+    ).toContain("Recovery: Replay.");
   });
 
   it("builds a command-center report snapshot from visible workbench items", () => {

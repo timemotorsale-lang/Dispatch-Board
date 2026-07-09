@@ -120,6 +120,8 @@ export type AppointmentReadAutomationExecutionSummary = {
   maxAttempts: number;
   nextRetryAt: string | null;
   resolvedAt: string | null;
+  retryReplayAction: string | null;
+  replayedAt: string | null;
   generatedTaskTitle: string | null;
   generatedAppointmentNumber: string | null;
   createdAt: string;
@@ -428,6 +430,12 @@ function toAutomationExecutionSummary(
     maxAttempts: execution.maxAttempts,
     nextRetryAt: execution.nextRetryAt?.toISOString() ?? null,
     resolvedAt: execution.resolvedAt?.toISOString() ?? null,
+    retryReplayAction:
+      stringFromSnapshot(execution.resultSnapshot, "retryReplayAction") ??
+      stringFromSnapshot(execution.inputSnapshot, "retryReplayAction"),
+    replayedAt:
+      stringFromSnapshot(execution.resultSnapshot, "replayedAt") ??
+      stringFromSnapshot(execution.inputSnapshot, "replayedAt"),
     generatedTaskTitle: stringFromSnapshot(execution.resultSnapshot, "generatedTaskTitle"),
     generatedAppointmentNumber: stringFromSnapshot(
       execution.resultSnapshot,
