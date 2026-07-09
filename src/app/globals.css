@@ -3015,6 +3015,12 @@ code {
   background: #f4f8ff;
 }
 
+.tasks-console-row-updating {
+  background: linear-gradient(90deg, #eef5ff 0%, #ffffff 50%, #eef5ff 100%);
+  background-size: 220% 100%;
+  animation: tasks-console-saving-sheen 1.1s ease-in-out infinite;
+}
+
 .tasks-console-title-cell {
   min-width: 0;
 }
@@ -3318,6 +3324,12 @@ code {
   box-shadow: 0 14px 28px rgba(37, 99, 235, 0.08);
 }
 
+.tasks-console-lane-card-updating {
+  background: linear-gradient(90deg, #eef5ff 0%, #ffffff 50%, #eef5ff 100%);
+  background-size: 220% 100%;
+  animation: tasks-console-saving-sheen 1.1s ease-in-out infinite;
+}
+
 .tasks-console-lane-card-top {
   display: flex;
   align-items: center;
@@ -3562,6 +3574,18 @@ code {
   line-height: 1.25;
 }
 
+.tasks-console-rail-saving {
+  padding: 0.38rem 0.5rem;
+  color: #1757c7;
+  background: #eef5ff;
+  border: 1px solid #cfe0ff;
+  border-radius: 0.75rem;
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
 .tasks-console-workflow-form,
 .tasks-console-comment-form,
 .tasks-console-reassign-form,
@@ -3617,6 +3641,68 @@ code {
 .tasks-console-comment-form textarea,
 .tasks-console-update-fields textarea {
   resize: vertical;
+}
+
+.tasks-console-status-guidance {
+  display: grid;
+  gap: 0.16rem;
+  padding: 0.42rem 0.48rem;
+  border: 1px solid #dbe4ef;
+  border-radius: 0.75rem;
+  background: #ffffff;
+}
+
+.tasks-console-status-guidance strong {
+  color: #142238;
+  font-size: 0.66rem;
+  letter-spacing: 0.01em;
+}
+
+.tasks-console-status-guidance p {
+  margin: 0;
+  color: #66758a;
+  font-size: 0.65rem;
+  line-height: 1.25;
+}
+
+.tasks-console-status-guidance-brand {
+  border-color: #bfd4ff;
+  background: #f3f7ff;
+}
+
+.tasks-console-status-guidance-danger {
+  border-color: #fecaca;
+  background: #fff5f5;
+}
+
+.tasks-console-status-guidance-neutral {
+  border-color: #dbe4ef;
+  background: #f8fafc;
+}
+
+.tasks-console-status-guidance-review {
+  border-color: #ddd6fe;
+  background: #f8f5ff;
+}
+
+.tasks-console-status-guidance-success {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.tasks-console-status-guidance-warning {
+  border-color: #fed7aa;
+  background: #fff7ed;
+}
+
+@keyframes tasks-console-saving-sheen {
+  0% {
+    background-position: 120% 0;
+  }
+
+  100% {
+    background-position: -120% 0;
+  }
 }
 
 .tasks-console-update-fields {

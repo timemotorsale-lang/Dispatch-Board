@@ -78,6 +78,7 @@ type DepartmentFilter =
   | "ADMIN"
   | "COLLECTIONS";
 type SidebarTone = "brand" | "danger" | "neutral" | "review" | "slate" | "success" | "warning";
+type StatusGuidanceTone = "brand" | "danger" | "neutral" | "review" | "success" | "warning";
 type SidebarItem = {
   active: boolean;
   badge?: number;
@@ -303,6 +304,64 @@ function createUpdateFieldsPayload(formData: FormData, task: TaskReadModel | nul
   }
 
   return Object.keys(updateFields).length ? updateFields : undefined;
+}
+
+function getStatusGuidance(status: string, task: TaskReadModel | null): { body: string; title: string; tone: StatusGuidanceTone } {
+  if (status === TaskStatus.BLOCKED) {
+    return {
+      body: "Capture the blocker reason so the next person knows exactly what is stopping movement.",
+      title: "Blocker reason required",
+      tone: "danger"
+    };
+  }
+
+  if (status === TaskStatus.WAITING_ON_PARTS) {
+    return {
+      body: "Use this when the next move depends on a part, vendor, or supply arrival.",
+      title: "Waiting on parts",
+      tone: "warning"
+    };
+  }
+
+  if (status === TaskStatus.WAITING_ON_APPROVAL) {
+    return {
+      body: "Use this when the team has done its part and the next move depends on a manager or customer approval.",
+      title: "Approval is the next handoff",
+      tone: "warning"
+    };
+  }
+
+  if (status === TaskStatus.READY_FOR_REVIEW) {
+    return {
+      body: task?.requiredUpdateFields.length
+        ? "Complete the required update fields before handing this to review."
+        : "Use this when the work is ready for a quick manager pass before completion.",
+      title: "Review handoff",
+      tone: "review"
+    };
+  }
+
+  if (status === TaskStatus.COMPLETED) {
+    return {
+      body: "Confirm the task is truly closed out before marking it complete.",
+      title: "Close the loop",
+      tone: "success"
+    };
+  }
+
+  if (status === TaskStatus.IN_PROGRESS) {
+    return {
+      body: "Use this when someone is actively moving the task forward now.",
+      title: "Active work",
+      tone: "brand"
+    };
+  }
+
+  return {
+    body: "Use this for tasks that are queued but not yet started.",
+    title: "Queued work",
+    tone: "neutral"
+  };
 }
 
 function isTasksConsoleColumnKey(value: unknown): value is TasksConsoleColumnKey {
@@ -730,6 +789,7 @@ export function TasksConsoleScreen({
   const [detailError, setDetailError] = useState<string | null>(null);
   const [workflowMessage, setWorkflowMessage] = useState<string | null>(null);
   const [workflowError, setWorkflowError] = useState<string | null>(null);
+  const [statusDrafts, setStatusDrafts] = useState<Record<string, string>>({});
   const [generationMessage, setGenerationMessage] = useState<string | null>(null);
   const [isGeneratePending, startGenerateTransition] = useTransition();
   const [isWorkflowPending, startWorkflowTransition] = useTransition();
@@ -768,6 +828,10 @@ export function TasksConsoleScreen({
     : pagedTasks[0]?.id ?? null;
   const selectedBoardTask = getSelectionFallbackTask(pagedTasks, effectiveSelectedTaskId);
   const activeTaskDetail = selectedTaskDetail?.id === effectiveSelectedTaskId ? selectedTaskDetail : null;
+  const activeStatusDraft = selectedBoardTask
+    ? statusDrafts[selectedBoardTask.id] ?? activeTaskDetail?.status ?? selectedBoardTask.status
+    : TaskStatus.NOT_STARTED;
+  const activeStatusGuidance = getStatusGuidance(activeStatusDraft, activeTaskDetail);
   const activeTaskPriority = activeTaskDetail ? getPriorityLabel(activeTaskDetail, now) : null;
   const detailTimeline = buildActivityTimeline(activeTaskDetail);
   const rightRailFields = createRightRailFieldRows(activeTaskDetail);
@@ -1022,7 +1086,13 @@ export function TasksConsoleScreen({
       throw new Error("The action saved, but task details could not refresh.");
     }
 
-    setSelectedTaskDetail(payload.task);
+    const refreshedTask = payload.task;
+
+    setSelectedTaskDetail(refreshedTask);
+    setStatusDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [taskId]: refreshedTask.status
+    }));
     setWorkflowMessage(successMessage);
     setWorkflowError(null);
     router.refresh();
@@ -1876,11 +1946,18 @@ export function TasksConsoleScreen({
                           pagedTasks.map((task) => {
                             const priority = getPriorityLabel(task, now);
                             const active = task.id === effectiveSelectedTaskId;
+                            const updating = active && isWorkflowPending;
                             const taskReference = getTaskReference(task);
 
                             return (
                               <tr
-                                className={active ? "tasks-console-row tasks-console-row-active" : "tasks-console-row"}
+                                className={[
+                                  "tasks-console-row",
+                                  active ? "tasks-console-row-active" : "",
+                                  updating ? "tasks-console-row-updating" : ""
+                                ]
+                                  .filter(Boolean)
+                                  .join(" ")}
                                 key={task.id}
                                 onClick={() => handleSelectTask(task.id)}
                               >
@@ -2024,13 +2101,18 @@ export function TasksConsoleScreen({
                           ) : (
                             laneTasks.map((task) => {
                               const active = task.id === effectiveSelectedTaskId;
+                              const updating = active && isWorkflowPending;
 
                               return (
                                 <button
                                   className={
-                                    active
-                                      ? "tasks-console-lane-card tasks-console-lane-card-active"
-                                      : "tasks-console-lane-card"
+                                    [
+                                      "tasks-console-lane-card",
+                                      active ? "tasks-console-lane-card-active" : "",
+                                      updating ? "tasks-console-lane-card-updating" : ""
+                                    ]
+                                      .filter(Boolean)
+                                      .join(" ")
                                   }
                                   key={task.id}
                                   onClick={() => handleSelectTask(task.id)}
@@ -2140,6 +2222,7 @@ export function TasksConsoleScreen({
 
           {rightRailMode !== "closed" ? (
           <aside
+            aria-busy={isWorkflowPending}
             className={
               rightRailMode === "collapsed"
                 ? "panel-card tasks-console-rail tasks-console-rail-collapsed"
@@ -2245,6 +2328,12 @@ export function TasksConsoleScreen({
                   </div>
                 ) : null}
 
+                {isWorkflowPending ? (
+                  <div className="tasks-console-rail-saving" role="status">
+                    Updating selected task...
+                  </div>
+                ) : null}
+
                 {detailLoading ? (
                   <div className="tasks-console-rail-state">
                     <p>Loading task details...</p>
@@ -2296,8 +2385,14 @@ export function TasksConsoleScreen({
                       <label>
                         <span>Status</span>
                         <select
-                          defaultValue={activeTaskDetail?.status ?? selectedBoardTask.status}
                           name="status"
+                          onChange={(event) =>
+                            setStatusDrafts((currentDrafts) => ({
+                              ...currentDrafts,
+                              [selectedBoardTask.id]: event.target.value
+                            }))
+                          }
+                          value={activeStatusDraft}
                         >
                           {TASKS_CONSOLE_STATUS_OPTIONS.map((status) => (
                             <option key={status} value={status}>
@@ -2315,6 +2410,10 @@ export function TasksConsoleScreen({
                           rows={2}
                         />
                       </label>
+                      <div className={`tasks-console-status-guidance tasks-console-status-guidance-${activeStatusGuidance.tone}`}>
+                        <strong>{activeStatusGuidance.title}</strong>
+                        <p>{activeStatusGuidance.body}</p>
+                      </div>
                       {activeTaskDetail?.requiredUpdateFields.length ? (
                         <div className="tasks-console-update-fields">
                           <strong>Required Update Fields</strong>
