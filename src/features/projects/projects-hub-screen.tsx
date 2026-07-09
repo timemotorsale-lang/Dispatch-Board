@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+import { EmptyStateCard } from "@/components/ui/state-card";
 import type { ActivityFeedEvent } from "@/server/services/activity-feed";
 
 import type { ProjectCardSummary, ProjectTaskLike } from "./project-data";
@@ -28,8 +29,25 @@ type ProjectsHubScreenProps = {
   currentUserId: string;
   currentUserName: string;
   projectCards: ProjectCardSummary[];
+  rawFilter?: string;
+  rawFocus?: string;
+  rawQuery?: string;
+  rawView?: string;
+  showFiltersTray?: boolean;
   tasks: ProjectTaskLike[];
 };
+
+type ProjectsHubView = "card" | "list" | "health";
+type ProjectsHubFilter = "all" | "attention" | "mine" | "healthy";
+type ProjectsHubFocus =
+  | "all"
+  | "open"
+  | "overdue"
+  | "due"
+  | "blocked"
+  | "review"
+  | "activity"
+  | "health";
 
 type HubMetric = {
   label: string;
@@ -44,7 +62,10 @@ type AttentionItem = {
   title: string;
   indicator: string;
   tone: "risk" | "watch" | "steady";
-  count: number;
+};
+
+type AttentionItemWithScore = AttentionItem & {
+  score: number;
 };
 
 function formatCompactTime(value: string) {
@@ -61,6 +82,26 @@ function formatBoardDate(value: string) {
     day: "numeric",
     year: "numeric"
   }).format(new Date(`${value}T12:00:00Z`));
+}
+
+function resolveProjectsHubView(rawValue: string | undefined): ProjectsHubView {
+  return rawValue === "list" || rawValue === "health" ? rawValue : "card";
+}
+
+function resolveProjectsHubFilter(rawValue: string | undefined): ProjectsHubFilter {
+  return rawValue === "attention" || rawValue === "mine" || rawValue === "healthy" ? rawValue : "all";
+}
+
+function resolveProjectsHubFocus(rawValue: string | undefined): ProjectsHubFocus {
+  return rawValue === "open" ||
+    rawValue === "overdue" ||
+    rawValue === "due" ||
+    rawValue === "blocked" ||
+    rawValue === "review" ||
+    rawValue === "activity" ||
+    rawValue === "health"
+    ? rawValue
+    : "all";
 }
 
 function getGreeting(name: string) {
@@ -88,6 +129,97 @@ function isTaskOverdue(task: ProjectTaskLike) {
 
 function isTaskDueOnBoardDate(task: ProjectTaskLike, boardDate: string) {
   return isTaskOpen(task) && task.dueAt.slice(0, 10) === boardDate;
+}
+
+function getDueTodayCount(summary: ProjectCardSummary, boardDate: string) {
+  return summary.tasks.filter((task) => isTaskDueOnBoardDate(task, boardDate)).length;
+}
+
+function getProjectActivityCount(summary: ProjectCardSummary, activityEvents: ActivityFeedEvent[]) {
+  const taskIds = new Set(summary.tasks.map((task) => task.id));
+
+  return activityEvents.filter((event) => event.task && taskIds.has(event.task.id)).length;
+}
+
+function matchesProjectQuery(summary: ProjectCardSummary, query: string) {
+  if (!query) {
+    return true;
+  }
+
+  const haystack = [
+    summary.project.name,
+    summary.project.shortName,
+    summary.project.description,
+    summary.owner,
+    ...summary.tasks.flatMap((task) => [
+      task.title,
+      task.description,
+      task.customerReference,
+      task.vehicleReference
+    ])
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return haystack.includes(query);
+}
+
+function matchesProjectFilter(
+  summary: ProjectCardSummary,
+  filter: ProjectsHubFilter,
+  currentUserId: string
+) {
+  if (filter === "attention") {
+    return Boolean(summary.stats.blocked || summary.stats.overdue || summary.stats.readyForReview);
+  }
+
+  if (filter === "mine") {
+    return summary.tasks.some((task) => task.assignedUser?.id === currentUserId);
+  }
+
+  if (filter === "healthy") {
+    return summary.health.tone === "good";
+  }
+
+  return true;
+}
+
+function matchesProjectFocus(
+  summary: ProjectCardSummary,
+  focus: ProjectsHubFocus,
+  boardDate: string,
+  activityEvents: ActivityFeedEvent[]
+) {
+  if (focus === "open") {
+    return summary.stats.active > 0;
+  }
+
+  if (focus === "overdue") {
+    return summary.stats.overdue > 0;
+  }
+
+  if (focus === "due") {
+    return getDueTodayCount(summary, boardDate) > 0;
+  }
+
+  if (focus === "blocked") {
+    return summary.stats.blocked > 0;
+  }
+
+  if (focus === "review") {
+    return summary.stats.readyForReview > 0;
+  }
+
+  if (focus === "activity") {
+    return getProjectActivityCount(summary, activityEvents) > 0;
+  }
+
+  if (focus === "health") {
+    return summary.health.tone !== "good";
+  }
+
+  return true;
 }
 
 function getHubMetrics(
@@ -186,12 +318,18 @@ function getAttentionItems(projectCards: ProjectCardSummary[]): AttentionItem[] 
         href: `/projects/${summary.project.slug}?view=overview`,
         title: summary.project.name,
         indicator: indicator || detailParts[0] || "Watching",
-        tone,
-        count: score
-      } satisfies AttentionItem;
+        score,
+        tone
+      };
     })
-    .filter((item): item is AttentionItem => Boolean(item))
-    .sort((left, right) => right.count - left.count)
+    .filter((item): item is AttentionItemWithScore => Boolean(item))
+    .sort((left, right) => right.score - left.score)
+    .map((item) => ({
+      href: item.href,
+      indicator: item.indicator,
+      title: item.title,
+      tone: item.tone
+    }))
     .slice(0, 6);
 }
 
@@ -270,29 +408,114 @@ function getAttentionIconTone(tone: AttentionItem["tone"]) {
   return ShieldCheck;
 }
 
+function buildProjectsHubHref({
+  filter = "all",
+  filtersOpen = false,
+  focus = "all",
+  query = "",
+  view = "card"
+}: {
+  filter?: ProjectsHubFilter;
+  filtersOpen?: boolean;
+  focus?: ProjectsHubFocus;
+  query?: string;
+  view?: ProjectsHubView;
+}) {
+  const params = new URLSearchParams();
+
+  if (view !== "card") {
+    params.set("view", view);
+  }
+
+  if (filter !== "all") {
+    params.set("filter", filter);
+  }
+
+  if (focus !== "all") {
+    params.set("focus", focus);
+  }
+
+  if (query.trim()) {
+    params.set("query", query.trim());
+  }
+
+  if (filtersOpen) {
+    params.set("filters", "open");
+  }
+
+  const search = params.toString();
+
+  return search ? `/projects?${search}` : "/projects";
+}
+
 export function ProjectsHubScreen({
   activityEvents,
   boardDate,
   currentUserId,
   currentUserName,
   projectCards,
+  rawFilter,
+  rawFocus,
+  rawQuery,
+  rawView,
+  showFiltersTray = false,
   tasks
 }: ProjectsHubScreenProps) {
+  const selectedView = resolveProjectsHubView(rawView);
+  const selectedFilter = resolveProjectsHubFilter(rawFilter);
+  const selectedFocus = resolveProjectsHubFocus(rawFocus);
+  const selectedQuery = rawQuery?.trim().toLowerCase() ?? "";
   const hubMetrics = getHubMetrics(tasks, boardDate, activityEvents, projectCards);
-  const attentionItems = getAttentionItems(projectCards);
+  const filteredProjectCards = projectCards
+    .filter((summary) => matchesProjectQuery(summary, selectedQuery))
+    .filter((summary) => matchesProjectFilter(summary, selectedFilter, currentUserId))
+    .filter((summary) => matchesProjectFocus(summary, selectedFocus, boardDate, activityEvents))
+    .sort((left, right) => {
+      if (selectedView === "health" || selectedFocus === "health") {
+        return left.health.score - right.health.score;
+      }
+
+      if (selectedFocus === "activity") {
+        return getProjectActivityCount(right, activityEvents) - getProjectActivityCount(left, activityEvents);
+      }
+
+      if (selectedFocus === "overdue") {
+        return right.stats.overdue - left.stats.overdue;
+      }
+
+      if (selectedFocus === "blocked") {
+        return right.stats.blocked - left.stats.blocked;
+      }
+
+      if (selectedFocus === "review") {
+        return right.stats.readyForReview - left.stats.readyForReview;
+      }
+
+      if (selectedFocus === "due") {
+        return getDueTodayCount(right, boardDate) - getDueTodayCount(left, boardDate);
+      }
+
+      return left.project.name.localeCompare(right.project.name);
+    });
+  const attentionItems = getAttentionItems(filteredProjectCards.length ? filteredProjectCards : projectCards);
   const myTasks = getUserTasks(tasks, currentUserId, boardDate);
   const queueTasks = getProjectQueue(tasks);
-  const healthSnapshot = [...projectCards]
+  const healthSnapshot = [...filteredProjectCards]
     .sort((left, right) => left.health.score - right.health.score)
     .slice(0, 4);
-  const visibleProjectCards = projectCards.slice(0, 8);
-  const hiddenProjectCount = Math.max(0, projectCards.length - visibleProjectCards.length);
+  const visibleProjectCards =
+    selectedView === "card" ? filteredProjectCards.slice(0, 8) : filteredProjectCards;
+  const hiddenProjectCount = Math.max(0, filteredProjectCards.length - visibleProjectCards.length);
   const compactActivity = activityEvents.slice(0, 5);
   const aggregateAttention = {
     overdue: tasks.filter(isTaskOverdue).length,
     blocked: tasks.filter((task) => task.status === "BLOCKED").length,
     review: tasks.filter((task) => task.status === "READY_FOR_REVIEW").length
   };
+  const primaryWorkspaceHref =
+    visibleProjectCards[0]
+      ? `/projects/${visibleProjectCards[0].project.slug}?view=overview`
+      : "/projects/inventory-management?view=overview";
 
   return (
     <section className="page-stack dashboard-page board-page project-page projects-hub-page">
@@ -306,11 +529,24 @@ export function ProjectsHubScreen({
 
           <div className="board-toolbar projects-hub-toolbar">
             <div className="projects-hub-toolbar-top">
-              <div className="projects-hub-search-shell" aria-label="Search shell">
-                <Search size={16} />
-                <span>Search projects, tasks, vehicles, customers...</span>
-              </div>
-              <Link className="pill pill-primary" href="/projects/inventory-management?view=overview">
+              <form action="/projects" className="projects-hub-search-shell">
+                {selectedView !== "card" ? <input name="view" type="hidden" value={selectedView} /> : null}
+                {selectedFilter !== "all" ? <input name="filter" type="hidden" value={selectedFilter} /> : null}
+                {selectedFocus !== "all" ? <input name="focus" type="hidden" value={selectedFocus} /> : null}
+                {showFiltersTray ? <input name="filters" type="hidden" value="open" /> : null}
+                <button aria-label="Search projects hub" className="projects-hub-search-submit" type="submit">
+                  <Search size={16} />
+                </button>
+                <input
+                  aria-label="Search projects hub"
+                  className="projects-hub-search-input"
+                  defaultValue={rawQuery ?? ""}
+                  name="query"
+                  placeholder="Search projects, tasks, vehicles, customers..."
+                  type="search"
+                />
+              </form>
+              <Link className="pill pill-primary" href={primaryWorkspaceHref}>
                 Open Workspace
               </Link>
             </div>
@@ -318,10 +554,19 @@ export function ProjectsHubScreen({
               <Link className="pill pill-secondary" href={`/board?date=${encodeURIComponent(boardDate)}`}>
                 Generate Today&apos;s Board
               </Link>
-              <span className="pill pill-secondary projects-hub-filter-pill">
+              <Link
+                className="pill pill-secondary projects-hub-filter-pill"
+                href={buildProjectsHubHref({
+                  filter: selectedFilter,
+                  filtersOpen: !showFiltersTray,
+                  focus: selectedFocus,
+                  query: rawQuery ?? "",
+                  view: selectedView
+                })}
+              >
                 <ListFilter size={14} />
                 Filters
-              </span>
+              </Link>
               <span className="board-page-date-pill projects-hub-date-pill">
                 <CalendarDays size={15} />
                 {formatBoardDate(boardDate)}
@@ -331,13 +576,115 @@ export function ProjectsHubScreen({
         </div>
       </section>
 
+      {showFiltersTray || selectedFilter !== "all" || selectedFocus !== "all" || Boolean(selectedQuery) ? (
+        <section className="projects-hub-filter-tray">
+          <div className="projects-hub-filter-group">
+            <span>Filter projects</span>
+            <div className="projects-hub-filter-chips">
+              {([
+                ["all", "All projects"],
+                ["attention", "Needs attention"],
+                ["mine", "My assignments"],
+                ["healthy", "Healthy only"]
+              ] as const).map(([filterValue, label]) => (
+                <Link
+                  className={
+                    selectedFilter === filterValue
+                      ? "projects-hub-filter-chip projects-hub-filter-chip-active"
+                      : "projects-hub-filter-chip"
+                  }
+                  href={buildProjectsHubHref({
+                    filter: filterValue,
+                    filtersOpen: showFiltersTray,
+                    focus: selectedFocus,
+                    query: rawQuery ?? "",
+                    view: selectedView
+                  })}
+                  key={filterValue}
+                >
+                  {label}
+                </Link>
+              ))}
+            </div>
+          </div>
+          <div className="projects-hub-filter-group">
+            <span>Quick focus</span>
+            <div className="projects-hub-filter-chips">
+              {([
+                ["all", "Everything"],
+                ["open", "Open work"],
+                ["overdue", "Overdue"],
+                ["due", "Due today"],
+                ["blocked", "Blocked"],
+                ["review", "Review"],
+                ["activity", "Activity"],
+                ["health", "Health"]
+              ] as const).map(([focusValue, label]) => (
+                <Link
+                  className={
+                    selectedFocus === focusValue
+                      ? "projects-hub-filter-chip projects-hub-filter-chip-active"
+                      : "projects-hub-filter-chip"
+                  }
+                  href={buildProjectsHubHref({
+                    filter: selectedFilter,
+                    filtersOpen: showFiltersTray,
+                    focus: focusValue,
+                    query: rawQuery ?? "",
+                    view: selectedView
+                  })}
+                  key={focusValue}
+                >
+                  {label}
+                </Link>
+              ))}
+            </div>
+          </div>
+          <div className="projects-hub-filter-summary">
+            <strong>{filteredProjectCards.length} project areas visible</strong>
+            <span>
+              {selectedQuery ? `Search: "${rawQuery?.trim()}"` : "No search filter"} | View: {selectedView}
+            </span>
+            {(selectedFilter !== "all" || selectedFocus !== "all" || Boolean(selectedQuery)) ? (
+              <Link className="projects-hub-filter-reset" href="/projects">
+                Clear filters
+              </Link>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+
       <section className="projects-hub-kpi-strip" aria-label="Project hub metrics">
         {hubMetrics.map((metric) => {
           const Icon = metric.icon;
+          const metricFocus: ProjectsHubFocus =
+            metric.label === "Open tasks"
+              ? "open"
+              : metric.label === "Overdue"
+                ? "overdue"
+                : metric.label === "Due today"
+                  ? "due"
+                  : metric.label === "Blocked"
+                    ? "blocked"
+                    : metric.label === "Ready for review"
+                      ? "review"
+                      : metric.label === "Activity today"
+                        ? "activity"
+                        : "health";
+          const isMetricActive =
+            (metricFocus === "health" && selectedView === "health") || selectedFocus === metricFocus;
+          const metricHref = buildProjectsHubHref({
+            filter: metricFocus === "health" ? selectedFilter : metricFocus === "overdue" || metricFocus === "blocked" ? "attention" : selectedFilter,
+            filtersOpen: showFiltersTray,
+            focus: metricFocus,
+            query: rawQuery ?? "",
+            view: metricFocus === "health" ? "health" : "card"
+          });
 
           return (
-            <article
-              className={`projects-hub-kpi-card projects-hub-kpi-card-${metric.tone}`}
+            <Link
+              className={`projects-hub-kpi-card projects-hub-kpi-card-${metric.tone}${isMetricActive ? " projects-hub-kpi-card-active" : ""}`}
+              href={metricHref}
               key={metric.label}
             >
               <span className="projects-hub-kpi-icon">
@@ -348,7 +695,7 @@ export function ProjectsHubScreen({
                 <strong>{metric.value}</strong>
                 <p>{metric.detail}</p>
               </div>
-            </article>
+            </Link>
           );
         })}
       </section>
@@ -361,23 +708,78 @@ export function ProjectsHubScreen({
               <h2>Project command center</h2>
             </div>
             <div className="projects-hub-view-pills" aria-label="View options">
-              <span className="projects-hub-view-pill projects-hub-view-pill-active">
+              <Link
+                className={
+                  selectedView === "card"
+                    ? "projects-hub-view-pill projects-hub-view-pill-active"
+                    : "projects-hub-view-pill"
+                }
+                href={buildProjectsHubHref({
+                  filter: selectedFilter,
+                  filtersOpen: showFiltersTray,
+                  focus: selectedFocus,
+                  query: rawQuery ?? "",
+                  view: "card"
+                })}
+              >
                 <LayoutGrid size={13} />
                 Card
-              </span>
-              <span className="projects-hub-view-pill">
+              </Link>
+              <Link
+                className={
+                  selectedView === "list"
+                    ? "projects-hub-view-pill projects-hub-view-pill-active"
+                    : "projects-hub-view-pill"
+                }
+                href={buildProjectsHubHref({
+                  filter: selectedFilter,
+                  filtersOpen: showFiltersTray,
+                  focus: selectedFocus,
+                  query: rawQuery ?? "",
+                  view: "list"
+                })}
+              >
                 <ListFilter size={13} />
                 List
-              </span>
-              <span className="projects-hub-view-pill">
+              </Link>
+              <Link
+                className={
+                  selectedView === "health"
+                    ? "projects-hub-view-pill projects-hub-view-pill-active"
+                    : "projects-hub-view-pill"
+                }
+                href={buildProjectsHubHref({
+                  filter: selectedFilter,
+                  filtersOpen: showFiltersTray,
+                  focus: selectedFocus,
+                  query: rawQuery ?? "",
+                  view: "health"
+                })}
+              >
                 <ShieldCheck size={13} />
                 Health
-              </span>
+              </Link>
             </div>
           </div>
 
-          <section className="projects-hub-card-grid">
-            {visibleProjectCards.map((summary) => {
+          {filteredProjectCards.length ? null : (
+            <EmptyStateCard
+              actions={[
+                {
+                  href: "/projects",
+                  label: "Clear filters",
+                  tone: "secondary"
+                }
+              ]}
+              eyebrow="No matching projects"
+              message="Try clearing the current search or filter combination to bring more project areas back into view."
+              title="Nothing matches this hub view yet"
+            />
+          )}
+
+          {selectedView === "card" && filteredProjectCards.length ? (
+            <section className="projects-hub-card-grid">
+              {visibleProjectCards.map((summary) => {
               const Icon = summary.project.icon;
               const priority = getPriorityLabel(summary);
               const healthColor = getHealthColor(summary.health.tone);
@@ -404,9 +806,13 @@ export function ProjectsHubScreen({
                       <span className={`projects-hub-priority projects-hub-priority-${priority.tone}`}>
                         {priority.label}
                       </span>
-                      <span className="projects-hub-card-menu">
+                      <Link
+                        aria-label={`Open ${summary.project.name} overview`}
+                        className="projects-hub-card-menu"
+                        href={`/projects/${summary.project.slug}?view=overview`}
+                      >
                         <MoreHorizontal size={14} />
-                      </span>
+                      </Link>
                     </div>
                   </div>
 
@@ -427,7 +833,7 @@ export function ProjectsHubScreen({
                       </div>
                       <div>
                         <dt>Due today</dt>
-                        <dd>{summary.tasks.filter((task) => isTaskDueOnBoardDate(task, boardDate)).length}</dd>
+                        <dd>{getDueTodayCount(summary, boardDate)}</dd>
                       </div>
                       <div>
                         <dt>Overdue</dt>
@@ -456,11 +862,111 @@ export function ProjectsHubScreen({
                 </article>
               );
             })}
-          </section>
-          {hiddenProjectCount ? (
+            </section>
+          ) : null}
+          {selectedView === "list" && filteredProjectCards.length ? (
+            <section className="project-table-card projects-hub-list-card">
+              <table className="project-table">
+                <thead>
+                  <tr>
+                    <th>Project</th>
+                    <th>Lead</th>
+                    <th>Health</th>
+                    <th>Open</th>
+                    <th>Due today</th>
+                    <th>Overdue</th>
+                    <th>Blocked</th>
+                    <th>Review</th>
+                    <th>Open</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleProjectCards.map((summary) => (
+                    <tr key={summary.project.slug}>
+                      <td>
+                        <strong>{summary.project.name}</strong>
+                      </td>
+                      <td>{summary.owner ?? "Unassigned"}</td>
+                      <td>{summary.health.score}%</td>
+                      <td>{summary.stats.active}</td>
+                      <td>{getDueTodayCount(summary, boardDate)}</td>
+                      <td>{summary.stats.overdue}</td>
+                      <td>{summary.stats.blocked}</td>
+                      <td>{summary.stats.readyForReview}</td>
+                      <td>
+                        <Link className="row-action" href={`/projects/${summary.project.slug}?view=overview`}>
+                          Workspace
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          ) : null}
+          {selectedView === "health" && filteredProjectCards.length ? (
+            <section className="projects-hub-health-grid">
+              {visibleProjectCards.map((summary) => {
+                const Icon = summary.project.icon;
+
+                return (
+                  <Link
+                    className={`projects-hub-health-card projects-hub-health-card-${summary.health.tone}`}
+                    href={`/projects/${summary.project.slug}?view=overview`}
+                    key={summary.project.slug}
+                  >
+                    <div className="projects-hub-health-card-top">
+                      <span className={`projects-hub-card-icon projects-hub-card-icon-${summary.project.accent}`}>
+                        <Icon size={18} />
+                      </span>
+                      <div>
+                        <strong>{summary.project.name}</strong>
+                        <p>{summary.health.reason}</p>
+                      </div>
+                      <small>{summary.health.score}%</small>
+                    </div>
+                    <div className="projects-hub-health-bar-track">
+                      <span
+                        className={`projects-hub-health-bar-fill projects-hub-health-bar-fill-${summary.health.tone}`}
+                        style={{ width: `${summary.health.score}%` }}
+                      />
+                    </div>
+                    <dl className="projects-hub-health-card-metrics">
+                      <div>
+                        <dt>Open</dt>
+                        <dd>{summary.stats.active}</dd>
+                      </div>
+                      <div>
+                        <dt>Overdue</dt>
+                        <dd>{summary.stats.overdue}</dd>
+                      </div>
+                      <div>
+                        <dt>Blocked</dt>
+                        <dd>{summary.stats.blocked}</dd>
+                      </div>
+                      <div>
+                        <dt>Review</dt>
+                        <dd>{summary.stats.readyForReview}</dd>
+                      </div>
+                    </dl>
+                  </Link>
+                );
+              })}
+            </section>
+          ) : null}
+          {selectedView === "card" && hiddenProjectCount ? (
             <div className="projects-hub-more-row">
-              <Link className="projects-hub-more-link" href="/projects/management-review?view=overview">
-                Show {hiddenProjectCount} more project{hiddenProjectCount === 1 ? "" : "s"}
+              <Link
+                className="projects-hub-more-link"
+                href={buildProjectsHubHref({
+                  filter: selectedFilter,
+                  filtersOpen: showFiltersTray,
+                  focus: selectedFocus,
+                  query: rawQuery ?? "",
+                  view: "list"
+                })}
+              >
+                Show {hiddenProjectCount} more project{hiddenProjectCount === 1 ? "" : "s"} in list view
                 <ChevronRight size={14} />
               </Link>
             </div>
@@ -525,26 +1031,30 @@ export function ProjectsHubScreen({
                   <h2>Current snapshot</h2>
                 </div>
               </div>
-              <div className="projects-hub-health-bars">
-                {healthSnapshot.map((summary) => (
-                  <Link
-                    className="projects-hub-health-bar"
-                    href={`/projects/${summary.project.slug}?view=overview`}
-                    key={summary.project.slug}
-                  >
-                    <div className="projects-hub-health-bar-top">
-                      <strong>{summary.project.shortName}</strong>
-                      <small>{summary.health.score}%</small>
-                    </div>
-                    <div className="projects-hub-health-bar-track">
-                      <span
-                        className={`projects-hub-health-bar-fill projects-hub-health-bar-fill-${summary.health.tone}`}
-                        style={{ width: `${summary.health.score}%` }}
-                      />
-                    </div>
-                  </Link>
-                ))}
-              </div>
+              {healthSnapshot.length ? (
+                <div className="projects-hub-health-bars">
+                  {healthSnapshot.map((summary) => (
+                    <Link
+                      className="projects-hub-health-bar"
+                      href={`/projects/${summary.project.slug}?view=overview`}
+                      key={summary.project.slug}
+                    >
+                      <div className="projects-hub-health-bar-top">
+                        <strong>{summary.project.shortName}</strong>
+                        <small>{summary.health.score}%</small>
+                      </div>
+                      <div className="projects-hub-health-bar-track">
+                        <span
+                          className={`projects-hub-health-bar-fill projects-hub-health-bar-fill-${summary.health.tone}`}
+                          style={{ width: `${summary.health.score}%` }}
+                        />
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <p className="projects-hub-empty-copy">No project health rows match the current view.</p>
+              )}
             </article>
           </section>
         </div>
