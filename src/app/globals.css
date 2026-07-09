@@ -230,6 +230,11 @@ textarea {
   background: rgba(254, 242, 242, 0.95);
 }
 
+.notice-success {
+  border-color: rgba(34, 197, 94, 0.28);
+  background: rgba(240, 253, 244, 0.95);
+}
+
 .state-card {
   display: grid;
   gap: 1rem;
@@ -3544,6 +3549,99 @@ code {
   overflow: auto;
   padding-right: 0.1rem;
   flex: 1 1 auto;
+}
+
+.tasks-console-workflow-notice {
+  padding: 0.42rem 0.55rem;
+  border-radius: 0.8rem;
+  box-shadow: none;
+}
+
+.tasks-console-workflow-notice p {
+  font-size: 0.68rem;
+  line-height: 1.25;
+}
+
+.tasks-console-workflow-form,
+.tasks-console-comment-form,
+.tasks-console-reassign-form,
+.tasks-console-update-fields {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.tasks-console-workflow-form,
+.tasks-console-comment-form {
+  padding: 0.48rem;
+  background: #f8fafc;
+  border: 1px solid #e5ebf2;
+  border-radius: 0.95rem;
+}
+
+.tasks-console-workflow-form label,
+.tasks-console-comment-form label,
+.tasks-console-update-fields label {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.tasks-console-workflow-form span,
+.tasks-console-comment-form span,
+.tasks-console-update-fields span {
+  color: #64748b;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tasks-console-workflow-form input,
+.tasks-console-workflow-form select,
+.tasks-console-workflow-form textarea,
+.tasks-console-comment-form textarea,
+.tasks-console-reassign-form select,
+.tasks-console-update-fields input,
+.tasks-console-update-fields select,
+.tasks-console-update-fields textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 0.42rem 0.5rem;
+  color: #142238;
+  background: #ffffff;
+  border: 1px solid #dbe4ef;
+  border-radius: 0.68rem;
+  font-size: 0.72rem;
+}
+
+.tasks-console-workflow-form textarea,
+.tasks-console-comment-form textarea,
+.tasks-console-update-fields textarea {
+  resize: vertical;
+}
+
+.tasks-console-update-fields {
+  padding: 0.42rem;
+  background: #ffffff;
+  border: 1px dashed #cfd9e6;
+  border-radius: 0.8rem;
+}
+
+.tasks-console-update-fields > strong {
+  margin-bottom: 0;
+  color: #1757c7;
+  font-size: 0.62rem;
+}
+
+.tasks-console-update-fields input[type="checkbox"] {
+  width: 0.9rem;
+  height: 0.9rem;
+  padding: 0;
+  accent-color: #2563eb;
+}
+
+.tasks-console-reassign-form {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
 }
 
 .tasks-console-rail-field-grid {

@@ -1,6 +1,7 @@
 "use client";
 
 import { TaskStatus } from "@prisma/client";
+import { TASK_CHECKLIST_ITEM_KIND } from "@/lib/task-checklist-kind";
 import {
   Calendar,
   ChevronDown,
@@ -19,7 +20,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useDeferredValue, useEffect, useRef, useState, useTransition } from "react";
+import { type FormEvent, useDeferredValue, useEffect, useRef, useState, useTransition } from "react";
 
 import { EmptyStateCard, ErrorStateCard } from "@/components/ui/state-card";
 import {
@@ -117,6 +118,15 @@ const BOARD_VIEW_STATUSES: TaskStatus[] = [
   TaskStatus.COMPLETED
 ];
 const TASKS_PER_PAGE = 8;
+const TASKS_CONSOLE_STATUS_OPTIONS: TaskStatus[] = [
+  TaskStatus.NOT_STARTED,
+  TaskStatus.IN_PROGRESS,
+  TaskStatus.BLOCKED,
+  TaskStatus.WAITING_ON_PARTS,
+  TaskStatus.WAITING_ON_APPROVAL,
+  TaskStatus.READY_FOR_REVIEW,
+  TaskStatus.COMPLETED
+];
 const TASKS_CONSOLE_STORAGE_KEYS = {
   columns: "tasks-console-visible-columns",
   savedViews: "tasks-console-saved-views"
@@ -242,6 +252,57 @@ function compareGroupedTasks(left: BoardReadTask, right: BoardReadTask, groupBy:
 function escapeCsvValue(value: string | number) {
   const text = String(value).replace(/"/g, '""');
   return /[",\n]/.test(text) ? `"${text}"` : text;
+}
+
+async function getApiErrorMessage(response: Response, fallbackMessage: string) {
+  const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+
+  return payload?.error ?? fallbackMessage;
+}
+
+function createAssigneeOptions(tasks: BoardReadTask[], activeTask: TaskReadModel | null) {
+  const users = new Map<string, { id: string; name: string; email?: string }>();
+
+  for (const task of tasks) {
+    users.set(task.assignedUser.id, task.assignedUser);
+
+    if (task.recommendedUser) {
+      users.set(task.recommendedUser.id, task.recommendedUser);
+    }
+  }
+
+  if (activeTask) {
+    users.set(activeTask.assignedUser.id, activeTask.assignedUser);
+
+    if (activeTask.recommendedUser) {
+      users.set(activeTask.recommendedUser.id, activeTask.recommendedUser);
+    }
+  }
+
+  return [...users.values()].sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function createUpdateFieldsPayload(formData: FormData, task: TaskReadModel | null) {
+  if (!task?.requiredUpdateFields.length) {
+    return undefined;
+  }
+
+  const updateFields: Record<string, string | boolean> = {};
+
+  for (const field of task.requiredUpdateFields) {
+    const value = formData.get(`updateField:${field.key}`);
+
+    if (field.type === "boolean") {
+      updateFields[field.key] = value === "on";
+      continue;
+    }
+
+    if (typeof value === "string" && value.trim()) {
+      updateFields[field.key] = value.trim();
+    }
+  }
+
+  return Object.keys(updateFields).length ? updateFields : undefined;
 }
 
 function isTasksConsoleColumnKey(value: unknown): value is TasksConsoleColumnKey {
@@ -667,8 +728,11 @@ export function TasksConsoleScreen({
   const [selectedTaskDetail, setSelectedTaskDetail] = useState<TaskReadModel | null>(initialTask);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [workflowMessage, setWorkflowMessage] = useState<string | null>(null);
+  const [workflowError, setWorkflowError] = useState<string | null>(null);
   const [generationMessage, setGenerationMessage] = useState<string | null>(null);
   const [isGeneratePending, startGenerateTransition] = useTransition();
+  const [isWorkflowPending, startWorkflowTransition] = useTransition();
   const deferredSearchText = useDeferredValue(searchText.trim().toLowerCase());
   const allTasks = [...(board?.tasks ?? [])].sort(
     (left, right) => new Date(left.dueAt).getTime() - new Date(right.dueAt).getTime()
@@ -709,6 +773,7 @@ export function TasksConsoleScreen({
   const rightRailFields = createRightRailFieldRows(activeTaskDetail);
   const subtasks = activeTaskDetail ? buildSubtasks(activeTaskDetail) : [];
   const completedSubtaskCount = subtasks.filter((item) => item.completed).length;
+  const assigneeOptions = createAssigneeOptions(allTasks, activeTaskDetail);
   const createTaskHref = `/board?date=${encodeURIComponent(boardDate)}`;
   const boardHref = `/board?date=${encodeURIComponent(boardDate)}`;
   const isTodayBoard = boardDate === todayBoardDate;
@@ -941,6 +1006,201 @@ export function TasksConsoleScreen({
       return TASKS_CONSOLE_COLUMNS
         .map((column) => column.key)
         .filter((currentColumn) => currentColumn === columnKey || currentColumns.includes(currentColumn));
+    });
+  }
+
+  async function refreshSelectedTaskDetail(taskId: string, successMessage: string) {
+    const response = await fetch(`/api/tasks/${encodeURIComponent(taskId)}`);
+
+    if (!response.ok) {
+      throw new Error(await getApiErrorMessage(response, "The action saved, but task details could not refresh."));
+    }
+
+    const payload = (await response.json().catch(() => null)) as { task?: TaskReadModel } | null;
+
+    if (!payload?.task) {
+      throw new Error("The action saved, but task details could not refresh.");
+    }
+
+    setSelectedTaskDetail(payload.task);
+    setWorkflowMessage(successMessage);
+    setWorkflowError(null);
+    router.refresh();
+  }
+
+  function handleStatusUpdate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!selectedBoardTask) {
+      return;
+    }
+
+    const formData = new FormData(event.currentTarget);
+    const status = formData.get("status");
+
+    startWorkflowTransition(async () => {
+      setWorkflowMessage(null);
+      setWorkflowError(null);
+
+      try {
+        const response = await fetch(`/api/tasks/${encodeURIComponent(selectedBoardTask.id)}/status`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            status,
+            blockerReason: formData.get("blockerReason"),
+            updateFields: createUpdateFieldsPayload(formData, activeTaskDetail)
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(await getApiErrorMessage(response, "Unable to update task status."));
+        }
+
+        await refreshSelectedTaskDetail(selectedBoardTask.id, "Task status updated.");
+      } catch (error) {
+        setWorkflowError(error instanceof Error ? error.message : "Unable to update task status.");
+      }
+    });
+  }
+
+  function handleReassignTask(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!selectedBoardTask) {
+      return;
+    }
+
+    const formData = new FormData(event.currentTarget);
+
+    startWorkflowTransition(async () => {
+      setWorkflowMessage(null);
+      setWorkflowError(null);
+
+      try {
+        const response = await fetch(`/api/tasks/${encodeURIComponent(selectedBoardTask.id)}/assignment`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            assignedUserId: formData.get("assignedUserId")
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(await getApiErrorMessage(response, "Unable to reassign the task."));
+        }
+
+        await refreshSelectedTaskDetail(selectedBoardTask.id, "Task reassigned.");
+      } catch (error) {
+        setWorkflowError(error instanceof Error ? error.message : "Unable to reassign the task.");
+      }
+    });
+  }
+
+  function handleCreateComment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!selectedBoardTask) {
+      return;
+    }
+
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+
+    startWorkflowTransition(async () => {
+      setWorkflowMessage(null);
+      setWorkflowError(null);
+
+      try {
+        const response = await fetch(`/api/tasks/${encodeURIComponent(selectedBoardTask.id)}/comments`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            body: formData.get("body")
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(await getApiErrorMessage(response, "Unable to post the comment."));
+        }
+
+        form.reset();
+        await refreshSelectedTaskDetail(selectedBoardTask.id, "Comment posted.");
+      } catch (error) {
+        setWorkflowError(error instanceof Error ? error.message : "Unable to post the comment.");
+      }
+    });
+  }
+
+  function handleChecklistToggle(item: { completed: boolean; id: string; label: string }) {
+    if (!selectedBoardTask || !activeTaskDetail) {
+      return;
+    }
+
+    const persistedItem = activeTaskDetail.checklistItems.find((checklistItem) => checklistItem.id === item.id);
+    const nextCompleted = !item.completed;
+
+    startWorkflowTransition(async () => {
+      setWorkflowMessage(null);
+      setWorkflowError(null);
+
+      try {
+        let checklistItemId = persistedItem?.id;
+
+        if (!checklistItemId) {
+          const createResponse = await fetch(`/api/tasks/${encodeURIComponent(selectedBoardTask.id)}/checklist`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              kind: TASK_CHECKLIST_ITEM_KIND.SUBTASK,
+              label: item.label
+            })
+          });
+
+          if (!createResponse.ok) {
+            throw new Error(await getApiErrorMessage(createResponse, "Unable to create the checklist item."));
+          }
+
+          const createPayload = (await createResponse.json().catch(() => null)) as { item?: { id: string } } | null;
+          checklistItemId = createPayload?.item?.id;
+
+          if (!checklistItemId) {
+            throw new Error("Checklist item was created, but the response did not include an id.");
+          }
+        }
+
+        const updateResponse = await fetch(
+          `/api/tasks/${encodeURIComponent(selectedBoardTask.id)}/checklist/${encodeURIComponent(checklistItemId)}`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              completed: nextCompleted
+            })
+          }
+        );
+
+        if (!updateResponse.ok) {
+          throw new Error(await getApiErrorMessage(updateResponse, "Unable to update the checklist item."));
+        }
+
+        await refreshSelectedTaskDetail(
+          selectedBoardTask.id,
+          nextCompleted ? "Checklist item completed." : "Checklist item reopened."
+        );
+      } catch (error) {
+        setWorkflowError(error instanceof Error ? error.message : "Unable to update the checklist item.");
+      }
     });
   }
 
@@ -1973,6 +2233,18 @@ export function TasksConsoleScreen({
                   ))}
                 </div>
 
+                {workflowMessage ? (
+                  <div className="notice notice-success tasks-console-workflow-notice">
+                    <p>{workflowMessage}</p>
+                  </div>
+                ) : null}
+
+                {workflowError ? (
+                  <div className="notice notice-danger tasks-console-workflow-notice">
+                    <p>{workflowError}</p>
+                  </div>
+                ) : null}
+
                 {detailLoading ? (
                   <div className="tasks-console-rail-state">
                     <p>Loading task details...</p>
@@ -2016,13 +2288,84 @@ export function TasksConsoleScreen({
                       ))}
                     </div>
 
-                    <div className="tasks-console-rail-block">
-                      <span>Blocker Reason</span>
-                      <p>
-                        {activeTaskDetail?.blockerReason ??
-                          "No blocker reason is recorded on this task right now."}
-                      </p>
-                    </div>
+                    <form
+                      className="tasks-console-workflow-form"
+                      key={`status-${activeTaskDetail?.id ?? selectedBoardTask.id}-${activeTaskDetail?.updatedAt ?? ""}`}
+                      onSubmit={handleStatusUpdate}
+                    >
+                      <label>
+                        <span>Status</span>
+                        <select
+                          defaultValue={activeTaskDetail?.status ?? selectedBoardTask.status}
+                          name="status"
+                        >
+                          {TASKS_CONSOLE_STATUS_OPTIONS.map((status) => (
+                            <option key={status} value={status}>
+                              {formatTaskEnumLabel(status)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span>Blocker Reason</span>
+                        <textarea
+                          defaultValue={activeTaskDetail?.blockerReason ?? ""}
+                          name="blockerReason"
+                          placeholder="Required when moving task to blocked..."
+                          rows={2}
+                        />
+                      </label>
+                      {activeTaskDetail?.requiredUpdateFields.length ? (
+                        <div className="tasks-console-update-fields">
+                          <strong>Required Update Fields</strong>
+                          {activeTaskDetail.requiredUpdateFields.map((field) => (
+                            <label key={field.key}>
+                              <span>
+                                {field.label}
+                                {field.required ? " *" : ""}
+                              </span>
+                              {field.type === "boolean" ? (
+                                <input
+                                  defaultChecked={activeTaskDetail.updateFieldValues[field.key] === true}
+                                  name={`updateField:${field.key}`}
+                                  type="checkbox"
+                                />
+                              ) : field.type === "single_select" && field.options?.length ? (
+                                <select
+                                  defaultValue={
+                                    typeof activeTaskDetail.updateFieldValues[field.key] === "string"
+                                      ? String(activeTaskDetail.updateFieldValues[field.key])
+                                      : ""
+                                  }
+                                  name={`updateField:${field.key}`}
+                                >
+                                  <option value="">Select...</option>
+                                  {field.options.map((option) => (
+                                    <option key={option} value={option}>
+                                      {option}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <textarea
+                                  defaultValue={
+                                    typeof activeTaskDetail.updateFieldValues[field.key] === "string"
+                                      ? String(activeTaskDetail.updateFieldValues[field.key])
+                                      : ""
+                                  }
+                                  name={`updateField:${field.key}`}
+                                  placeholder={field.helpText ?? field.label}
+                                  rows={field.type === "long_text" ? 2 : 1}
+                                />
+                              )}
+                            </label>
+                          ))}
+                        </div>
+                      ) : null}
+                      <button className="pill pill-primary" disabled={isWorkflowPending} type="submit">
+                        {isWorkflowPending ? "Saving..." : "Update Status"}
+                      </button>
+                    </form>
 
                     <div className="tasks-console-rail-block">
                       <span>Next Step</span>
@@ -2068,7 +2411,12 @@ export function TasksConsoleScreen({
                       <div className="tasks-console-checklist">
                         {subtasks.slice(0, 3).map((item) => (
                           <label className="tasks-console-checklist-item" key={item.id}>
-                            <input checked={item.completed} readOnly type="checkbox" />
+                            <input
+                              checked={item.completed}
+                              disabled={isWorkflowPending}
+                              onChange={() => handleChecklistToggle(item)}
+                              type="checkbox"
+                            />
                             <span>{item.label}</span>
                           </label>
                         ))}
@@ -2079,6 +2427,23 @@ export function TasksConsoleScreen({
 
                 {!detailLoading && activeTab === "comments" ? (
                   <div className="tasks-console-rail-panel">
+                    <form
+                      className="tasks-console-comment-form"
+                      key={`comment-${activeTaskDetail?.id ?? selectedBoardTask.id}`}
+                      onSubmit={handleCreateComment}
+                    >
+                      <label>
+                        <span>New Comment</span>
+                        <textarea
+                          name="body"
+                          placeholder="Post a quick update for the team..."
+                          rows={3}
+                        />
+                      </label>
+                      <button className="pill pill-primary" disabled={isWorkflowPending} type="submit">
+                        {isWorkflowPending ? "Posting..." : "Post Comment"}
+                      </button>
+                    </form>
                     {activeTaskDetail?.comments.length ? (
                       <div className="tasks-console-feed-list">
                         {activeTaskDetail.comments.map((comment) => (
@@ -2125,12 +2490,36 @@ export function TasksConsoleScreen({
                   <Link className="pill pill-secondary" href={createTaskDetailHref(selectedBoardTask.id)}>
                     Edit
                   </Link>
-                  <Link className="pill pill-secondary" href={boardHref}>
-                    Reassign
-                  </Link>
-                  <Link className="pill pill-primary" href={createTaskDetailHref(selectedBoardTask.id)}>
+                  {isManager ? (
+                    <form
+                      className="tasks-console-reassign-form"
+                      key={`assign-${activeTaskDetail?.id ?? selectedBoardTask.id}-${activeTaskDetail?.assignedUser.id ?? selectedBoardTask.assignedUser.id}`}
+                      onSubmit={handleReassignTask}
+                    >
+                      <select
+                        defaultValue={activeTaskDetail?.assignedUser.id ?? selectedBoardTask.assignedUser.id}
+                        disabled={isWorkflowPending}
+                        name="assignedUserId"
+                      >
+                        {assigneeOptions.map((user) => (
+                          <option key={user.id} value={user.id}>
+                            {user.name}
+                          </option>
+                        ))}
+                      </select>
+                      <button className="pill pill-secondary" disabled={isWorkflowPending} type="submit">
+                        Reassign
+                      </button>
+                    </form>
+                  ) : null}
+                  <button
+                    className="pill pill-primary"
+                    disabled={isWorkflowPending}
+                    onClick={() => setActiveTab("details")}
+                    type="button"
+                  >
                     Update Status
-                  </Link>
+                  </button>
                 </div>
               </>
               )
