@@ -92,7 +92,7 @@ const BOARD_VIEW_STATUSES: TaskStatus[] = [
   TaskStatus.READY_FOR_REVIEW,
   TaskStatus.COMPLETED
 ];
-const TASKS_PER_PAGE = 10;
+const TASKS_PER_PAGE = 8;
 
 function formatBoardDateLabel(boardDate: string) {
   return new Intl.DateTimeFormat("en-US", {
@@ -1241,7 +1241,7 @@ export function TasksConsoleScreen({
                           <ChevronRight size={14} />
                         </button>
                         <button className="pill pill-secondary tasks-console-page-size" disabled type="button">
-                          10 / page
+                          {TASKS_PER_PAGE} / page
                         </button>
                       </div>
                     </div>
