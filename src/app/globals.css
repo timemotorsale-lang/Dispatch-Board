@@ -2504,6 +2504,46 @@ code {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.tasks-console-saved-view-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.18rem;
+}
+
+.tasks-console-saved-view-delete {
+  min-width: 1.7rem !important;
+  justify-content: center;
+  padding-inline: 0.25rem !important;
+}
+
+.tasks-console-column-list {
+  display: grid;
+  gap: 0.18rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.tasks-console-column-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+  min-height: 1.65rem;
+  padding: 0.24rem 0.36rem;
+  border-radius: 0.55rem;
+  color: #17243a;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.tasks-console-column-toggle:hover {
+  background: #f3f7fd;
+}
+
+.tasks-console-column-toggle input {
+  width: 0.78rem;
+  height: 0.78rem;
+  accent-color: #2563eb;
+}
+
 .tasks-console-create {
   gap: 0.55rem;
 }
@@ -2608,6 +2648,14 @@ code {
   grid-template-columns: 210px minmax(0, 1fr) 320px;
   height: calc(100vh - 10rem);
   min-height: 0;
+}
+
+.tasks-console-shell-rail-collapsed {
+  grid-template-columns: 210px minmax(0, 1fr) 4.35rem;
+}
+
+.tasks-console-shell-rail-closed {
+  grid-template-columns: 210px minmax(0, 1fr);
 }
 
 .tasks-console-sidebar {
@@ -2938,6 +2986,16 @@ code {
 .tasks-console-table td:nth-child(10) {
   width: 3.2rem;
 }
+
+.tasks-console-column-priority { width: 4.6rem !important; }
+.tasks-console-column-task-number { width: 4.9rem !important; }
+.tasks-console-column-title { width: 30% !important; }
+.tasks-console-column-status { width: 5.9rem !important; }
+.tasks-console-column-owner { width: 7.4rem !important; }
+.tasks-console-column-department { width: 6rem !important; }
+.tasks-console-column-due-time { width: 4rem !important; }
+.tasks-console-column-vehicle { width: 11rem !important; }
+.tasks-console-column-age { width: 3.2rem !important; }
 
 .tasks-console-row {
   cursor: pointer;
@@ -3366,6 +3424,39 @@ code {
   max-height: 100%;
 }
 
+.tasks-console-rail-collapsed {
+  align-items: center;
+  padding: 0.45rem;
+}
+
+.tasks-console-rail-collapsed-content {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: center;
+  width: 100%;
+}
+
+.tasks-console-rail-collapsed-content span {
+  writing-mode: vertical-rl;
+  color: #1757c7;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.tasks-console-rail-collapsed-content strong {
+  display: block;
+  max-height: 12rem;
+  overflow: hidden;
+  color: #142238;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  writing-mode: vertical-rl;
+}
+
 .tasks-console-rail-record-badges {
   display: flex;
   align-items: center;
@@ -3625,6 +3716,17 @@ code {
     grid-template-columns: 1fr;
   }
 
+  .tasks-console-shell,
+  .tasks-console-shell-rail-collapsed,
+  .tasks-console-shell-rail-closed {
+    height: auto;
+    grid-template-columns: 1fr;
+  }
+
+  .tasks-console-main {
+    height: auto;
+  }
+
   .tasks-console-sidebar,
   .tasks-console-rail {
     position: static;
@@ -3634,6 +3736,20 @@ code {
 
   .tasks-console-sidebar {
     padding-bottom: 1rem;
+  }
+
+  .tasks-console-rail-collapsed {
+    align-items: stretch;
+  }
+
+  .tasks-console-rail-collapsed-content {
+    grid-template-columns: auto minmax(0, auto) minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .tasks-console-rail-collapsed-content span,
+  .tasks-console-rail-collapsed-content strong {
+    writing-mode: horizontal-tb;
   }
 
   .tasks-console-summary-grid {
@@ -3668,6 +3784,26 @@ code {
 
   .tasks-console-action-group-end {
     justify-content: flex-start;
+  }
+
+  .tasks-console-menu-host {
+    width: 100%;
+  }
+
+  .tasks-console-menu-host > .pill,
+  .tasks-console-popover {
+    width: 100%;
+  }
+
+  .tasks-console-popover,
+  .tasks-console-popover-right {
+    right: auto;
+    left: 0;
+  }
+
+  .tasks-console-popover-grid,
+  .tasks-console-column-list {
+    grid-template-columns: 1fr;
   }
 
   .tasks-console-summary-grid,
@@ -3828,7 +3964,7 @@ code {
 .app-topbar-minimal { min-height: 42px; }
 .app-topbar-minimal + .app-content { padding-top: 6px; }
 .app-topbar-tasks { min-height: 34px; }
-.app-topbar-tasks + .app-content { padding: 8px 12px 12px; }
+.app-topbar-tasks + .app-content { padding: 8px 12px 2px; }
 .topbar-title { display: grid; min-width: 0; }
 .topbar-spacer { flex: 1 1 auto; min-width: 0; }
 .topbar-title strong { color: #111827; font-size: 18px; letter-spacing: -.02em; }

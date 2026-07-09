@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useDeferredValue, useEffect, useState, useTransition } from "react";
+import { useDeferredValue, useEffect, useRef, useState, useTransition } from "react";
 
 import { EmptyStateCard, ErrorStateCard } from "@/components/ui/state-card";
 import {
@@ -45,6 +45,17 @@ type TasksConsoleView = "list" | "board";
 type TasksConsoleTab = "details" | "comments" | "activity";
 type TasksConsoleMenu = "saved" | "filters" | "more" | "group" | "columns" | "stageMore" | "savedView" | null;
 type TasksConsoleGroupBy = "none" | "status" | "owner" | "department";
+type TasksConsoleRailMode = "open" | "collapsed" | "closed";
+type TasksConsoleColumnKey =
+  | "priority"
+  | "taskNumber"
+  | "title"
+  | "status"
+  | "owner"
+  | "department"
+  | "dueTime"
+  | "vehicleCustomer"
+  | "age";
 type QueueFilter =
   | "ALL"
   | "NOT_STARTED"
@@ -84,6 +95,17 @@ type TaskDetailApiResponse =
   | null;
 
 type PaginationItem = number | "ellipsis";
+type TasksConsoleSavedView = {
+  activeDepartmentFilter: DepartmentFilter | null;
+  activeQueueFilter: QueueFilter;
+  activeView: TasksConsoleView;
+  createdAt: string;
+  groupBy: TasksConsoleGroupBy;
+  id: string;
+  name: string;
+  searchText: string;
+  visibleColumns: TasksConsoleColumnKey[];
+};
 
 const BOARD_VIEW_STATUSES: TaskStatus[] = [
   TaskStatus.NOT_STARTED,
@@ -95,6 +117,22 @@ const BOARD_VIEW_STATUSES: TaskStatus[] = [
   TaskStatus.COMPLETED
 ];
 const TASKS_PER_PAGE = 8;
+const TASKS_CONSOLE_STORAGE_KEYS = {
+  columns: "tasks-console-visible-columns",
+  savedViews: "tasks-console-saved-views"
+} as const;
+const TASKS_CONSOLE_COLUMNS: Array<{ key: TasksConsoleColumnKey; label: string }> = [
+  { key: "priority", label: "Priority" },
+  { key: "taskNumber", label: "Task #" },
+  { key: "title", label: "Title" },
+  { key: "status", label: "Status" },
+  { key: "owner", label: "Owner" },
+  { key: "department", label: "Department" },
+  { key: "dueTime", label: "Due Time" },
+  { key: "vehicleCustomer", label: "Vehicle / Customer" },
+  { key: "age", label: "Age" }
+];
+const DEFAULT_VISIBLE_COLUMNS = TASKS_CONSOLE_COLUMNS.map((column) => column.key);
 
 function formatBoardDateLabel(boardDate: string) {
   return new Intl.DateTimeFormat("en-US", {
@@ -204,6 +242,60 @@ function compareGroupedTasks(left: BoardReadTask, right: BoardReadTask, groupBy:
 function escapeCsvValue(value: string | number) {
   const text = String(value).replace(/"/g, '""');
   return /[",\n]/.test(text) ? `"${text}"` : text;
+}
+
+function isTasksConsoleColumnKey(value: unknown): value is TasksConsoleColumnKey {
+  return typeof value === "string" && TASKS_CONSOLE_COLUMNS.some((column) => column.key === value);
+}
+
+function parseStoredColumns(value: string | null) {
+  if (!value) {
+    return DEFAULT_VISIBLE_COLUMNS;
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+
+    if (!Array.isArray(parsed)) {
+      return DEFAULT_VISIBLE_COLUMNS;
+    }
+
+    const columns = parsed.filter(isTasksConsoleColumnKey);
+
+    return columns.includes("title") ? columns : DEFAULT_VISIBLE_COLUMNS;
+  } catch {
+    return DEFAULT_VISIBLE_COLUMNS;
+  }
+}
+
+function parseStoredSavedViews(value: string | null) {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.filter((view): view is TasksConsoleSavedView => {
+      if (!view || typeof view !== "object") {
+        return false;
+      }
+
+      const candidate = view as Partial<TasksConsoleSavedView>;
+
+      return (
+        typeof candidate.id === "string" &&
+        typeof candidate.name === "string" &&
+        Array.isArray(candidate.visibleColumns)
+      );
+    });
+  } catch {
+    return [];
+  }
 }
 
 function getStatusToneClass(status: string) {
@@ -548,6 +640,7 @@ export function TasksConsoleScreen({
   todayBoardDate
 }: TasksConsoleScreenProps) {
   const router = useRouter();
+  const consoleRef = useRef<HTMLElement | null>(null);
   const now = new Date();
   const [activeView, setActiveView] = useState<TasksConsoleView>("list");
   const [activeTab, setActiveTab] = useState<TasksConsoleTab>("details");
@@ -555,6 +648,17 @@ export function TasksConsoleScreen({
   const [activeDepartmentFilter, setActiveDepartmentFilter] = useState<DepartmentFilter | null>(null);
   const [activeMenu, setActiveMenu] = useState<TasksConsoleMenu>(null);
   const [groupBy, setGroupBy] = useState<TasksConsoleGroupBy>("none");
+  const [rightRailMode, setRightRailMode] = useState<TasksConsoleRailMode>("open");
+  const [savedViews, setSavedViews] = useState<TasksConsoleSavedView[]>(() =>
+    typeof window === "undefined"
+      ? []
+      : parseStoredSavedViews(window.localStorage.getItem(TASKS_CONSOLE_STORAGE_KEYS.savedViews))
+  );
+  const [visibleColumns, setVisibleColumns] = useState<TasksConsoleColumnKey[]>(() =>
+    typeof window === "undefined"
+      ? DEFAULT_VISIBLE_COLUMNS
+      : parseStoredColumns(window.localStorage.getItem(TASKS_CONSOLE_STORAGE_KEYS.columns))
+  );
   const [searchText, setSearchText] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(
@@ -593,6 +697,8 @@ export function TasksConsoleScreen({
   const pageCountStart = visibleTasks.length === 0 ? 0 : pageStartIndex + 1;
   const pageCountEnd = Math.min(pageStartIndex + TASKS_PER_PAGE, visibleTasks.length);
   const paginationItems = buildPaginationItems(totalPages, activePage);
+  const visibleColumnSet = new Set(visibleColumns);
+  const visibleDataColumnCount = TASKS_CONSOLE_COLUMNS.filter((column) => visibleColumnSet.has(column.key)).length;
   const effectiveSelectedTaskId = pagedTasks.some((task) => task.id === selectedTaskId)
     ? selectedTaskId
     : pagedTasks[0]?.id ?? null;
@@ -622,6 +728,46 @@ export function TasksConsoleScreen({
   const marketingCount = getDepartmentCount(allTasks, "ADVERTISING");
   const adminCount = getDepartmentCount(allTasks, "ADMIN");
   const collectionsCount = getDepartmentCount(allTasks, "COLLECTIONS");
+
+  useEffect(() => {
+    window.localStorage.setItem(TASKS_CONSOLE_STORAGE_KEYS.columns, JSON.stringify(visibleColumns));
+  }, [visibleColumns]);
+
+  useEffect(() => {
+    window.localStorage.setItem(TASKS_CONSOLE_STORAGE_KEYS.savedViews, JSON.stringify(savedViews));
+  }, [savedViews]);
+
+  useEffect(() => {
+    if (!activeMenu) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      if (event.target instanceof Node && consoleRef.current?.contains(event.target)) {
+        const targetElement = event.target instanceof Element ? event.target : null;
+
+        if (targetElement?.closest(".tasks-console-menu-host")) {
+          return;
+        }
+      }
+
+      setActiveMenu(null);
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setActiveMenu(null);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [activeMenu]);
 
   useEffect(() => {
     if (!effectiveSelectedTaskId || activeTaskDetail?.id === effectiveSelectedTaskId) {
@@ -724,6 +870,7 @@ export function TasksConsoleScreen({
   function handleSelectTask(taskId: string) {
     setSelectedTaskId(taskId);
     setActiveTab("details");
+    setRightRailMode("open");
   }
 
   function handleMenuToggle(menu: Exclude<TasksConsoleMenu, null>) {
@@ -742,8 +889,59 @@ export function TasksConsoleScreen({
     setSearchText("");
     setGroupBy("none");
     setActiveView("list");
+    setVisibleColumns(DEFAULT_VISIBLE_COLUMNS);
     setCurrentPage(1);
     setActiveMenu(null);
+  }
+
+  function handleCreateSavedView() {
+    const nextViewNumber = savedViews.length + 1;
+    const savedView: TasksConsoleSavedView = {
+      activeDepartmentFilter,
+      activeQueueFilter,
+      activeView,
+      createdAt: new Date().toISOString(),
+      groupBy,
+      id: `saved-view-${Date.now()}`,
+      name: `Saved View ${nextViewNumber}`,
+      searchText,
+      visibleColumns
+    };
+
+    setSavedViews((currentViews) => [savedView, ...currentViews].slice(0, 8));
+    setGenerationMessage(`${savedView.name} saved from the current board setup.`);
+    setActiveMenu(null);
+  }
+
+  function handleApplySavedView(savedView: TasksConsoleSavedView) {
+    setActiveQueueFilter(savedView.activeQueueFilter);
+    setActiveDepartmentFilter(savedView.activeDepartmentFilter);
+    setActiveView(savedView.activeView);
+    setGroupBy(savedView.groupBy);
+    setSearchText(savedView.searchText);
+    setVisibleColumns(savedView.visibleColumns.length ? savedView.visibleColumns : DEFAULT_VISIBLE_COLUMNS);
+    setCurrentPage(1);
+    setActiveMenu(null);
+  }
+
+  function handleDeleteSavedView(savedViewId: string) {
+    setSavedViews((currentViews) => currentViews.filter((savedView) => savedView.id !== savedViewId));
+  }
+
+  function handleColumnToggle(columnKey: TasksConsoleColumnKey) {
+    setVisibleColumns((currentColumns) => {
+      if (columnKey === "title") {
+        return currentColumns;
+      }
+
+      if (currentColumns.includes(columnKey)) {
+        return currentColumns.filter((currentColumn) => currentColumn !== columnKey);
+      }
+
+      return TASKS_CONSOLE_COLUMNS
+        .map((column) => column.key)
+        .filter((currentColumn) => currentColumn === columnKey || currentColumns.includes(currentColumn));
+    });
   }
 
   function handleExportVisibleTasks() {
@@ -972,7 +1170,7 @@ export function TasksConsoleScreen({
   }
 
   return (
-    <section className="tasks-console-page">
+    <section className="tasks-console-page" ref={consoleRef}>
       <div className="tasks-console-toolbar">
         <div className="tasks-console-heading">
           <h1>Tasks</h1>
@@ -1021,10 +1219,32 @@ export function TasksConsoleScreen({
             </button>
             {activeMenu === "saved" ? (
               <div className="tasks-console-popover tasks-console-popover-right">
+                <strong>Quick Views</strong>
                 <button onClick={() => handleQueueFilterChange("ALL")} type="button">All tasks</button>
                 <button onClick={() => handleQueueFilterChange("BLOCKED")} type="button">Blocked tasks</button>
                 <button onClick={() => handleQueueFilterChange("READY_FOR_REVIEW")} type="button">Ready for review</button>
                 <button onClick={() => handleQueueFilterChange("OVERDUE")} type="button">Overdue tasks</button>
+                {savedViews.length ? (
+                  <>
+                    <strong>Saved Views</strong>
+                    {savedViews.map((savedView) => (
+                      <div className="tasks-console-saved-view-row" key={savedView.id}>
+                        <button onClick={() => handleApplySavedView(savedView)} type="button">
+                          {savedView.name}
+                        </button>
+                        <button
+                          aria-label={`Delete ${savedView.name}`}
+                          className="tasks-console-saved-view-delete"
+                          onClick={() => handleDeleteSavedView(savedView.id)}
+                          type="button"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </>
+                ) : null}
+                <button onClick={handleCreateSavedView} type="button">Save current view</button>
               </div>
             ) : null}
           </div>
@@ -1122,7 +1342,15 @@ export function TasksConsoleScreen({
           title="The Tasks console is ready, but this board has no tasks yet"
         />
       ) : (
-        <div className="tasks-console-shell">
+        <div
+          className={
+            rightRailMode === "closed"
+              ? "tasks-console-shell tasks-console-shell-rail-closed"
+              : rightRailMode === "collapsed"
+                ? "tasks-console-shell tasks-console-shell-rail-collapsed"
+                : "tasks-console-shell"
+          }
+        >
           <aside className="tasks-console-sidebar">
             <div className="tasks-console-sidebar-brand">
               <div className="tasks-console-sidebar-logo">TMS</div>
@@ -1158,10 +1386,7 @@ export function TasksConsoleScreen({
             <div className="tasks-console-sidebar-footer">
               <button
                 className="tasks-console-sidebar-footer-action"
-                onClick={() => {
-                  setGenerationMessage("Saved view draft created from the current filters.");
-                  setActiveMenu(null);
-                }}
+                onClick={handleCreateSavedView}
                 type="button"
               >
                 <span className="tasks-console-nav-mark tasks-console-nav-mark-brand" aria-hidden="true" />
@@ -1309,10 +1534,31 @@ export function TasksConsoleScreen({
                       <ChevronDown size={14} />
                     </button>
                     {activeMenu === "columns" ? (
-                      <div className="tasks-console-popover tasks-console-popover-right">
-                        <button onClick={() => { setActiveView("list"); setActiveMenu(null); }} type="button">Compact list columns</button>
-                        <button onClick={() => { setActiveView("board"); setActiveMenu(null); }} type="button">Board lanes</button>
-                        <button onClick={handleResetBoardView} type="button">Reset columns</button>
+                      <div className="tasks-console-popover tasks-console-popover-wide tasks-console-popover-right">
+                        <strong>Visible Columns</strong>
+                        <div className="tasks-console-column-list">
+                          {TASKS_CONSOLE_COLUMNS.map((column) => (
+                            <label className="tasks-console-column-toggle" key={column.key}>
+                              <input
+                                checked={visibleColumnSet.has(column.key)}
+                                disabled={column.key === "title"}
+                                onChange={() => handleColumnToggle(column.key)}
+                                type="checkbox"
+                              />
+                              <span>{column.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                        <button
+                          onClick={() => {
+                            setVisibleColumns(DEFAULT_VISIBLE_COLUMNS);
+                            setActiveMenu(null);
+                          }}
+                          type="button"
+                        >
+                          Reset columns
+                        </button>
+                        <button onClick={() => { setActiveView("board"); setActiveMenu(null); }} type="button">Switch to board lanes</button>
                       </div>
                     ) : null}
                   </div>
@@ -1346,21 +1592,23 @@ export function TasksConsoleScreen({
                           <th className="tasks-console-checkbox-column">
                             <input aria-label="Select visible tasks" type="checkbox" />
                           </th>
-                          <th>Priority</th>
-                          <th>Task #</th>
-                          <th>Title</th>
-                          <th>Status</th>
-                          <th>Owner</th>
-                          <th>Department</th>
-                          <th>Due Time</th>
-                          <th>Vehicle / Customer</th>
-                          <th>Age</th>
+                          {visibleColumnSet.has("priority") ? <th className="tasks-console-column-priority">Priority</th> : null}
+                          {visibleColumnSet.has("taskNumber") ? <th className="tasks-console-column-task-number">Task #</th> : null}
+                          {visibleColumnSet.has("title") ? <th className="tasks-console-column-title">Title</th> : null}
+                          {visibleColumnSet.has("status") ? <th className="tasks-console-column-status">Status</th> : null}
+                          {visibleColumnSet.has("owner") ? <th className="tasks-console-column-owner">Owner</th> : null}
+                          {visibleColumnSet.has("department") ? <th className="tasks-console-column-department">Department</th> : null}
+                          {visibleColumnSet.has("dueTime") ? <th className="tasks-console-column-due-time">Due Time</th> : null}
+                          {visibleColumnSet.has("vehicleCustomer") ? (
+                            <th className="tasks-console-column-vehicle">Vehicle / Customer</th>
+                          ) : null}
+                          {visibleColumnSet.has("age") ? <th className="tasks-console-column-age">Age</th> : null}
                         </tr>
                       </thead>
                       <tbody>
                         {pagedTasks.length === 0 ? (
                           <tr>
-                            <td className="tasks-console-table-empty" colSpan={10}>
+                            <td className="tasks-console-table-empty" colSpan={visibleDataColumnCount + 1}>
                               No tasks match the current view.
                             </td>
                           </tr>
@@ -1379,48 +1627,68 @@ export function TasksConsoleScreen({
                                 <td className="tasks-console-checkbox-column">
                                   <input aria-label={`Select ${task.title}`} type="checkbox" />
                                 </td>
-                                <td>
-                                  <span className={getPriorityToneClass(priority)}>{priority}</span>
-                                </td>
-                                <td className="tasks-console-task-number">
-                                  {formatTaskDisplayNumber(task.id)}
-                                </td>
-                                <td>
-                                  <div className="tasks-console-title-cell">
-                                    <strong>{task.title}</strong>
-                                  </div>
-                                </td>
-                                <td>
-                                  <span className={getStatusToneClass(task.status)}>
-                                    {formatTaskEnumLabel(task.status)}
-                                  </span>
-                                </td>
-                                <td>
-                                  <div className="tasks-console-owner-cell">
-                                    <span className="tasks-console-avatar">
-                                      {task.assignedUser.name
-                                        .split(/\s+/)
-                                        .map((part) => part[0])
-                                        .join("")
-                                        .slice(0, 2)
-                                        .toUpperCase()}
+                                {visibleColumnSet.has("priority") ? (
+                                  <td className="tasks-console-column-priority">
+                                    <span className={getPriorityToneClass(priority)}>{priority}</span>
+                                  </td>
+                                ) : null}
+                                {visibleColumnSet.has("taskNumber") ? (
+                                  <td className="tasks-console-column-task-number tasks-console-task-number">
+                                    {formatTaskDisplayNumber(task.id)}
+                                  </td>
+                                ) : null}
+                                {visibleColumnSet.has("title") ? (
+                                  <td className="tasks-console-column-title">
+                                    <div className="tasks-console-title-cell">
+                                      <strong>{task.title}</strong>
+                                    </div>
+                                  </td>
+                                ) : null}
+                                {visibleColumnSet.has("status") ? (
+                                  <td className="tasks-console-column-status">
+                                    <span className={getStatusToneClass(task.status)}>
+                                      {formatTaskEnumLabel(task.status)}
                                     </span>
-                                    <span className="tasks-console-owner-name">{task.assignedUser.name}</span>
-                                  </div>
-                                </td>
-                                <td className="tasks-console-department-cell">{getDepartmentLabel(task.workflowArea)}</td>
-                                <td className="tasks-console-due-cell">
-                                  <span className={getDueTimeToneClass(task, now)}>{formatTime(task.dueAt)}</span>
-                                </td>
-                                <td className="tasks-console-vehicle-cell" title={taskReference}>
-                                  <span>{taskReference}</span>
-                                </td>
-                                <td className="tasks-console-age-cell">
-                                  {formatAgeFromTimestamp(task.updatedAt, now)}
-                                  {task.status === TaskStatus.BLOCKED || isTaskOverdue(task, now) ? (
-                                    <span className="tasks-console-age-dot" aria-hidden="true" />
-                                  ) : null}
-                                </td>
+                                  </td>
+                                ) : null}
+                                {visibleColumnSet.has("owner") ? (
+                                  <td className="tasks-console-column-owner">
+                                    <div className="tasks-console-owner-cell">
+                                      <span className="tasks-console-avatar">
+                                        {task.assignedUser.name
+                                          .split(/\s+/)
+                                          .map((part) => part[0])
+                                          .join("")
+                                          .slice(0, 2)
+                                          .toUpperCase()}
+                                      </span>
+                                      <span className="tasks-console-owner-name">{task.assignedUser.name}</span>
+                                    </div>
+                                  </td>
+                                ) : null}
+                                {visibleColumnSet.has("department") ? (
+                                  <td className="tasks-console-column-department tasks-console-department-cell">
+                                    {getDepartmentLabel(task.workflowArea)}
+                                  </td>
+                                ) : null}
+                                {visibleColumnSet.has("dueTime") ? (
+                                  <td className="tasks-console-column-due-time tasks-console-due-cell">
+                                    <span className={getDueTimeToneClass(task, now)}>{formatTime(task.dueAt)}</span>
+                                  </td>
+                                ) : null}
+                                {visibleColumnSet.has("vehicleCustomer") ? (
+                                  <td className="tasks-console-column-vehicle tasks-console-vehicle-cell" title={taskReference}>
+                                    <span>{taskReference}</span>
+                                  </td>
+                                ) : null}
+                                {visibleColumnSet.has("age") ? (
+                                  <td className="tasks-console-column-age tasks-console-age-cell">
+                                    {formatAgeFromTimestamp(task.updatedAt, now)}
+                                    {task.status === TaskStatus.BLOCKED || isTaskOverdue(task, now) ? (
+                                      <span className="tasks-console-age-dot" aria-hidden="true" />
+                                    ) : null}
+                                  </td>
+                                ) : null}
                               </tr>
                             );
                           })
@@ -1584,7 +1852,7 @@ export function TasksConsoleScreen({
                           className="tasks-console-summary-item"
                           key={task.id}
                           onClick={() => {
-                            setSelectedTaskId(task.id);
+                            handleSelectTask(task.id);
                             handleQueueFilterChange(card.filter);
                             setActiveTab("details");
                           }}
@@ -1610,8 +1878,37 @@ export function TasksConsoleScreen({
             </div>
           </div>
 
-          <aside className="panel-card tasks-console-rail">
+          {rightRailMode !== "closed" ? (
+          <aside
+            className={
+              rightRailMode === "collapsed"
+                ? "panel-card tasks-console-rail tasks-console-rail-collapsed"
+                : "panel-card tasks-console-rail"
+            }
+          >
             {selectedBoardTask ? (
+              rightRailMode === "collapsed" ? (
+                <div className="tasks-console-rail-collapsed-content">
+                  <button
+                    className="tasks-console-rail-icon-button"
+                    onClick={() => setRightRailMode("open")}
+                    type="button"
+                    aria-label="Expand task panel"
+                  >
+                    <ChevronLeft size={15} />
+                  </button>
+                  <span>{formatTaskDisplayNumber(selectedBoardTask.id)}</span>
+                  <strong>{selectedBoardTask.title}</strong>
+                  <button
+                    className="tasks-console-rail-icon-button"
+                    onClick={() => setRightRailMode("closed")}
+                    type="button"
+                    aria-label="Close task panel"
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+              ) : (
               <>
                 <div className="tasks-console-rail-header">
                   <div className="tasks-console-rail-record">
@@ -1622,10 +1919,20 @@ export function TasksConsoleScreen({
                       </span>
                     </div>
                     <div className="tasks-console-rail-record-actions">
-                      <button className="tasks-console-rail-icon-button" type="button" aria-label="Collapse task panel">
+                      <button
+                        className="tasks-console-rail-icon-button"
+                        onClick={() => setRightRailMode("collapsed")}
+                        type="button"
+                        aria-label="Collapse task panel"
+                      >
                         <ChevronDown size={15} />
                       </button>
-                      <button className="tasks-console-rail-icon-button" type="button" aria-label="Close task panel">
+                      <button
+                        className="tasks-console-rail-icon-button"
+                        onClick={() => setRightRailMode("closed")}
+                        type="button"
+                        aria-label="Close task panel"
+                      >
                         <X size={15} />
                       </button>
                     </div>
@@ -1826,12 +2133,14 @@ export function TasksConsoleScreen({
                   </Link>
                 </div>
               </>
+              )
             ) : (
               <div className="tasks-console-rail-state">
                 <p>Select a task to inspect details, comments, activity, and execution progress.</p>
               </div>
             )}
           </aside>
+          ) : null}
         </div>
       )}
     </section>
