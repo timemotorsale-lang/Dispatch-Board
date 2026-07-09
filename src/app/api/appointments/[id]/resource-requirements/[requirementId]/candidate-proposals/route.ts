@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
 import { proposeAppointmentResourceCandidate } from "@/server/services/appointment-resource-planning-service";
+import { getAppointmentVersionConflict } from "@/server/services/appointment-version-conflict";
 
 type AppointmentResourceCandidateRouteContext = {
   params: Promise<{
@@ -121,10 +122,12 @@ export async function POST(
       error instanceof Error
         ? error.message
         : "Unable to propose appointment resource candidate right now.";
+    const conflict = getAppointmentVersionConflict(error);
 
     return NextResponse.json(
       {
-        error: message
+        error: message,
+        ...(conflict ? { conflict } : {})
       },
       {
         status: getResourceCandidateErrorStatus(message)

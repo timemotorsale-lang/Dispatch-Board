@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
 import { overrideAppointmentResourceWarning } from "@/server/services/appointment-resource-candidate-availability-service";
+import { getAppointmentVersionConflict } from "@/server/services/appointment-version-conflict";
 
 type AppointmentResourceWarningOverrideRouteContext = {
   params: Promise<{
@@ -116,10 +117,12 @@ export async function POST(
       error instanceof Error
         ? error.message
         : "Unable to override appointment resource warning right now.";
+    const conflict = getAppointmentVersionConflict(error);
 
     return NextResponse.json(
       {
-        error: message
+        error: message,
+        ...(conflict ? { conflict } : {})
       },
       {
         status: getResourceWarningOverrideErrorStatus(message)

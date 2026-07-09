@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
 import { attachRecommendedAppointmentResourceRequirement } from "@/server/services/appointment-resource-planning-service";
+import { getAppointmentVersionConflict } from "@/server/services/appointment-version-conflict";
 
 type AppointmentResourceRequirementsRouteContext = {
   params: Promise<{
@@ -83,10 +84,12 @@ export async function POST(
       error instanceof Error
         ? error.message
         : "Unable to attach appointment resource requirement right now.";
+    const conflict = getAppointmentVersionConflict(error);
 
     return NextResponse.json(
       {
-        error: message
+        error: message,
+        ...(conflict ? { conflict } : {})
       },
       {
         status: getResourceRequirementErrorStatus(message)

@@ -14,6 +14,7 @@ vi.mock("@/server/services/appointment-staff-conflict-preview-service", () => ({
 }));
 
 import { POST } from "@/app/api/appointments/[id]/staff-conflicts/override/route";
+import { AppointmentVersionConflictError } from "@/server/services/appointment-version-conflict";
 
 const managerUser = {
   id: "user-manager",
@@ -127,7 +128,11 @@ describe("appointment staff warning override route", () => {
 
   it("maps stale versions to conflict", async () => {
     mocks.overrideAppointmentStaffWarning.mockRejectedValue(
-      new Error("Appointment version is stale.")
+      new AppointmentVersionConflictError({
+        appointmentId: "appointment-1",
+        expectedAppointmentVersion: 2,
+        currentAppointmentVersion: 4
+      })
     );
 
     const response = await POST(
@@ -148,7 +153,12 @@ describe("appointment staff warning override route", () => {
 
     expect(response.status).toBe(409);
     await expect(response.json()).resolves.toEqual({
-      error: "Appointment version is stale."
+      error: "Appointment version is stale.",
+      conflict: {
+        appointmentId: "appointment-1",
+        expectedAppointmentVersion: 2,
+        currentAppointmentVersion: 4
+      }
     });
   });
 

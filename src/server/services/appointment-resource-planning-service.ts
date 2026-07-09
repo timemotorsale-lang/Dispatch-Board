@@ -14,6 +14,7 @@ import {
   canViewAppointmentSchedule,
   type AppointmentLocationAccessGrant
 } from "@/server/policies/access";
+import { AppointmentVersionConflictError } from "@/server/services/appointment-version-conflict";
 import { normalizeAppointmentHistoryEvent } from "@/server/validation/appointment-history-events";
 import {
   normalizeAppointmentResourceRequirement,
@@ -1149,7 +1150,20 @@ export async function attachRecommendedAppointmentResourceRequirement(
     });
 
     if (appointmentUpdate.count !== 1) {
-      throw new Error("Appointment version is stale.");
+      const latestAppointment = await tx.appointment.findUnique({
+        where: {
+          id: appointment.id
+        },
+        select: {
+          version: true
+        }
+      });
+
+      throw new AppointmentVersionConflictError({
+        appointmentId: appointment.id,
+        expectedAppointmentVersion,
+        currentAppointmentVersion: latestAppointment?.version ?? appointment.version
+      });
     }
 
     const createdRequirement = await tx.appointmentResourceRequirement.create({
@@ -1424,7 +1438,20 @@ export async function proposeAppointmentResourceCandidate(
     });
 
     if (appointmentUpdate.count !== 1) {
-      throw new Error("Appointment version is stale.");
+      const latestAppointment = await tx.appointment.findUnique({
+        where: {
+          id: appointment.id
+        },
+        select: {
+          version: true
+        }
+      });
+
+      throw new AppointmentVersionConflictError({
+        appointmentId: appointment.id,
+        expectedAppointmentVersion,
+        currentAppointmentVersion: latestAppointment?.version ?? appointment.version
+      });
     }
 
     const cancelledPriorProposals = await tx.appointmentResourceReservation.updateMany({
@@ -1732,7 +1759,20 @@ export async function replaceAppointmentResourceReservation(
     });
 
     if (appointmentUpdate.count !== 1) {
-      throw new Error("Appointment version is stale.");
+      const latestAppointment = await tx.appointment.findUnique({
+        where: {
+          id: appointment.id
+        },
+        select: {
+          version: true
+        }
+      });
+
+      throw new AppointmentVersionConflictError({
+        appointmentId: appointment.id,
+        expectedAppointmentVersion,
+        currentAppointmentVersion: latestAppointment?.version ?? appointment.version
+      });
     }
 
     const releasedReservationUpdate = await tx.appointmentResourceReservation.updateMany({
