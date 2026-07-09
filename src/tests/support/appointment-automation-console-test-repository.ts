@@ -3,6 +3,7 @@ import type {
   AppointmentAutomationOperationsRepository,
   AppointmentAutomationRuleRecord
 } from "@/server/services/appointment-automation-operations-console";
+import { buildAppointmentAutomationHistoryEvent } from "@/server/services/appointment-automation-operations-console";
 
 export function createMemoryAppointmentAutomationOperationsRepository() {
   const now = new Date("2026-07-06T19:00:00.000Z");
@@ -10,6 +11,7 @@ export function createMemoryAppointmentAutomationOperationsRepository() {
   let executions: AppointmentAutomationExecutionRecord[] = [];
   const ruleEvents: Awaited<ReturnType<AppointmentAutomationOperationsRepository["listRuleEvents"]>> = [];
   const executionEvents: Awaited<ReturnType<AppointmentAutomationOperationsRepository["listExecutionEvents"]>> = [];
+  const historyEvents: Array<ReturnType<typeof buildAppointmentAutomationHistoryEvent>> = [];
 
   const repository: AppointmentAutomationOperationsRepository = {
     async listRules() {
@@ -69,6 +71,16 @@ export function createMemoryAppointmentAutomationOperationsRepository() {
         newSnapshot: execution,
         occurredAt: now
       });
+      const historyEvent = buildAppointmentAutomationHistoryEvent({
+          execution,
+          actorType: "AUTOMATION",
+          actorUserId: input.actorUserId ?? null,
+          occurredAt: now,
+          reason: input.reason
+        });
+      if (historyEvent) {
+        historyEvents.unshift(historyEvent);
+      }
       return execution;
     },
     async finalizeExecution(input) {
@@ -98,6 +110,17 @@ export function createMemoryAppointmentAutomationOperationsRepository() {
           newSnapshot: execution,
           occurredAt: now
         });
+      }
+      const historyEvent = buildAppointmentAutomationHistoryEvent({
+          execution,
+          action: input.eventAction ?? null,
+          actorType: "HUMAN",
+          actorUserId: input.actorUserId,
+          occurredAt: now,
+          reason: input.reason
+        });
+      if (historyEvent) {
+        historyEvents.unshift(historyEvent);
       }
       return execution;
     },
@@ -220,6 +243,17 @@ export function createMemoryAppointmentAutomationOperationsRepository() {
           newSnapshot: nextExecution,
           occurredAt: now
         });
+        const historyEvent = buildAppointmentAutomationHistoryEvent({
+            execution: nextExecution,
+            action: input.action === "RESOLVE" ? "RESOLVED" : "SKIPPED",
+            actorType: "HUMAN",
+            actorUserId: input.actorUserId,
+            occurredAt: now,
+            reason: input.reason
+          });
+        if (historyEvent) {
+          historyEvents.unshift(historyEvent);
+        }
       }
       return nextExecution;
     }
@@ -227,6 +261,7 @@ export function createMemoryAppointmentAutomationOperationsRepository() {
 
   return {
     repository,
+    historyEvents,
     seedExecution(execution: AppointmentAutomationExecutionRecord) {
       executions = [...executions, execution];
     }

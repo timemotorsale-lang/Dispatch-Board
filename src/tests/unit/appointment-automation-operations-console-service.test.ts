@@ -400,7 +400,7 @@ describe("appointment automation operations console service", () => {
   it("surfaces failure details on background automation audit events", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
-    const { repository } = createMemoryAppointmentAutomationOperationsRepository();
+    const { repository, historyEvents } = createMemoryAppointmentAutomationOperationsRepository();
 
     await recordAppointmentAutomationExecution(
       {
@@ -441,6 +441,99 @@ describe("appointment automation operations console service", () => {
       failureCode: "TASK_AUTOMATION_RUNTIME_FAILURE",
       failureMessage: "Temporary failure",
       sourceTaskId: "task-1"
+    });
+    expect(historyEvents.find((event) => event.eventType === "AUTOMATION_FAILED")).toBeUndefined();
+  });
+
+  it("writes appointment history evidence for appointment-sourced automation failures", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository, historyEvents } = createMemoryAppointmentAutomationOperationsRepository();
+
+    await recordAppointmentAutomationExecution(
+      {
+        ruleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_TASK",
+        triggerCode: "APPOINTMENT_OUTCOME_RECORDED",
+        purposeCode: "FOLLOW_UP_TASK",
+        sourceType: "APPOINTMENT",
+        sourceReference: "appointment-1",
+        status: "FAILED_RETRYABLE",
+        reason: "Record retryable appointment automation failure.",
+        actorUserId: manager?.id ?? null,
+        inputSnapshot: {
+          automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_TASK",
+          automationRuleVersion: 3,
+          sourceAppointmentNumber: "APT-10245"
+        },
+        resultSnapshot: {
+          automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_TASK",
+          automationRuleVersion: 3,
+          status: "FAILED_RETRYABLE",
+          failureCode: "FOLLOW_UP_TASK_WRITE_FAILED",
+          failureMessage: "Could not persist follow-up task."
+        },
+        failureCode: "FOLLOW_UP_TASK_WRITE_FAILED",
+        failureMessage: "Could not persist follow-up task."
+      },
+      repository
+    );
+
+    expect(historyEvents[0]).toMatchObject({
+      appointmentId: "appointment-1",
+      actorType: "AUTOMATION",
+      eventType: "AUTOMATION_FAILED",
+      automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_TASK",
+      automationRuleVersion: 3,
+      metadata: expect.objectContaining({
+        automationExecutionId: "execution-1",
+        sourceReference: "appointment-1",
+        failureCode: "FOLLOW_UP_TASK_WRITE_FAILED"
+      })
+    });
+  });
+
+  it("writes generated-appointment history evidence for task-sourced automation outcomes", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository, historyEvents } = createMemoryAppointmentAutomationOperationsRepository();
+
+    await recordAppointmentAutomationExecution(
+      {
+        ruleCode: "RULE-BLOCKED-TASK-REVIEW",
+        triggerCode: "BLOCKED_TASK_REVIEW",
+        purposeCode: "APT-TASK-MEETING",
+        sourceType: "TASK",
+        sourceReference: "task-1",
+        status: "SUCCEEDED",
+        reason: "Record generated appointment from task automation.",
+        actorUserId: manager?.id ?? null,
+        inputSnapshot: {
+          automationRuleCode: "RULE-BLOCKED-TASK-REVIEW",
+          automationRuleVersion: 2,
+          sourceTaskId: "task-1",
+          sourceTaskTitle: "Call lender and verify packet"
+        },
+        resultSnapshot: {
+          automationRuleCode: "RULE-BLOCKED-TASK-REVIEW",
+          automationRuleVersion: 2,
+          generatedAppointmentId: "appointment-generated-1",
+          generatedAppointmentNumber: "APT-TASK-AUTO-001",
+          generatedAppointmentTitle: "Blocked task review: Call lender and verify packet"
+        }
+      },
+      repository
+    );
+
+    expect(historyEvents[0]).toMatchObject({
+      appointmentId: "appointment-generated-1",
+      actorType: "AUTOMATION",
+      eventType: "AUTOMATION_EVALUATED",
+      automationRuleCode: "RULE_BLOCKED_TASK_REVIEW",
+      metadata: expect.objectContaining({
+        generatedAppointmentId: "appointment-generated-1",
+        generatedAppointmentNumber: "APT-TASK-AUTO-001",
+        sourceTaskId: "task-1"
+      })
     });
   });
 
