@@ -29,7 +29,6 @@ import type {
 } from "@/server/services/board-read";
 import type { ActiveUserSummary } from "@/server/services/user-summary";
 import { listProjectCardSummaries } from "@/features/projects/project-data";
-import type { BoardGenerationActionFeedback } from "./board-generation-feedback";
 import { formatBoardEnumLabel, type BoardFilters, type BoardGroupMode, type BoardPresentation } from "./board-grouping";
 
 type Task = Omit<BoardReadTask, "assignedUser"> & { assignedUser: BoardReadTask["assignedUser"] | null };
@@ -233,15 +232,9 @@ function HealthCard({
 
 export function SchedulerHealthPanel({
   boardDate,
-  generationFeedback,
-  isRetryPending = false,
-  onRetryRequested,
   schedulerHealth
 }: {
   boardDate: string;
-  generationFeedback?: BoardGenerationActionFeedback;
-  isRetryPending?: boolean;
-  onRetryRequested?(): void;
   schedulerHealth: BoardReadSchedulerHealth;
 }) {
   const guidance = schedulerHealth.guidance;
@@ -249,7 +242,6 @@ export function SchedulerHealthPanel({
   const latestManualRun = schedulerHealth.latestManualRun;
   const lastSuccess = schedulerHealth.lastSuccess;
   const lastFailure = schedulerHealth.lastFailure;
-  const showRetryAction = Boolean(onRetryRequested && guidance.safeToRetry && guidance.retryLabel);
   const showUnauthorizedSummary = Boolean(
     schedulerHealth.unauthorizedSummary &&
       (schedulerHealth.unauthorizedSummary.repeated ||
@@ -283,43 +275,6 @@ export function SchedulerHealthPanel({
           ) : null}
         </div>
       </header>
-
-      {showRetryAction ? (
-        <div className="scheduler-health-actions">
-          <button
-            className="pill pill-action board-generate-button"
-            disabled={isRetryPending}
-            onClick={onRetryRequested}
-            type="button"
-          >
-            {isRetryPending ? "Generating..." : guidance.retryLabel}
-          </button>
-        </div>
-      ) : null}
-
-      {generationFeedback ? (
-        <div
-          className={
-            generationFeedback.tone === "error"
-              ? "notice notice-danger board-feedback"
-              : "notice board-feedback"
-          }
-          role={generationFeedback.tone === "error" ? "alert" : "status"}
-        >
-          <p>
-            <strong>{generationFeedback.message}</strong>
-            {generationFeedback.detail ? ` ${generationFeedback.detail}` : ""}
-          </p>
-        </div>
-      ) : null}
-
-      {!generationFeedback && isRetryPending ? (
-        <div className="notice board-feedback" role="status">
-          <p>
-            <strong>Generating board...</strong> The latest run evidence will refresh below when the request finishes.
-          </p>
-        </div>
-      ) : null}
 
       <div className="scheduler-health-summary-grid">
         <HealthCard
@@ -460,6 +415,33 @@ export function SchedulerHealthPanel({
         </article>
       </div>
     </section>
+  );
+}
+
+export function ManagerHealthPanelToggle({
+  isOpen,
+  onToggle,
+  schedulerHealth
+}: {
+  isOpen: boolean;
+  onToggle(): void;
+  schedulerHealth: BoardReadSchedulerHealth;
+}) {
+  const statusLabel = formatSchedulerHealthStatus(schedulerHealth.status);
+  const toneClass = getHealthToneClass(schedulerHealth.status);
+
+  return (
+    <div className="board-manager-panel-toggle">
+      <span className={`board-manager-panel-status ${toneClass}`}>{statusLabel}</span>
+      <button
+        aria-expanded={isOpen}
+        className="pill pill-secondary board-manager-panel-button"
+        onClick={onToggle}
+        type="button"
+      >
+        {isOpen ? "Hide health panel" : "Health Panel"}
+      </button>
+    </div>
   );
 }
 

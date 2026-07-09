@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import {
+  ManagerHealthPanelToggle,
   MetricStrip,
   OperationalRail,
   OperationsStrip,
@@ -188,7 +189,6 @@ describe("board dashboard task board", () => {
     const markup = renderToStaticMarkup(
       <SchedulerHealthPanel
         boardDate="2026-06-18"
-        onRetryRequested={() => undefined}
         schedulerHealth={{
           status: "attention",
           expectedToHaveRunByNow: true,
@@ -344,7 +344,6 @@ describe("board dashboard task board", () => {
     expect(markup).toContain("Manager generation health");
     expect(markup).toContain("Needs attention");
     expect(markup).toContain("Automatic generation failed");
-    expect(markup).toContain("Retry Board Generation");
     expect(markup).toContain("Latest scheduled");
     expect(markup).toContain("Latest manual");
     expect(markup).toContain("Last failure");
@@ -352,6 +351,60 @@ describe("board dashboard task board", () => {
     expect(markup).toContain("Scheduler readiness");
     expect(markup).toContain("CRON_SECRET");
     expect(markup).toContain("Scheduled generation failed before the board was created.");
+  });
+
+  it("renders a compact manager health toggle so the board opens before diagnostics", () => {
+    const markup = renderToStaticMarkup(
+      <ManagerHealthPanelToggle
+        isOpen={false}
+        onToggle={() => undefined}
+        schedulerHealth={{
+          status: "attention",
+          expectedToHaveRunByNow: true,
+          needsAttention: true,
+          guidance: {
+            code: "scheduled_failed",
+            title: "Automatic generation failed",
+            message: "Scheduled generation failed before the board was created.",
+            nextStep:
+              "Review the failed run details and retry manually if the board still needs to be generated.",
+            actionRequired: true,
+            safeToRetry: true,
+            retryLabel: "Retry Board Generation"
+          },
+          managerMessage: "Scheduled generation failed before the board was created.",
+          nextStepMessage: "Review the failed run details and retry manually if the board still needs to be generated.",
+          latestScheduledAttempt: null,
+          latestManualRun: null,
+          lastSuccess: null,
+          lastFailure: null,
+          latestSkipReason: null,
+          unauthorizedSummary: null,
+          readiness: {
+            status: "attention",
+            summary:
+              "App-known readiness checks found setup gaps that can stop automatic board generation.",
+            checks: [
+              {
+                code: "cron_secret",
+                label: "CRON_SECRET",
+                status: "attention",
+                detail: "The app runtime does not currently have a cron secret configured."
+              }
+            ]
+          },
+          boardGenerationStatus: {
+            state: "failed",
+            generatedAt: null,
+            latestGenerationStatus: "failed"
+          }
+        }}
+      />
+    );
+
+    expect(markup).toContain("Health Panel");
+    expect(markup).toContain("Needs attention");
+    expect(markup).toContain("aria-expanded=\"false\"");
   });
 
   it("renders a compact projects hub entry in place of the old workflow flow card", () => {
