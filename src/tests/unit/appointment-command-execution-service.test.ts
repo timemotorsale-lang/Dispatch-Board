@@ -145,6 +145,14 @@ function createCommandRepositoryHarness(input?: {
 
 function createLifecycleRepositoryHarness() {
   const completedCommands: string[] = [];
+  const completedCommandDetails: Array<{
+    commandId: string;
+    status: string;
+    appointmentId: string | null;
+    errorCode: string | null;
+    errorMessage: string | null;
+    resultSnapshot: Record<string, unknown>;
+  }> = [];
   const committedReservationCandidateCounts: number[] = [];
   const createdAppointments: Array<{ id: string; appointmentNumber: string; version: number }> = [];
   const createdTasks: Array<{ id: string; title: string; boardDayId: string }> = [];
@@ -211,6 +219,14 @@ function createLifecycleRepositoryHarness() {
 
         async completeCommand(completion) {
           completedCommands.push(completion.commandId);
+          completedCommandDetails.push({
+            commandId: completion.commandId,
+            status: completion.status,
+            appointmentId: completion.appointmentId,
+            errorCode: completion.errorCode,
+            errorMessage: completion.errorMessage,
+            resultSnapshot: completion.resultSnapshot
+          });
           return completion;
         }
       });
@@ -219,6 +235,7 @@ function createLifecycleRepositoryHarness() {
 
   return {
     completedCommands,
+    completedCommandDetails,
     committedReservationCandidateCounts,
     createdAppointments,
     createdTasks,
@@ -226,7 +243,394 @@ function createLifecycleRepositoryHarness() {
   };
 }
 
+type ExecutionScenario = {
+  name: string;
+  commandType:
+    | "CREATE_DRAFT"
+    | "APPROVE"
+    | "EDIT"
+    | "SCHEDULE"
+    | "RESCHEDULE"
+    | "CANCEL"
+    | "CONFIRM"
+    | "DECLINE"
+    | "CHECK_IN"
+    | "NO_SHOW"
+    | "START"
+    | "WAIT"
+    | "FINISH"
+    | "COMPLETE"
+    | "TRANSFER_OWNER";
+  appointment?: Partial<AppointmentCommandAppointmentRecord> | null;
+  payload?: Record<string, unknown>;
+  expectedVersion?: number | null;
+};
+
+function buildCommandInput(scenario: ExecutionScenario) {
+  const input: Record<string, unknown> = {
+    commandType: scenario.commandType,
+    idempotencyKey: `${scenario.commandType.toLowerCase()}-scenario`,
+    correlationId: `corr-${scenario.commandType.toLowerCase()}`
+  };
+
+  if (scenario.commandType === "CREATE_DRAFT") {
+    input.organizationId = "org-time-motor-sales";
+    input.locationId = "loc-time-motor-sales-minneapolis";
+    input.ownerUserId = ownerUser.id;
+  } else {
+    input.appointmentId = "appointment-1";
+    input.expectedAppointmentVersion = scenario.expectedVersion ?? 3;
+  }
+
+  if (scenario.payload) {
+    input.payload = scenario.payload;
+  }
+
+  return input;
+}
+
+function createScenarioAppointment(
+  overrides?: Partial<AppointmentCommandAppointmentRecord> | null
+): AppointmentCommandAppointmentRecord | null {
+  if (overrides === null) {
+    return null;
+  }
+
+  return {
+    id: "appointment-1",
+    appointmentNumber: "APT-10245",
+    organizationId: "org-time-motor-sales",
+    locationId: "loc-time-motor-sales-minneapolis",
+    ownerUserId: ownerUser.id,
+    title: "Service / Repair",
+    schedulingTimezone: "America/Chicago",
+    startsAt: new Date("2026-07-06T15:00:00.000Z"),
+    endsAt: new Date("2026-07-06T16:00:00.000Z"),
+    bookingStatus: "SCHEDULED",
+    confirmationStatus: "CONFIRMED",
+    attendanceStatus: "EXPECTED",
+    executionStatus: "NOT_STARTED",
+    version: 3,
+    purposeSnapshot: null,
+    customerSnapshot: null,
+    vehicleSnapshot: null,
+    sourceSnapshot: null,
+    ...overrides
+  };
+}
+
+function createLateStaleConflictLifecycleRepository(input: {
+  mutableAppointment: AppointmentCommandAppointmentRecord;
+  conflictCompletions: Array<{
+    commandId: string;
+    status: string;
+    appointmentId: string | null;
+    errorCode: string | null;
+    errorMessage: string | null;
+    resultSnapshot: Record<string, unknown>;
+  }>;
+  transactionAttempts: { count: number };
+}): AppointmentLifecycleTransactionRepository {
+  return {
+    async withLifecycleTransaction(operation) {
+      input.transactionAttempts.count += 1;
+
+      return operation({
+        async createAppointment() {
+          throw new Error("Not used in this test.");
+        },
+
+        async updateAppointment(effect) {
+          input.mutableAppointment.version = effect.expectedVersion + 1;
+          throw new Error(
+            "Appointment update failed because the expected version no longer matches."
+          );
+        },
+
+        async commitReservations() {
+          return [];
+        },
+
+        async releaseReservations() {
+          return [];
+        },
+
+        async createTasks() {
+          return [];
+        },
+
+        async createTaskLinks() {
+          return [];
+        },
+
+        async removeTaskLinks() {
+          return [];
+        },
+
+        async createHistoryEvents() {
+          return [];
+        },
+
+        async createActivityEvents() {},
+
+        async completeCommand(completion) {
+          input.conflictCompletions.push({
+            commandId: completion.commandId,
+            status: completion.status,
+            appointmentId: completion.appointmentId,
+            errorCode: completion.errorCode,
+            errorMessage: completion.errorMessage,
+            resultSnapshot: completion.resultSnapshot
+          });
+          return completion;
+        }
+      });
+    }
+  };
+}
+
+const criticalExecutionScenarios: ExecutionScenario[] = [
+  {
+    name: "creates a persisted draft appointment",
+    commandType: "CREATE_DRAFT",
+    appointment: null,
+    expectedVersion: null,
+    payload: {
+      appointmentNumber: "APT-20000",
+      schedulingTimezone: "America/Chicago",
+      title: "Service / Repair"
+    }
+  },
+  {
+    name: "approves a scheduled appointment",
+    commandType: "APPROVE",
+    appointment: {
+      bookingStatus: "PENDING_APPROVAL"
+    }
+  },
+  {
+    name: "edits appointment details",
+    commandType: "EDIT",
+    payload: {
+      title: "Updated Service / Repair",
+      customerSnapshot: {
+        displayName: "Ahmed Ibrahim"
+      }
+    }
+  },
+  {
+    name: "cancels an appointment with follow-up disposition",
+    commandType: "CANCEL",
+    payload: {
+      reasonCode: "CUSTOMER_CANCELLED",
+      reasonNotes: "Customer called to cancel.",
+      followUpDispositionCode: "CALLBACK_NOT_REQUIRED"
+    }
+  },
+  {
+    name: "confirms an appointment",
+    commandType: "CONFIRM"
+  },
+  {
+    name: "records a customer decline",
+    commandType: "DECLINE",
+    payload: {
+      reasonCode: "CUSTOMER_DECLINED",
+      reasonNotes: "Customer declined the proposed appointment.",
+      followUpDispositionCode: "CALLBACK_REQUIRED"
+    }
+  },
+  {
+    name: "records a no-show outcome",
+    commandType: "NO_SHOW",
+    payload: {
+      reasonCode: "CUSTOMER_NO_SHOW",
+      reasonNotes: "Customer did not arrive by the grace period.",
+      followUpDispositionCode: "CALLBACK_REQUIRED"
+    }
+  },
+  {
+    name: "starts execution work",
+    commandType: "START"
+  },
+  {
+    name: "moves execution into waiting",
+    commandType: "WAIT",
+    appointment: {
+      executionStatus: "IN_PROGRESS"
+    },
+    payload: {
+      reasonCode: "WAITING_ON_PARTS",
+      reasonNotes: "Waiting for ordered brake pads."
+    }
+  },
+  {
+    name: "finishes execution work",
+    commandType: "FINISH",
+    appointment: {
+      executionStatus: "WAITING"
+    }
+  },
+  {
+    name: "transfers appointment ownership",
+    commandType: "TRANSFER_OWNER",
+    payload: {
+      ownerUserId: "user-other",
+      reasonCode: "WORKLOAD_BALANCE",
+      reasonNotes: "Move to another staff member."
+    }
+  }
+];
+
+const lateStaleConflictScenarios: ExecutionScenario[] = [
+  {
+    name: "APPROVE late stale conflict",
+    commandType: "APPROVE",
+    appointment: {
+      bookingStatus: "PENDING_APPROVAL"
+    }
+  },
+  {
+    name: "EDIT late stale conflict",
+    commandType: "EDIT",
+    payload: {
+      title: "Updated Service / Repair"
+    }
+  },
+  {
+    name: "SCHEDULE late stale conflict",
+    commandType: "SCHEDULE",
+    appointment: {
+      bookingStatus: "DRAFT",
+      confirmationStatus: "PENDING",
+      startsAt: null,
+      endsAt: null
+    },
+    payload: {
+      startsAt: "2026-07-06T16:00:00.000Z",
+      endsAt: "2026-07-06T17:00:00.000Z"
+    }
+  },
+  {
+    name: "CANCEL late stale conflict",
+    commandType: "CANCEL",
+    payload: {
+      reasonCode: "CUSTOMER_CANCELLED",
+      reasonNotes: "Customer called to cancel.",
+      followUpDispositionCode: "CALLBACK_NOT_REQUIRED"
+    }
+  },
+  {
+    name: "CONFIRM late stale conflict",
+    commandType: "CONFIRM"
+  },
+  {
+    name: "DECLINE late stale conflict",
+    commandType: "DECLINE",
+    payload: {
+      reasonCode: "CUSTOMER_DECLINED",
+      reasonNotes: "Customer declined the proposed appointment.",
+      followUpDispositionCode: "CALLBACK_REQUIRED"
+    }
+  },
+  {
+    name: "CHECK_IN late stale conflict",
+    commandType: "CHECK_IN"
+  },
+  {
+    name: "NO_SHOW late stale conflict",
+    commandType: "NO_SHOW",
+    payload: {
+      reasonCode: "CUSTOMER_NO_SHOW",
+      reasonNotes: "Customer did not arrive by the grace period.",
+      followUpDispositionCode: "CALLBACK_REQUIRED"
+    }
+  },
+  {
+    name: "START late stale conflict",
+    commandType: "START"
+  },
+  {
+    name: "WAIT late stale conflict",
+    commandType: "WAIT",
+    appointment: {
+      executionStatus: "IN_PROGRESS"
+    },
+    payload: {
+      reasonCode: "WAITING_ON_PARTS",
+      reasonNotes: "Waiting for ordered brake pads."
+    }
+  },
+  {
+    name: "FINISH late stale conflict",
+    commandType: "FINISH",
+    appointment: {
+      executionStatus: "WAITING"
+    }
+  },
+  {
+    name: "COMPLETE late stale conflict",
+    commandType: "COMPLETE",
+    appointment: {
+      executionStatus: "FINISHED"
+    },
+    payload: {
+      outcomeCode: "COMPLETED",
+      followUpDispositionCode: "NO_FOLLOW_UP_REQUIRED",
+      reasonCode: "OUTCOME_RECORDED",
+      reasonNotes: "Final appointment result documented from the board."
+    }
+  },
+  {
+    name: "TRANSFER_OWNER late stale conflict",
+    commandType: "TRANSFER_OWNER",
+    payload: {
+      ownerUserId: "user-other",
+      reasonCode: "WORKLOAD_BALANCE",
+      reasonNotes: "Move to another staff member."
+    }
+  }
+];
+
 describe("appointment command execution service", () => {
+  it.each(criticalExecutionScenarios)("executes critical scenario: $name", async (scenario) => {
+    const commandHarness = createCommandRepositoryHarness({
+      appointment: createScenarioAppointment(scenario.appointment)
+    });
+    const lifecycleHarness = createLifecycleRepositoryHarness();
+
+    const result = await submitAndExecuteAppointmentCommand(
+      managerUser,
+      buildCommandInput(scenario),
+      {
+        commandRepository: commandHarness.repository,
+        lifecycleRepository: lifecycleHarness.repository,
+        now
+      }
+    );
+
+    expect(result.accepted).toBe(true);
+    expect(result.duplicate).toBe(false);
+    expect(result.conflict).toBeNull();
+    expect(result.command).toMatchObject({
+      id: "cmd-1",
+      commandType: scenario.commandType,
+      status: "SUCCEEDED"
+    });
+    expect(result.execution).toMatchObject({
+      executed: true,
+      commandId: "cmd-1",
+      commandStatus: "SUCCEEDED"
+    });
+    expect(lifecycleHarness.completedCommandDetails).toEqual([
+      expect.objectContaining({
+        commandId: "cmd-1",
+        status: "SUCCEEDED",
+        errorCode: null
+      })
+    ]);
+  });
+
   it("submits and executes supported lifecycle commands through the transaction boundary", async () => {
     const commandHarness = createCommandRepositoryHarness();
     const lifecycleHarness = createLifecycleRepositoryHarness();
@@ -783,6 +1187,245 @@ describe("appointment command execution service", () => {
     });
     expect(lifecycleHarness.completedCommands).toEqual([]);
   });
+
+  it("converts late update version races into safe conflicts with refreshed version evidence", async () => {
+    const mutableAppointment: AppointmentCommandAppointmentRecord = {
+      id: "appointment-1",
+      appointmentNumber: "APT-10245",
+      organizationId: "org-time-motor-sales",
+      locationId: "loc-time-motor-sales-minneapolis",
+      ownerUserId: ownerUser.id,
+      title: "Service / Repair",
+      schedulingTimezone: "America/Chicago",
+      startsAt: new Date("2026-07-06T15:00:00.000Z"),
+      endsAt: new Date("2026-07-06T16:00:00.000Z"),
+      bookingStatus: "SCHEDULED",
+      confirmationStatus: "CONFIRMED",
+      attendanceStatus: "EXPECTED",
+      executionStatus: "NOT_STARTED",
+      version: 3,
+      purposeSnapshot: null,
+      customerSnapshot: null,
+      vehicleSnapshot: null,
+      sourceSnapshot: null
+    };
+    const commandHarness = createCommandRepositoryHarness({
+      appointment: mutableAppointment
+    });
+    const conflictCompletions: Array<{
+      commandId: string;
+      status: string;
+      appointmentId: string | null;
+      errorCode: string | null;
+      errorMessage: string | null;
+      resultSnapshot: Record<string, unknown>;
+    }> = [];
+    const automationCalls: string[] = [];
+    let transactionAttempt = 0;
+    const lifecycleRepository: AppointmentLifecycleTransactionRepository = {
+      async withLifecycleTransaction(operation) {
+        transactionAttempt += 1;
+
+        return operation({
+          async createAppointment() {
+            throw new Error("Not used in this test.");
+          },
+
+          async updateAppointment(effect) {
+            mutableAppointment.version = effect.expectedVersion + 1;
+            throw new Error(
+              "Appointment update failed because the expected version no longer matches."
+            );
+          },
+
+          async commitReservations() {
+            return [];
+          },
+
+          async releaseReservations() {
+            return [];
+          },
+
+          async createTasks() {
+            return [];
+          },
+
+          async createTaskLinks() {
+            return [];
+          },
+
+          async removeTaskLinks() {
+            return [];
+          },
+
+          async createHistoryEvents() {
+            return [];
+          },
+
+          async createActivityEvents() {},
+
+          async completeCommand(completion) {
+            conflictCompletions.push({
+              commandId: completion.commandId,
+              status: completion.status,
+              appointmentId: completion.appointmentId,
+              errorCode: completion.errorCode,
+              errorMessage: completion.errorMessage,
+              resultSnapshot: completion.resultSnapshot
+            });
+            return completion;
+          }
+        });
+      }
+    };
+
+    const result = await submitAndExecuteAppointmentCommand(
+      managerUser,
+      {
+        commandType: "RESCHEDULE",
+        appointmentId: "appointment-1",
+        expectedAppointmentVersion: 3,
+        idempotencyKey: "reschedule-late-stale-conflict",
+        correlationId: "corr-reschedule-late-stale",
+        payload: {
+          startsAt: "2026-07-06T18:00:00.000Z",
+          endsAt: "2026-07-06T19:00:00.000Z",
+          reasonCode: "CUSTOMER_REQUEST",
+          reasonNotes: "Customer requested a later slot."
+        }
+      },
+      {
+        commandRepository: commandHarness.repository,
+        lifecycleRepository,
+        automationRecorder: async () => {
+          automationCalls.push("called");
+        },
+        now
+      }
+    );
+
+    expect(result).toMatchObject({
+      accepted: false,
+      duplicate: false,
+      conflict: {
+        expectedAppointmentVersion: 3,
+        currentAppointmentVersion: 4
+      },
+      command: {
+        id: "cmd-1",
+        commandType: "RESCHEDULE",
+        status: "CONFLICT",
+        currentAppointmentVersion: 4,
+        errorCode: "STALE_VERSION",
+        errorMessage: "Expected appointment version 3; current version is 4.",
+        resultSnapshot: {
+          appointmentId: "appointment-1",
+          commandType: "RESCHEDULE",
+          expectedAppointmentVersion: 3,
+          currentAppointmentVersion: 4
+        }
+      },
+      execution: null
+    });
+    expect(transactionAttempt).toBe(2);
+    expect(conflictCompletions).toEqual([
+      {
+        commandId: "cmd-1",
+        status: "CONFLICT",
+        appointmentId: "appointment-1",
+        errorCode: "STALE_VERSION",
+        errorMessage: "Expected appointment version 3; current version is 4.",
+        resultSnapshot: {
+          appointmentId: "appointment-1",
+          commandType: "RESCHEDULE",
+          expectedAppointmentVersion: 3,
+          currentAppointmentVersion: 4
+        }
+      }
+    ]);
+    expect(automationCalls).toEqual([]);
+  });
+
+  it.each(lateStaleConflictScenarios)(
+    "converts mutation-family concurrency races into safe conflicts: $name",
+    async (scenario) => {
+      const mutableAppointment = createScenarioAppointment(
+        scenario.appointment
+      ) as AppointmentCommandAppointmentRecord;
+      const commandHarness = createCommandRepositoryHarness({
+        appointment: mutableAppointment
+      });
+      const conflictCompletions: Array<{
+        commandId: string;
+        status: string;
+        appointmentId: string | null;
+        errorCode: string | null;
+        errorMessage: string | null;
+        resultSnapshot: Record<string, unknown>;
+      }> = [];
+      const automationCalls: string[] = [];
+      const transactionAttempts = { count: 0 };
+      const lifecycleRepository = createLateStaleConflictLifecycleRepository({
+        mutableAppointment,
+        conflictCompletions,
+        transactionAttempts
+      });
+
+      const result = await submitAndExecuteAppointmentCommand(
+        managerUser,
+        buildCommandInput(scenario),
+        {
+          commandRepository: commandHarness.repository,
+          lifecycleRepository,
+          automationRecorder: async () => {
+            automationCalls.push("called");
+          },
+          now
+        }
+      );
+
+      expect(result).toMatchObject({
+        accepted: false,
+        duplicate: false,
+        conflict: {
+          expectedAppointmentVersion: 3,
+          currentAppointmentVersion: 4
+        },
+        command: {
+          id: "cmd-1",
+          commandType: scenario.commandType,
+          status: "CONFLICT",
+          currentAppointmentVersion: 4,
+          errorCode: "STALE_VERSION",
+          errorMessage: "Expected appointment version 3; current version is 4.",
+          resultSnapshot: {
+            appointmentId: "appointment-1",
+            commandType: scenario.commandType,
+            expectedAppointmentVersion: 3,
+            currentAppointmentVersion: 4
+          }
+        },
+        execution: null
+      });
+      expect(transactionAttempts.count).toBe(2);
+      expect(conflictCompletions).toEqual([
+        {
+          commandId: "cmd-1",
+          status: "CONFLICT",
+          appointmentId: "appointment-1",
+          errorCode: "STALE_VERSION",
+          errorMessage: "Expected appointment version 3; current version is 4.",
+          resultSnapshot: {
+            appointmentId: "appointment-1",
+            commandType: scenario.commandType,
+            expectedAppointmentVersion: 3,
+            currentAppointmentVersion: 4
+          }
+        }
+      ]);
+      expect(automationCalls).toEqual([]);
+    }
+  );
 
   it("records runtime automation executions after successful outcome-driven automation", async () => {
     const commandHarness = createCommandRepositoryHarness({

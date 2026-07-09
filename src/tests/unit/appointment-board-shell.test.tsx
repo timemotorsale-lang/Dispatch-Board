@@ -1562,6 +1562,20 @@ describe("appointment board shell", () => {
     ).toContain("Draft schedule save stopped because APT-20001 changed on the server.");
   });
 
+  it("builds a fallback stale-version recovery notice when the latest version number is unavailable", () => {
+    expect(
+      buildAppointmentVersionConflictNotice({
+        actionLabel: "Outcome save",
+        appointmentId: "APT-20001",
+        conflict: {
+          appointmentId: "appointment-1",
+          expectedAppointmentVersion: 3,
+          currentAppointmentVersion: null
+        }
+      })
+    ).toContain("A newer version is already on the server.");
+  });
+
   it("builds resource, location, and vehicle operating views", () => {
     const appointments = [
       {

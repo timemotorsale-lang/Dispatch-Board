@@ -33,6 +33,9 @@ export type AppointmentCommandExecutionResult = AppointmentCommandBoundaryResult
   execution: AppointmentLifecycleTransactionResult | null;
 };
 
+const APPOINTMENT_STALE_UPDATE_ERROR =
+  "Appointment update failed because the expected version no longer matches.";
+
 type StaffConflictPreviewForSchedule = (
   user: AuthenticatedUser | null,
   appointmentId: string,
@@ -80,6 +83,70 @@ function snapshotRecord(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
+}
+
+function isLateStaleUpdateError(error: unknown) {
+  return error instanceof Error && error.message.includes(APPOINTMENT_STALE_UPDATE_ERROR);
+}
+
+async function completeLateStaleVersionConflict(input: {
+  submitted: AppointmentCommandBoundaryResult;
+  commandRequest: ReturnType<typeof normalizeAppointmentCommandRequest>;
+  commandRepository: AppointmentCommandRepository;
+  lifecycleRepository: AppointmentLifecycleTransactionRepository;
+  now: Date;
+}): Promise<AppointmentCommandExecutionResult> {
+  const appointmentId =
+    input.commandRequest.appointmentId ?? input.submitted.command.appointmentId ?? null;
+  const latestAppointment = appointmentId
+    ? await input.commandRepository.findAppointmentById(appointmentId)
+    : null;
+  const expectedAppointmentVersion = input.commandRequest.expectedAppointmentVersion;
+  const currentAppointmentVersion = latestAppointment?.version ?? null;
+
+  if (expectedAppointmentVersion === null || currentAppointmentVersion === null) {
+    throw new Error(APPOINTMENT_STALE_UPDATE_ERROR);
+  }
+
+  const errorMessage = `Expected appointment version ${expectedAppointmentVersion}; current version is ${currentAppointmentVersion}.`;
+  const resultSnapshot = {
+    appointmentId,
+    commandType: input.submitted.command.commandType,
+    expectedAppointmentVersion,
+    currentAppointmentVersion
+  };
+
+  await input.lifecycleRepository.withLifecycleTransaction((transaction) =>
+    transaction.completeCommand({
+      commandId: input.submitted.command.id,
+      status: "CONFLICT",
+      appointmentId,
+      completedAt: null,
+      failedAt: input.now,
+      resultSnapshot,
+      errorCode: "STALE_VERSION",
+      errorMessage
+    })
+  );
+
+  return {
+    ...input.submitted,
+    accepted: false,
+    conflict: {
+      expectedAppointmentVersion,
+      currentAppointmentVersion
+    },
+    command: {
+      ...input.submitted.command,
+      status: "CONFLICT",
+      currentAppointmentVersion,
+      failedAt: input.now.toISOString(),
+      resultSnapshot,
+      errorCode: "STALE_VERSION",
+      errorMessage
+    },
+    execution: null
+  };
 }
 
 async function recordLifecycleAutomationExecutions(input: {
@@ -393,11 +460,27 @@ export async function submitAndExecuteAppointmentCommand(
     payload,
     now
   });
-  const execution = await executeAppointmentLifecycleCommandPlan({
-    plan,
-    repository: lifecycleRepository,
-    now
-  });
+  let execution: AppointmentLifecycleTransactionResult;
+
+  try {
+    execution = await executeAppointmentLifecycleCommandPlan({
+      plan,
+      repository: lifecycleRepository,
+      now
+    });
+  } catch (error) {
+    if (isLateStaleUpdateError(error)) {
+      return completeLateStaleVersionConflict({
+        submitted,
+        commandRequest,
+        commandRepository,
+        lifecycleRepository,
+        now
+      });
+    }
+
+    throw error;
+  }
 
   if (user && execution.commandStatus === "SUCCEEDED") {
     const automationRecorder =

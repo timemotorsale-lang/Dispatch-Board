@@ -228,6 +228,12 @@ At this baseline:
 - EAPT-030A initial linked work read model and detail panel is implemented.
 - EAPT-031 initial appointment-template blueprint task generation is implemented across draft, approval, schedule, check-in, outcome, and completion lifecycle execution flows with transactional task-link/activity persistence.
 - EAPT-032 initial task-detail create linked draft appointment workflow is implemented.
+- EAPT-033 initial task-to-appointment automation runtime slices are implemented for outcome-driven execution recording, safe replay handling, and generated follow-up work persistence.
+- EAPT-034 initial automation rule lifecycle slices are implemented for simulation-backed draft creation, activation-readiness guidance, and configured-rule pause/retire controls in the automation console.
+- EAPT-035 initial automation review and replay slices are implemented for retry/replay/resolve/skip controls, duplicate-safe follow-up replays, and board-visible runtime failure visibility.
+- EAPT-036 initial appointment and automation history slices are implemented for replay/recovery audit context, lifecycle-driven generated-record correlation, and activity-feed bridging.
+- EAPT-037 initial optimistic-concurrency hardening is implemented across the live appointment command path, including safe stale-version conflicts for late transaction-time update races without losing recovery-safe user input.
+- EAPT-038 initial critical lifecycle and orchestration execution coverage is implemented across draft/planning, attendance/execution, terminal/ownership, mutation-family stale conflict handling, and board stale-recovery notice proof.
 - Database-backed versioned appointment-template administration, recurrence persistence/materialization, availability-search API/UI, waitlist persistence/queues, reschedule/bulk execution persistence, full staff directory/admin maintenance, participant reassignment controls, reason-code catalog/templates, full command-center UI wiring, administration UI, browser workflow tests, and persisted production Appointment workflows have not yet been implemented.
 - The existing `/appointments` route now contains the mockup-aligned preview shell and is the intended UI boundary for the next live-service slices.
 

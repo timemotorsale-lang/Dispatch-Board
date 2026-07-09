@@ -189,8 +189,8 @@ E3 is the active implementation area.
 | EAPT-034 | Automation rule versioning, simulation, activation, pause, retirement | Partial; visible catalog candidates, simulation evidence, activation-readiness guidance, configured-rule lifecycle controls, and activation safety gates are live in the automation console, but durable rule-version linkage and richer authoring remain | High |
 | EAPT-035 | Automation review, failure, retry, and replay services | Partial implementation exists; manager retry/replay/resolve/skip controls, duplicate-safe follow-up replays, and board-visible appointment automation runtime/failure visibility are live, broader failure classes and background processing remain | High |
 | EAPT-036 | Activity history for appointment and automation events | Complete initial live slice; appointment history, automation-console audit context, appointment-board replay/recovery timeline continuity, lifecycle-driven generated record correlation, and background automation history/activity-feed bridging are live | Medium |
-| EAPT-037 | Optimistic concurrency on every appointment mutation | Partial implementation exists; full audit still pending | High |
-| EAPT-038 | Lifecycle, permission, orchestration, audit, and automation test suite | Partial unit coverage exists; critical scenario suite remains | High |
+| EAPT-037 | Optimistic concurrency on every appointment mutation | Complete initial live hardening slice; command submission and execution now return safe stale-version conflicts across the live mutation family, including late transaction-time version races, without losing recovery-safe user input | High |
+| EAPT-038 | Lifecycle, permission, orchestration, audit, and automation test suite | Complete initial critical execution-suite slice; execution-service coverage now spans draft/planning, attendance/execution, terminal/ownership, mutation-family stale conflict handling, and board stale-recovery notice proof, while broader browser/end-to-end coverage remains | High |
 
 Recommended next E3 slices:
 
