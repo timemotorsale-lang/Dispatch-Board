@@ -145,6 +145,14 @@ function createCommandRepositoryHarness(input?: {
 
 function createLifecycleRepositoryHarness() {
   const completedCommands: string[] = [];
+  const completedCommandDetails: Array<{
+    commandId: string;
+    status: string;
+    appointmentId: string | null;
+    errorCode: string | null;
+    errorMessage: string | null;
+    resultSnapshot: Record<string, unknown>;
+  }> = [];
   const committedReservationCandidateCounts: number[] = [];
   const createdAppointments: Array<{ id: string; appointmentNumber: string; version: number }> = [];
   const createdTasks: Array<{ id: string; title: string; boardDayId: string }> = [];
@@ -211,6 +219,14 @@ function createLifecycleRepositoryHarness() {
 
         async completeCommand(completion) {
           completedCommands.push(completion.commandId);
+          completedCommandDetails.push({
+            commandId: completion.commandId,
+            status: completion.status,
+            appointmentId: completion.appointmentId,
+            errorCode: completion.errorCode,
+            errorMessage: completion.errorMessage,
+            resultSnapshot: completion.resultSnapshot
+          });
           return completion;
         }
       });
@@ -219,6 +235,7 @@ function createLifecycleRepositoryHarness() {
 
   return {
     completedCommands,
+    completedCommandDetails,
     committedReservationCandidateCounts,
     createdAppointments,
     createdTasks,
@@ -782,6 +799,164 @@ describe("appointment command execution service", () => {
       execution: null
     });
     expect(lifecycleHarness.completedCommands).toEqual([]);
+  });
+
+  it("converts late update version races into safe conflicts with refreshed version evidence", async () => {
+    const mutableAppointment: AppointmentCommandAppointmentRecord = {
+      id: "appointment-1",
+      appointmentNumber: "APT-10245",
+      organizationId: "org-time-motor-sales",
+      locationId: "loc-time-motor-sales-minneapolis",
+      ownerUserId: ownerUser.id,
+      title: "Service / Repair",
+      schedulingTimezone: "America/Chicago",
+      startsAt: new Date("2026-07-06T15:00:00.000Z"),
+      endsAt: new Date("2026-07-06T16:00:00.000Z"),
+      bookingStatus: "SCHEDULED",
+      confirmationStatus: "CONFIRMED",
+      attendanceStatus: "EXPECTED",
+      executionStatus: "NOT_STARTED",
+      version: 3,
+      purposeSnapshot: null,
+      customerSnapshot: null,
+      vehicleSnapshot: null,
+      sourceSnapshot: null
+    };
+    const commandHarness = createCommandRepositoryHarness({
+      appointment: mutableAppointment
+    });
+    const conflictCompletions: Array<{
+      commandId: string;
+      status: string;
+      appointmentId: string | null;
+      errorCode: string | null;
+      errorMessage: string | null;
+      resultSnapshot: Record<string, unknown>;
+    }> = [];
+    const automationCalls: string[] = [];
+    let transactionAttempt = 0;
+    const lifecycleRepository: AppointmentLifecycleTransactionRepository = {
+      async withLifecycleTransaction(operation) {
+        transactionAttempt += 1;
+
+        return operation({
+          async createAppointment() {
+            throw new Error("Not used in this test.");
+          },
+
+          async updateAppointment(effect) {
+            mutableAppointment.version = effect.expectedVersion + 1;
+            throw new Error(
+              "Appointment update failed because the expected version no longer matches."
+            );
+          },
+
+          async commitReservations() {
+            return [];
+          },
+
+          async releaseReservations() {
+            return [];
+          },
+
+          async createTasks() {
+            return [];
+          },
+
+          async createTaskLinks() {
+            return [];
+          },
+
+          async removeTaskLinks() {
+            return [];
+          },
+
+          async createHistoryEvents() {
+            return [];
+          },
+
+          async createActivityEvents() {},
+
+          async completeCommand(completion) {
+            conflictCompletions.push({
+              commandId: completion.commandId,
+              status: completion.status,
+              appointmentId: completion.appointmentId,
+              errorCode: completion.errorCode,
+              errorMessage: completion.errorMessage,
+              resultSnapshot: completion.resultSnapshot
+            });
+            return completion;
+          }
+        });
+      }
+    };
+
+    const result = await submitAndExecuteAppointmentCommand(
+      managerUser,
+      {
+        commandType: "RESCHEDULE",
+        appointmentId: "appointment-1",
+        expectedAppointmentVersion: 3,
+        idempotencyKey: "reschedule-late-stale-conflict",
+        correlationId: "corr-reschedule-late-stale",
+        payload: {
+          startsAt: "2026-07-06T18:00:00.000Z",
+          endsAt: "2026-07-06T19:00:00.000Z",
+          reasonCode: "CUSTOMER_REQUEST",
+          reasonNotes: "Customer requested a later slot."
+        }
+      },
+      {
+        commandRepository: commandHarness.repository,
+        lifecycleRepository,
+        automationRecorder: async () => {
+          automationCalls.push("called");
+        },
+        now
+      }
+    );
+
+    expect(result).toMatchObject({
+      accepted: false,
+      duplicate: false,
+      conflict: {
+        expectedAppointmentVersion: 3,
+        currentAppointmentVersion: 4
+      },
+      command: {
+        id: "cmd-1",
+        commandType: "RESCHEDULE",
+        status: "CONFLICT",
+        currentAppointmentVersion: 4,
+        errorCode: "STALE_VERSION",
+        errorMessage: "Expected appointment version 3; current version is 4.",
+        resultSnapshot: {
+          appointmentId: "appointment-1",
+          commandType: "RESCHEDULE",
+          expectedAppointmentVersion: 3,
+          currentAppointmentVersion: 4
+        }
+      },
+      execution: null
+    });
+    expect(transactionAttempt).toBe(2);
+    expect(conflictCompletions).toEqual([
+      {
+        commandId: "cmd-1",
+        status: "CONFLICT",
+        appointmentId: "appointment-1",
+        errorCode: "STALE_VERSION",
+        errorMessage: "Expected appointment version 3; current version is 4.",
+        resultSnapshot: {
+          appointmentId: "appointment-1",
+          commandType: "RESCHEDULE",
+          expectedAppointmentVersion: 3,
+          currentAppointmentVersion: 4
+        }
+      }
+    ]);
+    expect(automationCalls).toEqual([]);
   });
 
   it("records runtime automation executions after successful outcome-driven automation", async () => {
