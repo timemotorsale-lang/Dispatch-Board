@@ -219,7 +219,8 @@ describe("appointment automation operations console service", () => {
       automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_APPOINTMENT",
       automationRuleVersion: 3,
       catalogVersionId: "catalog-version-1",
-      status: "REVIEW_REQUIRED"
+      status: "REVIEW_REQUIRED",
+      generatedAppointmentNumber: "FUP-APT-10245-001"
     });
     expect(beforeResolve.failureQueue).toHaveLength(1);
 
@@ -293,9 +294,54 @@ describe("appointment automation operations console service", () => {
 
     expect(retried.executions[0]).toMatchObject({
       status: "SUCCEEDED",
-      failureCode: null
+      failureCode: null,
+      generatedTaskId: "task-1",
+      retryReplayAction: "RETRY"
     });
     expect(retried.recentEvents[0].action).toBe("RETRIED");
+  });
+
+  it("surfaces task-source execution context from runtime snapshots", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createMemoryAppointmentAutomationOperationsRepository();
+
+    await recordAppointmentAutomationExecution(
+      {
+        ruleCode: "RULE-BLOCKED-TASK-REVIEW",
+        triggerCode: "BLOCKED_TASK_REVIEW",
+        purposeCode: "APT-TASK-MEETING",
+        sourceType: "TASK",
+        sourceReference: "task-1",
+        status: "REVIEW_REQUIRED",
+        reason: "Queue task-sourced automation review.",
+        actorUserId: manager?.id ?? null,
+        inputSnapshot: {
+          automationRuleCode: "RULE-BLOCKED-TASK-REVIEW",
+          automationRuleVersion: 2,
+          sourceTaskId: "task-1",
+          sourceTaskTitle: "Call lender and verify packet"
+        },
+        resultSnapshot: {
+          automationRuleCode: "RULE-BLOCKED-TASK-REVIEW",
+          automationRuleVersion: 2,
+          sourceTaskId: "task-1",
+          sourceTaskTitle: "Call lender and verify packet",
+          generatedAppointmentNumber: "APT-TASK-AUTO-001",
+          generatedAppointmentTitle: "Blocked task review: Call lender and verify packet"
+        }
+      },
+      repository
+    );
+
+    const console = await getAppointmentAutomationOperationsConsoleForManager(manager, repository);
+
+    expect(console.executions[0]).toMatchObject({
+      sourceTaskId: "task-1",
+      sourceTaskTitle: "Call lender and verify packet",
+      generatedAppointmentNumber: "APT-TASK-AUTO-001",
+      generatedAppointmentTitle: "Blocked task review: Call lender and verify packet"
+    });
   });
 
   it("rejects non-manager access", async () => {

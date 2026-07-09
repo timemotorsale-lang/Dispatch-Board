@@ -481,27 +481,63 @@ function summarizeExecution(execution: AppointmentAutomationExecutionRecord) {
       ? (execution.resultSnapshot as Record<string, unknown>)
       : null;
 
+  const stringFromSnapshots = (...keys: string[]) => {
+    for (const key of keys) {
+      const resultValue = resultSnapshot?.[key];
+      if (typeof resultValue === "string" && resultValue.trim()) {
+        return resultValue.trim();
+      }
+
+      const inputValue = inputSnapshot?.[key];
+      if (typeof inputValue === "string" && inputValue.trim()) {
+        return inputValue.trim();
+      }
+    }
+
+    return null;
+  };
+
+  const numberFromSnapshots = (...keys: string[]) => {
+    for (const key of keys) {
+      const resultValue = resultSnapshot?.[key];
+      if (typeof resultValue === "number" && resultValue > 0) {
+        return resultValue;
+      }
+
+      const inputValue = inputSnapshot?.[key];
+      if (typeof inputValue === "number" && inputValue > 0) {
+        return inputValue;
+      }
+    }
+
+    return null;
+  };
+
   return {
     id: execution.id,
-    automationRuleCode:
-      (typeof resultSnapshot?.automationRuleCode === "string" && resultSnapshot.automationRuleCode) ||
-      (typeof inputSnapshot?.automationRuleCode === "string" && inputSnapshot.automationRuleCode) ||
-      null,
-    automationRuleVersion:
-      (typeof resultSnapshot?.automationRuleVersion === "number" &&
-        resultSnapshot.automationRuleVersion) ||
-      (typeof inputSnapshot?.automationRuleVersion === "number" &&
-        inputSnapshot.automationRuleVersion) ||
-      null,
-    catalogVersionId:
-      (typeof resultSnapshot?.catalogVersionId === "string" && resultSnapshot.catalogVersionId) ||
-      (typeof inputSnapshot?.catalogVersionId === "string" && inputSnapshot.catalogVersionId) ||
-      null,
+    automationRuleCode: stringFromSnapshots("automationRuleCode"),
+    automationRuleVersion: numberFromSnapshots("automationRuleVersion"),
+    catalogVersionId: stringFromSnapshots("catalogVersionId"),
     triggerCode: execution.triggerCode,
     purposeCode: execution.purposeCode,
     status: execution.status,
     sourceType: execution.sourceType,
     sourceReference: execution.sourceReference,
+    sourceTaskId: stringFromSnapshots("sourceTaskId"),
+    sourceTaskTitle: stringFromSnapshots("sourceTaskTitle"),
+    generatedAppointmentNumber: stringFromSnapshots(
+      "generatedAppointmentNumber",
+      "generatedFollowUpAppointmentNumber",
+      "existingFollowUpAppointmentNumber"
+    ),
+    generatedAppointmentTitle: stringFromSnapshots("generatedAppointmentTitle"),
+    generatedTaskId: stringFromSnapshots(
+      "generatedTaskId",
+      "generatedFollowUpTaskId",
+      "existingFollowUpTaskId"
+    ),
+    generatedTaskTitle: stringFromSnapshots("generatedTaskTitle"),
+    retryReplayAction: stringFromSnapshots("retryReplayAction"),
     failureCode: execution.failureCode,
     failureMessage: execution.failureMessage,
     attemptCount: execution.attemptCount,
@@ -1177,7 +1213,24 @@ export async function transitionAppointmentAutomationExecutionForManager(
       status: replayOutcome.status,
       reason: normalizedInput.reason,
       actorUserId: user.id,
-      resultSnapshot: replayOutcome.resultSnapshot,
+      resultSnapshot: {
+        ...replayOutcome.resultSnapshot,
+        retryReplayAction:
+          replayOutcome.resultSnapshot &&
+          typeof replayOutcome.resultSnapshot === "object" &&
+          !Array.isArray(replayOutcome.resultSnapshot) &&
+          typeof (replayOutcome.resultSnapshot as Record<string, unknown>).retryReplayAction ===
+            "string"
+            ? (replayOutcome.resultSnapshot as Record<string, unknown>).retryReplayAction
+            : normalizedInput.action,
+        replayedAt:
+          replayOutcome.resultSnapshot &&
+          typeof replayOutcome.resultSnapshot === "object" &&
+          !Array.isArray(replayOutcome.resultSnapshot) &&
+          typeof (replayOutcome.resultSnapshot as Record<string, unknown>).replayedAt === "string"
+            ? (replayOutcome.resultSnapshot as Record<string, unknown>).replayedAt
+            : (dependencies?.now ?? new Date()).toISOString()
+      },
       failureCode: replayOutcome.failureCode,
       failureMessage: replayOutcome.failureMessage,
       nextRetryAt: replayOutcome.nextRetryAt,

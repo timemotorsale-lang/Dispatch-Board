@@ -26,6 +26,52 @@ function defaultExecutionId(consoleModel: ConsoleModel) {
   return consoleModel.failureQueue[0]?.id ?? consoleModel.executions[0]?.id ?? "";
 }
 
+function executionSourceLabel(
+  execution: ConsoleModel["executions"][number] | null
+) {
+  if (!execution) {
+    return "No source reference recorded";
+  }
+
+  if (execution.sourceTaskTitle) {
+    return execution.sourceTaskId
+      ? `${execution.sourceTaskTitle} (${execution.sourceTaskId})`
+      : execution.sourceTaskTitle;
+  }
+
+  if (execution.sourceTaskId) {
+    return execution.sourceTaskId;
+  }
+
+  return execution.sourceReference ?? "No source reference recorded";
+}
+
+function executionResultLabel(
+  execution: ConsoleModel["executions"][number] | null
+) {
+  if (!execution) {
+    return "No generated result recorded yet.";
+  }
+
+  if (execution.generatedAppointmentNumber) {
+    return execution.generatedAppointmentTitle
+      ? `${execution.generatedAppointmentNumber} · ${execution.generatedAppointmentTitle}`
+      : execution.generatedAppointmentNumber;
+  }
+
+  if (execution.generatedTaskTitle) {
+    return execution.generatedTaskId
+      ? `${execution.generatedTaskTitle} (${execution.generatedTaskId})`
+      : execution.generatedTaskTitle;
+  }
+
+  if (execution.generatedTaskId) {
+    return execution.generatedTaskId;
+  }
+
+  return "No generated result recorded yet.";
+}
+
 export function AppointmentAutomationOperationsConsolePanel({ initialConsole }: Props) {
   const [consoleModel, setConsoleModel] = useState(initialConsole);
   const [selectedRuleCode, setSelectedRuleCode] = useState(defaultRuleCode(initialConsole));
@@ -500,6 +546,7 @@ export function AppointmentAutomationOperationsConsolePanel({ initialConsole }: 
                   <span>{formatLabel(execution.status)}</span>
                   <strong>{execution.automationRuleCode ?? execution.triggerCode}</strong>
                   <small>{execution.failureMessage ?? "Manager action is required."}</small>
+                  <small>{executionSourceLabel(execution)}</small>
                 </button>
               ))
             )}
@@ -520,7 +567,16 @@ export function AppointmentAutomationOperationsConsolePanel({ initialConsole }: 
                 <div className="appointment-admin-record">
                   <span>Source</span>
                   <strong>{formatLabel(selectedExecution.sourceType)}</strong>
-                  <small>{selectedExecution.sourceReference ?? "No source reference recorded"}</small>
+                  <small>{executionSourceLabel(selectedExecution)}</small>
+                </div>
+                <div className="appointment-admin-record">
+                  <span>Generated result</span>
+                  <strong>{executionResultLabel(selectedExecution)}</strong>
+                  <small>
+                    {selectedExecution.retryReplayAction
+                      ? `Last recovery action: ${formatLabel(selectedExecution.retryReplayAction)}`
+                      : "No retry or replay action has been recorded yet."}
+                  </small>
                 </div>
                 <div className="appointment-admin-record">
                   <span>Last update</span>
