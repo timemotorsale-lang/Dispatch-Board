@@ -26,6 +26,126 @@ function defaultExecutionId(consoleModel: ConsoleModel) {
   return consoleModel.failureQueue[0]?.id ?? consoleModel.executions[0]?.id ?? "";
 }
 
+type AutomationContextLike = {
+  status?: string | null;
+  sourceReference?: string | null;
+  sourceTaskId?: string | null;
+  sourceTaskTitle?: string | null;
+  generatedAppointmentId?: string | null;
+  generatedAppointmentNumber?: string | null;
+  generatedAppointmentTitle?: string | null;
+  generatedTaskId?: string | null;
+  generatedTaskTitle?: string | null;
+  retryReplayAction?: string | null;
+  failureCode?: string | null;
+  failureMessage?: string | null;
+};
+
+function executionSourceLabel(
+  execution: AutomationContextLike | null
+) {
+  if (!execution) {
+    return "No source reference recorded";
+  }
+
+  if (execution.sourceTaskTitle) {
+    return execution.sourceTaskId
+      ? `${execution.sourceTaskTitle} (${execution.sourceTaskId})`
+      : execution.sourceTaskTitle;
+  }
+
+  if (execution.sourceTaskId) {
+    return execution.sourceTaskId;
+  }
+
+  return execution.sourceReference ?? "No source reference recorded";
+}
+
+function executionResultLabel(
+  execution: AutomationContextLike | null
+) {
+  if (!execution) {
+    return "No generated result recorded yet.";
+  }
+
+  if (execution.generatedAppointmentId && execution.generatedAppointmentNumber) {
+    const appointmentLabel = `${execution.generatedAppointmentNumber} (${execution.generatedAppointmentId})`;
+
+    return execution.generatedAppointmentTitle
+      ? `${appointmentLabel} Â· ${execution.generatedAppointmentTitle}`
+      : appointmentLabel;
+  }
+
+  if (execution.generatedAppointmentNumber) {
+    return execution.generatedAppointmentTitle
+      ? `${execution.generatedAppointmentNumber} · ${execution.generatedAppointmentTitle}`
+      : execution.generatedAppointmentNumber;
+  }
+
+  if (execution.generatedTaskTitle) {
+    return execution.generatedTaskId
+      ? `${execution.generatedTaskTitle} (${execution.generatedTaskId})`
+      : execution.generatedTaskTitle;
+  }
+
+  if (execution.generatedTaskId) {
+    return execution.generatedTaskId;
+  }
+
+  return "No generated result recorded yet.";
+}
+
+function executionFailureLabel(
+  execution: AutomationContextLike | null
+) {
+  if (!execution?.failureCode && !execution?.failureMessage) {
+    return null;
+  }
+
+  if (execution.failureCode && execution.failureMessage) {
+    return `${execution.failureCode}: ${execution.failureMessage}`;
+  }
+
+  return execution.failureCode ?? execution.failureMessage ?? null;
+}
+
+function auditEventContextLabel(event: ConsoleModel["recentEvents"][number]) {
+  const sourceLabel = executionSourceLabel(event);
+  const resultLabel = executionResultLabel(event);
+  const parts: string[] = [];
+
+  if (event.automationRuleCode) {
+    parts.push(event.automationRuleVersion ? `${event.automationRuleCode} v${event.automationRuleVersion}` : event.automationRuleCode);
+  }
+
+  if (event.triggerCode) {
+    parts.push(formatLabel(event.triggerCode));
+  }
+
+  if (sourceLabel !== "No source reference recorded") {
+    parts.push(sourceLabel);
+  }
+
+  if (resultLabel !== "No generated result recorded yet.") {
+    parts.push(resultLabel);
+  }
+
+  if (event.status) {
+    parts.push(`Status: ${formatLabel(event.status)}`);
+  }
+
+  const failureLabel = executionFailureLabel(event);
+  if (failureLabel) {
+    parts.push(`Failure: ${failureLabel}`);
+  }
+
+  if (event.retryReplayAction) {
+    parts.push(`Recovery: ${formatLabel(event.retryReplayAction)}`);
+  }
+
+  return parts.join(" · ");
+}
+
 export function AppointmentAutomationOperationsConsolePanel({ initialConsole }: Props) {
   const [consoleModel, setConsoleModel] = useState(initialConsole);
   const [selectedRuleCode, setSelectedRuleCode] = useState(defaultRuleCode(initialConsole));
@@ -500,6 +620,7 @@ export function AppointmentAutomationOperationsConsolePanel({ initialConsole }: 
                   <span>{formatLabel(execution.status)}</span>
                   <strong>{execution.automationRuleCode ?? execution.triggerCode}</strong>
                   <small>{execution.failureMessage ?? "Manager action is required."}</small>
+                  <small>{executionSourceLabel(execution)}</small>
                 </button>
               ))
             )}
@@ -520,7 +641,16 @@ export function AppointmentAutomationOperationsConsolePanel({ initialConsole }: 
                 <div className="appointment-admin-record">
                   <span>Source</span>
                   <strong>{formatLabel(selectedExecution.sourceType)}</strong>
-                  <small>{selectedExecution.sourceReference ?? "No source reference recorded"}</small>
+                  <small>{executionSourceLabel(selectedExecution)}</small>
+                </div>
+                <div className="appointment-admin-record">
+                  <span>Generated result</span>
+                  <strong>{executionResultLabel(selectedExecution)}</strong>
+                  <small>
+                    {selectedExecution.retryReplayAction
+                      ? `Last recovery action: ${formatLabel(selectedExecution.retryReplayAction)}`
+                      : "No retry or replay action has been recorded yet."}
+                  </small>
                 </div>
                 <div className="appointment-admin-record">
                   <span>Last update</span>
@@ -605,6 +735,14 @@ export function AppointmentAutomationOperationsConsolePanel({ initialConsole }: 
                 >
                   <span>{formatLabel(execution.status)}</span>
                   <strong>{execution.automationRuleCode ?? execution.triggerCode}</strong>
+                  <small>{executionSourceLabel(execution)}</small>
+                  <small>{executionResultLabel(execution)}</small>
+                  <small>
+                    {executionFailureLabel(execution) ??
+                      (execution.retryReplayAction
+                        ? `Recovery: ${formatLabel(execution.retryReplayAction)}`
+                        : `${formatLabel(execution.sourceType)} source`)}
+                  </small>
                   <small>
                     {formatLabel(execution.sourceType)} • {execution.sourceReference ?? "No source reference"}
                   </small>
@@ -625,6 +763,7 @@ export function AppointmentAutomationOperationsConsolePanel({ initialConsole }: 
                 <div className="appointment-admin-record" key={event.id}>
                   <span>{formatLabel(event.action)}</span>
                   <strong>{event.reason}</strong>
+                  {auditEventContextLabel(event) ? <small>{auditEventContextLabel(event)}</small> : null}
                   <small>{event.occurredAt}</small>
                 </div>
               ))

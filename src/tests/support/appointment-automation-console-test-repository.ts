@@ -3,6 +3,7 @@ import type {
   AppointmentAutomationOperationsRepository,
   AppointmentAutomationRuleRecord
 } from "@/server/services/appointment-automation-operations-console";
+import { buildAppointmentAutomationHistoryEvent } from "@/server/services/appointment-automation-operations-console";
 
 export function createMemoryAppointmentAutomationOperationsRepository() {
   const now = new Date("2026-07-06T19:00:00.000Z");
@@ -10,6 +11,7 @@ export function createMemoryAppointmentAutomationOperationsRepository() {
   let executions: AppointmentAutomationExecutionRecord[] = [];
   const ruleEvents: Awaited<ReturnType<AppointmentAutomationOperationsRepository["listRuleEvents"]>> = [];
   const executionEvents: Awaited<ReturnType<AppointmentAutomationOperationsRepository["listExecutionEvents"]>> = [];
+  const historyEvents: Array<ReturnType<typeof buildAppointmentAutomationHistoryEvent>> = [];
 
   const repository: AppointmentAutomationOperationsRepository = {
     async listRules() {
@@ -52,16 +54,33 @@ export function createMemoryAppointmentAutomationOperationsRepository() {
       executions = [execution, ...executions];
       executionEvents.unshift({
         id: `execution-event-${executionEvents.length + 1}`,
+        automationExecutionId: execution.id,
         action:
           execution.status === "FAILED_RETRYABLE" || execution.status === "FAILED_TERMINAL"
             ? "FAILED"
             : execution.status === "REVIEW_REQUIRED"
               ? "REVIEW_CREATED"
-              : "QUEUED",
+              : execution.status === "SKIPPED"
+                ? "SKIPPED"
+                : execution.status === "RESOLVED"
+                  ? "RESOLVED"
+                  : "QUEUED",
         reason: input.reason,
         actorUserId: input.actorUserId ?? null,
+        priorSnapshot: undefined,
+        newSnapshot: execution,
         occurredAt: now
       });
+      const historyEvent = buildAppointmentAutomationHistoryEvent({
+          execution,
+          actorType: "AUTOMATION",
+          actorUserId: input.actorUserId ?? null,
+          occurredAt: now,
+          reason: input.reason
+        });
+      if (historyEvent) {
+        historyEvents.unshift(historyEvent);
+      }
       return execution;
     },
     async finalizeExecution(input) {
@@ -83,11 +102,25 @@ export function createMemoryAppointmentAutomationOperationsRepository() {
       if (input.eventAction) {
         executionEvents.unshift({
           id: `execution-event-${executionEvents.length + 1}`,
+          automationExecutionId: execution.id,
           action: input.eventAction,
           reason: input.reason,
           actorUserId: input.actorUserId,
+          priorSnapshot: existing,
+          newSnapshot: execution,
           occurredAt: now
         });
+      }
+      const historyEvent = buildAppointmentAutomationHistoryEvent({
+          execution,
+          action: input.eventAction ?? null,
+          actorType: "HUMAN",
+          actorUserId: input.actorUserId,
+          occurredAt: now,
+          reason: input.reason
+        });
+      if (historyEvent) {
+        historyEvents.unshift(historyEvent);
       }
       return execution;
     },
@@ -143,9 +176,12 @@ export function createMemoryAppointmentAutomationOperationsRepository() {
         : [...rules, rule];
       ruleEvents.unshift({
         id: `rule-event-${ruleEvents.length + 1}`,
+        automationRuleId: rule.id,
         action: existing ? "DRAFT_UPDATED" : "DRAFT_CREATED",
         reason: input.reason,
         actorUserId: input.actorUserId,
+        priorSnapshot: existing ?? undefined,
+        newSnapshot: rule,
         occurredAt: now
       });
       return rule;
@@ -168,9 +204,12 @@ export function createMemoryAppointmentAutomationOperationsRepository() {
       rules = rules.map((rule) => rule.ruleCode === nextRule.ruleCode ? nextRule : rule);
       ruleEvents.unshift({
         id: `rule-event-${ruleEvents.length + 1}`,
+        automationRuleId: nextRule.id,
         action: eventByAction[input.action],
         reason: input.reason,
         actorUserId: input.actorUserId,
+        priorSnapshot: existing,
+        newSnapshot: nextRule,
         occurredAt: now
       });
       return nextRule;
@@ -196,11 +235,25 @@ export function createMemoryAppointmentAutomationOperationsRepository() {
       if (input.action === "RESOLVE" || input.action === "SKIP") {
         executionEvents.unshift({
           id: `execution-event-${executionEvents.length + 1}`,
+          automationExecutionId: nextExecution.id,
           action: input.action === "RESOLVE" ? "RESOLVED" : "SKIPPED",
           reason: input.reason,
           actorUserId: input.actorUserId,
+          priorSnapshot: existing,
+          newSnapshot: nextExecution,
           occurredAt: now
         });
+        const historyEvent = buildAppointmentAutomationHistoryEvent({
+            execution: nextExecution,
+            action: input.action === "RESOLVE" ? "RESOLVED" : "SKIPPED",
+            actorType: "HUMAN",
+            actorUserId: input.actorUserId,
+            occurredAt: now,
+            reason: input.reason
+          });
+        if (historyEvent) {
+          historyEvents.unshift(historyEvent);
+        }
       }
       return nextExecution;
     }
@@ -208,6 +261,7 @@ export function createMemoryAppointmentAutomationOperationsRepository() {
 
   return {
     repository,
+    historyEvents,
     seedExecution(execution: AppointmentAutomationExecutionRecord) {
       executions = [...executions, execution];
     }

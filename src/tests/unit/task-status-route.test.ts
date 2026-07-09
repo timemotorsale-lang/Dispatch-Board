@@ -72,6 +72,38 @@ describe("task status route", () => {
     });
   });
 
+  it("passes task appointment automation trigger fields through to the service", async () => {
+    mocks.updateTaskStatus.mockResolvedValue({
+      id: "task-1",
+      status: "READY_FOR_REVIEW",
+      blockerReason: null,
+      updatedAt: "2026-06-18T15:30:00.000Z"
+    });
+
+    const response = await PATCH(
+      new Request("http://localhost/api/tasks/task-1/status", {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: "READY_FOR_REVIEW",
+          appointmentAutomationTriggerCode: "escalation_task_review",
+          appointmentAutomationReasonNotes: "Queue a manager review appointment."
+        })
+      }),
+      {
+        params: Promise.resolve({
+          id: "task-1"
+        })
+      }
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.updateTaskStatus).toHaveBeenCalledWith(staffUser, "task-1", {
+      status: "READY_FOR_REVIEW",
+      appointmentAutomationTriggerCode: "escalation_task_review",
+      appointmentAutomationReasonNotes: "Queue a manager review appointment."
+    });
+  });
+
   it("supports PATCH requests through the same shared handler", async () => {
     mocks.updateTaskStatus.mockResolvedValue({
       id: "task-1",

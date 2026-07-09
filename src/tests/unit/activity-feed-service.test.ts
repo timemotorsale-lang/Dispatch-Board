@@ -362,6 +362,79 @@ describe("activity feed service", () => {
     ]);
   });
 
+  it("surfaces appointment automation history events in the shared activity feed", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const harness = createActivityFeedRepositoryHarness({
+      boardDays: [
+        {
+          id: "board-day-1",
+          date: "2026-07-06"
+        }
+      ],
+      appointmentEventsByBoardDate: {
+        "2026-07-06": [
+          {
+            id: "appointment-history-automation-failed",
+            eventType: "AUTOMATION_FAILED",
+            message: "Appointment APT-10245 automation APPOINTMENT_OUTCOME_FOLLOW_UP_TASK failed.",
+            occurredAt: "2026-07-06T18:00:00.000Z",
+            actorUser: null,
+            task: {
+              id: "task-generated-1",
+              title: "Call customer back",
+              status: TaskStatus.NOT_STARTED,
+              workflowArea: WorkflowArea.SALES
+            },
+            appointment: {
+              id: "appointment-1",
+              appointmentNumber: "APT-10245",
+              title: "Customer Meeting",
+              bookingStatus: "COMPLETED"
+            },
+            metadata: {
+              automationExecutionId: "execution-1",
+              generatedTaskId: "task-generated-1",
+              failureCode: "FOLLOW_UP_TASK_WRITE_FAILED",
+              failureMessage: "Could not persist follow-up task."
+            }
+          }
+        ]
+      }
+    });
+
+    const result = await getActivityFeedForDate(manager, "2026-07-06", {
+      repository: harness.repository
+    });
+
+    expect(result.events[0]).toEqual({
+      id: "appointment-history-appointment-history-automation-failed",
+      boardDate: "2026-07-06",
+      eventType: "APPOINTMENT_AUTOMATION_FAILED",
+      message: "Appointment APT-10245 automation APPOINTMENT_OUTCOME_FOLLOW_UP_TASK failed.",
+      metadata: {
+        automationExecutionId: "execution-1",
+        generatedTaskId: "task-generated-1",
+        failureCode: "FOLLOW_UP_TASK_WRITE_FAILED",
+        failureMessage: "Could not persist follow-up task."
+      },
+      createdAt: "2026-07-06T18:00:00.000Z",
+      actor: null,
+      task: {
+        id: "task-generated-1",
+        title: "Call customer back",
+        status: "NOT_STARTED",
+        workflowArea: "SALES"
+      },
+      appointment: {
+        id: "appointment-1",
+        appointmentNumber: "APT-10245",
+        title: "Customer Meeting",
+        bookingStatus: "COMPLETED"
+      }
+    });
+  });
+
   it("returns an empty feed when no board exists for the requested date", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const manager = usersByEmail.get("morgan.manager@local.test") ?? null;

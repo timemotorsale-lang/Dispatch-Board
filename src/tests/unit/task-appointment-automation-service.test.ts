@@ -276,4 +276,61 @@ describe("task appointment automation service", () => {
       })
     );
   });
+
+  it("builds ready-for-review automation reason notes for escalation triggers", async () => {
+    const manager = await createManagerUser();
+    const recordExecution = vi.fn().mockResolvedValue(undefined);
+    const appointmentDraftCreator = vi.fn().mockResolvedValue({
+      appointmentId: "appointment-1",
+      appointmentNumber: "APT-TASK-1",
+      commandId: "command-1",
+      commandStatus: "SUCCEEDED",
+      createdTaskLinkCount: 1,
+      taskId: "task-1"
+    } satisfies TaskAppointmentDraftResult);
+
+    await runTaskAppointmentAutomationForTaskEvent(
+      manager,
+      {
+        taskId: "task-1",
+        triggerCode: "ESCALATION_TASK_REVIEW"
+      },
+      {
+        automationRepository: {
+          listRules: vi.fn().mockResolvedValue([
+            {
+              ...createActiveRule(),
+              ruleCode: "RULE-ESCALATION-TASK-REVIEW",
+              triggerCode: "ESCALATION_TASK_REVIEW"
+            }
+          ]),
+          listExecutions: vi.fn(),
+          getExecutionById: vi.fn(),
+          listRuleEvents: vi.fn(),
+          listExecutionEvents: vi.fn(),
+          recordExecution,
+          finalizeExecution: vi.fn(),
+          upsertRuleDraft: vi.fn(),
+          transitionRule: vi.fn(),
+          transitionExecution: vi.fn()
+        },
+        appointmentRepository: {
+          findExistingAutomatedAppointment: vi.fn().mockResolvedValue(null)
+        },
+        appointmentDraftCreator,
+        recordActivity: vi.fn().mockResolvedValue(undefined),
+        taskReader: vi.fn().mockResolvedValue(createTaskReadModel())
+      }
+    );
+
+    expect(appointmentDraftCreator).toHaveBeenCalledWith(
+      manager,
+      "task-1",
+      expect.objectContaining({
+        reasonNotes:
+          'Automation created a review appointment because task "Call lender and verify packet" moved to ready for review.'
+      }),
+      expect.any(Object)
+    );
+  });
 });

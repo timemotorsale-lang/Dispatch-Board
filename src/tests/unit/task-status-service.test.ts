@@ -390,6 +390,13 @@ describe("task status service", () => {
         requiresManagerApproval: true
       })
     ]);
+    const taskAppointmentAutomationRunner = vi.fn().mockResolvedValue({
+      taskId: "task-1",
+      triggerCode: "ESCALATION_TASK_REVIEW",
+      evaluatedRuleCount: 0,
+      createdAppointmentCount: 0,
+      executions: []
+    });
 
     const result = await updateTaskStatus(
       staffUser,
@@ -397,7 +404,10 @@ describe("task status service", () => {
       {
         status: "READY_FOR_REVIEW"
       },
-      repository
+      repository,
+      {
+        taskAppointmentAutomationRunner
+      }
     );
 
     expect(result).toMatchObject({
@@ -412,6 +422,46 @@ describe("task status service", () => {
       reviewedByUserId: null
     });
     expect(readActivityEvents()).toEqual([]);
+    expect(taskAppointmentAutomationRunner).toHaveBeenCalledWith(staffUser, {
+      reasonNotes: null,
+      taskId: "task-1",
+      triggerCode: "ESCALATION_TASK_REVIEW"
+    });
+  });
+
+  it("runs escalation appointment automation when an approval-required task moves to ready for review", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+    const { repository } = createTaskStatusRepository([
+      createStoredTask({
+        requiresManagerApproval: true
+      })
+    ]);
+    const taskAppointmentAutomationRunner = vi.fn().mockResolvedValue({
+      taskId: "task-1",
+      triggerCode: "ESCALATION_TASK_REVIEW",
+      evaluatedRuleCount: 1,
+      createdAppointmentCount: 1,
+      executions: []
+    });
+
+    await updateTaskStatus(
+      staffUser,
+      "task-1",
+      {
+        status: "READY_FOR_REVIEW"
+      },
+      repository,
+      {
+        taskAppointmentAutomationRunner
+      }
+    );
+
+    expect(taskAppointmentAutomationRunner).toHaveBeenCalledWith(staffUser, {
+      reasonNotes: null,
+      taskId: "task-1",
+      triggerCode: "ESCALATION_TASK_REVIEW"
+    });
   });
 
   it("allows managers to complete approval-required tasks from ready for review", async () => {
@@ -705,6 +755,72 @@ describe("task status service", () => {
       reasonNotes: "Waiting on lender paperwork.",
       taskId: "task-1",
       triggerCode: "BLOCKED_TASK_REVIEW"
+    });
+  });
+
+  it("does not rerun blocked-task automation when the task was already blocked and no explicit trigger was provided", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+    const { repository } = createTaskStatusRepository([
+      createStoredTask({
+        status: TaskStatus.BLOCKED,
+        blockerReason: "Waiting on lender paperwork."
+      })
+    ]);
+    const taskAppointmentAutomationRunner = vi.fn().mockResolvedValue({
+      taskId: "task-1",
+      triggerCode: "BLOCKED_TASK_REVIEW",
+      evaluatedRuleCount: 1,
+      createdAppointmentCount: 0,
+      executions: []
+    });
+
+    await updateTaskStatus(
+      staffUser,
+      "task-1",
+      {
+        status: "BLOCKED",
+        blockerReason: "Waiting on lender paperwork."
+      },
+      repository,
+      {
+        taskAppointmentAutomationRunner
+      }
+    );
+
+    expect(taskAppointmentAutomationRunner).not.toHaveBeenCalled();
+  });
+
+  it("runs an explicit appointment automation trigger from task status updates", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+    const { repository } = createTaskStatusRepository();
+    const taskAppointmentAutomationRunner = vi.fn().mockResolvedValue({
+      taskId: "task-1",
+      triggerCode: "QUALIFIED_SALES_FOLLOW_UP_TASK",
+      evaluatedRuleCount: 1,
+      createdAppointmentCount: 1,
+      executions: []
+    });
+
+    await updateTaskStatus(
+      staffUser,
+      "task-1",
+      {
+        status: "COMPLETED",
+        appointmentAutomationReasonNotes: "Meet the customer after the lender confirms approval.",
+        appointmentAutomationTriggerCode: "qualified_sales_follow_up_task"
+      },
+      repository,
+      {
+        taskAppointmentAutomationRunner
+      }
+    );
+
+    expect(taskAppointmentAutomationRunner).toHaveBeenCalledWith(staffUser, {
+      reasonNotes: "Meet the customer after the lender confirms approval.",
+      taskId: "task-1",
+      triggerCode: "QUALIFIED_SALES_FOLLOW_UP_TASK"
     });
   });
 });

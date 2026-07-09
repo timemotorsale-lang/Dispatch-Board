@@ -1,12 +1,20 @@
 import { TaskStatus } from "@prisma/client";
 
-const taskStatusUpdateAllowedKeys = new Set(["status", "blockerReason", "updateFields"]);
+const taskStatusUpdateAllowedKeys = new Set([
+  "status",
+  "blockerReason",
+  "updateFields",
+  "appointmentAutomationTriggerCode",
+  "appointmentAutomationReasonNotes"
+]);
 const taskStatusValues = new Set(Object.values(TaskStatus));
 
 export type NormalizedTaskStatusUpdateInput = {
   status: TaskStatus;
   blockerReason?: string;
   updateFields?: Record<string, string | boolean>;
+  appointmentAutomationTriggerCode?: string;
+  appointmentAutomationReasonNotes?: string;
 };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -96,6 +104,20 @@ function normalizeUpdateFields(value: unknown) {
   return Object.fromEntries(normalizedEntries);
 }
 
+function normalizeOptionalText(value: unknown, fieldName: string) {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (typeof value !== "string") {
+    throw new Error(`Task status updates require ${fieldName} to be a string when provided.`);
+  }
+
+  const normalizedValue = value.trim();
+
+  return normalizedValue || undefined;
+}
+
 export function normalizeTaskStatusUpdateInput(value: unknown): NormalizedTaskStatusUpdateInput {
   const input = assertTaskStatusObject(value);
 
@@ -115,6 +137,25 @@ export function normalizeTaskStatusUpdateInput(value: unknown): NormalizedTaskSt
 
   if (updateFields && Object.keys(updateFields).length > 0) {
     normalizedInput.updateFields = updateFields;
+  }
+
+  const appointmentAutomationTriggerCode = normalizeOptionalText(
+    input.appointmentAutomationTriggerCode,
+    "appointmentAutomationTriggerCode"
+  );
+
+  if (appointmentAutomationTriggerCode) {
+    normalizedInput.appointmentAutomationTriggerCode =
+      appointmentAutomationTriggerCode.toUpperCase();
+  }
+
+  const appointmentAutomationReasonNotes = normalizeOptionalText(
+    input.appointmentAutomationReasonNotes,
+    "appointmentAutomationReasonNotes"
+  );
+
+  if (appointmentAutomationReasonNotes) {
+    normalizedInput.appointmentAutomationReasonNotes = appointmentAutomationReasonNotes;
   }
 
   return normalizedInput;

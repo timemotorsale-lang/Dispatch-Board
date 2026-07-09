@@ -107,9 +107,11 @@ export type AppointmentLifecycleTransactionResult = {
   commandId: string;
   commandStatus: AppointmentCommandStatus;
   appointment: AppointmentLifecyclePersistedAppointment | null;
+  createdAppointments: AppointmentLifecyclePersistedAppointment[];
   createdAppointmentCount: number;
   committedReservationCount: number;
   releasedReservationCount: number;
+  createdTasks: AppointmentLifecyclePersistedTask[];
   createdTaskCount: number;
   createdTaskLinkCount: number;
   removedTaskLinkCount: number;
@@ -300,9 +302,11 @@ async function recordRejectedPlan(input: {
     commandId: input.plan.commandId,
     commandStatus: "FAILED_TERMINAL",
     appointment: null,
+    createdAppointments: [],
     createdAppointmentCount: 0,
     committedReservationCount: 0,
     releasedReservationCount: 0,
+    createdTasks: [],
     createdTaskCount: 0,
     createdTaskLinkCount: 0,
     removedTaskLinkCount: 0,
@@ -431,9 +435,11 @@ export async function executeAppointmentLifecycleCommandPlan(input: {
       commandId: input.plan.commandId,
       commandStatus: "SUCCEEDED",
       appointment,
+      createdAppointments,
       createdAppointmentCount: createdAppointments.length,
       committedReservationCount: committedReservations.length,
       releasedReservationCount: releasedReservations.length,
+      createdTasks,
       createdTaskCount: createdTasks.length,
       createdTaskLinkCount: createdTaskLinks.length,
       removedTaskLinkCount: removedTaskLinks.length,

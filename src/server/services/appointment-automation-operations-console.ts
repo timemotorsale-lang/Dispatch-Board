@@ -1,6 +1,7 @@
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
+import { normalizeAppointmentHistoryEvent } from "@/server/validation/appointment-history-events";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { prisma } from "@/server/db/client";
 import { canManageSettings } from "@/server/policies/access";
@@ -30,6 +31,8 @@ type ExecutionAction =
   | "REVIEW_CREATED"
   | "RESOLVED"
   | "SKIPPED";
+
+type AppointmentHistoryEventRecordInput = ReturnType<typeof normalizeAppointmentHistoryEvent>;
 
 export type AppointmentAutomationRuleRecord = {
   id: string;
@@ -78,9 +81,13 @@ export type AppointmentAutomationExecutionRecord = {
 
 export type AppointmentAutomationEventRecord = {
   id: string;
+  automationRuleId?: string | null;
+  automationExecutionId?: string | null;
   action: RuleAction | ExecutionAction;
   reason: string;
   actorUserId: string | null;
+  priorSnapshot?: unknown;
+  newSnapshot?: unknown;
   occurredAt: Date;
 };
 
@@ -481,27 +488,64 @@ function summarizeExecution(execution: AppointmentAutomationExecutionRecord) {
       ? (execution.resultSnapshot as Record<string, unknown>)
       : null;
 
+  const stringFromSnapshots = (...keys: string[]) => {
+    for (const key of keys) {
+      const resultValue = resultSnapshot?.[key];
+      if (typeof resultValue === "string" && resultValue.trim()) {
+        return resultValue.trim();
+      }
+
+      const inputValue = inputSnapshot?.[key];
+      if (typeof inputValue === "string" && inputValue.trim()) {
+        return inputValue.trim();
+      }
+    }
+
+    return null;
+  };
+
+  const numberFromSnapshots = (...keys: string[]) => {
+    for (const key of keys) {
+      const resultValue = resultSnapshot?.[key];
+      if (typeof resultValue === "number" && resultValue > 0) {
+        return resultValue;
+      }
+
+      const inputValue = inputSnapshot?.[key];
+      if (typeof inputValue === "number" && inputValue > 0) {
+        return inputValue;
+      }
+    }
+
+    return null;
+  };
+
   return {
     id: execution.id,
-    automationRuleCode:
-      (typeof resultSnapshot?.automationRuleCode === "string" && resultSnapshot.automationRuleCode) ||
-      (typeof inputSnapshot?.automationRuleCode === "string" && inputSnapshot.automationRuleCode) ||
-      null,
-    automationRuleVersion:
-      (typeof resultSnapshot?.automationRuleVersion === "number" &&
-        resultSnapshot.automationRuleVersion) ||
-      (typeof inputSnapshot?.automationRuleVersion === "number" &&
-        inputSnapshot.automationRuleVersion) ||
-      null,
-    catalogVersionId:
-      (typeof resultSnapshot?.catalogVersionId === "string" && resultSnapshot.catalogVersionId) ||
-      (typeof inputSnapshot?.catalogVersionId === "string" && inputSnapshot.catalogVersionId) ||
-      null,
+    automationRuleCode: stringFromSnapshots("automationRuleCode"),
+    automationRuleVersion: numberFromSnapshots("automationRuleVersion"),
+    catalogVersionId: stringFromSnapshots("catalogVersionId"),
     triggerCode: execution.triggerCode,
     purposeCode: execution.purposeCode,
     status: execution.status,
     sourceType: execution.sourceType,
     sourceReference: execution.sourceReference,
+    sourceTaskId: stringFromSnapshots("sourceTaskId"),
+    sourceTaskTitle: stringFromSnapshots("sourceTaskTitle"),
+    generatedAppointmentId: stringFromSnapshots("generatedAppointmentId"),
+    generatedAppointmentNumber: stringFromSnapshots(
+      "generatedAppointmentNumber",
+      "generatedFollowUpAppointmentNumber",
+      "existingFollowUpAppointmentNumber"
+    ),
+    generatedAppointmentTitle: stringFromSnapshots("generatedAppointmentTitle"),
+    generatedTaskId: stringFromSnapshots(
+      "generatedTaskId",
+      "generatedFollowUpTaskId",
+      "existingFollowUpTaskId"
+    ),
+    generatedTaskTitle: stringFromSnapshots("generatedTaskTitle"),
+    retryReplayAction: stringFromSnapshots("retryReplayAction"),
     failureCode: execution.failureCode,
     failureMessage: execution.failureMessage,
     attemptCount: execution.attemptCount,
@@ -514,13 +558,317 @@ function summarizeExecution(execution: AppointmentAutomationExecutionRecord) {
 }
 
 function summarizeEvent(event: AppointmentAutomationEventRecord) {
+  const priorSnapshot = isPlainObject(event.priorSnapshot) ? event.priorSnapshot : null;
+  const newSnapshot = isPlainObject(event.newSnapshot) ? event.newSnapshot : null;
+  const candidateRecords = [
+    newSnapshot,
+    isPlainObject(newSnapshot?.resultSnapshot) ? (newSnapshot.resultSnapshot as Record<string, unknown>) : null,
+    isPlainObject(newSnapshot?.inputSnapshot) ? (newSnapshot.inputSnapshot as Record<string, unknown>) : null,
+    priorSnapshot,
+    isPlainObject(priorSnapshot?.resultSnapshot) ? (priorSnapshot.resultSnapshot as Record<string, unknown>) : null,
+    isPlainObject(priorSnapshot?.inputSnapshot) ? (priorSnapshot.inputSnapshot as Record<string, unknown>) : null
+  ].filter((value): value is Record<string, unknown> => Boolean(value));
+
+  const stringFromSnapshots = (...keys: string[]) => {
+    for (const record of candidateRecords) {
+      for (const key of keys) {
+        const value = record[key];
+        if (typeof value === "string" && value.trim()) {
+          return value.trim();
+        }
+      }
+    }
+
+    return null;
+  };
+
+  const numberFromSnapshots = (...keys: string[]) => {
+    for (const record of candidateRecords) {
+      for (const key of keys) {
+        const value = record[key];
+        if (typeof value === "number" && value > 0) {
+          return value;
+        }
+      }
+    }
+
+    return null;
+  };
+
   return {
     id: event.id,
+    automationRuleId: event.automationRuleId ?? null,
+    automationExecutionId: event.automationExecutionId ?? null,
     action: event.action,
     reason: event.reason,
     actorUserId: event.actorUserId,
-    occurredAt: event.occurredAt.toISOString()
+    occurredAt: event.occurredAt.toISOString(),
+    automationRuleCode: stringFromSnapshots("automationRuleCode", "ruleCode"),
+    automationRuleVersion: numberFromSnapshots("automationRuleVersion"),
+    triggerCode: stringFromSnapshots("triggerCode"),
+    status: stringFromSnapshots("status"),
+    sourceType: stringFromSnapshots("sourceType"),
+    sourceReference: stringFromSnapshots("sourceReference"),
+    sourceTaskId: stringFromSnapshots("sourceTaskId"),
+    sourceTaskTitle: stringFromSnapshots("sourceTaskTitle"),
+    generatedAppointmentId: stringFromSnapshots("generatedAppointmentId"),
+    generatedAppointmentNumber: stringFromSnapshots(
+      "generatedAppointmentNumber",
+      "generatedFollowUpAppointmentNumber",
+      "existingFollowUpAppointmentNumber"
+    ),
+    generatedAppointmentTitle: stringFromSnapshots("generatedAppointmentTitle"),
+    generatedTaskId: stringFromSnapshots(
+      "generatedTaskId",
+      "generatedFollowUpTaskId",
+      "existingFollowUpTaskId"
+    ),
+    generatedTaskTitle: stringFromSnapshots("generatedTaskTitle"),
+    retryReplayAction: stringFromSnapshots("retryReplayAction"),
+    replayedAt: stringFromSnapshots("replayedAt"),
+    failureCode: stringFromSnapshots("failureCode"),
+    failureMessage: stringFromSnapshots("failureMessage")
   };
+}
+
+function toHistoryData(input: AppointmentHistoryEventRecordInput) {
+  return {
+    appointmentId: input.appointmentId,
+    actorType: input.actorType,
+    ...(input.actorUserId ? { actorUserId: input.actorUserId } : {}),
+    ...(input.taskId ? { taskId: input.taskId } : {}),
+    ...(input.appointmentTaskLinkId
+      ? { appointmentTaskLinkId: input.appointmentTaskLinkId }
+      : {}),
+    eventType: input.eventType,
+    message: input.message,
+    ...(input.reasonCode ? { reasonCode: input.reasonCode } : {}),
+    ...(input.reasonNotes ? { reasonNotes: input.reasonNotes } : {}),
+    correlationId: input.correlationId,
+    ...(input.causationId ? { causationId: input.causationId } : {}),
+    ...(input.automationRuleCode ? { automationRuleCode: input.automationRuleCode } : {}),
+    ...(input.automationRuleVersion ? { automationRuleVersion: input.automationRuleVersion } : {}),
+    priorValue: input.priorValue ? toJsonValue(input.priorValue) : Prisma.JsonNull,
+    newValue: input.newValue ? toJsonValue(input.newValue) : Prisma.JsonNull,
+    metadata: toJsonValue(input.metadata),
+    ...(input.notificationIntent ? { notificationIntent: toJsonValue(input.notificationIntent) } : {}),
+    ...(input.occurredAt ? { occurredAt: input.occurredAt } : {})
+  };
+}
+
+function snapshotsFromExecution(execution: AppointmentAutomationExecutionRecord) {
+  const inputSnapshot = isPlainObject(execution.inputSnapshot)
+    ? (execution.inputSnapshot as Record<string, unknown>)
+    : null;
+  const resultSnapshot = isPlainObject(execution.resultSnapshot)
+    ? (execution.resultSnapshot as Record<string, unknown>)
+    : null;
+
+  const stringFromSnapshots = (...keys: string[]) => {
+    for (const key of keys) {
+      const resultValue = resultSnapshot?.[key];
+      if (typeof resultValue === "string" && resultValue.trim()) {
+        return resultValue.trim();
+      }
+
+      const inputValue = inputSnapshot?.[key];
+      if (typeof inputValue === "string" && inputValue.trim()) {
+        return inputValue.trim();
+      }
+    }
+
+    return null;
+  };
+
+  const numberFromSnapshots = (...keys: string[]) => {
+    for (const key of keys) {
+      const resultValue = resultSnapshot?.[key];
+      if (typeof resultValue === "number" && resultValue > 0) {
+        return resultValue;
+      }
+
+      const inputValue = inputSnapshot?.[key];
+      if (typeof inputValue === "number" && inputValue > 0) {
+        return inputValue;
+      }
+    }
+
+    return null;
+  };
+
+  return {
+    inputSnapshot,
+    resultSnapshot,
+    stringFromSnapshots,
+    numberFromSnapshots
+  };
+}
+
+function executionHistoryEventType(status: ExecutionStatus) {
+  return status === "FAILED_RETRYABLE" || status === "FAILED_TERMINAL"
+    ? "AUTOMATION_FAILED"
+    : "AUTOMATION_EVALUATED";
+}
+
+function buildExecutionHistoryMessage(input: {
+  execution: AppointmentAutomationExecutionRecord;
+  action?: ExecutionAction | null;
+  actorType: "AUTOMATION" | "HUMAN";
+}) {
+  const snapshots = snapshotsFromExecution(input.execution);
+  const appointmentLabel =
+    snapshots.stringFromSnapshots("sourceAppointmentNumber") ??
+    snapshots.stringFromSnapshots("generatedAppointmentNumber") ??
+    input.execution.sourceReference ??
+    "appointment";
+  const ruleLabel =
+    snapshots.stringFromSnapshots("automationRuleCode") ?? input.execution.triggerCode;
+
+  if (input.action === "RESOLVED") {
+    return `Manager resolved automation review for appointment ${appointmentLabel}.`;
+  }
+
+  if (input.action === "SKIPPED") {
+    return `Manager skipped automation follow-up for appointment ${appointmentLabel}.`;
+  }
+
+  if (input.action === "RETRIED" && input.execution.status === "SUCCEEDED") {
+    return `Manager retry completed automation ${ruleLabel} for appointment ${appointmentLabel}.`;
+  }
+
+  if (input.action === "REPLAYED" && input.execution.status === "SUCCEEDED") {
+    return `Manager replay completed automation ${ruleLabel} for appointment ${appointmentLabel}.`;
+  }
+
+  if (input.action === "RETRIED" && input.execution.status === "REVIEW_REQUIRED") {
+    return `Manager retry still requires review for appointment ${appointmentLabel}.`;
+  }
+
+  if (input.action === "REPLAYED" && input.execution.status === "REVIEW_REQUIRED") {
+    return `Manager replay still requires review for appointment ${appointmentLabel}.`;
+  }
+
+  if (
+    (input.action === "RETRIED" || input.action === "REPLAYED") &&
+    (input.execution.status === "FAILED_RETRYABLE" || input.execution.status === "FAILED_TERMINAL")
+  ) {
+    return `Manager ${input.action === "RETRIED" ? "retry" : "replay"} failed for appointment ${appointmentLabel}.`;
+  }
+
+  if (input.execution.status === "FAILED_RETRYABLE" || input.execution.status === "FAILED_TERMINAL") {
+    return `Appointment ${appointmentLabel} automation ${ruleLabel} failed.`;
+  }
+
+  if (input.execution.status === "REVIEW_REQUIRED") {
+    return `Appointment ${appointmentLabel} automation ${ruleLabel} requires manager review.`;
+  }
+
+  if (input.execution.status === "SKIPPED") {
+    return `Appointment ${appointmentLabel} automation ${ruleLabel} was skipped.`;
+  }
+
+  if (input.execution.status === "RESOLVED") {
+    return `Appointment ${appointmentLabel} automation ${ruleLabel} was resolved.`;
+  }
+
+  if (input.execution.status === "SUCCEEDED") {
+    return `Appointment ${appointmentLabel} automation ${ruleLabel} completed.`;
+  }
+
+  return `Appointment ${appointmentLabel} automation ${ruleLabel} is queued.`;
+}
+
+export function buildAppointmentAutomationHistoryEvent(input: {
+  execution: AppointmentAutomationExecutionRecord;
+  action?: ExecutionAction | null;
+  actorType: "AUTOMATION" | "HUMAN";
+  actorUserId: string | null;
+  occurredAt: Date;
+  reason: string;
+}): AppointmentHistoryEventRecordInput | null {
+  const snapshots = snapshotsFromExecution(input.execution);
+  const automationRuleVersion = snapshots.numberFromSnapshots("automationRuleVersion");
+  const automationRuleCode = automationRuleVersion
+    ? toHistoryAutomationRuleCode(snapshots.stringFromSnapshots("automationRuleCode"))
+    : null;
+  const generatedAppointmentId = snapshots.stringFromSnapshots("generatedAppointmentId");
+  const targetAppointmentId =
+    (input.execution.sourceType === "APPOINTMENT" && input.execution.sourceReference) ||
+    generatedAppointmentId;
+
+  if (!targetAppointmentId) {
+    return null;
+  }
+
+  if (input.execution.status === "PENDING" && !input.action) {
+    return null;
+  }
+
+  if (input.actorType === "AUTOMATION" && (!automationRuleCode || !automationRuleVersion)) {
+    return null;
+  }
+
+  const generatedTaskId = snapshots.stringFromSnapshots(
+    "generatedTaskId",
+    "generatedFollowUpTaskId",
+    "existingFollowUpTaskId"
+  );
+  const sourceTaskId = snapshots.stringFromSnapshots("sourceTaskId");
+  const taskId =
+    (generatedTaskId && generatedTaskId !== targetAppointmentId ? generatedTaskId : null) ??
+    sourceTaskId;
+  const metadata = {
+    automationExecutionId: input.execution.id,
+    automationRuleId: input.execution.automationRuleId,
+    action: input.action ?? executionEventActionForStatus(input.execution.status),
+    status: input.execution.status,
+    triggerCode: input.execution.triggerCode,
+    purposeCode: input.execution.purposeCode,
+    sourceType: input.execution.sourceType,
+    sourceReference: input.execution.sourceReference,
+    sourceTaskId,
+    sourceTaskTitle: snapshots.stringFromSnapshots("sourceTaskTitle"),
+    generatedAppointmentId,
+    generatedAppointmentNumber: snapshots.stringFromSnapshots(
+      "generatedAppointmentNumber",
+      "generatedFollowUpAppointmentNumber",
+      "existingFollowUpAppointmentNumber"
+    ),
+    generatedAppointmentTitle: snapshots.stringFromSnapshots("generatedAppointmentTitle"),
+    generatedTaskId,
+    generatedTaskTitle: snapshots.stringFromSnapshots("generatedTaskTitle"),
+    retryReplayAction: snapshots.stringFromSnapshots("retryReplayAction"),
+    replayedAt: snapshots.stringFromSnapshots("replayedAt"),
+    failureCode:
+      input.execution.failureCode ?? snapshots.stringFromSnapshots("failureCode"),
+    failureMessage:
+      input.execution.failureMessage ?? snapshots.stringFromSnapshots("failureMessage"),
+    recordedReason: input.reason
+  };
+
+  return normalizeAppointmentHistoryEvent({
+    appointmentId: targetAppointmentId,
+    actorType: input.actorType,
+    actorUserId: input.actorType === "HUMAN" ? input.actorUserId : null,
+    taskId,
+    eventType: executionHistoryEventType(input.execution.status),
+    message: buildExecutionHistoryMessage({
+      execution: input.execution,
+      action: input.action ?? null,
+      actorType: input.actorType
+    }),
+    correlationId: `appointment-automation-${input.execution.id}-${(input.action ?? input.execution.status).toLowerCase()}-${input.occurredAt.getTime()}`,
+    causationId: `appointment-automation-execution-${input.execution.id}`,
+    automationRuleCode: automationRuleCode ?? null,
+    automationRuleVersion: automationRuleVersion ?? null,
+    reasonNotes: input.actorType === "HUMAN" ? input.reason : null,
+    newValue: {
+      status: input.execution.status,
+      action: input.action ?? executionEventActionForStatus(input.execution.status)
+    },
+    metadata,
+    occurredAt: input.occurredAt
+  });
 }
 
 function isPersistenceUnavailable(error: unknown) {
@@ -547,12 +895,23 @@ function executionEventActionForStatus(status: ExecutionStatus): ExecutionAction
       return "FAILED";
     case "REVIEW_REQUIRED":
       return "REVIEW_CREATED";
+    case "SKIPPED":
+      return "SKIPPED";
+    case "RESOLVED":
+      return "RESOLVED";
     case "PENDING":
     case "SUCCEEDED":
-    case "SKIPPED":
-    case "RESOLVED":
       return "QUEUED";
   }
+}
+
+function toHistoryAutomationRuleCode(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = value.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_");
+  return normalized || null;
 }
 
 export function createAppointmentAutomationOperationsRepository(): AppointmentAutomationOperationsRepository {
@@ -572,6 +931,9 @@ export function createAppointmentAutomationOperationsRepository(): AppointmentAu
       update: (input: unknown) => Promise<AppointmentAutomationExecutionRecord>;
     };
     appointmentAutomationExecutionEvent: {
+      create: (input: unknown) => Promise<unknown>;
+    };
+    appointmentHistoryEvent?: {
       create: (input: unknown) => Promise<unknown>;
     };
   };
@@ -594,6 +956,9 @@ export function createAppointmentAutomationOperationsRepository(): AppointmentAu
     };
     appointmentAutomationExecutionEvent?: {
       findMany: (input: unknown) => Promise<AppointmentAutomationEventRecord[]>;
+      create: (input: unknown) => Promise<unknown>;
+    };
+    appointmentHistoryEvent?: {
       create: (input: unknown) => Promise<unknown>;
     };
     $transaction: <T>(callback: (transaction: AutomationTransaction) => Promise<T>) => Promise<T>;
@@ -721,6 +1086,19 @@ export function createAppointmentAutomationOperationsRepository(): AppointmentAu
           }
         });
 
+        const historyEvent = buildAppointmentAutomationHistoryEvent({
+          execution,
+          actorType: "AUTOMATION",
+          actorUserId: input.actorUserId ?? null,
+          occurredAt: execution.updatedAt,
+          reason: input.reason
+        });
+        if (historyEvent && transaction.appointmentHistoryEvent) {
+          await transaction.appointmentHistoryEvent.create({
+            data: toHistoryData(historyEvent)
+          });
+        }
+
         return execution;
       });
     },
@@ -766,6 +1144,20 @@ export function createAppointmentAutomationOperationsRepository(): AppointmentAu
               priorSnapshot: toJsonValue(existing),
               newSnapshot: toJsonValue(execution)
             }
+          });
+        }
+
+        const historyEvent = buildAppointmentAutomationHistoryEvent({
+          execution,
+          action: input.eventAction ?? null,
+          actorType: "HUMAN",
+          actorUserId: input.actorUserId,
+          occurredAt: execution.updatedAt,
+          reason: input.reason
+        });
+        if (historyEvent && transaction.appointmentHistoryEvent) {
+          await transaction.appointmentHistoryEvent.create({
+            data: toHistoryData(historyEvent)
           });
         }
 
@@ -958,6 +1350,20 @@ export function createAppointmentAutomationOperationsRepository(): AppointmentAu
               newSnapshot: toJsonValue(execution)
             }
           });
+
+          const historyEvent = buildAppointmentAutomationHistoryEvent({
+            execution,
+            action: next.action,
+            actorType: "HUMAN",
+            actorUserId: input.actorUserId,
+            occurredAt: execution.updatedAt,
+            reason: input.reason
+          });
+          if (historyEvent && transaction.appointmentHistoryEvent) {
+            await transaction.appointmentHistoryEvent.create({
+              data: toHistoryData(historyEvent)
+            });
+          }
         }
 
         return execution;
@@ -1177,7 +1583,24 @@ export async function transitionAppointmentAutomationExecutionForManager(
       status: replayOutcome.status,
       reason: normalizedInput.reason,
       actorUserId: user.id,
-      resultSnapshot: replayOutcome.resultSnapshot,
+      resultSnapshot: {
+        ...replayOutcome.resultSnapshot,
+        retryReplayAction:
+          replayOutcome.resultSnapshot &&
+          typeof replayOutcome.resultSnapshot === "object" &&
+          !Array.isArray(replayOutcome.resultSnapshot) &&
+          typeof (replayOutcome.resultSnapshot as Record<string, unknown>).retryReplayAction ===
+            "string"
+            ? (replayOutcome.resultSnapshot as Record<string, unknown>).retryReplayAction
+            : normalizedInput.action,
+        replayedAt:
+          replayOutcome.resultSnapshot &&
+          typeof replayOutcome.resultSnapshot === "object" &&
+          !Array.isArray(replayOutcome.resultSnapshot) &&
+          typeof (replayOutcome.resultSnapshot as Record<string, unknown>).replayedAt === "string"
+            ? (replayOutcome.resultSnapshot as Record<string, unknown>).replayedAt
+            : (dependencies?.now ?? new Date()).toISOString()
+      },
       failureCode: replayOutcome.failureCode,
       failureMessage: replayOutcome.failureMessage,
       nextRetryAt: replayOutcome.nextRetryAt,

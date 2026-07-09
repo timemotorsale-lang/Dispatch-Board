@@ -643,7 +643,9 @@ describe("appointment read service", () => {
             catalogVersionId: "catalog-version-2",
             sourceTaskId: "task-1",
             sourceTaskTitle: "Call lender and verify packet",
-            generatedAppointmentNumber: "APT-TASK-AUTO-001"
+            generatedAppointmentNumber: "APT-TASK-AUTO-001",
+            retryReplayAction: "REPLAY",
+            replayedAt: "2026-07-06T16:15:00.000Z"
           },
           failureCode: null,
           failureMessage: null,
@@ -683,6 +685,8 @@ describe("appointment read service", () => {
           sourceTaskId: "task-1",
           sourceTaskTitle: "Call lender and verify packet",
           generatedAppointmentNumber: "APT-TASK-AUTO-001",
+          retryReplayAction: "REPLAY",
+          replayedAt: "2026-07-06T16:15:00.000Z",
           status: "SUCCEEDED"
         }
       ]
