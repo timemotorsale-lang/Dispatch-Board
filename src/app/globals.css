@@ -2337,6 +2337,7 @@ code {
 }
 
 .tasks-console-header,
+.tasks-console-toolbar,
 .tasks-console-actions,
 .tasks-console-stage-toolbar,
 .tasks-console-rail-header,
@@ -2354,8 +2355,16 @@ code {
 }
 
 .tasks-console-header,
+.tasks-console-toolbar,
 .tasks-console-actions {
   align-items: flex-start;
+}
+
+.tasks-console-toolbar {
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  min-height: 2.45rem;
 }
 
 .tasks-console-heading {
@@ -2366,8 +2375,8 @@ code {
 .tasks-console-heading h1 {
   margin: 0;
   color: #112039;
-  font-size: clamp(1.75rem, 2.4vw, 2.2rem);
-  letter-spacing: -0.04em;
+  font-size: 1.55rem;
+  letter-spacing: 0;
 }
 
 .tasks-console-heading p {
@@ -2386,8 +2395,10 @@ code {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  min-width: min(100%, 320px);
-  padding: 0.65rem 0.85rem;
+  flex: 1 1 290px;
+  min-width: min(100%, 280px);
+  max-width: 360px;
+  padding: 0.56rem 0.8rem;
   background: rgba(255, 255, 255, 0.96);
   border: 1px solid #dce5f1;
   border-radius: 1rem;
@@ -2415,7 +2426,7 @@ code {
 .tasks-console-action-group {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.45rem;
+  gap: 0.35rem;
   align-items: center;
 }
 
@@ -2432,8 +2443,8 @@ code {
   grid-template-columns: auto auto;
   align-items: center;
   gap: 0.2rem 0.6rem;
-  min-height: 2.25rem;
-  padding: 0.52rem 0.8rem;
+  min-height: 2.1rem;
+  padding: 0.45rem 0.72rem;
   background: rgba(255, 255, 255, 0.95);
   border: 1px solid #dce5f1;
   border-radius: 1rem;
@@ -2461,8 +2472,8 @@ code {
 }
 
 .tasks-console-icon-pill {
-  min-width: 2.8rem;
-  padding-inline: 0.8rem;
+  min-width: 2.3rem;
+  padding-inline: 0.62rem;
 }
 
 .tasks-console-metrics {
@@ -2525,7 +2536,7 @@ code {
   gap: 0.55rem;
   align-items: stretch;
   grid-template-columns: 210px minmax(0, 1fr) 320px;
-  min-height: calc(100vh - 11rem);
+  min-height: calc(100vh - 7.8rem);
 }
 
 .tasks-console-sidebar {
@@ -2706,7 +2717,7 @@ code {
 .tasks-console-main {
   display: grid;
   gap: 0.55rem;
-  min-height: calc(100vh - 11rem);
+  min-height: calc(100vh - 7.8rem);
   grid-template-rows: auto minmax(0, 1fr) auto;
   min-width: 0;
 }
@@ -2774,7 +2785,7 @@ code {
 .tasks-console-table-scroll {
   overflow: auto;
   min-height: 0;
-  max-height: calc(100vh - 24rem);
+  max-height: calc(100vh - 20rem);
   border: 1px solid #e8edf4;
   border-radius: 1rem;
 }
@@ -3509,6 +3520,7 @@ code {
 
   .tasks-console-sidebar-footer,
   .tasks-console-header,
+  .tasks-console-toolbar,
   .tasks-console-actions,
   .tasks-console-stage-toolbar,
   .tasks-console-stage-actions,
@@ -3679,6 +3691,8 @@ code {
 .app-topbar { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; min-height: 76px; padding: 0 22px; background: rgba(255,255,255,.96); border-bottom: 1px solid #e3e8f0; backdrop-filter: blur(12px); }
 .app-topbar-minimal { min-height: 42px; }
 .app-topbar-minimal + .app-content { padding-top: 6px; }
+.app-topbar-tasks { min-height: 34px; }
+.app-topbar-tasks + .app-content { padding: 8px 12px 12px; }
 .topbar-title { display: grid; min-width: 0; }
 .topbar-spacer { flex: 1 1 auto; min-width: 0; }
 .topbar-title strong { color: #111827; font-size: 18px; letter-spacing: -.02em; }

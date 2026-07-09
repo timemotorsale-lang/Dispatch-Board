@@ -876,11 +876,9 @@ export function TasksConsoleScreen({
 
   return (
     <section className="tasks-console-page">
-      <div className="tasks-console-header">
+      <div className="tasks-console-toolbar">
         <div className="tasks-console-heading">
-          <span className="eyebrow">Enterprise Tasks Module</span>
           <h1>Tasks</h1>
-          <p>Task Operations Console</p>
         </div>
 
         <label className="tasks-console-search" aria-label="Search tasks">
@@ -891,9 +889,7 @@ export function TasksConsoleScreen({
             onChange={(event) => handleSearchValueChange(event.target.value)}
           />
         </label>
-      </div>
 
-      <div className="tasks-console-actions">
         <div className="tasks-console-action-group">
           <Link className="pill pill-primary tasks-console-create" href={createTaskHref}>
             <Plus size={16} />
