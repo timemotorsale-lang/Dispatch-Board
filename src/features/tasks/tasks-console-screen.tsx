@@ -1504,6 +1504,7 @@ export function TasksConsoleScreen({
       <div className="tasks-console-toolbar">
         <div className="tasks-console-heading">
           <h1>Tasks</h1>
+          <p>Task Operations Console</p>
         </div>
 
         <label className="tasks-console-search" aria-label="Search tasks">
