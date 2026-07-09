@@ -39,6 +39,7 @@ import {
   AppointmentBoardShell,
   buildAppointmentExceptionQueues,
   buildAppointmentResolutionWorkbench,
+  buildAppointmentVersionConflictNotice,
   buildOutcomeSuccessNotice,
   isProposedScheduleStartInPast,
   isUnscheduledDraftAppointment
@@ -1459,13 +1460,16 @@ describe("appointment board shell", () => {
               triggerCode: "APPOINTMENT_OUTCOME_RECORDED",
               purposeCode: "FOLLOW_UP_APPOINTMENT",
               status: "REVIEW_REQUIRED",
-              sourceType: "APPOINTMENT",
+              sourceType: "TASK",
+              automationRuleVersion: 2,
               failureCode: null,
               failureMessage: null,
               attemptCount: 1,
               maxAttempts: 3,
               nextRetryAt: null,
               resolvedAt: null,
+              sourceTaskId: "TASK-REVIEW-1",
+              sourceTaskTitle: "Call lender and verify packet",
               generatedTaskTitle: null,
               generatedAppointmentNumber: "FUP-APT-AUTO-001",
               createdAt: "2026-07-07T14:00:00.000Z",
@@ -1477,13 +1481,16 @@ describe("appointment board shell", () => {
               triggerCode: "APPOINTMENT_OUTCOME_RECORDED",
               purposeCode: "FOLLOW_UP_TASK",
               status: "FAILED_RETRYABLE",
-              sourceType: "APPOINTMENT",
+              sourceType: "TASK",
+              automationRuleVersion: 2,
               failureCode: "TRANSIENT_FAILURE",
               failureMessage: "Task service timed out.",
               attemptCount: 2,
               maxAttempts: 3,
               nextRetryAt: "2026-07-07T14:30:00.000Z",
               resolvedAt: null,
+              sourceTaskId: "TASK-REVIEW-1",
+              sourceTaskTitle: "Call lender and verify packet",
               generatedTaskTitle: null,
               generatedAppointmentNumber: null,
               createdAt: "2026-07-07T13:50:00.000Z",
@@ -1527,9 +1534,32 @@ describe("appointment board shell", () => {
     expect(queues.find((queue) => queue.key === "confirmation-gap")?.items[0]?.appointmentId).toBe("APT-DRAFT");
     expect(queues.find((queue) => queue.key === "automation-review")?.items[0]?.appointmentId).toBe("APT-AUTO");
     expect(queues.find((queue) => queue.key === "automation-failure")?.items[0]?.appointmentId).toBe("APT-AUTO");
+    expect(queues.find((queue) => queue.key === "automation-review")?.items[0]?.detail).toContain(
+      "rule v2"
+    );
+    expect(queues.find((queue) => queue.key === "automation-review")?.items[0]?.detail).toContain(
+      "task Call lender and verify packet"
+    );
     expect(queues.find((queue) => queue.key === "automation-failure")?.items[0]?.detail).toContain(
       "Task service timed out."
     );
+    expect(queues.find((queue) => queue.key === "automation-failure")?.items[0]?.detail).toContain(
+      "task Call lender and verify packet"
+    );
+  });
+
+  it("builds a readable stale-version recovery notice for live appointment refreshes", () => {
+    expect(
+      buildAppointmentVersionConflictNotice({
+        actionLabel: "Draft schedule save",
+        appointmentId: "APT-20001",
+        conflict: {
+          appointmentId: "appointment-1",
+          expectedAppointmentVersion: 3,
+          currentAppointmentVersion: 5
+        }
+      })
+    ).toContain("Draft schedule save stopped because APT-20001 changed on the server.");
   });
 
   it("builds resource, location, and vehicle operating views", () => {
@@ -1903,13 +1933,16 @@ describe("appointment board shell", () => {
             triggerCode: "APPOINTMENT_OUTCOME_RECORDED",
             purposeCode: "FOLLOW_UP_TASK",
             status: "REVIEW_REQUIRED",
-            sourceType: "APPOINTMENT",
+            sourceType: "TASK",
+            automationRuleVersion: 2,
             failureCode: null,
             failureMessage: null,
             attemptCount: 1,
             maxAttempts: 3,
             nextRetryAt: null,
             resolvedAt: null,
+            sourceTaskId: "TASK-1",
+            sourceTaskTitle: "Call customer back",
             generatedTaskTitle: "Call customer back",
             generatedAppointmentNumber: null,
             createdAt: "2026-07-07T15:55:00.000Z",
@@ -1961,6 +1994,9 @@ describe("appointment board shell", () => {
     );
     expect(timeline.some((event) => event.title === "Exception queue surfaced")).toBe(true);
     expect(timeline.some((event) => event.title === "Automation review required")).toBe(true);
+    expect(timeline.find((event) => event.title === "Automation review required")?.detail).toContain(
+      "task Call customer back"
+    );
   });
 
   it("builds a command-center report snapshot from visible workbench items", () => {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
 import { holdAppointmentResourceCandidate } from "@/server/services/appointment-resource-candidate-availability-service";
+import { getAppointmentVersionConflict } from "@/server/services/appointment-version-conflict";
 
 type AppointmentResourceReservationHoldRouteContext = {
   params: Promise<{
@@ -89,10 +90,12 @@ export async function POST(
       error instanceof Error
         ? error.message
         : "Unable to hold appointment resource candidate right now.";
+    const conflict = getAppointmentVersionConflict(error);
 
     return NextResponse.json(
       {
-        error: message
+        error: message,
+        ...(conflict ? { conflict } : {})
       },
       {
         status: getResourceReservationHoldErrorStatus(message)

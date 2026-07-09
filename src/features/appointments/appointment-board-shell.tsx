@@ -87,10 +87,14 @@ type StaffMember = {
 type AppointmentAutomationExecution = {
   id: string;
   automationRuleCode: string | null;
+  automationRuleVersion?: number | null;
+  catalogVersionId?: string | null;
   triggerCode: string;
   purposeCode: string | null;
   status: string;
   sourceType: string;
+  sourceTaskId?: string | null;
+  sourceTaskTitle?: string | null;
   failureCode: string | null;
   failureMessage: string | null;
   attemptCount: number;
@@ -182,6 +186,12 @@ type AppointmentResolutionState = {
   note?: string;
   snoozedUntilLabel?: string;
   updatedAtLabel?: string;
+};
+
+type AppointmentVersionConflict = {
+  appointmentId?: string | null;
+  expectedAppointmentVersion: number;
+  currentAppointmentVersion: number | null;
 };
 
 type AppointmentResolutionWorkbenchFilter =
@@ -1917,6 +1927,24 @@ function automationExecutionLabel(execution: AppointmentAutomationExecution) {
   return execution.automationRuleCode ?? execution.purposeCode ?? execution.triggerCode;
 }
 
+function automationExecutionContextLabel(execution: AppointmentAutomationExecution) {
+  const context: string[] = [];
+
+  if (typeof execution.automationRuleVersion === "number") {
+    context.push(`rule v${execution.automationRuleVersion}`);
+  }
+
+  if (execution.sourceTaskTitle) {
+    context.push(`task ${execution.sourceTaskTitle}`);
+  }
+
+  if (execution.sourceType === "TASK" && execution.sourceTaskId && !execution.sourceTaskTitle) {
+    context.push(`task ${execution.sourceTaskId}`);
+  }
+
+  return context.join(" · ");
+}
+
 function automationExecutionTitle(execution: AppointmentAutomationExecution) {
   if (execution.status === "REVIEW_REQUIRED") {
     return "Automation review required";
@@ -1947,18 +1975,33 @@ function automationExecutionTitle(execution: AppointmentAutomationExecution) {
 
 function automationExecutionDetail(execution: AppointmentAutomationExecution) {
   if (execution.failureMessage) {
-    return execution.failureMessage;
+    return automationExecutionContextLabel(execution)
+      ? `${execution.failureMessage} (${automationExecutionContextLabel(execution)})`
+      : execution.failureMessage;
   }
 
   if (execution.generatedAppointmentNumber) {
-    return `Generated follow-up appointment ${execution.generatedAppointmentNumber}.`;
+    return `Generated follow-up appointment ${execution.generatedAppointmentNumber}.${automationExecutionContextLabel(execution) ? ` ${automationExecutionContextLabel(execution)}.` : ""}`;
   }
 
   if (execution.generatedTaskTitle) {
-    return `Generated follow-up task ${execution.generatedTaskTitle}.`;
+    return `Generated follow-up task ${execution.generatedTaskTitle}.${automationExecutionContextLabel(execution) ? ` ${automationExecutionContextLabel(execution)}.` : ""}`;
   }
 
-  return `${automationExecutionLabel(execution)} is ${formatAutomationExecutionStatus(execution.status).toLowerCase()} on attempt ${execution.attemptCount}/${execution.maxAttempts}.`;
+  return `${automationExecutionLabel(execution)} is ${formatAutomationExecutionStatus(execution.status).toLowerCase()} on attempt ${execution.attemptCount}/${execution.maxAttempts}.${automationExecutionContextLabel(execution) ? ` ${automationExecutionContextLabel(execution)}.` : ""}`;
+}
+
+export function buildAppointmentVersionConflictNotice(input: {
+  actionLabel: string;
+  appointmentId: string;
+  conflict: AppointmentVersionConflict;
+}) {
+  const currentVersionLabel =
+    typeof input.conflict.currentAppointmentVersion === "number"
+      ? `Current version is ${input.conflict.currentAppointmentVersion}.`
+      : "A newer version is already on the server.";
+
+  return `${input.actionLabel} stopped because ${input.appointmentId} changed on the server. Expected version ${input.conflict.expectedAppointmentVersion}. ${currentVersionLabel} Reloading the latest appointment state now.`;
 }
 
 export function isUnscheduledDraftAppointment(appointment: {
@@ -4253,7 +4296,7 @@ export function buildAppointmentEnterpriseOpsQueues(input: {
         reviewExecutions.length > 0
           ? `${reviewExecutions.length} runtime execution${
               reviewExecutions.length === 1 ? "" : "s"
-            } need manager review.`
+            } need manager review.${reviewExecutions[0] ? ` ${automationExecutionDetail(reviewExecutions[0])}` : ""}`
           : `${appointment.taskAutomation.length || automationSources.length} automation-driven action${
               automationActionCount === 1 ? "" : "s"
             } are attached and need visible manager review posture.`;
@@ -4300,7 +4343,7 @@ export function buildAppointmentEnterpriseOpsQueues(input: {
 
       if (leadFailureExecution) {
         detailParts.push(
-          leadFailureExecution.failureMessage ??
+          automationExecutionDetail(leadFailureExecution) ||
             `${failureExecutions.length} automation execution${
               failureExecutions.length === 1 ? "" : "s"
             } failed and need recovery.`
@@ -5172,10 +5215,14 @@ function mapReadModelToAppointment(appointment: AppointmentReadModel): Appointme
     automationExecutions: appointment.automationExecutions.map((execution) => ({
       id: execution.id,
       automationRuleCode: execution.automationRuleCode,
+      automationRuleVersion: execution.automationRuleVersion,
+      catalogVersionId: execution.catalogVersionId,
       triggerCode: execution.triggerCode,
       purposeCode: execution.purposeCode,
       status: execution.status,
       sourceType: execution.sourceType,
+      sourceTaskId: execution.sourceTaskId,
+      sourceTaskTitle: execution.sourceTaskTitle,
       failureCode: execution.failureCode,
       failureMessage: execution.failureMessage,
       attemptCount: execution.attemptCount,
@@ -5630,6 +5677,64 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     } finally {
       setIsLiveLoading(false);
     }
+  }
+
+  function readAppointmentVersionConflict(value: unknown): AppointmentVersionConflict | null {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return null;
+    }
+
+    const candidate = value as Record<string, unknown>;
+    const conflict =
+      candidate.conflict && typeof candidate.conflict === "object" && !Array.isArray(candidate.conflict)
+        ? (candidate.conflict as Record<string, unknown>)
+        : null;
+
+    if (
+      !conflict ||
+      typeof conflict.expectedAppointmentVersion !== "number" ||
+      !(
+        typeof conflict.currentAppointmentVersion === "number" ||
+        conflict.currentAppointmentVersion === null
+      )
+    ) {
+      return null;
+    }
+
+    return {
+      appointmentId:
+        typeof conflict.appointmentId === "string" ? conflict.appointmentId : null,
+      expectedAppointmentVersion: conflict.expectedAppointmentVersion,
+      currentAppointmentVersion: conflict.currentAppointmentVersion
+    };
+  }
+
+  async function recoverFromAppointmentVersionConflict(input: {
+    actionLabel: string;
+    appointmentId: string;
+    appointmentRecordId?: string;
+    conflict: AppointmentVersionConflict;
+  }) {
+    const refreshedAppointments = await loadLiveAppointments({
+      suppressSuccessNotice: true
+    });
+    const refreshedAppointment =
+      refreshedAppointments.find((appointment) => appointment.id === input.appointmentId) ??
+      (input.appointmentRecordId
+        ? refreshedAppointments.find((appointment) => appointment.recordId === input.appointmentRecordId)
+        : null);
+
+    if (refreshedAppointment) {
+      selectAppointmentForDetail(refreshedAppointment);
+    }
+
+    setActionNotice(
+      buildAppointmentVersionConflictNotice({
+        actionLabel: input.actionLabel,
+        appointmentId: input.appointmentId,
+        conflict: input.conflict
+      })
+    );
   }
 
   function getResourceActionReason(action: ResourceAuditAction, reservationId: string) {
@@ -9118,6 +9223,18 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
         | null;
 
       if (!response.ok || !result?.requirement) {
+        const conflict = readAppointmentVersionConflict(result);
+
+        if (conflict) {
+          await recoverFromAppointmentVersionConflict({
+            actionLabel: "Attach Requirement",
+            appointmentId: selectedAppointment.id,
+            appointmentRecordId: selectedAppointment.recordId,
+            conflict
+          });
+          return;
+        }
+
         throw new Error(result?.error || "Unable to attach the resource requirement.");
       }
 
@@ -9218,6 +9335,18 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
         | null;
 
       if (!response.ok || !result?.proposal) {
+        const conflict = readAppointmentVersionConflict(result);
+
+        if (conflict) {
+          await recoverFromAppointmentVersionConflict({
+            actionLabel: "Propose Resource Candidate",
+            appointmentId: selectedAppointment.id,
+            appointmentRecordId: selectedAppointment.recordId,
+            conflict
+          });
+          return;
+        }
+
         throw new Error(result?.error || "Unable to propose the resource candidate.");
       }
 
@@ -9298,6 +9427,18 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
         | null;
 
       if (!response.ok || !result?.reservation) {
+        const conflict = readAppointmentVersionConflict(result);
+
+        if (conflict) {
+          await recoverFromAppointmentVersionConflict({
+            actionLabel: "Hold Resource Candidate",
+            appointmentId: selectedAppointment.id,
+            appointmentRecordId: selectedAppointment.recordId,
+            conflict
+          });
+          return;
+        }
+
         throw new Error(result?.error || "Unable to hold the resource candidate.");
       }
 
@@ -9415,6 +9556,18 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
         | null;
 
       if (!response.ok || !result?.warningOverride) {
+        const conflict = readAppointmentVersionConflict(result);
+
+        if (conflict) {
+          await recoverFromAppointmentVersionConflict({
+            actionLabel: "Override Resource Warning",
+            appointmentId: selectedAppointment.id,
+            appointmentRecordId: selectedAppointment.recordId,
+            conflict
+          });
+          return;
+        }
+
         throw new Error(result?.error || "Unable to override the resource warning.");
       }
 
@@ -9531,6 +9684,18 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
         | null;
 
       if (!response.ok || !result?.staffWarningOverride) {
+        const conflict = readAppointmentVersionConflict(result);
+
+        if (conflict) {
+          await recoverFromAppointmentVersionConflict({
+            actionLabel: "Override Staff Warning",
+            appointmentId: selectedAppointment.id,
+            appointmentRecordId: selectedAppointment.recordId,
+            conflict
+          });
+          return;
+        }
+
         throw new Error(result?.error || "Unable to override the staff warning.");
       }
 
@@ -9620,6 +9785,18 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
         | null;
 
       if (!response.ok || !result?.reservation) {
+        const conflict = readAppointmentVersionConflict(result);
+
+        if (conflict) {
+          await recoverFromAppointmentVersionConflict({
+            actionLabel: "Release Reservation",
+            appointmentId: selectedAppointment.id,
+            appointmentRecordId: selectedAppointment.recordId,
+            conflict
+          });
+          return;
+        }
+
         throw new Error(result?.error || "Unable to release the resource reservation.");
       }
 
@@ -9724,6 +9901,18 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
         | null;
 
       if (!response.ok || !result?.replacement) {
+        const conflict = readAppointmentVersionConflict(result);
+
+        if (conflict) {
+          await recoverFromAppointmentVersionConflict({
+            actionLabel: "Replace Reservation",
+            appointmentId: selectedAppointment.id,
+            appointmentRecordId: selectedAppointment.recordId,
+            conflict
+          });
+          return;
+        }
+
         throw new Error(result?.error || "Unable to replace the resource reservation.");
       }
 
@@ -9806,6 +9995,18 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
       const result = await response.json().catch(() => null);
 
       if (!response.ok || !result?.accepted) {
+        const conflict = readAppointmentVersionConflict(result);
+
+        if (conflict) {
+          await recoverFromAppointmentVersionConflict({
+            actionLabel: "Transfer Owner",
+            appointmentId: selectedAppointment.id,
+            appointmentRecordId: selectedAppointment.recordId,
+            conflict
+          });
+          return;
+        }
+
         throw new Error(
           result?.error ||
             result?.execution?.rejectionReasons?.join(" ") ||
@@ -9903,6 +10104,18 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
       const result = await response.json().catch(() => null);
 
       if (!response.ok || !result?.accepted) {
+        const conflict = readAppointmentVersionConflict(result);
+
+        if (conflict) {
+          await recoverFromAppointmentVersionConflict({
+            actionLabel: "Schedule Draft",
+            appointmentId: selectedAppointment.id,
+            appointmentRecordId: selectedAppointment.recordId,
+            conflict
+          });
+          return;
+        }
+
         throw new Error(
           result?.error ||
             result?.execution?.rejectionReasons?.join(" ") ||
@@ -10047,6 +10260,18 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
       const result = await response.json().catch(() => null);
 
       if (!response.ok || !result?.accepted) {
+        const conflict = readAppointmentVersionConflict(result);
+
+        if (conflict) {
+          await recoverFromAppointmentVersionConflict({
+            actionLabel: label,
+            appointmentId: selectedAppointment.id,
+            appointmentRecordId: selectedAppointment.recordId,
+            conflict
+          });
+          return;
+        }
+
         throw new Error(
           result?.error ||
             result?.execution?.rejectionReasons?.join(" ") ||
@@ -10151,6 +10376,18 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
       const result = await response.json().catch(() => null);
 
       if (!response.ok || !result?.accepted) {
+        const conflict = readAppointmentVersionConflict(result);
+
+        if (conflict) {
+          await recoverFromAppointmentVersionConflict({
+            actionLabel: "Save Outcome",
+            appointmentId: selectedAppointment.id,
+            appointmentRecordId: selectedAppointment.recordId,
+            conflict
+          });
+          return;
+        }
+
         throw new Error(
           result?.error ||
             result?.execution?.rejectionReasons?.join(" ") ||

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
 import { overrideAppointmentStaffWarning } from "@/server/services/appointment-staff-conflict-preview-service";
+import { getAppointmentVersionConflict } from "@/server/services/appointment-version-conflict";
 
 type AppointmentStaffWarningOverrideRouteContext = {
   params: Promise<{
@@ -109,10 +110,12 @@ export async function POST(
       error instanceof Error
         ? error.message
         : "Unable to override appointment staff warning right now.";
+    const conflict = getAppointmentVersionConflict(error);
 
     return NextResponse.json(
       {
-        error: message
+        error: message,
+        ...(conflict ? { conflict } : {})
       },
       {
         status: getStaffWarningOverrideErrorStatus(message)

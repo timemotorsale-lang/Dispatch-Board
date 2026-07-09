@@ -14,11 +14,13 @@ import {
   canViewAppointmentSchedule,
   type AppointmentLocationAccessGrant
 } from "@/server/policies/access";
+import { AppointmentVersionConflictError } from "@/server/services/appointment-version-conflict";
 import { normalizeAppointmentHistoryEvent } from "@/server/validation/appointment-history-events";
 
 const appointmentStaffConflictPreviewSelect = {
   id: true,
   appointmentNumber: true,
+  version: true,
   locationId: true,
   ownerUserId: true,
   startsAt: true,
@@ -939,7 +941,20 @@ export async function overrideAppointmentStaffWarning(
     });
 
     if (appointmentUpdate.count !== 1) {
-      throw new Error("Appointment version is stale.");
+      const latestAppointment = await tx.appointment.findUnique({
+        where: {
+          id: appointment.id
+        },
+        select: {
+          version: true
+        }
+      });
+
+      throw new AppointmentVersionConflictError({
+        appointmentId: appointment.id,
+        expectedAppointmentVersion,
+        currentAppointmentVersion: latestAppointment?.version ?? appointment.version
+      });
     }
 
     await tx.appointmentHistoryEvent.create({
