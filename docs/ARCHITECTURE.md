@@ -2,13 +2,15 @@
 
 **Document:** Architecture  
 **Version:** v0.2.0 living baseline
-**Last updated:** 2026-07-08
-**Status:** Dispatch Board implemented; Enterprise Appointment E1 in progress
-**Source documents:** `docs/PRODUCT_SPEC.md`, `docs/MVP_SCOPE.md`, `docs/CURRENT_IMPLEMENTATION_STATUS.md`, `docs/SCHEDULER_VERIFICATION_CONTRACT.md`, `docs/appointments/`, `docs/The Guide To Vibe Coding.md`
+**Last updated:** 2026-07-09
+**Status:** Dispatch Board implemented; Enterprise Appointment E1 in progress; Enterprise Tasks Module direction refined
+**Source documents:** `docs/PRODUCT_SPEC.md`, `docs/MVP_SCOPE.md`, `docs/CURRENT_IMPLEMENTATION_STATUS.md`, `docs/ENTERPRISE_TASKS_MODULE.md`, `docs/SCHEDULER_VERIFICATION_CONTRACT.md`, `docs/appointments/`, `docs/The Guide To Vibe Coding.md`
 
 ---
 
 > **Projects Module planning package:** The dedicated Projects Module boundary, architecture shape, milestone plan, and Codex guidance live in [`docs/projects/PROJECTS_MODULE_GUIDE.md`](projects/PROJECTS_MODULE_GUIDE.md). That guide defines the Projects feature as a module inside the parent Dispatch Board, not a separate app rewrite.
+
+> **Enterprise Tasks Module planning package:** The task-module boundary, tier strategy, workflow rules, and milestone IDs live in [`docs/ENTERPRISE_TASKS_MODULE.md`](ENTERPRISE_TASKS_MODULE.md). That guide defines Tasks as an integrated Dispatch Board module, not a separate product or deployment.
 
 ---
 
@@ -94,7 +96,41 @@ The first implementation should prefer a single deployable app. If the app later
 
 ---
 
-## 5. Target Repository Structure
+## 5. Product Modules
+
+The Dispatch Board should continue to behave like one parent operating system with integrated modules rather than loosely related mini-apps.
+
+```text
+Dispatch Board app shell
+  - Dashboard
+  - Board
+  - Enterprise Tasks Module
+  - My Tasks
+  - Activity Feed
+  - Projects
+  - Settings
+  - Reports
+```
+
+### Enterprise Tasks Module boundary
+
+The Enterprise Tasks Module is the task, routing, execution, review, and audit layer inside the parent Dispatch Board.
+
+Important boundary rules:
+
+- Do not split Tasks into a separate app by default.
+- Keep task workflows on the shared auth, user, role, duty, board-day, activity, and settings foundations.
+- Treat `/board`, `/my-tasks`, `/tasks`, and `/tasks/:id` as surfaces of one integrated task domain.
+- Let `/tasks` evolve into a broader operations console without rewriting the working board and staff flows.
+- Build enterprise-grade foundations early, but do not force all future commercial tiers into the first release.
+
+### Current implementation baseline for Tasks
+
+The task domain is already implemented across board, My Tasks, task detail, manager review, activity, validation, and generation flows. What remains planned is the broader `/tasks` command-center expansion, deeper queue and saved-view behavior, richer manager-attention workflows, and later commercial-scale foundations described in `docs/ENTERPRISE_TASKS_MODULE.md`.
+
+---
+
+## 6. Target Repository Structure
 
 ```text
 Dispatch Board/
@@ -153,7 +189,7 @@ Dispatch Board/
 
 ---
 
-## 6. Core Domain Model
+## 7. Core Domain Model
 
 ### User
 
@@ -337,7 +373,7 @@ Key fields:
 
 ---
 
-## 7. Important Constraints and Indexes
+## 8. Important Constraints and Indexes
 
 The database should protect the workflow from duplicate daily generation.
 
@@ -361,7 +397,7 @@ Recommended indexes:
 
 ---
 
-## 8. Task Status Model
+## 9. Task Status Model
 
 MVP statuses:
 
@@ -385,7 +421,7 @@ MVP statuses:
 
 ---
 
-## 9. Permissions
+## 10. Permissions
 
 ### Manager
 
@@ -418,7 +454,7 @@ All task mutations must pass through server-side permission checks. UI controls 
 
 ---
 
-## 10. Daily Board Generation
+## 11. Daily Board Generation
 
 Daily generation is the central MVP workflow.
 
@@ -477,7 +513,7 @@ Until the full v0.6.1 scheduler evidence work is implemented, the route and gene
 
 ---
 
-## 11. Assignment Recommendation Service
+## 12. Assignment Recommendation Service
 
 The assignment recommendation service should be simple and explainable.
 
@@ -509,7 +545,7 @@ Deferred recommendation features:
 
 ---
 
-## 12. Activity Feed
+## 13. Activity Feed
 
 The activity feed should be event-backed from day one.
 
@@ -541,7 +577,7 @@ Required event types:
 
 ---
 
-## 13. API Surface
+## 14. API Surface
 
 Exact route names can change during implementation, but the MVP should expose these capabilities.
 
@@ -600,7 +636,7 @@ Exact route names can change during implementation, but the MVP should expose th
 
 ---
 
-## 14. Frontend Architecture
+## 15. Frontend Architecture
 
 ### Primary Views
 
@@ -659,7 +695,7 @@ Staff-facing UI should prioritize:
 
 ---
 
-## 15. Validation and Business Rules
+## 16. Validation and Business Rules
 
 Validation should live close to server service entry points.
 
@@ -676,7 +712,7 @@ Required validation:
 
 ---
 
-## 16. Testing Strategy
+## 17. Testing Strategy
 
 Build tests around the workflows most likely to break daily operations.
 
@@ -709,7 +745,7 @@ Build tests around the workflows most likely to break daily operations.
 
 ---
 
-## 17. Seed Data
+## 18. Seed Data
 
 Seed data should make local development useful immediately.
 
@@ -726,7 +762,7 @@ Never seed real customer data, real passwords, or sensitive dealership records.
 
 ---
 
-## 18. Security and Privacy
+## 19. Security and Privacy
 
 The MVP is an internal business tool, but it still handles staff activity and possible customer/vehicle references.
 
@@ -741,7 +777,7 @@ Rules:
 
 ---
 
-## 19. Deferred Architecture
+## 20. Deferred Architecture
 
 The MVP should leave room for these future additions without building them now:
 
@@ -760,7 +796,7 @@ The MVP should leave room for these future additions without building them now:
 
 ---
 
-## 20. Development Workflow for Codex
+## 21. Development Workflow for Codex
 
 Following `docs/The Guide To Vibe Coding.md`, implementation should happen in small, reviewable tasks.
 
@@ -790,7 +826,7 @@ After meaningful changes, update this document so it remains a living architectu
 
 ---
 
-## 21. Current Implementation Status
+## 22. Current Implementation Status
 
 The original architecture was written before implementation. The Dispatch Board foundation is now live in the repository. See `docs/CURRENT_IMPLEMENTATION_STATUS.md` for the dated evidence baseline and `docs/appointments/` for the planned Enterprise Appointment architecture.
 

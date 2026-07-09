@@ -1,12 +1,14 @@
 # Time Motor Sales Dispatch Board Roadmap
 
-**Last updated:** 2026-07-08
-**Roadmap status:** Dispatch Board foundation implemented; Enterprise Appointment E1 in progress
-**Primary goal:** Preserve and harden the working Dispatch Board while delivering the approved Enterprise Appointment Command Center.
+**Last updated:** 2026-07-09
+**Roadmap status:** Dispatch Board foundation implemented; Enterprise Appointment E1 in progress; Enterprise Tasks Module direction refined
+**Primary goal:** Preserve and harden the working Dispatch Board while delivering the approved Enterprise Appointment Command Center and the integrated Enterprise Tasks Module expansion path.
 
 > **Enterprise Appointment Program:** The Appointment Command Center has an approved Enterprise Release 1.0 planning package in [`docs/appointments/README.md`](appointments/README.md). That package supersedes MVP-level appointment assumptions in this roadmap for the Appointment feature only. It remains planned work until its implementation milestones are completed.
 
 > **Projects Module planning package:** The Projects Hub and Project Workspace roadmap now has a dedicated module guide in [`docs/projects/PROJECTS_MODULE_GUIDE.md`](projects/PROJECTS_MODULE_GUIDE.md). Use that document for project-module scope, boundaries, milestone IDs, and implementation guardrails so Projects work does not drift into a full Dispatch Board rewrite.
+
+> **Enterprise Tasks Module planning package:** The integrated Tasks-module boundary, tier strategy, and milestone plan now live in [`docs/ENTERPRISE_TASKS_MODULE.md`](ENTERPRISE_TASKS_MODULE.md). Use that document when planning `/tasks`, task-console, queue, review, and commercial-readiness work so Tasks stays inside the parent Dispatch Board architecture.
 
 ---
 
@@ -47,6 +49,8 @@ Current execution order:
 4. **Add lifecycle, task orchestration, automation, and event-backed history.**
 5. **Build command-center, creation, administration, owner, and responsive workflows.**
 6. **Complete notifications, analytics, hardening, pilot, and production rollout through E10.**
+
+The Enterprise Tasks Module roadmap below is the parallel planning package for evolving the existing task foundation without turning Tasks into a separate product.
 
 ---
 
@@ -252,6 +256,107 @@ Current execution order:
 - Manager-facing health surfaces must answer three questions quickly: `did it fire`, `what happened`, and `what should I do next`.
 - Prefer additive slices that touch schema, service, read model, UI, tests, and docs in small reviewable increments rather than one broad rewrite.
 
+
+---
+
+## Enterprise Tasks Module roadmap
+
+Status markers in this section describe Enterprise Tasks Module evolution specifically. They do not mean the broader task foundation is missing; many core task capabilities already exist elsewhere in the app.
+
+### Phase 0 - Module framing and documentation
+
+| ID | Status | GitHub issue / task card | Codex-sized scope | Acceptance criteria |
+| --- | --- | --- | --- | --- |
+| DB-ETM-000 | [x] | Register Tasks as Dispatch Board submodule | Update top-level docs so Tasks is framed as an integrated module inside Dispatch Board, not a separate product. | `ARCHITECTURE.md` and `ROADMAP.md` describe Tasks as a submodule inside the parent app. |
+| DB-ETM-001 | [x] | Write Enterprise Tasks Module spec | Create `docs/ENTERPRISE_TASKS_MODULE.md` with module purpose, boundaries, workflows, data direction, and release criteria. | The repository has one source-of-truth planning doc for the integrated task module. |
+| DB-ETM-002 | [x] | Add commercial tier matrix | Document Basic, Standard, Professional, and Enterprise capability framing without claiming all tiers are implemented. | Tier strategy is documented and clearly separated from day-one required scope. |
+| DB-ETM-003 | [x] | Define module integration contract | Clarify how Tasks connects to Board, My Tasks, Activity Feed, Settings, Reports, and Projects. | Task-module boundaries are documented without implying a second app boundary. |
+
+### Phase 1 - Commercial-ready foundation
+
+| ID | Status | GitHub issue / task card | Codex-sized scope | Acceptance criteria |
+| --- | --- | --- | --- | --- |
+| DB-ETM-010 | [~] | Add organization and location task foundation | Extend the task domain toward tenant-aware organization/location ownership without breaking single-organization operation. | The task domain can grow beyond a single seeded organization without a deep rewrite. |
+| DB-ETM-011 | [ ] | Add feature capability and plan foundation | Introduce a central entitlement model for tier-aware feature checks. | Task features can be checked through a shared entitlement service. |
+| DB-ETM-012 | [~] | Expand task permission policy model | Preserve current manager/staff rules and add room for eligible-staff, admin, and future org-admin capabilities. | Every task mutation has explicit server-side policy coverage. |
+| DB-ETM-013 | [ ] | Add durable task audit log foundation | Add audit persistence for sensitive task-domain actions beyond activity-feed visibility. | Assignment overrides, approvals, and sensitive setting changes can be audited durably. |
+
+### Phase 2 - Enterprise task data model
+
+| ID | Status | GitHub issue / task card | Codex-sized scope | Acceptance criteria |
+| --- | --- | --- | --- | --- |
+| DB-ETM-020 | [~] | Expand task schema for enterprise console fields | Add fields such as task number, next step, waiting context, risk, ETA, and manager-attention reasons where still missing. | Task records support richer console views without UI-only fake data. |
+| DB-ETM-021 | [~] | Add queue and saved-view foundation | Build durable models for queue definitions, saved views, ownership, and system defaults. | Manager Attention, Team Tasks, Unassigned, and future custom views become data-driven. |
+| DB-ETM-022 | [x] | Keep checklist and subtask foundation durable | Preserve and extend the existing checklist/task-detail execution foundation. | Task detail continues to support checklist-driven execution with durable persistence. |
+| DB-ETM-023 | [~] | Add task assignment and status history | Add durable history models where activity feed alone is not enough for enterprise detail. | Users can inspect who changed assignment or status and when. |
+| DB-ETM-024 | [ ] | Add SLA and escalation foundation | Add models for due-soon, overdue, blocked-too-long, and waiting-too-long rules. | Manager Attention can be powered by durable rule data instead of UI-only logic. |
+
+### Phase 3 - Generation, routing, and attention engines
+
+| ID | Status | GitHub issue / task card | Codex-sized scope | Acceptance criteria |
+| --- | --- | --- | --- | --- |
+| DB-ETM-030 | [x] | Preserve enterprise-safe daily generation engine | Keep generation idempotent, duplicate-safe, retryable, and event-backed as the module expands. | Daily generation stays safe while later task-console work lands. |
+| DB-ETM-031 | [x] | Preserve routing and recommendation engine | Keep assignment recommendation explainable and manager-overridable. | Generated and manual tasks retain clear ownership and recommendation reasoning. |
+| DB-ETM-032 | [ ] | Add claimable queue engine | Introduce eligible-staff claim flows for work that should not be directly preassigned. | Staff can claim only eligible work and the action is persisted safely. |
+| DB-ETM-033 | [~] | Add manager attention engine | Build a durable backend view for blocked, overdue, review-needed, unowned, and missing-next-step work. | Manager Attention becomes a first-class read model rather than scattered UI slices. |
+
+### Phase 4 - Status, activity, and reporting hardening
+
+| ID | Status | GitHub issue / task card | Codex-sized scope | Acceptance criteria |
+| --- | --- | --- | --- | --- |
+| DB-ETM-040 | [x] | Preserve centralized status transition rules | Keep status changes validated server-side as the task module grows. | Invalid transitions continue to be rejected centrally. |
+| DB-ETM-041 | [~] | Expand blocker and waiting validation | Preserve blocker validation and strengthen waiting-state, next-step, and ETA rules. | Waiting states collect enough context for reliable manager follow-up. |
+| DB-ETM-042 | [x] | Preserve manager review and approval engine | Keep review-required tasks moving through `Ready for Review` and manager approval rules. | Approval-required work cannot bypass the review path. |
+| DB-ETM-043 | [x] | Preserve event-backed task activity | Keep important task actions writing durable activity records. | Activity remains tied to real service operations instead of UI inference. |
+| DB-ETM-044 | [ ] | Add reporting snapshot foundation | Add daily summary, blocked, overdue, workload, and department snapshot foundations. | Reporting reads can use durable task-domain summary data. |
+
+### Phase 5 - API and console surfaces
+
+| ID | Status | GitHub issue / task card | Codex-sized scope | Acceptance criteria |
+| --- | --- | --- | --- | --- |
+| DB-ETM-050 | [~] | Expand task query API for console use | Build richer filters, search, saved-view support, and pagination for task-console use. | `/tasks` can load dense views without client-only hacks. |
+| DB-ETM-051 | [x] | Preserve task mutation API coverage | Keep create, update, status, assignment, checklist, comment, complete, and reopen flows durable. | Core task mutations remain validated, permission-checked, and event-backed. |
+| DB-ETM-052 | [ ] | Add queue and saved-view APIs | Expose durable queue and saved-view endpoints for the broader task console. | System and user views are loadable through reusable APIs. |
+| DB-ETM-053 | [~] | Expand manager attention and review APIs | Consolidate manager attention, review queue, approve, return, and override flows under stable task-module reads/actions. | Manager controls operate through explicit task-module endpoints. |
+| DB-ETM-054 | [ ] | Add task reporting APIs | Expose blocked, overdue, workload, and summary reads from durable server projections. | Console, dashboard, and future reports can share task summary APIs. |
+
+### Phase 6 - `/tasks` command-center expansion
+
+| ID | Status | GitHub issue / task card | Codex-sized scope | Acceptance criteria |
+| --- | --- | --- | --- | --- |
+| DB-ETM-060 | [ ] | Evolve `/tasks` from entry page into console shell | Replace the current light landing page with a real task operations shell inside the app. | `/tasks` becomes a working command-center surface instead of a handoff page. |
+| DB-ETM-061 | [ ] | Add command bar and KPI strip | Add create, date, search, filters, saved views, export hooks, and status summary cards. | The console opens with scan-friendly controls and summary data. |
+| DB-ETM-062 | [ ] | Add queue rail and system views | Add Manager Attention, Team Tasks, Unassigned, Blocked, Waiting, and Review views with counts. | Users can move between task queues without leaving the module. |
+| DB-ETM-063 | [~] | Connect detail rail and existing task workspace flows | Reuse the live task-detail foundations inside a console-friendly selection model. | Users can inspect or act on work without breaking existing task-detail depth. |
+| DB-ETM-064 | [~] | Carry forward loading, empty, and error states | Preserve honest states as the console replaces the current entry route. | No blank or misleading production state appears during the console transition. |
+
+### Phase 7 - Staff, manager, and scale follow-through
+
+| ID | Status | GitHub issue / task card | Codex-sized scope | Acceptance criteria |
+| --- | --- | --- | --- | --- |
+| DB-ETM-070 | [x] | Preserve staff My Tasks workflow | Keep the current My Tasks experience fast, responsive, and safe while the broader console grows. | Staff can continue daily execution without routing everything through `/tasks`. |
+| DB-ETM-071 | [x] | Preserve manager review workflow | Keep manager review and reopen flows working while queue and attention surfaces expand. | Review-required work remains operational during module evolution. |
+| DB-ETM-072 | [ ] | Add claimable-work workflow | Introduce claimable queues and eligible-staff claim actions. | Staff can claim allowed work and managers can still see ownership clearly. |
+| DB-ETM-073 | [ ] | Add quick-capture workflow | Add a fast operational task-capture flow for managers and later eligible staff. | New work can be captured quickly without breaking validation or activity rules. |
+| DB-ETM-074 | [ ] | Add entitlement-aware scale layer | Wire feature gates, admin configuration, and later custom-field placeholders into the task module. | Later-tier features can be unlocked safely without rewriting core task flows. |
+| DB-ETM-075 | [x] | Preserve task-domain automated coverage | Keep unit, integration, and browser coverage aligned with task behavior as the module changes. | Task-domain regressions are caught before task-console growth ships. |
+
+### Recommended Enterprise Tasks Module execution order
+
+1. `DB-ETM-000` through `DB-ETM-003`
+2. `DB-ETM-010` through `DB-ETM-013`
+3. `DB-ETM-020` through `DB-ETM-024`
+4. `DB-ETM-030` through `DB-ETM-044`
+5. `DB-ETM-050` through `DB-ETM-054`
+6. `DB-ETM-060` through `DB-ETM-075`
+
+### Architecture notes for Enterprise Tasks Module work
+
+- Keep Tasks inside the existing Dispatch Board app shell and deployable boundary.
+- Reuse the live board, My Tasks, manager review, task detail, and activity foundations instead of replacing them.
+- Build enterprise-grade data and permission foundations early, but defer future-tier exposure until the day-one workflow stays fast and reliable.
+- Prefer small vertical slices that touch schema, service, API, UI, tests, and docs together when a feature truly spans those layers.
+- Do not describe planned task-console or commercial-scale features as already implemented.
 
 ---
 
