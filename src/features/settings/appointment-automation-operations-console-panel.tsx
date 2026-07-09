@@ -26,8 +26,19 @@ function defaultExecutionId(consoleModel: ConsoleModel) {
   return consoleModel.failureQueue[0]?.id ?? consoleModel.executions[0]?.id ?? "";
 }
 
+type AutomationContextLike = {
+  sourceReference?: string | null;
+  sourceTaskId?: string | null;
+  sourceTaskTitle?: string | null;
+  generatedAppointmentNumber?: string | null;
+  generatedAppointmentTitle?: string | null;
+  generatedTaskId?: string | null;
+  generatedTaskTitle?: string | null;
+  retryReplayAction?: string | null;
+};
+
 function executionSourceLabel(
-  execution: ConsoleModel["executions"][number] | null
+  execution: AutomationContextLike | null
 ) {
   if (!execution) {
     return "No source reference recorded";
@@ -47,7 +58,7 @@ function executionSourceLabel(
 }
 
 function executionResultLabel(
-  execution: ConsoleModel["executions"][number] | null
+  execution: AutomationContextLike | null
 ) {
   if (!execution) {
     return "No generated result recorded yet.";
@@ -70,6 +81,34 @@ function executionResultLabel(
   }
 
   return "No generated result recorded yet.";
+}
+
+function auditEventContextLabel(event: ConsoleModel["recentEvents"][number]) {
+  const sourceLabel = executionSourceLabel(event);
+  const resultLabel = executionResultLabel(event);
+  const parts = [];
+
+  if (event.automationRuleCode) {
+    parts.push(event.automationRuleVersion ? `${event.automationRuleCode} v${event.automationRuleVersion}` : event.automationRuleCode);
+  }
+
+  if (event.triggerCode) {
+    parts.push(formatLabel(event.triggerCode));
+  }
+
+  if (sourceLabel !== "No source reference recorded") {
+    parts.push(sourceLabel);
+  }
+
+  if (resultLabel !== "No generated result recorded yet.") {
+    parts.push(resultLabel);
+  }
+
+  if (event.retryReplayAction) {
+    parts.push(`Recovery: ${formatLabel(event.retryReplayAction)}`);
+  }
+
+  return parts.join(" · ");
 }
 
 export function AppointmentAutomationOperationsConsolePanel({ initialConsole }: Props) {
@@ -681,6 +720,7 @@ export function AppointmentAutomationOperationsConsolePanel({ initialConsole }: 
                 <div className="appointment-admin-record" key={event.id}>
                   <span>{formatLabel(event.action)}</span>
                   <strong>{event.reason}</strong>
+                  {auditEventContextLabel(event) ? <small>{auditEventContextLabel(event)}</small> : null}
                   <small>{event.occurredAt}</small>
                 </div>
               ))

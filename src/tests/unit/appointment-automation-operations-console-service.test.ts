@@ -342,6 +342,13 @@ describe("appointment automation operations console service", () => {
       generatedAppointmentNumber: "APT-TASK-AUTO-001",
       generatedAppointmentTitle: "Blocked task review: Call lender and verify packet"
     });
+    expect(console.recentEvents[0]).toMatchObject({
+      action: "REVIEW_CREATED",
+      automationRuleCode: "RULE-BLOCKED-TASK-REVIEW",
+      sourceTaskId: "task-1",
+      sourceTaskTitle: "Call lender and verify packet",
+      generatedAppointmentNumber: "APT-TASK-AUTO-001"
+    });
   });
 
   it("rejects non-manager access", async () => {

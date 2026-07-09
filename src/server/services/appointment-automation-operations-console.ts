@@ -78,9 +78,13 @@ export type AppointmentAutomationExecutionRecord = {
 
 export type AppointmentAutomationEventRecord = {
   id: string;
+  automationRuleId?: string | null;
+  automationExecutionId?: string | null;
   action: RuleAction | ExecutionAction;
   reason: string;
   actorUserId: string | null;
+  priorSnapshot?: unknown;
+  newSnapshot?: unknown;
   occurredAt: Date;
 };
 
@@ -550,12 +554,71 @@ function summarizeExecution(execution: AppointmentAutomationExecutionRecord) {
 }
 
 function summarizeEvent(event: AppointmentAutomationEventRecord) {
+  const priorSnapshot = isPlainObject(event.priorSnapshot) ? event.priorSnapshot : null;
+  const newSnapshot = isPlainObject(event.newSnapshot) ? event.newSnapshot : null;
+  const candidateRecords = [
+    newSnapshot,
+    isPlainObject(newSnapshot?.resultSnapshot) ? (newSnapshot.resultSnapshot as Record<string, unknown>) : null,
+    isPlainObject(newSnapshot?.inputSnapshot) ? (newSnapshot.inputSnapshot as Record<string, unknown>) : null,
+    priorSnapshot,
+    isPlainObject(priorSnapshot?.resultSnapshot) ? (priorSnapshot.resultSnapshot as Record<string, unknown>) : null,
+    isPlainObject(priorSnapshot?.inputSnapshot) ? (priorSnapshot.inputSnapshot as Record<string, unknown>) : null
+  ].filter((value): value is Record<string, unknown> => Boolean(value));
+
+  const stringFromSnapshots = (...keys: string[]) => {
+    for (const record of candidateRecords) {
+      for (const key of keys) {
+        const value = record[key];
+        if (typeof value === "string" && value.trim()) {
+          return value.trim();
+        }
+      }
+    }
+
+    return null;
+  };
+
+  const numberFromSnapshots = (...keys: string[]) => {
+    for (const record of candidateRecords) {
+      for (const key of keys) {
+        const value = record[key];
+        if (typeof value === "number" && value > 0) {
+          return value;
+        }
+      }
+    }
+
+    return null;
+  };
+
   return {
     id: event.id,
+    automationRuleId: event.automationRuleId ?? null,
+    automationExecutionId: event.automationExecutionId ?? null,
     action: event.action,
     reason: event.reason,
     actorUserId: event.actorUserId,
-    occurredAt: event.occurredAt.toISOString()
+    occurredAt: event.occurredAt.toISOString(),
+    automationRuleCode: stringFromSnapshots("automationRuleCode", "ruleCode"),
+    automationRuleVersion: numberFromSnapshots("automationRuleVersion"),
+    triggerCode: stringFromSnapshots("triggerCode"),
+    sourceType: stringFromSnapshots("sourceType"),
+    sourceReference: stringFromSnapshots("sourceReference"),
+    sourceTaskId: stringFromSnapshots("sourceTaskId"),
+    sourceTaskTitle: stringFromSnapshots("sourceTaskTitle"),
+    generatedAppointmentNumber: stringFromSnapshots(
+      "generatedAppointmentNumber",
+      "generatedFollowUpAppointmentNumber",
+      "existingFollowUpAppointmentNumber"
+    ),
+    generatedAppointmentTitle: stringFromSnapshots("generatedAppointmentTitle"),
+    generatedTaskId: stringFromSnapshots(
+      "generatedTaskId",
+      "generatedFollowUpTaskId",
+      "existingFollowUpTaskId"
+    ),
+    generatedTaskTitle: stringFromSnapshots("generatedTaskTitle"),
+    retryReplayAction: stringFromSnapshots("retryReplayAction")
   };
 }
 

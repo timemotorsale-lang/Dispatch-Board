@@ -80,5 +80,6 @@ describe("appointment automation operations console panel", () => {
     expect(markup).toContain("Call lender and verify packet (task-1)");
     expect(markup).toContain("APT-TASK-AUTO-001");
     expect(markup).toContain("Generated result");
+    expect(markup).toContain("Last recovery action: Replay");
   });
 });

@@ -52,6 +52,7 @@ export function createMemoryAppointmentAutomationOperationsRepository() {
       executions = [execution, ...executions];
       executionEvents.unshift({
         id: `execution-event-${executionEvents.length + 1}`,
+        automationExecutionId: execution.id,
         action:
           execution.status === "FAILED_RETRYABLE" || execution.status === "FAILED_TERMINAL"
             ? "FAILED"
@@ -60,6 +61,8 @@ export function createMemoryAppointmentAutomationOperationsRepository() {
               : "QUEUED",
         reason: input.reason,
         actorUserId: input.actorUserId ?? null,
+        priorSnapshot: undefined,
+        newSnapshot: execution,
         occurredAt: now
       });
       return execution;
@@ -83,9 +86,12 @@ export function createMemoryAppointmentAutomationOperationsRepository() {
       if (input.eventAction) {
         executionEvents.unshift({
           id: `execution-event-${executionEvents.length + 1}`,
+          automationExecutionId: execution.id,
           action: input.eventAction,
           reason: input.reason,
           actorUserId: input.actorUserId,
+          priorSnapshot: existing,
+          newSnapshot: execution,
           occurredAt: now
         });
       }
@@ -143,9 +149,12 @@ export function createMemoryAppointmentAutomationOperationsRepository() {
         : [...rules, rule];
       ruleEvents.unshift({
         id: `rule-event-${ruleEvents.length + 1}`,
+        automationRuleId: rule.id,
         action: existing ? "DRAFT_UPDATED" : "DRAFT_CREATED",
         reason: input.reason,
         actorUserId: input.actorUserId,
+        priorSnapshot: existing ?? undefined,
+        newSnapshot: rule,
         occurredAt: now
       });
       return rule;
@@ -168,9 +177,12 @@ export function createMemoryAppointmentAutomationOperationsRepository() {
       rules = rules.map((rule) => rule.ruleCode === nextRule.ruleCode ? nextRule : rule);
       ruleEvents.unshift({
         id: `rule-event-${ruleEvents.length + 1}`,
+        automationRuleId: nextRule.id,
         action: eventByAction[input.action],
         reason: input.reason,
         actorUserId: input.actorUserId,
+        priorSnapshot: existing,
+        newSnapshot: nextRule,
         occurredAt: now
       });
       return nextRule;
@@ -196,9 +208,12 @@ export function createMemoryAppointmentAutomationOperationsRepository() {
       if (input.action === "RESOLVE" || input.action === "SKIP") {
         executionEvents.unshift({
           id: `execution-event-${executionEvents.length + 1}`,
+          automationExecutionId: nextExecution.id,
           action: input.action === "RESOLVE" ? "RESOLVED" : "SKIPPED",
           reason: input.reason,
           actorUserId: input.actorUserId,
+          priorSnapshot: existing,
+          newSnapshot: nextExecution,
           occurredAt: now
         });
       }
