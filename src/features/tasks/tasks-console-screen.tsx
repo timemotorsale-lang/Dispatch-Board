@@ -1,0 +1,1603 @@
+"use client";
+
+import { TaskStatus } from "@prisma/client";
+import {
+  Calendar,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Columns3,
+  Download,
+  Filter,
+  LayoutGrid,
+  List,
+  MoreHorizontal,
+  Plus,
+  RefreshCw,
+  Search,
+  X
+} from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useDeferredValue, useEffect, useState, useTransition } from "react";
+
+import { EmptyStateCard, ErrorStateCard } from "@/components/ui/state-card";
+import {
+  buildSubtasks,
+  formatTaskDisplayNumber,
+  formatTaskEnumLabel
+} from "@/features/tasks/detail/task-detail-mappers";
+import { isTaskDueSoon, isTaskOverdue } from "@/features/tasks/my-tasks-helpers";
+import type { BoardReadModel, BoardReadTask } from "@/server/services/board-read";
+import type { TaskReadModel } from "@/server/services/task-read";
+
+type TasksConsoleScreenProps = {
+  board: BoardReadModel | null;
+  boardDate: string;
+  currentUserId: string;
+  errorMessage: string | null;
+  initialTask: TaskReadModel | null;
+  isManager: boolean;
+  todayBoardDate: string;
+};
+
+type TasksConsoleView = "list" | "board";
+type TasksConsoleTab = "details" | "comments" | "activity";
+type QueueFilter =
+  | "ALL"
+  | "NOT_STARTED"
+  | "IN_PROGRESS"
+  | "BLOCKED"
+  | "WAITING"
+  | "WAITING_ON_PARTS"
+  | "WAITING_ON_APPROVAL"
+  | "READY_FOR_REVIEW"
+  | "OVERDUE"
+  | "COMPLETED"
+  | "UNASSIGNED";
+
+type DepartmentFilter =
+  | "INVENTORY"
+  | "SHOP"
+  | "SALES"
+  | "ADVERTISING"
+  | "ADMIN"
+  | "COLLECTIONS";
+type SidebarTone = "brand" | "danger" | "neutral" | "review" | "slate" | "success" | "warning";
+type SidebarItem = {
+  active: boolean;
+  badge?: number;
+  href?: string;
+  key: string;
+  label: string;
+  onClick?: () => void;
+  tone: SidebarTone;
+};
+
+type TaskDetailApiResponse =
+  | {
+      task?: TaskReadModel;
+      error?: string;
+    }
+  | null;
+
+type PaginationItem = number | "ellipsis";
+
+const BOARD_VIEW_STATUSES: TaskStatus[] = [
+  TaskStatus.NOT_STARTED,
+  TaskStatus.IN_PROGRESS,
+  TaskStatus.BLOCKED,
+  TaskStatus.WAITING_ON_PARTS,
+  TaskStatus.WAITING_ON_APPROVAL,
+  TaskStatus.READY_FOR_REVIEW,
+  TaskStatus.COMPLETED
+];
+const TASKS_PER_PAGE = 10;
+
+function formatBoardDateLabel(boardDate: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC"
+  }).format(new Date(`${boardDate}T00:00:00.000Z`));
+}
+
+function formatShortDate(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric"
+  }).format(new Date(value));
+}
+
+function formatTime(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
+function formatAgeFromTimestamp(value: string, now: Date) {
+  const elapsedMinutes = Math.max(0, Math.round((now.getTime() - new Date(value).getTime()) / 60000));
+
+  if (elapsedMinutes < 60) {
+    return `${elapsedMinutes}m`;
+  }
+
+  const elapsedHours = Math.round(elapsedMinutes / 60);
+
+  if (elapsedHours < 24) {
+    return `${elapsedHours}h`;
+  }
+
+  return `${Math.round(elapsedHours / 24)}d`;
+}
+
+function getDepartmentLabel(workflowArea: string) {
+  if (workflowArea === "SHOP") {
+    return "Service / Recon";
+  }
+
+  if (workflowArea === "GENERAL_MANAGER") {
+    return "Management";
+  }
+
+  if (workflowArea === "ADVERTISING") {
+    return "Marketing / Advertising";
+  }
+
+  return formatTaskEnumLabel(workflowArea);
+}
+
+function getTaskReference(task: Pick<BoardReadTask, "vehicleReference" | "customerReference">) {
+  if (task.vehicleReference && task.customerReference) {
+    return `${task.vehicleReference} / ${task.customerReference}`;
+  }
+
+  return task.vehicleReference ?? task.customerReference ?? "No linked vehicle or customer";
+}
+
+function getStatusToneClass(status: string) {
+  if (status === TaskStatus.BLOCKED) {
+    return "tasks-console-status tasks-console-status-danger";
+  }
+
+  if (status === TaskStatus.WAITING_ON_PARTS || status === TaskStatus.WAITING_ON_APPROVAL) {
+    return "tasks-console-status tasks-console-status-warning";
+  }
+
+  if (status === TaskStatus.READY_FOR_REVIEW) {
+    return "tasks-console-status tasks-console-status-review";
+  }
+
+  if (status === TaskStatus.COMPLETED) {
+    return "tasks-console-status tasks-console-status-success";
+  }
+
+  if (status === TaskStatus.NOT_STARTED) {
+    return "tasks-console-status tasks-console-status-neutral";
+  }
+
+  return "tasks-console-status tasks-console-status-brand";
+}
+
+function getPriorityLabel(task: Pick<BoardReadTask, "status" | "dueAt" | "requiresManagerApproval">, now: Date) {
+  if (task.status === TaskStatus.COMPLETED) {
+    return "Low";
+  }
+
+  if (
+    task.status === TaskStatus.BLOCKED ||
+    task.status === TaskStatus.WAITING_ON_APPROVAL ||
+    task.status === TaskStatus.WAITING_ON_PARTS ||
+    isTaskOverdue(task, now)
+  ) {
+    return "High";
+  }
+
+  if (task.requiresManagerApproval || isTaskDueSoon(task, now)) {
+    return "Medium";
+  }
+
+  return "Low";
+}
+
+function getPriorityToneClass(priority: string) {
+  if (priority === "High") {
+    return "tasks-console-priority tasks-console-priority-high";
+  }
+
+  if (priority === "Medium") {
+    return "tasks-console-priority tasks-console-priority-medium";
+  }
+
+  return "tasks-console-priority tasks-console-priority-low";
+}
+
+function getQueueFilterLabel(filter: QueueFilter) {
+  if (filter === "NOT_STARTED") {
+    return "Not Started";
+  }
+
+  if (filter === "IN_PROGRESS") {
+    return "In Progress";
+  }
+
+  if (filter === "BLOCKED") {
+    return "Blocked";
+  }
+
+  if (filter === "WAITING") {
+    return "Waiting";
+  }
+
+  if (filter === "WAITING_ON_PARTS") {
+    return "Waiting on Parts";
+  }
+
+  if (filter === "WAITING_ON_APPROVAL") {
+    return "Waiting on Approval";
+  }
+
+  if (filter === "READY_FOR_REVIEW") {
+    return "Ready for Review";
+  }
+
+  if (filter === "OVERDUE") {
+    return "Overdue";
+  }
+
+  if (filter === "COMPLETED") {
+    return "Completed Today";
+  }
+
+  if (filter === "UNASSIGNED") {
+    return "Unassigned Queue";
+  }
+
+  return "All Tasks";
+}
+
+function isTaskCompletedOnBoardDate(task: BoardReadTask, boardDate: string) {
+  if (!task.completedAt) {
+    return task.status === TaskStatus.COMPLETED;
+  }
+
+  return task.completedAt.startsWith(boardDate);
+}
+
+function matchesQueueFilter(task: BoardReadTask, filter: QueueFilter, now: Date, boardDate: string) {
+  if (filter === "ALL") {
+    return true;
+  }
+
+  if (filter === "WAITING") {
+    return (
+      task.status === TaskStatus.WAITING_ON_PARTS || task.status === TaskStatus.WAITING_ON_APPROVAL
+    );
+  }
+
+  if (filter === "WAITING_ON_PARTS") {
+    return task.status === TaskStatus.WAITING_ON_PARTS;
+  }
+
+  if (filter === "WAITING_ON_APPROVAL") {
+    return task.status === TaskStatus.WAITING_ON_APPROVAL;
+  }
+
+  if (filter === "OVERDUE") {
+    return isTaskOverdue(task, now);
+  }
+
+  if (filter === "COMPLETED") {
+    return isTaskCompletedOnBoardDate(task, boardDate);
+  }
+
+  if (filter === "UNASSIGNED") {
+    return !task.assignedUser?.id;
+  }
+
+  return task.status === filter;
+}
+
+function matchesDepartmentFilter(task: BoardReadTask, filter: DepartmentFilter | null) {
+  if (!filter) {
+    return true;
+  }
+
+  return task.workflowArea === filter;
+}
+
+function getQueueCount(tasks: BoardReadTask[], filter: QueueFilter, now: Date, boardDate: string) {
+  return tasks.filter((task) => matchesQueueFilter(task, filter, now, boardDate)).length;
+}
+
+function getDepartmentCount(tasks: BoardReadTask[], filter: DepartmentFilter) {
+  return tasks.filter((task) => matchesDepartmentFilter(task, filter)).length;
+}
+
+function getMetricCardTone(filter: QueueFilter) {
+  if (filter === "BLOCKED" || filter === "OVERDUE") {
+    return "tasks-console-metric-danger";
+  }
+
+  if (filter === "WAITING") {
+    return "tasks-console-metric-warning";
+  }
+
+  if (filter === "READY_FOR_REVIEW") {
+    return "tasks-console-metric-review";
+  }
+
+  if (filter === "IN_PROGRESS") {
+    return "tasks-console-metric-brand";
+  }
+
+  return "tasks-console-metric-neutral";
+}
+
+function createSearchIndex(task: BoardReadTask) {
+  return [
+    task.title,
+    task.description ?? "",
+    task.assignedUser.name,
+    getDepartmentLabel(task.workflowArea),
+    task.vehicleReference ?? "",
+    task.customerReference ?? ""
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+
+function getDueTimeToneClass(task: BoardReadTask, now: Date) {
+  if (isTaskOverdue(task, now) || task.status === TaskStatus.BLOCKED) {
+    return "tasks-console-due-time tasks-console-due-time-danger";
+  }
+
+  if (
+    task.status === TaskStatus.WAITING_ON_PARTS ||
+    task.status === TaskStatus.WAITING_ON_APPROVAL ||
+    isTaskDueSoon(task, now)
+  ) {
+    return "tasks-console-due-time tasks-console-due-time-warning";
+  }
+
+  return "tasks-console-due-time";
+}
+
+function buildNextStepCopy(task: TaskReadModel | null) {
+  if (!task) {
+    return "Select a task to inspect the current next step.";
+  }
+
+  if (task.status === TaskStatus.READY_FOR_REVIEW) {
+    return "Manager review is the next step before this task can close cleanly.";
+  }
+
+  if (task.status === TaskStatus.WAITING_ON_PARTS) {
+    return task.blockerReason ?? "Waiting on parts. Capture the ETA in the full workspace if it changes.";
+  }
+
+  if (task.status === TaskStatus.WAITING_ON_APPROVAL) {
+    return task.blockerReason ?? "Waiting on approval. Keep the decision owner and follow-up visible.";
+  }
+
+  if (task.blockerReason) {
+    return task.blockerReason;
+  }
+
+  const latestComment = task.comments[0]?.body?.trim();
+
+  if (latestComment) {
+    return latestComment;
+  }
+
+  return task.description ?? "Open the workspace to capture the next step with more detail.";
+}
+
+function buildActivityTimeline(task: TaskReadModel | null) {
+  if (!task) {
+    return [];
+  }
+
+  return [
+    ...task.activityHistory.map((event) => ({
+      id: `activity-${event.id}`,
+      actorName: event.actor?.name ?? "System",
+      createdAt: event.createdAt,
+      body: event.message,
+      kind: "activity" as const
+    })),
+    ...task.comments.map((comment) => ({
+      id: `comment-${comment.id}`,
+      actorName: comment.author.name,
+      createdAt: comment.createdAt,
+      body: comment.body,
+      kind: "comment" as const
+    }))
+  ].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
+}
+
+function createRightRailFieldRows(task: TaskReadModel | null) {
+  if (!task) {
+    return [];
+  }
+
+  return [
+    {
+      label: "Owner",
+      value: task.assignedUser.name
+    },
+    {
+      label: "Department",
+      value: getDepartmentLabel(task.workflowArea)
+    },
+    {
+      label: "Due Time",
+      value: formatDateTime(task.dueAt)
+    },
+    {
+      label: "Created By",
+      value: task.createdByUser?.name ?? "System"
+    },
+    {
+      label: "Created On",
+      value: formatDateTime(task.createdAt)
+    },
+    {
+      label: "Last Updated",
+      value: formatDateTime(task.updatedAt)
+    }
+  ];
+}
+
+function getSelectionFallbackTask(tasks: BoardReadTask[], selectedTaskId: string | null) {
+  if (!selectedTaskId) {
+    return tasks[0] ?? null;
+  }
+
+  return tasks.find((task) => task.id === selectedTaskId) ?? tasks[0] ?? null;
+}
+
+function createTaskDetailHref(taskId: string) {
+  return `/tasks/${encodeURIComponent(taskId)}`;
+}
+
+function buildPaginationItems(totalPages: number, currentPage: number): PaginationItem[] {
+  if (totalPages <= 5) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const items: PaginationItem[] = [1];
+  const windowStart = Math.max(2, currentPage - 1);
+  const windowEnd = Math.min(totalPages - 1, currentPage + 1);
+
+  if (windowStart > 2) {
+    items.push("ellipsis");
+  }
+
+  for (let page = windowStart; page <= windowEnd; page += 1) {
+    items.push(page);
+  }
+
+  if (windowEnd < totalPages - 1) {
+    items.push("ellipsis");
+  }
+
+  items.push(totalPages);
+
+  return items;
+}
+
+export function TasksConsoleScreen({
+  board,
+  boardDate,
+  currentUserId,
+  errorMessage,
+  initialTask,
+  isManager,
+  todayBoardDate
+}: TasksConsoleScreenProps) {
+  const router = useRouter();
+  const now = new Date();
+  const [activeView, setActiveView] = useState<TasksConsoleView>("list");
+  const [activeTab, setActiveTab] = useState<TasksConsoleTab>("details");
+  const [activeQueueFilter, setActiveQueueFilter] = useState<QueueFilter>("ALL");
+  const [activeDepartmentFilter, setActiveDepartmentFilter] = useState<DepartmentFilter | null>(null);
+  const [searchText, setSearchText] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(
+    initialTask?.id ?? board?.tasks[0]?.id ?? null
+  );
+  const [selectedTaskDetail, setSelectedTaskDetail] = useState<TaskReadModel | null>(initialTask);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [generationMessage, setGenerationMessage] = useState<string | null>(null);
+  const [isGeneratePending, startGenerateTransition] = useTransition();
+  const deferredSearchText = useDeferredValue(searchText.trim().toLowerCase());
+  const allTasks = [...(board?.tasks ?? [])].sort(
+    (left, right) => new Date(left.dueAt).getTime() - new Date(right.dueAt).getTime()
+  );
+  const visibleTasks = allTasks.filter((task) => {
+    if (!matchesQueueFilter(task, activeQueueFilter, now, boardDate)) {
+      return false;
+    }
+
+    if (!matchesDepartmentFilter(task, activeDepartmentFilter)) {
+      return false;
+    }
+
+    if (!deferredSearchText) {
+      return true;
+    }
+
+    return createSearchIndex(task).includes(deferredSearchText);
+  });
+  const totalPages = Math.max(1, Math.ceil(visibleTasks.length / TASKS_PER_PAGE));
+  const activePage = Math.min(currentPage, totalPages);
+  const pageStartIndex = (activePage - 1) * TASKS_PER_PAGE;
+  const pagedTasks = visibleTasks.slice(pageStartIndex, pageStartIndex + TASKS_PER_PAGE);
+  const pageCountStart = visibleTasks.length === 0 ? 0 : pageStartIndex + 1;
+  const pageCountEnd = Math.min(pageStartIndex + TASKS_PER_PAGE, visibleTasks.length);
+  const paginationItems = buildPaginationItems(totalPages, activePage);
+  const effectiveSelectedTaskId = pagedTasks.some((task) => task.id === selectedTaskId)
+    ? selectedTaskId
+    : pagedTasks[0]?.id ?? null;
+  const selectedBoardTask = getSelectionFallbackTask(pagedTasks, effectiveSelectedTaskId);
+  const activeTaskDetail = selectedTaskDetail?.id === effectiveSelectedTaskId ? selectedTaskDetail : null;
+  const activeTaskPriority = activeTaskDetail ? getPriorityLabel(activeTaskDetail, now) : null;
+  const detailTimeline = buildActivityTimeline(activeTaskDetail);
+  const rightRailFields = createRightRailFieldRows(activeTaskDetail);
+  const subtasks = activeTaskDetail ? buildSubtasks(activeTaskDetail) : [];
+  const completedSubtaskCount = subtasks.filter((item) => item.completed).length;
+  const createTaskHref = `/board?date=${encodeURIComponent(boardDate)}`;
+  const boardHref = `/board?date=${encodeURIComponent(boardDate)}`;
+  const isTodayBoard = boardDate === todayBoardDate;
+  const dueSoonTasks = allTasks.filter((task) => isTaskDueSoon(task, now));
+  const blockedTasks = allTasks.filter((task) => task.status === TaskStatus.BLOCKED);
+  const waitingOnPartsTasks = allTasks.filter((task) => task.status === TaskStatus.WAITING_ON_PARTS);
+  const waitingOnApprovalTasks = allTasks.filter((task) => task.status === TaskStatus.WAITING_ON_APPROVAL);
+  const readyForReviewTasks = allTasks.filter((task) => task.status === TaskStatus.READY_FOR_REVIEW);
+  const unassignedTasks = allTasks.filter((task) => !task.assignedUser?.id);
+  const completedTodayTasks = allTasks.filter((task) => isTaskCompletedOnBoardDate(task, boardDate));
+  const myTasksCount = allTasks.filter(
+    (task) => task.assignedUser.id === currentUserId && task.status !== TaskStatus.COMPLETED
+  ).length;
+  const inventoryCount = getDepartmentCount(allTasks, "INVENTORY");
+  const serviceReconCount = getDepartmentCount(allTasks, "SHOP");
+  const salesCount = getDepartmentCount(allTasks, "SALES");
+  const marketingCount = getDepartmentCount(allTasks, "ADVERTISING");
+  const adminCount = getDepartmentCount(allTasks, "ADMIN");
+  const collectionsCount = getDepartmentCount(allTasks, "COLLECTIONS");
+
+  useEffect(() => {
+    if (!effectiveSelectedTaskId || activeTaskDetail?.id === effectiveSelectedTaskId) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    async function loadTaskDetail(taskId: string) {
+      setDetailLoading(true);
+      setDetailError(null);
+
+      try {
+        const response = await fetch(`/api/tasks/${encodeURIComponent(taskId)}`, {
+          signal: controller.signal
+        });
+        const payload = (await response.json().catch(() => null)) as TaskDetailApiResponse;
+
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        if (!response.ok || !payload?.task) {
+          setDetailError(payload?.error ?? "Unable to load task details right now.");
+          return;
+        }
+
+        setSelectedTaskDetail(payload.task);
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setDetailError(error instanceof Error ? error.message : "Unable to load task details right now.");
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setDetailLoading(false);
+        }
+      }
+    }
+
+    void loadTaskDetail(effectiveSelectedTaskId);
+
+    return () => controller.abort();
+  }, [activeTaskDetail?.id, effectiveSelectedTaskId]);
+
+  function handleGenerateBoard() {
+    setGenerationMessage(null);
+
+    startGenerateTransition(async () => {
+      try {
+        const response = await fetch("/api/board/generate", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            boardDate
+          })
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | {
+              status?: "success" | "failed";
+              summary?: string | null;
+              error?: string;
+              errorMessage?: string | null;
+            }
+          | null;
+
+        if (!response.ok || payload?.status === "failed") {
+          setGenerationMessage(payload?.errorMessage ?? payload?.error ?? "Unable to generate the board right now.");
+          return;
+        }
+
+        setGenerationMessage(payload?.summary ?? "Board generation completed.");
+        router.refresh();
+      } catch (error) {
+        setGenerationMessage(error instanceof Error ? error.message : "Unable to generate the board right now.");
+      }
+    });
+  }
+
+  function handleQueueFilterChange(filter: QueueFilter) {
+    setActiveQueueFilter(filter);
+    setActiveDepartmentFilter(null);
+    setCurrentPage(1);
+  }
+
+  function handleDepartmentFilterChange(filter: DepartmentFilter) {
+    setActiveDepartmentFilter(filter);
+    setActiveQueueFilter("ALL");
+    setCurrentPage(1);
+  }
+
+  function handleSearchValueChange(value: string) {
+    setSearchText(value);
+    setCurrentPage(1);
+  }
+
+  function handleSelectTask(taskId: string) {
+    setSelectedTaskId(taskId);
+    setActiveTab("details");
+  }
+
+  const overviewSidebarItems: SidebarItem[] = [
+    {
+      active: false,
+      href: boardHref,
+      key: "dashboard",
+      label: "Dashboard",
+      tone: "brand"
+    },
+    {
+      active: false,
+      href: "/my-tasks",
+      key: "my-tasks",
+      label: "My Tasks",
+      badge: myTasksCount,
+      tone: "neutral"
+    },
+    {
+      active: false,
+      href: "/activity",
+      key: "my-updates",
+      label: "My Updates",
+      tone: "neutral"
+    }
+  ];
+
+  const teamSidebarItems: SidebarItem[] = [
+    {
+      active: activeQueueFilter === "ALL" && activeDepartmentFilter === null,
+      badge: allTasks.length,
+      key: "team-tasks",
+      label: "Team Tasks",
+      onClick: () => handleQueueFilterChange("ALL"),
+      tone: "brand"
+    },
+    {
+      active: activeQueueFilter === "UNASSIGNED",
+      badge: unassignedTasks.length,
+      key: "unassigned",
+      label: "Unassigned Queue",
+      onClick: () => handleQueueFilterChange("UNASSIGNED"),
+      tone: "slate"
+    },
+    {
+      active: activeQueueFilter === "BLOCKED",
+      badge: blockedTasks.length,
+      key: "blocked",
+      label: "Blocked",
+      onClick: () => handleQueueFilterChange("BLOCKED"),
+      tone: "danger"
+    },
+    {
+      active: activeQueueFilter === "WAITING_ON_PARTS",
+      badge: waitingOnPartsTasks.length,
+      key: "waiting-parts",
+      label: "Waiting on Parts",
+      onClick: () => handleQueueFilterChange("WAITING_ON_PARTS"),
+      tone: "warning"
+    },
+    {
+      active: activeQueueFilter === "WAITING_ON_APPROVAL",
+      badge: waitingOnApprovalTasks.length,
+      key: "waiting-approval",
+      label: "Waiting on Approval",
+      onClick: () => handleQueueFilterChange("WAITING_ON_APPROVAL"),
+      tone: "warning"
+    },
+    {
+      active: activeQueueFilter === "READY_FOR_REVIEW",
+      badge: readyForReviewTasks.length,
+      key: "ready-review",
+      label: "Ready for Review",
+      onClick: () => handleQueueFilterChange("READY_FOR_REVIEW"),
+      tone: "review"
+    },
+    {
+      active: activeQueueFilter === "OVERDUE",
+      badge: getQueueCount(allTasks, "OVERDUE", now, boardDate),
+      key: "overdue",
+      label: "Overdue",
+      onClick: () => handleQueueFilterChange("OVERDUE"),
+      tone: "danger"
+    },
+    {
+      active: activeQueueFilter === "COMPLETED",
+      badge: completedTodayTasks.length,
+      key: "completed",
+      label: "Completed Today",
+      onClick: () => handleQueueFilterChange("COMPLETED"),
+      tone: "success"
+    }
+  ];
+
+  const departmentSidebarItems: SidebarItem[] = [
+    {
+      active: activeDepartmentFilter === "INVENTORY",
+      badge: inventoryCount,
+      key: "inventory",
+      label: "Inventory",
+      onClick: () => handleDepartmentFilterChange("INVENTORY"),
+      tone: "slate"
+    },
+    {
+      active: activeDepartmentFilter === "SHOP",
+      badge: serviceReconCount,
+      key: "service-recon",
+      label: "Service / Recon",
+      onClick: () => handleDepartmentFilterChange("SHOP"),
+      tone: "slate"
+    },
+    {
+      active: activeDepartmentFilter === "SALES",
+      badge: salesCount,
+      key: "sales",
+      label: "Sales",
+      onClick: () => handleDepartmentFilterChange("SALES"),
+      tone: "slate"
+    },
+    {
+      active: activeDepartmentFilter === "ADVERTISING",
+      badge: marketingCount,
+      key: "marketing",
+      label: "Marketing / Advertising",
+      onClick: () => handleDepartmentFilterChange("ADVERTISING"),
+      tone: "slate"
+    },
+    {
+      active: activeDepartmentFilter === "ADMIN",
+      badge: adminCount,
+      key: "admin",
+      label: "Admin / Documentation",
+      onClick: () => handleDepartmentFilterChange("ADMIN"),
+      tone: "slate"
+    },
+    {
+      active: activeDepartmentFilter === "COLLECTIONS",
+      badge: collectionsCount,
+      key: "collections",
+      label: "Collections",
+      onClick: () => handleDepartmentFilterChange("COLLECTIONS"),
+      tone: "slate"
+    }
+  ];
+
+  function renderSidebarItem(item: SidebarItem) {
+    const className = item.active
+      ? "tasks-console-nav-item tasks-console-nav-item-active"
+      : "tasks-console-nav-item";
+    const markClassName = `tasks-console-nav-mark tasks-console-nav-mark-${item.tone}`;
+    const badgeClassName = `tasks-console-nav-badge tasks-console-nav-badge-${item.tone}`;
+    const content = (
+      <>
+        <span className={markClassName} aria-hidden="true" />
+        <span>{item.label}</span>
+        {typeof item.badge === "number" && item.badge > 0 ? (
+          <small className={badgeClassName}>{item.badge}</small>
+        ) : null}
+      </>
+    );
+
+    if (item.href) {
+      return (
+        <Link className={className} href={item.href} key={item.key}>
+          {content}
+        </Link>
+      );
+    }
+
+    return (
+      <button
+        aria-pressed={item.active}
+        className={className}
+        key={item.key}
+        onClick={item.onClick}
+        type="button"
+      >
+        {content}
+      </button>
+    );
+  }
+
+  if (errorMessage) {
+    return (
+      <section className="tasks-console-page">
+        <ErrorStateCard
+          actions={[{ label: "Open Full Board", href: boardHref }]}
+          eyebrow="Tasks unavailable"
+          message={errorMessage}
+          title="The Tasks console could not load"
+        />
+      </section>
+    );
+  }
+
+  return (
+    <section className="tasks-console-page">
+      <div className="tasks-console-header">
+        <div className="tasks-console-heading">
+          <span className="eyebrow">Enterprise Tasks Module</span>
+          <h1>Tasks</h1>
+          <p>Task Operations Console</p>
+        </div>
+
+        <label className="tasks-console-search" aria-label="Search tasks">
+          <Search size={16} />
+          <input
+            placeholder="Search tasks, vehicles, customers..."
+            value={searchText}
+            onChange={(event) => handleSearchValueChange(event.target.value)}
+          />
+        </label>
+      </div>
+
+      <div className="tasks-console-actions">
+        <div className="tasks-console-action-group">
+          <Link className="pill pill-primary tasks-console-create" href={createTaskHref}>
+            <Plus size={16} />
+            Create Task
+          </Link>
+          <button
+            className="pill pill-secondary"
+            disabled={!isManager || isGeneratePending}
+            onClick={handleGenerateBoard}
+            type="button"
+          >
+            <RefreshCw size={16} />
+            {isGeneratePending ? "Generating..." : "Generate Today's Board"}
+          </button>
+          <div className="tasks-console-date-pill">
+            <Calendar size={16} />
+            <span>{isTodayBoard ? "Today" : formatShortDate(`${boardDate}T00:00:00.000Z`)}</span>
+            <strong>{formatBoardDateLabel(boardDate)}</strong>
+          </div>
+        </div>
+
+        <div className="tasks-console-action-group tasks-console-action-group-end">
+          <button className="pill pill-secondary" disabled type="button">
+            Saved Views
+            <ChevronDown size={14} />
+          </button>
+          <button className="pill pill-secondary" disabled type="button">
+            <Filter size={15} />
+            Filters
+          </button>
+          <button className="pill pill-secondary" disabled type="button">
+            <Download size={15} />
+            Export
+          </button>
+          <button className="pill pill-secondary tasks-console-icon-pill" disabled type="button" aria-label="More actions">
+            <MoreHorizontal size={16} />
+          </button>
+        </div>
+      </div>
+
+      {generationMessage ? (
+        <div className="notice">
+          <p>{generationMessage}</p>
+        </div>
+      ) : null}
+
+      {!board ? (
+        <EmptyStateCard
+          actions={
+            isManager
+              ? [
+                  {
+                    label: "Open Full Board",
+                    href: boardHref
+                  }
+                ]
+              : []
+          }
+          eyebrow="No board yet"
+          message={
+            isManager
+              ? `No board exists for ${formatBoardDateLabel(boardDate)} yet. Use the board generation control above or open the full board to begin the day.`
+              : `No board exists for ${formatBoardDateLabel(boardDate)} yet. A manager can generate it when the team is ready.`
+          }
+          title="The Tasks console is ready, but this board has no tasks yet"
+        />
+      ) : (
+        <div className="tasks-console-shell">
+          <aside className="tasks-console-sidebar">
+            <div className="tasks-console-sidebar-brand">
+              <div className="tasks-console-sidebar-logo">TMS</div>
+              <div className="tasks-console-sidebar-copy">
+                <strong>Time Motor Sales</strong>
+                <span>Dispatch Board</span>
+              </div>
+            </div>
+
+            <div className="tasks-console-sidebar-groups">
+              <section className="tasks-console-sidebar-group">
+                <p>Overview</p>
+                <div className="tasks-console-nav-list">
+                  {overviewSidebarItems.map((item) => renderSidebarItem(item))}
+                </div>
+              </section>
+
+              <section className="tasks-console-sidebar-group">
+                <p>Team Work</p>
+                <div className="tasks-console-nav-list">
+                  {teamSidebarItems.map((item) => renderSidebarItem(item))}
+                </div>
+              </section>
+
+              <section className="tasks-console-sidebar-group">
+                <p>Departments</p>
+                <div className="tasks-console-nav-list">
+                  {departmentSidebarItems.map((item) => renderSidebarItem(item))}
+                </div>
+              </section>
+            </div>
+
+            <div className="tasks-console-sidebar-footer">
+              <button className="tasks-console-sidebar-footer-action" disabled type="button">
+                <span className="tasks-console-nav-mark tasks-console-nav-mark-brand" aria-hidden="true" />
+                <span>Create Saved View</span>
+              </button>
+              <button className="tasks-console-sidebar-footer-icon" disabled type="button" aria-label="Saved view settings">
+                <MoreHorizontal size={16} />
+              </button>
+            </div>
+          </aside>
+
+          <div className="tasks-console-main">
+            <div className="tasks-console-metrics">
+              {[
+                {
+                  label: "Total Tasks",
+                  value: allTasks.length,
+                  filter: "ALL" as const
+                },
+                {
+                  label: "Not Started",
+                  value: getQueueCount(allTasks, "NOT_STARTED", now, boardDate),
+                  filter: "NOT_STARTED" as const
+                },
+                {
+                  label: "In Progress",
+                  value: getQueueCount(allTasks, "IN_PROGRESS", now, boardDate),
+                  filter: "IN_PROGRESS" as const
+                },
+                {
+                  label: "Blocked",
+                  value: getQueueCount(allTasks, "BLOCKED", now, boardDate),
+                  filter: "BLOCKED" as const
+                },
+                {
+                  label: "Waiting",
+                  value: getQueueCount(allTasks, "WAITING", now, boardDate),
+                  filter: "WAITING" as const
+                },
+                {
+                  label: "Ready for Review",
+                  value: getQueueCount(allTasks, "READY_FOR_REVIEW", now, boardDate),
+                  filter: "READY_FOR_REVIEW" as const
+                },
+                {
+                  label: "Overdue",
+                  value: getQueueCount(allTasks, "OVERDUE", now, boardDate),
+                  filter: "OVERDUE" as const
+                }
+              ].map((metric) => {
+                const active = activeQueueFilter === metric.filter;
+
+                return (
+                  <button
+                    className={
+                      active
+                        ? `tasks-console-metric-card ${getMetricCardTone(metric.filter)} tasks-console-metric-card-active`
+                        : `tasks-console-metric-card ${getMetricCardTone(metric.filter)}`
+                    }
+                    key={metric.label}
+                    onClick={() => handleQueueFilterChange(metric.filter)}
+                    type="button"
+                  >
+                    <span>{metric.label}</span>
+                    <strong>{metric.value}</strong>
+                    <small>
+                      {metric.filter === "ALL"
+                        ? formatBoardDateLabel(boardDate)
+                        : `${getQueueFilterLabel(metric.filter)} queue`}
+                    </small>
+                  </button>
+                );
+              })}
+            </div>
+
+            <section className="panel-card tasks-console-stage">
+              <div className="tasks-console-stage-toolbar">
+                <div className="tasks-console-view-toggle" aria-label="Tasks view">
+                  <button
+                    className={activeView === "list" ? "tasks-console-view-button tasks-console-view-button-active" : "tasks-console-view-button"}
+                    onClick={() => setActiveView("list")}
+                    type="button"
+                  >
+                    <List size={15} />
+                    List View
+                  </button>
+                  <button
+                    className={activeView === "board" ? "tasks-console-view-button tasks-console-view-button-active" : "tasks-console-view-button"}
+                    onClick={() => setActiveView("board")}
+                    type="button"
+                  >
+                    <LayoutGrid size={15} />
+                    Board View
+                  </button>
+                </div>
+
+                <div className="tasks-console-stage-actions">
+                  <button className="pill pill-secondary" disabled type="button">
+                    Group by: None
+                    <ChevronDown size={14} />
+                  </button>
+                  <button className="pill pill-secondary tasks-console-icon-pill" disabled type="button" aria-label="Refresh stage">
+                    <RefreshCw size={15} />
+                  </button>
+                  <button className="pill pill-secondary" disabled type="button">
+                    <Columns3 size={15} />
+                    Columns
+                    <ChevronDown size={14} />
+                  </button>
+                  <button className="pill pill-secondary tasks-console-icon-pill" disabled type="button" aria-label="Display settings">
+                    <MoreHorizontal size={15} />
+                  </button>
+                </div>
+              </div>
+
+              {activeView === "list" ? (
+                <div className="tasks-console-table-shell">
+                  <div className="tasks-console-table-scroll">
+                    <table className="tasks-console-table">
+                      <thead>
+                        <tr>
+                          <th className="tasks-console-checkbox-column">
+                            <input aria-label="Select visible tasks" type="checkbox" />
+                          </th>
+                          <th>Priority</th>
+                          <th>Task #</th>
+                          <th>Title</th>
+                          <th>Status</th>
+                          <th>Owner</th>
+                          <th>Department</th>
+                          <th>Due Time</th>
+                          <th>Vehicle / Customer</th>
+                          <th>Age</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pagedTasks.length === 0 ? (
+                          <tr>
+                            <td className="tasks-console-table-empty" colSpan={10}>
+                              No tasks match the current view.
+                            </td>
+                          </tr>
+                        ) : (
+                          pagedTasks.map((task) => {
+                            const priority = getPriorityLabel(task, now);
+                            const active = task.id === effectiveSelectedTaskId;
+
+                            return (
+                              <tr
+                                className={active ? "tasks-console-row tasks-console-row-active" : "tasks-console-row"}
+                                key={task.id}
+                                onClick={() => handleSelectTask(task.id)}
+                              >
+                                <td className="tasks-console-checkbox-column">
+                                  <input aria-label={`Select ${task.title}`} type="checkbox" />
+                                </td>
+                                <td>
+                                  <span className={getPriorityToneClass(priority)}>{priority}</span>
+                                </td>
+                                <td className="tasks-console-task-number">
+                                  {formatTaskDisplayNumber(task.id)}
+                                </td>
+                                <td>
+                                  <div className="tasks-console-title-cell">
+                                    <strong>{task.title}</strong>
+                                    <small>{task.description ?? "Open the task for more workflow context."}</small>
+                                  </div>
+                                </td>
+                                <td>
+                                  <span className={getStatusToneClass(task.status)}>
+                                    {formatTaskEnumLabel(task.status)}
+                                  </span>
+                                </td>
+                                <td>
+                                  <div className="tasks-console-owner-cell">
+                                    <span className="tasks-console-avatar">
+                                      {task.assignedUser.name
+                                        .split(/\s+/)
+                                        .map((part) => part[0])
+                                        .join("")
+                                        .slice(0, 2)
+                                        .toUpperCase()}
+                                    </span>
+                                    <span>{task.assignedUser.name}</span>
+                                  </div>
+                                </td>
+                                <td>{getDepartmentLabel(task.workflowArea)}</td>
+                                <td>
+                                  <span className={getDueTimeToneClass(task, now)}>{formatTime(task.dueAt)}</span>
+                                </td>
+                                <td>{getTaskReference(task)}</td>
+                                <td className="tasks-console-age-cell">
+                                  {formatAgeFromTimestamp(task.updatedAt, now)}
+                                  {task.status === TaskStatus.BLOCKED || isTaskOverdue(task, now) ? (
+                                    <span className="tasks-console-age-dot" aria-hidden="true" />
+                                  ) : null}
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="tasks-console-table-footer">
+                    <span>
+                      Showing {pageCountStart} to {pageCountEnd} of {visibleTasks.length} tasks
+                    </span>
+                    <div className="tasks-console-table-footer-controls">
+                      <span>{getQueueFilterLabel(activeQueueFilter)}</span>
+                      <div className="tasks-console-pagination" aria-label="Task pages">
+                        <button
+                          className="tasks-console-page-button tasks-console-page-button-icon"
+                          disabled={activePage === 1}
+                          onClick={() => setCurrentPage(activePage - 1)}
+                          type="button"
+                        >
+                          <ChevronLeft size={14} />
+                        </button>
+                        {paginationItems.map((item, index) =>
+                          item === "ellipsis" ? (
+                            <span className="tasks-console-page-ellipsis" key={`ellipsis-${index}`}>
+                              ...
+                            </span>
+                          ) : (
+                            <button
+                              className={
+                                item === activePage
+                                  ? "tasks-console-page-button tasks-console-page-button-active"
+                                  : "tasks-console-page-button"
+                              }
+                              key={item}
+                              onClick={() => setCurrentPage(item)}
+                              type="button"
+                            >
+                              {item}
+                            </button>
+                          )
+                        )}
+                        <button
+                          className="tasks-console-page-button tasks-console-page-button-icon"
+                          disabled={activePage === totalPages}
+                          onClick={() => setCurrentPage(activePage + 1)}
+                          type="button"
+                        >
+                          <ChevronRight size={14} />
+                        </button>
+                        <button className="pill pill-secondary tasks-console-page-size" disabled type="button">
+                          10 / page
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="tasks-console-board-view">
+                  {BOARD_VIEW_STATUSES.map((status) => {
+                    const laneTasks = pagedTasks.filter((task) => task.status === status);
+
+                    return (
+                      <section className="tasks-console-lane" key={status}>
+                        <header className="tasks-console-lane-header">
+                          <strong>{formatTaskEnumLabel(status)}</strong>
+                          <span>{laneTasks.length}</span>
+                        </header>
+                        <div className="tasks-console-lane-list">
+                          {laneTasks.length === 0 ? (
+                            <div className="tasks-console-lane-empty">No tasks</div>
+                          ) : (
+                            laneTasks.map((task) => {
+                              const priority = getPriorityLabel(task, now);
+                              const active = task.id === effectiveSelectedTaskId;
+
+                              return (
+                                <button
+                                  className={
+                                    active
+                                      ? "tasks-console-lane-card tasks-console-lane-card-active"
+                                      : "tasks-console-lane-card"
+                                  }
+                                  key={task.id}
+                                  onClick={() => handleSelectTask(task.id)}
+                                  type="button"
+                                >
+                                  <div className="tasks-console-lane-card-top">
+                                    <span className={getPriorityToneClass(priority)}>{priority}</span>
+                                    <span>{formatTime(task.dueAt)}</span>
+                                  </div>
+                                  <strong>{task.title}</strong>
+                                  <small>{task.assignedUser.name}</small>
+                                  <p>{getTaskReference(task)}</p>
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      </section>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            <div className="tasks-console-summary-grid">
+              {[
+                {
+                  title: "Blocked Tasks",
+                  count: blockedTasks.length,
+                  items: blockedTasks.slice(0, 3),
+                  actionLabel: "View blocked",
+                  filter: "BLOCKED" as const
+                },
+                    {
+                      title: "Due Next 2 Hours",
+                      count: dueSoonTasks.length,
+                      items: dueSoonTasks.slice(0, 3),
+                      actionLabel: "View due soon",
+                      filter: "ALL" as const
+                    },
+                {
+                  title: "Ready for Review",
+                  count: readyForReviewTasks.length,
+                  items: readyForReviewTasks.slice(0, 3),
+                  actionLabel: "View ready",
+                  filter: "READY_FOR_REVIEW" as const
+                },
+                {
+                  title: "Unassigned Queue",
+                  count: unassignedTasks.length,
+                  items: unassignedTasks.slice(0, 3),
+                  actionLabel: "View unassigned",
+                  filter: "ALL" as const
+                }
+              ].map((card) => (
+                <section className="panel-card tasks-console-summary-card" key={card.title}>
+                  <header>
+                    <div>
+                      <strong>{card.title}</strong>
+                      <span>{card.count}</span>
+                    </div>
+                  </header>
+                  <div className="tasks-console-summary-list">
+                    {card.items.length === 0 ? (
+                      <p>
+                        {card.title === "Unassigned Queue"
+                          ? "The current task model assigns all work directly, so this queue is empty in the first pass."
+                          : "No tasks in this queue right now."}
+                      </p>
+                    ) : (
+                      card.items.map((task) => (
+                        <button
+                          className="tasks-console-summary-item"
+                          key={task.id}
+                          onClick={() => {
+                            setSelectedTaskId(task.id);
+                            handleQueueFilterChange(card.filter);
+                            setActiveTab("details");
+                          }}
+                          type="button"
+                        >
+                          <strong>{formatTaskDisplayNumber(task.id)}</strong>
+                          <span>{task.title}</span>
+                          <small>{task.assignedUser.name} | {formatTime(task.dueAt)}</small>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                  <button
+                    className="tasks-console-summary-link"
+                    onClick={() => handleQueueFilterChange(card.filter)}
+                    type="button"
+                  >
+                    {card.actionLabel}
+                  </button>
+                </section>
+              ))}
+            </div>
+          </div>
+
+          <aside className="panel-card tasks-console-rail">
+            {selectedBoardTask ? (
+              <>
+                <div className="tasks-console-rail-header">
+                  <div className="tasks-console-rail-record">
+                    <div className="tasks-console-rail-record-badges">
+                      <span>{formatTaskDisplayNumber(selectedBoardTask.id)}</span>
+                      <span className={getStatusToneClass(selectedBoardTask.status)}>
+                        {formatTaskEnumLabel(selectedBoardTask.status)}
+                      </span>
+                    </div>
+                    <div className="tasks-console-rail-record-actions">
+                      <button className="tasks-console-rail-icon-button" type="button" aria-label="Collapse task panel">
+                        <ChevronDown size={15} />
+                      </button>
+                      <button className="tasks-console-rail-icon-button" type="button" aria-label="Close task panel">
+                        <X size={15} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="tasks-console-rail-title">
+                    <h2>{selectedBoardTask.title}</h2>
+                    <p>{getTaskReference(selectedBoardTask)}</p>
+                  </div>
+                </div>
+
+                <div className="tasks-console-rail-tabs" aria-label="Task detail tabs">
+                  {([
+                    {
+                      value: "details",
+                      label: "Details"
+                    },
+                    {
+                      value: "comments",
+                      label: `Comments${activeTaskDetail ? ` (${activeTaskDetail.comments.length})` : ""}`
+                    },
+                    {
+                      value: "activity",
+                      label: "Activity"
+                    }
+                  ] as Array<{ value: TasksConsoleTab; label: string }>).map((tab) => (
+                    <button
+                      className={
+                        activeTab === tab.value
+                          ? "tasks-console-rail-tab tasks-console-rail-tab-active"
+                          : "tasks-console-rail-tab"
+                      }
+                      key={tab.value}
+                      onClick={() => setActiveTab(tab.value)}
+                      type="button"
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {detailLoading ? (
+                  <div className="tasks-console-rail-state">
+                    <p>Loading task details...</p>
+                  </div>
+                ) : null}
+
+                {detailError ? (
+                  <div className="notice notice-danger">
+                    <p>{detailError}</p>
+                  </div>
+                ) : null}
+
+                {!detailLoading && activeTab === "details" ? (
+                  <div className="tasks-console-rail-panel">
+                    <div className="tasks-console-rail-field-grid">
+                      {activeTaskDetail ? (
+                        <>
+                          <div className="tasks-console-rail-field" key="status">
+                            <span>Status</span>
+                            <strong>
+                              <span className={getStatusToneClass(activeTaskDetail.status)}>
+                                {formatTaskEnumLabel(activeTaskDetail.status)}
+                              </span>
+                            </strong>
+                          </div>
+                          <div className="tasks-console-rail-field" key="priority">
+                            <span>Priority</span>
+                            <strong>
+                              <span className={getPriorityToneClass(activeTaskPriority ?? "Low")}>
+                                {activeTaskPriority ?? "Low"}
+                              </span>
+                            </strong>
+                          </div>
+                        </>
+                      ) : null}
+                      {rightRailFields.map((field) => (
+                        <div className="tasks-console-rail-field" key={field.label}>
+                          <span>{field.label}</span>
+                          <strong>{field.value}</strong>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="tasks-console-rail-block">
+                      <span>Blocker Reason</span>
+                      <p>
+                        {activeTaskDetail?.blockerReason ??
+                          "No blocker reason is recorded on this task right now."}
+                      </p>
+                    </div>
+
+                    <div className="tasks-console-rail-block">
+                      <span>Next Step</span>
+                      <p>{buildNextStepCopy(activeTaskDetail)}</p>
+                    </div>
+
+                    <div className="tasks-console-rail-vehicle-card">
+                      <div>
+                        <span>Vehicle / Customer</span>
+                        <strong>{getTaskReference(selectedBoardTask)}</strong>
+                        {activeTaskDetail?.vehicleReference ? (
+                          <small>Linked vehicle: {activeTaskDetail.vehicleReference}</small>
+                        ) : null}
+                        {activeTaskDetail?.customerReference ? (
+                          <small>Linked customer: {activeTaskDetail.customerReference}</small>
+                        ) : null}
+                      </div>
+                      <div className="tasks-console-vehicle-placeholder">No image linked</div>
+                    </div>
+
+                    <div className="tasks-console-rail-subtasks">
+                      <div className="tasks-console-rail-subtasks-header">
+                        <span>
+                          Subtasks ({completedSubtaskCount}/{subtasks.length})
+                        </span>
+                        <strong>
+                          {subtasks.length > 0
+                            ? `${Math.round((completedSubtaskCount / subtasks.length) * 100)}%`
+                            : "0%"}
+                        </strong>
+                      </div>
+                      <div className="tasks-console-progress">
+                        <div
+                          className="tasks-console-progress-bar"
+                          style={{
+                            width:
+                              subtasks.length > 0
+                                ? `${(completedSubtaskCount / subtasks.length) * 100}%`
+                                : "0%"
+                          }}
+                        />
+                      </div>
+                      <div className="tasks-console-checklist">
+                        {subtasks.slice(0, 3).map((item) => (
+                          <label className="tasks-console-checklist-item" key={item.id}>
+                            <input checked={item.completed} readOnly type="checkbox" />
+                            <span>{item.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {!detailLoading && activeTab === "comments" ? (
+                  <div className="tasks-console-rail-panel">
+                    {activeTaskDetail?.comments.length ? (
+                      <div className="tasks-console-feed-list">
+                        {activeTaskDetail.comments.map((comment) => (
+                          <article className="tasks-console-feed-item" key={comment.id}>
+                            <div className="tasks-console-feed-meta">
+                              <strong>{comment.author.name}</strong>
+                              <span>{formatDateTime(comment.createdAt)}</span>
+                            </div>
+                            <p>{comment.body}</p>
+                          </article>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="tasks-console-rail-state">
+                        <p>No comments have been posted on this task yet.</p>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+
+                {!detailLoading && activeTab === "activity" ? (
+                  <div className="tasks-console-rail-panel">
+                    {detailTimeline.length ? (
+                      <div className="tasks-console-feed-list">
+                        {detailTimeline.map((entry) => (
+                          <article className="tasks-console-feed-item" key={entry.id}>
+                            <div className="tasks-console-feed-meta">
+                              <strong>{entry.actorName}</strong>
+                              <span>{formatDateTime(entry.createdAt)}</span>
+                            </div>
+                            <p>{entry.body}</p>
+                          </article>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="tasks-console-rail-state">
+                        <p>No activity is available for this task yet.</p>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+
+                <div className="tasks-console-rail-actions">
+                  <Link className="pill pill-secondary" href={createTaskDetailHref(selectedBoardTask.id)}>
+                    Edit
+                  </Link>
+                  <Link className="pill pill-secondary" href={boardHref}>
+                    Reassign
+                  </Link>
+                  <Link className="pill pill-primary" href={createTaskDetailHref(selectedBoardTask.id)}>
+                    Update Status
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <div className="tasks-console-rail-state">
+                <p>Select a task to inspect details, comments, activity, and execution progress.</p>
+              </div>
+            )}
+          </aside>
+        </div>
+      )}
+    </section>
+  );
+}
