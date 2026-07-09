@@ -105,6 +105,7 @@ npm run build
 - Setup: [docs/SETUP.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/SETUP.md)
 - Architecture: [docs/ARCHITECTURE.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/ARCHITECTURE.md)
 - Roadmap: [docs/ROADMAP.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/ROADMAP.md)
+- Projects module guide: [docs/projects/PROJECTS_MODULE_GUIDE.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/projects/PROJECTS_MODULE_GUIDE.md)
 - Scheduler verification contract: [docs/SCHEDULER_VERIFICATION_CONTRACT.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/SCHEDULER_VERIFICATION_CONTRACT.md)
 - Production scheduler task prompts: [docs/PRODUCTION_SCHEDULER_TASK_PROMPTS.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/PRODUCTION_SCHEDULER_TASK_PROMPTS.md)
 - Enterprise Appointment program: [docs/appointments/README.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/appointments/README.md)

@@ -6,6 +6,8 @@
 
 > **Enterprise Appointment Program:** The Appointment Command Center has an approved Enterprise Release 1.0 planning package in [`docs/appointments/README.md`](appointments/README.md). That package supersedes MVP-level appointment assumptions in this roadmap for the Appointment feature only. It remains planned work until its implementation milestones are completed.
 
+> **Projects Module planning package:** The Projects Hub and Project Workspace roadmap now has a dedicated module guide in [`docs/projects/PROJECTS_MODULE_GUIDE.md`](projects/PROJECTS_MODULE_GUIDE.md). Use that document for project-module scope, boundaries, milestone IDs, and implementation guardrails so Projects work does not drift into a full Dispatch Board rewrite.
+
 ---
 
 ## How to use this roadmap

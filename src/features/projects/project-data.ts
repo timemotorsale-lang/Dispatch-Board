@@ -12,11 +12,19 @@ export type ProjectStats = {
   overdue: number;
 };
 
+export type ProjectHealth = {
+  score: number;
+  tone: "good" | "watch" | "risk";
+  label: string;
+  reason: string;
+};
+
 export type ProjectCardSummary = {
   project: ProjectDefinition;
   tasks: ProjectTaskLike[];
   stats: ProjectStats;
   owner: string | null;
+  health: ProjectHealth;
 };
 
 export type ProjectStageColumn = {
@@ -65,7 +73,52 @@ function isDocumentationTask(task: ProjectTaskLike) {
   ]);
 }
 
+function isCustomerIssueTask(task: ProjectTaskLike) {
+  return taskMatchesKeywords(task, [
+    "customer issue",
+    "complaint",
+    "upset",
+    "bad review",
+    "escalation",
+    "escalate"
+  ]);
+}
+
+function isRentalLoanerTask(task: ProjectTaskLike) {
+  return taskMatchesKeywords(task, [
+    "rental",
+    "loaner",
+    "courtesy vehicle",
+    "borrower",
+    "lender car"
+  ]);
+}
+
+function isManagementReviewTask(task: ProjectTaskLike) {
+  return taskMatchesKeywords(task, [
+    "manager review",
+    "management review",
+    "needs review",
+    "approval",
+    "approve",
+    "escalation review",
+    "executive review"
+  ]);
+}
+
 export function getProjectSlugForTask(task: ProjectTaskLike) {
+  if (isRentalLoanerTask(task)) {
+    return "rentals-loaners";
+  }
+
+  if (isCustomerIssueTask(task)) {
+    return "customer-issues";
+  }
+
+  if (task.workflowArea === "GENERAL_MANAGER" || isManagementReviewTask(task)) {
+    return "management-review";
+  }
+
   if (task.workflowArea === "INVENTORY") {
     return "inventory-management";
   }
@@ -145,6 +198,60 @@ export function getProjectStats(tasks: ProjectTaskLike[]): ProjectStats {
   );
 }
 
+export function getProjectHealth(tasks: ProjectTaskLike[]): ProjectHealth {
+  const stats = getProjectStats(tasks);
+
+  if (!tasks.length) {
+    return {
+      score: 100,
+      tone: "good",
+      label: "Ready",
+      reason: "No project-linked work is on today's board yet."
+    };
+  }
+
+  let score = 100;
+  score -= Math.min(42, stats.blocked * 12);
+  score -= Math.min(30, stats.overdue * 9);
+  score -= Math.min(16, stats.readyForReview * 4);
+  score -= Math.min(12, stats.waiting * 3);
+  score = Math.max(18, score);
+
+  if (score >= 80) {
+    return {
+      score,
+      tone: "good",
+      label: "Healthy",
+      reason:
+        stats.blocked || stats.overdue
+          ? "Pressure is present, but the project is still moving cleanly."
+          : "No blocked or overdue work is currently dragging this project."
+    };
+  }
+
+  if (score >= 60) {
+    return {
+      score,
+      tone: "watch",
+      label: "Watch",
+      reason:
+        stats.blocked
+          ? `${stats.blocked} blocked item${stats.blocked === 1 ? "" : "s"} need intervention.`
+          : "Review and waiting work are starting to stack up."
+    };
+  }
+
+  return {
+    score,
+    tone: "risk",
+    label: "At risk",
+    reason:
+      stats.overdue
+        ? `${stats.overdue} overdue item${stats.overdue === 1 ? "" : "s"} are pulling health down.`
+        : "Blocked and waiting work now needs leadership attention."
+  };
+}
+
 export function getProjectOwner(tasks: ProjectTaskLike[]) {
   const owners = new Map<string, number>();
 
@@ -166,7 +273,8 @@ export function listProjectCardSummaries(tasks: ProjectTaskLike[]): ProjectCardS
       project,
       tasks: projectTasks,
       stats: getProjectStats(projectTasks),
-      owner: getProjectOwner(projectTasks)
+      owner: getProjectOwner(projectTasks),
+      health: getProjectHealth(projectTasks)
     };
   });
 }
@@ -184,7 +292,8 @@ export function getProjectCardSummary(tasks: ProjectTaskLike[], projectSlug: str
     project,
     tasks: projectTasks,
     stats: getProjectStats(projectTasks),
-    owner: getProjectOwner(projectTasks)
+    owner: getProjectOwner(projectTasks),
+    health: getProjectHealth(projectTasks)
   };
 }
 
