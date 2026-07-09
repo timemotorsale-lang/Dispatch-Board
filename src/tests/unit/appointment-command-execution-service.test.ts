@@ -146,16 +146,21 @@ function createCommandRepositoryHarness(input?: {
 function createLifecycleRepositoryHarness() {
   const completedCommands: string[] = [];
   const committedReservationCandidateCounts: number[] = [];
+  const createdAppointments: Array<{ id: string; appointmentNumber: string; version: number }> = [];
+  const createdTasks: Array<{ id: string; title: string; boardDayId: string }> = [];
 
   const repository: AppointmentLifecycleTransactionRepository = {
     async withLifecycleTransaction(operation) {
       return operation({
         async createAppointment(effect) {
-          return {
+          const created = {
             id: "appointment-created",
             appointmentNumber: effect.values.appointmentNumber,
             version: 1
           };
+
+          createdAppointments.push(created);
+          return created;
         },
 
         async updateAppointment(effect) {
@@ -175,8 +180,15 @@ function createLifecycleRepositoryHarness() {
           return [];
         },
 
-        async createTasks() {
-          return [];
+        async createTasks(effects) {
+          const records = effects.map((effect, index) => ({
+            id: `task-${index + 1}`,
+            title: effect.title,
+            boardDayId: `board-day-${index + 1}`
+          }));
+
+          createdTasks.push(...records);
+          return records;
         },
 
         async createTaskLinks() {
@@ -208,6 +220,8 @@ function createLifecycleRepositoryHarness() {
   return {
     completedCommands,
     committedReservationCandidateCounts,
+    createdAppointments,
+    createdTasks,
     repository
   };
 }
@@ -800,6 +814,8 @@ describe("appointment command execution service", () => {
       commandType: string;
       taskAutomationCount: number;
       appointmentAutomationCount: number;
+      generatedTaskIds: string[];
+      generatedAppointmentIds: string[];
     }> = [];
 
     const result = await submitAndExecuteAppointmentCommand(
@@ -828,7 +844,11 @@ describe("appointment command execution service", () => {
             appointmentId: input.appointmentId,
             commandType: input.commandType,
             taskAutomationCount: input.plan.taskCreateEffects?.length ?? 0,
-            appointmentAutomationCount: input.plan.appointmentCreateEffects?.length ?? 0
+            appointmentAutomationCount: input.plan.appointmentCreateEffects?.length ?? 0,
+            generatedTaskIds: input.execution.createdTasks.map((task) => task.id),
+            generatedAppointmentIds: input.execution.createdAppointments.map(
+              (appointment) => appointment.id
+            )
           });
         },
         now
@@ -843,7 +863,9 @@ describe("appointment command execution service", () => {
         appointmentId: "appointment-1",
         commandType: "COMPLETE",
         taskAutomationCount: 1,
-        appointmentAutomationCount: 1
+        appointmentAutomationCount: 1,
+        generatedTaskIds: ["task-1"],
+        generatedAppointmentIds: ["appointment-created"]
       }
     ]);
   });

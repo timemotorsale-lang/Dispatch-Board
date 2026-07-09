@@ -31,6 +31,7 @@ type AutomationContextLike = {
   sourceReference?: string | null;
   sourceTaskId?: string | null;
   sourceTaskTitle?: string | null;
+  generatedAppointmentId?: string | null;
   generatedAppointmentNumber?: string | null;
   generatedAppointmentTitle?: string | null;
   generatedTaskId?: string | null;
@@ -65,6 +66,14 @@ function executionResultLabel(
 ) {
   if (!execution) {
     return "No generated result recorded yet.";
+  }
+
+  if (execution.generatedAppointmentId && execution.generatedAppointmentNumber) {
+    const appointmentLabel = `${execution.generatedAppointmentNumber} (${execution.generatedAppointmentId})`;
+
+    return execution.generatedAppointmentTitle
+      ? `${appointmentLabel} Â· ${execution.generatedAppointmentTitle}`
+      : appointmentLabel;
   }
 
   if (execution.generatedAppointmentNumber) {

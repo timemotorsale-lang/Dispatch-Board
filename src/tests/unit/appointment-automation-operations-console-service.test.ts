@@ -327,6 +327,7 @@ describe("appointment automation operations console service", () => {
           automationRuleVersion: 2,
           sourceTaskId: "task-1",
           sourceTaskTitle: "Call lender and verify packet",
+          generatedAppointmentId: "appointment-generated-1",
           generatedAppointmentNumber: "APT-TASK-AUTO-001",
           generatedAppointmentTitle: "Blocked task review: Call lender and verify packet"
         }
@@ -339,6 +340,7 @@ describe("appointment automation operations console service", () => {
     expect(console.executions[0]).toMatchObject({
       sourceTaskId: "task-1",
       sourceTaskTitle: "Call lender and verify packet",
+      generatedAppointmentId: "appointment-generated-1",
       generatedAppointmentNumber: "APT-TASK-AUTO-001",
       generatedAppointmentTitle: "Blocked task review: Call lender and verify packet"
     });
@@ -347,6 +349,7 @@ describe("appointment automation operations console service", () => {
       automationRuleCode: "RULE-BLOCKED-TASK-REVIEW",
       sourceTaskId: "task-1",
       sourceTaskTitle: "Call lender and verify packet",
+      generatedAppointmentId: "appointment-generated-1",
       generatedAppointmentNumber: "APT-TASK-AUTO-001"
     });
   });

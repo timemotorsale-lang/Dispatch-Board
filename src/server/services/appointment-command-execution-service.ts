@@ -88,6 +88,7 @@ async function recordLifecycleAutomationExecutions(input: {
   appointmentId: string | null;
   commandType: AppointmentLifecycleExecutionCommand;
   plan: ReturnType<typeof planAppointmentLifecycleCommandExecution>;
+  execution: AppointmentLifecycleTransactionResult;
 }) {
   const runtimeReason = "Record runtime automation execution after command completion.";
   const sourceReference = input.appointmentId ?? input.appointment?.id ?? null;
@@ -95,8 +96,10 @@ async function recordLifecycleAutomationExecutions(input: {
   const appointmentCreateEffects = input.plan.appointmentCreateEffects ?? [];
 
   const records = [
-    ...taskCreateEffects.map((effect) =>
-      recordAppointmentAutomationExecution({
+    ...taskCreateEffects.map((effect, index) => {
+      const createdTask = input.execution.createdTasks[index] ?? null;
+
+      return recordAppointmentAutomationExecution({
         ruleCode: effect.automationRuleCode,
         triggerCode: effect.triggerCode,
         sourceType: "APPOINTMENT",
@@ -108,21 +111,27 @@ async function recordLifecycleAutomationExecutions(input: {
           automationRuleCode: effect.automationRuleCode,
           commandType: input.commandType,
           sourceAppointmentId: sourceReference,
-          sourceAppointmentNumber: input.appointment?.appointmentNumber ?? null,
+          sourceAppointmentNumber: input.execution.appointment?.appointmentNumber ??
+            input.appointment?.appointmentNumber ??
+            null,
           followUpLinkCode: effect.linkCode
         },
         resultSnapshot: {
           automationRuleCode: effect.automationRuleCode,
-          generatedTaskTitle: effect.title,
+          generatedTaskId: createdTask?.id ?? null,
+          generatedTaskTitle: createdTask?.title ?? effect.title,
           generatedTaskBoardDate: effect.boardDate,
+          generatedTaskBoardDayId: createdTask?.boardDayId ?? null,
           workflowArea: effect.workflowArea,
           templateBlueprintCode: effect.templateBlueprintCode,
           creationTiming: effect.creationTiming
         }
-      })
-    ),
-    ...appointmentCreateEffects.map((effect) =>
-      recordAppointmentAutomationExecution({
+      });
+    }),
+    ...appointmentCreateEffects.map((effect, index) => {
+      const createdAppointment = input.execution.createdAppointments[index] ?? null;
+
+      return recordAppointmentAutomationExecution({
         ruleCode:
           purposeCodeFromSnapshot(effect.values.purposeSnapshot) === "FOLLOW_UP_APPOINTMENT"
             ? "APPOINTMENT_OUTCOME_FOLLOW_UP_APPOINTMENT"
@@ -138,15 +147,20 @@ async function recordLifecycleAutomationExecutions(input: {
           automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_APPOINTMENT",
           commandType: input.commandType,
           sourceAppointmentId: sourceReference,
-          sourceAppointmentNumber: input.appointment?.appointmentNumber ?? null
+          sourceAppointmentNumber:
+            input.execution.appointment?.appointmentNumber ??
+            input.appointment?.appointmentNumber ??
+            null
         },
         resultSnapshot: {
           automationRuleCode: "APPOINTMENT_OUTCOME_FOLLOW_UP_APPOINTMENT",
-          generatedAppointmentNumber: effect.values.appointmentNumber,
+          generatedAppointmentId: createdAppointment?.id ?? null,
+          generatedAppointmentNumber:
+            createdAppointment?.appointmentNumber ?? effect.values.appointmentNumber,
           generatedAppointmentTitle: effect.values.title
         }
-      })
-    )
+      });
+    })
   ];
 
   if (records.length === 0) {
@@ -393,7 +407,8 @@ export async function submitAndExecuteAppointmentCommand(
       appointment,
       appointmentId: execution.appointment?.id ?? appointment?.id ?? null,
       commandType: submitted.command.commandType,
-      plan
+      plan,
+      execution
     });
   }
 

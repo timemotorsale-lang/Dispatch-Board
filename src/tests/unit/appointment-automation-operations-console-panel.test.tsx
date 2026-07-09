@@ -60,6 +60,7 @@ describe("appointment automation operations console panel", () => {
           automationRuleVersion: 2,
           sourceTaskId: "task-1",
           sourceTaskTitle: "Call lender and verify packet",
+          generatedAppointmentId: "appointment-generated-1",
           generatedAppointmentNumber: "APT-TASK-AUTO-001",
           generatedAppointmentTitle: "Blocked task review: Call lender and verify packet",
           retryReplayAction: "REPLAY"
@@ -78,7 +79,7 @@ describe("appointment automation operations console panel", () => {
     );
 
     expect(markup).toContain("Call lender and verify packet (task-1)");
-    expect(markup).toContain("APT-TASK-AUTO-001");
+    expect(markup).toContain("APT-TASK-AUTO-001 (appointment-generated-1)");
     expect(markup).toContain("Generated result");
     expect(markup).toContain("Last recovery action: Replay");
   });

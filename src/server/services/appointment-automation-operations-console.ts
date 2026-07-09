@@ -529,6 +529,7 @@ function summarizeExecution(execution: AppointmentAutomationExecutionRecord) {
     sourceReference: execution.sourceReference,
     sourceTaskId: stringFromSnapshots("sourceTaskId"),
     sourceTaskTitle: stringFromSnapshots("sourceTaskTitle"),
+    generatedAppointmentId: stringFromSnapshots("generatedAppointmentId"),
     generatedAppointmentNumber: stringFromSnapshots(
       "generatedAppointmentNumber",
       "generatedFollowUpAppointmentNumber",
@@ -607,6 +608,7 @@ function summarizeEvent(event: AppointmentAutomationEventRecord) {
     sourceReference: stringFromSnapshots("sourceReference"),
     sourceTaskId: stringFromSnapshots("sourceTaskId"),
     sourceTaskTitle: stringFromSnapshots("sourceTaskTitle"),
+    generatedAppointmentId: stringFromSnapshots("generatedAppointmentId"),
     generatedAppointmentNumber: stringFromSnapshots(
       "generatedAppointmentNumber",
       "generatedFollowUpAppointmentNumber",
