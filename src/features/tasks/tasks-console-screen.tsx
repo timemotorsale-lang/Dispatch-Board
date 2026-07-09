@@ -1136,6 +1136,7 @@ export function TasksConsoleScreen({
                           pagedTasks.map((task) => {
                             const priority = getPriorityLabel(task, now);
                             const active = task.id === effectiveSelectedTaskId;
+                            const taskReference = getTaskReference(task);
 
                             return (
                               <tr
@@ -1172,14 +1173,16 @@ export function TasksConsoleScreen({
                                         .slice(0, 2)
                                         .toUpperCase()}
                                     </span>
-                                    <span>{task.assignedUser.name}</span>
+                                    <span className="tasks-console-owner-name">{task.assignedUser.name}</span>
                                   </div>
                                 </td>
-                                <td>{getDepartmentLabel(task.workflowArea)}</td>
-                                <td>
+                                <td className="tasks-console-department-cell">{getDepartmentLabel(task.workflowArea)}</td>
+                                <td className="tasks-console-due-cell">
                                   <span className={getDueTimeToneClass(task, now)}>{formatTime(task.dueAt)}</span>
                                 </td>
-                                <td>{getTaskReference(task)}</td>
+                                <td className="tasks-console-vehicle-cell" title={taskReference}>
+                                  <span>{taskReference}</span>
+                                </td>
                                 <td className="tasks-console-age-cell">
                                   {formatAgeFromTimestamp(task.updatedAt, now)}
                                   {task.status === TaskStatus.BLOCKED || isTaskOverdue(task, now) ? (

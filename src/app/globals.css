@@ -2792,29 +2792,77 @@ code {
 
 .tasks-console-table {
   width: 100%;
-  min-width: 980px;
+  min-width: 920px;
   border-collapse: collapse;
+  table-layout: fixed;
   background: #fff;
 }
 
 .tasks-console-table th,
 .tasks-console-table td {
-  padding: 0.5rem 0.55rem;
+  padding: 0.34rem 0.42rem;
   border-bottom: 1px solid #edf1f6;
   text-align: left;
   vertical-align: middle;
+  line-height: 1.1;
 }
 
 .tasks-console-table th {
   color: #6a7b90;
-  font-size: 0.68rem;
+  font-size: 0.6rem;
   font-weight: 800;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.045em;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .tasks-console-table td {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
+}
+
+.tasks-console-table th:nth-child(2),
+.tasks-console-table td:nth-child(2) {
+  width: 4.6rem;
+}
+
+.tasks-console-table th:nth-child(3),
+.tasks-console-table td:nth-child(3) {
+  width: 4.9rem;
+}
+
+.tasks-console-table th:nth-child(4),
+.tasks-console-table td:nth-child(4) {
+  width: 30%;
+}
+
+.tasks-console-table th:nth-child(5),
+.tasks-console-table td:nth-child(5) {
+  width: 5.9rem;
+}
+
+.tasks-console-table th:nth-child(6),
+.tasks-console-table td:nth-child(6) {
+  width: 7.4rem;
+}
+
+.tasks-console-table th:nth-child(7),
+.tasks-console-table td:nth-child(7) {
+  width: 6rem;
+}
+
+.tasks-console-table th:nth-child(8),
+.tasks-console-table td:nth-child(8) {
+  width: 4rem;
+}
+
+.tasks-console-table th:nth-child(9),
+.tasks-console-table td:nth-child(9) {
+  width: 11rem;
+}
+
+.tasks-console-table th:nth-child(10),
+.tasks-console-table td:nth-child(10) {
+  width: 3.2rem;
 }
 
 .tasks-console-row {
@@ -2846,8 +2894,10 @@ code {
 .tasks-console-title-cell strong {
   display: block;
   overflow: hidden;
-  font-size: 0.8rem;
+  font-size: 0.74rem;
+  letter-spacing: 0.025em;
   text-overflow: ellipsis;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -2869,25 +2919,36 @@ code {
 .tasks-console-task-number {
   color: #1757c7;
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .tasks-console-owner-cell {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.32rem;
   min-width: 0;
+}
+
+.tasks-console-owner-name,
+.tasks-console-department-cell,
+.tasks-console-due-cell,
+.tasks-console-vehicle-cell span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tasks-console-avatar {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.35rem;
-  height: 1.35rem;
+  width: 1.18rem;
+  height: 1.18rem;
   color: #fff;
   background: linear-gradient(135deg, #8b5cf6, #2563eb);
   border-radius: 999px;
-  font-size: 0.58rem;
+  font-size: 0.5rem;
   font-weight: 800;
 }
 
@@ -2896,11 +2957,11 @@ code {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 1.25rem;
-  padding: 0 0.42rem;
+  min-height: 1.05rem;
+  padding: 0 0.34rem;
   border: 1px solid transparent;
   border-radius: 999px;
-  font-size: 0.63rem;
+  font-size: 0.57rem;
   font-weight: 800;
   white-space: nowrap;
 }
@@ -2965,8 +3026,8 @@ code {
 }
 
 .tasks-console-checkbox-column {
-  width: 1.55rem;
-  padding-inline: 0.32rem !important;
+  width: 1.35rem;
+  padding-inline: 0.24rem !important;
 }
 
 .tasks-console-checkbox-column input,
@@ -2979,6 +3040,7 @@ code {
 .tasks-console-due-time {
   color: #132238;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .tasks-console-due-time-danger {
