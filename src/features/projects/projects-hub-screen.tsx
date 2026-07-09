@@ -396,6 +396,18 @@ function getRecentActivityTitle(event: ActivityFeedEvent) {
   return "Project activity";
 }
 
+function getActivityEventHref(event: ActivityFeedEvent) {
+  if (event.task) {
+    return `/tasks/${event.task.id}`;
+  }
+
+  if (event.appointment) {
+    return "/appointments";
+  }
+
+  return "/activity";
+}
+
 function getAttentionIconTone(tone: AttentionItem["tone"]) {
   if (tone === "risk") {
     return TriangleAlert;
@@ -1066,6 +1078,17 @@ export function ProjectsHubScreen({
                 <span>Needs your attention</span>
                 <h2>Focus next</h2>
               </div>
+              <Link
+                className="projects-hub-support-link"
+                href={buildProjectsHubHref({
+                  filter: "attention",
+                  focus: selectedFocus === "all" ? "overdue" : selectedFocus,
+                  query: rawQuery ?? "",
+                  view: "list"
+                })}
+              >
+                View all
+              </Link>
             </div>
             {attentionItems.length ? (
               <div className="projects-hub-attention-list">
@@ -1105,18 +1128,25 @@ export function ProjectsHubScreen({
                 <span>Recent activity</span>
                 <h2>What changed</h2>
               </div>
+              <Link className="projects-hub-support-link" href="/activity">
+                View all
+              </Link>
             </div>
             {compactActivity.length ? (
               <div className="projects-hub-activity-list">
                 {compactActivity.map((event) => (
-                  <article className="projects-hub-activity-item" key={event.id}>
+                  <Link
+                    className="projects-hub-activity-item"
+                    href={getActivityEventHref(event)}
+                    key={event.id}
+                  >
                     <div className="projects-hub-rail-icon projects-hub-rail-icon-activity">
                       <Activity size={15} />
                     </div>
                     <strong className="projects-hub-activity-title">{getRecentActivityTitle(event)}</strong>
                     <span className="projects-hub-activity-actor">{event.actor?.name ?? "System"}</span>
                     <small>{formatCompactTime(event.createdAt)}</small>
-                  </article>
+                  </Link>
                 ))}
               </div>
             ) : (
