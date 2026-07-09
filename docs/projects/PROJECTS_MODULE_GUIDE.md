@@ -122,6 +122,11 @@ Today, Projects is a UI shell layered on top of the Dispatch Board task system. 
 
 ## 5. Product direction from the approved UI concept
 
+Visual source of truth for the Projects Hub:
+
+- [`docs/projects/PROJECTS_UI_SOURCE_OF_TRUTH.md`](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/projects/PROJECTS_UI_SOURCE_OF_TRUTH.md)
+- [`docs/images/PROJECTS_HUB_SOURCE_OF_TRUTH.png`](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/images/PROJECTS_HUB_SOURCE_OF_TRUTH.png)
+
 The attached concept points to the right product shape for the module:
 
 - a Projects Hub that feels like a command center, not a generic settings page

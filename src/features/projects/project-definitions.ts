@@ -1,10 +1,13 @@
 import {
+  CarFront,
   Briefcase,
+  CircleAlert,
   FileCheck2,
   FolderKanban,
   type LucideIcon,
   Megaphone,
   ReceiptText,
+  ShieldCheck,
   ShoppingCart,
   Wrench
 } from "lucide-react";
@@ -168,6 +171,51 @@ export const projectDefinitions: ProjectDefinition[] = [
       { label: "Arrangement", keywords: ["arrangement", "payment plan"] },
       { label: "Paid", keywords: ["paid", "payment received"] },
       { label: "Escalate", keywords: ["escalate", "urgent"] }
+    ]
+  },
+  {
+    slug: "customer-issues",
+    name: "Customer Issues",
+    shortName: "Issues",
+    description: "Escalate complaints, save deals, and keep resolution work visible.",
+    workflowAreas: ["ADMIN", "SALES", "GENERAL_MANAGER"],
+    icon: CircleAlert,
+    accent: "red",
+    stages: [
+      { label: "Reported", keywords: ["issue", "complaint", "reported"] },
+      { label: "Investigating", keywords: ["investigating", "research", "review"] },
+      { label: "Waiting Response", keywords: ["waiting", "response", "follow up"] },
+      { label: "Resolved", keywords: ["resolved", "complete", "completed"] }
+    ]
+  },
+  {
+    slug: "rentals-loaners",
+    name: "Rentals / Loaners",
+    shortName: "Loaners",
+    description: "Track loaner readiness, handoff, return, and service follow-through.",
+    workflowAreas: ["SERVICE", "SHOP", "ADMIN"],
+    icon: CarFront,
+    accent: "blue",
+    stages: [
+      { label: "Requested", keywords: ["rental", "loaner", "requested"] },
+      { label: "Ready", keywords: ["ready", "prepared"] },
+      { label: "Out", keywords: ["checked out", "out"] },
+      { label: "Return / Inspect", keywords: ["return", "inspect"] }
+    ]
+  },
+  {
+    slug: "management-review",
+    name: "Management Review",
+    shortName: "Review",
+    description: "Keep approvals, escalations, and leadership follow-up in one lane.",
+    workflowAreas: ["GENERAL_MANAGER", "ADMIN"],
+    icon: ShieldCheck,
+    accent: "slate",
+    stages: [
+      { label: "Needs Review", keywords: ["review", "manager review", "approval"] },
+      { label: "Waiting Decision", keywords: ["decision", "waiting approval"] },
+      { label: "Approved", keywords: ["approved"] },
+      { label: "Closed", keywords: ["closed", "complete", "completed"] }
     ]
   }
 ];

@@ -24,6 +24,8 @@ export function AppTopbar({ onMenuOpen, user }: AppTopbarProps) {
   const item = navigationGroups.flatMap((group) => group.items).find((entry) => pathname === entry.href || pathname.startsWith(`${entry.href}/`));
   const title = pathname === "/board" ? "Time Motor Sales Dispatch Board" : item?.title ?? "Dispatch Board";
   const isMyTasksPage = pathname === "/my-tasks";
+  const isProjectsPage = pathname === "/projects" || pathname.startsWith("/projects/");
+  const isCompactTopbar = isMyTasksPage || isProjectsPage;
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
@@ -93,9 +95,9 @@ export function AppTopbar({ onMenuOpen, user }: AppTopbarProps) {
   }, [isSearchOpen]);
 
   return (
-    <header className={isMyTasksPage ? "app-topbar app-topbar-minimal" : "app-topbar"}>
+    <header className={isCompactTopbar ? "app-topbar app-topbar-minimal" : "app-topbar"}>
       <button className="topbar-icon topbar-menu" aria-label="Open navigation" onClick={onMenuOpen} type="button"><Menu size={21} /></button>
-      {!isMyTasksPage ? (
+      {!isCompactTopbar ? (
         <div className="topbar-title"><strong>{title}</strong><span>{item?.description ?? "One board. Everyone in the loop."}</span></div>
       ) : (
         <div className="topbar-spacer" aria-hidden="true" />
