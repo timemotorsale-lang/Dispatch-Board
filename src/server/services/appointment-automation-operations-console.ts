@@ -602,6 +602,7 @@ function summarizeEvent(event: AppointmentAutomationEventRecord) {
     automationRuleCode: stringFromSnapshots("automationRuleCode", "ruleCode"),
     automationRuleVersion: numberFromSnapshots("automationRuleVersion"),
     triggerCode: stringFromSnapshots("triggerCode"),
+    status: stringFromSnapshots("status"),
     sourceType: stringFromSnapshots("sourceType"),
     sourceReference: stringFromSnapshots("sourceReference"),
     sourceTaskId: stringFromSnapshots("sourceTaskId"),
@@ -618,7 +619,10 @@ function summarizeEvent(event: AppointmentAutomationEventRecord) {
       "existingFollowUpTaskId"
     ),
     generatedTaskTitle: stringFromSnapshots("generatedTaskTitle"),
-    retryReplayAction: stringFromSnapshots("retryReplayAction")
+    retryReplayAction: stringFromSnapshots("retryReplayAction"),
+    replayedAt: stringFromSnapshots("replayedAt"),
+    failureCode: stringFromSnapshots("failureCode"),
+    failureMessage: stringFromSnapshots("failureMessage")
   };
 }
 
@@ -646,10 +650,12 @@ function executionEventActionForStatus(status: ExecutionStatus): ExecutionAction
       return "FAILED";
     case "REVIEW_REQUIRED":
       return "REVIEW_CREATED";
+    case "SKIPPED":
+      return "SKIPPED";
+    case "RESOLVED":
+      return "RESOLVED";
     case "PENDING":
     case "SUCCEEDED":
-    case "SKIPPED":
-    case "RESOLVED":
       return "QUEUED";
   }
 }

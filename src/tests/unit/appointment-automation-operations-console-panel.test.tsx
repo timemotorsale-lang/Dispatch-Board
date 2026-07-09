@@ -82,4 +82,53 @@ describe("appointment automation operations console panel", () => {
     expect(markup).toContain("Generated result");
     expect(markup).toContain("Last recovery action: Replay");
   });
+
+  it("renders audit failure and status context for runtime events", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createMemoryAppointmentAutomationOperationsRepository();
+
+    await recordAppointmentAutomationExecution(
+      {
+        ruleCode: "RULE-BLOCKED-TASK-REVIEW",
+        triggerCode: "BLOCKED_TASK_REVIEW",
+        purposeCode: "APT-TASK-MEETING",
+        sourceType: "TASK",
+        sourceReference: "task-1",
+        status: "FAILED_RETRYABLE",
+        reason: "Record retryable background automation failure.",
+        actorUserId: manager?.id ?? null,
+        inputSnapshot: {
+          automationRuleCode: "RULE-BLOCKED-TASK-REVIEW",
+          automationRuleVersion: 2,
+          sourceTaskId: "task-1",
+          sourceTaskTitle: "Call lender and verify packet"
+        },
+        resultSnapshot: {
+          automationRuleCode: "RULE-BLOCKED-TASK-REVIEW",
+          automationRuleVersion: 2,
+          sourceTaskId: "task-1",
+          sourceTaskTitle: "Call lender and verify packet",
+          status: "FAILED_RETRYABLE",
+          failureCode: "TASK_AUTOMATION_RUNTIME_FAILURE",
+          failureMessage: "Temporary failure"
+        },
+        failureCode: "TASK_AUTOMATION_RUNTIME_FAILURE",
+        failureMessage: "Temporary failure"
+      },
+      repository
+    );
+
+    const consoleModel = await getAppointmentAutomationOperationsConsoleForManager(
+      manager,
+      repository
+    );
+
+    const markup = renderToStaticMarkup(
+      <AppointmentAutomationOperationsConsolePanel initialConsole={consoleModel} />
+    );
+
+    expect(markup).toContain("Status: Failed Retryable");
+    expect(markup).toContain("Failure: TASK_AUTOMATION_RUNTIME_FAILURE: Temporary failure");
+  });
 });

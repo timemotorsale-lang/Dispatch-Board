@@ -58,7 +58,11 @@ export function createMemoryAppointmentAutomationOperationsRepository() {
             ? "FAILED"
             : execution.status === "REVIEW_REQUIRED"
               ? "REVIEW_CREATED"
-              : "QUEUED",
+              : execution.status === "SKIPPED"
+                ? "SKIPPED"
+                : execution.status === "RESOLVED"
+                  ? "RESOLVED"
+                  : "QUEUED",
         reason: input.reason,
         actorUserId: input.actorUserId ?? null,
         priorSnapshot: undefined,

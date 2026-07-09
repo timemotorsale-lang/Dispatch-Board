@@ -351,6 +351,96 @@ describe("appointment automation operations console service", () => {
     });
   });
 
+  it("keeps skipped background automation events distinct from queued runtime records", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createMemoryAppointmentAutomationOperationsRepository();
+
+    await recordAppointmentAutomationExecution(
+      {
+        ruleCode: "RULE-BLOCKED-TASK-REVIEW",
+        triggerCode: "BLOCKED_TASK_REVIEW",
+        purposeCode: "APT-TASK-MEETING",
+        sourceType: "TASK",
+        sourceReference: "task-1",
+        status: "SKIPPED",
+        reason: "Skip duplicate generated appointment.",
+        actorUserId: manager?.id ?? null,
+        inputSnapshot: {
+          automationRuleCode: "RULE-BLOCKED-TASK-REVIEW",
+          automationRuleVersion: 2,
+          sourceTaskId: "task-1",
+          sourceTaskTitle: "Call lender and verify packet"
+        },
+        resultSnapshot: {
+          automationRuleCode: "RULE-BLOCKED-TASK-REVIEW",
+          automationRuleVersion: 2,
+          sourceTaskId: "task-1",
+          sourceTaskTitle: "Call lender and verify packet",
+          generatedAppointmentNumber: "APT-TASK-AUTO-001",
+          status: "SKIPPED"
+        }
+      },
+      repository
+    );
+
+    const console = await getAppointmentAutomationOperationsConsoleForManager(manager, repository);
+
+    expect(console.recentEvents[0]).toMatchObject({
+      action: "SKIPPED",
+      status: "SKIPPED",
+      sourceTaskId: "task-1",
+      generatedAppointmentNumber: "APT-TASK-AUTO-001"
+    });
+  });
+
+  it("surfaces failure details on background automation audit events", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createMemoryAppointmentAutomationOperationsRepository();
+
+    await recordAppointmentAutomationExecution(
+      {
+        ruleCode: "RULE-BLOCKED-TASK-REVIEW",
+        triggerCode: "BLOCKED_TASK_REVIEW",
+        purposeCode: "APT-TASK-MEETING",
+        sourceType: "TASK",
+        sourceReference: "task-1",
+        status: "FAILED_RETRYABLE",
+        reason: "Record retryable background automation failure.",
+        actorUserId: manager?.id ?? null,
+        inputSnapshot: {
+          automationRuleCode: "RULE-BLOCKED-TASK-REVIEW",
+          automationRuleVersion: 2,
+          sourceTaskId: "task-1",
+          sourceTaskTitle: "Call lender and verify packet"
+        },
+        resultSnapshot: {
+          automationRuleCode: "RULE-BLOCKED-TASK-REVIEW",
+          automationRuleVersion: 2,
+          sourceTaskId: "task-1",
+          sourceTaskTitle: "Call lender and verify packet",
+          status: "FAILED_RETRYABLE",
+          failureCode: "TASK_AUTOMATION_RUNTIME_FAILURE",
+          failureMessage: "Temporary failure"
+        },
+        failureCode: "TASK_AUTOMATION_RUNTIME_FAILURE",
+        failureMessage: "Temporary failure"
+      },
+      repository
+    );
+
+    const console = await getAppointmentAutomationOperationsConsoleForManager(manager, repository);
+
+    expect(console.recentEvents[0]).toMatchObject({
+      action: "FAILED",
+      status: "FAILED_RETRYABLE",
+      failureCode: "TASK_AUTOMATION_RUNTIME_FAILURE",
+      failureMessage: "Temporary failure",
+      sourceTaskId: "task-1"
+    });
+  });
+
   it("rejects non-manager access", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const staff = usersByEmail.get("jordan.sales@local.test") ?? null;

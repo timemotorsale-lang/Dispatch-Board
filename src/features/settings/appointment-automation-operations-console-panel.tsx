@@ -27,6 +27,7 @@ function defaultExecutionId(consoleModel: ConsoleModel) {
 }
 
 type AutomationContextLike = {
+  status?: string | null;
   sourceReference?: string | null;
   sourceTaskId?: string | null;
   sourceTaskTitle?: string | null;
@@ -35,6 +36,8 @@ type AutomationContextLike = {
   generatedTaskId?: string | null;
   generatedTaskTitle?: string | null;
   retryReplayAction?: string | null;
+  failureCode?: string | null;
+  failureMessage?: string | null;
 };
 
 function executionSourceLabel(
@@ -83,10 +86,24 @@ function executionResultLabel(
   return "No generated result recorded yet.";
 }
 
+function executionFailureLabel(
+  execution: AutomationContextLike | null
+) {
+  if (!execution?.failureCode && !execution?.failureMessage) {
+    return null;
+  }
+
+  if (execution.failureCode && execution.failureMessage) {
+    return `${execution.failureCode}: ${execution.failureMessage}`;
+  }
+
+  return execution.failureCode ?? execution.failureMessage ?? null;
+}
+
 function auditEventContextLabel(event: ConsoleModel["recentEvents"][number]) {
   const sourceLabel = executionSourceLabel(event);
   const resultLabel = executionResultLabel(event);
-  const parts = [];
+  const parts: string[] = [];
 
   if (event.automationRuleCode) {
     parts.push(event.automationRuleVersion ? `${event.automationRuleCode} v${event.automationRuleVersion}` : event.automationRuleCode);
@@ -102,6 +119,15 @@ function auditEventContextLabel(event: ConsoleModel["recentEvents"][number]) {
 
   if (resultLabel !== "No generated result recorded yet.") {
     parts.push(resultLabel);
+  }
+
+  if (event.status) {
+    parts.push(`Status: ${formatLabel(event.status)}`);
+  }
+
+  const failureLabel = executionFailureLabel(event);
+  if (failureLabel) {
+    parts.push(`Failure: ${failureLabel}`);
   }
 
   if (event.retryReplayAction) {
@@ -700,6 +726,14 @@ export function AppointmentAutomationOperationsConsolePanel({ initialConsole }: 
                 >
                   <span>{formatLabel(execution.status)}</span>
                   <strong>{execution.automationRuleCode ?? execution.triggerCode}</strong>
+                  <small>{executionSourceLabel(execution)}</small>
+                  <small>{executionResultLabel(execution)}</small>
+                  <small>
+                    {executionFailureLabel(execution) ??
+                      (execution.retryReplayAction
+                        ? `Recovery: ${formatLabel(execution.retryReplayAction)}`
+                        : `${formatLabel(execution.sourceType)} source`)}
+                  </small>
                   <small>
                     {formatLabel(execution.sourceType)} • {execution.sourceReference ?? "No source reference"}
                   </small>
