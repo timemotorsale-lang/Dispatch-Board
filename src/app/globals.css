@@ -2435,6 +2435,75 @@ code {
   justify-content: flex-end;
 }
 
+.tasks-console-menu-host {
+  position: relative;
+  display: inline-flex;
+}
+
+.tasks-console-popover {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 20;
+  display: grid;
+  gap: 0.22rem;
+  width: max-content;
+  min-width: 11rem;
+  padding: 0.38rem;
+  background: #ffffff;
+  border: 1px solid #dbe4f0;
+  border-radius: 0.85rem;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.14);
+}
+
+.tasks-console-popover-right {
+  right: 0;
+  left: auto;
+}
+
+.tasks-console-popover-wide {
+  min-width: 18rem;
+}
+
+.tasks-console-popover strong {
+  padding: 0.25rem 0.35rem 0.05rem;
+  color: #64748b;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tasks-console-popover button,
+.tasks-console-popover a {
+  display: flex;
+  align-items: center;
+  min-height: 1.7rem;
+  padding: 0.28rem 0.45rem;
+  color: #17243a;
+  background: transparent;
+  border: 0;
+  border-radius: 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.tasks-console-popover button:hover,
+.tasks-console-popover a:hover,
+.tasks-console-popover-active {
+  color: #1757c7 !important;
+  background: #eef5ff !important;
+}
+
+.tasks-console-popover-grid {
+  display: grid;
+  gap: 0.18rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .tasks-console-create {
   gap: 0.55rem;
 }

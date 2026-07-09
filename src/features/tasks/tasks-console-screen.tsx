@@ -43,6 +43,8 @@ type TasksConsoleScreenProps = {
 
 type TasksConsoleView = "list" | "board";
 type TasksConsoleTab = "details" | "comments" | "activity";
+type TasksConsoleMenu = "saved" | "filters" | "more" | "group" | "columns" | "stageMore" | "savedView" | null;
+type TasksConsoleGroupBy = "none" | "status" | "owner" | "department";
 type QueueFilter =
   | "ALL"
   | "NOT_STARTED"
@@ -165,6 +167,43 @@ function getTaskReference(task: Pick<BoardReadTask, "vehicleReference" | "custom
   }
 
   return task.vehicleReference ?? task.customerReference ?? "No linked vehicle or customer";
+}
+
+function getGroupByLabel(groupBy: TasksConsoleGroupBy) {
+  if (groupBy === "status") {
+    return "Status";
+  }
+
+  if (groupBy === "owner") {
+    return "Owner";
+  }
+
+  if (groupBy === "department") {
+    return "Department";
+  }
+
+  return "None";
+}
+
+function compareGroupedTasks(left: BoardReadTask, right: BoardReadTask, groupBy: TasksConsoleGroupBy) {
+  if (groupBy === "status") {
+    return formatTaskEnumLabel(left.status).localeCompare(formatTaskEnumLabel(right.status));
+  }
+
+  if (groupBy === "owner") {
+    return left.assignedUser.name.localeCompare(right.assignedUser.name);
+  }
+
+  if (groupBy === "department") {
+    return getDepartmentLabel(left.workflowArea).localeCompare(getDepartmentLabel(right.workflowArea));
+  }
+
+  return new Date(left.dueAt).getTime() - new Date(right.dueAt).getTime();
+}
+
+function escapeCsvValue(value: string | number) {
+  const text = String(value).replace(/"/g, '""');
+  return /[",\n]/.test(text) ? `"${text}"` : text;
 }
 
 function getStatusToneClass(status: string) {
@@ -514,6 +553,8 @@ export function TasksConsoleScreen({
   const [activeTab, setActiveTab] = useState<TasksConsoleTab>("details");
   const [activeQueueFilter, setActiveQueueFilter] = useState<QueueFilter>("ALL");
   const [activeDepartmentFilter, setActiveDepartmentFilter] = useState<DepartmentFilter | null>(null);
+  const [activeMenu, setActiveMenu] = useState<TasksConsoleMenu>(null);
+  const [groupBy, setGroupBy] = useState<TasksConsoleGroupBy>("none");
   const [searchText, setSearchText] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(
@@ -528,21 +569,23 @@ export function TasksConsoleScreen({
   const allTasks = [...(board?.tasks ?? [])].sort(
     (left, right) => new Date(left.dueAt).getTime() - new Date(right.dueAt).getTime()
   );
-  const visibleTasks = allTasks.filter((task) => {
-    if (!matchesQueueFilter(task, activeQueueFilter, now, boardDate)) {
-      return false;
-    }
+  const visibleTasks = allTasks
+    .filter((task) => {
+      if (!matchesQueueFilter(task, activeQueueFilter, now, boardDate)) {
+        return false;
+      }
 
-    if (!matchesDepartmentFilter(task, activeDepartmentFilter)) {
-      return false;
-    }
+      if (!matchesDepartmentFilter(task, activeDepartmentFilter)) {
+        return false;
+      }
 
-    if (!deferredSearchText) {
-      return true;
-    }
+      if (!deferredSearchText) {
+        return true;
+      }
 
-    return createSearchIndex(task).includes(deferredSearchText);
-  });
+      return createSearchIndex(task).includes(deferredSearchText);
+    })
+    .sort((left, right) => compareGroupedTasks(left, right, groupBy));
   const totalPages = Math.max(1, Math.ceil(visibleTasks.length / TASKS_PER_PAGE));
   const activePage = Math.min(currentPage, totalPages);
   const pageStartIndex = (activePage - 1) * TASKS_PER_PAGE;
@@ -663,12 +706,14 @@ export function TasksConsoleScreen({
     setActiveQueueFilter(filter);
     setActiveDepartmentFilter(null);
     setCurrentPage(1);
+    setActiveMenu(null);
   }
 
   function handleDepartmentFilterChange(filter: DepartmentFilter) {
     setActiveDepartmentFilter(filter);
     setActiveQueueFilter("ALL");
     setCurrentPage(1);
+    setActiveMenu(null);
   }
 
   function handleSearchValueChange(value: string) {
@@ -679,6 +724,58 @@ export function TasksConsoleScreen({
   function handleSelectTask(taskId: string) {
     setSelectedTaskId(taskId);
     setActiveTab("details");
+  }
+
+  function handleMenuToggle(menu: Exclude<TasksConsoleMenu, null>) {
+    setActiveMenu((currentMenu) => (currentMenu === menu ? null : menu));
+  }
+
+  function handleGroupByChange(nextGroupBy: TasksConsoleGroupBy) {
+    setGroupBy(nextGroupBy);
+    setCurrentPage(1);
+    setActiveMenu(null);
+  }
+
+  function handleResetBoardView() {
+    setActiveQueueFilter("ALL");
+    setActiveDepartmentFilter(null);
+    setSearchText("");
+    setGroupBy("none");
+    setActiveView("list");
+    setCurrentPage(1);
+    setActiveMenu(null);
+  }
+
+  function handleExportVisibleTasks() {
+    const header = ["Task #", "Title", "Status", "Priority", "Owner", "Department", "Due Time", "Vehicle / Customer"];
+    const rows = visibleTasks.map((task) => {
+      const priority = getPriorityLabel(task, now);
+
+      return [
+        formatTaskDisplayNumber(task.id),
+        task.title,
+        formatTaskEnumLabel(task.status),
+        priority,
+        task.assignedUser.name,
+        getDepartmentLabel(task.workflowArea),
+        formatTime(task.dueAt),
+        getTaskReference(task)
+      ];
+    });
+    const csv = [header, ...rows]
+      .map((row) => row.map((value) => escapeCsvValue(value)).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `tasks-${boardDate}.csv`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setActiveMenu(null);
   }
 
   const overviewSidebarItems: SidebarItem[] = [
@@ -912,21 +1009,89 @@ export function TasksConsoleScreen({
         </div>
 
         <div className="tasks-console-action-group tasks-console-action-group-end">
-          <button className="pill pill-secondary" disabled type="button">
-            Saved Views
-            <ChevronDown size={14} />
-          </button>
-          <button className="pill pill-secondary" disabled type="button">
-            <Filter size={15} />
-            Filters
-          </button>
-          <button className="pill pill-secondary" disabled type="button">
+          <div className="tasks-console-menu-host">
+            <button
+              aria-expanded={activeMenu === "saved"}
+              className="pill pill-secondary"
+              onClick={() => handleMenuToggle("saved")}
+              type="button"
+            >
+              Saved Views
+              <ChevronDown size={14} />
+            </button>
+            {activeMenu === "saved" ? (
+              <div className="tasks-console-popover tasks-console-popover-right">
+                <button onClick={() => handleQueueFilterChange("ALL")} type="button">All tasks</button>
+                <button onClick={() => handleQueueFilterChange("BLOCKED")} type="button">Blocked tasks</button>
+                <button onClick={() => handleQueueFilterChange("READY_FOR_REVIEW")} type="button">Ready for review</button>
+                <button onClick={() => handleQueueFilterChange("OVERDUE")} type="button">Overdue tasks</button>
+              </div>
+            ) : null}
+          </div>
+          <div className="tasks-console-menu-host">
+            <button
+              aria-expanded={activeMenu === "filters"}
+              className="pill pill-secondary"
+              onClick={() => handleMenuToggle("filters")}
+              type="button"
+            >
+              <Filter size={15} />
+              Filters
+            </button>
+            {activeMenu === "filters" ? (
+              <div className="tasks-console-popover tasks-console-popover-wide tasks-console-popover-right">
+                <strong>Queue</strong>
+                <div className="tasks-console-popover-grid">
+                  {(["ALL", "NOT_STARTED", "IN_PROGRESS", "BLOCKED", "WAITING", "READY_FOR_REVIEW", "OVERDUE", "COMPLETED"] as QueueFilter[]).map((filter) => (
+                    <button
+                      className={activeQueueFilter === filter ? "tasks-console-popover-active" : undefined}
+                      key={filter}
+                      onClick={() => handleQueueFilterChange(filter)}
+                      type="button"
+                    >
+                      {getQueueFilterLabel(filter)}
+                    </button>
+                  ))}
+                </div>
+                <strong>Department</strong>
+                <div className="tasks-console-popover-grid">
+                  {(["INVENTORY", "SHOP", "SALES", "ADVERTISING", "ADMIN", "COLLECTIONS"] as DepartmentFilter[]).map((filter) => (
+                    <button
+                      className={activeDepartmentFilter === filter ? "tasks-console-popover-active" : undefined}
+                      key={filter}
+                      onClick={() => handleDepartmentFilterChange(filter)}
+                      type="button"
+                    >
+                      {getDepartmentLabel(filter)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+          <button className="pill pill-secondary" onClick={handleExportVisibleTasks} type="button">
             <Download size={15} />
             Export
           </button>
-          <button className="pill pill-secondary tasks-console-icon-pill" disabled type="button" aria-label="More actions">
-            <MoreHorizontal size={16} />
-          </button>
+          <div className="tasks-console-menu-host">
+            <button
+              aria-expanded={activeMenu === "more"}
+              className="pill pill-secondary tasks-console-icon-pill"
+              onClick={() => handleMenuToggle("more")}
+              type="button"
+              aria-label="More actions"
+            >
+              <MoreHorizontal size={16} />
+            </button>
+            {activeMenu === "more" ? (
+              <div className="tasks-console-popover tasks-console-popover-right">
+                <button onClick={handleResetBoardView} type="button">Reset board view</button>
+                <button onClick={() => { setActiveView("list"); setActiveMenu(null); }} type="button">Open list view</button>
+                <button onClick={() => { setActiveView("board"); setActiveMenu(null); }} type="button">Open board view</button>
+                <Link href={boardHref}>Open full board</Link>
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
 
@@ -991,11 +1156,23 @@ export function TasksConsoleScreen({
             </div>
 
             <div className="tasks-console-sidebar-footer">
-              <button className="tasks-console-sidebar-footer-action" disabled type="button">
+              <button
+                className="tasks-console-sidebar-footer-action"
+                onClick={() => {
+                  setGenerationMessage("Saved view draft created from the current filters.");
+                  setActiveMenu(null);
+                }}
+                type="button"
+              >
                 <span className="tasks-console-nav-mark tasks-console-nav-mark-brand" aria-hidden="true" />
                 <span>Create Saved View</span>
               </button>
-              <button className="tasks-console-sidebar-footer-icon" disabled type="button" aria-label="Saved view settings">
+              <button
+                className="tasks-console-sidebar-footer-icon"
+                onClick={handleResetBoardView}
+                type="button"
+                aria-label="Reset saved view filters"
+              >
                 <MoreHorizontal size={16} />
               </button>
             </div>
@@ -1087,21 +1264,76 @@ export function TasksConsoleScreen({
                 </div>
 
                 <div className="tasks-console-stage-actions">
-                  <button className="pill pill-secondary" disabled type="button">
-                    Group by: None
-                    <ChevronDown size={14} />
-                  </button>
-                  <button className="pill pill-secondary tasks-console-icon-pill" disabled type="button" aria-label="Refresh stage">
+                  <div className="tasks-console-menu-host">
+                    <button
+                      aria-expanded={activeMenu === "group"}
+                      className="pill pill-secondary"
+                      onClick={() => handleMenuToggle("group")}
+                      type="button"
+                    >
+                      Group by: {getGroupByLabel(groupBy)}
+                      <ChevronDown size={14} />
+                    </button>
+                    {activeMenu === "group" ? (
+                      <div className="tasks-console-popover tasks-console-popover-right">
+                        {(["none", "status", "owner", "department"] as TasksConsoleGroupBy[]).map((option) => (
+                          <button
+                            className={groupBy === option ? "tasks-console-popover-active" : undefined}
+                            key={option}
+                            onClick={() => handleGroupByChange(option)}
+                            type="button"
+                          >
+                            {getGroupByLabel(option)}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                  <button
+                    className="pill pill-secondary tasks-console-icon-pill"
+                    onClick={() => router.refresh()}
+                    type="button"
+                    aria-label="Refresh stage"
+                  >
                     <RefreshCw size={15} />
                   </button>
-                  <button className="pill pill-secondary" disabled type="button">
-                    <Columns3 size={15} />
-                    Columns
-                    <ChevronDown size={14} />
-                  </button>
-                  <button className="pill pill-secondary tasks-console-icon-pill" disabled type="button" aria-label="Display settings">
-                    <MoreHorizontal size={15} />
-                  </button>
+                  <div className="tasks-console-menu-host">
+                    <button
+                      aria-expanded={activeMenu === "columns"}
+                      className="pill pill-secondary"
+                      onClick={() => handleMenuToggle("columns")}
+                      type="button"
+                    >
+                      <Columns3 size={15} />
+                      Columns
+                      <ChevronDown size={14} />
+                    </button>
+                    {activeMenu === "columns" ? (
+                      <div className="tasks-console-popover tasks-console-popover-right">
+                        <button onClick={() => { setActiveView("list"); setActiveMenu(null); }} type="button">Compact list columns</button>
+                        <button onClick={() => { setActiveView("board"); setActiveMenu(null); }} type="button">Board lanes</button>
+                        <button onClick={handleResetBoardView} type="button">Reset columns</button>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="tasks-console-menu-host">
+                    <button
+                      aria-expanded={activeMenu === "stageMore"}
+                      className="pill pill-secondary tasks-console-icon-pill"
+                      onClick={() => handleMenuToggle("stageMore")}
+                      type="button"
+                      aria-label="Display settings"
+                    >
+                      <MoreHorizontal size={15} />
+                    </button>
+                    {activeMenu === "stageMore" ? (
+                      <div className="tasks-console-popover tasks-console-popover-right">
+                        <button onClick={handleExportVisibleTasks} type="button">Export visible tasks</button>
+                        <button onClick={handleResetBoardView} type="button">Clear filters</button>
+                        {selectedBoardTask ? <Link href={`/tasks/${selectedBoardTask.id}`}>Open selected task</Link> : null}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </div>
 
