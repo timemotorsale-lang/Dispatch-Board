@@ -8,6 +8,10 @@
 
 ---
 
+> **Projects Module planning package:** The dedicated Projects Module boundary, architecture shape, milestone plan, and Codex guidance live in [`docs/projects/PROJECTS_MODULE_GUIDE.md`](projects/PROJECTS_MODULE_GUIDE.md). That guide defines the Projects feature as a module inside the parent Dispatch Board, not a separate app rewrite.
+
+---
+
 ## 1. Purpose
 
 This document describes the implemented technical foundation and durable architecture rules for the Time Motor Sales Dispatch Board.
