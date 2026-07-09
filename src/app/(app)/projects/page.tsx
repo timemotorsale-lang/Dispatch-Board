@@ -6,8 +6,23 @@ import { requireCurrentUser } from "@/server/auth/current-user";
 import { listActivityFeedEventsForToday } from "@/server/services/activity-feed";
 import { getBoardReadModelForToday } from "@/server/services/board-read";
 
-export default async function ProjectsPage() {
+type ProjectsPageProps = {
+  searchParams?: Promise<{
+    filter?: string | string[];
+    filters?: string | string[];
+    focus?: string | string[];
+    query?: string | string[];
+    view?: string | string[];
+  }>;
+};
+
+function getSingleValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function ProjectsPage({ searchParams }: ProjectsPageProps) {
   const user = await requireCurrentUser();
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const [boardResult, activityResult] = await Promise.all([
     getBoardReadModelForToday(user),
     listActivityFeedEventsForToday(user)
@@ -22,6 +37,11 @@ export default async function ProjectsPage() {
         boardDate={boardResult.date}
         currentUserId={user.id}
         currentUserName={user.name}
+        rawFilter={getSingleValue(resolvedSearchParams?.filter)}
+        rawFocus={getSingleValue(resolvedSearchParams?.focus)}
+        rawQuery={getSingleValue(resolvedSearchParams?.query)}
+        rawView={getSingleValue(resolvedSearchParams?.view)}
+        showFiltersTray={getSingleValue(resolvedSearchParams?.filters) === "open"}
         projectCards={projects}
         tasks={tasks}
       />

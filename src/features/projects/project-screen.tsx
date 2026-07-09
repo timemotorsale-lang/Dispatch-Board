@@ -45,6 +45,18 @@ function getTaskReference(task: ProjectTaskLike) {
   return task.vehicleReference || task.customerReference || task.description || "No extra reference";
 }
 
+function getTaskHref(taskId: string) {
+  return `/tasks/${taskId}`;
+}
+
+function getProjectWorkspaceHref(project: ProjectDefinition, view: ProjectView) {
+  return `/projects/${project.slug}?view=${view}`;
+}
+
+function getReferenceLabel(task: ProjectTaskLike) {
+  return task.vehicleReference || task.customerReference || task.description || "No reference attached yet";
+}
+
 function renderOverview(project: ProjectDefinition, tasks: ProjectTaskLike[], events: ActivityFeedEvent[]) {
   const stats = getProjectStats(tasks);
   const blockedTasks = tasks.filter((task) => task.status === "BLOCKED").slice(0, 3);
@@ -88,9 +100,21 @@ function renderOverview(project: ProjectDefinition, tasks: ProjectTaskLike[], ev
         <strong>Next actions</strong>
         <h2>Best next moves</h2>
         <div className="project-note-list">
-          <p>{stats.readyForReview ? "Clear ready-for-review items first to keep work moving." : "No review queue is building yet."}</p>
-          <p>{stats.overdue ? `${stats.overdue} tasks are overdue and need a deadline check.` : "No overdue tasks are showing on today’s board."}</p>
-          <p>{events.length ? "Activity is already flowing into the project timeline for this board day." : "Timeline will populate as project tasks receive updates."}</p>
+          <p>
+            {stats.readyForReview
+              ? "Clear ready-for-review items first to keep work moving."
+              : "No review queue is building yet."}
+          </p>
+          <p>
+            {stats.overdue
+              ? `${stats.overdue} tasks are overdue and need a deadline check.`
+              : "No overdue tasks are showing on today's board."}
+          </p>
+          <p>
+            {events.length
+              ? "Activity is already flowing into the project timeline for this board day."
+              : "Timeline will populate as project tasks receive updates."}
+          </p>
         </div>
       </article>
     </div>
@@ -102,7 +126,7 @@ function renderList(tasks: ProjectTaskLike[]) {
     return (
       <EmptyStateCard
         eyebrow="No tasks"
-        message="This project does not have any matching tasks on today’s board yet."
+        message="This project does not have any matching tasks on today's board yet."
         title="Nothing is assigned here today"
       />
     );
@@ -134,7 +158,7 @@ function renderList(tasks: ProjectTaskLike[]) {
               <td>{task.vehicleReference || task.customerReference || "None"}</td>
               <td>{formatDateTime(task.updatedAt)}</td>
               <td>
-                <Link className="row-action" href={`/tasks/${task.id}`}>
+                <Link className="row-action" href={getTaskHref(task.id)}>
                   Open
                 </Link>
               </td>
@@ -167,7 +191,7 @@ function renderBoard(project: ProjectDefinition, tasks: ProjectTaskLike[]) {
                     <span>{task.assignedUser?.name ?? "Unassigned"}</span>
                     <span>{formatLabel(task.status)}</span>
                   </div>
-                  <Link className="row-action" href={`/tasks/${task.id}`}>
+                  <Link className="row-action" href={getTaskHref(task.id)}>
                     Open task
                   </Link>
                 </article>
@@ -259,7 +283,7 @@ function renderTimeline(events: ActivityFeedEvent[]) {
           <div className="project-feed-meta">
             <span>{formatDateTime(event.createdAt)}</span>
             {event.task ? (
-              <Link className="row-action" href={`/tasks/${event.task.id}`}>
+              <Link className="row-action" href={getTaskHref(event.task.id)}>
                 Open task
               </Link>
             ) : null}
@@ -293,7 +317,7 @@ function renderCalendar(tasks: ProjectTaskLike[]) {
           </div>
           <div className="project-feed-meta">
             <span>{formatDateTime(task.dueAt)}</span>
-            <Link className="row-action" href={`/tasks/${task.id}`}>
+            <Link className="row-action" href={getTaskHref(task.id)}>
               Open task
             </Link>
           </div>
@@ -325,7 +349,7 @@ function renderMessages(events: ActivityFeedEvent[]) {
           <div className="project-feed-meta">
             <span>{event.actor?.name ?? "System"}</span>
             {event.task ? (
-              <Link className="row-action" href={`/tasks/${event.task.id}`}>
+              <Link className="row-action" href={getTaskHref(event.task.id)}>
                 Open task
               </Link>
             ) : null}
@@ -336,13 +360,62 @@ function renderMessages(events: ActivityFeedEvent[]) {
   );
 }
 
-function renderFiles() {
+function renderFiles(project: ProjectDefinition, tasks: ProjectTaskLike[]) {
+  const fileLikeTasks = tasks
+    .filter(
+      (task) =>
+        Boolean(task.vehicleReference) ||
+        Boolean(task.customerReference) ||
+        Boolean(task.requiredUpdateFields.length) ||
+        Boolean(task.blockerReason)
+    )
+    .slice(0, 8);
+
+  if (!fileLikeTasks.length) {
+    return (
+      <EmptyStateCard
+        actions={[
+          {
+            href: getProjectWorkspaceHref(project, "list"),
+            label: "Open task list",
+            tone: "secondary"
+          },
+          {
+            href: getProjectWorkspaceHref(project, "overview"),
+            label: "Back to overview",
+            tone: "primary"
+          }
+        ]}
+        eyebrow="No project references"
+        message="Reference-linked tasks, paperwork prompts, and blocker notes will appear here as this project fills out."
+        title="Nothing is waiting in the file lane"
+      />
+    );
+  }
+
   return (
-    <EmptyStateCard
-      eyebrow="Files not wired yet"
-      message="This MVP keeps the file surface honest. Attachments and storage can plug in later without changing the project shell."
-      title="Files placeholder"
-    />
+    <section className="project-feed">
+      {fileLikeTasks.map((task) => (
+        <article className="project-feed-item" key={task.id}>
+          <div>
+            <strong>{task.title}</strong>
+            <p>{getReferenceLabel(task)}</p>
+          </div>
+          <div className="project-feed-meta">
+            <span>
+              {task.requiredUpdateFields.length
+                ? `${task.requiredUpdateFields.length} required field${task.requiredUpdateFields.length === 1 ? "" : "s"}`
+                : task.blockerReason
+                  ? "Blocker note"
+                  : "Reference attached"}
+            </span>
+            <Link className="row-action" href={getTaskHref(task.id)}>
+              Open task
+            </Link>
+          </div>
+        </article>
+      ))}
+    </section>
   );
 }
 
@@ -379,7 +452,7 @@ function renderView(project: ProjectDefinition, summary: ProjectCardSummary, eve
     return renderMessages(events);
   }
 
-  return renderFiles();
+  return renderFiles(project, summary.tasks);
 }
 
 export function ProjectScreen({
@@ -437,7 +510,7 @@ export function ProjectScreen({
             {projectOptions.map((option) => (
               <Link
                 className={project.slug === option.slug ? "project-switch project-switch-active" : "project-switch"}
-                href={`/projects/${option.slug}?view=${selectedView}`}
+                href={getProjectWorkspaceHref(option, selectedView)}
                 key={option.slug}
               >
                 {option.shortName}
@@ -448,7 +521,7 @@ export function ProjectScreen({
             {projectViewOptions.map((view) => (
               <Link
                 className={selectedView === view.value ? "project-tab project-tab-active" : "project-tab"}
-                href={`/projects/${project.slug}?view=${view.value}`}
+                href={getProjectWorkspaceHref(project, view.value)}
                 key={view.value}
               >
                 {view.label}
