@@ -11,6 +11,7 @@ import type { ActiveUserSummary } from "@/server/services/user-summary";
 import {
   BoardControls,
   BoardHero,
+  ManagerHealthPanelToggle,
   MetricStrip,
   OperationsStrip,
   OperationalRail,
@@ -165,6 +166,7 @@ export function BoardScreen({
   const [activityEvents, setActivityEvents] = useState<ActivityFeedEvent[]>([]);
   const [schedulerHealth, setSchedulerHealth] = useState<BoardReadSchedulerHealth | null>(null);
   const [generationFeedback, setGenerationFeedback] = useState<BoardGenerationActionFeedback>(null);
+  const [isHealthPanelOpen, setIsHealthPanelOpen] = useState(false);
   const [isGeneratePending, startGenerateTransition] = useTransition();
   const loadStateRef = useRef<BoardLoadState>(loadState);
   const refreshModeRef = useRef<"blocking" | "silent">("blocking");
@@ -398,6 +400,13 @@ export function BoardScreen({
             <span className={getLiveStatusTone(isRefreshing)}>
               {isRefreshing ? "Updating..." : "Live"}
             </span>
+            {isManager && schedulerHealth ? (
+              <ManagerHealthPanelToggle
+                isOpen={isHealthPanelOpen}
+                onToggle={() => setIsHealthPanelOpen((current) => !current)}
+                schedulerHealth={schedulerHealth}
+              />
+            ) : null}
             <BoardToolbar
               assignableUsers={assignableUsers}
               boardDate={selectedBoardDate}
@@ -411,6 +420,7 @@ export function BoardScreen({
                 setGenerationFeedback(null);
                 refreshModeRef.current = "blocking";
                 setIsRefreshing(false);
+                setIsHealthPanelOpen(false);
                 setSchedulerHealth(null);
                 setLoadState({ status: "loading", date });
               }}
@@ -423,12 +433,9 @@ export function BoardScreen({
 
       {initialDateError ? <div className="board-notice board-notice-danger">{initialDateError}</div> : null}
 
-      {isManager && schedulerHealth ? (
+      {isManager && schedulerHealth && isHealthPanelOpen ? (
         <SchedulerHealthPanel
           boardDate={loadState.date}
-          generationFeedback={generationFeedback}
-          isRetryPending={isGeneratePending}
-          onRetryRequested={handleGenerateBoard}
           schedulerHealth={schedulerHealth}
         />
       ) : null}

@@ -2532,6 +2532,12 @@ code {
 .scheduler-health-header-copy h2 { margin: 0; color: #132238; font-size: 24px; letter-spacing: -.03em; }
 .scheduler-health-header-copy > p { margin: 0; color: #233247; font-size: 14px; font-weight: 700; line-height: 1.45; }
 .scheduler-health-header-copy > small { color: #67768a; font-size: 12px; line-height: 1.5; }
+.board-manager-panel-toggle { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.board-manager-panel-status { display: inline-flex; align-items: center; justify-content: center; min-height: 34px; padding: 0 12px; border: 1px solid #d9e4f2; border-radius: 999px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.board-manager-panel-status.scheduler-health-good { color: #166534; background: #eaf8ef; border-color: #caecd7; }
+.board-manager-panel-status.scheduler-health-alert { color: #b42318; background: #fff0f1; border-color: #ffd5d8; }
+.board-manager-panel-status.scheduler-health-waiting { color: #8a5a00; background: #fff8df; border-color: #f3e1a7; }
+.board-manager-panel-button { min-height: 34px; padding: 0 14px; }
 .scheduler-health-status-stack { display: grid; justify-items: end; gap: 8px; min-width: 190px; }
 .scheduler-health-badge { display: inline-flex; align-items: center; justify-content: center; min-height: 34px; padding: 0 12px; border-radius: 999px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
 .scheduler-health-good .scheduler-health-badge { color: #166534; background: #eaf8ef; }
@@ -2867,6 +2873,7 @@ code {
   .app-frame { display: block; }
   .app-sidebar { position: fixed; left: 0; width: 230px; transform: translateX(-102%); transition: transform .2s ease; box-shadow: 18px 0 40px rgba(4,12,24,.22); }.app-sidebar-open { transform: translateX(0); }.sidebar-close,.topbar-menu { display: grid; }.sidebar-scrim { position: fixed; inset: 0; z-index: 35; display: block; padding: 0; background: rgba(3,11,22,.48); border: 0; }
   .app-topbar { min-height: 64px; padding: 0 14px; }.app-content { padding: 14px; }
+  .board-manager-panel-toggle { width: 100%; justify-content: space-between; }
   .scheduler-health-header { align-items: stretch; flex-direction: column; }
   .scheduler-health-status-stack { justify-items: start; min-width: 0; }
   .board-hero { align-items: flex-start; flex-direction: column; }.board-hero-actions { width: 100%; justify-content: space-between; }.filter-row { grid-template-columns: repeat(3,minmax(0,1fr)); }.board-search { grid-column: span 2; }
@@ -2875,6 +2882,8 @@ code {
 
 @media (max-width: 720px) {
   .topbar-title span,.topbar-profile > div:last-child,.topbar-actions > .topbar-icon:first-child { display: none; }.topbar-profile { padding-left: 8px; }.topbar-popover { right: -6px; width: min(300px, calc(100vw - 22px)); }.app-content { padding: 11px; }.dispatch-board-page { gap: 10px; }
+  .board-manager-panel-toggle { align-items: stretch; flex-direction: column; }
+  .board-manager-panel-button { width: 100%; }
   .scheduler-health-panel { padding: 14px; }
   .scheduler-health-header-copy h2 { font-size: 21px; }
   .scheduler-health-summary-grid { grid-template-columns: 1fr; }
