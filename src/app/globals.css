@@ -2332,7 +2332,8 @@ code {
 
 .tasks-console-page {
   display: grid;
-  gap: 0.8rem;
+  gap: 0.55rem;
+  align-content: start;
 }
 
 .tasks-console-header,
@@ -2359,21 +2360,21 @@ code {
 
 .tasks-console-heading {
   display: grid;
-  gap: 0.4rem;
+  gap: 0.18rem;
 }
 
 .tasks-console-heading h1 {
   margin: 0;
   color: #112039;
-  font-size: clamp(1.9rem, 3vw, 2.45rem);
+  font-size: clamp(1.75rem, 2.4vw, 2.2rem);
   letter-spacing: -0.04em;
 }
 
 .tasks-console-heading p {
   margin: 0;
   color: #61758d;
-  font-size: 0.92rem;
-  line-height: 1.35;
+  font-size: 0.84rem;
+  line-height: 1.2;
 }
 
 .tasks-console-heading-separator {
@@ -2384,9 +2385,9 @@ code {
 .tasks-console-search {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  min-width: min(100%, 350px);
-  padding: 0.8rem 0.95rem;
+  gap: 0.6rem;
+  min-width: min(100%, 320px);
+  padding: 0.65rem 0.85rem;
   background: rgba(255, 255, 255, 0.96);
   border: 1px solid #dce5f1;
   border-radius: 1rem;
@@ -2414,7 +2415,7 @@ code {
 .tasks-console-action-group {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.6rem;
+  gap: 0.45rem;
   align-items: center;
 }
 
@@ -2431,8 +2432,8 @@ code {
   grid-template-columns: auto auto;
   align-items: center;
   gap: 0.2rem 0.6rem;
-  min-height: 2.55rem;
-  padding: 0.62rem 0.9rem;
+  min-height: 2.25rem;
+  padding: 0.52rem 0.8rem;
   background: rgba(255, 255, 255, 0.95);
   border: 1px solid #dce5f1;
   border-radius: 1rem;
@@ -2446,7 +2447,7 @@ code {
 
 .tasks-console-date-pill strong {
   color: #132238;
-  font-size: 0.88rem;
+  font-size: 0.82rem;
   font-weight: 800;
 }
 
@@ -2466,14 +2467,14 @@ code {
 
 .tasks-console-metrics {
   display: grid;
-  gap: 0.7rem;
+  gap: 0.45rem;
   grid-template-columns: repeat(7, minmax(0, 1fr));
 }
 
 .tasks-console-metric-card {
   display: grid;
-  gap: 0.35rem;
-  padding: 0.82rem 0.85rem;
+  gap: 0.22rem;
+  padding: 0.6rem 0.7rem;
   text-align: left;
   background: rgba(255, 255, 255, 0.96);
   border: 1px solid #dfe6f1;
@@ -2493,19 +2494,19 @@ code {
 
 .tasks-console-metric-card span {
   color: #66758a;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 700;
 }
 
 .tasks-console-metric-card strong {
   color: #12233a;
-  font-size: 1.6rem;
+  font-size: 1.28rem;
   line-height: 1;
 }
 
 .tasks-console-metric-card small {
   color: #6b7c93;
-  font-size: 0.76rem;
+  font-size: 0.68rem;
 }
 
 .tasks-console-metric-card-active {
@@ -2521,19 +2522,20 @@ code {
 
 .tasks-console-shell {
   display: grid;
-  gap: 0.8rem;
-  align-items: start;
-  grid-template-columns: 228px minmax(0, 1fr) 332px;
+  gap: 0.55rem;
+  align-items: stretch;
+  grid-template-columns: 210px minmax(0, 1fr) 320px;
+  min-height: calc(100vh - 11rem);
 }
 
 .tasks-console-sidebar {
   position: sticky;
   top: 0.75rem;
   display: grid;
-  gap: 1rem;
+  gap: 0.7rem;
   align-self: start;
   min-height: calc(100vh - 6rem);
-  padding: 1rem 0.9rem 0.85rem;
+  padding: 0.8rem 0.75rem 0.75rem;
   color: #e4edf8;
   background: linear-gradient(180deg, #091427 0%, #0d1b31 100%);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -2544,8 +2546,8 @@ code {
 .tasks-console-sidebar-brand {
   display: flex;
   align-items: center;
-  gap: 0.8rem;
-  padding: 0.15rem 0.2rem 1rem;
+  gap: 0.65rem;
+  padding: 0.1rem 0.15rem 0.75rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -2553,12 +2555,12 @@ code {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2rem;
+  height: 2rem;
   color: #ffffff;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 999px;
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   font-weight: 900;
   letter-spacing: 0.04em;
 }
@@ -2571,18 +2573,18 @@ code {
 
 .tasks-console-sidebar-copy strong {
   color: #ffffff;
-  font-size: 1rem;
+  font-size: 0.94rem;
   line-height: 1.15;
 }
 
 .tasks-console-sidebar-copy span {
   color: #b8c7db;
-  font-size: 0.82rem;
+  font-size: 0.74rem;
 }
 
 .tasks-console-sidebar-groups {
   display: grid;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .tasks-console-sidebar-group {
@@ -2594,7 +2596,7 @@ code {
   margin: 0;
   padding: 0 0.3rem;
   color: #8ea0b8;
-  font-size: 0.68rem;
+  font-size: 0.62rem;
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -2610,13 +2612,13 @@ code {
   grid-template-columns: 0.65rem minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.7rem;
-  min-height: 2.4rem;
-  padding: 0 0.6rem;
+  min-height: 2rem;
+  padding: 0 0.5rem;
   color: #dbe7f5;
   background: transparent;
   border: 0;
   border-radius: 0.8rem;
-  font-size: 0.88rem;
+  font-size: 0.8rem;
   font-weight: 700;
   text-align: left;
   cursor: pointer;
@@ -2649,12 +2651,12 @@ code {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 1.45rem;
-  height: 1.45rem;
+  min-width: 1.25rem;
+  height: 1.25rem;
   padding: 0 0.35rem;
   color: #ffffff;
   border-radius: 999px;
-  font-size: 0.68rem;
+  font-size: 0.62rem;
   font-weight: 800;
 }
 
@@ -2669,9 +2671,9 @@ code {
 .tasks-console-sidebar-footer {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.45rem;
   margin-top: auto;
-  padding-top: 0.9rem;
+  padding-top: 0.7rem;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -2680,7 +2682,7 @@ code {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 2.45rem;
+  min-height: 2.1rem;
   color: #dbe7f5;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -2691,19 +2693,21 @@ code {
   flex: 1 1 auto;
   gap: 0.6rem;
   justify-content: flex-start;
-  padding: 0 0.75rem;
-  font-size: 0.86rem;
+  padding: 0 0.65rem;
+  font-size: 0.78rem;
   font-weight: 700;
 }
 
 .tasks-console-sidebar-footer-icon {
-  width: 2.45rem;
+  width: 2.1rem;
   flex: 0 0 auto;
 }
 
 .tasks-console-main {
   display: grid;
-  gap: 0.8rem;
+  gap: 0.55rem;
+  min-height: calc(100vh - 11rem);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   min-width: 0;
 }
 
@@ -2711,7 +2715,7 @@ code {
 .tasks-console-rail,
 .tasks-console-summary-card {
   min-width: 0;
-  padding: 0.85rem;
+  padding: 0.65rem;
   background: rgba(255, 255, 255, 0.96);
   border-color: #e2e8f0;
   box-shadow: 0 14px 36px rgba(15, 23, 42, 0.05);
@@ -2719,7 +2723,9 @@ code {
 
 .tasks-console-stage {
   display: grid;
-  gap: 0.8rem;
+  gap: 0.55rem;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .tasks-console-view-toggle {
@@ -2755,17 +2761,20 @@ code {
 .tasks-console-stage-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0.35rem;
   justify-content: flex-end;
 }
 
 .tasks-console-table-shell {
   display: grid;
-  gap: 0.55rem;
+  gap: 0.4rem;
+  min-height: 0;
 }
 
 .tasks-console-table-scroll {
   overflow: auto;
+  min-height: 0;
+  max-height: calc(100vh - 24rem);
   border: 1px solid #e8edf4;
   border-radius: 1rem;
 }
@@ -2779,7 +2788,7 @@ code {
 
 .tasks-console-table th,
 .tasks-console-table td {
-  padding: 0.72rem 0.7rem;
+  padding: 0.5rem 0.55rem;
   border-bottom: 1px solid #edf1f6;
   text-align: left;
   vertical-align: middle;
@@ -2787,14 +2796,14 @@ code {
 
 .tasks-console-table th {
   color: #6a7b90;
-  font-size: 0.74rem;
+  font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
 .tasks-console-table td {
-  font-size: 0.84rem;
+  font-size: 0.78rem;
 }
 
 .tasks-console-row {
@@ -2811,8 +2820,7 @@ code {
 }
 
 .tasks-console-title-cell {
-  display: grid;
-  gap: 0.2rem;
+  min-width: 0;
 }
 
 .tasks-console-title-cell strong,
@@ -2825,15 +2833,17 @@ code {
 }
 
 .tasks-console-title-cell strong {
-  font-size: 0.88rem;
+  display: block;
+  overflow: hidden;
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.tasks-console-title-cell small,
 .tasks-console-feed-item p,
 .tasks-console-rail-title p,
 .tasks-console-summary-item small,
 .tasks-console-summary-list p,
-.tasks-console-lane-card p,
 .tasks-console-lane-card small,
 .tasks-console-lane-empty,
 .tasks-console-rail-field span,
@@ -2845,13 +2855,6 @@ code {
   color: #66758a;
 }
 
-.tasks-console-title-cell small {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-}
-
 .tasks-console-task-number {
   color: #1757c7;
   font-weight: 800;
@@ -2861,18 +2864,19 @@ code {
   display: flex;
   align-items: center;
   gap: 0.45rem;
+  min-width: 0;
 }
 
 .tasks-console-avatar {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.55rem;
-  height: 1.55rem;
+  width: 1.35rem;
+  height: 1.35rem;
   color: #fff;
   background: linear-gradient(135deg, #8b5cf6, #2563eb);
   border-radius: 999px;
-  font-size: 0.66rem;
+  font-size: 0.58rem;
   font-weight: 800;
 }
 
@@ -2881,11 +2885,11 @@ code {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 1.45rem;
-  padding: 0 0.5rem;
+  min-height: 1.25rem;
+  padding: 0 0.42rem;
   border: 1px solid transparent;
   border-radius: 999px;
-  font-size: 0.7rem;
+  font-size: 0.63rem;
   font-weight: 800;
   white-space: nowrap;
 }
@@ -2950,14 +2954,14 @@ code {
 }
 
 .tasks-console-checkbox-column {
-  width: 2rem;
-  padding-inline: 0.45rem !important;
+  width: 1.55rem;
+  padding-inline: 0.32rem !important;
 }
 
 .tasks-console-checkbox-column input,
 .tasks-console-checklist-item input {
-  width: 0.9rem;
-  height: 0.9rem;
+  width: 0.78rem;
+  height: 0.78rem;
   accent-color: #2563eb;
 }
 
@@ -2990,14 +2994,14 @@ code {
 
 .tasks-console-table-footer {
   color: #64748b;
-  font-size: 0.84rem;
+  font-size: 0.74rem;
   flex-wrap: wrap;
 }
 
 .tasks-console-table-footer-controls {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.45rem;
   margin-left: auto;
   flex-wrap: wrap;
 }
@@ -3005,7 +3009,7 @@ code {
 .tasks-console-pagination {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.2rem;
   flex-wrap: wrap;
 }
 
@@ -3013,14 +3017,14 @@ code {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 2rem;
-  height: 2rem;
-  padding: 0 0.55rem;
+  min-width: 1.7rem;
+  height: 1.7rem;
+  padding: 0 0.45rem;
   color: #54657c;
   background: #fff;
   border: 1px solid #d8e2f0;
   border-radius: 0.65rem;
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   font-weight: 800;
   cursor: pointer;
 }
@@ -3044,54 +3048,54 @@ code {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 1.4rem;
+  min-width: 1rem;
   color: #8392a6;
-  font-size: 0.82rem;
+  font-size: 0.74rem;
   font-weight: 800;
 }
 
 .tasks-console-page-size {
-  min-width: 5.4rem;
+  min-width: 4.8rem;
 }
 
 .tasks-console-board-view {
   display: grid;
-  gap: 0.9rem;
+  gap: 0.55rem;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(220px, 1fr);
+  grid-auto-columns: minmax(180px, 1fr);
   overflow-x: auto;
-  padding-bottom: 0.2rem;
+  padding-bottom: 0.1rem;
 }
 
 .tasks-console-lane {
   display: grid;
-  gap: 0.8rem;
-  min-width: 220px;
-  padding: 0.8rem;
+  gap: 0.45rem;
+  min-width: 180px;
+  padding: 0.55rem;
   background: #f8fafc;
   border: 1px solid #e4eaf2;
   border-radius: 1rem;
 }
 
 .tasks-console-lane-header strong {
-  font-size: 0.92rem;
+  font-size: 0.84rem;
 }
 
 .tasks-console-lane-header span {
   color: #5f7188;
-  font-size: 0.82rem;
+  font-size: 0.72rem;
   font-weight: 800;
 }
 
 .tasks-console-lane-list {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.45rem;
 }
 
 .tasks-console-lane-card {
   display: grid;
-  gap: 0.45rem;
-  padding: 0.8rem;
+  gap: 0.35rem;
+  padding: 0.55rem;
   text-align: left;
   background: #fff;
   border: 1px solid #dde6f1;
@@ -3108,29 +3112,46 @@ code {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.6rem;
+  gap: 0.35rem;
 }
 
-.tasks-console-lane-card small,
-.tasks-console-lane-card p {
+.tasks-console-lane-card strong {
+  display: block;
+  overflow: hidden;
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tasks-console-lane-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.tasks-console-lane-card small {
+  overflow: hidden;
   margin: 0;
-  font-size: 0.82rem;
+  font-size: 0.7rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tasks-console-summary-grid {
   display: grid;
-  gap: 0.8rem;
+  gap: 0.55rem;
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .tasks-console-summary-card {
   display: grid;
-  gap: 0.55rem;
+  gap: 0.4rem;
 }
 
 .tasks-console-summary-card header strong {
   color: #66758a;
-  font-size: 0.82rem;
+  font-size: 0.74rem;
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -3138,21 +3159,21 @@ code {
 
 .tasks-console-summary-card header span {
   color: #142238;
-  font-size: 1.4rem;
+  font-size: 1.1rem;
   font-weight: 800;
 }
 
 .tasks-console-summary-list {
   display: grid;
-  gap: 0.65rem;
+  gap: 0.45rem;
 }
 
 .tasks-console-summary-item {
   display: grid;
-  gap: 0.2rem;
+  gap: 0.1rem;
   align-items: start;
   justify-content: flex-start;
-  padding: 0.6rem 0.7rem;
+  padding: 0.45rem 0.55rem;
   text-align: left;
   background: #f8fafc;
   border: 1px solid #e5ebf2;
@@ -3167,8 +3188,16 @@ code {
 
 .tasks-console-summary-item,
 .tasks-console-summary-link {
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   font-weight: 700;
+}
+
+.tasks-console-summary-item strong,
+.tasks-console-summary-item small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tasks-console-summary-link {
@@ -3184,7 +3213,7 @@ code {
   top: 0.75rem;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.55rem;
   align-self: start;
   min-height: calc(100vh - 6rem);
   max-height: calc(100vh - 6rem);
@@ -3227,18 +3256,24 @@ code {
 
 .tasks-console-rail-title {
   display: grid;
-  gap: 0.25rem;
+  gap: 0.15rem;
 }
 
 .tasks-console-rail-title h2 {
   margin: 0;
-  font-size: 1.3rem;
+  overflow: hidden;
+  font-size: 1.08rem;
   letter-spacing: -0.03em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tasks-console-rail-title p {
   margin: 0;
-  font-size: 0.84rem;
+  overflow: hidden;
+  font-size: 0.74rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tasks-console-rail-tabs {
@@ -3249,7 +3284,7 @@ code {
 }
 
 .tasks-console-rail-tab {
-  min-height: 2rem;
+  min-height: 1.75rem;
   padding: 0 0.3rem;
   color: #61758d;
   background: transparent;
@@ -3266,7 +3301,7 @@ code {
 
 .tasks-console-rail-panel {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.55rem;
   min-height: 0;
   overflow: auto;
   padding-right: 0.1rem;
@@ -3275,21 +3310,21 @@ code {
 
 .tasks-console-rail-field-grid {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.5rem;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .tasks-console-rail-field {
   display: grid;
   gap: 0.3rem;
-  padding: 0.72rem;
+  padding: 0.55rem;
   background: #f8fafc;
   border: 1px solid #e5ebf2;
   border-radius: 0.95rem;
 }
 
 .tasks-console-rail-field strong {
-  font-size: 0.86rem;
+  font-size: 0.78rem;
 }
 
 .tasks-console-rail-block,
@@ -3300,19 +3335,19 @@ code {
 
 .tasks-console-rail-block p {
   margin: 0;
-  padding: 0.72rem;
+  padding: 0.55rem;
   background: #f8fafc;
   border: 1px solid #e5ebf2;
   border-radius: 0.95rem;
-  font-size: 0.84rem;
-  line-height: 1.45;
+  font-size: 0.76rem;
+  line-height: 1.35;
 }
 
 .tasks-console-rail-vehicle-card {
   display: grid;
-  gap: 0.85rem;
+  gap: 0.55rem;
   grid-template-columns: minmax(0, 1fr) 112px;
-  padding: 0.85rem;
+  padding: 0.55rem;
   background: #f8fafc;
   border: 1px solid #e5ebf2;
   border-radius: 0.95rem;
@@ -3324,25 +3359,25 @@ code {
 }
 
 .tasks-console-rail-vehicle-card strong {
-  font-size: 1rem;
+  font-size: 0.88rem;
 }
 
 .tasks-console-rail-vehicle-card small {
   color: #6a7b90;
-  font-size: 0.82rem;
+  font-size: 0.72rem;
 }
 
 .tasks-console-vehicle-placeholder {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 78px;
-  padding: 0.75rem;
+  min-height: 64px;
+  padding: 0.55rem;
   text-align: center;
   background: linear-gradient(135deg, #e8eef7, #f7f9fc);
   border: 1px dashed #c8d3e3;
   border-radius: 0.9rem;
-  font-size: 0.78rem;
+  font-size: 0.68rem;
   font-weight: 700;
 }
 
@@ -3361,48 +3396,48 @@ code {
 
 .tasks-console-checklist {
   display: grid;
-  gap: 0.55rem;
+  gap: 0.4rem;
 }
 
 .tasks-console-checklist-item {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  font-size: 0.84rem;
+  gap: 0.45rem;
+  font-size: 0.74rem;
 }
 
 .tasks-console-feed-list {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
 .tasks-console-feed-item {
   display: grid;
   gap: 0.35rem;
-  padding: 0.72rem;
+  padding: 0.55rem;
   background: #f8fafc;
   border: 1px solid #e5ebf2;
   border-radius: 0.95rem;
 }
 
 .tasks-console-feed-meta strong {
-  font-size: 0.9rem;
+  font-size: 0.8rem;
 }
 
 .tasks-console-feed-meta span {
   color: #61758d;
-  font-size: 0.8rem;
+  font-size: 0.72rem;
 }
 
 .tasks-console-feed-item p {
   margin: 0;
-  font-size: 0.84rem;
-  line-height: 1.45;
+  font-size: 0.76rem;
+  line-height: 1.35;
 }
 
 .tasks-console-rail-actions {
   margin-top: auto;
-  padding-top: 0.4rem;
+  padding-top: 0.3rem;
   border-top: 1px solid #edf1f6;
 }
 

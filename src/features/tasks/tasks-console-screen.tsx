@@ -1159,7 +1159,6 @@ export function TasksConsoleScreen({
                                 <td>
                                   <div className="tasks-console-title-cell">
                                     <strong>{task.title}</strong>
-                                    <small>{task.description ?? "Open the task for more workflow context."}</small>
                                   </div>
                                 </td>
                                 <td>
@@ -1265,7 +1264,6 @@ export function TasksConsoleScreen({
                             <div className="tasks-console-lane-empty">No tasks</div>
                           ) : (
                             laneTasks.map((task) => {
-                              const priority = getPriorityLabel(task, now);
                               const active = task.id === effectiveSelectedTaskId;
 
                               return (
@@ -1280,12 +1278,18 @@ export function TasksConsoleScreen({
                                   type="button"
                                 >
                                   <div className="tasks-console-lane-card-top">
-                                    <span className={getPriorityToneClass(priority)}>{priority}</span>
+                                    <span className="tasks-console-task-number">
+                                      {formatTaskDisplayNumber(task.id)}
+                                    </span>
                                     <span>{formatTime(task.dueAt)}</span>
                                   </div>
                                   <strong>{task.title}</strong>
-                                  <small>{task.assignedUser.name}</small>
-                                  <p>{getTaskReference(task)}</p>
+                                  <div className="tasks-console-lane-meta">
+                                    <span className={getStatusToneClass(task.status)}>
+                                      {formatTaskEnumLabel(task.status)}
+                                    </span>
+                                    <small>{task.assignedUser.name}</small>
+                                  </div>
                                 </button>
                               );
                             })
@@ -1303,28 +1307,28 @@ export function TasksConsoleScreen({
                 {
                   title: "Blocked Tasks",
                   count: blockedTasks.length,
-                  items: blockedTasks.slice(0, 3),
+                  items: blockedTasks.slice(0, 2),
                   actionLabel: "View blocked",
                   filter: "BLOCKED" as const
                 },
                     {
                       title: "Due Next 2 Hours",
                       count: dueSoonTasks.length,
-                      items: dueSoonTasks.slice(0, 3),
+                      items: dueSoonTasks.slice(0, 2),
                       actionLabel: "View due soon",
                       filter: "ALL" as const
                     },
                 {
                   title: "Ready for Review",
                   count: readyForReviewTasks.length,
-                  items: readyForReviewTasks.slice(0, 3),
+                  items: readyForReviewTasks.slice(0, 2),
                   actionLabel: "View ready",
                   filter: "READY_FOR_REVIEW" as const
                 },
                 {
                   title: "Unassigned Queue",
                   count: unassignedTasks.length,
-                  items: unassignedTasks.slice(0, 3),
+                  items: unassignedTasks.slice(0, 2),
                   actionLabel: "View unassigned",
                   filter: "ALL" as const
                 }
@@ -1355,9 +1359,10 @@ export function TasksConsoleScreen({
                           }}
                           type="button"
                         >
-                          <strong>{formatTaskDisplayNumber(task.id)}</strong>
-                          <span>{task.title}</span>
-                          <small>{task.assignedUser.name} | {formatTime(task.dueAt)}</small>
+                          <strong>{task.title}</strong>
+                          <small>
+                            {formatTaskDisplayNumber(task.id)} | {task.assignedUser.name} | {formatTime(task.dueAt)}
+                          </small>
                         </button>
                       ))
                     )}
