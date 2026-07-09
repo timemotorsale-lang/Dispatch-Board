@@ -380,6 +380,46 @@ function buildTaskStatusActivityMessage(
   return `${actor.name} updated ${taskTitle} to ${nextStatus.toLowerCase().replace(/_/g, " ")}.`;
 }
 
+function resolveTaskAppointmentAutomationRequest(input: {
+  previousStatus: TaskStatus;
+  nextStatus: TaskStatus;
+  task: {
+    requiresManagerApproval: boolean;
+  };
+  update: NormalizedTaskStatusUpdateInput;
+}) {
+  const explicitTriggerCode = input.update.appointmentAutomationTriggerCode;
+  const explicitReasonNotes =
+    input.update.appointmentAutomationReasonNotes ?? input.update.blockerReason ?? null;
+
+  if (explicitTriggerCode) {
+    return {
+      triggerCode: explicitTriggerCode,
+      reasonNotes: explicitReasonNotes
+    };
+  }
+
+  if (input.previousStatus === input.nextStatus) {
+    return null;
+  }
+
+  if (input.nextStatus === TaskStatus.BLOCKED) {
+    return {
+      triggerCode: "BLOCKED_TASK_REVIEW",
+      reasonNotes: input.update.blockerReason ?? null
+    };
+  }
+
+  if (input.nextStatus === TaskStatus.READY_FOR_REVIEW && input.task.requiresManagerApproval) {
+    return {
+      triggerCode: "ESCALATION_TASK_REVIEW",
+      reasonNotes: input.update.appointmentAutomationReasonNotes ?? null
+    };
+  }
+
+  return null;
+}
+
 function toTaskStatusUpdateResult(task: {
   id: string;
   status: TaskStatus;
@@ -441,14 +481,21 @@ export async function updateTaskStatus(
     });
   }
 
-  if (normalizedInput.status === TaskStatus.BLOCKED) {
+  const automationRequest = resolveTaskAppointmentAutomationRequest({
+    previousStatus,
+    nextStatus: normalizedInput.status,
+    task,
+    update: normalizedInput
+  });
+
+  if (automationRequest) {
     const taskAppointmentAutomationRunner =
       dependencies?.taskAppointmentAutomationRunner ?? runTaskAppointmentAutomationForTaskEvent;
 
     await taskAppointmentAutomationRunner(authenticatedUser, {
-      reasonNotes: normalizedInput.blockerReason ?? null,
+      reasonNotes: automationRequest.reasonNotes,
       taskId: normalizedTaskId,
-      triggerCode: "BLOCKED_TASK_REVIEW"
+      triggerCode: automationRequest.triggerCode
     });
   }
 

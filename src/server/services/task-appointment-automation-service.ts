@@ -99,6 +99,10 @@ function buildReasonNotes(input: {
     return `Automation created a review appointment because task "${input.task.title}" was blocked${input.task.blockerReason ? `: ${input.task.blockerReason}` : "."}`;
   }
 
+  if (input.triggerCode === "ESCALATION_TASK_REVIEW") {
+    return `Automation created a review appointment because task "${input.task.title}" moved to ready for review.`;
+  }
+
   return `Automation created an appointment from task "${input.task.title}" after trigger ${input.triggerCode}.`;
 }
 
