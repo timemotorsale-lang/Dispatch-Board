@@ -131,7 +131,7 @@ Exit gate:
 
 Goal: prevent unsafe appointment mutations.
 
-Status: Initial MVP permission safety and direct-detail evidence implemented through `codex/appointment-direct-detail-permission-proof`; cross-location/search and broader automation evidence remain rollout hardening items.
+Status: Initial MVP permission safety, direct-detail, and system-action automation evidence implemented through `codex/appointment-system-action-automation-proof`; cross-location/search evidence remains a rollout hardening item.
 
 Implementation targets:
 

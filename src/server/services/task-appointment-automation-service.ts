@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
+import { getInitialAppointmentTemplateDefinition } from "@/server/appointments/appointment-template-domain";
 import { prisma } from "@/server/db/client";
 import { recordBoardActivityEvent } from "@/server/services/activity-feed";
 import {
@@ -128,6 +129,36 @@ function buildFailureClassification(error: unknown) {
     failureCode: "TASK_AUTOMATION_RUNTIME_FAILURE",
     failureMessage: message
   };
+}
+
+function getRuleAuthorityRejection(input: {
+  rule: AppointmentAutomationRuleRecord;
+  triggerCode: string;
+}) {
+  const purpose = getInitialAppointmentTemplateDefinition(input.rule.purposeCode);
+
+  if (!purpose) {
+    return {
+      failureCode: "TASK_AUTOMATION_RULE_NOT_AUTHORIZED",
+      failureMessage: `Automation rule ${input.rule.ruleCode} references unknown purpose ${input.rule.purposeCode}.`
+    };
+  }
+
+  if (!purpose.isActive) {
+    return {
+      failureCode: "TASK_AUTOMATION_RULE_NOT_AUTHORIZED",
+      failureMessage: `Automation rule ${input.rule.ruleCode} references inactive purpose ${input.rule.purposeCode}.`
+    };
+  }
+
+  if (!purpose.automationTriggers.includes(input.triggerCode)) {
+    return {
+      failureCode: "TASK_AUTOMATION_RULE_NOT_AUTHORIZED",
+      failureMessage: `Automation rule ${input.rule.ruleCode} is not authorized for trigger ${input.triggerCode}.`
+    };
+  }
+
+  return null;
 }
 
 function buildRuleResultSnapshot(input: {
@@ -282,6 +313,76 @@ export async function runTaskAppointmentAutomationForTaskEvent(
 
   for (const rule of rules) {
     const automationRuleVersion = readRuleVersion(rule);
+    const authorityRejection = getRuleAuthorityRejection({
+      rule,
+      triggerCode
+    });
+
+    if (authorityRejection) {
+      await automationRepository.recordExecution({
+        ruleCode: rule.ruleCode,
+        triggerCode,
+        purposeCode: rule.purposeCode,
+        sourceType: "TASK",
+        sourceReference: task.id,
+        status: "REVIEW_REQUIRED",
+        actorUserId: user.id,
+        reason: "Reject task-to-appointment automation because rule authority is not allowed for this trigger and purpose.",
+        inputSnapshot: {
+          automationRuleCode: rule.ruleCode,
+          automationRuleVersion,
+          catalogVersionId: rule.catalogVersionId,
+          triggerCode,
+          sourceTaskId: task.id,
+          sourceTaskTitle: task.title
+        },
+        resultSnapshot: buildRuleResultSnapshot({
+          automationRuleCode: rule.ruleCode,
+          automationRuleVersion,
+          purposeCode: rule.purposeCode,
+          triggerCode,
+          task,
+          status: "REVIEW_REQUIRED",
+          failureCode: authorityRejection.failureCode,
+          failureMessage: authorityRejection.failureMessage
+        }),
+        failureCode: authorityRejection.failureCode,
+        failureMessage: authorityRejection.failureMessage
+      });
+
+      await recordActivity({
+        actorUserId: user.id,
+        boardDayId: task.boardDayId,
+        eventType: "task.appointment_automation_review_required",
+        message: buildActivityMessage({
+          status: "REVIEW_REQUIRED",
+          task,
+          automationRuleCode: rule.ruleCode,
+          failureMessage: authorityRejection.failureMessage
+        }),
+        metadata: {
+          automationRuleCode: rule.ruleCode,
+          automationRuleVersion,
+          triggerCode,
+          failureCode: authorityRejection.failureCode,
+          failureMessage: authorityRejection.failureMessage
+        } as Prisma.InputJsonValue,
+        taskId: task.id
+      });
+
+      executions.push({
+        automationRuleCode: rule.ruleCode,
+        automationRuleVersion,
+        purposeCode: rule.purposeCode,
+        status: "REVIEW_REQUIRED",
+        appointmentId: null,
+        appointmentNumber: null,
+        failureCode: authorityRejection.failureCode,
+        failureMessage: authorityRejection.failureMessage
+      });
+      continue;
+    }
+
     const existingAppointment = await appointmentRepository.findExistingAutomatedAppointment(
       task.id,
       rule.ruleCode
