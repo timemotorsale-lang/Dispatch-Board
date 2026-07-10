@@ -201,6 +201,7 @@ describe("tasks console screen", () => {
         currentUserId="user-manager"
         errorMessage={null}
         initialTask={createTaskReadModel(tasks[0])}
+        initialSavedViews={[]}
         isManager
         todayBoardDate={boardDate}
       />
@@ -210,7 +211,7 @@ describe("tasks console screen", () => {
     expect(markup).toContain("Search tasks, vehicles, customers...");
     expect(markup).toContain("Create Task");
     expect(markup).toContain("Generate Today&#x27;s Board");
-    expect(markup).toContain("Local Views");
+    expect(markup).toContain("Saved Views");
     expect(markup).toContain("Filters");
     expect(markup).toContain("Export");
     expect(markup).toContain("Total Tasks");

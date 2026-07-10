@@ -420,6 +420,7 @@ model User {
   activatedAppointmentAutomationRules AppointmentAutomationRule[] @relation("AppointmentAutomationRuleActivatedByUser")
   appointmentAutomationRuleChangeEvents AppointmentAutomationRuleChangeEvent[] @relation("AppointmentAutomationRuleChangeEventActorUser")
   appointmentAutomationExecutionEvents AppointmentAutomationExecutionEvent[] @relation("AppointmentAutomationExecutionEventActorUser")
+  createdTaskSavedViews TaskSavedView[] @relation("TaskSavedViewCreatedByUser")
 
   @@index([isActive])
 }
@@ -1118,6 +1119,19 @@ model BoardDay {
   generatedByUser   User?                 @relation("BoardDayGeneratedByUser", fields: [generatedByUserId], references: [id], onDelete: SetNull)
   activityEvents    ActivityEvent[]
   tasks             Task[]
+}
+
+model TaskSavedView {
+  id              String   @id @default(cuid())
+  name            String
+  config          Json
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  createdByUser   User?    @relation("TaskSavedViewCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([createdByUserId])
 }
 
 model Task {

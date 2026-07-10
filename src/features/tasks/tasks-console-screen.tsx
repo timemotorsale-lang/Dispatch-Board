@@ -31,6 +31,7 @@ import {
 import { isTaskDueSoon, isTaskOverdue } from "@/features/tasks/my-tasks-helpers";
 import type { BoardReadModel, BoardReadTask } from "@/server/services/board-read";
 import type { TaskReadModel } from "@/server/services/task-read";
+import type { TaskSavedViewModel } from "@/server/services/task-saved-views";
 import type { ActiveUserSummary } from "@/server/services/user-summary";
 
 type TasksConsoleScreenProps = {
@@ -40,6 +41,7 @@ type TasksConsoleScreenProps = {
   currentUserId: string;
   errorMessage: string | null;
   initialTask: TaskReadModel | null;
+  initialSavedViews: TaskSavedViewModel[];
   isManager: boolean;
   todayBoardDate: string;
 };
@@ -99,17 +101,7 @@ type TaskDetailApiResponse =
   | null;
 
 type PaginationItem = number | "ellipsis";
-type TasksConsoleSavedView = {
-  activeDepartmentFilter: DepartmentFilter | null;
-  activeQueueFilter: QueueFilter;
-  activeView: TasksConsoleView;
-  createdAt: string;
-  groupBy: TasksConsoleGroupBy;
-  id: string;
-  name: string;
-  searchText: string;
-  visibleColumns: TasksConsoleColumnKey[];
-};
+type TasksConsoleSavedView = TaskSavedViewModel;
 
 const BOARD_VIEW_STATUSES: TaskStatus[] = [
   TaskStatus.NOT_STARTED,
@@ -149,8 +141,7 @@ const TASKS_CONSOLE_WORKFLOW_AREAS: WorkflowArea[] = [
   WorkflowArea.COLLECTIONS
 ];
 const TASKS_CONSOLE_STORAGE_KEYS = {
-  columns: "tasks-console-visible-columns",
-  savedViews: "tasks-console-saved-views"
+  columns: "tasks-console-visible-columns"
 } as const;
 const TASKS_CONSOLE_COLUMNS: Array<{ key: TasksConsoleColumnKey; label: string }> = [
   { key: "priority", label: "Priority" },
@@ -437,36 +428,6 @@ function parseStoredColumns(value: string | null) {
     return columns.includes("title") ? columns : DEFAULT_VISIBLE_COLUMNS;
   } catch {
     return DEFAULT_VISIBLE_COLUMNS;
-  }
-}
-
-function parseStoredSavedViews(value: string | null) {
-  if (!value) {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(value) as unknown;
-
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-
-    return parsed.filter((view): view is TasksConsoleSavedView => {
-      if (!view || typeof view !== "object") {
-        return false;
-      }
-
-      const candidate = view as Partial<TasksConsoleSavedView>;
-
-      return (
-        typeof candidate.id === "string" &&
-        typeof candidate.name === "string" &&
-        Array.isArray(candidate.visibleColumns)
-      );
-    });
-  } catch {
-    return [];
   }
 }
 
@@ -809,6 +770,7 @@ export function TasksConsoleScreen({
   currentUserId,
   errorMessage,
   initialTask,
+  initialSavedViews,
   isManager,
   todayBoardDate
 }: TasksConsoleScreenProps) {
@@ -822,11 +784,7 @@ export function TasksConsoleScreen({
   const [activeMenu, setActiveMenu] = useState<TasksConsoleMenu>(null);
   const [groupBy, setGroupBy] = useState<TasksConsoleGroupBy>("none");
   const [rightRailMode, setRightRailMode] = useState<TasksConsoleRailMode>("open");
-  const [savedViews, setSavedViews] = useState<TasksConsoleSavedView[]>(() =>
-    typeof window === "undefined"
-      ? []
-      : parseStoredSavedViews(window.localStorage.getItem(TASKS_CONSOLE_STORAGE_KEYS.savedViews))
-  );
+  const [savedViews, setSavedViews] = useState<TasksConsoleSavedView[]>(initialSavedViews);
   const [visibleColumns, setVisibleColumns] = useState<TasksConsoleColumnKey[]>(() =>
     typeof window === "undefined"
       ? DEFAULT_VISIBLE_COLUMNS
@@ -850,6 +808,7 @@ export function TasksConsoleScreen({
   const [isGeneratePending, startGenerateTransition] = useTransition();
   const [isWorkflowPending, startWorkflowTransition] = useTransition();
   const [isQuickCreatePending, startQuickCreateTransition] = useTransition();
+  const [isSavedViewPending, startSavedViewTransition] = useTransition();
   const deferredSearchText = useDeferredValue(searchText.trim().toLowerCase());
   const allTasks = [...(board?.tasks ?? [])].sort(
     (left, right) => new Date(left.dueAt).getTime() - new Date(right.dueAt).getTime()
@@ -925,10 +884,6 @@ export function TasksConsoleScreen({
   useEffect(() => {
     window.localStorage.setItem(TASKS_CONSOLE_STORAGE_KEYS.columns, JSON.stringify(visibleColumns));
   }, [visibleColumns]);
-
-  useEffect(() => {
-    window.localStorage.setItem(TASKS_CONSOLE_STORAGE_KEYS.savedViews, JSON.stringify(savedViews));
-  }, [savedViews]);
 
   useEffect(() => {
     if (!activeMenu) {
@@ -1166,22 +1121,52 @@ export function TasksConsoleScreen({
   }
 
   function handleCreateSavedView() {
-    const nextViewNumber = savedViews.length + 1;
-    const savedView: TasksConsoleSavedView = {
-      activeDepartmentFilter,
-      activeQueueFilter,
-      activeView,
-      createdAt: new Date().toISOString(),
-      groupBy,
-      id: `saved-view-${Date.now()}`,
-      name: `Saved View ${nextViewNumber}`,
-      searchText,
-      visibleColumns
-    };
+    if (!isManager) {
+      setGenerationMessage("Only managers can create shared saved views.");
+      setActiveMenu(null);
+      return;
+    }
 
-    setSavedViews((currentViews) => [savedView, ...currentViews].slice(0, 8));
-    setGenerationMessage(`${savedView.name} saved as a local browser view.`);
-    setActiveMenu(null);
+    startSavedViewTransition(async () => {
+      const nextViewNumber = savedViews.length + 1;
+
+      try {
+        const response = await fetch("/api/tasks/saved-views", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            config: {
+              activeDepartmentFilter,
+              activeQueueFilter,
+              activeView,
+              groupBy,
+              searchText,
+              visibleColumns
+            },
+            name: `Saved View ${nextViewNumber}`
+          })
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | { savedView?: TasksConsoleSavedView; error?: string }
+          | null;
+
+        if (!response.ok || !payload?.savedView) {
+          throw new Error(payload?.error ?? "Unable to save this view.");
+        }
+
+        setSavedViews((currentViews) => [
+          payload.savedView!,
+          ...currentViews.filter((savedView) => savedView.id !== payload.savedView!.id)
+        ]);
+        setGenerationMessage(`${payload.savedView.name} saved as a shared team view.`);
+        setActiveMenu(null);
+        router.refresh();
+      } catch (error) {
+        setGenerationMessage(error instanceof Error ? error.message : "Unable to save this view.");
+      }
+    });
   }
 
   function handleApplySavedView(savedView: TasksConsoleSavedView) {
@@ -1196,7 +1181,34 @@ export function TasksConsoleScreen({
   }
 
   function handleDeleteSavedView(savedViewId: string) {
-    setSavedViews((currentViews) => currentViews.filter((savedView) => savedView.id !== savedViewId));
+    if (!isManager) {
+      setGenerationMessage("Only managers can delete shared saved views.");
+      return;
+    }
+
+    startSavedViewTransition(async () => {
+      const previousSavedViews = savedViews;
+
+      setSavedViews((currentViews) => currentViews.filter((savedView) => savedView.id !== savedViewId));
+
+      try {
+        const response = await fetch(`/api/tasks/saved-views/${encodeURIComponent(savedViewId)}`, {
+          method: "DELETE"
+        });
+
+        if (!response.ok) {
+          throw new Error(await getApiErrorMessage(response, "Unable to delete this saved view."));
+        }
+
+        setGenerationMessage("Shared saved view deleted.");
+        router.refresh();
+      } catch (error) {
+        setSavedViews(previousSavedViews);
+        setGenerationMessage(
+          error instanceof Error ? error.message : "Unable to delete this saved view."
+        );
+      }
+    });
   }
 
   function handleColumnToggle(columnKey: TasksConsoleColumnKey) {
@@ -1695,7 +1707,7 @@ export function TasksConsoleScreen({
               onClick={() => handleMenuToggle("saved")}
               type="button"
             >
-              Local Views
+              Saved Views
               <ChevronDown size={14} />
             </button>
             {activeMenu === "saved" ? (
@@ -1707,7 +1719,7 @@ export function TasksConsoleScreen({
                 <button onClick={() => handleQueueFilterChange("OVERDUE")} type="button">Overdue tasks</button>
                 {savedViews.length ? (
                   <>
-                    <strong>Local Saved Views</strong>
+                    <strong>Shared Saved Views</strong>
                     {savedViews.map((savedView) => (
                       <div className="tasks-console-saved-view-row" key={savedView.id}>
                         <button onClick={() => handleApplySavedView(savedView)} type="button">
@@ -1716,6 +1728,7 @@ export function TasksConsoleScreen({
                         <button
                           aria-label={`Delete ${savedView.name}`}
                           className="tasks-console-saved-view-delete"
+                          disabled={!isManager || isSavedViewPending}
                           onClick={() => handleDeleteSavedView(savedView.id)}
                           type="button"
                         >
@@ -1725,7 +1738,9 @@ export function TasksConsoleScreen({
                     ))}
                   </>
                 ) : null}
-                <button onClick={handleCreateSavedView} type="button">Save local view</button>
+                <button disabled={!isManager || isSavedViewPending} onClick={handleCreateSavedView} type="button">
+                  {isSavedViewPending ? "Saving shared view..." : "Save shared view"}
+                </button>
               </div>
             ) : null}
           </div>
@@ -1957,11 +1972,12 @@ export function TasksConsoleScreen({
             <div className="tasks-console-sidebar-footer">
               <button
                 className="tasks-console-sidebar-footer-action"
+                disabled={!isManager || isSavedViewPending}
                 onClick={handleCreateSavedView}
                 type="button"
               >
                 <span className="tasks-console-nav-mark tasks-console-nav-mark-brand" aria-hidden="true" />
-                <span>Create Local View</span>
+                <span>Create Saved View</span>
               </button>
               <button
                 className="tasks-console-sidebar-footer-icon"
