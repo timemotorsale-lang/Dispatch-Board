@@ -1,6 +1,6 @@
 "use client";
 
-import { TaskStatus } from "@prisma/client";
+import { TaskStatus, WorkflowArea } from "@prisma/client";
 import { TASK_CHECKLIST_ITEM_KIND } from "@/lib/task-checklist-kind";
 import {
   Calendar,
@@ -128,6 +128,24 @@ const TASKS_CONSOLE_STATUS_OPTIONS: TaskStatus[] = [
   TaskStatus.READY_FOR_REVIEW,
   TaskStatus.COMPLETED
 ];
+const TASKS_CONSOLE_CREATE_STATUS_OPTIONS: TaskStatus[] = [
+  TaskStatus.NOT_STARTED,
+  TaskStatus.IN_PROGRESS,
+  TaskStatus.BLOCKED,
+  TaskStatus.WAITING_ON_PARTS,
+  TaskStatus.WAITING_ON_APPROVAL,
+  TaskStatus.READY_FOR_REVIEW
+];
+const TASKS_CONSOLE_WORKFLOW_AREAS: WorkflowArea[] = [
+  WorkflowArea.GENERAL_MANAGER,
+  WorkflowArea.INVENTORY,
+  WorkflowArea.SHOP,
+  WorkflowArea.SALES,
+  WorkflowArea.ADVERTISING,
+  WorkflowArea.MARKETING,
+  WorkflowArea.ADMIN,
+  WorkflowArea.COLLECTIONS
+];
 const TASKS_CONSOLE_STORAGE_KEYS = {
   columns: "tasks-console-visible-columns",
   savedViews: "tasks-console-saved-views"
@@ -167,6 +185,10 @@ function formatTime(value: string) {
     hour: "numeric",
     minute: "2-digit"
   }).format(new Date(value));
+}
+
+function formatTimeInputValue(value: Date) {
+  return `${String(value.getHours()).padStart(2, "0")}:${String(value.getMinutes()).padStart(2, "0")}`;
 }
 
 function formatDateTime(value: string) {
@@ -232,6 +254,22 @@ function getGroupByLabel(groupBy: TasksConsoleGroupBy) {
   }
 
   return "None";
+}
+
+function getQuickCreateDefaultDueTime() {
+  const dueTime = new Date();
+
+  dueTime.setMinutes(Math.ceil(dueTime.getMinutes() / 30) * 30, 0, 0);
+
+  return formatTimeInputValue(dueTime);
+}
+
+function buildDueAtFromBoardTime(boardDate: string, dueTime: FormDataEntryValue | null) {
+  if (typeof dueTime !== "string" || !dueTime.trim()) {
+    return `${boardDate}T12:00:00`;
+  }
+
+  return `${boardDate}T${dueTime.trim()}:00`;
 }
 
 function compareGroupedTasks(left: BoardReadTask, right: BoardReadTask, groupBy: TasksConsoleGroupBy) {
@@ -791,8 +829,12 @@ export function TasksConsoleScreen({
   const [workflowError, setWorkflowError] = useState<string | null>(null);
   const [statusDrafts, setStatusDrafts] = useState<Record<string, string>>({});
   const [generationMessage, setGenerationMessage] = useState<string | null>(null);
+  const [quickCreateOpen, setQuickCreateOpen] = useState(false);
+  const [quickCreateError, setQuickCreateError] = useState<string | null>(null);
+  const [quickCreateMessage, setQuickCreateMessage] = useState<string | null>(null);
   const [isGeneratePending, startGenerateTransition] = useTransition();
   const [isWorkflowPending, startWorkflowTransition] = useTransition();
+  const [isQuickCreatePending, startQuickCreateTransition] = useTransition();
   const deferredSearchText = useDeferredValue(searchText.trim().toLowerCase());
   const allTasks = [...(board?.tasks ?? [])].sort(
     (left, right) => new Date(left.dueAt).getTime() - new Date(right.dueAt).getTime()
@@ -838,7 +880,6 @@ export function TasksConsoleScreen({
   const subtasks = activeTaskDetail ? buildSubtasks(activeTaskDetail) : [];
   const completedSubtaskCount = subtasks.filter((item) => item.completed).length;
   const assigneeOptions = createAssigneeOptions(allTasks, activeTaskDetail);
-  const createTaskHref = `/board?date=${encodeURIComponent(boardDate)}`;
   const boardHref = `/board?date=${encodeURIComponent(boardDate)}`;
   const isTodayBoard = boardDate === todayBoardDate;
   const dueSoonTasks = allTasks.filter((task) => isTaskDueSoon(task, now));
@@ -848,6 +889,14 @@ export function TasksConsoleScreen({
   const readyForReviewTasks = allTasks.filter((task) => task.status === TaskStatus.READY_FOR_REVIEW);
   const unassignedTasks = allTasks.filter((task) => !task.assignedUser?.id);
   const completedTodayTasks = allTasks.filter((task) => isTaskCompletedOnBoardDate(task, boardDate));
+  const defaultQuickCreateAssigneeId = selectedBoardTask?.assignedUser.id ?? assigneeOptions[0]?.id ?? "";
+  const activeFilterChips = [
+    activeQueueFilter !== "ALL" ? `Queue: ${getQueueFilterLabel(activeQueueFilter)}` : null,
+    activeDepartmentFilter ? `Department: ${getDepartmentLabel(activeDepartmentFilter)}` : null,
+    groupBy !== "none" ? `Grouped by ${getGroupByLabel(groupBy)}` : null,
+    searchText.trim() ? `Search: ${searchText.trim()}` : null,
+    activeView === "board" ? "Board lanes" : null
+  ].filter((chip): chip is string => Boolean(chip));
   const myTasksCount = allTasks.filter(
     (task) => task.assignedUser.id === currentUserId && task.status !== TaskStatus.COMPLETED
   ).length;
@@ -1021,6 +1070,84 @@ export function TasksConsoleScreen({
     setVisibleColumns(DEFAULT_VISIBLE_COLUMNS);
     setCurrentPage(1);
     setActiveMenu(null);
+  }
+
+  function handleOpenQuickCreate() {
+    setQuickCreateOpen(true);
+    setQuickCreateError(null);
+    setQuickCreateMessage(null);
+    setActiveMenu(null);
+  }
+
+  function handleCloseQuickCreate() {
+    if (isQuickCreatePending) {
+      return;
+    }
+
+    setQuickCreateOpen(false);
+    setQuickCreateError(null);
+  }
+
+  function handleQuickCreateTask(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!isManager) {
+      setQuickCreateError("Manager access is required to create tasks from the console.");
+      return;
+    }
+
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const title = formData.get("title");
+    const assignedUserId = formData.get("assignedUserId");
+    const status = formData.get("status");
+    const workflowArea = formData.get("workflowArea");
+
+    startQuickCreateTransition(async () => {
+      setQuickCreateError(null);
+      setQuickCreateMessage(null);
+
+      try {
+        const response = await fetch("/api/tasks", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            assignedUserId,
+            blockerReason: formData.get("blockerReason"),
+            boardDate,
+            customerReference: formData.get("customerReference"),
+            description: formData.get("description"),
+            dueAt: buildDueAtFromBoardTime(boardDate, formData.get("dueTime")),
+            requiresManagerApproval: formData.get("requiresManagerApproval") === "on",
+            status,
+            title,
+            vehicleReference: formData.get("vehicleReference"),
+            workflowArea
+          })
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | { task?: { id: string; title?: string }; error?: string }
+          | null;
+
+        if (!response.ok || !payload?.task) {
+          throw new Error(payload?.error ?? "Unable to create this task.");
+        }
+
+        form.reset();
+        setSelectedTaskId(payload.task.id);
+        setActiveQueueFilter("ALL");
+        setActiveDepartmentFilter(null);
+        setActiveView("list");
+        setQuickCreateOpen(false);
+        setQuickCreateMessage(`${payload.task.title ?? "Task"} created and added to the board.`);
+        setGenerationMessage(`${payload.task.title ?? "Task"} created and added to the board.`);
+        router.refresh();
+      } catch (error) {
+        setQuickCreateError(error instanceof Error ? error.message : "Unable to create this task.");
+      }
+    });
   }
 
   function handleCreateSavedView() {
@@ -1517,10 +1644,15 @@ export function TasksConsoleScreen({
         </label>
 
         <div className="tasks-console-action-group">
-          <Link className="pill pill-primary tasks-console-create" href={createTaskHref}>
+          <button
+            className="pill pill-primary tasks-console-create"
+            disabled={!isManager}
+            onClick={handleOpenQuickCreate}
+            type="button"
+          >
             <Plus size={16} />
             Create Task
-          </Link>
+          </button>
           <button
             className="pill pill-secondary"
             disabled={!isManager || isGeneratePending}
@@ -1650,6 +1782,96 @@ export function TasksConsoleScreen({
         <div className="notice">
           <p>{generationMessage}</p>
         </div>
+      ) : null}
+
+      {quickCreateOpen ? (
+        <section className="panel-card tasks-console-quick-create" aria-label="Quick create task">
+          <header>
+            <div>
+              <strong>Create task</strong>
+              <span>Fast manager capture for today&apos;s board</span>
+            </div>
+            <button
+              aria-label="Close create task panel"
+              className="tasks-console-rail-icon-button"
+              disabled={isQuickCreatePending}
+              onClick={handleCloseQuickCreate}
+              type="button"
+            >
+              <X size={15} />
+            </button>
+          </header>
+          <form onSubmit={handleQuickCreateTask}>
+            <label className="tasks-console-quick-create-title">
+              <span>Task title</span>
+              <input name="title" placeholder="Example: Check vehicles needing inspection" required />
+            </label>
+            <label>
+              <span>Owner</span>
+              <select defaultValue={defaultQuickCreateAssigneeId} name="assignedUserId" required>
+                {assigneeOptions.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Due time</span>
+              <input defaultValue={getQuickCreateDefaultDueTime()} name="dueTime" required type="time" />
+            </label>
+            <label>
+              <span>Department</span>
+              <select defaultValue={selectedBoardTask?.workflowArea ?? WorkflowArea.GENERAL_MANAGER} name="workflowArea">
+                {TASKS_CONSOLE_WORKFLOW_AREAS.map((workflowArea) => (
+                  <option key={workflowArea} value={workflowArea}>
+                    {getDepartmentLabel(workflowArea)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Status</span>
+              <select defaultValue={TaskStatus.NOT_STARTED} name="status">
+                {TASKS_CONSOLE_CREATE_STATUS_OPTIONS.map((status) => (
+                  <option key={status} value={status}>
+                    {formatTaskEnumLabel(status)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Vehicle / stock</span>
+              <input name="vehicleReference" placeholder="Optional vehicle, stock, or VIN" />
+            </label>
+            <label>
+              <span>Customer</span>
+              <input name="customerReference" placeholder="Optional customer reference" />
+            </label>
+            <label className="tasks-console-quick-create-notes">
+              <span>Notes</span>
+              <textarea name="description" placeholder="Short note for the assignee..." rows={1} />
+            </label>
+            <label className="tasks-console-quick-create-notes">
+              <span>Blocker reason</span>
+              <textarea name="blockerReason" placeholder="Required only if status is Blocked..." rows={1} />
+            </label>
+            <label className="tasks-console-quick-create-check">
+              <input name="requiresManagerApproval" type="checkbox" />
+              <span>Requires manager review before completion</span>
+            </label>
+            <div className="tasks-console-quick-create-actions">
+              {quickCreateError ? <p className="tasks-console-inline-error">{quickCreateError}</p> : null}
+              {quickCreateMessage ? <p className="tasks-console-inline-success">{quickCreateMessage}</p> : null}
+              <button className="pill pill-secondary" disabled={isQuickCreatePending} onClick={handleCloseQuickCreate} type="button">
+                Cancel
+              </button>
+              <button className="pill pill-primary" disabled={isQuickCreatePending || assigneeOptions.length === 0} type="submit">
+                {isQuickCreatePending ? "Creating..." : "Add Task"}
+              </button>
+            </div>
+          </form>
+        </section>
       ) : null}
 
       {!board ? (
@@ -1797,6 +2019,17 @@ export function TasksConsoleScreen({
                 );
               })}
             </div>
+
+            {activeFilterChips.length ? (
+              <div className="tasks-console-active-filters" aria-label="Active task filters">
+                {activeFilterChips.map((chip) => (
+                  <span key={chip}>{chip}</span>
+                ))}
+                <button onClick={handleResetBoardView} type="button">
+                  Clear
+                </button>
+              </div>
+            ) : null}
 
             <section className="panel-card tasks-console-stage">
               <div className="tasks-console-stage-toolbar">
@@ -1979,6 +2212,9 @@ export function TasksConsoleScreen({
                                   <td className="tasks-console-column-title">
                                     <div className="tasks-console-title-cell">
                                       <strong>{task.title}</strong>
+                                      {task.requiresManagerApproval ? (
+                                        <span className="tasks-console-row-review-chip">Review</span>
+                                      ) : null}
                                     </div>
                                   </td>
                                 ) : null}
@@ -2377,6 +2613,25 @@ export function TasksConsoleScreen({
                         </div>
                       ))}
                     </div>
+
+                    {activeTaskDetail && (activeTaskDetail.recommendation || activeTaskDetail.requiresManagerApproval) ? (
+                      <div className="tasks-console-rail-insights">
+                        {activeTaskDetail.recommendation ? (
+                          <div>
+                            <span>Recommendation</span>
+                            <strong>{activeTaskDetail.recommendedUser?.name ?? "Recommended owner"}</strong>
+                            <p>{activeTaskDetail.recommendation.explanation}</p>
+                          </div>
+                        ) : null}
+                        {activeTaskDetail.requiresManagerApproval ? (
+                          <div>
+                            <span>Review required</span>
+                            <strong>Ready for Review before Completed</strong>
+                            <p>This task must be reviewed by a manager before it can close.</p>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
 
                     <form
                       className="tasks-console-workflow-form"

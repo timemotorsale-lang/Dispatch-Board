@@ -201,6 +201,10 @@ Visual source of truth for that console:
 - [`docs/TASKS_UI_SOURCE_OF_TRUTH.md`](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/TASKS_UI_SOURCE_OF_TRUTH.md)
 - [`docs/images/TASKS_UI_SOURCE_OF_TRUTH.png`](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/images/TASKS_UI_SOURCE_OF_TRUTH.png)
 
+Current MVP design-gate audit:
+
+- [`docs/TASKS_MVP_DESIGN_AUDIT.md`](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/TASKS_MVP_DESIGN_AUDIT.md)
+
 ```text
 Dispatch Board app shell
   -> /board
@@ -233,12 +237,12 @@ Dispatch Board app shell
 
 ### Current implemented UI baseline
 
-Today the task experience is distributed across live surfaces:
+Today the task experience is distributed across live surfaces, with `/tasks` now acting as the manager-facing task operations console foundation:
 
 - `/board` for daily board operations
 - `/my-tasks` for staff execution
 - `/tasks/[id]` for task workspace detail
-- `/tasks` as a shared entry route that can expand into the future console
+- `/tasks` for command-center task scanning, filtering, quick inspection, and workflow actions
 
 That is acceptable as an implementation baseline as long as planning and future work treat these surfaces as one integrated module rather than unrelated features.
 
