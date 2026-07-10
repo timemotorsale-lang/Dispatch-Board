@@ -82,6 +82,7 @@ const appointmentAdminUser: AuthenticatedUser = {
 
 function createAccess(input: {
   userId: string;
+  locationId?: string;
   canOwnAppointments?: boolean;
   canManageAppointments?: boolean;
   canViewLimitedData?: boolean;
@@ -90,7 +91,7 @@ function createAccess(input: {
 }): AppointmentReadLocationAccessRecord {
   return {
     userId: input.userId,
-    locationId: "loc-time-motor-sales-minneapolis",
+    locationId: input.locationId ?? "loc-time-motor-sales-minneapolis",
     canViewSchedule: input.canViewSchedule ?? true,
     canParticipate: input.canParticipate ?? true,
     canOwnAppointments: input.canOwnAppointments ?? false,
@@ -251,6 +252,7 @@ function createAppointment(
 function createAppointmentReadRepositoryHarness(input?: {
   appointments?: AppointmentReadAppointmentRecord[];
   accessByUserId?: Record<string, AppointmentReadLocationAccessRecord | null>;
+  leakCrossLocationAppointments?: boolean;
 }) {
   const appointments = input?.appointments ?? [createAppointment()];
   const accessByUserId = input?.accessByUserId ?? {
@@ -298,7 +300,7 @@ function createAppointmentReadRepositoryHarness(input?: {
         const startsAt = appointment.startsAt?.getTime();
         const endsAt = appointment.endsAt?.getTime();
 
-        if (appointment.locationId !== query.locationId) {
+        if (!input?.leakCrossLocationAppointments && appointment.locationId !== query.locationId) {
           return false;
         }
 
@@ -498,6 +500,105 @@ describe("appointment read service", () => {
     expect(
       includeCancelledResult.appointments.map((appointment) => appointment.appointmentNumber)
     ).toEqual(["APT-10245", "APT-CANCELLED"]);
+  });
+
+  it("keeps board search scoped to authorized location even if upstream data includes another location", async () => {
+    const localAppointment = createAppointment({
+      appointmentNumber: "APT-MPLS-10245",
+      title: "Service / Repair"
+    });
+    const otherLocationAppointment = createAppointment({
+      id: "appointment-duluth",
+      appointmentNumber: "APT-DULUTH-9001",
+      locationId: "loc-time-motor-sales-duluth",
+      title: "Duluth leaked search result",
+      customerSnapshot: {
+        displayName: "Duluth Customer"
+      },
+      startsAt: new Date("2026-07-06T15:30:00.000Z"),
+      endsAt: new Date("2026-07-06T16:30:00.000Z")
+    });
+    const repository = createAppointmentReadRepositoryHarness({
+      appointments: [localAppointment, otherLocationAppointment],
+      leakCrossLocationAppointments: true
+    });
+
+    const result = await listAppointmentReadModels(
+      managerUser,
+      {
+        locationId: "loc-time-motor-sales-minneapolis",
+        windowStart,
+        windowEnd,
+        searchText: "Duluth"
+      },
+      repository,
+      now
+    );
+
+    expect(result).toMatchObject({
+      locationId: "loc-time-motor-sales-minneapolis",
+      appointmentCount: 0,
+      appointments: []
+    });
+  });
+
+  it("searches only fields visible through the actor's projected read model", async () => {
+    const repository = createAppointmentReadRepositoryHarness();
+
+    const managerVinResult = await listAppointmentReadModels(
+      managerUser,
+      {
+        locationId: "loc-time-motor-sales-minneapolis",
+        windowStart,
+        windowEnd,
+        searchText: "1FAHP2E82EG123456"
+      },
+      repository,
+      now
+    );
+    const viewerVinResult = await listAppointmentReadModels(
+      viewerUser,
+      {
+        locationId: "loc-time-motor-sales-minneapolis",
+        windowStart,
+        windowEnd,
+        searchText: "1FAHP2E82EG123456"
+      },
+      repository,
+      now
+    );
+    const viewerTitleResult = await listAppointmentReadModels(
+      viewerUser,
+      {
+        locationId: "loc-time-motor-sales-minneapolis",
+        windowStart,
+        windowEnd,
+        searchText: "Service"
+      },
+      repository,
+      now
+    );
+
+    expect(managerVinResult.appointments).toHaveLength(1);
+    expect(viewerVinResult.appointments).toHaveLength(0);
+    expect(viewerTitleResult.appointments).toHaveLength(1);
+    expect(viewerTitleResult.appointments[0]).toMatchObject({
+      customer: {
+        displayName: "Ahmed I.",
+        phoneNumber: null,
+        email: null
+      },
+      vehicles: [
+        expect.objectContaining({
+          vin: null,
+          licensePlate: null
+        })
+      ],
+      visibility: {
+        relationship: "LOCATION_VIEWER",
+        dataAccessLevel: "SCHEDULE_SUMMARY"
+      }
+    });
   });
 
   it("includes unscheduled draft appointments so generated follow-up drafts remain selectable", async () => {

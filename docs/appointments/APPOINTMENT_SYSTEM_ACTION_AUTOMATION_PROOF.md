@@ -1,6 +1,6 @@
 # Appointment System-Action Automation Proof
 
-**Status:** Initial MVP proof implemented on `codex/appointment-system-action-automation-proof`
+**Status:** Initial MVP proof included in `codex/appointment-mvp-permission-safety-suite`
 **Scope:** Task-to-appointment automation and outcome follow-up automation safety
 
 ## Implemented Evidence

@@ -1,6 +1,6 @@
 # Appointment Permission Safety Gate
 
-**Status:** Initial MVP safety gate implemented through `codex/appointment-direct-detail-permission-proof`
+**Status:** Initial MVP safety gate implemented through `codex/appointment-mvp-permission-safety-suite`
 **Scope:** Appointment Board command and read-model permission evidence
 
 ## Implemented Evidence
@@ -16,6 +16,7 @@
 - Appointment administrator identity alone does not grant direct appointment detail access.
 - System-action automation proof now confirms task automation cannot execute a rule unless the active rule's purpose explicitly allows the incoming trigger.
 - Misconfigured automation rules are recorded for review instead of creating draft appointments or attempting live appointment actions.
+- Cross-location search proof confirms scoped reads discard upstream cross-location records and search only matches fields visible to the actor.
 - Existing server policy tests keep approval, ownership transfer, and warning override actions manager-only.
 
 ## MVP Boundary
@@ -24,7 +25,6 @@ The day-one board should treat permissions as server-authored. UI controls can h
 
 ## Remaining Before Final Rollout
 
-- Add cross-location search/reporting leakage coverage when those appointment surfaces move into MVP scope.
 - Add role-aware helper copy for disabled board actions so users understand whether an action is unavailable because of role, appointment state, blockers, or MVP deferral.
 
 ## Verification
@@ -32,7 +32,7 @@ The day-one board should treat permissions as server-authored. UI controls can h
 Run the focused safety-gate suite:
 
 ```bash
-npm test -- policies.test.ts appointment-command-service.test.ts appointment-read-service.test.ts appointment-read-detail-route.test.ts task-appointment-automation-service.test.ts
+npm test -- policies.test.ts appointment-command-service.test.ts appointment-read-service.test.ts appointment-read-detail-route.test.ts appointment-read-route.test.ts task-appointment-automation-service.test.ts
 ```
 
 Run full local confidence before merging:
