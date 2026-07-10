@@ -8856,7 +8856,7 @@ code {
 /* Enterprise Appointment Board shell */
 .appointment-board-page {
   --appointment-module-rail-width: 74px;
-  --appointment-detail-rail-width: clamp(236px, 18vw, 286px);
+  --appointment-detail-rail-width: clamp(224px, 17vw, 272px);
   --appointment-calendar-hour-height: 48px;
   --appointment-calendar-grid-height: calc(var(--appointment-calendar-hour-height) * 10);
   --appointment-main-gap: 8px;
@@ -8892,6 +8892,30 @@ code {
   width: calc(100% - var(--appointment-module-rail-width));
 }
 
+.appointment-enterprise-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  min-width: 0;
+}
+
+.appointment-workspace-open .appointment-enterprise-shell {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.appointment-enterprise-main {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.appointment-mockup-aligned .appointment-enterprise-main > .appointment-board-toolbar,
+.appointment-mockup-aligned .appointment-enterprise-main > .appointment-date-row,
+.appointment-mockup-aligned .appointment-enterprise-main > .appointment-metric-grid,
+.appointment-mockup-aligned .appointment-enterprise-main > .appointment-upcoming-card {
+  width: calc(100% - var(--appointment-detail-rail-width) - var(--appointment-main-gap));
+}
+
 .appointment-module-rail {
   position: absolute;
   inset: 0 auto 0 0;
@@ -8913,22 +8937,340 @@ code {
   line-height: 1.1;
 }
 
-.appointment-module-rail span {
+.appointment-module-rail-button {
   display: grid;
   place-items: center start;
-  min-height: 28px;
+  min-height: 26px;
   padding: 0 6px;
+  color: #475569;
   background: #fff;
   border: 1px solid #e1e8f2;
   border-radius: 10px;
   font-size: 10px;
   font-weight: 900;
+  cursor: pointer;
+  transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease, background-color 150ms ease;
 }
 
-.appointment-module-rail span:first-of-type {
+.appointment-module-rail-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
+}
+
+.appointment-module-rail-button-active {
   color: #fff;
   background: #1d5eed;
   border-color: #1d5eed;
+}
+
+.appointment-workspace-sidebar {
+  position: absolute;
+  top: 0;
+  left: calc(var(--appointment-module-rail-width) + 8px);
+  z-index: 25;
+  display: none;
+  gap: 10px;
+  width: clamp(252px, 17vw, 312px);
+  max-height: calc(100vh - 20px);
+  min-width: 0;
+  padding-right: 2px;
+  overflow: auto;
+}
+
+.appointment-workspace-open .appointment-workspace-sidebar {
+  display: grid;
+}
+
+.appointment-workspace-header,
+.appointment-workspace-calendar-card,
+.appointment-workspace-launcher-card,
+.appointment-workspace-shortcuts {
+  min-width: 0;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  border: 1px solid #dbe4f0;
+  border-radius: 18px;
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.08);
+}
+
+.appointment-workspace-header {
+  display: grid;
+  gap: 4px;
+  padding: 14px 15px;
+  background:
+    radial-gradient(circle at top left, rgba(29, 94, 237, 0.18), transparent 54%),
+    linear-gradient(180deg, #f8fbff 0%, #eef4fb 100%);
+}
+
+.appointment-workspace-header .section-kicker {
+  margin: 0;
+  color: #2563eb;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.appointment-workspace-header strong {
+  color: #0f172a;
+  font-size: 21px;
+  letter-spacing: -0.04em;
+}
+
+.appointment-workspace-header span {
+  color: #526176;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.appointment-workspace-calendar-card,
+.appointment-workspace-launcher-card,
+.appointment-workspace-shortcuts {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.appointment-workspace-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.appointment-workspace-card-heading > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.appointment-workspace-card-heading strong {
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.appointment-workspace-card-heading p {
+  margin: 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.appointment-workspace-card-heading > button,
+.appointment-workspace-card-heading > span {
+  display: inline-grid;
+  place-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.appointment-workspace-card-heading > button {
+  color: #075ad9;
+  background: #fff;
+  border: 1px solid #d6e2f2;
+  cursor: pointer;
+}
+
+.appointment-workspace-card-heading > span {
+  color: #075ad9;
+  background: #edf4ff;
+  border: 1px solid #cfe0fb;
+}
+
+.appointment-workspace-weekdays,
+.appointment-workspace-month-grid,
+.appointment-workspace-tabs,
+.appointment-workspace-stats,
+.appointment-workspace-action-grid,
+.appointment-workspace-shortcut-grid {
+  display: grid;
+}
+
+.appointment-workspace-weekdays {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.appointment-workspace-weekdays span {
+  display: grid;
+  place-items: center;
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.appointment-workspace-month-grid {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.appointment-workspace-month-cell {
+  display: grid;
+  justify-items: center;
+  align-content: space-between;
+  min-height: 54px;
+  padding: 7px 4px;
+  color: #172033;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
+}
+
+.appointment-workspace-month-cell:hover,
+.appointment-workspace-tab:hover,
+.appointment-workspace-action:hover,
+.appointment-workspace-shortcut-grid a:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
+}
+
+.appointment-workspace-month-cell strong {
+  font-size: 13px;
+}
+
+.appointment-workspace-month-cell span,
+.appointment-workspace-month-cell i {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  min-height: 18px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.appointment-workspace-month-cell span {
+  color: #075ad9;
+  background: #e6efff;
+}
+
+.appointment-workspace-month-cell i {
+  background: rgba(148, 163, 184, 0.14);
+}
+
+.appointment-workspace-month-cell-muted {
+  color: #94a3b8;
+  background: #f8fafc;
+}
+
+.appointment-workspace-month-cell-active {
+  color: #0f172a;
+  background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
+  border-color: #78aaf5;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.11);
+}
+
+.appointment-workspace-tabs {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.appointment-workspace-tab,
+.appointment-workspace-action,
+.appointment-workspace-shortcut-grid a {
+  border-radius: 12px;
+  border: 1px solid #dbe4f0;
+  background: #fff;
+  transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease, background-color 150ms ease;
+}
+
+.appointment-workspace-tab {
+  min-height: 28px;
+  color: #334155;
+  font-size: 10px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.appointment-workspace-tab-active {
+  color: #fff;
+  background: linear-gradient(135deg, #1d5eed, #0a45bd);
+  border-color: #0c4dc8;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.18);
+}
+
+.appointment-workspace-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.appointment-workspace-stats {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.appointment-workspace-stats article {
+  display: grid;
+  gap: 3px;
+  padding: 8px;
+  background: #fff;
+  border: 1px solid #e1e8f2;
+  border-radius: 14px;
+}
+
+.appointment-workspace-stats strong {
+  color: #0f172a;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.appointment-workspace-stats span {
+  color: #64748b;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.appointment-workspace-action-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.appointment-workspace-action {
+  display: grid;
+  gap: 3px;
+  min-height: 68px;
+  padding: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.appointment-workspace-action strong {
+  color: #0f172a;
+  font-size: 12px;
+}
+
+.appointment-workspace-action small,
+.appointment-workspace-action span {
+  color: #64748b;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.appointment-workspace-action span {
+  color: #075ad9;
+  font-weight: 800;
+}
+
+.appointment-workspace-shortcut-grid {
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.appointment-workspace-shortcut-grid a {
+  display: grid;
+  place-items: center start;
+  min-height: 40px;
+  padding: 0 12px;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
 }
 
 .appointment-board-toolbar {
@@ -9000,7 +9342,7 @@ code {
   grid-template-columns: 18px minmax(0, 1fr);
   align-items: center;
   gap: 8px;
-  width: min(330px, 26vw);
+  width: min(280px, 22vw);
   min-height: 31px;
   padding: 0 12px;
   color: #64748b;
@@ -9112,7 +9454,10 @@ code {
 }
 
 .appointment-mockup-aligned .appointment-date-row {
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: auto auto auto minmax(188px, auto) minmax(260px, 1fr);
+  align-items: center;
+  justify-content: stretch;
   flex-wrap: nowrap;
 }
 
@@ -9134,11 +9479,14 @@ code {
   align-items: center;
   gap: 8px;
   margin-left: 0;
+  min-width: 0;
+  justify-content: flex-end;
 }
 
 .appointment-date-filters select {
   min-height: 31px;
-  min-width: 132px;
+  min-width: 120px;
+  max-width: 168px;
   padding: 0 10px;
   color: #253449;
   background: #fff;
@@ -9157,7 +9505,9 @@ code {
 .appointment-metric {
   display: grid;
   gap: 2px;
+  height: 40px;
   min-height: 40px;
+  align-content: center;
   padding: 5px 8px;
   text-align: left;
   background: #fff;
@@ -9216,6 +9566,26 @@ code {
 .appointment-mockup-aligned .appointment-executive-review-card,
 .appointment-mockup-aligned .appointment-ops-intelligence-card {
   display: none;
+}
+
+.appointment-mockup-aligned.appointment-workspace-tab-operations .appointment-preview-banner,
+.appointment-mockup-aligned.appointment-workspace-tab-operations .appointment-unscheduled-card,
+.appointment-mockup-aligned.appointment-workspace-tab-operations .appointment-exception-card,
+.appointment-mockup-aligned.appointment-workspace-tab-operations .appointment-resolution-workbench,
+.appointment-mockup-aligned.appointment-workspace-tab-intelligence .appointment-preview-banner,
+.appointment-mockup-aligned.appointment-workspace-tab-intelligence .appointment-command-center-views-card,
+.appointment-mockup-aligned.appointment-workspace-tab-intelligence .appointment-command-center-digests-card,
+.appointment-mockup-aligned.appointment-workspace-tab-intelligence .appointment-runtime-handoffs-card,
+.appointment-mockup-aligned.appointment-workspace-tab-intelligence .appointment-notification-center-card,
+.appointment-mockup-aligned.appointment-workspace-tab-intelligence .appointment-enterprise-ops-suite-card,
+.appointment-mockup-aligned.appointment-workspace-tab-intelligence .appointment-operating-views-card,
+.appointment-mockup-aligned.appointment-workspace-tab-intelligence .appointment-schedule-analytics-card,
+.appointment-mockup-aligned.appointment-workspace-tab-intelligence .appointment-command-search-card,
+.appointment-mockup-aligned.appointment-workspace-tab-intelligence .appointment-audit-timeline-card,
+.appointment-mockup-aligned.appointment-workspace-tab-intelligence .appointment-reporting-card,
+.appointment-mockup-aligned.appointment-workspace-tab-intelligence .appointment-executive-review-card,
+.appointment-mockup-aligned.appointment-workspace-tab-intelligence .appointment-ops-intelligence-card {
+  display: grid;
 }
 
 .appointment-board-card,
@@ -11751,7 +12121,8 @@ code {
 }
 
 .appointment-board-controls {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   justify-content: space-between;
   gap: 5px;
@@ -11764,7 +12135,8 @@ code {
 }
 
 .appointment-mockup-aligned .appointment-board-lane-modes {
-  margin-left: auto;
+  justify-self: end;
+  margin-left: 0;
 }
 
 .appointment-view-tabs,
@@ -11772,14 +12144,15 @@ code {
 .appointment-board-lane-modes {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   min-width: 0;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .appointment-view-tab {
-  min-width: 66px;
-  min-height: 27px;
+  min-width: 56px;
+  min-height: 26px;
+  padding: 0 8px;
   border-radius: 8px;
 }
 
@@ -11808,8 +12181,8 @@ code {
 }
 
 .appointment-board-lane-mode {
-  min-height: 27px;
-  padding: 0 10px;
+  min-height: 26px;
+  padding: 0 8px;
   color: #334155;
   background: #fff;
   border: 1px solid #dce3ed;
@@ -12117,6 +12490,15 @@ code {
 .appointment-mockup-aligned .appointment-detail-section:has(.appointment-resource-stack),
 .appointment-mockup-aligned .appointment-detail-section:has(.appointment-staff-warning-control) {
   display: none;
+}
+
+.appointment-mockup-aligned.appointment-workspace-tab-operations .appointment-detail-section:has(.appointment-governance-list),
+.appointment-mockup-aligned.appointment-workspace-tab-operations .appointment-detail-section:has(.appointment-owner-transfer-card),
+.appointment-mockup-aligned.appointment-workspace-tab-operations .appointment-detail-section:has(.appointment-readiness-stack),
+.appointment-mockup-aligned.appointment-workspace-tab-operations .appointment-detail-section:has(.appointment-resource-stack),
+.appointment-mockup-aligned.appointment-workspace-tab-operations .appointment-detail-section:has(.appointment-staff-warning-control),
+.appointment-mockup-aligned.appointment-workspace-tab-intelligence .appointment-detail-section:has(.appointment-governance-list) {
+  display: grid;
 }
 
 .appointment-detail-header {
@@ -12950,6 +13332,14 @@ code {
 }
 
 @media (max-width: 1180px) {
+  .appointment-enterprise-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .appointment-workspace-sidebar {
+    position: static;
+  }
+
   .appointment-main-grid {
     grid-template-columns: 1fr;
   }
@@ -13011,6 +13401,10 @@ code {
     width: min(100%, 520px);
   }
 
+  .appointment-workspace-action-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .appointment-metric-grid,
   .appointment-upcoming-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -13018,6 +13412,12 @@ code {
 }
 
 @media (max-width: 760px) {
+  .appointment-workspace-stats,
+  .appointment-workspace-action-grid,
+  .appointment-workspace-tabs {
+    grid-template-columns: 1fr;
+  }
+
   .appointment-metric-grid,
   .appointment-upcoming-grid,
   .appointment-exception-grid,
@@ -13102,6 +13502,11 @@ code {
   .appointment-date-row,
   .appointment-detail-actions {
     align-items: stretch;
+  }
+
+  .appointment-workspace-card-heading {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .appointment-search,

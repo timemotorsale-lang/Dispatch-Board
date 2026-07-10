@@ -777,6 +777,7 @@ type AppointmentOpsIntelligenceModel = {
 };
 
 type AppointmentBoardLaneMode = "staff" | "location" | "resource";
+type AppointmentWorkspaceTab = "planner" | "operations" | "intelligence";
 
 type AppointmentAgendaSection = {
   dateKey: string;
@@ -1832,6 +1833,12 @@ const boardLaneModes: Array<{ value: AppointmentBoardLaneMode; label: string }> 
   { value: "location", label: "Location" },
   { value: "resource", label: "Resource" }
 ];
+const appointmentWorkspaceTabs: Array<{ value: AppointmentWorkspaceTab; label: string }> = [
+  { value: "planner", label: "Planner" },
+  { value: "operations", label: "Operations" },
+  { value: "intelligence", label: "Intelligence" }
+];
+const monthWeekdayLabels = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const hourLabels = ["9:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM", "5:00 PM", "6:00 PM"];
 const noShowReasonOptions = [
   { value: "CUSTOMER_NO_SHOW", label: "Customer did not arrive" },
@@ -5534,6 +5541,8 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   const [conflictsOnly, setConflictsOnly] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("day");
   const [boardLaneMode, setBoardLaneMode] = useState<AppointmentBoardLaneMode>("staff");
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<AppointmentWorkspaceTab>("planner");
+  const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false);
   const [draftOpen, setDraftOpen] = useState(false);
   const [noShowOpen, setNoShowOpen] = useState(false);
   const [isCommandPending, setIsCommandPending] = useState(false);
@@ -9131,9 +9140,94 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     { label: "No Show", value: boardAppointments.filter((appointment) => appointment.status === "no-show").length, status: "no-show" as const, tone: "red" },
     { label: "Needs Follow-Up", value: boardAppointments.filter((appointment) => appointment.needsFollowUp || appointment.status === "follow-up").length, status: "follow-up" as const, tone: "purple" }
   ];
+  const workspaceMonthLabel = formatDateKeyLabel(defaultBoardDate, boardTimezone, {
+    month: "long",
+    year: "numeric"
+  });
+  const workspaceMonthAppointmentCount = monthCells.reduce((total, cell) => total + cell.items.length, 0);
+  const linkedTaskCount =
+    selectedAppointment.linkedTasks?.length ?? selectedAppointment.taskAutomation.length;
+  const automationRuntimeCount = selectedAppointment.automationExecutions?.length ?? 0;
+  const firstWatchedSubscription =
+    commandCenterSubscriptionSummaries.find((subscription) => subscription.enabled) ??
+    commandCenterSubscriptionSummaries[0];
+  const firstDigestSummary =
+    commandCenterDigestSummaries.find((digest) => digest.enabled) ?? commandCenterDigestSummaries[0];
+  const firstNotificationCenterItem = filteredNotificationCenterItems[0] ?? notificationCenterItems[0];
+  const firstEnterpriseOpsItem = visibleEnterpriseOpsQueues.flatMap((queue) => queue.items)[0];
+  const firstResourceViewItem = resourceViewItems[0];
+  const firstLocationViewItem = locationViewItems[0];
+  const firstVehicleViewItem = vehicleViewItems[0];
 
   function handlePreviewAction(label: string) {
     setActionNotice(`${label} captured in preview. Live version will require a documented reason and audit trail.`);
+  }
+
+  function focusWorkspaceSurface(input: {
+    tab: AppointmentWorkspaceTab;
+    notice: string;
+    targetId?: string;
+    onFocus?: () => void;
+  }) {
+    setActiveWorkspaceTab(input.tab);
+    setIsWorkspaceOpen(true);
+    input.onFocus?.();
+    setActionNotice(input.notice);
+
+    if (typeof document !== "undefined" && input.targetId) {
+      const targetId = input.targetId;
+      window.setTimeout(() => {
+        document.getElementById(targetId)?.scrollIntoView({
+          behavior: "smooth",
+          block: "start"
+        });
+      }, 0);
+    }
+  }
+
+  function focusWorkspaceMonthCell(cell: AppointmentMonthCell) {
+    focusWorkspaceSurface({
+      tab: "planner",
+      targetId: "appointment-month-view",
+      notice:
+        cell.items.length > 0
+          ? `Opened ${formatDateKeyLabel(cell.dateKey, boardTimezone, {
+              weekday: "long",
+              month: "long",
+              day: "numeric"
+            })} from the planning calendar.`
+          : `Loaded the month planner for ${formatDateKeyLabel(cell.dateKey, boardTimezone, {
+              month: "long",
+              day: "numeric"
+            })}.`,
+      onFocus: () => {
+        setViewMode("month");
+        if (cell.items[0]) {
+          selectAppointmentForDetail(cell.items[0]);
+        }
+      }
+    });
+  }
+
+  function focusWorkspaceExceptionQueue(queueKey: AppointmentExceptionQueueKey) {
+    const queue = exceptionQueues.find((candidate) => candidate.key === queueKey);
+
+    if (!queue || queue.items.length === 0) {
+      setActiveWorkspaceTab("operations");
+      setIsWorkspaceOpen(true);
+      setActionNotice("That queue is clear right now.");
+      return;
+    }
+
+    focusWorkspaceSurface({
+      tab: "operations",
+      targetId: "appointment-exception-queues",
+      notice: `Opened ${queue.title.toLowerCase()} from the operations rail.`,
+      onFocus: () => {
+        selectAppointmentForDetail(queue.items[0]);
+        setResolutionFilter(queue.key);
+      }
+    });
   }
 
   async function submitDraftAppointment() {
@@ -10479,14 +10573,808 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   }
 
   return (
-    <section className="appointment-board-page appointment-mockup-aligned" aria-labelledby="appointment-board-title">
+    <section
+      className={`appointment-board-page appointment-mockup-aligned appointment-workspace-tab-${activeWorkspaceTab}${isWorkspaceOpen ? " appointment-workspace-open" : ""}`}
+      aria-labelledby="appointment-board-title"
+    >
       <aside className="appointment-module-rail" aria-label="Appointment module navigation">
         <strong>Appts</strong>
-        <span>Today</span>
-        <span>Queue</span>
-        <span>Calendar</span>
-        <span>Follow-up</span>
+        <button
+          className={!isWorkspaceOpen && viewMode === "day" ? "appointment-module-rail-button appointment-module-rail-button-active" : "appointment-module-rail-button"}
+          onClick={() => {
+            setIsWorkspaceOpen(false);
+            setViewMode("day");
+          }}
+          type="button"
+        >
+          Today
+        </button>
+        <button
+          className={isWorkspaceOpen && activeWorkspaceTab === "planner" ? "appointment-module-rail-button appointment-module-rail-button-active" : "appointment-module-rail-button"}
+          onClick={() => {
+            setActiveWorkspaceTab("planner");
+            setIsWorkspaceOpen((value) => (activeWorkspaceTab === "planner" ? !value : true));
+          }}
+          type="button"
+        >
+          Hub
+        </button>
+        <button
+          className={isWorkspaceOpen && activeWorkspaceTab === "operations" ? "appointment-module-rail-button appointment-module-rail-button-active" : "appointment-module-rail-button"}
+          onClick={() => {
+            setActiveWorkspaceTab("operations");
+            setIsWorkspaceOpen(true);
+          }}
+          type="button"
+        >
+          Ops
+        </button>
+        <button
+          className={isWorkspaceOpen && activeWorkspaceTab === "intelligence" ? "appointment-module-rail-button appointment-module-rail-button-active" : "appointment-module-rail-button"}
+          onClick={() => {
+            setActiveWorkspaceTab("intelligence");
+            setIsWorkspaceOpen(true);
+          }}
+          type="button"
+        >
+          Intel
+        </button>
+        <button
+          className={isWorkspaceOpen && activeWorkspaceTab === "operations" && resolutionFilter === "follow-up-required" ? "appointment-module-rail-button appointment-module-rail-button-active" : "appointment-module-rail-button"}
+          onClick={() =>
+            focusWorkspaceSurface({
+              tab: "operations",
+              targetId: "appointment-resolution-workbench",
+              notice: "Focused follow-up backlog from the appointment module rail.",
+              onFocus: () => setResolutionFilter("follow-up-required")
+            })
+          }
+          type="button"
+        >
+          Follow-up
+        </button>
       </aside>
+      <div className="appointment-enterprise-shell">
+        <aside className="appointment-workspace-sidebar" aria-labelledby="appointment-workspace-planning">
+          <div className="appointment-workspace-header">
+            <p className="section-kicker">Planning rail</p>
+            <strong id="appointment-workspace-planning">Shift Planning Hub</strong>
+            <span>
+              {businessDate} · {activeExceptionQueueCount} active queue
+              {activeExceptionQueueCount === 1 ? "" : "s"} · {unreadNotificationCount} unread alert
+              {unreadNotificationCount === 1 ? "" : "s"}
+            </span>
+          </div>
+
+          <section className="appointment-workspace-calendar-card" aria-labelledby="appointment-workspace-calendar">
+            <div className="appointment-workspace-card-heading">
+              <div>
+                <strong id="appointment-workspace-calendar">{workspaceMonthLabel}</strong>
+                <p>{workspaceMonthAppointmentCount} visible appointments in the current board scope.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  focusWorkspaceSurface({
+                    tab: "planner",
+                    targetId: "appointment-month-view",
+                    notice: "Opened the full month planner from the shift planning rail.",
+                    onFocus: () => setViewMode("month")
+                  })
+                }
+              >
+                Open month
+              </button>
+            </div>
+            <div className="appointment-workspace-weekdays" aria-hidden="true">
+              {monthWeekdayLabels.map((label) => (
+                <span key={label}>{label}</span>
+              ))}
+            </div>
+            <div className="appointment-workspace-month-grid">
+              {monthCells.map((cell) => (
+                <button
+                  aria-label={`${formatDateKeyLabel(cell.dateKey, boardTimezone, {
+                    weekday: "long",
+                    month: "long",
+                    day: "numeric"
+                  })}${cell.items.length > 0 ? `, ${cell.items.length} visible appointments` : ""}`}
+                  className={
+                    cell.isBoardDate
+                      ? "appointment-workspace-month-cell appointment-workspace-month-cell-active"
+                      : cell.isCurrentMonth
+                        ? "appointment-workspace-month-cell"
+                        : "appointment-workspace-month-cell appointment-workspace-month-cell-muted"
+                  }
+                  key={cell.dateKey}
+                  onClick={() => focusWorkspaceMonthCell(cell)}
+                  type="button"
+                >
+                  <strong>{cell.dayNumber}</strong>
+                  {cell.items.length > 0 ? <span>{cell.items.length}</span> : <i aria-hidden="true" />}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="appointment-workspace-launcher-card" aria-labelledby="appointment-workspace-launchers">
+            <div className="appointment-workspace-card-heading">
+              <div>
+                <strong id="appointment-workspace-launchers">Board Workspaces</strong>
+                <p>Open MVP and advanced appointment features without leaving the board.</p>
+              </div>
+              <span>
+                {activeWorkspaceTab === "planner"
+                  ? "Core board"
+                  : activeWorkspaceTab === "operations"
+                    ? "Live ops"
+                    : "Intelligence"}
+              </span>
+            </div>
+
+            <div className="appointment-workspace-tabs" role="tablist" aria-label="Appointment workspace tabs">
+              {appointmentWorkspaceTabs.map((tab) => (
+                <button
+                  aria-selected={activeWorkspaceTab === tab.value}
+                  className={
+                    activeWorkspaceTab === tab.value
+                      ? "appointment-workspace-tab appointment-workspace-tab-active"
+                      : "appointment-workspace-tab"
+                  }
+                  key={tab.value}
+                  onClick={() => setActiveWorkspaceTab(tab.value)}
+                  role="tab"
+                  type="button"
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {activeWorkspaceTab === "planner" ? (
+              <div className="appointment-workspace-panel">
+                <div className="appointment-workspace-stats">
+                  <article>
+                    <strong>{boardAppointments.length}</strong>
+                    <span>Visible appointments</span>
+                  </article>
+                  <article>
+                    <strong>{unscheduledDraftAppointments.length}</strong>
+                    <span>Drafts waiting for time</span>
+                  </article>
+                  <article>
+                    <strong>{upcomingAppointments.length}</strong>
+                    <span>Upcoming handoffs</span>
+                  </article>
+                </div>
+                <div className="appointment-workspace-action-grid">
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() =>
+                      focusWorkspaceSurface({
+                        tab: "planner",
+                        targetId: "appointment-board-title",
+                        notice: "Loaded the day board in staff lanes.",
+                        onFocus: () => {
+                          setViewMode("day");
+                          setBoardLaneMode("staff");
+                        }
+                      })
+                    }
+                    type="button"
+                  >
+                    <strong>Day Board</strong>
+                    <small>Live operating schedule</small>
+                    <span>Staff-first view</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() =>
+                      focusWorkspaceSurface({
+                        tab: "planner",
+                        targetId: "appointment-week-view",
+                        notice: "Opened the weekly planning view.",
+                        onFocus: () => setViewMode("week")
+                      })
+                    }
+                    type="button"
+                  >
+                    <strong>Week Planner</strong>
+                    <small>See the operating week</small>
+                    <span>7-day capacity check</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() =>
+                      focusWorkspaceSurface({
+                        tab: "planner",
+                        targetId: "appointment-month-view",
+                        notice: "Opened the monthly planning board.",
+                        onFocus: () => setViewMode("month")
+                      })
+                    }
+                    type="button"
+                  >
+                    <strong>Month Planner</strong>
+                    <small>Whole-month calendar inside the board</small>
+                    <span>{workspaceMonthLabel}</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() =>
+                      focusWorkspaceSurface({
+                        tab: "planner",
+                        targetId: "appointment-agenda-view",
+                        notice: "Opened the agenda queue for manager review.",
+                        onFocus: () => setViewMode("agenda")
+                      })
+                    }
+                    type="button"
+                  >
+                    <strong>Agenda Queue</strong>
+                    <small>Sequential customer flow</small>
+                    <span>{agendaSections.length} grouped day views</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() =>
+                      focusWorkspaceSurface({
+                        tab: "planner",
+                        targetId: "appointment-board-title",
+                        notice: "Loaded staff lane planning.",
+                        onFocus: () => {
+                          setViewMode("day");
+                          setBoardLaneMode("staff");
+                        }
+                      })
+                    }
+                    type="button"
+                  >
+                    <strong>Staff Lanes</strong>
+                    <small>Advisor and owner coverage</small>
+                    <span>{boardLanes.length} visible lanes</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() =>
+                      focusWorkspaceSurface({
+                        tab: "planner",
+                        targetId: "appointment-board-title",
+                        notice: "Loaded location lane planning.",
+                        onFocus: () => {
+                          setViewMode("day");
+                          setBoardLaneMode("location");
+                        }
+                      })
+                    }
+                    type="button"
+                  >
+                    <strong>Location Lanes</strong>
+                    <small>Front counter and floor flow</small>
+                    <span>Lane lens switch</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() =>
+                      focusWorkspaceSurface({
+                        tab: "planner",
+                        targetId: "appointment-board-title",
+                        notice: "Loaded resource lane planning.",
+                        onFocus: () => {
+                          setViewMode("day");
+                          setBoardLaneMode("resource");
+                        }
+                      })
+                    }
+                    type="button"
+                  >
+                    <strong>Resource Lanes</strong>
+                    <small>Bays, desks, and shared assets</small>
+                    <span>Capacity-balanced view</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() =>
+                      focusWorkspaceSurface({
+                        tab: "operations",
+                        targetId: "unscheduled-draft-appointments",
+                        notice: "Opened the draft scheduling queue from the planner rail.",
+                        onFocus: () => {
+                          if (unscheduledDraftAppointments[0]) {
+                            selectAppointmentForDetail(unscheduledDraftAppointments[0]);
+                          }
+                        }
+                      })
+                    }
+                    type="button"
+                  >
+                    <strong>Draft Queue</strong>
+                    <small>Schedule follow-ups and open drafts</small>
+                    <span>{unscheduledDraftAppointments.length} waiting</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() =>
+                      focusWorkspaceSurface({
+                        tab: "planner",
+                        targetId: "upcoming-appointments",
+                        notice: "Focused upcoming appointments for handoff planning."
+                      })
+                    }
+                    type="button"
+                  >
+                    <strong>Upcoming</strong>
+                    <small>Next-day appointment visibility</small>
+                    <span>{upcomingAppointments.length} staged cards</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() => setDraftOpen(true)}
+                    type="button"
+                  >
+                    <strong>New Appointment</strong>
+                    <small>Create a fresh draft without leaving the board</small>
+                    <span>Manager-safe entry</span>
+                  </button>
+                </div>
+              </div>
+            ) : activeWorkspaceTab === "operations" ? (
+              <div className="appointment-workspace-panel">
+                <div className="appointment-workspace-stats">
+                  <article>
+                    <strong>{activeExceptionQueueCount}</strong>
+                    <span>Live exception queues</span>
+                  </article>
+                  <article>
+                    <strong>{resolutionWorkbenchItems.length}</strong>
+                    <span>Resolution items</span>
+                  </article>
+                  <article>
+                    <strong>{linkedTaskCount}</strong>
+                    <span>Linked task steps</span>
+                  </article>
+                </div>
+                <div className="appointment-workspace-action-grid">
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() =>
+                      focusWorkspaceSurface({
+                        tab: "operations",
+                        targetId: "unscheduled-draft-appointments",
+                        notice: "Opened the unscheduled draft queue.",
+                        onFocus: () => {
+                          if (unscheduledDraftAppointments[0]) {
+                            selectAppointmentForDetail(unscheduledDraftAppointments[0]);
+                          }
+                        }
+                      })
+                    }
+                    type="button"
+                  >
+                    <strong>Draft Scheduling</strong>
+                    <small>Generated follow-ups and unscheduled drafts</small>
+                    <span>{unscheduledDraftAppointments.length} need scheduling</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() =>
+                      focusWorkspaceSurface({
+                        tab: "operations",
+                        targetId: "appointment-exception-queues",
+                        notice: "Opened manager exception queues."
+                      })
+                    }
+                    type="button"
+                  >
+                    <strong>Exception Queues</strong>
+                    <small>Conflict, no-show, and follow-up risk lanes</small>
+                    <span>{activeExceptionQueueCount} active</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() =>
+                      focusWorkspaceSurface({
+                        tab: "operations",
+                        targetId: "appointment-resolution-workbench",
+                        notice: "Opened the resolution workbench for live queue clearing."
+                      })
+                    }
+                    type="button"
+                  >
+                    <strong>Resolution Workbench</strong>
+                    <small>Bulk ownership, snooze, escalate, resolve</small>
+                    <span>{resolutionWorkbenchItems.length} indexed items</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() =>
+                      focusWorkspaceSurface({
+                        tab: "operations",
+                        targetId: "appointment-detail-linked-tasks",
+                        notice: `Focused linked tasks for ${selectedAppointment.id}.`
+                      })
+                    }
+                    type="button"
+                  >
+                    <strong>Linked Tasks</strong>
+                    <small>Work required to complete the appointment</small>
+                    <span>{linkedTaskCount} visible tasks</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() =>
+                      focusWorkspaceSurface({
+                        tab: "operations",
+                        targetId: "appointment-detail-automation",
+                        notice: `Focused automation runtime for ${selectedAppointment.id}.`
+                      })
+                    }
+                    type="button"
+                  >
+                    <strong>Automation Runtime</strong>
+                    <small>Live command execution history</small>
+                    <span>{automationRuntimeCount} runtime events</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() =>
+                      focusWorkspaceSurface({
+                        tab: "operations",
+                        targetId: "appointment-detail-readiness",
+                        notice: `Focused schedule readiness for ${selectedAppointment.id}.`
+                      })
+                    }
+                    type="button"
+                  >
+                    <strong>Schedule Readiness</strong>
+                    <small>Blocking and warning checks before scheduling</small>
+                    <span>{scheduleReadiness?.status ?? "Live check"}</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() =>
+                      focusWorkspaceSurface({
+                        tab: "operations",
+                        targetId: "appointment-detail-resource",
+                        notice: `Focused resource planning for ${selectedAppointment.id}.`
+                      })
+                    }
+                    type="button"
+                  >
+                    <strong>Resource Planning</strong>
+                    <small>Recommendations, holds, and replacement actions</small>
+                    <span>{resourcePlanning?.recommendations.length ?? 0} requirement{resourcePlanning?.recommendations.length === 1 ? "" : "s"}</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() =>
+                      focusWorkspaceSurface({
+                        tab: "operations",
+                        targetId: "appointment-detail-outcome",
+                        notice: `Focused outcome capture for ${selectedAppointment.id}.`
+                      })
+                    }
+                    type="button"
+                  >
+                    <strong>Outcome Capture</strong>
+                    <small>Close work with governed follow-up</small>
+                    <span>{outcomeFieldValues.outcomeCode.replaceAll("_", " ")}</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() => focusWorkspaceExceptionQueue("follow-up-required")}
+                    type="button"
+                  >
+                    <strong>Follow-Up Backlog</strong>
+                    <small>Appointments still needing next steps</small>
+                    <span>{exceptionQueues.find((queue) => queue.key === "follow-up-required")?.items.length ?? 0} queued</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() => focusWorkspaceExceptionQueue("no-show-recovery")}
+                    type="button"
+                  >
+                    <strong>No-Show Recovery</strong>
+                    <small>Recover customer intent and document next action</small>
+                    <span>{exceptionQueues.find((queue) => queue.key === "no-show-recovery")?.items.length ?? 0} queued</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="appointment-workspace-panel">
+                <div className="appointment-workspace-stats">
+                  <article>
+                    <strong>{unreadNotificationCount}</strong>
+                    <span>Unread notifications</span>
+                  </article>
+                  <article>
+                    <strong>{savedCommandCenterViews.length}</strong>
+                    <span>Saved command views</span>
+                  </article>
+                  <article>
+                    <strong>{reportingSnapshotEntries.length}</strong>
+                    <span>Reporting snapshots</span>
+                  </article>
+                </div>
+                <div className="appointment-workspace-action-grid">
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() =>
+                      focusWorkspaceSurface({
+                        tab: "intelligence",
+                        targetId: "appointment-command-center-views",
+                        notice: "Opened saved views and watched subscriptions."
+                      })
+                    }
+                    type="button"
+                  >
+                    <strong>Saved Views</strong>
+                    <small>Reopen durable command-center workspaces</small>
+                    <span>{savedCommandCenterViews.length} saved</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() => {
+                      if (firstWatchedSubscription) {
+                        focusWorkspaceSurface({
+                          tab: "intelligence",
+                          targetId: "appointment-command-center-subscriptions",
+                          notice: `Opened watch "${firstWatchedSubscription.label}" from the intelligence rail.`,
+                          onFocus: () => openCommandCenterSubscription(firstWatchedSubscription)
+                        });
+                        return;
+                      }
+
+                      setActiveWorkspaceTab("intelligence");
+                      setActionNotice("Watched queues are available in the command center.");
+                    }}
+                    type="button"
+                  >
+                    <strong>Watched Queues</strong>
+                    <small>Keep critical risk lanes on watch</small>
+                    <span>{enabledCommandCenterSubscriptionCount} enabled</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() => {
+                      if (firstDigestSummary) {
+                        focusWorkspaceSurface({
+                          tab: "intelligence",
+                          targetId: "appointment-command-center-digests",
+                          notice: `Opened digest "${firstDigestSummary.label}" from the intelligence rail.`,
+                          onFocus: () => focusCommandCenterDigest(firstDigestSummary)
+                        });
+                        return;
+                      }
+
+                      setActiveWorkspaceTab("intelligence");
+                      setActionNotice("Notification digests are available in the command center.");
+                    }}
+                    type="button"
+                  >
+                    <strong>Notification Digests</strong>
+                    <small>Shift handoffs and manager-safe summaries</small>
+                    <span>{enabledCommandCenterDigestCount} live</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() => {
+                      if (firstNotificationCenterItem) {
+                        focusWorkspaceSurface({
+                          tab: "intelligence",
+                          targetId: "appointment-notification-center",
+                          notice: `Opened ${firstNotificationCenterItem.title} in the notification center.`,
+                          onFocus: () => openNotificationDeepLink(firstNotificationCenterItem)
+                        });
+                        return;
+                      }
+
+                      focusWorkspaceSurface({
+                        tab: "intelligence",
+                        targetId: "appointment-notification-center",
+                        notice: "Opened the notification center."
+                      });
+                    }}
+                    type="button"
+                  >
+                    <strong>Notification Center</strong>
+                    <small>Inbox, failures, fanout, and delivery policy</small>
+                    <span>{notificationCenterCounts.all} visible</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() => {
+                      if (firstEnterpriseOpsItem) {
+                        focusWorkspaceSurface({
+                          tab: "intelligence",
+                          targetId: "appointment-enterprise-ops-suite",
+                          notice: `Opened ${firstEnterpriseOpsItem.title} in the enterprise ops suite.`,
+                          onFocus: () => openEnterpriseOpsQueueItem(firstEnterpriseOpsItem)
+                        });
+                        return;
+                      }
+
+                      focusWorkspaceSurface({
+                        tab: "intelligence",
+                        targetId: "appointment-enterprise-ops-suite",
+                        notice: "Opened the enterprise operations suite."
+                      });
+                    }}
+                    type="button"
+                  >
+                    <strong>Enterprise Ops</strong>
+                    <small>Automation recovery and enterprise queue control</small>
+                    <span>{enterpriseOpsSummary.open} open items</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() => {
+                      if (firstResourceViewItem) {
+                        focusWorkspaceSurface({
+                          tab: "intelligence",
+                          targetId: "appointment-operating-views",
+                          notice: `Opened ${firstResourceViewItem.resourceLabel.toLowerCase()} in operating views.`,
+                          onFocus: () => openResourceViewItem(firstResourceViewItem)
+                        });
+                        return;
+                      }
+
+                      focusWorkspaceSurface({
+                        tab: "intelligence",
+                        targetId: "appointment-operating-views",
+                        notice: "Opened resource, location, and vehicle operating views."
+                      });
+                    }}
+                    type="button"
+                  >
+                    <strong>Operating Views</strong>
+                    <small>Resource, location, and vehicle intelligence</small>
+                    <span>
+                      {resourceViewItems.length + locationViewItems.length + vehicleViewItems.length} tracked views
+                    </span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() =>
+                      focusWorkspaceSurface({
+                        tab: "intelligence",
+                        targetId: "appointment-schedule-analytics",
+                        notice: "Opened schedule analytics and reconciliation.",
+                        onFocus: () => applyScheduleAnalyticsPreset(scheduleAnalyticsPreset)
+                      })
+                    }
+                    type="button"
+                  >
+                    <strong>Schedule Analytics</strong>
+                    <small>Lane pressure and reconciliation insight</small>
+                    <span>{scheduleAnalyticsModel.summaryLabel}</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() =>
+                      focusWorkspaceSurface({
+                        tab: "intelligence",
+                        targetId: "appointment-command-search",
+                        notice: "Opened cross-appointment search."
+                      })
+                    }
+                    type="button"
+                  >
+                    <strong>Cross-Board Search</strong>
+                    <small>Find appointments, timeline events, and queue work</small>
+                    <span>Saved enterprise presets</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() =>
+                      focusWorkspaceSurface({
+                        tab: "intelligence",
+                        targetId: "appointment-audit-timeline",
+                        notice: "Opened the command-center audit timeline."
+                      })
+                    }
+                    type="button"
+                  >
+                    <strong>Audit Timeline</strong>
+                    <small>Manager activity and lifecycle traceability</small>
+                    <span>{selectedAppointmentAuditTimeline.length} visible event{selectedAppointmentAuditTimeline.length === 1 ? "" : "s"}</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() =>
+                      focusWorkspaceSurface({
+                        tab: "intelligence",
+                        targetId: "appointment-reporting-exports",
+                        notice: "Opened reporting and exports.",
+                        onFocus: () => setReportOwnerFilter("all")
+                      })
+                    }
+                    type="button"
+                  >
+                    <strong>Reporting &amp; Exports</strong>
+                    <small>Snapshots, freshness, and KPI evidence</small>
+                    <span>{reportingFreshnessSummary.headline}</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() =>
+                      focusWorkspaceSurface({
+                        tab: "intelligence",
+                        targetId: "appointment-executive-review",
+                        notice: "Opened the executive review suite.",
+                        onFocus: () => applyExecutiveReviewPreset(executiveReviewPreset)
+                      })
+                    }
+                    type="button"
+                  >
+                    <strong>Executive Review</strong>
+                    <small>Leadership presets and daily brief</small>
+                    <span>{executiveReviewModel.headline}</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() =>
+                      focusWorkspaceSurface({
+                        tab: "intelligence",
+                        targetId: "appointment-ops-intelligence",
+                        notice: "Opened the ops intelligence suite."
+                      })
+                    }
+                    type="button"
+                  >
+                    <strong>Ops Intelligence</strong>
+                    <small>Leadership export and digest effectiveness</small>
+                    <span>{opsIntelligenceModel.headline}</span>
+                  </button>
+                  <button
+                    className="appointment-workspace-action"
+                    onClick={() => {
+                      if (firstLocationViewItem) {
+                        focusWorkspaceSurface({
+                          tab: "intelligence",
+                          targetId: "appointment-operating-views",
+                          notice: `Opened ${firstLocationViewItem.locationLabel.toLowerCase()} in location views.`,
+                          onFocus: () => openLocationViewItem(firstLocationViewItem)
+                        });
+                        return;
+                      }
+
+                      if (firstVehicleViewItem) {
+                        focusWorkspaceSurface({
+                          tab: "intelligence",
+                          targetId: "appointment-operating-views",
+                          notice: `Opened ${firstVehicleViewItem.vehicleLabel.toLowerCase()} in vehicle views.`,
+                          onFocus: () => openVehicleViewItem(firstVehicleViewItem)
+                        });
+                      }
+                    }}
+                    type="button"
+                  >
+                    <strong>Vehicle &amp; Location</strong>
+                    <small>Surface downstream planning context</small>
+                    <span>{locationViewItems.length + vehicleViewItems.length} context cards</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+
+          <section className="appointment-workspace-shortcuts" aria-labelledby="appointment-workspace-shortcuts">
+            <div className="appointment-workspace-card-heading">
+              <div>
+                <strong id="appointment-workspace-shortcuts">Admin &amp; Console Links</strong>
+                <p>Jump straight into adjacent appointment tooling.</p>
+              </div>
+            </div>
+            <div className="appointment-workspace-shortcut-grid">
+              <Link href="/settings/appointments">Appointment Settings</Link>
+              <Link href="/settings/appointments/automation">Automation Console</Link>
+              <Link href="/tasks">Task Board</Link>
+            </div>
+          </section>
+        </aside>
+
+        <div className="appointment-enterprise-main">
       <div className="appointment-board-toolbar">
         <div>
           <p className="section-kicker">Enterprise appointment operations</p>
@@ -13969,7 +14857,7 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
             <p><MessageCircle size={16} aria-hidden="true" />{selectedAppointment.complaint}</p>
           </div>
 
-          <div className="appointment-detail-section">
+          <div className="appointment-detail-section" id="appointment-detail-linked-tasks">
             <div className="appointment-section-heading">
               <strong>
                 Linked Tasks ({selectedAppointment.linkedTasks?.length ?? selectedAppointment.taskAutomation.length})
@@ -14018,7 +14906,7 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
           </div>
 
           {selectedAppointment.dataSource === "live" ? (
-            <div className="appointment-detail-section">
+            <div className="appointment-detail-section" id="appointment-detail-automation">
               <div className="appointment-section-heading">
                 <strong>
                   Automation Runtime ({selectedAppointment.automationExecutions?.length ?? 0})
@@ -14076,7 +14964,7 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
           </div>
 
           {selectedAppointment.dataSource === "live" ? (
-            <div className="appointment-detail-section">
+            <div className="appointment-detail-section" id="appointment-detail-readiness">
               <div className="appointment-section-heading">
                 <strong>Schedule Readiness</strong>
                 <span className={`appointment-readiness-chip appointment-readiness-${scheduleReadiness?.status.toLowerCase() ?? "loading"}`}>
@@ -14102,7 +14990,7 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
           ) : null}
 
           {selectedAppointmentIsUnscheduledDraft ? (
-            <div className="appointment-detail-section">
+            <div className="appointment-detail-section" id="appointment-detail-resource">
               <div className="appointment-section-heading">
                 <strong>Schedule Unscheduled Draft</strong>
                 <span className="appointment-resource-chip appointment-resource-ready-to-select">
@@ -14365,7 +15253,7 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
             </div>
           ) : null}
 
-          <div className="appointment-detail-section">
+          <div className="appointment-detail-section" id="appointment-detail-outcome">
               <div className="appointment-section-heading">
                 <strong>Owner Reassignment</strong>
                 <span className="appointment-resource-chip appointment-resource-requirement-selected">
@@ -14986,6 +15874,8 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
           ))}
         </div>
       </section>
+        </div>
+      </div>
 
       {draftOpen ? (
         <div className="appointment-modal-backdrop" role="presentation">
