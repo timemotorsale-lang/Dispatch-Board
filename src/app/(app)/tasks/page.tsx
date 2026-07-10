@@ -4,6 +4,7 @@ import { isManager } from "@/server/policies/access";
 import { getGenerationSettings } from "@/server/services/app-settings-service";
 import { getBoardReadModelForDate } from "@/server/services/board-read";
 import { getTaskReadModelById } from "@/server/services/task-read";
+import { listTaskSavedViews, type TaskSavedViewModel } from "@/server/services/task-saved-views";
 import { listActiveUserSummaries } from "@/server/services/user-summary";
 import { getBoardDateInTimeZone, normalizeBoardDate } from "@/server/validation/board-date";
 
@@ -53,10 +54,12 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
 
   let board = null;
   let initialTask = null;
+  let initialSavedViews: TaskSavedViewModel[] = [];
   let screenErrorMessage = dateErrorMessage;
   const assignableUsers = manager ? await listActiveUserSummaries() : [];
 
   try {
+    initialSavedViews = await listTaskSavedViews(user);
     const boardLookup = await getBoardReadModelForDate(user, boardDate);
 
     board = boardLookup.board;
@@ -77,6 +80,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
       currentUserId={user.id}
       errorMessage={screenErrorMessage}
       initialTask={initialTask}
+      initialSavedViews={initialSavedViews}
       isManager={manager}
       todayBoardDate={todayBoardDate}
     />
