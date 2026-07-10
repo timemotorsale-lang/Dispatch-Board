@@ -24,7 +24,7 @@ import {
   X
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   buildAppointmentNotificationContractHarness,
   buildAppointmentNotificationInboundContracts,
@@ -5543,6 +5543,8 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   const [boardLaneMode, setBoardLaneMode] = useState<AppointmentBoardLaneMode>("staff");
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<AppointmentWorkspaceTab>("planner");
   const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false);
+  const workspaceHubButtonRef = useRef<HTMLButtonElement | null>(null);
+  const workspaceDrawerRef = useRef<HTMLElement | null>(null);
   const [draftOpen, setDraftOpen] = useState(false);
   const [noShowOpen, setNoShowOpen] = useState(false);
   const [isCommandPending, setIsCommandPending] = useState(false);
@@ -5923,6 +5925,29 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     runtimePersistenceHydrated,
     showResolvedNotificationFailures
   ]);
+
+  useEffect(() => {
+    if (!isWorkspaceOpen) {
+      return;
+    }
+
+    workspaceDrawerRef.current?.focus();
+
+    function handleWorkspaceDrawerKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      setIsWorkspaceOpen(false);
+      workspaceHubButtonRef.current?.focus();
+    }
+
+    window.addEventListener("keydown", handleWorkspaceDrawerKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleWorkspaceDrawerKeyDown);
+    };
+  }, [isWorkspaceOpen]);
 
   const boardAppointments = useMemo(
     () => {
@@ -6680,6 +6705,212 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
           reasonNotes: ""
         }
       : outcomeDraft;
+  const selectedAppointmentNextSafeAction = useMemo(() => {
+    const hardBlockMessage =
+      scheduleReadiness?.hardBlocks[0]?.message ??
+      scheduleReadiness?.checks.find((check) => check.status === "BLOCKED")?.message ??
+      "A readiness rule is blocking schedule commit.";
+    const staffMessage =
+      staffConflictPreview?.reasons[0] ??
+      "Staff availability has not cleared for the selected appointment window.";
+
+    if (selectedAppointment.dataSource !== "live") {
+      return {
+        tone: "neutral",
+        eyebrow: "Preview record",
+        title: "Inspect only",
+        detail: "This sample appointment is useful for layout review, but live commands require a persisted appointment record.",
+        actionLabel: "Open live board",
+        action: "refresh" as const
+      };
+    }
+
+    if (selectedAppointment.bookingStatus === "COMPLETED") {
+      return {
+        tone: "complete",
+        eyebrow: "Outcome complete",
+        title: "No immediate action",
+        detail: "The final outcome is recorded. Use linked tasks or history only if follow-up work needs review.",
+        actionLabel: "Review linked work",
+        action: "linked-tasks" as const
+      };
+    }
+
+    if (selectedAppointmentIsUnscheduledDraft) {
+      if (selectedUnscheduledDraftStartsInPast) {
+        return {
+          tone: "blocked",
+          eyebrow: "Cannot schedule yet",
+          title: "Choose a current or future time",
+          detail: "The selected draft slot is in the past. Pick a valid time before submitting the schedule command.",
+          actionLabel: "Fix schedule slot",
+          action: "schedule-form" as const
+        };
+      }
+
+      if (!scheduleDraft.reasonNotes.trim()) {
+        return {
+          tone: "warning",
+          eyebrow: "Reason required",
+          title: "Add scheduling reason",
+          detail: "MVP scheduling requires a documented reason before a draft can move onto the calendar.",
+          actionLabel: "Add reason",
+          action: "schedule-form" as const
+        };
+      }
+
+      if (isReadinessLoading || isStaffConflictLoading) {
+        return {
+          tone: "neutral",
+          eyebrow: "Checking safety",
+          title: "Wait for readiness checks",
+          detail: "Schedule, staff, and resource checks are still refreshing for the selected draft slot.",
+          actionLabel: "Review checks",
+          action: "readiness" as const
+        };
+      }
+
+      if (scheduleReadiness && !scheduleReadiness.canSubmitSchedule) {
+        return {
+          tone: "blocked",
+          eyebrow: "Cannot schedule yet",
+          title: "Resolve readiness blocker",
+          detail: hardBlockMessage,
+          actionLabel: "Review readiness",
+          action: "readiness" as const
+        };
+      }
+
+      if (!selectedUnscheduledDraftCanProceedWithStaff) {
+        return {
+          tone: "warning",
+          eyebrow: "Staff review needed",
+          title: "Clear staff warning or block",
+          detail: staffMessage,
+          actionLabel: "Review staff",
+          action: "staff" as const
+        };
+      }
+
+      return {
+        tone: "ready",
+        eyebrow: "Ready to schedule",
+        title: "Schedule this draft",
+        detail: "Readiness has cleared for the selected slot and a scheduling reason is present.",
+        actionLabel: "Schedule draft",
+        action: "schedule-unscheduled" as const
+      };
+    }
+
+    if (selectedAppointment.status === "draft") {
+      if (scheduleReadiness && !scheduleReadiness.canSubmitSchedule) {
+        return {
+          tone: "blocked",
+          eyebrow: "Cannot schedule yet",
+          title: "Resolve readiness blocker",
+          detail: hardBlockMessage,
+          actionLabel: "Review readiness",
+          action: "readiness" as const
+        };
+      }
+
+      return {
+        tone: "ready",
+        eyebrow: "Ready to schedule",
+        title: "Commit scheduled draft",
+        detail: "This draft has a saved time window. Submit the schedule command when the manager is ready.",
+        actionLabel: "Schedule draft",
+        action: "schedule-draft" as const
+      };
+    }
+
+    if (selectedAppointment.status === "no-show") {
+      return {
+        tone: "warning",
+        eyebrow: "Recovery needed",
+        title: "Document recovery path",
+        detail: "No-show appointments should keep a clear follow-up disposition and next step before the day is closed.",
+        actionLabel: "Review outcome",
+        action: "outcome" as const
+      };
+    }
+
+    if (selectedAppointment.executionStatus === "FINISHED") {
+      if (
+        !outcomeDraft.reasonNotes.trim() ||
+        (outcomeDraft.followUpDispositionCode !== "NO_FOLLOW_UP_REQUIRED" &&
+          !outcomeDraft.followUpNotes.trim())
+      ) {
+        return {
+          tone: "warning",
+          eyebrow: "Outcome required",
+          title: "Complete outcome notes",
+          detail: "Finish the required completion reason and follow-up notes before saving the final outcome.",
+          actionLabel: "Complete outcome",
+          action: "outcome" as const
+        };
+      }
+
+      return {
+        tone: "ready",
+        eyebrow: "Ready to close",
+        title: "Save final outcome",
+        detail: "Work is finished and the required outcome fields are ready for the command ledger.",
+        actionLabel: "Save outcome",
+        action: "save-outcome" as const
+      };
+    }
+
+    if (
+      selectedAppointment.attendanceStatus === "CHECKED_IN" &&
+      selectedAppointment.executionStatus === "NOT_STARTED"
+    ) {
+      return {
+        tone: "ready",
+        eyebrow: "Customer checked in",
+        title: "Start work",
+        detail: "The appointment is checked in and ready to move into active work.",
+        actionLabel: "Start work",
+        action: "start" as const
+      };
+    }
+
+    if (
+      selectedAppointment.executionStatus === "IN_PROGRESS" ||
+      selectedAppointment.executionStatus === "WAITING"
+    ) {
+      return {
+        tone: "ready",
+        eyebrow: "Work in progress",
+        title: "Finish work when complete",
+        detail: "Use Finish Work when the service or customer interaction is complete, then capture the final outcome.",
+        actionLabel: "Finish work",
+        action: "finish" as const
+      };
+    }
+
+    return {
+      tone: "ready",
+      eyebrow: "Next appointment step",
+      title: "Check in customer",
+      detail: "The appointment is scheduled. Check in the customer when they arrive, or mark no-show if they miss the window.",
+      actionLabel: "Check in",
+      action: "check-in" as const
+    };
+  }, [
+    isReadinessLoading,
+    isStaffConflictLoading,
+    outcomeDraft.followUpDispositionCode,
+    outcomeDraft.followUpNotes,
+    outcomeDraft.reasonNotes,
+    scheduleDraft.reasonNotes,
+    scheduleReadiness,
+    selectedAppointment,
+    selectedAppointmentIsUnscheduledDraft,
+    selectedUnscheduledDraftCanProceedWithStaff,
+    selectedUnscheduledDraftStartsInPast,
+    staffConflictPreview
+  ]);
 
   function resetOutcomeDraftFromAppointment(appointment: Appointment | null = null) {
     setOutcomeDraft({
@@ -6699,6 +6930,66 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
       ...current,
       reasonNotes: ""
     }));
+  }
+
+  function focusAppointmentDetailSection(targetId: string, options: { revealOperations?: boolean } = {}) {
+    if (options.revealOperations) {
+      setActiveWorkspaceTab("operations");
+    }
+
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    window.setTimeout(() => {
+      document.getElementById(targetId)?.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+    }, 0);
+  }
+
+  function runSelectedAppointmentNextSafeAction() {
+    switch (selectedAppointmentNextSafeAction.action) {
+      case "refresh":
+        void loadLiveAppointments();
+        return;
+      case "linked-tasks":
+        focusAppointmentDetailSection("appointment-detail-linked-tasks");
+        return;
+      case "schedule-form":
+        focusAppointmentDetailSection("appointment-detail-resource");
+        return;
+      case "readiness":
+        focusAppointmentDetailSection("appointment-detail-readiness", { revealOperations: true });
+        return;
+      case "staff":
+        focusAppointmentDetailSection("appointment-detail-staff-conflicts", { revealOperations: true });
+        return;
+      case "schedule-unscheduled":
+        void submitUnscheduledDraftSchedule();
+        return;
+      case "schedule-draft":
+        void submitOperationalCommand("SCHEDULE");
+        return;
+      case "check-in":
+        void submitOperationalCommand("CHECK_IN");
+        return;
+      case "start":
+        void submitOperationalCommand("START");
+        return;
+      case "finish":
+        void submitOperationalCommand("FINISH");
+        return;
+      case "outcome":
+        focusAppointmentDetailSection("appointment-detail-outcome");
+        return;
+      case "save-outcome":
+        void submitOutcomeCompletion();
+        return;
+      default:
+        return;
+    }
   }
 
   function recordCommandCenterWorkflowContext(
@@ -10590,16 +10881,21 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
           Today
         </button>
         <button
+          aria-controls="appointment-workspace-drawer"
+          aria-expanded={isWorkspaceOpen && activeWorkspaceTab === "planner"}
           className={isWorkspaceOpen && activeWorkspaceTab === "planner" ? "appointment-module-rail-button appointment-module-rail-button-active" : "appointment-module-rail-button"}
           onClick={() => {
             setActiveWorkspaceTab("planner");
             setIsWorkspaceOpen((value) => (activeWorkspaceTab === "planner" ? !value : true));
           }}
+          ref={workspaceHubButtonRef}
           type="button"
         >
           Hub
         </button>
         <button
+          aria-controls="appointment-workspace-drawer"
+          aria-expanded={isWorkspaceOpen && activeWorkspaceTab === "operations"}
           className={isWorkspaceOpen && activeWorkspaceTab === "operations" ? "appointment-module-rail-button appointment-module-rail-button-active" : "appointment-module-rail-button"}
           onClick={() => {
             setActiveWorkspaceTab("operations");
@@ -10610,6 +10906,8 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
           Ops
         </button>
         <button
+          aria-controls="appointment-workspace-drawer"
+          aria-expanded={isWorkspaceOpen && activeWorkspaceTab === "intelligence"}
           className={isWorkspaceOpen && activeWorkspaceTab === "intelligence" ? "appointment-module-rail-button appointment-module-rail-button-active" : "appointment-module-rail-button"}
           onClick={() => {
             setActiveWorkspaceTab("intelligence");
@@ -10620,6 +10918,8 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
           Intel
         </button>
         <button
+          aria-controls="appointment-workspace-drawer"
+          aria-expanded={isWorkspaceOpen && activeWorkspaceTab === "operations"}
           className={isWorkspaceOpen && activeWorkspaceTab === "operations" && resolutionFilter === "follow-up-required" ? "appointment-module-rail-button appointment-module-rail-button-active" : "appointment-module-rail-button"}
           onClick={() =>
             focusWorkspaceSurface({
@@ -10635,15 +10935,35 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
         </button>
       </aside>
       <div className="appointment-enterprise-shell">
-        <aside className="appointment-workspace-sidebar" aria-labelledby="appointment-workspace-planning">
+        <aside
+          aria-labelledby="appointment-workspace-planning"
+          className="appointment-workspace-sidebar"
+          id="appointment-workspace-drawer"
+          ref={workspaceDrawerRef}
+          role="complementary"
+          tabIndex={-1}
+        >
           <div className="appointment-workspace-header">
-            <p className="section-kicker">Planning rail</p>
-            <strong id="appointment-workspace-planning">Shift Planning Hub</strong>
-            <span>
-              {businessDate} · {activeExceptionQueueCount} active queue
-              {activeExceptionQueueCount === 1 ? "" : "s"} · {unreadNotificationCount} unread alert
-              {unreadNotificationCount === 1 ? "" : "s"}
-            </span>
+            <div>
+              <p className="section-kicker">Planning rail</p>
+              <strong id="appointment-workspace-planning">Shift Planning Hub</strong>
+              <span>
+                {businessDate} · {activeExceptionQueueCount} active queue
+                {activeExceptionQueueCount === 1 ? "" : "s"} · {unreadNotificationCount} unread alert
+                {unreadNotificationCount === 1 ? "" : "s"}
+              </span>
+            </div>
+            <button
+              aria-label="Close Shift Planning Hub"
+              className="appointment-workspace-close"
+              onClick={() => {
+                setIsWorkspaceOpen(false);
+                workspaceHubButtonRef.current?.focus();
+              }}
+              type="button"
+            >
+              <X size={14} aria-hidden="true" />
+            </button>
           </div>
 
           <section className="appointment-workspace-calendar-card" aria-labelledby="appointment-workspace-calendar">
@@ -14857,6 +15177,19 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
             <p><MessageCircle size={16} aria-hidden="true" />{selectedAppointment.complaint}</p>
           </div>
 
+          <div className={`appointment-next-action-card appointment-next-action-${selectedAppointmentNextSafeAction.tone}`}>
+            <span>{selectedAppointmentNextSafeAction.eyebrow}</span>
+            <strong>{selectedAppointmentNextSafeAction.title}</strong>
+            <p>{selectedAppointmentNextSafeAction.detail}</p>
+            <button
+              disabled={isCommandPending || isOutcomeSaving}
+              onClick={() => runSelectedAppointmentNextSafeAction()}
+              type="button"
+            >
+              {isCommandPending || isOutcomeSaving ? "Working..." : selectedAppointmentNextSafeAction.actionLabel}
+            </button>
+          </div>
+
           <div className="appointment-detail-section" id="appointment-detail-linked-tasks">
             <div className="appointment-section-heading">
               <strong>
@@ -15166,7 +15499,7 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
           ) : null}
 
           {selectedAppointment.dataSource === "live" && selectedAppointment.status === "draft" ? (
-            <div className="appointment-detail-section">
+            <div className="appointment-detail-section" id="appointment-detail-staff-conflicts">
               <div className="appointment-section-heading">
                 <strong>Staff Conflict Preview</strong>
                 <span className={`appointment-readiness-chip appointment-readiness-${staffConflictPreview?.status.toLowerCase() ?? "loading"}`}>

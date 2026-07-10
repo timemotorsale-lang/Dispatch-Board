@@ -339,6 +339,15 @@ test("manager can create a linked appointment draft from a task and see it on th
 
   await page.goto("/appointments");
   await expect(page.getByRole("heading", { name: "Appointment Board" })).toBeVisible();
+  await expect(page.locator(".appointment-next-action-card")).toBeVisible();
+  const appointmentRail = page.getByLabel("Appointment module navigation");
+  const hubButton = appointmentRail.getByRole("button", { name: "Hub" });
+  await expect(hubButton).toHaveAttribute("aria-expanded", "false");
+  await hubButton.click();
+  await expect(hubButton).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("#appointment-workspace-drawer")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(hubButton).toHaveAttribute("aria-expanded", "false");
   await expect(page.getByText("Unscheduled / Drafts")).toBeVisible();
   await expect(
     page.locator(".appointment-unscheduled-item").filter({ hasText: appointmentTitle })

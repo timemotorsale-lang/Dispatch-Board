@@ -8994,11 +8994,19 @@ code {
 
 .appointment-workspace-header {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
   gap: 4px;
   padding: 14px 15px;
   background:
     radial-gradient(circle at top left, rgba(29, 94, 237, 0.18), transparent 54%),
     linear-gradient(180deg, #f8fbff 0%, #eef4fb 100%);
+}
+
+.appointment-workspace-header > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
 }
 
 .appointment-workspace-header .section-kicker {
@@ -9020,6 +9028,23 @@ code {
   color: #526176;
   font-size: 11px;
   line-height: 1.45;
+}
+
+.appointment-workspace-close {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  color: #475569;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid #d6e2f2;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.appointment-workspace-close:hover {
+  color: #0f172a;
+  background: #fff;
 }
 
 .appointment-workspace-calendar-card,
@@ -12536,6 +12561,95 @@ code {
 .appointment-detail-header span {
   color: #64748b;
   font-size: 10px;
+}
+
+.appointment-next-action-card {
+  display: grid;
+  gap: 5px;
+  padding: 9px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  border: 1px solid #dbe6f3;
+  border-radius: 13px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+}
+
+.appointment-next-action-card span {
+  color: #2563eb;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.appointment-next-action-card strong {
+  color: #0f172a;
+  font-size: 13px;
+  line-height: 1.15;
+}
+
+.appointment-next-action-card p {
+  margin: 0;
+  color: #526176;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.appointment-next-action-card button {
+  display: inline-grid;
+  place-items: center;
+  justify-self: start;
+  min-height: 28px;
+  padding: 0 10px;
+  color: #fff;
+  background: #1d5eed;
+  border: 1px solid #1d5eed;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.appointment-next-action-card button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.appointment-next-action-ready {
+  border-color: #b7dfc3;
+  background: linear-gradient(180deg, #f7fff8 0%, #ffffff 100%);
+}
+
+.appointment-next-action-ready span,
+.appointment-next-action-complete span {
+  color: #15803d;
+}
+
+.appointment-next-action-warning {
+  border-color: #fed7aa;
+  background: linear-gradient(180deg, #fff9ed 0%, #ffffff 100%);
+}
+
+.appointment-next-action-warning span {
+  color: #f47b0b;
+}
+
+.appointment-next-action-warning button {
+  background: #f47b0b;
+  border-color: #f47b0b;
+}
+
+.appointment-next-action-blocked {
+  border-color: #fecdd3;
+  background: linear-gradient(180deg, #fff5f6 0%, #ffffff 100%);
+}
+
+.appointment-next-action-blocked span {
+  color: #dc2626;
+}
+
+.appointment-next-action-blocked button {
+  background: #dc2626;
+  border-color: #dc2626;
 }
 
 .appointment-week-view,
