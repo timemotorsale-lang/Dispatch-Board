@@ -1110,7 +1110,25 @@ type AppointmentBoardShellProps = {
 };
 
 const businessDate = "Monday, July 6, 2026";
-const appointmentCalendarHourHeight = 48;
+const appointmentCalendarHourHeight = 26;
+export const appointmentConsoleUxSmokeGate = {
+  viewport: {
+    width: 1280,
+    height: 720
+  },
+  maxViewportOverflowPx: 8,
+  calendarHourHeightPx: appointmentCalendarHourHeight,
+  criticalSelectors: [
+    ".appointment-board-toolbar",
+    ".appointment-date-row",
+    ".appointment-metric-grid",
+    ".appointment-board-card",
+    ".appointment-detail-panel",
+    ".appointment-upcoming-card"
+  ],
+  defaultViewLabel: "Day",
+  defaultLaneLabel: "Staff"
+} as const;
 const fallbackBusinessHours = "9:00 AM - 6:00 PM";
 const fallbackDealershipAddress = "1101 E. Lake Street, Minneapolis, MN 55407";
 const fallbackDealershipPhone = "(612) 724-3631";

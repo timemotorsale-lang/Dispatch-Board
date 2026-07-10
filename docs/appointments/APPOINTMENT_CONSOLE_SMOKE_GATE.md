@@ -1,8 +1,8 @@
 # Appointment Console Smoke Gate
 
-**Branch:** `codex/appointment-console-smoke-gate`  
-**Status:** Initial MVP smoke proof implemented.  
-**Scope:** Manager-facing Appointment Board route load, default board composition, scheduled appointment selection, unscheduled draft lane visibility, and right detail rail command presence.
+**Branch:** `codex/appointment-console-ux-smoke-gate`  
+**Status:** Compact UX smoke proof implemented.  
+**Scope:** Manager-facing Appointment Board route load, mockup-aligned one-page default composition, scheduled appointment selection, unscheduled draft lane visibility, and right detail rail command presence.
 
 ## Automated Evidence
 
@@ -15,6 +15,8 @@ Together these prove:
 
 - A manager can open `/appointments`.
 - The board renders the enterprise header/search, KPI strip, day schedule, calendar shell, upcoming appointments, and right detail rail.
+- The default UX smoke viewport is `1280 x 720`, matching the day-one one-page board expectation.
+- The default board, right rail, and upcoming appointments are visible without body-level horizontal or vertical scrolling.
 - Day view and Staff lens load as the default operating layout.
 - Board controls, metrics, and toolbar stay inside the main board area instead of overlapping the detail rail.
 - Selecting a scheduled appointment updates the right detail rail and active calendar item.
@@ -24,7 +26,7 @@ Together these prove:
 
 ## MVP Interpretation
 
-This branch does not claim the full Appointment Board is rollout-ready. It closes the first console smoke gate only. The remaining rollout gates still need schedule-commit reliability, hard-block proof, warning override proof, full permission boundary proof, and final day-one readiness evidence.
+This branch does not claim the full Appointment Board is rollout-ready. It closes the compact UX smoke gate only. The remaining rollout gates still need schedule-commit reliability, hard-block proof, warning override proof, full permission boundary proof, and final day-one readiness evidence.
 
 ## Follow-Up Gates
 
