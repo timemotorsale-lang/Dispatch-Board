@@ -89,7 +89,7 @@ For MVP rollout, the board should be treated as a manager-first scheduling conso
 
 | Priority | Capability | Current risk | Proof needed |
 | --- | --- | --- | --- |
-| P0 | `/appointments` smoke route | Route exists but final MVP visual state needs formal proof | Browser smoke opens route, loads data, selects appointment, verifies detail rail |
+| P0 | `/appointments` smoke route | Initial smoke proof now exists; final rollout still needs full day-one evidence | Browser smoke opens route, loads data, selects appointment, verifies detail rail, and proves unscheduled draft lane selection |
 | P0 | Draft creation from board | UI exists | Browser test creates draft with reason and sees it in unscheduled lane |
 | P0 | Draft-to-scheduled commit | UI/API bridge exists | Browser test schedules eligible draft and verifies it becomes scheduled |
 | P0 | Hard-block schedule prevention | Server rules exist | Test proves blocked draft cannot schedule and explains why |
@@ -128,7 +128,7 @@ Advanced surfaces should remain available but not visually dominant:
 
 ### P0 - Rollout Blockers
 
-1. Add Appointment Board smoke coverage for manager route load, default layout, appointment selection, unscheduled lane, and detail rail presence.
+1. Complete: add Appointment Board smoke coverage for manager route load, default layout, appointment selection, unscheduled lane, and detail rail presence. Evidence: `docs/appointments/APPOINTMENT_CONSOLE_SMOKE_GATE.md`.
 2. Add board-created draft browser coverage from `/appointments`.
 3. Add eligible draft-to-scheduled browser coverage through the command boundary.
 4. Add blocked draft coverage that proves hard blocks prevent schedule commit.
