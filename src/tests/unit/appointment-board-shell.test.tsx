@@ -38,6 +38,7 @@ import {
   buildAppointmentMonthCells,
   buildAppointmentWeekColumns,
   AppointmentBoardShell,
+  appointmentConsoleUxSmokeGate,
   buildAppointmentExceptionQueues,
   buildAppointmentResolutionWorkbench,
   buildAppointmentVersionConflictNotice,
@@ -47,6 +48,27 @@ import {
 } from "@/features/appointments/appointment-board-shell";
 
 describe("appointment board shell", () => {
+  it("publishes the compact UX smoke-gate contract for day-one browser proof", () => {
+    expect(appointmentConsoleUxSmokeGate.viewport).toEqual({
+      width: 1280,
+      height: 720
+    });
+    expect(appointmentConsoleUxSmokeGate.maxViewportOverflowPx).toBe(8);
+    expect(appointmentConsoleUxSmokeGate.calendarHourHeightPx).toBeLessThanOrEqual(26);
+    expect(appointmentConsoleUxSmokeGate.criticalSelectors).toEqual(
+      expect.arrayContaining([
+        ".appointment-board-toolbar",
+        ".appointment-date-row",
+        ".appointment-metric-grid",
+        ".appointment-board-card",
+        ".appointment-detail-panel",
+        ".appointment-upcoming-card"
+      ])
+    );
+    expect(appointmentConsoleUxSmokeGate.defaultViewLabel).toBe("Day");
+    expect(appointmentConsoleUxSmokeGate.defaultLaneLabel).toBe("Staff");
+  });
+
   it("renders the mockup-aligned board surface with enterprise controls", () => {
     const markup = renderToStaticMarkup(<AppointmentBoardShell />);
 

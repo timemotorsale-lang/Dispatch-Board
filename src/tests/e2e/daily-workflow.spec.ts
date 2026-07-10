@@ -132,6 +132,61 @@ async function assertTasksConsoleFitsViewport(page: Page) {
   expect(pageHeight.scrollHeight).toBeLessThanOrEqual(pageHeight.innerHeight + 8);
 }
 
+async function assertAppointmentConsoleFitsUxSmokeGate(page: Page) {
+  const gate = await page.evaluate(() => {
+    const criticalSelectors = [
+      ".appointment-board-toolbar",
+      ".appointment-date-row",
+      ".appointment-metric-grid",
+      ".appointment-board-card",
+      ".appointment-detail-panel",
+      ".appointment-upcoming-card"
+    ];
+    const measuredSelectors = criticalSelectors.map((selector) => {
+      const element = document.querySelector(selector);
+      const rect = element?.getBoundingClientRect();
+
+      return {
+        selector,
+        exists: Boolean(element),
+        top: rect?.top ?? Number.NaN,
+        bottom: rect?.bottom ?? Number.NaN,
+        right: rect?.right ?? Number.NaN,
+        visibleInViewport: Boolean(
+          rect &&
+            rect.top >= -1 &&
+            rect.top < window.innerHeight &&
+            rect.bottom <= window.innerHeight + 8 &&
+            rect.right <= window.innerWidth + 8
+        )
+      };
+    });
+
+    return {
+      viewportHeight: window.innerHeight,
+      viewportWidth: window.innerWidth,
+      scrollHeight: document.documentElement.scrollHeight,
+      scrollWidth: document.documentElement.scrollWidth,
+      measuredSelectors
+    };
+  });
+
+  expect(gate.viewportWidth).toBe(1280);
+  expect(gate.viewportHeight).toBe(720);
+  expect(gate.scrollWidth).toBeLessThanOrEqual(gate.viewportWidth + 8);
+  expect(gate.scrollHeight).toBeLessThanOrEqual(gate.viewportHeight + 8);
+  expect(gate.measuredSelectors).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ selector: ".appointment-board-toolbar", visibleInViewport: true }),
+      expect.objectContaining({ selector: ".appointment-date-row", visibleInViewport: true }),
+      expect.objectContaining({ selector: ".appointment-metric-grid", visibleInViewport: true }),
+      expect.objectContaining({ selector: ".appointment-board-card", visibleInViewport: true }),
+      expect.objectContaining({ selector: ".appointment-detail-panel", visibleInViewport: true }),
+      expect.objectContaining({ selector: ".appointment-upcoming-card", visibleInViewport: true })
+    ])
+  );
+}
+
 async function waitForTaskAppointment(
   page: Page,
   taskId: string,
@@ -150,7 +205,7 @@ async function waitForTaskAppointment(
 test("manager can pass the Appointment Board console smoke gate", async ({ page }) => {
   test.setTimeout(60_000);
 
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.setViewportSize({ width: 1280, height: 720 });
   await login(page, managerEmail);
   await page.goto("/appointments");
 
@@ -164,6 +219,7 @@ test("manager can pass the Appointment Board console smoke gate", async ({ page 
   await expect(page.locator(".appointment-detail-actions").getByRole("button", { name: "Check In" })).toBeVisible();
   await expect(page.locator(".appointment-view-tabs").getByRole("button", { name: "Day", exact: true })).toHaveClass(/appointment-view-tab-active/);
   await expect(page.locator(".appointment-board-lane-modes").getByRole("button", { name: "Staff", exact: true })).toHaveClass(/appointment-board-lane-mode-active/);
+  await assertAppointmentConsoleFitsUxSmokeGate(page);
 
   await expect
     .poll(async () =>

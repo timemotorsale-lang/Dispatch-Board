@@ -8914,7 +8914,7 @@ code {
 .appointment-board-page {
   --appointment-module-rail-width: 74px;
   --appointment-detail-rail-width: clamp(224px, 17vw, 272px);
-  --appointment-calendar-hour-height: 48px;
+  --appointment-calendar-hour-height: 26px;
   --appointment-calendar-grid-height: calc(var(--appointment-calendar-hour-height) * 10);
   --appointment-main-gap: 8px;
   display: grid;
@@ -13409,25 +13409,25 @@ code {
 
 .appointment-upcoming-card {
   display: grid;
-  gap: 8px;
-  padding: 10px;
+  gap: 5px;
+  padding: 7px 8px;
 }
 
 .appointment-mockup-aligned .appointment-upcoming-card .appointment-section-heading {
-  min-height: 28px;
+  min-height: 22px;
 }
 
 .appointment-upcoming-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  gap: 6px;
 }
 
 .appointment-upcoming-item {
   display: grid;
-  gap: 4px;
-  min-height: 108px;
-  padding: 10px 12px;
+  gap: 1px;
+  min-height: 48px;
+  padding: 5px 7px;
   text-align: left;
   border-width: 1px 1px 1px 4px;
   border-style: solid;
@@ -13437,20 +13437,25 @@ code {
 
 .appointment-upcoming-item span {
   color: #475569;
-  font-size: 10px;
+  font-size: 8px;
   font-weight: 800;
 }
 
 .appointment-upcoming-item strong {
   color: #111827;
-  font-size: 14px;
+  font-size: 9px;
 }
 
 .appointment-upcoming-item small,
 .appointment-upcoming-item em {
   color: #64748b;
-  font-size: 10px;
+  font-size: 8px;
   font-style: normal;
+}
+
+.appointment-mockup-aligned .appointment-upcoming-item small:nth-of-type(n + 2),
+.appointment-mockup-aligned .appointment-upcoming-item em {
+  display: none;
 }
 
 .appointment-modal-backdrop {
