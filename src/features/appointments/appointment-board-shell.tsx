@@ -5565,7 +5565,8 @@ export function AppointmentBoardShell({ boardSettings, initialFocus }: Appointme
   const [boardLaneMode, setBoardLaneMode] = useState<AppointmentBoardLaneMode>("staff");
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<AppointmentWorkspaceTab>("planner");
   const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false);
-  const workspaceHubButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [isModuleRailExpanded, setIsModuleRailExpanded] = useState(false);
+  const workspaceTriggerButtonRef = useRef<HTMLButtonElement | null>(null);
   const workspaceDrawerRef = useRef<HTMLElement | null>(null);
   const initialFocusAppliedRef = useRef(false);
   const [draftOpen, setDraftOpen] = useState(false);
@@ -5962,7 +5963,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus }: Appointme
       }
 
       setIsWorkspaceOpen(false);
-      workspaceHubButtonRef.current?.focus();
+      workspaceTriggerButtonRef.current?.focus();
     }
 
     window.addEventListener("keydown", handleWorkspaceDrawerKeyDown);
@@ -9538,6 +9539,21 @@ export function AppointmentBoardShell({ boardSettings, initialFocus }: Appointme
     }
   }
 
+  function toggleWorkspaceFromRail(
+    tab: AppointmentWorkspaceTab,
+    trigger: HTMLButtonElement
+  ) {
+    workspaceTriggerButtonRef.current = trigger;
+
+    if (isWorkspaceOpen && activeWorkspaceTab === tab) {
+      setIsWorkspaceOpen(false);
+      return;
+    }
+
+    setActiveWorkspaceTab(tab);
+    setIsWorkspaceOpen(true);
+  }
+
   function focusWorkspaceMonthCell(cell: AppointmentMonthCell) {
     focusWorkspaceSurface({
       tab: "planner",
@@ -10927,78 +10943,102 @@ export function AppointmentBoardShell({ boardSettings, initialFocus }: Appointme
 
   return (
     <section
-      className={`appointment-board-page appointment-mockup-aligned appointment-workspace-tab-${activeWorkspaceTab}${isWorkspaceOpen ? " appointment-workspace-open" : ""}`}
+      className={`appointment-board-page appointment-mockup-aligned appointment-workspace-tab-${activeWorkspaceTab}${isWorkspaceOpen ? " appointment-workspace-open" : ""}${isModuleRailExpanded ? " appointment-module-rail-expanded" : ""}`}
       aria-labelledby="appointment-board-title"
     >
       <aside className="appointment-module-rail" aria-label="Appointment module navigation">
-        <strong>Appts</strong>
+        <strong className="appointment-module-rail-brand">
+          <CalendarDays size={17} aria-hidden="true" />
+          <span>Appointments</span>
+        </strong>
         <button
+          aria-label="Today"
           className={!isWorkspaceOpen && viewMode === "day" ? "appointment-module-rail-button appointment-module-rail-button-active" : "appointment-module-rail-button"}
           onClick={() => {
             setIsWorkspaceOpen(false);
             setViewMode("day");
           }}
+          title="Today"
           type="button"
         >
-          Today
+          <CalendarDays size={16} aria-hidden="true" />
+          <span>Today</span>
         </button>
         <button
+          aria-label="Hub"
           aria-controls="appointment-workspace-drawer"
           aria-expanded={isWorkspaceOpen && activeWorkspaceTab === "planner"}
           className={isWorkspaceOpen && activeWorkspaceTab === "planner" ? "appointment-module-rail-button appointment-module-rail-button-active" : "appointment-module-rail-button"}
-          onClick={() => {
-            setActiveWorkspaceTab("planner");
-            setIsWorkspaceOpen((value) => (activeWorkspaceTab === "planner" ? !value : true));
-          }}
-          ref={workspaceHubButtonRef}
+          onClick={(event) => toggleWorkspaceFromRail("planner", event.currentTarget)}
+          title="Planning Hub"
           type="button"
         >
-          Hub
+          <Users size={16} aria-hidden="true" />
+          <span>Hub</span>
         </button>
         <button
+          aria-label="Ops"
           aria-controls="appointment-workspace-drawer"
           aria-expanded={isWorkspaceOpen && activeWorkspaceTab === "operations"}
           className={isWorkspaceOpen && activeWorkspaceTab === "operations" ? "appointment-module-rail-button appointment-module-rail-button-active" : "appointment-module-rail-button"}
-          onClick={() => {
-            setActiveWorkspaceTab("operations");
-            setIsWorkspaceOpen(true);
-          }}
+          onClick={(event) => toggleWorkspaceFromRail("operations", event.currentTarget)}
+          title="Operations"
           type="button"
         >
-          Ops
+          <ClipboardCheck size={16} aria-hidden="true" />
+          <span>Ops</span>
         </button>
         <button
+          aria-label="Intel"
           aria-controls="appointment-workspace-drawer"
           aria-expanded={isWorkspaceOpen && activeWorkspaceTab === "intelligence"}
           className={isWorkspaceOpen && activeWorkspaceTab === "intelligence" ? "appointment-module-rail-button appointment-module-rail-button-active" : "appointment-module-rail-button"}
-          onClick={() => {
-            setActiveWorkspaceTab("intelligence");
-            setIsWorkspaceOpen(true);
-          }}
+          onClick={(event) => toggleWorkspaceFromRail("intelligence", event.currentTarget)}
+          title="Intelligence"
           type="button"
         >
-          Intel
+          <Search size={16} aria-hidden="true" />
+          <span>Intel</span>
         </button>
         <button
+          aria-label="Follow-up"
           aria-controls="appointment-workspace-drawer"
           aria-expanded={isWorkspaceOpen && activeWorkspaceTab === "operations"}
           className={isWorkspaceOpen && activeWorkspaceTab === "operations" && resolutionFilter === "follow-up-required" ? "appointment-module-rail-button appointment-module-rail-button-active" : "appointment-module-rail-button"}
-          onClick={() =>
+          onClick={(event) => {
+            workspaceTriggerButtonRef.current = event.currentTarget;
             focusWorkspaceSurface({
               tab: "operations",
               targetId: "appointment-resolution-workbench",
               notice: "Focused follow-up backlog from the appointment module rail.",
               onFocus: () => setResolutionFilter("follow-up-required")
-            })
-          }
+            });
+          }}
+          title="Follow-up"
           type="button"
         >
-          Follow-up
+          <Bell size={16} aria-hidden="true" />
+          <span>Follow-up</span>
+        </button>
+        <button
+          aria-label={isModuleRailExpanded ? "Collapse appointment navigation" : "Expand appointment navigation"}
+          aria-pressed={isModuleRailExpanded}
+          className="appointment-module-rail-button appointment-module-rail-toggle"
+          onClick={() => setIsModuleRailExpanded((value) => !value)}
+          title={isModuleRailExpanded ? "Collapse navigation" : "Expand navigation"}
+          type="button"
+        >
+          {isModuleRailExpanded ? (
+            <ChevronLeft size={16} aria-hidden="true" />
+          ) : (
+            <ChevronRight size={16} aria-hidden="true" />
+          )}
+          <span>{isModuleRailExpanded ? "Collapse" : "Expand"}</span>
         </button>
       </aside>
       <div className="appointment-enterprise-shell">
         <aside
-          aria-labelledby="appointment-workspace-planning"
+          aria-labelledby="appointment-workspace-heading"
           className="appointment-workspace-sidebar"
           id="appointment-workspace-drawer"
           ref={workspaceDrawerRef}
@@ -11007,8 +11047,20 @@ export function AppointmentBoardShell({ boardSettings, initialFocus }: Appointme
         >
           <div className="appointment-workspace-header">
             <div>
-              <p className="section-kicker">Planning rail</p>
-              <strong id="appointment-workspace-planning">Shift Planning Hub</strong>
+              <p className="section-kicker">
+                {activeWorkspaceTab === "planner"
+                  ? "Planning shortcuts"
+                  : activeWorkspaceTab === "operations"
+                    ? "Operations shortcuts"
+                    : "Intelligence shortcuts"}
+              </p>
+              <h2 id="appointment-workspace-heading">
+                {activeWorkspaceTab === "planner"
+                  ? "Planning Hub"
+                  : activeWorkspaceTab === "operations"
+                    ? "Operations Hub"
+                    : "Intelligence Hub"}
+              </h2>
               <span>
                 {businessDate} · {activeExceptionQueueCount} active queue
                 {activeExceptionQueueCount === 1 ? "" : "s"} · {unreadNotificationCount} unread alert
@@ -11016,11 +11068,11 @@ export function AppointmentBoardShell({ boardSettings, initialFocus }: Appointme
               </span>
             </div>
             <button
-              aria-label="Close Shift Planning Hub"
+              aria-label="Close appointment workspace"
               className="appointment-workspace-close"
               onClick={() => {
                 setIsWorkspaceOpen(false);
-                workspaceHubButtonRef.current?.focus();
+                workspaceTriggerButtonRef.current?.focus();
               }}
               type="button"
             >
@@ -15030,21 +15082,24 @@ export function AppointmentBoardShell({ boardSettings, initialFocus }: Appointme
               <div className="appointment-calendar-body">
                 <div className="appointment-time-column">
                   {hourLabels.map((hour, index) => (
-                    <span key={hour} style={{ top: `${index * appointmentCalendarHourHeight}px` }}>{hour}</span>
+                    <span key={hour} style={{ top: `calc(var(--appointment-calendar-hour-height) * ${index})` }}>{hour}</span>
                   ))}
                 </div>
                 {boardLanes.map((lane) => (
                   <div className="appointment-staff-column" key={lane}>
                     {scheduledFilteredAppointments.filter((appointment) => appointmentBoardLaneLabel(appointment, boardLaneMode) === lane).map((appointment) => {
                       const meta = categoryMeta[appointment.category];
-                      const top = Math.max(0, ((appointment.startMinutes - 540) / 60) * appointmentCalendarHourHeight);
-                      const height = Math.max(36, (appointment.durationMinutes / 60) * appointmentCalendarHourHeight);
+                      const hourOffset = Math.max(0, (appointment.startMinutes - 540) / 60);
+                      const durationHours = appointment.durationMinutes / 60;
                       return (
                         <button
                           className={selectedAppointment.id === appointment.id ? `appointment-calendar-item ${meta.className} appointment-calendar-item-active` : `appointment-calendar-item ${meta.className}`}
                           key={appointment.id}
                           onClick={() => selectAppointmentForDetail(appointment)}
-                          style={{ top: `${top}px`, minHeight: `${height}px` }}
+                          style={{
+                            top: `calc(var(--appointment-calendar-hour-height) * ${hourOffset})`,
+                            minHeight: `max(36px, calc(var(--appointment-calendar-hour-height) * ${durationHours}))`
+                          }}
                           type="button"
                         >
                           <span>{formatTime(appointment.startMinutes)}</span>

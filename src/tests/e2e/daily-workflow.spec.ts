@@ -221,6 +221,34 @@ test("manager can pass the Appointment Board console smoke gate", async ({ page 
   await expect(page.locator(".appointment-board-lane-modes").getByRole("button", { name: "Staff", exact: true })).toHaveClass(/appointment-board-lane-mode-active/);
   await assertAppointmentConsoleFitsUxSmokeGate(page);
 
+  const moduleRail = page.getByLabel("Appointment module navigation");
+  const collapsedRailWidth = await moduleRail.evaluate((element) => element.getBoundingClientRect().width);
+  expect(collapsedRailWidth).toBeLessThanOrEqual(52);
+
+  await moduleRail.getByRole("button", { name: "Expand appointment navigation" }).click();
+  await expect(page.locator(".appointment-board-page")).toHaveClass(/appointment-module-rail-expanded/);
+  await expect
+    .poll(() => moduleRail.evaluate((element) => element.getBoundingClientRect().width))
+    .toBeGreaterThan(collapsedRailWidth + 100);
+
+  const hubButton = moduleRail.getByRole("button", { name: "Hub" });
+  await hubButton.click();
+  await expect(hubButton).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("#appointment-workspace-drawer")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Planning Hub" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(hubButton).toHaveAttribute("aria-expanded", "false");
+  await expect(hubButton).toBeFocused();
+  await moduleRail.getByRole("button", { name: "Collapse appointment navigation" }).click();
+  await expect(page.locator(".appointment-board-page")).not.toHaveClass(/appointment-module-rail-expanded/);
+
+  const opsButton = moduleRail.getByRole("button", { name: "Ops" });
+  await opsButton.click();
+  await expect(opsButton).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("heading", { name: "Operations Hub" })).toBeVisible();
+  await page.getByRole("button", { name: "Close appointment workspace" }).click();
+  await expect(opsButton).toHaveAttribute("aria-expanded", "false");
+
   await expect
     .poll(async () =>
       page.evaluate(() => {
@@ -252,6 +280,23 @@ test("manager can pass the Appointment Board console smoke gate", async ({ page 
   await expect(page.locator(".appointment-next-action-card button")).toBeVisible();
 
   await expect(page.getByText("Upcoming Appointments")).toBeVisible();
+
+  await page.setViewportSize({ width: 1920, height: 900 });
+  const tallViewportLayout = await page.evaluate(() => {
+    const calendarBody = document.querySelector(".appointment-calendar-body")?.getBoundingClientRect();
+    const moduleNavigation = document.querySelector(".appointment-module-rail")?.getBoundingClientRect();
+    const upcoming = document.querySelector(".appointment-upcoming-card")?.getBoundingClientRect();
+
+    return {
+      calendarHeight: calendarBody?.height ?? 0,
+      moduleRailHeight: moduleNavigation?.height ?? 0,
+      upcomingBottom: upcoming?.bottom ?? Number.POSITIVE_INFINITY
+    };
+  });
+
+  expect(tallViewportLayout.calendarHeight).toBeGreaterThanOrEqual(500);
+  expect(tallViewportLayout.moduleRailHeight).toBeGreaterThanOrEqual(870);
+  expect(tallViewportLayout.upcomingBottom).toBeLessThanOrEqual(908);
 });
 
 test("manager can scan the compact Tasks Operations Console", async ({ page }) => {

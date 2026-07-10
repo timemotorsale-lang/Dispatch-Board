@@ -8912,7 +8912,7 @@ code {
 
 /* Enterprise Appointment Board shell */
 .appointment-board-page {
-  --appointment-module-rail-width: 74px;
+  --appointment-module-rail-width: 52px;
   --appointment-detail-rail-width: clamp(224px, 17vw, 272px);
   --appointment-calendar-hour-height: 26px;
   --appointment-calendar-grid-height: calc(var(--appointment-calendar-hour-height) * 10);
@@ -8926,6 +8926,10 @@ code {
   margin: 0 auto;
   padding-left: var(--appointment-module-rail-width);
   color: #111827;
+}
+
+.appointment-board-page.appointment-module-rail-expanded {
+  --appointment-module-rail-width: 176px;
 }
 
 .appointment-mockup-aligned {
@@ -8976,29 +8980,52 @@ code {
 .appointment-module-rail {
   position: absolute;
   inset: 0 auto 0 0;
-  display: grid;
-  align-content: start;
-  gap: 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   width: calc(var(--appointment-module-rail-width) - 8px);
-  min-height: 100%;
-  padding: 8px 6px;
+  min-height: calc(100vh - 20px);
+  padding: 7px 5px;
   color: #475569;
   background: linear-gradient(180deg, #f8fbff 0%, #eef4fb 100%);
   border: 1px solid #dde6f0;
   border-radius: 14px;
+  transition: width 180ms ease;
 }
 
-.appointment-module-rail strong {
+.appointment-module-rail-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
   color: #0f172a;
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.1;
 }
 
+.appointment-module-rail-brand span,
+.appointment-module-rail-button span {
+  display: none;
+}
+
+.appointment-module-rail-expanded .appointment-module-rail-brand {
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 8px;
+}
+
+.appointment-module-rail-expanded .appointment-module-rail-brand span,
+.appointment-module-rail-expanded .appointment-module-rail-button span {
+  display: inline;
+}
+
 .appointment-module-rail-button {
-  display: grid;
-  place-items: center start;
-  min-height: 26px;
-  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 34px;
+  padding: 0 8px;
   color: #475569;
   background: #fff;
   border: 1px solid #e1e8f2;
@@ -9007,6 +9034,15 @@ code {
   font-weight: 900;
   cursor: pointer;
   transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease, background-color 150ms ease;
+}
+
+.appointment-module-rail-expanded .appointment-module-rail-button {
+  justify-content: flex-start;
+  font-size: 11px;
+}
+
+.appointment-module-rail-toggle {
+  margin-top: auto;
 }
 
 .appointment-module-rail-button:hover {
@@ -9023,19 +9059,33 @@ code {
 .appointment-workspace-sidebar {
   position: absolute;
   top: 0;
-  left: calc(var(--appointment-module-rail-width) + 8px);
+  left: calc(var(--appointment-module-rail-width) + 3px);
   z-index: 25;
   display: none;
   gap: 10px;
-  width: clamp(252px, 17vw, 312px);
+  width: clamp(260px, 18vw, 324px);
+  height: calc(100vh - 20px);
   max-height: calc(100vh - 20px);
   min-width: 0;
-  padding-right: 2px;
+  padding: 8px;
   overflow: auto;
+  background: rgba(239, 246, 253, 0.98);
+  border: 1px solid #d4e1ef;
+  border-radius: 0 16px 16px 0;
+  box-shadow: 18px 0 42px rgba(15, 23, 42, 0.14);
 }
 
 .appointment-workspace-open .appointment-workspace-sidebar {
   display: grid;
+}
+
+.appointment-workspace-sidebar:focus {
+  outline: 0;
+}
+
+.appointment-workspace-sidebar:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.42);
+  outline-offset: -3px;
 }
 
 .appointment-workspace-header,
@@ -9045,7 +9095,7 @@ code {
   min-width: 0;
   background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
   border: 1px solid #dbe4f0;
-  border-radius: 18px;
+  border-radius: 13px;
   box-shadow: 0 14px 36px rgba(15, 23, 42, 0.08);
 }
 
@@ -9075,7 +9125,8 @@ code {
   text-transform: uppercase;
 }
 
-.appointment-workspace-header strong {
+.appointment-workspace-header h2 {
+  margin: 0;
   color: #0f172a;
   font-size: 21px;
   letter-spacing: -0.04em;
@@ -13511,13 +13562,21 @@ code {
   grid-column: 1 / -1;
 }
 
+@media (min-width: 1181px) and (min-height: 800px) {
+  .appointment-board-page {
+    --appointment-calendar-hour-height: clamp(36px, calc((100vh - 380px) / 10), 52px);
+  }
+}
+
 @media (max-width: 1180px) {
   .appointment-enterprise-shell {
     grid-template-columns: 1fr;
   }
 
   .appointment-workspace-sidebar {
-    position: static;
+    position: absolute;
+    left: calc(var(--appointment-module-rail-width) + 3px);
+    width: min(78vw, 320px);
   }
 
   .appointment-main-grid {
@@ -13592,6 +13651,10 @@ code {
 }
 
 @media (max-width: 760px) {
+  .appointment-board-page.appointment-module-rail-expanded {
+    --appointment-module-rail-width: 144px;
+  }
+
   .appointment-workspace-stats,
   .appointment-workspace-action-grid,
   .appointment-workspace-tabs {
