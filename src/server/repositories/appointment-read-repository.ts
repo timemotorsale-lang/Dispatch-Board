@@ -324,6 +324,11 @@ export type AppointmentReadAppointmentRecord = {
   automationExecutions: AppointmentReadAutomationExecutionRecord[];
 };
 
+type AppointmentReadAppointmentBaseRecord = Omit<
+  AppointmentReadAppointmentRecord,
+  "automationExecutions"
+>;
+
 export type AppointmentReadLocationAccessRecord = {
   userId: string;
   locationId: string;
@@ -349,6 +354,7 @@ export type AppointmentReadRepository = {
     locationId: string,
     at: Date
   ): Promise<AppointmentReadLocationAccessRecord | null>;
+  findAppointmentById(appointmentId: string): Promise<AppointmentReadAppointmentRecord | null>;
   listAppointmentsForLocationWindow(
     input: AppointmentReadQueryInput
   ): Promise<AppointmentReadAppointmentRecord[]>;
@@ -356,6 +362,93 @@ export type AppointmentReadRepository = {
 
 function isDateWithinAccessWindow(access: AppointmentReadLocationAccessRecord, at: Date) {
   return access.validFrom <= at && (!access.validTo || access.validTo >= at);
+}
+
+async function attachRecentAutomationExecutions(
+  database: AppointmentReadDatabase,
+  appointments: AppointmentReadAppointmentBaseRecord[]
+): Promise<AppointmentReadAppointmentRecord[]> {
+  if (appointments.length === 0) {
+    return [];
+  }
+
+  const appointmentIds = appointments.map((appointment) => appointment.id);
+  const automatedTaskSourceReferences = appointments
+    .filter(
+      (appointment) =>
+        appointment.sourceType === "AUTOMATION" &&
+        typeof appointment.sourceReference === "string" &&
+        appointment.sourceReference.trim()
+    )
+    .map((appointment) => appointment.sourceReference as string);
+  const automationExecutions = await database.appointmentAutomationExecution.findMany({
+    where: {
+      OR: [
+        {
+          sourceType: "APPOINTMENT",
+          sourceReference: {
+            in: appointmentIds
+          }
+        },
+        ...(automatedTaskSourceReferences.length > 0
+          ? [
+              {
+                sourceType: "TASK",
+                sourceReference: {
+                  in: automatedTaskSourceReferences
+                }
+              }
+            ]
+          : [])
+      ]
+    },
+    select: appointmentReadAutomationExecutionSelect,
+    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }]
+  });
+  const automationExecutionsByAppointmentId = new Map<
+    string,
+    AppointmentReadAutomationExecutionRecord[]
+  >();
+  const automatedAppointmentsByTaskId = new Map<string, string[]>();
+
+  for (const appointment of appointments) {
+    if (
+      appointment.sourceType !== "AUTOMATION" ||
+      !appointment.sourceReference ||
+      !appointment.sourceReference.trim()
+    ) {
+      continue;
+    }
+
+    const linkedAppointmentIds = automatedAppointmentsByTaskId.get(appointment.sourceReference) ?? [];
+    linkedAppointmentIds.push(appointment.id);
+    automatedAppointmentsByTaskId.set(appointment.sourceReference, linkedAppointmentIds);
+  }
+
+  for (const execution of automationExecutions) {
+    if (!execution.sourceReference) {
+      continue;
+    }
+
+    const targetAppointmentIds =
+      execution.sourceType === "TASK"
+        ? automatedAppointmentsByTaskId.get(execution.sourceReference) ?? []
+        : [execution.sourceReference];
+
+    for (const appointmentId of targetAppointmentIds) {
+      const records = automationExecutionsByAppointmentId.get(appointmentId) ?? [];
+
+      if (records.length < 5) {
+        records.push(execution);
+        automationExecutionsByAppointmentId.set(appointmentId, records);
+      }
+    }
+  }
+
+  return appointments.map((appointment) => ({
+    ...appointment,
+    automationExecutions: automationExecutionsByAppointmentId.get(appointment.id) ?? []
+  }));
 }
 
 export function createAppointmentReadRepository(
@@ -378,6 +471,23 @@ export function createAppointmentReadRepository(
       }
 
       return access;
+    },
+
+    async findAppointmentById(appointmentId) {
+      const appointment = await database.appointment.findUnique({
+        where: {
+          id: appointmentId
+        },
+        select: appointmentReadSelect
+      });
+
+      if (!appointment) {
+        return null;
+      }
+
+      const [hydratedAppointment] = await attachRecentAutomationExecutions(database, [appointment]);
+
+      return hydratedAppointment ?? null;
     },
 
     async listAppointmentsForLocationWindow(input) {
@@ -413,88 +523,7 @@ export function createAppointmentReadRepository(
         orderBy: [{ startsAt: "asc" }, { appointmentNumber: "asc" }, { id: "asc" }]
       });
 
-      if (appointments.length === 0) {
-        return [];
-      }
-
-      const appointmentIds = appointments.map((appointment) => appointment.id);
-      const automatedTaskSourceReferences = appointments
-        .filter(
-          (appointment) =>
-            appointment.sourceType === "AUTOMATION" &&
-            typeof appointment.sourceReference === "string" &&
-            appointment.sourceReference.trim()
-        )
-        .map((appointment) => appointment.sourceReference as string);
-      const automationExecutions = await database.appointmentAutomationExecution.findMany({
-        where: {
-          OR: [
-            {
-              sourceType: "APPOINTMENT",
-              sourceReference: {
-                in: appointmentIds
-              }
-            },
-            ...(automatedTaskSourceReferences.length > 0
-              ? [
-                  {
-                    sourceType: "TASK",
-                    sourceReference: {
-                      in: automatedTaskSourceReferences
-                    }
-                  }
-                ]
-              : [])
-          ]
-        },
-        select: appointmentReadAutomationExecutionSelect,
-        orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }]
-      });
-      const automationExecutionsByAppointmentId = new Map<
-        string,
-        AppointmentReadAutomationExecutionRecord[]
-      >();
-      const automatedAppointmentsByTaskId = new Map<string, string[]>();
-
-      for (const appointment of appointments) {
-        if (
-          appointment.sourceType !== "AUTOMATION" ||
-          !appointment.sourceReference ||
-          !appointment.sourceReference.trim()
-        ) {
-          continue;
-        }
-
-        const linkedAppointmentIds =
-          automatedAppointmentsByTaskId.get(appointment.sourceReference) ?? [];
-        linkedAppointmentIds.push(appointment.id);
-        automatedAppointmentsByTaskId.set(appointment.sourceReference, linkedAppointmentIds);
-      }
-
-      for (const execution of automationExecutions) {
-        if (!execution.sourceReference) {
-          continue;
-        }
-
-        const targetAppointmentIds =
-          execution.sourceType === "TASK"
-            ? automatedAppointmentsByTaskId.get(execution.sourceReference) ?? []
-            : [execution.sourceReference];
-
-        for (const appointmentId of targetAppointmentIds) {
-          const records = automationExecutionsByAppointmentId.get(appointmentId) ?? [];
-
-          if (records.length < 5) {
-            records.push(execution);
-            automationExecutionsByAppointmentId.set(appointmentId, records);
-          }
-        }
-      }
-
-      return appointments.map((appointment) => ({
-        ...appointment,
-        automationExecutions: automationExecutionsByAppointmentId.get(appointment.id) ?? []
-      }));
+      return attachRecentAutomationExecutions(database, appointments);
     }
   };
 }

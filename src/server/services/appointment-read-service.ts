@@ -215,6 +215,16 @@ function normalizeQuery(input: AppointmentReadQuery) {
   };
 }
 
+function normalizeAppointmentId(appointmentId: string) {
+  const normalizedAppointmentId = appointmentId.trim();
+
+  if (!normalizedAppointmentId) {
+    throw new Error("Appointment id is required.");
+  }
+
+  return normalizedAppointmentId;
+}
+
 function toLocationAccessGrant(
   access: AppointmentReadLocationAccessRecord | null
 ): AppointmentLocationAccessGrant | null {
@@ -591,4 +601,33 @@ export async function listAppointmentReadModels(
       })
     )
   };
+}
+
+export async function getAppointmentReadModelById(
+  user: AuthenticatedUser | null,
+  appointmentId: string,
+  repository: AppointmentReadRepository = createAppointmentReadRepository(),
+  now = new Date()
+): Promise<AppointmentReadModel> {
+  const actor = assertAuthenticated(user);
+  const normalizedAppointmentId = normalizeAppointmentId(appointmentId);
+  const appointment = await repository.findAppointmentById(normalizedAppointmentId);
+
+  if (!appointment) {
+    throw new Error("Appointment detail is not available.");
+  }
+
+  const locationAccess = toLocationAccessGrant(
+    await repository.findActiveLocationAccess(actor.id, appointment.locationId, now)
+  );
+
+  if (!locationAccess || !canViewAppointmentSchedule({ actor, locationAccess })) {
+    throw new Error("Appointment detail is not available.");
+  }
+
+  return toAppointmentReadModel({
+    actor,
+    appointment,
+    locationAccess
+  });
 }

@@ -1,6 +1,6 @@
 # Appointment Permission Safety Gate
 
-**Status:** Initial MVP safety gate implemented on `codex/appointment-permission-safety-gate`  
+**Status:** Initial MVP safety gate implemented through `codex/appointment-direct-detail-permission-proof`
 **Scope:** Appointment Board command and read-model permission evidence
 
 ## Implemented Evidence
@@ -11,6 +11,9 @@
 - Managers can submit eligible appointment commands only when they also have location-level appointment management authority.
 - Appointment administrator configuration identity does not imply live appointment mutation authority.
 - Existing read-model tests prove participant and viewer visibility is masked and non-mutating while manager and owner detail remains available.
+- Direct appointment detail access now uses the same read projection as the board, so participant and viewer direct lookups remain masked.
+- Direct detail access returns the same safe not-available response for missing appointments and users without schedule access.
+- Appointment administrator identity alone does not grant direct appointment detail access.
 - Existing server policy tests keep approval, ownership transfer, and warning override actions manager-only.
 
 ## MVP Boundary
@@ -19,7 +22,6 @@ The day-one board should treat permissions as server-authored. UI controls can h
 
 ## Remaining Before Final Rollout
 
-- Add direct-route or API smoke evidence that a viewer cannot access restricted appointment detail outside the normal board flow.
 - Add cross-location search/reporting leakage coverage when those appointment surfaces move into MVP scope.
 - Add explicit system-action evidence for automation beyond draft handoff once automated live appointment mutations are enabled.
 - Add role-aware helper copy for disabled board actions so users understand whether an action is unavailable because of role, appointment state, blockers, or MVP deferral.
@@ -29,7 +31,7 @@ The day-one board should treat permissions as server-authored. UI controls can h
 Run the focused safety-gate suite:
 
 ```bash
-npm test -- policies.test.ts appointment-command-service.test.ts appointment-read-service.test.ts
+npm test -- policies.test.ts appointment-command-service.test.ts appointment-read-service.test.ts appointment-read-detail-route.test.ts
 ```
 
 Run full local confidence before merging:

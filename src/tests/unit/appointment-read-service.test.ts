@@ -6,7 +6,10 @@ import type {
   AppointmentReadLocationAccessRecord,
   AppointmentReadRepository
 } from "@/server/repositories/appointment-read-repository";
-import { listAppointmentReadModels } from "@/server/services/appointment-read-service";
+import {
+  getAppointmentReadModelById,
+  listAppointmentReadModels
+} from "@/server/services/appointment-read-service";
 
 const now = new Date("2026-07-06T15:00:00.000Z");
 const windowStart = new Date("2026-07-06T14:00:00.000Z");
@@ -57,6 +60,19 @@ const viewerUser: AuthenticatedUser = {
   email: "viewer@local.test",
   isActive: true,
   roles: ["Office / Admin"],
+  duties: {
+    direct: [],
+    roleDefaults: [],
+    all: []
+  }
+};
+
+const appointmentAdminUser: AuthenticatedUser = {
+  id: "user-appointment-admin",
+  name: "Appointment Admin",
+  email: "appointment-admin@local.test",
+  isActive: true,
+  roles: ["Appointment Administrator"],
   duties: {
     direct: [],
     roleDefaults: [],
@@ -258,6 +274,11 @@ function createAppointmentReadRepositoryHarness(input?: {
       userId: viewerUser.id,
       canParticipate: false,
       canViewLimitedData: false
+    }),
+    [appointmentAdminUser.id]: createAccess({
+      userId: appointmentAdminUser.id,
+      canParticipate: false,
+      canViewLimitedData: false
     })
   };
 
@@ -266,6 +287,10 @@ function createAppointmentReadRepositoryHarness(input?: {
       const access = accessByUserId[userId];
 
       return access?.locationId === locationId ? access : null;
+    },
+
+    async findAppointmentById(appointmentId) {
+      return appointments.find((appointment) => appointment.id === appointmentId) ?? null;
     },
 
     async listAppointmentsForLocationWindow(query) {
@@ -726,5 +751,117 @@ describe("appointment read service", () => {
         now
       )
     ).rejects.toThrow("Appointment schedule is not authorized.");
+  });
+
+  it("returns direct appointment detail through the same masked read projection", async () => {
+    const repository = createAppointmentReadRepositoryHarness();
+
+    const managerDetail = await getAppointmentReadModelById(
+      managerUser,
+      "appointment-1",
+      repository,
+      now
+    );
+    const participantDetail = await getAppointmentReadModelById(
+      participantUser,
+      "appointment-1",
+      repository,
+      now
+    );
+    const viewerDetail = await getAppointmentReadModelById(
+      viewerUser,
+      "appointment-1",
+      repository,
+      now
+    );
+
+    expect(managerDetail).toMatchObject({
+      appointmentNumber: "APT-10245",
+      customer: {
+        displayName: "Ahmed Ibrahim",
+        phoneNumber: "612-555-0147",
+        email: "ahmed@example.test"
+      },
+      vehicles: [
+        expect.objectContaining({
+          vin: "1FAHP2E82EG123456",
+          licensePlate: "ABC-123"
+        })
+      ],
+      visibility: {
+        relationship: "MANAGER",
+        dataAccessLevel: "LIMITED_DETAIL",
+        canMutate: true
+      }
+    });
+    expect(participantDetail).toMatchObject({
+      customer: {
+        displayName: "Ahmed I.",
+        phoneNumber: null,
+        email: null
+      },
+      vehicles: [
+        expect.objectContaining({
+          vin: null,
+          licensePlate: null
+        })
+      ],
+      visibility: {
+        relationship: "PARTICIPANT",
+        dataAccessLevel: "SCHEDULE_SUMMARY",
+        canMutate: false
+      }
+    });
+    expect(viewerDetail).toMatchObject({
+      customer: {
+        displayName: "Ahmed I.",
+        phoneNumber: null,
+        email: null
+      },
+      visibility: {
+        relationship: "LOCATION_VIEWER",
+        dataAccessLevel: "SCHEDULE_SUMMARY",
+        canMutate: false
+      }
+    });
+  });
+
+  it("does not grant direct detail access from appointment-admin identity alone", async () => {
+    const repository = createAppointmentReadRepositoryHarness({
+      accessByUserId: {
+        [appointmentAdminUser.id]: null
+      }
+    });
+
+    await expect(
+      getAppointmentReadModelById(appointmentAdminUser, "appointment-1", repository, now)
+    ).rejects.toThrow("Appointment detail is not available.");
+  });
+
+  it("uses the same safe direct-detail denial for missing appointments and inactive access", async () => {
+    await expect(
+      getAppointmentReadModelById(
+        managerUser,
+        "missing-appointment",
+        createAppointmentReadRepositoryHarness(),
+        now
+      )
+    ).rejects.toThrow("Appointment detail is not available.");
+
+    await expect(
+      getAppointmentReadModelById(
+        viewerUser,
+        "appointment-1",
+        createAppointmentReadRepositoryHarness({
+          accessByUserId: {
+            [viewerUser.id]: createAccess({
+              userId: viewerUser.id,
+              canViewSchedule: false
+            })
+          }
+        }),
+        now
+      )
+    ).rejects.toThrow("Appointment detail is not available.");
   });
 });
