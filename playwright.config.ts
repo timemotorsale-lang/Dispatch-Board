@@ -1,6 +1,16 @@
 import { defineConfig, devices } from "@playwright/test";
+import { existsSync } from "node:fs";
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
+const windowsEdgePaths = [
+  "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
+  "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"
+];
+const browserChannel =
+  process.env.PLAYWRIGHT_BROWSER_CHANNEL ??
+  (process.platform === "win32" && windowsEdgePaths.some((browserPath) => existsSync(browserPath))
+    ? "msedge"
+    : undefined);
 
 export default defineConfig({
   testDir: "./src/tests/e2e",
@@ -26,7 +36,10 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] }
+      use: {
+        ...devices["Desktop Chrome"],
+        ...(browserChannel ? { channel: browserChannel } : {})
+      }
     }
   ]
 });

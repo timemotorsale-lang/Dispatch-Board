@@ -45,6 +45,7 @@ describe("my tasks screen", () => {
       <MyTasksScreen
         boardDate="2026-07-04"
         boardExists
+        currentUserId="user-manager"
         fullBoardHref="/board?date=2026-07-04"
         generatedAt="2026-07-04T13:00:00.000Z"
         generationStatus="GENERATED"
@@ -74,6 +75,7 @@ describe("my tasks screen", () => {
     expect(markup).toContain("Review Blocked Tasks");
     expect(markup).toContain("Task Command Center");
     expect(markup).toContain("Task Information");
+    expect(markup).toContain("Create My Task");
     expect(markup).toContain("Open Workspace");
   });
 
@@ -82,6 +84,7 @@ describe("my tasks screen", () => {
       <MyTasksScreen
         boardDate="2026-07-04"
         boardExists
+        currentUserId="user-baraka"
         fullBoardHref="/board?date=2026-07-04"
         generatedAt={null}
         generationStatus={null}

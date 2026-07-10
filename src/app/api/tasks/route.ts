@@ -8,7 +8,12 @@ function getTaskCreateErrorStatus(message: string) {
     return 401;
   }
 
-  if (message === "Manager access required.") {
+  if (
+    message === "Manager access required." ||
+    message === "Only managers can create tasks that require manager approval." ||
+    message === "Staff can only create tasks assigned to themselves." ||
+    message === "Staff-created tasks must start as Not Started."
+  ) {
     return 403;
   }
 

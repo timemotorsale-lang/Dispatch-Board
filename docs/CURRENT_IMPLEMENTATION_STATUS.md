@@ -171,7 +171,7 @@ Focused appointment lifecycle validation passed for template-backed blueprint ta
 | Customers | Placeholder guidance page; no enterprise customer subsystem |
 | Vehicles | Placeholder guidance page; no enterprise vehicle subsystem |
 | Reports | Placeholder guidance page; no enterprise reporting subsystem |
-| Tasks landing page | Shared placeholder/entry surface; live task detail, My Tasks, board, and manager review exist elsewhere |
+| Tasks console | Manager-facing Task Operations Console foundation exists at `/tasks` with mockup-aligned layout, KPI strip, internal queue sidebar, dense list/board modes, right-side detail rail, quick workflow actions, clearly local/browser saved views, filters, CSV export, staff self-create from My Tasks, and targeted Playwright smoke proof through a system-browser fallback; durable shared saved views and broader browser workflow coverage remain follow-up work |
 | Task-template administration | Production API and service foundation with a prototype interface; not yet a completed production administration workflow |
 
 ## Enterprise Appointment Boundary

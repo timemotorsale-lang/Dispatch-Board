@@ -381,6 +381,10 @@ async function createTask(
 }
 
 describe("board and task workflow", () => {
+  const skipTaskAppointmentAutomation = {
+    taskAppointmentAutomationRunner: vi.fn().mockResolvedValue(null)
+  };
+
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-18T15:30:00.000Z"));
@@ -453,7 +457,8 @@ describe("board and task workflow", () => {
       staff,
       ownTask.id,
       { status: TaskStatus.BLOCKED, blockerReason: "  Waiting on lender paperwork.  " },
-      harness.statusRepository
+      harness.statusRepository,
+      skipTaskAppointmentAutomation
     );
 
     expect(await getTaskReadModelById(staff, ownTask.id, harness.readRepository)).toMatchObject({
@@ -476,7 +481,8 @@ describe("board and task workflow", () => {
       staff,
       task.id,
       { status: TaskStatus.READY_FOR_REVIEW },
-      harness.statusRepository
+      harness.statusRepository,
+      skipTaskAppointmentAutomation
     );
     expect(await getTaskReadModelById(manager, task.id, harness.readRepository)).toMatchObject({
       status: TaskStatus.READY_FOR_REVIEW,

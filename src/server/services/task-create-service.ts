@@ -68,16 +68,37 @@ function toUserSummary(
   };
 }
 
-function assertCanCreateManualTasks(user: AuthenticatedUser | null) {
+function assertAuthenticatedTaskCreator(user: AuthenticatedUser | null) {
   if (!user) {
     throw new Error("Authentication required.");
   }
 
-  if (!canManageAssignments(user)) {
-    throw new Error("Manager access required.");
+  return user;
+}
+
+function assertCanCreateManualTasks(
+  user: AuthenticatedUser,
+  input: NormalizedTaskCreateInput
+) {
+  if (canManageAssignments(user)) {
+    return;
   }
 
-  return user;
+  if (input.assignedUserId !== user.id) {
+    throw new Error("Staff can only create tasks assigned to themselves.");
+  }
+
+  if (input.requiresManagerApproval) {
+    throw new Error("Only managers can create tasks that require manager approval.");
+  }
+
+  if (input.status !== TaskStatus.NOT_STARTED) {
+    throw new Error("Staff-created tasks must start as Not Started.");
+  }
+}
+
+function getManualTaskSourceType(user: AuthenticatedUser) {
+  return canManageAssignments(user) ? TaskSourceType.MANAGER : TaskSourceType.STAFF;
 }
 
 function buildManualTaskWorkflowFields(
@@ -154,8 +175,11 @@ export async function createManualTask(
     taskAppointmentAutomationRunner?: typeof runTaskAppointmentAutomationForTaskEvent;
   }
 ) {
-  const authenticatedUser = assertCanCreateManualTasks(user);
   const normalizedInput = normalizeTaskCreateInput(input);
+  const authenticatedUser = assertAuthenticatedTaskCreator(user);
+
+  assertCanCreateManualTasks(authenticatedUser, normalizedInput);
+
   const assignedUser = await repository.findAssignedUserById(normalizedInput.assignedUserId);
 
   if (!assignedUser) {
@@ -182,6 +206,7 @@ export async function createManualTask(
     readyForReviewAt: workflowFields.readyForReviewAt,
     requiresManagerApproval: normalizedInput.requiresManagerApproval,
     reviewedByUserId: workflowFields.reviewedByUserId,
+    sourceType: getManualTaskSourceType(authenticatedUser),
     status: normalizedInput.status,
     title: normalizedInput.title,
     ...(normalizedInput.vehicleReference

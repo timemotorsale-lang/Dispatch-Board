@@ -76,6 +76,7 @@ export type CreateTaskRecordInput = {
   readyForReviewAt?: Date | null;
   requiresManagerApproval: boolean;
   reviewedByUserId?: string | null;
+  sourceType: CreatedTaskRecord["sourceType"];
   status: CreatedTaskRecord["status"];
   title: string;
   vehicleReference?: string;
@@ -127,7 +128,7 @@ export function createTaskCreateRepository(
           ...(input.reviewedByUserId !== undefined
             ? { reviewedByUserId: input.reviewedByUserId }
             : {}),
-          sourceType: "MANAGER",
+          sourceType: input.sourceType,
           status: input.status,
           title: input.title,
           ...(input.vehicleReference ? { vehicleReference: input.vehicleReference } : {}),
