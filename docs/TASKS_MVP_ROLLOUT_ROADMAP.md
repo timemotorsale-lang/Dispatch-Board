@@ -48,7 +48,7 @@ The remaining blockers are:
 ### Milestone 1: Protect The Console With Smoke Coverage
 
 **Suggested branch:** `codex/tasks-console-smoke-coverage`
-**Implementation status:** Started. Static console smoke coverage is implemented; Playwright browser smoke coverage is written and awaits the local Playwright browser install to execute.
+**Implementation status:** Implemented. Static console smoke coverage is implemented, and the Playwright console smoke now runs locally through the system Edge fallback when bundled Chromium is unavailable.
 
 Purpose:
 
@@ -229,7 +229,7 @@ Product clarity and saved-view honesty.
 ### Milestone 6: Final MVP Rollout Gate
 
 **Suggested branch:** `codex/tasks-mvp-rollout-gate`
-**Implementation status:** Substantially completed in working tree. Task-focused unit/integration validation, typecheck, lint, and production build pass; the Playwright console smoke test is present but local execution is blocked until the Chromium browser binary is installed.
+**Implementation status:** Completed for the current MVP gate. Task-focused unit/integration validation, typecheck, lint, production build, and targeted Playwright `/tasks` console smoke validation pass.
 
 Purpose:
 

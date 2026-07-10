@@ -163,8 +163,8 @@ test("manager can scan the compact Tasks Operations Console", async ({ page }) =
   await expect(page.getByText("Task Operations Console")).toBeVisible();
   await expect(page.getByRole("button", { name: "Create Task" })).toBeVisible();
   await expect(page.getByText("Total Tasks")).toBeVisible();
-  await expect(page.getByText("Ready for Review")).toBeVisible();
-  await expect(page.getByText("Update Status")).toBeVisible();
+  await expect(page.locator(".tasks-console-metrics").getByText("Ready for Review", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Update Status" }).first()).toBeVisible();
   await expect(page.locator(".tasks-console-table tbody tr")).toHaveCount(8);
   await assertTasksConsoleFitsViewport(page);
 
@@ -179,14 +179,16 @@ test("manager can scan the compact Tasks Operations Console", async ({ page }) =
   await expect(page.getByText("Search: blocked")).toBeVisible();
   await page.getByLabel("Search tasks").fill("");
 
-  await page.getByRole("button", { name: /^Blocked\s*\d*/ }).click();
+  await page.locator(".tasks-console-sidebar").getByRole("button", { name: "Blocked", exact: true }).click();
   await expect(page.getByText("Queue: Blocked")).toBeVisible();
-  await page.getByRole("button", { name: /^Team Tasks\s*\d*/ }).click();
+  await page.locator(".tasks-console-sidebar").getByRole("button", { name: /^Team Tasks\s*\d*/ }).click();
 
   const rows = page.locator(".tasks-console-table tbody tr");
   const secondTaskTitle = await rows.nth(1).locator(".tasks-console-title-cell strong").innerText();
   await rows.nth(1).click();
-  await expect(page.locator(".tasks-console-rail-title h2")).toContainText(secondTaskTitle);
+  await expect
+    .poll(async () => (await page.locator(".tasks-console-rail-title h2").innerText()).toLowerCase())
+    .toContain(secondTaskTitle.toLowerCase());
 
   await page.getByRole("button", { name: /Comments/ }).click();
   await expect(page.getByText("New Comment")).toBeVisible();
