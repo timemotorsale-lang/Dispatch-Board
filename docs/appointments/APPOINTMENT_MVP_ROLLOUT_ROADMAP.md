@@ -3,6 +3,107 @@
 **Purpose:** Sequence the Appointment Command Center from the current enterprise implementation state to a day-one MVP rollout.  
 **Rule:** Build one slice at a time. Do not widen scope until the active gate is proven.
 
+**Audit baseline:** July 10, 2026 - approximately 88% ready for formal MVP rollout.
+
+## Current Rollout Position
+
+The core Appointment Console is operational. The compact board, task handoff, eligible schedule commit, server-authoritative conflict enforcement, command history, and primary permission boundaries are implemented and passing automated checks.
+
+The remaining work is release proof and integration rather than broad feature development. Four closeout milestones remain before the console can honestly be called 100% MVP rollout-ready.
+
+| Existing milestone | Current state | Remaining action |
+| --- | --- | --- |
+| 1. MVP scope audit | Complete and merged | None |
+| 2. Console smoke and visual gate | Complete and merged | Preserve the `1280 x 720` one-page gate |
+| 3. Create and schedule commit reliability | Implemented on `codex/appointment-schedule-commit-gate` | Merge the branch into the MVP baseline |
+| 4. Lifecycle command MVP | Browser proof exists on an unintegrated branch | Reapply the focused proof on the current baseline and verify it |
+| 5. Task-to-appointment handoff | Complete and merged | Preserve the task-to-appointment-to-task audit trail |
+| 6. Exception queues and rail clarity | Substantially implemented | Prove blocked/warning guidance in the browser and finish role-aware helper copy |
+| 7. Permissions and safety gate | Core gate merged; cross-location/search proof remains unintegrated | Integrate and rerun the full permission suite |
+| 8. Day-one readiness gate | Not signed off | Complete quality evidence, operator notes, and go/no-go approval |
+
+## Remaining Closeout Sequence
+
+These milestones are the shortest safe path from the current 88% position to rollout. Complete and merge each slice before starting the next one.
+
+| Order | Closeout milestone | Branch | Rollout outcome |
+| ---: | --- | --- | --- |
+| 1 | Schedule gate integration | `codex/appointment-schedule-commit-gate` | Places the proven eligible draft-to-scheduled workflow on the shared MVP baseline |
+| 2 | Workflow browser gates | `codex/appointment-mvp-workflow-browser-gates` | Proves board-created drafts, hard blocks, warning overrides, lifecycle actions, and history from the operator surface |
+| 3 | Permission integration gate | `codex/appointment-mvp-permission-integration` | Proves role and cross-location/search boundaries on the current baseline |
+| 4 | Day-one readiness and signoff | `codex/appointment-mvp-day-one-readiness` | Produces the final quality record, operator runbook, known limitations, and go/no-go verdict |
+
+## Closeout Milestone 1 - Schedule Gate Integration
+
+Goal: make the completed schedule-commit work part of the shared MVP baseline.
+
+Definition of done:
+
+- Merge `codex/appointment-schedule-commit-gate` after review.
+- Confirm the eligible task-originated draft schedules successfully in the full browser suite.
+- Confirm the appointment remains linked to its source task after scheduling.
+- Confirm typecheck, lint, focused schedule tests, and the daily browser workflow remain green after merge.
+
+Exit gate: the shared baseline contains the audited `SCHEDULE` command path and its browser proof.
+
+## Closeout Milestone 2 - Workflow Browser Gates
+
+Goal: prove the remaining day-one operator workflows through the actual Appointment Console.
+
+Implementation targets:
+
+- Create a documented unscheduled draft directly from `/appointments` and verify it appears in the draft lane.
+- Attempt to schedule a hard-blocked draft and verify the UI prevents commit with plain-language guidance.
+- Attempt warning-level scheduling, verify an authorized manager reason is required, record the override, and then verify commit succeeds.
+- Integrate the existing lifecycle browser scenario for Check In, Start Work, Finish Work, Save Outcome, and No Show.
+- Verify the detail rail and activity/history evidence update after each key action.
+- Keep the next safe action visible and explain disabled actions by role, state, blocker, or MVP deferral.
+
+Exit gate:
+
+- Happy, blocked, and warning scheduling paths pass in browser automation.
+- Supported lifecycle actions pass in browser automation.
+- Operator guidance is understandable without reading implementation documentation.
+
+## Closeout Milestone 3 - Permission Integration Gate
+
+Goal: prove that day-one visibility and mutation boundaries cannot leak across roles or locations.
+
+Implementation targets:
+
+- Integrate the existing cross-location/search permission proof onto the current baseline.
+- Verify manager, owner, participant, viewer, appointment administrator, and system-action behavior.
+- Prove unauthorized direct detail, search, and location access return safe results without sensitive-field leakage.
+- Prove denied mutations create no partial appointment, reservation, history, or command-ledger writes.
+- Verify role-aware unavailable-action copy in the Appointment Console.
+
+Exit gate: the permission matrix has passing evidence for every role in the day-one promise, including cross-location and search boundaries.
+
+## Closeout Milestone 4 - Day-One Readiness And Signoff
+
+Goal: convert implemented capability into a formal release decision.
+
+Implementation targets:
+
+- Run database generation with the development server stopped so Windows does not lock the Prisma engine file.
+- Pass schema validation, migration status, typecheck, lint, all tests, production build, and the complete browser suite.
+- Record the supported day-one lifecycle, blocked-state, and warning-override behavior in operator language.
+- Record deferred enterprise scope and known limitations.
+- Perform a final visual pass at the approved day-one viewport and record any accepted visual debt.
+- Complete product, operations, and engineering signoff in `APPOINTMENT_MVP_DAY_ONE_READINESS.md`.
+
+Exit gate: the readiness document says either **Approved for MVP rollout** with evidence or **Held** with named blockers. No provisional or implied approval remains.
+
+## Final 100% Definition
+
+The Appointment Console reaches 100% MVP rollout readiness only when all of the following are true:
+
+- The four closeout milestones above are merged into the same release baseline.
+- Every checked claim in the day-one readiness document has current evidence.
+- All required quality commands pass in a clean release run.
+- The operator runbook and deferred-scope notes are complete.
+- Product, operations, and engineering owners record an explicit go decision.
+
 ## Architecture Spine
 
 The MVP should preserve the enterprise architecture while narrowing what must be proven for rollout:
@@ -14,13 +115,13 @@ The MVP should preserve the enterprise architecture while narrowing what must be
 - Audit and history: appointment actions must leave command-ledger and activity evidence.
 - MVP tests and gates: every rollout claim needs either automated coverage, browser smoke proof, or documented operator evidence.
 
-## Milestone Sequence
+## Original Milestone Sequence
 
 | # | Milestone | Branch | Outcome |
 | ---: | --- | --- | --- |
 | 1 | MVP scope audit | `codex/appointment-mvp-readiness-gate` | Defines day-one promise, deferred scope, rollout gaps, and readiness criteria. |
 | 2 | Console smoke and visual gate | `codex/appointment-console-smoke-gate` | Proves `/appointments` opens, is compact enough for day-one use, shows schedule/draft lanes, and keeps the detail rail usable. |
-| 3 | Create and schedule commit reliability | `codex/appointment-schedule-commit-reliability` | Proves a draft can move to scheduled when readiness passes and cannot move when blocked. |
+| 3 | Create and schedule commit reliability | `codex/appointment-schedule-commit-gate` | Proves a draft can move to scheduled when readiness passes and cannot move when blocked. |
 | 4 | Lifecycle command MVP | `codex/appointment-lifecycle-mvp-actions` | Proves day-one edit, reschedule, cancel, start, finish, no-show, and outcome actions where supported. |
 | 5 | Task-to-appointment handoff | `codex/appointment-task-handoff-mvp` | Initial MVP handoff proof implemented: source task creates appointment draft, task detail shows linked appointment context, Appointment Board shows linked task context, and the operator can return to the source task. |
 | 6 | Exception queues and rail clarity | `codex/appointment-exception-queues-rail` | Turns unscheduled, warning, failed automation, no-show, and follow-up states into clear operating lanes. |
