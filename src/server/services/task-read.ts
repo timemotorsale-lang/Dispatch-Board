@@ -357,7 +357,7 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
       createdAt: event.createdAt.toISOString(),
       actor: toUserSummary(event.actorUser)
     })),
-    appointmentLinks: task.appointmentLinks.map((link) => ({
+    appointmentLinks: (task.appointmentLinks ?? []).map((link) => ({
       id: link.id,
       appointmentId: link.appointment.id,
       appointmentNumber: link.appointment.appointmentNumber,
