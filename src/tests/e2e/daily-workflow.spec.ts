@@ -147,7 +147,7 @@ async function waitForTaskAppointment(
     .not.toBeNull();
 }
 
-test("manager can smoke test the Appointment Board MVP shell", async ({ page }) => {
+test("manager can pass the Appointment Board console smoke gate", async ({ page }) => {
   test.setTimeout(60_000);
 
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -159,7 +159,9 @@ test("manager can smoke test the Appointment Board MVP shell", async ({ page }) 
   await expect(page.locator(".appointment-metric-grid")).toBeVisible();
   await expect(page.locator(".appointment-calendar-shell")).toBeVisible();
   await expect(page.locator(".appointment-detail-panel")).toBeVisible();
+  await expect(page.locator(".appointment-detail-panel")).toContainText("Linked Tasks");
   await expect(page.locator(".appointment-next-action-card")).toBeVisible();
+  await expect(page.locator(".appointment-detail-actions").getByRole("button", { name: "Check In" })).toBeVisible();
   await expect(page.locator(".appointment-view-tabs").getByRole("button", { name: "Day", exact: true })).toHaveClass(/appointment-view-tab-active/);
   await expect(page.locator(".appointment-board-lane-modes").getByRole("button", { name: "Staff", exact: true })).toHaveClass(/appointment-board-lane-mode-active/);
 
@@ -191,6 +193,7 @@ test("manager can smoke test the Appointment Board MVP shell", async ({ page }) 
   await secondAppointment.click();
   await expect(page.locator(".appointment-detail-header strong")).toHaveText(selectedTitle);
   await expect(secondAppointment).toHaveClass(/appointment-calendar-item-active/);
+  await expect(page.locator(".appointment-next-action-card button")).toBeVisible();
 
   await expect(page.getByText("Upcoming Appointments")).toBeVisible();
 });
@@ -408,10 +411,18 @@ test("manager can create a linked appointment draft from a task and see it on th
   await page.keyboard.press("Escape");
   await expect(opsButton).toHaveAttribute("aria-expanded", "false");
   await opsButton.click();
-  await expect(page.getByText("Unscheduled / Drafts")).toBeVisible();
+  const unscheduledCard = page.locator(".appointment-unscheduled-card");
+  await expect(unscheduledCard).toBeVisible();
+  await expect(unscheduledCard).toContainText("Unscheduled / Drafts");
+  await expect(unscheduledCard).toContainText("needs scheduling");
+  await expect(unscheduledCard).toContainText(createdAppointment!.appointmentNumber);
   const unscheduledDraftItem = page.locator(".appointment-unscheduled-item").filter({ hasText: appointmentTitle });
   await expect(unscheduledDraftItem).toBeVisible();
   await unscheduledDraftItem.click();
+  await expect(unscheduledDraftItem).toHaveClass(/appointment-unscheduled-item-active/);
+  await expect(page.locator(".appointment-detail-panel")).toContainText(createdAppointment!.appointmentNumber);
+  await expect(page.locator(".appointment-next-action-card")).toBeVisible();
+  await expect(page.locator(".appointment-detail-actions").getByRole("button", { name: "Check In" })).toBeVisible();
   await expect(page.getByText("Linked Tasks (1)")).toBeVisible();
   await expect(page.getByText(appointmentTaskTitle, { exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Open Task" }).click();

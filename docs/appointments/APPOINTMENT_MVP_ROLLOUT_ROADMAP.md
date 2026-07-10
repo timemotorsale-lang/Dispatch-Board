@@ -43,6 +43,8 @@ Definition of done:
 
 Goal: make the first operator experience trustworthy before deeper workflow work.
 
+Status: Initial automated smoke proof implemented on `codex/appointment-console-smoke-gate`. See `docs/appointments/APPOINTMENT_CONSOLE_SMOKE_GATE.md`.
+
 Implementation targets:
 
 - Confirm `/appointments` opens from the app shell for a manager.
