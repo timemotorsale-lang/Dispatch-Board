@@ -4955,7 +4955,13 @@ function buildAppointmentBoardLanes(input: {
   staffMembers: StaffMember[];
 }) {
   if (input.laneMode === "staff") {
-    return input.staffMembers.map((staff) => staff.name);
+    const appointmentStaffLanes = Array.from(
+      new Set(input.appointments.map((appointment) => appointmentBoardLaneLabel(appointment, input.laneMode)))
+    ).filter((lane) => lane !== "Unassigned");
+
+    return appointmentStaffLanes.length > 0
+      ? appointmentStaffLanes
+      : input.staffMembers.map((staff) => staff.name);
   }
 
   const labels = Array.from(
@@ -5665,7 +5671,6 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     useState<AppointmentOpsIntelligencePreset>("leadership-daily");
   const [detailRefreshKey, setDetailRefreshKey] = useState(0);
   const [actionNotice, setActionNotice] = useState("Operational command bridge ready. Persisted appointments can now use the live command API for check-in and no-show actions.");
-  const [showAdvancedOperations, setShowAdvancedOperations] = useState(false);
 
   async function loadLiveAppointments(options: { suppressSuccessNotice?: boolean } = {}) {
     setIsLiveLoading(true);
@@ -5910,11 +5915,23 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   ]);
 
   const boardAppointments = useMemo(
-    () =>
-      (liveAppointments.length > 0 ? liveAppointments : appointments).map((appointment) => ({
-        ...appointment,
-        status: appointmentStatusOverrides[appointment.id] ?? appointment.status
-      })),
+    () => {
+      const liveScheduledAppointments = liveAppointments.filter(
+        (appointment) => !isUnscheduledDraftAppointment(appointment)
+      );
+      const previewCalendarBaseline = liveScheduledAppointments.length > 0 ? [] : appointments;
+
+      return [...previewCalendarBaseline, ...liveAppointments].map((appointment) => {
+        const staff = staffMembers.find((member) => member.id === appointment.staffId);
+
+        return {
+          ...appointment,
+          staffName: appointment.staffName ?? staff?.name,
+          staffRole: appointment.staffRole ?? staff?.role,
+          status: appointmentStatusOverrides[appointment.id] ?? appointment.status
+        };
+      });
+    },
     [appointmentStatusOverrides, liveAppointments]
   );
 
@@ -10461,14 +10478,7 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   }
 
   return (
-    <section
-      className={
-        showAdvancedOperations
-          ? "appointment-board-page appointment-enterprise-expanded"
-          : "appointment-board-page appointment-mvp-focused"
-      }
-      aria-labelledby="appointment-board-title"
-    >
+    <section className="appointment-board-page appointment-mockup-aligned" aria-labelledby="appointment-board-title">
       <div className="appointment-board-toolbar">
         <div>
           <p className="section-kicker">Enterprise appointment operations</p>
@@ -10486,24 +10496,6 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
               value={query}
             />
           </label>
-          <div className="appointment-ux-mode-toggle" aria-label="Appointment console scope">
-            <button
-              aria-pressed={!showAdvancedOperations}
-              className={!showAdvancedOperations ? "appointment-ux-mode-active" : ""}
-              onClick={() => setShowAdvancedOperations(false)}
-              type="button"
-            >
-              MVP Focus
-            </button>
-            <button
-              aria-pressed={showAdvancedOperations}
-              className={showAdvancedOperations ? "appointment-ux-mode-active" : ""}
-              onClick={() => setShowAdvancedOperations(true)}
-              type="button"
-            >
-              Enterprise Ops
-            </button>
-          </div>
           <button className="appointment-primary-button" onClick={() => setDraftOpen(true)} type="button">
             <Plus size={17} aria-hidden="true" />
             New Appointment
@@ -10514,9 +10506,6 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
           <button className="appointment-icon-button appointment-alert-button" type="button" aria-label="Board alerts" onClick={() => handlePreviewAction("Alerts")}>
             <Bell size={18} aria-hidden="true" />
             <span>3</span>
-          </button>
-          <button className="appointment-icon-button" type="button" aria-label="Appointment settings" onClick={() => handlePreviewAction("Board settings")}>
-            <Settings size={18} aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -10539,6 +10528,27 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
         <div className="appointment-date-display">
           <strong>{businessDate}</strong>
           <CalendarDays size={16} aria-hidden="true" />
+        </div>
+        <div className="appointment-date-filters" aria-label="Appointment board filters">
+          <select aria-label="Filter appointment category" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value as AppointmentCategory | "all")}>
+            <option value="all">All Categories</option>
+            {Object.entries(categoryMeta).map(([key, value]) => (
+              <option key={key} value={key}>{value.label}</option>
+            ))}
+          </select>
+          <select aria-label="Filter appointment staff" value={staffFilter} onChange={(event) => setStaffFilter(event.target.value)}>
+            <option value="all">All Staff</option>
+            {visibleStaffMembers.map((staff) => (
+              <option key={staff.id} value={staff.id}>{staff.name}</option>
+            ))}
+          </select>
+          <button className={conflictsOnly ? "appointment-filter-toggle appointment-filter-toggle-active" : "appointment-filter-toggle"} type="button" onClick={() => setConflictsOnly((value) => !value)}>
+            <Filter size={15} aria-hidden="true" />
+            Filters
+          </button>
+          <button className="appointment-square-button" type="button" aria-label="Appointment settings" onClick={() => handlePreviewAction("Board settings")}>
+            <Settings size={16} aria-hidden="true" />
+          </button>
         </div>
       </div>
 
