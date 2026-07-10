@@ -84,7 +84,7 @@ function createTaskCreateRepositoryHarness(
           ...input,
           createdAt: now,
           id: `task-${tasks.length + 1}`,
-          sourceType: TaskSourceType.MANAGER,
+          sourceType: input.sourceType,
           updatedAt: now
         };
 
@@ -354,10 +354,65 @@ describe("task create service", () => {
     expect(readTasks()).toHaveLength(0);
   });
 
-  it("rejects non-manager task creation requests", async () => {
+  it("allows staff to create their own not-started task", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
     const assignee = usersByEmail.get("jordan.sales@local.test");
+    const { repository, readActivityEvents, readTasks } = createTaskCreateRepositoryHarness(
+      [...usersByEmail.values()].map((user) => ({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        isActive: user.isActive
+      }))
+    );
+
+    const result = await createManualTask(
+      staffUser,
+      {
+        assignedUserId: assignee?.id,
+        boardDate: "2026-06-18",
+        dueAt: "2026-06-18T17:00:00.000Z",
+        title: "Log customer follow-up",
+        workflowArea: WorkflowArea.SALES
+      },
+      repository
+    );
+
+    expect(result).toMatchObject({
+      assignedUser: {
+        id: assignee?.id,
+        name: assignee?.name
+      },
+      createdByUser: {
+        id: staffUser?.id,
+        name: staffUser?.name
+      },
+      requiresManagerApproval: false,
+      sourceType: TaskSourceType.STAFF,
+      status: TaskStatus.NOT_STARTED,
+      title: "Log customer follow-up"
+    });
+    expect(readTasks()).toHaveLength(1);
+    expect(readTasks()[0]).toMatchObject({
+      assignedUserId: assignee?.id,
+      createdByUserId: staffUser?.id,
+      sourceType: TaskSourceType.STAFF
+    });
+    expect(readActivityEvents()[0]).toMatchObject({
+      actorUserId: staffUser?.id,
+      eventType: ActivityEventType.TASK_CREATED,
+      metadata: expect.objectContaining({
+        sourceType: TaskSourceType.STAFF,
+        title: "Log customer follow-up"
+      })
+    });
+  });
+
+  it("prevents staff from creating tasks for other users", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+    const otherAssignee = usersByEmail.get("casey.mechanic@local.test");
     const { repository, readTasks } = createTaskCreateRepositoryHarness(
       [...usersByEmail.values()].map((user) => ({
         id: user.id,
@@ -371,15 +426,15 @@ describe("task create service", () => {
       createManualTask(
         staffUser,
         {
-          assignedUserId: assignee?.id,
+          assignedUserId: otherAssignee?.id,
           boardDate: "2026-06-18",
           dueAt: "2026-06-18T17:00:00.000Z",
-          title: "Review hot lead",
+          title: "Create work for someone else",
           workflowArea: WorkflowArea.SALES
         },
         repository
       )
-    ).rejects.toThrow("Manager access required.");
+    ).rejects.toThrow("Staff can only create tasks assigned to themselves.");
     expect(readTasks()).toHaveLength(0);
   });
 

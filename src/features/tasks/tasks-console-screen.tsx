@@ -31,8 +31,10 @@ import {
 import { isTaskDueSoon, isTaskOverdue } from "@/features/tasks/my-tasks-helpers";
 import type { BoardReadModel, BoardReadTask } from "@/server/services/board-read";
 import type { TaskReadModel } from "@/server/services/task-read";
+import type { ActiveUserSummary } from "@/server/services/user-summary";
 
 type TasksConsoleScreenProps = {
+  assignableUsers: ActiveUserSummary[];
   board: BoardReadModel | null;
   boardDate: string;
   currentUserId: string;
@@ -299,8 +301,20 @@ async function getApiErrorMessage(response: Response, fallbackMessage: string) {
   return payload?.error ?? fallbackMessage;
 }
 
-function createAssigneeOptions(tasks: BoardReadTask[], activeTask: TaskReadModel | null) {
+export function createTasksConsoleAssigneeOptions(
+  tasks: BoardReadTask[],
+  activeTask: TaskReadModel | null,
+  assignableUsers: ActiveUserSummary[]
+) {
   const users = new Map<string, { id: string; name: string; email?: string }>();
+
+  for (const user of assignableUsers) {
+    users.set(user.id, {
+      id: user.id,
+      name: user.name,
+      email: user.email
+    });
+  }
 
   for (const task of tasks) {
     users.set(task.assignedUser.id, task.assignedUser);
@@ -789,6 +803,7 @@ function buildPaginationItems(totalPages: number, currentPage: number): Paginati
 }
 
 export function TasksConsoleScreen({
+  assignableUsers,
   board,
   boardDate,
   currentUserId,
@@ -879,7 +894,7 @@ export function TasksConsoleScreen({
   const rightRailFields = createRightRailFieldRows(activeTaskDetail);
   const subtasks = activeTaskDetail ? buildSubtasks(activeTaskDetail) : [];
   const completedSubtaskCount = subtasks.filter((item) => item.completed).length;
-  const assigneeOptions = createAssigneeOptions(allTasks, activeTaskDetail);
+  const assigneeOptions = createTasksConsoleAssigneeOptions(allTasks, activeTaskDetail, assignableUsers);
   const boardHref = `/board?date=${encodeURIComponent(boardDate)}`;
   const isTodayBoard = boardDate === todayBoardDate;
   const dueSoonTasks = allTasks.filter((task) => isTaskDueSoon(task, now));
@@ -1165,7 +1180,7 @@ export function TasksConsoleScreen({
     };
 
     setSavedViews((currentViews) => [savedView, ...currentViews].slice(0, 8));
-    setGenerationMessage(`${savedView.name} saved from the current board setup.`);
+    setGenerationMessage(`${savedView.name} saved as a local browser view.`);
     setActiveMenu(null);
   }
 
@@ -1256,7 +1271,10 @@ export function TasksConsoleScreen({
           throw new Error(await getApiErrorMessage(response, "Unable to update task status."));
         }
 
-        await refreshSelectedTaskDetail(selectedBoardTask.id, "Task status updated.");
+        await refreshSelectedTaskDetail(
+          selectedBoardTask.id,
+          `Task moved to ${formatTaskEnumLabel(String(status))}.`
+        );
       } catch (error) {
         setWorkflowError(error instanceof Error ? error.message : "Unable to update task status.");
       }
@@ -1291,7 +1309,7 @@ export function TasksConsoleScreen({
           throw new Error(await getApiErrorMessage(response, "Unable to reassign the task."));
         }
 
-        await refreshSelectedTaskDetail(selectedBoardTask.id, "Task reassigned.");
+        await refreshSelectedTaskDetail(selectedBoardTask.id, "Task reassigned and the board is refreshed.");
       } catch (error) {
         setWorkflowError(error instanceof Error ? error.message : "Unable to reassign the task.");
       }
@@ -1328,7 +1346,7 @@ export function TasksConsoleScreen({
         }
 
         form.reset();
-        await refreshSelectedTaskDetail(selectedBoardTask.id, "Comment posted.");
+        await refreshSelectedTaskDetail(selectedBoardTask.id, "Comment posted to the task history.");
       } catch (error) {
         setWorkflowError(error instanceof Error ? error.message : "Unable to post the comment.");
       }
@@ -1677,7 +1695,7 @@ export function TasksConsoleScreen({
               onClick={() => handleMenuToggle("saved")}
               type="button"
             >
-              Saved Views
+              Local Views
               <ChevronDown size={14} />
             </button>
             {activeMenu === "saved" ? (
@@ -1689,7 +1707,7 @@ export function TasksConsoleScreen({
                 <button onClick={() => handleQueueFilterChange("OVERDUE")} type="button">Overdue tasks</button>
                 {savedViews.length ? (
                   <>
-                    <strong>Saved Views</strong>
+                    <strong>Local Saved Views</strong>
                     {savedViews.map((savedView) => (
                       <div className="tasks-console-saved-view-row" key={savedView.id}>
                         <button onClick={() => handleApplySavedView(savedView)} type="button">
@@ -1707,7 +1725,7 @@ export function TasksConsoleScreen({
                     ))}
                   </>
                 ) : null}
-                <button onClick={handleCreateSavedView} type="button">Save current view</button>
+                <button onClick={handleCreateSavedView} type="button">Save local view</button>
               </div>
             ) : null}
           </div>
@@ -1943,7 +1961,7 @@ export function TasksConsoleScreen({
                 type="button"
               >
                 <span className="tasks-console-nav-mark tasks-console-nav-mark-brand" aria-hidden="true" />
-                <span>Create Saved View</span>
+                <span>Create Local View</span>
               </button>
               <button
                 className="tasks-console-sidebar-footer-icon"
@@ -2658,7 +2676,10 @@ export function TasksConsoleScreen({
                         </select>
                       </label>
                       <label>
-                        <span>Blocker Reason</span>
+                        <span>
+                          Blocker Reason
+                          {activeStatusDraft === TaskStatus.BLOCKED ? " *" : ""}
+                        </span>
                         <textarea
                           defaultValue={activeTaskDetail?.blockerReason ?? ""}
                           name="blockerReason"
@@ -2812,8 +2833,9 @@ export function TasksConsoleScreen({
                         ))}
                       </div>
                     ) : (
-                      <div className="tasks-console-rail-state">
-                        <p>No comments have been posted on this task yet.</p>
+                      <div className="tasks-console-rail-state tasks-console-rail-empty-state">
+                        <strong>No comments yet</strong>
+                        <p>Post the first update so the next person can see the current handoff context.</p>
                       </div>
                     )}
                   </div>
@@ -2834,8 +2856,9 @@ export function TasksConsoleScreen({
                         ))}
                       </div>
                     ) : (
-                      <div className="tasks-console-rail-state">
-                        <p>No activity is available for this task yet.</p>
+                      <div className="tasks-console-rail-state tasks-console-rail-empty-state">
+                        <strong>No activity yet</strong>
+                        <p>Status changes, comments, checklist progress, and assignment updates will appear here.</p>
                       </div>
                     )}
                   </div>

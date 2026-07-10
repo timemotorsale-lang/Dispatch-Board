@@ -4159,6 +4159,20 @@ code {
   padding: 0.4rem 0;
 }
 
+.tasks-console-rail-empty-state {
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.45rem;
+  background: #f8fafc;
+  border: 1px dashed #d6e0ec;
+  border-radius: 0.75rem;
+}
+
+.tasks-console-rail-empty-state strong {
+  color: #17243a;
+  font-size: 0.72rem;
+}
+
 .tasks-console-rail-state p,
 .tasks-console-summary-list p {
   margin: 0;

@@ -4,6 +4,7 @@ import { isManager } from "@/server/policies/access";
 import { getGenerationSettings } from "@/server/services/app-settings-service";
 import { getBoardReadModelForDate } from "@/server/services/board-read";
 import { getTaskReadModelById } from "@/server/services/task-read";
+import { listActiveUserSummaries } from "@/server/services/user-summary";
 import { getBoardDateInTimeZone, normalizeBoardDate } from "@/server/validation/board-date";
 
 type TasksPageProps = {
@@ -53,6 +54,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
   let board = null;
   let initialTask = null;
   let screenErrorMessage = dateErrorMessage;
+  const assignableUsers = manager ? await listActiveUserSummaries() : [];
 
   try {
     const boardLookup = await getBoardReadModelForDate(user, boardDate);
@@ -69,6 +71,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
 
   return (
     <TasksConsoleScreen
+      assignableUsers={assignableUsers}
       board={board}
       boardDate={boardDate}
       currentUserId={user.id}

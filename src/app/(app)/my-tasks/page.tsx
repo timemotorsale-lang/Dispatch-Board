@@ -10,6 +10,7 @@ export default async function MyTasksPage() {
   const screenProps: ComponentProps<typeof MyTasksScreen> = {
     boardDate: new Date().toISOString().slice(0, 10),
     boardExists: false,
+    currentUserId: user.id,
     errorMessage: null,
     fullBoardHref: "/board",
     generatedAt: null,

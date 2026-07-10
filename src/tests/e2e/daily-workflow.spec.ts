@@ -124,6 +124,15 @@ async function readAppointments(page: Page) {
   });
 }
 
+async function assertTasksConsoleFitsViewport(page: Page) {
+  const pageHeight = await page.evaluate(() => ({
+    innerHeight: window.innerHeight,
+    scrollHeight: document.documentElement.scrollHeight
+  }));
+
+  expect(pageHeight.scrollHeight).toBeLessThanOrEqual(pageHeight.innerHeight + 8);
+}
+
 async function waitForTaskAppointment(
   page: Page,
   taskId: string,
@@ -138,6 +147,52 @@ async function waitForTaskAppointment(
     })
     .not.toBeNull();
 }
+
+test("manager can scan the compact Tasks Operations Console", async ({ page }) => {
+  test.setTimeout(60_000);
+
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await login(page, managerEmail);
+  await expect(page.getByText("Daily dispatch board")).toBeVisible();
+
+  await page.getByRole("button", { name: "Generate Board" }).click();
+  await expect(page.getByText("Board generated.")).toBeVisible();
+
+  await page.goto("/tasks");
+  await expect(page.getByRole("heading", { name: "Tasks" })).toBeVisible();
+  await expect(page.getByText("Task Operations Console")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Create Task" })).toBeVisible();
+  await expect(page.getByText("Total Tasks")).toBeVisible();
+  await expect(page.getByText("Ready for Review")).toBeVisible();
+  await expect(page.getByText("Update Status")).toBeVisible();
+  await expect(page.locator(".tasks-console-table tbody tr")).toHaveCount(8);
+  await assertTasksConsoleFitsViewport(page);
+
+  await page.getByRole("button", { name: "Create Task" }).click();
+  await expect(page.getByLabel("Quick create task")).toBeVisible();
+  await expect(page.getByPlaceholder("Example: Check vehicles needing inspection")).toBeVisible();
+  await assertTasksConsoleFitsViewport(page);
+  await page.getByLabel("Close create task panel").click();
+  await expect(page.getByLabel("Quick create task")).toBeHidden();
+
+  await page.getByLabel("Search tasks").fill("blocked");
+  await expect(page.getByText("Search: blocked")).toBeVisible();
+  await page.getByLabel("Search tasks").fill("");
+
+  await page.getByRole("button", { name: /^Blocked\s*\d*/ }).click();
+  await expect(page.getByText("Queue: Blocked")).toBeVisible();
+  await page.getByRole("button", { name: /^Team Tasks\s*\d*/ }).click();
+
+  const rows = page.locator(".tasks-console-table tbody tr");
+  const secondTaskTitle = await rows.nth(1).locator(".tasks-console-title-cell strong").innerText();
+  await rows.nth(1).click();
+  await expect(page.locator(".tasks-console-rail-title h2")).toContainText(secondTaskTitle);
+
+  await page.getByRole("button", { name: /Comments/ }).click();
+  await expect(page.getByText("New Comment")).toBeVisible();
+  await page.getByRole("button", { name: "Activity" }).click();
+  await expect(page.locator(".tasks-console-rail-panel")).toBeVisible();
+});
 
 test("manager and staff can complete the daily dispatch workflow", async ({ page }) => {
   test.setTimeout(60_000);

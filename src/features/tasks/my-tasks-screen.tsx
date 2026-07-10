@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { TaskStatus } from "@prisma/client";
+import { TaskStatus, WorkflowArea } from "@prisma/client";
 import {
   BellRing,
   CheckCheck,
@@ -38,6 +38,7 @@ import type { BoardReadTask } from "@/server/services/board-read";
 type MyTasksScreenProps = {
   boardDate: string;
   boardExists: boolean;
+  currentUserId: string;
   fullBoardHref: string;
   generatedAt: string | null;
   generationStatus: string | null;
@@ -61,6 +62,25 @@ type StatusUpdatePayload = {
   updateFields?: Record<string, string | boolean>;
 };
 type GuidedUpdateField = BoardReadTask["requiredUpdateFields"][number];
+type SelfCreateTaskForm = {
+  customerReference: string;
+  description: string;
+  dueTime: string;
+  title: string;
+  vehicleReference: string;
+  workflowArea: WorkflowArea;
+};
+
+const selfCreateWorkflowAreas: WorkflowArea[] = [
+  WorkflowArea.INVENTORY,
+  WorkflowArea.SHOP,
+  WorkflowArea.SALES,
+  WorkflowArea.ADVERTISING,
+  WorkflowArea.MARKETING,
+  WorkflowArea.ADMIN,
+  WorkflowArea.COLLECTIONS,
+  WorkflowArea.GENERAL_MANAGER
+];
 
 function formatBoardDateLabel(boardDate: string) {
   return new Intl.DateTimeFormat("en-US", {
@@ -69,6 +89,21 @@ function formatBoardDateLabel(boardDate: string) {
     year: "numeric",
     timeZone: "UTC"
   }).format(new Date(`${boardDate}T00:00:00.000Z`));
+}
+
+function createInitialSelfCreateTaskForm(): SelfCreateTaskForm {
+  return {
+    customerReference: "",
+    description: "",
+    dueTime: "09:00",
+    title: "",
+    vehicleReference: "",
+    workflowArea: WorkflowArea.SALES
+  };
+}
+
+function buildSelfCreateDueAt(boardDate: string, dueTime: string) {
+  return `${boardDate}T${dueTime}:00`;
 }
 
 function formatStatusLabel(status: string) {
@@ -763,6 +798,7 @@ function TaskStatusEditor({
 export function MyTasksScreen({
   boardDate,
   boardExists,
+  currentUserId,
   errorMessage,
   fullBoardHref,
   generatedAt,
@@ -780,6 +816,13 @@ export function MyTasksScreen({
   const [searchText, setSearchText] = useState("");
   const [selectedTaskId, setSelectedTaskId] = useState(initialTasks[0]?.id ?? "");
   const [taskOverrides, setTaskOverrides] = useState<Record<string, TaskOverride>>({});
+  const [selfCreateOpen, setSelfCreateOpen] = useState(false);
+  const [selfCreateForm, setSelfCreateForm] = useState<SelfCreateTaskForm>(() =>
+    createInitialSelfCreateTaskForm()
+  );
+  const [selfCreateError, setSelfCreateError] = useState<string | null>(null);
+  const [selfCreateMessage, setSelfCreateMessage] = useState<string | null>(null);
+  const [isSelfCreatePending, startSelfCreateTransition] = useTransition();
   const tasks = initialTasks.map((task) =>
     taskOverrides[task.id]
       ? {
@@ -837,12 +880,77 @@ export function MyTasksScreen({
     setInspectorTab("Overview");
   }
 
+  function resetSelfCreateForm() {
+    setSelfCreateForm(createInitialSelfCreateTaskForm());
+  }
+
+  function handleSelfCreateTask(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSelfCreateError(null);
+    setSelfCreateMessage(null);
+
+    const title = selfCreateForm.title.trim();
+
+    if (!title) {
+      setSelfCreateError("Task title is required.");
+      return;
+    }
+
+    startSelfCreateTransition(async () => {
+      try {
+        const response = await fetch("/api/tasks", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            assignedUserId: currentUserId,
+            boardDate,
+            ...(selfCreateForm.customerReference.trim()
+              ? { customerReference: selfCreateForm.customerReference.trim() }
+              : {}),
+            description: selfCreateForm.description.trim(),
+            dueAt: buildSelfCreateDueAt(boardDate, selfCreateForm.dueTime),
+            requiresManagerApproval: false,
+            status: TaskStatus.NOT_STARTED,
+            title,
+            ...(selfCreateForm.vehicleReference.trim()
+              ? { vehicleReference: selfCreateForm.vehicleReference.trim() }
+              : {}),
+            workflowArea: selfCreateForm.workflowArea
+          })
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | {
+              task?: {
+                id: string;
+                title: string;
+              };
+              error?: string;
+            }
+          | null;
+
+        if (!response.ok || !payload?.task) {
+          setSelfCreateError(payload?.error ?? "Unable to create this task right now.");
+          return;
+        }
+
+        setSelfCreateMessage(`${payload.task.title} was added to your work.`);
+        resetSelfCreateForm();
+        setSelfCreateOpen(false);
+        refreshTasks();
+      } catch (error) {
+        setSelfCreateError(error instanceof Error ? error.message : "Unable to create this task right now.");
+      }
+    });
+  }
+
   return (
     <section className="page-stack dashboard-page enterprise-prototype-page my-tasks-live-page">
       <div className="dashboard-page-header enterprise-prototype-header">
         <div className="dashboard-page-copy">
           <h1>My Tasks</h1>
-          <p>Your assigned work for today.</p>
+          <p>My Work queue for today: assigned tasks, self-created work, and live status updates.</p>
           <div className="board-page-meta my-tasks-header-meta">
             <span className={getGenerationStatusTone(generationStatus)}>
               {generationStatus ? formatStatusLabel(generationStatus) : "Board not generated"}
@@ -859,6 +967,17 @@ export function MyTasksScreen({
 
         <div className="board-toolbar my-tasks-toolbar">
           <div className="board-toolbar-actions">
+            <button
+              className="pill pill-primary"
+              onClick={() => {
+                setSelfCreateError(null);
+                setSelfCreateMessage(null);
+                setSelfCreateOpen((current) => !current);
+              }}
+              type="button"
+            >
+              {selfCreateOpen ? "Close Create" : "Create My Task"}
+            </button>
             <Link className="pill pill-primary" href={fullBoardHref}>
               Open full board
             </Link>
@@ -868,6 +987,135 @@ export function MyTasksScreen({
           </div>
         </div>
       </div>
+
+      {selfCreateOpen ? (
+        <section className="enterprise-detail-card my-tasks-self-create-card" aria-label="Create my task">
+          <div className="enterprise-card-heading">
+            <h2>Create my task</h2>
+            <span>Self-assigned work for {formatBoardDateLabel(boardDate)}</span>
+          </div>
+          <form className="enterprise-form-grid enterprise-form-grid-mockup" onSubmit={handleSelfCreateTask}>
+            <label className="field enterprise-summary-span">
+              <span>Task title</span>
+              <input
+                name="title"
+                placeholder="Example: Follow up with customer"
+                required
+                value={selfCreateForm.title}
+                onChange={(event) =>
+                  setSelfCreateForm((current) => ({
+                    ...current,
+                    title: event.target.value
+                  }))
+                }
+              />
+            </label>
+            <label className="field">
+              <span>Due time</span>
+              <input
+                name="dueTime"
+                required
+                type="time"
+                value={selfCreateForm.dueTime}
+                onChange={(event) =>
+                  setSelfCreateForm((current) => ({
+                    ...current,
+                    dueTime: event.target.value
+                  }))
+                }
+              />
+            </label>
+            <label className="field">
+              <span>Workflow area</span>
+              <select
+                name="workflowArea"
+                value={selfCreateForm.workflowArea}
+                onChange={(event) =>
+                  setSelfCreateForm((current) => ({
+                    ...current,
+                    workflowArea: event.target.value as WorkflowArea
+                  }))
+                }
+              >
+                {selfCreateWorkflowAreas.map((workflowArea) => (
+                  <option key={workflowArea} value={workflowArea}>
+                    {formatStatusLabel(workflowArea)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Vehicle / stock</span>
+              <input
+                name="vehicleReference"
+                placeholder="Optional vehicle reference"
+                value={selfCreateForm.vehicleReference}
+                onChange={(event) =>
+                  setSelfCreateForm((current) => ({
+                    ...current,
+                    vehicleReference: event.target.value
+                  }))
+                }
+              />
+            </label>
+            <label className="field">
+              <span>Customer</span>
+              <input
+                name="customerReference"
+                placeholder="Optional customer reference"
+                value={selfCreateForm.customerReference}
+                onChange={(event) =>
+                  setSelfCreateForm((current) => ({
+                    ...current,
+                    customerReference: event.target.value
+                  }))
+                }
+              />
+            </label>
+            <label className="field enterprise-summary-span">
+              <span>Notes</span>
+              <textarea
+                name="description"
+                placeholder="Short note for your own task..."
+                rows={2}
+                value={selfCreateForm.description}
+                onChange={(event) =>
+                  setSelfCreateForm((current) => ({
+                    ...current,
+                    description: event.target.value
+                  }))
+                }
+              />
+            </label>
+            <div className="my-tasks-live-link-row enterprise-summary-span">
+              <button className="pill pill-primary" disabled={isSelfCreatePending} type="submit">
+                {isSelfCreatePending ? "Creating..." : "Add To My Tasks"}
+              </button>
+              <button
+                className="pill pill-secondary"
+                disabled={isSelfCreatePending}
+                onClick={() => {
+                  resetSelfCreateForm();
+                  setSelfCreateOpen(false);
+                }}
+                type="button"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+          {selfCreateError ? (
+            <div className="notice notice-danger my-task-inline-notice" role="alert">
+              <p>{selfCreateError}</p>
+            </div>
+          ) : null}
+          {selfCreateMessage ? (
+            <div className="notice notice-success my-task-inline-notice">
+              <p>{selfCreateMessage}</p>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       {errorMessage ? (
         <ErrorStateCard

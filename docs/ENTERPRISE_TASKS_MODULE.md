@@ -84,7 +84,7 @@ The current repository already includes live task foundations that belong to thi
 
 ### Current module gap
 
-The `/tasks` landing route is still a light shared entry surface. The broader Enterprise Tasks Module direction is to evolve that route into a task operations console without splitting the app or rewriting the working board and My Tasks flows.
+The `/tasks` route is now the manager-facing Task Operations Console foundation. The remaining module gap is no longer "create the console shell"; it is to finish the day-one rollout polish around staff self-create, workflow feedback, repeatable smoke coverage, local saved-view expectations, and final acceptance evidence without splitting the app or rewriting the working board and My Tasks flows.
 
 ---
 
@@ -204,6 +204,14 @@ Visual source of truth for that console:
 Current MVP design-gate audit:
 
 - [`docs/TASKS_MVP_DESIGN_AUDIT.md`](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/TASKS_MVP_DESIGN_AUDIT.md)
+
+Current whole-console rollout audit:
+
+- [`docs/TASKS_OPERATIONS_CONSOLE_MVP_ROLLOUT_AUDIT.md`](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/TASKS_OPERATIONS_CONSOLE_MVP_ROLLOUT_AUDIT.md)
+
+Current MVP rollout roadmap:
+
+- [`docs/TASKS_MVP_ROLLOUT_ROADMAP.md`](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/TASKS_MVP_ROLLOUT_ROADMAP.md)
 
 ```text
 Dispatch Board app shell
