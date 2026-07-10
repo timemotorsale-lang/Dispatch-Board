@@ -1103,6 +1103,10 @@ export type AppointmentBoardSettings = {
 
 type AppointmentBoardShellProps = {
   boardSettings?: AppointmentBoardSettings | null;
+  initialFocus?: {
+    appointmentNumber?: string | null;
+    sourceTaskId?: string | null;
+  };
 };
 
 const businessDate = "Monday, July 6, 2026";
@@ -5526,7 +5530,7 @@ function buildResourceReasonNote(context: string, userReason: string) {
   return `${context} Reason documented by user: ${userReason.trim()}`;
 }
 
-export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellProps = {}) {
+export function AppointmentBoardShell({ boardSettings, initialFocus }: AppointmentBoardShellProps = {}) {
   const boardOrganizationId = boardSettings?.organizationId ?? defaultOrganizationId;
   const boardLocationId = boardSettings?.locationId ?? defaultLocationId;
   const boardTimezone = boardSettings?.timezone ?? defaultTimezone;
@@ -5545,6 +5549,7 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false);
   const workspaceHubButtonRef = useRef<HTMLButtonElement | null>(null);
   const workspaceDrawerRef = useRef<HTMLElement | null>(null);
+  const initialFocusAppliedRef = useRef(false);
   const [draftOpen, setDraftOpen] = useState(false);
   const [noShowOpen, setNoShowOpen] = useState(false);
   const [isCommandPending, setIsCommandPending] = useState(false);
@@ -5969,6 +5974,45 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     },
     [appointmentStatusOverrides, liveAppointments]
   );
+
+  useEffect(() => {
+    if (initialFocusAppliedRef.current || !initialFocus) {
+      return;
+    }
+
+    const requestedAppointmentNumber = initialFocus.appointmentNumber?.trim();
+    const requestedTaskId = initialFocus.sourceTaskId?.trim();
+
+    if (!requestedAppointmentNumber && !requestedTaskId) {
+      return;
+    }
+
+    const focusedAppointment = boardAppointments.find((appointment) => {
+      if (requestedAppointmentNumber && appointment.id === requestedAppointmentNumber) {
+        return true;
+      }
+
+      return Boolean(
+        requestedTaskId &&
+          appointment.linkedTasks?.some((task) => task.taskId === requestedTaskId)
+      );
+    });
+
+    if (!focusedAppointment) {
+      return;
+    }
+
+    initialFocusAppliedRef.current = true;
+    setSelectedId(focusedAppointment.id);
+    setActionNotice(
+      `Opened ${focusedAppointment.id} from task handoff. Linked work is visible in the detail rail.`
+    );
+
+    if (isUnscheduledDraftAppointment(focusedAppointment)) {
+      setActiveWorkspaceTab("operations");
+      setIsWorkspaceOpen(true);
+    }
+  }, [boardAppointments, initialFocus]);
 
   const visibleStaffMembers = useMemo(
     () =>

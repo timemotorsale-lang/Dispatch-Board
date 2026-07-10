@@ -45,6 +45,7 @@ function createTaskReadModel() {
     reviewedByUser: null,
     checklistItems: [],
     activityHistory: [],
+    appointmentLinks: [],
     comments: []
   };
 }

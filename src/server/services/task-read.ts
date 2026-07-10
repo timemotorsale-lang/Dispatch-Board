@@ -51,6 +51,27 @@ export type TaskActivityReadModel = {
   actor: TaskReadUserSummary | null;
 };
 
+export type TaskAppointmentLinkReadModel = {
+  id: string;
+  appointmentId: string;
+  appointmentNumber: string;
+  appointmentTitle: string;
+  startsAt: string | null;
+  endsAt: string | null;
+  bookingStatus: string;
+  attendanceStatus: string;
+  executionStatus: string;
+  followUpDispositionCode: string | null;
+  linkType: string;
+  linkCode: string;
+  linkTitle: string;
+  explanation: string | null;
+  isRequired: boolean;
+  blocksAppointment: boolean;
+  blocksTask: boolean;
+  createdAt: string;
+};
+
 export type TaskReadModel = {
   id: string;
   boardDayId: string;
@@ -82,6 +103,7 @@ export type TaskReadModel = {
   reviewedByUser: TaskReadUserSummary | null;
   checklistItems: TaskChecklistItemReadModel[];
   activityHistory: TaskActivityReadModel[];
+  appointmentLinks: TaskAppointmentLinkReadModel[];
   comments: TaskCommentReadModel[];
 };
 
@@ -334,6 +356,26 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
       message: event.message.trim(),
       createdAt: event.createdAt.toISOString(),
       actor: toUserSummary(event.actorUser)
+    })),
+    appointmentLinks: task.appointmentLinks.map((link) => ({
+      id: link.id,
+      appointmentId: link.appointment.id,
+      appointmentNumber: link.appointment.appointmentNumber,
+      appointmentTitle: link.appointment.title,
+      startsAt: link.appointment.startsAt?.toISOString() ?? null,
+      endsAt: link.appointment.endsAt?.toISOString() ?? null,
+      bookingStatus: link.appointment.bookingStatus,
+      attendanceStatus: link.appointment.attendanceStatus,
+      executionStatus: link.appointment.executionStatus,
+      followUpDispositionCode: link.appointment.followUpDispositionCode,
+      linkType: link.linkType,
+      linkCode: link.linkCode,
+      linkTitle: link.title.trim(),
+      explanation: normalizeOptionalText(link.explanation),
+      isRequired: link.isRequired,
+      blocksAppointment: link.blocksAppointment,
+      blocksTask: link.blocksTask,
+      createdAt: link.createdAt.toISOString()
     })),
     comments: task.comments.map((comment) => ({
       id: comment.id,

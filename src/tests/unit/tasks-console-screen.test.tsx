@@ -137,6 +137,7 @@ function createTaskReadModel(task: BoardReadTask): TaskReadModel {
         }
       }
     ],
+    appointmentLinks: [],
     comments: [
       {
         id: "comment-1",

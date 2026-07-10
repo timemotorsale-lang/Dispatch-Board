@@ -96,7 +96,7 @@ For MVP rollout, the board should be treated as a manager-first scheduling conso
 | P0 | Warning override before schedule | Override workflow exists | Test proves warning requires authorized reason and then permits commit |
 | P0 | Permission boundaries | Policy patterns exist | Tests for manager, owner, participant, viewer, appointment admin, and system-action roles |
 | P1 | Lifecycle command MVP | Buttons exist | Tests for supported check-in, start, finish, no-show, outcome/follow-up flows |
-| P1 | Linked task return path | Appointment detail shows task context | Browser flow moves from task to appointment and back without losing context |
+| P1 | Linked task return path | Initial MVP browser proof now exists | Continue with richer linked-work actions and final scheduled-handoff coverage |
 | P1 | Exception queues | Rich queues exist | Define day-one lanes and prove each queue has a next action |
 | P1 | Activity/history evidence | Patterns exist | Verify key command events appear in appointment history or activity feed |
 
@@ -171,4 +171,3 @@ Do not call the Appointment Board MVP rollout-ready yet.
 Do continue merging focused UI/UX and smoke-gate refinements into the MVP path when they make the board simpler, safer, or easier to prove.
 
 The board is close enough visually to start formal MVP smoke work. The next milestone should not add broad new enterprise features. It should prove the core scheduling workflow, reduce operator noise, and record release evidence.
-

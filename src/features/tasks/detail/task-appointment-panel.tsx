@@ -32,6 +32,73 @@ function createClientIdempotencyKey(taskId: string) {
   return `task-appointment-${taskId}-${randomPart}`;
 }
 
+function formatAppointmentStatus(appointment: TaskReadModel["appointmentLinks"][number]) {
+  if (appointment.bookingStatus === "DRAFT" || appointment.bookingStatus === "PENDING_APPROVAL") {
+    return "Draft";
+  }
+
+  if (appointment.bookingStatus === "COMPLETED") {
+    return "Completed";
+  }
+
+  if (appointment.attendanceStatus === "NO_SHOW") {
+    return "No Show";
+  }
+
+  if (appointment.executionStatus === "IN_PROGRESS" || appointment.executionStatus === "WAITING") {
+    return "In Progress";
+  }
+
+  if (appointment.executionStatus === "FINISHED") {
+    return "Ready for Outcome";
+  }
+
+  return "Scheduled";
+}
+
+function formatAppointmentTime(appointment: TaskReadModel["appointmentLinks"][number]) {
+  if (!appointment.startsAt) {
+    return "Unscheduled draft";
+  }
+
+  const startsAt = new Date(appointment.startsAt);
+  const endsAt = appointment.endsAt ? new Date(appointment.endsAt) : null;
+  const dateLabel = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "America/Chicago"
+  }).format(startsAt);
+  const startLabel = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/Chicago"
+  }).format(startsAt);
+
+  if (!endsAt) {
+    return `${dateLabel} at ${startLabel}`;
+  }
+
+  const endLabel = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/Chicago"
+  }).format(endsAt);
+
+  return `${dateLabel}, ${startLabel} - ${endLabel}`;
+}
+
+function getAppointmentBoardHref(taskId: string, appointmentNumber?: string | null) {
+  const params = new URLSearchParams({
+    sourceTask: taskId
+  });
+
+  if (appointmentNumber) {
+    params.set("appointment", appointmentNumber);
+  }
+
+  return `/appointments?${params.toString()}`;
+}
+
 export function TaskAppointmentPanel({ canCreateAppointment, task }: TaskAppointmentPanelProps) {
   const router = useRouter();
   const defaultReason = useMemo(
@@ -133,7 +200,7 @@ export function TaskAppointmentPanel({ canCreateAppointment, task }: TaskAppoint
             >
               {isSubmitting ? "Creating..." : "Create linked draft"}
             </button>
-            <Link className="pill pill-secondary" href="/appointments">
+            <Link className="pill pill-secondary" href={getAppointmentBoardHref(task.id)}>
               Open Board
             </Link>
           </div>
@@ -147,11 +214,45 @@ export function TaskAppointmentPanel({ canCreateAppointment, task }: TaskAppoint
       {createdAppointmentNumber ? (
         <div className="notice notice-success my-task-inline-notice" role="status">
           <p>Draft appointment {createdAppointmentNumber} was created and linked to this task.</p>
-          <Link className="pill pill-secondary task-appointment-success-link" href="/appointments">
+          <Link
+            className="pill pill-secondary task-appointment-success-link"
+            href={getAppointmentBoardHref(task.id, createdAppointmentNumber)}
+          >
             Schedule on Appointment Board
           </Link>
         </div>
       ) : null}
+
+      {task.appointmentLinks.length > 0 ? (
+        <div className="task-linked-appointments" aria-label="Linked appointments">
+          <div className="task-linked-appointments-header">
+            <strong>Linked Appointments ({task.appointmentLinks.length})</strong>
+            <span>Task handoff</span>
+          </div>
+          {task.appointmentLinks.map((appointment) => (
+            <article className="task-linked-appointment-row" key={appointment.id}>
+              <div>
+                <strong>{appointment.appointmentTitle}</strong>
+                <span>
+                  {appointment.appointmentNumber} · {formatAppointmentStatus(appointment)}
+                </span>
+                <small>{formatAppointmentTime(appointment)}</small>
+                {appointment.explanation ? <small>{appointment.explanation}</small> : null}
+              </div>
+              <Link
+                className="pill pill-secondary"
+                href={getAppointmentBoardHref(task.id, appointment.appointmentNumber)}
+              >
+                Open on Board
+              </Link>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p className="task-workspace-rail-note">
+          No appointment is linked yet. Create a draft when this task needs customer-facing scheduled time.
+        </p>
+      )}
 
       {errorMessage ? (
         <div className="notice notice-danger my-task-inline-notice" role="alert">

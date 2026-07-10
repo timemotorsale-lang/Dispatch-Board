@@ -381,26 +381,41 @@ test("manager can create a linked appointment draft from a task and see it on th
           link.taskTitle === appointmentTaskTitle
       )
   );
+  const createdAppointment = (await readAppointments(page)).appointments.find(
+    (appointment) => appointment.sourceReference === task!.id && appointment.title === appointmentTitle
+  );
+  expect(createdAppointment).toBeTruthy();
+
+  await expect(page.getByText("Linked Appointments (1)")).toBeVisible();
+  const linkedAppointments = page.getByLabel("Linked appointments");
+  await expect(linkedAppointments.getByText(createdAppointment!.appointmentNumber)).toBeVisible();
+  await expect(linkedAppointments.getByText("Unscheduled draft")).toBeVisible();
 
   await page.goto("/activity");
   await expect(page.getByText(new RegExp(`created draft appointment .* from ${appointmentTaskTitle}`))).toBeVisible();
 
-  await page.goto("/appointments");
+  await page.goto(
+    `/appointments?sourceTask=${encodeURIComponent(task!.id)}&appointment=${encodeURIComponent(
+      createdAppointment!.appointmentNumber
+    )}`
+  );
   await expect(page.getByRole("heading", { name: "Appointment Board" })).toBeVisible();
   await expect(page.locator(".appointment-next-action-card")).toBeVisible();
   const appointmentRail = page.getByLabel("Appointment module navigation");
-  const hubButton = appointmentRail.getByRole("button", { name: "Hub" });
-  await expect(hubButton).toHaveAttribute("aria-expanded", "false");
-  await hubButton.click();
-  await expect(hubButton).toHaveAttribute("aria-expanded", "true");
+  const opsButton = appointmentRail.getByRole("button", { name: "Ops" });
+  await expect(opsButton).toHaveAttribute("aria-expanded", "true");
   await expect(page.locator("#appointment-workspace-drawer")).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(hubButton).toHaveAttribute("aria-expanded", "false");
-  await appointmentRail.getByRole("button", { name: "Ops" }).click();
+  await expect(opsButton).toHaveAttribute("aria-expanded", "false");
+  await opsButton.click();
   await expect(page.getByText("Unscheduled / Drafts")).toBeVisible();
   const unscheduledDraftItem = page.locator(".appointment-unscheduled-item").filter({ hasText: appointmentTitle });
   await expect(unscheduledDraftItem).toBeVisible();
   await unscheduledDraftItem.click();
   await expect(page.getByText("Linked Tasks (1)")).toBeVisible();
   await expect(page.getByText(appointmentTaskTitle, { exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Open Task" }).click();
+  await expect(page.getByRole("heading", { name: appointmentTaskTitle })).toBeVisible();
+  await expect(page.getByText("Linked Appointments (1)")).toBeVisible();
+  await expect(page.getByLabel("Linked appointments").getByText(createdAppointment!.appointmentNumber)).toBeVisible();
 });

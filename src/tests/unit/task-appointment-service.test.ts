@@ -80,6 +80,7 @@ function createTask(overrides: Partial<TaskReadModel> = {}): TaskReadModel {
     reviewedByUser: null,
     checklistItems: [],
     activityHistory: [],
+    appointmentLinks: [],
     comments: [],
     ...overrides
   };
