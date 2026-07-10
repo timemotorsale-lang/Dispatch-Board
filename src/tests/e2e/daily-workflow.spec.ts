@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import {
+  createScheduledAppointmentFixture,
   disconnectDailyWorkflowDatabase,
   resetDailyWorkflowState
 } from "./daily-workflow.setup";
@@ -14,6 +15,10 @@ const approvalTaskTitle = "E2E approve sold vehicle prep";
 const appointmentTaskTitle = "E2E customer meeting required";
 const appointmentTitle = "E2E task-originated customer meeting";
 const appointmentReason = "E2E reason: customer must meet sales before the task can continue.";
+const lifecycleAppointmentNumber = "APT-E2E-LIFE-1";
+const lifecycleAppointmentTitle = "E2E lifecycle service visit";
+const noShowAppointmentNumber = "APT-E2E-NOSHOW-1";
+const noShowAppointmentTitle = "E2E no-show service visit";
 
 type BoardTask = {
   id: string;
@@ -43,6 +48,11 @@ type AppointmentReadPayload = {
     startsAt: string | null;
     endsAt: string | null;
     bookingStatus: string;
+    attendanceStatus: string;
+    executionStatus: string;
+    version: number;
+    outcomeCode: string | null;
+    followUpDispositionCode: string | null;
     taskLinks: Array<{
       taskId: string;
       linkCode: string;
@@ -147,6 +157,38 @@ async function waitForTaskAppointment(
     .not.toBeNull();
 }
 
+async function waitForAppointmentState(
+  page: Page,
+  appointmentNumber: string,
+  predicate: (appointment: AppointmentReadPayload["appointments"][number]) => boolean
+) {
+  return expect
+    .poll(async () => {
+      const payload = await readAppointments(page);
+      const appointment = payload.appointments.find(
+        (candidate) => candidate.appointmentNumber === appointmentNumber
+      );
+
+      return appointment && predicate(appointment) ? appointment : null;
+    })
+    .not.toBeNull();
+}
+
+async function selectBoardAppointment(page: Page, title: string) {
+  const appointmentItem = page.locator(".appointment-calendar-item").filter({ hasText: title });
+  await expect(appointmentItem).toBeVisible();
+  await appointmentItem.click();
+  await expect(page.locator(".appointment-detail-header strong")).toHaveText(title);
+}
+
+async function clickDetailAction(page: Page, name: string) {
+  await page
+    .locator(".appointment-detail-panel .appointment-detail-actions")
+    .last()
+    .getByRole("button", { name, exact: true })
+    .click();
+}
+
 test("manager can smoke test the Appointment Board MVP shell", async ({ page }) => {
   test.setTimeout(60_000);
 
@@ -193,6 +235,96 @@ test("manager can smoke test the Appointment Board MVP shell", async ({ page }) 
   await expect(secondAppointment).toHaveClass(/appointment-calendar-item-active/);
 
   await expect(page.getByText("Upcoming Appointments")).toBeVisible();
+});
+
+test("manager can run Appointment Board lifecycle MVP actions from the detail rail", async ({ page }) => {
+  test.setTimeout(90_000);
+
+  await createScheduledAppointmentFixture({
+    appointmentNumber: lifecycleAppointmentNumber,
+    title: lifecycleAppointmentTitle,
+    startsAt: "2026-07-06T15:00:00.000Z",
+    endsAt: "2026-07-06T16:00:00.000Z",
+    sourceReference: "E2E reason: prove check-in, start, finish, and final outcome from the board.",
+    customerName: "E2E Lifecycle Customer",
+    vehicleLabel: "2019 Nissan Altima"
+  });
+  await createScheduledAppointmentFixture({
+    appointmentNumber: noShowAppointmentNumber,
+    title: noShowAppointmentTitle,
+    startsAt: "2026-07-06T16:30:00.000Z",
+    endsAt: "2026-07-06T17:15:00.000Z",
+    sourceReference: "E2E reason: prove no-show capture from the board.",
+    customerName: "E2E No Show Customer",
+    vehicleLabel: "2016 Ford Escape"
+  });
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await login(page, managerEmail);
+  await page.goto("/appointments");
+  await expect(page.getByRole("heading", { name: "Appointment Board" })).toBeVisible();
+  await expect(page.locator(".appointment-detail-panel")).toBeVisible();
+
+  await selectBoardAppointment(page, lifecycleAppointmentTitle);
+  await expect(page.locator(".appointment-next-action-card")).toContainText("Check in");
+
+  await clickDetailAction(page, "Check In");
+  await waitForAppointmentState(
+    page,
+    lifecycleAppointmentNumber,
+    (appointment) => appointment.attendanceStatus === "CHECKED_IN"
+  );
+  await expect(page.locator(".appointment-status")).toHaveText("Checked In");
+
+  await clickDetailAction(page, "Start Work");
+  await waitForAppointmentState(
+    page,
+    lifecycleAppointmentNumber,
+    (appointment) => appointment.executionStatus === "IN_PROGRESS"
+  );
+  await expect(page.locator(".appointment-status")).toHaveText("In Progress");
+
+  await clickDetailAction(page, "Finish Work");
+  await waitForAppointmentState(
+    page,
+    lifecycleAppointmentNumber,
+    (appointment) => appointment.executionStatus === "FINISHED"
+  );
+  await expect(page.locator("#appointment-detail-outcome")).toContainText(
+    "Ready to save final outcome through the command ledger."
+  );
+
+  const outcomeSection = page.locator("#appointment-detail-outcome");
+  await outcomeSection.getByLabel("Outcome Notes").fill("E2E outcome: work completed from the board rail.");
+  await outcomeSection.getByLabel("Completion Reason").fill("E2E audit reason: lifecycle smoke complete.");
+  await outcomeSection.getByRole("button", { name: "Save Outcome" }).click();
+  await waitForAppointmentState(
+    page,
+    lifecycleAppointmentNumber,
+    (appointment) =>
+      appointment.bookingStatus === "COMPLETED" &&
+      appointment.outcomeCode === "COMPLETED" &&
+      appointment.followUpDispositionCode === "NO_FOLLOW_UP_REQUIRED"
+  );
+  await expect(outcomeSection).toContainText("Final outcome is recorded on this appointment.");
+
+  await selectBoardAppointment(page, noShowAppointmentTitle);
+  await clickDetailAction(page, "No Show");
+  const noShowDialog = page.getByRole("dialog", { name: "Document No Show" });
+  await expect(noShowDialog).toBeVisible();
+  await noShowDialog
+    .getByLabel("Reason notes")
+    .fill("E2E no-show: customer missed the appointment window and voicemail was left.");
+  await noShowDialog.getByRole("button", { name: "Save No Show" }).click();
+  await waitForAppointmentState(
+    page,
+    noShowAppointmentNumber,
+    (appointment) =>
+      appointment.attendanceStatus === "NO_SHOW" &&
+      appointment.followUpDispositionCode === "CALLBACK_REQUIRED"
+  );
+  await expect(noShowDialog).toBeHidden();
+  await expect(page.locator(".appointment-status")).toHaveText("No Show");
 });
 
 test("manager can scan the compact Tasks Operations Console", async ({ page }) => {
