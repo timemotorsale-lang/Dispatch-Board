@@ -94,7 +94,7 @@ For MVP rollout, the board should be treated as a manager-first scheduling conso
 | P0 | Draft-to-scheduled commit | UI/API bridge exists | Browser test schedules eligible draft and verifies it becomes scheduled |
 | P0 | Hard-block schedule prevention | Server rules exist | Test proves blocked draft cannot schedule and explains why |
 | P0 | Warning override before schedule | Override workflow exists | Test proves warning requires authorized reason and then permits commit |
-| P0 | Permission boundaries | Initial command/read safety evidence exists | Add direct-detail, cross-location/search, and broader system-action evidence before final rollout |
+| P0 | Permission boundaries | Initial command/read/search safety evidence exists | Add direct-detail and broader system-action evidence before final rollout |
 | P1 | Lifecycle command MVP | Buttons exist | Tests for supported check-in, start, finish, no-show, outcome/follow-up flows |
 | P1 | Linked task return path | Initial MVP browser proof now exists | Continue with richer linked-work actions and final scheduled-handoff coverage |
 | P1 | Exception queues | Rich queues exist | Define day-one lanes and prove each queue has a next action |
@@ -133,7 +133,7 @@ Advanced surfaces should remain available but not visually dominant:
 3. Add eligible draft-to-scheduled browser coverage through the command boundary.
 4. Add blocked draft coverage that proves hard blocks prevent schedule commit.
 5. Add warning override coverage that proves authorized reason capture is required before commit.
-6. Add remaining permission boundary coverage for direct detail access, cross-location/search surfaces, and broader system-action cases.
+6. Add remaining permission boundary coverage for direct detail access and broader system-action cases.
 7. Add a right-rail "Next Safe Action" block that summarizes the one action the manager should take next.
 
 ### P1 - MVP Confidence And Operator Clarity
