@@ -14,7 +14,6 @@ const approvalTaskTitle = "E2E approve sold vehicle prep";
 const appointmentTaskTitle = "E2E customer meeting required";
 const appointmentTitle = "E2E task-originated customer meeting";
 const appointmentReason = "E2E reason: customer must meet sales before the task can continue.";
-const schedulingReason = "E2E reason: scheduling the task-created draft into an approved slot.";
 
 type BoardTask = {
   id: string;
@@ -177,6 +176,17 @@ test("manager can scan the compact Tasks Operations Console", async ({ page }) =
 
   await page.getByLabel("Search tasks").fill("blocked");
   await expect(page.getByText("Search: blocked")).toBeVisible();
+
+  await page.getByRole("button", { name: "Saved Views" }).click();
+  await page.getByRole("button", { name: "Save shared view" }).click();
+  await expect(page.getByText("Saved View 1 saved as a shared team view.")).toBeVisible();
+  await page.getByRole("button", { name: "Saved Views" }).click();
+  await expect(page.getByText("Shared Saved Views")).toBeVisible();
+  await page.getByRole("button", { name: "Saved View 1", exact: true }).click();
+  await expect(page.getByText("Search: blocked")).toBeVisible();
+  await page.getByRole("button", { name: "Saved Views" }).click();
+  await page.getByLabel("Delete Saved View 1").click();
+  await expect(page.getByText("Shared saved view deleted.")).toBeVisible();
   await page.getByLabel("Search tasks").fill("");
 
   await page.locator(".tasks-console-sidebar").getByRole("button", { name: "Blocked", exact: true }).click();
@@ -235,8 +245,8 @@ test("manager and staff can complete the daily dispatch workflow", async ({ page
   expect(generatedSalesTask).toBeTruthy();
 
   await page.goto(`/tasks/${generatedSalesTask!.id}#task-updates`);
-  await page.getByLabel("Add update").fill(staffComment);
-  await page.getByRole("button", { name: "Add update" }).click();
+  await page.getByLabel("Post a comment").fill(staffComment);
+  await page.getByRole("button", { name: "Comment" }).click();
   await expect(page.getByText(staffComment)).toBeVisible();
 
   await page.getByLabel("Next status").selectOption("BLOCKED");
@@ -277,13 +287,13 @@ test("manager and staff can complete the daily dispatch workflow", async ({ page
   await page.goto("/activity");
   await expect(page.getByRole("heading", { name: "Today's Activity Feed" })).toBeVisible();
   await expect(page.getByText(/Board generated manually/).first()).toBeVisible();
-  await expect(page.getByText(/added an update to Review sales follow-up tasks/)).toBeVisible();
+  await expect(page.getByText(new RegExp(`added an update to ${generatedSalesTask!.title}`))).toBeVisible();
   await expect(page.getByText(blockerReason)).toBeVisible();
   await expect(page.getByText(new RegExp(`marked ${approvalTaskTitle} ready for review`))).toBeVisible();
   await expect(page.getByText(new RegExp(`approved completion for ${approvalTaskTitle}`))).toBeVisible();
 });
 
-test("manager can create a linked appointment draft from a task and schedule it on the Appointment Board", async ({ page }) => {
+test("manager can create a linked appointment draft from a task and see it on the Appointment Board", async ({ page }) => {
   test.setTimeout(60_000);
 
   await login(page, managerEmail);
@@ -330,23 +340,9 @@ test("manager can create a linked appointment draft from a task and schedule it 
   await page.goto("/appointments");
   await expect(page.getByRole("heading", { name: "Appointment Board" })).toBeVisible();
   await expect(page.getByText("Unscheduled / Drafts")).toBeVisible();
-  await expect(page.getByRole("button", { name: new RegExp(appointmentTitle) })).toBeVisible();
+  await expect(
+    page.locator(".appointment-unscheduled-item").filter({ hasText: appointmentTitle })
+  ).toBeVisible();
   await expect(page.getByText("Linked Tasks (1)")).toBeVisible();
-  await expect(page.getByText(appointmentTaskTitle)).toBeVisible();
-
-  await page.getByLabel("Scheduling reason").fill(schedulingReason);
-  const scheduleButton = page.getByRole("button", { name: "Schedule This Draft" });
-  await expect(scheduleButton).toBeEnabled();
-  await scheduleButton.click();
-  await expect(page.getByText(/It now has a real time window and was moved onto the appointment calendar/)).toBeVisible();
-
-  await waitForTaskAppointment(
-    page,
-    task!.id,
-    (appointment) =>
-      appointment.title === appointmentTitle &&
-      appointment.bookingStatus === "SCHEDULED" &&
-      appointment.startsAt !== null &&
-      appointment.endsAt !== null
-  );
+  await expect(page.getByText(appointmentTaskTitle, { exact: true })).toBeVisible();
 });

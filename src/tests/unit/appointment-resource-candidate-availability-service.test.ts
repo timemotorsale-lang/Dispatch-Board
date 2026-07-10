@@ -431,6 +431,9 @@ describe("appointment resource candidate hold service", () => {
         async $transaction(operation: (tx: unknown) => Promise<unknown>) {
           return operation({
             appointment: {
+              async findUnique() {
+                return input?.appointment === undefined ? warningAppointment() : input.appointment;
+              },
               async updateMany() {
                 return {
                   count: input?.appointmentUpdateCount ?? 1
@@ -722,6 +725,11 @@ describe("appointment resource reservation release service", () => {
         async $transaction(operation: (tx: unknown) => Promise<unknown>) {
           return operation({
             appointment: {
+              async findUnique() {
+                return input?.appointment === undefined
+                  ? appointmentWithReleasableReservation()
+                  : input.appointment;
+              },
               async updateMany() {
                 return {
                   count: input?.appointmentUpdateCount ?? 1
@@ -865,6 +873,9 @@ describe("appointment resource warning override service", () => {
         async $transaction(operation: (tx: unknown) => Promise<unknown>) {
           return operation({
             appointment: {
+              async findUnique() {
+                return input?.appointment === undefined ? warningAppointment() : input.appointment;
+              },
               async updateMany() {
                 return {
                   count: input?.appointmentUpdateCount ?? 1

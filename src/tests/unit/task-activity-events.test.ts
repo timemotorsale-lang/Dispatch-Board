@@ -301,7 +301,10 @@ describe("task activity events", () => {
       {
         status: TaskStatus.READY_FOR_REVIEW
       },
-      repository
+      repository,
+      {
+        taskAppointmentAutomationRunner: vi.fn()
+      }
     );
 
     expect(recordBoardActivityEvent).toHaveBeenCalledWith({

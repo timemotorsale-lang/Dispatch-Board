@@ -38,7 +38,7 @@ The remaining blockers are:
 | Quick-create owner list is board-derived | Manager create can fail or feel incomplete on empty/unusual board days | P1 |
 | Right rail action feedback needs polish | Managers need clear save/error/required-field guidance | P1 |
 | Comments/activity states are too plain | Day-one users need to trust the operational history | P1 |
-| Saved views are local only | Must be labeled honestly or made durable | P1 |
+| Durable shared saved views need rollout proof | Saved views are now an MVP promise and must remain server-backed, shared, and tested | P1 |
 | Screen boundary labels need consistency | Users need to understand `/tasks`, `/board`, `/my-tasks`, and task workspace handoffs | P2 |
 
 ---
@@ -188,10 +188,10 @@ Right rail trust, comments/activity polish, workflow feedback clarity.
 
 ---
 
-### Milestone 5: Clarify Local Saved Views And Screen Boundaries
+### Milestone 5: Clarify Shared Saved Views And Screen Boundaries
 
 **Suggested branch:** `codex/tasks-rollout-copy-boundaries`
-**Implementation status:** Implemented in working tree. Console saved views are labeled as local/browser views, `/my-tasks` copy identifies the My Work queue, and module/status docs now describe `/tasks` as the Task Operations Console foundation instead of a placeholder.
+**Implementation status:** Implemented. Console saved views are now durable shared team views backed by `TaskSavedView`, `/my-tasks` copy identifies the My Work queue, and module/status docs now describe `/tasks` as the Task Operations Console foundation instead of a placeholder.
 
 Purpose:
 
@@ -201,7 +201,8 @@ Make the product language honest and easy for day-one users.
 
 Scope:
 
-- Label current saved views as local/browser views unless durable saved views are implemented.
+- Treat saved views as shared team views backed by the database.
+- Keep create/delete manager-gated and allow authenticated staff to apply shared views.
 - Standardize route labels:
   - `/tasks` = Task Operations Console
   - `/board` = Daily Dispatch Board
@@ -215,7 +216,7 @@ Scope:
 Exit criteria:
 
 - Users understand which screen to use for scanning, executing, reviewing, and deep editing.
-- Saved views do not overpromise durability.
+- Saved views are durable, shared, and protected by service, route, and console smoke coverage.
 - Documentation uses the same naming as the UI.
 
 MVP gaps closed:
@@ -318,7 +319,6 @@ Tasks can be called day-one MVP rollout ready when:
 
 Do not block the MVP rollout on:
 
-- server-backed shared saved views
 - custom workflow builder
 - SLA/escalation engine
 - advanced analytics
