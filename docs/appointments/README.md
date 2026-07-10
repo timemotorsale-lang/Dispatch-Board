@@ -123,6 +123,7 @@ The approved enterprise product, permission, lifecycle, conflict, automation, an
 | [APPOINTMENT_MVP_ROLLOUT_AUDIT.md](APPOINTMENT_MVP_ROLLOUT_AUDIT.md) | Day-one MVP rollout boundary, readiness verdict, P0/P1/P2 gaps, and deferred enterprise scope |
 | [APPOINTMENT_MVP_ROLLOUT_ROADMAP.md](APPOINTMENT_MVP_ROLLOUT_ROADMAP.md) | Sequenced Appointment MVP milestones that narrow the enterprise roadmap into rollout gates |
 | [APPOINTMENT_MVP_DAY_ONE_READINESS.md](APPOINTMENT_MVP_DAY_ONE_READINESS.md) | Final evidence template for the Appointment Command Center MVP release decision |
+| [APPOINTMENT_MVP_UI_UX_FEATURE_AUDIT.md](APPOINTMENT_MVP_UI_UX_FEATURE_AUDIT.md) | UI/UX and feature-capability audit for improving the board toward MVP rollout |
 | [REMAINING_WORK_DASHBOARD.md](REMAINING_WORK_DASHBOARD.md) | Current Done / In Progress / Not Started dashboard for the remaining Enterprise Release 1.0 work |
 | [ACCEPTANCE_SCENARIOS.md](ACCEPTANCE_SCENARIOS.md) | Business, security, reliability, usability, and failure-path scenarios required for signoff |
 
