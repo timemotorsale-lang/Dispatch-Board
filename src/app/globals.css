@@ -2373,6 +2373,12 @@ code {
   min-height: 2.15rem;
 }
 
+.tasks-console-rail-header,
+.tasks-console-rail-record,
+.tasks-console-rail-actions {
+  gap: 0.35rem;
+}
+
 .tasks-console-heading {
   display: grid;
   gap: 0.18rem;
@@ -3435,7 +3441,7 @@ code {
   top: 0.45rem;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.26rem;
   align-self: start;
   min-height: 100%;
   max-height: 100%;
@@ -3477,12 +3483,12 @@ code {
 .tasks-console-rail-record-badges {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.42rem;
 }
 
 .tasks-console-rail-record span:first-child {
   color: #132238;
-  font-size: 0.88rem;
+  font-size: 0.78rem;
   font-weight: 800;
 }
 
@@ -3496,12 +3502,12 @@ code {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.9rem;
-  height: 1.9rem;
+  width: 1.55rem;
+  height: 1.55rem;
   color: #61758d;
   background: transparent;
   border: 0;
-  border-radius: 0.65rem;
+  border-radius: 0.55rem;
   cursor: pointer;
 }
 
@@ -3511,13 +3517,13 @@ code {
 
 .tasks-console-rail-title {
   display: grid;
-  gap: 0.15rem;
+  gap: 0.08rem;
 }
 
 .tasks-console-rail-title h2 {
   margin: 0;
   overflow: hidden;
-  font-size: 1.08rem;
+  font-size: 0.92rem;
   letter-spacing: -0.03em;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3526,25 +3532,26 @@ code {
 .tasks-console-rail-title p {
   margin: 0;
   overflow: hidden;
-  font-size: 0.74rem;
+  font-size: 0.66rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .tasks-console-rail-tabs {
   display: flex;
-  gap: 0.25rem;
-  padding-bottom: 0.15rem;
+  gap: 0.18rem;
+  padding-bottom: 0.08rem;
   border-bottom: 1px solid #e8edf4;
 }
 
 .tasks-console-rail-tab {
-  min-height: 1.75rem;
-  padding: 0 0.3rem;
+  min-height: 1.38rem;
+  padding: 0 0.2rem;
   color: #61758d;
   background: transparent;
   border: 0;
   border-bottom: 2px solid transparent;
+  font-size: 0.78rem;
   font-weight: 800;
   cursor: pointer;
 }
@@ -3556,7 +3563,7 @@ code {
 
 .tasks-console-rail-panel {
   display: grid;
-  gap: 0.38rem;
+  gap: 0.24rem;
   min-height: 0;
   overflow: auto;
   padding-right: 0.1rem;
@@ -3591,22 +3598,22 @@ code {
 .tasks-console-reassign-form,
 .tasks-console-update-fields {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.24rem;
 }
 
 .tasks-console-workflow-form,
 .tasks-console-comment-form {
-  padding: 0.48rem;
+  padding: 0.34rem;
   background: #f8fafc;
   border: 1px solid #e5ebf2;
-  border-radius: 0.95rem;
+  border-radius: 0.78rem;
 }
 
 .tasks-console-workflow-form label,
 .tasks-console-comment-form label,
 .tasks-console-update-fields label {
   display: grid;
-  gap: 0.2rem;
+  gap: 0.14rem;
 }
 
 .tasks-console-workflow-form span,
@@ -3629,12 +3636,12 @@ code {
 .tasks-console-update-fields textarea {
   width: 100%;
   min-width: 0;
-  padding: 0.42rem 0.5rem;
+  padding: 0.3rem 0.42rem;
   color: #142238;
   background: #ffffff;
   border: 1px solid #dbe4ef;
-  border-radius: 0.68rem;
-  font-size: 0.72rem;
+  border-radius: 0.54rem;
+  font-size: 0.68rem;
 }
 
 .tasks-console-workflow-form textarea,
@@ -3643,26 +3650,33 @@ code {
   resize: vertical;
 }
 
+.tasks-console-workflow-form textarea {
+  min-height: 1.52rem;
+  max-height: 1.52rem;
+  line-height: 1.08;
+}
+
 .tasks-console-status-guidance {
   display: grid;
-  gap: 0.16rem;
-  padding: 0.42rem 0.48rem;
+  gap: 0.08rem;
+  padding: 0.28rem 0.36rem;
   border: 1px solid #dbe4ef;
-  border-radius: 0.75rem;
+  border-radius: 0.62rem;
   background: #ffffff;
 }
 
 .tasks-console-status-guidance strong {
   color: #142238;
-  font-size: 0.66rem;
+  font-size: 0.58rem;
   letter-spacing: 0.01em;
+  text-transform: uppercase;
 }
 
 .tasks-console-status-guidance p {
   margin: 0;
   color: #66758a;
-  font-size: 0.65rem;
-  line-height: 1.25;
+  font-size: 0.58rem;
+  line-height: 1.15;
 }
 
 .tasks-console-status-guidance-brand {
@@ -3706,10 +3720,13 @@ code {
 }
 
 .tasks-console-update-fields {
-  padding: 0.42rem;
+  max-height: 5.6rem;
+  overflow: auto;
+  padding: 0.32rem;
   background: #ffffff;
   border: 1px dashed #cfd9e6;
-  border-radius: 0.8rem;
+  border-radius: 0.68rem;
+  scrollbar-width: thin;
 }
 
 .tasks-console-update-fields > strong {
@@ -3728,41 +3745,75 @@ code {
 .tasks-console-reassign-form {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
+  gap: 0.24rem;
 }
 
 .tasks-console-rail-field-grid {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.18rem;
+  grid-auto-rows: 2.62rem;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .tasks-console-rail-field {
+  align-content: center;
   display: grid;
-  gap: 0.22rem;
-  padding: 0.42rem;
+  gap: 0.1rem;
+  height: 2.62rem;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0.22rem 0.3rem;
   background: #f8fafc;
   border: 1px solid #e5ebf2;
-  border-radius: 0.95rem;
+  border-radius: 0.72rem;
+}
+
+.tasks-console-rail-field > span {
+  font-size: 0.56rem;
+  line-height: 1;
 }
 
 .tasks-console-rail-field strong {
-  font-size: 0.7rem;
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.64rem;
+  line-height: 1.12;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tasks-console-rail-field span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tasks-console-rail-field .tasks-console-priority,
+.tasks-console-rail-field .tasks-console-status {
+  max-width: 100%;
+  min-height: 0.92rem;
+  overflow: hidden;
+  padding: 0 0.26rem;
+  font-size: 0.5rem;
+  text-overflow: ellipsis;
 }
 
 .tasks-console-rail-block,
 .tasks-console-rail-subtasks {
   display: grid;
-  gap: 0.32rem;
+  gap: 0.2rem;
 }
 
 .tasks-console-rail-block p {
   margin: 0;
-  padding: 0.42rem;
+  padding: 0.3rem 0.36rem;
   background: #f8fafc;
   border: 1px solid #e5ebf2;
-  border-radius: 0.95rem;
-  font-size: 0.68rem;
-  line-height: 1.25;
+  border-radius: 0.7rem;
+  font-size: 0.6rem;
+  line-height: 1.16;
 }
 
 .tasks-console-rail-vehicle-card {
@@ -3859,8 +3910,17 @@ code {
 
 .tasks-console-rail-actions {
   margin-top: auto;
-  padding-top: 0.3rem;
+  padding-top: 0.2rem;
   border-top: 1px solid #edf1f6;
+}
+
+.tasks-console-workflow-form > .pill,
+.tasks-console-rail-actions .pill {
+  min-height: 2.05rem;
+  padding: 0.38rem 0.64rem;
+  border-radius: 0.72rem;
+  font-size: 0.78rem;
+  line-height: 1.05;
 }
 
 .tasks-console-rail-state {

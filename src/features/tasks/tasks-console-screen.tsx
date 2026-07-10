@@ -2408,7 +2408,7 @@ export function TasksConsoleScreen({
                           defaultValue={activeTaskDetail?.blockerReason ?? ""}
                           name="blockerReason"
                           placeholder="Required when moving task to blocked..."
-                          rows={2}
+                          rows={1}
                         />
                       </label>
                       <div className={`tasks-console-status-guidance tasks-console-status-guidance-${activeStatusGuidance.tone}`}>
