@@ -95,6 +95,35 @@ const taskReadSelect = {
         }
       }
     }
+  },
+  appointmentLinks: {
+    orderBy: {
+      createdAt: "desc"
+    },
+    select: {
+      id: true,
+      linkType: true,
+      linkCode: true,
+      title: true,
+      explanation: true,
+      isRequired: true,
+      blocksAppointment: true,
+      blocksTask: true,
+      createdAt: true,
+      appointment: {
+        select: {
+          id: true,
+          appointmentNumber: true,
+          title: true,
+          startsAt: true,
+          endsAt: true,
+          bookingStatus: true,
+          attendanceStatus: true,
+          executionStatus: true,
+          followUpDispositionCode: true
+        }
+      }
+    }
   }
 } as const;
 

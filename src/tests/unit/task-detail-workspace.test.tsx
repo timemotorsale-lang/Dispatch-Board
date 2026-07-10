@@ -48,6 +48,7 @@ function createTask(overrides: Partial<TaskReadModel> = {}): TaskReadModel {
     reviewedByUser: null,
     checklistItems: [],
     activityHistory: [],
+    appointmentLinks: [],
     comments: [
       {
         id: "comment-1",
@@ -118,6 +119,51 @@ describe("task detail workspace", () => {
     expect(markup).toContain("Create Appointment");
     expect(markup).toContain("Create linked draft");
     expect(markup).toContain("Open Board");
+    expect(markup).toContain("No appointment is linked yet.");
     expect(markup).toContain("Planning");
+  });
+
+  it("shows linked appointments on the task rail with a board return path", () => {
+    const markup = renderToStaticMarkup(
+      <TaskDetailWorkspace
+        activityEvents={[]}
+        actorIsManager
+        assignableUsers={[]}
+        canComment
+        canCreateAppointment
+        canUpdateStatus
+        task={createTask({
+          appointmentLinks: [
+            {
+              id: "appointment-link-1",
+              appointmentId: "appointment-1",
+              appointmentNumber: "APT-TASK-1",
+              appointmentTitle: "Customer approval visit",
+              startsAt: null,
+              endsAt: null,
+              bookingStatus: "DRAFT",
+              attendanceStatus: "EXPECTED",
+              executionStatus: "NOT_STARTED",
+              followUpDispositionCode: null,
+              linkType: "SOURCE",
+              linkCode: "SOURCE_TASK",
+              linkTitle: "Created from task",
+              explanation: "Customer must approve the next step.",
+              isRequired: true,
+              blocksAppointment: false,
+              blocksTask: false,
+              createdAt: "2026-07-04T14:30:00.000Z"
+            }
+          ]
+        })}
+      />
+    );
+
+    expect(markup).toContain("Linked Appointments (1)");
+    expect(markup).toContain("Customer approval visit");
+    expect(markup).toContain("APT-TASK-1");
+    expect(markup).toContain("Unscheduled draft");
+    expect(markup).toContain("Open on Board");
+    expect(markup).toContain("/appointments?sourceTask=TMS-1493&amp;appointment=APT-TASK-1");
   });
 });

@@ -79,6 +79,30 @@ function createTaskReadRepository(): TaskReadRepository {
         },
         reviewedByUser: null,
         checklistItems: [],
+        appointmentLinks: [
+          {
+            id: "appointment-link-1",
+            linkType: "SOURCE",
+            linkCode: "SOURCE_TASK",
+            title: "Created from task",
+            explanation: "Customer needs an appointment before the task can continue.",
+            isRequired: true,
+            blocksAppointment: false,
+            blocksTask: false,
+            createdAt: new Date("2026-06-18T14:30:00.000Z"),
+            appointment: {
+              id: "appointment-1",
+              appointmentNumber: "APT-TASK-1",
+              title: "Customer visit",
+              startsAt: null,
+              endsAt: null,
+              bookingStatus: "DRAFT",
+              attendanceStatus: "EXPECTED",
+              executionStatus: "NOT_STARTED",
+              followUpDispositionCode: null
+            }
+          }
+        ],
         activityEvents: [
           {
             id: "event-1",
@@ -191,6 +215,28 @@ describe("task read service", () => {
             name: "Eli Manager",
             email: "morgan.manager@local.test"
           }
+        }
+      ],
+      appointmentLinks: [
+        {
+          id: "appointment-link-1",
+          appointmentId: "appointment-1",
+          appointmentNumber: "APT-TASK-1",
+          appointmentTitle: "Customer visit",
+          startsAt: null,
+          endsAt: null,
+          bookingStatus: "DRAFT",
+          attendanceStatus: "EXPECTED",
+          executionStatus: "NOT_STARTED",
+          followUpDispositionCode: null,
+          linkType: "SOURCE",
+          linkCode: "SOURCE_TASK",
+          linkTitle: "Created from task",
+          explanation: "Customer needs an appointment before the task can continue.",
+          isRequired: true,
+          blocksAppointment: false,
+          blocksTask: false,
+          createdAt: "2026-06-18T14:30:00.000Z"
         }
       ],
       comments: [

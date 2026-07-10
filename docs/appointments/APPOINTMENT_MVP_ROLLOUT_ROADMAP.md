@@ -22,7 +22,7 @@ The MVP should preserve the enterprise architecture while narrowing what must be
 | 2 | Console smoke and visual gate | `codex/appointment-console-smoke-gate` | Proves `/appointments` opens, is compact enough for day-one use, shows schedule/draft lanes, and keeps the detail rail usable. |
 | 3 | Create and schedule commit reliability | `codex/appointment-schedule-commit-reliability` | Proves a draft can move to scheduled when readiness passes and cannot move when blocked. |
 | 4 | Lifecycle command MVP | `codex/appointment-lifecycle-mvp-actions` | Proves day-one edit, reschedule, cancel, start, finish, no-show, and outcome actions where supported. |
-| 5 | Task-to-appointment handoff | `codex/appointment-task-handoff-mvp` | Proves source task to appointment draft, linked detail visibility, follow-up, and return-path behavior. |
+| 5 | Task-to-appointment handoff | `codex/appointment-task-handoff-mvp` | Initial MVP handoff proof implemented: source task creates appointment draft, task detail shows linked appointment context, Appointment Board shows linked task context, and the operator can return to the source task. |
 | 6 | Exception queues and rail clarity | `codex/appointment-exception-queues-rail` | Turns unscheduled, warning, failed automation, no-show, and follow-up states into clear operating lanes. |
 | 7 | Permissions and safety gate | `codex/appointment-permission-safety-gate` | Proves manager, owner, participant, viewer, administrator, and system-action boundaries. |
 | 8 | Day-one readiness gate | `codex/appointment-mvp-day-one-readiness` | Final release evidence: migrations, tests, build, browser smoke, operator runbook, known deferments, and release verdict. |
@@ -96,6 +96,8 @@ Exit gate:
 ## Milestone 5 - Task-To-Appointment Handoff
 
 Goal: make appointments feel native to Dispatch Board, not bolted on.
+
+Status: Initial MVP handoff proof implemented on `codex/appointment-task-handoff-mvp`; richer linked-work actions and final schedule-depth coverage remain.
 
 Implementation targets:
 
