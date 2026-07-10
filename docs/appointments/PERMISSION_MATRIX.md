@@ -1,6 +1,6 @@
 # Enterprise Appointment Permission Matrix
 
-**Status:** Planned policy for Enterprise Release 1.0  
+**Status:** Initial MVP gate evidence exists; broader Enterprise 1.0 policy remains planned
 **Approved boundary:** Only a manager or the appointment owner may change an appointment  
 **Enforcement:** Server-side policy is authoritative
 
@@ -155,4 +155,6 @@ The permission model passes only when automated tests prove:
 - Cross-location search and reporting do not leak records.
 - Automation cannot exceed its rule authority.
 - Every appointment mutation passes through a reusable server-side policy.
+
+Initial MVP evidence is tracked in `APPOINTMENT_PERMISSION_SAFETY_GATE.md`. The current safety gate proves the live command boundary for manager, owner, participant, viewer, and appointment-admin-only actors; cross-location reporting/search and broader system-action coverage remain rollout hardening items.
 

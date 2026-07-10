@@ -51,6 +51,65 @@ const otherUser: AuthenticatedUser = {
   }
 };
 
+const participantUser: AuthenticatedUser = {
+  id: "user-participant",
+  name: "Sadia Hassan",
+  email: "participant@local.test",
+  isActive: true,
+  roles: ["Technician"],
+  duties: {
+    direct: [],
+    roleDefaults: [],
+    all: []
+  }
+};
+
+const viewerUser: AuthenticatedUser = {
+  id: "user-viewer",
+  name: "Queue Viewer",
+  email: "viewer@local.test",
+  isActive: true,
+  roles: ["Appointment Viewer"],
+  duties: {
+    direct: [],
+    roleDefaults: [],
+    all: []
+  }
+};
+
+const appointmentAdminUser: AuthenticatedUser = {
+  id: "user-appointment-admin",
+  name: "Appointment Admin",
+  email: "appointment-admin@local.test",
+  isActive: true,
+  roles: ["Appointment Administrator"],
+  duties: {
+    direct: [],
+    roleDefaults: [],
+    all: []
+  }
+};
+
+function createLocationAccess(
+  userId: string,
+  overrides: Partial<
+    Omit<AppointmentCommandLocationAccessRecord, "userId" | "locationId" | "validFrom" | "validTo">
+  > = {}
+): AppointmentCommandLocationAccessRecord {
+  return {
+    userId,
+    locationId: "loc-time-motor-sales-minneapolis",
+    canViewSchedule: true,
+    canParticipate: true,
+    canOwnAppointments: false,
+    canManageAppointments: false,
+    canViewLimitedData: true,
+    validFrom: new Date("2026-01-01T00:00:00.000Z"),
+    validTo: null,
+    ...overrides
+  };
+}
+
 function createAppointmentCommandRepositoryHarness(input?: {
   appointment?: AppointmentCommandAppointmentRecord | null;
   existingCommand?: AppointmentCommandLedgerRecord | null;
@@ -71,39 +130,24 @@ function createAppointmentCommandRepositoryHarness(input?: {
     version: 3
   };
   const accessByUserId = input?.accessByUserId ?? {
-    [managerUser.id]: {
-      userId: managerUser.id,
-      locationId: "loc-time-motor-sales-minneapolis",
-      canViewSchedule: true,
-      canParticipate: true,
+    [managerUser.id]: createLocationAccess(managerUser.id, {
       canOwnAppointments: true,
-      canManageAppointments: true,
-      canViewLimitedData: true,
-      validFrom: new Date("2026-01-01T00:00:00.000Z"),
-      validTo: null
-    },
-    [ownerUser.id]: {
-      userId: ownerUser.id,
-      locationId: "loc-time-motor-sales-minneapolis",
-      canViewSchedule: true,
-      canParticipate: true,
-      canOwnAppointments: true,
-      canManageAppointments: false,
-      canViewLimitedData: true,
-      validFrom: new Date("2026-01-01T00:00:00.000Z"),
-      validTo: null
-    },
-    [otherUser.id]: {
-      userId: otherUser.id,
-      locationId: "loc-time-motor-sales-minneapolis",
-      canViewSchedule: true,
-      canParticipate: true,
-      canOwnAppointments: true,
-      canManageAppointments: false,
-      canViewLimitedData: true,
-      validFrom: new Date("2026-01-01T00:00:00.000Z"),
-      validTo: null
-    }
+      canManageAppointments: true
+    }),
+    [ownerUser.id]: createLocationAccess(ownerUser.id, {
+      canOwnAppointments: true
+    }),
+    [otherUser.id]: createLocationAccess(otherUser.id, {
+      canOwnAppointments: true
+    }),
+    [participantUser.id]: createLocationAccess(participantUser.id),
+    [viewerUser.id]: createLocationAccess(viewerUser.id, {
+      canParticipate: false,
+      canViewLimitedData: false
+    }),
+    [appointmentAdminUser.id]: createLocationAccess(appointmentAdminUser.id, {
+      canParticipate: false
+    })
   };
 
   function toLedgerRecord(
@@ -402,5 +446,204 @@ describe("appointment command service boundary", () => {
         now
       )
     ).rejects.toThrow("Appointment command is not authorized.");
+  });
+
+  it("enforces the MVP live-appointment mutation boundary across board actors", async () => {
+    const { createdCommands, repository } = createAppointmentCommandRepositoryHarness();
+
+    const deniedActors = [
+      [participantUser, "participant"],
+      [viewerUser, "viewer"],
+      [appointmentAdminUser, "appointment-admin"]
+    ] as const;
+
+    for (const [actor, key] of deniedActors) {
+      await expect(
+        submitAppointmentCommand(
+          actor,
+          {
+            commandType: "CANCEL",
+            appointmentId: "appointment-1",
+            expectedAppointmentVersion: 3,
+            idempotencyKey: `cancel-${key}-denied-1`,
+            payload: {
+              reasonCode: "CUSTOMER_REQUEST"
+            }
+          },
+          repository,
+          now
+        )
+      ).rejects.toThrow("Appointment command is not authorized.");
+    }
+
+    expect(createdCommands).toHaveLength(0);
+
+    await expect(
+      submitAppointmentCommand(
+        ownerUser,
+        {
+          commandType: "CANCEL",
+          appointmentId: "appointment-1",
+          expectedAppointmentVersion: 3,
+          idempotencyKey: "cancel-owner-allowed-1",
+          payload: {
+            reasonCode: "CUSTOMER_REQUEST"
+          }
+        },
+        repository,
+        now
+      )
+    ).resolves.toMatchObject({
+      accepted: true,
+      command: {
+        actorUserId: ownerUser.id,
+        commandType: "CANCEL",
+        status: "PENDING"
+      }
+    });
+
+    await expect(
+      submitAppointmentCommand(
+        managerUser,
+        {
+          commandType: "CANCEL",
+          appointmentId: "appointment-1",
+          expectedAppointmentVersion: 3,
+          idempotencyKey: "cancel-manager-allowed-1",
+          payload: {
+            reasonCode: "CUSTOMER_REQUEST"
+          }
+        },
+        repository,
+        now
+      )
+    ).resolves.toMatchObject({
+      accepted: true,
+      command: {
+        actorUserId: managerUser.id,
+        commandType: "CANCEL",
+        status: "PENDING"
+      }
+    });
+
+    expect(createdCommands).toHaveLength(2);
+  });
+
+  it("keeps manager-only appointment actions unavailable to owners and admin-only actors", async () => {
+    const { createdCommands, repository } = createAppointmentCommandRepositoryHarness();
+
+    for (const actor of [ownerUser, appointmentAdminUser]) {
+      await expect(
+        submitAppointmentCommand(
+          actor,
+          {
+            commandType: "TRANSFER_OWNER",
+            appointmentId: "appointment-1",
+            expectedAppointmentVersion: 3,
+            idempotencyKey: `transfer-owner-${actor.id}-denied-1`,
+            payload: {
+              ownerUserId: otherUser.id,
+              reasonCode: "WORKLOAD_BALANCE",
+              reasonNotes: "Manager-only transfer safety check."
+            }
+          },
+          repository,
+          now
+        )
+      ).rejects.toThrow("Appointment command is not authorized.");
+
+      await expect(
+        submitAppointmentCommand(
+          actor,
+          {
+            commandType: "OVERRIDE_WARNING",
+            appointmentId: "appointment-1",
+            expectedAppointmentVersion: 3,
+            idempotencyKey: `override-warning-${actor.id}-denied-1`,
+            payload: {
+              warningCode: "STAFF_CONFLICT",
+              reasonCode: "MANAGER_ACCEPTED",
+              reasonNotes: "Manager-only warning override safety check."
+            }
+          },
+          repository,
+          now
+        )
+      ).rejects.toThrow("Appointment command is not authorized.");
+    }
+
+    expect(createdCommands).toHaveLength(0);
+
+    await expect(
+      submitAppointmentCommand(
+        managerUser,
+        {
+          commandType: "TRANSFER_OWNER",
+          appointmentId: "appointment-1",
+          expectedAppointmentVersion: 3,
+          idempotencyKey: "transfer-owner-manager-allowed-1",
+          payload: {
+            ownerUserId: otherUser.id,
+            reasonCode: "WORKLOAD_BALANCE",
+            reasonNotes: "Manager approved ownership transfer."
+          }
+        },
+        repository,
+        now
+      )
+    ).resolves.toMatchObject({
+      accepted: true,
+      command: {
+        actorUserId: managerUser.id,
+        commandType: "TRANSFER_OWNER",
+        status: "PENDING"
+      }
+    });
+    expect(createdCommands).toHaveLength(1);
+  });
+
+  it("requires location-level management authority even when the actor has a manager role", async () => {
+    const { createdCommands, repository } = createAppointmentCommandRepositoryHarness({
+      accessByUserId: {
+        [managerUser.id]: createLocationAccess(managerUser.id, {
+          canOwnAppointments: true,
+          canManageAppointments: false
+        })
+      }
+    });
+
+    await expect(
+      submitAppointmentCommand(
+        managerUser,
+        {
+          commandType: "APPROVE",
+          appointmentId: "appointment-1",
+          expectedAppointmentVersion: 3,
+          idempotencyKey: "approve-manager-no-location-authority-1",
+          payload: {}
+        },
+        repository,
+        now
+      )
+    ).rejects.toThrow("Appointment command is not authorized.");
+
+    await expect(
+      submitAppointmentCommand(
+        managerUser,
+        {
+          commandType: "RESCHEDULE",
+          appointmentId: "appointment-1",
+          expectedAppointmentVersion: 3,
+          idempotencyKey: "reschedule-manager-no-location-authority-1",
+          payload: {
+            startsAt: "2026-07-06T17:00:00.000Z"
+          }
+        },
+        repository,
+        now
+      )
+    ).rejects.toThrow("Appointment command is not authorized.");
+
+    expect(createdCommands).toHaveLength(0);
   });
 });
