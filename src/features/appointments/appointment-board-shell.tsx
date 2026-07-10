@@ -10479,6 +10479,13 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
 
   return (
     <section className="appointment-board-page appointment-mockup-aligned" aria-labelledby="appointment-board-title">
+      <aside className="appointment-module-rail" aria-label="Appointment module navigation">
+        <strong>Appts</strong>
+        <span>Today</span>
+        <span>Queue</span>
+        <span>Calendar</span>
+        <span>Follow-up</span>
+      </aside>
       <div className="appointment-board-toolbar">
         <div>
           <p className="section-kicker">Enterprise appointment operations</p>
@@ -13752,15 +13759,15 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
               <div className="appointment-calendar-body">
                 <div className="appointment-time-column">
                   {hourLabels.map((hour, index) => (
-                    <span key={hour} style={{ top: `${index * 60}px` }}>{hour}</span>
+                    <span key={hour} style={{ top: `${index * 46}px` }}>{hour}</span>
                   ))}
                 </div>
                 {boardLanes.map((lane) => (
                   <div className="appointment-staff-column" key={lane}>
                     {scheduledFilteredAppointments.filter((appointment) => appointmentBoardLaneLabel(appointment, boardLaneMode) === lane).map((appointment) => {
                       const meta = categoryMeta[appointment.category];
-                      const top = Math.max(0, ((appointment.startMinutes - 540) / 60) * 60);
-                      const height = Math.max(52, (appointment.durationMinutes / 60) * 60);
+                      const top = Math.max(0, ((appointment.startMinutes - 540) / 60) * 46);
+                      const height = Math.max(36, (appointment.durationMinutes / 60) * 46);
                       return (
                         <button
                           className={selectedAppointment.id === appointment.id ? `appointment-calendar-item ${meta.className} appointment-calendar-item-active` : `appointment-calendar-item ${meta.className}`}
