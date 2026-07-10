@@ -75,6 +75,18 @@ Required proof for this gate:
 - [ ] Activity feed entries appear for key workflow events.
 - [ ] Recommendation explanation data appears where the current UI surfaces it.
 
+## 4A. Tasks Operations Console day-one gate
+
+- [ ] `/tasks` opens as the Task Operations Console for a manager.
+- [ ] The console keeps the compact 8-row first page at the day-one desktop viewport.
+- [ ] Manager can create, reassign, block with reason, move to Ready for Review, and complete eligible work.
+- [ ] Staff can create self-assigned work from My Tasks and update assigned work.
+- [ ] Shared saved views are database-backed through `TaskSavedView`.
+- [ ] Manager can create and delete a shared saved view from `/tasks`.
+- [ ] Staff can apply shared saved views but cannot create/delete them.
+- [ ] The E2E reset clears `TaskSavedView` records before each daily workflow smoke run.
+- [ ] Operator evidence is recorded in [docs/TASKS_MVP_DAY_ONE_READINESS.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/TASKS_MVP_DAY_ONE_READINESS.md).
+
 ## 5. Test and quality commands
 
 - [ ] Dependencies install with `npm install`.

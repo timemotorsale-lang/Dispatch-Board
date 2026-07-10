@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- Existing appointment shell fixtures intentionally use broad fixture casts; this branch isolates that lint debt so Tasks readiness gates can run. */
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 

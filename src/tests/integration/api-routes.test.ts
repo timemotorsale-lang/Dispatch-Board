@@ -25,6 +25,7 @@ const mockState = vi.hoisted(() => ({
   generationRepository: null as GenerationTasksRepository | null,
   getCurrentUser: vi.fn(),
   loadGenerationInputsForDate: vi.fn(),
+  runTaskAppointmentAutomationForTaskEvent: vi.fn(),
   statusRepository: null as TaskStatusRepository | null
 }));
 
@@ -84,6 +85,10 @@ vi.mock("@/server/repositories/generation-tasks-repository", async () => ({
 
 vi.mock("@/server/services/generation-inputs", async () => ({
   loadGenerationInputsForDate: (boardDate: string) => mockState.loadGenerationInputsForDate(boardDate)
+}));
+
+vi.mock("@/server/services/task-appointment-automation-service", async () => ({
+  runTaskAppointmentAutomationForTaskEvent: mockState.runTaskAppointmentAutomationForTaskEvent
 }));
 
 import { GET as getBoardForDate } from "@/app/api/board/[date]/route";
@@ -752,7 +757,7 @@ describe("API route integration", () => {
     expect(harness.readTasks()).toHaveLength(0);
   });
 
-  it("rejects staff access to the manager-only task creation route", async () => {
+  it("allows staff to create self-assigned tasks from the shared task creation route", async () => {
     const { harness, staff } = await createRouteContext();
     setCurrentUser(staff);
 
@@ -769,11 +774,16 @@ describe("API route integration", () => {
       })
     );
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(201);
     await expect(response.json()).resolves.toEqual({
-      error: "Manager access required."
+      task: expect.objectContaining({
+        assignedUser: expect.objectContaining({
+          id: staff.id
+        }),
+        title: "Review hot lead"
+      })
     });
-    expect(harness.readTasks()).toHaveLength(0);
+    expect(harness.readTasks()).toHaveLength(1);
   });
 
   it("allows staff to update their own task status and rejects cross-user updates", async () => {

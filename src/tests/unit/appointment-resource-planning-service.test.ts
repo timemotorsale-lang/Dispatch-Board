@@ -298,6 +298,9 @@ describe("appointment recommended resource requirement attachment", () => {
               }
             },
             appointment: {
+              async findUnique() {
+                return input?.appointment === undefined ? appointment() : input.appointment;
+              },
               async updateMany() {
                 return {
                   count: input?.updateCount ?? 1
@@ -470,6 +473,11 @@ describe("appointment resource candidate proposal", () => {
         async $transaction(operation: (tx: unknown) => Promise<unknown>) {
           return operation({
             appointment: {
+              async findUnique() {
+                return input?.appointment === undefined
+                  ? appointmentWithRequirement()
+                  : input.appointment;
+              },
               async updateMany() {
                 return {
                   count: input?.updateCount ?? 1
@@ -790,6 +798,11 @@ describe("appointment resource reservation replacement", () => {
 
           return operation({
             appointment: {
+              async findUnique() {
+                return input?.appointment === undefined
+                  ? appointmentWithHeldReservation()
+                  : input.appointment;
+              },
               async updateMany() {
                 return {
                   count: input?.appointmentUpdateCount ?? 1

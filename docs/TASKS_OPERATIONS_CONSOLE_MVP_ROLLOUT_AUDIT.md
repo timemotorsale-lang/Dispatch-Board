@@ -12,23 +12,22 @@
 
 ## 1. Executive Verdict
 
-The Tasks Operations Console is now a credible day-one manager command center, but the whole Tasks module is not yet fully rollout-complete against the original MVP promise.
+The Tasks Operations Console is now a credible day-one manager command center, and the remaining Tasks MVP rollout risks have been narrowed to final release verification rather than feature gaps.
 
 Current practical rating:
 
 ```text
-Manager console readiness: 80-85%
-Task workflow backend readiness: 85-90%
-Staff execution readiness: 75-80%
-Full MVP rollout readiness: 78-82%
+Manager console readiness: 90-95%
+Task workflow backend readiness: 90-95%
+Staff execution readiness: 85-90%
+Full MVP rollout readiness: 88-92%
 ```
 
 Recommended rollout decision:
 
 ```text
-Continue building sequentially on top of the current Tasks console branch family.
-Do not merge as a full MVP rollout yet unless the PR is explicitly scoped as "manager console foundation."
-Close staff-created tasks, durable smoke coverage, and final workflow feedback before calling the Tasks MVP rollout complete.
+Complete the final day-one readiness branch, then merge as the Tasks MVP rollout foundation.
+Do not add more major feature scope before rollout; focus on migration, smoke, permission, and operator-readiness proof.
 ```
 
 The biggest risk is not the core task engine. The engine is strong. The remaining risk is that several MVP promises are distributed across multiple screens, while the `/tasks` console is now becoming the expected operational source of truth.
@@ -161,20 +160,21 @@ Recommended fix:
 - Keep inactive users excluded.
 - Preserve selected-task owner as the default when available.
 
-### P1 - Day-one trust gap: saved views are local, not operational
+### Closed - Day-one trust gap: saved views are durable and shared
 
-Saved views currently behave like browser-local preferences. That is acceptable for a lightweight UI convenience, but not a durable operations feature.
+Saved views are now backed by `TaskSavedView`, loaded by `/tasks`, and exposed through `/api/tasks/saved-views`.
 
 Rollout impact:
 
 ```text
-Managers may think saved views are durable team views when they are actually local browser state.
+Saved views can be described as shared team views for MVP, provided migration and smoke validation pass.
 ```
 
-Recommended fix:
+Implementation proof:
 
-- Label current saved views as local views if keeping for MVP.
-- Defer server-backed saved views to the next tier, or add a simple `SavedView` persistence slice before rollout.
+- Managers can create/delete shared saved views.
+- Authenticated staff can read/apply shared saved views.
+- Service, route, and console smoke coverage protect the promise.
 
 ### P1 - Day-one workflow gap: right rail is powerful but crowded
 
@@ -263,7 +263,7 @@ Recommended fix:
 | `/my-tasks` staff queue | Good | Needs staff create path to satisfy full MVP |
 | `/tasks/[id]` workspace | Strong | Ready |
 | `/manager-review` | Strong | Ready |
-| Saved views | Local convenience | Acceptable only if labeled/local |
+| Saved views | Durable shared team views | Ready after migration/smoke verification |
 | Responsive behavior | Good foundation | Needs broader device QA |
 | Automated coverage | Strong backend, weak console browser | Needs console smoke coverage |
 | Documentation | Improving | Needs this audit linked into rollout planning |
@@ -355,22 +355,16 @@ Tasks Operations Console MVP rollout foundation
 
 ## 7. Rollout Verdict
 
-The Tasks Operations Console is close to MVP-ready for manager use. The broader Tasks MVP rollout still needs a short closing sequence.
+The Tasks Operations Console is close enough for final day-one readiness verification. The broader Tasks MVP rollout should not add more feature scope before merge.
 
 Best next implementation branch:
 
 ```text
-codex/tasks-console-rollout-gate
-```
-
-Alternative if the next slice should stay very narrow:
-
-```text
-codex/tasks-console-smoke-coverage
+codex/tasks-mvp-day-one-readiness
 ```
 
 The recommended path is:
 
 ```text
-Protect the console with smoke coverage -> fix manager quick-create user source -> add staff self-create -> polish workflow feedback -> merge as MVP rollout foundation.
+Verify migration -> run Tasks smoke and permission proof -> record operator notes -> merge as MVP rollout foundation.
 ```

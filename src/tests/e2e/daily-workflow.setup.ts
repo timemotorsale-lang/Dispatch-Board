@@ -18,6 +18,7 @@ export async function resetDailyWorkflowState() {
   await prisma.appointmentCommandLedger.deleteMany();
   await prisma.appointment.deleteMany();
   await prisma.taskComment.deleteMany();
+  await prisma.taskSavedView.deleteMany();
   await prisma.task.deleteMany();
   await prisma.generationRun.deleteMany();
   await prisma.boardDay.deleteMany();

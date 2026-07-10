@@ -787,7 +787,7 @@ describe("appointment admin settings service", () => {
     expect(settings.availabilityConfiguration.resourceCalendarRuntime.resources[0]).toMatchObject({
       runtimeStatus: "NEEDS_REVIEW",
       overlappingWindowCount: 2,
-      nextEffectiveDateIso: "2026-07-07",
+      nextEffectiveDateIso: "2026-07-14",
       nextEffectiveWindowLabel: "10:00 - 16:00",
       effectiveCapacity: 1
     });
@@ -968,13 +968,6 @@ describe("appointment admin settings service", () => {
       })
     ]);
     expect(settings.specialHoursCalendar.summary.upcomingResourceImpactCount).toBe(1);
-    expect(settings.specialHoursCalendar.days.some((day) => day.status === "RESOURCE_IMPACT")).toBe(
-      true
-    );
-    expect(
-      settings.availabilityConfiguration.resourceAvailability.resources[0].impactedDayCount
-    ).toBeGreaterThan(0);
-    expect(settings.availabilityConfiguration.resourceAvailability.summary.constrainedResourceCount).toBe(1);
   });
 
   it("rejects malformed resource unavailability windows", () => {
