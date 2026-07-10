@@ -30,6 +30,6 @@ This branch does not claim the full Appointment Board is rollout-ready. It close
 
 ## Follow-Up Gates
 
-- `codex/appointment-schedule-commit-reliability`: prove eligible draft-to-scheduled commit, hard-block prevention, and warning override behavior.
+- `codex/appointment-schedule-commit-gate`: prove eligible draft-to-scheduled commit, hard-block prevention, and warning override behavior.
 - `codex/appointment-mvp-rail-and-action-clarity`: simplify day-one operator guidance and keep advanced controls out of the default path.
 - `codex/appointment-mvp-day-one-readiness`: record final build/test/browser evidence and go/no-go verdict.

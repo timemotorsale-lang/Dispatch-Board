@@ -33,6 +33,22 @@ export type AppointmentCommandExecutionResult = AppointmentCommandBoundaryResult
   execution: AppointmentLifecycleTransactionResult | null;
 };
 
+export const appointmentScheduleCommitGate = {
+  commandType: "SCHEDULE",
+  requiredPayloadFields: ["startsAt", "endsAt"],
+  successStatus: "SUCCEEDED",
+  terminalFailureStatus: "FAILED_TERMINAL",
+  enforcedRejectionCodes: ["HARD_CONFLICT", "UNRESOLVED_WARNING", "PAST_TIME"],
+  writeEffects: [
+    "appointment-status-and-window",
+    "held-reservation-commit",
+    "schedule-history-event",
+    "command-completion",
+    "schedule-time-automation"
+  ],
+  browserProof: "task-originated-unscheduled-draft-schedules-from-appointment-board"
+} as const;
+
 const APPOINTMENT_STALE_UPDATE_ERROR =
   "Appointment update failed because the expected version no longer matches.";
 

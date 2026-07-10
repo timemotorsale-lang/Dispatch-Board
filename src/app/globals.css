@@ -12566,6 +12566,10 @@ code {
   overflow: hidden;
 }
 
+.appointment-mockup-aligned.appointment-workspace-tab-operations .appointment-detail-panel {
+  overflow: auto;
+}
+
 .appointment-mockup-aligned .appointment-detail-section:has(.appointment-governance-list),
 .appointment-mockup-aligned .appointment-detail-section:has(.appointment-owner-transfer-card),
 .appointment-mockup-aligned .appointment-detail-section:has(.appointment-readiness-stack),

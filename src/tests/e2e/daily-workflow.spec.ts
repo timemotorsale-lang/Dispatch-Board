@@ -112,15 +112,15 @@ async function waitForBoardTask(page: Page, predicate: (task: BoardTask) => bool
     .not.toBeNull();
 }
 
-async function readAppointments(page: Page) {
-  return page.evaluate(async () => {
-    const response = await fetch("/api/appointments?date=2026-07-06");
+async function readAppointments(page: Page, date = "2026-07-06") {
+  return page.evaluate(async (appointmentDate) => {
+    const response = await fetch(`/api/appointments?date=${encodeURIComponent(appointmentDate)}`);
     if (!response.ok) {
       throw new Error(`Appointments API failed with ${response.status}`);
     }
 
     return (await response.json()) as AppointmentReadPayload;
-  });
+  }, date);
 }
 
 async function assertTasksConsoleFitsViewport(page: Page) {
@@ -400,7 +400,7 @@ test("manager and staff can complete the daily dispatch workflow", async ({ page
   await expect(page.getByText(new RegExp(`approved completion for ${approvalTaskTitle}`))).toBeVisible();
 });
 
-test("manager can create a linked appointment draft from a task and see it on the Appointment Board", async ({ page }) => {
+test("manager can create and schedule a linked appointment draft from the Appointment Board", async ({ page }) => {
   test.setTimeout(60_000);
 
   await login(page, managerEmail);
@@ -481,7 +481,41 @@ test("manager can create a linked appointment draft from a task and see it on th
   await expect(page.locator(".appointment-detail-actions").getByRole("button", { name: "Check In" })).toBeVisible();
   await expect(page.getByText("Linked Tasks (1)")).toBeVisible();
   await expect(page.getByText(appointmentTaskTitle, { exact: true })).toBeVisible();
-  await page.getByRole("link", { name: "Open Task" }).click();
+  const detailPanel = page.locator(".appointment-detail-panel");
+  await expect(detailPanel.getByText("Schedule Unscheduled Draft")).toBeVisible();
+  await detailPanel.getByLabel("Appointment date").fill("2026-07-13");
+  await detailPanel.getByLabel("Start time").fill("10:00");
+  await detailPanel.getByLabel("Duration").selectOption("60");
+  await detailPanel.getByLabel("Scheduling reason").fill(
+    "E2E schedule commit gate: customer confirmed the appointment window."
+  );
+  const scheduleButton = detailPanel.getByRole("button", { name: "Schedule This Draft" });
+  await expect(scheduleButton).toBeEnabled();
+  await scheduleButton.click();
+  await expect(page.getByText(new RegExp(`Scheduled ${createdAppointment!.appointmentNumber}`))).toBeVisible();
+  await expect
+    .poll(async () => {
+      const scheduledPayload = await readAppointments(page, "2026-07-13");
+      const scheduledAppointment = scheduledPayload.appointments.find(
+        (appointment) => appointment.appointmentNumber === createdAppointment!.appointmentNumber
+      );
+
+      return scheduledAppointment
+        ? {
+            bookingStatus: scheduledAppointment.bookingStatus,
+            hasStart: Boolean(scheduledAppointment.startsAt),
+            hasEnd: Boolean(scheduledAppointment.endsAt),
+            linkedTaskId: scheduledAppointment.taskLinks[0]?.taskId ?? null
+          }
+        : null;
+    })
+    .toEqual({
+      bookingStatus: "SCHEDULED",
+      hasStart: true,
+      hasEnd: true,
+      linkedTaskId: task!.id
+    });
+  await page.goto(`/tasks/${task!.id}`);
   await expect(page.getByRole("heading", { name: appointmentTaskTitle })).toBeVisible();
   await expect(page.getByText("Linked Appointments (1)")).toBeVisible();
   await expect(page.getByLabel("Linked appointments").getByText(createdAppointment!.appointmentNumber)).toBeVisible();
