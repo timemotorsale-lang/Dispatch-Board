@@ -1105,6 +1105,7 @@ type AppointmentBoardShellProps = {
 };
 
 const businessDate = "Monday, July 6, 2026";
+const appointmentCalendarHourHeight = 48;
 const fallbackBusinessHours = "9:00 AM - 6:00 PM";
 const fallbackDealershipAddress = "1101 E. Lake Street, Minneapolis, MN 55407";
 const fallbackDealershipPhone = "(612) 724-3631";
@@ -13759,15 +13760,15 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
               <div className="appointment-calendar-body">
                 <div className="appointment-time-column">
                   {hourLabels.map((hour, index) => (
-                    <span key={hour} style={{ top: `${index * 46}px` }}>{hour}</span>
+                    <span key={hour} style={{ top: `${index * appointmentCalendarHourHeight}px` }}>{hour}</span>
                   ))}
                 </div>
                 {boardLanes.map((lane) => (
                   <div className="appointment-staff-column" key={lane}>
                     {scheduledFilteredAppointments.filter((appointment) => appointmentBoardLaneLabel(appointment, boardLaneMode) === lane).map((appointment) => {
                       const meta = categoryMeta[appointment.category];
-                      const top = Math.max(0, ((appointment.startMinutes - 540) / 60) * 46);
-                      const height = Math.max(36, (appointment.durationMinutes / 60) * 46);
+                      const top = Math.max(0, ((appointment.startMinutes - 540) / 60) * appointmentCalendarHourHeight);
+                      const height = Math.max(36, (appointment.durationMinutes / 60) * appointmentCalendarHourHeight);
                       return (
                         <button
                           className={selectedAppointment.id === appointment.id ? `appointment-calendar-item ${meta.className} appointment-calendar-item-active` : `appointment-calendar-item ${meta.className}`}
