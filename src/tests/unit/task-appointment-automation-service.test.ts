@@ -59,7 +59,7 @@ function createActiveRule() {
     name: "Blocked task review",
     description: "Create a review appointment when a task becomes blocked.",
     triggerCode: "BLOCKED_TASK_REVIEW",
-    purposeCode: "APT-TASK-MEETING",
+    purposeCode: "APT-INTERNAL-MEETING",
     status: "ACTIVE" as const,
     priority: 100,
     missingInputBehavior: "CREATE_REVIEW_ITEM",
@@ -149,7 +149,7 @@ describe("task appointment automation service", () => {
         draftOptions: expect.objectContaining({
           automationRuleCode: "RULE-BLOCKED-TASK-REVIEW",
           automationRuleVersion: 2,
-          purposeCode: "APT-TASK-MEETING",
+          purposeCode: "APT-INTERNAL-MEETING",
           sourceType: "AUTOMATION",
           triggerCode: "BLOCKED_TASK_REVIEW"
         })
@@ -219,6 +219,138 @@ describe("task appointment automation service", () => {
     expect(recordActivity).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: "task.appointment_automation_skipped",
+        taskId: "task-1"
+      })
+    );
+  });
+
+  it("does not evaluate inactive or trigger-mismatched automation rules", async () => {
+    const manager = await createManagerUser();
+    const recordExecution = vi.fn().mockResolvedValue(undefined);
+    const appointmentDraftCreator = vi.fn();
+    const findExistingAutomatedAppointment = vi.fn();
+
+    const result = await runTaskAppointmentAutomationForTaskEvent(
+      manager,
+      {
+        taskId: "task-1",
+        triggerCode: "BLOCKED_TASK_REVIEW"
+      },
+      {
+        automationRepository: {
+          listRules: vi.fn().mockResolvedValue([
+            {
+              ...createActiveRule(),
+              status: "PAUSED" as const
+            },
+            {
+              ...createActiveRule(),
+              ruleCode: "RULE-OTHER-TRIGGER",
+              triggerCode: "ESCALATION_TASK_REVIEW"
+            }
+          ]),
+          listExecutions: vi.fn(),
+          getExecutionById: vi.fn(),
+          listRuleEvents: vi.fn(),
+          listExecutionEvents: vi.fn(),
+          recordExecution,
+          finalizeExecution: vi.fn(),
+          upsertRuleDraft: vi.fn(),
+          transitionRule: vi.fn(),
+          transitionExecution: vi.fn()
+        },
+        appointmentRepository: {
+          findExistingAutomatedAppointment
+        },
+        appointmentDraftCreator,
+        recordActivity: vi.fn().mockResolvedValue(undefined),
+        taskReader: vi.fn().mockResolvedValue(createTaskReadModel())
+      }
+    );
+
+    expect(result).toEqual({
+      taskId: "task-1",
+      triggerCode: "BLOCKED_TASK_REVIEW",
+      evaluatedRuleCount: 0,
+      createdAppointmentCount: 0,
+      executions: []
+    });
+    expect(findExistingAutomatedAppointment).not.toHaveBeenCalled();
+    expect(appointmentDraftCreator).not.toHaveBeenCalled();
+    expect(recordExecution).not.toHaveBeenCalled();
+  });
+
+  it("records review-required instead of creating an appointment for unauthorized rule authority", async () => {
+    const manager = await createManagerUser();
+    const recordExecution = vi.fn().mockResolvedValue(undefined);
+    const recordActivity = vi.fn().mockResolvedValue(undefined);
+    const appointmentDraftCreator = vi.fn();
+    const findExistingAutomatedAppointment = vi.fn();
+
+    const result = await runTaskAppointmentAutomationForTaskEvent(
+      manager,
+      {
+        taskId: "task-1",
+        triggerCode: "BLOCKED_TASK_REVIEW"
+      },
+      {
+        automationRepository: {
+          listRules: vi.fn().mockResolvedValue([
+            {
+              ...createActiveRule(),
+              ruleCode: "RULE-UNSAFE-MANUAL-PURPOSE",
+              purposeCode: "APT-GENERAL"
+            }
+          ]),
+          listExecutions: vi.fn(),
+          getExecutionById: vi.fn(),
+          listRuleEvents: vi.fn(),
+          listExecutionEvents: vi.fn(),
+          recordExecution,
+          finalizeExecution: vi.fn(),
+          upsertRuleDraft: vi.fn(),
+          transitionRule: vi.fn(),
+          transitionExecution: vi.fn()
+        },
+        appointmentRepository: {
+          findExistingAutomatedAppointment
+        },
+        appointmentDraftCreator,
+        recordActivity,
+        taskReader: vi.fn().mockResolvedValue(createTaskReadModel())
+      }
+    );
+
+    expect(result).toMatchObject({
+      evaluatedRuleCount: 1,
+      createdAppointmentCount: 0,
+      executions: [
+        {
+          automationRuleCode: "RULE-UNSAFE-MANUAL-PURPOSE",
+          purposeCode: "APT-GENERAL",
+          status: "REVIEW_REQUIRED",
+          appointmentId: null,
+          appointmentNumber: null,
+          failureCode: "TASK_AUTOMATION_RULE_NOT_AUTHORIZED"
+        }
+      ]
+    });
+    expect(findExistingAutomatedAppointment).not.toHaveBeenCalled();
+    expect(appointmentDraftCreator).not.toHaveBeenCalled();
+    expect(recordExecution).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ruleCode: "RULE-UNSAFE-MANUAL-PURPOSE",
+        purposeCode: "APT-GENERAL",
+        status: "REVIEW_REQUIRED",
+        failureCode: "TASK_AUTOMATION_RULE_NOT_AUTHORIZED"
+      })
+    );
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "task.appointment_automation_review_required",
+        metadata: expect.objectContaining({
+          failureCode: "TASK_AUTOMATION_RULE_NOT_AUTHORIZED"
+        }),
         taskId: "task-1"
       })
     );
