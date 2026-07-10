@@ -120,6 +120,9 @@ The approved enterprise product, permission, lifecycle, conflict, automation, an
 | [PERMISSION_MATRIX.md](PERMISSION_MATRIX.md) | Manager, owner, participant, viewer, administrator, and system-action authorization rules |
 | [LIFECYCLE_CONFLICT_MATRIX.md](LIFECYCLE_CONFLICT_MATRIX.md) | State transitions, reason requirements, resource constraints, warnings, and hard blocks |
 | [IMPLEMENTATION_ROADMAP.md](IMPLEMENTATION_ROADMAP.md) | E1 through E10 milestones, dependencies, gates, work packages, and release controls |
+| [APPOINTMENT_MVP_ROLLOUT_AUDIT.md](APPOINTMENT_MVP_ROLLOUT_AUDIT.md) | Day-one MVP rollout boundary, readiness verdict, P0/P1/P2 gaps, and deferred enterprise scope |
+| [APPOINTMENT_MVP_ROLLOUT_ROADMAP.md](APPOINTMENT_MVP_ROLLOUT_ROADMAP.md) | Sequenced Appointment MVP milestones that narrow the enterprise roadmap into rollout gates |
+| [APPOINTMENT_MVP_DAY_ONE_READINESS.md](APPOINTMENT_MVP_DAY_ONE_READINESS.md) | Final evidence template for the Appointment Command Center MVP release decision |
 | [REMAINING_WORK_DASHBOARD.md](REMAINING_WORK_DASHBOARD.md) | Current Done / In Progress / Not Started dashboard for the remaining Enterprise Release 1.0 work |
 | [ACCEPTANCE_SCENARIOS.md](ACCEPTANCE_SCENARIOS.md) | Business, security, reliability, usability, and failure-path scenarios required for signoff |
 

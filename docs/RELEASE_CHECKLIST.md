@@ -87,6 +87,21 @@ Required proof for this gate:
 - [ ] The E2E reset clears `TaskSavedView` records before each daily workflow smoke run.
 - [ ] Operator evidence is recorded in [docs/TASKS_MVP_DAY_ONE_READINESS.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/TASKS_MVP_DAY_ONE_READINESS.md).
 
+## 4B. Appointment Command Center day-one gate
+
+- [ ] `/appointments` opens as the Appointment Command Center for a manager.
+- [ ] The console shows scheduled appointments, unscheduled drafts, and the selected appointment detail rail.
+- [ ] Manager can create a draft appointment from `/appointments` with a documented reason.
+- [ ] Manager or eligible task owner can create a linked unscheduled draft appointment from task detail.
+- [ ] Eligible draft can be scheduled through the appointment command boundary.
+- [ ] Draft with a hard block cannot be scheduled.
+- [ ] Warning-level scheduling requires an authorized override reason before commit.
+- [ ] Staff readiness, resource readiness, and schedule readiness are visible before schedule commit.
+- [ ] Appointment detail shows linked task context when the appointment came from task work.
+- [ ] Appointment history or activity evidence records key workflow actions.
+- [ ] Manager, owner, participant, viewer, administrator, and system-action permission boundaries are verified.
+- [ ] Operator evidence is recorded in [docs/appointments/APPOINTMENT_MVP_DAY_ONE_READINESS.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/appointments/APPOINTMENT_MVP_DAY_ONE_READINESS.md).
+
 ## 5. Test and quality commands
 
 - [ ] Dependencies install with `npm install`.
