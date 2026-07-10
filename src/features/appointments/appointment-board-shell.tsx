@@ -5665,6 +5665,7 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
     useState<AppointmentOpsIntelligencePreset>("leadership-daily");
   const [detailRefreshKey, setDetailRefreshKey] = useState(0);
   const [actionNotice, setActionNotice] = useState("Operational command bridge ready. Persisted appointments can now use the live command API for check-in and no-show actions.");
+  const [showAdvancedOperations, setShowAdvancedOperations] = useState(false);
 
   async function loadLiveAppointments(options: { suppressSuccessNotice?: boolean } = {}) {
     setIsLiveLoading(true);
@@ -10460,7 +10461,14 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
   }
 
   return (
-    <section className="appointment-board-page" aria-labelledby="appointment-board-title">
+    <section
+      className={
+        showAdvancedOperations
+          ? "appointment-board-page appointment-enterprise-expanded"
+          : "appointment-board-page appointment-mvp-focused"
+      }
+      aria-labelledby="appointment-board-title"
+    >
       <div className="appointment-board-toolbar">
         <div>
           <p className="section-kicker">Enterprise appointment operations</p>
@@ -10478,6 +10486,24 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
               value={query}
             />
           </label>
+          <div className="appointment-ux-mode-toggle" aria-label="Appointment console scope">
+            <button
+              aria-pressed={!showAdvancedOperations}
+              className={!showAdvancedOperations ? "appointment-ux-mode-active" : ""}
+              onClick={() => setShowAdvancedOperations(false)}
+              type="button"
+            >
+              MVP Focus
+            </button>
+            <button
+              aria-pressed={showAdvancedOperations}
+              className={showAdvancedOperations ? "appointment-ux-mode-active" : ""}
+              onClick={() => setShowAdvancedOperations(true)}
+              type="button"
+            >
+              Enterprise Ops
+            </button>
+          </div>
           <button className="appointment-primary-button" onClick={() => setDraftOpen(true)} type="button">
             <Plus size={17} aria-hidden="true" />
             New Appointment
@@ -13716,15 +13742,15 @@ export function AppointmentBoardShell({ boardSettings }: AppointmentBoardShellPr
               <div className="appointment-calendar-body">
                 <div className="appointment-time-column">
                   {hourLabels.map((hour, index) => (
-                    <span key={hour} style={{ top: `${index * 66}px` }}>{hour}</span>
+                    <span key={hour} style={{ top: `${index * 60}px` }}>{hour}</span>
                   ))}
                 </div>
                 {boardLanes.map((lane) => (
                   <div className="appointment-staff-column" key={lane}>
                     {scheduledFilteredAppointments.filter((appointment) => appointmentBoardLaneLabel(appointment, boardLaneMode) === lane).map((appointment) => {
                       const meta = categoryMeta[appointment.category];
-                      const top = Math.max(0, ((appointment.startMinutes - 540) / 60) * 66);
-                      const height = Math.max(58, (appointment.durationMinutes / 60) * 66);
+                      const top = Math.max(0, ((appointment.startMinutes - 540) / 60) * 60);
+                      const height = Math.max(52, (appointment.durationMinutes / 60) * 60);
                       return (
                         <button
                           className={selectedAppointment.id === appointment.id ? `appointment-calendar-item ${meta.className} appointment-calendar-item-active` : `appointment-calendar-item ${meta.className}`}
