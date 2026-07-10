@@ -147,6 +147,54 @@ async function waitForTaskAppointment(
     .not.toBeNull();
 }
 
+test("manager can smoke test the Appointment Board MVP shell", async ({ page }) => {
+  test.setTimeout(60_000);
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await login(page, managerEmail);
+  await page.goto("/appointments");
+
+  await expect(page.getByRole("heading", { name: "Appointment Board" })).toBeVisible();
+  await expect(page.getByPlaceholder("Search appointments, customers, vehicles...")).toBeVisible();
+  await expect(page.locator(".appointment-metric-grid")).toBeVisible();
+  await expect(page.locator(".appointment-calendar-shell")).toBeVisible();
+  await expect(page.locator(".appointment-detail-panel")).toBeVisible();
+  await expect(page.locator(".appointment-next-action-card")).toBeVisible();
+  await expect(page.locator(".appointment-view-tabs").getByRole("button", { name: "Day", exact: true })).toHaveClass(/appointment-view-tab-active/);
+  await expect(page.locator(".appointment-board-lane-modes").getByRole("button", { name: "Staff", exact: true })).toHaveClass(/appointment-board-lane-mode-active/);
+
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const toolbar = document.querySelector(".appointment-board-toolbar");
+        const metrics = document.querySelector(".appointment-metric-grid");
+        const controls = document.querySelector(".appointment-board-controls");
+        const detail = document.querySelector(".appointment-detail-panel");
+        const detailLeft = detail?.getBoundingClientRect().left ?? Number.POSITIVE_INFINITY;
+
+        return Boolean(
+          toolbar &&
+            metrics &&
+            controls &&
+            toolbar.getBoundingClientRect().right <= detailLeft &&
+            metrics.getBoundingClientRect().right <= detailLeft &&
+            controls.getBoundingClientRect().right <= detailLeft
+        );
+      })
+    )
+    .toBe(true);
+
+  const appointmentItems = page.locator(".appointment-calendar-item");
+  await expect(appointmentItems.first()).toBeVisible();
+  const secondAppointment = appointmentItems.nth(1);
+  const selectedTitle = (await secondAppointment.locator("strong").innerText()).trim();
+  await secondAppointment.click();
+  await expect(page.locator(".appointment-detail-header strong")).toHaveText(selectedTitle);
+  await expect(secondAppointment).toHaveClass(/appointment-calendar-item-active/);
+
+  await expect(page.getByText("Upcoming Appointments")).toBeVisible();
+});
+
 test("manager can scan the compact Tasks Operations Console", async ({ page }) => {
   test.setTimeout(60_000);
 
@@ -339,10 +387,20 @@ test("manager can create a linked appointment draft from a task and see it on th
 
   await page.goto("/appointments");
   await expect(page.getByRole("heading", { name: "Appointment Board" })).toBeVisible();
+  await expect(page.locator(".appointment-next-action-card")).toBeVisible();
+  const appointmentRail = page.getByLabel("Appointment module navigation");
+  const hubButton = appointmentRail.getByRole("button", { name: "Hub" });
+  await expect(hubButton).toHaveAttribute("aria-expanded", "false");
+  await hubButton.click();
+  await expect(hubButton).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("#appointment-workspace-drawer")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(hubButton).toHaveAttribute("aria-expanded", "false");
+  await appointmentRail.getByRole("button", { name: "Ops" }).click();
   await expect(page.getByText("Unscheduled / Drafts")).toBeVisible();
-  await expect(
-    page.locator(".appointment-unscheduled-item").filter({ hasText: appointmentTitle })
-  ).toBeVisible();
+  const unscheduledDraftItem = page.locator(".appointment-unscheduled-item").filter({ hasText: appointmentTitle });
+  await expect(unscheduledDraftItem).toBeVisible();
+  await unscheduledDraftItem.click();
   await expect(page.getByText("Linked Tasks (1)")).toBeVisible();
   await expect(page.getByText(appointmentTaskTitle, { exact: true })).toBeVisible();
 });
