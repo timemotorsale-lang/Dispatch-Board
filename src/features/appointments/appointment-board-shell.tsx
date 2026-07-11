@@ -5565,7 +5565,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus }: Appointme
   const [boardLaneMode, setBoardLaneMode] = useState<AppointmentBoardLaneMode>("staff");
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<AppointmentWorkspaceTab>("planner");
   const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false);
-  const [isModuleRailExpanded, setIsModuleRailExpanded] = useState(false);
+  const [isModuleRailExpanded, setIsModuleRailExpanded] = useState(true);
   const workspaceTriggerButtonRef = useRef<HTMLButtonElement | null>(null);
   const workspaceDrawerRef = useRef<HTMLElement | null>(null);
   const initialFocusAppliedRef = useRef(false);
@@ -10952,20 +10952,20 @@ export function AppointmentBoardShell({ boardSettings, initialFocus }: Appointme
           <span>Appointments</span>
         </strong>
         <button
-          aria-label="Today"
+          aria-label="Day"
           className={!isWorkspaceOpen && viewMode === "day" ? "appointment-module-rail-button appointment-module-rail-button-active" : "appointment-module-rail-button"}
           onClick={() => {
             setIsWorkspaceOpen(false);
             setViewMode("day");
           }}
-          title="Today"
+          title="Day"
           type="button"
         >
           <CalendarDays size={16} aria-hidden="true" />
-          <span>Today</span>
+          <span>Day</span>
         </button>
         <button
-          aria-label="Hub"
+          aria-label="Planning Hub"
           aria-controls="appointment-workspace-drawer"
           aria-expanded={isWorkspaceOpen && activeWorkspaceTab === "planner"}
           className={isWorkspaceOpen && activeWorkspaceTab === "planner" ? "appointment-module-rail-button appointment-module-rail-button-active" : "appointment-module-rail-button"}
@@ -10974,10 +10974,10 @@ export function AppointmentBoardShell({ boardSettings, initialFocus }: Appointme
           type="button"
         >
           <Users size={16} aria-hidden="true" />
-          <span>Hub</span>
+          <span>Planning Hub</span>
         </button>
         <button
-          aria-label="Ops"
+          aria-label="Operations"
           aria-controls="appointment-workspace-drawer"
           aria-expanded={isWorkspaceOpen && activeWorkspaceTab === "operations"}
           className={isWorkspaceOpen && activeWorkspaceTab === "operations" ? "appointment-module-rail-button appointment-module-rail-button-active" : "appointment-module-rail-button"}
@@ -10986,10 +10986,10 @@ export function AppointmentBoardShell({ boardSettings, initialFocus }: Appointme
           type="button"
         >
           <ClipboardCheck size={16} aria-hidden="true" />
-          <span>Ops</span>
+          <span>Operations</span>
         </button>
         <button
-          aria-label="Intel"
+          aria-label="Intelligence"
           aria-controls="appointment-workspace-drawer"
           aria-expanded={isWorkspaceOpen && activeWorkspaceTab === "intelligence"}
           className={isWorkspaceOpen && activeWorkspaceTab === "intelligence" ? "appointment-module-rail-button appointment-module-rail-button-active" : "appointment-module-rail-button"}
@@ -10998,7 +10998,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus }: Appointme
           type="button"
         >
           <Search size={16} aria-hidden="true" />
-          <span>Intel</span>
+          <span>Intelligence</span>
         </button>
         <button
           aria-label="Follow-up"

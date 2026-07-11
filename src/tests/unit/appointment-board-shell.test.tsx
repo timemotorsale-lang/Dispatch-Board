@@ -74,8 +74,12 @@ describe("appointment board shell", () => {
 
     expect(markup).toContain("Appointment Board");
     expect(markup).toContain('aria-label="Appointment module navigation"');
-    expect(markup).toContain('aria-label="Expand appointment navigation"');
-    expect(markup).toContain('aria-label="Hub"');
+    expect(markup).toContain("appointment-module-rail-expanded");
+    expect(markup).toContain('aria-label="Collapse appointment navigation"');
+    expect(markup).toContain('aria-label="Day"');
+    expect(markup).toContain('aria-label="Planning Hub"');
+    expect(markup).toContain('aria-label="Operations"');
+    expect(markup).toContain('aria-label="Intelligence"');
     expect(markup).toContain('aria-controls="appointment-workspace-drawer"');
     expect(markup).toContain("Planning Hub");
     expect(markup).toContain("1101 E. Lake Street");
