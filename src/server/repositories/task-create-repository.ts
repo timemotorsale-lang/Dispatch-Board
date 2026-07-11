@@ -81,6 +81,7 @@ export type CreateTaskRecordInput = {
   title: string;
   vehicleReference?: string;
   workflowArea: CreatedTaskRecord["workflowArea"];
+  checklistItems?: Array<{ key: string; label: string }>;
 };
 
 export type TaskCreateRepository = {
@@ -132,7 +133,22 @@ export function createTaskCreateRepository(
           status: input.status,
           title: input.title,
           ...(input.vehicleReference ? { vehicleReference: input.vehicleReference } : {}),
-          workflowArea: input.workflowArea
+          workflowArea: input.workflowArea,
+          ...(input.checklistItems?.length
+            ? {
+                checklistItems: {
+                  createMany: {
+                    data: input.checklistItems.map((item, index) => ({
+                      kind: "DEFINITION_OF_DONE",
+                      key: item.key,
+                      label: item.label,
+                      isRequired: false,
+                      sortOrder: index
+                    }))
+                  }
+                }
+              }
+            : {})
         },
         select: createdTaskSelect
       });

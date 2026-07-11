@@ -49,8 +49,27 @@ export function TaskExecutionChecklistCard({
     setErrorMessage(null);
 
     try {
+      let persistedItemId = itemId;
+
+      if (itemId.includes("-adaptive-") || itemId.includes("-template-")) {
+        const fallbackItem = items.find((item) => item.id === itemId);
+        const createResponse = await fetch(`/api/tasks/${encodeURIComponent(taskId)}/checklist`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ kind, label: fallbackItem?.label ?? "Checklist item" })
+        });
+        const createResult = (await createResponse.json().catch(() => null)) as TaskChecklistItemResponse;
+
+        if (!createResponse.ok || !createResult?.item) {
+          setErrorMessage(createResult?.error ?? "Unable to initialize this checklist item right now.");
+          return;
+        }
+
+        persistedItemId = createResult.item.id;
+      }
+
       const response = await fetch(
-        `/api/tasks/${encodeURIComponent(taskId)}/checklist/${encodeURIComponent(itemId)}`,
+        `/api/tasks/${encodeURIComponent(taskId)}/checklist/${encodeURIComponent(persistedItemId)}`,
         {
           method: "PATCH",
           headers: {
@@ -70,7 +89,7 @@ export function TaskExecutionChecklistCard({
 
       setItems((currentItems) =>
         currentItems.map((item) =>
-          item.id === itemId ? { ...item, completed: result.item?.completed ?? item.completed } : item
+          item.id === itemId ? { ...item, id: persistedItemId, completed: result.item?.completed ?? item.completed } : item
         )
       );
       onActivityChanged?.();

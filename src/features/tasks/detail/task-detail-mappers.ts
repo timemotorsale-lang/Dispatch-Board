@@ -1,6 +1,7 @@
 import { TaskStatus, WorkflowArea } from "@prisma/client";
 
 import { TASK_CHECKLIST_ITEM_KIND } from "@/lib/task-checklist-kind";
+import { buildAdaptiveTaskChecklist } from "@/lib/adaptive-task-checklist";
 import type { ActivityFeedEvent } from "@/server/services/activity-feed";
 import type { TaskReadModel } from "@/server/services/task-read";
 
@@ -86,39 +87,11 @@ export function buildDefinitionOfDone(task: TaskReadModel): TaskDetailChecklistI
     }));
   }
 
-  const items: TaskDetailChecklistItem[] = [
-    {
-      id: `${task.id}-dod-status`,
-      label: "Keep the task status current",
-      completed: task.status !== TaskStatus.NOT_STARTED
-    },
-    {
-      id: `${task.id}-dod-context`,
-      label: "Record enough context for the next handoff",
-      completed: Boolean(task.description || task.blockerReason || task.comments.length > 0)
-    },
-    {
-      id: `${task.id}-dod-due`,
-      label: "Keep the due time and owner visible",
-      completed: Boolean(task.dueAt && task.assignedUser.id)
-    }
-  ];
-
-  if (task.requiresManagerApproval) {
-    items.push({
-      id: `${task.id}-dod-review`,
-      label: "Move through Ready for Review before completion",
-      completed: Boolean(task.readyForReviewAt || task.completedAt)
-    });
-  } else {
-    items.push({
-      id: `${task.id}-dod-complete`,
-      label: "Close the task when work is actually finished",
-      completed: Boolean(task.completedAt)
-    });
-  }
-
-  return items;
+  return buildAdaptiveTaskChecklist(task).map((item) => ({
+    id: `${task.id}-adaptive-${item.key}`,
+    label: item.label,
+    completed: false
+  }));
 }
 
 export function buildSubtasks(task: TaskReadModel): TaskDetailSubtaskItem[] {

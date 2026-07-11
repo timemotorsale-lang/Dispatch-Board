@@ -20,6 +20,7 @@ function createTask(overrides: Partial<TaskReadModel> = {}): TaskReadModel {
     title: "Vehicle Recon & Inspection",
     description: "The vehicle reconditioning and inspection on the 2018 Ford Explorer should be completed before sale.",
     status: TaskStatus.IN_PROGRESS,
+    priority: "HIGH",
     dueAt: "2026-07-04T17:00:00.000Z",
     workflowArea: WorkflowArea.SHOP,
     sourceType: TaskSourceType.TEMPLATE,
@@ -63,6 +64,7 @@ function createTask(overrides: Partial<TaskReadModel> = {}): TaskReadModel {
         }
       }
     ],
+    concernWorkspace: null,
     ...overrides
   };
 }
@@ -109,18 +111,23 @@ describe("task detail workspace", () => {
     );
 
     expect(markup).toContain("Vehicle Recon &amp; Inspection");
-    expect(markup).toContain("Description");
-    expect(markup).toContain("Definition of Done");
-    expect(markup).toContain("Subtasks");
-    expect(markup).toContain("Updates &amp; Comments");
-    expect(markup).toContain("Attachments");
-    expect(markup).toContain("Metadata &amp; Configuration");
-    expect(markup).toContain("Ticket Details");
+    expect(markup).toContain("Task Resolution Workbench");
+    expect(markup).toContain("Generated Resolution Tasks");
+    expect(markup).toContain("Checklist");
+    expect(markup).toContain("Confirm the reported symptom and operating conditions");
+    expect(markup).toContain("Inspect the affected safety or mechanical system");
+    expect(markup).toContain("Case Notes (1)");
+    expect(markup).toContain("Expand All");
+    expect(markup).toContain("Collapse All");
+    expect(markup).toContain("Customer Communication");
+    expect(markup).toContain("SLA &amp; Risk");
+    expect(markup).toContain("Customer &amp; Vehicle");
+    expect(markup).toContain("Workflow Command");
     expect(markup).toContain("Create Appointment");
     expect(markup).toContain("Create linked draft");
     expect(markup).toContain("Open Board");
     expect(markup).toContain("No appointment is linked yet.");
-    expect(markup).toContain("Planning");
+    expect(markup).toContain("Estimated Time");
   });
 
   it("shows linked appointments on the task rail with a board return path", () => {

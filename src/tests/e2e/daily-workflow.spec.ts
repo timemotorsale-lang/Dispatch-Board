@@ -710,6 +710,26 @@ test("manager can generate and escalate a title-delay concern package", async ({
   expect(persisted?.taskLinks).toHaveLength(7);
   expect(persisted?.taskLinks.every((link) => link.task.checklistItems.length > 0)).toBe(true);
 
+  const firstResolutionTask = persisted!.taskLinks.toSorted((left, right) => left.sortOrder - right.sortOrder)[0].task;
+  await page.goto(`/tasks/${firstResolutionTask.id}`);
+  await expect(page.getByLabel("Enterprise task workbench")).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Generated Resolution Tasks \(7\)/ })).toBeVisible();
+  await expect(page.locator(".etw-resolution-task")).toHaveCount(7);
+  await expect(page.getByRole("heading", { name: "SLA & Risk" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Workflow Command" })).toBeVisible();
+  await expect(page.getByLabel("Task workbench navigation")).toContainText("Workbench");
+  await expect(page.getByRole("button", { name: "WhatsApp customer" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Call customer" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Email customer" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Case Notes/ })).toBeVisible();
+  await page.getByRole("button", { name: "Collapse All" }).click();
+  await expect(page.locator(".etw-selected-task")).toHaveCount(0);
+  await page.getByRole("button", { name: "Expand All" }).click();
+  await expect(page.locator(".etw-selected-task")).toHaveCount(7);
+  await page.getByRole("button", { name: "Collapse All" }).click();
+  await expect(page.locator(".etw-selected-task")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /Add Task/ }).first()).toHaveAttribute("href", /create=1/);
+
   const retryProof = await page.evaluate(async () => {
     const payload = { title: "Unclear lot concern", description: "Manager should review this operational concern.", source: "MANAGER" };
     const send = async () => {
@@ -790,7 +810,7 @@ test("manager and staff can complete the daily dispatch workflow", async ({ page
 
   await page.goto(`/tasks/${generatedSalesTask!.id}#task-updates`);
   await page.getByLabel("Post a comment").fill(staffComment);
-  await page.getByRole("button", { name: "Comment" }).click();
+  await page.getByRole("button", { name: "Add Note" }).click();
   await expect(page.getByText(staffComment)).toBeVisible();
 
   await page.getByLabel("Next status").selectOption("BLOCKED");

@@ -244,6 +244,10 @@ describe("task create service", () => {
       expect(readTasks()[0]).toMatchObject({
         assignedUserId: assignee?.id,
         boardDayId: "board-day-1",
+        checklistItems: expect.arrayContaining([
+          expect.objectContaining({ key: "customer_1" }),
+          expect.objectContaining({ key: "customer_6" })
+        ]),
         sourceType: TaskSourceType.MANAGER,
         title: "Review hot lead"
       });

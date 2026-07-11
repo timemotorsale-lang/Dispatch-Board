@@ -60,6 +60,59 @@ const taskReadSelect = {
       email: true
     }
   },
+  concernLink: {
+    select: {
+      stepCode: true,
+      sortOrder: true,
+      required: true,
+      dependsOnStepCodes: true,
+      completionCriteria: true,
+      concernCase: {
+        select: {
+          id: true,
+          concernNumber: true,
+          title: true,
+          description: true,
+          category: true,
+          riskType: true,
+          priority: true,
+          status: true,
+          customerReference: true,
+          vehicleReference: true,
+          dueAt: true,
+          escalationRequired: true,
+          escalateAt: true,
+          createdAt: true,
+          reportedByUser: { select: { id: true, name: true, email: true } },
+          assignedOwner: { select: { id: true, name: true, email: true } },
+          taskLinks: {
+            orderBy: { sortOrder: "asc" },
+            select: {
+              stepCode: true,
+              sortOrder: true,
+              required: true,
+              dependsOnStepCodes: true,
+              completionCriteria: true,
+              task: {
+                select: {
+                  id: true,
+                  title: true,
+                  status: true,
+                  priority: true,
+                  dueAt: true,
+                  requiresManagerApproval: true,
+                  assignedUser: { select: { id: true, name: true, email: true } },
+                  checklistItems: {
+                    select: { id: true, completed: true, isRequired: true }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
   comments: {
     orderBy: {
       createdAt: "asc"

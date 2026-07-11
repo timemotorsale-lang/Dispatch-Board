@@ -44,6 +44,8 @@ type TasksConsoleScreenProps = {
   errorMessage: string | null;
   initialTask: TaskReadModel | null;
   initialSavedViews: TaskSavedViewModel[];
+  initialQuickCreateOpen?: boolean;
+  initialConcernIntakeOpen?: boolean;
   isManager: boolean;
   todayBoardDate: string;
 };
@@ -777,6 +779,8 @@ export function TasksConsoleScreen({
   errorMessage,
   initialTask,
   initialSavedViews,
+  initialQuickCreateOpen = false,
+  initialConcernIntakeOpen = false,
   isManager,
   todayBoardDate
 }: TasksConsoleScreenProps) {
@@ -808,8 +812,8 @@ export function TasksConsoleScreen({
   const [workflowError, setWorkflowError] = useState<string | null>(null);
   const [statusDrafts, setStatusDrafts] = useState<Record<string, string>>({});
   const [generationMessage, setGenerationMessage] = useState<string | null>(null);
-  const [quickCreateOpen, setQuickCreateOpen] = useState(false);
-  const [concernIntakeOpen, setConcernIntakeOpen] = useState(false);
+  const [quickCreateOpen, setQuickCreateOpen] = useState(initialQuickCreateOpen);
+  const [concernIntakeOpen, setConcernIntakeOpen] = useState(initialConcernIntakeOpen);
   const [quickCreateError, setQuickCreateError] = useState<string | null>(null);
   const [quickCreateMessage, setQuickCreateMessage] = useState<string | null>(null);
   const [isGeneratePending, startGenerateTransition] = useTransition();

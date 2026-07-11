@@ -17,6 +17,7 @@ function createTaskReadRepository(): TaskReadRepository {
         title: "Review hot lead",
         description: "Call before lunch.",
         status: TaskStatus.IN_PROGRESS,
+        priority: "HIGH",
         dueAt: new Date("2026-06-18T16:00:00.000Z"),
         workflowArea: "SALES",
         sourceType: "MANAGER",
@@ -78,6 +79,7 @@ function createTaskReadRepository(): TaskReadRepository {
           email: "morgan.manager@local.test"
         },
         reviewedByUser: null,
+        concernLink: null,
         checklistItems: [],
         appointmentLinks: [
           {
@@ -149,6 +151,7 @@ describe("task read service", () => {
       title: "Review hot lead",
       description: "Call before lunch.",
       status: "IN_PROGRESS",
+      priority: "HIGH",
       dueAt: "2026-06-18T16:00:00.000Z",
       workflowArea: "SALES",
       sourceType: "MANAGER",
@@ -203,6 +206,7 @@ describe("task read service", () => {
         email: "morgan.manager@local.test"
       },
       reviewedByUser: null,
+      concernWorkspace: null,
       checklistItems: [],
       activityHistory: [
         {
