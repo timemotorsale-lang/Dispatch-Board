@@ -1,7 +1,7 @@
 # Current Implementation Status
 
-**Verified:** 2026-07-08  
-**Purpose:** Evidence-based snapshot of the repository during Enterprise Appointment implementation
+**Verified:** 2026-07-10
+**Purpose:** Evidence-based snapshot of the repository during Enterprise Appointment and Customers planning/implementation
 **Supersedes:** Stale “pre-implementation” statements in older planning documents
 
 ## Quality Baseline
@@ -40,6 +40,20 @@ npm run typecheck
 ```
 
 Focused appointment scheduling recommendation validation passed for the new recommendation service, route parsing/error handling, unscheduled-draft board integration, and related type safety. Full lint, full test suite, build, and deployment validation were not rerun during this slice.
+
+## Customers Console Baseline
+
+Verified Customers implementation as of 2026-07-10:
+
+- `/customers` renders the approved Customer Command Center front-page dashboard composition.
+- The dashboard supports persistent light and dark appearances from one component hierarchy.
+- A Customer 360 profile presentation shell exists for the future `/customers/[customerId]` route.
+- Prisma contains a minimum organization-scoped `Customer` identity used by Appointment participants, including customer number, basic contact fields, status, external reference, duplicate key, merge target, and retention date.
+- The Customers browser smoke proves the landing dashboard, business summary, operations rail, theme switching, and theme persistence.
+- Dashboard values, pipeline, leads, tasks, appointments, activity, and Customer 360 business values remain presentation data rather than Customers service read models.
+- Customer CRUD, list/search, contact points, interactions, notes, leads, cases, SLA/escalation, document requirements, customer-vehicle relationships, durable task links, manager intelligence, saved views, merge workflow, customer audit, and day-one rollout signoff remain planned.
+
+The accepted Customers target architecture and execution sequence live in [`docs/customers/README.md`](customers/README.md). Those documents describe planned behavior and do not supersede this implementation evidence.
 
 Latest focused validation after the appointment template blueprint generation slice:
 

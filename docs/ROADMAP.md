@@ -1,14 +1,16 @@
 # Time Motor Sales Dispatch Board Roadmap
 
-**Last updated:** 2026-07-09
-**Roadmap status:** Dispatch Board foundation implemented; Enterprise Appointment E1 in progress; Enterprise Tasks Module direction refined
-**Primary goal:** Preserve and harden the working Dispatch Board while delivering the approved Enterprise Appointment Command Center and the integrated Enterprise Tasks Module expansion path.
+**Last updated:** 2026-07-10
+**Roadmap status:** Dispatch Board foundation implemented; Enterprise Appointment E1 in progress; Enterprise Tasks and Customers Module directions refined
+**Primary goal:** Preserve and harden the working Dispatch Board while delivering approved Appointment, Tasks, and Customers module paths through reviewable vertical slices.
 
 > **Enterprise Appointment Program:** The Appointment Command Center has an approved Enterprise Release 1.0 planning package in [`docs/appointments/README.md`](appointments/README.md). That package supersedes MVP-level appointment assumptions in this roadmap for the Appointment feature only. It remains planned work until its implementation milestones are completed.
 
 > **Projects Module planning package:** The Projects Hub and Project Workspace roadmap now has a dedicated module guide in [`docs/projects/PROJECTS_MODULE_GUIDE.md`](projects/PROJECTS_MODULE_GUIDE.md). Use that document for project-module scope, boundaries, milestone IDs, and implementation guardrails so Projects work does not drift into a full Dispatch Board rewrite.
 
 > **Enterprise Tasks Module planning package:** The integrated Tasks-module boundary, tier strategy, and milestone plan now live in [`docs/ENTERPRISE_TASKS_MODULE.md`](ENTERPRISE_TASKS_MODULE.md). Use that document when planning `/tasks`, task-console, queue, review, and commercial-readiness work so Tasks stays inside the parent Dispatch Board architecture.
+
+> **Customers Console planning package:** The Customers architecture, MVP rollout roadmap, and Codex-sized milestones now live in [`docs/customers/README.md`](customers/README.md). Use that package for `/customers`, Customer 360, customer memory, lead follow-up, case/SLA, relationship bridges, manager intelligence, governance, and rollout work.
 
 ---
 
@@ -51,6 +53,8 @@ Current execution order:
 6. **Complete notifications, analytics, hardening, pilot, and production rollout through E10.**
 
 The Enterprise Tasks Module roadmap below is the parallel planning package for evolving the existing task foundation without turning Tasks into a separate product.
+
+The Customers Console planning package is the parallel path for converting the approved mockup-aligned customer UI into a durable customer operating module. Its first implementation milestone is trusted customer identity, ownership, contact points, validation, and policy enforcement; dashboard analytics and advanced intelligence must not be treated as authoritative before their read models land.
 
 ---
 

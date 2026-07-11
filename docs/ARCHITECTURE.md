@@ -2,15 +2,17 @@
 
 **Document:** Architecture  
 **Version:** v0.2.0 living baseline
-**Last updated:** 2026-07-09
-**Status:** Dispatch Board implemented; Enterprise Appointment E1 in progress; Enterprise Tasks Module direction refined
-**Source documents:** `docs/PRODUCT_SPEC.md`, `docs/MVP_SCOPE.md`, `docs/CURRENT_IMPLEMENTATION_STATUS.md`, `docs/ENTERPRISE_TASKS_MODULE.md`, `docs/SCHEDULER_VERIFICATION_CONTRACT.md`, `docs/appointments/`, `docs/The Guide To Vibe Coding.md`
+**Last updated:** 2026-07-10
+**Status:** Dispatch Board implemented; Enterprise Appointment E1 in progress; Enterprise Tasks and Customers Module directions refined
+**Source documents:** `docs/PRODUCT_SPEC.md`, `docs/MVP_SCOPE.md`, `docs/CURRENT_IMPLEMENTATION_STATUS.md`, `docs/ENTERPRISE_TASKS_MODULE.md`, `docs/SCHEDULER_VERIFICATION_CONTRACT.md`, `docs/appointments/`, `docs/customers/`, `docs/The Guide To Vibe Coding.md`
 
 ---
 
 > **Projects Module planning package:** The dedicated Projects Module boundary, architecture shape, milestone plan, and Codex guidance live in [`docs/projects/PROJECTS_MODULE_GUIDE.md`](projects/PROJECTS_MODULE_GUIDE.md). That guide defines the Projects feature as a module inside the parent Dispatch Board, not a separate app rewrite.
 
 > **Enterprise Tasks Module planning package:** The task-module boundary, tier strategy, workflow rules, and milestone IDs live in [`docs/ENTERPRISE_TASKS_MODULE.md`](ENTERPRISE_TASKS_MODULE.md). That guide defines Tasks as an integrated Dispatch Board module, not a separate product or deployment.
+
+> **Customers Console planning package:** The customer-domain boundary, architecture decisions, rollout roadmap, and milestone IDs live in [`docs/customers/README.md`](customers/README.md). That package defines Customers as the customer intelligence and customer operations layer inside the Dispatch Board, not a separate CRM deployment or a copy of another product.
 
 ---
 
