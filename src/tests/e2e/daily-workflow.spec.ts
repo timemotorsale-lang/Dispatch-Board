@@ -356,6 +356,103 @@ test("manager can pass the Appointment Board console smoke gate", async ({ page 
   expect(reservedWorkspaceLayout.detailOverflowY).toBe("auto");
 });
 
+test("manager can use every Appointment Board navigation and view tab", async ({ page }) => {
+  test.setTimeout(60_000);
+
+  await page.setViewportSize({ width: 1920, height: 900 });
+  await login(page, managerEmail);
+  await page.goto("/appointments");
+
+  const moduleRail = page.getByLabel("Appointment module navigation");
+  const viewTabs = page.locator(".appointment-view-tabs");
+  const boardLenses = page.locator(".appointment-board-lane-modes");
+  const workspace = page.locator("#appointment-workspace-drawer");
+
+  for (const view of ["Week", "Month", "Agenda"] as const) {
+    await viewTabs.getByRole("button", { name: view, exact: true }).click();
+    await expect(viewTabs.getByRole("button", { name: view, exact: true })).toHaveClass(
+      /appointment-view-tab-active/
+    );
+    await expect(page.getByText(`${view} View`, { exact: true })).toBeVisible();
+  }
+
+  await viewTabs.getByRole("button", { name: "Day", exact: true }).click();
+  await expect(page.locator(".appointment-calendar-shell")).toBeVisible();
+
+  for (const lens of ["Location", "Resource", "Staff"] as const) {
+    await boardLenses.getByRole("button", { name: lens, exact: true }).click();
+    await expect(boardLenses.getByRole("button", { name: lens, exact: true })).toHaveClass(
+      /appointment-board-lane-mode-active/
+    );
+    await expect(page.locator(".appointment-staff-header small").first()).toHaveText(
+      `${lens} lane`
+    );
+  }
+
+  const planningButton = moduleRail.getByRole("button", { name: "Planning Hub" });
+  await planningButton.click();
+  await expect(planningButton).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("heading", { name: "Planning Hub" })).toBeVisible();
+
+  const workspaceTabs = workspace.getByRole("tablist", {
+    name: "Appointment workspace tabs"
+  });
+  await expect(workspaceTabs.getByRole("tab", { name: "Planner" })).toHaveAttribute(
+    "aria-selected",
+    "true"
+  );
+  await expect(workspace.getByText("Day Board", { exact: true })).toBeVisible();
+
+  await workspaceTabs.getByRole("tab", { name: "Operations" }).click();
+  await expect(workspaceTabs.getByRole("tab", { name: "Operations" })).toHaveAttribute(
+    "aria-selected",
+    "true"
+  );
+  await expect(page.getByRole("heading", { name: "Operations Hub" })).toBeVisible();
+  await expect(workspace.getByText("Draft Scheduling", { exact: true })).toBeVisible();
+
+  await workspaceTabs.getByRole("tab", { name: "Intelligence" }).click();
+  await expect(workspaceTabs.getByRole("tab", { name: "Intelligence" })).toHaveAttribute(
+    "aria-selected",
+    "true"
+  );
+  await expect(page.getByRole("heading", { name: "Intelligence Hub" })).toBeVisible();
+  await expect(workspace.getByText("Saved Views", { exact: true })).toBeVisible();
+
+  await workspaceTabs.getByRole("tab", { name: "Planner" }).click();
+  await expect(page.getByRole("heading", { name: "Planning Hub" })).toBeVisible();
+
+  await moduleRail.getByRole("button", { name: "Operations" }).click();
+  await expect(page.getByRole("heading", { name: "Operations Hub" })).toBeVisible();
+  await expect(moduleRail.getByRole("button", { name: "Operations" })).toHaveAttribute(
+    "aria-expanded",
+    "true"
+  );
+
+  await moduleRail.getByRole("button", { name: "Intelligence" }).click();
+  await expect(page.getByRole("heading", { name: "Intelligence Hub" })).toBeVisible();
+  await expect(moduleRail.getByRole("button", { name: "Intelligence" })).toHaveAttribute(
+    "aria-expanded",
+    "true"
+  );
+
+  await moduleRail.getByRole("button", { name: "Follow-up" }).click();
+  await expect(page.getByRole("heading", { name: "Operations Hub" })).toBeVisible();
+  await expect(page.getByLabel("Filter resolution workbench items")).toHaveValue(
+    "follow-up-required"
+  );
+  await expect(moduleRail.getByRole("button", { name: "Follow-up" })).toHaveClass(
+    /appointment-module-rail-button-active/
+  );
+
+  await moduleRail.getByRole("button", { name: "Day" }).click();
+  await expect(moduleRail.getByRole("button", { name: "Day" })).toHaveClass(
+    /appointment-module-rail-button-active/
+  );
+  await expect(page.locator(".appointment-calendar-shell")).toBeVisible();
+  await expect(workspace).not.toBeVisible();
+});
+
 test("manager can scan the compact Tasks Operations Console", async ({ page }) => {
   test.setTimeout(60_000);
 
