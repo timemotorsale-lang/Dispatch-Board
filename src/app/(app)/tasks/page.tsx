@@ -10,6 +10,8 @@ import { getBoardDateInTimeZone, normalizeBoardDate } from "@/server/validation/
 
 type TasksPageProps = {
   searchParams?: Promise<{
+    create?: string | string[];
+    concern?: string | string[];
     date?: string | string[];
   }>;
 };
@@ -45,6 +47,12 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
   const requestedBoardDate = Array.isArray(resolvedSearchParams?.date)
     ? resolvedSearchParams.date[0]
     : resolvedSearchParams?.date;
+  const requestedCreate = Array.isArray(resolvedSearchParams?.create)
+    ? resolvedSearchParams.create[0]
+    : resolvedSearchParams?.create;
+  const requestedConcern = Array.isArray(resolvedSearchParams?.concern)
+    ? resolvedSearchParams.concern[0]
+    : resolvedSearchParams?.concern;
   const settings = await getGenerationSettings();
   const todayBoardDate = getBoardDateInTimeZone(new Date(), settings.timezone);
   const { boardDate, errorMessage: dateErrorMessage } = resolveSelectedBoardDate(
@@ -81,6 +89,8 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
       errorMessage={screenErrorMessage}
       initialTask={initialTask}
       initialSavedViews={initialSavedViews}
+      initialQuickCreateOpen={manager && requestedCreate === "1"}
+      initialConcernIntakeOpen={manager && requestedConcern === "1"}
       isManager={manager}
       todayBoardDate={todayBoardDate}
     />

@@ -31,7 +31,8 @@ describe("task comments panel", () => {
     expect(markup).toContain("No comments on this task");
     expect(markup).toContain("Task updates will appear here");
     expect(markup).toContain("Add comment");
-    expect(markup).toContain("Plain text only. Line breaks are preserved.");
+    expect(markup).toContain("Formatting, lists, links, mentions, and emoji are supported.");
+    expect(markup).toContain('aria-label="Comment formatting"');
   });
 
   it("shows existing comments and a readonly message when commenting is disabled", () => {

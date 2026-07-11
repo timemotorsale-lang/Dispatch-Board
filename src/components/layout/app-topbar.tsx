@@ -24,6 +24,7 @@ export function AppTopbar({ onMenuOpen, user }: AppTopbarProps) {
   const item = navigationGroups.flatMap((group) => group.items).find((entry) => pathname === entry.href || pathname.startsWith(`${entry.href}/`));
   const title = pathname === "/board" ? "Time Motor Sales Dispatch Board" : item?.title ?? "Dispatch Board";
   const isTasksPage = pathname === "/tasks";
+  const isTaskDetailPage = pathname.startsWith("/tasks/");
   const isMyTasksPage = pathname === "/my-tasks";
   const isProjectsPage = pathname === "/projects" || pathname.startsWith("/projects/");
   const isAppointmentsPage = pathname === "/appointments";
@@ -97,8 +98,10 @@ export function AppTopbar({ onMenuOpen, user }: AppTopbarProps) {
     }
   }, [isSearchOpen]);
 
-  const topbarClassName = isTasksPage
-    ? "app-topbar app-topbar-minimal app-topbar-tasks"
+  const topbarClassName = isTaskDetailPage
+    ? "app-topbar app-topbar-task-workbench"
+    : isTasksPage
+      ? "app-topbar app-topbar-minimal app-topbar-tasks"
     : isAppointmentsPage
       ? "app-topbar app-topbar-minimal app-topbar-appointments"
       : isCustomersPage

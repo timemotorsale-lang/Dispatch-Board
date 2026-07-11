@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { RichTextComposer, RichTextContent } from "@/components/ui/rich-text-composer";
 import {
   canSubmitTaskComment
 } from "@/features/tasks/task-comments-panel";
@@ -18,6 +19,7 @@ type UnifiedFeedItem = {
 
 type TaskUpdatesCommentsCardProps = {
   canComment: boolean;
+  compact?: boolean;
   initialFeedItems: UnifiedFeedItem[];
   onActivityChanged?: () => void;
   refreshKey?: number;
@@ -31,6 +33,7 @@ type TaskCommentCreateResponse = {
 
 export function TaskUpdatesCommentsCard({
   canComment,
+  compact = false,
   initialFeedItems,
   onActivityChanged,
   refreshKey = 0,
@@ -134,6 +137,34 @@ export function TaskUpdatesCommentsCard({
     }
   }
 
+  if (compact) {
+    return (
+      <section className="etw-notes-card">
+        <div className="etw-note-tabs"><button className="active" type="button">Case Notes ({feedItems.filter((item) => item.kind === "comment").length})</button><button type="button">Internal Notes (Manager Only)</button></div>
+        {canComment ? (
+          <form className="etw-note-composer" onSubmit={handleSubmit}>
+            <RichTextComposer
+              ariaLabel="Post a comment"
+              compact
+              disabled={isSubmitting}
+              helperText="Format the note or use @ to mention a teammate."
+              onChange={(value) => {
+                setDraftBody(value);
+                setErrorMessage(null);
+              }}
+              placeholder="Add a note... use @ to mention"
+              rows={2}
+              value={draftBody}
+            />
+            <button disabled={!canSubmitTaskComment(draftBody, isSubmitting)} type="submit">{isSubmitting ? "Adding..." : "Add Note"}</button>
+          </form>
+        ) : <p className="task-workspace-empty-copy">Only the assigned staff member or a manager can add notes.</p>}
+        <div className="etw-note-actions"><button type="button">Customer contacted</button><button type="button">DMV called</button><button type="button">Waiting on document</button><button type="button">Follow-up scheduled</button><button type="button">Escalate</button><button aria-label="More note actions" type="button">...</button></div>
+        {errorMessage ? <div className="notice notice-danger my-task-inline-notice" role="alert"><p>{errorMessage}</p></div> : null}
+      </section>
+    );
+  }
+
   return (
     <section className="enterprise-detail-card enterprise-workspace-module">
       <div className="enterprise-workspace-module-header">
@@ -154,7 +185,7 @@ export function TaskUpdatesCommentsCard({
                 <strong>
                   {item.actorName} {item.kind === "comment" ? "commented" : "updated"}
                 </strong>
-                <p>{item.message}</p>
+                {item.kind === "comment" ? <RichTextContent value={item.message} /> : <p>{item.message}</p>}
                 <small>{formatTaskDetailDateTime(item.createdAt)}</small>
               </div>
             </article>
@@ -164,20 +195,22 @@ export function TaskUpdatesCommentsCard({
 
       {canComment ? (
         <form className="task-workspace-comment-form" onSubmit={handleSubmit}>
-          <label className="field">
+          <div className="field rich-text-field">
             <span>Post a comment</span>
-            <textarea
-              placeholder="@mention or add an operational update"
-              rows={4}
-              value={draftBody}
-              onChange={(event) => {
-                setDraftBody(event.target.value);
+            <RichTextComposer
+              ariaLabel="Post a comment"
+              disabled={isSubmitting}
+              onChange={(value) => {
+                setDraftBody(value);
                 if (errorMessage) {
                   setErrorMessage(null);
                 }
               }}
+              placeholder="@mention or add an operational update"
+              rows={4}
+              value={draftBody}
             />
-          </label>
+          </div>
           <div className="task-workspace-comment-actions">
             <button
               className="pill pill-primary"

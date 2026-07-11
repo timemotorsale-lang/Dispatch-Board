@@ -75,6 +75,44 @@ export type TaskAppointmentLinkReadModel = {
   createdAt: string;
 };
 
+export type TaskConcernWorkspaceReadModel = {
+  id: string;
+  concernNumber: string;
+  title: string;
+  description: string;
+  category: string;
+  riskType: string;
+  priority: string;
+  status: string;
+  customerReference: string | null;
+  vehicleReference: string | null;
+  dueAt: string;
+  escalationRequired: boolean;
+  escalateAt: string | null;
+  createdAt: string;
+  reportedByUser: TaskReadUserSummary;
+  assignedOwner: TaskReadUserSummary | null;
+  selectedStepCode: string;
+  selectedStepDependencies: string[];
+  selectedStepCompletionCriteria: string;
+  tasks: Array<{
+    id: string;
+    stepCode: string;
+    sortOrder: number;
+    title: string;
+    status: string;
+    priority: string;
+    dueAt: string;
+    required: boolean;
+    requiresManagerApproval: boolean;
+    dependsOnStepCodes: string[];
+    completionCriteria: string;
+    assignedUser: TaskReadUserSummary;
+    checklistCompleted: number;
+    checklistTotal: number;
+  }>;
+};
+
 export type TaskReadModel = {
   id: string;
   boardDayId: string;
@@ -109,7 +147,12 @@ export type TaskReadModel = {
   activityHistory: TaskActivityReadModel[];
   appointmentLinks: TaskAppointmentLinkReadModel[];
   comments: TaskCommentReadModel[];
+  concernWorkspace: TaskConcernWorkspaceReadModel | null;
 };
+
+function normalizeStringArray(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
 
 function normalizeTaskId(taskId: string) {
   const normalizedTaskId = taskId.trim();
@@ -345,6 +388,47 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
     recommendation,
     createdByUser: toUserSummary(task.createdByUser),
     reviewedByUser: toUserSummary(task.reviewedByUser),
+    concernWorkspace: task.concernLink ? {
+      id: task.concernLink.concernCase.id,
+      concernNumber: task.concernLink.concernCase.concernNumber,
+      title: task.concernLink.concernCase.title,
+      description: task.concernLink.concernCase.description,
+      category: task.concernLink.concernCase.category,
+      riskType: task.concernLink.concernCase.riskType,
+      priority: task.concernLink.concernCase.priority,
+      status: task.concernLink.concernCase.status,
+      customerReference: normalizeOptionalText(task.concernLink.concernCase.customerReference),
+      vehicleReference: normalizeOptionalText(task.concernLink.concernCase.vehicleReference),
+      dueAt: task.concernLink.concernCase.dueAt.toISOString(),
+      escalationRequired: task.concernLink.concernCase.escalationRequired,
+      escalateAt: task.concernLink.concernCase.escalateAt?.toISOString() ?? null,
+      createdAt: task.concernLink.concernCase.createdAt.toISOString(),
+      reportedByUser: toUserSummary(task.concernLink.concernCase.reportedByUser)!,
+      assignedOwner: toUserSummary(task.concernLink.concernCase.assignedOwner),
+      selectedStepCode: task.concernLink.stepCode,
+      selectedStepDependencies: normalizeStringArray(task.concernLink.dependsOnStepCodes),
+      selectedStepCompletionCriteria: task.concernLink.completionCriteria,
+      tasks: task.concernLink.concernCase.taskLinks.map((link) => ({
+        id: link.task.id,
+        stepCode: link.stepCode,
+        sortOrder: link.sortOrder,
+        title: link.task.title,
+        status: link.task.status,
+        priority: link.task.priority,
+        dueAt: link.task.dueAt.toISOString(),
+        required: link.required,
+        requiresManagerApproval: link.task.requiresManagerApproval,
+        dependsOnStepCodes: normalizeStringArray(link.dependsOnStepCodes),
+        completionCriteria: link.completionCriteria,
+        assignedUser: {
+          id: link.task.assignedUser.id,
+          name: link.task.assignedUser.name,
+          email: link.task.assignedUser.email || undefined
+        },
+        checklistCompleted: link.task.checklistItems.filter((item) => item.completed).length,
+        checklistTotal: link.task.checklistItems.length
+      }))
+    } : null,
     checklistItems: checklistItems.map((item) => ({
       id: item.id,
       kind: item.kind,

@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { RichTextComposer } from "@/components/ui/rich-text-composer";
 import {
   buildAppointmentNotificationContractHarness,
   buildAppointmentNotificationInboundContracts,
@@ -11842,7 +11843,10 @@ export function AppointmentBoardShell({ boardSettings, initialFocus }: Appointme
 
       <div className="appointment-preview-banner" role="status">
         <ShieldCheck size={18} aria-hidden="true" />
-        <span>{isLiveLoading ? "Loading live appointment read model..." : actionNotice}</span>
+        <div className="appointment-preview-banner-copy">
+          <span>{actionNotice}</span>
+          {isLiveLoading ? <small>Refreshing the live appointment read model...</small> : null}
+        </div>
       </div>
 
       <div className="appointment-date-row">
@@ -12093,16 +12097,17 @@ export function AppointmentBoardShell({ boardSettings, initialFocus }: Appointme
                       ))}
                     </select>
                   </label>
-                  <label className="appointment-resolution-note-field">
-                    Manager note
-                    <input
-                      aria-label="Resolution note"
-                      onChange={(event) => setResolutionNote(event.target.value)}
+                  <div className="appointment-resolution-note-field rich-text-field">
+                    <span>Manager note</span>
+                    <RichTextComposer
+                      ariaLabel="Resolution note"
+                      compact
+                      onChange={setResolutionNote}
                       placeholder="Capture the reason for the action."
-                      type="text"
+                      rows={2}
                       value={resolutionNote}
                     />
-                  </label>
+                  </div>
                 </div>
                 <div className="appointment-resolution-bulk-actions">
                   <button type="button" onClick={() => applyResolutionWorkbenchAction("assign", selectedResolutionItemIds)}>
@@ -12669,16 +12674,17 @@ export function AppointmentBoardShell({ boardSettings, initialFocus }: Appointme
                   </p>
                 </div>
 
-                <label className="appointment-command-center-digest-note-field">
-                  Manager note / digest reason
-                  <input
-                    aria-label="Manager note for notification digest"
-                    onChange={(event) => setCommandCenterDigestReason(event.target.value)}
+                <div className="appointment-command-center-digest-note-field rich-text-field">
+                  <span>Manager note / digest reason</span>
+                  <RichTextComposer
+                    ariaLabel="Manager note for notification digest"
+                    compact
+                    onChange={setCommandCenterDigestReason}
                     placeholder="Why is this digest being prepared or sent right now?"
-                    type="text"
+                    rows={3}
                     value={commandCenterDigestReason}
                   />
-                </label>
+                </div>
 
                 <div className="appointment-command-center-digest-preview">
                   <div className="appointment-command-center-digest-preview-heading">
@@ -12837,16 +12843,17 @@ export function AppointmentBoardShell({ boardSettings, initialFocus }: Appointme
                   </div>
                 </div>
 
-                <label className="appointment-command-center-digest-note-field">
-                  Handoff note
-                  <input
-                    aria-label="Shift handoff note"
-                    onChange={(event) => setCommandCenterHandoffNote(event.target.value)}
+                <div className="appointment-command-center-digest-note-field rich-text-field">
+                  <span>Handoff note</span>
+                  <RichTextComposer
+                    ariaLabel="Shift handoff note"
+                    compact
+                    onChange={setCommandCenterHandoffNote}
                     placeholder="Summarize what the next manager should know first."
-                    type="text"
+                    rows={3}
                     value={commandCenterHandoffNote}
                   />
-                </label>
+                </div>
 
                 <div className="appointment-runtime-handoff-export">
                   <div className="appointment-command-center-digest-preview-heading">
@@ -16152,29 +16159,33 @@ export function AppointmentBoardShell({ boardSettings, initialFocus }: Appointme
                 ))}
               </select>
             </label>
-            <label className="appointment-outcome-label">
-              Outcome Notes
-              <textarea
+            <div className="appointment-outcome-label rich-text-field">
+              <span>Outcome Notes</span>
+              <RichTextComposer
+                ariaLabel="Appointment outcome notes"
+                compact
                 disabled={isOutcomeSaving || selectedAppointment.bookingStatus === "COMPLETED"}
-                onChange={(event) =>
+                onChange={(value) =>
                   setOutcomeDraft((current) => ({
                     ...current,
-                    outcomeNotes: event.target.value
+                    outcomeNotes: value
                   }))
                 }
                 placeholder="Document what happened during this appointment..."
                 rows={3}
                 value={outcomeFieldValues.outcomeNotes}
               />
-            </label>
-            <label className="appointment-outcome-label">
-              Next Step / Follow-Up
-              <textarea
+            </div>
+            <div className="appointment-outcome-label rich-text-field">
+              <span>Next Step / Follow-Up</span>
+              <RichTextComposer
+                ariaLabel="Appointment next step and follow-up notes"
+                compact
                 disabled={isOutcomeSaving || selectedAppointment.bookingStatus === "COMPLETED"}
-                onChange={(event) =>
+                onChange={(value) =>
                   setOutcomeDraft((current) => ({
                     ...current,
-                    followUpNotes: event.target.value
+                    followUpNotes: value
                   }))
                 }
                 placeholder={
@@ -16185,7 +16196,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus }: Appointme
                 rows={4}
                 value={outcomeFieldValues.followUpNotes}
               />
-            </label>
+            </div>
             <label className="appointment-outcome-label">
               Completion Reason
               <textarea

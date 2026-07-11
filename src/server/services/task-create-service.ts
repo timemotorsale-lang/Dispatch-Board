@@ -1,5 +1,6 @@
 ﻿import { TaskSourceType, TaskStatus } from "@prisma/client";
 
+import { buildAdaptiveTaskChecklist } from "@/lib/adaptive-task-checklist";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { canManageAssignments } from "@/server/policies/access";
 import { ActivityEventType } from "@/server/services/activity-events";
@@ -212,7 +213,12 @@ export async function createManualTask(
     ...(normalizedInput.vehicleReference
       ? { vehicleReference: normalizedInput.vehicleReference }
       : {}),
-    workflowArea: normalizedInput.workflowArea
+    workflowArea: normalizedInput.workflowArea,
+    checklistItems: buildAdaptiveTaskChecklist({
+      title: normalizedInput.title,
+      description: normalizedInput.description,
+      workflowArea: normalizedInput.workflowArea
+    })
   });
 
   if (repository.createActivityEvent) {

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { RichTextComposer, RichTextContent } from "@/components/ui/rich-text-composer";
 import { EmptyStateCard, ErrorStateCard } from "@/components/ui/state-card";
 import type { TaskCommentReadModel } from "@/server/services/task-read";
 
@@ -113,7 +114,7 @@ export function TaskCommentsPanel({
                 <strong>{comment.author.name}</strong>
                 <span>{formatCommentTimestamp(comment.createdAt)}</span>
               </div>
-              <p className="task-comment-body">{comment.body}</p>
+              <RichTextContent className="task-comment-body" value={comment.body} />
             </article>
           ))}
         </div>
@@ -121,23 +122,23 @@ export function TaskCommentsPanel({
 
       {canComment ? (
         <form className="task-comments-form" onSubmit={handleSubmit}>
-          <label className="field">
+          <div className="field rich-text-field">
             <span>Add comment</span>
-            <textarea
+            <RichTextComposer
+              ariaLabel="Add task comment"
               disabled={isSubmitting}
               maxLength={2000}
-              placeholder="Share the latest status, blocker, or next step."
-              rows={4}
-              value={draftBody}
-              onChange={(event) => {
-                setDraftBody(event.target.value);
+              onChange={(value) => {
+                setDraftBody(value);
                 if (errorMessage) {
                   setErrorMessage(null);
                 }
               }}
+              placeholder="Share the latest status, blocker, or next step."
+              rows={4}
+              value={draftBody}
             />
-            <small className="field-hint">Plain text only. Line breaks are preserved.</small>
-          </label>
+          </div>
 
           <div className="task-comments-actions">
             <button className="pill pill-primary" disabled={isSubmitting} type="submit">

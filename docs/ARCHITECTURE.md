@@ -6,6 +6,8 @@
 **Status:** Dispatch Board implemented; Enterprise Appointment E1 in progress; Enterprise Tasks and Customers Module directions refined
 **Source documents:** `docs/PRODUCT_SPEC.md`, `docs/MVP_SCOPE.md`, `docs/CURRENT_IMPLEMENTATION_STATUS.md`, `docs/ENTERPRISE_TASKS_MODULE.md`, `docs/SCHEDULER_VERIFICATION_CONTRACT.md`, `docs/appointments/`, `docs/customers/`, `docs/The Guide To Vibe Coding.md`
 
+**Tasks Console UI source of truth:** [`docs/TASKS_CONSOLE_UI_SOURCE_OF_TRUTH.md`](TASKS_CONSOLE_UI_SOURCE_OF_TRUTH.md)
+
 ---
 
 > **Projects Module planning package:** The dedicated Projects Module boundary, architecture shape, milestone plan, and Codex guidance live in [`docs/projects/PROJECTS_MODULE_GUIDE.md`](projects/PROJECTS_MODULE_GUIDE.md). That guide defines the Projects feature as a module inside the parent Dispatch Board, not a separate app rewrite.
@@ -856,4 +858,12 @@ The original architecture was written before implementation. The Dispatch Board 
 | Tests | Implemented; current baseline recorded separately |
 | Enterprise Appointment Command Center | E1 foundation in progress |
 | Deployment | Configuration exists; production readiness not verified in current baseline |
+
+---
+
+## 23. Shared Collaboration Composer
+
+Human-authored comments and operational notes use the shared `RichTextComposer` rather than console-specific text areas. The MVP control supports bold, italic, underline, strike-through, lists, quotations, inline code, safe links, mentions, emoji, keyboard shortcuts, and a formatted preview.
+
+Formatting is persisted as plain-text markup through the existing APIs and rendered with an allowlisted React formatter. The renderer does not inject stored HTML. Mandatory compliance fields, including blocker, completion, scheduling override, and no-show reasons, remain plain-text controls so workflow validation and audit evidence stay predictable.
 
