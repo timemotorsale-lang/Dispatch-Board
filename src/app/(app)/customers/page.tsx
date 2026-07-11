@@ -1,5 +1,5 @@
-import { CustomerCommandCenter } from "@/features/customers/customer-command-center";
+import { CustomerConsoleHome } from "@/features/customers/customer-console-home";
 
 export default function CustomersPage() {
-  return <CustomerCommandCenter />;
+  return <CustomerConsoleHome />;
 }

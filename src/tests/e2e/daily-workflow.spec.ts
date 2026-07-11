@@ -463,7 +463,9 @@ test("manager can choose and retain the Customer Command Center appearance", asy
   const lightButton = appearance.getByRole("button", { name: "Use light background" });
   const darkButton = appearance.getByRole("button", { name: "Use dark background" });
 
-  await expect(page.getByRole("heading", { name: "Maria Santos" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Welcome back, Eli" })).toBeVisible();
+  await expect(page.getByLabel("Customer business summary")).toBeVisible();
+  await expect(page.getByLabel("Customer operations summary")).toBeVisible();
   await expect(consoleRoot).toHaveAttribute("data-theme", "light");
   await expect(lightButton).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("body")).toHaveClass(/customer-console-shell/);
