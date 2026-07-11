@@ -297,6 +297,33 @@ test("manager can pass the Appointment Board console smoke gate", async ({ page 
   expect(tallViewportLayout.calendarHeight).toBeGreaterThanOrEqual(500);
   expect(tallViewportLayout.moduleRailHeight).toBeGreaterThanOrEqual(870);
   expect(tallViewportLayout.upcomingBottom).toBeLessThanOrEqual(908);
+
+  const tallViewportHubButton = page
+    .getByLabel("Appointment module navigation")
+    .getByRole("button", { name: "Hub" });
+  await tallViewportHubButton.click();
+  const reservedWorkspaceLayout = await page.evaluate(() => {
+    const drawer = document.querySelector("#appointment-workspace-drawer")?.getBoundingClientRect();
+    const board = document.querySelector(".appointment-board-card")?.getBoundingClientRect();
+    const detail = document.querySelector(".appointment-detail-panel")?.getBoundingClientRect();
+    const upcomingTitle = document.querySelector(".appointment-upcoming-item strong");
+
+    return {
+      drawerRight: drawer?.right ?? Number.POSITIVE_INFINITY,
+      boardLeft: board?.left ?? Number.NEGATIVE_INFINITY,
+      boardRight: board?.right ?? Number.POSITIVE_INFINITY,
+      boardWidth: board?.width ?? 0,
+      detailLeft: detail?.left ?? Number.NEGATIVE_INFINITY,
+      upcomingTitleFontSize: upcomingTitle
+        ? Number.parseFloat(window.getComputedStyle(upcomingTitle).fontSize)
+        : 0
+    };
+  });
+
+  expect(reservedWorkspaceLayout.drawerRight).toBeLessThanOrEqual(reservedWorkspaceLayout.boardLeft + 1);
+  expect(reservedWorkspaceLayout.boardRight).toBeLessThanOrEqual(reservedWorkspaceLayout.detailLeft);
+  expect(reservedWorkspaceLayout.boardWidth).toBeGreaterThanOrEqual(900);
+  expect(reservedWorkspaceLayout.upcomingTitleFontSize).toBeGreaterThanOrEqual(11);
 });
 
 test("manager can scan the compact Tasks Operations Console", async ({ page }) => {

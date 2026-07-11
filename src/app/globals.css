@@ -8914,6 +8914,7 @@ code {
 .appointment-board-page {
   --appointment-module-rail-width: 52px;
   --appointment-detail-rail-width: clamp(224px, 17vw, 272px);
+  --appointment-workspace-sidebar-width: clamp(260px, 18vw, 324px);
   --appointment-calendar-hour-height: 26px;
   --appointment-calendar-grid-height: calc(var(--appointment-calendar-hour-height) * 10);
   --appointment-main-gap: 8px;
@@ -8962,6 +8963,15 @@ code {
 
 .appointment-workspace-open .appointment-enterprise-shell {
   grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 1440px) {
+  .appointment-mockup-aligned.appointment-workspace-open > .appointment-enterprise-shell {
+    width: calc(
+      100% - var(--appointment-module-rail-width) - var(--appointment-workspace-sidebar-width) - var(--appointment-main-gap)
+    );
+    margin-left: calc(var(--appointment-workspace-sidebar-width) + var(--appointment-main-gap));
+  }
 }
 
 .appointment-enterprise-main {
@@ -9063,7 +9073,7 @@ code {
   z-index: 25;
   display: none;
   gap: 10px;
-  width: clamp(260px, 18vw, 324px);
+  width: var(--appointment-workspace-sidebar-width);
   height: calc(100vh - 20px);
   max-height: calc(100vh - 20px);
   min-width: 0;
@@ -13480,9 +13490,9 @@ code {
 
 .appointment-upcoming-item {
   display: grid;
-  gap: 1px;
-  min-height: 48px;
-  padding: 5px 7px;
+  gap: 2px;
+  min-height: 54px;
+  padding: 6px 8px;
   text-align: left;
   border-width: 1px 1px 1px 4px;
   border-style: solid;
@@ -13492,20 +13502,30 @@ code {
 
 .appointment-upcoming-item span {
   color: #475569;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 800;
 }
 
 .appointment-upcoming-item strong {
   color: #111827;
-  font-size: 9px;
+  font-size: 11px;
+  line-height: 1.2;
 }
 
 .appointment-upcoming-item small,
 .appointment-upcoming-item em {
   color: #64748b;
-  font-size: 8px;
+  font-size: 9px;
+  line-height: 1.2;
   font-style: normal;
+}
+
+.appointment-mockup-aligned .appointment-upcoming-card .appointment-section-heading strong {
+  font-size: 13px;
+}
+
+.appointment-mockup-aligned .appointment-upcoming-card .appointment-section-heading button {
+  font-size: 11px;
 }
 
 .appointment-mockup-aligned .appointment-upcoming-item small:nth-of-type(n + 2),
@@ -13564,7 +13584,7 @@ code {
 
 @media (min-width: 1181px) and (min-height: 800px) {
   .appointment-board-page {
-    --appointment-calendar-hour-height: clamp(36px, calc((100vh - 380px) / 10), 52px);
+    --appointment-calendar-hour-height: clamp(36px, calc((100vh - 390px) / 10), 51px);
   }
 }
 
