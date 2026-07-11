@@ -98,4 +98,26 @@ describe("my tasks screen", () => {
     expect(markup).toContain("No tasks are assigned to you right now");
     expect(markup).toContain("Check full board");
   });
+
+  it("shows only the recovery state when loading fails", () => {
+    const markup = renderToStaticMarkup(
+      <MyTasksScreen
+        boardDate="2026-07-04"
+        boardExists={false}
+        currentUserId="user-baraka"
+        errorMessage="Database temporarily unavailable."
+        fullBoardHref="/board?date=2026-07-04"
+        generatedAt={null}
+        generationStatus={null}
+        initialTasks={[]}
+        isManager={false}
+        nowIso="2026-07-04T14:00:00.000Z"
+        userName="Baraka Sales"
+      />
+    );
+
+    expect(markup).toContain("Couldn&#x27;t load your task list");
+    expect(markup).not.toContain("Today&#x27;s board has not been generated");
+    expect(markup).not.toContain("No tasks are assigned to you right now");
+  });
 });

@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { developmentUserDefinitions, SHARED_DEVELOPMENT_PASSWORD } from "@/server/auth/dev-seed-data";
-import { getLoginRouteRedirect, getProtectedRouteRedirect } from "@/server/auth/navigation";
+import {
+  getLoginRouteRedirect,
+  getProtectedRouteRedirect,
+  getSafePostLoginRedirect
+} from "@/server/auth/navigation";
 import {
   AUTH_FAILURE_MESSAGE,
   loginWithPassword,
@@ -88,6 +92,13 @@ describe("auth service", () => {
 
   it("redirects unauthenticated users away from protected routes", () => {
     expect(getProtectedRouteRedirect(null)).toBe("/login");
+  });
+
+  it("returns users to a safe local console after login", () => {
+    expect(getSafePostLoginRedirect("/projects?view=board")).toBe("/projects?view=board");
+    expect(getSafePostLoginRedirect("https://example.com/steal-session")).toBe("/board");
+    expect(getSafePostLoginRedirect("//example.com/steal-session")).toBe("/board");
+    expect(getSafePostLoginRedirect("/\\example.com/steal-session")).toBe("/board");
   });
 
   it("lets authenticated users stay on protected routes and redirects them away from login", async () => {
