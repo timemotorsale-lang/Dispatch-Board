@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { getSafePostLoginRedirect } from "@/server/auth/navigation";
+
 type LoginFormState = {
   email: string;
   password: string;
@@ -13,7 +15,12 @@ const defaultFormState: LoginFormState = {
   password: ""
 };
 
-export function LoginForm() {
+type LoginFormProps = {
+  returnTo?: string;
+  sessionExpired?: boolean;
+};
+
+export function LoginForm({ returnTo, sessionExpired = false }: LoginFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [formState, setFormState] = useState(defaultFormState);
@@ -38,13 +45,18 @@ export function LoginForm() {
         return;
       }
 
-      router.replace("/board");
+      router.replace(getSafePostLoginRedirect(returnTo));
       router.refresh();
     });
   }
 
   return (
     <form className="auth-form" onSubmit={handleSubmit}>
+      {sessionExpired ? (
+        <div className="notice notice-warning" role="status">
+          <p>Your session ended. Sign in again to return to the console you were using.</p>
+        </div>
+      ) : null}
       <label className="field">
         <span>Email</span>
         <input

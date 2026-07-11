@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { SessionHealthGuard } from "@/features/auth/session-health-guard";
 
 import { AppSidebar } from "./app-sidebar";
 import { AppTopbar } from "./app-topbar";
@@ -18,6 +19,7 @@ export function AppShell({ children, user }: AppShellProps) {
 
   return (
     <div className="app-frame">
+      <SessionHealthGuard />
       <AppSidebar isOpen={navigationOpen} onClose={() => setNavigationOpen(false)} user={user} />
       {navigationOpen ? (
         <button className="sidebar-scrim" aria-label="Close navigation" onClick={() => setNavigationOpen(false)} />

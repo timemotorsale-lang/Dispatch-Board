@@ -1126,7 +1126,7 @@ export function MyTasksScreen({
         />
       ) : null}
 
-      {!boardExists ? (
+      {!errorMessage && !boardExists ? (
         <EmptyStateCard
           actions={[{ href: fullBoardHref, label: "Open full board", tone: "secondary" }]}
           eyebrow="No board yet"
@@ -1135,7 +1135,7 @@ export function MyTasksScreen({
         />
       ) : null}
 
-      {boardExists && tasks.length === 0 ? (
+      {!errorMessage && boardExists && tasks.length === 0 ? (
         <EmptyStateCard
           actions={[{ href: fullBoardHref, label: "Check full board" }]}
           eyebrow="All clear"
@@ -1144,7 +1144,7 @@ export function MyTasksScreen({
         />
       ) : null}
 
-      {boardExists && tasks.length > 0 ? (
+      {!errorMessage && boardExists && tasks.length > 0 ? (
         <section className="enterprise-prototype-stage my-tasks-live-stage">
           <div className="enterprise-stage-controls">
             <div className="my-tasks-control-cluster">

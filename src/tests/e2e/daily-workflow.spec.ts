@@ -485,6 +485,26 @@ test("manager can choose and retain the Customer Command Center appearance", asy
   await expect(page.locator("body")).not.toHaveClass(/customer-console-dark-shell/);
 });
 
+test("an expired session returns the manager to the console after sign-in", async ({ page }) => {
+  await login(page, managerEmail);
+  await page.goto("/my-tasks");
+  await expect(page.getByRole("heading", { name: "My Tasks" })).toBeVisible();
+
+  await page.evaluate(async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.dispatchEvent(new Event("focus"));
+  });
+
+  await expect(page).toHaveURL(/\/login\?reason=session-expired&returnTo=%2Fmy-tasks/);
+  await expect(page.getByText("Your session ended.")).toBeVisible();
+  await page.getByLabel("Email").fill(managerEmail);
+  await page.getByLabel("Password").fill(password);
+  await page.getByRole("button", { name: "Sign in" }).click();
+
+  await expect(page).toHaveURL(/\/my-tasks/);
+  await expect(page.getByRole("heading", { name: "My Tasks" })).toBeVisible();
+});
+
 test("manager can navigate every live Customer 360 record tab", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await login(page, managerEmail);

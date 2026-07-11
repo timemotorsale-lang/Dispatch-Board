@@ -1,10 +1,57 @@
 import { spawn } from "node:child_process";
+import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import nextEnv from "@next/env";
 
 const root = process.cwd();
-const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
+const { loadEnvConfig } = nextEnv;
+loadEnvConfig(root);
+
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3100";
+const baseUrlDetails = new URL(baseURL);
+const serverPort = baseUrlDetails.port || (baseUrlDetails.protocol === "https:" ? "443" : "80");
 const nextCli = path.join(root, "node_modules", "next", "dist", "bin", "next");
 const playwrightCli = path.join(root, "node_modules", "@playwright", "test", "cli.js");
+const playwrightArguments = process.argv.slice(2);
+const generatedTypeFiles = ["next-env.d.ts", "tsconfig.json"].map((fileName) => ({
+  path: path.join(root, fileName),
+  contents: readFileSync(path.join(root, fileName), "utf8")
+}));
+
+function buildE2EDatabaseUrl() {
+  if (process.env.E2E_DATABASE_URL) {
+    return process.env.E2E_DATABASE_URL;
+  }
+
+  const databaseUrl = process.env.DATABASE_URL;
+
+  if (!databaseUrl) {
+    throw new Error("DATABASE_URL or E2E_DATABASE_URL must be configured before running browser tests.");
+  }
+
+  const parsedDatabaseUrl = new URL(databaseUrl);
+
+  if (parsedDatabaseUrl.protocol !== "postgresql:" && parsedDatabaseUrl.protocol !== "postgres:") {
+    throw new Error(
+      "Set E2E_DATABASE_URL when the primary database URL is not a direct PostgreSQL connection."
+    );
+  }
+
+  parsedDatabaseUrl.searchParams.set(
+    "schema",
+    process.env.E2E_DATABASE_SCHEMA ?? "dispatch_board_e2e"
+  );
+
+  return parsedDatabaseUrl.toString();
+}
+
+const e2eEnvironment = {
+  ...process.env,
+  DATABASE_URL: buildE2EDatabaseUrl(),
+  NEXT_DIST_DIR: process.env.E2E_NEXT_DIST_DIR ?? ".next-e2e",
+  PLAYWRIGHT_BASE_URL: baseURL,
+  PLAYWRIGHT_SKIP_WEB_SERVER: "1"
+};
 
 function run(command, args, options = {}) {
   return spawn(command, args, {
@@ -45,11 +92,18 @@ function stopProcessTree(child) {
   child.kill("SIGTERM");
 }
 
+function restoreGeneratedTypeFiles() {
+  for (const file of generatedTypeFiles) {
+    writeFileSync(file.path, file.contents, "utf8");
+  }
+}
+
 const server = run(
   process.execPath,
-  [nextCli, "dev", "--hostname", "127.0.0.1", "--port", "3000"],
+  [nextCli, "dev", "--hostname", baseUrlDetails.hostname, "--port", serverPort],
   {
-    detached: process.platform !== "win32"
+    detached: process.platform !== "win32",
+    env: e2eEnvironment
   }
 );
 
@@ -58,11 +112,8 @@ let exitCode = 1;
 try {
   await waitForServer(server);
 
-  const playwright = run(process.execPath, [playwrightCli, "test"], {
-    env: {
-      ...process.env,
-      PLAYWRIGHT_SKIP_WEB_SERVER: "1"
-    }
+  const playwright = run(process.execPath, [playwrightCli, "test", ...playwrightArguments], {
+    env: e2eEnvironment
   });
 
   exitCode = await new Promise((resolve, reject) => {
@@ -73,6 +124,8 @@ try {
   console.error(error instanceof Error ? error.message : error);
 } finally {
   stopProcessTree(server);
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  restoreGeneratedTypeFiles();
 }
 
 process.exit(exitCode);

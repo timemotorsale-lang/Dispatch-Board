@@ -288,7 +288,6 @@ async function main() {
     });
   }
 
-  await prisma.session.deleteMany();
   await prisma.userDuty.deleteMany();
   await prisma.userRole.deleteMany();
 

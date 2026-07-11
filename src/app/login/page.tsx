@@ -5,8 +5,22 @@ import { LoginForm } from "@/features/auth/login-form";
 import { APP_NAME } from "../config";
 import { redirectAuthenticatedUser } from "@/server/auth/current-user";
 
-export default async function LoginPage() {
+type LoginPageProps = {
+  searchParams?: Promise<{
+    reason?: string | string[];
+    returnTo?: string | string[];
+  }>;
+};
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
   await redirectAuthenticatedUser();
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const returnTo = Array.isArray(resolvedSearchParams?.returnTo)
+    ? resolvedSearchParams.returnTo[0]
+    : resolvedSearchParams?.returnTo;
+  const reason = Array.isArray(resolvedSearchParams?.reason)
+    ? resolvedSearchParams.reason[0]
+    : resolvedSearchParams?.reason;
 
   return (
     <main className="page-shell">
@@ -27,7 +41,7 @@ export default async function LoginPage() {
             Sessions are stored server-side, protected routes redirect unauthenticated users, and
             permission checks now live on the server for later workflows to reuse.
           </p>
-          <LoginForm />
+          <LoginForm returnTo={returnTo} sessionExpired={reason === "session-expired"} />
           <div className="placeholder-actions auth-secondary-actions">
             <Link className="pill pill-primary" href="/">
               Back to home
