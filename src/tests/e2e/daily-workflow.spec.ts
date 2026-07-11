@@ -222,16 +222,30 @@ test("manager can pass the Appointment Board console smoke gate", async ({ page 
   await assertAppointmentConsoleFitsUxSmokeGate(page);
 
   const moduleRail = page.getByLabel("Appointment module navigation");
-  const collapsedRailWidth = await moduleRail.evaluate((element) => element.getBoundingClientRect().width);
-  expect(collapsedRailWidth).toBeLessThanOrEqual(52);
+  await expect(page.locator(".appointment-board-page")).toHaveClass(/appointment-module-rail-expanded/);
+  const defaultExpandedRailWidth = await moduleRail.evaluate(
+    (element) => element.getBoundingClientRect().width
+  );
+  expect(defaultExpandedRailWidth).toBeGreaterThanOrEqual(140);
+  await expect(moduleRail.getByRole("button", { name: "Day" })).toContainText("Day");
+  await expect(moduleRail.getByRole("button", { name: "Planning Hub" })).toContainText("Planning Hub");
+  await expect(moduleRail.getByRole("button", { name: "Operations" })).toContainText("Operations");
+  await expect(moduleRail.getByRole("button", { name: "Intelligence" })).toContainText("Intelligence");
 
+  await moduleRail.getByRole("button", { name: "Collapse appointment navigation" }).click();
+  await expect(page.locator(".appointment-board-page")).not.toHaveClass(/appointment-module-rail-expanded/);
+  await expect
+    .poll(() => moduleRail.evaluate((element) => element.getBoundingClientRect().width))
+    .toBeLessThanOrEqual(52);
+
+  const collapsedRailWidth = await moduleRail.evaluate((element) => element.getBoundingClientRect().width);
   await moduleRail.getByRole("button", { name: "Expand appointment navigation" }).click();
   await expect(page.locator(".appointment-board-page")).toHaveClass(/appointment-module-rail-expanded/);
   await expect
     .poll(() => moduleRail.evaluate((element) => element.getBoundingClientRect().width))
-    .toBeGreaterThan(collapsedRailWidth + 100);
+    .toBeGreaterThan(collapsedRailWidth + 80);
 
-  const hubButton = moduleRail.getByRole("button", { name: "Hub" });
+  const hubButton = moduleRail.getByRole("button", { name: "Planning Hub" });
   await hubButton.click();
   await expect(hubButton).toHaveAttribute("aria-expanded", "true");
   await expect(page.locator("#appointment-workspace-drawer")).toBeVisible();
@@ -242,7 +256,7 @@ test("manager can pass the Appointment Board console smoke gate", async ({ page 
   await moduleRail.getByRole("button", { name: "Collapse appointment navigation" }).click();
   await expect(page.locator(".appointment-board-page")).not.toHaveClass(/appointment-module-rail-expanded/);
 
-  const opsButton = moduleRail.getByRole("button", { name: "Ops" });
+  const opsButton = moduleRail.getByRole("button", { name: "Operations" });
   await opsButton.click();
   await expect(opsButton).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByRole("heading", { name: "Operations Hub" })).toBeVisible();
@@ -300,7 +314,7 @@ test("manager can pass the Appointment Board console smoke gate", async ({ page 
 
   const tallViewportHubButton = page
     .getByLabel("Appointment module navigation")
-    .getByRole("button", { name: "Hub" });
+    .getByRole("button", { name: "Planning Hub" });
   await tallViewportHubButton.click();
   const reservedWorkspaceLayout = await page.evaluate(() => {
     const drawer = document.querySelector("#appointment-workspace-drawer")?.getBoundingClientRect();
@@ -316,7 +330,19 @@ test("manager can pass the Appointment Board console smoke gate", async ({ page 
       detailLeft: detail?.left ?? Number.NEGATIVE_INFINITY,
       upcomingTitleFontSize: upcomingTitle
         ? Number.parseFloat(window.getComputedStyle(upcomingTitle).fontSize)
-        : 0
+        : 0,
+      moduleRailOverflowY: window.getComputedStyle(
+        document.querySelector(".appointment-module-rail") as Element
+      ).overflowY,
+      drawerOverflowY: drawer
+        ? window.getComputedStyle(document.querySelector("#appointment-workspace-drawer") as Element).overflowY
+        : "missing",
+      boardOverflowY: board
+        ? window.getComputedStyle(document.querySelector(".appointment-calendar-shell") as Element).overflowY
+        : "missing",
+      detailOverflowY: detail
+        ? window.getComputedStyle(document.querySelector(".appointment-detail-panel") as Element).overflowY
+        : "missing"
     };
   });
 
@@ -324,6 +350,10 @@ test("manager can pass the Appointment Board console smoke gate", async ({ page 
   expect(reservedWorkspaceLayout.boardRight).toBeLessThanOrEqual(reservedWorkspaceLayout.detailLeft);
   expect(reservedWorkspaceLayout.boardWidth).toBeGreaterThanOrEqual(900);
   expect(reservedWorkspaceLayout.upcomingTitleFontSize).toBeGreaterThanOrEqual(11);
+  expect(reservedWorkspaceLayout.moduleRailOverflowY).toBe("auto");
+  expect(reservedWorkspaceLayout.drawerOverflowY).toBe("auto");
+  expect(reservedWorkspaceLayout.boardOverflowY).toBe("auto");
+  expect(reservedWorkspaceLayout.detailOverflowY).toBe("auto");
 });
 
 test("manager can scan the compact Tasks Operations Console", async ({ page }) => {
@@ -533,7 +563,7 @@ test("manager can create and schedule a linked appointment draft from the Appoin
   await expect(page.getByRole("heading", { name: "Appointment Board" })).toBeVisible();
   await expect(page.locator(".appointment-next-action-card")).toBeVisible();
   const appointmentRail = page.getByLabel("Appointment module navigation");
-  const opsButton = appointmentRail.getByRole("button", { name: "Ops" });
+  const opsButton = appointmentRail.getByRole("button", { name: "Operations" });
   await expect(opsButton).toHaveAttribute("aria-expanded", "true");
   await expect(page.locator("#appointment-workspace-drawer")).toBeVisible();
   await page.keyboard.press("Escape");

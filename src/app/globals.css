@@ -8930,7 +8930,7 @@ code {
 }
 
 .appointment-board-page.appointment-module-rail-expanded {
-  --appointment-module-rail-width: 176px;
+  --appointment-module-rail-width: 156px;
 }
 
 .appointment-mockup-aligned {
@@ -8965,7 +8965,7 @@ code {
   grid-template-columns: minmax(0, 1fr);
 }
 
-@media (min-width: 1440px) {
+@media (min-width: 1181px) {
   .appointment-mockup-aligned.appointment-workspace-open > .appointment-enterprise-shell {
     width: calc(
       100% - var(--appointment-module-rail-width) - var(--appointment-workspace-sidebar-width) - var(--appointment-main-gap)
@@ -8995,7 +8995,11 @@ code {
   gap: 6px;
   width: calc(var(--appointment-module-rail-width) - 8px);
   min-height: calc(100vh - 20px);
+  max-height: calc(100vh - 20px);
   padding: 7px 5px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   color: #475569;
   background: linear-gradient(180deg, #f8fbff 0%, #eef4fb 100%);
   border: 1px solid #dde6f0;
@@ -9079,6 +9083,8 @@ code {
   min-width: 0;
   padding: 8px;
   overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   background: rgba(239, 246, 253, 0.98);
   border: 1px solid #d4e1ef;
   border-radius: 0 16px 16px 0;
@@ -9087,6 +9093,13 @@ code {
 
 .appointment-workspace-open .appointment-workspace-sidebar {
   display: grid;
+}
+
+.appointment-mockup-aligned .appointment-calendar-shell {
+  max-height: calc(100vh - 196px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .appointment-workspace-sidebar:focus {
@@ -12622,9 +12635,12 @@ code {
   top: 0;
   right: 0;
   width: var(--appointment-detail-rail-width);
+  height: calc(100vh - 24px);
   max-height: calc(100vh - 24px);
   margin-top: 0;
-  overflow: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .appointment-mockup-aligned.appointment-workspace-tab-operations .appointment-detail-panel {
