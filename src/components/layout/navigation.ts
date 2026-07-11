@@ -5,6 +5,7 @@ import {
   ClipboardCheck,
   FolderKanban,
   Gauge,
+  LifeBuoy,
   LayoutTemplate,
   ListChecks,
   Settings,
@@ -23,6 +24,8 @@ export type NavigationItem = {
   description: string;
   icon: LucideIcon;
   badge?: string;
+  matchExact?: boolean;
+  parentHref?: string;
   isVisible?(user: AuthenticatedUser): boolean;
 };
 
@@ -66,7 +69,15 @@ export const navigationGroups: NavigationGroup[] = [
         href: "/customers",
         title: "Customers",
         description: "Customer visibility.",
-        icon: UserRound
+        icon: UserRound,
+        matchExact: true
+      },
+      {
+        href: "/customers/resolutions",
+        title: "Customer Resolution",
+        description: "Customer cases, SLA, and resolution queues.",
+        icon: LifeBuoy,
+        parentHref: "/customers"
       },
       {
         href: "/appointments",
