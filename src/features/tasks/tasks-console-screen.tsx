@@ -24,6 +24,7 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, useDeferredValue, useEffect, useRef, useState, useTransition } from "react";
 
 import { EmptyStateCard, ErrorStateCard } from "@/components/ui/state-card";
+import { RichTextComposer, RichTextContent } from "@/components/ui/rich-text-composer";
 import { ConcernIntakePanel } from "@/features/tasks/concern-intake-panel";
 import {
   buildSubtasks,
@@ -810,6 +811,7 @@ export function TasksConsoleScreen({
   const [detailError, setDetailError] = useState<string | null>(null);
   const [workflowMessage, setWorkflowMessage] = useState<string | null>(null);
   const [workflowError, setWorkflowError] = useState<string | null>(null);
+  const [commentDraft, setCommentDraft] = useState("");
   const [statusDrafts, setStatusDrafts] = useState<Record<string, string>>({});
   const [generationMessage, setGenerationMessage] = useState<string | null>(null);
   const [quickCreateOpen, setQuickCreateOpen] = useState(initialQuickCreateOpen);
@@ -1028,6 +1030,7 @@ export function TasksConsoleScreen({
 
   function handleSelectTask(taskId: string) {
     setSelectedTaskId(taskId);
+    setCommentDraft("");
     setActiveTab("details");
     setRightRailMode("open");
   }
@@ -1118,6 +1121,7 @@ export function TasksConsoleScreen({
 
         form.reset();
         setSelectedTaskId(payload.task.id);
+        setCommentDraft("");
         setActiveQueueFilter("ALL");
         setActiveDepartmentFilter(null);
         setActiveView("list");
@@ -1346,8 +1350,10 @@ export function TasksConsoleScreen({
       return;
     }
 
-    const form = event.currentTarget;
-    const formData = new FormData(form);
+    if (!commentDraft.trim()) {
+      setWorkflowError("Enter a comment before posting.");
+      return;
+    }
 
     startWorkflowTransition(async () => {
       setWorkflowMessage(null);
@@ -1360,7 +1366,7 @@ export function TasksConsoleScreen({
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            body: formData.get("body")
+            body: commentDraft
           })
         });
 
@@ -1368,7 +1374,7 @@ export function TasksConsoleScreen({
           throw new Error(await getApiErrorMessage(response, "Unable to post the comment."));
         }
 
-        form.reset();
+        setCommentDraft("");
         await refreshSelectedTaskDetail(selectedBoardTask.id, "Comment posted to the task history.");
       } catch (error) {
         setWorkflowError(error instanceof Error ? error.message : "Unable to post the comment.");
@@ -2852,15 +2858,23 @@ export function TasksConsoleScreen({
                       key={`comment-${activeTaskDetail?.id ?? selectedBoardTask.id}`}
                       onSubmit={handleCreateComment}
                     >
-                      <label>
+                      <div className="rich-text-field">
                         <span>New Comment</span>
-                        <textarea
+                        <RichTextComposer
+                          ariaLabel="New task comment"
+                          compact
+                          disabled={isWorkflowPending}
                           name="body"
+                          onChange={(value) => {
+                            setCommentDraft(value);
+                            setWorkflowError(null);
+                          }}
                           placeholder="Post a quick update for the team..."
                           rows={3}
+                          value={commentDraft}
                         />
-                      </label>
-                      <button className="pill pill-primary" disabled={isWorkflowPending} type="submit">
+                      </div>
+                      <button className="pill pill-primary" disabled={isWorkflowPending || !commentDraft.trim()} type="submit">
                         {isWorkflowPending ? "Posting..." : "Post Comment"}
                       </button>
                     </form>
@@ -2872,7 +2886,7 @@ export function TasksConsoleScreen({
                               <strong>{comment.author.name}</strong>
                               <span>{formatDateTime(comment.createdAt)}</span>
                             </div>
-                            <p>{comment.body}</p>
+                            <RichTextContent value={comment.body} />
                           </article>
                         ))}
                       </div>
@@ -2895,7 +2909,7 @@ export function TasksConsoleScreen({
                               <strong>{entry.actorName}</strong>
                               <span>{formatDateTime(entry.createdAt)}</span>
                             </div>
-                            <p>{entry.body}</p>
+                            {entry.kind === "comment" ? <RichTextContent value={entry.body} /> : <p>{entry.body}</p>}
                           </article>
                         ))}
                       </div>

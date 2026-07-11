@@ -89,6 +89,9 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Linked Tasks");
     expect(markup).toContain("Enterprise Controls");
     expect(markup).toContain("Upcoming Appointments");
+    expect(markup).toContain('aria-label="Appointment outcome notes"');
+    expect(markup).toContain('aria-label="Appointment next step and follow-up notes"');
+    expect(markup).toContain('aria-label="Comment formatting"');
     expect(markup).toContain("Command Center Exception Queues");
     expect(markup).toContain("Needs Scheduling");
     expect(markup).toContain("Conflict Watch");

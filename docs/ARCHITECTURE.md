@@ -859,3 +859,11 @@ The original architecture was written before implementation. The Dispatch Board 
 | Enterprise Appointment Command Center | E1 foundation in progress |
 | Deployment | Configuration exists; production readiness not verified in current baseline |
 
+---
+
+## 23. Shared Collaboration Composer
+
+Human-authored comments and operational notes use the shared `RichTextComposer` rather than console-specific text areas. The MVP control supports bold, italic, underline, strike-through, lists, quotations, inline code, safe links, mentions, emoji, keyboard shortcuts, and a formatted preview.
+
+Formatting is persisted as plain-text markup through the existing APIs and rendered with an allowlisted React formatter. The renderer does not inject stored HTML. Mandatory compliance fields, including blocker, completion, scheduling override, and no-show reasons, remain plain-text controls so workflow validation and audit evidence stay predictable.
+

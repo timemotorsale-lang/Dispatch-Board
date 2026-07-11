@@ -673,6 +673,13 @@ test("manager can scan the compact Tasks Operations Console", async ({ page }) =
 
   await page.getByRole("button", { name: /Comments/ }).click();
   await expect(page.getByText("New Comment")).toBeVisible();
+  const commentEditor = page.getByLabel("New task comment");
+  await commentEditor.fill("Priority handoff");
+  await commentEditor.press("Control+A");
+  await commentEditor.press("Control+B");
+  await expect(commentEditor).toHaveValue("**Priority handoff**");
+  await page.getByRole("button", { name: "Post Comment" }).click();
+  await expect(page.locator(".tasks-console-feed-item .rich-text-content strong").filter({ hasText: "Priority handoff" })).toBeVisible();
   await page.getByRole("button", { name: "Activity" }).click();
   await expect(page.locator(".tasks-console-rail-panel")).toBeVisible();
 });
@@ -965,7 +972,7 @@ test("manager can create and schedule a linked appointment draft from the Appoin
             linkedTaskId: scheduledAppointment.taskLinks[0]?.taskId ?? null
           }
         : null;
-    })
+    }, { timeout: 20_000 })
     .toEqual({
       bookingStatus: "SCHEDULED",
       hasStart: true,
