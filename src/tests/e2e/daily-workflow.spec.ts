@@ -485,6 +485,48 @@ test("manager can choose and retain the Customer Command Center appearance", asy
   await expect(page.locator("body")).not.toHaveClass(/customer-console-dark-shell/);
 });
 
+test("manager can navigate every live Customer 360 record tab", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await login(page, managerEmail);
+  await page.goto("/customers");
+
+  const consoleSections = page.getByLabel("Customer console sections");
+  await consoleSections.getByRole("link", { name: "Customer 360" }).click();
+  await expect(page).toHaveURL(/\/customers\/customer-360/);
+  await expect(consoleSections.getByRole("link", { name: "Customer 360" })).toHaveAttribute(
+    "aria-current",
+    "page"
+  );
+
+  const recordTabs = page.getByLabel("Customer record sections");
+  const activePanel = page.getByLabel("Active customer record panel");
+  const tabPanels = [
+    ["Overview", "Customer Overview"],
+    ["Timeline", "Timeline"],
+    ["Deals", "Deals"],
+    ["Cases", "Cases"],
+    ["Appointments", "Appointments"],
+    ["Documents", "Documents"],
+    ["Vehicles", "Vehicles"],
+    ["Communications", "Communications"],
+    ["Collections", "Collections"],
+    ["Notes", "Notes"]
+  ] as const;
+
+  for (const [tab, panelTitle] of tabPanels) {
+    await recordTabs.getByRole("button", { name: tab, exact: true }).click();
+    await expect(recordTabs.getByRole("button", { name: tab, exact: true })).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
+    await expect(activePanel.getByRole("heading", { name: panelTitle, exact: true })).toBeVisible();
+    await expect(activePanel.locator("article")).not.toHaveCount(0);
+  }
+
+  await consoleSections.getByRole("link", { name: "Resolution" }).click();
+  await expect(page).toHaveURL(/\/customers\/resolutions/);
+});
+
 test("manager can use the Customer Resolution workspace", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await login(page, managerEmail);
@@ -499,23 +541,48 @@ test("manager can use the Customer Resolution workspace", async ({ page }) => {
   );
   await expect(page.getByLabel("Customer console sections").getByRole("link", { name: "Resolution" })).toHaveAttribute("aria-current", "page");
 
-  await page.getByRole("button", { name: "Escalated", exact: true }).click();
-  const escalatedRow = page.locator(".customer-case-row").filter({ hasText: "Mustafa K." });
-  await expect(escalatedRow).toBeVisible();
-  await escalatedRow.click();
-  await expect(page.getByLabel("Selected case command rail")).toContainText(
-    "Vehicle not starting"
-  );
+  const queues = page.getByLabel("Resolution queues");
+  const queueCounts = [
+    ["All Cases", 9],
+    ["My Cases", 3],
+    ["Unassigned", 1],
+    ["Overdue", 2],
+    ["Escalated", 1],
+    ["Resolved", 1]
+  ] as const;
 
-  await page.getByRole("button", { name: "All Cases", exact: true }).click();
+  for (const [queue, count] of queueCounts) {
+    await queues.getByRole("button", { name: queue, exact: true }).click();
+    await expect(queues.getByRole("button", { name: queue, exact: true })).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
+    await expect(page.locator(".customer-case-row")).toHaveCount(count);
+  }
+
+  await queues.getByRole("button", { name: "All Cases", exact: true }).click();
   await page.getByLabel("Search cases").fill("title documents");
   await expect(page.locator(".customer-case-row")).toHaveCount(1);
   await expect(page.locator(".customer-case-row")).toContainText("Ibrahim D.");
 
-  await page.getByRole("button", { name: "Timeline", exact: true }).click();
-  await expect(page.getByLabel("Selected case command rail")).toContainText(
-    "CRM-5 implementation milestone"
-  );
+  const detailTabs = page.getByLabel("Selected case sections");
+  const detailPanel = page.locator(".customer-resolution-live-panel");
+  const detailPanels = [
+    ["Details", "Case Details"],
+    ["Timeline", "Case Timeline"],
+    ["Customer", "Customer Context"],
+    ["Vehicle", "Vehicle Context"],
+    ["Related", "Related Work"]
+  ] as const;
+
+  for (const [tab, panelTitle] of detailPanels) {
+    await detailTabs.getByRole("button", { name: tab, exact: true }).click();
+    await expect(detailTabs.getByRole("button", { name: tab, exact: true })).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
+    await expect(detailPanel.getByText(panelTitle, { exact: true })).toBeVisible();
+  }
 
   const appearance = page.getByRole("group", { name: "Customer console appearance" });
   const darkButton = appearance.getByRole("button", { name: "Use dark background" });

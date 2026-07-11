@@ -73,6 +73,13 @@ export const navigationGroups: NavigationGroup[] = [
         matchExact: true
       },
       {
+        href: "/customers/customer-360",
+        title: "Customer 360",
+        description: "Unified customer profile and relationship history.",
+        icon: UserRound,
+        parentHref: "/customers"
+      },
+      {
         href: "/customers/resolutions",
         title: "Customer Resolution",
         description: "Customer cases, SLA, and resolution queues.",
