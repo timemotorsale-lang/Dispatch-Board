@@ -41,10 +41,17 @@ export function AppSidebar({ isOpen, onClose, user }: AppSidebarProps) {
               {group.items.map((item) => {
                 const Icon = item.icon;
                 const active = pathname === item.href || (!item.matchExact && pathname.startsWith(`${item.href}/`));
+                const parentCurrent = item.matchExact && pathname.startsWith(`${item.href}/`);
+                const className = [
+                  "sidebar-link",
+                  item.parentHref ? "sidebar-link-child" : "",
+                  active ? "sidebar-link-active" : "",
+                  parentCurrent ? "sidebar-link-parent-current" : ""
+                ].filter(Boolean).join(" ");
                 return (
                   <Link
                     aria-current={active ? "page" : undefined}
-                    className={active ? "sidebar-link sidebar-link-active" : "sidebar-link"}
+                    className={className}
                     href={item.href}
                     key={item.href}
                     onClick={onClose}

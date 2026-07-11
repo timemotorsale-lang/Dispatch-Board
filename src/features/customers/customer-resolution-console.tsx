@@ -22,6 +22,7 @@ import {
   X
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 type CustomerTheme = "light" | "dark";
 type ResolutionTab = "All Cases" | "My Cases" | "Unassigned" | "Overdue" | "Escalated" | "Resolved";
@@ -112,6 +113,10 @@ export function CustomerResolutionConsole() {
     <section className="customer-console customer-resolution" data-theme={theme} aria-label="Customer Resolution Console">
       <header className="customer-console-toolbar customer-resolution-toolbar">
         <label className="customer-console-search"><Search size={16} /><input aria-label="Search customers and cases" placeholder="Search customers, tickets, vehicles, orders..." type="search" /><kbd>Ctrl K</kbd></label>
+        <nav className="customer-module-switcher" aria-label="Customer console sections">
+          <Link href="/customers">Overview</Link>
+          <Link aria-current="page" className="active" href="/customers/resolutions">Resolution</Link>
+        </nav>
         <div className="customer-theme-switch" aria-label="Customer console appearance" role="group">
           <button aria-label="Use light background" aria-pressed={theme === "light"} className={theme === "light" ? "customer-theme-option active" : "customer-theme-option"} onClick={() => selectTheme("light")} type="button"><Sun size={14} /> Light</button>
           <button aria-label="Use dark background" aria-pressed={theme === "dark"} className={theme === "dark" ? "customer-theme-option active" : "customer-theme-option"} onClick={() => selectTheme("dark")} type="button"><Moon size={14} /> Dark</button>

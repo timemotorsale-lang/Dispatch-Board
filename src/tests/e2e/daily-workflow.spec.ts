@@ -488,7 +488,7 @@ test("manager can choose and retain the Customer Command Center appearance", asy
 test("manager can use the Customer Resolution workspace", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await login(page, managerEmail);
-  await page.getByRole("link", { name: "Customer Resolution" }).click();
+  await page.locator(".app-sidebar").getByRole("link", { name: "Customer Resolution" }).click();
 
   await expect(page).toHaveURL(/\/customers\/resolutions/);
   await expect(page.getByRole("heading", { name: "Customer Resolution" })).toBeVisible();
@@ -497,6 +497,7 @@ test("manager can use the Customer Resolution workspace", async ({ page }) => {
   await expect(page.getByLabel("Selected case command rail")).toContainText(
     "Financing approval delay"
   );
+  await expect(page.getByLabel("Customer console sections").getByRole("link", { name: "Resolution" })).toHaveAttribute("aria-current", "page");
 
   await page.getByRole("button", { name: "Escalated", exact: true }).click();
   const escalatedRow = page.locator(".customer-case-row").filter({ hasText: "Mustafa K." });

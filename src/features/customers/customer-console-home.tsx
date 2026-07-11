@@ -18,6 +18,7 @@ import {
   Users
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 type CustomerTheme = "light" | "dark";
 
@@ -102,6 +103,10 @@ export function CustomerConsoleHome() {
           <input aria-label="Search customer command center" placeholder="Search customers, leads, vehicles, deals..." type="search" />
           <kbd>Ctrl K</kbd>
         </label>
+        <nav className="customer-module-switcher" aria-label="Customer console sections">
+          <Link aria-current="page" className="active" href="/customers">Overview</Link>
+          <Link href="/customers/resolutions">Resolution</Link>
+        </nav>
         <button className="customer-quick-action" type="button"><Plus size={16} /> New <ChevronDown size={13} /></button>
         <button className="customer-home-toolbar-icon" aria-label="Notifications" type="button"><Bell size={17} /><span>6</span></button>
         <button className="customer-home-toolbar-icon" aria-label="Messages" type="button"><Mail size={17} /></button>

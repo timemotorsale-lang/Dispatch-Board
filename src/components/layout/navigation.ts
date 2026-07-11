@@ -25,6 +25,7 @@ export type NavigationItem = {
   icon: LucideIcon;
   badge?: string;
   matchExact?: boolean;
+  parentHref?: string;
   isVisible?(user: AuthenticatedUser): boolean;
 };
 
@@ -75,7 +76,8 @@ export const navigationGroups: NavigationGroup[] = [
         href: "/customers/resolutions",
         title: "Customer Resolution",
         description: "Customer cases, SLA, and resolution queues.",
-        icon: LifeBuoy
+        icon: LifeBuoy,
+        parentHref: "/customers"
       },
       {
         href: "/appointments",
