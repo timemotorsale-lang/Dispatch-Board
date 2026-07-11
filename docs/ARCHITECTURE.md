@@ -515,6 +515,14 @@ Until the full v0.6.1 scheduler evidence work is implemented, the route and gene
 
 ---
 
+### Concern-to-task resolution generation
+
+Concern generation is event-driven and remains separate from daily board generation. It reuses the task aggregate, assignment recommendations, board days, manager review, status rules, and activity feed while committing a parent `ConcernCase`, linked tasks, required checklist evidence, and events in one idempotent transaction.
+
+The initial engine uses versioned code-owned blueprints and deterministic rules. It does not call AI or external systems. Concern tasks use their due-date board day, preserve a `CONCERN` source, and remain safe from daily-generation replacement. Timed escalation uses a separate protected evaluator and never treats formal escalation as resolved closure.
+
+See [`CONCERN_RESOLUTION_ENGINE.md`](CONCERN_RESOLUTION_ENGINE.md) for routes, safety boundaries, and deferred scope.
+
 ## 12. Assignment Recommendation Service
 
 The assignment recommendation service should be simple and explainable.

@@ -35,10 +35,13 @@ export type TaskCommentReadModel = {
 export type TaskChecklistItemReadModel = {
   id: string;
   kind: string;
+  key: string | null;
   label: string;
+  required: boolean;
   completed: boolean;
   sortOrder: number;
   completedAt: string | null;
+  completedByUserId: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -79,6 +82,7 @@ export type TaskReadModel = {
   title: string;
   description: string | null;
   status: string;
+  priority: string;
   dueAt: string;
   workflowArea: string;
   sourceType: string;
@@ -314,6 +318,7 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
     title: task.title,
     description: normalizeOptionalText(task.description),
     status: task.status,
+    priority: task.priority,
     dueAt: task.dueAt.toISOString(),
     workflowArea: task.workflowArea,
     sourceType: task.sourceType,
@@ -343,10 +348,13 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
     checklistItems: checklistItems.map((item) => ({
       id: item.id,
       kind: item.kind,
+      key: item.key,
       label: item.label.trim(),
+      required: item.isRequired,
       completed: item.completed,
       sortOrder: item.sortOrder,
       completedAt: item.completedAt?.toISOString() ?? null,
+      completedByUserId: item.completedByUserId,
       createdAt: item.createdAt.toISOString(),
       updatedAt: item.updatedAt.toISOString()
     })),

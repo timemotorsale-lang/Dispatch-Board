@@ -16,10 +16,13 @@ const taskChecklistItemSelect = {
   id: true,
   taskId: true,
   kind: true,
+  key: true,
   label: true,
+  isRequired: true,
   completed: true,
   sortOrder: true,
   completedAt: true,
+  completedByUserId: true,
   createdAt: true,
   updatedAt: true
 } satisfies Prisma.TaskChecklistItemSelect;
@@ -44,10 +47,14 @@ export type TaskChecklistCreateInput = {
   kind: TaskChecklistItemKind;
   label: string;
   completed?: boolean;
+  key?: string | null;
+  isRequired?: boolean;
+  completedByUserId?: string | null;
 };
 
 export type TaskChecklistUpdateInput = {
   completed: boolean;
+  completedByUserId?: string | null;
 };
 
 export type TaskChecklistRepository = {
@@ -117,8 +124,11 @@ export function createTaskChecklistRepository(
           taskId,
           kind: input.kind,
           label: input.label,
+          key: input.key ?? null,
+          isRequired: input.isRequired ?? true,
           completed: input.completed ?? false,
           completedAt: input.completed ? new Date() : null,
+          completedByUserId: input.completed ? input.completedByUserId ?? null : null,
           sortOrder: (maxSortOrder._max.sortOrder ?? -1) + 1
         },
         select: taskChecklistItemSelect
@@ -132,7 +142,8 @@ export function createTaskChecklistRepository(
         },
         data: {
           completed: input.completed,
-          completedAt: input.completed ? new Date() : null
+          completedAt: input.completed ? new Date() : null,
+          completedByUserId: input.completed ? input.completedByUserId ?? null : null
         },
         select: taskChecklistItemSelect
       });

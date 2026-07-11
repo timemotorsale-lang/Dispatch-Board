@@ -20,6 +20,11 @@ type StoredTask = {
   completedAt: Date | null;
   reviewedByUserId: string | null;
   updatedAt: Date;
+  checklistItems?: Array<{ label: string; isRequired: boolean; completed: boolean }>;
+  concernLink?: {
+    dependsOnStepCodes: string[];
+    concernCase: { taskLinks: Array<{ stepCode: string; task: { status: TaskStatus } }> };
+  } | null;
 };
 
 type StoredActivityEvent = {
@@ -822,5 +827,35 @@ describe("task status service", () => {
       taskId: "task-1",
       triggerCode: "QUALIFIED_SALES_FOLLOW_UP_TASK"
     });
+  });
+
+  it("rejects completion while required persisted checklist evidence is incomplete", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+    const { repository } = createTaskStatusRepository([
+      createStoredTask({ checklistItems: [{ label: "Confirm submission status", isRequired: true, completed: false }] })
+    ]);
+
+    await expect(updateTaskStatus(staffUser, "task-1", { status: "COMPLETED" }, repository)).rejects.toThrow(
+      "Task checklist is incomplete"
+    );
+  });
+
+  it("rejects concern work when its dependency steps are incomplete", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+    const { repository } = createTaskStatusRepository([
+      createStoredTask({
+        status: TaskStatus.NOT_STARTED,
+        concernLink: {
+          dependsOnStepCodes: ["VERIFY_RECORD"],
+          concernCase: { taskLinks: [{ stepCode: "VERIFY_RECORD", task: { status: TaskStatus.IN_PROGRESS } }] }
+        }
+      })
+    ]);
+
+    await expect(updateTaskStatus(staffUser, "task-1", { status: "IN_PROGRESS" }, repository)).rejects.toThrow(
+      "Concern task dependencies are incomplete: VERIFY_RECORD"
+    );
   });
 });

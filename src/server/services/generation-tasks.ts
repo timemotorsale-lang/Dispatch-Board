@@ -457,6 +457,7 @@ function buildGeneratedTaskCandidates(
         recommendationReasonCode: recommendation.reasonCode,
         recommendationExplanation: recommendation.explanation,
         dueAt: toDueAt(boardDate, template.defaultDueTime),
+        priority: template.priority,
         createdByUserId,
         requiresManagerApproval: template.requiresManagerApproval,
         sourceTemplateId: template.templateId,

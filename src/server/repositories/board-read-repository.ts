@@ -16,6 +16,7 @@ const boardTaskSelect = {
   title: true,
   description: true,
   status: true,
+  priority: true,
   dueAt: true,
   updatedAt: true,
   workflowArea: true,

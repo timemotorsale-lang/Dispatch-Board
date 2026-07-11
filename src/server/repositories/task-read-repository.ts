@@ -10,6 +10,7 @@ const taskReadSelect = {
   title: true,
   description: true,
   status: true,
+  priority: true,
   dueAt: true,
   workflowArea: true,
   sourceType: true,
@@ -133,10 +134,13 @@ export type TaskReadRecord = Prisma.TaskGetPayload<{
   checklistItems: Array<{
     id: string;
     kind: string;
+    key: string | null;
     label: string;
+    isRequired: boolean;
     completed: boolean;
     sortOrder: number;
     completedAt: Date | null;
+    completedByUserId: string | null;
     createdAt: Date;
     updatedAt: Date;
   }>;
@@ -149,10 +153,13 @@ export type TaskReadRepository = {
 const taskChecklistReadSelect = {
   id: true,
   kind: true,
+  key: true,
   label: true,
+  isRequired: true,
   completed: true,
   sortOrder: true,
   completedAt: true,
+  completedByUserId: true,
   createdAt: true,
   updatedAt: true
 } satisfies Prisma.TaskChecklistItemSelect;

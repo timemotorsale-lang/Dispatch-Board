@@ -297,6 +297,17 @@ Status markers in this section describe Enterprise Tasks Module evolution specif
 
 ### Phase 3 - Generation, routing, and attention engines
 
+#### Concern resolution engine
+
+| ID | Status | Scope | Acceptance criteria |
+| --- | --- | --- | --- |
+| DB-AUTOGENERATION-058A | [x] | Deterministic classification, severity, and resolution planning | Title delays produce an explainable seven-step plan; unknown concerns route to manager triage. |
+| DB-AUTOGENERATION-058B | [x] | Durable concern, link, priority, checklist, and activity schema | Concern packages retain task and evidence relationships without parent-task hacks. |
+| DB-AUTOGENERATION-058C | [x] | Idempotent transactional package generation | Retry-safe commit creates the concern, tasks, checklists, links, and events atomically. |
+| DB-AUTOGENERATION-058D | [x] | Execution and closure gates | Dependencies, required evidence, manager review, and closure proof cannot be bypassed. |
+| DB-AUTOGENERATION-058E | [x] | Tasks Console intake and package visibility | Managers can preview, generate, and reopen recent concern work from `/tasks`. |
+| DB-AUTOGENERATION-059 | [x] | Initial SLA escalation evaluator | Due escalation candidates move to Escalated with durable activity evidence through manager or protected cron execution. |
+
 | ID | Status | GitHub issue / task card | Codex-sized scope | Acceptance criteria |
 | --- | --- | --- | --- | --- |
 | DB-ETM-030 | [x] | Preserve enterprise-safe daily generation engine | Keep generation idempotent, duplicate-safe, retryable, and event-backed as the module expands. | Daily generation stays safe while later task-console work lands. |

@@ -17,6 +17,29 @@ const taskStatusSelect = {
   readyForReviewAt: true,
   completedAt: true,
   reviewedByUserId: true,
+  checklistItems: {
+    select: {
+      key: true,
+      label: true,
+      isRequired: true,
+      completed: true
+    }
+  },
+  concernLink: {
+    select: {
+      dependsOnStepCodes: true,
+      concernCase: {
+        select: {
+          taskLinks: {
+            select: {
+              stepCode: true,
+              task: { select: { status: true } }
+            }
+          }
+        }
+      }
+    }
+  },
   updatedAt: true
 } as const;
 
@@ -36,6 +59,11 @@ export type TaskStatusLookupRecord = {
   completedAt: Date | null;
   reviewedByUserId: string | null;
   updatedAt: Date;
+  checklistItems?: Array<{ key: string | null; label: string; isRequired: boolean; completed: boolean }>;
+  concernLink?: {
+    dependsOnStepCodes: Prisma.JsonValue;
+    concernCase: { taskLinks: Array<{ stepCode: string; task: { status: TaskStatus } }> };
+  } | null;
   boardDayId?: string;
   title?: string;
 };

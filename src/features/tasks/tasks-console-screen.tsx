@@ -3,6 +3,7 @@
 import { TaskStatus, WorkflowArea } from "@prisma/client";
 import { TASK_CHECKLIST_ITEM_KIND } from "@/lib/task-checklist-kind";
 import {
+  AlertTriangle,
   Calendar,
   ChevronDown,
   ChevronLeft,
@@ -23,6 +24,7 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, useDeferredValue, useEffect, useRef, useState, useTransition } from "react";
 
 import { EmptyStateCard, ErrorStateCard } from "@/components/ui/state-card";
+import { ConcernIntakePanel } from "@/features/tasks/concern-intake-panel";
 import {
   buildSubtasks,
   formatTaskDisplayNumber,
@@ -455,9 +457,13 @@ function getStatusToneClass(status: string) {
   return "tasks-console-status tasks-console-status-brand";
 }
 
-function getPriorityLabel(task: Pick<BoardReadTask, "status" | "dueAt" | "requiresManagerApproval">, now: Date) {
+function getPriorityLabel(task: Pick<BoardReadTask, "status" | "dueAt" | "priority" | "requiresManagerApproval">, now: Date) {
   if (task.status === TaskStatus.COMPLETED) {
     return "Low";
+  }
+
+  if (task.priority === "HIGH" || task.priority === "CRITICAL") {
+    return "High";
   }
 
   if (
@@ -803,6 +809,7 @@ export function TasksConsoleScreen({
   const [statusDrafts, setStatusDrafts] = useState<Record<string, string>>({});
   const [generationMessage, setGenerationMessage] = useState<string | null>(null);
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
+  const [concernIntakeOpen, setConcernIntakeOpen] = useState(false);
   const [quickCreateError, setQuickCreateError] = useState<string | null>(null);
   const [quickCreateMessage, setQuickCreateMessage] = useState<string | null>(null);
   const [isGeneratePending, startGenerateTransition] = useTransition();
@@ -1684,6 +1691,16 @@ export function TasksConsoleScreen({
             Create Task
           </button>
           <button
+            aria-label="Log concern"
+            className="pill pill-secondary tasks-console-icon-pill"
+            disabled={!isManager}
+            onClick={() => { setConcernIntakeOpen(true); setQuickCreateOpen(false); }}
+            title="Log concern"
+            type="button"
+          >
+            <AlertTriangle size={16} />
+          </button>
+          <button
             className="pill pill-secondary"
             disabled={!isManager || isGeneratePending}
             onClick={handleGenerateBoard}
@@ -1815,6 +1832,13 @@ export function TasksConsoleScreen({
         <div className="notice">
           <p>{generationMessage}</p>
         </div>
+      ) : null}
+
+      {concernIntakeOpen ? (
+        <ConcernIntakePanel
+          onClose={() => setConcernIntakeOpen(false)}
+          onCreated={() => router.refresh()}
+        />
       ) : null}
 
       {quickCreateOpen ? (

@@ -51,6 +51,7 @@ export type BoardReadTask = {
   title: string;
   description: string | null;
   status: string;
+  priority: string;
   dueAt: string;
   updatedAt: string;
   workflowArea: string;
@@ -330,6 +331,7 @@ function toTaskSummary(task: BoardReadTaskRecord): BoardReadTask {
     title: task.title,
     description: normalizeOptionalText(task.description),
     status: task.status,
+    priority: task.priority,
     dueAt: task.dueAt.toISOString(),
     updatedAt: (updatedAt ?? task.dueAt).toISOString(),
     workflowArea: task.workflowArea,
@@ -1005,7 +1007,7 @@ function createSourceCounts(tasks: BoardReadTask[]) {
     (counts, task) => {
       if (task.sourceType === TaskSourceType.TEMPLATE) {
         counts.template += 1;
-      } else if (task.sourceType === TaskSourceType.MANAGER) {
+      } else if (task.sourceType === TaskSourceType.MANAGER || task.sourceType === TaskSourceType.CONCERN) {
         counts.manager += 1;
       } else if (task.sourceType === TaskSourceType.STAFF) {
         counts.staff += 1;
