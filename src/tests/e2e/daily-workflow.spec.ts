@@ -453,6 +453,36 @@ test("manager can use every Appointment Board navigation and view tab", async ({
   await expect(workspace).not.toBeVisible();
 });
 
+test("manager can choose and retain the Customer Command Center appearance", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await login(page, managerEmail);
+  await page.goto("/customers");
+
+  const consoleRoot = page.getByRole("region", { name: "Customer Command Center" });
+  const appearance = page.getByRole("group", { name: "Customer console appearance" });
+  const lightButton = appearance.getByRole("button", { name: "Use light background" });
+  const darkButton = appearance.getByRole("button", { name: "Use dark background" });
+
+  await expect(page.getByRole("heading", { name: "Maria Santos" })).toBeVisible();
+  await expect(consoleRoot).toHaveAttribute("data-theme", "light");
+  await expect(lightButton).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("body")).toHaveClass(/customer-console-shell/);
+
+  await darkButton.click();
+  await expect(consoleRoot).toHaveAttribute("data-theme", "dark");
+  await expect(darkButton).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("body")).toHaveClass(/customer-console-dark-shell/);
+
+  await page.reload();
+  await expect(consoleRoot).toHaveAttribute("data-theme", "dark");
+  await expect(darkButton).toHaveAttribute("aria-pressed", "true");
+
+  await lightButton.click();
+  await expect(consoleRoot).toHaveAttribute("data-theme", "light");
+  await expect(lightButton).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("body")).not.toHaveClass(/customer-console-dark-shell/);
+});
+
 test("manager can scan the compact Tasks Operations Console", async ({ page }) => {
   test.setTimeout(60_000);
 
