@@ -320,11 +320,31 @@ enum TaskSourceType {
   TEMPLATE
   MANAGER
   STAFF
+  CONCERN
 }
 
 enum TaskChecklistItemKind {
   DEFINITION_OF_DONE
   SUBTASK
+}
+
+enum ConcernStatus {
+  OPEN
+  IN_PROGRESS
+  ESCALATED
+  READY_FOR_CLOSURE
+  CLOSED
+}
+
+enum ConcernSource {
+  MANAGER
+  QUICK_LOG
+}
+
+enum ConcernClosureOutcome {
+  TITLE_RECEIVED
+  TITLE_MAILED
+  PAPERWORK_RESUBMITTED
 }
 
 enum GenerationRunStatus {
@@ -385,42 +405,46 @@ model BootstrapMarker {
 }
 
 model User {
-  id                      String          @id @default(cuid())
-  name                    String
-  email                   String          @unique
-  passwordHash            String
-  isActive                Boolean         @default(true)
-  createdAt               DateTime        @default(now())
-  updatedAt               DateTime        @updatedAt
-  sessions                Session[]
-  userRoles               UserRole[]
-  userDuties              UserDuty[]
-  generatedBoardDays      BoardDay[]      @relation("BoardDayGeneratedByUser")
-  assignedTasks           Task[]          @relation("TaskAssignedUser")
-  recommendedTasks        Task[]          @relation("TaskRecommendedUser")
-  createdTasks            Task[]          @relation("TaskCreatedByUser")
-  reviewedTasks           Task[]          @relation("TaskReviewedByUser")
-  authoredTaskComments    TaskComment[]   @relation("TaskCommentAuthorUser")
-  activityEvents          ActivityEvent[]
-  triggeredGenerationRuns GenerationRun[] @relation("GenerationRunTriggeredByUser")
-  createdLocationClosures LocationClosure[] @relation("LocationClosureCreatedByUser")
-  ownedAppointments       Appointment[]     @relation("AppointmentOwnerUser")
-  createdAppointments     Appointment[]     @relation("AppointmentCreatedByUser")
-  appointmentParticipants AppointmentParticipant[]
-  appointmentLocationAccess UserLocationAccess[]
-  createdAppointmentTaskLinks AppointmentTaskLink[] @relation("AppointmentTaskLinkCreatedByUser")
-  appointmentHistoryEvents AppointmentHistoryEvent[] @relation("AppointmentHistoryEventActorUser")
-  appointmentCommandLedgerEntries AppointmentCommandLedger[] @relation("AppointmentCommandLedgerActorUser")
-  schedulableResources    SchedulableResource[] @relation("SchedulableResourceUser")
-  createdResourceUnavailability ResourceUnavailability[] @relation("ResourceUnavailabilityCreatedByUser")
-  createdAppointmentCatalogVersions AppointmentCatalogVersion[] @relation("AppointmentCatalogVersionCreatedByUser")
-  activatedAppointmentCatalogVersions AppointmentCatalogVersion[] @relation("AppointmentCatalogVersionActivatedByUser")
-  appointmentCatalogChangeEvents AppointmentCatalogChangeEvent[] @relation("AppointmentCatalogChangeEventActorUser")
-  createdAppointmentAutomationRules AppointmentAutomationRule[] @relation("AppointmentAutomationRuleCreatedByUser")
-  activatedAppointmentAutomationRules AppointmentAutomationRule[] @relation("AppointmentAutomationRuleActivatedByUser")
+  id                                    String                                 @id @default(cuid())
+  name                                  String
+  email                                 String                                 @unique
+  passwordHash                          String
+  isActive                              Boolean                                @default(true)
+  createdAt                             DateTime                               @default(now())
+  updatedAt                             DateTime                               @updatedAt
+  sessions                              Session[]
+  userRoles                             UserRole[]
+  userDuties                            UserDuty[]
+  generatedBoardDays                    BoardDay[]                             @relation("BoardDayGeneratedByUser")
+  assignedTasks                         Task[]                                 @relation("TaskAssignedUser")
+  recommendedTasks                      Task[]                                 @relation("TaskRecommendedUser")
+  createdTasks                          Task[]                                 @relation("TaskCreatedByUser")
+  reviewedTasks                         Task[]                                 @relation("TaskReviewedByUser")
+  authoredTaskComments                  TaskComment[]                          @relation("TaskCommentAuthorUser")
+  activityEvents                        ActivityEvent[]
+  triggeredGenerationRuns               GenerationRun[]                        @relation("GenerationRunTriggeredByUser")
+  createdLocationClosures               LocationClosure[]                      @relation("LocationClosureCreatedByUser")
+  ownedAppointments                     Appointment[]                          @relation("AppointmentOwnerUser")
+  createdAppointments                   Appointment[]                          @relation("AppointmentCreatedByUser")
+  appointmentParticipants               AppointmentParticipant[]
+  appointmentLocationAccess             UserLocationAccess[]
+  createdAppointmentTaskLinks           AppointmentTaskLink[]                  @relation("AppointmentTaskLinkCreatedByUser")
+  appointmentHistoryEvents              AppointmentHistoryEvent[]              @relation("AppointmentHistoryEventActorUser")
+  appointmentCommandLedgerEntries       AppointmentCommandLedger[]             @relation("AppointmentCommandLedgerActorUser")
+  schedulableResources                  SchedulableResource[]                  @relation("SchedulableResourceUser")
+  createdResourceUnavailability         ResourceUnavailability[]               @relation("ResourceUnavailabilityCreatedByUser")
+  createdAppointmentCatalogVersions     AppointmentCatalogVersion[]            @relation("AppointmentCatalogVersionCreatedByUser")
+  activatedAppointmentCatalogVersions   AppointmentCatalogVersion[]            @relation("AppointmentCatalogVersionActivatedByUser")
+  appointmentCatalogChangeEvents        AppointmentCatalogChangeEvent[]        @relation("AppointmentCatalogChangeEventActorUser")
+  createdAppointmentAutomationRules     AppointmentAutomationRule[]            @relation("AppointmentAutomationRuleCreatedByUser")
+  activatedAppointmentAutomationRules   AppointmentAutomationRule[]            @relation("AppointmentAutomationRuleActivatedByUser")
   appointmentAutomationRuleChangeEvents AppointmentAutomationRuleChangeEvent[] @relation("AppointmentAutomationRuleChangeEventActorUser")
-  appointmentAutomationExecutionEvents AppointmentAutomationExecutionEvent[] @relation("AppointmentAutomationExecutionEventActorUser")
-  createdTaskSavedViews TaskSavedView[] @relation("TaskSavedViewCreatedByUser")
+  appointmentAutomationExecutionEvents  AppointmentAutomationExecutionEvent[]  @relation("AppointmentAutomationExecutionEventActorUser")
+  createdTaskSavedViews                 TaskSavedView[]                        @relation("TaskSavedViewCreatedByUser")
+  reportedConcerns                      ConcernCase[]                          @relation("ConcernReportedByUser")
+  ownedConcerns                         ConcernCase[]                          @relation("ConcernAssignedOwner")
+  closedConcerns                        ConcernCase[]                          @relation("ConcernClosedByUser")
+  completedChecklistItems               TaskChecklistItem[]                    @relation("TaskChecklistCompletedByUser")
 
   @@index([isActive])
 }
@@ -505,49 +529,49 @@ model AppSetting {
 }
 
 model Organization {
-  id           String                   @id @default(cuid())
-  code         String                   @unique
-  name         String
-  createdAt    DateTime                 @default(now())
-  updatedAt    DateTime                 @updatedAt
-  locations    Location[]
-  appointments Appointment[]
-  appointmentCommandLedgerEntries AppointmentCommandLedger[]
-  customers    Customer[]
-  vehicles     Vehicle[]
-  resourceTypes SchedulableResourceType[]
-  resources    SchedulableResource[]
-  appointmentCatalogVersions AppointmentCatalogVersion[]
-  appointmentCatalogChangeEvents AppointmentCatalogChangeEvent[]
-  appointmentAutomationRules AppointmentAutomationRule[]
-  appointmentAutomationExecutions AppointmentAutomationExecution[]
+  id                                    String                                 @id @default(cuid())
+  code                                  String                                 @unique
+  name                                  String
+  createdAt                             DateTime                               @default(now())
+  updatedAt                             DateTime                               @updatedAt
+  locations                             Location[]
+  appointments                          Appointment[]
+  appointmentCommandLedgerEntries       AppointmentCommandLedger[]
+  customers                             Customer[]
+  vehicles                              Vehicle[]
+  resourceTypes                         SchedulableResourceType[]
+  resources                             SchedulableResource[]
+  appointmentCatalogVersions            AppointmentCatalogVersion[]
+  appointmentCatalogChangeEvents        AppointmentCatalogChangeEvent[]
+  appointmentAutomationRules            AppointmentAutomationRule[]
+  appointmentAutomationExecutions       AppointmentAutomationExecution[]
   appointmentAutomationRuleChangeEvents AppointmentAutomationRuleChangeEvent[]
-  appointmentAutomationExecutionEvents AppointmentAutomationExecutionEvent[]
+  appointmentAutomationExecutionEvents  AppointmentAutomationExecutionEvent[]
 }
 
 model Location {
-  id               String                    @id @default(cuid())
-  organizationId   String
-  code             String
-  name             String
-  timezone         String
-  addressLine1     String?
-  addressLine2     String?
-  city             String
-  region           String
-  postalCode       String?
-  phoneNumber      String?
-  countryCode      String                    @default("US")
-  schedulingStatus LocationSchedulingStatus  @default(DRAFT)
-  createdAt        DateTime                  @default(now())
-  updatedAt        DateTime                  @updatedAt
-  organization     Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  operatingWindows LocationOperatingWindow[]
-  closures         LocationClosure[]
-  appointments     Appointment[]
+  id                              String                     @id @default(cuid())
+  organizationId                  String
+  code                            String
+  name                            String
+  timezone                        String
+  addressLine1                    String?
+  addressLine2                    String?
+  city                            String
+  region                          String
+  postalCode                      String?
+  phoneNumber                     String?
+  countryCode                     String                     @default("US")
+  schedulingStatus                LocationSchedulingStatus   @default(DRAFT)
+  createdAt                       DateTime                   @default(now())
+  updatedAt                       DateTime                   @updatedAt
+  organization                    Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  operatingWindows                LocationOperatingWindow[]
+  closures                        LocationClosure[]
+  appointments                    Appointment[]
   appointmentCommandLedgerEntries AppointmentCommandLedger[]
-  userAccess       UserLocationAccess[]
-  resources        SchedulableResource[]
+  userAccess                      UserLocationAccess[]
+  resources                       SchedulableResource[]
 
   @@unique([organizationId, code])
   @@index([organizationId, schedulingStatus])
@@ -638,33 +662,33 @@ model AppointmentCatalogChangeEvent {
 }
 
 model AppointmentAutomationRule {
-  id                 String                          @id @default(cuid())
-  organizationId     String
-  catalogVersionId   String?
-  ruleCode           String
-  name               String
-  description        String?
-  triggerCode        String
-  purposeCode        String
-  status             AppointmentAutomationRuleStatus @default(DRAFT)
-  priority           Int                             @default(100)
+  id                   String                                 @id @default(cuid())
+  organizationId       String
+  catalogVersionId     String?
+  ruleCode             String
+  name                 String
+  description          String?
+  triggerCode          String
+  purposeCode          String
+  status               AppointmentAutomationRuleStatus        @default(DRAFT)
+  priority             Int                                    @default(100)
   missingInputBehavior String
-  validationSnapshot Json
-  simulationSnapshot Json?
-  reason             String
-  createdByUserId    String?
-  activatedByUserId  String?
-  activatedAt        DateTime?
-  pausedAt           DateTime?
-  retiredAt          DateTime?
-  createdAt          DateTime                        @default(now())
-  updatedAt          DateTime                        @updatedAt
-  organization       Organization                    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  catalogVersion     AppointmentCatalogVersion?      @relation(fields: [catalogVersionId], references: [id], onDelete: SetNull)
-  createdByUser      User?                           @relation("AppointmentAutomationRuleCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  activatedByUser    User?                           @relation("AppointmentAutomationRuleActivatedByUser", fields: [activatedByUserId], references: [id], onDelete: SetNull)
-  changeEvents       AppointmentAutomationRuleChangeEvent[]
-  executions         AppointmentAutomationExecution[]
+  validationSnapshot   Json
+  simulationSnapshot   Json?
+  reason               String
+  createdByUserId      String?
+  activatedByUserId    String?
+  activatedAt          DateTime?
+  pausedAt             DateTime?
+  retiredAt            DateTime?
+  createdAt            DateTime                               @default(now())
+  updatedAt            DateTime                               @updatedAt
+  organization         Organization                           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  catalogVersion       AppointmentCatalogVersion?             @relation(fields: [catalogVersionId], references: [id], onDelete: SetNull)
+  createdByUser        User?                                  @relation("AppointmentAutomationRuleCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  activatedByUser      User?                                  @relation("AppointmentAutomationRuleActivatedByUser", fields: [activatedByUserId], references: [id], onDelete: SetNull)
+  changeEvents         AppointmentAutomationRuleChangeEvent[]
+  executions           AppointmentAutomationExecution[]
 
   @@unique([organizationId, ruleCode])
   @@index([organizationId, status])
@@ -695,27 +719,27 @@ model AppointmentAutomationRuleChangeEvent {
 }
 
 model AppointmentAutomationExecution {
-  id                 String                               @id @default(cuid())
-  organizationId     String
-  automationRuleId   String?
-  triggerCode        String
-  purposeCode        String?
-  status             AppointmentAutomationExecutionStatus @default(PENDING)
-  sourceType         String
-  sourceReference    String?
-  inputSnapshot      Json
-  resultSnapshot     Json?
-  failureCode        String?
-  failureMessage     String?
-  attemptCount       Int                                  @default(0)
-  maxAttempts        Int                                  @default(3)
-  nextRetryAt        DateTime?
-  resolvedAt         DateTime?
-  createdAt          DateTime                             @default(now())
-  updatedAt          DateTime                             @updatedAt
-  organization       Organization                         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  automationRule     AppointmentAutomationRule?           @relation(fields: [automationRuleId], references: [id], onDelete: SetNull)
-  events             AppointmentAutomationExecutionEvent[]
+  id               String                                @id @default(cuid())
+  organizationId   String
+  automationRuleId String?
+  triggerCode      String
+  purposeCode      String?
+  status           AppointmentAutomationExecutionStatus  @default(PENDING)
+  sourceType       String
+  sourceReference  String?
+  inputSnapshot    Json
+  resultSnapshot   Json?
+  failureCode      String?
+  failureMessage   String?
+  attemptCount     Int                                   @default(0)
+  maxAttempts      Int                                   @default(3)
+  nextRetryAt      DateTime?
+  resolvedAt       DateTime?
+  createdAt        DateTime                              @default(now())
+  updatedAt        DateTime                              @updatedAt
+  organization     Organization                          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  automationRule   AppointmentAutomationRule?            @relation(fields: [automationRuleId], references: [id], onDelete: SetNull)
+  events           AppointmentAutomationExecutionEvent[]
 
   @@index([organizationId, status, createdAt])
   @@index([automationRuleId, status, createdAt])
@@ -725,18 +749,18 @@ model AppointmentAutomationExecution {
 
 model AppointmentAutomationExecutionEvent {
   id                    String                               @id @default(cuid())
-  automationExecutionId  String
-  organizationId         String
-  actorUserId            String?
-  action                 AppointmentAutomationExecutionAction
-  reason                 String
-  priorSnapshot          Json?
-  newSnapshot            Json
-  occurredAt             DateTime                            @default(now())
-  createdAt              DateTime                            @default(now())
-  automationExecution    AppointmentAutomationExecution       @relation(fields: [automationExecutionId], references: [id], onDelete: Cascade)
-  organization           Organization                         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  actorUser              User?                                @relation("AppointmentAutomationExecutionEventActorUser", fields: [actorUserId], references: [id], onDelete: SetNull)
+  automationExecutionId String
+  organizationId        String
+  actorUserId           String?
+  action                AppointmentAutomationExecutionAction
+  reason                String
+  priorSnapshot         Json?
+  newSnapshot           Json
+  occurredAt            DateTime                             @default(now())
+  createdAt             DateTime                             @default(now())
+  automationExecution   AppointmentAutomationExecution       @relation(fields: [automationExecutionId], references: [id], onDelete: Cascade)
+  organization          Organization                         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  actorUser             User?                                @relation("AppointmentAutomationExecutionEventActorUser", fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@index([automationExecutionId, occurredAt])
   @@index([organizationId, action, occurredAt])
@@ -744,8 +768,8 @@ model AppointmentAutomationExecutionEvent {
 }
 
 model Appointment {
-  id                             String                        @id @default(cuid())
-  appointmentNumber              String                        @unique
+  id                             String                           @id @default(cuid())
+  appointmentNumber              String                           @unique
   organizationId                 String
   locationId                     String
   ownerUserId                    String?
@@ -756,11 +780,11 @@ model Appointment {
   schedulingTimezone             String
   startsAt                       DateTime?
   endsAt                         DateTime?
-  bookingStatus                  AppointmentBookingStatus      @default(DRAFT)
-  confirmationStatus             AppointmentConfirmationStatus @default(NOT_REQUIRED)
-  attendanceStatus               AppointmentAttendanceStatus   @default(EXPECTED)
-  executionStatus                AppointmentExecutionStatus    @default(NOT_STARTED)
-  version                        Int                           @default(1)
+  bookingStatus                  AppointmentBookingStatus         @default(DRAFT)
+  confirmationStatus             AppointmentConfirmationStatus    @default(NOT_REQUIRED)
+  attendanceStatus               AppointmentAttendanceStatus      @default(EXPECTED)
+  executionStatus                AppointmentExecutionStatus       @default(NOT_STARTED)
+  version                        Int                              @default(1)
   purposeSnapshot                Json?
   customerSnapshot               Json?
   vehicleSnapshot                Json?
@@ -786,12 +810,12 @@ model Appointment {
   outcomeNotes                   String?
   followUpDispositionCode        String?
   followUpNotes                  String?
-  createdAt                      DateTime                      @default(now())
-  updatedAt                      DateTime                      @updatedAt
-  organization                   Organization                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  location                       Location                      @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  ownerUser                      User?                         @relation("AppointmentOwnerUser", fields: [ownerUserId], references: [id], onDelete: SetNull)
-  createdByUser                  User?                         @relation("AppointmentCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdAt                      DateTime                         @default(now())
+  updatedAt                      DateTime                         @updatedAt
+  organization                   Organization                     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location                       Location                         @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  ownerUser                      User?                            @relation("AppointmentOwnerUser", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  createdByUser                  User?                            @relation("AppointmentCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
   participants                   AppointmentParticipant[]
   vehicles                       AppointmentVehicle[]
   taskLinks                      AppointmentTaskLink[]
@@ -809,19 +833,19 @@ model Appointment {
 }
 
 model UserLocationAccess {
-  userId                     String
-  locationId                 String
-  canViewSchedule            Boolean  @default(true)
-  canParticipate             Boolean  @default(true)
-  canOwnAppointments         Boolean  @default(false)
-  canManageAppointments      Boolean  @default(false)
-  canViewLimitedData         Boolean  @default(false)
-  validFrom                  DateTime @db.Date
-  validTo                    DateTime? @db.Date
-  createdAt                  DateTime @default(now())
-  updatedAt                  DateTime @updatedAt
-  user                       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  location                   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  userId                String
+  locationId            String
+  canViewSchedule       Boolean   @default(true)
+  canParticipate        Boolean   @default(true)
+  canOwnAppointments    Boolean   @default(false)
+  canManageAppointments Boolean   @default(false)
+  canViewLimitedData    Boolean   @default(false)
+  validFrom             DateTime  @db.Date
+  validTo               DateTime? @db.Date
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  location              Location  @relation(fields: [locationId], references: [id], onDelete: Cascade)
 
   @@id([userId, locationId])
   @@index([locationId, canOwnAppointments, canManageAppointments])
@@ -829,22 +853,22 @@ model UserLocationAccess {
 }
 
 model Customer {
-  id                    String         @id @default(cuid())
-  organizationId        String
-  customerNumber        String
-  displayName           String
-  phoneNumber           String?
-  email                 String?
-  status                CustomerStatus @default(ACTIVE)
-  externalReference     String?
-  duplicateKey          String?
-  mergedIntoCustomerId  String?
-  retentionUntil        DateTime?      @db.Date
-  createdAt             DateTime       @default(now())
-  updatedAt             DateTime       @updatedAt
-  organization          Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  mergedIntoCustomer    Customer?      @relation("CustomerMerge", fields: [mergedIntoCustomerId], references: [id], onDelete: Restrict)
-  mergedCustomers       Customer[]     @relation("CustomerMerge")
+  id                      String                   @id @default(cuid())
+  organizationId          String
+  customerNumber          String
+  displayName             String
+  phoneNumber             String?
+  email                   String?
+  status                  CustomerStatus           @default(ACTIVE)
+  externalReference       String?
+  duplicateKey            String?
+  mergedIntoCustomerId    String?
+  retentionUntil          DateTime?                @db.Date
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  organization            Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  mergedIntoCustomer      Customer?                @relation("CustomerMerge", fields: [mergedIntoCustomerId], references: [id], onDelete: Restrict)
+  mergedCustomers         Customer[]               @relation("CustomerMerge")
   appointmentParticipants AppointmentParticipant[]
 
   @@unique([organizationId, customerNumber])
@@ -855,25 +879,25 @@ model Customer {
 }
 
 model Vehicle {
-  id                    String        @id @default(cuid())
-  organizationId        String
-  vehicleNumber         String
-  vin                   String?
-  stockNumber           String?
-  year                  Int?
-  make                  String?
-  model                 String?
-  color                 String?
-  licensePlate          String?
-  status                VehicleStatus @default(ACTIVE)
-  externalReference     String?
-  duplicateKey          String?
-  retentionUntil        DateTime?     @db.Date
-  createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @updatedAt
-  organization          Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  appointmentLinks      AppointmentVehicle[]
-  schedulableResources  SchedulableResource[] @relation("SchedulableResourceVehicle")
+  id                   String                @id @default(cuid())
+  organizationId       String
+  vehicleNumber        String
+  vin                  String?
+  stockNumber          String?
+  year                 Int?
+  make                 String?
+  model                String?
+  color                String?
+  licensePlate         String?
+  status               VehicleStatus         @default(ACTIVE)
+  externalReference    String?
+  duplicateKey         String?
+  retentionUntil       DateTime?             @db.Date
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  organization         Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  appointmentLinks     AppointmentVehicle[]
+  schedulableResources SchedulableResource[] @relation("SchedulableResourceVehicle")
 
   @@unique([organizationId, vehicleNumber])
   @@unique([organizationId, vin])
@@ -919,8 +943,8 @@ model AppointmentVehicle {
   exclusiveReservationRequired Boolean     @default(true)
   createdAt                    DateTime    @default(now())
   updatedAt                    DateTime    @updatedAt
-  appointment                 Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
-  vehicle                     Vehicle     @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  appointment                  Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  vehicle                      Vehicle     @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
 
   @@unique([appointmentId, vehicleId, roleCode])
   @@index([appointmentId, isPrimary])
@@ -928,20 +952,20 @@ model AppointmentVehicle {
 }
 
 model SchedulableResourceType {
-  id                    String                     @id @default(cuid())
+  id                    String                           @id @default(cuid())
   organizationId        String
   code                  String
   name                  String
   kind                  SchedulableResourceKind
   defaultCapacityMode   ResourceCapacityMode
-  defaultCapacity       Int                        @default(1)
+  defaultCapacity       Int                              @default(1)
   defaultConflictPolicy ResourceConflictPolicy
-  visibilityClass       ResourceVisibilityClass    @default(OPERATIONAL)
+  visibilityClass       ResourceVisibilityClass          @default(OPERATIONAL)
   attributeSchema       Json?
-  isActive              Boolean                    @default(true)
-  createdAt             DateTime                   @default(now())
-  updatedAt             DateTime                   @updatedAt
-  organization          Organization               @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  isActive              Boolean                          @default(true)
+  createdAt             DateTime                         @default(now())
+  updatedAt             DateTime                         @updatedAt
+  organization          Organization                     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   resources             SchedulableResource[]
   requirements          AppointmentResourceRequirement[]
 
@@ -950,33 +974,33 @@ model SchedulableResourceType {
 }
 
 model SchedulableResource {
-  id                 String                    @id @default(cuid())
-  organizationId     String
-  locationId         String
-  resourceTypeId     String
-  code               String
-  name               String
-  status             SchedulableResourceStatus @default(ACTIVE)
-  capacityMode       ResourceCapacityMode
-  capacity           Int                       @default(1)
-  conflictPolicy     ResourceConflictPolicy
-  userId             String?
-  vehicleId          String?
-  attributes         Json?
-  effectiveFrom      DateTime                  @db.Date
-  effectiveTo        DateTime?                 @db.Date
-  createdAt          DateTime                  @default(now())
-  updatedAt          DateTime                  @updatedAt
-  organization       Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  location           Location                  @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  resourceType       SchedulableResourceType   @relation(fields: [resourceTypeId], references: [id], onDelete: Restrict)
-  user               User?                     @relation("SchedulableResourceUser", fields: [userId], references: [id], onDelete: Restrict)
-  vehicle            Vehicle?                  @relation("SchedulableResourceVehicle", fields: [vehicleId], references: [id], onDelete: Restrict)
-  operatingWindows   ResourceOperatingWindow[]
-  unavailability     ResourceUnavailability[]
-  reservations       AppointmentResourceReservation[]
-  poolMembers        ResourcePoolMember[]      @relation("ResourcePool")
-  memberOfPools      ResourcePoolMember[]      @relation("ResourcePoolMember")
+  id               String                           @id @default(cuid())
+  organizationId   String
+  locationId       String
+  resourceTypeId   String
+  code             String
+  name             String
+  status           SchedulableResourceStatus        @default(ACTIVE)
+  capacityMode     ResourceCapacityMode
+  capacity         Int                              @default(1)
+  conflictPolicy   ResourceConflictPolicy
+  userId           String?
+  vehicleId        String?
+  attributes       Json?
+  effectiveFrom    DateTime                         @db.Date
+  effectiveTo      DateTime?                        @db.Date
+  createdAt        DateTime                         @default(now())
+  updatedAt        DateTime                         @updatedAt
+  organization     Organization                     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location         Location                         @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  resourceType     SchedulableResourceType          @relation(fields: [resourceTypeId], references: [id], onDelete: Restrict)
+  user             User?                            @relation("SchedulableResourceUser", fields: [userId], references: [id], onDelete: Restrict)
+  vehicle          Vehicle?                         @relation("SchedulableResourceVehicle", fields: [vehicleId], references: [id], onDelete: Restrict)
+  operatingWindows ResourceOperatingWindow[]
+  unavailability   ResourceUnavailability[]
+  reservations     AppointmentResourceReservation[]
+  poolMembers      ResourcePoolMember[]             @relation("ResourcePool")
+  memberOfPools    ResourcePoolMember[]             @relation("ResourcePoolMember")
 
   @@unique([locationId, code])
   @@unique([locationId, userId])
@@ -986,91 +1010,91 @@ model SchedulableResource {
 }
 
 model ResourcePoolMember {
-  poolResourceId      String
-  memberResourceId    String
-  capacityContribution Int      @default(1)
-  validFrom           DateTime @db.Date
-  validTo             DateTime? @db.Date
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  poolResource        SchedulableResource @relation("ResourcePool", fields: [poolResourceId], references: [id], onDelete: Cascade)
-  memberResource      SchedulableResource @relation("ResourcePoolMember", fields: [memberResourceId], references: [id], onDelete: Cascade)
+  poolResourceId       String
+  memberResourceId     String
+  capacityContribution Int                 @default(1)
+  validFrom            DateTime            @db.Date
+  validTo              DateTime?           @db.Date
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  poolResource         SchedulableResource @relation("ResourcePool", fields: [poolResourceId], references: [id], onDelete: Cascade)
+  memberResource       SchedulableResource @relation("ResourcePoolMember", fields: [memberResourceId], references: [id], onDelete: Cascade)
 
   @@id([poolResourceId, memberResourceId, validFrom])
   @@index([memberResourceId, validFrom, validTo])
 }
 
 model ResourceOperatingWindow {
-  id               String               @id @default(cuid())
+  id               String              @id @default(cuid())
   resourceId       String
   businessDay      BusinessDay
   opensAtMinute    Int
   closesAtMinute   Int
   capacityOverride Int?
-  validFrom        DateTime             @db.Date
-  validTo          DateTime?            @db.Date
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
-  resource         SchedulableResource  @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  validFrom        DateTime            @db.Date
+  validTo          DateTime?           @db.Date
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  resource         SchedulableResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
 
   @@unique([resourceId, businessDay, opensAtMinute, validFrom])
   @@index([resourceId, businessDay, validFrom, validTo])
 }
 
 model ResourceUnavailability {
-  id              String                     @id @default(cuid())
-  resourceId      String
-  type            ResourceUnavailabilityType
-  startsAt        DateTime
-  endsAt          DateTime
+  id                String                     @id @default(cuid())
+  resourceId        String
+  type              ResourceUnavailabilityType
+  startsAt          DateTime
+  endsAt            DateTime
   capacityReduction Int?
-  reason          String
-  createdByUserId String?
-  createdAt       DateTime                   @default(now())
-  updatedAt       DateTime                   @updatedAt
-  resource        SchedulableResource        @relation(fields: [resourceId], references: [id], onDelete: Cascade)
-  createdByUser   User?                      @relation("ResourceUnavailabilityCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  reason            String
+  createdByUserId   String?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  resource          SchedulableResource        @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  createdByUser     User?                      @relation("ResourceUnavailabilityCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   @@index([resourceId, startsAt, endsAt])
   @@index([createdByUserId])
 }
 
 model AppointmentResourceRequirement {
-  id                    String                              @id @default(cuid())
-  appointmentId         String
-  resourceTypeId        String
-  requirementCode       String
-  requiredCapacity      Int                                 @default(1)
-  isMandatory           Boolean                             @default(true)
-  assignmentTiming      ResourceRequirementAssignmentTiming @default(AT_BOOKING)
-  hardBlockIfUnfulfilled Boolean                            @default(true)
-  characteristics       Json?
-  createdAt             DateTime                            @default(now())
-  updatedAt             DateTime                            @updatedAt
-  appointment           Appointment                         @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
-  resourceType          SchedulableResourceType             @relation(fields: [resourceTypeId], references: [id], onDelete: Restrict)
-  reservations          AppointmentResourceReservation[]
+  id                     String                              @id @default(cuid())
+  appointmentId          String
+  resourceTypeId         String
+  requirementCode        String
+  requiredCapacity       Int                                 @default(1)
+  isMandatory            Boolean                             @default(true)
+  assignmentTiming       ResourceRequirementAssignmentTiming @default(AT_BOOKING)
+  hardBlockIfUnfulfilled Boolean                             @default(true)
+  characteristics        Json?
+  createdAt              DateTime                            @default(now())
+  updatedAt              DateTime                            @updatedAt
+  appointment            Appointment                         @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  resourceType           SchedulableResourceType             @relation(fields: [resourceTypeId], references: [id], onDelete: Restrict)
+  reservations           AppointmentResourceReservation[]
 
   @@unique([appointmentId, requirementCode])
   @@index([resourceTypeId])
 }
 
 model AppointmentResourceReservation {
-  id                  String                    @id @default(cuid())
+  id                  String                          @id @default(cuid())
   appointmentId       String
   requirementId       String?
   resourceId          String
-  status              ResourceReservationStatus @default(PROPOSED)
+  status              ResourceReservationStatus       @default(PROPOSED)
   startsAt            DateTime
   endsAt              DateTime
-  capacityUnits       Int                       @default(1)
-  bufferBeforeMinutes Int                       @default(0)
-  bufferAfterMinutes  Int                       @default(0)
-  createdAt           DateTime                  @default(now())
-  updatedAt           DateTime                  @updatedAt
-  appointment         Appointment               @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  capacityUnits       Int                             @default(1)
+  bufferBeforeMinutes Int                             @default(0)
+  bufferAfterMinutes  Int                             @default(0)
+  createdAt           DateTime                        @default(now())
+  updatedAt           DateTime                        @updatedAt
+  appointment         Appointment                     @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   requirement         AppointmentResourceRequirement? @relation(fields: [requirementId], references: [id], onDelete: SetNull)
-  resource            SchedulableResource       @relation(fields: [resourceId], references: [id], onDelete: Restrict)
+  resource            SchedulableResource             @relation(fields: [resourceId], references: [id], onDelete: Restrict)
 
   @@index([appointmentId, status])
   @@index([requirementId])
@@ -1078,14 +1102,14 @@ model AppointmentResourceReservation {
 }
 
 model TaskTemplate {
-  id                      String       @id @default(cuid())
+  id                      String               @id @default(cuid())
   title                   String
   description             String?
   templateCategory        String?
   workflowArea            WorkflowArea
   priority                TaskTemplatePriority @default(MEDIUM)
   defaultDueTime          String
-  requiresManagerApproval Boolean      @default(false)
+  requiresManagerApproval Boolean              @default(false)
   requiredUpdateFields    Json
   checklistItems          Json
   completionCriteria      Json
@@ -1093,14 +1117,14 @@ model TaskTemplate {
   approvalRules           Json
   intelligenceSignalType  String
   taskCardDisplayHints    Json
-  isActive                Boolean      @default(true)
+  isActive                Boolean              @default(true)
   roleId                  String?
   dutyId                  String?
-  createdAt               DateTime     @default(now())
-  updatedAt               DateTime     @updatedAt
-  role                    Role?        @relation(fields: [roleId], references: [id], onDelete: SetNull)
-  duty                    Duty?        @relation(fields: [dutyId], references: [id], onDelete: SetNull)
-  sourceTasks             Task[]       @relation("TaskSourceTemplate")
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+  role                    Role?                @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  duty                    Duty?                @relation(fields: [dutyId], references: [id], onDelete: SetNull)
+  sourceTasks             Task[]               @relation("TaskSourceTemplate")
 
   @@index([workflowArea])
   @@index([roleId])
@@ -1119,6 +1143,75 @@ model BoardDay {
   generatedByUser   User?                 @relation("BoardDayGeneratedByUser", fields: [generatedByUserId], references: [id], onDelete: SetNull)
   activityEvents    ActivityEvent[]
   tasks             Task[]
+  concerns          ConcernCase[]
+}
+
+model ConcernCase {
+  id                     String                 @id @default(cuid())
+  concernNumber          String                 @unique
+  idempotencyKey         String
+  requestHash            String
+  boardDayId             String
+  title                  String
+  description            String
+  category               String
+  secondaryCategory      String?
+  workflowArea           WorkflowArea
+  riskType               String
+  priority               TaskTemplatePriority
+  status                 ConcernStatus          @default(OPEN)
+  source                 ConcernSource
+  customerReference      String?
+  vehicleReference       String?
+  reportedByUserId       String
+  assignedOwnerId        String?
+  dueAt                  DateTime
+  managerVisible         Boolean                @default(true)
+  escalationRequired     Boolean                @default(false)
+  escalateAt             DateTime?
+  classificationSnapshot Json
+  severitySnapshot       Json
+  templateCode           String
+  templateVersion        Int
+  closureOutcome         ConcernClosureOutcome?
+  closureReason          String?
+  resolutionProof        String?
+  closedAt               DateTime?
+  closedByUserId         String?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  boardDay               BoardDay               @relation(fields: [boardDayId], references: [id], onDelete: Restrict)
+  reportedByUser         User                   @relation("ConcernReportedByUser", fields: [reportedByUserId], references: [id], onDelete: Restrict)
+  assignedOwner          User?                  @relation("ConcernAssignedOwner", fields: [assignedOwnerId], references: [id], onDelete: SetNull)
+  closedByUser           User?                  @relation("ConcernClosedByUser", fields: [closedByUserId], references: [id], onDelete: SetNull)
+  taskLinks              ConcernTaskLink[]
+  activityEvents         ActivityEvent[]
+
+  @@unique([reportedByUserId, idempotencyKey])
+  @@index([status, priority, dueAt])
+  @@index([assignedOwnerId, status])
+  @@index([escalationRequired, escalateAt])
+  @@index([boardDayId, createdAt])
+}
+
+model ConcernTaskLink {
+  id                 String      @id @default(cuid())
+  concernCaseId      String
+  taskId             String      @unique
+  stepCode           String
+  sortOrder          Int
+  required           Boolean     @default(true)
+  dependsOnStepCodes Json
+  completionCriteria String
+  escalationRuleCode String?
+  blueprintSnapshot  Json
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  concernCase        ConcernCase @relation(fields: [concernCaseId], references: [id], onDelete: Cascade)
+  task               Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([concernCaseId, stepCode])
+  @@index([concernCaseId, sortOrder])
 }
 
 model TaskSavedView {
@@ -1135,44 +1228,46 @@ model TaskSavedView {
 }
 
 model Task {
-  id                      String         @id @default(cuid())
-  boardDayId              String
-  title                   String
-  description             String         @default("")
-  assignedUserId          String
-  recommendedUserId       String?
-  recommendationReasonCode String?
+  id                        String                    @id @default(cuid())
+  boardDayId                String
+  title                     String
+  description               String                    @default("")
+  assignedUserId            String
+  recommendedUserId         String?
+  recommendationReasonCode  String?
   recommendationExplanation String?
-  status                  TaskStatus     @default(NOT_STARTED)
-  dueAt                   DateTime
-  createdByUserId         String?
-  requiresManagerApproval Boolean        @default(false)
-  vehicleReference        String?
-  customerReference       String?
-  sourceType              TaskSourceType
-  sourceTemplateId        String?
-  templateSnapshot        Json?
-  updateFieldValues       Json?
-  sourceDutyId            String?
-  workflowArea            WorkflowArea
-  blockerReason           String?
-  readyForReviewAt        DateTime?
-  completedAt             DateTime?
-  reviewedByUserId        String?
-  createdAt               DateTime       @default(now())
-  updatedAt               DateTime       @updatedAt
-  boardDay                BoardDay       @relation(fields: [boardDayId], references: [id], onDelete: Cascade)
-  assignedUser            User           @relation("TaskAssignedUser", fields: [assignedUserId], references: [id], onDelete: Restrict)
-  recommendedUser         User?          @relation("TaskRecommendedUser", fields: [recommendedUserId], references: [id], onDelete: SetNull)
-  createdByUser           User?          @relation("TaskCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  reviewedByUser          User?          @relation("TaskReviewedByUser", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
-  sourceTemplate          TaskTemplate?  @relation("TaskSourceTemplate", fields: [sourceTemplateId], references: [id], onDelete: SetNull)
-  sourceDuty              Duty?          @relation("TaskSourceDuty", fields: [sourceDutyId], references: [id], onDelete: SetNull)
-  activityEvents          ActivityEvent[]
-  checklistItems          TaskChecklistItem[]
-  comments                TaskComment[]
-  appointmentLinks        AppointmentTaskLink[]
-  appointmentHistoryEvents AppointmentHistoryEvent[]
+  status                    TaskStatus                @default(NOT_STARTED)
+  priority                  TaskTemplatePriority      @default(MEDIUM)
+  dueAt                     DateTime
+  createdByUserId           String?
+  requiresManagerApproval   Boolean                   @default(false)
+  vehicleReference          String?
+  customerReference         String?
+  sourceType                TaskSourceType
+  sourceTemplateId          String?
+  templateSnapshot          Json?
+  updateFieldValues         Json?
+  sourceDutyId              String?
+  workflowArea              WorkflowArea
+  blockerReason             String?
+  readyForReviewAt          DateTime?
+  completedAt               DateTime?
+  reviewedByUserId          String?
+  createdAt                 DateTime                  @default(now())
+  updatedAt                 DateTime                  @updatedAt
+  boardDay                  BoardDay                  @relation(fields: [boardDayId], references: [id], onDelete: Cascade)
+  assignedUser              User                      @relation("TaskAssignedUser", fields: [assignedUserId], references: [id], onDelete: Restrict)
+  recommendedUser           User?                     @relation("TaskRecommendedUser", fields: [recommendedUserId], references: [id], onDelete: SetNull)
+  createdByUser             User?                     @relation("TaskCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  reviewedByUser            User?                     @relation("TaskReviewedByUser", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  sourceTemplate            TaskTemplate?             @relation("TaskSourceTemplate", fields: [sourceTemplateId], references: [id], onDelete: SetNull)
+  sourceDuty                Duty?                     @relation("TaskSourceDuty", fields: [sourceDutyId], references: [id], onDelete: SetNull)
+  activityEvents            ActivityEvent[]
+  checklistItems            TaskChecklistItem[]
+  comments                  TaskComment[]
+  appointmentLinks          AppointmentTaskLink[]
+  appointmentHistoryEvents  AppointmentHistoryEvent[]
+  concernLink               ConcernTaskLink?
 
   @@unique([boardDayId, sourceTemplateId, assignedUserId])
   @@index([boardDayId, status])
@@ -1181,24 +1276,24 @@ model Task {
 }
 
 model AppointmentTaskLink {
-  id                 String                  @id @default(cuid())
+  id                 String                    @id @default(cuid())
   appointmentId      String
   taskId             String
   linkType           AppointmentTaskLinkType
   linkCode           String
   title              String
   explanation        String?
-  isRequired         Boolean                 @default(false)
-  blocksAppointment  Boolean                 @default(false)
-  blocksTask         Boolean                 @default(false)
+  isRequired         Boolean                   @default(false)
+  blocksAppointment  Boolean                   @default(false)
+  blocksTask         Boolean                   @default(false)
   automationRuleCode String?
   templateVersion    Int?
   createdByUserId    String?
-  createdAt          DateTime                @default(now())
-  updatedAt          DateTime                @updatedAt
-  appointment        Appointment             @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
-  task               Task                    @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  createdByUser      User?                   @relation("AppointmentTaskLinkCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  appointment        Appointment               @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  task               Task                      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  createdByUser      User?                     @relation("AppointmentTaskLinkCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
   historyEvents      AppointmentHistoryEvent[]
 
   @@unique([appointmentId, taskId, linkCode])
@@ -1209,7 +1304,7 @@ model AppointmentTaskLink {
 }
 
 model AppointmentHistoryEvent {
-  id                    String                       @id @default(cuid())
+  id                    String                      @id @default(cuid())
   appointmentId         String
   actorType             AppointmentEventActorType
   actorUserId           String?
@@ -1227,12 +1322,12 @@ model AppointmentHistoryEvent {
   newValue              Json?
   metadata              Json
   notificationIntent    Json?
-  occurredAt            DateTime                     @default(now())
-  createdAt             DateTime                     @default(now())
-  appointment           Appointment                  @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
-  actorUser             User?                        @relation("AppointmentHistoryEventActorUser", fields: [actorUserId], references: [id], onDelete: SetNull)
-  task                  Task?                        @relation(fields: [taskId], references: [id], onDelete: SetNull)
-  appointmentTaskLink   AppointmentTaskLink?         @relation(fields: [appointmentTaskLinkId], references: [id], onDelete: SetNull)
+  occurredAt            DateTime                    @default(now())
+  createdAt             DateTime                    @default(now())
+  appointment           Appointment                 @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  actorUser             User?                       @relation("AppointmentHistoryEventActorUser", fields: [actorUserId], references: [id], onDelete: SetNull)
+  task                  Task?                       @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  appointmentTaskLink   AppointmentTaskLink?        @relation(fields: [appointmentTaskLinkId], references: [id], onDelete: SetNull)
 
   @@index([appointmentId, occurredAt])
   @@index([eventType, occurredAt])
@@ -1282,17 +1377,22 @@ model AppointmentCommandLedger {
 }
 
 model TaskChecklistItem {
-  id          String                @id @default(cuid())
-  taskId       String
-  kind         TaskChecklistItemKind
-  label        String
-  completed    Boolean               @default(false)
-  sortOrder    Int
-  completedAt  DateTime?
-  createdAt    DateTime              @default(now())
-  updatedAt    DateTime              @updatedAt
-  task         Task                  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  id                String                @id @default(cuid())
+  taskId            String
+  kind              TaskChecklistItemKind
+  key               String?
+  label             String
+  isRequired        Boolean               @default(true)
+  completed         Boolean               @default(false)
+  sortOrder         Int
+  completedAt       DateTime?
+  completedByUserId String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  task              Task                  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  completedByUser   User?                 @relation("TaskChecklistCompletedByUser", fields: [completedByUserId], references: [id], onDelete: SetNull)
 
+  @@unique([taskId, key])
   @@index([taskId, kind, sortOrder])
   @@index([taskId, completed])
 }
@@ -1311,20 +1411,23 @@ model TaskComment {
 }
 
 model ActivityEvent {
-  id          String   @id @default(cuid())
-  boardDayId  String
-  actorUserId String?
-  taskId      String?
-  eventType   String
-  message     String
-  metadata    Json
-  createdAt   DateTime @default(now())
-  boardDay    BoardDay  @relation(fields: [boardDayId], references: [id], onDelete: Cascade)
-  actorUser   User?     @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
-  task        Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  id            String       @id @default(cuid())
+  boardDayId    String
+  actorUserId   String?
+  taskId        String?
+  concernCaseId String?
+  eventType     String
+  message       String
+  metadata      Json
+  createdAt     DateTime     @default(now())
+  boardDay      BoardDay     @relation(fields: [boardDayId], references: [id], onDelete: Cascade)
+  actorUser     User?        @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  task          Task?        @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  concernCase   ConcernCase? @relation(fields: [concernCaseId], references: [id], onDelete: SetNull)
 
   @@index([boardDayId, createdAt])
   @@index([taskId])
+  @@index([concernCaseId, createdAt])
 }
 
 model GenerationRun {
@@ -1343,27 +1446,27 @@ model GenerationRun {
 }
 
 model SchedulerAttempt {
-  id                   String                        @id @default(cuid())
-  boardDate            DateTime                      @db.Date
-  triggerType          GenerationTriggerType         @default(SCHEDULED)
-  triggerSource        SchedulerTriggerSource        @default(UNKNOWN)
-  routePath            String
-  requestMethod        String
-  receivedAt           DateTime                      @default(now())
-  startedAt            DateTime?
-  completedAt          DateTime?
-  attemptState         SchedulerAttemptState         @default(RECEIVED)
-  authorizationOutcome SchedulerAuthorizationOutcome @default(PENDING)
-  generationRunId      String?
-  managerMessage       String
-  skipReasonCode       SchedulerSkipReasonCode?
+  id                     String                        @id @default(cuid())
+  boardDate              DateTime                      @db.Date
+  triggerType            GenerationTriggerType         @default(SCHEDULED)
+  triggerSource          SchedulerTriggerSource        @default(UNKNOWN)
+  routePath              String
+  requestMethod          String
+  receivedAt             DateTime                      @default(now())
+  startedAt              DateTime?
+  completedAt            DateTime?
+  attemptState           SchedulerAttemptState         @default(RECEIVED)
+  authorizationOutcome   SchedulerAuthorizationOutcome @default(PENDING)
+  generationRunId        String?
+  managerMessage         String
+  skipReasonCode         SchedulerSkipReasonCode?
   unauthorizedReasonCode String?
-  failureStage         SchedulerFailureStage?
-  failureCode          String?
-  failureDiagnostic    Json?
-  safeErrorMessage     String?
-  createdAt            DateTime                      @default(now())
-  updatedAt            DateTime                      @updatedAt
+  failureStage           SchedulerFailureStage?
+  failureCode            String?
+  failureDiagnostic      Json?
+  safeErrorMessage       String?
+  createdAt              DateTime                      @default(now())
+  updatedAt              DateTime                      @updatedAt
 
   @@index([boardDate, receivedAt])
   @@index([attemptState, receivedAt])

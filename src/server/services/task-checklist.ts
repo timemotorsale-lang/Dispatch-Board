@@ -17,10 +17,13 @@ export type TaskChecklistItemModel = {
   id: string;
   taskId: string;
   kind: TaskChecklistItemKindValue;
+  key: string | null;
   label: string;
+  required: boolean;
   completed: boolean;
   sortOrder: number;
   completedAt: string | null;
+  completedByUserId: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -29,6 +32,8 @@ export type TaskChecklistSeedItem = {
   kind: TaskChecklistItemKindValue;
   label: string;
   completed?: boolean;
+  key?: string | null;
+  required?: boolean;
 };
 
 function normalizeRequiredId(value: string, message: string) {
@@ -71,10 +76,13 @@ function toTaskChecklistItemModel(item: TaskChecklistItemRecord): TaskChecklistI
     id: item.id,
     taskId: item.taskId,
     kind: item.kind,
+    key: item.key,
     label: item.label.trim(),
+    required: item.isRequired,
     completed: item.completed,
     sortOrder: item.sortOrder,
     completedAt: item.completedAt?.toISOString() ?? null,
+    completedByUserId: item.completedByUserId,
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString()
   };
@@ -184,7 +192,10 @@ export async function updateTaskChecklistItem(
     throw new Error("Task checklist item not found.");
   }
 
-  const updatedItem = await repository.updateItem(normalizedTaskId, normalizedItemId, normalizedInput);
+  const updatedItem = await repository.updateItem(normalizedTaskId, normalizedItemId, {
+    ...normalizedInput,
+    completedByUserId: normalizedInput.completed ? authenticatedUser.id : null
+  });
 
   if (repository.supportsActivityEvents) {
     await recordBoardActivityEvent({
@@ -238,7 +249,9 @@ export async function seedTaskChecklistItems(
 
     const createdItem = await repository.createItem(normalizedTaskId, {
       kind: item.kind,
+      key: item.key ?? null,
       label: normalizedLabel,
+      isRequired: item.required ?? true,
       completed: item.completed ?? false
     });
 

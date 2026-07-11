@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { prisma } from "@/server/db/client";
+
 import {
   disconnectDailyWorkflowDatabase,
   resetDailyWorkflowState
@@ -490,10 +492,8 @@ test("an expired session returns the manager to the console after sign-in", asyn
   await page.goto("/my-tasks");
   await expect(page.getByRole("heading", { name: "My Tasks" })).toBeVisible();
 
-  await page.evaluate(async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    window.dispatchEvent(new Event("focus"));
-  });
+  await logout(page);
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
 
   await expect(page).toHaveURL(/\/login\?reason=session-expired&returnTo=%2Fmy-tasks/);
   await expect(page.getByText("Your session ended.")).toBeVisible();
@@ -583,7 +583,7 @@ test("manager can use the Customer Resolution workspace", async ({ page }) => {
   await queues.getByRole("button", { name: "All Cases", exact: true }).click();
   await page.getByLabel("Search cases").fill("title documents");
   await expect(page.locator(".customer-case-row")).toHaveCount(1);
-  await expect(page.locator(".customer-case-row")).toContainText("Ibrahim D.");
+  await expect(page.locator(".customer-case-row").filter({ hasText: "Ibrahim D." })).toBeVisible();
 
   const detailTabs = page.getByLabel("Selected case sections");
   const detailPanel = page.locator(".customer-resolution-live-panel");
@@ -675,6 +675,79 @@ test("manager can scan the compact Tasks Operations Console", async ({ page }) =
   await expect(page.getByText("New Comment")).toBeVisible();
   await page.getByRole("button", { name: "Activity" }).click();
   await expect(page.locator(".tasks-console-rail-panel")).toBeVisible();
+});
+
+test("manager can generate and escalate a title-delay concern package", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await login(page, managerEmail);
+  await page.goto("/tasks");
+
+  await page.getByRole("button", { name: "Log Concern" }).click();
+  const intake = page.getByLabel("Concern resolution intake");
+  await intake.getByLabel("Concern title").fill("Customer has not received title");
+  await intake.getByLabel("Description").fill("Customer was promised the DMV title in two weeks and it is now more than two months late.");
+  await intake.getByLabel("Customer").fill("Maria Santos");
+  await intake.getByLabel("Vehicle / VIN").fill("2018 Toyota Camry");
+  await intake.getByLabel("Days overdue").fill("65");
+  await intake.getByLabel("Repeat contacts").fill("3");
+  await intake.getByText("Missing documentation").click();
+  await intake.getByRole("button", { name: "Preview workflow" }).click();
+
+  await expect(page.getByLabel("Concern resolution preview")).toContainText("TITLE_DELAY_V1");
+  await expect(page.locator(".concern-preview li")).toHaveCount(7);
+
+  const commitResponsePromise = page.waitForResponse(
+    (response) => response.url().endsWith("/api/concerns") && response.request().method() === "POST"
+  );
+  await intake.getByRole("button", { name: "Generate package" }).click();
+  const commitResponse = await commitResponsePromise;
+  expect(commitResponse.status()).toBe(201);
+  const created = await commitResponse.json() as { concern: { id: string }; tasks: unknown[] };
+
+  expect(created.tasks).toHaveLength(7);
+  await expect(intake).toContainText("7 linked tasks were generated atomically");
+  const persisted = await prisma.concernCase.findUnique({ where: { id: created.concern.id }, include: { taskLinks: { include: { task: { include: { checklistItems: true } } } } } });
+  expect(persisted?.taskLinks).toHaveLength(7);
+  expect(persisted?.taskLinks.every((link) => link.task.checklistItems.length > 0)).toBe(true);
+
+  const retryProof = await page.evaluate(async () => {
+    const payload = { title: "Unclear lot concern", description: "Manager should review this operational concern.", source: "MANAGER" };
+    const send = async () => {
+      const response = await fetch("/api/concerns", { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": "e2e-fixed-concern-retry" }, body: JSON.stringify(payload) });
+      return { status: response.status, body: await response.json() as { concern: { id: string }; tasks: unknown[]; replayed: boolean } };
+    };
+    return { first: await send(), second: await send() };
+  });
+  expect(retryProof.first.status).toBe(201);
+  expect(retryProof.second.status).toBe(200);
+  expect(retryProof.second.body.concern.id).toBe(retryProof.first.body.concern.id);
+  expect(retryProof.second.body.replayed).toBe(true);
+
+  const closeStatus = await page.evaluate(async (concernId) => {
+    const response = await fetch(`/api/concerns/${concernId}/close`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ outcome: "TITLE_RECEIVED", reason: "Resolved", proof: "Customer confirmation" }) });
+    return response.status;
+  }, created.concern.id);
+  expect(closeStatus).toBe(400);
+
+  await prisma.concernCase.update({ where: { id: created.concern.id }, data: { escalateAt: new Date("2020-01-01T00:00:00.000Z") } });
+  const evaluation = await page.evaluate(async () => {
+    const response = await fetch("/api/concerns/escalations/evaluate", { method: "POST" });
+    return { status: response.status, payload: await response.json() as { escalatedCount: number } };
+  });
+  expect(evaluation.status).toBe(200);
+  expect(evaluation.payload.escalatedCount).toBe(1);
+  expect((await prisma.concernCase.findUnique({ where: { id: created.concern.id } }))?.status).toBe("ESCALATED");
+
+  const manager = await prisma.user.findUniqueOrThrow({ where: { email: managerEmail } });
+  await prisma.taskChecklistItem.updateMany({ where: { task: { concernLink: { concernCaseId: created.concern.id } } }, data: { completed: true, completedAt: new Date(), completedByUserId: manager.id } });
+  await prisma.task.updateMany({ where: { concernLink: { concernCaseId: created.concern.id } }, data: { status: "COMPLETED", completedAt: new Date(), reviewedByUserId: manager.id } });
+  const closure = await page.evaluate(async (concernId) => {
+    const response = await fetch(`/api/concerns/${concernId}/close`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ outcome: "TITLE_RECEIVED", reason: "All required work and manager review completed.", proof: "Customer confirmed title receipt by phone." }) });
+    return { status: response.status, payload: await response.json() as { concern: { status: string } } };
+  }, created.concern.id);
+  expect(closure.status).toBe(200);
+  expect(closure.payload.concern.status).toBe("CLOSED");
+  expect(await prisma.activityEvent.count({ where: { concernCaseId: created.concern.id, eventType: "concern.closed" } })).toBe(1);
 });
 
 test("manager and staff can complete the daily dispatch workflow", async ({ page }) => {

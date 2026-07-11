@@ -175,6 +175,38 @@ function shouldEnforceRequiredUpdateFields(status: TaskStatus) {
   return status === TaskStatus.READY_FOR_REVIEW || status === TaskStatus.COMPLETED;
 }
 
+function assertRequiredChecklistSatisfied(
+  task: { checklistItems?: Array<{ label: string; isRequired: boolean; completed: boolean }> },
+  status: TaskStatus
+) {
+  if (!shouldEnforceRequiredUpdateFields(status)) return;
+  const incomplete = (task.checklistItems ?? []).filter((item) => item.isRequired && !item.completed);
+  if (incomplete.length) {
+    throw new Error(`Task checklist is incomplete: ${incomplete.map((item) => item.label).join(", ")}.`);
+  }
+}
+
+function assertConcernDependenciesSatisfied(
+  task: {
+    concernLink?: {
+      dependsOnStepCodes: unknown;
+      concernCase: { taskLinks: Array<{ stepCode: string; task: { status: TaskStatus } }> };
+    } | null;
+  },
+  status: TaskStatus
+) {
+  if (status === TaskStatus.NOT_STARTED || status === TaskStatus.BLOCKED || !task.concernLink) return;
+  const dependencyCodes = Array.isArray(task.concernLink.dependsOnStepCodes)
+    ? task.concernLink.dependsOnStepCodes.filter((value): value is string => typeof value === "string")
+    : [];
+  const incomplete = dependencyCodes.filter((code) =>
+    task.concernLink?.concernCase.taskLinks.some(
+      (link) => link.stepCode === code && link.task.status !== TaskStatus.COMPLETED
+    )
+  );
+  if (incomplete.length) throw new Error(`Concern task dependencies are incomplete: ${incomplete.join(", ")}.`);
+}
+
 function assertRequiredUpdateFieldsSatisfied(
   task: {
     templateSnapshot?: unknown;
@@ -292,11 +324,18 @@ function buildTaskStatusUpdateData(
     requiresManagerApproval: boolean;
     templateSnapshot?: unknown;
     updateFieldValues?: unknown;
+    checklistItems?: Array<{ label: string; isRequired: boolean; completed: boolean }>;
+    concernLink?: {
+      dependsOnStepCodes: unknown;
+      concernCase: { taskLinks: Array<{ stepCode: string; task: { status: TaskStatus } }> };
+    } | null;
   },
   input: NormalizedTaskStatusUpdateInput
 ) {
   const now = new Date();
   const managerReviewerId = task.requiresManagerApproval ? user.id : null;
+  assertRequiredChecklistSatisfied(task, input.status);
+  assertConcernDependenciesSatisfied(task, input.status);
   const { mergedUpdateFieldValues } = assertRequiredUpdateFieldsSatisfied(task, input);
 
   if (input.status === TaskStatus.BLOCKED) {

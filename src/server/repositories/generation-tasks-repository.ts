@@ -27,6 +27,7 @@ const createdGeneratedTaskSelect = {
   recommendationReasonCode: true,
   recommendationExplanation: true,
   dueAt: true,
+  priority: true,
   sourceTemplateId: true,
   templateSnapshot: true,
   sourceDutyId: true,
@@ -53,6 +54,7 @@ export type CreateGeneratedTaskInput = {
   recommendationReasonCode: string | null;
   recommendationExplanation: string | null;
   dueAt: Date;
+  priority: CreatedGeneratedTaskRecord["priority"];
   createdByUserId: string | null;
   requiresManagerApproval: boolean;
   sourceTemplateId: string;
@@ -173,7 +175,7 @@ export function createGenerationTasksRepository(
         where: {
           boardDayId,
           sourceType: {
-            in: [TaskSourceType.MANAGER, TaskSourceType.STAFF]
+            in: [TaskSourceType.MANAGER, TaskSourceType.STAFF, TaskSourceType.CONCERN]
           }
         }
       });
@@ -191,6 +193,7 @@ export function createGenerationTasksRepository(
             recommendationReasonCode: input.recommendationReasonCode,
             recommendationExplanation: input.recommendationExplanation,
             status: TaskStatus.NOT_STARTED,
+            priority: input.priority,
             dueAt: input.dueAt,
             createdByUserId: input.createdByUserId,
             requiresManagerApproval: input.requiresManagerApproval,
