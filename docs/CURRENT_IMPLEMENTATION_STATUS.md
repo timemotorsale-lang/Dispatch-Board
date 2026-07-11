@@ -46,10 +46,11 @@ Focused appointment scheduling recommendation validation passed for the new reco
 Verified Customers implementation as of 2026-07-10:
 
 - `/customers` renders the approved Customer Command Center front-page dashboard composition.
+- `/customers/resolutions` renders the approved Customer Resolution metrics, queue tabs, case table, analytics, and selected-case command rail as sample presentation data.
 - The dashboard supports persistent light and dark appearances from one component hierarchy.
 - A Customer 360 profile presentation shell exists for the future `/customers/[customerId]` route.
 - Prisma contains a minimum organization-scoped `Customer` identity used by Appointment participants, including customer number, basic contact fields, status, external reference, duplicate key, merge target, and retention date.
-- The Customers browser smoke proves the landing dashboard, business summary, operations rail, theme switching, and theme persistence.
+- The Customers browser smoke proves the landing dashboard, business summary, operations rail, resolution navigation, queue filtering, case selection, detail tabs, theme switching, and theme persistence.
 - Dashboard values, pipeline, leads, tasks, appointments, activity, and Customer 360 business values remain presentation data rather than Customers service read models.
 - Customer CRUD, list/search, contact points, interactions, notes, leads, cases, SLA/escalation, document requirements, customer-vehicle relationships, durable task links, manager intelligence, saved views, merge workflow, customer audit, and day-one rollout signoff remain planned.
 

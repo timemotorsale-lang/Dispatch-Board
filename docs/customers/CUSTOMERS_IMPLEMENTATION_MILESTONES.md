@@ -53,7 +53,7 @@ Rules:
 | --- | --- | --- |
 | CRM-000 | Customers module position | Core docs state Customers is a first-class Dispatch Board module, not a separate deployment. |
 | CRM-001 | Front-page source of truth | `/customers` uses the approved dashboard composition with responsive light/dark behavior. |
-| CRM-002 | Customer 360 source of truth | Detail-shell composition and future `/customers/[customerId]` route boundary are recorded. |
+| CRM-002 | Customer 360 and Resolution sources of truth | Detail-shell composition, future `/customers/[customerId]` boundary, and `/customers/resolutions` case/SLA presentation baseline are recorded. |
 | CRM-003 | Architecture baseline | Domain ownership, services, policies, commands, read models, events, integrations, and ADRs are accepted. |
 | CRM-004 | MVP rollout roadmap | Sequenced milestones, branches, exit gates, deferrals, and day-one definition are accepted. |
 | CRM-005 | Browser smoke baseline | Customers route, home summary, right rail, theme switching, and persistence have repeatable proof. |
@@ -181,6 +181,7 @@ Milestone exit gate:
 | CRM-053 | Resolution governance | Resolution code and outcome notes are required; overrides require authority and reason. |
 | CRM-054 | Case queue read model | Open, warning, breached, escalated, waiting, and owned queues reconcile with case state. |
 | CRM-055 | Cases UI | Customer 360 tab and manager board expose SLA, owner, next action, and safe commands. |
+| CRM-055A | Resolution UI binding | `/customers/resolutions` replaces sample queue/detail/analytics data with policy-filtered CRM-5 read models and commands. |
 | CRM-056 | Case-to-task bridge | Case execution task retains durable customer and case correlation. |
 | CRM-057 | Case activity/audit | State, SLA, escalation, and resolution events are visible and auditable. |
 | CRM-058 | Case workflow browser gate | Manager opens, escalates, delegates, and resolves a case with complete evidence. |

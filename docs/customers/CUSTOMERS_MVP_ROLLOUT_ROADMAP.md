@@ -48,6 +48,7 @@ Build one vertical slice at a time. Each slice must include the applicable datab
 | --- | --- | --- |
 | Customers landing UI | Approved dashboard implemented with light/dark mode | Replace sample values with permission-filtered home read model |
 | Customer 360 UI | Presentation shell implemented | Add route, durable customer read model, states, and commands |
+| Customer Resolution UI | Interactive `/customers/resolutions` presentation shell implemented | Bind queue, SLA, detail rail, notes, next steps, and analytics to CRM-5 services |
 | Customer schema | Minimum appointment-compatible `Customer` model exists | Extend ownership, contacts, preferences, and relationships additively |
 | Customer search | Not implemented | Add organization-safe search and paginated list |
 | Interactions/timeline | Presentation data only | Add durable interaction and activity events |
@@ -91,6 +92,7 @@ Scope:
 
 - Accept Customers as a first-class Dispatch Board module.
 - Adopt the supplied front-page dashboard and Customer 360 mockups as UI composition sources of truth.
+- Adopt the supplied Customer Resolution mockup as the case/SLA workspace source of truth.
 - Confirm persistent light and dark appearances.
 - Accept the architecture decisions in `CUSTOMERS_ARCHITECTURE.md`.
 - Approve MVP, post-MVP, and commercial-tier boundaries.

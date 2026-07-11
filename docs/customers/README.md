@@ -17,9 +17,10 @@ Customers is not a separate app and is not a copy of another CRM. It combines pr
 ## Current Truth
 
 - The `/customers` dashboard and light/dark appearance are implemented as an approved UI shell.
+- The `/customers/resolutions` queue and selected-case command rail are implemented as an approved interactive UI shell.
 - A Customer 360 presentation shell exists for the future detail route.
 - The database has a minimum appointment-compatible Customer identity.
 - Most dashboard and Customer 360 business values remain sample presentation data.
-- Durable search, interactions, leads, cases, documents, customer-vehicle relationships, manager intelligence, and rollout controls remain milestone work.
+- Durable search, interactions, leads, case/SLA data and commands, documents, customer-vehicle relationships, manager intelligence, and rollout controls remain milestone work.
 
 Use `docs/CURRENT_IMPLEMENTATION_STATUS.md` as the evidence-based implementation record. Planning documents describe accepted direction, not proof of completed behavior.

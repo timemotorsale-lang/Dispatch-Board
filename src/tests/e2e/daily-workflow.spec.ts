@@ -485,6 +485,51 @@ test("manager can choose and retain the Customer Command Center appearance", asy
   await expect(page.locator("body")).not.toHaveClass(/customer-console-dark-shell/);
 });
 
+test("manager can use the Customer Resolution workspace", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await login(page, managerEmail);
+  await page.getByRole("link", { name: "Customer Resolution" }).click();
+
+  await expect(page).toHaveURL(/\/customers\/resolutions/);
+  await expect(page.getByRole("heading", { name: "Customer Resolution" })).toBeVisible();
+  await expect(page.getByLabel("Resolution summary")).toBeVisible();
+  await expect(page.getByLabel("Customer case queue")).toBeVisible();
+  await expect(page.getByLabel("Selected case command rail")).toContainText(
+    "Financing approval delay"
+  );
+
+  await page.getByRole("button", { name: "Escalated", exact: true }).click();
+  const escalatedRow = page.locator(".customer-case-row").filter({ hasText: "Mustafa K." });
+  await expect(escalatedRow).toBeVisible();
+  await escalatedRow.click();
+  await expect(page.getByLabel("Selected case command rail")).toContainText(
+    "Vehicle not starting"
+  );
+
+  await page.getByRole("button", { name: "All Cases", exact: true }).click();
+  await page.getByLabel("Search cases").fill("title documents");
+  await expect(page.locator(".customer-case-row")).toHaveCount(1);
+  await expect(page.locator(".customer-case-row")).toContainText("Ibrahim D.");
+
+  await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  await expect(page.getByLabel("Selected case command rail")).toContainText(
+    "CRM-5 implementation milestone"
+  );
+
+  const appearance = page.getByRole("group", { name: "Customer console appearance" });
+  const darkButton = appearance.getByRole("button", { name: "Use dark background" });
+  await darkButton.click();
+  await expect(page.getByLabel("Customer Resolution Console")).toHaveAttribute(
+    "data-theme",
+    "dark"
+  );
+  await page.reload();
+  await expect(page.getByLabel("Customer Resolution Console")).toHaveAttribute(
+    "data-theme",
+    "dark"
+  );
+});
+
 test("manager can scan the compact Tasks Operations Console", async ({ page }) => {
   test.setTimeout(60_000);
 

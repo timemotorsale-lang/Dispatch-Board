@@ -38,6 +38,7 @@ The product question is:
 Implemented today:
 
 - `/customers` renders the approved Customer Command Center front-page dashboard.
+- `/customers/resolutions` renders the approved Customer Resolution queue and selected-case command rail as an interactive presentation baseline.
 - The front page supports persistent light and dark appearances.
 - The approved Customer 360 profile shell exists as a presentation component for a later detail route.
 - The Prisma schema contains a minimum `Customer` record with organization scope, customer number, basic contact fields, status, external identity, duplicate key, merge target, and retention date.
@@ -451,6 +452,19 @@ Dashboard values must move from sample constants to one permission-filtered home
 - Every disabled command explains role, state, missing information, or MVP deferral.
 - Mobile prioritizes search, next action, communication logging, and assigned follow-up.
 - Do not reproduce another product's navigation, terminology, branding, or visual identity.
+
+### Customer Resolution `/customers/resolutions`
+
+The approved Customer Resolution mockup is the source of truth for the future case/SLA operating surface:
+
+- resolution KPI strip
+- All, Mine, Unassigned, Overdue, Escalated, and Resolved queues
+- compact case search, filters, sorting, and selectable table
+- selected-case Details, Timeline, Customer, Vehicle, and Related tabs
+- customer, vehicle, SLA, notes, and next-step context in a full-height command rail
+- case status/type and resolution-performance summaries
+
+The current route is a presentation baseline. CRM-5 must replace sample cases and metrics with server-authoritative case, SLA, escalation, note, and next-step read models and commands without redesigning the approved composition.
 
 ---
 

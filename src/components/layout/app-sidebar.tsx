@@ -40,7 +40,7 @@ export function AppSidebar({ isOpen, onClose, user }: AppSidebarProps) {
             <nav aria-label={group.label || "Primary navigation"}>
               {group.items.map((item) => {
                 const Icon = item.icon;
-                const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                const active = pathname === item.href || (!item.matchExact && pathname.startsWith(`${item.href}/`));
                 return (
                   <Link
                     aria-current={active ? "page" : undefined}
