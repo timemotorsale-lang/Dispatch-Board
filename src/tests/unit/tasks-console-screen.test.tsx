@@ -6,6 +6,7 @@ import {
   createTasksConsoleAssigneeOptions,
   TasksConsoleScreen
 } from "@/features/tasks/tasks-console-screen";
+import { WorkspaceModeProvider } from "@/components/layout/workspace-mode";
 import type { BoardReadModel, BoardReadTask } from "@/server/services/board-read";
 import type { TaskReadModel } from "@/server/services/task-read";
 import type { ActiveUserSummary } from "@/server/services/user-summary";
@@ -192,20 +193,22 @@ describe("tasks console screen", () => {
   it("renders the compact operations-console shell with an 8-row first page", () => {
     const tasks = Array.from({ length: 10 }, (_, index) => createBoardTask(index + 1));
     const markup = renderToStaticMarkup(
-      <TasksConsoleScreen
-        assignableUsers={[
-          createActiveUser("user-off-board", "Off Board Active User"),
-          createActiveUser("user-manager", "Eli Manager")
-        ]}
-        board={createBoard(tasks)}
-        boardDate={boardDate}
-        currentUserId="user-manager"
-        errorMessage={null}
-        initialTask={createTaskReadModel(tasks[0])}
-        initialSavedViews={[]}
-        isManager
-        todayBoardDate={boardDate}
-      />
+      <WorkspaceModeProvider>
+        <TasksConsoleScreen
+          assignableUsers={[
+            createActiveUser("user-off-board", "Off Board Active User"),
+            createActiveUser("user-manager", "Eli Manager")
+          ]}
+          board={createBoard(tasks)}
+          boardDate={boardDate}
+          currentUserId="user-manager"
+          errorMessage={null}
+          initialTask={createTaskReadModel(tasks[0])}
+          initialSavedViews={[]}
+          isManager
+          todayBoardDate={boardDate}
+        />
+      </WorkspaceModeProvider>
     );
 
     expect(markup).toContain("Task Operations Console");
@@ -217,9 +220,11 @@ describe("tasks console screen", () => {
     expect(markup).toContain("Export");
     expect(markup).toContain("Total Tasks");
     expect(markup).toContain("Ready for Review");
-    expect(markup).toContain("Time Motor Sales");
-    expect(markup).toContain("Team Tasks");
-    expect(markup).toContain("List View");
+    expect(markup).toContain("Team Queue");
+    expect(markup).toContain("Status");
+    expect(markup).toContain('aria-label="Expand Tasks"');
+    expect(markup).toContain("Workspace: Compact");
+    expect(markup).toContain('aria-label="List View"');
     expect(markup).toContain("Board View");
     expect(markup).toContain("Showing 1 to 8 of 10 tasks");
     expect(markup).toContain("8 / page");
