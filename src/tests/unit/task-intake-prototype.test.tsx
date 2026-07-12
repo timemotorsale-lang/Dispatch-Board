@@ -19,4 +19,10 @@ describe("EnterpriseTaskIntakePrototype", () => {
     expect(markup).toContain("Create Task");
     expect(markup).not.toContain("action=\"");
   });
+
+  it("returns users to the console that opened intake", () => {
+    const markup = renderToStaticMarkup(<EnterpriseTaskIntakePrototype returnTo="/customers/resolutions" />);
+    expect(markup).toContain('href="/customers/resolutions"');
+    expect(markup).toContain("Return to source console");
+  });
 });
