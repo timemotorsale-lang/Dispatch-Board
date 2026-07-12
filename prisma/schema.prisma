@@ -613,6 +613,9 @@ model Organization {
   customerLeads                          CustomerLead[]
   concernCases                           ConcernCase[]
   customerSlaPolicies                    CustomerSlaPolicy[]
+  crmFeatureFlags                        CustomerCrmFeatureFlag[]
+  crmRolloutEvents                       CustomerCrmRolloutEvent[]
+  crmCalibrationSnapshots                CustomerCrmCalibrationSnapshot[]
 }
 
 model Location {
@@ -1631,6 +1634,48 @@ model CustomerSlaAlert {
 
   @@unique([concernCaseId, clockType, stage])
   @@index([stage, resolvedAt, lastDetectedAt])
+}
+
+model CustomerCrmFeatureFlag {
+  id              String       @id @default(cuid())
+  organizationId  String
+  code            String
+  enabled         Boolean      @default(false)
+  rolloutPercent  Int          @default(0)
+  allowedUserIds  Json
+  updatedByUserId String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@unique([organizationId, code])
+  @@index([organizationId, enabled])
+}
+
+model CustomerCrmRolloutEvent {
+  id             String       @id @default(cuid())
+  organizationId String
+  actorUserId    String
+  action         String
+  reason         String
+  priorState     Json
+  nextState      Json
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@index([organizationId, createdAt])
+}
+
+model CustomerCrmCalibrationSnapshot {
+  id             String       @id @default(cuid())
+  organizationId String
+  windowStart    DateTime
+  windowEnd      DateTime
+  metrics        Json
+  readiness      String
+  blockers       Json
+  createdByUserId String
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@index([organizationId, windowEnd])
 }
 
 model CustomerPromise {

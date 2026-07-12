@@ -1,0 +1,24 @@
+import { Prisma, type PrismaClient } from "@prisma/client";
+import { prisma } from "@/server/db/client";
+
+const flagSelect = { id: true, organizationId: true, code: true, enabled: true, rolloutPercent: true, allowedUserIds: true, updatedByUserId: true, updatedAt: true } satisfies Prisma.CustomerCrmFeatureFlagSelect;
+export type CrmFeatureFlagRecord = Prisma.CustomerCrmFeatureFlagGetPayload<{ select: typeof flagSelect }>;
+export type CrmRolloutRepository = {
+  listFlags(organizationId: string): Promise<CrmFeatureFlagRecord[]>;
+  updateFlag(input: { organizationId: string; code: string; enabled: boolean; rolloutPercent: number; allowedUserIds: string[]; actorUserId: string; reason: string }): Promise<CrmFeatureFlagRecord>;
+  rollback(input: { organizationId: string; actorUserId: string; reason: string }): Promise<CrmFeatureFlagRecord[]>;
+  readMetrics(organizationId: string, windowStart: Date, windowEnd: Date): Promise<Record<string, number>>;
+  createSnapshot(input: { organizationId: string; windowStart: Date; windowEnd: Date; metrics: Prisma.InputJsonValue; readiness: string; blockers: Prisma.InputJsonValue; actorUserId: string }): Promise<{ id: string; createdAt: Date }>;
+};
+
+export function createCrmRolloutRepository(database: PrismaClient = prisma): CrmRolloutRepository {
+  return {
+    listFlags(organizationId) { return database.customerCrmFeatureFlag.findMany({ where: { organizationId }, orderBy: [{ code: "asc" }], select: flagSelect }); },
+    updateFlag(input) { return database.$transaction(async (tx) => { const prior = await tx.customerCrmFeatureFlag.findUniqueOrThrow({ where: { organizationId_code: { organizationId: input.organizationId, code: input.code } } }); const next = await tx.customerCrmFeatureFlag.update({ where: { id: prior.id }, data: { enabled: input.enabled, rolloutPercent: input.rolloutPercent, allowedUserIds: input.allowedUserIds, updatedByUserId: input.actorUserId }, select: flagSelect }); await tx.customerCrmRolloutEvent.create({ data: { organizationId: input.organizationId, actorUserId: input.actorUserId, action: "FLAG_UPDATED", reason: input.reason, priorState: prior as unknown as Prisma.InputJsonValue, nextState: next as unknown as Prisma.InputJsonValue } }); return next; }); },
+    rollback(input) { return database.$transaction(async (tx) => { const prior = await tx.customerCrmFeatureFlag.findMany({ where: { organizationId: input.organizationId } }); await tx.customerCrmFeatureFlag.updateMany({ where: { organizationId: input.organizationId }, data: { enabled: false, rolloutPercent: 0, allowedUserIds: [], updatedByUserId: input.actorUserId } }); const next = await tx.customerCrmFeatureFlag.findMany({ where: { organizationId: input.organizationId }, orderBy: [{ code: "asc" }], select: flagSelect }); await tx.customerCrmRolloutEvent.create({ data: { organizationId: input.organizationId, actorUserId: input.actorUserId, action: "EMERGENCY_ROLLBACK", reason: input.reason, priorState: prior as unknown as Prisma.InputJsonValue, nextState: next as unknown as Prisma.InputJsonValue } }); return next; }); },
+    async readMetrics(organizationId, windowStart, windowEnd) { const range = { gte: windowStart, lt: windowEnd }; const [decisions, overrides, lowConfidence, leads, wonLeads, cases, closedCases, breachedAlerts, promises, fulfilledPromises] = await Promise.all([
+      database.crmDecisionRecord.count({ where: { organizationId, decidedAt: range } }), database.crmDecisionRecord.count({ where: { organizationId, decidedAt: range, overriddenAt: { not: null } } }), database.crmDecisionRecord.count({ where: { organizationId, decidedAt: range, confidence: "LOW" } }), database.customerLead.count({ where: { organizationId, createdAt: range } }), database.customerLead.count({ where: { organizationId, stage: "WON", closedAt: range } }), database.concernCase.count({ where: { organizationId, createdAt: range } }), database.concernCase.count({ where: { organizationId, status: "CLOSED", closedAt: range } }), database.customerSlaAlert.count({ where: { concernCase: { organizationId }, stage: { in: ["BREACHED", "REPEATED_BREACH"] }, firstDetectedAt: range } }), database.customerPromise.count({ where: { concernCase: { organizationId }, createdAt: range } }), database.customerPromise.count({ where: { concernCase: { organizationId }, fulfilledAt: range } })
+    ]); return { decisions, overrides, lowConfidence, leads, wonLeads, cases, closedCases, breachedAlerts, promises, fulfilledPromises }; },
+    createSnapshot(input) { return database.customerCrmCalibrationSnapshot.create({ data: { organizationId: input.organizationId, windowStart: input.windowStart, windowEnd: input.windowEnd, metrics: input.metrics, readiness: input.readiness, blockers: input.blockers, createdByUserId: input.actorUserId }, select: { id: true, createdAt: true } }); }
+  };
+}
