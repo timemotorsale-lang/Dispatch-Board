@@ -22,6 +22,7 @@ const boardTaskSelect = {
   workflowArea: true,
   sourceType: true,
   requiresManagerApproval: true,
+  isClaimable: true,
   templateSnapshot: true,
   updateFieldValues: true,
   vehicleReference: true,

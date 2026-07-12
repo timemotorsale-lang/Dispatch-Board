@@ -1,0 +1,6 @@
+import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/server/auth/current-user";
+import { buildDailyHandoffDraft, submitDailyHandoff } from "@/server/services/daily-handoff";
+
+export async function GET(request: Request) { try { const url = new URL(request.url); return NextResponse.json({ handoff: await buildDailyHandoffDraft(await getCurrentUser(), url.searchParams.get("date") ?? new Date().toISOString().slice(0, 10), url.searchParams.get("userId") ?? undefined) }); } catch (error) { const message = error instanceof Error ? error.message : "Unable to load handoff."; return NextResponse.json({ error: message }, { status: message === "Authentication required." ? 401 : message.includes("permission") ? 403 : 400 }); } }
+export async function POST(request: Request) { try { const url = new URL(request.url); return NextResponse.json({ report: await submitDailyHandoff(await getCurrentUser(), url.searchParams.get("date") ?? new Date().toISOString().slice(0, 10), await request.json().catch(() => null), url.searchParams.get("userId") ?? undefined) }); } catch (error) { const message = error instanceof Error ? error.message : "Unable to submit handoff."; return NextResponse.json({ error: message }, { status: message === "Authentication required." ? 401 : message.includes("Manager access") ? 403 : 400 }); } }

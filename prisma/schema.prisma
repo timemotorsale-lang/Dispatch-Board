@@ -395,6 +395,26 @@ enum SchedulerFailureStage {
   POST_RUN_FINALIZE
 }
 
+enum StaffDayStatus {
+  PLANNED
+  READY
+  ACTIVE
+  AVAILABLE
+  HANDOFF_PENDING
+  CLOSED
+}
+
+enum WorkRecommendationStatus {
+  SHOWN
+  CLAIMED
+  DISMISSED
+  EXPIRED
+}
+
+enum StaffDailyReportStatus {
+  SUBMITTED
+}
+
 // Placeholder model for the v0.1.0 foundation migration.
 // Domain models are intentionally deferred to later milestones.
 model BootstrapMarker {
@@ -420,6 +440,8 @@ model User {
   recommendedTasks                      Task[]                                 @relation("TaskRecommendedUser")
   createdTasks                          Task[]                                 @relation("TaskCreatedByUser")
   reviewedTasks                         Task[]                                 @relation("TaskReviewedByUser")
+  acceptedTasks                         Task[]                                 @relation("TaskAcceptedByUser")
+  completionOverriddenTasks             Task[]                                 @relation("TaskCompletionOverrideByUser")
   authoredTaskComments                  TaskComment[]                          @relation("TaskCommentAuthorUser")
   activityEvents                        ActivityEvent[]
   triggeredGenerationRuns               GenerationRun[]                        @relation("GenerationRunTriggeredByUser")
@@ -445,6 +467,10 @@ model User {
   ownedConcerns                         ConcernCase[]                          @relation("ConcernAssignedOwner")
   closedConcerns                        ConcernCase[]                          @relation("ConcernClosedByUser")
   completedChecklistItems               TaskChecklistItem[]                    @relation("TaskChecklistCompletedByUser")
+  staffDays                             StaffDay[]
+  completedStaffDayDutyItems            StaffDayDutyItem[]                     @relation("StaffDayDutyCompletedByUser")
+  claimedWorkRecommendations            WorkRecommendation[]                   @relation("WorkRecommendationClaimedByUser")
+  submittedStaffDailyReports             StaffDailyReport[]                     @relation("StaffDailyReportSubmittedByUser")
 
   @@index([isActive])
 }
@@ -471,6 +497,7 @@ model Role {
   userRoles   UserRole[]
   roleDuties  RoleDuty[]
   templates   TaskTemplate[]
+  staffDayDutyItems StaffDayDutyItem[]
 }
 
 model Duty {
@@ -484,6 +511,7 @@ model Duty {
   roleDuties   RoleDuty[]
   templates    TaskTemplate[]
   sourceTasks  Task[]         @relation("TaskSourceDuty")
+  staffDayDutyItems StaffDayDutyItem[]
 }
 
 model UserRole {
@@ -1144,6 +1172,104 @@ model BoardDay {
   activityEvents    ActivityEvent[]
   tasks             Task[]
   concerns          ConcernCase[]
+  staffDays         StaffDay[]
+}
+
+model StaffDay {
+  id                     String             @id @default(cuid())
+  boardDayId             String
+  userId                 String
+  status                 StaffDayStatus     @default(PLANNED)
+  startAcknowledgedAt    DateTime?
+  startingBlockerCode    String?
+  startingBlockerNote    String?
+  availabilityDeclaredAt DateTime?
+  availabilityReasonCode String?
+  closedAt               DateTime?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  boardDay               BoardDay           @relation(fields: [boardDayId], references: [id], onDelete: Cascade)
+  user                   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dutyItems              StaffDayDutyItem[]
+  workRecommendations    WorkRecommendation[]
+  dailyReports           StaffDailyReport[]
+
+  @@unique([boardDayId, userId])
+  @@index([userId, status])
+  @@index([boardDayId, status])
+}
+
+model StaffDailyReport {
+  id                    String                 @id @default(cuid())
+  staffDayId            String
+  version               Int
+  status                StaffDailyReportStatus @default(SUBMITTED)
+  sourceSnapshot        Json
+  accuracyConfirmed     Boolean
+  additionalContext     String?
+  tomorrowFollowUp      String?
+  submittedAt           DateTime
+  submittedByUserId     String
+  submittedOnBehalfReason String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  staffDay              StaffDay               @relation(fields: [staffDayId], references: [id], onDelete: Cascade)
+  submittedByUser       User                   @relation("StaffDailyReportSubmittedByUser", fields: [submittedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([staffDayId, version])
+  @@index([staffDayId, status, submittedAt])
+  @@index([submittedByUserId, submittedAt])
+}
+
+model WorkRecommendation {
+  id                    String                   @id @default(cuid())
+  staffDayId            String
+  taskId                String
+  rank                  Int
+  score                 Int
+  scoreBreakdown        Json
+  explanation           String
+  status                WorkRecommendationStatus @default(SHOWN)
+  dismissalReasonCode   String?
+  claimedAt             DateTime?
+  claimedByUserId       String?
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+  staffDay              StaffDay                 @relation(fields: [staffDayId], references: [id], onDelete: Cascade)
+  task                  Task                     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  claimedByUser         User?                    @relation("WorkRecommendationClaimedByUser", fields: [claimedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([staffDayId, taskId])
+  @@index([staffDayId, status, rank])
+  @@index([taskId, status])
+}
+
+model StaffDayDutyItem {
+  id                String    @id @default(cuid())
+  staffDayId        String
+  sourceKey         String
+  sourceDutyId      String?
+  sourceRoleId      String?
+  sourceType        String
+  label             String
+  description       String?
+  workflowArea      String
+  required          Boolean   @default(true)
+  sortOrder         Int
+  completed         Boolean   @default(false)
+  completedAt       DateTime?
+  completedByUserId String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  staffDay          StaffDay  @relation(fields: [staffDayId], references: [id], onDelete: Cascade)
+  sourceDuty        Duty?     @relation(fields: [sourceDutyId], references: [id], onDelete: SetNull)
+  sourceRole        Role?     @relation(fields: [sourceRoleId], references: [id], onDelete: SetNull)
+  completedByUser   User?     @relation("StaffDayDutyCompletedByUser", fields: [completedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([staffDayId, sourceKey])
+  @@index([staffDayId, sortOrder])
+  @@index([sourceDutyId])
+  @@index([sourceRoleId])
 }
 
 model ConcernCase {
@@ -1253,6 +1379,14 @@ model Task {
   readyForReviewAt          DateTime?
   completedAt               DateTime?
   reviewedByUserId          String?
+  acceptedAt                DateTime?
+  acceptedByUserId          String?
+  completionOverrideAt      DateTime?
+  completionOverrideByUserId String?
+  completionOverrideReason  String?
+  isClaimable               Boolean                   @default(false)
+  carryoverSourceTaskId     String?
+  carryoverReportId         String?
   createdAt                 DateTime                  @default(now())
   updatedAt                 DateTime                  @updatedAt
   boardDay                  BoardDay                  @relation(fields: [boardDayId], references: [id], onDelete: Cascade)
@@ -1260,6 +1394,8 @@ model Task {
   recommendedUser           User?                     @relation("TaskRecommendedUser", fields: [recommendedUserId], references: [id], onDelete: SetNull)
   createdByUser             User?                     @relation("TaskCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
   reviewedByUser            User?                     @relation("TaskReviewedByUser", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  acceptedByUser            User?                     @relation("TaskAcceptedByUser", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+  completionOverrideByUser  User?                     @relation("TaskCompletionOverrideByUser", fields: [completionOverrideByUserId], references: [id], onDelete: SetNull)
   sourceTemplate            TaskTemplate?             @relation("TaskSourceTemplate", fields: [sourceTemplateId], references: [id], onDelete: SetNull)
   sourceDuty                Duty?                     @relation("TaskSourceDuty", fields: [sourceDutyId], references: [id], onDelete: SetNull)
   activityEvents            ActivityEvent[]
@@ -1268,11 +1404,17 @@ model Task {
   appointmentLinks          AppointmentTaskLink[]
   appointmentHistoryEvents  AppointmentHistoryEvent[]
   concernLink               ConcernTaskLink?
+  workRecommendations       WorkRecommendation[]
 
   @@unique([boardDayId, sourceTemplateId, assignedUserId])
   @@index([boardDayId, status])
   @@index([boardDayId, assignedUserId])
   @@index([boardDayId, workflowArea])
+  @@index([acceptedByUserId, acceptedAt])
+  @@index([completionOverrideByUserId, completionOverrideAt])
+  @@index([boardDayId, isClaimable, status])
+  @@unique([boardDayId, carryoverSourceTaskId])
+  @@index([carryoverReportId])
 }
 
 model AppointmentTaskLink {

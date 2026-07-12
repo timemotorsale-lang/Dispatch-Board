@@ -12,6 +12,8 @@
 
 > **Customers Console planning package:** The Customers architecture, MVP rollout roadmap, and Codex-sized milestones now live in [`docs/customers/README.md`](customers/README.md). Use that package for `/customers`, Customer 360, customer memory, lead follow-up, case/SLA, relationship bridges, manager intelligence, governance, and rollout work.
 
+> **Staff Execution and Handoff planning package:** DB-ACCOUNTABILITY-059 architecture and its six feature-flagged implementation milestones live in [`docs/STAFF_EXECUTION_HANDOFF_ENGINE.md`](STAFF_EXECUTION_HANDOFF_ENGINE.md) and [`docs/STAFF_EXECUTION_HANDOFF_ROADMAP.md`](STAFF_EXECUTION_HANDOFF_ROADMAP.md). Use these documents for daily role checklists, Start Day, completion evidence, available-work matching, end-of-day handoff, carryover, and Team Execution Health.
+
 ---
 
 ## How to use this roadmap

@@ -9,10 +9,12 @@ import {
   getTaskActionLabel
 } from "@/features/tasks/my-tasks-helpers";
 import type { TaskReadModel } from "@/server/services/task-read";
+import type { TaskCompletionReadiness } from "@/server/services/task-execution-readiness";
 
 type TaskStatusPanelProps = {
   actorIsManager: boolean;
   canUpdate: boolean;
+  initialReadiness?: TaskCompletionReadiness | null;
   task: TaskReadModel;
 };
 
@@ -47,18 +49,21 @@ function isGuidedUpdateFieldComplete(
   return typeof value === "string" && value.trim().length > 0;
 }
 
-export function TaskStatusPanel({ actorIsManager, canUpdate, task }: TaskStatusPanelProps) {
+export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = null, task }: TaskStatusPanelProps) {
   const [status, setStatus] = useState(task.status as TaskStatus);
+  const [savedStatus, setSavedStatus] = useState(task.status as TaskStatus);
   const [blockerReason, setBlockerReason] = useState(task.blockerReason ?? "");
   const [updateFieldValues, setUpdateFieldValues] = useState<Record<string, string | boolean>>(
     task.updateFieldValues ?? {}
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [readiness, setReadiness] = useState(initialReadiness);
+  const [overrideReason, setOverrideReason] = useState("");
   const allowedStatuses = canUpdate
     ? getAllowedMyTaskStatuses(
         {
-          status,
+          status: savedStatus,
           requiresManagerApproval: task.requiresManagerApproval
         },
         actorIsManager
@@ -67,7 +72,7 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, task }: TaskStatusP
   const quickActions = canUpdate
     ? getPrimaryMyTaskStatusActions(
         {
-          status,
+          status: savedStatus,
           requiresManagerApproval: task.requiresManagerApproval
         },
         actorIsManager
@@ -95,6 +100,19 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, task }: TaskStatusP
     setErrorMessage(null);
 
     try {
+      if (readiness && statusNeedsGuidedUpdateFields(nextStatus)) {
+        const readinessResponse = await fetch(`/api/tasks/${encodeURIComponent(task.id)}/readiness`);
+        const readinessResult = await readinessResponse.json().catch(() => null) as { readiness?: TaskCompletionReadiness; error?: string } | null;
+        if (!readinessResponse.ok || !readinessResult?.readiness) {
+          setErrorMessage(readinessResult?.error ?? "Unable to verify completion readiness.");
+          return;
+        }
+        setReadiness(readinessResult.readiness);
+        if (!readinessResult.readiness.ready && !readinessResult.readiness.completionOverride) {
+          setErrorMessage("Complete the requirements shown below before moving this task forward.");
+          return;
+        }
+      }
       const response = await fetch(`/api/tasks/${encodeURIComponent(task.id)}/status`, {
         method: "PATCH",
         headers: {
@@ -114,8 +132,12 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, task }: TaskStatusP
       }
 
       setStatus(result.task.status);
+      setSavedStatus(result.task.status);
       setBlockerReason(result.task.blockerReason ?? "");
       setUpdateFieldValues(result.task.updateFieldValues ?? {});
+      if (readiness && statusNeedsGuidedUpdateFields(result.task.status)) {
+        setReadiness((current) => current ? { ...current, ready: true } : current);
+      }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to update this task right now.");
     } finally {
@@ -135,6 +157,38 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, task }: TaskStatusP
         </p>
       ) : (
         <div className="my-task-action-grid">
+          {readiness ? (
+            <section className={readiness.ready ? "task-readiness-card task-readiness-ready" : "task-readiness-card"} aria-label="Completion readiness">
+              <div><strong>{readiness.accepted ? "Task accepted" : "Accept this task"}</strong><span>{readiness.ready ? "Ready to move forward" : readiness.completionOverride ? "Manager override authorized" : `${readiness.requirements.filter((item) => !item.satisfied).length} requirements remaining`}</span></div>
+              {!readiness.accepted ? <button disabled={isSubmitting} onClick={async () => {
+                setIsSubmitting(true);
+                setErrorMessage(null);
+                try {
+                  const response = await fetch(`/api/tasks/${encodeURIComponent(task.id)}/readiness`, { method: "POST" });
+                  const result = await response.json().catch(() => null) as { readiness?: TaskCompletionReadiness; error?: string } | null;
+                  if (!response.ok || !result?.readiness) setErrorMessage(result?.error ?? "Unable to accept this task.");
+                  else setReadiness(result.readiness);
+                } finally {
+                  setIsSubmitting(false);
+                }
+              }} type="button">Accept Task</button> : null}
+              {!readiness.ready ? <ul>{readiness.requirements.filter((item) => !item.satisfied).map((item) => <li key={item.code}>{item.label}</li>)}</ul> : <p>Required work and evidence are complete.</p>}
+              {readiness.completionOverride ? <div className="task-readiness-override"><strong>Manager override recorded</strong><p>{readiness.completionOverride.reason}</p></div> : null}
+              {actorIsManager && !readiness.ready && !readiness.completionOverride ? <div className="task-readiness-override-form"><label><span>Override reason</span><textarea aria-label="Completion override reason" disabled={isSubmitting} onChange={(event) => setOverrideReason(event.target.value)} placeholder="Explain why completion may proceed without the remaining evidence." rows={3} value={overrideReason} /></label><button disabled={isSubmitting || overrideReason.trim().length < 10} onClick={async () => {
+                setIsSubmitting(true);
+                setErrorMessage(null);
+                try {
+                  const response = await fetch(`/api/tasks/${encodeURIComponent(task.id)}/readiness`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason: overrideReason }) });
+                  const result = await response.json().catch(() => null) as { readiness?: TaskCompletionReadiness; error?: string } | null;
+                  if (!response.ok || !result?.readiness) setErrorMessage(result?.error ?? "Unable to record this completion override.");
+                  else setReadiness(result.readiness);
+                } finally {
+                  setIsSubmitting(false);
+                }
+              }} type="button">Authorize Override</button></div> : null}
+              <small>{task.requiresManagerApproval ? "Completion will move this task to Ready for Review." : "Completion can close this task directly."}</small>
+            </section>
+          ) : null}
           {hasGuidedUpdateFields ? (
             <section
               className={
@@ -297,7 +351,7 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, task }: TaskStatusP
                 >
                   {getTaskActionLabel(
                     statusOption.value,
-                    status,
+                    savedStatus,
                     task.requiresManagerApproval
                   )}
                 </button>
@@ -346,7 +400,7 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, task }: TaskStatusP
               onClick={() => void submit(status)}
               type="button"
             >
-              {isSubmitting ? "Saving..." : getTaskActionLabel(status, task.status as TaskStatus, task.requiresManagerApproval)}
+              {isSubmitting ? "Saving..." : getTaskActionLabel(status, savedStatus, task.requiresManagerApproval)}
             </button>
           </div>
         </div>

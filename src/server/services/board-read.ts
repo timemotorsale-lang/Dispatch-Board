@@ -57,6 +57,7 @@ export type BoardReadTask = {
   workflowArea: string;
   sourceType: string;
   requiresManagerApproval: boolean;
+  isClaimable?: boolean;
   requiredUpdateFields: BoardReadRequiredUpdateField[];
   updateFieldValues: Record<string, string | boolean>;
   assignedUser: BoardReadUserSummary;
@@ -337,6 +338,7 @@ function toTaskSummary(task: BoardReadTaskRecord): BoardReadTask {
     workflowArea: task.workflowArea,
     sourceType: task.sourceType,
     requiresManagerApproval: task.requiresManagerApproval,
+    isClaimable: task.isClaimable,
     requiredUpdateFields: normalizeRequiredUpdateFields(snapshot),
     updateFieldValues: normalizeUpdateFieldValues(updateFieldValues),
     assignedUser: {

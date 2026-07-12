@@ -81,6 +81,7 @@ describe("manager review screen", () => {
         generationStatus="GENERATED"
         initialAttentionBuckets={createAttentionBuckets()}
         initialFocus=""
+        initialNeedsAssignmentTasks={[createTask("claimable-1", { status: TaskStatus.NOT_STARTED, isClaimable: true, requiresManagerApproval: false })]}
         initialTasks={[createTask("review-1")]}
         assignableUsers={[
           {
@@ -116,5 +117,8 @@ describe("manager review screen", () => {
     expect(markup).toContain("At Risk");
     expect(markup).toContain("Last updated 3h ago");
     expect(markup).toContain("No tasks are currently in this status.");
+    expect(markup).toContain("Needs Assignment");
+    expect(markup).toContain("Task claimable-1");
+    expect(markup).toContain("Claimable");
   });
 });

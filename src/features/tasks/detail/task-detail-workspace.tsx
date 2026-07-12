@@ -46,6 +46,7 @@ import { TaskAppointmentPanel } from "@/features/tasks/detail/task-appointment-p
 import { TaskMetadataPanel } from "@/features/tasks/detail/task-metadata-panel";
 import { TaskResolutionAccordion } from "@/features/tasks/detail/task-resolution-accordion";
 import { TaskUpdatesCommentsCard } from "@/features/tasks/detail/task-updates-comments-card";
+import type { TaskCompletionReadiness } from "@/server/services/task-execution-readiness";
 
 type TaskDetailWorkspaceProps = {
   activityEvents: ActivityFeedEvent[];
@@ -54,6 +55,7 @@ type TaskDetailWorkspaceProps = {
   canComment: boolean;
   canCreateAppointment: boolean;
   canUpdateStatus: boolean;
+  readiness?: TaskCompletionReadiness | null;
   task: TaskReadModel;
 };
 
@@ -75,6 +77,7 @@ export function TaskDetailWorkspace({
   canComment,
   canCreateAppointment,
   canUpdateStatus,
+  readiness = null,
   task
 }: TaskDetailWorkspaceProps) {
   const concern = task.concernWorkspace;
@@ -184,7 +187,7 @@ export function TaskDetailWorkspace({
         <aside className="etw-command-rail">
           <section className="etw-card etw-risk-card"><h2><ShieldAlert size={16} /> SLA &amp; Risk</h2><div className="etw-risk-grid"><div><span>SLA Clock</span><strong>{overdueDays || "On"}</strong><small>{overdueDays ? "Days Overdue" : "Track"}</small></div><div className="etw-risk-ring" style={{ "--risk": `${Math.max(12, Math.min(96, overdueDays * 4 + (concern?.escalationRequired ? 35 : 12)))}%` } as React.CSSProperties}><b>{concern?.escalationRequired ? "High" : "Active"}</b><span>Risk</span></div></div><p>Impact: <b>{formatTaskEnumLabel(concern?.priority ?? task.priority)}</b></p><p>Compliance Risk: <b>{concern?.escalationRequired ? "High" : "Monitored"}</b></p></section>
           <section className="etw-card" id="timeline"><h2><Activity size={16} /> Activity Feed</h2><div className="etw-side-feed">{feedItems.slice(0, 6).map((item) => <article key={item.id}><span /><div><small>{formatTaskDetailDateTime(item.createdAt)}</small><b>{item.message}</b><em>{item.actorName}</em></div></article>)}{feedItems.length === 0 ? <p>No activity recorded yet.</p> : null}</div></section>
-          <section className="etw-card" id="approvals"><h2><Gauge size={16} /> Workflow Command</h2><TaskStatusPanel actorIsManager={actorIsManager} canUpdate={canUpdateStatus} task={task} /></section>
+          <section className="etw-card" id="approvals"><h2><Gauge size={16} /> Workflow Command</h2><TaskStatusPanel actorIsManager={actorIsManager} canUpdate={canUpdateStatus} initialReadiness={readiness} task={task} /></section>
           {actorIsManager ? <section className="etw-card etw-assignment-card"><h2><UserRound size={16} /> Ownership</h2><TaskAssignmentPanel assignableUsers={assignableUsers} task={task} /></section> : null}
           <section id="customer-comms"><TaskAppointmentPanel canCreateAppointment={canCreateAppointment} task={task} /></section>
           <section className="etw-card" id="documents"><h2><FileText size={16} /> Documents</h2><div className="etw-document-shell"><p>No documents are linked to this task yet.</p><button disabled type="button">+ Upload coming soon</button></div></section>

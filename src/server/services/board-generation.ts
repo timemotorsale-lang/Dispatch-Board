@@ -4,6 +4,8 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { canManageBoardGeneration } from "@/server/policies/access";
 import { createGenerationTasksRepository } from "@/server/repositories/generation-tasks-repository";
 import { recordBoardActivityEvent } from "@/server/services/activity-feed";
+import { generateStaffDayPlansForBoardDate } from "@/server/services/staff-day";
+import { generateDailyCarryoverForBoardDate } from "@/server/services/daily-carryover";
 import {
   getGenerationSettings,
   type GenerationSettings
@@ -82,6 +84,8 @@ export type TriggerManualBoardGenerationDependencies = {
   repository?: GenerationTasksRepository;
   now?: () => Date;
   loadGenerationInputs?: CreateMissingGeneratedTasksDependencies["loadGenerationInputs"];
+  generateStaffDayPlans?: typeof generateStaffDayPlansForBoardDate;
+  generateDailyCarryover?: typeof generateDailyCarryoverForBoardDate;
 };
 
 export type TriggerScheduledBoardGenerationDependencies = TriggerManualBoardGenerationDependencies & {
@@ -441,6 +445,31 @@ async function runBoardGenerationForDate(
       }
     );
     const latestGeneration = await getLatestGenerationStatusForDate(normalizedBoardDate, repository);
+    let staffDayGeneratedCount = 0;
+
+    try {
+      const staffDayResult = await (dependencies.generateStaffDayPlans ?? generateStaffDayPlansForBoardDate)(
+        normalizedBoardDate
+      );
+      staffDayGeneratedCount = staffDayResult.generatedCount;
+
+      if (staffDayResult.enabled && repository.supportsActivityEvents) {
+        await recordBoardActivityEvent({
+          boardDayId: result.boardDayId,
+          actorUserId: options.triggeredByUserId,
+          eventType: "staff_day.generated",
+          message: `${staffDayGeneratedCount} staff-day plan${staffDayGeneratedCount === 1 ? "" : "s"} prepared for ${normalizedBoardDate}.`,
+          metadata: { boardDate: normalizedBoardDate, generatedCount: staffDayGeneratedCount }
+        });
+      }
+    } catch {
+      // Staff execution is feature-flagged foundation work and must not invalidate a generated board.
+    }
+    try {
+      await (dependencies.generateDailyCarryover ?? generateDailyCarryoverForBoardDate)(normalizedBoardDate, result.boardDayId);
+    } catch {
+      // Carryover is feature-flagged and cannot invalidate normal board generation.
+    }
 
     if (repository.supportsActivityEvents) {
       await recordBoardActivityEvent({
@@ -453,6 +482,7 @@ async function runBoardGenerationForDate(
             : `Board generated automatically for ${normalizedBoardDate}.`,
         metadata: {
           createdTaskCount: result.createdTaskCount,
+          staffDayGeneratedCount,
           skippedExistingTaskCount: result.skippedExistingTaskCount,
           triggeredBy: options.triggeredBy
         }

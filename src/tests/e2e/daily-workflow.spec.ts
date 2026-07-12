@@ -1,6 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
+import { WorkflowArea } from "@prisma/client";
 
 import { prisma } from "@/server/db/client";
+import { normalizeAvailableWorkWorkflowArea } from "@/server/services/available-work";
+import { createAvailableWorkRepository } from "@/server/repositories/available-work-repository";
 
 import {
   disconnectDailyWorkflowDatabase,
@@ -16,6 +19,8 @@ const approvalTaskTitle = "E2E approve sold vehicle prep";
 const appointmentTaskTitle = "E2E customer meeting required";
 const appointmentTitle = "E2E task-originated customer meeting";
 const appointmentReason = "E2E reason: customer must meet sales before the task can continue.";
+const claimableTaskTitle = "E2E claimable customer follow-up";
+const declinedTaskTitle = "E2E direction-needed follow-up";
 
 type BoardTask = {
   id: string;
@@ -862,6 +867,275 @@ test("manager and staff can complete the daily dispatch workflow", async ({ page
   await expect(page.getByText(blockerReason)).toBeVisible();
   await expect(page.getByText(new RegExp(`marked ${approvalTaskTitle} ready for review`))).toBeVisible();
   await expect(page.getByText(new RegExp(`approved completion for ${approvalTaskTitle}`))).toBeVisible();
+});
+
+test("staff can start the day and persist role-duty progress", async ({ page }) => {
+  test.setTimeout(60_000);
+
+  await login(page, managerEmail);
+  await page.getByRole("button", { name: "Generate Board" }).click();
+  await expect(page.getByText("Board generated.")).toBeVisible();
+
+  await logout(page);
+  await login(page, staffEmail);
+  await page.goto("/my-tasks");
+
+  const startDay = page.getByRole("region", { name: "Start Day accountability" });
+  await expect(startDay.getByRole("heading", { name: "Start Day" })).toBeVisible();
+  await startDay.getByLabel("I reviewed today's tasks and top priorities.").check();
+  await startDay.getByRole("button", { name: "Confirm Start Day" }).click();
+  await expect(startDay.getByRole("heading", { name: "Today is active" })).toBeVisible();
+  await expect(startDay.getByText("Priorities acknowledged.")).toBeVisible();
+
+  const firstDuty = startDay.locator(".staff-day-duty-list input[type='checkbox']").first();
+  await expect(firstDuty).toBeEnabled();
+  await firstDuty.check();
+  await expect(firstDuty).toBeChecked();
+  await expect(startDay.getByRole("status")).toHaveText("Daily responsibility saved.");
+
+  await page.reload();
+  const persistedStartDay = page.getByRole("region", { name: "Start Day accountability" });
+  await expect(persistedStartDay.getByRole("heading", { name: "Today is active" })).toBeVisible();
+  await expect(persistedStartDay.getByText("Priorities acknowledged.")).toBeVisible();
+  await expect(
+    persistedStartDay.locator(".staff-day-duty-list input[type='checkbox']").first()
+  ).toBeChecked();
+});
+
+test("staff can accept a task and retain completion readiness", async ({ page }) => {
+  test.setTimeout(60_000);
+
+  await login(page, managerEmail);
+  await page.getByRole("button", { name: "Generate Board" }).click();
+  await expect(page.getByText("Board generated.")).toBeVisible();
+
+  await logout(page);
+  await login(page, staffEmail);
+  const assignedTask = (await readTodayBoard(page)).board.tasks.find(
+    (task) => task.assignedUser.email === staffEmail && !task.requiresManagerApproval
+  );
+  expect(assignedTask).toBeTruthy();
+  await prisma.taskChecklistItem.create({
+    data: {
+      taskId: assignedTask!.id,
+      kind: "DEFINITION_OF_DONE",
+      key: "e2e_staff_completion_evidence",
+      label: "Record final customer confirmation",
+      isRequired: true,
+      completed: false,
+      sortOrder: 99
+    }
+  });
+
+  await page.goto("/my-tasks");
+  const taskRow = page.locator("article.enterprise-list-row").filter({ hasText: assignedTask!.title });
+  await expect(taskRow.getByText(/evidence items/)).toBeVisible();
+  await taskRow.locator("button.enterprise-list-row-hit").click();
+  const myDayReadiness = page.getByRole("region", { name: "Selected task completion readiness" });
+  await expect(myDayReadiness.getByText(/completion requirements remain/)).toBeVisible();
+  await myDayReadiness.getByRole("link", { name: "Review evidence" }).click();
+  await expect(page).toHaveURL(new RegExp(`/tasks/${assignedTask!.id}`));
+  const readiness = page.getByRole("region", { name: "Completion readiness" });
+  await expect(readiness.getByText("Accept this task")).toBeVisible();
+  await readiness.getByRole("button", { name: "Accept Task" }).click();
+  await expect(readiness.getByText("Task accepted")).toBeVisible();
+
+  await page.reload();
+  const persistedReadiness = page.getByRole("region", { name: "Completion readiness" });
+  await expect(persistedReadiness.getByText("Task accepted")).toBeVisible();
+  await expect(persistedReadiness.getByText(/requirements remaining/)).toBeVisible();
+  const commandPanel = page.getByText("Workflow action").locator("..");
+  await commandPanel.getByLabel("Next status").selectOption("COMPLETED");
+  await commandPanel.locator("button.pill-primary").click();
+  await expect(commandPanel.getByRole("alert")).toContainText("Complete the requirements shown below");
+  expect((await prisma.task.findUnique({ where: { id: assignedTask!.id } }))?.status).not.toBe("COMPLETED");
+});
+
+test("manager can record a reasoned completion override and complete the task", async ({ page }) => {
+  test.setTimeout(60_000);
+
+  await login(page, managerEmail);
+  await page.getByRole("button", { name: "Generate Board" }).click();
+  await expect(page.getByText("Board generated.")).toBeVisible();
+
+  const overrideTask = await prisma.task.findFirst({
+    where: {
+      boardDay: { is: { date: new Date("2026-07-11T00:00:00.000Z") } },
+      requiresManagerApproval: false
+    },
+    orderBy: { createdAt: "asc" }
+  });
+  expect(overrideTask).toBeTruthy();
+  await prisma.taskChecklistItem.create({
+    data: {
+      taskId: overrideTask!.id,
+      kind: "DEFINITION_OF_DONE",
+      key: "e2e_override_evidence",
+      label: "Attach final exception evidence",
+      isRequired: true,
+      completed: false,
+      sortOrder: 99
+    }
+  });
+
+  await page.goto(`/tasks/${overrideTask!.id}`);
+  const readiness = page.getByRole("region", { name: "Completion readiness" });
+  await readiness.getByLabel("Completion override reason").fill(
+    "Manager verified an urgent operational exception and documented the decision."
+  );
+  await readiness.getByRole("button", { name: "Authorize Override" }).click();
+  await expect(readiness.getByText("Manager override recorded")).toBeVisible();
+
+  await page.reload();
+  const persistedReadiness = page.getByRole("region", { name: "Completion readiness" });
+  await expect(persistedReadiness.getByText("Manager override authorized")).toBeVisible();
+  const commandPanel = page.getByText("Workflow action").locator("..");
+  await commandPanel.getByLabel("Next status").selectOption("COMPLETED");
+  await commandPanel.locator("button.pill-primary").click();
+  await expect.poll(async () => (await prisma.task.findUnique({ where: { id: overrideTask!.id } }))?.status).toBe("COMPLETED");
+});
+
+test("staff can request and atomically claim explainable available work", async ({ page }) => {
+  test.setTimeout(60_000);
+
+  await login(page, managerEmail);
+  await page.getByRole("button", { name: "Generate Board" }).click();
+  await expect(page.getByText("Board generated.")).toBeVisible();
+  const manager = await prisma.user.findUniqueOrThrow({ where: { email: managerEmail } });
+  const staff = await prisma.user.findUniqueOrThrow({ where: { email: staffEmail } });
+  const boardDay = await prisma.boardDay.findUniqueOrThrow({ where: { date: new Date("2026-07-11T00:00:00.000Z") } });
+  const staffDay = await prisma.staffDay.findUniqueOrThrow({
+    where: { boardDayId_userId: { boardDayId: boardDay.id, userId: staff.id } },
+    include: { dutyItems: { orderBy: { sortOrder: "asc" }, take: 1 } }
+  });
+  const matchingWorkflowArea = staffDay.dutyItems[0]
+    ? normalizeAvailableWorkWorkflowArea(staffDay.dutyItems[0].workflowArea) as WorkflowArea
+    : undefined;
+  expect(matchingWorkflowArea).toBeTruthy();
+  const claimableTask = await prisma.task.create({
+    data: {
+      boardDayId: boardDay.id,
+      title: claimableTaskTitle,
+      description: "Contact the customer and document the next sales step.",
+      assignedUserId: manager.id,
+      status: "NOT_STARTED",
+      priority: "HIGH",
+      dueAt: new Date("2026-07-11T23:00:00.000Z"),
+      sourceType: "MANAGER",
+      workflowArea: matchingWorkflowArea!,
+      isClaimable: true
+    }
+  });
+  await prisma.task.create({
+    data: {
+      boardDayId: boardDay.id,
+      title: declinedTaskTitle,
+      description: "Clarify the manager's requested customer follow-up before proceeding.",
+      assignedUserId: manager.id,
+      status: "NOT_STARTED",
+      priority: "CRITICAL",
+      dueAt: new Date("2026-07-11T22:00:00.000Z"),
+      sourceType: "MANAGER",
+      workflowArea: matchingWorkflowArea!,
+      isClaimable: true
+    }
+  });
+
+  await page.goto("/manager-review?focus=NEEDS_ASSIGNMENT");
+  const executionHealth = page.getByRole("region", { name: "Team Execution Health" });
+  await expect(executionHealth).toBeVisible();
+  await expect(executionHealth.getByText(/Active|Ready|Needs Assignment/).first()).toBeVisible();
+  const needsAssignment = page.getByRole("region", { name: "Needs Assignment queue" });
+  await expect(needsAssignment.getByText(claimableTaskTitle)).toBeVisible();
+  await expect(needsAssignment.getByText(declinedTaskTitle)).toBeVisible();
+  await expect(needsAssignment.getByText(new RegExp(`Current owner: ${manager.name}`)).first()).toBeVisible();
+
+  await logout(page);
+  await login(page, staffEmail);
+  const deniedHealthStatus = await page.evaluate(async () => (await fetch("/api/manager/execution-health?date=2026-07-11")).status);
+  expect(deniedHealthStatus).toBe(403);
+  await page.goto("/my-tasks");
+  const startDay = page.getByRole("region", { name: "Start Day accountability" });
+  await startDay.getByLabel("I reviewed today's tasks and top priorities.").check();
+  await startDay.getByRole("button", { name: "Confirm Start Day" }).click();
+  await expect(startDay.getByText("Priorities acknowledged.")).toBeVisible();
+
+  const availableWork = page.getByRole("region", { name: "Recommended next work" });
+  await availableWork.getByRole("button", { name: "Find next work" }).click();
+  await expect(availableWork.getByText(claimableTaskTitle)).toBeVisible();
+  await expect(availableWork.locator("article").filter({ hasText: claimableTaskTitle }).getByText(/Recommended because/)).toBeVisible();
+  await availableWork.getByLabel(`Decline ${declinedTaskTitle}`).selectOption("NEED_MANAGER_DIRECTION");
+  await expect(availableWork.getByRole("status")).toContainText("better fit or direction");
+  await availableWork.locator("article").filter({ hasText: claimableTaskTitle }).getByRole("button", { name: "Claim" }).click();
+  await expect(availableWork.getByRole("status")).toContainText("is now assigned to you");
+  await expect.poll(async () => prisma.task.findUnique({ where: { id: claimableTask.id }, select: { assignedUser: { select: { email: true } }, isClaimable: true } })).toEqual({ assignedUser: { email: staffEmail }, isClaimable: false });
+});
+
+test("concurrent available-work claims produce one owner and expire the loser", async ({ page }) => {
+  test.setTimeout(60_000);
+  await login(page, managerEmail);
+  await page.getByRole("button", { name: "Generate Board" }).click();
+  await expect(page.getByText("Board generated.")).toBeVisible();
+  const manager = await prisma.user.findUniqueOrThrow({ where: { email: managerEmail } });
+  const boardDay = await prisma.boardDay.findUniqueOrThrow({ where: { date: new Date("2026-07-11T00:00:00.000Z") } });
+  const staffDays = await prisma.staffDay.findMany({ where: { boardDayId: boardDay.id, userId: { not: manager.id } }, take: 2, orderBy: { userId: "asc" } });
+  expect(staffDays).toHaveLength(2);
+  const task = await prisma.task.create({ data: { boardDayId: boardDay.id, title: "E2E concurrent claim", assignedUserId: manager.id, status: "NOT_STARTED", priority: "HIGH", dueAt: new Date("2026-07-11T23:30:00.000Z"), sourceType: "MANAGER", workflowArea: "ADMIN", isClaimable: true } });
+  const recommendations = await Promise.all(staffDays.map((staffDay, index) => prisma.workRecommendation.create({ data: { staffDayId: staffDay.id, taskId: task.id, rank: 1, score: 50 - index, scoreBreakdown: {}, explanation: "Eligible concurrency test work." } })));
+  const repository = createAvailableWorkRepository();
+  const results = await Promise.allSettled(recommendations.map((recommendation, index) => repository.claimRecommendation(recommendation.id, staffDays[index]!.userId, new Date("2026-07-11T15:00:00.000Z"))));
+  expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+  expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
+  const persistedTask = await prisma.task.findUniqueOrThrow({ where: { id: task.id } });
+  expect(staffDays.map((staffDay) => staffDay.userId)).toContain(persistedTask.assignedUserId);
+  const persistedRecommendations = await prisma.workRecommendation.findMany({ where: { taskId: task.id } });
+  expect(persistedRecommendations.filter((item) => item.status === "CLAIMED")).toHaveLength(1);
+  expect(persistedRecommendations.filter((item) => item.status === "EXPIRED")).toHaveLength(1);
+});
+
+test("staff can submit an auto-drafted end-of-day handoff", async ({ page }) => {
+  test.setTimeout(60_000);
+  await login(page, managerEmail);
+  await page.getByRole("button", { name: "Generate Board" }).click();
+  await expect(page.getByText("Board generated.")).toBeVisible();
+  const staff = await prisma.user.findUniqueOrThrow({ where: { email: staffEmail } });
+  const boardDay = await prisma.boardDay.findUniqueOrThrow({ where: { date: new Date("2026-07-11T00:00:00.000Z") } });
+  const carryoverTask = await prisma.task.create({ data: { boardDayId: boardDay.id, title: "E2E carryover customer approval", description: "Customer approval remains outstanding.", assignedUserId: staff.id, status: "BLOCKED", priority: "HIGH", dueAt: new Date("2026-07-11T18:00:00.000Z"), sourceType: "MANAGER", workflowArea: "SALES", blockerReason: "Customer unavailable" } });
+  await prisma.taskComment.create({ data: { taskId: carryoverTask.id, authorUserId: staff.id, body: "Call customer tomorrow at 9 AM." } });
+  await logout(page);
+  await login(page, staffEmail);
+  await page.goto("/my-tasks");
+  const startDay = page.getByRole("region", { name: "Start Day accountability" });
+  await startDay.getByLabel("I reviewed today's tasks and top priorities.").check();
+  await startDay.getByRole("button", { name: "Confirm Start Day" }).click();
+  const handoff = page.getByRole("region", { name: "End-of-day handoff" });
+  await handoff.getByRole("button", { name: "Prepare handoff" }).click();
+  await expect(handoff.getByText("E2E carryover customer approval")).toBeVisible();
+  await expect(handoff.getByText("Call customer tomorrow at 9 AM.")).toBeVisible();
+  await handoff.getByLabel("This generated handoff accurately reflects my work today.").check();
+  await handoff.getByLabel("Additional handoff context").fill("Customer requested a morning callback.");
+  await handoff.getByLabel("Tomorrow follow-up").fill("Call at 9 AM and document approval status.");
+  await handoff.getByRole("button", { name: "Submit handoff" }).click();
+  await expect(handoff.getByRole("status")).toContainText("version 1 submitted");
+  const report = await prisma.staffDailyReport.findFirstOrThrow({ where: { staffDay: { boardDayId: boardDay.id, userId: staff.id } } });
+  expect(report.version).toBe(1);
+  expect(report.tomorrowFollowUp).toContain("9 AM");
+  expect(JSON.stringify(report.sourceSnapshot)).toContain(carryoverTask.id);
+  await logout(page);
+  await login(page, managerEmail);
+  const onBehalf = await page.evaluate(async ({ userId }) => {
+    const response = await fetch(`/api/my-day/handoff?date=2026-07-11&userId=${encodeURIComponent(userId)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accuracyConfirmed: true, onBehalfReason: "Staff requested manager submission after confirming the handoff." }) });
+    return { status: response.status, payload: await response.json() as { report?: { version: number } } };
+  }, { userId: staff.id });
+  expect(onBehalf.status).toBe(200);
+  expect(onBehalf.payload.report?.version).toBe(2);
+  const generateNextBoard = () => page.evaluate(async () => { const response = await fetch("/api/board/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ boardDate: "2026-07-12" }) }); return response.status; });
+  expect(await generateNextBoard()).toBe(200);
+  expect(await generateNextBoard()).toBe(200);
+  const carryovers = await prisma.task.findMany({ where: { boardDay: { is: { date: new Date("2026-07-12T00:00:00.000Z") } }, carryoverSourceTaskId: carryoverTask.id } });
+  expect(carryovers).toHaveLength(1);
+  expect(carryovers[0]).toMatchObject({ assignedUserId: staff.id, blockerReason: "Customer unavailable", carryoverSourceTaskId: carryoverTask.id });
+  expect(carryovers[0]!.description).toContain("Call customer tomorrow at 9 AM.");
 });
 
 test("manager can create and schedule a linked appointment draft from the Appointment Board", async ({ page }) => {

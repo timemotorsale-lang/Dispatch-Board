@@ -6,6 +6,8 @@ import { canUpdateAssignedWork, isManager } from "@/server/policies/access";
 import { getActivityFeedForDate } from "@/server/services/activity-feed";
 import { getTaskReadModelById } from "@/server/services/task-read";
 import { listActiveUserSummaries } from "@/server/services/user-summary";
+import { getStaffExecutionFlags } from "@/lib/staff-execution-flags";
+import { getTaskCompletionReadiness } from "@/server/services/task-execution-readiness";
 
 type TaskDetailPageProps = {
   params: Promise<{
@@ -34,6 +36,10 @@ export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
   const assignableUsers = actorIsManager ? await listActiveUserSummaries() : [];
   const activityFeed = await getActivityFeedForDate(user, task.boardDate);
   const activityEvents = activityFeed.events.filter((event) => event.task?.id === task.id);
+  const executionFlags = getStaffExecutionFlags();
+  const readiness = executionFlags.taskAcceptanceEnabled
+    ? await getTaskCompletionReadiness(user, task.id)
+    : null;
 
   return (
     <TaskDetailWorkspace
@@ -43,6 +49,7 @@ export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
       canComment={canComment}
       canCreateAppointment={canCreateAppointment}
       canUpdateStatus={canUpdateStatus}
+      readiness={readiness}
       task={task}
     />
   );
