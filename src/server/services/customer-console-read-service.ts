@@ -1,8 +1,10 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { listRecentCustomerLeads } from "@/server/services/customer-lead-service";
+import { listConcernResolutionPackages } from "@/server/services/concern-resolution-service";
 
 export type CustomerConsoleReadMeta = {
   generatedAt: string;
-  source: "PREVIEW_READ_MODEL";
+  source: "PREVIEW_READ_MODEL" | "HYBRID_READ_MODEL";
   viewerName: string;
 };
 
@@ -42,7 +44,7 @@ export type CustomerResolutionReadModel = CustomerConsoleReadMeta & {
   detail: CustomerResolutionDetail;
   metrics: Array<{ label: string; value: string; trend: string; detail: string; tone: string }>;
   cases: CustomerResolutionCase[];
-  selectedCase: CustomerResolutionCase;
+  selectedCase: CustomerResolutionCase | null;
   detailPanel: {
     title: string;
     summary: string;
@@ -89,18 +91,6 @@ function meta(user: AuthenticatedUser): CustomerConsoleReadMeta {
   return { generatedAt: new Date().toISOString(), source: "PREVIEW_READ_MODEL", viewerName: user.name };
 }
 
-const resolutionCases: CustomerResolutionCase[] = [
-  { id: "CR-2025-00641", initials: "AH", customer: "Ahmed H.", subject: "Financing approval delay", category: "Financing", status: "In Progress", priority: "High", owner: "Ancilla M.", updated: "1h ago", sla: 75, phone: "(612) 555-3489", vehicle: "2018 Toyota Camry" },
-  { id: "CR-2025-00640", initials: "FA", customer: "Fardowsa A.", subject: "Monthly payment adjustment", category: "Financing", status: "Open", priority: "Medium", owner: "Eli Aswan", updated: "2h ago", sla: 90, phone: "(612) 555-2841", vehicle: "2019 Honda Accord" },
-  { id: "CR-2025-00639", initials: "MK", customer: "Mustafa K.", subject: "Vehicle not starting", category: "Service", status: "Escalated", priority: "High", owner: "Walter C.", updated: "3h ago", sla: 50, phone: "(612) 555-7124", vehicle: "2020 Toyota RAV4" },
-  { id: "CR-2025-00638", initials: "ID", customer: "Ibrahim D.", subject: "Missing title documents", category: "Documentation", status: "In Progress", priority: "Medium", owner: "Ancilla M.", updated: "5h ago", sla: 80, phone: "(612) 555-6390", vehicle: "2017 Nissan Rogue" },
-  { id: "CR-2025-00637", initials: "SM", customer: "Sahra M.", subject: "Warranty claim follow up", category: "Warranty", status: "Open", priority: "Medium", owner: "Brock L.", updated: "6h ago", sla: 85, phone: "(612) 555-9032", vehicle: "2019 Nissan Altima" },
-  { id: "CR-2025-00636", initials: "OA", customer: "Omar A.", subject: "Vehicle pick up request", category: "Logistics", status: "Pending Customer", priority: "Low", owner: "Carlos G.", updated: "Yesterday", sla: 100, phone: "(612) 555-4822", vehicle: "2018 Ford Escape" },
-  { id: "CR-2025-00635", initials: "HY", customer: "Hodan Y.", subject: "Trade-in offer question", category: "Sales", status: "Open", priority: "Low", owner: "Baraka A.", updated: "Yesterday", sla: 95, phone: "(612) 555-1408", vehicle: "2020 Honda CR-V" },
-  { id: "CR-2025-00634", initials: "NA", customer: "Nasra A.", subject: "Delivery confirmation", category: "Delivery", status: "Resolved", priority: "Low", owner: "Ancilla M.", updated: "2 days ago", sla: 100, phone: "(612) 555-8821", vehicle: "2021 Kia Sorento" },
-  { id: "CR-2025-00633", initials: "UN", customer: "Unassigned intake", subject: "Website complaint follow up", category: "Customer Care", status: "Open", priority: "High", owner: "", updated: "30m ago", sla: 40, phone: "(612) 555-1104", vehicle: "No linked vehicle" }
-];
-
 const detailPanels: Record<CustomerResolutionDetail, (item: CustomerResolutionCase) => CustomerResolutionReadModel["detailPanel"]> = {
   details: (item) => ({
     title: "Case Details",
@@ -130,14 +120,27 @@ const customer360Panels: Record<Customer360Tab, Customer360ReadModel["panel"]> =
   notes: { title: "Notes", summary: "Internal customer context with author and timestamp evidence.", items: [{ title: "Vehicle preference", detail: "Prefers reliable family SUVs.", meta: "Jessica Miller - May 28" }, { title: "Contact preference", detail: "Best reached by phone during evenings.", meta: "Ancilla M. - May 20" }] }
 };
 
-export async function getCustomerDashboardReadModel(user: AuthenticatedUser | null): Promise<CustomerDashboardReadModel> {
+export async function getCustomerDashboardReadModel(
+  user: AuthenticatedUser | null,
+  dependencies: { leadReader?: typeof listRecentCustomerLeads } = {}
+): Promise<CustomerDashboardReadModel> {
   const actor = assertAuthenticated(user);
+  const leadReader = dependencies.leadReader ?? listRecentCustomerLeads;
+  const durableLeads = await leadReader(actor, 5);
   return {
     ...meta(actor),
+    source: "HYBRID_READ_MODEL",
     metrics: [{ label: "Total Customers", value: "2,842", trend: "12.5%", tone: "blue" }, { label: "New Leads", value: "168", trend: "8.3%", tone: "green" }, { label: "Open Deals", value: "74", trend: "15.2%", tone: "purple" }, { label: "Appointments", value: "28", trend: "5.7%", tone: "orange" }, { label: "Sales This Month", value: "$487,620", trend: "18.6%", tone: "cyan" }],
     pipeline: [{ label: "New Leads", value: 168, tone: "blue" }, { label: "Contacted", value: 98, tone: "green" }, { label: "Qualified", value: 74, tone: "yellow" }, { label: "Proposal Sent", value: 42, tone: "purple" }, { label: "Won", value: 18, tone: "red" }],
     leadSources: [{ label: "Website", value: 42, tone: "blue" }, { label: "Referral", value: 25, tone: "orange" }, { label: "Facebook", value: 15, tone: "green" }, { label: "Google Ads", value: 10, tone: "red" }, { label: "Walk-In", value: 8, tone: "purple" }],
-    recentLeads: [{ initial: "A", name: "Abdirahman M.", source: "Website", vehicle: "2019 Toyota RAV4", date: "May 30, 2025", status: "New" }, { initial: "H", name: "Hodan Y.", source: "Referral", vehicle: "2020 Honda CR-V", date: "May 30, 2025", status: "Contacted" }, { initial: "O", name: "Omar A.", source: "Facebook", vehicle: "2018 Ford Escape", date: "May 29, 2025", status: "New" }, { initial: "K", name: "Khalid H.", source: "Walk-In", vehicle: "2017 Toyota Camry", date: "May 29, 2025", status: "Qualified" }, { initial: "S", name: "Sahra M.", source: "Google Ads", vehicle: "2019 Nissan Altima", date: "May 29, 2025", status: "Contacted" }],
+    recentLeads: durableLeads.map((lead) => ({
+      initial: lead.customer.displayName.slice(0, 1).toUpperCase(),
+      name: lead.customer.displayName,
+      source: lead.sourceCode.replaceAll("_", " "),
+      vehicle: lead.vehicleInterest ?? "No vehicle selected",
+      date: new Date(lead.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Chicago" }),
+      status: lead.stage.replaceAll("_", " ").toLowerCase().replace(/(^|\s)\S/g, (value) => value.toUpperCase())
+    })),
     topDeals: [{ customer: "Ahmed H.", vehicle: "2018 Toyota Camry", amount: "$15,500", stage: "Proposal" }, { customer: "Fardowsa A.", vehicle: "2019 Honda Accord", amount: "$18,900", stage: "Proposal" }, { customer: "Mustafa K.", vehicle: "2020 Toyota RAV4", amount: "$22,750", stage: "Qualified" }, { customer: "Ibrahim D.", vehicle: "2017 Nissan Rogue", amount: "$14,800", stage: "Negotiation" }, { customer: "Mohamed A.", vehicle: "2019 Ford Escape", amount: "$13,200", stage: "Qualified" }],
     tasks: [{ title: "Follow up with Ahmed H.", detail: "2018 Toyota Camry", priority: "High" }, { title: "Call Elmi M. about financing", detail: "2019 Honda Accord", priority: "Medium" }, { title: "Confirm appointment", detail: "With Fardowsa A.", priority: "Medium" }, { title: "Send insurance documents", detail: "To Ibrahim D.", priority: "Low" }, { title: "Prepare vehicle for test drive", detail: "2017 RAV4", priority: "Low" }],
     appointments: [{ time: "10:00 AM", customer: "Ahmed H.", detail: "2018 Toyota Camry" }, { time: "1:00 PM", customer: "Fardowsa A.", detail: "Financing Discussion" }, { time: "3:30 PM", customer: "Mustafa K.", detail: "Test Drive" }],
@@ -145,21 +148,39 @@ export async function getCustomerDashboardReadModel(user: AuthenticatedUser | nu
   };
 }
 
-export async function getCustomerResolutionReadModel(user: AuthenticatedUser | null, input: { queue?: string | null; query?: string | null; caseId?: string | null; detail?: string | null }): Promise<CustomerResolutionReadModel> {
+export async function getCustomerResolutionReadModel(user: AuthenticatedUser | null, input: { queue?: string | null; query?: string | null; caseId?: string | null; detail?: string | null }, dependencies: { caseReader?: typeof listConcernResolutionPackages; now?: () => Date } = {}): Promise<CustomerResolutionReadModel> {
   const actor = assertAuthenticated(user);
   const queue = (["all", "mine", "unassigned", "overdue", "escalated", "resolved"].includes(input.queue ?? "") ? input.queue : "all") as CustomerResolutionQueue;
   const detail = (["details", "timeline", "customer", "vehicle", "related"].includes(input.detail ?? "") ? input.detail : "details") as CustomerResolutionDetail;
   const query = input.query?.trim().toLowerCase() ?? "";
-  const filtered = resolutionCases.filter((item) => {
-    const queueMatch = queue === "all" || (queue === "mine" && item.owner === "Ancilla M.") || (queue === "unassigned" && !item.owner) || (queue === "overdue" && item.sla <= 50) || (queue === "escalated" && item.status === "Escalated") || (queue === "resolved" && item.status === "Resolved");
+  const now = dependencies.now?.() ?? new Date();
+  const packages = await (dependencies.caseReader ?? listConcernResolutionPackages)(actor);
+  const durableCases: CustomerResolutionCase[] = packages.map(({ concern }) => {
+    const dueAt = new Date(concern.dueAt); const createdAt = new Date(concern.createdAt);
+    const total = Math.max(1, dueAt.getTime() - createdAt.getTime()); const remaining = Math.max(0, dueAt.getTime() - now.getTime());
+    const status: CustomerResolutionCase["status"] = concern.status === "CLOSED" ? "Resolved" : concern.status === "ESCALATED" ? "Escalated" : concern.status === "IN_PROGRESS" || concern.status === "READY_FOR_CLOSURE" ? "In Progress" : "Open";
+    const priority: CustomerResolutionCase["priority"] = concern.priority === "CRITICAL" || concern.priority === "HIGH" ? "High" : concern.priority === "MEDIUM" ? "Medium" : "Low";
+    return { id: concern.concernNumber, initials: concern.customerReference?.split(/\s+/).map((part: string) => part[0]).join("").slice(0, 2).toUpperCase() || "CU", customer: concern.customerReference ?? "Customer", subject: concern.title, category: concern.category, status, priority, owner: concern.owner?.name ?? "", updated: new Date(concern.updatedAt).toLocaleString("en-US", { timeZone: "America/Chicago" }), sla: Math.round((remaining / total) * 100), phone: "Restricted", vehicle: concern.vehicleReference ?? "No linked vehicle" };
+  });
+  const filtered = durableCases.filter((item) => {
+    const queueMatch = queue === "all" || (queue === "mine" && packages.find((itemPackage) => itemPackage.concern.concernNumber === item.id)?.concern.owner?.id === actor.id) || (queue === "unassigned" && !item.owner) || (queue === "overdue" && item.sla === 0 && item.status !== "Resolved") || (queue === "escalated" && item.status === "Escalated") || (queue === "resolved" && item.status === "Resolved");
     return queueMatch && (!query || `${item.customer} ${item.subject} ${item.id} ${item.category}`.toLowerCase().includes(query));
   });
-  const selectedCase = filtered.find((item) => item.id === input.caseId) ?? filtered[0] ?? resolutionCases[0];
+  const selectedCase = filtered.find((item) => item.id === input.caseId) ?? filtered[0] ?? durableCases[0];
+  if (!selectedCase) {
+    return { ...meta(actor), source: "HYBRID_READ_MODEL", queue, query, selectedCaseId: "", detail,
+      metrics: [{ label: "Open Cases", value: "0", trend: "0%", detail: "current", tone: "purple" }, { label: "Due Today", value: "0", trend: "0%", detail: "current", tone: "blue" }, { label: "Overdue", value: "0", trend: "0%", detail: "current", tone: "orange" }, { label: "Resolved This Month", value: "0", trend: "0%", detail: "current", tone: "green" }, { label: "SLA Compliance", value: "100%", trend: "0%", detail: "current", tone: "cyan" }, { label: "Avg. Resolution Time", value: "--", trend: "0", detail: "current", tone: "neutral" }],
+      cases: [], selectedCase: null,
+      detailPanel: { title: "No customer case selected", summary: "No durable customer cases match this queue.", sections: [] },
+      analytics: { byStatus: [], byType: [], averageResolution: "--", compliance: 100 } };
+  }
+  const selectedPackage = packages.find((item) => item.concern.concernNumber === selectedCase.id);
+  const dynamicPanel = detail === "details" ? { title: "Case Details", summary: `Operational facts and SLA context for ${selectedCase.id}.`, sections: [{ title: "Case Information", rows: [{ label: "Type", value: selectedCase.category }, { label: "Priority", value: selectedCase.priority }, { label: "SLA", value: `${selectedCase.sla}% remaining` }] }, { title: "Customer Promises", rows: (selectedPackage?.concern.promises ?? []).map((promise) => ({ label: promise.status, value: `${promise.type} due ${new Date(promise.dueAt).toLocaleString("en-US", { timeZone: "America/Chicago" })}` })) }] } : detailPanels[detail](selectedCase);
   return {
-    ...meta(actor), queue, query, selectedCaseId: selectedCase.id, detail,
-    metrics: [{ label: "Open Cases", value: "27", trend: "18%", detail: "vs last week", tone: "purple" }, { label: "Due Today", value: "8", trend: "33%", detail: "vs yesterday", tone: "blue" }, { label: "Overdue", value: "5", trend: "29%", detail: "vs last week", tone: "orange" }, { label: "Resolved This Month", value: "62", trend: "24%", detail: "vs last month", tone: "green" }, { label: "SLA Compliance", value: "92%", trend: "8%", detail: "vs last month", tone: "cyan" }, { label: "Avg. Resolution Time", value: "1.6 days", trend: "0.4", detail: "vs last month", tone: "neutral" }],
-    cases: filtered, selectedCase, detailPanel: detailPanels[detail](selectedCase),
-    analytics: { byStatus: [{ label: "Open", value: 9 }, { label: "In Progress", value: 8 }, { label: "Pending Customer", value: 4 }, { label: "Escalated", value: 3 }, { label: "Resolved", value: 3 }], byType: [{ label: "Financing", value: 9 }, { label: "Service", value: 7 }, { label: "Documentation", value: 4 }, { label: "Warranty", value: 3 }, { label: "Sales", value: 2 }, { label: "Logistics", value: 2 }], averageResolution: "1.6 days", compliance: 92 }
+    ...meta(actor), source: "HYBRID_READ_MODEL", queue, query, selectedCaseId: selectedCase.id, detail,
+    metrics: [{ label: "Open Cases", value: String(durableCases.filter((item) => item.status !== "Resolved").length), trend: "0%", detail: "current", tone: "purple" }, { label: "Due Today", value: String(durableCases.filter((item) => item.sla > 0 && item.sla <= 25).length), trend: "0%", detail: "current", tone: "blue" }, { label: "Overdue", value: String(durableCases.filter((item) => item.sla === 0 && item.status !== "Resolved").length), trend: "0%", detail: "current", tone: "orange" }, { label: "Resolved This Month", value: String(durableCases.filter((item) => item.status === "Resolved").length), trend: "0%", detail: "current", tone: "green" }, { label: "SLA Compliance", value: `${durableCases.length ? Math.round(100 * durableCases.filter((item) => item.sla > 0 || item.status === "Resolved").length / durableCases.length) : 100}%`, trend: "0%", detail: "current", tone: "cyan" }, { label: "Avg. Resolution Time", value: "--", trend: "0", detail: "current", tone: "neutral" }],
+    cases: filtered, selectedCase, detailPanel: dynamicPanel,
+    analytics: { byStatus: [...new Set(durableCases.map((item) => item.status))].map((label) => ({ label, value: durableCases.filter((item) => item.status === label).length })), byType: [...new Set(durableCases.map((item) => item.category))].map((label) => ({ label, value: durableCases.filter((item) => item.category === label).length })), averageResolution: "--", compliance: durableCases.length ? Math.round(100 * durableCases.filter((item) => item.sla > 0 || item.status === "Resolved").length / durableCases.length) : 100 }
   };
 }
 

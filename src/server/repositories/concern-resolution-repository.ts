@@ -12,6 +12,7 @@ import {
 
 import { prisma } from "@/server/db/client";
 import type { ConcernClassification, ConcernSeverity, ConcernTaskBlueprint } from "@/server/concerns/concern-domain";
+import type { CrmDecisionResult } from "@/server/customers/decisions/crm-decision-domain";
 
 const concernPackageInclude = {
   assignedOwner: { select: { id: true, name: true, email: true } },
@@ -26,7 +27,8 @@ const concernPackageInclude = {
         }
       }
     }
-  }
+  },
+  customerPromises: { orderBy: { createdAt: "desc" as const }, include: { ownerUser: { select: { id: true, name: true, email: true } }, fulfilledByUser: { select: { id: true, name: true, email: true } } } }
 } satisfies Prisma.ConcernCaseInclude;
 
 export type ConcernPackageRecord = Prisma.ConcernCaseGetPayload<{ include: typeof concernPackageInclude }>;
@@ -52,6 +54,8 @@ export type ConcernTaskCommitPlan = {
 };
 
 export type CreateConcernPackageInput = {
+  organizationId: string;
+  customerId: string | null;
   concernNumber: string;
   idempotencyKey: string;
   requestHash: string;
@@ -76,6 +80,11 @@ export type CreateConcernPackageInput = {
   templateCode: string;
   templateVersion: number;
   tasks: ConcernTaskCommitPlan[];
+  severityDecision: CrmDecisionResult;
+  playbookDecision: CrmDecisionResult;
+  firstResponseDueAt: Date;
+  resolutionDueAt: Date;
+  customerUpdateDueAt: Date;
 };
 
 export type ConcernResolutionRepository = {
@@ -87,6 +96,8 @@ export type ConcernResolutionRepository = {
   closeConcern(input: { id: string; actorUserId: string; outcome: ConcernClosureOutcome; reason: string; proof: string; closedAt: Date }): Promise<ConcernPackageRecord>;
   listEscalationCandidates(now: Date): Promise<ConcernPackageRecord[]>;
   escalateConcern(input: { id: string; boardDayId: string; actorUserId: string | null; escalatedAt: Date; reasonCode: string }): Promise<ConcernPackageRecord>;
+  findCustomerPromise(id: string): Promise<{ id: string; concernCaseId: string; ownerUserId: string; status: string; dueAt: Date } | null>;
+  fulfillCustomerPromise(input: { id: string; actorUserId: string; notes: string; fulfilledAt: Date }): Promise<ConcernPackageRecord>;
 };
 
 function dateValue(boardDate: string) {
@@ -134,8 +145,19 @@ export function createConcernResolutionRepository(database: PrismaClient = prism
     createPackage(input) {
       return database.$transaction(async (tx) => {
         const intakeBoard = await tx.boardDay.upsert({ where: { date: dateValue(input.intakeBoardDate) }, update: {}, create: { date: dateValue(input.intakeBoardDate) } });
+        const createDecision = (result: CrmDecisionResult, normalizedInput: Prisma.InputJsonValue) => tx.crmDecisionRecord.create({ data: {
+          organizationId: input.organizationId, decisionType: result.decisionType, algorithmVersion: result.algorithmVersion,
+          customerId: input.customerId, subjectType: result.subject.type, subjectId: result.subject.id,
+          normalizedInput, score: result.score, priority: result.priority, recommendedOwnerId: result.recommendedOwnerId,
+          recommendedActionCode: result.recommendedActionCode, dueAt: result.dueAt ? new Date(result.dueAt) : null,
+          reasonCodes: result.reasonCodes, explanation: result.explanation, confidence: result.confidence,
+          missingInputs: result.missingInputs, managerReviewRequired: result.managerReviewRequired
+        } });
+        const severityDecision = await createDecision(input.severityDecision, input.severity as unknown as Prisma.InputJsonValue);
+        await createDecision(input.playbookDecision, { category: input.category });
         const concern = await tx.concernCase.create({
           data: {
+            organizationId: input.organizationId, customerId: input.customerId,
             concernNumber: input.concernNumber, idempotencyKey: input.idempotencyKey, requestHash: input.requestHash,
             boardDayId: intakeBoard.id, title: input.title, description: input.description, category: input.category,
             secondaryCategory: input.secondaryCategory, workflowArea: input.workflowArea, riskType: input.riskType,
@@ -144,9 +166,12 @@ export function createConcernResolutionRepository(database: PrismaClient = prism
             assignedOwnerId: input.assignedOwnerId, dueAt: input.dueAt, escalationRequired: input.escalationRequired,
             escalateAt: input.escalateAt, classificationSnapshot: input.classification as unknown as Prisma.InputJsonValue,
             severitySnapshot: input.severity as unknown as Prisma.InputJsonValue, templateCode: input.templateCode,
-            templateVersion: input.templateVersion
+            templateVersion: input.templateVersion, severityScore: input.severityDecision.score ?? 0,
+            severityBand: input.severityDecision.priority ?? "P3", lastDecisionId: severityDecision.id,
+            firstResponseDueAt: input.firstResponseDueAt, resolutionDueAt: input.resolutionDueAt
           }
         });
+        await tx.customerPromise.create({ data: { concernCaseId: concern.id, ownerUserId: input.assignedOwnerId, promiseType: "CUSTOMER_UPDATE", promisedAt: input.severityDecision.dueAt ? new Date(input.severityDecision.dueAt) : input.firstResponseDueAt, dueAt: input.customerUpdateDueAt } });
         await tx.activityEvent.create({ data: { boardDayId: intakeBoard.id, actorUserId: input.reportedByUserId, concernCaseId: concern.id, eventType: "concern.created", message: `Concern created: ${concern.title}`, metadata: { concernNumber: concern.concernNumber, priority: concern.priority, templateCode: concern.templateCode } } });
         for (const [index, planned] of input.tasks.entries()) {
           const board = await tx.boardDay.upsert({ where: { date: dateValue(planned.boardDate) }, update: {}, create: { date: dateValue(planned.boardDate) } });
@@ -182,6 +207,17 @@ export function createConcernResolutionRepository(database: PrismaClient = prism
       return database.$transaction(async (tx) => {
         const concern = await tx.concernCase.update({ where: { id: input.id }, data: { status: ConcernStatus.ESCALATED } });
         await tx.activityEvent.create({ data: { boardDayId: input.boardDayId, actorUserId: input.actorUserId, concernCaseId: concern.id, eventType: "concern.escalated", message: `Concern escalated: ${concern.concernNumber}`, metadata: { reasonCode: input.reasonCode, escalatedAt: input.escalatedAt.toISOString() } } });
+        return tx.concernCase.findUniqueOrThrow({ where: { id: concern.id }, include: concernPackageInclude });
+      });
+    },
+    findCustomerPromise(id) {
+      return database.customerPromise.findUnique({ where: { id }, select: { id: true, concernCaseId: true, ownerUserId: true, status: true, dueAt: true } });
+    },
+    fulfillCustomerPromise(input) {
+      return database.$transaction(async (tx) => {
+        const promise = await tx.customerPromise.update({ where: { id: input.id }, data: { status: "FULFILLED", fulfillmentNotes: input.notes, fulfilledAt: input.fulfilledAt, fulfilledByUserId: input.actorUserId } });
+        const concern = await tx.concernCase.findUniqueOrThrow({ where: { id: promise.concernCaseId } });
+        await tx.activityEvent.create({ data: { boardDayId: concern.boardDayId, actorUserId: input.actorUserId, concernCaseId: concern.id, eventType: "customer_promise.fulfilled", message: `Customer update promise fulfilled: ${concern.concernNumber}`, metadata: { promiseId: promise.id, fulfilledAt: input.fulfilledAt.toISOString() } } });
         return tx.concernCase.findUniqueOrThrow({ where: { id: concern.id }, include: concernPackageInclude });
       });
     }
