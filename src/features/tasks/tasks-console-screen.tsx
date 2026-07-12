@@ -795,6 +795,9 @@ export function TasksConsoleScreen({
   const [activeMenu, setActiveMenu] = useState<TasksConsoleMenu>(null);
   const [groupBy, setGroupBy] = useState<TasksConsoleGroupBy>("none");
   const [rightRailMode, setRightRailMode] = useState<TasksConsoleRailMode>("open");
+  const [statusLinksOpen, setStatusLinksOpen] = useState(false);
+  const [departmentLinksOpen, setDepartmentLinksOpen] = useState(false);
+  const [tasksFocusMode, setTasksFocusMode] = useState(false);
   const [savedViews, setSavedViews] = useState<TasksConsoleSavedView[]>(initialSavedViews);
   const [visibleColumns, setVisibleColumns] = useState<TasksConsoleColumnKey[]>(() =>
     typeof window === "undefined"
@@ -1496,13 +1499,6 @@ export function TasksConsoleScreen({
       badge: myTasksCount,
       tone: "neutral"
     },
-    {
-      active: false,
-      href: "/activity",
-      key: "my-updates",
-      label: "My Updates",
-      tone: "neutral"
-    }
   ];
 
   const teamSidebarItems: SidebarItem[] = [
@@ -1522,6 +1518,9 @@ export function TasksConsoleScreen({
       onClick: () => handleQueueFilterChange("UNASSIGNED"),
       tone: "slate"
     },
+  ];
+
+  const statusSidebarItems: SidebarItem[] = [
     {
       active: activeQueueFilter === "BLOCKED",
       badge: blockedTasks.length,
@@ -1963,21 +1962,19 @@ export function TasksConsoleScreen({
         />
       ) : (
         <div
-          className={
+          className={[
+            "tasks-console-shell",
             rightRailMode === "closed"
-              ? "tasks-console-shell tasks-console-shell-rail-closed"
+              ? "tasks-console-shell-rail-closed"
               : rightRailMode === "collapsed"
-                ? "tasks-console-shell tasks-console-shell-rail-collapsed"
-                : "tasks-console-shell"
-          }
+                ? "tasks-console-shell-rail-collapsed"
+                : "",
+            tasksFocusMode ? "tasks-console-shell-focus" : ""
+          ].filter(Boolean).join(" ")}
         >
           <aside className="tasks-console-sidebar">
-            <div className="tasks-console-sidebar-brand">
-              <div className="tasks-console-sidebar-logo">TMS</div>
-              <div className="tasks-console-sidebar-copy">
-                <strong>Time Motor Sales</strong>
-                <span>Dispatch Board</span>
-              </div>
+            <div className="tasks-console-sidebar-title">
+              <strong>Sub-tasks</strong>
             </div>
 
             <div className="tasks-console-sidebar-groups">
@@ -1989,17 +1986,46 @@ export function TasksConsoleScreen({
               </section>
 
               <section className="tasks-console-sidebar-group">
-                <p>Team Work</p>
+                <p>Work Queues</p>
                 <div className="tasks-console-nav-list">
                   {teamSidebarItems.map((item) => renderSidebarItem(item))}
                 </div>
               </section>
 
               <section className="tasks-console-sidebar-group">
-                <p>Departments</p>
-                <div className="tasks-console-nav-list">
-                  {departmentSidebarItems.map((item) => renderSidebarItem(item))}
-                </div>
+                <button
+                  aria-expanded={statusLinksOpen}
+                  className="tasks-console-sidebar-disclosure"
+                  onClick={() => setStatusLinksOpen((open) => !open)}
+                  type="button"
+                >
+                  <span className="tasks-console-nav-mark tasks-console-nav-mark-warning" aria-hidden="true" />
+                  <span>Status</span>
+                  <ChevronDown size={14} />
+                </button>
+                {statusLinksOpen ? (
+                  <div className="tasks-console-nav-list tasks-console-nav-list-nested">
+                    {statusSidebarItems.map((item) => renderSidebarItem(item))}
+                  </div>
+                ) : null}
+              </section>
+
+              <section className="tasks-console-sidebar-group">
+                <button
+                  aria-expanded={departmentLinksOpen}
+                  className="tasks-console-sidebar-disclosure"
+                  onClick={() => setDepartmentLinksOpen((open) => !open)}
+                  type="button"
+                >
+                  <span className="tasks-console-nav-mark tasks-console-nav-mark-slate" aria-hidden="true" />
+                  <span>Departments</span>
+                  <ChevronDown size={14} />
+                </button>
+                {departmentLinksOpen ? (
+                  <div className="tasks-console-nav-list tasks-console-nav-list-nested">
+                    {departmentSidebarItems.map((item) => renderSidebarItem(item))}
+                  </div>
+                ) : null}
               </section>
             </div>
 
@@ -2088,16 +2114,24 @@ export function TasksConsoleScreen({
               })}
             </div>
 
-            {activeFilterChips.length ? (
-              <div className="tasks-console-active-filters" aria-label="Active task filters">
-                {activeFilterChips.map((chip) => (
-                  <span key={chip}>{chip}</span>
-                ))}
+            <div
+              aria-hidden={activeFilterChips.length === 0}
+              aria-label={activeFilterChips.length ? "Active task filters" : undefined}
+              className={
+                activeFilterChips.length
+                  ? "tasks-console-active-filters"
+                  : "tasks-console-active-filters tasks-console-active-filters-empty"
+              }
+            >
+              {activeFilterChips.map((chip) => (
+                <span key={chip}>{chip}</span>
+              ))}
+              {activeFilterChips.length ? (
                 <button onClick={handleResetBoardView} type="button">
                   Clear
                 </button>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
 
             <section className="panel-card tasks-console-stage">
               <div className="tasks-console-stage-toolbar">
@@ -2121,6 +2155,15 @@ export function TasksConsoleScreen({
                 </div>
 
                 <div className="tasks-console-stage-actions">
+                  <button
+                    aria-pressed={tasksFocusMode}
+                    className={tasksFocusMode ? "pill pill-primary" : "pill pill-secondary"}
+                    onClick={() => setTasksFocusMode((focused) => !focused)}
+                    type="button"
+                  >
+                    <LayoutGrid size={15} />
+                    {tasksFocusMode ? "Restore Layout" : "Expand Tasks"}
+                  </button>
                   <div className="tasks-console-menu-host">
                     <button
                       aria-expanded={activeMenu === "group"}

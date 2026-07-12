@@ -3788,8 +3788,60 @@ code {
   gap: 0.42rem;
   height: 100%;
   min-height: 0;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   min-width: 0;
+}
+
+.tasks-console-active-filters-empty {
+  min-height: 0;
+  height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.tasks-console-sidebar-title {
+  display: flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0 0.45rem 0.45rem;
+  color: #0f1f38;
+  border-bottom: 1px solid #dfe7f2;
+  font-size: 0.9rem;
+}
+
+.tasks-console-sidebar-disclosure {
+  display: grid;
+  grid-template-columns: 0.65rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  min-height: 1.85rem;
+  padding: 0 0.42rem;
+  color: #314158;
+  background: transparent;
+  border: 0;
+  border-radius: 0.7rem;
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tasks-console-sidebar-disclosure:hover {
+  color: #1158c8;
+  background: #edf4ff;
+}
+
+.tasks-console-sidebar-disclosure svg {
+  transition: transform 160ms ease;
+}
+
+.tasks-console-sidebar-disclosure[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.tasks-console-nav-list-nested {
+  padding-left: 0.35rem;
 }
 
 .tasks-console-stage,
@@ -4316,6 +4368,186 @@ code {
 .tasks-console-summary-card {
   display: grid;
   gap: 0.28rem;
+}
+
+/* Tasks console workspace: keep the task grid primary and secondary queues compact. */
+@media (min-width: 1081px) {
+  .tasks-console-shell {
+    grid-template-columns: 178px minmax(0, 1fr) 300px;
+  }
+
+  .tasks-console-shell-rail-collapsed {
+    grid-template-columns: 178px minmax(0, 1fr) 4.35rem;
+  }
+
+  .tasks-console-shell-rail-closed {
+    grid-template-columns: 178px minmax(0, 1fr);
+  }
+
+  .tasks-console-sidebar {
+    color: #314158;
+    background: rgba(255, 255, 255, 0.97);
+    border-color: #dfe7f2;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+  }
+
+  .tasks-console-sidebar-groups {
+    align-content: start;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+
+  .tasks-console-sidebar-group p {
+    color: #7b8aa0;
+  }
+
+  .tasks-console-nav-item {
+    color: #3f5068;
+  }
+
+  .tasks-console-nav-item:hover {
+    color: #1158c8;
+    background: #f2f6fc;
+  }
+
+  .tasks-console-nav-item-active {
+    color: #0f55c7;
+    background: #e8f1ff;
+  }
+
+  .tasks-console-nav-badge-neutral,
+  .tasks-console-nav-badge-slate {
+    color: #334155;
+    background: #e6edf6;
+  }
+
+  .tasks-console-sidebar-footer {
+    padding-top: 0.4rem;
+    border-top-color: #dfe7f2;
+  }
+
+  .tasks-console-sidebar-footer-action,
+  .tasks-console-sidebar-footer-icon {
+    min-height: 1.85rem;
+    color: #415169;
+    background: #f8fafc;
+    border-color: #dfe7f2;
+  }
+
+  .tasks-console-main {
+    grid-template-rows: auto auto minmax(19rem, 1fr) 5.2rem;
+  }
+
+  .tasks-console-stage-toolbar {
+    position: relative;
+    z-index: 4;
+    flex-wrap: nowrap;
+    min-height: 2.35rem;
+  }
+
+  .tasks-console-stage-actions {
+    flex-wrap: nowrap;
+  }
+
+  .tasks-console-stage-actions .pill {
+    min-height: 2rem;
+    white-space: nowrap;
+  }
+
+  .tasks-console-table-shell,
+  .tasks-console-table-scroll {
+    height: 100%;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .tasks-console-table-shell {
+    grid-template-rows: minmax(0, 1fr) auto;
+    overflow: hidden;
+  }
+
+  .tasks-console-table-scroll {
+    min-height: 15rem;
+  }
+
+  .tasks-console-summary-grid {
+    min-height: 0;
+  }
+
+  .tasks-console-summary-card {
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 0.12rem;
+    height: 5.2rem;
+    padding: 0.38rem 0.48rem;
+    overflow: hidden;
+  }
+
+  .tasks-console-summary-card header > div {
+    display: flex;
+    align-items: baseline;
+    gap: 0.25rem;
+  }
+
+  .tasks-console-summary-list {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .tasks-console-summary-list > :nth-child(n + 2) {
+    display: none;
+  }
+
+  .tasks-console-summary-list p {
+    overflow: hidden;
+    margin: 0;
+    color: #6b7c92;
+    font-size: 0.65rem;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tasks-console-summary-item {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0.18rem 0.3rem;
+    border-radius: 0.5rem;
+  }
+
+  .tasks-console-summary-item strong,
+  .tasks-console-summary-item small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tasks-console-summary-link {
+    justify-self: start;
+    padding: 0;
+  }
+
+  .tasks-console-shell-focus {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tasks-console-shell-focus .tasks-console-sidebar,
+  .tasks-console-shell-focus .tasks-console-rail,
+  .tasks-console-shell-focus .tasks-console-metrics,
+  .tasks-console-shell-focus .tasks-console-active-filters,
+  .tasks-console-shell-focus .tasks-console-summary-grid {
+    display: none;
+  }
+
+  .tasks-console-shell-focus .tasks-console-main {
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .tasks-console-shell-focus .tasks-console-stage {
+    height: 100%;
+  }
+
+  .tasks-console-shell-focus .tasks-console-table-scroll {
+    min-height: 0;
+  }
 }
 
 .tasks-console-summary-card header strong {

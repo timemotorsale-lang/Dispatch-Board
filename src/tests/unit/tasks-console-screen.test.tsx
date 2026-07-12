@@ -217,7 +217,9 @@ describe("tasks console screen", () => {
     expect(markup).toContain("Export");
     expect(markup).toContain("Total Tasks");
     expect(markup).toContain("Ready for Review");
-    expect(markup).toContain("Time Motor Sales");
+    expect(markup).toContain("Sub-tasks");
+    expect(markup).toContain("Status");
+    expect(markup).toContain("Expand Tasks");
     expect(markup).toContain("Team Tasks");
     expect(markup).toContain("List View");
     expect(markup).toContain("Board View");
