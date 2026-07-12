@@ -56,6 +56,7 @@ type TaskDetailWorkspaceProps = {
   canCreateAppointment: boolean;
   canUpdateStatus: boolean;
   readiness?: TaskCompletionReadiness | null;
+  returnTo?: string;
   task: TaskReadModel;
 };
 
@@ -78,6 +79,7 @@ export function TaskDetailWorkspace({
   canCreateAppointment,
   canUpdateStatus,
   readiness = null,
+  returnTo = "/tasks",
   task
 }: TaskDetailWorkspaceProps) {
   const concern = task.concernWorkspace;
@@ -137,14 +139,14 @@ export function TaskDetailWorkspace({
       <header className="etw-command-bar">
         <div className="etw-brand"><ClipboardCheck size={20} /><div><strong>Time Motor Sales</strong><span>Task Resolution Workbench</span></div></div>
         <label className="etw-search"><span aria-hidden="true">/</span><input aria-label="Search workbench" placeholder="Search customers, vehicles, tasks, cases, VIN, anything..." /></label>
-        <div className="etw-command-actions"><Link href="/tasks">Task Board</Link><Link className="etw-new-action" href="/tasks?create=1">+ New</Link></div>
+        <div className="etw-command-actions"><Link href={returnTo}>Return to Tasks</Link><Link className="etw-new-action" href="/tasks?create=1">+ New</Link></div>
       </header>
 
       <nav className="etw-module-nav" aria-label="Workbench modules">
         <Link href="/board"><Home size={15} />Home</Link><Link href="/board"><Grid3X3 size={15} />Dispatch Board</Link><Link className="active" href="/tasks"><ClipboardCheck size={15} />Cases &amp; Tasks</Link><Link href="/vehicles"><CarFront size={15} />Inventory</Link><Link href="/tasks?department=SALES"><BadgeDollarSign size={15} />Sales</Link><Link href="/customers"><UsersRound size={15} />Customers</Link><Link href="/tasks?department=ADVERTISING"><Megaphone size={15} />Marketing</Link><Link href="/tasks?department=COLLECTIONS"><WalletCards size={15} />Collections</Link><Link href="/tasks?department=SHOP"><Wrench size={15} />Repair Shop</Link><Link href="/reports"><ChartNoAxesCombined size={15} />Reports</Link><Link href="/admin"><Settings size={15} />Admin</Link>
       </nav>
 
-      <div className="etw-breadcrumb"><Link href="/tasks">Cases &amp; Tasks</Link><ChevronRight size={13} /><span>Case #{recordNumber}</span></div>
+      <div className="etw-breadcrumb"><Link href={returnTo}>Cases &amp; Tasks</Link><ChevronRight size={13} /><span>Case #{recordNumber}</span></div>
 
       <div className="etw-layout">
         <aside className="etw-context-rail">

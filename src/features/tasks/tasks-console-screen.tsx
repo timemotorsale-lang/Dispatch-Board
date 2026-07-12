@@ -49,6 +49,11 @@ type TasksConsoleScreenProps = {
   initialSavedViews: TaskSavedViewModel[];
   initialQuickCreateOpen?: boolean;
   initialConcernIntakeOpen?: boolean;
+  initialDepartmentFilter?: string;
+  initialGroupBy?: string;
+  initialPage?: number;
+  initialQueueFilter?: string;
+  initialView?: string;
   isManager: boolean;
   todayBoardDate: string;
 };
@@ -109,6 +114,27 @@ type TaskDetailApiResponse =
 
 type PaginationItem = number | "ellipsis";
 type TasksConsoleSavedView = TaskSavedViewModel;
+type AcquisitionView = "all" | "available" | "my-requests" | "needs-help" | "manager-requests";
+type AcquisitionDecision = {
+  eligible: boolean;
+  explanation: string;
+  policy: "DIRECT_CLAIM" | "APPROVAL_REQUIRED" | "MANAGER_ASSIGN_ONLY" | "UNAVAILABLE";
+  score: number;
+};
+type AssignmentRequestModel = {
+  id: string;
+  status: string;
+  requestReason: string | null;
+  decisionReason: string | null;
+  createdAt: string;
+  requester: { id: string; name: string; email?: string };
+  task: { id: string; title: string; priority: string; dueAt: string; workflowArea: string };
+};
+type AcquisitionOverview = {
+  available: Array<{ decision: AcquisitionDecision; task: { id: string; title: string } }>;
+  requests: AssignmentRequestModel[];
+  counts: { available: number; pendingRequests: number };
+};
 
 const BOARD_VIEW_STATUSES: TaskStatus[] = [
   TaskStatus.NOT_STARTED,
@@ -744,8 +770,8 @@ function getSelectionFallbackTask(tasks: BoardReadTask[], selectedTaskId: string
   return tasks.find((task) => task.id === selectedTaskId) ?? tasks[0] ?? null;
 }
 
-function createTaskDetailHref(taskId: string) {
-  return `/tasks/${encodeURIComponent(taskId)}`;
+function createTaskDetailHref(taskId: string, returnTo = "/tasks") {
+  return `/tasks/${encodeURIComponent(taskId)}?returnTo=${encodeURIComponent(returnTo)}`;
 }
 
 function buildPaginationItems(totalPages: number, currentPage: number): PaginationItem[] {
@@ -784,6 +810,11 @@ export function TasksConsoleScreen({
   initialSavedViews,
   initialQuickCreateOpen = false,
   initialConcernIntakeOpen = false,
+  initialDepartmentFilter,
+  initialGroupBy,
+  initialPage = 1,
+  initialQueueFilter,
+  initialView,
   isManager,
   todayBoardDate
 }: TasksConsoleScreenProps) {
@@ -791,12 +822,24 @@ export function TasksConsoleScreen({
   const { mode: workspaceMode, setMode: setWorkspaceMode } = useWorkspaceMode();
   const consoleRef = useRef<HTMLElement | null>(null);
   const now = new Date();
-  const [activeView, setActiveView] = useState<TasksConsoleView>("list");
+  const [activeView, setActiveView] = useState<TasksConsoleView>(initialView === "board" ? "board" : "list");
   const [activeTab, setActiveTab] = useState<TasksConsoleTab>("details");
-  const [activeQueueFilter, setActiveQueueFilter] = useState<QueueFilter>("ALL");
-  const [activeDepartmentFilter, setActiveDepartmentFilter] = useState<DepartmentFilter | null>(null);
+  const [activeQueueFilter, setActiveQueueFilter] = useState<QueueFilter>(
+    initialQueueFilter && ["ALL", "NOT_STARTED", "IN_PROGRESS", "BLOCKED", "WAITING", "WAITING_ON_PARTS", "WAITING_ON_APPROVAL", "READY_FOR_REVIEW", "OVERDUE", "COMPLETED", "UNASSIGNED"].includes(initialQueueFilter)
+      ? initialQueueFilter as QueueFilter
+      : "ALL"
+  );
+  const [activeDepartmentFilter, setActiveDepartmentFilter] = useState<DepartmentFilter | null>(
+    initialDepartmentFilter && ["INVENTORY", "SHOP", "SALES", "ADVERTISING", "ADMIN", "COLLECTIONS"].includes(initialDepartmentFilter)
+      ? initialDepartmentFilter as DepartmentFilter
+      : null
+  );
   const [activeMenu, setActiveMenu] = useState<TasksConsoleMenu>(null);
-  const [groupBy, setGroupBy] = useState<TasksConsoleGroupBy>("none");
+  const [groupBy, setGroupBy] = useState<TasksConsoleGroupBy>(
+    initialGroupBy && ["none", "status", "owner", "department"].includes(initialGroupBy)
+      ? initialGroupBy as TasksConsoleGroupBy
+      : "none"
+  );
   const [rightRailMode, setRightRailMode] = useState<TasksConsoleRailMode>("open");
   const [statusLinksOpen, setStatusLinksOpen] = useState(false);
   const [departmentLinksOpen, setDepartmentLinksOpen] = useState(false);
@@ -807,7 +850,7 @@ export function TasksConsoleScreen({
       : parseStoredColumns(window.localStorage.getItem(TASKS_CONSOLE_STORAGE_KEYS.columns))
   );
   const [searchText, setSearchText] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(Math.max(1, initialPage));
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(
     initialTask?.id ?? board?.tasks[0]?.id ?? null
   );
@@ -823,16 +866,34 @@ export function TasksConsoleScreen({
   const [concernIntakeOpen, setConcernIntakeOpen] = useState(initialConcernIntakeOpen);
   const [quickCreateError, setQuickCreateError] = useState<string | null>(null);
   const [quickCreateMessage, setQuickCreateMessage] = useState<string | null>(null);
+  const [acquisitionOverview, setAcquisitionOverview] = useState<AcquisitionOverview | null>(null);
+  const [managerRequests, setManagerRequests] = useState<AssignmentRequestModel[]>([]);
+  const [acquisitionView, setAcquisitionView] = useState<AcquisitionView>("all");
+  const [acquisitionMessage, setAcquisitionMessage] = useState<string | null>(null);
+  const [acquisitionError, setAcquisitionError] = useState<string | null>(null);
   const [isGeneratePending, startGenerateTransition] = useTransition();
   const [isWorkflowPending, startWorkflowTransition] = useTransition();
   const [isQuickCreatePending, startQuickCreateTransition] = useTransition();
   const [isSavedViewPending, startSavedViewTransition] = useTransition();
+  const [isAcquisitionPending, startAcquisitionTransition] = useTransition();
   const deferredSearchText = useDeferredValue(searchText.trim().toLowerCase());
   const allTasks = [...(board?.tasks ?? [])].sort(
     (left, right) => new Date(left.dueAt).getTime() - new Date(right.dueAt).getTime()
   );
+  const availableTaskIds = new Set(acquisitionOverview?.available.map((item) => item.task.id) ?? []);
+  const requestedTaskIds = new Set(acquisitionOverview?.requests.map((item) => item.task.id) ?? []);
   const visibleTasks = allTasks
     .filter((task) => {
+      if (acquisitionView === "available" && !availableTaskIds.has(task.id)) return false;
+      if (acquisitionView === "my-requests" && !requestedTaskIds.has(task.id)) return false;
+      if (
+        acquisitionView === "needs-help" &&
+        !(task.assignedUser.id === currentUserId && (
+          task.status === TaskStatus.BLOCKED ||
+          task.status === TaskStatus.WAITING_ON_PARTS ||
+          task.status === TaskStatus.WAITING_ON_APPROVAL
+        ))
+      ) return false;
       if (!matchesQueueFilter(task, activeQueueFilter, now, boardDate)) {
         return false;
       }
@@ -861,6 +922,12 @@ export function TasksConsoleScreen({
     ? selectedTaskId
     : pagedTasks[0]?.id ?? null;
   const selectedBoardTask = getSelectionFallbackTask(pagedTasks, effectiveSelectedTaskId);
+  const selectedAcquisitionDecision = selectedBoardTask
+    ? acquisitionOverview?.available.find((item) => item.task.id === selectedBoardTask.id)?.decision ?? null
+    : null;
+  const canStartSelectedTask = Boolean(
+    selectedBoardTask?.assignedUser.id === currentUserId && selectedBoardTask.status === TaskStatus.NOT_STARTED
+  );
   const activeTaskDetail = selectedTaskDetail?.id === effectiveSelectedTaskId ? selectedTaskDetail : null;
   const activeStatusDraft = selectedBoardTask
     ? statusDrafts[selectedBoardTask.id] ?? activeTaskDetail?.status ?? selectedBoardTask.status
@@ -898,6 +965,7 @@ export function TasksConsoleScreen({
   const marketingCount = getDepartmentCount(allTasks, "ADVERTISING");
   const adminCount = getDepartmentCount(allTasks, "ADMIN");
   const collectionsCount = getDepartmentCount(allTasks, "COLLECTIONS");
+  const consoleReturnHref = `/tasks?date=${encodeURIComponent(boardDate)}&queue=${encodeURIComponent(activeQueueFilter)}&department=${encodeURIComponent(activeDepartmentFilter ?? "")}&view=${activeView}&group=${groupBy}&page=${activePage}&task=${encodeURIComponent(effectiveSelectedTaskId ?? "")}`;
   const effectiveRightRailMode: TasksConsoleRailMode = workspaceMode === "focus" ? "collapsed" : rightRailMode;
   const taskMetrics = [
     { label: "Total Tasks", value: allTasks.length, filter: "ALL" as const },
@@ -924,6 +992,33 @@ export function TasksConsoleScreen({
   useEffect(() => {
     window.localStorage.setItem(TASKS_CONSOLE_STORAGE_KEYS.columns, JSON.stringify(visibleColumns));
   }, [visibleColumns]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadAcquisition() {
+      try {
+        const [overviewResponse, managerResponse] = await Promise.all([
+          fetch(`/api/tasks/acquisition?date=${encodeURIComponent(boardDate)}`, { signal: controller.signal }),
+          isManager
+            ? fetch("/api/tasks/assignment-requests", { signal: controller.signal })
+            : Promise.resolve(null)
+        ]);
+        const overviewPayload = await overviewResponse.json().catch(() => null) as AcquisitionOverview & { error?: string } | null;
+        if (!overviewResponse.ok || !overviewPayload) throw new Error(overviewPayload?.error ?? "Unable to load available work.");
+        setAcquisitionOverview(overviewPayload);
+        if (managerResponse) {
+          const managerPayload = await managerResponse.json().catch(() => null) as { requests?: AssignmentRequestModel[] } | null;
+          if (managerResponse.ok) setManagerRequests(managerPayload?.requests ?? []);
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) setAcquisitionError(error instanceof Error ? error.message : "Unable to load available work.");
+      }
+    }
+
+    void loadAcquisition();
+    return () => controller.abort();
+  }, [boardDate, isManager]);
 
   useEffect(() => {
     if (!activeMenu) {
@@ -1060,6 +1155,105 @@ export function TasksConsoleScreen({
     setCommentDraft("");
     setActiveTab("details");
     setRightRailMode("open");
+  }
+
+  function getTaskAcquisitionDecision(taskId: string) {
+    return acquisitionOverview?.available.find((item) => item.task.id === taskId)?.decision ?? null;
+  }
+
+  function handleTaskAcquisition(taskId: string, action: "CLAIM" | "REQUEST" | "START") {
+    setAcquisitionError(null);
+    setAcquisitionMessage(null);
+    startAcquisitionTransition(async () => {
+      try {
+        const response = await fetch(`/api/tasks/${encodeURIComponent(taskId)}/acquisition`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action })
+        });
+        const payload = await response.json().catch(() => null) as {
+          claim?: { task: { title: string } };
+          request?: AssignmentRequestModel;
+          start?: { workbenchHref: string };
+          error?: string;
+        } | null;
+        if (!response.ok) throw new Error(payload?.error ?? "Unable to update this task.");
+        if (action === "START" && payload?.start?.workbenchHref) {
+          router.push(createTaskDetailHref(taskId, consoleReturnHref));
+          return;
+        }
+        if (payload?.request) {
+          setAcquisitionOverview((current) => current ? {
+            ...current,
+            requests: [payload.request!, ...current.requests],
+            counts: { ...current.counts, pendingRequests: current.counts.pendingRequests + 1 }
+          } : current);
+          setAcquisitionMessage("Assignment request sent to Manager Review.");
+        } else {
+          setAcquisitionOverview((current) => current ? {
+            ...current,
+            available: current.available.filter((item) => item.task.id !== taskId),
+            counts: { ...current.counts, available: Math.max(0, current.counts.available - 1) }
+          } : current);
+          setAcquisitionMessage("Task assigned to you. You can start work now.");
+        }
+        router.refresh();
+      } catch (error) {
+        setAcquisitionError(error instanceof Error ? error.message : "Unable to update this task.");
+      }
+    });
+  }
+
+  function handleCancelAssignmentRequest(requestId: string) {
+    setAcquisitionError(null);
+    startAcquisitionTransition(async () => {
+      try {
+        const response = await fetch(`/api/tasks/assignment-requests/${encodeURIComponent(requestId)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "CANCEL" })
+        });
+        const payload = await response.json().catch(() => null) as { error?: string } | null;
+        if (!response.ok) throw new Error(payload?.error ?? "Unable to cancel this request.");
+        setAcquisitionOverview((current) => current ? {
+          ...current,
+          requests: current.requests.map((request) => request.id === requestId ? { ...request, status: "CANCELLED" } : request),
+          counts: { ...current.counts, pendingRequests: Math.max(0, current.counts.pendingRequests - 1) }
+        } : current);
+        setAcquisitionMessage("Assignment request cancelled.");
+      } catch (error) {
+        setAcquisitionError(error instanceof Error ? error.message : "Unable to cancel this request.");
+      }
+    });
+  }
+
+  function handleManagerRequestDecision(requestId: string, decision: "APPROVED" | "DECLINED" | "ASSIGNED_OTHER", targetUserId?: string) {
+    const reason = decision === "DECLINED" ? window.prompt("Why is this request being declined?") : null;
+    if (decision === "DECLINED" && !reason?.trim()) return;
+    setAcquisitionError(null);
+    startAcquisitionTransition(async () => {
+      try {
+        const response = await fetch(`/api/tasks/assignment-requests/${encodeURIComponent(requestId)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "DECIDE", decision, reason, targetUserId })
+        });
+        const payload = await response.json().catch(() => null) as { error?: string } | null;
+        if (!response.ok) throw new Error(payload?.error ?? "Unable to decide this request.");
+        setManagerRequests((current) => current.filter((request) => request.id !== requestId));
+        setAcquisitionMessage(decision === "APPROVED" ? "Assignment request approved." : decision === "ASSIGNED_OTHER" ? "Task assigned to another owner." : "Assignment request declined.");
+        router.refresh();
+      } catch (error) {
+        setAcquisitionError(error instanceof Error ? error.message : "Unable to decide this request.");
+      }
+    });
+  }
+
+  function handleAssignAnotherOwner(event: FormEvent<HTMLFormElement>, requestId: string) {
+    event.preventDefault();
+    const targetUserId = new FormData(event.currentTarget).get("targetUserId");
+    if (typeof targetUserId !== "string" || !targetUserId) return;
+    handleManagerRequestDecision(requestId, "ASSIGNED_OTHER", targetUserId);
   }
 
   function handleMenuToggle(menu: Exclude<TasksConsoleMenu, null>) {
@@ -1665,7 +1859,7 @@ export function TasksConsoleScreen({
         <button className="tasks-console-enterprise-tab tasks-console-enterprise-tab-active" onClick={handleResetBoardView} type="button">
           Board
         </button>
-        {selectedBoardTask ? <Link className="tasks-console-enterprise-tab" href={`/tasks/${selectedBoardTask.id}`}>Workbench</Link> : null}
+        {selectedBoardTask ? <Link className="tasks-console-enterprise-tab" href={createTaskDetailHref(selectedBoardTask.id, consoleReturnHref)}>Workbench</Link> : null}
         <Link className="tasks-console-enterprise-tab" href="/prototype/task-templates?view=automations">Automations</Link>
         <Link className="tasks-console-enterprise-tab" href="/prototype/task-templates">Templates</Link>
         <button className="tasks-console-enterprise-tab" onClick={() => handleQueueFilterChange("OVERDUE")} type="button">
@@ -1868,6 +2062,20 @@ export function TasksConsoleScreen({
           <button className={activeQueueFilter === "ALL" ? "active" : undefined} onClick={() => handleQueueFilterChange("ALL")} type="button">
             Team Queue <span>{allTasks.length}</span>
           </button>
+          <button className={acquisitionView === "available" ? "active" : undefined} onClick={() => setAcquisitionView(acquisitionView === "available" ? "all" : "available")} type="button">
+            Available Work <span>{acquisitionOverview?.counts.available ?? 0}</span>
+          </button>
+          <button className={acquisitionView === "my-requests" ? "active" : undefined} onClick={() => setAcquisitionView(acquisitionView === "my-requests" ? "all" : "my-requests")} type="button">
+            My Requests <span>{acquisitionOverview?.counts.pendingRequests ?? 0}</span>
+          </button>
+          <button className={acquisitionView === "needs-help" ? "active" : undefined} onClick={() => setAcquisitionView(acquisitionView === "needs-help" ? "all" : "needs-help")} type="button">
+            Needs Help
+          </button>
+          {isManager ? (
+            <button className={acquisitionView === "manager-requests" ? "active" : undefined} onClick={() => setAcquisitionView(acquisitionView === "manager-requests" ? "all" : "manager-requests")} type="button">
+              Assignment Requests <span>{managerRequests.length}</span>
+            </button>
+          ) : null}
           <div className="tasks-console-context-menu-host">
             <button aria-expanded={statusLinksOpen} onClick={() => setStatusLinksOpen((open) => !open)} type="button">
               Status <ChevronDown size={13} />
@@ -1921,6 +2129,46 @@ export function TasksConsoleScreen({
           </div>
           <button onClick={handleExportVisibleTasks} type="button"><Download size={13} /> Export</button>
         </nav>
+      ) : null}
+
+      {acquisitionMessage || acquisitionError ? (
+        <div className={acquisitionError ? "tasks-acquisition-notice tasks-acquisition-notice-error" : "tasks-acquisition-notice"}>
+          {acquisitionError ?? acquisitionMessage}
+        </div>
+      ) : null}
+
+      {acquisitionView === "my-requests" && acquisitionOverview?.requests.length ? (
+        <section className="tasks-acquisition-request-strip" aria-label="My assignment requests">
+          {acquisitionOverview.requests.slice(0, 6).map((request) => (
+            <article key={request.id}>
+              <div><strong>{request.task.title}</strong><span>{formatTaskEnumLabel(request.status)} · {formatDateTime(request.createdAt)}</span></div>
+              {request.status === "PENDING" ? <button disabled={isAcquisitionPending} onClick={() => handleCancelAssignmentRequest(request.id)} type="button">Cancel</button> : null}
+            </article>
+          ))}
+        </section>
+      ) : null}
+
+      {acquisitionView === "manager-requests" ? (
+        <section className="tasks-acquisition-manager-queue" aria-label="Manager assignment requests">
+          <header><strong>Assignment Requests</strong><span>{managerRequests.length} pending</span></header>
+          {managerRequests.length ? managerRequests.map((request) => (
+            <article key={request.id}>
+              <div><strong>{request.task.title}</strong><span>{request.requester.name} · {request.task.workflowArea} · {request.task.priority} · {formatDateTime(request.createdAt)}</span></div>
+              <p>{request.requestReason ?? "No additional reason provided."}</p>
+              <div>
+                <button disabled={isAcquisitionPending} onClick={() => handleManagerRequestDecision(request.id, "DECLINED")} type="button">Decline</button>
+                <button className="primary" disabled={isAcquisitionPending} onClick={() => handleManagerRequestDecision(request.id, "APPROVED")} type="button">Approve</button>
+                <form onSubmit={(event) => handleAssignAnotherOwner(event, request.id)}>
+                  <select aria-label={`Alternative owner for ${request.task.title}`} name="targetUserId" required>
+                    <option value="">Assign another...</option>
+                    {assignableUsers.filter((user) => user.id !== request.requester.id).map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+                  </select>
+                  <button disabled={isAcquisitionPending} type="submit">Assign</button>
+                </form>
+              </div>
+            </article>
+          )) : <p className="tasks-acquisition-empty">No assignment requests are waiting for review.</p>}
+        </section>
       ) : null}
 
       {generationMessage ? (
@@ -2230,7 +2478,7 @@ export function TasksConsoleScreen({
                       <div className="tasks-console-popover tasks-console-popover-right">
                         <button onClick={handleExportVisibleTasks} type="button">Export visible tasks</button>
                         <button onClick={handleResetBoardView} type="button">Clear filters</button>
-                        {selectedBoardTask ? <Link href={`/tasks/${selectedBoardTask.id}`}>Open selected task</Link> : null}
+                        {selectedBoardTask ? <Link href={createTaskDetailHref(selectedBoardTask.id, consoleReturnHref)}>Open selected task</Link> : null}
                       </div>
                     ) : null}
                   </div>
@@ -2272,6 +2520,8 @@ export function TasksConsoleScreen({
                             const active = task.id === effectiveSelectedTaskId;
                             const updating = active && isWorkflowPending;
                             const taskReference = getTaskReference(task);
+                            const acquisitionDecision = getTaskAcquisitionDecision(task.id);
+                            const canStartTask = task.assignedUser.id === currentUserId && task.status === TaskStatus.NOT_STARTED;
 
                             return (
                               <tr
@@ -2284,6 +2534,7 @@ export function TasksConsoleScreen({
                                   .join(" ")}
                                 key={task.id}
                                 onClick={() => handleSelectTask(task.id)}
+                                onDoubleClick={() => router.push(createTaskDetailHref(task.id, consoleReturnHref))}
                               >
                                 <td className="tasks-console-checkbox-column">
                                   <input aria-label={`Select ${task.title}`} type="checkbox" />
@@ -2295,15 +2546,26 @@ export function TasksConsoleScreen({
                                 ) : null}
                                 {visibleColumnSet.has("taskNumber") ? (
                                   <td className="tasks-console-column-task-number tasks-console-task-number">
-                                    {formatTaskDisplayNumber(task.id)}
+                                    <Link href={createTaskDetailHref(task.id, consoleReturnHref)} onClick={(event) => event.stopPropagation()} title="Open task workbench">
+                                      {formatTaskDisplayNumber(task.id)}
+                                    </Link>
                                   </td>
                                 ) : null}
                                 {visibleColumnSet.has("title") ? (
                                   <td className="tasks-console-column-title">
                                     <div className="tasks-console-title-cell">
-                                      <strong>{task.title}</strong>
+                                      <Link href={createTaskDetailHref(task.id, consoleReturnHref)} onClick={(event) => event.stopPropagation()} title="Open task workbench">
+                                        <strong>{task.title}</strong>
+                                      </Link>
                                       {task.requiresManagerApproval ? (
                                         <span className="tasks-console-row-review-chip">Review</span>
+                                      ) : null}
+                                      {canStartTask ? (
+                                        <button className="tasks-console-row-acquisition" disabled={isAcquisitionPending} onClick={(event) => { event.stopPropagation(); handleTaskAcquisition(task.id, "START"); }} type="button">Start Work</button>
+                                      ) : acquisitionDecision?.policy === "DIRECT_CLAIM" ? (
+                                        <button className="tasks-console-row-acquisition" disabled={isAcquisitionPending} onClick={(event) => { event.stopPropagation(); handleTaskAcquisition(task.id, "CLAIM"); }} title={acquisitionDecision.explanation} type="button">Claim</button>
+                                      ) : acquisitionDecision?.policy === "APPROVAL_REQUIRED" || acquisitionDecision?.policy === "MANAGER_ASSIGN_ONLY" ? (
+                                        <button className="tasks-console-row-acquisition" disabled={isAcquisitionPending} onClick={(event) => { event.stopPropagation(); handleTaskAcquisition(task.id, "REQUEST"); }} title={acquisitionDecision.explanation} type="button">Request</button>
                                       ) : null}
                                     </div>
                                   </td>
@@ -2945,9 +3207,16 @@ export function TasksConsoleScreen({
                 ) : null}
 
                 <div className="tasks-console-rail-actions">
-                  <Link className="pill pill-secondary" href={createTaskDetailHref(selectedBoardTask.id)}>
-                    Edit
+                  <Link className="pill pill-primary" href={createTaskDetailHref(selectedBoardTask.id, consoleReturnHref)}>
+                    Open Workbench
                   </Link>
+                  {canStartSelectedTask ? (
+                    <button className="pill pill-primary" disabled={isAcquisitionPending} onClick={() => handleTaskAcquisition(selectedBoardTask.id, "START")} type="button">Start Work</button>
+                  ) : selectedAcquisitionDecision?.policy === "DIRECT_CLAIM" ? (
+                    <button className="pill pill-secondary" disabled={isAcquisitionPending} onClick={() => handleTaskAcquisition(selectedBoardTask.id, "CLAIM")} title={selectedAcquisitionDecision.explanation} type="button">Claim Task</button>
+                  ) : selectedAcquisitionDecision?.policy === "APPROVAL_REQUIRED" || selectedAcquisitionDecision?.policy === "MANAGER_ASSIGN_ONLY" ? (
+                    <button className="pill pill-secondary" disabled={isAcquisitionPending} onClick={() => handleTaskAcquisition(selectedBoardTask.id, "REQUEST")} title={selectedAcquisitionDecision.explanation} type="button">Request Task</button>
+                  ) : null}
                   {isManager ? (
                     <form
                       className="tasks-console-reassign-form"

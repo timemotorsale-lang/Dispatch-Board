@@ -27,6 +27,8 @@ function candidate(overrides: Partial<AvailableWorkCandidate> = {}): AvailableWo
     blockerReason: null,
     status: TaskStatus.NOT_STARTED,
     isClaimable: true,
+    requiresManagerApproval: false,
+    recommendedUserId: null,
     ...overrides
   };
 }
@@ -50,9 +52,17 @@ describe("available work recommendations", () => {
       now: new Date("2026-07-11T14:00:00.000Z")
     });
 
-    expect(result.breakdown).toEqual({ priority: 60, overdue: 30, dueSoon: 0, workflowMatch: 25, dutyMatch: 15, workloadPenalty: -10 });
-    expect(result.score).toBe(120);
-    expect(result.explanation).toContain("critical priority");
+    expect(result.breakdown).toEqual({
+      availability: 15,
+      continuity: 0,
+      dutyMatch: 25,
+      penalties: 0,
+      priorityUrgency: 23,
+      workloadCapacity: 8,
+      workflowMatch: 25
+    });
+    expect(result.score).toBe(96);
+    expect(result.explanation).toContain("Task is overdue");
   });
 
   it("persists only eligible workflow matches in stable rank order", async () => {
