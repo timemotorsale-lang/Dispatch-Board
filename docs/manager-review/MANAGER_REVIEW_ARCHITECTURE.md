@@ -3,8 +3,10 @@
 **Document:** Target architecture  
 **Version:** v0.1.0 planning baseline  
 **Last updated:** 2026-07-12  
-**Status:** Approved direction; implementation pending  
+**Status:** Approved direction; initial Command Center presentation/read-model slice implemented
 **Parent system:** Time Motor Sales Dispatch Board
+
+**Approved UI/UX source of truth:** [`MANAGER_REVIEW_UI_SOURCE_OF_TRUTH.md`](MANAGER_REVIEW_UI_SOURCE_OF_TRUTH.md)
 
 ## 1. Purpose
 

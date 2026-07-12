@@ -26,6 +26,12 @@
 
 All slices below begin as `PLANNED`.
 
+### Current implementation checkpoint — 2026-07-12
+
+An initial compatible presentation/read-model slice now applies the approved desktop composition to live Manager Review data. It includes the command header, honest summary metrics, current-state queue rail, server-built worklist items, deterministic task-priority/due-time fallback ordering, persistent workbench, required-update visibility, existing approve/return/reassign/status actions, responsive behavior, tests, and browser verification.
+
+This checkpoint does **not** complete MR-1 through MR-6. It intentionally does not claim durable review decisions, structured evidence, review SLA, customer-risk classification, MAE-1 scoring, Request Evidence, or Escalate commands. Those remain governed by their milestone gates.
+
 ## 3. MR-0 — Readiness And Design Gate
 
 | ID | Slice | Depends on | Evidence |
@@ -36,7 +42,7 @@ All slices below begin as `PLANNED`.
 | MR-004 | Approve review SLA and timer behavior | MR-001 | SLA examples including evidence request |
 | MR-005 | Approve decision reason codes and permissions | MR-001 | Outcome/role matrix |
 | MR-006 | Approve queue precedence and MAE-1 shadow weights | MR-002, MR-004 | Ranked scenario set |
-| MR-007 | Approve command-center interaction source of truth | MR-001–006 | Desktop/mobile interaction states |
+| MR-007 | Apply the approved command-center UI/UX source of truth to detailed interaction states | MR-001–006 | Canonical desktop reference plus desktop/mobile interaction states |
 
 Gate: no unresolved rule materially changes schema or command semantics.
 

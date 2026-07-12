@@ -1,9 +1,28 @@
 "use client";
 
+import { TaskStatus } from "@prisma/client";
+import {
+  AlertTriangle,
+  ArrowDownUp,
+  Check,
+  CheckCircle2,
+  ChevronRight,
+  CircleAlert,
+  ClipboardCheck,
+  FileQuestion,
+  Gauge,
+  Info,
+  ListFilter,
+  Plus,
+  RefreshCw,
+  RotateCcw,
+  Search,
+  ShieldCheck,
+  UserRoundCog
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { TaskStatus } from "@prisma/client";
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 
 import { EmptyStateCard, ErrorStateCard } from "@/components/ui/state-card";
 import { useLiveRefresh } from "@/hooks/use-live-refresh";
@@ -12,9 +31,13 @@ import {
   getTaskActionLabel
 } from "@/features/tasks/my-tasks-helpers";
 import type { BoardReadTask } from "@/server/services/board-read";
-import type { ManagerAttentionBucket, ManagerReviewFocus } from "@/server/services/manager-review";
-import type { ActiveUserSummary } from "@/server/services/user-summary";
+import type {
+  ManagerReviewCommandItem,
+  ManagerReviewCommandQueue,
+  ManagerReviewFocus
+} from "@/server/services/manager-review";
 import type { TeamExecutionHealthItem } from "@/server/services/team-execution-health";
+import type { ActiveUserSummary } from "@/server/services/user-summary";
 
 type ManagerReviewScreenProps = {
   boardDate: string;
@@ -23,20 +46,45 @@ type ManagerReviewScreenProps = {
   fullBoardHref: string;
   generatedAt: string | null;
   generationStatus: string | null;
-  initialAttentionBuckets: ManagerAttentionBucket[];
+  initialCommandItems: ManagerReviewCommandItem[];
   initialFocus: ManagerReviewFocus;
-  initialNeedsAssignmentTasks?: BoardReadTask[];
-  initialTasks: BoardReadTask[];
   assignableUsers: ActiveUserSummary[];
   nowIso?: string;
   initialExecutionHealth?: TeamExecutionHealthItem[];
 };
+
+type ManagerCommandFilter =
+  | "ALL"
+  | "CRITICAL"
+  | "CUSTOMER_RISK"
+  | "OVERDUE"
+  | "BLOCKED_INTERVENTION"
+  | "EVIDENCE_REQUIRED"
+  | "RETURNED_WORK"
+  | "WAITING_ON_APPROVAL"
+  | "READY_FOR_REVIEW"
+  | "NEEDS_ASSIGNMENT"
+  | "REVIEW_SLA";
 
 type StatusUpdateResponse =
   | {
       task?: {
         id: string;
         status: TaskStatus;
+        blockerReason?: string | null;
+      };
+      error?: string;
+    }
+  | null;
+
+type TaskAssignmentResponse =
+  | {
+      task?: {
+        id: string;
+        assignedUser: {
+          id: string;
+          name: string;
+        };
       };
       error?: string;
     }
@@ -75,39 +123,6 @@ function formatStatusLabel(status: string) {
     .join(" ");
 }
 
-function getGenerationStatusTone(generationStatus: string | null) {
-  if (generationStatus === "FAILED") {
-    return "status-badge status-badge-danger";
-  }
-
-  if (generationStatus === "GENERATED") {
-    return "status-badge status-badge-success";
-  }
-
-  return "status-badge status-badge-muted";
-}
-
-function getLiveStatusTone(isRefreshing: boolean) {
-  return isRefreshing ? "status-badge status-badge-muted" : "status-badge status-badge-success";
-}
-
-function getReviewAgeCopy(readyForReviewAt: string | null, now: Date) {
-  if (!readyForReviewAt) {
-    return "Waiting for manager review";
-  }
-
-  const ageInMinutes = Math.max(
-    0,
-    Math.round((now.getTime() - new Date(readyForReviewAt).getTime()) / 60000)
-  );
-
-  if (ageInMinutes < 60) {
-    return `${ageInMinutes}m in queue`;
-  }
-
-  return `${Math.round(ageInMinutes / 60)}h in queue`;
-}
-
 function getElapsedAgeCopy(value: string, now: Date) {
   const minutes = Math.max(0, Math.round((now.getTime() - new Date(value).getTime()) / 60000));
 
@@ -124,122 +139,161 @@ function getElapsedAgeCopy(value: string, now: Date) {
   return `${Math.round(hours / 24)}d`;
 }
 
-function getAttentionSla(task: BoardReadTask, now: Date) {
+function getDueState(task: BoardReadTask, now: Date) {
   const minutesUntilDue = Math.round((new Date(task.dueAt).getTime() - now.getTime()) / 60000);
 
   if (minutesUntilDue < 0) {
+    const overdueMinutes = Math.abs(minutesUntilDue);
     return {
-      label: "At Risk",
-      tone: "danger" as const,
-      detail: `${Math.abs(minutesUntilDue) < 60 ? `${Math.abs(minutesUntilDue)}m` : `${Math.round(Math.abs(minutesUntilDue) / 60)}h`} overdue`
+      label: `${overdueMinutes < 60 ? `${overdueMinutes}m` : `${Math.round(overdueMinutes / 60)}h`} past due`,
+      tone: "danger" as const
     };
   }
 
   if (minutesUntilDue <= 120) {
     return {
-      label: "Due Soon",
-      tone: "warning" as const,
-      detail: `${minutesUntilDue < 60 ? `${minutesUntilDue}m` : `${Math.round(minutesUntilDue / 60)}h`} left`
-    };
-  }
-
-  if (task.status === TaskStatus.BLOCKED || task.status === TaskStatus.WAITING_ON_APPROVAL) {
-    return {
-      label: "Needs Manager",
-      tone: "warning" as const,
-      detail: "Decision holding progress"
+      label: `${minutesUntilDue < 60 ? `${minutesUntilDue}m` : `${Math.round(minutesUntilDue / 60)}h`} left`,
+      tone: "warning" as const
     };
   }
 
   return {
-    label: "On Track",
-    tone: "neutral" as const,
-    detail: "No immediate SLA risk"
+    label: `Due ${formatDueTime(task.dueAt)}`,
+    tone: "neutral" as const
   };
 }
 
-function getOverdueCount(tasks: BoardReadTask[], now: Date) {
-  return tasks.filter((task) => new Date(task.dueAt).getTime() < now.getTime()).length;
-}
-
-function getOldestReviewTask(tasks: BoardReadTask[]) {
-  return [...tasks]
-    .sort((left, right) => {
-      const leftValue = left.readyForReviewAt ?? left.dueAt;
-      const rightValue = right.readyForReviewAt ?? right.dueAt;
-      return new Date(leftValue).getTime() - new Date(rightValue).getTime();
-    })
-    .at(0);
-}
-
-function getAttentionTaskCount(attentionBuckets: ManagerAttentionBucket[]) {
-  return attentionBuckets.reduce((total, bucket) => total + bucket.tasks.length, 0);
-}
-
-function getOldestAttentionTask(attentionBuckets: ManagerAttentionBucket[]) {
-  return attentionBuckets
-    .flatMap((bucket) => bucket.tasks)
-    .sort((left, right) => new Date(left.dueAt).getTime() - new Date(right.dueAt).getTime())
-    .at(0);
-}
-
-function createManagerQueueHref(boardDate: string, focus: ManagerReviewFocus) {
-  const query = new URLSearchParams({ date: boardDate });
-
-  if (focus) {
-    query.set("focus", focus);
+function isRequiredUpdateComplete(
+  field: BoardReadTask["requiredUpdateFields"][number],
+  value: string | boolean | undefined
+) {
+  if (field.type === "boolean") {
+    return typeof value === "boolean";
   }
 
-  return `/manager-review?${query.toString()}`;
+  return typeof value === "string" && Boolean(value.trim());
 }
 
-type ReviewCardProps = {
-  boardHref: string;
+function getInitialFilter(initialFocus: ManagerReviewFocus): ManagerCommandFilter {
+  if (initialFocus === "READY_FOR_REVIEW") {
+    return "READY_FOR_REVIEW";
+  }
+
+  if (initialFocus === "WAITING_ON_APPROVAL") {
+    return "WAITING_ON_APPROVAL";
+  }
+
+  if (initialFocus === "BLOCKED" || initialFocus === "WAITING_ON_PARTS") {
+    return "BLOCKED_INTERVENTION";
+  }
+
+  if (initialFocus === "NEEDS_ASSIGNMENT") {
+    return "NEEDS_ASSIGNMENT";
+  }
+
+  return "ALL";
+}
+
+function matchesFilter(item: ManagerReviewCommandItem, filter: ManagerCommandFilter) {
+  if (filter === "ALL") {
+    return true;
+  }
+
+  if (filter === "CRITICAL") {
+    return item.task.priority === "CRITICAL";
+  }
+
+  if (filter === "OVERDUE") {
+    return item.isPastTaskDue;
+  }
+
+  if (filter === "BLOCKED_INTERVENTION") {
+    return item.queue === "BLOCKED" || item.queue === "WAITING_ON_PARTS";
+  }
+
+  if (filter === "EVIDENCE_REQUIRED") {
+    return item.missingRequiredUpdateCount > 0;
+  }
+
+  if (filter === "WAITING_ON_APPROVAL") {
+    return item.queue === "WAITING_ON_APPROVAL";
+  }
+
+  if (filter === "READY_FOR_REVIEW") {
+    return item.queue === "READY_FOR_REVIEW";
+  }
+
+  if (filter === "NEEDS_ASSIGNMENT") {
+    return item.queue === "NEEDS_ASSIGNMENT";
+  }
+
+  return false;
+}
+
+function getDecisionPrompt(queue: ManagerReviewCommandQueue) {
+  if (queue === "READY_FOR_REVIEW") {
+    return "Approve completion or return this work for correction.";
+  }
+
+  if (queue === "BLOCKED") {
+    return "Remove the blocker, redirect the work, or establish the next accountable action.";
+  }
+
+  if (queue === "WAITING_ON_PARTS") {
+    return "Confirm the parts path, ownership, and next follow-up time.";
+  }
+
+  if (queue === "WAITING_ON_APPROVAL") {
+    return "Make or route the approval decision holding this work.";
+  }
+
+  return "Assign an accountable owner so this work can begin.";
+}
+
+function getContextReference(task: BoardReadTask) {
+  return task.vehicleReference ?? task.customerReference ?? "No vehicle or customer reference";
+}
+
+function getPriorityTone(priority: string) {
+  if (priority === "CRITICAL") {
+    return "critical";
+  }
+
+  if (priority === "HIGH") {
+    return "high";
+  }
+
+  if (priority === "MEDIUM") {
+    return "medium";
+  }
+
+  return "low";
+}
+
+function ReviewDecisionActions({
+  item,
+  onTaskRemoved,
+  onToggleReassign
+}: {
+  item: ManagerReviewCommandItem;
   onTaskRemoved(taskId: string): void;
-  task: BoardReadTask;
-};
-
-type TaskStatusResponse =
-  | {
-      task?: {
-        id: string;
-        status: TaskStatus;
-        blockerReason: string | null;
-      };
-      error?: string;
-    }
-  | null;
-
-type TaskAssignmentResponse =
-  | {
-      task?: {
-        id: string;
-        assignedUser: {
-          id: string;
-          name: string;
-        };
-      };
-      error?: string;
-    }
-  | null;
-
-function ReviewTaskCard({ boardHref, onTaskRemoved, task }: ReviewCardProps) {
+  onToggleReassign(): void;
+}) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const approvalBlocked = item.missingRequiredUpdateCount > 0;
 
   async function submit(nextStatus: TaskStatus) {
     setIsSubmitting(true);
     setErrorMessage(null);
 
     try {
-      const response = await fetch(`/api/tasks/${encodeURIComponent(task.id)}/status`, {
+      const response = await fetch(`/api/tasks/${encodeURIComponent(item.task.id)}/status`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({
-          status: nextStatus
-        })
+        body: JSON.stringify({ status: nextStatus })
       });
       const result = (await response.json().catch(() => null)) as StatusUpdateResponse;
 
@@ -248,7 +302,7 @@ function ReviewTaskCard({ boardHref, onTaskRemoved, task }: ReviewCardProps) {
         return;
       }
 
-      onTaskRemoved(task.id);
+      onTaskRemoved(item.task.id);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to update this review right now.");
     } finally {
@@ -257,108 +311,80 @@ function ReviewTaskCard({ boardHref, onTaskRemoved, task }: ReviewCardProps) {
   }
 
   return (
-    <article className="panel-card my-task-card manager-review-card">
-      <div className="my-task-topline">
-        <div className="my-task-copy">
-          <div className="my-task-heading-row">
-            <h2>{task.title}</h2>
-            <span className="board-status-chip board-status-chip-review">
-              {formatStatusLabel(task.status)}
-            </span>
-          </div>
-          {task.description ? <p>{task.description}</p> : null}
-        </div>
-        <div className="my-task-card-links">
-          <Link className="pill pill-secondary" href={`/tasks/${task.id}`}>
-            Open detail
-          </Link>
-          <Link className="pill pill-muted" href={boardHref}>
-            Open board
-          </Link>
-        </div>
-      </div>
-
-      <div className="my-task-meta-grid">
-        <div>
-          <span>Assigned</span>
-          <strong>{task.assignedUser.name}</strong>
-          {task.assignedUser.email ? <small>{task.assignedUser.email}</small> : null}
-        </div>
-        <div>
-          <span>Due</span>
-          <strong>{formatDueTime(task.dueAt)}</strong>
-          <small>{formatDateTime(task.dueAt)}</small>
-        </div>
-        <div>
-          <span>Ready since</span>
-          <strong>{task.readyForReviewAt ? formatDateTime(task.readyForReviewAt) : "Not recorded"}</strong>
-          <small>{getReviewAgeCopy(task.readyForReviewAt, new Date())}</small>
-        </div>
-        <div>
-          <span>Workflow</span>
-          <strong>{formatStatusLabel(task.workflowArea)}</strong>
-          <small>{formatStatusLabel(task.sourceType)}</small>
-        </div>
-      </div>
-
-      <div className="board-chip-row">
-        <span className="board-chip">Manager review required</span>
-        {task.vehicleReference ? <span className="board-chip">Vehicle: {task.vehicleReference}</span> : null}
-        {task.customerReference ? <span className="board-chip">Customer: {task.customerReference}</span> : null}
-      </div>
-
-      {task.recommendation ? (
-        <div className="manager-review-note">
-          <span>Assignment recommendation</span>
-          <p>{task.recommendation.explanation}</p>
+    <>
+      {approvalBlocked ? (
+        <div className="manager-command-action-warning" role="status">
+          <CircleAlert aria-hidden="true" size={16} />
+          <span>
+            Approval is unavailable until {item.missingRequiredUpdateCount} required submission update
+            {item.missingRequiredUpdateCount === 1 ? " is" : "s are"} complete.
+          </span>
         </div>
       ) : null}
-
-      <div className="manager-review-actions">
+      <div className="manager-command-action-bar" role="group" aria-label="Manager review decisions">
         <button
-          className="pill pill-primary"
-          disabled={isSubmitting}
+          className="manager-command-button manager-command-button-primary"
+          disabled={isSubmitting || approvalBlocked}
           onClick={() => void submit(TaskStatus.COMPLETED)}
+          title={approvalBlocked ? "Required submission updates are incomplete." : undefined}
           type="button"
         >
-          {isSubmitting ? "Saving..." : "Approve completion"}
+          <Check aria-hidden="true" size={16} />
+          {isSubmitting ? "Saving..." : "Approve"}
         </button>
         <button
-          className="pill pill-secondary"
+          className="manager-command-button"
           disabled={isSubmitting}
           onClick={() => void submit(TaskStatus.IN_PROGRESS)}
           type="button"
         >
-          Send back to In Progress
+          <RotateCcw aria-hidden="true" size={16} />
+          Return to work
+        </button>
+        <button
+          className="manager-command-button"
+          disabled
+          title="Formal evidence requests are planned in milestone MR-2."
+          type="button"
+        >
+          <FileQuestion aria-hidden="true" size={16} />
+          Request evidence
+        </button>
+        <button className="manager-command-button" onClick={onToggleReassign} type="button">
+          <UserRoundCog aria-hidden="true" size={16} />
+          Reassign
+        </button>
+        <button
+          className="manager-command-button"
+          disabled
+          title="Formal escalation commands are planned in milestone MR-6."
+          type="button"
+        >
+          <AlertTriangle aria-hidden="true" size={16} />
+          Escalate
         </button>
       </div>
-
       {errorMessage ? (
-        <div className="notice notice-danger my-task-inline-notice" role="alert">
+        <div className="notice notice-danger manager-command-inline-notice" role="alert">
           <p>{errorMessage}</p>
         </div>
       ) : null}
-    </article>
+    </>
   );
 }
 
-function AttentionTaskActions({
-  onTaskChanged,
+function ReassignTaskControl({
   assignableUsers,
+  onTaskChanged,
   task
 }: {
-  onTaskChanged(message: string): void;
   assignableUsers: ActiveUserSummary[];
+  onTaskChanged(message: string): void;
   task: BoardReadTask;
 }) {
   const [assignedUserId, setAssignedUserId] = useState(task.assignedUser.id);
-  const [selectedStatus, setSelectedStatus] = useState(task.status as TaskStatus);
-  const [blockerReason, setBlockerReason] = useState(task.blockerReason ?? "");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const allowedStatuses = getAllowedMyTaskStatuses(task, true);
-  const requiresBlockerReason = selectedStatus === TaskStatus.BLOCKED;
-  const trimmedBlockerReason = blockerReason.trim();
 
   async function saveAssignment() {
     if (assignedUserId === task.assignedUser.id) {
@@ -374,9 +400,7 @@ function AttentionTaskActions({
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({
-          assignedUserId
-        })
+        body: JSON.stringify({ assignedUserId })
       });
       const result = (await response.json().catch(() => null)) as TaskAssignmentResponse;
 
@@ -393,7 +417,62 @@ function AttentionTaskActions({
     }
   }
 
+  return (
+    <section className="manager-command-reassign-panel" aria-label="Reassign selected work">
+      <div>
+        <strong>Reassign owner</strong>
+        <span>Current owner: {task.assignedUser.name}</span>
+      </div>
+      <label>
+        <span>New owner</span>
+        <select
+          disabled={isSubmitting}
+          value={assignedUserId}
+          onChange={(event) => {
+            setAssignedUserId(event.target.value);
+            setErrorMessage(null);
+          }}
+        >
+          {assignableUsers.map((user) => (
+            <option key={user.id} value={user.id}>
+              {user.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button
+        className="manager-command-button manager-command-button-primary"
+        disabled={isSubmitting || assignedUserId === task.assignedUser.id}
+        onClick={() => void saveAssignment()}
+        type="button"
+      >
+        {isSubmitting ? "Saving..." : "Save assignment"}
+      </button>
+      {errorMessage ? <p className="manager-command-error">{errorMessage}</p> : null}
+    </section>
+  );
+}
+
+function InterventionControls({
+  item,
+  onTaskChanged,
+  onToggleReassign
+}: {
+  item: ManagerReviewCommandItem;
+  onTaskChanged(message: string): void;
+  onToggleReassign(): void;
+}) {
+  const task = item.task;
+  const [selectedStatus, setSelectedStatus] = useState(task.status as TaskStatus);
+  const [blockerReason, setBlockerReason] = useState(task.blockerReason ?? "");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const allowedStatuses = getAllowedMyTaskStatuses(task, true);
+  const requiresBlockerReason = selectedStatus === TaskStatus.BLOCKED;
+
   async function saveStatus() {
+    const trimmedBlockerReason = blockerReason.trim();
+
     if (requiresBlockerReason && !trimmedBlockerReason) {
       setErrorMessage("Blocked tasks require a blocker reason.");
       return;
@@ -413,16 +492,14 @@ function AttentionTaskActions({
           ...(selectedStatus === TaskStatus.BLOCKED ? { blockerReason: trimmedBlockerReason } : {})
         })
       });
-      const result = (await response.json().catch(() => null)) as TaskStatusResponse;
+      const result = (await response.json().catch(() => null)) as StatusUpdateResponse;
 
       if (!response.ok || !result?.task) {
         setErrorMessage(result?.error ?? "Unable to update this task right now.");
         return;
       }
 
-      onTaskChanged(
-        `${task.title} moved to ${formatStatusLabel(result.task.status)}.`
-      );
+      onTaskChanged(`${task.title} moved to ${formatStatusLabel(result.task.status)}.`);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to update this task right now.");
     } finally {
@@ -431,156 +508,82 @@ function AttentionTaskActions({
   }
 
   return (
-    <div className="manager-review-inline-actions">
-      <label className="field">
-        <span>Reassign owner</span>
-        <select
-          disabled={isSubmitting}
-          value={assignedUserId}
-          onChange={(event) => {
-            setAssignedUserId(event.target.value);
-            setErrorMessage(null);
-          }}
-        >
-          {assignableUsers.map((user) => (
-            <option key={user.id} value={user.id}>
-              {user.name}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <button
-        className="pill pill-secondary manager-review-inline-button"
-        disabled={isSubmitting || assignedUserId === task.assignedUser.id}
-        onClick={() => void saveAssignment()}
-        type="button"
-      >
-        {isSubmitting ? "Saving..." : "Save assignment"}
-      </button>
-
-      <label className="field">
-        <span>Next status</span>
-        <select
-          disabled={isSubmitting}
-          value={selectedStatus}
-          onChange={(event) => {
-            setSelectedStatus(event.target.value as TaskStatus);
-            setErrorMessage(null);
-          }}
-        >
-          {allowedStatuses.map((statusOption) => (
-            <option key={statusOption.value} value={statusOption.value}>
-              {statusOption.label}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      {requiresBlockerReason ? (
-        <label className="field manager-review-inline-span">
-          <span>Blocker reason</span>
-          <input
+    <section className="manager-command-intervention" aria-label="Intervention controls">
+      <div className="manager-command-section-heading">
+        <div>
+          <strong>Intervention controls</strong>
+          <span>Use the current task workflow while formal intervention commands are built.</span>
+        </div>
+      </div>
+      <div className="manager-command-intervention-grid">
+        <label>
+          <span>Next status</span>
+          <select
             disabled={isSubmitting}
-            placeholder="What is still blocking this task?"
-            value={blockerReason}
+            value={selectedStatus}
             onChange={(event) => {
-              setBlockerReason(event.target.value);
+              setSelectedStatus(event.target.value as TaskStatus);
               setErrorMessage(null);
             }}
-          />
+          >
+            {allowedStatuses.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </label>
-      ) : null}
-
-      <button
-        className="pill pill-primary manager-review-inline-button"
-        disabled={isSubmitting}
-        onClick={() => void saveStatus()}
-        type="button"
-      >
-        {isSubmitting ? "Saving..." : getTaskActionLabel(selectedStatus, task.status as TaskStatus, task.requiresManagerApproval)}
-      </button>
-
-      {errorMessage ? (
-        <div className="notice notice-danger my-task-inline-notice manager-review-inline-span" role="alert">
-          <p>{errorMessage}</p>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function AttentionTaskCard({
-  assignableUsers,
-  boardHref,
-  now,
-  onTaskChanged,
-  task
-}: {
-  assignableUsers: ActiveUserSummary[];
-  boardHref: string;
-  now: Date;
-  onTaskChanged(message: string): void;
-  task: BoardReadTask;
-}) {
-  const sla = getAttentionSla(task, now);
-
-  return (
-    <article className="panel-card my-task-card manager-review-card manager-review-card-compact">
-      <div className="my-task-topline">
-        <div className="my-task-copy">
-          <div className="my-task-heading-row">
-            <h2>{task.title}</h2>
-            <span className="board-status-chip board-status-chip-warning">
-              {formatStatusLabel(task.status)}
-            </span>
-          </div>
-          {task.description ? <p>{task.description}</p> : null}
-        </div>
-        <div className="my-task-card-links">
-          <Link className="pill pill-secondary" href={`/tasks/${task.id}`}>
-            Open detail
-          </Link>
-        </div>
+        {requiresBlockerReason ? (
+          <label className="manager-command-intervention-wide">
+            <span>Blocker reason</span>
+            <input
+              disabled={isSubmitting}
+              placeholder="What is blocking this work?"
+              value={blockerReason}
+              onChange={(event) => {
+                setBlockerReason(event.target.value);
+                setErrorMessage(null);
+              }}
+            />
+          </label>
+        ) : null}
+        <button
+          className="manager-command-button manager-command-button-primary"
+          disabled={isSubmitting}
+          onClick={() => void saveStatus()}
+          type="button"
+        >
+          {isSubmitting
+            ? "Saving..."
+            : getTaskActionLabel(selectedStatus, task.status as TaskStatus, task.requiresManagerApproval)}
+        </button>
       </div>
-
-      <div className="manager-review-signal-row">
-        <span className={`manager-review-sla-pill manager-review-sla-pill-${sla.tone}`}>{sla.label}</span>
-        <span className="board-chip board-chip-muted">{sla.detail}</span>
-        <span className="board-chip board-chip-muted">Last updated {getElapsedAgeCopy(task.updatedAt, now)} ago</span>
+      <div className="manager-command-action-bar" role="group" aria-label="Manager intervention decisions">
+        <button className="manager-command-button" onClick={onToggleReassign} type="button">
+          <UserRoundCog aria-hidden="true" size={16} />
+          Reassign
+        </button>
+        <button
+          className="manager-command-button"
+          disabled
+          title="Formal evidence requests are planned in milestone MR-2."
+          type="button"
+        >
+          <FileQuestion aria-hidden="true" size={16} />
+          Request evidence
+        </button>
+        <button
+          className="manager-command-button"
+          disabled
+          title="Formal escalation commands are planned in milestone MR-6."
+          type="button"
+        >
+          <AlertTriangle aria-hidden="true" size={16} />
+          Escalate
+        </button>
       </div>
-
-      <div className="my-task-meta-grid">
-        <div>
-          <span>Assigned</span>
-          <strong>{task.assignedUser.name}</strong>
-          {task.assignedUser.email ? <small>{task.assignedUser.email}</small> : null}
-        </div>
-        <div>
-          <span>Due</span>
-          <strong>{formatDueTime(task.dueAt)}</strong>
-          <small>{formatDateTime(task.dueAt)}</small>
-        </div>
-        <div>
-          <span>Workflow</span>
-          <strong>{formatStatusLabel(task.workflowArea)}</strong>
-          <small>{formatStatusLabel(task.sourceType)}</small>
-        </div>
-        <div>
-          <span>Context</span>
-          <strong>{task.vehicleReference ?? task.customerReference ?? "No reference"}</strong>
-          <small>{task.blockerReason ?? "Open the detail view for the full next-step context."}</small>
-        </div>
-      </div>
-
-      <div className="my-task-card-links manager-review-card-links">
-        <Link className="pill pill-muted" href={boardHref}>
-          Open board
-        </Link>
-      </div>
-
-      <AttentionTaskActions assignableUsers={assignableUsers} onTaskChanged={onTaskChanged} task={task} />
-    </article>
+      {errorMessage ? <p className="manager-command-error">{errorMessage}</p> : null}
+    </section>
   );
 }
 
@@ -591,146 +594,309 @@ export function ManagerReviewScreen({
   fullBoardHref,
   generatedAt,
   generationStatus,
-  initialAttentionBuckets,
+  initialCommandItems,
   initialFocus,
-  initialNeedsAssignmentTasks = [],
-  initialTasks,
   assignableUsers,
-  nowIso
-  ,initialExecutionHealth = []
+  nowIso,
+  initialExecutionHealth = []
 }: ManagerReviewScreenProps) {
   const router = useRouter();
   const [isRefreshPending, startRefreshTransition] = useTransition();
   const [removedTaskIds, setRemovedTaskIds] = useState<Record<string, true>>({});
   const [lastActionMessage, setLastActionMessage] = useState<string | null>(null);
-  const [focus, setFocus] = useState<ManagerReviewFocus>(initialFocus);
-  const tasks = initialTasks.filter((task) => !removedTaskIds[task.id]);
-  const attentionBuckets = initialAttentionBuckets.map((bucket) => ({
-    ...bucket,
-    tasks: bucket.tasks.filter((task) => !removedTaskIds[task.id])
-  }));
-  const needsAssignmentTasks = initialNeedsAssignmentTasks.filter((task) => !removedTaskIds[task.id]);
-  const visibleReviewTasks = focus === "" || focus === "READY_FOR_REVIEW" ? tasks : [];
-  const visibleAttentionBuckets =
-    focus === "" || focus === "READY_FOR_REVIEW"
-      ? attentionBuckets
-      : attentionBuckets.filter((bucket) => bucket.status === focus);
-  const visibleNeedsAssignmentTasks = focus === "" || focus === "NEEDS_ASSIGNMENT" ? needsAssignmentTasks : [];
-  const now = new Date(nowIso ?? new Date().toISOString());
-  const oldestTask = getOldestReviewTask(tasks);
-  const oldestAttentionTask = getOldestAttentionTask(attentionBuckets);
-  const attentionTaskCount = getAttentionTaskCount(attentionBuckets);
+  const [activeFilter, setActiveFilter] = useState<ManagerCommandFilter>(() => getInitialFilter(initialFocus));
+  const [searchText, setSearchText] = useState("");
+  const [workflowFilter, setWorkflowFilter] = useState("ALL");
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(() => {
+    const initialFilter = getInitialFilter(initialFocus);
+    return initialCommandItems.find((item) => matchesFilter(item, initialFilter))?.task.id ??
+      initialCommandItems[0]?.task.id ??
+      null;
+  });
+  const [isReassignOpen, setIsReassignOpen] = useState(false);
+  const [showReviewHealth, setShowReviewHealth] = useState(initialFocus === "NEEDS_ASSIGNMENT");
+  const now = useMemo(() => new Date(nowIso ?? new Date().toISOString()), [nowIso]);
+  const commandItems = useMemo(
+    () => initialCommandItems.filter((item) => !removedTaskIds[item.task.id]),
+    [initialCommandItems, removedTaskIds]
+  );
+  const workflowOptions = useMemo(
+    () => [...new Set(commandItems.map((item) => item.task.workflowArea))].sort(),
+    [commandItems]
+  );
+  const visibleItems = useMemo(() => {
+    const normalizedSearch = searchText.trim().toLowerCase();
+
+    return commandItems.filter((item) => {
+      if (!matchesFilter(item, activeFilter)) {
+        return false;
+      }
+
+      if (workflowFilter !== "ALL" && item.task.workflowArea !== workflowFilter) {
+        return false;
+      }
+
+      if (!normalizedSearch) {
+        return true;
+      }
+
+      return [
+        item.task.title,
+        item.task.description,
+        item.task.assignedUser.name,
+        item.task.vehicleReference,
+        item.task.customerReference,
+        item.task.blockerReason,
+        item.attentionReason
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedSearch);
+    });
+  }, [activeFilter, commandItems, searchText, workflowFilter]);
+  const selectedItem =
+    visibleItems.find((item) => item.task.id === selectedTaskId) ?? visibleItems[0] ?? null;
+
+  const summary = useMemo(
+    () => ({
+      awaiting: commandItems.length,
+      critical: commandItems.filter((item) => item.task.priority === "CRITICAL").length,
+      overdue: commandItems.filter((item) => item.isPastTaskDue).length,
+      blocked: commandItems.filter(
+        (item) => item.queue === "BLOCKED" || item.queue === "WAITING_ON_PARTS"
+      ).length,
+      missingUpdates: commandItems.filter((item) => item.missingRequiredUpdateCount > 0).length,
+      waitingApproval: commandItems.filter((item) => item.queue === "WAITING_ON_APPROVAL").length,
+      readyReview: commandItems.filter((item) => item.queue === "READY_FOR_REVIEW").length,
+      needsAssignment: commandItems.filter((item) => item.queue === "NEEDS_ASSIGNMENT").length
+    }),
+    [commandItems]
+  );
 
   function refreshQueue() {
-    startRefreshTransition(() => {
-      router.refresh();
-    });
+    startRefreshTransition(() => router.refresh());
   }
 
-  useLiveRefresh(() => {
-    refreshQueue();
-  });
+  useLiveRefresh(refreshQueue);
 
   function handleTaskRemoved(taskId: string) {
-    setRemovedTaskIds((currentRemovedTaskIds) => ({
-      ...currentRemovedTaskIds,
-      [taskId]: true
-    }));
-    setLastActionMessage("The review queue has been updated.");
+    setRemovedTaskIds((current) => ({ ...current, [taskId]: true }));
+    setSelectedTaskId(null);
+    setIsReassignOpen(false);
+    setLastActionMessage("Decision saved. The queue and selected workbench have advanced.");
   }
 
-  function handleAttentionTaskChanged(message: string) {
+  function handleTaskChanged(message: string) {
     setLastActionMessage(message);
     refreshQueue();
   }
 
+  function selectFilter(filter: ManagerCommandFilter) {
+    setActiveFilter(filter);
+    setSelectedTaskId(null);
+    setIsReassignOpen(false);
+  }
+
+  const queueDefinitions: Array<{
+    key: ManagerCommandFilter;
+    label: string;
+    count: number | null;
+    detail: string;
+    disabled?: boolean;
+  }> = [
+    { key: "ALL", label: "All attention", count: summary.awaiting, detail: "Current manager work" },
+    {
+      key: "CRITICAL",
+      label: "Critical priorities",
+      count: summary.critical,
+      detail: "Task priority only"
+    },
+    {
+      key: "CUSTOMER_RISK",
+      label: "Customer risk",
+      count: null,
+      detail: "Risk model planned",
+      disabled: true
+    },
+    { key: "OVERDUE", label: "Past task due", count: summary.overdue, detail: "Task due time" },
+    {
+      key: "BLOCKED_INTERVENTION",
+      label: "Blocked intervention",
+      count: summary.blocked,
+      detail: "Blocked or waiting parts"
+    },
+    {
+      key: "EVIDENCE_REQUIRED",
+      label: "Evidence / updates",
+      count: summary.missingUpdates,
+      detail: "Required submission gaps"
+    },
+    {
+      key: "RETURNED_WORK",
+      label: "Returned work",
+      count: null,
+      detail: "Review cycles planned",
+      disabled: true
+    },
+    {
+      key: "WAITING_ON_APPROVAL",
+      label: "Waiting approval",
+      count: summary.waitingApproval,
+      detail: "Decision holding progress"
+    },
+    {
+      key: "READY_FOR_REVIEW",
+      label: "Ready for review",
+      count: summary.readyReview,
+      detail: "Completion decision"
+    },
+    {
+      key: "NEEDS_ASSIGNMENT",
+      label: "Needs assignment",
+      count: summary.needsAssignment,
+      detail: "Claimable work"
+    }
+  ];
+
   return (
-    <section className="page-stack dashboard-page board-page manager-review-page">
-      <div className="dashboard-page-header">
-        <div className="dashboard-page-copy">
-          <span className="eyebrow">Manager workflow</span>
-          <h1>Manager Review</h1>
-          <p>
-            Review approval-required work for {formatBoardDateLabel(boardDate)}, then approve it or
-            send it back into progress with one click.
-          </p>
-          <div className="board-page-meta">
-            <span className="board-page-date-pill">{formatBoardDateLabel(boardDate)}</span>
-            <span className={getGenerationStatusTone(generationStatus)}>
-              {generationStatus ? formatStatusLabel(generationStatus) : "Board not generated"}
+    <section className="manager-review-command-center" aria-label="Manager Review Command Center">
+      <header className="manager-command-header">
+        <div className="manager-command-title">
+          <h1>Manager Review Command Center</h1>
+          <div className="manager-command-live-meta">
+            <span>{formatBoardDateLabel(boardDate)}</span>
+            <span aria-hidden="true">•</span>
+            <span className="manager-command-live-state">
+              <i aria-hidden="true" />
+              {isRefreshPending ? "Updating operations" : "Live operations"}
             </span>
-            <span className={getLiveStatusTone(isRefreshPending)}>
-              {isRefreshPending ? "Updating..." : "Live"}
-            </span>
+            {generatedAt ? <span>Board generated {formatDateTime(generatedAt)}</span> : null}
           </div>
-          {generatedAt ? (
-            <p className="my-tasks-generated-copy">Board generated {formatDateTime(generatedAt)}.</p>
-          ) : null}
-          <p className="my-tasks-generated-copy">Refreshes when you return to this tab or click Refresh.</p>
-          <div className="manager-review-focus-row">
-            {[
-              { label: "All manager work", value: "" },
-              { label: "Ready for Review", value: "READY_FOR_REVIEW" },
-              { label: "Blocked", value: "BLOCKED" },
-              { label: "Waiting on Parts", value: "WAITING_ON_PARTS" },
-              { label: "Waiting on Approval", value: "WAITING_ON_APPROVAL" }
-              ,{ label: "Needs Assignment", value: "NEEDS_ASSIGNMENT" }
-            ].map((option) => (
-              <button
-                aria-pressed={focus === option.value}
-                className={focus === option.value ? "board-tab active" : "board-tab"}
-                key={option.label}
-                onClick={() => setFocus(option.value as ManagerReviewFocus)}
-                type="button"
-              >
-                {option.label}
-              </button>
+        </div>
+        <div className="manager-command-header-actions">
+          <button
+            aria-expanded={showReviewHealth}
+            className="manager-command-button"
+            onClick={() => setShowReviewHealth((current) => !current)}
+            type="button"
+          >
+            <Gauge aria-hidden="true" size={16} />
+            Review health
+          </button>
+          <Link className="manager-command-button manager-command-button-primary" href="/tasks?create=1">
+            <Plus aria-hidden="true" size={16} />
+            Create directive
+          </Link>
+          <Link className="manager-command-button" href={fullBoardHref}>
+            <ClipboardCheck aria-hidden="true" size={16} />
+            Open board
+          </Link>
+          <button className="manager-command-button" onClick={refreshQueue} type="button">
+            <RefreshCw aria-hidden="true" size={16} />
+            Refresh
+          </button>
+        </div>
+      </header>
+
+      <div className="manager-command-toolbar">
+        <label className="manager-command-search">
+          <span>Search manager work</span>
+          <div>
+            <Search aria-hidden="true" size={16} />
+            <input
+              placeholder="Task, vehicle, customer, or owner"
+              type="search"
+              value={searchText}
+              onChange={(event) => setSearchText(event.target.value)}
+            />
+          </div>
+        </label>
+        <label>
+          <span>Workflow</span>
+          <select value={workflowFilter} onChange={(event) => setWorkflowFilter(event.target.value)}>
+            <option value="ALL">All workflows</option>
+            {workflowOptions.map((workflow) => (
+              <option key={workflow} value={workflow}>
+                {formatStatusLabel(workflow)}
+              </option>
             ))}
-          </div>
-        </div>
-
-        <div className="board-toolbar my-tasks-toolbar">
-          <div className="board-toolbar-actions">
-            <Link className="pill pill-primary" href={fullBoardHref}>
-              Open full board
-            </Link>
-            <button className="pill pill-secondary" onClick={refreshQueue} type="button">
-              Refresh
-            </button>
-          </div>
-        </div>
+          </select>
+        </label>
+        <label>
+          <span>Saved view</span>
+          <select aria-label="Saved view" defaultValue="LIVE_COMMAND">
+            <option value="LIVE_COMMAND">Live Command</option>
+          </select>
+        </label>
       </div>
 
-      <div className="panel-grid board-summary-grid">
-        <article className="panel-card board-stat-card">
-          <strong>Ready now</strong>
-          <h2>{tasks.length}</h2>
-          <p className="board-stat-card-copy">Tasks currently waiting for manager approval.</p>
-        </article>
-        <article className="panel-card board-stat-card">
-          <strong>Overdue</strong>
-          <h2>{getOverdueCount(tasks, now)}</h2>
-          <p className="board-stat-card-copy">Review items whose due time has already passed.</p>
-        </article>
-        <article className="panel-card board-stat-card">
-          <strong>Needs attention</strong>
-          <h2>{attentionTaskCount}</h2>
-          <p className="board-stat-card-copy">Blocked and waiting work that may need a manager move.</p>
-        </article>
-        <article className="panel-card board-stat-card">
-          <strong>Needs assignment</strong>
-          <h2>{needsAssignmentTasks.length}</h2>
-          <p className="board-stat-card-copy">Claimable work available for eligible staff.</p>
-        </article>
-      </div>
-
-      {lastActionMessage ? (
-        <div className="notice manager-review-notice" role="status">
-          <p>{lastActionMessage}</p>
+      {summary.critical > 0 ? (
+        <div className="manager-command-critical-alert" role="status">
+          <div>
+            <AlertTriangle aria-hidden="true" size={18} />
+            <p>
+              <strong>{summary.critical} critical-priority task{summary.critical === 1 ? "" : "s"} require review.</strong>
+              <span>Critical risk classification will replace this task-priority proxy after MAE-1 is approved.</span>
+            </p>
+          </div>
+          <button className="manager-command-text-action" onClick={() => selectFilter("CRITICAL")} type="button">
+            View critical priorities <ChevronRight aria-hidden="true" size={16} />
+          </button>
         </div>
       ) : null}
 
-      {initialExecutionHealth.length ? <section className="team-execution-health" aria-label="Team Execution Health"><header><div><span className="eyebrow">Explainable operating conditions</span><h2>Team Execution Health</h2><p>Each condition links to the work facts producing it. No rankings or passive activity timers are used.</p></div></header><div>{initialExecutionHealth.map((item) => <article className={`execution-health-item execution-health-${item.condition.toLowerCase()}`} key={item.staffDayId}><div><strong>{item.user.name}</strong><span>{formatStatusLabel(item.condition)}</span></div><p>{item.explanation}</p><small>Active {item.counts.active} · Blocked {item.counts.blocked} · Waiting {item.counts.waiting} · Review {item.counts.readyForReview} · Carryover {item.counts.carryover}</small>{item.facts.length ? <ul>{item.facts.slice(0, 3).map((fact) => <li key={`${fact.code}:${fact.taskId}`}>{fact.taskId ? <Link href={`/tasks/${fact.taskId}`}>{fact.label}</Link> : fact.label}</li>)}</ul> : null}</article>)}</div></section> : null}
+      <section className="manager-command-summary" aria-label="Manager review summary">
+        <button aria-pressed={activeFilter === "ALL"} onClick={() => selectFilter("ALL")} type="button">
+          <strong>{summary.awaiting}</strong>
+          <span>Awaiting decision</span>
+          <small>All current manager work</small>
+        </button>
+        <button aria-pressed={activeFilter === "CRITICAL"} onClick={() => selectFilter("CRITICAL")} type="button">
+          <strong>{summary.critical}</strong>
+          <span>Critical priority</span>
+          <small>Existing task priority</small>
+        </button>
+        <button aria-pressed={activeFilter === "OVERDUE"} onClick={() => selectFilter("OVERDUE")} type="button">
+          <strong>{summary.overdue}</strong>
+          <span>Past task due</span>
+          <small>Not review SLA</small>
+        </button>
+        <button
+          aria-pressed={activeFilter === "BLOCKED_INTERVENTION"}
+          onClick={() => selectFilter("BLOCKED_INTERVENTION")}
+          type="button"
+        >
+          <strong>{summary.blocked}</strong>
+          <span>Blocked</span>
+          <small>Includes waiting parts</small>
+        </button>
+        <button
+          aria-pressed={activeFilter === "EVIDENCE_REQUIRED"}
+          onClick={() => selectFilter("EVIDENCE_REQUIRED")}
+          type="button"
+        >
+          <strong>{summary.missingUpdates}</strong>
+          <span>Submission gaps</span>
+          <small>Required update fields</small>
+        </button>
+        <button aria-disabled="true" disabled type="button">
+          <strong>—</strong>
+          <span>Returned work</span>
+          <small>Review history planned</small>
+        </button>
+        <button aria-disabled="true" disabled type="button">
+          <strong>—</strong>
+          <span>Within review SLA</span>
+          <small>Review SLA planned</small>
+        </button>
+      </section>
+
+      {lastActionMessage ? (
+        <div className="notice manager-command-success-notice" role="status">
+          <p>{lastActionMessage}</p>
+        </div>
+      ) : null}
 
       {errorMessage ? (
         <ErrorStateCard
@@ -745,146 +911,321 @@ export function ManagerReviewScreen({
         <EmptyStateCard
           actions={[{ href: fullBoardHref, label: "Open full board", tone: "secondary" }]}
           eyebrow="No board yet"
-          message="Generate or open today's board first, then approval-ready tasks will appear here automatically."
+          message="Generate or open today's board first, then manager-attention work will appear here automatically."
           title="Today's board has not been generated"
         />
       ) : null}
 
-      {!errorMessage && boardExists && tasks.length === 0 && attentionTaskCount === 0 && needsAssignmentTasks.length === 0 ? (
+      {!errorMessage && boardExists && commandItems.length === 0 ? (
         <EmptyStateCard
           actions={[{ href: fullBoardHref, label: "Back to board" }]}
           eyebrow="Queue clear"
-          message="No approval-ready, blocked, or waiting work is asking for manager attention right now."
+          message="No approval-ready, blocked, waiting, or claimable work is asking for manager attention right now."
           title="The manager queue is clear"
         />
       ) : null}
 
-      {!errorMessage && boardExists && (tasks.length > 0 || attentionTaskCount > 0 || needsAssignmentTasks.length > 0) ? (
-        <div className="board-content-grid my-tasks-content-grid manager-review-columns">
-          <article className="panel-card board-main-card">
-            <div className="board-section-heading">
+      {!errorMessage && boardExists && commandItems.length > 0 ? (
+        <div className="manager-review-command-layout">
+          <nav className="manager-review-command-queue-rail" aria-label="Manager review queues">
+            <div className="manager-command-pane-heading">
               <div>
-                <strong>Approval queue</strong>
-                <h3>Ready for Review</h3>
+                <strong>Work queues</strong>
+                <span>One primary operating intent</span>
               </div>
-              <p>Approve clean completions quickly, or reopen work that needs another pass.</p>
+              <ListFilter aria-hidden="true" size={16} />
+            </div>
+            <div className="manager-command-queue-list">
+              {queueDefinitions.map((queue) => (
+                <button
+                  aria-pressed={activeFilter === queue.key}
+                  className="manager-command-queue-button"
+                  disabled={queue.disabled}
+                  key={queue.key}
+                  onClick={() => selectFilter(queue.key)}
+                  type="button"
+                >
+                  <span>{queue.label}</span>
+                  <strong>{queue.count ?? "—"}</strong>
+                  <small>{queue.detail}</small>
+                </button>
+              ))}
+            </div>
+          </nav>
+
+          <section className="manager-review-command-worklist" aria-label="Ranked manager worklist">
+            <div className="manager-command-pane-heading">
+              <div>
+                <strong>{queueDefinitions.find((queue) => queue.key === activeFilter)?.label ?? "All attention"}</strong>
+                <span>
+                  {visibleItems.length} item{visibleItems.length === 1 ? "" : "s"} · current task-priority and due-time order
+                </span>
+              </div>
+              <span className="manager-command-order-label">
+                <ArrowDownUp aria-hidden="true" size={14} /> Current order
+              </span>
             </div>
 
-            <div className="my-task-list">
-              {visibleReviewTasks.length > 0 ? (
-                visibleReviewTasks.map((task) => (
-                  <ReviewTaskCard
-                    boardHref={fullBoardHref}
-                    key={task.id}
-                    onTaskRemoved={handleTaskRemoved}
-                    task={task}
-                  />
-                ))
+            <div
+              aria-label={activeFilter === "NEEDS_ASSIGNMENT" ? "Needs Assignment queue" : undefined}
+              className="manager-command-work-rows"
+              role={activeFilter === "NEEDS_ASSIGNMENT" ? "region" : undefined}
+            >
+              {visibleItems.length ? (
+                visibleItems.map((item) => {
+                  const dueState = getDueState(item.task, now);
+                  const selected = selectedItem?.task.id === item.task.id;
+
+                  return (
+                    <button
+                      aria-pressed={selected}
+                      aria-label={`Select ${item.task.title}`}
+                      className="manager-review-command-work-row"
+                      key={item.task.id}
+                      onClick={() => {
+                        setSelectedTaskId(item.task.id);
+                        setIsReassignOpen(false);
+                      }}
+                      type="button"
+                    >
+                      <span className="manager-command-work-main">
+                        <strong>{item.task.title}</strong>
+                        <small>{getContextReference(item.task)}</small>
+                      </span>
+                      <span className="manager-command-work-owner">
+                        <strong>{item.task.assignedUser.name}</strong>
+                        <small>Current owner: {item.task.assignedUser.name}</small>
+                      </span>
+                      <span className={`manager-command-due manager-command-due-${dueState.tone}`}>
+                        <strong>{dueState.label}</strong>
+                        <small>{formatStatusLabel(item.queue)}</small>
+                      </span>
+                      <span className="manager-command-evidence-state">
+                        <strong>
+                          {item.requiredUpdateCount
+                            ? `${item.completedRequiredUpdateCount}/${item.requiredUpdateCount}`
+                            : "Not configured"}
+                        </strong>
+                        <small>Required updates</small>
+                      </span>
+                      <span className={`manager-command-priority manager-command-priority-${getPriorityTone(item.task.priority)}`}>
+                        {formatStatusLabel(item.task.priority)}
+                      </span>
+                      <span className="manager-command-work-reason">
+                        <Info aria-hidden="true" size={14} />
+                        {item.attentionReason}
+                      </span>
+                    </button>
+                  );
+                })
               ) : (
-                <div className="notice manager-review-empty-inline" role="status">
-                  <p>
-                    {focus === "" || focus === "READY_FOR_REVIEW"
-                      ? "No tasks are waiting for formal manager review right now."
-                      : "This focus is showing the attention queue instead of review-ready work."}
-                  </p>
+                <div className="manager-command-no-results" role="status">
+                  <ListFilter aria-hidden="true" size={20} />
+                  <strong>No work matches this view</strong>
+                  <span>Change the queue, workflow, or search to continue.</span>
                 </div>
               )}
             </div>
-          </article>
+          </section>
 
-          <article className="panel-card board-main-card">
-            <div className="board-section-heading">
-              <div>
-                <strong>Attention queue</strong>
-                <h3>Blocked and waiting work</h3>
-              </div>
-              <p>Work this queue when the board shows stalled or manager-held progress.</p>
-            </div>
-
-            <div className="manager-review-attention-groups">
-              {focus === "" || focus === "NEEDS_ASSIGNMENT" ? <section className="manager-review-bucket manager-needs-assignment" aria-label="Needs Assignment queue"><div className="manager-review-bucket-header"><div><h4>Needs Assignment</h4><p>Claimable work that eligible staff can request from My Day.</p></div><div className="manager-review-bucket-actions"><span className="board-chip">{visibleNeedsAssignmentTasks.length}</span></div></div><div className="my-task-list">{visibleNeedsAssignmentTasks.length ? visibleNeedsAssignmentTasks.map((task) => <article className="my-task-card manager-attention-card" key={task.id}><div className="my-task-card-heading"><div><span className="eyebrow">{formatStatusLabel(task.workflowArea)}</span><h3>{task.title}</h3></div><span className="status-badge status-badge-muted">Claimable</span></div><p>{task.description ?? "No additional task context."}</p><div className="my-task-card-meta"><span>Current owner: {task.assignedUser.name}</span><span>Due {formatDueTime(task.dueAt)}</span></div><div className="my-task-card-links"><Link className="pill pill-muted" href={`/tasks/${task.id}`}>Open workspace</Link></div></article>) : <div className="notice manager-review-empty-inline" role="status"><p>No claimable tasks currently need assignment.</p></div>}</div></section> : null}
-              {visibleAttentionBuckets.map((bucket) => (
-                <section className="manager-review-bucket" key={bucket.status}>
-                  <div className="manager-review-bucket-header">
-                    <div>
-                      <h4>{bucket.label}</h4>
-                      <p>{bucket.description}</p>
-                    </div>
-                    <div className="manager-review-bucket-actions">
-                      <span className="board-chip">{bucket.tasks.length}</span>
-                      <Link
-                        className="pill pill-muted manager-review-bucket-link"
-                        href={createManagerQueueHref(boardDate, bucket.status)}
-                      >
-                        Open only this queue
-                      </Link>
-                    </div>
+          <aside className="manager-review-command-workbench" aria-label="Selected review workbench">
+            {selectedItem ? (
+              <div className="manager-command-workbench-inner">
+                <div className="manager-command-selected-header">
+                  <div>
+                    <span>{formatStatusLabel(selectedItem.queue)}</span>
+                    <h2>{selectedItem.task.title}</h2>
+                    <p>{getContextReference(selectedItem.task)}</p>
                   </div>
-
-                  <div className="my-task-list">
-                    {bucket.tasks.length > 0 ? (
-                      bucket.tasks.map((task) => (
-                        <AttentionTaskCard
-                          assignableUsers={assignableUsers}
-                          boardHref={fullBoardHref}
-                          key={task.id}
-                          now={now}
-                          onTaskChanged={handleAttentionTaskChanged}
-                          task={task}
-                        />
-                      ))
-                    ) : (
-                      <div className="notice manager-review-empty-inline" role="status">
-                        <p>No tasks are currently in this status.</p>
-                      </div>
-                    )}
-                  </div>
-                </section>
-              ))}
-            </div>
-          </article>
-
-          <aside className="board-panel-stack">
-            <section className="panel-card board-rail-card">
-              <div className="board-section-heading">
-                <div>
-                  <strong>Queue scan</strong>
-                  <h3>What needs attention</h3>
+                  <span className={`manager-command-priority manager-command-priority-${getPriorityTone(selectedItem.task.priority)}`}>
+                    {formatStatusLabel(selectedItem.task.priority)}
+                  </span>
                 </div>
-                <p>Use the queue age and due times to decide what to review first.</p>
-              </div>
 
-              <ul className="board-attention-list">
-                <li className="board-attention-item">
-                  <span>Needs assignment</span>
-                  <strong>{needsAssignmentTasks.length}</strong>
-                </li>
-                <li className="board-attention-item">
-                  <span>Waiting review</span>
-                  <strong>{tasks.length}</strong>
-                </li>
-                <li className="board-attention-item">
-                  <span>Needs attention</span>
-                  <strong>{attentionTaskCount}</strong>
-                </li>
-                <li className="board-attention-item">
-                  <span>Oldest attention item</span>
-                  <strong>{oldestAttentionTask ? oldestAttentionTask.title : oldestTask ? oldestTask.title : "None"}</strong>
-                </li>
-              </ul>
+                <div className="manager-command-decision-prompt">
+                  <span>Decision required</span>
+                  <strong>{getDecisionPrompt(selectedItem.queue)}</strong>
+                </div>
 
-              <div className="manager-review-rail-actions">
-                <Link className="pill pill-secondary" href={createManagerQueueHref(boardDate, "READY_FOR_REVIEW")}>
-                  Review-only view
-                </Link>
-                <Link className="pill pill-muted" href={createManagerQueueHref(boardDate, "")}>
-                  Reset queue focus
-                </Link>
+                <div className="manager-command-workbench-meta">
+                  <div>
+                    <span>Task due</span>
+                    <strong>{formatDateTime(selectedItem.task.dueAt)}</strong>
+                    <small>{getDueState(selectedItem.task, now).label}</small>
+                  </div>
+                  <div>
+                    <span>Owner</span>
+                    <strong>{selectedItem.task.assignedUser.name}</strong>
+                    <small>{selectedItem.task.assignedUser.email ?? "Active staff"}</small>
+                  </div>
+                  <div>
+                    <span>Workflow</span>
+                    <strong>{formatStatusLabel(selectedItem.task.workflowArea)}</strong>
+                    <small>{formatStatusLabel(selectedItem.task.sourceType)}</small>
+                  </div>
+                  <div>
+                    <span>Last update</span>
+                    <strong>{getElapsedAgeCopy(selectedItem.task.updatedAt, now)} ago</strong>
+                    <small>{formatDateTime(selectedItem.task.updatedAt)}</small>
+                  </div>
+                </div>
+
+                {selectedItem.task.description ? (
+                  <section className="manager-command-workbench-section">
+                    <div className="manager-command-section-heading">
+                      <div>
+                        <strong>Requested outcome</strong>
+                        <span>Current task description</span>
+                      </div>
+                    </div>
+                    <p>{selectedItem.task.description}</p>
+                  </section>
+                ) : null}
+
+                <section className="manager-command-workbench-section">
+                  <div className="manager-command-section-heading">
+                    <div>
+                      <strong>Definition of done</strong>
+                      <span>
+                        {selectedItem.requiredUpdateCount
+                          ? `${selectedItem.completedRequiredUpdateCount} of ${selectedItem.requiredUpdateCount} required updates complete`
+                          : "No structured submission fields configured"}
+                      </span>
+                    </div>
+                  </div>
+                  {selectedItem.task.requiredUpdateFields.length ? (
+                    <ul className="manager-command-requirement-list">
+                      {selectedItem.task.requiredUpdateFields.map((field) => {
+                        const complete = isRequiredUpdateComplete(
+                          field,
+                          selectedItem.task.updateFieldValues[field.key]
+                        );
+                        const value = selectedItem.task.updateFieldValues[field.key];
+
+                        return (
+                          <li className={complete ? "is-complete" : "is-missing"} key={field.key}>
+                            {complete ? (
+                              <CheckCircle2 aria-hidden="true" size={16} />
+                            ) : (
+                              <CircleAlert aria-hidden="true" size={16} />
+                            )}
+                            <span>
+                              <strong>{field.label}</strong>
+                              <small>
+                                {complete
+                                  ? typeof value === "boolean"
+                                    ? value
+                                      ? "Confirmed"
+                                      : "Recorded as No"
+                                    : String(value)
+                                  : field.required
+                                    ? "Required update missing"
+                                    : "Optional update not supplied"}
+                              </small>
+                            </span>
+                            <em>{complete ? "Ready" : field.required ? "Missing" : "Optional"}</em>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <div className="manager-command-configuration-gap">
+                      <Info aria-hidden="true" size={16} />
+                      <p>
+                        This task has no structured submission fields. Open the task workspace to inspect its checklist,
+                        comments, and activity before deciding.
+                      </p>
+                    </div>
+                  )}
+                  <Link className="manager-command-text-link" href={`/tasks/${selectedItem.task.id}`}>
+                    Open complete task workspace <ChevronRight aria-hidden="true" size={15} />
+                  </Link>
+                </section>
+
+                <section className="manager-command-explanation">
+                  <span>Why this needs attention</span>
+                  <strong>{selectedItem.attentionReason}</strong>
+                  <p>
+                    Current ordering uses authoritative task priority and task due time. MAE-1 risk scoring and review SLA
+                    explanations remain planned.
+                  </p>
+                </section>
+
+                {isReassignOpen ? (
+                  <ReassignTaskControl
+                    assignableUsers={assignableUsers}
+                    key={selectedItem.task.id}
+                    onTaskChanged={handleTaskChanged}
+                    task={selectedItem.task}
+                  />
+                ) : null}
+
+                {selectedItem.queue === "READY_FOR_REVIEW" ? (
+                  <ReviewDecisionActions
+                    item={selectedItem}
+                    onTaskRemoved={handleTaskRemoved}
+                    onToggleReassign={() => setIsReassignOpen((current) => !current)}
+                  />
+                ) : (
+                  <InterventionControls
+                    item={selectedItem}
+                    key={selectedItem.task.id}
+                    onTaskChanged={handleTaskChanged}
+                    onToggleReassign={() => setIsReassignOpen((current) => !current)}
+                  />
+                )}
               </div>
-            </section>
+            ) : (
+              <div className="manager-command-no-selection">
+                <ShieldCheck aria-hidden="true" size={24} />
+                <strong>Select manager work to begin</strong>
+                <span>The workbench will show decision context and available actions.</span>
+              </div>
+            )}
           </aside>
         </div>
       ) : null}
+
+      {initialExecutionHealth.length ? (
+        <section
+          aria-label="Team Execution Health"
+          className={showReviewHealth ? "manager-command-health is-open" : "manager-command-health"}
+          hidden={!showReviewHealth}
+        >
+          <div className="manager-command-health-header">
+            <div>
+              <span>Explainable operating conditions</span>
+              <h2>Team Execution Health</h2>
+              <p>Operating facts only—no employee ranking or passive activity scoring.</p>
+            </div>
+          </div>
+          <div className="manager-command-health-grid">
+            {initialExecutionHealth.map((item) => (
+              <article key={item.staffDayId}>
+                <div>
+                  <strong>{item.user.name}</strong>
+                  <span>{formatStatusLabel(item.condition)}</span>
+                </div>
+                <p>{item.explanation}</p>
+                <small>
+                  Active {item.counts.active} · Blocked {item.counts.blocked} · Waiting {item.counts.waiting} · Review{" "}
+                  {item.counts.readyForReview} · Carryover {item.counts.carryover}
+                </small>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <footer className="manager-command-footer">
+        <span>
+          <ShieldCheck aria-hidden="true" size={14} /> Existing actions remain server-authorized and activity-backed.
+        </span>
+        <span>
+          {generationStatus ? formatStatusLabel(generationStatus) : "Board not generated"} · {summary.awaiting} active manager
+          items
+        </span>
+      </footer>
     </section>
   );
 }

@@ -85,7 +85,7 @@ Deliverables:
 - approved architecture and algorithm specifications
 - review policy matrix
 - scenario catalog with expected queue and order
-- UI source-of-truth design or approved interaction specification
+- approved [`MANAGER_REVIEW_UI_SOURCE_OF_TRUTH.md`](MANAGER_REVIEW_UI_SOURCE_OF_TRUTH.md) and canonical desktop mockup
 - migration compatibility decision
 
 Exit gate:

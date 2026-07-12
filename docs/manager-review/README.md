@@ -6,10 +6,11 @@ It is not a second task system and it is not an employee performance-review prod
 
 ## Read Order
 
-1. [`MANAGER_REVIEW_ARCHITECTURE.md`](MANAGER_REVIEW_ARCHITECTURE.md) - module boundary, domain model, services, commands, read models, permissions, events, and architecture decisions.
-2. [`MANAGER_ATTENTION_ENGINE.md`](MANAGER_ATTENTION_ENGINE.md) - formal deterministic eligibility, classification, ranking, explanation, and calibration algorithm.
-3. [`MANAGER_REVIEW_ROLLOUT_ROADMAP.md`](MANAGER_REVIEW_ROLLOUT_ROADMAP.md) - phased product path from the current review page to a trusted command center.
-4. [`MANAGER_REVIEW_IMPLEMENTATION_MILESTONES.md`](MANAGER_REVIEW_IMPLEMENTATION_MILESTONES.md) - small vertical implementation slices, dependencies, validation evidence, and exit gates.
+1. [`MANAGER_REVIEW_UI_SOURCE_OF_TRUTH.md`](MANAGER_REVIEW_UI_SOURCE_OF_TRUTH.md) - approved visual reference, required desktop composition, interaction contract, responsive direction, and UI acceptance gate.
+2. [`MANAGER_REVIEW_ARCHITECTURE.md`](MANAGER_REVIEW_ARCHITECTURE.md) - module boundary, domain model, services, commands, read models, permissions, events, and architecture decisions.
+3. [`MANAGER_ATTENTION_ENGINE.md`](MANAGER_ATTENTION_ENGINE.md) - formal deterministic eligibility, classification, ranking, explanation, and calibration algorithm.
+4. [`MANAGER_REVIEW_ROLLOUT_ROADMAP.md`](MANAGER_REVIEW_ROLLOUT_ROADMAP.md) - phased product path from the current review page to a trusted command center.
+5. [`MANAGER_REVIEW_IMPLEMENTATION_MILESTONES.md`](MANAGER_REVIEW_IMPLEMENTATION_MILESTONES.md) - small vertical implementation slices, dependencies, validation evidence, and exit gates.
 
 ## Product Position
 
@@ -41,8 +42,10 @@ As of July 12, 2026:
 - Tasks already support ownership, due time, priority, workflow area, checklist items, comments, blocker context, `readyForReviewAt`, `reviewedByUserId`, and activity events.
 - Approval-required tasks must pass through `READY_FOR_REVIEW` before `COMPLETED`.
 - Explainable assignment recommendations already exist.
-- A durable review-case model, structured decision records, evidence submissions, review SLA policies, formal risk signals, attention evaluation snapshots, and command-center read models remain planned.
-- The proposed three-pane queue, worklist, and persistent workbench remain planned.
+- The approved three-pane queue, ordered worklist, and persistent workbench now have an initial live implementation using current task facts and existing authorized actions.
+- Current ordering is an explicitly interim, server-side task-priority and task-due-time adapter; it is not presented as MAE-1.
+- Unsupported Customer Risk, Returned Work, formal review SLA, evidence-request, and escalation capabilities are visibly unavailable rather than populated with sample data.
+- A durable review-case model, structured decision records, evidence submissions, review SLA policies, formal risk signals, attention evaluation snapshots, and MAE-1 ranking remain planned.
 
 Use [`../CURRENT_IMPLEMENTATION_STATUS.md`](../CURRENT_IMPLEMENTATION_STATUS.md) as the evidence-based implementation record. These documents describe accepted target direction and do not prove completed behavior.
 

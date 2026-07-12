@@ -3,13 +3,52 @@ import {
   BusinessDay,
   TaskSourceType,
   TaskStatus,
+  TaskTemplatePriority,
   WorkflowArea
 } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
 import type { BoardReadRepository } from "@/server/repositories/board-read-repository";
-import { getManagerReviewViewModelForToday } from "@/server/services/manager-review";
+import type { BoardReadTask } from "@/server/services/board-read";
+import {
+  createManagerReviewCommandItems,
+  getManagerReviewViewModelForToday
+} from "@/server/services/manager-review";
 import { createTestAuthStore } from "@/tests/support/auth-test-store";
+
+function createBoardReadTask(
+  id: string,
+  overrides: Partial<BoardReadTask> = {}
+): BoardReadTask {
+  return {
+    id,
+    title: `Task ${id}`,
+    description: "Keep the current workflow moving.",
+    status: TaskStatus.READY_FOR_REVIEW,
+    priority: TaskTemplatePriority.MEDIUM,
+    dueAt: "2026-06-18T18:00:00.000Z",
+    updatedAt: "2026-06-18T15:00:00.000Z",
+    workflowArea: WorkflowArea.SALES,
+    sourceType: TaskSourceType.TEMPLATE,
+    requiresManagerApproval: true,
+    isClaimable: false,
+    requiredUpdateFields: [],
+    updateFieldValues: {},
+    assignedUser: {
+      id: `user-${id}`,
+      name: `User ${id}`,
+      email: `user-${id}@local.test`
+    },
+    recommendedUser: null,
+    recommendation: null,
+    vehicleReference: null,
+    customerReference: null,
+    blockerReason: null,
+    readyForReviewAt: "2026-06-18T15:20:00.000Z",
+    completedAt: null,
+    ...overrides
+  };
+}
 
 function createBoardReadRepositoryHarness(): BoardReadRepository {
   return {
@@ -28,10 +67,13 @@ function createBoardReadRepositoryHarness(): BoardReadRepository {
           title: "Photo vehicle",
           description: "",
           status: TaskStatus.READY_FOR_REVIEW,
+          priority: TaskTemplatePriority.MEDIUM,
           dueAt: new Date("2026-06-18T16:00:00.000Z"),
+          updatedAt: new Date("2026-06-18T15:30:00.000Z"),
           workflowArea: WorkflowArea.MARKETING,
           sourceType: TaskSourceType.TEMPLATE,
           requiresManagerApproval: true,
+          isClaimable: false,
           templateSnapshot: null,
           updateFieldValues: null,
           vehicleReference: "2021 Explorer",
@@ -53,10 +95,13 @@ function createBoardReadRepositoryHarness(): BoardReadRepository {
           title: "Call insurance partner",
           description: "",
           status: TaskStatus.BLOCKED,
+          priority: TaskTemplatePriority.HIGH,
           dueAt: new Date("2026-06-18T17:00:00.000Z"),
+          updatedAt: new Date("2026-06-18T15:45:00.000Z"),
           workflowArea: WorkflowArea.ADMIN,
           sourceType: TaskSourceType.MANAGER,
           requiresManagerApproval: true,
+          isClaimable: false,
           templateSnapshot: null,
           updateFieldValues: null,
           vehicleReference: null,
@@ -97,6 +142,141 @@ function createAppSettingsRepository() {
 }
 
 describe("manager review service", () => {
+  it("creates one command item per supported queue without duplicating multi-signal tasks", () => {
+    const commandItems = createManagerReviewCommandItems(
+      [
+        createBoardReadTask("ready"),
+        createBoardReadTask("blocked", {
+          status: TaskStatus.BLOCKED,
+          isClaimable: true,
+          blockerReason: "Waiting for a manager decision."
+        }),
+        createBoardReadTask("parts", {
+          status: TaskStatus.WAITING_ON_PARTS
+        }),
+        createBoardReadTask("approval", {
+          status: TaskStatus.WAITING_ON_APPROVAL
+        }),
+        createBoardReadTask("assignment", {
+          status: TaskStatus.NOT_STARTED,
+          isClaimable: true,
+          requiresManagerApproval: false
+        }),
+        createBoardReadTask("completed", {
+          status: TaskStatus.COMPLETED
+        }),
+        createBoardReadTask("optional-review", {
+          requiresManagerApproval: false
+        })
+      ],
+      new Date("2026-06-18T16:00:00.000Z")
+    );
+
+    expect(commandItems.map((item) => item.queue)).toEqual([
+      "WAITING_ON_APPROVAL",
+      "BLOCKED",
+      "WAITING_ON_PARTS",
+      "READY_FOR_REVIEW",
+      "NEEDS_ASSIGNMENT"
+    ]);
+    expect(commandItems.map((item) => item.task.id)).toHaveLength(5);
+    expect(new Set(commandItems.map((item) => item.task.id)).size).toBe(commandItems.length);
+    expect(commandItems.filter((item) => item.task.id === "blocked")).toHaveLength(1);
+  });
+
+  it("reports required submission update completion and explains missing evidence", () => {
+    const [commandItem] = createManagerReviewCommandItems(
+      [
+        createBoardReadTask("evidence", {
+          requiredUpdateFields: [
+            {
+              key: "inspection_note",
+              label: "Inspection note",
+              type: "long_text",
+              required: true,
+              helpText: null
+            },
+            {
+              key: "customer_contacted",
+              label: "Customer contacted",
+              type: "boolean",
+              required: true,
+              helpText: null
+            },
+            {
+              key: "final_qc",
+              label: "Final QC evidence",
+              type: "short_text",
+              required: true,
+              helpText: null
+            },
+            {
+              key: "optional_note",
+              label: "Optional note",
+              type: "short_text",
+              required: false,
+              helpText: null
+            }
+          ],
+          updateFieldValues: {
+            inspection_note: "Inspection passed.",
+            customer_contacted: false,
+            final_qc: "   "
+          }
+        })
+      ],
+      new Date("2026-06-18T16:00:00.000Z")
+    );
+
+    expect(commandItem).toMatchObject({
+      requiredUpdateCount: 3,
+      completedRequiredUpdateCount: 2,
+      missingRequiredUpdateCount: 1,
+      attentionReason: "1 required submission update is missing."
+    });
+  });
+
+  it("orders current command work deterministically by task priority, due time, then id", () => {
+    const commandItems = createManagerReviewCommandItems(
+      [
+        createBoardReadTask("medium", {
+          priority: TaskTemplatePriority.MEDIUM,
+          dueAt: "2026-06-18T12:00:00.000Z"
+        }),
+        createBoardReadTask("high-late", {
+          priority: TaskTemplatePriority.HIGH,
+          dueAt: "2026-06-18T14:00:00.000Z"
+        }),
+        createBoardReadTask("high-early-b", {
+          priority: TaskTemplatePriority.HIGH,
+          dueAt: "2026-06-18T13:00:00.000Z"
+        }),
+        createBoardReadTask("low", {
+          priority: TaskTemplatePriority.LOW,
+          dueAt: "2026-06-18T11:00:00.000Z"
+        }),
+        createBoardReadTask("critical", {
+          priority: TaskTemplatePriority.CRITICAL,
+          dueAt: "2026-06-18T15:00:00.000Z"
+        }),
+        createBoardReadTask("high-early-a", {
+          priority: TaskTemplatePriority.HIGH,
+          dueAt: "2026-06-18T13:00:00.000Z"
+        })
+      ],
+      new Date("2026-06-18T10:00:00.000Z")
+    );
+
+    expect(commandItems.map((item) => item.task.id)).toEqual([
+      "critical",
+      "high-early-a",
+      "high-early-b",
+      "high-late",
+      "medium",
+      "low"
+    ]);
+  });
+
   it("returns only approval-ready tasks for managers", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const managerUser = usersByEmail.get("morgan.manager@local.test") ?? null;

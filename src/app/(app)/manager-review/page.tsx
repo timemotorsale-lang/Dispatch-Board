@@ -48,7 +48,7 @@ export default async function ManagerReviewPage({ searchParams }: ManagerReviewP
         <div className="dashboard-page-header">
           <div className="dashboard-page-copy">
             <span className="eyebrow">Protected review queue</span>
-            <h1>Manager Review</h1>
+            <h1>Manager Review Command Center</h1>
             <p>
               This queue is reserved for managers because approval-required tasks can only be
               completed or reopened by a manager.
@@ -70,9 +70,7 @@ export default async function ManagerReviewPage({ searchParams }: ManagerReviewP
     fullBoardHref: "/board",
     generatedAt: null,
     generationStatus: null,
-    initialTasks: [],
-    initialAttentionBuckets: [],
-    initialNeedsAssignmentTasks: [],
+    initialCommandItems: [],
     initialExecutionHealth: [],
     initialFocus,
     assignableUsers: []
@@ -88,9 +86,7 @@ export default async function ManagerReviewPage({ searchParams }: ManagerReviewP
     screenProps.fullBoardHref = `/board?date=${encodeURIComponent(reviewQueue.date)}`;
     screenProps.generatedAt = reviewQueue.generatedAt;
     screenProps.generationStatus = reviewQueue.generationStatus;
-    screenProps.initialTasks = reviewQueue.tasks;
-    screenProps.initialAttentionBuckets = reviewQueue.attentionBuckets;
-    screenProps.initialNeedsAssignmentTasks = reviewQueue.needsAssignmentTasks;
+    screenProps.initialCommandItems = reviewQueue.commandItems;
     screenProps.assignableUsers = assignableUsers;
     screenProps.initialExecutionHealth = (await getTeamExecutionHealth(user, reviewQueue.date)).items;
   } catch (error) {

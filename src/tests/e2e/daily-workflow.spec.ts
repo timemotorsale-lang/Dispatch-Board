@@ -853,12 +853,26 @@ test("manager and staff can complete the daily dispatch workflow", async ({ page
   await expect(blockedTaskRow.getByText("Blocked", { exact: true })).toBeVisible();
 
   await page.goto("/manager-review");
-  await expect(page.getByRole("heading", { name: "Manager Review" })).toBeVisible();
-  await page.getByRole("button", { name: "Approve completion" }).click();
+  await expect(page.getByRole("heading", { name: "Manager Review Command Center" })).toBeVisible();
+  const managerWorklist = page.getByRole("region", { name: "Ranked manager worklist" });
+  const approvalWorkItem = managerWorklist.getByRole("button", {
+    name: `Select ${approvalTaskTitle}`
+  });
+  await approvalWorkItem.click();
+  await expect(approvalWorkItem).toHaveAttribute("aria-pressed", "true");
+  const reviewWorkbench = page.getByRole("complementary", {
+    name: "Selected review workbench"
+  });
+  await expect(reviewWorkbench.getByRole("heading", { name: approvalTaskTitle })).toBeVisible();
+  await reviewWorkbench
+    .getByRole("group", { name: "Manager review decisions" })
+    .getByRole("button", { name: "Approve", exact: true })
+    .click();
   await expect.poll(async () => {
     const payload = await readTodayBoard(page);
     return payload.board.tasks.find((task) => task.id === approvalTask!.id)?.status;
   }).toBe("COMPLETED");
+  await expect(managerWorklist.getByRole("button", { name: `Select ${approvalTaskTitle}` })).toHaveCount(0);
 
   await page.goto("/activity");
   await expect(page.getByRole("heading", { name: "Today's Activity Feed" })).toBeVisible();
@@ -1042,6 +1056,11 @@ test("staff can request and atomically claim explainable available work", async 
   });
 
   await page.goto("/manager-review?focus=NEEDS_ASSIGNMENT");
+  await expect(page.getByRole("heading", { name: "Manager Review Command Center" })).toBeVisible();
+  const managerQueues = page.getByRole("navigation", { name: "Manager review queues" });
+  await expect(
+    managerQueues.getByRole("button", { name: /^Needs assignment/ })
+  ).toHaveAttribute("aria-pressed", "true");
   const executionHealth = page.getByRole("region", { name: "Team Execution Health" });
   await expect(executionHealth).toBeVisible();
   await expect(executionHealth.getByText(/Active|Ready|Needs Assignment/).first()).toBeVisible();
