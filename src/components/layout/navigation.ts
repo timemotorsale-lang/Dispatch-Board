@@ -8,6 +8,7 @@ import {
   LifeBuoy,
   LayoutTemplate,
   ListChecks,
+  PackageOpen,
   Settings,
   Users,
   UserRound,
@@ -121,6 +122,13 @@ export const navigationGroups: NavigationGroup[] = [
         title: "Reports / Insights",
         description: "Operating reports.",
         icon: Wrench
+      },
+      {
+        href: "/prototype/task-intake",
+        title: "Task Intake",
+        description: "Prototype guided work-shaping and readiness preview.",
+        icon: PackageOpen,
+        badge: "Prototype"
       },
       {
         href: "/prototype/task-templates",

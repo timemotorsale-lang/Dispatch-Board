@@ -15,6 +15,7 @@ import {
   LayoutGrid,
   List,
   MoreHorizontal,
+  PackageOpen,
   Plus,
   RefreshCw,
   Search,
@@ -1884,6 +1885,10 @@ export function TasksConsoleScreen({
         </label>
 
         <div className="tasks-console-action-group">
+          <Link className="pill pill-secondary tasks-console-intake-link" href="/prototype/task-intake">
+            <PackageOpen size={16} />
+            Task Intake
+          </Link>
           <button
             className="pill pill-primary tasks-console-create"
             disabled={!isManager}
