@@ -3233,6 +3233,218 @@ code {
   min-width: 18rem;
 }
 
+.tasks-console-enterprise-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.4rem;
+  padding: 0 0.2rem;
+  overflow-x: auto;
+  border-bottom: 1px solid #dfe6f0;
+}
+
+.tasks-console-enterprise-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.4rem;
+  padding: 0 0.75rem;
+  color: #35445b;
+  background: transparent;
+  border: 0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tasks-console-enterprise-tab:hover {
+  color: #1158c8;
+}
+
+.tasks-console-enterprise-tab-active {
+  color: #1158c8;
+}
+
+.tasks-console-enterprise-tab-active::after {
+  position: absolute;
+  right: 0.55rem;
+  bottom: -1px;
+  left: 0.55rem;
+  height: 2px;
+  background: #2563eb;
+  border-radius: 999px;
+  content: "";
+}
+
+.tasks-console-context-nav {
+  position: relative;
+  z-index: 18;
+  display: flex;
+  align-items: center;
+  gap: 0.18rem;
+  min-height: 2.45rem;
+  padding: 0.18rem 0.35rem;
+  overflow: visible;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid #e0e7f0;
+  border-radius: 0.8rem;
+}
+
+.tasks-console-context-nav > a,
+.tasks-console-context-nav > button,
+.tasks-console-context-menu-host > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 1.85rem;
+  padding: 0 0.58rem;
+  color: #405169;
+  background: transparent;
+  border: 0;
+  border-radius: 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tasks-console-context-nav > a:hover,
+.tasks-console-context-nav > button:hover,
+.tasks-console-context-menu-host > button:hover,
+.tasks-console-context-nav > button.active {
+  color: #1158c8;
+  background: #edf4ff;
+}
+
+.tasks-console-context-nav span {
+  display: inline-grid;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.25rem;
+  background: #e9eef6;
+  border-radius: 999px;
+  place-items: center;
+  font-size: 0.58rem;
+}
+
+.tasks-console-context-menu-host {
+  position: relative;
+  display: inline-flex;
+}
+
+.tasks-console-context-menu {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 55;
+  display: grid;
+  gap: 0.15rem;
+  width: 13rem;
+  padding: 0.4rem;
+  background: #fff;
+  border: 1px solid #dbe4f0;
+  border-radius: 0.8rem;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.15);
+}
+
+.tasks-console-context-menu-wide {
+  width: 15rem;
+}
+
+.tasks-console-context-menu > button {
+  display: flex;
+  align-items: center;
+  min-height: 1.9rem;
+  padding: 0.32rem 0.48rem;
+  color: #34445b;
+  background: transparent;
+  border: 0;
+  border-radius: 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tasks-console-context-menu > button:hover {
+  color: #1158c8;
+  background: #edf4ff;
+}
+
+.tasks-console-context-filter-menu {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 19rem;
+}
+
+.tasks-console-context-menu-host-end .tasks-console-context-menu {
+  right: 0;
+  left: auto;
+}
+
+.tasks-console-toolbar > .tasks-console-action-group-end {
+  display: none;
+}
+
+.tasks-console-context-menu .tasks-console-nav-item {
+  color: #34445b;
+}
+
+.tasks-console-context-menu .tasks-console-nav-item:hover,
+.tasks-console-context-menu .tasks-console-nav-item-active {
+  color: #1158c8;
+  background: #edf4ff;
+}
+
+.tasks-console-workspace-menu-host {
+  z-index: 12;
+}
+
+.tasks-console-workspace-popover {
+  right: 0;
+  left: auto;
+  width: 18rem;
+  padding: 0.45rem;
+}
+
+.tasks-console-workspace-popover .tasks-console-workspace-option {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 3.35rem;
+  padding: 0.55rem 0.65rem;
+}
+
+.tasks-console-workspace-option > span {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.tasks-console-workspace-option strong {
+  padding: 0;
+  color: #15233a;
+  font-size: 0.75rem;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.tasks-console-workspace-option small {
+  color: #687991;
+  font-size: 0.64rem;
+  font-weight: 600;
+}
+
+.tasks-console-toolbar-popover {
+  right: auto;
+  left: 0;
+  width: min(22rem, calc(100vw - 2rem));
+  max-height: min(28rem, calc(100vh - 10rem));
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
 .tasks-console-popover strong {
   padding: 0.25rem 0.35rem 0.05rem;
   color: #64748b;
@@ -3537,6 +3749,52 @@ code {
   font-size: 0.68rem;
 }
 
+.tasks-console-header-metrics {
+  display: flex;
+  flex: 1 1 38rem;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.tasks-console-header-metric {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  min-width: 0;
+  min-height: 2rem;
+  padding: 0.25rem 0.48rem;
+  color: #52657d;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #dce5f1;
+  border-top-width: 2px;
+  border-radius: 0.68rem;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+  cursor: pointer;
+}
+
+.tasks-console-header-metric span {
+  overflow: hidden;
+  font-size: 0.66rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tasks-console-header-metric strong {
+  color: #112039;
+  font-size: 0.82rem;
+  line-height: 1;
+}
+
+.tasks-console-header-metric-active {
+  color: #1158c8;
+  background: #edf4ff;
+  border-color: #b9cdf6;
+}
+
 .tasks-console-active-filters {
   flex-wrap: wrap;
   min-height: 1.55rem;
@@ -3593,17 +3851,17 @@ code {
   display: grid;
   gap: 0.45rem;
   align-items: stretch;
-  grid-template-columns: 210px minmax(0, 1fr) 320px;
-  height: calc(100vh - 10rem);
+  grid-template-columns: minmax(0, 1fr) 320px;
+  height: calc(100vh - 13.5rem);
   min-height: 0;
 }
 
 .tasks-console-shell-rail-collapsed {
-  grid-template-columns: 210px minmax(0, 1fr) 4.35rem;
+  grid-template-columns: minmax(0, 1fr) 4.35rem;
 }
 
 .tasks-console-shell-rail-closed {
-  grid-template-columns: 210px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .tasks-console-sidebar {
@@ -4373,15 +4631,15 @@ code {
 /* Tasks console workspace: keep the task grid primary and secondary queues compact. */
 @media (min-width: 1081px) {
   .tasks-console-shell {
-    grid-template-columns: 178px minmax(0, 1fr) 300px;
+    grid-template-columns: minmax(0, 1fr) 300px;
   }
 
   .tasks-console-shell-rail-collapsed {
-    grid-template-columns: 178px minmax(0, 1fr) 4.35rem;
+    grid-template-columns: minmax(0, 1fr) 4.35rem;
   }
 
   .tasks-console-shell-rail-closed {
-    grid-template-columns: 178px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .tasks-console-sidebar {
@@ -4435,22 +4693,34 @@ code {
   }
 
   .tasks-console-main {
-    grid-template-rows: auto auto minmax(19rem, 1fr) 5.2rem;
+    grid-template-rows: auto minmax(19rem, 1fr) 5.2rem;
   }
 
   .tasks-console-stage-toolbar {
     position: relative;
     z-index: 4;
+    align-items: center;
     flex-wrap: nowrap;
     min-height: 2.35rem;
   }
 
   .tasks-console-stage-actions {
+    flex: 1 1 auto;
     flex-wrap: nowrap;
+    min-width: 0;
   }
 
   .tasks-console-stage-actions .pill {
     min-height: 2rem;
+    padding-inline: 0.48rem;
+    font-size: 0.7rem;
+    white-space: nowrap;
+  }
+
+  .tasks-console-view-button {
+    min-height: 1.85rem;
+    padding-inline: 0.52rem;
+    font-size: 0.72rem;
     white-space: nowrap;
   }
 
@@ -4526,12 +4796,9 @@ code {
   }
 
   .tasks-console-shell-focus {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) 4.35rem;
   }
 
-  .tasks-console-shell-focus .tasks-console-sidebar,
-  .tasks-console-shell-focus .tasks-console-rail,
-  .tasks-console-shell-focus .tasks-console-metrics,
   .tasks-console-shell-focus .tasks-console-active-filters,
   .tasks-console-shell-focus .tasks-console-summary-grid {
     display: none;
@@ -5478,6 +5745,90 @@ code {
 .sidebar-scrim { display: none; }
 
 .app-workspace { min-width: 0; }
+
+.app-frame-sidebar-compact {
+  grid-template-columns: 72px minmax(0, 1fr);
+}
+
+.app-sidebar-compact {
+  align-items: center;
+  padding-inline: 8px;
+  overflow-x: hidden;
+}
+
+.app-sidebar-compact .sidebar-brand-row {
+  width: 100%;
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.app-sidebar-compact .sidebar-brand > span:last-child,
+.app-sidebar-compact .sidebar-group-label,
+.app-sidebar-compact .sidebar-link span,
+.app-sidebar-compact .sidebar-badge,
+.app-sidebar-compact .sidebar-account-copy,
+.app-sidebar-compact .sidebar-account > svg,
+.app-sidebar-compact .sidebar-logout,
+.app-sidebar-compact .sidebar-store {
+  display: none;
+}
+
+.app-sidebar-compact .sidebar-navigation,
+.app-sidebar-compact .sidebar-group,
+.app-sidebar-compact .sidebar-group nav {
+  width: 100%;
+}
+
+.app-sidebar-compact .sidebar-navigation {
+  gap: 8px;
+}
+
+.app-sidebar-compact .sidebar-link,
+.app-sidebar-compact .sidebar-link-child {
+  display: grid;
+  grid-template-columns: 1fr;
+  width: 46px;
+  min-height: 42px;
+  margin: 0 auto;
+  padding: 0;
+  place-items: center;
+}
+
+.app-sidebar-compact .sidebar-link-child::before {
+  display: none;
+}
+
+.app-sidebar-compact .sidebar-account {
+  display: grid;
+  width: 42px;
+  min-height: 42px;
+  padding: 4px;
+  place-items: center;
+  grid-template-columns: 1fr;
+}
+
+.app-sidebar-compact .sidebar-account .user-avatar {
+  width: 32px;
+  height: 32px;
+}
+
+.sidebar-compact-hint {
+  display: grid;
+  gap: 4px;
+  width: 46px;
+  min-height: 38px;
+  margin-top: 8px;
+  color: #b9c7d8;
+  place-items: center;
+}
+
+.sidebar-compact-hint span {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  clip: rect(0 0 0 0);
+}
 .app-topbar { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; min-height: 76px; padding: 0 22px; background: rgba(255,255,255,.96); border-bottom: 1px solid #e3e8f0; backdrop-filter: blur(12px); }
 .app-topbar-minimal { min-height: 42px; }
 .app-topbar-minimal + .app-content { padding-top: 6px; }

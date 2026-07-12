@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, LogOut, X } from "lucide-react";
+import { ChevronDown, ChevronsRight, LogOut, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -10,6 +10,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { getNavigationGroups } from "./navigation";
 
 type AppSidebarProps = {
+  compact: boolean;
   isOpen: boolean;
   onClose(): void;
   user: AuthenticatedUser;
@@ -19,14 +20,14 @@ function initials(name: string) {
   return name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 }
 
-export function AppSidebar({ isOpen, onClose, user }: AppSidebarProps) {
+export function AppSidebar({ compact, isOpen, onClose, user }: AppSidebarProps) {
   const pathname = usePathname();
   const navigationGroups = getNavigationGroups(user);
 
   return (
-    <aside className={isOpen ? "app-sidebar app-sidebar-open" : "app-sidebar"}>
+    <aside className={["app-sidebar", compact ? "app-sidebar-compact" : "", isOpen ? "app-sidebar-open" : ""].filter(Boolean).join(" ")}>
       <div className="sidebar-brand-row">
-        <Link className="sidebar-brand" href="/board" onClick={onClose}>
+        <Link aria-label="Time Motor Sales" className="sidebar-brand" href="/board" onClick={onClose} title={compact ? "Time Motor Sales" : undefined}>
           <span className="sidebar-logo" aria-hidden="true">T</span>
           <span><strong>TIME</strong><small>MOTOR SALES</small></span>
         </Link>
@@ -55,6 +56,7 @@ export function AppSidebar({ isOpen, onClose, user }: AppSidebarProps) {
                     href={item.href}
                     key={item.href}
                     onClick={onClose}
+                    title={compact ? item.title : undefined}
                   >
                     <Icon aria-hidden="true" size={18} strokeWidth={1.8} />
                     <span>{item.title}</span>
@@ -74,6 +76,12 @@ export function AppSidebar({ isOpen, onClose, user }: AppSidebarProps) {
         <div className="sidebar-logout"><LogOut size={15} aria-hidden="true" /><LogoutButton /></div>
         <small className="sidebar-store">Store ID: TMS-001</small>
       </div>
+      {compact ? (
+        <div className="sidebar-compact-hint" title="Use Workspace View in Tasks to expand navigation">
+          <ChevronsRight size={17} />
+          <span>Expand navigation</span>
+        </div>
+      ) : null}
     </aside>
   );
 }

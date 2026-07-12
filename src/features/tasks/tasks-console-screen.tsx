@@ -5,6 +5,7 @@ import { TASK_CHECKLIST_ITEM_KIND } from "@/lib/task-checklist-kind";
 import {
   AlertTriangle,
   Calendar,
+  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -24,6 +25,7 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, useDeferredValue, useEffect, useRef, useState, useTransition } from "react";
 
 import { EmptyStateCard, ErrorStateCard } from "@/components/ui/state-card";
+import { useWorkspaceMode, type WorkspaceMode } from "@/components/layout/workspace-mode";
 import { RichTextComposer, RichTextContent } from "@/components/ui/rich-text-composer";
 import { ConcernIntakePanel } from "@/features/tasks/concern-intake-panel";
 import {
@@ -53,7 +55,7 @@ type TasksConsoleScreenProps = {
 
 type TasksConsoleView = "list" | "board";
 type TasksConsoleTab = "details" | "comments" | "activity";
-type TasksConsoleMenu = "saved" | "filters" | "more" | "group" | "columns" | "stageMore" | "savedView" | null;
+type TasksConsoleMenu = "saved" | "filters" | "more" | "group" | "columns" | "stageMore" | "savedView" | "workspace" | null;
 type TasksConsoleGroupBy = "none" | "status" | "owner" | "department";
 type TasksConsoleRailMode = "open" | "collapsed" | "closed";
 type TasksConsoleColumnKey =
@@ -786,6 +788,7 @@ export function TasksConsoleScreen({
   todayBoardDate
 }: TasksConsoleScreenProps) {
   const router = useRouter();
+  const { mode: workspaceMode, setMode: setWorkspaceMode } = useWorkspaceMode();
   const consoleRef = useRef<HTMLElement | null>(null);
   const now = new Date();
   const [activeView, setActiveView] = useState<TasksConsoleView>("list");
@@ -797,7 +800,6 @@ export function TasksConsoleScreen({
   const [rightRailMode, setRightRailMode] = useState<TasksConsoleRailMode>("open");
   const [statusLinksOpen, setStatusLinksOpen] = useState(false);
   const [departmentLinksOpen, setDepartmentLinksOpen] = useState(false);
-  const [tasksFocusMode, setTasksFocusMode] = useState(false);
   const [savedViews, setSavedViews] = useState<TasksConsoleSavedView[]>(initialSavedViews);
   const [visibleColumns, setVisibleColumns] = useState<TasksConsoleColumnKey[]>(() =>
     typeof window === "undefined"
@@ -896,6 +898,28 @@ export function TasksConsoleScreen({
   const marketingCount = getDepartmentCount(allTasks, "ADVERTISING");
   const adminCount = getDepartmentCount(allTasks, "ADMIN");
   const collectionsCount = getDepartmentCount(allTasks, "COLLECTIONS");
+  const effectiveRightRailMode: TasksConsoleRailMode = workspaceMode === "focus" ? "collapsed" : rightRailMode;
+  const taskMetrics = [
+    { label: "Total Tasks", value: allTasks.length, filter: "ALL" as const },
+    {
+      label: "Not Started",
+      value: getQueueCount(allTasks, "NOT_STARTED", now, boardDate),
+      filter: "NOT_STARTED" as const
+    },
+    {
+      label: "In Progress",
+      value: getQueueCount(allTasks, "IN_PROGRESS", now, boardDate),
+      filter: "IN_PROGRESS" as const
+    },
+    { label: "Blocked", value: getQueueCount(allTasks, "BLOCKED", now, boardDate), filter: "BLOCKED" as const },
+    { label: "Waiting", value: getQueueCount(allTasks, "WAITING", now, boardDate), filter: "WAITING" as const },
+    {
+      label: "Ready for Review",
+      value: getQueueCount(allTasks, "READY_FOR_REVIEW", now, boardDate),
+      filter: "READY_FOR_REVIEW" as const
+    },
+    { label: "Overdue", value: getQueueCount(allTasks, "OVERDUE", now, boardDate), filter: "OVERDUE" as const }
+  ];
 
   useEffect(() => {
     window.localStorage.setItem(TASKS_CONSOLE_STORAGE_KEYS.columns, JSON.stringify(visibleColumns));
@@ -1483,43 +1507,6 @@ export function TasksConsoleScreen({
     setActiveMenu(null);
   }
 
-  const overviewSidebarItems: SidebarItem[] = [
-    {
-      active: false,
-      href: boardHref,
-      key: "dashboard",
-      label: "Dashboard",
-      tone: "brand"
-    },
-    {
-      active: false,
-      href: "/my-tasks",
-      key: "my-tasks",
-      label: "My Tasks",
-      badge: myTasksCount,
-      tone: "neutral"
-    },
-  ];
-
-  const teamSidebarItems: SidebarItem[] = [
-    {
-      active: activeQueueFilter === "ALL" && activeDepartmentFilter === null,
-      badge: allTasks.length,
-      key: "team-tasks",
-      label: "Team Tasks",
-      onClick: () => handleQueueFilterChange("ALL"),
-      tone: "brand"
-    },
-    {
-      active: activeQueueFilter === "UNASSIGNED",
-      badge: unassignedTasks.length,
-      key: "unassigned",
-      label: "Unassigned Queue",
-      onClick: () => handleQueueFilterChange("UNASSIGNED"),
-      tone: "slate"
-    },
-  ];
-
   const statusSidebarItems: SidebarItem[] = [
     {
       active: activeQueueFilter === "BLOCKED",
@@ -1674,6 +1661,19 @@ export function TasksConsoleScreen({
 
   return (
     <section className="tasks-console-page" ref={consoleRef}>
+      <nav className="tasks-console-enterprise-nav" aria-label="Tasks enterprise capabilities">
+        <button className="tasks-console-enterprise-tab tasks-console-enterprise-tab-active" onClick={handleResetBoardView} type="button">
+          Board
+        </button>
+        {selectedBoardTask ? <Link className="tasks-console-enterprise-tab" href={`/tasks/${selectedBoardTask.id}`}>Workbench</Link> : null}
+        <Link className="tasks-console-enterprise-tab" href="/prototype/task-templates?view=automations">Automations</Link>
+        <Link className="tasks-console-enterprise-tab" href="/prototype/task-templates">Templates</Link>
+        <button className="tasks-console-enterprise-tab" onClick={() => handleQueueFilterChange("OVERDUE")} type="button">
+          SLA &amp; Risk
+        </button>
+        <Link className="tasks-console-enterprise-tab" href="/reports">Insights</Link>
+      </nav>
+
       <div className="tasks-console-toolbar">
         <div className="tasks-console-heading">
           <h1>Tasks</h1>
@@ -1737,7 +1737,7 @@ export function TasksConsoleScreen({
               <ChevronDown size={14} />
             </button>
             {activeMenu === "saved" ? (
-              <div className="tasks-console-popover tasks-console-popover-right">
+              <div className="tasks-console-popover tasks-console-toolbar-popover">
                 <strong>Quick Views</strong>
                 <button onClick={() => handleQueueFilterChange("ALL")} type="button">All tasks</button>
                 <button onClick={() => handleQueueFilterChange("BLOCKED")} type="button">Blocked tasks</button>
@@ -1781,7 +1781,7 @@ export function TasksConsoleScreen({
               Filters
             </button>
             {activeMenu === "filters" ? (
-              <div className="tasks-console-popover tasks-console-popover-wide tasks-console-popover-right">
+              <div className="tasks-console-popover tasks-console-popover-wide tasks-console-toolbar-popover">
                 <strong>Queue</strong>
                 <div className="tasks-console-popover-grid">
                   {(["ALL", "NOT_STARTED", "IN_PROGRESS", "BLOCKED", "WAITING", "READY_FOR_REVIEW", "OVERDUE", "COMPLETED"] as QueueFilter[]).map((filter) => (
@@ -1835,7 +1835,93 @@ export function TasksConsoleScreen({
             ) : null}
           </div>
         </div>
+
+        {board ? (
+          <div className="tasks-console-header-metrics" aria-label="Task status summary">
+            {taskMetrics.map((metric) => {
+              const active = activeQueueFilter === metric.filter;
+
+              return (
+                <button
+                  className={
+                    active
+                      ? `tasks-console-header-metric ${getMetricCardTone(metric.filter)} tasks-console-header-metric-active`
+                      : `tasks-console-header-metric ${getMetricCardTone(metric.filter)}`
+                  }
+                  key={metric.label}
+                  onClick={() => handleQueueFilterChange(metric.filter)}
+                  type="button"
+                >
+                  <span>{metric.label}</span>
+                  <strong>{metric.value}</strong>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
       </div>
+
+      {board ? (
+        <nav className="tasks-console-context-nav" aria-label="Task board navigation">
+          <Link href={boardHref}>Overview</Link>
+          <Link href="/my-tasks">My Tasks <span>{myTasksCount}</span></Link>
+          <button className={activeQueueFilter === "ALL" ? "active" : undefined} onClick={() => handleQueueFilterChange("ALL")} type="button">
+            Team Queue <span>{allTasks.length}</span>
+          </button>
+          <div className="tasks-console-context-menu-host">
+            <button aria-expanded={statusLinksOpen} onClick={() => setStatusLinksOpen((open) => !open)} type="button">
+              Status <ChevronDown size={13} />
+            </button>
+            {statusLinksOpen ? (
+              <div className="tasks-console-context-menu">
+                {statusSidebarItems.map((item) => renderSidebarItem(item))}
+              </div>
+            ) : null}
+          </div>
+          <div className="tasks-console-context-menu-host">
+            <button aria-expanded={departmentLinksOpen} onClick={() => setDepartmentLinksOpen((open) => !open)} type="button">
+              Departments <ChevronDown size={13} />
+            </button>
+            {departmentLinksOpen ? (
+              <div className="tasks-console-context-menu tasks-console-context-menu-wide">
+                {departmentSidebarItems.map((item) => renderSidebarItem(item))}
+              </div>
+            ) : null}
+          </div>
+          <div className="tasks-console-context-menu-host">
+            <button aria-expanded={activeMenu === "saved"} onClick={() => handleMenuToggle("saved")} type="button">
+              Saved Views <ChevronDown size={13} />
+            </button>
+            {activeMenu === "saved" ? (
+              <div className="tasks-console-context-menu tasks-console-context-menu-wide">
+                <button onClick={() => handleQueueFilterChange("ALL")} type="button">All tasks</button>
+                <button onClick={() => handleQueueFilterChange("BLOCKED")} type="button">Blocked tasks</button>
+                <button onClick={() => handleQueueFilterChange("READY_FOR_REVIEW")} type="button">Ready for review</button>
+                <button onClick={() => handleQueueFilterChange("OVERDUE")} type="button">Overdue tasks</button>
+                {savedViews.map((savedView) => (
+                  <button key={savedView.id} onClick={() => handleApplySavedView(savedView)} type="button">{savedView.name}</button>
+                ))}
+                <button disabled={!isManager || isSavedViewPending} onClick={handleCreateSavedView} type="button">Save shared view</button>
+              </div>
+            ) : null}
+          </div>
+          <div className="tasks-console-context-menu-host tasks-console-context-menu-host-end">
+            <button aria-expanded={activeMenu === "filters"} onClick={() => handleMenuToggle("filters")} type="button">
+              <Filter size={13} /> Filters
+            </button>
+            {activeMenu === "filters" ? (
+              <div className="tasks-console-context-menu tasks-console-context-filter-menu">
+                {(["ALL", "NOT_STARTED", "IN_PROGRESS", "BLOCKED", "WAITING", "READY_FOR_REVIEW", "OVERDUE", "COMPLETED"] as QueueFilter[]).map((filter) => (
+                  <button className={activeQueueFilter === filter ? "tasks-console-popover-active" : undefined} key={filter} onClick={() => handleQueueFilterChange(filter)} type="button">
+                    {getQueueFilterLabel(filter)}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+          <button onClick={handleExportVisibleTasks} type="button"><Download size={13} /> Export</button>
+        </nav>
+      ) : null}
 
       {generationMessage ? (
         <div className="notice">
@@ -1964,156 +2050,15 @@ export function TasksConsoleScreen({
         <div
           className={[
             "tasks-console-shell",
-            rightRailMode === "closed"
+            effectiveRightRailMode === "closed"
               ? "tasks-console-shell-rail-closed"
-              : rightRailMode === "collapsed"
+              : effectiveRightRailMode === "collapsed"
                 ? "tasks-console-shell-rail-collapsed"
                 : "",
-            tasksFocusMode ? "tasks-console-shell-focus" : ""
+            workspaceMode === "focus" ? "tasks-console-shell-focus" : ""
           ].filter(Boolean).join(" ")}
         >
-          <aside className="tasks-console-sidebar">
-            <div className="tasks-console-sidebar-title">
-              <strong>Sub-tasks</strong>
-            </div>
-
-            <div className="tasks-console-sidebar-groups">
-              <section className="tasks-console-sidebar-group">
-                <p>Overview</p>
-                <div className="tasks-console-nav-list">
-                  {overviewSidebarItems.map((item) => renderSidebarItem(item))}
-                </div>
-              </section>
-
-              <section className="tasks-console-sidebar-group">
-                <p>Work Queues</p>
-                <div className="tasks-console-nav-list">
-                  {teamSidebarItems.map((item) => renderSidebarItem(item))}
-                </div>
-              </section>
-
-              <section className="tasks-console-sidebar-group">
-                <button
-                  aria-expanded={statusLinksOpen}
-                  className="tasks-console-sidebar-disclosure"
-                  onClick={() => setStatusLinksOpen((open) => !open)}
-                  type="button"
-                >
-                  <span className="tasks-console-nav-mark tasks-console-nav-mark-warning" aria-hidden="true" />
-                  <span>Status</span>
-                  <ChevronDown size={14} />
-                </button>
-                {statusLinksOpen ? (
-                  <div className="tasks-console-nav-list tasks-console-nav-list-nested">
-                    {statusSidebarItems.map((item) => renderSidebarItem(item))}
-                  </div>
-                ) : null}
-              </section>
-
-              <section className="tasks-console-sidebar-group">
-                <button
-                  aria-expanded={departmentLinksOpen}
-                  className="tasks-console-sidebar-disclosure"
-                  onClick={() => setDepartmentLinksOpen((open) => !open)}
-                  type="button"
-                >
-                  <span className="tasks-console-nav-mark tasks-console-nav-mark-slate" aria-hidden="true" />
-                  <span>Departments</span>
-                  <ChevronDown size={14} />
-                </button>
-                {departmentLinksOpen ? (
-                  <div className="tasks-console-nav-list tasks-console-nav-list-nested">
-                    {departmentSidebarItems.map((item) => renderSidebarItem(item))}
-                  </div>
-                ) : null}
-              </section>
-            </div>
-
-            <div className="tasks-console-sidebar-footer">
-              <button
-                className="tasks-console-sidebar-footer-action"
-                disabled={!isManager || isSavedViewPending}
-                onClick={handleCreateSavedView}
-                type="button"
-              >
-                <span className="tasks-console-nav-mark tasks-console-nav-mark-brand" aria-hidden="true" />
-                <span>Create Saved View</span>
-              </button>
-              <button
-                className="tasks-console-sidebar-footer-icon"
-                onClick={handleResetBoardView}
-                type="button"
-                aria-label="Reset saved view filters"
-              >
-                <MoreHorizontal size={16} />
-              </button>
-            </div>
-          </aside>
-
           <div className="tasks-console-main">
-            <div className="tasks-console-metrics">
-              {[
-                {
-                  label: "Total Tasks",
-                  value: allTasks.length,
-                  filter: "ALL" as const
-                },
-                {
-                  label: "Not Started",
-                  value: getQueueCount(allTasks, "NOT_STARTED", now, boardDate),
-                  filter: "NOT_STARTED" as const
-                },
-                {
-                  label: "In Progress",
-                  value: getQueueCount(allTasks, "IN_PROGRESS", now, boardDate),
-                  filter: "IN_PROGRESS" as const
-                },
-                {
-                  label: "Blocked",
-                  value: getQueueCount(allTasks, "BLOCKED", now, boardDate),
-                  filter: "BLOCKED" as const
-                },
-                {
-                  label: "Waiting",
-                  value: getQueueCount(allTasks, "WAITING", now, boardDate),
-                  filter: "WAITING" as const
-                },
-                {
-                  label: "Ready for Review",
-                  value: getQueueCount(allTasks, "READY_FOR_REVIEW", now, boardDate),
-                  filter: "READY_FOR_REVIEW" as const
-                },
-                {
-                  label: "Overdue",
-                  value: getQueueCount(allTasks, "OVERDUE", now, boardDate),
-                  filter: "OVERDUE" as const
-                }
-              ].map((metric) => {
-                const active = activeQueueFilter === metric.filter;
-
-                return (
-                  <button
-                    className={
-                      active
-                        ? `tasks-console-metric-card ${getMetricCardTone(metric.filter)} tasks-console-metric-card-active`
-                        : `tasks-console-metric-card ${getMetricCardTone(metric.filter)}`
-                    }
-                    key={metric.label}
-                    onClick={() => handleQueueFilterChange(metric.filter)}
-                    type="button"
-                  >
-                    <span>{metric.label}</span>
-                    <strong>{metric.value}</strong>
-                    <small>
-                      {metric.filter === "ALL"
-                        ? formatBoardDateLabel(boardDate)
-                        : `${getQueueFilterLabel(metric.filter)} queue`}
-                    </small>
-                  </button>
-                );
-              })}
-            </div>
-
             <div
               aria-hidden={activeFilterChips.length === 0}
               aria-label={activeFilterChips.length ? "Active task filters" : undefined}
@@ -2137,32 +2082,66 @@ export function TasksConsoleScreen({
               <div className="tasks-console-stage-toolbar">
                 <div className="tasks-console-view-toggle" aria-label="Tasks view">
                   <button
+                    aria-label="List View"
                     className={activeView === "list" ? "tasks-console-view-button tasks-console-view-button-active" : "tasks-console-view-button"}
                     onClick={() => setActiveView("list")}
                     type="button"
                   >
                     <List size={15} />
-                    List View
+                    List
                   </button>
                   <button
+                    aria-label="Board View"
                     className={activeView === "board" ? "tasks-console-view-button tasks-console-view-button-active" : "tasks-console-view-button"}
                     onClick={() => setActiveView("board")}
                     type="button"
                   >
                     <LayoutGrid size={15} />
-                    Board View
+                    Board
                   </button>
                 </div>
 
                 <div className="tasks-console-stage-actions">
+                  <div className="tasks-console-menu-host tasks-console-workspace-menu-host">
+                    <button
+                      aria-expanded={activeMenu === "workspace"}
+                      className="pill pill-secondary tasks-console-workspace-trigger"
+                      onClick={() => handleMenuToggle("workspace")}
+                      type="button"
+                    >
+                      <LayoutGrid size={15} />
+                      Workspace: {workspaceMode[0].toUpperCase() + workspaceMode.slice(1)}
+                      <ChevronDown size={13} />
+                    </button>
+                    {activeMenu === "workspace" ? (
+                      <div className="tasks-console-popover tasks-console-workspace-popover">
+                        {([
+                          ["standard", "Standard", "Full navigation and command panel."],
+                          ["compact", "Compact", "Icon navigation and open command panel."],
+                          ["focus", "Focus", "Maximum task space with minimized rails."]
+                        ] as [WorkspaceMode, string, string][]).map(([mode, label, description]) => (
+                          <button
+                            className={workspaceMode === mode ? "tasks-console-workspace-option tasks-console-popover-active" : "tasks-console-workspace-option"}
+                            key={mode}
+                            onClick={() => { setWorkspaceMode(mode); setActiveMenu(null); }}
+                            type="button"
+                          >
+                            <span><strong>{label}</strong><small>{description}</small></span>
+                            {workspaceMode === mode ? <Check size={15} /> : null}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
                   <button
-                    aria-pressed={tasksFocusMode}
-                    className={tasksFocusMode ? "pill pill-primary" : "pill pill-secondary"}
-                    onClick={() => setTasksFocusMode((focused) => !focused)}
+                    aria-label={workspaceMode === "focus" ? "Exit Focus" : "Expand Tasks"}
+                    aria-pressed={workspaceMode === "focus"}
+                    className={workspaceMode === "focus" ? "pill pill-primary" : "pill pill-secondary"}
+                    onClick={() => setWorkspaceMode(workspaceMode === "focus" ? "compact" : "focus")}
                     type="button"
                   >
                     <LayoutGrid size={15} />
-                    {tasksFocusMode ? "Restore Layout" : "Expand Tasks"}
+                    {workspaceMode === "focus" ? "Exit Focus" : "Expand"}
                   </button>
                   <div className="tasks-console-menu-host">
                     <button
@@ -2171,7 +2150,7 @@ export function TasksConsoleScreen({
                       onClick={() => handleMenuToggle("group")}
                       type="button"
                     >
-                      Group by: {getGroupByLabel(groupBy)}
+                      Group: {getGroupByLabel(groupBy)}
                       <ChevronDown size={14} />
                     </button>
                     {activeMenu === "group" ? (
@@ -2568,21 +2547,21 @@ export function TasksConsoleScreen({
             </div>
           </div>
 
-          {rightRailMode !== "closed" ? (
+          {effectiveRightRailMode !== "closed" ? (
           <aside
             aria-busy={isWorkflowPending}
             className={
-              rightRailMode === "collapsed"
+              effectiveRightRailMode === "collapsed"
                 ? "panel-card tasks-console-rail tasks-console-rail-collapsed"
                 : "panel-card tasks-console-rail"
             }
           >
             {selectedBoardTask ? (
-              rightRailMode === "collapsed" ? (
+              effectiveRightRailMode === "collapsed" ? (
                 <div className="tasks-console-rail-collapsed-content">
                   <button
                     className="tasks-console-rail-icon-button"
-                    onClick={() => setRightRailMode("open")}
+                    onClick={() => workspaceMode === "focus" ? setWorkspaceMode("compact") : setRightRailMode("open")}
                     type="button"
                     aria-label="Expand task panel"
                   >
