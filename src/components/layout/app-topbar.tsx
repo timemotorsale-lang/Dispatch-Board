@@ -29,7 +29,8 @@ export function AppTopbar({ onMenuOpen, user }: AppTopbarProps) {
   const isProjectsPage = pathname === "/projects" || pathname.startsWith("/projects/");
   const isAppointmentsPage = pathname === "/appointments";
   const isCustomersPage = pathname === "/customers" || pathname.startsWith("/customers/");
-  const isCompactTopbar = isTasksPage || isMyTasksPage || isProjectsPage || isAppointmentsPage || isCustomersPage;
+  const isManagerReviewPage = pathname === "/manager-review";
+  const isCompactTopbar = isTasksPage || isMyTasksPage || isProjectsPage || isAppointmentsPage || isCustomersPage || isManagerReviewPage;
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
@@ -104,6 +105,8 @@ export function AppTopbar({ onMenuOpen, user }: AppTopbarProps) {
       ? "app-topbar app-topbar-minimal app-topbar-tasks"
     : isAppointmentsPage
       ? "app-topbar app-topbar-minimal app-topbar-appointments"
+      : isManagerReviewPage
+        ? "app-topbar app-topbar-minimal app-topbar-manager-review"
       : isCustomersPage
         ? "app-topbar app-topbar-minimal app-topbar-customers"
       : isCompactTopbar

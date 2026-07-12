@@ -94,8 +94,8 @@ export const navigationGroups: NavigationGroup[] = [
       },
       {
         href: "/manager-review",
-        title: "Manager Review",
-        description: "Approval and attention queue.",
+        title: "Manager Review Command Center",
+        description: "Decisions, quality control, and operational intervention.",
         icon: ClipboardCheck,
         isVisible: (user) => isManager(user)
       },
