@@ -13,11 +13,14 @@ type TaskDetailPageProps = {
   params: Promise<{
     id: string;
   }>;
+  searchParams: Promise<{ returnTo?: string }>;
 };
 
-export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
+export default async function TaskDetailPage({ params, searchParams }: TaskDetailPageProps) {
   const user = await requireCurrentUser();
   const { id } = await params;
+  const requestedReturnTo = (await searchParams).returnTo;
+  const returnTo = requestedReturnTo?.startsWith("/tasks") ? requestedReturnTo : "/tasks";
   const task = await getTaskReadModelById(user, id);
 
   if (!task) {
@@ -50,6 +53,7 @@ export default async function TaskDetailPage({ params }: TaskDetailPageProps) {
       canCreateAppointment={canCreateAppointment}
       canUpdateStatus={canUpdateStatus}
       readiness={readiness}
+      returnTo={returnTo}
       task={task}
     />
   );

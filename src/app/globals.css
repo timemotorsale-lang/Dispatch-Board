@@ -3292,6 +3292,10 @@ code {
   border-radius: 0.8rem;
 }
 
+.tasks-console-context-nav {
+  scrollbar-width: thin;
+}
+
 .tasks-console-context-nav > a,
 .tasks-console-context-nav > button,
 .tasks-console-context-menu-host > button {
@@ -3434,6 +3438,170 @@ code {
   color: #687991;
   font-size: 0.64rem;
   font-weight: 600;
+}
+
+.tasks-acquisition-notice {
+  min-height: 2rem;
+  padding: 0.45rem 0.7rem;
+  color: #17633b;
+  background: #eef9f2;
+  border: 1px solid #c9e9d5;
+  border-radius: 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.tasks-acquisition-notice-error {
+  color: #a92d25;
+  background: #fff1ef;
+  border-color: #f4cbc6;
+}
+
+.tasks-acquisition-request-strip,
+.tasks-acquisition-manager-queue {
+  display: grid;
+  gap: 0.35rem;
+  max-height: 12rem;
+  padding: 0.5rem;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #dfe7f1;
+  border-radius: 0.85rem;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+}
+
+.tasks-acquisition-request-strip {
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+}
+
+.tasks-acquisition-request-strip article,
+.tasks-acquisition-manager-queue article {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  padding: 0.45rem 0.55rem;
+  background: #f8fafc;
+  border: 1px solid #e4eaf2;
+  border-radius: 0.65rem;
+}
+
+.tasks-acquisition-request-strip article > div,
+.tasks-acquisition-manager-queue article > div:first-child {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.tasks-acquisition-request-strip strong,
+.tasks-acquisition-manager-queue strong {
+  overflow: hidden;
+  color: #14233a;
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tasks-acquisition-request-strip span,
+.tasks-acquisition-manager-queue span,
+.tasks-acquisition-manager-queue p {
+  margin: 0;
+  color: #687991;
+  font-size: 0.62rem;
+}
+
+.tasks-acquisition-request-strip button,
+.tasks-acquisition-manager-queue button {
+  min-height: 1.75rem;
+  margin-left: auto;
+  padding: 0 0.55rem;
+  color: #3e4f66;
+  background: #fff;
+  border: 1px solid #d6e0ec;
+  border-radius: 0.5rem;
+  font-size: 0.64rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.tasks-acquisition-manager-queue > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tasks-acquisition-manager-queue article {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) minmax(10rem, 1fr) auto;
+}
+
+.tasks-acquisition-manager-queue article > div:last-child {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.tasks-acquisition-manager-queue form {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.tasks-acquisition-manager-queue select {
+  max-width: 8.5rem;
+  min-height: 1.75rem;
+  color: #405169;
+  background: #fff;
+  border: 1px solid #d6e0ec;
+  border-radius: 0.5rem;
+  font-size: 0.62rem;
+}
+
+.tasks-acquisition-manager-queue button.primary {
+  color: #fff;
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.tasks-acquisition-empty {
+  padding: 0.75rem;
+  text-align: center;
+}
+
+.tasks-console-column-task-number a,
+.tasks-console-title-cell > a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.tasks-console-column-task-number a:hover,
+.tasks-console-title-cell > a:hover {
+  color: #1158c8;
+  text-decoration: underline;
+}
+
+.tasks-console-title-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.tasks-console-title-cell > a {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tasks-console-row-acquisition {
+  flex: 0 0 auto;
+  min-height: 1.35rem;
+  padding: 0 0.4rem;
+  color: #1158c8;
+  background: #edf4ff;
+  border: 1px solid #cbdcff;
+  border-radius: 999px;
+  font-size: 0.56rem;
+  font-weight: 900;
+  cursor: pointer;
 }
 
 .tasks-console-toolbar-popover {

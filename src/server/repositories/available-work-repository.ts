@@ -13,7 +13,9 @@ const candidateSelect = {
   assignedUserId: true,
   blockerReason: true,
   status: true,
-  isClaimable: true
+  isClaimable: true,
+  requiresManagerApproval: true,
+  recommendedUserId: true
 } satisfies Prisma.TaskSelect;
 
 export type AvailableWorkCandidate = Prisma.TaskGetPayload<{ select: typeof candidateSelect }>;
