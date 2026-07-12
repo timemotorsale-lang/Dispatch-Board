@@ -48,6 +48,7 @@ export type ConcernSeverity = {
 };
 
 export type ConcernIntake = {
+  customerId: string | null;
   title: string;
   description: string;
   customerReference: string | null;
@@ -57,6 +58,11 @@ export type ConcernIntake = {
   managerSensitive: boolean;
   moneyRisk: boolean;
   missingDocumentation: boolean;
+  safetyRisk: number;
+  legalRisk: number;
+  mobilityImpact: number;
+  financialExposure: number;
+  reputationalRisk: number;
   source: ConcernSource;
 };
 

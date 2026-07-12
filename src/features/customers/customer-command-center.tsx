@@ -19,11 +19,11 @@ const tabs: Array<{ label: string; value: Customer360Tab }> = [
   { label: "Collections", value: "collections" }, { label: "Notes", value: "notes" }
 ];
 const summaryMetrics = [
-  { label: "Open Deals", value: "1", detail: "$12,500", icon: CircleDollarSign, tone: "green" },
-  { label: "Open Cases", value: "2", detail: "High Priority", icon: AlertTriangle, tone: "red" },
-  { label: "Appointments", value: "1", detail: "Upcoming", icon: CalendarDays, tone: "purple" },
-  { label: "Tasks", value: "3", detail: "Due Soon", icon: CheckSquare, tone: "blue" },
-  { label: "Documents", value: "2", detail: "Missing", icon: FileText, tone: "orange" }
+  { label: "Open Leads", key: "openLeads", detail: "Active", icon: CircleDollarSign, tone: "green" },
+  { label: "Open Cases", key: "openCases", detail: "Active", icon: AlertTriangle, tone: "red" },
+  { label: "Appointments", key: "upcomingAppointments", detail: "Upcoming", icon: CalendarDays, tone: "purple" },
+  { label: "Tasks", key: "openTasks", detail: "Open", icon: CheckSquare, tone: "blue" },
+  { label: "Documents", key: "missingDocuments", detail: "Missing", icon: FileText, tone: "orange" }
 ] as const;
 const quickActions = [
   { label: "Log Call", icon: Phone }, { label: "Send Email", icon: Mail },
@@ -36,7 +36,7 @@ function setDocumentTheme(theme: CustomerTheme) {
   document.body.classList.toggle("customer-console-dark-shell", theme === "dark");
 }
 
-export function CustomerCommandCenter() {
+export function CustomerCommandCenter({ customerId }: { customerId?: string } = {}) {
   const [theme, setTheme] = useState<CustomerTheme>("light");
   const [activeTab, setActiveTab] = useState<Customer360Tab>("overview");
   const [readModel, setReadModel] = useState<Customer360ReadModel | null>(null);
@@ -58,7 +58,9 @@ export function CustomerCommandCenter() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`/api/customers/customer-360?tab=${activeTab}`, { signal: controller.signal })
+    const parameters = new URLSearchParams({ tab: activeTab });
+    if (customerId) parameters.set("customerId", customerId);
+    fetch(`/api/customers/customer-360?${parameters.toString()}`, { signal: controller.signal })
       .then(async (response) => {
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error ?? "Unable to load Customer 360.");
@@ -76,7 +78,7 @@ export function CustomerCommandCenter() {
         if (!controller.signal.aborted) setIsLoading(false);
       });
     return () => controller.abort();
-  }, [activeTab]);
+  }, [activeTab, customerId]);
 
   function selectTheme(nextTheme: CustomerTheme) {
     setTheme(nextTheme);
@@ -103,7 +105,7 @@ export function CustomerCommandCenter() {
             <button className="customer-icon-button" aria-label="More customer actions" type="button"><MoreHorizontal size={18} /></button>
           </section>
 
-          <section className="customer-metric-grid" aria-label="Customer summary">{summaryMetrics.map(({ label, value, detail, icon: Icon, tone }) => <article key={label}><span className={`customer-metric-icon ${tone}`}><Icon size={17} /></span><div><small>{label}</small><strong>{value}</strong><p>{detail}</p></div></article>)}<article className="customer-risk-metric"><span className="customer-metric-icon red"><ShieldAlert size={17} /></span><div><small>Risk Score</small><strong>High</strong><p>Needs attention</p></div></article></section>
+          <section className="customer-metric-grid" aria-label="Customer summary">{summaryMetrics.map(({ label, key, detail, icon: Icon, tone }) => <article key={label}><span className={`customer-metric-icon ${tone}`}><Icon size={17} /></span><div><small>{label}</small><strong>{readModel?.summary[key] ?? "--"}</strong><p>{detail}</p></div></article>)}<article className="customer-risk-metric"><span className="customer-metric-icon red"><ShieldAlert size={17} /></span><div><small>SLA Risk</small><strong>{readModel?.summary.slaRisk ?? "--"}</strong><p>Current cases</p></div></article></section>
 
           <nav className="customer-record-tabs" aria-label="Customer record sections">{tabs.map((tab) => <button aria-current={activeTab === tab.value ? "page" : undefined} className={activeTab === tab.value ? "active" : ""} key={tab.value} onClick={() => { setIsLoading(true); setReadError(""); setActiveTab(tab.value); }} type="button">{tab.label}</button>)}</nav>
           <div className={readError ? "customer-live-status error" : "customer-live-status"} aria-live="polite">{readError || (isLoading ? `Loading live ${activeTab}...` : `Live ${activeTab} refreshed`)}</div>
@@ -113,14 +115,14 @@ export function CustomerCommandCenter() {
             <div>{(readModel?.panel.items ?? []).map((item) => <article key={item.title}><span className="customer-item-marker" /><div><strong>{item.title}</strong><small>{item.detail}</small></div><time>{item.meta}</time>{item.status ? <b>{item.status}</b> : null}</article>)}</div>
           </section>
 
-          <section className="customer-insight-grid" aria-label="Customer insights"><article><small>Customer Value</small><strong>{customer?.lifetimeValue ?? "--"}</strong><span>Lifetime Value</span><i className="spark green" /></article><article><small>Engagement Score</small><strong>85</strong><span className="blue-text">High</span><i className="spark blue" /></article><article><small>Open Cases</small><strong>2</strong><span className="red-text">High Priority</span><i className="spark red" /></article><article><small>Payment Status</small><strong className="red-text">Past Due</strong><span>15 Days</span><i className="spark orange" /></article><article><small>Lead Score</small><strong>78</strong><span className="purple-text">Hot Lead</span><i className="spark purple" /></article></section>
+          <section className="customer-insight-grid" aria-label="Customer insights"><article><small>Customer Value</small><strong>{customer?.lifetimeValue ?? "--"}</strong><span>Not yet calculated</span><i className="spark green" /></article><article><small>Open Tasks</small><strong>{readModel?.summary.openTasks ?? "--"}</strong><span className="blue-text">Current</span><i className="spark blue" /></article><article><small>Open Cases</small><strong>{readModel?.summary.openCases ?? "--"}</strong><span className="red-text">Current</span><i className="spark red" /></article><article><small>Missing Documents</small><strong>{readModel?.summary.missingDocuments ?? "--"}</strong><span>Required</span><i className="spark orange" /></article><article><small>Lead Score</small><strong>{readModel?.summary.highestLeadScore ?? "--"}</strong><span className="purple-text">Highest active score</span><i className="spark purple" /></article></section>
         </main>
 
         <aside className="customer-command-rail" aria-label="Customer command panel">
           <section className="customer-rail-card"><header><strong>Quick Actions</strong></header><div className="customer-action-grid">{quickActions.map(({ label, icon: Icon }) => <button key={label} type="button"><Icon size={20} /><span>{label}</span></button>)}</div></section>
-          <section className="customer-rail-card customer-next-action"><header><strong>Next Best Action</strong></header><div><span><Gift size={17} /></span><p><strong>Follow up on title issue</strong><small>High priority case requires attention</small></p></div><Link className="customer-rail-link-button" href="/customers/resolutions">Take Action</Link></section>
-          <section className="customer-rail-card customer-risk-card"><header><strong>Customer Risk</strong></header><h3>High</h3><strong>Risk Factors</strong><ul><li>Title issue open &gt; 7 days</li><li>Missed appointment (1)</li><li>Payment past due (15 days)</li></ul><button type="button">View Risk Details</button></section>
-          <section className="customer-rail-card customer-vehicles-card"><header><strong>Linked Vehicles (2)</strong></header><div><span><Car size={25} /></span><p><strong>2024 Toyota RAV4</strong><small>VIN: 2T3P1RFV4RW123456</small><b>Interested</b></p></div><div><span><Car size={25} /></span><p><strong>2019 Honda Accord</strong><small>VIN: 1HGCV1F3XKA123456</small><em>Traded In</em></p></div></section>
+          <section className="customer-rail-card customer-next-action"><header><strong>Next Best Action</strong></header><div><span><Gift size={17} /></span><p><strong>{readModel?.nextBestAction?.title ?? "No recommendation"}</strong><small>{readModel?.nextBestAction?.explanation ?? "No current decision requires action."}</small></p></div>{readModel?.nextBestAction ? <Link className="customer-rail-link-button" href={readModel.nextBestAction.target}>Take Action</Link> : null}</section>
+          <section className="customer-rail-card customer-risk-card"><header><strong>Customer Risk</strong></header><h3>{readModel?.summary.slaRisk ?? "--"}</h3><strong>Current Signals</strong><ul><li>{readModel?.summary.openCases ?? 0} open cases</li><li>{readModel?.summary.openTasks ?? 0} open tasks</li><li>{readModel?.summary.missingDocuments ?? 0} missing documents</li></ul><Link href="/customers/resolutions">View Risk Details</Link></section>
+          <section className="customer-rail-card customer-vehicles-card"><header><strong>Linked Vehicles ({readModel?.linkedVehicles.length ?? 0})</strong></header>{(readModel?.linkedVehicles ?? []).map((vehicle) => <div key={vehicle.id}><span><Car size={25} /></span><p><strong>{vehicle.label}</strong><small>{vehicle.detail}</small><b>{vehicle.relationship}</b></p></div>)}</section>
         </aside>
       </div>
     </section>

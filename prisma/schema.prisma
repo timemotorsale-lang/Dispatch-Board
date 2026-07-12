@@ -321,6 +321,20 @@ enum TaskSourceType {
   MANAGER
   STAFF
   CONCERN
+  LEAD
+}
+
+enum CustomerLeadStage {
+  NEW
+  CONTACT_ATTEMPTED
+  ENGAGED
+  APPOINTMENT_SET
+  ON_SITE
+  QUALIFIED
+  NEGOTIATION
+  NURTURE
+  WON
+  LOST
 }
 
 enum TaskChecklistItemKind {
@@ -474,6 +488,11 @@ model User {
   reportedConcerns                      ConcernCase[]                          @relation("ConcernReportedByUser")
   ownedConcerns                         ConcernCase[]                          @relation("ConcernAssignedOwner")
   closedConcerns                        ConcernCase[]                          @relation("ConcernClosedByUser")
+  ownedCustomerPromises                 CustomerPromise[]                     @relation("CustomerPromiseOwner")
+  fulfilledCustomerPromises             CustomerPromise[]                     @relation("CustomerPromiseFulfilledBy")
+  ownedCustomers                        Customer[]                            @relation("CustomerOwner")
+  authoredCustomerInteractions          CustomerInteraction[]                 @relation("CustomerInteractionActor")
+  authoredCustomerNotes                 CustomerNote[]                        @relation("CustomerNoteAuthor")
   completedChecklistItems               TaskChecklistItem[]                    @relation("TaskChecklistCompletedByUser")
   staffDays                             StaffDay[]
   completedStaffDayDutyItems            StaffDayDutyItem[]                     @relation("StaffDayDutyCompletedByUser")
@@ -483,6 +502,9 @@ model User {
   submittedStaffDailyReports             StaffDailyReport[]                     @relation("StaffDailyReportSubmittedByUser")
   taskCollaborations                     TaskCollaborator[]                     @relation("TaskCollaboratorUser")
   addedTaskCollaborators                 TaskCollaborator[]                     @relation("TaskCollaboratorAddedByUser")
+  crmDecisionOverrides                   CrmDecisionRecord[]                    @relation("CrmDecisionOverrideUser")
+  ownedCustomerLeads                     CustomerLead[]                         @relation("CustomerLeadOwner")
+  createdCustomerLeads                   CustomerLead[]                         @relation("CustomerLeadCreatedBy")
 
   @@index([isActive])
 }
@@ -587,6 +609,13 @@ model Organization {
   appointmentAutomationExecutions       AppointmentAutomationExecution[]
   appointmentAutomationRuleChangeEvents AppointmentAutomationRuleChangeEvent[]
   appointmentAutomationExecutionEvents  AppointmentAutomationExecutionEvent[]
+  crmDecisionRecords                     CrmDecisionRecord[]
+  customerLeads                          CustomerLead[]
+  concernCases                           ConcernCase[]
+  customerSlaPolicies                    CustomerSlaPolicy[]
+  crmFeatureFlags                        CustomerCrmFeatureFlag[]
+  crmRolloutEvents                       CustomerCrmRolloutEvent[]
+  crmCalibrationSnapshots                CustomerCrmCalibrationSnapshot[]
 }
 
 model Location {
@@ -904,18 +933,195 @@ model Customer {
   duplicateKey            String?
   mergedIntoCustomerId    String?
   retentionUntil          DateTime?                @db.Date
+  ownerUserId             String?
+  preferredContactMethod  String?
+  preferredContactTime    String?
+  languageCode            String?
+  address                  String?
+  sourceCode               String?
+  lastInteractionAt       DateTime?
+  nextActionAt             DateTime?
+  archivedAt               DateTime?
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
   organization            Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  ownerUser               User?                    @relation("CustomerOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
   mergedIntoCustomer      Customer?                @relation("CustomerMerge", fields: [mergedIntoCustomerId], references: [id], onDelete: Restrict)
   mergedCustomers         Customer[]               @relation("CustomerMerge")
   appointmentParticipants AppointmentParticipant[]
+  crmDecisionRecords      CrmDecisionRecord[]
+  leads                   CustomerLead[]
+  concernCases            ConcernCase[]
+  contactPoints           CustomerContactPoint[]
+  interactions            CustomerInteraction[]
+  notes                   CustomerNote[]
+  vehicleRelationships    CustomerVehicle[]
+  documentRequirements    CustomerDocumentRequirement[]
+  tasks                   Task[]
 
   @@unique([organizationId, customerNumber])
   @@unique([organizationId, externalReference])
   @@index([organizationId, displayName])
   @@index([organizationId, duplicateKey])
   @@index([mergedIntoCustomerId])
+}
+
+model CustomerContactPoint {
+  id              String   @id @default(cuid())
+  customerId      String
+  type            String
+  value           String
+  normalizedValue String
+  isPrimary       Boolean  @default(false)
+  consentStatus   String   @default("UNKNOWN")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  customer        Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  @@unique([customerId, type, normalizedValue])
+  @@index([normalizedValue])
+}
+
+model CustomerInteraction {
+  id          String   @id @default(cuid())
+  customerId  String
+  actorUserId String?
+  channel     String
+  direction   String
+  summary     String
+  outcome     String?
+  nextStep    String?
+  occurredAt  DateTime
+  createdAt   DateTime @default(now())
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  actorUser   User?    @relation("CustomerInteractionActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  @@index([customerId, occurredAt])
+}
+
+model CustomerNote {
+  id           String   @id @default(cuid())
+  customerId   String
+  authorUserId String
+  body         String
+  visibility   String   @default("INTERNAL")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  authorUser   User     @relation("CustomerNoteAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  @@index([customerId, createdAt])
+}
+
+model CustomerVehicle {
+  id               String   @id @default(cuid())
+  customerId       String
+  vehicleId        String
+  relationshipType String
+  effectiveFrom    DateTime
+  effectiveTo      DateTime?
+  createdAt        DateTime @default(now())
+  customer         Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  vehicle          Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  @@unique([customerId, vehicleId, relationshipType, effectiveFrom])
+  @@index([customerId, effectiveTo])
+}
+
+model CustomerDocumentRequirement {
+  id          String   @id @default(cuid())
+  customerId  String
+  type        String
+  status      String
+  ownerUserId String?
+  dueAt       DateTime?
+  sourceType  String
+  sourceId    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  @@index([customerId, status, dueAt])
+}
+
+model CrmDecisionRecord {
+  id                    String       @id @default(cuid())
+  organizationId        String
+  decisionType          String
+  algorithmVersion      String
+  customerId            String?
+  subjectType           String
+  subjectId             String
+  normalizedInput       Json
+  score                  Int?
+  priority               String?
+  recommendedOwnerId    String?
+  recommendedActionCode String?
+  dueAt                  DateTime?
+  reasonCodes            Json
+  explanation            String
+  confidence             String
+  missingInputs          Json
+  managerReviewRequired  Boolean      @default(false)
+  decidedAt              DateTime     @default(now())
+  overriddenAt           DateTime?
+  overriddenByUserId     String?
+  overrideReason         String?
+  overrideSnapshot       Json?
+  finalOutcome           Json?
+  createdAt              DateTime     @default(now())
+  organization           Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  customer               Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  overriddenByUser       User?        @relation("CrmDecisionOverrideUser", fields: [overriddenByUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, decisionType, decidedAt])
+  @@index([organizationId, subjectType, subjectId])
+  @@index([customerId, decidedAt])
+}
+
+model CustomerLead {
+  id                    String            @id @default(cuid())
+  organizationId        String
+  customerId            String
+  leadNumber            String
+  idempotencyKey        String
+  requestHash           String
+  sourceCode            String
+  stage                  CustomerLeadStage @default(NEW)
+  ownerUserId           String
+  vehicleInterest       String?
+  nextActionCode        String
+  nextActionAt          DateTime
+  priority              String
+  score                  Int
+  confidence             String
+  lastDecisionId        String?
+  qualificationSnapshot Json
+  closedReason           String?
+  closedAt               DateTime?
+  createdByUserId        String
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  organization          Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  customer              Customer           @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  ownerUser             User               @relation("CustomerLeadOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  createdByUser         User               @relation("CustomerLeadCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  taskLinks             CustomerLeadTaskLink[]
+
+  @@unique([organizationId, leadNumber])
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, stage, nextActionAt])
+  @@index([organizationId, ownerUserId, nextActionAt])
+  @@index([customerId, createdAt])
+}
+
+model CustomerLeadTaskLink {
+  id          String       @id @default(cuid())
+  leadId      String
+  taskId      String       @unique
+  actionCode  String
+  decisionId  String
+  createdAt   DateTime     @default(now())
+  lead        CustomerLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  task        Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([leadId, actionCode, decisionId])
+  @@index([leadId, createdAt])
 }
 
 model Vehicle {
@@ -938,6 +1144,7 @@ model Vehicle {
   organization         Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   appointmentLinks     AppointmentVehicle[]
   schedulableResources SchedulableResource[] @relation("SchedulableResourceVehicle")
+  customerRelationships CustomerVehicle[]
 
   @@unique([organizationId, vehicleNumber])
   @@unique([organizationId, vin])
@@ -1311,6 +1518,8 @@ model ConcernCase {
   idempotencyKey         String
   requestHash            String
   boardDayId             String
+  organizationId         String                 @default("org-time-motor-sales")
+  customerId             String?
   title                  String
   description            String
   category               String
@@ -1330,6 +1539,15 @@ model ConcernCase {
   escalateAt             DateTime?
   classificationSnapshot Json
   severitySnapshot       Json
+  severityScore          Int                    @default(0)
+  severityBand           String                 @default("LOW")
+  lastDecisionId         String?
+  firstResponseDueAt     DateTime?
+  firstRespondedAt       DateTime?
+  resolutionDueAt        DateTime?
+  slaPolicyId            String?
+  slaStage               String                 @default("HEALTHY")
+  slaEvaluatedAt         DateTime?
   templateCode           String
   templateVersion        Int
   closureOutcome         ConcernClosureOutcome?
@@ -1340,17 +1558,146 @@ model ConcernCase {
   createdAt              DateTime               @default(now())
   updatedAt              DateTime               @updatedAt
   boardDay               BoardDay               @relation(fields: [boardDayId], references: [id], onDelete: Restrict)
+  organization           Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  customer               Customer?              @relation(fields: [customerId], references: [id], onDelete: SetNull)
   reportedByUser         User                   @relation("ConcernReportedByUser", fields: [reportedByUserId], references: [id], onDelete: Restrict)
   assignedOwner          User?                  @relation("ConcernAssignedOwner", fields: [assignedOwnerId], references: [id], onDelete: SetNull)
   closedByUser           User?                  @relation("ConcernClosedByUser", fields: [closedByUserId], references: [id], onDelete: SetNull)
   taskLinks              ConcernTaskLink[]
   activityEvents         ActivityEvent[]
+  customerPromises       CustomerPromise[]
+  slaPolicy              CustomerSlaPolicy?     @relation(fields: [slaPolicyId], references: [id], onDelete: SetNull)
+  slaPauses              CustomerSlaPause[]
+  slaAlerts              CustomerSlaAlert[]
 
   @@unique([reportedByUserId, idempotencyKey])
   @@index([status, priority, dueAt])
   @@index([assignedOwnerId, status])
   @@index([escalationRequired, escalateAt])
   @@index([boardDayId, createdAt])
+  @@index([organizationId, status, priority, dueAt])
+  @@index([customerId, createdAt])
+  @@index([slaStage, status, resolutionDueAt])
+}
+
+model CustomerSlaPolicy {
+  id                        String        @id @default(cuid())
+  organizationId            String
+  code                      String
+  version                   Int
+  status                    String        @default("ACTIVE")
+  timezone                  String
+  businessWindows           Json
+  severityTargets           Json
+  pauseReasonCodes          Json
+  effectiveFrom             DateTime
+  effectiveTo               DateTime?
+  createdAt                 DateTime      @default(now())
+  updatedAt                 DateTime      @updatedAt
+  organization              Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  concernCases              ConcernCase[]
+
+  @@unique([organizationId, code, version])
+  @@index([organizationId, status, effectiveFrom])
+}
+
+model CustomerSlaPause {
+  id             String      @id @default(cuid())
+  concernCaseId  String
+  reasonCode     String
+  notes          String
+  startedAt      DateTime
+  nextReviewAt   DateTime
+  endedAt        DateTime?
+  startedByUserId String
+  endedByUserId  String?
+  createdAt      DateTime    @default(now())
+  concernCase    ConcernCase @relation(fields: [concernCaseId], references: [id], onDelete: Cascade)
+
+  @@index([concernCaseId, startedAt])
+  @@index([endedAt, nextReviewAt])
+}
+
+model CustomerSlaAlert {
+  id             String      @id @default(cuid())
+  concernCaseId  String
+  clockType      String
+  stage          String
+  taskId         String?
+  firstDetectedAt DateTime
+  lastDetectedAt DateTime
+  occurrenceCount Int        @default(1)
+  resolvedAt     DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  concernCase    ConcernCase @relation(fields: [concernCaseId], references: [id], onDelete: Cascade)
+
+  @@unique([concernCaseId, clockType, stage])
+  @@index([stage, resolvedAt, lastDetectedAt])
+}
+
+model CustomerCrmFeatureFlag {
+  id              String       @id @default(cuid())
+  organizationId  String
+  code            String
+  enabled         Boolean      @default(false)
+  rolloutPercent  Int          @default(0)
+  allowedUserIds  Json
+  updatedByUserId String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@unique([organizationId, code])
+  @@index([organizationId, enabled])
+}
+
+model CustomerCrmRolloutEvent {
+  id             String       @id @default(cuid())
+  organizationId String
+  actorUserId    String
+  action         String
+  reason         String
+  priorState     Json
+  nextState      Json
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@index([organizationId, createdAt])
+}
+
+model CustomerCrmCalibrationSnapshot {
+  id             String       @id @default(cuid())
+  organizationId String
+  windowStart    DateTime
+  windowEnd      DateTime
+  metrics        Json
+  readiness      String
+  blockers       Json
+  createdByUserId String
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@index([organizationId, windowEnd])
+}
+
+model CustomerPromise {
+  id                String       @id @default(cuid())
+  concernCaseId     String
+  ownerUserId       String
+  promiseType       String
+  promisedAt        DateTime
+  dueAt             DateTime
+  status            String       @default("OPEN")
+  fulfillmentNotes  String?
+  fulfilledAt       DateTime?
+  fulfilledByUserId String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  concernCase       ConcernCase  @relation(fields: [concernCaseId], references: [id], onDelete: Cascade)
+  ownerUser         User         @relation("CustomerPromiseOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  fulfilledByUser   User?        @relation("CustomerPromiseFulfilledBy", fields: [fulfilledByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status, dueAt])
+  @@index([ownerUserId, status, dueAt])
+  @@index([concernCaseId, createdAt])
 }
 
 model ConcernTaskLink {
@@ -1402,6 +1749,7 @@ model Task {
   requiresManagerApproval   Boolean                   @default(false)
   vehicleReference          String?
   customerReference         String?
+  customerId                String?
   sourceType                TaskSourceType
   sourceTemplateId          String?
   templateSnapshot          Json?
@@ -1440,6 +1788,8 @@ model Task {
   workRecommendations       WorkRecommendation[]
   assignmentRequests        TaskAssignmentRequest[]
   collaborators             TaskCollaborator[]
+  customerLeadLink          CustomerLeadTaskLink?
+  customer                  Customer?                 @relation(fields: [customerId], references: [id], onDelete: SetNull)
 
   @@unique([boardDayId, sourceTemplateId, assignedUserId])
   @@index([boardDayId, status])
@@ -1450,6 +1800,7 @@ model Task {
   @@index([boardDayId, isClaimable, status])
   @@unique([boardDayId, carryoverSourceTaskId])
   @@index([carryoverReportId])
+  @@index([customerId, status, dueAt])
 }
 
 model TaskCollaborator {

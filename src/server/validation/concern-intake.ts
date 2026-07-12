@@ -2,6 +2,7 @@ import type { ConcernIntake, ConcernSource } from "@/server/concerns/concern-dom
 
 const allowedKeys = new Set([
   "customerReference",
+  "customerId",
   "daysOverdue",
   "description",
   "managerSensitive",
@@ -11,6 +12,7 @@ const allowedKeys = new Set([
   "source",
   "title",
   "vehicleReference"
+  ,"safetyRisk", "legalRisk", "mobilityImpact", "financialExposure", "reputationalRisk"
 ]);
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -40,6 +42,14 @@ function nonNegativeInteger(value: unknown, field: string) {
   return Number(value);
 }
 
+function boundedInteger(value: unknown, field: string, maximum: number) {
+  if (value === undefined) return 0;
+  if (!Number.isInteger(value) || Number(value) < 0 || Number(value) > maximum) {
+    throw new Error(`Concern ${field} must be a whole number from 0 through ${maximum}.`);
+  }
+  return Number(value);
+}
+
 function optionalBoolean(value: unknown, field: string) {
   if (value === undefined) return false;
   if (typeof value !== "boolean") throw new Error(`Concern ${field} must be true or false.`);
@@ -55,6 +65,7 @@ export function normalizeConcernIntake(value: unknown): ConcernIntake {
   if (source !== "MANAGER" && source !== "QUICK_LOG") throw new Error("Concern source is not supported.");
   return {
     title: requiredText(value.title, "title", 180),
+    customerId: optionalText(value.customerId, "customerId", 120),
     description: requiredText(value.description, "description", 5000),
     customerReference: optionalText(value.customerReference, "customerReference", 240),
     vehicleReference: optionalText(value.vehicleReference, "vehicleReference", 240),
@@ -63,6 +74,11 @@ export function normalizeConcernIntake(value: unknown): ConcernIntake {
     managerSensitive: optionalBoolean(value.managerSensitive, "managerSensitive"),
     moneyRisk: optionalBoolean(value.moneyRisk, "moneyRisk"),
     missingDocumentation: optionalBoolean(value.missingDocumentation, "missingDocumentation"),
+    safetyRisk: boundedInteger(value.safetyRisk, "safetyRisk", 35),
+    legalRisk: boundedInteger(value.legalRisk, "legalRisk", 25),
+    mobilityImpact: boundedInteger(value.mobilityImpact, "mobilityImpact", 15),
+    financialExposure: boundedInteger(value.financialExposure, "financialExposure", 10),
+    reputationalRisk: boundedInteger(value.reputationalRisk, "reputationalRisk", 5),
     source: source as ConcernSource
   };
 }

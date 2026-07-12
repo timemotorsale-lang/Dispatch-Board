@@ -1,9 +1,13 @@
 import { createHash, randomBytes } from "node:crypto";
 import { ConcernClosureOutcome, ConcernSource, Prisma, TaskTemplatePriority, type WorkflowArea } from "@prisma/client";
+import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
+import { crmDecisionRegistry } from "@/server/customers/decisions/crm-decision-registry";
+import { normalizeDecisionResult } from "@/server/customers/decisions/crm-decision-domain";
+import { CASE_PLAYBOOK_DECISION_TYPE, CASE_PLAYBOOK_VERSION, CASE_SEVERITY_DECISION_TYPE, CASE_SEVERITY_VERSION } from "@/server/customers/decisions/case-decision-evaluators";
 
 import type { ConcernIntake, ConcernResolutionPlan, ConcernTaskBlueprint } from "@/server/concerns/concern-domain";
 import type { AuthenticatedUser } from "@/server/auth/store";
-import { canManageAssignments } from "@/server/policies/access";
+import { canManageAssignments, isManager } from "@/server/policies/access";
 import {
   createConcernResolutionRepository,
   type ConcernAssignmentUserRecord,
@@ -105,7 +109,11 @@ function toPackageModel(record: ConcernPackageRecord, replayed = false) {
       templateVersion: record.templateVersion, closureOutcome: record.closureOutcome,
       closureReason: record.closureReason, resolutionProof: record.resolutionProof,
       createdAt: record.createdAt.toISOString(), updatedAt: record.updatedAt.toISOString(),
-      owner: record.assignedOwner, reportedBy: record.reportedByUser
+      severityScore: record.severityScore, severityBand: record.severityBand,
+      firstResponseDueAt: record.firstResponseDueAt?.toISOString() ?? null,
+      resolutionDueAt: record.resolutionDueAt?.toISOString() ?? null,
+      owner: record.assignedOwner, reportedBy: record.reportedByUser,
+      promises: record.customerPromises.map((promise) => ({ id: promise.id, type: promise.promiseType, status: promise.status, dueAt: promise.dueAt.toISOString(), fulfilledAt: promise.fulfilledAt?.toISOString() ?? null, owner: promise.ownerUser }))
     },
     tasks: record.taskLinks.map((link) => ({
       stepCode: link.stepCode, sortOrder: link.sortOrder, required: link.required,
@@ -154,7 +162,21 @@ export async function createConcernResolutionPackage(user: AuthenticatedUser | n
   const managerOwner = users.find((candidate) => candidate.userRoles.some(({ role }) => role.name === "General Manager")) ?? users.find((candidate) => candidate.id === actor.id);
   if (!managerOwner) throw new Error("An active manager is required to own the concern.");
   const dueAt = new Date(Math.max(...tasks.map((task) => task.dueAt.getTime())));
+  const pendingSubjectId = `pending-${hash.slice(0, 16)}`;
+  const severityRequest = { decisionType: CASE_SEVERITY_DECISION_TYPE, algorithmVersion: CASE_SEVERITY_VERSION, subject: { type: "CASE" as const, id: pendingSubjectId }, customerId: intake.customerId, facts: {
+    safetyRisk: intake.safetyRisk, legalRisk: intake.legalRisk, mobilityImpact: intake.mobilityImpact,
+    financialExposure: intake.financialExposure, reputationalRisk: intake.reputationalRisk,
+    ageAndMissedCommitments: Math.min(10, Math.floor(intake.daysOverdue / 7) + Math.min(5, intake.repeatContactCount * 2)), informationComplete: true
+  } };
+  const severityDecision = normalizeDecisionResult(severityRequest, crmDecisionRegistry.evaluate(severityRequest));
+  const playbookRequest = { decisionType: CASE_PLAYBOOK_DECISION_TYPE, algorithmVersion: CASE_PLAYBOOK_VERSION, subject: { type: "CASE" as const, id: pendingSubjectId }, customerId: intake.customerId, facts: { category: plan.classification.primaryCategory, availableTemplateCode: plan.templateCode } };
+  const playbookDecision = normalizeDecisionResult(playbookRequest, crmDecisionRegistry.evaluate(playbookRequest));
+  const firstResponseMinutes = severityDecision.priority === "P0" ? 15 : severityDecision.priority === "P1" ? 120 : severityDecision.priority === "P2" ? 24 * 60 : 48 * 60;
+  const firstResponseDueAt = new Date(now.getTime() + firstResponseMinutes * 60_000);
+  const resolutionDueAt = dueAt;
+  const customerUpdateDueAt = severityDecision.priority === "P0" ? new Date(now.getTime() + 2 * 60 * 60_000) : firstResponseDueAt;
   const input = {
+    organizationId: INITIAL_ORGANIZATION.id, customerId: intake.customerId,
     concernNumber: concernNumber(now), idempotencyKey: key, requestHash: hash,
     intakeBoardDate: now.toISOString().slice(0, 10), title: plan.caseTitle, description: intake.description,
     category: plan.classification.primaryCategory, secondaryCategory: plan.classification.secondaryCategory,
@@ -165,7 +187,8 @@ export async function createConcernResolutionPackage(user: AuthenticatedUser | n
     escalationRequired: plan.severity.escalationRequired,
     escalateAt: plan.severity.escalationRequired ? new Date(now.getTime() + 8 * 60 * 60 * 1000) : null,
     classification: plan.classification, severity: plan.severity, templateCode: plan.templateCode,
-    templateVersion: plan.templateVersion, tasks
+    templateVersion: plan.templateVersion, tasks, severityDecision, playbookDecision,
+    firstResponseDueAt, resolutionDueAt, customerUpdateDueAt
   };
   try {
     return toPackageModel(await repository.createPackage(input));
@@ -233,4 +256,16 @@ async function evaluateConcernEscalationsInternal(actorUserId: string | null, de
 
 export async function evaluateConcernEscalationsForSystem(dependencies: ConcernResolutionDependencies = {}) {
   return evaluateConcernEscalationsInternal(null, dependencies);
+}
+
+export async function fulfillCustomerUpdatePromise(user: AuthenticatedUser | null, promiseId: string, value: unknown, dependencies: ConcernResolutionDependencies = {}) {
+  if (!user) throw new Error("Authentication required.");
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Promise fulfillment payload must be an object.");
+  const notes = requiredClosureText((value as Record<string, unknown>).notes, "Promise fulfillment notes");
+  const repository = dependencies.repository ?? createConcernResolutionRepository();
+  const promise = await repository.findCustomerPromise(promiseId.trim());
+  if (!promise) throw new Error("Customer promise not found.");
+  if (!isManager(user) && promise.ownerUserId !== user.id) throw new Error("You do not have permission to fulfill this customer promise.");
+  if (promise.status === "FULFILLED") return toPackageModel((await repository.findById(promise.concernCaseId))!, true);
+  return toPackageModel(await repository.fulfillCustomerPromise({ id: promise.id, actorUserId: user.id, notes, fulfilledAt: dependencies.now?.() ?? new Date() }));
 }

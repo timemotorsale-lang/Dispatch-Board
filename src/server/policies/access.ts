@@ -166,6 +166,10 @@ export function canViewFullBoard(user: AuthenticatedUser | null) {
   return Boolean(user);
 }
 
+export function canViewCustomerContact(user: AuthenticatedUser | null, ownerUserId: string | null) {
+  return Boolean(user && (isManager(user) || ownerUserId === user.id));
+}
+
 export function canCommentOnTask(user: AuthenticatedUser | null) {
   return canViewFullBoard(user);
 }

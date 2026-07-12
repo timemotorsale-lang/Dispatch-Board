@@ -1,6 +1,17 @@
 import type { ConcernClassification, ConcernIntake, ConcernSeverity } from "@/server/concerns/concern-domain";
+import { caseSeverityEvaluator, CASE_SEVERITY_DECISION_TYPE, CASE_SEVERITY_VERSION } from "@/server/customers/decisions/case-decision-evaluators";
 
 export function scoreConcernSeverity(input: ConcernIntake, classification: ConcernClassification): ConcernSeverity {
+  if (input.safetyRisk || input.legalRisk || input.mobilityImpact || input.financialExposure || input.reputationalRisk) {
+    const result = caseSeverityEvaluator.evaluate({ decisionType: CASE_SEVERITY_DECISION_TYPE, algorithmVersion: CASE_SEVERITY_VERSION, subject: { type: "CASE", id: "preview" }, customerId: input.customerId, facts: {
+      safetyRisk: input.safetyRisk, legalRisk: input.legalRisk, mobilityImpact: input.mobilityImpact,
+      financialExposure: input.financialExposure, reputationalRisk: input.reputationalRisk,
+      ageAndMissedCommitments: Math.min(10, Math.floor(input.daysOverdue / 7) + Math.min(5, input.repeatContactCount * 2)),
+      informationComplete: true
+    } });
+    const priority = result.priority === "P0" ? "CRITICAL" : result.priority === "P1" ? "HIGH" : result.priority === "P2" ? "MEDIUM" : "LOW";
+    return { score: result.score ?? 0, priority, requiresManagerReview: result.managerReviewRequired, escalationRequired: priority === "CRITICAL" || priority === "HIGH", factors: result.reasonCodes.map((code) => ({ code, points: 0, explanation: result.explanation })), ruleVersion: 1 };
+  }
   const factors: ConcernSeverity["factors"] = [];
   const add = (code: string, points: number, explanation: string) => factors.push({ code, points, explanation });
   if (input.customerReference || classification.secondaryCategory === "CUSTOMER_ISSUE") add("CUSTOMER_IMPACT", 20, "A customer is directly affected.");
