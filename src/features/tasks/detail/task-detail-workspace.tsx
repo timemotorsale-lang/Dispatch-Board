@@ -43,6 +43,7 @@ import {
   formatTaskEnumLabel
 } from "@/features/tasks/detail/task-detail-mappers";
 import { TaskAppointmentPanel } from "@/features/tasks/detail/task-appointment-panel";
+import { TaskCollaboratorPanel } from "@/features/tasks/detail/task-collaborator-panel";
 import { TaskMetadataPanel } from "@/features/tasks/detail/task-metadata-panel";
 import { TaskResolutionAccordion } from "@/features/tasks/detail/task-resolution-accordion";
 import { TaskUpdatesCommentsCard } from "@/features/tasks/detail/task-updates-comments-card";
@@ -53,6 +54,7 @@ type TaskDetailWorkspaceProps = {
   actorIsManager: boolean;
   assignableUsers: ActiveUserSummary[];
   canComment: boolean;
+  canManageCollaborators: boolean;
   canCreateAppointment: boolean;
   canUpdateStatus: boolean;
   readiness?: TaskCompletionReadiness | null;
@@ -76,6 +78,7 @@ export function TaskDetailWorkspace({
   actorIsManager,
   assignableUsers,
   canComment,
+  canManageCollaborators,
   canCreateAppointment,
   canUpdateStatus,
   readiness = null,
@@ -166,6 +169,7 @@ export function TaskDetailWorkspace({
           </section>
 
           <section className="etw-card"><h2><UsersRound size={16} /> Customer &amp; Vehicle</h2><dl className="etw-facts compact"><div><dt>Customer</dt><dd>{concern?.customerReference ?? task.customerReference ?? "Not linked"}</dd></div><div><dt>Vehicle</dt><dd>{concern?.vehicleReference ?? task.vehicleReference ?? "Not linked"}</dd></div>{associatedUnit?.stockNumber ? <div><dt>Stock / Unit</dt><dd>{associatedUnit.stockNumber}</dd></div> : null}<div><dt>Current Delay</dt><dd className={overdueDays ? "etw-danger-text" : undefined}>{overdueDays ? `${overdueDays} days` : "Within SLA"}</dd></div></dl></section>
+          <TaskCollaboratorPanel canManage={canManageCollaborators} staff={assignableUsers} task={task} />
           <section className="etw-card"><h2><FileText size={16} /> Case Summary</h2><p className="etw-summary">{recordDescription}</p></section>
           <section className="etw-card"><h2>Tags</h2><div className="etw-tags">{tags.map((tag) => <span key={tag.id}>{tag.label}</span>)}</div></section>
           <TaskMetadataPanel actorIsManager={actorIsManager} task={task} />

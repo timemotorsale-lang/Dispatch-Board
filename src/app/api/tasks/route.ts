@@ -20,6 +20,10 @@ function getTaskCreateErrorStatus(message: string) {
   if (
     message === "Assigned user not found." ||
     message === "Assigned user must be active." ||
+    message === "Every collaborator must be an active staff member." ||
+    message === "The task owner cannot also be a collaborator." ||
+    message === "Task collaborators cannot contain duplicates." ||
+    message === "A task can have at most 25 collaborators." ||
     message === "Blocked tasks require a blocker reason." ||
     message === "Task creation payload must be an object." ||
     message.startsWith("Board date ") ||

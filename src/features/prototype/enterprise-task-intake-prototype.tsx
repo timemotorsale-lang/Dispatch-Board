@@ -6,6 +6,7 @@ import {
   BadgeCheck,
   CarFront,
   Check,
+  CirclePlus,
   ChevronRight,
   CircleDollarSign,
   ClipboardCheck,
@@ -21,6 +22,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { type CSSProperties, useState } from "react";
+import type { ActiveUserSummary } from "@/server/services/user-summary";
 
 type IntakeMode = "quick" | "guided";
 type IntakeStage = "Capture" | "Shape" | "Outcome" | "Ownership" | "Controls" | "Preview" | "Review";
@@ -44,10 +46,19 @@ type IntakeDraft = {
   intakeType: IntakeType;
   priority: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
   requiredUpdates: string[];
+  collaboratorIds: string[];
   title: string;
   brief: string;
   workflowArea: string;
 };
+
+const fallbackCollaboratorOptions = [
+  { id: "eli-manager", initials: "EM", name: "Eli Manager", role: "General Manager" },
+  { id: "ancilla-ops", initials: "AO", name: "Ancilla Ops", role: "Administration" },
+  { id: "brock-inventory", initials: "BI", name: "Brock Inventory", role: "Inventory" },
+  { id: "walter-mechanic", initials: "WM", name: "Walter Mechanic", role: "Service / Recon" },
+  { id: "baraka-sales", initials: "BS", name: "Baraka Sales", role: "Sales" }
+];
 
 const stages: IntakeStage[] = ["Capture", "Shape", "Outcome", "Ownership", "Controls", "Preview", "Review"];
 const updateOptions = ["Next step", "ETA", "Finding / result", "Customer contacted", "Photo evidence", "Final note"];
@@ -72,6 +83,7 @@ const emptyDraft: IntakeDraft = {
   intakeType: "Quick Task",
   priority: "MEDIUM",
   requiredUpdates: ["Next step", "Final note"],
+  collaboratorIds: [],
   title: "",
   brief: "",
   workflowArea: "GENERAL_MANAGER"
@@ -98,10 +110,17 @@ function acquisitionPolicy(draft: IntakeDraft) {
   return "Available for claim";
 }
 
-export function EnterpriseTaskIntakePrototype() {
+export function EnterpriseTaskIntakePrototype({ staff = [] }: { staff?: ActiveUserSummary[] }) {
+  const collaboratorOptions = staff.length ? staff.map((user) => ({
+    id: user.id,
+    initials: user.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase(),
+    name: user.name,
+    role: user.roles[0] ?? user.dutyPreview[0] ?? "Staff"
+  })) : fallbackCollaboratorOptions;
   const [mode, setMode] = useState<IntakeMode>("guided");
   const [activeStage, setActiveStage] = useState<IntakeStage>("Capture");
   const [draft, setDraft] = useState<IntakeDraft>(emptyDraft);
+  const [collaboratorCandidate, setCollaboratorCandidate] = useState("");
   const readiness = calculateTaskIntakeReadiness(draft);
   const policy = acquisitionPolicy(draft);
 
@@ -121,6 +140,19 @@ export function EnterpriseTaskIntakePrototype() {
       requiredUpdates: current.requiredUpdates.includes(label)
         ? current.requiredUpdates.filter((item) => item !== label)
         : [...current.requiredUpdates, label]
+    }));
+  }
+
+  function addCollaborator() {
+    if (!collaboratorCandidate || draft.collaboratorIds.includes(collaboratorCandidate)) return;
+    setDraft((current) => ({ ...current, collaboratorIds: [...current.collaboratorIds, collaboratorCandidate] }));
+    setCollaboratorCandidate("");
+  }
+
+  function removeCollaborator(collaboratorId: string) {
+    setDraft((current) => ({
+      ...current,
+      collaboratorIds: current.collaboratorIds.filter((id) => id !== collaboratorId)
     }));
   }
 
@@ -180,6 +212,23 @@ export function EnterpriseTaskIntakePrototype() {
             <label><span>Due time *</span><input onChange={(event) => setDraft((current) => ({ ...current, dueTime: event.target.value }))} type="time" value={draft.dueTime} /></label>
             <label><span>Intake channel</span><select onChange={(event) => setDraft((current) => ({ ...current, channel: event.target.value }))} value={draft.channel}><option>Internal observation</option><option>Phone</option><option>Text / message</option><option>Email</option><option>Walk-in</option><option>Inspection</option><option>Vendor update</option></select></label>
             <label><span>Linked context</span><input onChange={(event) => setDraft((current) => ({ ...current, contextReference: event.target.value }))} placeholder="Customer, vehicle, appointment, or concern" value={draft.contextReference} /></label>
+            <div className="task-intake-collaborators task-intake-span-2">
+              <span>Collaborators</span>
+              <p>Add staff who should contribute, receive updates, and retain visibility without becoming the owner.</p>
+              <div className="task-intake-collaborator-picker">
+                <select aria-label="Choose collaborator" onChange={(event) => setCollaboratorCandidate(event.target.value)} value={collaboratorCandidate}>
+                  <option value="">Choose a staff member</option>
+                  {collaboratorOptions.filter((option) => !draft.collaboratorIds.includes(option.id)).map((option) => <option key={option.id} value={option.id}>{option.name} · {option.role}</option>)}
+                </select>
+                <button disabled={!collaboratorCandidate} onClick={addCollaborator} type="button"><CirclePlus size={14} />Add collaborator</button>
+              </div>
+              <div className="task-intake-collaborator-list">
+                {draft.collaboratorIds.length ? draft.collaboratorIds.map((id) => {
+                  const collaborator = collaboratorOptions.find((option) => option.id === id)!;
+                  return <div key={id}><span>{collaborator.initials}</span><p><strong>{collaborator.name}</strong><small>{collaborator.role}</small></p><button aria-label={`Remove ${collaborator.name}`} onClick={() => removeCollaborator(id)} type="button">×</button></div>;
+                }) : <em>No collaborators added. The task will begin with owner-only visibility.</em>}
+              </div>
+            </div>
             <label className="task-intake-span-2"><span>Expected outcome *</span><textarea onChange={(event) => setDraft((current) => ({ ...current, expectedOutcome: event.target.value }))} placeholder="What must be true when this work is finished?" rows={3} value={draft.expectedOutcome} /></label>
           </div>
 
@@ -209,6 +258,7 @@ export function EnterpriseTaskIntakePrototype() {
             <div><p>Ownership policy</p><strong>{policy}</strong><span>Previewed from workflow, priority, and intake type.</span></div>
             <div><p>Expected outcome</p><strong>{draft.expectedOutcome || "Define the expected outcome."}</strong></div>
             <div><p>Required update</p><ul>{draft.requiredUpdates.map((update) => <li key={update}>{update}</li>)}</ul></div>
+            <div><p>Collaborators ({draft.collaboratorIds.length})</p>{draft.collaboratorIds.length ? <ul>{draft.collaboratorIds.map((id) => <li key={id}>{collaboratorOptions.find((option) => option.id === id)?.name}</li>)}</ul> : <span>Owner-only until collaborators are added.</span>}</div>
           </section>
 
           <section className="task-intake-checks">

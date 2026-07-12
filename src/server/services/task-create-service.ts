@@ -191,10 +191,21 @@ export async function createManualTask(
     throw new Error("Assigned user must be active.");
   }
 
+  if (normalizedInput.collaboratorIds.includes(normalizedInput.assignedUserId)) {
+    throw new Error("The task owner cannot also be a collaborator.");
+  }
+  if (normalizedInput.collaboratorIds.length) {
+    const collaborators = await repository.findActiveUsersByIds?.(normalizedInput.collaboratorIds);
+    if (!collaborators || collaborators.length !== normalizedInput.collaboratorIds.length) {
+      throw new Error("Every collaborator must be an active staff member.");
+    }
+  }
+
   const boardDay = await repository.getOrCreateBoardDay(normalizedInput.boardDate);
   const workflowFields = buildManualTaskWorkflowFields(authenticatedUser, normalizedInput);
   const task = await repository.createTask({
     assignedUserId: normalizedInput.assignedUserId,
+    collaboratorIds: normalizedInput.collaboratorIds,
     ...(workflowFields.blockerReason ? { blockerReason: workflowFields.blockerReason } : {}),
     boardDayId: boardDay.id,
     completedAt: workflowFields.completedAt,
@@ -230,6 +241,7 @@ export async function createManualTask(
       message: `Task created: ${task.title}`,
       metadata: {
         assignedUserId: task.assignedUser.id,
+        ...(normalizedInput.collaboratorIds.length ? { collaboratorIds: normalizedInput.collaboratorIds } : {}),
         dueAt: task.dueAt.toISOString(),
         requiresManagerApproval: task.requiresManagerApproval,
         sourceType: task.sourceType,

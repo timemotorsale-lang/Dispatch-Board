@@ -481,6 +481,8 @@ model User {
   requestedTaskAssignments              TaskAssignmentRequest[]                @relation("TaskAssignmentRequestRequester")
   decidedTaskAssignmentRequests         TaskAssignmentRequest[]                @relation("TaskAssignmentRequestDecisionMaker")
   submittedStaffDailyReports             StaffDailyReport[]                     @relation("StaffDailyReportSubmittedByUser")
+  taskCollaborations                     TaskCollaborator[]                     @relation("TaskCollaboratorUser")
+  addedTaskCollaborators                 TaskCollaborator[]                     @relation("TaskCollaboratorAddedByUser")
 
   @@index([isActive])
 }
@@ -1437,6 +1439,7 @@ model Task {
   concernLink               ConcernTaskLink?
   workRecommendations       WorkRecommendation[]
   assignmentRequests        TaskAssignmentRequest[]
+  collaborators             TaskCollaborator[]
 
   @@unique([boardDayId, sourceTemplateId, assignedUserId])
   @@index([boardDayId, status])
@@ -1447,6 +1450,20 @@ model Task {
   @@index([boardDayId, isClaimable, status])
   @@unique([boardDayId, carryoverSourceTaskId])
   @@index([carryoverReportId])
+}
+
+model TaskCollaborator {
+  taskId        String
+  userId        String
+  addedByUserId String?
+  createdAt     DateTime @default(now())
+  task          Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user          User     @relation("TaskCollaboratorUser", fields: [userId], references: [id], onDelete: Cascade)
+  addedByUser   User?    @relation("TaskCollaboratorAddedByUser", fields: [addedByUserId], references: [id], onDelete: SetNull)
+
+  @@id([taskId, userId])
+  @@index([userId, createdAt])
+  @@index([addedByUserId])
 }
 
 model AppointmentTaskLink {
