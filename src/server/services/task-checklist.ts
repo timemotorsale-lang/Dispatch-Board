@@ -51,6 +51,7 @@ function assertCanManageTaskChecklist(
   task: {
     assignedUserId: string;
     requiresManagerApproval: boolean;
+    collaborators?: Array<{ userId: string }>;
   }
 ) {
   if (!user) {
@@ -58,7 +59,7 @@ function assertCanManageTaskChecklist(
   }
 
   if (
-    !canUpdateAssignedWork({
+    !task.collaborators?.some((collaborator) => collaborator.userId === user.id) && !canUpdateAssignedWork({
       actor: user,
       assignedUserId: task.assignedUserId,
       requiresManagerApproval: task.requiresManagerApproval,

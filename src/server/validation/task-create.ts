@@ -9,6 +9,7 @@ const taskCreateAllowedKeys = new Set([
   "blockerReason",
   "boardDate",
   "customerReference",
+  "collaboratorIds",
   "description",
   "dueAt",
   "requiresManagerApproval",
@@ -22,6 +23,7 @@ const workflowAreaValues = new Set(Object.values(WorkflowArea));
 
 export type NormalizedTaskCreateInput = {
   assignedUserId: string;
+  collaboratorIds: string[];
   appointmentAutomationReasonNotes?: string;
   appointmentAutomationTriggerCode?: string;
   blockerReason?: string;
@@ -152,6 +154,15 @@ function normalizeBoolean(value: unknown, errorMessage: string) {
   return value;
 }
 
+function normalizeCollaboratorIds(value: unknown) {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw new Error("Task creation requires collaboratorIds to be an array when provided.");
+  const ids = value.map((item) => normalizeRequiredText(item, "Every collaborator id must be a non-empty string."));
+  if (ids.length > 25) throw new Error("A task can have at most 25 collaborators.");
+  if (new Set(ids).size !== ids.length) throw new Error("Task collaborators cannot contain duplicates.");
+  return ids;
+}
+
 export function normalizeTaskCreateInput(value: unknown): NormalizedTaskCreateInput {
   const input = assertTaskCreateObject(value);
 
@@ -162,6 +173,7 @@ export function normalizeTaskCreateInput(value: unknown): NormalizedTaskCreateIn
       input.assignedUserId,
       "Task creation requires an assigned user."
     ),
+    collaboratorIds: normalizeCollaboratorIds(input.collaboratorIds),
     boardDate: normalizeBoardDateInput(input.boardDate),
     description: normalizeOptionalText(input.description, "description") ?? "",
     dueAt: normalizeDueAt(input.dueAt),

@@ -36,7 +36,8 @@ export default async function TaskDetailPage({ params, searchParams }: TaskDetai
   const actorIsManager = isManager(user);
   const canUpdateStatus = actorIsManager || user.id === task.assignedUser.id;
   const canCreateAppointment = actorIsManager || user.id === task.assignedUser.id;
-  const assignableUsers = actorIsManager ? await listActiveUserSummaries() : [];
+  const canManageCollaborators = actorIsManager || user.id === task.assignedUser.id;
+  const assignableUsers = actorIsManager || canManageCollaborators ? await listActiveUserSummaries() : [];
   const activityFeed = await getActivityFeedForDate(user, task.boardDate);
   const activityEvents = activityFeed.events.filter((event) => event.task?.id === task.id);
   const executionFlags = getStaffExecutionFlags();
@@ -50,6 +51,7 @@ export default async function TaskDetailPage({ params, searchParams }: TaskDetai
       actorIsManager={actorIsManager}
       assignableUsers={assignableUsers}
       canComment={canComment}
+      canManageCollaborators={canManageCollaborators}
       canCreateAppointment={canCreateAppointment}
       canUpdateStatus={canUpdateStatus}
       readiness={readiness}

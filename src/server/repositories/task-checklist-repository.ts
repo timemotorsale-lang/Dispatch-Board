@@ -9,7 +9,8 @@ const taskChecklistTaskSelect = {
   boardDayId: true,
   title: true,
   assignedUserId: true,
-  requiresManagerApproval: true
+  requiresManagerApproval: true,
+  collaborators: { select: { userId: true } }
 } satisfies Prisma.TaskSelect;
 
 const taskChecklistItemSelect = {
@@ -41,6 +42,7 @@ export type TaskChecklistTaskLookupRecord = {
   title: string;
   assignedUserId: string;
   requiresManagerApproval: boolean;
+  collaborators?: Array<{ userId: string }>;
 };
 
 export type TaskChecklistCreateInput = {

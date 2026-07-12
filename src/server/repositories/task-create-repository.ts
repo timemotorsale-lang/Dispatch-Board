@@ -66,6 +66,7 @@ export type CreatedTaskRecord = Prisma.TaskGetPayload<{
 
 export type CreateTaskRecordInput = {
   assignedUserId: string;
+  collaboratorIds?: string[];
   blockerReason?: string;
   boardDayId: string;
   completedAt?: Date | null;
@@ -96,6 +97,7 @@ export type TaskCreateRepository = {
   }): Promise<unknown>;
   createTask(input: CreateTaskRecordInput): Promise<CreatedTaskRecord>;
   findAssignedUserById(userId: string): Promise<TaskCreateAssignedUserRecord | null>;
+  findActiveUsersByIds?(userIds: string[]): Promise<TaskCreateAssignedUserRecord[]>;
   getOrCreateBoardDay(boardDate: string): Promise<BoardDay>;
 };
 
@@ -117,6 +119,7 @@ export function createTaskCreateRepository(
       return database.task.create({
         data: {
           assignedUserId: input.assignedUserId,
+          ...(input.collaboratorIds?.length ? { collaborators: { createMany: { data: input.collaboratorIds.map((userId) => ({ userId, addedByUserId: input.createdByUserId })) } } } : {}),
           ...(input.blockerReason ? { blockerReason: input.blockerReason } : {}),
           boardDayId: input.boardDayId,
           ...(input.completedAt !== undefined ? { completedAt: input.completedAt } : {}),
@@ -161,6 +164,9 @@ export function createTaskCreateRepository(
         },
         select: taskCreateAssigneeSelect
       });
+    },
+    async findActiveUsersByIds(userIds) {
+      return database.user.findMany({ where: { id: { in: userIds }, isActive: true }, select: taskCreateAssigneeSelect });
     },
 
     async getOrCreateBoardDay(boardDate) {

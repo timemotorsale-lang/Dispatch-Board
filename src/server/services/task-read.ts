@@ -143,6 +143,7 @@ export type TaskReadModel = {
   recommendation: TaskReadRecommendation | null;
   createdByUser: TaskReadUserSummary | null;
   reviewedByUser: TaskReadUserSummary | null;
+  collaborators: Array<TaskReadUserSummary & { isActive: boolean; addedAt: string; addedBy: TaskReadUserSummary | null }>;
   checklistItems: TaskChecklistItemReadModel[];
   activityHistory: TaskActivityReadModel[];
   appointmentLinks: TaskAppointmentLinkReadModel[];
@@ -388,6 +389,14 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
     recommendation,
     createdByUser: toUserSummary(task.createdByUser),
     reviewedByUser: toUserSummary(task.reviewedByUser),
+    collaborators: (task.collaborators ?? []).map((collaborator) => ({
+      id: collaborator.user.id,
+      name: collaborator.user.name,
+      email: collaborator.user.email || undefined,
+      isActive: collaborator.user.isActive,
+      addedAt: collaborator.createdAt.toISOString(),
+      addedBy: toUserSummary(collaborator.addedByUser)
+    })),
     concernWorkspace: task.concernLink ? {
       id: task.concernLink.concernCase.id,
       concernNumber: task.concernLink.concernCase.concernNumber,

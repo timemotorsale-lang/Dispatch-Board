@@ -208,6 +208,7 @@ describe("task read service", () => {
       reviewedByUser: null,
       concernWorkspace: null,
       checklistItems: [],
+      collaborators: [],
       activityHistory: [
         {
           id: "event-1",

@@ -60,6 +60,14 @@ const taskReadSelect = {
       email: true
     }
   },
+  collaborators: {
+    orderBy: { createdAt: "asc" },
+    select: {
+      createdAt: true,
+      user: { select: { id: true, name: true, email: true, isActive: true } },
+      addedByUser: { select: { id: true, name: true, email: true } }
+    }
+  },
   concernLink: {
     select: {
       stepCode: true,
