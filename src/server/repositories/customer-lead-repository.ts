@@ -89,7 +89,7 @@ export function createCustomerLeadRepository(database: PrismaClient = prisma): C
           recommendationExplanation: input.assignmentDecision.explanation, status: TaskStatus.NOT_STARTED,
           priority: input.taskPriority, dueAt, createdByUserId: input.createdByUserId,
           requiresManagerApproval: input.priorityDecision.managerReviewRequired,
-          customerReference: customer.displayName, vehicleReference: input.vehicleInterest,
+          customerId: input.customerId, customerReference: customer.displayName, vehicleReference: input.vehicleInterest,
           sourceType: TaskSourceType.LEAD, workflowArea: WorkflowArea.SALES,
           templateSnapshot: { leadId: lead.id, leadNumber: lead.leadNumber, decisionId: priorityRecord.id, actionCode: input.priorityDecision.recommendedActionCode }
         } });

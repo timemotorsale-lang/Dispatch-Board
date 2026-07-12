@@ -490,6 +490,9 @@ model User {
   closedConcerns                        ConcernCase[]                          @relation("ConcernClosedByUser")
   ownedCustomerPromises                 CustomerPromise[]                     @relation("CustomerPromiseOwner")
   fulfilledCustomerPromises             CustomerPromise[]                     @relation("CustomerPromiseFulfilledBy")
+  ownedCustomers                        Customer[]                            @relation("CustomerOwner")
+  authoredCustomerInteractions          CustomerInteraction[]                 @relation("CustomerInteractionActor")
+  authoredCustomerNotes                 CustomerNote[]                        @relation("CustomerNoteAuthor")
   completedChecklistItems               TaskChecklistItem[]                    @relation("TaskChecklistCompletedByUser")
   staffDays                             StaffDay[]
   completedStaffDayDutyItems            StaffDayDutyItem[]                     @relation("StaffDayDutyCompletedByUser")
@@ -927,21 +930,110 @@ model Customer {
   duplicateKey            String?
   mergedIntoCustomerId    String?
   retentionUntil          DateTime?                @db.Date
+  ownerUserId             String?
+  preferredContactMethod  String?
+  preferredContactTime    String?
+  languageCode            String?
+  address                  String?
+  sourceCode               String?
+  lastInteractionAt       DateTime?
+  nextActionAt             DateTime?
+  archivedAt               DateTime?
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
   organization            Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  ownerUser               User?                    @relation("CustomerOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
   mergedIntoCustomer      Customer?                @relation("CustomerMerge", fields: [mergedIntoCustomerId], references: [id], onDelete: Restrict)
   mergedCustomers         Customer[]               @relation("CustomerMerge")
   appointmentParticipants AppointmentParticipant[]
   crmDecisionRecords      CrmDecisionRecord[]
   leads                   CustomerLead[]
   concernCases            ConcernCase[]
+  contactPoints           CustomerContactPoint[]
+  interactions            CustomerInteraction[]
+  notes                   CustomerNote[]
+  vehicleRelationships    CustomerVehicle[]
+  documentRequirements    CustomerDocumentRequirement[]
+  tasks                   Task[]
 
   @@unique([organizationId, customerNumber])
   @@unique([organizationId, externalReference])
   @@index([organizationId, displayName])
   @@index([organizationId, duplicateKey])
   @@index([mergedIntoCustomerId])
+}
+
+model CustomerContactPoint {
+  id              String   @id @default(cuid())
+  customerId      String
+  type            String
+  value           String
+  normalizedValue String
+  isPrimary       Boolean  @default(false)
+  consentStatus   String   @default("UNKNOWN")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  customer        Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  @@unique([customerId, type, normalizedValue])
+  @@index([normalizedValue])
+}
+
+model CustomerInteraction {
+  id          String   @id @default(cuid())
+  customerId  String
+  actorUserId String?
+  channel     String
+  direction   String
+  summary     String
+  outcome     String?
+  nextStep    String?
+  occurredAt  DateTime
+  createdAt   DateTime @default(now())
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  actorUser   User?    @relation("CustomerInteractionActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  @@index([customerId, occurredAt])
+}
+
+model CustomerNote {
+  id           String   @id @default(cuid())
+  customerId   String
+  authorUserId String
+  body         String
+  visibility   String   @default("INTERNAL")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  authorUser   User     @relation("CustomerNoteAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  @@index([customerId, createdAt])
+}
+
+model CustomerVehicle {
+  id               String   @id @default(cuid())
+  customerId       String
+  vehicleId        String
+  relationshipType String
+  effectiveFrom    DateTime
+  effectiveTo      DateTime?
+  createdAt        DateTime @default(now())
+  customer         Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  vehicle          Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  @@unique([customerId, vehicleId, relationshipType, effectiveFrom])
+  @@index([customerId, effectiveTo])
+}
+
+model CustomerDocumentRequirement {
+  id          String   @id @default(cuid())
+  customerId  String
+  type        String
+  status      String
+  ownerUserId String?
+  dueAt       DateTime?
+  sourceType  String
+  sourceId    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  @@index([customerId, status, dueAt])
 }
 
 model CrmDecisionRecord {
@@ -1049,6 +1141,7 @@ model Vehicle {
   organization         Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   appointmentLinks     AppointmentVehicle[]
   schedulableResources SchedulableResource[] @relation("SchedulableResourceVehicle")
+  customerRelationships CustomerVehicle[]
 
   @@unique([organizationId, vehicleNumber])
   @@unique([organizationId, vin])
@@ -1611,6 +1704,7 @@ model Task {
   requiresManagerApproval   Boolean                   @default(false)
   vehicleReference          String?
   customerReference         String?
+  customerId                String?
   sourceType                TaskSourceType
   sourceTemplateId          String?
   templateSnapshot          Json?
@@ -1650,6 +1744,7 @@ model Task {
   assignmentRequests        TaskAssignmentRequest[]
   collaborators             TaskCollaborator[]
   customerLeadLink          CustomerLeadTaskLink?
+  customer                  Customer?                 @relation(fields: [customerId], references: [id], onDelete: SetNull)
 
   @@unique([boardDayId, sourceTemplateId, assignedUserId])
   @@index([boardDayId, status])
@@ -1660,6 +1755,7 @@ model Task {
   @@index([boardDayId, isClaimable, status])
   @@unique([boardDayId, carryoverSourceTaskId])
   @@index([carryoverReportId])
+  @@index([customerId, status, dueAt])
 }
 
 model TaskCollaborator {

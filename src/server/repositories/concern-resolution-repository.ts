@@ -185,6 +185,7 @@ export function createConcernResolutionRepository(database: PrismaClient = prism
             status: TaskStatus.NOT_STARTED, priority: input.priority, dueAt: planned.dueAt,
             createdByUserId: input.reportedByUserId, requiresManagerApproval: planned.blueprint.requiresManagerApproval,
             customerReference: input.customerReference, vehicleReference: input.vehicleReference,
+            customerId: input.customerId,
             sourceType: TaskSourceType.CONCERN, templateSnapshot: snapshot,
             workflowArea: planned.blueprint.workflowArea as WorkflowArea
           } });

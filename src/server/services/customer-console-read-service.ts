@@ -1,6 +1,9 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { listRecentCustomerLeads } from "@/server/services/customer-lead-service";
 import { listConcernResolutionPackages } from "@/server/services/concern-resolution-service";
+import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
+import { canViewCustomerContact } from "@/server/policies/access";
+import { createCustomer360Repository, type Customer360Repository } from "@/server/repositories/customer-360-repository";
 
 export type CustomerConsoleReadMeta = {
   generatedAt: string;
@@ -72,6 +75,9 @@ export type Customer360ReadModel = CustomerConsoleReadMeta & {
     since: string;
     lifetimeValue: string;
   };
+  summary: { openLeads: number; openCases: number; upcomingAppointments: number; openTasks: number; missingDocuments: number; highestLeadScore: number | null; slaRisk: string };
+  nextBestAction: { title: string; explanation: string; target: string } | null;
+  linkedVehicles: Array<{ id: string; label: string; detail: string; relationship: string }>;
   tab: Customer360Tab;
   panel: {
     title: string;
@@ -105,19 +111,6 @@ const detailPanels: Record<CustomerResolutionDetail, (item: CustomerResolutionCa
   customer: (item) => ({ title: "Customer Context", summary: `Customer 360 summary for ${item.customer}.`, sections: [{ title: "Identity", rows: [{ label: "Customer", value: item.customer }, { label: "Phone", value: item.phone }, { label: "Customer Since", value: "Feb 18, 2023" }] }, { title: "Relationship", rows: [{ label: "Lifetime Value", value: "$28,450" }, { label: "Purchases", value: "2" }, { label: "Preferred Contact", value: "Phone" }] }] }),
   vehicle: (item) => ({ title: "Vehicle Context", summary: `Vehicle facts linked to ${item.id}.`, sections: [{ title: item.vehicle, rows: [{ label: "Relationship", value: "Customer vehicle" }, { label: "VIN", value: "4T1B11HKXJU045678" }, { label: "Service Status", value: "No active repair order" }, { label: "Last Visit", value: "May 12, 2025" }] }] }),
   related: (item) => ({ title: "Related Work", summary: `Tasks, appointments, and documents correlated to ${item.id}.`, sections: [{ title: "Tasks", rows: [{ label: "TMS-1048", value: "Financing follow-up - In Progress" }, { label: "TMS-1051", value: "Customer status update - Not Started" }] }, { title: "Appointments", rows: [{ label: "APT-10245", value: "Financing discussion - May 31, 10:00 AM" }] }, { title: "Documents", rows: [{ label: "Proof of income", value: "Received" }, { label: "Lender decision", value: "Pending" }] }] })
-};
-
-const customer360Panels: Record<Customer360Tab, Customer360ReadModel["panel"]> = {
-  overview: { title: "Customer Overview", summary: "Current relationship summary and next operational actions.", items: [{ title: "Title Issue - Follow Up", detail: "Case CR-2025-00641 assigned to Ancilla M.", meta: "Due today", status: "High" }, { title: "Missing Document", detail: "Driver license copy is still required.", meta: "Due in 2 days", status: "Medium" }, { title: "Test Drive Appointment", detail: "2024 Toyota RAV4 with Brock Peterson.", meta: "Upcoming", status: "Low" }] },
-  timeline: { title: "Timeline", summary: "Calls, appointments, documents, cases, and messages in chronological order.", items: [{ title: "Outbound call logged", detail: "Discussed vehicle and financing options.", meta: "Today 10:15 AM" }, { title: "Appointment scheduled", detail: "Test Drive - 2024 Toyota RAV4.", meta: "Today 9:30 AM" }, { title: "Document uploaded", detail: "Paystub - Proof of Income.", meta: "Today 9:00 AM" }] },
-  deals: { title: "Deals", summary: "Open and historical opportunities connected to this customer.", items: [{ title: "2024 Toyota RAV4", detail: "Retail purchase opportunity.", meta: "$12,500 - Proposal", status: "Open" }, { title: "2019 Honda Accord", detail: "Completed trade relationship.", meta: "$8,900 - Closed", status: "Won" }] },
-  cases: { title: "Cases", summary: "Customer issues, SLA state, ownership, and resolution evidence.", items: [{ title: "Financing approval delay", detail: "CR-2025-00641 - Ancilla M.", meta: "75% SLA", status: "In Progress" }, { title: "Title issue follow-up", detail: "CR-2025-00582 - Resolved by Eli Aswan.", meta: "Resolved May 12", status: "Resolved" }] },
-  appointments: { title: "Appointments", summary: "Upcoming and completed dealership visits.", items: [{ title: "Test Drive", detail: "2024 Toyota RAV4 - Brock Peterson.", meta: "May 31, 10:00 AM", status: "Confirmed" }, { title: "Financing Discussion", detail: "Manager office - Eli Aswan.", meta: "May 20, 1:00 PM", status: "Completed" }] },
-  documents: { title: "Documents", summary: "Requirements, received evidence, and missing customer documents.", items: [{ title: "Proof of Income", detail: "Paystub uploaded by Maria Santos.", meta: "Received today", status: "Complete" }, { title: "Driver License", detail: "Customer copy required.", meta: "Due in 2 days", status: "Missing" }] },
-  vehicles: { title: "Vehicles", summary: "Interested, purchased, traded, and serviced vehicle relationships.", items: [{ title: "2024 Toyota RAV4", detail: "VIN 2T3P1RFV4RW123456", meta: "Interested", status: "Active" }, { title: "2019 Honda Accord", detail: "VIN 1HGCV1F3XKA123456", meta: "Traded In", status: "Historical" }] },
-  communications: { title: "Communications", summary: "Channel preferences and recent outreach outcomes.", items: [{ title: "Phone", detail: "Preferred channel - Evenings.", meta: "Consent active", status: "Preferred" }, { title: "Email", detail: "Financing pre-approval information sent.", meta: "Yesterday 2:15 PM", status: "Delivered" }] },
-  collections: { title: "Collections", summary: "Policy-filtered account signals requiring customer follow-up.", items: [{ title: "Payment Status", detail: "Payment is 15 days past due.", meta: "Manual follow-up", status: "Past Due" }, { title: "Promise to Pay", detail: "No active promise recorded.", meta: "Review required", status: "Open" }] },
-  notes: { title: "Notes", summary: "Internal customer context with author and timestamp evidence.", items: [{ title: "Vehicle preference", detail: "Prefers reliable family SUVs.", meta: "Jessica Miller - May 28" }, { title: "Contact preference", detail: "Best reached by phone during evenings.", meta: "Ancilla M. - May 20" }] }
 };
 
 export async function getCustomerDashboardReadModel(
@@ -183,9 +176,39 @@ export async function getCustomerResolutionReadModel(user: AuthenticatedUser | n
     analytics: { byStatus: [...new Set(durableCases.map((item) => item.status))].map((label) => ({ label, value: durableCases.filter((item) => item.status === label).length })), byType: [...new Set(durableCases.map((item) => item.category))].map((label) => ({ label, value: durableCases.filter((item) => item.category === label).length })), averageResolution: "--", compliance: durableCases.length ? Math.round(100 * durableCases.filter((item) => item.sla > 0 || item.status === "Resolved").length / durableCases.length) : 100 }
   };
 }
-
-export async function getCustomer360ReadModel(user: AuthenticatedUser | null, input: { tab?: string | null }): Promise<Customer360ReadModel> {
+export async function getCustomer360ReadModel(user: AuthenticatedUser | null, input: { tab?: string | null; customerId?: string | null }, dependencies: { repository?: Customer360Repository; organizationId?: string } = {}): Promise<Customer360ReadModel> {
   const actor = assertAuthenticated(user);
   const tab = (["overview", "timeline", "deals", "cases", "appointments", "documents", "vehicles", "communications", "collections", "notes"].includes(input.tab ?? "") ? input.tab : "overview") as Customer360Tab;
-  return { ...meta(actor), customer: { id: "customer-preview-maria", name: "Maria Santos", phone: "(555) 555-0198", email: "maria.santos@email.com", address: "123 Main St, Houston, TX 77001", owner: "Jessica Miller", status: "Active", since: "Mar 12, 2022", lifetimeValue: "$18,650" }, tab, panel: customer360Panels[tab] };
+  const record = await (dependencies.repository ?? createCustomer360Repository()).findCustomer(dependencies.organizationId ?? INITIAL_ORGANIZATION.id, input.customerId);
+  if (!record) throw new Error("Customer not found.");
+  const showContact = canViewCustomerContact(actor, record.ownerUserId);
+  const date = (value: Date | null | undefined) => value ? value.toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "Not scheduled";
+  const item = (title: string, detail: string, metaValue: string, status?: string) => ({ title, detail, meta: metaValue, ...(status ? { status } : {}) });
+  const panels: Record<Customer360Tab, Customer360ReadModel["panel"]> = {
+    overview: { title: "Customer Overview", summary: "Current relationship summary and next operational actions.", items: [
+      ...record.tasks.filter((task) => task.status !== "COMPLETED").slice(0, 4).map((task) => item(task.title, `Owned by ${task.assignedUser.name}`, date(task.dueAt), task.status)),
+      ...record.concernCases.filter((customerCase) => customerCase.status !== "CLOSED").slice(0, 3).map((customerCase) => item(customerCase.title, customerCase.concernNumber, date(customerCase.dueAt), customerCase.severityBand)),
+      ...record.documentRequirements.filter((document) => document.status !== "COMPLETE").slice(0, 3).map((document) => item(document.type, document.sourceType, date(document.dueAt), document.status))
+    ] },
+    timeline: { title: "Timeline", summary: "Calls, appointments, cases, leads, and documents in chronological order.", items: [
+      ...record.interactions.map((interaction) => ({ sort: interaction.occurredAt, value: item(`${interaction.channel} ${interaction.direction}`, interaction.summary, date(interaction.occurredAt), interaction.outcome ?? undefined) })),
+      ...record.leads.map((lead) => ({ sort: lead.createdAt, value: item(`Lead ${lead.leadNumber}`, lead.vehicleInterest ?? lead.sourceCode, date(lead.createdAt), lead.stage) })),
+      ...record.concernCases.map((customerCase) => ({ sort: customerCase.createdAt, value: item(customerCase.title, customerCase.concernNumber, date(customerCase.createdAt), customerCase.status) })),
+      ...record.appointmentParticipants.map(({ appointment }) => ({ sort: appointment.startsAt ?? new Date(0), value: item(appointment.title, appointment.id, date(appointment.startsAt), appointment.bookingStatus) }))
+    ].sort((left, right) => right.sort.getTime() - left.sort.getTime()).slice(0, 30).map(({ value }) => value) },
+    deals: { title: "Leads and Deals", summary: "Open and historical purchase opportunities connected to this customer.", items: record.leads.map((lead) => item(lead.vehicleInterest ?? "General vehicle interest", `${lead.leadNumber} - ${lead.ownerUser.name}`, date(lead.nextActionAt), lead.stage)) },
+    cases: { title: "Cases", summary: "Customer issues, SLA state, ownership, and resolution evidence.", items: record.concernCases.map((customerCase) => item(customerCase.title, `${customerCase.concernNumber} - ${customerCase.assignedOwner?.name ?? "Unassigned"}`, date(customerCase.resolutionDueAt ?? customerCase.dueAt), `${customerCase.status} / ${customerCase.slaStage}`)) },
+    appointments: { title: "Appointments", summary: "Upcoming and completed dealership visits.", items: record.appointmentParticipants.map(({ appointment }) => item(appointment.title, appointment.id, date(appointment.startsAt), `${appointment.bookingStatus} / ${appointment.confirmationStatus}`)) },
+    documents: { title: "Documents", summary: "Requirements, received evidence, and missing customer documents.", items: record.documentRequirements.map((document) => item(document.type, `${document.sourceType}${document.sourceId ? ` - ${document.sourceId}` : ""}`, date(document.dueAt), document.status)) },
+    vehicles: { title: "Vehicles", summary: "Interested, purchased, traded, and serviced vehicle relationships.", items: record.vehicleRelationships.map((relationship) => item([relationship.vehicle.year, relationship.vehicle.make, relationship.vehicle.model].filter(Boolean).join(" ") || relationship.vehicle.vehicleNumber, showContact ? `VIN ${relationship.vehicle.vin ?? "not recorded"} - Stock ${relationship.vehicle.stockNumber ?? "not recorded"}` : `Vehicle ${relationship.vehicle.vehicleNumber}`, date(relationship.effectiveFrom), relationship.relationshipType)) },
+    communications: { title: "Communications", summary: "Channel preferences, consent, and recent outreach outcomes.", items: [
+      ...record.contactPoints.map((point) => item(point.type, showContact ? point.value : "Restricted", point.isPrimary ? "Primary" : "Alternate", point.consentStatus)),
+      ...record.interactions.map((interaction) => item(interaction.summary, `${interaction.channel} ${interaction.direction}`, date(interaction.occurredAt), interaction.outcome ?? undefined))
+    ] },
+    collections: { title: "Collections", summary: "Policy-filtered account signals requiring customer follow-up.", items: [] },
+    notes: { title: "Notes", summary: "Internal customer context with author and timestamp evidence.", items: record.notes.map((note) => item(note.body, note.authorUser.name, date(note.createdAt), note.visibility)) }
+  };
+  const openCases = record.concernCases.filter((customerCase) => customerCase.status !== "CLOSED");
+  const latestDecision = record.crmDecisionRecords.find((decision) => decision.recommendedActionCode);
+  return { ...meta(actor), source: "HYBRID_READ_MODEL", customer: { id: record.id, name: record.displayName, phone: showContact ? record.phoneNumber ?? "Not recorded" : "Restricted", email: showContact ? record.email ?? "Not recorded" : "Restricted", address: showContact ? record.address ?? "Not recorded" : "Restricted", owner: record.ownerUser?.name ?? "Unassigned", status: record.status, since: date(record.createdAt), lifetimeValue: "Not calculated" }, summary: { openLeads: record.leads.filter((lead) => lead.stage !== "WON" && lead.stage !== "LOST").length, openCases: openCases.length, upcomingAppointments: record.appointmentParticipants.filter(({ appointment }) => appointment.startsAt && appointment.startsAt > new Date() && appointment.bookingStatus !== "CANCELLED").length, openTasks: record.tasks.filter((task) => task.status !== "COMPLETED").length, missingDocuments: record.documentRequirements.filter((document) => document.status !== "COMPLETE").length, highestLeadScore: record.leads.length ? Math.max(...record.leads.map((lead) => lead.score)) : null, slaRisk: openCases.some((customerCase) => customerCase.slaStage === "BREACHED" || customerCase.slaStage === "REPEATED_BREACH") ? "High" : openCases.some((customerCase) => customerCase.slaStage === "AT_RISK" || customerCase.slaStage === "WATCH") ? "Medium" : "Low" }, nextBestAction: latestDecision ? { title: latestDecision.recommendedActionCode!.replaceAll("_", " ").toLowerCase().replace(/(^|\s)\S/g, (value) => value.toUpperCase()), explanation: latestDecision.explanation, target: latestDecision.subjectType === "CASE" ? "/customers/resolutions" : "/customers" } : null, linkedVehicles: record.vehicleRelationships.map((relationship) => ({ id: relationship.vehicle.id, label: [relationship.vehicle.year, relationship.vehicle.make, relationship.vehicle.model].filter(Boolean).join(" ") || relationship.vehicle.vehicleNumber, detail: showContact ? `VIN: ${relationship.vehicle.vin ?? "Not recorded"}` : `Vehicle: ${relationship.vehicle.vehicleNumber}`, relationship: relationship.relationshipType })), tab, panel: panels[tab] };
 }
