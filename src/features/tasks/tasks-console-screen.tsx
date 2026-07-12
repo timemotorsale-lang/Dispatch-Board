@@ -15,7 +15,6 @@ import {
   LayoutGrid,
   List,
   MoreHorizontal,
-  PackageOpen,
   Plus,
   RefreshCw,
   Search,
@@ -1278,13 +1277,6 @@ export function TasksConsoleScreen({
     setActiveMenu(null);
   }
 
-  function handleOpenQuickCreate() {
-    setQuickCreateOpen(true);
-    setQuickCreateError(null);
-    setQuickCreateMessage(null);
-    setActiveMenu(null);
-  }
-
   function handleCloseQuickCreate() {
     if (isQuickCreatePending) {
       return;
@@ -1885,19 +1877,13 @@ export function TasksConsoleScreen({
         </label>
 
         <div className="tasks-console-action-group">
-          <Link className="pill pill-secondary tasks-console-intake-link" href="/prototype/task-intake">
-            <PackageOpen size={16} />
-            Task Intake
-          </Link>
-          <button
+          <Link
             className="pill pill-primary tasks-console-create"
-            disabled={!isManager}
-            onClick={handleOpenQuickCreate}
-            type="button"
+            href="/prototype/task-intake?returnTo=%2Ftasks"
           >
             <Plus size={16} />
-            Create Task
-          </button>
+            Task Intake
+          </Link>
           <button
             aria-label="Log concern"
             className="pill pill-secondary tasks-console-icon-pill"

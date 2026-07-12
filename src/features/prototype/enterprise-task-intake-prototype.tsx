@@ -110,7 +110,7 @@ function acquisitionPolicy(draft: IntakeDraft) {
   return "Available for claim";
 }
 
-export function EnterpriseTaskIntakePrototype({ staff = [] }: { staff?: ActiveUserSummary[] }) {
+export function EnterpriseTaskIntakePrototype({ returnTo = "/tasks", staff = [] }: { returnTo?: string; staff?: ActiveUserSummary[] }) {
   const collaboratorOptions = staff.length ? staff.map((user) => ({
     id: user.id,
     initials: user.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase(),
@@ -160,7 +160,7 @@ export function EnterpriseTaskIntakePrototype({ staff = [] }: { staff?: ActiveUs
     <section className="task-intake-prototype" aria-label="Enterprise task intake prototype">
       <header className="task-intake-header">
         <div>
-          <Link href="/tasks"><ArrowLeft size={15} />Tasks Console</Link>
+          <Link href={returnTo}><ArrowLeft size={15} />Return to {returnTo === "/tasks" ? "Tasks Console" : "source console"}</Link>
           <p>Prototype · No database writes</p>
           <h1>Enterprise Task Intake</h1>
           <span>Shape new work before it enters the Dispatch Board.</span>

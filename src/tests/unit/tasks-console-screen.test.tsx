@@ -213,7 +213,7 @@ describe("tasks console screen", () => {
 
     expect(markup).toContain("Task Operations Console");
     expect(markup).toContain("Search tasks, vehicles, customers...");
-    expect(markup).toContain("Create Task");
+    expect(markup).toContain("Task Intake");
     expect(markup).toContain("Generate Today&#x27;s Board");
     expect(markup).toContain("Saved Views");
     expect(markup).toContain("Filters");
