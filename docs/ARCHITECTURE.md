@@ -16,6 +16,8 @@
 
 > **Customers Console planning package:** The customer-domain boundary, architecture decisions, rollout roadmap, and milestone IDs live in [`docs/customers/README.md`](customers/README.md). That package defines Customers as the customer intelligence and customer operations layer inside the Dispatch Board, not a separate CRM deployment or a copy of another product.
 
+> **Manager Review Command Center planning package:** The review-domain boundary, deterministic Manager Attention Engine, rollout roadmap, and implementation milestone IDs live in [`docs/manager-review/README.md`](manager-review/README.md). That package defines Manager Review as the decision, quality-control, and intervention layer inside the Dispatch Board, not a separate task system or employee performance-review product.
+
 ---
 
 ## 1. Purpose
