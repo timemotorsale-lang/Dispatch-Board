@@ -836,6 +836,8 @@ Each implementation task should define:
 
 After meaningful changes, update this document so it remains a living architecture record rather than a stale plan.
 
+The approved architecture for DB-ACCOUNTABILITY-059 is documented in `docs/STAFF_EXECUTION_HANDOFF_ENGINE.md`, with sequential delivery milestones in `docs/STAFF_EXECUTION_HANDOFF_ROADMAP.md`.
+
 ---
 
 ## 22. Current Implementation Status

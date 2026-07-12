@@ -34,8 +34,15 @@ import {
   type MyTasksFilter
 } from "@/features/tasks/my-tasks-helpers";
 import type { BoardReadTask } from "@/server/services/board-read";
+import type { StaffDayReadModel } from "@/server/services/staff-day";
+import { StaffStartDayCard } from "@/features/tasks/staff-start-day-card";
+import type { TaskCompletionReadiness } from "@/server/services/task-execution-readiness";
+import { AvailableWorkCard } from "@/features/tasks/available-work-card";
+import { DailyHandoffCard } from "@/features/tasks/daily-handoff-card";
 
 type MyTasksScreenProps = {
+  availableWorkEnabled?: boolean;
+  endOfDayHandoffEnabled?: boolean;
   boardDate: string;
   boardExists: boolean;
   currentUserId: string;
@@ -46,6 +53,8 @@ type MyTasksScreenProps = {
   isManager: boolean;
   nowIso: string;
   userName: string;
+  initialStaffDay?: StaffDayReadModel | null;
+  initialReadinessByTask?: Record<string, TaskCompletionReadiness>;
   errorMessage?: string | null;
 };
 
@@ -796,6 +805,8 @@ function TaskStatusEditor({
 }
 
 export function MyTasksScreen({
+  availableWorkEnabled = false,
+  endOfDayHandoffEnabled = false,
   boardDate,
   boardExists,
   currentUserId,
@@ -803,6 +814,8 @@ export function MyTasksScreen({
   fullBoardHref,
   generatedAt,
   generationStatus,
+  initialStaffDay,
+  initialReadinessByTask = {},
   initialTasks,
   isManager,
   nowIso,
@@ -857,6 +870,7 @@ export function MyTasksScreen({
   const selectedTaskSignal = selectedTask ? getTaskSignal(selectedTask, now) : null;
   const blockedQueue = getBlockedQueue(tasks);
   const latestUpdate = selectedTask ? getLatestUpdate(selectedTask, now) : null;
+  const selectedReadiness = selectedTask ? initialReadinessByTask[selectedTask.id] ?? null : null;
 
   function refreshTasks() {
     startRefreshTransition(() => {
@@ -987,6 +1001,10 @@ export function MyTasksScreen({
           </div>
         </div>
       </div>
+
+      {initialStaffDay ? <StaffStartDayCard boardDate={boardDate} initialStaffDay={initialStaffDay} /> : null}
+      {availableWorkEnabled ? <AvailableWorkCard boardDate={boardDate} /> : null}
+      {endOfDayHandoffEnabled ? <DailyHandoffCard boardDate={boardDate} /> : null}
 
       {selfCreateOpen ? (
         <section className="enterprise-detail-card my-tasks-self-create-card" aria-label="Create my task">
@@ -1253,6 +1271,7 @@ export function MyTasksScreen({
                             <div className="enterprise-list-row-meta">
                               <span>{task.assignedUser.name}</span>
                               <span>{formatStatusLabel(task.workflowArea)}</span>
+                              {initialReadinessByTask[task.id] && !initialReadinessByTask[task.id].ready ? <span className="my-day-evidence-chip">{initialReadinessByTask[task.id].requirements.filter((item) => !item.satisfied).length} evidence items</span> : null}
                             </div>
                           </button>
                           <div className="enterprise-list-row-actions">
@@ -1288,6 +1307,7 @@ export function MyTasksScreen({
                           <div className="enterprise-card-facts">
                             <span>{task.assignedUser.name}</span>
                             <span>{formatStatusLabel(task.workflowArea)}</span>
+                            {initialReadinessByTask[task.id] && !initialReadinessByTask[task.id].ready ? <span className="my-day-evidence-chip">{initialReadinessByTask[task.id].requirements.filter((item) => !item.satisfied).length} evidence items</span> : null}
                           </div>
 
                           <div className="enterprise-task-actions enterprise-task-actions-mockup">
@@ -1318,6 +1338,7 @@ export function MyTasksScreen({
                           <span>Workflow: {formatStatusLabel(selectedTask.workflowArea)}</span>
                           <span>Source: {formatStatusLabel(selectedTask.sourceType)}</span>
                         </div>
+                        {selectedReadiness ? <div className={selectedReadiness.ready ? "my-day-readiness-summary my-day-readiness-ready" : "my-day-readiness-summary"} aria-label="Selected task completion readiness" role="region"><strong>{selectedReadiness.ready ? "Completion evidence ready" : `${selectedReadiness.requirements.filter((item) => !item.satisfied).length} completion requirements remain`}</strong>{!selectedReadiness.ready ? <span>Next: {selectedReadiness.requirements.find((item) => !item.satisfied)?.label}</span> : null}<Link href={`/tasks/${selectedTask.id}#approvals`}>Review evidence</Link></div> : null}
                       </div>
                       <div className="my-tasks-optimized-actions">
                         <Link className="pill pill-primary" href={`/tasks/${selectedTask.id}`}>

@@ -64,6 +64,17 @@ describe("my tasks screen", () => {
             customerReference: null
           })
         ]}
+        initialReadinessByTask={{
+          blocked: {
+            accepted: true,
+            acceptedAt: "2026-07-04T13:30:00.000Z",
+            completionOverride: null,
+            nextCompletionStatus: TaskStatus.READY_FOR_REVIEW,
+            ready: false,
+            requirements: [{ code: "blocker", label: "Resolve the active blocker", satisfied: false }],
+            taskId: "blocked"
+          }
+        }}
         isManager
         nowIso="2026-07-04T14:00:00.000Z"
         userName="Elia Aswan"
@@ -77,6 +88,10 @@ describe("my tasks screen", () => {
     expect(markup).toContain("Task Information");
     expect(markup).toContain("Create My Task");
     expect(markup).toContain("Open Workspace");
+    expect(markup).toContain("1 evidence items");
+    expect(markup).toContain("1 completion requirements remain");
+    expect(markup).toContain("Next: Resolve the active blocker");
+    expect(markup).toContain("Review evidence");
   });
 
   it("shows the assigned-empty state when a board exists but no tasks are assigned", () => {

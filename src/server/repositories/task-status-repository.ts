@@ -17,6 +17,11 @@ const taskStatusSelect = {
   readyForReviewAt: true,
   completedAt: true,
   reviewedByUserId: true,
+  acceptedAt: true,
+  acceptedByUserId: true,
+  completionOverrideAt: true,
+  completionOverrideByUserId: true,
+  completionOverrideReason: true,
   checklistItems: {
     select: {
       key: true,
@@ -58,6 +63,11 @@ export type TaskStatusLookupRecord = {
   readyForReviewAt: Date | null;
   completedAt: Date | null;
   reviewedByUserId: string | null;
+  acceptedAt?: Date | null;
+  acceptedByUserId?: string | null;
+  completionOverrideAt?: Date | null;
+  completionOverrideByUserId?: string | null;
+  completionOverrideReason?: string | null;
   updatedAt: Date;
   checklistItems?: Array<{ key: string | null; label: string; isRequired: boolean; completed: boolean }>;
   concernLink?: {

@@ -19,6 +19,11 @@ type StoredTask = {
   readyForReviewAt: Date | null;
   completedAt: Date | null;
   reviewedByUserId: string | null;
+  acceptedAt?: Date | null;
+  acceptedByUserId?: string | null;
+  completionOverrideAt?: Date | null;
+  completionOverrideByUserId?: string | null;
+  completionOverrideReason?: string | null;
   updatedAt: Date;
   checklistItems?: Array<{ label: string; isRequired: boolean; completed: boolean }>;
   concernLink?: {
@@ -49,6 +54,11 @@ function createStoredTask(overrides: Partial<StoredTask> = {}): StoredTask {
     readyForReviewAt: null,
     completedAt: null,
     reviewedByUserId: null,
+    acceptedAt: null,
+    acceptedByUserId: null,
+    completionOverrideAt: null,
+    completionOverrideByUserId: null,
+    completionOverrideReason: null,
     updatedAt: new Date("2026-06-18T15:00:00.000Z"),
     ...overrides
   };
@@ -857,5 +867,73 @@ describe("task status service", () => {
     await expect(updateTaskStatus(staffUser, "task-1", { status: "IN_PROGRESS" }, repository)).rejects.toThrow(
       "Concern task dependencies are incomplete: VERIFY_RECORD"
     );
+  });
+
+  it("requires task acceptance before completion when the execution gate is enabled", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+    const { repository } = createTaskStatusRepository();
+
+    await expect(updateTaskStatus(staffUser, "task-1", { status: "COMPLETED" }, repository, {
+      staffExecutionFlags: {
+        enabled: true,
+        startDayGateEnabled: true,
+        taskAcceptanceEnabled: true,
+        availableWorkEnabled: false,
+        endOfDayReportEnabled: false,
+        managerHealthEnabled: false
+      }
+    })).rejects.toThrow("Accept this task before submitting it for completion.");
+  });
+
+  it("rejects completion directly from blocked work when the execution gate is enabled", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+    const { repository } = createTaskStatusRepository([
+      createStoredTask({
+        acceptedAt: new Date("2026-07-11T14:00:00.000Z"),
+        acceptedByUserId: "user-jordan.sales@local.test",
+        blockerReason: "Waiting for customer",
+        status: TaskStatus.BLOCKED
+      })
+    ]);
+
+    await expect(updateTaskStatus(staffUser, "task-1", { status: "COMPLETED" }, repository, {
+      staffExecutionFlags: {
+        enabled: true,
+        startDayGateEnabled: true,
+        taskAcceptanceEnabled: true,
+        availableWorkEnabled: false,
+        endOfDayReportEnabled: false,
+        managerHealthEnabled: false
+      }
+    })).rejects.toThrow("Resolve the task's blocked or waiting condition before completion.");
+  });
+
+  it("allows a manager with a recorded override to complete despite unmet evidence", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const managerUser = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository } = createTaskStatusRepository([
+      createStoredTask({
+        assignedUserId: "user-jordan.sales@local.test",
+        checklistItems: [{ label: "Confirm customer receipt", isRequired: true, completed: false }],
+        completionOverrideAt: new Date("2026-07-11T15:00:00.000Z"),
+        completionOverrideByUserId: "user-morgan.manager@local.test",
+        completionOverrideReason: "Customer safety requires immediate documented closure."
+      })
+    ]);
+
+    const result = await updateTaskStatus(managerUser, "task-1", { status: "COMPLETED" }, repository, {
+      staffExecutionFlags: {
+        enabled: true,
+        startDayGateEnabled: true,
+        taskAcceptanceEnabled: true,
+        availableWorkEnabled: false,
+        endOfDayReportEnabled: false,
+        managerHealthEnabled: false
+      }
+    });
+
+    expect(result.status).toBe(TaskStatus.COMPLETED);
   });
 });

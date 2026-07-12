@@ -15,6 +15,7 @@ export type ManagerReviewViewModel = {
   generatedAt: string | null;
   tasks: BoardReadTask[];
   attentionBuckets: ManagerAttentionBucket[];
+  needsAssignmentTasks: BoardReadTask[];
 };
 
 export type ManagerReviewFocus =
@@ -22,7 +23,8 @@ export type ManagerReviewFocus =
   | "READY_FOR_REVIEW"
   | "BLOCKED"
   | "WAITING_ON_PARTS"
-  | "WAITING_ON_APPROVAL";
+  | "WAITING_ON_APPROVAL"
+  | "NEEDS_ASSIGNMENT";
 
 export type ManagerAttentionBucket = {
   description: string;
@@ -84,7 +86,8 @@ export async function getManagerReviewViewModelForToday(
     generationStatus: boardResult.board?.generationStatus ?? null,
     generatedAt: boardResult.board?.generatedAt ?? null,
     tasks,
-    attentionBuckets: boardResult.board ? getAttentionBuckets(boardResult.board.tasks) : getAttentionBuckets([])
+    attentionBuckets: boardResult.board ? getAttentionBuckets(boardResult.board.tasks) : getAttentionBuckets([]),
+    needsAssignmentTasks: boardResult.board ? boardResult.board.tasks.filter((task) => task.isClaimable && task.status === TaskStatus.NOT_STARTED) : []
   };
 }
 
@@ -107,6 +110,7 @@ export async function getManagerReviewViewModelForDate(
     generationStatus: boardResult.board?.generationStatus ?? null,
     generatedAt: boardResult.board?.generatedAt ?? null,
     tasks,
-    attentionBuckets: boardResult.board ? getAttentionBuckets(boardResult.board.tasks) : getAttentionBuckets([])
+    attentionBuckets: boardResult.board ? getAttentionBuckets(boardResult.board.tasks) : getAttentionBuckets([]),
+    needsAssignmentTasks: boardResult.board ? boardResult.board.tasks.filter((task) => task.isClaimable && task.status === TaskStatus.NOT_STARTED) : []
   };
 }

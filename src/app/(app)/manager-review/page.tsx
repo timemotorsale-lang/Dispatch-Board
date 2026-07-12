@@ -9,6 +9,7 @@ import {
   type ManagerReviewFocus
 } from "@/server/services/manager-review";
 import { listActiveUserSummaries } from "@/server/services/user-summary";
+import { getTeamExecutionHealth } from "@/server/services/team-execution-health";
 
 type ManagerReviewPageProps = {
   searchParams?: Promise<{
@@ -25,6 +26,7 @@ function normalizeFocus(value: string | string[] | undefined): ManagerReviewFocu
     candidate === "BLOCKED" ||
     candidate === "WAITING_ON_PARTS" ||
     candidate === "WAITING_ON_APPROVAL"
+    || candidate === "NEEDS_ASSIGNMENT"
   ) {
     return candidate;
   }
@@ -70,6 +72,8 @@ export default async function ManagerReviewPage({ searchParams }: ManagerReviewP
     generationStatus: null,
     initialTasks: [],
     initialAttentionBuckets: [],
+    initialNeedsAssignmentTasks: [],
+    initialExecutionHealth: [],
     initialFocus,
     assignableUsers: []
   };
@@ -86,7 +90,9 @@ export default async function ManagerReviewPage({ searchParams }: ManagerReviewP
     screenProps.generationStatus = reviewQueue.generationStatus;
     screenProps.initialTasks = reviewQueue.tasks;
     screenProps.initialAttentionBuckets = reviewQueue.attentionBuckets;
+    screenProps.initialNeedsAssignmentTasks = reviewQueue.needsAssignmentTasks;
     screenProps.assignableUsers = assignableUsers;
+    screenProps.initialExecutionHealth = (await getTeamExecutionHealth(user, reviewQueue.date)).items;
   } catch (error) {
     screenProps.errorMessage =
       error instanceof Error ? error.message : "Unable to load the manager review queue right now.";

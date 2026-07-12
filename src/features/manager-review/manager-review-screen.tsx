@@ -14,6 +14,7 @@ import {
 import type { BoardReadTask } from "@/server/services/board-read";
 import type { ManagerAttentionBucket, ManagerReviewFocus } from "@/server/services/manager-review";
 import type { ActiveUserSummary } from "@/server/services/user-summary";
+import type { TeamExecutionHealthItem } from "@/server/services/team-execution-health";
 
 type ManagerReviewScreenProps = {
   boardDate: string;
@@ -24,9 +25,11 @@ type ManagerReviewScreenProps = {
   generationStatus: string | null;
   initialAttentionBuckets: ManagerAttentionBucket[];
   initialFocus: ManagerReviewFocus;
+  initialNeedsAssignmentTasks?: BoardReadTask[];
   initialTasks: BoardReadTask[];
   assignableUsers: ActiveUserSummary[];
   nowIso?: string;
+  initialExecutionHealth?: TeamExecutionHealthItem[];
 };
 
 type StatusUpdateResponse =
@@ -590,9 +593,11 @@ export function ManagerReviewScreen({
   generationStatus,
   initialAttentionBuckets,
   initialFocus,
+  initialNeedsAssignmentTasks = [],
   initialTasks,
   assignableUsers,
   nowIso
+  ,initialExecutionHealth = []
 }: ManagerReviewScreenProps) {
   const router = useRouter();
   const [isRefreshPending, startRefreshTransition] = useTransition();
@@ -604,11 +609,13 @@ export function ManagerReviewScreen({
     ...bucket,
     tasks: bucket.tasks.filter((task) => !removedTaskIds[task.id])
   }));
+  const needsAssignmentTasks = initialNeedsAssignmentTasks.filter((task) => !removedTaskIds[task.id]);
   const visibleReviewTasks = focus === "" || focus === "READY_FOR_REVIEW" ? tasks : [];
   const visibleAttentionBuckets =
     focus === "" || focus === "READY_FOR_REVIEW"
       ? attentionBuckets
       : attentionBuckets.filter((bucket) => bucket.status === focus);
+  const visibleNeedsAssignmentTasks = focus === "" || focus === "NEEDS_ASSIGNMENT" ? needsAssignmentTasks : [];
   const now = new Date(nowIso ?? new Date().toISOString());
   const oldestTask = getOldestReviewTask(tasks);
   const oldestAttentionTask = getOldestAttentionTask(attentionBuckets);
@@ -667,6 +674,7 @@ export function ManagerReviewScreen({
               { label: "Blocked", value: "BLOCKED" },
               { label: "Waiting on Parts", value: "WAITING_ON_PARTS" },
               { label: "Waiting on Approval", value: "WAITING_ON_APPROVAL" }
+              ,{ label: "Needs Assignment", value: "NEEDS_ASSIGNMENT" }
             ].map((option) => (
               <button
                 aria-pressed={focus === option.value}
@@ -710,9 +718,9 @@ export function ManagerReviewScreen({
           <p className="board-stat-card-copy">Blocked and waiting work that may need a manager move.</p>
         </article>
         <article className="panel-card board-stat-card">
-          <strong>Oldest review</strong>
-          <h2>{oldestTask?.readyForReviewAt ? getReviewAgeCopy(oldestTask.readyForReviewAt, now) : "Clear"}</h2>
-          <p className="board-stat-card-copy">How long the oldest approval-ready task has been sitting.</p>
+          <strong>Needs assignment</strong>
+          <h2>{needsAssignmentTasks.length}</h2>
+          <p className="board-stat-card-copy">Claimable work available for eligible staff.</p>
         </article>
       </div>
 
@@ -721,6 +729,8 @@ export function ManagerReviewScreen({
           <p>{lastActionMessage}</p>
         </div>
       ) : null}
+
+      {initialExecutionHealth.length ? <section className="team-execution-health" aria-label="Team Execution Health"><header><div><span className="eyebrow">Explainable operating conditions</span><h2>Team Execution Health</h2><p>Each condition links to the work facts producing it. No rankings or passive activity timers are used.</p></div></header><div>{initialExecutionHealth.map((item) => <article className={`execution-health-item execution-health-${item.condition.toLowerCase()}`} key={item.staffDayId}><div><strong>{item.user.name}</strong><span>{formatStatusLabel(item.condition)}</span></div><p>{item.explanation}</p><small>Active {item.counts.active} · Blocked {item.counts.blocked} · Waiting {item.counts.waiting} · Review {item.counts.readyForReview} · Carryover {item.counts.carryover}</small>{item.facts.length ? <ul>{item.facts.slice(0, 3).map((fact) => <li key={`${fact.code}:${fact.taskId}`}>{fact.taskId ? <Link href={`/tasks/${fact.taskId}`}>{fact.label}</Link> : fact.label}</li>)}</ul> : null}</article>)}</div></section> : null}
 
       {errorMessage ? (
         <ErrorStateCard
@@ -740,7 +750,7 @@ export function ManagerReviewScreen({
         />
       ) : null}
 
-      {!errorMessage && boardExists && tasks.length === 0 && attentionTaskCount === 0 ? (
+      {!errorMessage && boardExists && tasks.length === 0 && attentionTaskCount === 0 && needsAssignmentTasks.length === 0 ? (
         <EmptyStateCard
           actions={[{ href: fullBoardHref, label: "Back to board" }]}
           eyebrow="Queue clear"
@@ -749,7 +759,7 @@ export function ManagerReviewScreen({
         />
       ) : null}
 
-      {!errorMessage && boardExists && (tasks.length > 0 || attentionTaskCount > 0) ? (
+      {!errorMessage && boardExists && (tasks.length > 0 || attentionTaskCount > 0 || needsAssignmentTasks.length > 0) ? (
         <div className="board-content-grid my-tasks-content-grid manager-review-columns">
           <article className="panel-card board-main-card">
             <div className="board-section-heading">
@@ -792,6 +802,7 @@ export function ManagerReviewScreen({
             </div>
 
             <div className="manager-review-attention-groups">
+              {focus === "" || focus === "NEEDS_ASSIGNMENT" ? <section className="manager-review-bucket manager-needs-assignment" aria-label="Needs Assignment queue"><div className="manager-review-bucket-header"><div><h4>Needs Assignment</h4><p>Claimable work that eligible staff can request from My Day.</p></div><div className="manager-review-bucket-actions"><span className="board-chip">{visibleNeedsAssignmentTasks.length}</span></div></div><div className="my-task-list">{visibleNeedsAssignmentTasks.length ? visibleNeedsAssignmentTasks.map((task) => <article className="my-task-card manager-attention-card" key={task.id}><div className="my-task-card-heading"><div><span className="eyebrow">{formatStatusLabel(task.workflowArea)}</span><h3>{task.title}</h3></div><span className="status-badge status-badge-muted">Claimable</span></div><p>{task.description ?? "No additional task context."}</p><div className="my-task-card-meta"><span>Current owner: {task.assignedUser.name}</span><span>Due {formatDueTime(task.dueAt)}</span></div><div className="my-task-card-links"><Link className="pill pill-muted" href={`/tasks/${task.id}`}>Open workspace</Link></div></article>) : <div className="notice manager-review-empty-inline" role="status"><p>No claimable tasks currently need assignment.</p></div>}</div></section> : null}
               {visibleAttentionBuckets.map((bucket) => (
                 <section className="manager-review-bucket" key={bucket.status}>
                   <div className="manager-review-bucket-header">
@@ -844,6 +855,10 @@ export function ManagerReviewScreen({
               </div>
 
               <ul className="board-attention-list">
+                <li className="board-attention-item">
+                  <span>Needs assignment</span>
+                  <strong>{needsAssignmentTasks.length}</strong>
+                </li>
                 <li className="board-attention-item">
                   <span>Waiting review</span>
                   <strong>{tasks.length}</strong>

@@ -26,6 +26,10 @@ function getTaskStatusErrorStatus(message: string) {
     message === "Task id is required." ||
     message === "Blocked tasks require a blocker reason." ||
     message === "Approval-required tasks must move through Ready for Review before Completed." ||
+    message === "Accept this task before submitting it for completion." ||
+    message === "Resolve the task's blocked or waiting condition before completion." ||
+    message.startsWith("Task checklist is incomplete:") ||
+    message.startsWith("Concern task dependencies are incomplete:") ||
     message === "Task status payload must be an object." ||
     message.startsWith("Task update is missing required fields:") ||
     message.startsWith("Task update field ") ||

@@ -16,6 +16,7 @@ import type {
   TaskTemplateCompletionCriteria,
   TaskTemplateRequiredUpdateField
 } from "@/server/validation/task-template";
+import { getStaffExecutionFlags, type StaffExecutionFlags } from "@/lib/staff-execution-flags";
 
 export type TaskStatusUpdateResult = {
   id: string;
@@ -317,6 +318,24 @@ function assertValidTaskStatusTransition(
   }
 }
 
+function assertExecutionEvidenceGate(
+  user: AuthenticatedUser,
+  task: { acceptedAt?: Date | null; completionOverrideAt?: Date | null; status: TaskStatus },
+  nextStatus: TaskStatus,
+  flags: StaffExecutionFlags
+) {
+  if (!flags.enabled || !flags.taskAcceptanceEnabled || !shouldEnforceRequiredUpdateFields(nextStatus)) return;
+  if (task.completionOverrideAt && isManager(user)) return;
+  if (!task.acceptedAt) throw new Error("Accept this task before submitting it for completion.");
+  if (
+    task.status === TaskStatus.BLOCKED ||
+    task.status === TaskStatus.WAITING_ON_PARTS ||
+    task.status === TaskStatus.WAITING_ON_APPROVAL
+  ) {
+    throw new Error("Resolve the task's blocked or waiting condition before completion.");
+  }
+}
+
 function buildTaskStatusUpdateData(
   user: AuthenticatedUser,
   task: {
@@ -331,12 +350,17 @@ function buildTaskStatusUpdateData(
     } | null;
   },
   input: NormalizedTaskStatusUpdateInput
+  , skipEvidenceRequirements = false
 ) {
   const now = new Date();
   const managerReviewerId = task.requiresManagerApproval ? user.id : null;
-  assertRequiredChecklistSatisfied(task, input.status);
-  assertConcernDependenciesSatisfied(task, input.status);
-  const { mergedUpdateFieldValues } = assertRequiredUpdateFieldsSatisfied(task, input);
+  if (!skipEvidenceRequirements) {
+    assertRequiredChecklistSatisfied(task, input.status);
+    assertConcernDependenciesSatisfied(task, input.status);
+  }
+  const { mergedUpdateFieldValues } = skipEvidenceRequirements
+    ? { mergedUpdateFieldValues: mergeUpdateFieldValues(task.updateFieldValues, input.updateFields) }
+    : assertRequiredUpdateFieldsSatisfied(task, input);
 
   if (input.status === TaskStatus.BLOCKED) {
     if (!input.blockerReason) {
@@ -481,6 +505,7 @@ export async function updateTaskStatus(
   input: unknown,
   repository: TaskStatusRepository = createTaskStatusRepository(),
   dependencies?: {
+    staffExecutionFlags?: StaffExecutionFlags;
     taskAppointmentAutomationRunner?: typeof runTaskAppointmentAutomationForTaskEvent;
   }
 ) {
@@ -494,11 +519,23 @@ export async function updateTaskStatus(
 
   const authenticatedUser = assertCanUpdateTaskStatus(user, task, normalizedInput.status);
   assertValidTaskStatusTransition(authenticatedUser, task, normalizedInput.status);
+  const staffExecutionFlags = dependencies?.staffExecutionFlags ?? getStaffExecutionFlags();
+  assertExecutionEvidenceGate(
+    authenticatedUser,
+    task,
+    normalizedInput.status,
+    staffExecutionFlags
+  );
   const previousStatus = task.status;
 
   const updatedTask = await repository.updateTaskStatus(
     normalizedTaskId,
-    buildTaskStatusUpdateData(authenticatedUser, task, normalizedInput)
+    buildTaskStatusUpdateData(
+      authenticatedUser,
+      task,
+      normalizedInput,
+      Boolean(staffExecutionFlags.taskAcceptanceEnabled && task.completionOverrideAt && isManager(authenticatedUser))
+    )
   );
 
   if (repository.supportsActivityEvents && task.boardDayId) {
