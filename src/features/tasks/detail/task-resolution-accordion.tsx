@@ -54,7 +54,7 @@ export function TaskResolutionAccordion({
         <div className="etw-resolution-actions">
           <button onClick={() => setExpandedIds(new Set(tasks.map((item) => item.id)))} type="button">Expand All</button>
           <button onClick={() => setExpandedIds(new Set())} type="button">Collapse All</button>
-          <Link className="primary" href={`/tasks?create=1${concernId ? `&concern=${encodeURIComponent(concernId)}` : ""}`}><Plus size={13} /> Add Task</Link>
+          <Link className="primary" href={`/prototype/task-intake?returnTo=${encodeURIComponent(`/tasks/${selectedTaskId}`)}${concernId ? `&concern=${encodeURIComponent(concernId)}` : ""}`}><Plus size={13} /> Task Intake</Link>
         </div>
         <div className="etw-progress" aria-label={`${completionPercent}% complete`}><span style={{ width: `${completionPercent}%` }} /></div>
       </header>

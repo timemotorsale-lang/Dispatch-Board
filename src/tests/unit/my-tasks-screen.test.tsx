@@ -86,7 +86,7 @@ describe("my tasks screen", () => {
     expect(markup).toContain("Review Blocked Tasks");
     expect(markup).toContain("Task Command Center");
     expect(markup).toContain("Task Information");
-    expect(markup).toContain("Create My Task");
+    expect(markup).toContain("Task Intake");
     expect(markup).toContain("Open Workspace");
     expect(markup).toContain("1 evidence items");
     expect(markup).toContain("1 completion requirements remain");

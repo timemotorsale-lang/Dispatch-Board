@@ -4,6 +4,7 @@ import { TaskStatus, WorkflowArea } from "@prisma/client";
 import { useState, useTransition } from "react";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 import type { BoardReadLatestGeneration } from "@/server/services/board-read";
 import type { ActiveUserSummary } from "@/server/services/user-summary";
@@ -202,11 +203,6 @@ export function BoardToolbar({
     resetTaskForm();
   }
 
-  function openTaskModal() {
-    resetTaskForm();
-    setIsCreateTaskOpen(true);
-  }
-
   function handleCreateTaskSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setTaskFeedback(null);
@@ -296,14 +292,12 @@ export function BoardToolbar({
 
           {isManager ? (
             <>
-              <button
+              <Link
                 className="pill pill-secondary"
-                disabled={isTaskPending}
-                onClick={openTaskModal}
-                type="button"
+                href="/prototype/task-intake?returnTo=%2Fboard"
               >
-                Create Task
-              </button>
+                Task Intake
+              </Link>
               <button
                 className="pill pill-action board-generate-button"
                 disabled={isGeneratePending}

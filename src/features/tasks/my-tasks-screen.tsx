@@ -981,17 +981,7 @@ export function MyTasksScreen({
 
         <div className="board-toolbar my-tasks-toolbar">
           <div className="board-toolbar-actions">
-            <button
-              className="pill pill-primary"
-              onClick={() => {
-                setSelfCreateError(null);
-                setSelfCreateMessage(null);
-                setSelfCreateOpen((current) => !current);
-              }}
-              type="button"
-            >
-              {selfCreateOpen ? "Close Create" : "Create My Task"}
-            </button>
+            <Link className="pill pill-primary" href="/prototype/task-intake?returnTo=%2Fmy-tasks">Task Intake</Link>
             <Link className="pill pill-primary" href={fullBoardHref}>
               Open full board
             </Link>
