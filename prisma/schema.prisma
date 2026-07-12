@@ -609,6 +609,7 @@ model Organization {
   crmDecisionRecords                     CrmDecisionRecord[]
   customerLeads                          CustomerLead[]
   concernCases                           ConcernCase[]
+  customerSlaPolicies                    CustomerSlaPolicy[]
 }
 
 model Location {
@@ -1448,6 +1449,9 @@ model ConcernCase {
   firstResponseDueAt     DateTime?
   firstRespondedAt       DateTime?
   resolutionDueAt        DateTime?
+  slaPolicyId            String?
+  slaStage               String                 @default("HEALTHY")
+  slaEvaluatedAt         DateTime?
   templateCode           String
   templateVersion        Int
   closureOutcome         ConcernClosureOutcome?
@@ -1466,6 +1470,9 @@ model ConcernCase {
   taskLinks              ConcernTaskLink[]
   activityEvents         ActivityEvent[]
   customerPromises       CustomerPromise[]
+  slaPolicy              CustomerSlaPolicy?     @relation(fields: [slaPolicyId], references: [id], onDelete: SetNull)
+  slaPauses              CustomerSlaPause[]
+  slaAlerts              CustomerSlaAlert[]
 
   @@unique([reportedByUserId, idempotencyKey])
   @@index([status, priority, dueAt])
@@ -1474,6 +1481,63 @@ model ConcernCase {
   @@index([boardDayId, createdAt])
   @@index([organizationId, status, priority, dueAt])
   @@index([customerId, createdAt])
+  @@index([slaStage, status, resolutionDueAt])
+}
+
+model CustomerSlaPolicy {
+  id                        String        @id @default(cuid())
+  organizationId            String
+  code                      String
+  version                   Int
+  status                    String        @default("ACTIVE")
+  timezone                  String
+  businessWindows           Json
+  severityTargets           Json
+  pauseReasonCodes          Json
+  effectiveFrom             DateTime
+  effectiveTo               DateTime?
+  createdAt                 DateTime      @default(now())
+  updatedAt                 DateTime      @updatedAt
+  organization              Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  concernCases              ConcernCase[]
+
+  @@unique([organizationId, code, version])
+  @@index([organizationId, status, effectiveFrom])
+}
+
+model CustomerSlaPause {
+  id             String      @id @default(cuid())
+  concernCaseId  String
+  reasonCode     String
+  notes          String
+  startedAt      DateTime
+  nextReviewAt   DateTime
+  endedAt        DateTime?
+  startedByUserId String
+  endedByUserId  String?
+  createdAt      DateTime    @default(now())
+  concernCase    ConcernCase @relation(fields: [concernCaseId], references: [id], onDelete: Cascade)
+
+  @@index([concernCaseId, startedAt])
+  @@index([endedAt, nextReviewAt])
+}
+
+model CustomerSlaAlert {
+  id             String      @id @default(cuid())
+  concernCaseId  String
+  clockType      String
+  stage          String
+  taskId         String?
+  firstDetectedAt DateTime
+  lastDetectedAt DateTime
+  occurrenceCount Int        @default(1)
+  resolvedAt     DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  concernCase    ConcernCase @relation(fields: [concernCaseId], references: [id], onDelete: Cascade)
+
+  @@unique([concernCaseId, clockType, stage])
+  @@index([stage, resolvedAt, lastDetectedAt])
 }
 
 model CustomerPromise {

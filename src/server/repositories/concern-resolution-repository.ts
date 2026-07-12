@@ -145,6 +145,7 @@ export function createConcernResolutionRepository(database: PrismaClient = prism
     createPackage(input) {
       return database.$transaction(async (tx) => {
         const intakeBoard = await tx.boardDay.upsert({ where: { date: dateValue(input.intakeBoardDate) }, update: {}, create: { date: dateValue(input.intakeBoardDate) } });
+        const slaPolicy = await tx.customerSlaPolicy.findFirst({ where: { organizationId: input.organizationId, status: "ACTIVE", effectiveFrom: { lte: new Date() }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: new Date() } }] }, orderBy: [{ version: "desc" }] });
         const createDecision = (result: CrmDecisionResult, normalizedInput: Prisma.InputJsonValue) => tx.crmDecisionRecord.create({ data: {
           organizationId: input.organizationId, decisionType: result.decisionType, algorithmVersion: result.algorithmVersion,
           customerId: input.customerId, subjectType: result.subject.type, subjectId: result.subject.id,
@@ -168,7 +169,8 @@ export function createConcernResolutionRepository(database: PrismaClient = prism
             severitySnapshot: input.severity as unknown as Prisma.InputJsonValue, templateCode: input.templateCode,
             templateVersion: input.templateVersion, severityScore: input.severityDecision.score ?? 0,
             severityBand: input.severityDecision.priority ?? "P3", lastDecisionId: severityDecision.id,
-            firstResponseDueAt: input.firstResponseDueAt, resolutionDueAt: input.resolutionDueAt
+            firstResponseDueAt: input.firstResponseDueAt, resolutionDueAt: input.resolutionDueAt,
+            slaPolicyId: slaPolicy?.id ?? null
           }
         });
         await tx.customerPromise.create({ data: { concernCaseId: concern.id, ownerUserId: input.assignedOwnerId, promiseType: "CUSTOMER_UPDATE", promisedAt: input.severityDecision.dueAt ? new Date(input.severityDecision.dueAt) : input.firstResponseDueAt, dueAt: input.customerUpdateDueAt } });
