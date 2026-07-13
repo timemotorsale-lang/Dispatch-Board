@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
-import { updateTaskChecklistItem } from "@/server/services/task-checklist";
+import { deleteTaskSubtaskItem, updateTaskChecklistItem } from "@/server/services/task-checklist";
 
 type TaskChecklistItemRouteContext = {
   params: Promise<{
@@ -28,6 +28,7 @@ function getTaskChecklistItemErrorStatus(message: string) {
     message === "Task checklist item id is required." ||
     message === "Task checklist update payload must be an object." ||
     message === "Task checklist updates require completed to be a boolean." ||
+    message === "Only subtasks can be deleted from the workbench." ||
     message.startsWith("Task checklist updates contain")
   ) {
     return 400;
@@ -71,4 +72,17 @@ export async function PATCH(request: Request, context: TaskChecklistItemRouteCon
 
 export async function POST(request: Request, context: TaskChecklistItemRouteContext) {
   return handleTaskChecklistItemUpdate(request, context);
+}
+
+export async function DELETE(_request: Request, context: TaskChecklistItemRouteContext) {
+  const user = await getCurrentUser();
+  const { id, itemId } = await context.params;
+
+  try {
+    const item = await deleteTaskSubtaskItem(user, id, itemId);
+    return NextResponse.json({ item });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to delete the subtask right now.";
+    return NextResponse.json({ error: message }, { status: getTaskChecklistItemErrorStatus(message) });
+  }
 }

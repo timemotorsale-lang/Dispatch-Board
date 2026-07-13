@@ -10,13 +10,15 @@ import {
   Link2,
   List,
   ListOrdered,
+  Maximize2,
   MessageSquareQuote,
+  Minimize2,
   Smile,
   Strikethrough,
   Underline
 } from "lucide-react";
-import type { KeyboardEvent, ReactNode } from "react";
-import { useRef, useState } from "react";
+import type { KeyboardEvent, PointerEvent, ReactNode } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 export type RichTextCommand =
   | "bold"
@@ -240,8 +242,18 @@ export function RichTextComposer({
   value
 }: RichTextComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const selectionRef = useRef({ start: value.length, end: value.length });
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea || expanded) return;
+
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(Math.max(textarea.scrollHeight, 82), 260)}px`;
+  }, [expanded, value]);
 
   function commitSelection(result: SelectionResult) {
     if (result.value.length > maxLength) {
@@ -249,6 +261,7 @@ export function RichTextComposer({
     }
 
     onChange(result.value);
+    selectionRef.current = { start: result.selectionStart, end: result.selectionEnd };
     requestAnimationFrame(() => {
       textareaRef.current?.focus();
       textareaRef.current?.setSelectionRange(result.selectionStart, result.selectionEnd);
@@ -257,21 +270,32 @@ export function RichTextComposer({
 
   function runCommand(command: RichTextCommand) {
     const textarea = textareaRef.current;
-    const selectionStart = textarea?.selectionStart ?? value.length;
-    const selectionEnd = textarea?.selectionEnd ?? value.length;
+    const selectionStart = textarea?.selectionStart ?? selectionRef.current.start;
+    const selectionEnd = textarea?.selectionEnd ?? selectionRef.current.end;
     commitSelection(applyRichTextCommand(value, command, selectionStart, selectionEnd));
   }
 
   function insertText(text: string) {
     const textarea = textareaRef.current;
-    const selectionStart = textarea?.selectionStart ?? value.length;
-    const selectionEnd = textarea?.selectionEnd ?? value.length;
+    const selectionStart = textarea?.selectionStart ?? selectionRef.current.start;
+    const selectionEnd = textarea?.selectionEnd ?? selectionRef.current.end;
     const nextValue = `${value.slice(0, selectionStart)}${text}${value.slice(selectionEnd)}`;
     commitSelection({
       value: nextValue,
       selectionStart: selectionStart + text.length,
       selectionEnd: selectionStart + text.length
     });
+  }
+
+  function preserveSelection(event: PointerEvent<HTMLButtonElement>) {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      selectionRef.current = {
+        start: textarea.selectionStart,
+        end: textarea.selectionEnd
+      };
+    }
+    event.preventDefault();
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -299,32 +323,7 @@ export function RichTextComposer({
   ];
 
   return (
-    <div className={["rich-text-composer", compact ? "rich-text-composer-compact" : "", className].filter(Boolean).join(" ")}>
-      <div aria-label="Comment formatting" className="rich-text-toolbar" role="toolbar">
-        {buttons.map((button) => (
-          <button
-            aria-label={button.label}
-            disabled={disabled || previewOpen}
-            key={button.command}
-            onClick={() => runCommand(button.command)}
-            title={button.shortcut ? `${button.label} (${button.shortcut})` : button.label}
-            type="button"
-          >
-            {button.icon}
-          </button>
-        ))}
-        <span className="rich-text-toolbar-divider" />
-        <button aria-label="Mention someone" disabled={disabled || previewOpen} onClick={() => insertText("@") } title="Mention someone" type="button"><AtSign size={16} /></button>
-        <button aria-expanded={emojiOpen} aria-label="Add emoji" disabled={disabled || previewOpen} onClick={() => setEmojiOpen((current) => !current)} title="Add emoji" type="button"><Smile size={16} /></button>
-        <button aria-label={previewOpen ? "Edit comment" : "Preview comment"} className="rich-text-preview-toggle" disabled={disabled || !value.trim()} onClick={() => setPreviewOpen((current) => !current)} title={previewOpen ? "Return to editing" : "Preview formatting"} type="button">{previewOpen ? <EyeOff size={16} /> : <Eye size={16} />}</button>
-      </div>
-
-      {emojiOpen && !previewOpen ? (
-        <div aria-label="Emoji choices" className="rich-text-emoji-menu" role="menu">
-          {EMOJI_OPTIONS.map((emoji) => <button aria-label={`Insert ${emoji}`} key={emoji} onClick={() => { insertText(emoji); setEmojiOpen(false); }} type="button">{emoji}</button>)}
-        </div>
-      ) : null}
-
+    <div className={["rich-text-composer", compact ? "rich-text-composer-compact" : "", expanded ? "rich-text-composer-expanded" : "", className].filter(Boolean).join(" ")}>
       {previewOpen ? (
         <div aria-label="Formatted comment preview" className="rich-text-preview"><RichTextContent value={value} /></div>
       ) : (
@@ -335,7 +334,19 @@ export function RichTextComposer({
           maxLength={maxLength}
           name={name}
           onChange={(event) => onChange(event.target.value)}
+          onBlur={(event) => {
+            selectionRef.current = {
+              start: event.currentTarget.selectionStart,
+              end: event.currentTarget.selectionEnd
+            };
+          }}
           onKeyDown={handleKeyDown}
+          onSelect={(event) => {
+            selectionRef.current = {
+              start: event.currentTarget.selectionStart,
+              end: event.currentTarget.selectionEnd
+            };
+          }}
           placeholder={placeholder}
           ref={textareaRef}
           required={required}
@@ -343,6 +354,33 @@ export function RichTextComposer({
           value={value}
         />
       )}
+
+      <div aria-label="Comment formatting" className="rich-text-toolbar" role="toolbar">
+        {buttons.map((button) => (
+          <button
+            aria-label={button.label}
+            disabled={disabled || previewOpen}
+            key={button.command}
+            onClick={() => runCommand(button.command)}
+            onPointerDown={preserveSelection}
+            title={button.shortcut ? `${button.label} (${button.shortcut})` : button.label}
+            type="button"
+          >
+            {button.icon}
+          </button>
+        ))}
+        <span className="rich-text-toolbar-divider" />
+        <button aria-label="Mention someone" disabled={disabled || previewOpen} onClick={() => insertText("@")} onPointerDown={preserveSelection} title="Mention someone" type="button"><AtSign size={16} /></button>
+        <button aria-expanded={emojiOpen} aria-label="Add emoji" disabled={disabled || previewOpen} onClick={() => setEmojiOpen((current) => !current)} onPointerDown={preserveSelection} title="Add emoji" type="button"><Smile size={16} /></button>
+        <button aria-label={expanded ? "Collapse comment editor" : "Expand comment editor"} disabled={disabled || previewOpen} onClick={() => setExpanded((current) => !current)} onPointerDown={preserveSelection} title={expanded ? "Collapse editor" : "Expand editor"} type="button">{expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button>
+        <button aria-label={previewOpen ? "Edit comment" : "Preview comment"} className="rich-text-preview-toggle" disabled={disabled || !value.trim()} onClick={() => setPreviewOpen((current) => !current)} onPointerDown={preserveSelection} title={previewOpen ? "Return to editing" : "Preview formatting"} type="button">{previewOpen ? <EyeOff size={16} /> : <Eye size={16} />}</button>
+      </div>
+
+      {emojiOpen && !previewOpen ? (
+        <div aria-label="Emoji choices" className="rich-text-emoji-menu" role="menu">
+          {EMOJI_OPTIONS.map((emoji) => <button aria-label={`Insert ${emoji}`} key={emoji} onClick={() => { insertText(emoji); setEmojiOpen(false); }} onPointerDown={preserveSelection} type="button">{emoji}</button>)}
+        </div>
+      ) : null}
 
       <div className="rich-text-composer-footer">
         <span>{helperText}</span>

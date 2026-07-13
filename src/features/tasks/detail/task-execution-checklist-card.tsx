@@ -1,4 +1,5 @@
 "use client";
+import { Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { type TaskChecklistItemKindValue } from "@/lib/task-checklist-kind";
@@ -20,6 +21,7 @@ type TaskChecklistItemResponse = {
 
 type TaskExecutionChecklistCardProps = {
   allowCreate?: boolean;
+  allowDelete?: boolean;
   createPlaceholder?: string;
   embedded?: boolean;
   initialItems: ExecutionChecklistItem[];
@@ -31,6 +33,7 @@ type TaskExecutionChecklistCardProps = {
 
 export function TaskExecutionChecklistCard({
   allowCreate = false,
+  allowDelete = false,
   createPlaceholder = "Add item",
   embedded = false,
   initialItems,
@@ -51,7 +54,7 @@ export function TaskExecutionChecklistCard({
     try {
       let persistedItemId = itemId;
 
-      if (itemId.includes("-adaptive-") || itemId.includes("-template-")) {
+      if (itemId.includes("-adaptive-") || itemId.includes("-template-") || itemId.includes("-subtask-")) {
         const fallbackItem = items.find((item) => item.id === itemId);
         const createResponse = await fetch(`/api/tasks/${encodeURIComponent(taskId)}/checklist`, {
           method: "POST",
@@ -150,6 +153,35 @@ export function TaskExecutionChecklistCard({
     }
   }
 
+  async function deleteItem(item: ExecutionChecklistItem) {
+    if (!window.confirm(`Delete subtask "${item.label}"?`)) {
+      return;
+    }
+
+    setIsSaving(true);
+    setErrorMessage(null);
+
+    try {
+      const response = await fetch(
+        `/api/tasks/${encodeURIComponent(taskId)}/checklist/${encodeURIComponent(item.id)}`,
+        { method: "DELETE" }
+      );
+      const result = (await response.json().catch(() => null)) as TaskChecklistItemResponse;
+
+      if (!response.ok) {
+        setErrorMessage(result?.error ?? "Unable to delete this subtask right now.");
+        return;
+      }
+
+      setItems((currentItems) => currentItems.filter((currentItem) => currentItem.id !== item.id));
+      onActivityChanged?.();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Unable to delete this subtask right now.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   const content = (
     <>
       <div className="enterprise-workspace-module-header">
@@ -159,15 +191,28 @@ export function TaskExecutionChecklistCard({
 
       <div className="task-workspace-subtask-grid">
         {items.map((item) => (
-          <label className="task-workspace-subtask-item" key={item.id}>
-            <input
-              checked={item.completed}
-              disabled={isSaving}
-              onChange={() => toggleItem(item.id, item.completed)}
-              type="checkbox"
-            />
-            <span>{item.label}</span>
-          </label>
+          <div className="task-workspace-subtask-item" key={item.id}>
+            <label>
+              <input
+                checked={item.completed}
+                disabled={isSaving}
+                onChange={() => toggleItem(item.id, item.completed)}
+                type="checkbox"
+              />
+              <span>{item.label}</span>
+            </label>
+            {allowDelete && !item.id.includes("-subtask-") ? (
+              <button
+                aria-label={`Delete subtask ${item.label}`}
+                className="task-workspace-subtask-delete"
+                disabled={isSaving}
+                onClick={() => void deleteItem(item)}
+                type="button"
+              >
+                <Trash2 aria-hidden="true" size={14} />
+              </button>
+            ) : null}
+          </div>
         ))}
       </div>
 

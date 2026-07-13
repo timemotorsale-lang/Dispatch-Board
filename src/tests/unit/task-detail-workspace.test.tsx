@@ -128,6 +128,13 @@ describe("task detail workspace", () => {
     expect(markup).toContain("Open Board");
     expect(markup).toContain("No appointment is linked yet.");
     expect(markup).toContain("Estimated Time");
+    expect(markup).toContain("Mark complete");
+    expect(markup).toContain("Collaborators");
+    expect(markup).toContain("Share");
+    expect(markup).toContain("Subtasks");
+    expect(markup).toContain("Add a subtask...");
+    expect(markup).not.toContain("Activity (Latest)");
+    expect(markup).toContain("More task actions");
   });
 
   it("shows linked appointments on the task rail with a board return path", () => {

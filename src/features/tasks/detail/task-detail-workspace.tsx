@@ -35,6 +35,7 @@ import { TaskStatusPanel } from "@/features/tasks/task-status-panel";
 import {
   buildAssociatedUnit,
   buildDefinitionOfDone,
+  buildSubtasks,
   buildPlanningFields,
   buildTaskActivity,
   buildTaskTags,
@@ -46,6 +47,7 @@ import { TaskAppointmentPanel } from "@/features/tasks/detail/task-appointment-p
 import { TaskCollaboratorPanel } from "@/features/tasks/detail/task-collaborator-panel";
 import { TaskMetadataPanel } from "@/features/tasks/detail/task-metadata-panel";
 import { TaskResolutionAccordion } from "@/features/tasks/detail/task-resolution-accordion";
+import { TaskWorkbenchActionBar } from "@/features/tasks/detail/task-workbench-action-bar";
 import { TaskUpdatesCommentsCard } from "@/features/tasks/detail/task-updates-comments-card";
 import type { TaskCompletionReadiness } from "@/server/services/task-execution-readiness";
 
@@ -87,6 +89,7 @@ export function TaskDetailWorkspace({
 }: TaskDetailWorkspaceProps) {
   const concern = task.concernWorkspace;
   const checklist = buildDefinitionOfDone(task);
+  const subtasks = buildSubtasks(task);
   const feedItems = buildTaskActivity(activityEvents, task);
   const associatedUnit = buildAssociatedUnit(task);
   const planning = buildPlanningFields(task);
@@ -150,6 +153,7 @@ export function TaskDetailWorkspace({
       </nav>
 
       <div className="etw-breadcrumb"><Link href={returnTo}>Cases &amp; Tasks</Link><ChevronRight size={13} /><span>Case #{recordNumber}</span></div>
+      <TaskWorkbenchActionBar canComplete={canUpdateStatus} returnTo={returnTo} status={task.status} taskId={task.id} />
 
       <div className="etw-layout">
         <aside className="etw-context-rail">
@@ -169,7 +173,7 @@ export function TaskDetailWorkspace({
           </section>
 
           <section className="etw-card"><h2><UsersRound size={16} /> Customer &amp; Vehicle</h2><dl className="etw-facts compact"><div><dt>Customer</dt><dd>{concern?.customerReference ?? task.customerReference ?? "Not linked"}</dd></div><div><dt>Vehicle</dt><dd>{concern?.vehicleReference ?? task.vehicleReference ?? "Not linked"}</dd></div>{associatedUnit?.stockNumber ? <div><dt>Stock / Unit</dt><dd>{associatedUnit.stockNumber}</dd></div> : null}<div><dt>Current Delay</dt><dd className={overdueDays ? "etw-danger-text" : undefined}>{overdueDays ? `${overdueDays} days` : "Within SLA"}</dd></div></dl></section>
-          <TaskCollaboratorPanel canManage={canManageCollaborators} staff={assignableUsers} task={task} />
+          <div id="task-collaborators"><TaskCollaboratorPanel canManage={canManageCollaborators} staff={assignableUsers} task={task} /></div>
           <section className="etw-card"><h2><FileText size={16} /> Case Summary</h2><p className="etw-summary">{recordDescription}</p></section>
           <section className="etw-card"><h2>Tags</h2><div className="etw-tags">{tags.map((tag) => <span key={tag.id}>{tag.label}</span>)}</div></section>
           <TaskMetadataPanel actorIsManager={actorIsManager} task={task} />
@@ -185,7 +189,7 @@ export function TaskDetailWorkspace({
             })}
           </section>
 
-          <TaskResolutionAccordion checklist={checklist} concernId={concern?.id ?? null} feedItems={feedItems} selectedTaskDescription={task.description} selectedTaskId={task.id} tasks={resolutionTasks} />
+          <TaskResolutionAccordion checklist={checklist} concernId={concern?.id ?? null} selectedTaskDescription={task.description} selectedTaskId={task.id} subtasks={subtasks} tasks={resolutionTasks} />
 
           <section id="notes"><TaskUpdatesCommentsCard canComment={canComment} compact initialFeedItems={feedItems} taskId={task.id} /></section>
         </main>

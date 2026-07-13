@@ -51,5 +51,9 @@ describe("rich text composer", () => {
     expect(markup).toContain('aria-label="Mention someone"');
     expect(markup).toContain('aria-label="Add emoji"');
     expect(markup).toContain('aria-label="Preview comment"');
+    expect(markup).toContain('aria-label="Expand comment editor"');
+    expect(markup.indexOf('aria-label="Team comment"')).toBeLessThan(
+      markup.indexOf('aria-label="Comment formatting"')
+    );
   });
 });

@@ -19,6 +19,7 @@ describe("EnterpriseTaskIntakePrototype", () => {
     expect(markup).toContain("Accountable owner");
     expect(markup).toContain("Save Draft");
     expect(markup).toContain("Create Task");
+    expect(markup).toContain("Review &amp; Create");
     expect(markup).not.toContain("Production phase");
   });
 
