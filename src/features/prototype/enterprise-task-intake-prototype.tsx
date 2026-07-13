@@ -178,7 +178,10 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
 
   async function createTask() {
     if (readiness.score !== 100 || submitLock.current) {
-      setSubmitError("Complete every creation-gate requirement before creating the task.");
+      const missingRequirements = readiness.checks
+        .filter((check) => !check.ready)
+        .map((check) => check.label.toLowerCase());
+      setSubmitError(`Before creating this task, complete: ${missingRequirements.join(", ")}.`);
       return;
     }
     submitLock.current = true;
@@ -337,7 +340,7 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
           <footer className="task-intake-form-footer">
             <div className={submitError ? "task-intake-message error" : "task-intake-message"}><Save size={14} /><span>{submitError || draftMessage || "Draft recovery is available on this device."}</span></div>
             <button onClick={saveDraft} type="button">Save Draft</button>
-            <button className="primary" disabled={readiness.score !== 100 || isSubmitting} onClick={createTask} type="button">{isSubmitting ? "Creating task…" : "Create Task"}</button>
+            <button aria-label="Create Task" className="primary" disabled={isSubmitting} onClick={createTask} type="button">{isSubmitting ? "Creating task…" : readiness.score === 100 ? "Create Task" : `Review & Create · ${readiness.score}%`}</button>
           </footer>
         </main>
 
