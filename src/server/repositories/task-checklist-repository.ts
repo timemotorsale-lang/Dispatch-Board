@@ -65,6 +65,7 @@ export type TaskChecklistRepository = {
   listItemsForTask(taskId: string, kind?: TaskChecklistItemKind): Promise<TaskChecklistItemRecord[]>;
   findItemById(taskId: string, itemId: string): Promise<TaskChecklistItemRecord | null>;
   createItem(taskId: string, input: TaskChecklistCreateInput): Promise<TaskChecklistItemRecord>;
+  deleteItem(taskId: string, itemId: string): Promise<TaskChecklistItemRecord>;
   updateItem(taskId: string, itemId: string, input: TaskChecklistUpdateInput): Promise<TaskChecklistItemRecord>;
 };
 
@@ -133,6 +134,13 @@ export function createTaskChecklistRepository(
           completedByUserId: input.completed ? input.completedByUserId ?? null : null,
           sortOrder: (maxSortOrder._max.sortOrder ?? -1) + 1
         },
+        select: taskChecklistItemSelect
+      });
+    },
+
+    async deleteItem(_taskId, itemId) {
+      return database.taskChecklistItem.delete({
+        where: { id: itemId },
         select: taskChecklistItemSelect
       });
     },

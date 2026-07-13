@@ -4,6 +4,7 @@ import { TASK_CHECKLIST_ITEM_KIND } from "@/lib/task-checklist-kind";
 import type { TaskChecklistRepository } from "@/server/repositories/task-checklist-repository";
 import {
   createTaskChecklistItem,
+  deleteTaskSubtaskItem,
   seedTaskChecklistItems,
   updateTaskChecklistItem
 } from "@/server/services/task-checklist";
@@ -65,6 +66,16 @@ function createTaskChecklistRepositoryHarness() {
         };
 
         items.push(item);
+        return item;
+      },
+      async deleteItem(_taskId: string, itemId: string) {
+        const itemIndex = items.findIndex((item) => item.id === itemId);
+
+        if (itemIndex < 0) {
+          throw new Error("Missing item");
+        }
+
+        const [item] = items.splice(itemIndex, 1);
         return item;
       },
       async updateItem(_taskId: string, itemId: string, input) {
@@ -151,6 +162,49 @@ describe("task checklist service", () => {
       },
       taskId: "task-1"
     });
+  });
+
+  it("deletes only persisted subtasks and records the removal", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const managerUser = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository, items } = createTaskChecklistRepositoryHarness();
+    const subtask = await repository.createItem("task-1", {
+      kind: TASK_CHECKLIST_ITEM_KIND.SUBTASK,
+      label: "Confirm repair authorization"
+    });
+
+    const deletedItem = await deleteTaskSubtaskItem(
+      managerUser,
+      "task-1",
+      subtask.id,
+      repository
+    );
+
+    expect(deletedItem.id).toBe(subtask.id);
+    expect(items).toHaveLength(1);
+    expect(recordBoardActivityEvent).toHaveBeenCalledWith({
+      actorUserId: managerUser?.id ?? null,
+      boardDayId: "board-day-1",
+      eventType: "task.subtask_deleted",
+      message: "Eli Manager deleted a subtask from Vehicle Recon & Inspection: Confirm repair authorization.",
+      metadata: {
+        itemId: subtask.id,
+        kind: TASK_CHECKLIST_ITEM_KIND.SUBTASK,
+        label: "Confirm repair authorization"
+      },
+      taskId: "task-1"
+    });
+  });
+
+  it("does not delete definition-of-done checklist requirements", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const managerUser = usersByEmail.get("morgan.manager@local.test") ?? null;
+    const { repository, items } = createTaskChecklistRepositoryHarness();
+
+    await expect(
+      deleteTaskSubtaskItem(managerUser, "task-1", "item-dod-1", repository)
+    ).rejects.toThrow("Only subtasks can be deleted from the workbench.");
+    expect(items).toHaveLength(1);
   });
 
   it("seeds defaults only when a task does not already have checklist items", async () => {

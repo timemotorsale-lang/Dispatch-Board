@@ -222,6 +222,46 @@ export async function updateTaskChecklistItem(
   return toTaskChecklistItemModel(updatedItem);
 }
 
+export async function deleteTaskSubtaskItem(
+  user: AuthenticatedUser | null,
+  taskId: string,
+  itemId: string,
+  repository: TaskChecklistRepository = createTaskChecklistRepository()
+) {
+  const normalizedTaskId = normalizeRequiredId(taskId, "Task id is required.");
+  const normalizedItemId = normalizeRequiredId(itemId, "Task checklist item id is required.");
+  const task = await requireTaskForChecklist(repository, normalizedTaskId);
+  const authenticatedUser = assertCanManageTaskChecklist(user, task);
+  const existingItem = await repository.findItemById(normalizedTaskId, normalizedItemId);
+
+  if (!existingItem) {
+    throw new Error("Task checklist item not found.");
+  }
+
+  if (existingItem.kind !== TASK_CHECKLIST_ITEM_KIND.SUBTASK) {
+    throw new Error("Only subtasks can be deleted from the workbench.");
+  }
+
+  const deletedItem = await repository.deleteItem(normalizedTaskId, normalizedItemId);
+
+  if (repository.supportsActivityEvents) {
+    await recordBoardActivityEvent({
+      boardDayId: task.boardDayId,
+      actorUserId: authenticatedUser.id,
+      taskId: normalizedTaskId,
+      eventType: "task.subtask_deleted",
+      message: `${authenticatedUser.name} deleted a subtask from ${task.title}: ${existingItem.label}.`,
+      metadata: {
+        itemId: existingItem.id,
+        kind: existingItem.kind,
+        label: existingItem.label
+      }
+    });
+  }
+
+  return toTaskChecklistItemModel(deletedItem);
+}
+
 export async function seedTaskChecklistItems(
   taskId: string,
   items: TaskChecklistSeedItem[],

@@ -9903,7 +9903,7 @@ code {
   min-width: 0;
   padding: 5px 7px;
   overflow-x: auto;
-  border-bottom: 1px solid #e4eaf2;
+  border-top: 1px solid #e4eaf2;
   scrollbar-width: thin;
 }
 
@@ -9962,6 +9962,11 @@ code {
   line-height: 1.5;
 }
 
+.rich-text-composer-expanded textarea {
+  min-height: 320px;
+  max-height: 62vh;
+}
+
 .rich-text-composer:focus-within {
   border-color: #376fe8;
   box-shadow: 0 0 0 3px rgb(55 111 232 / 12%), 0 8px 22px rgb(15 35 65 / 7%);
@@ -10012,7 +10017,7 @@ code {
 .rich-text-emoji-menu {
   position: absolute;
   z-index: 30;
-  top: 43px;
+  bottom: 38px;
   right: 8px;
   display: grid;
   grid-template-columns: repeat(4, 34px);
@@ -10105,6 +10110,13 @@ code {
   font-size: 12px;
 }
 
+.etw-note-composer .rich-text-composer-expanded textarea,
+.task-workspace-comment-form .rich-text-composer-expanded textarea,
+.tasks-console-comment-form .rich-text-composer-expanded textarea {
+  min-height: 320px;
+  max-height: 62vh;
+}
+
 .etw-note-composer .rich-text-composer-footer,
 .tasks-console-comment-form .rich-text-composer-footer {
   font-size: 9px;
@@ -10164,8 +10176,9 @@ code {
 .etw-command-bar,
 .etw-module-nav,
 .etw-breadcrumb,
+.etw-task-action-bar,
 .etw-layout { grid-column: 2; }
-.etw-local-sidebar { grid-column: 1; grid-row: 1 / 5; display: flex; flex-direction: column; min-height: 100vh; padding: 12px 7px; color: #dbe7f8; background: linear-gradient(180deg, #071c39, #06172f); }
+.etw-local-sidebar { grid-column: 1; grid-row: 1 / 6; display: flex; flex-direction: column; min-height: 100vh; padding: 12px 7px; color: #dbe7f8; background: linear-gradient(180deg, #071c39, #06172f); }
 .etw-local-brand { display: flex; align-items: center; gap: 7px; padding: 7px 8px 15px; color: #fff; font-size: 12px; }
 .etw-local-sidebar nav { display: grid; gap: 3px; }
 .etw-local-sidebar a { display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 0 9px; color: #e4edf9; border-radius: 5px; font-size: 10.5px; font-weight: 700; text-decoration: none; }
@@ -10208,6 +10221,22 @@ code {
 .etw-command-actions { margin-left: auto; gap: 10px; }
 .etw-command-actions a { color: #dce7f7; font-size: 11px; font-weight: 700; text-decoration: none; }
 .etw-command-actions .etw-new-action { padding: 8px 18px; color: #fff; background: linear-gradient(135deg, #2764f3, #6637ed); border-radius: 7px; }
+
+.etw-task-action-bar { position: relative; display: flex; align-items: center; justify-content: flex-end; gap: 5px; min-height: 42px; padding: 5px 14px; background:#fff; border-bottom:1px solid var(--etw-line); }
+.etw-task-action-bar>a,.etw-task-action-bar>button,.etw-task-action-more>button { display:inline-flex; align-items:center; gap:5px; min-height:30px; padding:0 9px; color:#3c4a5f; border:1px solid #d8e0eb; border-radius:6px; background:#fff; font-size:10px; font-weight:800; cursor:pointer; text-decoration:none; }
+.etw-task-action-bar .primary { color:#fff; border-color:#2659df; background:#2659df; }
+.etw-task-action-bar button:hover:not(:disabled),.etw-task-action-bar a:hover { color:#174dc7; border-color:#b9cbee; background:#edf3ff; }
+.etw-task-action-bar .primary:hover:not(:disabled) { color:#fff; border-color:#174dc7; background:#174dc7; }
+.etw-task-action-bar button:disabled { cursor:not-allowed; opacity:.55; }
+.etw-task-action-more { position:relative; }
+.etw-task-action-more>div { position:absolute; z-index:40; top:calc(100% + 6px); right:0; display:grid; width:180px; padding:5px; border:1px solid #d8e1ed; border-radius:8px; background:#fff; box-shadow:0 14px 32px rgb(15 35 65 / 18%); }
+.etw-task-action-more>div a { padding:8px 9px; color:#28384f; border-radius:5px; font-size:10px; font-weight:750; text-decoration:none; }
+.etw-task-action-more>div a:hover { color:#174dc7; background:#edf3ff; }
+.etw-task-action-message { order:-1; display:inline-flex; align-items:center; gap:4px; margin-right:auto; color:#53647a; font-size:9px; font-weight:700; }
+.task-workbench-focus .enterprise-task-workbench { grid-template-columns:1fr; }
+.task-workbench-focus .etw-local-sidebar,.task-workbench-focus .etw-context-rail,.task-workbench-focus .etw-command-rail { display:none; }
+.task-workbench-focus .etw-command-bar,.task-workbench-focus .etw-module-nav,.task-workbench-focus .etw-breadcrumb,.task-workbench-focus .etw-task-action-bar,.task-workbench-focus .etw-layout { grid-column:1; }
+.task-workbench-focus .etw-layout { grid-template-columns:minmax(0,1fr); }
 
 .etw-module-nav {
   min-height: 42px;
@@ -10291,6 +10320,10 @@ code {
 .etw-selected-checklist .task-workspace-subtask-item { min-height: 25px; padding: 3px 5px; font-size: 8px; }
 .etw-selected-checklist .task-workspace-inline-create { gap: 4px; padding: 0; }
 .etw-selected-checklist .task-workspace-inline-create input { min-height: 28px; padding: 4px 6px; font-size: 8px; }
+.etw-selected-subtasks .task-workspace-subtask-grid { grid-template-columns: 1fr; gap: 4px; padding: 8px 0; }
+.etw-selected-subtasks .task-workspace-subtask-item { min-height: 25px; padding: 3px 5px; font-size: 8px; }
+.etw-selected-subtasks .task-workspace-inline-create { gap: 4px; padding: 0; }
+.etw-selected-subtasks .task-workspace-inline-create input { min-height: 28px; padding: 4px 6px; font-size: 8px; }
 .etw-selected-description > strong,
 .etw-selected-activity > strong { display: block; margin-bottom: 10px; font-size: 9px; }
 .etw-selected-description p { margin: 0 0 12px; font-size: 8px; }
@@ -10362,7 +10395,14 @@ code {
 
 /* Readable enterprise scale and source-of-truth panel proportions. */
 .etw-layout { grid-template-columns: 310px minmax(520px, 1fr) 320px; }
-.etw-command-rail { max-height: none; overflow: visible; }
+.etw-command-rail {
+  position: sticky;
+  top: 0;
+  max-height: calc(100vh - 10px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
 .etw-local-sidebar a { font-size: 12px; font-weight: 800; }
 .etw-local-sidebar > section a { font-size: 11px; }
 .etw-module-nav a { font-size: 13px; font-weight: 800; }
@@ -10389,6 +10429,8 @@ code {
 .etw-resolution-actions a { min-height: 34px; font-size: 11px; }
 .etw-selected-checklist .task-workspace-subtask-item { min-height: 32px; font-size: 12px; font-weight: 700; }
 .etw-selected-checklist .task-workspace-inline-create input { min-height: 34px; font-size: 11px; }
+.etw-selected-subtasks .task-workspace-subtask-item { min-height: 32px; font-size: 12px; font-weight: 700; }
+.etw-selected-subtasks .task-workspace-inline-create input { min-height: 34px; font-size: 11px; }
 .etw-selected-description > strong,
 .etw-selected-activity > strong { font-size: 12.5px; font-weight: 900; }
 .etw-selected-description p,
@@ -10438,7 +10480,9 @@ code {
   .etw-command-bar,
   .etw-module-nav,
   .etw-breadcrumb,
+  .etw-task-action-bar,
   .etw-layout { grid-column: 1; }
+  .etw-task-action-bar { justify-content:flex-start; overflow-x:auto; }
   .etw-command-bar { flex-wrap: wrap; }
   .etw-brand { min-width: 0; }
   .etw-search { order: 3; flex-basis: 100%; }
@@ -10659,6 +10703,23 @@ code {
   border-radius: 8px;
   font-size: 0.82rem;
 }
+
+.task-workspace-subtask-item > label { display: flex; flex: 1; min-width: 0; align-items: center; gap: 0.55rem; }
+.task-workspace-subtask-item > label > span { flex: 1; min-width: 0; }
+.task-workspace-subtask-delete {
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  color: #dc3545;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  cursor: pointer;
+}
+.task-workspace-subtask-delete:hover { background: #fff0f1; }
+.task-workspace-subtask-delete:disabled { cursor: wait; opacity: 0.45; }
 
 .task-workspace-inline-create {
   display: flex;

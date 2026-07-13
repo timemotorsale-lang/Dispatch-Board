@@ -4,13 +4,12 @@ import { CalendarClock, ChevronDown, ChevronRight, Plus, UserRound } from "lucid
 import Link from "next/link";
 import { useState } from "react";
 
-import { TASK_CHECKLIST_ITEM_KIND } from "@/lib/task-checklist-kind";
-import type { TaskDetailChecklistItem } from "@/features/tasks/detail/task-detail-mappers";
+import type { TaskDetailChecklistItem, TaskDetailSubtaskItem } from "@/features/tasks/detail/task-detail-mappers";
 import { formatTaskDetailDateTime, formatTaskEnumLabel } from "@/features/tasks/detail/task-detail-mappers";
 import { TaskExecutionChecklistCard } from "@/features/tasks/detail/task-execution-checklist-card";
+import { TASK_CHECKLIST_ITEM_KIND } from "@/lib/task-checklist-kind";
 import type { TaskConcernWorkspaceReadModel } from "@/server/services/task-read";
 
-type FeedItem = { actorName: string; createdAt: string; id: string; kind: "comment" | "event"; message: string };
 type ResolutionTask = TaskConcernWorkspaceReadModel["tasks"][number];
 
 function statusTone(status: string) {
@@ -23,16 +22,16 @@ function statusTone(status: string) {
 export function TaskResolutionAccordion({
   checklist,
   concernId,
-  feedItems,
   selectedTaskDescription,
   selectedTaskId,
+  subtasks,
   tasks
 }: {
   checklist: TaskDetailChecklistItem[];
   concernId: string | null;
-  feedItems: FeedItem[];
   selectedTaskDescription: string | null;
   selectedTaskId: string;
+  subtasks: TaskDetailSubtaskItem[];
   tasks: ResolutionTask[];
 }) {
   const [expandedIds, setExpandedIds] = useState(() => new Set([selectedTaskId]));
@@ -73,9 +72,9 @@ export function TaskResolutionAccordion({
               <span>{item.checklistTotal ? `${Math.round(item.checklistCompleted / item.checklistTotal * 100)}%` : "Open"}</span>
             </div>
             {expanded ? <div className={selected ? "etw-selected-task" : "etw-selected-task etw-selected-task-summary"} id={selected ? "selected-checklist" : undefined}>
-              {selected ? <div className="etw-selected-checklist"><TaskExecutionChecklistCard allowCreate createPlaceholder="Add checklist item" embedded initialItems={checklist} kind={TASK_CHECKLIST_ITEM_KIND.DEFINITION_OF_DONE} taskId={item.id} title="Checklist" /></div> : null}
+              {selected ? <div className="etw-selected-checklist"><TaskExecutionChecklistCard embedded initialItems={checklist} kind={TASK_CHECKLIST_ITEM_KIND.DEFINITION_OF_DONE} taskId={item.id} title="Checklist" /></div> : null}
               <div className="etw-selected-description"><strong>Description</strong><p>{selected ? selectedTaskDescription ?? "No description has been added." : item.title}</p><span>Completion Criteria</span><p>{item.completionCriteria}</p>{item.dependsOnStepCodes.length ? <small>Depends on: {item.dependsOnStepCodes.join(", ")}</small> : null}</div>
-              <div className="etw-selected-activity"><strong>Activity (Latest)</strong>{selected && feedItems.length ? feedItems.slice(0, 3).map((feed) => <div key={feed.id}><span /><p><small>{formatTaskDetailDateTime(feed.createdAt)} / {feed.actorName}</small>{feed.message}</p></div>) : <p>No recent activity for this step.</p>}</div>
+              {selected ? <div className="etw-selected-subtasks"><TaskExecutionChecklistCard allowCreate allowDelete createPlaceholder="Add a subtask..." embedded initialItems={subtasks} kind={TASK_CHECKLIST_ITEM_KIND.SUBTASK} taskId={item.id} title="Subtasks" /></div> : null}
             </div> : null}
           </article>;
         })}
