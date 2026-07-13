@@ -132,7 +132,7 @@ export function TaskDetailWorkspace({
         <section>
           <strong>Quick Actions</strong>
           <Link href="/tasks?concern=1"><AlertTriangle size={14} />Log Concern</Link>
-          <Link href={`/prototype/task-intake?returnTo=${encodeURIComponent(`/tasks/${task.id}`)}`}><ClipboardCheck size={14} />Task Intake</Link>
+          <Link href={`/tasks/intake?returnTo=${encodeURIComponent(`/tasks/${task.id}`)}`}><ClipboardCheck size={14} />Task Intake</Link>
           <a href="#notes"><MessageSquareText size={14} />Add Note</a>
           <a href="#documents"><FileText size={14} />Upload Doc</a>
           <a href="#customer-comms"><Mail size={14} />Send Update</a>

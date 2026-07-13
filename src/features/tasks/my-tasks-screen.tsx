@@ -981,7 +981,7 @@ export function MyTasksScreen({
 
         <div className="board-toolbar my-tasks-toolbar">
           <div className="board-toolbar-actions">
-            <Link className="pill pill-primary" href="/prototype/task-intake?returnTo=%2Fmy-tasks">Task Intake</Link>
+            <Link className="pill pill-primary" href="/tasks/intake?returnTo=%2Fmy-tasks">Task Intake</Link>
             <Link className="pill pill-primary" href={fullBoardHref}>
               Open full board
             </Link>

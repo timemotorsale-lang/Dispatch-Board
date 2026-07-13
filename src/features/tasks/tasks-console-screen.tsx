@@ -1879,7 +1879,7 @@ export function TasksConsoleScreen({
         <div className="tasks-console-action-group">
           <Link
             className="pill pill-primary tasks-console-create"
-            href="/prototype/task-intake?returnTo=%2Ftasks"
+            href="/tasks/intake?returnTo=%2Ftasks"
           >
             <Plus size={16} />
             Task Intake

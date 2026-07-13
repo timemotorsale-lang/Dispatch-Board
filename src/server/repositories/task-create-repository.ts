@@ -1,5 +1,7 @@
 ﻿import { Prisma, PrismaClient, type BoardDay } from "@prisma/client";
 
+import type { TaskTemplatePriority } from "@prisma/client";
+
 import { prisma } from "@/server/db/client";
 
 type TaskCreateDatabase = Pick<PrismaClient, "activityEvent" | "boardDay" | "task" | "user">;
@@ -74,6 +76,13 @@ export type CreateTaskRecordInput = {
   customerReference?: string;
   description: string;
   dueAt: Date;
+  intakeMetadata?: {
+    channel: string;
+    expectedOutcome: string;
+    intakeType: string;
+    requiredUpdates: string[];
+  };
+  priority: TaskTemplatePriority;
   readyForReviewAt?: Date | null;
   requiresManagerApproval: boolean;
   reviewedByUserId?: string | null;
@@ -127,6 +136,7 @@ export function createTaskCreateRepository(
           ...(input.customerReference ? { customerReference: input.customerReference } : {}),
           description: input.description,
           dueAt: input.dueAt,
+          priority: input.priority,
           ...(input.readyForReviewAt !== undefined ? { readyForReviewAt: input.readyForReviewAt } : {}),
           requiresManagerApproval: input.requiresManagerApproval,
           ...(input.reviewedByUserId !== undefined
@@ -135,6 +145,26 @@ export function createTaskCreateRepository(
           sourceType: input.sourceType,
           status: input.status,
           title: input.title,
+          ...(input.intakeMetadata
+            ? {
+                templateSnapshot: {
+                  completionCriteria: {
+                    mode: "update_fields",
+                    requiredChecklistKeys: [],
+                    requiredFieldKeys: input.intakeMetadata.requiredUpdates.map((_, index) => `intake_update_${index + 1}`)
+                  },
+                  intake: input.intakeMetadata,
+                  requiredUpdateFields: input.intakeMetadata.requiredUpdates.map((label, index) => ({
+                    helpText: `Required by ${input.intakeMetadata?.intakeType} intake via ${input.intakeMetadata?.channel}.`,
+                    key: `intake_update_${index + 1}`,
+                    label,
+                    required: true,
+                    type: "long_text"
+                  })),
+                  version: 1
+                }
+              }
+            : {}),
           ...(input.vehicleReference ? { vehicleReference: input.vehicleReference } : {}),
           workflowArea: input.workflowArea,
           ...(input.checklistItems?.length
