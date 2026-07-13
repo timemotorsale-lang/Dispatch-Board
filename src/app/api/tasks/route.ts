@@ -24,6 +24,10 @@ function getTaskCreateErrorStatus(message: string) {
     message === "The task owner cannot also be a collaborator." ||
     message === "Task collaborators cannot contain duplicates." ||
     message === "A task can have at most 25 collaborators." ||
+    message === "Task creation requires a valid priority." ||
+    message.startsWith("Task intake metadata") ||
+    message.startsWith("Task intake requires") ||
+    message.startsWith("Every required update") ||
     message === "Blocked tasks require a blocker reason." ||
     message === "Task creation payload must be an object." ||
     message.startsWith("Board date ") ||

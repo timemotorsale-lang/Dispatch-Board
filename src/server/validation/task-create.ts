@@ -1,4 +1,4 @@
-import { TaskStatus, WorkflowArea } from "@prisma/client";
+import { TaskStatus, TaskTemplatePriority, WorkflowArea } from "@prisma/client";
 
 import { normalizeBoardDate } from "@/server/validation/board-date";
 
@@ -12,6 +12,8 @@ const taskCreateAllowedKeys = new Set([
   "collaboratorIds",
   "description",
   "dueAt",
+  "intakeMetadata",
+  "priority",
   "requiresManagerApproval",
   "status",
   "title",
@@ -20,6 +22,14 @@ const taskCreateAllowedKeys = new Set([
 ]);
 const taskStatusValues = new Set(Object.values(TaskStatus));
 const workflowAreaValues = new Set(Object.values(WorkflowArea));
+const taskPriorityValues = new Set(Object.values(TaskTemplatePriority));
+
+export type NormalizedTaskIntakeMetadata = {
+  channel: string;
+  expectedOutcome: string;
+  intakeType: string;
+  requiredUpdates: string[];
+};
 
 export type NormalizedTaskCreateInput = {
   assignedUserId: string;
@@ -31,6 +41,8 @@ export type NormalizedTaskCreateInput = {
   customerReference?: string;
   description: string;
   dueAt: Date;
+  intakeMetadata?: NormalizedTaskIntakeMetadata;
+  priority: TaskTemplatePriority;
   requiresManagerApproval: boolean;
   status: TaskStatus;
   title: string;
@@ -163,6 +175,32 @@ function normalizeCollaboratorIds(value: unknown) {
   return ids;
 }
 
+function normalizePriority(value: unknown) {
+  if (value === undefined) return TaskTemplatePriority.MEDIUM;
+  if (typeof value !== "string" || !taskPriorityValues.has(value as TaskTemplatePriority)) {
+    throw new Error("Task creation requires a valid priority.");
+  }
+  return value as TaskTemplatePriority;
+}
+
+function normalizeIntakeMetadata(value: unknown) {
+  if (value === undefined) return undefined;
+  const metadata = assertTaskCreateObject(value);
+  const allowedKeys = new Set(["channel", "expectedOutcome", "intakeType", "requiredUpdates"]);
+  for (const key of Object.keys(metadata)) {
+    if (!allowedKeys.has(key)) throw new Error(`Task intake metadata contains an unsupported field: "${key}".`);
+  }
+  if (!Array.isArray(metadata.requiredUpdates) || metadata.requiredUpdates.length === 0 || metadata.requiredUpdates.length > 12) {
+    throw new Error("Task intake metadata requires between 1 and 12 required updates.");
+  }
+  return {
+    channel: normalizeRequiredText(metadata.channel, "Task intake metadata requires a channel."),
+    expectedOutcome: normalizeRequiredText(metadata.expectedOutcome, "Task intake metadata requires an expected outcome."),
+    intakeType: normalizeRequiredText(metadata.intakeType, "Task intake metadata requires an intake type."),
+    requiredUpdates: metadata.requiredUpdates.map((item) => normalizeRequiredText(item, "Every required update must be a non-empty string."))
+  };
+}
+
 export function normalizeTaskCreateInput(value: unknown): NormalizedTaskCreateInput {
   const input = assertTaskCreateObject(value);
 
@@ -177,6 +215,7 @@ export function normalizeTaskCreateInput(value: unknown): NormalizedTaskCreateIn
     boardDate: normalizeBoardDateInput(input.boardDate),
     description: normalizeOptionalText(input.description, "description") ?? "",
     dueAt: normalizeDueAt(input.dueAt),
+    priority: normalizePriority(input.priority),
     requiresManagerApproval: normalizeBoolean(
       input.requiresManagerApproval,
       "Task creation requires requiresManagerApproval to be boolean when provided."
@@ -185,6 +224,17 @@ export function normalizeTaskCreateInput(value: unknown): NormalizedTaskCreateIn
     title: normalizeRequiredText(input.title, "Task creation requires a title."),
     workflowArea: normalizeWorkflowArea(input.workflowArea)
   };
+
+  const intakeMetadata = normalizeIntakeMetadata(input.intakeMetadata);
+  if (intakeMetadata) {
+    if (normalizedInput.title.length < 8) throw new Error("Task intake requires an executable title of at least 8 characters.");
+    if (normalizedInput.description.length < 16) throw new Error("Task intake requires a clear brief of at least 16 characters.");
+    if (intakeMetadata.expectedOutcome.length < 20) throw new Error("Task intake requires an expected outcome of at least 20 characters.");
+    if (intakeMetadata.intakeType !== "Quick Task" && !normalizeOptionalText(input.customerReference, "customerReference") && !normalizeOptionalText(input.vehicleReference, "vehicleReference")) {
+      throw new Error("Task intake requires customer or vehicle context for this intake type.");
+    }
+    normalizedInput.intakeMetadata = intakeMetadata;
+  }
 
   const blockerReason = normalizeOptionalText(input.blockerReason, "blockerReason");
 

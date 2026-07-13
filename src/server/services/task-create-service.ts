@@ -215,6 +215,8 @@ export async function createManualTask(
       : {}),
     description: normalizedInput.description,
     dueAt: normalizedInput.dueAt,
+    ...(normalizedInput.intakeMetadata ? { intakeMetadata: normalizedInput.intakeMetadata } : {}),
+    priority: normalizedInput.priority,
     readyForReviewAt: workflowFields.readyForReviewAt,
     requiresManagerApproval: normalizedInput.requiresManagerApproval,
     reviewedByUserId: workflowFields.reviewedByUserId,

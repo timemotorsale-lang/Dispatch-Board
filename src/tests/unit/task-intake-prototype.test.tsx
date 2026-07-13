@@ -15,9 +15,11 @@ describe("EnterpriseTaskIntakePrototype", () => {
     expect(markup).toContain("Collaborators");
     expect(markup).toContain("Choose a staff member");
     expect(markup).toContain("Add collaborator");
-    expect(markup).toContain("No database writes");
+    expect(markup).toContain("Production intake");
+    expect(markup).toContain("Accountable owner");
+    expect(markup).toContain("Save Draft");
     expect(markup).toContain("Create Task");
-    expect(markup).not.toContain("action=\"");
+    expect(markup).not.toContain("Production phase");
   });
 
   it("returns users to the console that opened intake", () => {

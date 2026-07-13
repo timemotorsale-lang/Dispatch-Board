@@ -294,7 +294,7 @@ export function BoardToolbar({
             <>
               <Link
                 className="pill pill-secondary"
-                href="/prototype/task-intake?returnTo=%2Fboard"
+                href="/tasks/intake?returnTo=%2Fboard"
               >
                 Task Intake
               </Link>

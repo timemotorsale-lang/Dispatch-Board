@@ -643,7 +643,7 @@ test("manager can scan the compact Tasks Operations Console", async ({ page }) =
   await expect(page.locator(".tasks-console-table tbody tr")).toHaveCount(8);
   await assertTasksConsoleFitsViewport(page);
 
-  await expect(page.getByRole("link", { name: "Task Intake" }).first()).toHaveAttribute("href", /prototype\/task-intake/);
+  await expect(page.getByRole("link", { name: "Task Intake" }).first()).toHaveAttribute("href", /tasks\/intake/);
 
   await page.getByLabel("Search tasks").fill("blocked");
   await expect(page.getByText("Search: blocked")).toBeVisible();
@@ -735,7 +735,7 @@ test("manager can generate and escalate a title-delay concern package", async ({
   await expect(page.locator(".etw-selected-task")).toHaveCount(7);
   await page.getByRole("button", { name: "Collapse All" }).click();
   await expect(page.locator(".etw-selected-task")).toHaveCount(0);
-  await expect(page.getByRole("link", { name: /Task Intake/ }).first()).toHaveAttribute("href", /prototype\/task-intake/);
+  await expect(page.getByRole("link", { name: /Task Intake/ }).first()).toHaveAttribute("href", /tasks\/intake/);
 
   const retryProof = await page.evaluate(async () => {
     const payload = { title: "Unclear lot concern", description: "Manager should review this operational concern.", source: "MANAGER" };

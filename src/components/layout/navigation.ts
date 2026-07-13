@@ -124,7 +124,7 @@ export const navigationGroups: NavigationGroup[] = [
         icon: Wrench
       },
       {
-        href: "/prototype/task-intake",
+        href: "/tasks/intake",
         title: "Task Intake",
         description: "Prototype guided work-shaping and readiness preview.",
         icon: PackageOpen,

@@ -196,6 +196,13 @@ describe("task create service", () => {
           customerReference: "Taylor R.",
           description: "Call before lunch and confirm final numbers.",
           dueAt: "2026-06-18T17:00:00.000Z",
+          intakeMetadata: {
+            channel: "Phone",
+            expectedOutcome: "The customer receives final numbers and confirms the next step.",
+            intakeType: "Sales Lead / Appointment",
+            requiredUpdates: ["Next step", "Customer contacted"]
+          },
+          priority: "HIGH",
           requiresManagerApproval: true,
           title: "Review hot lead",
           vehicleReference: "2019 Camry",
@@ -249,6 +256,11 @@ describe("task create service", () => {
           expect.objectContaining({ key: "customer_6" })
         ]),
         sourceType: TaskSourceType.MANAGER,
+        priority: "HIGH",
+        intakeMetadata: expect.objectContaining({
+          expectedOutcome: "The customer receives final numbers and confirms the next step.",
+          requiredUpdates: ["Next step", "Customer contacted"]
+        }),
         title: "Review hot lead"
       });
       expect(readActivityEvents()).toEqual([
