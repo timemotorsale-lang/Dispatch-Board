@@ -5,6 +5,7 @@
 **Version:** 1.0 planning baseline  
 **Date:** 2026-07-13  
 **Status:** Algorithm foundation implemented; persistence, APIs, and console UI remain future vertical slices  
+**UI source of truth:** [`INVENTORY_CONSOLE_UI_SOURCE_OF_TRUTH.md`](INVENTORY_CONSOLE_UI_SOURCE_OF_TRUTH.md)
 
 ---
 
