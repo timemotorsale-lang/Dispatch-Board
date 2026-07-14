@@ -90,8 +90,8 @@ Implementation evidence: [`INVENTORY_UNIT_FOUNDATION_IMPLEMENTATION.md`](INVENTO
 
 | ID | Status | Slice | Acceptance |
 | --- | --- | --- | --- |
-| VEH-050 | [ ] | Approve RepairOrder aggregate ADR | RepairOrder, jobs, inspections, approvals, labor, parts, totals, close/reopen, and DMS boundary are explicit. |
-| VEH-051 | [ ] | Add appointment/walk-in service intake | Appointments convert idempotently; customer, vehicle, concern, promise, consent, keys, transport, and intake evidence persist. |
+| VEH-050 | [x] | Approve RepairOrder aggregate ADR | RepairOrder, jobs, inspections, approvals, labor, parts, totals, close/reopen, and DMS boundary are explicit. |
+| VEH-051 | [x] | Add appointment/walk-in service intake | Appointments convert idempotently; customer, vehicle, concern, promise, consent, keys, transport, and intake evidence persist. |
 | VEH-052 | [ ] | Add Digital Vehicle Inspection | Versioned templates capture pass/advisory/fail, measurements, notes, photos/video, author, and timestamps. |
 | VEH-053 | [ ] | Add concern-cause-correction and diagnostic flow | Diagnosis retains symptoms, tests, evidence, technician, uncertainty, recommendation, and change history. |
 | VEH-054 | [ ] | Add estimate and change-order versions | Labor, parts, fees, tax boundary, options, expiry, presentation, and revisions are immutable after presentation. |
