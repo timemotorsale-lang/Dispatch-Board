@@ -306,6 +306,12 @@ Vehicle Operations Milestones 4H–5D are implemented in the repository. Repair 
 
 The additive migration is source-controlled but was not deployed here. Payment processing, tax/general-ledger posting, external DMS/accounting adapters, cycle-count planning, replenishment/obsolescence recommendations, and barcode hardware integration remain separate planned slices. Verification for this checkpoint passed schema validation, lint, typecheck, 184 test files/1,077 tests, production build, and protected-route smoke validation. See [`docs/inventory/SERVICE_CLOSE_PARTS_OPERATIONS_IMPLEMENTATION.md`](inventory/SERVICE_CLOSE_PARTS_OPERATIONS_IMPLEMENTATION.md).
 
+## Enterprise Parts Wave 1 — 2026-07-14
+
+Vehicle Operations Milestones 5E–5G (`VEH-081` through `VEH-083`) are implemented in the repository. Cycle counts now support immutable balance snapshots, blind counting, observe/freeze modes, movement-aware expected quantities, independent variance approval, and controlled `ADJUST` ledger posting. Effective-dated inventory policies drive immutable advisory runs for reorder, transfer review, obsolescence review, and no-action outcomes with demand variability, EOQ, source evidence, confidence, and attributable decisions. `/vehicles/parts-counter` provides barcode-ready canonical lookup, counter custody, purchase receipt, discrepancy, count, policy, and recommendation workflows.
+
+The migration is source-controlled but not deployed. Hardware-specific scanner/label integrations, automated purchasing/transfers/disposal, policy auto-tuning, backfill, and production pilot evidence remain outside this slice. See [`docs/inventory/ENTERPRISE_PARTS_WAVE_ONE_IMPLEMENTATION.md`](inventory/ENTERPRISE_PARTS_WAVE_ONE_IMPLEMENTATION.md).
+
 ## Current Execution Order
 
 1. Complete and accept Appointment architecture decisions.

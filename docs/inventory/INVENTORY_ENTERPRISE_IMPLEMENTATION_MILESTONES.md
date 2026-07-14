@@ -115,6 +115,8 @@ Service-close implementation evidence: [`SERVICE_CLOSE_PARTS_OPERATIONS_IMPLEMEN
 
 Enterprise parts implementation evidence: [`SERVICE_CLOSE_PARTS_OPERATIONS_IMPLEMENTATION.md`](SERVICE_CLOSE_PARTS_OPERATIONS_IMPLEMENTATION.md)
 
+Wave 1 completion evidence: [`ENTERPRISE_PARTS_WAVE_ONE_IMPLEMENTATION.md`](ENTERPRISE_PARTS_WAVE_ONE_IMPLEMENTATION.md)
+
 | ID | Status | Slice | Acceptance |
 | --- | --- | --- | --- |
 | VEH-070 | [x] | Approve parts ledger and costing ADR | Quantity, availability, costing, financial handoff, reversal, count, and negative-stock rules are explicit. |
@@ -128,9 +130,9 @@ Enterprise parts implementation evidence: [`SERVICE_CLOSE_PARTS_OPERATIONS_IMPLE
 | VEH-078 | [x] | Add issue, installation, and unused return | Part custody moves to technician/job/vehicle and unused quantities return through controlled ledger events. |
 | VEH-079 | [x] | Add transfer workflow | Source availability, destination demand, custody, shipment, receipt, discrepancy, cost, and SLA reconcile across locations. |
 | VEH-080 | [x] | Add core, warranty, and vendor return recovery | Eligibility, deadline, shipment, acknowledgement, expected/actual credit, dispute, and write-off approval are tracked. |
-| VEH-081 | [ ] | Add cycle counts and adjustments | Risk-based count plans freeze/observe affected stock; variances require reason and authority before adjustment. |
-| VEH-082 | [ ] | Add replenishment and obsolescence recommendations | ABC-XYZ, safety stock, reorder, EOQ, dead stock, substitution, and forecast confidence run in advisory mode. |
-| VEH-083 | [~] | Add parts counter/receiving workspaces | Live sourcing, PO, receiving, custody, transfer, discrepancy, and recovery flows are implemented; count planning and barcode hardware integration remain planned. |
+| VEH-081 | [x] | Add cycle counts and adjustments | Risk-based count plans freeze/observe affected stock; variances require reason and authority before adjustment. |
+| VEH-082 | [x] | Add replenishment and obsolescence recommendations | ABC-XYZ, safety stock, reorder, EOQ, dead stock, substitution, and forecast confidence run in advisory mode. |
+| VEH-083 | [x] | Add parts counter/receiving workspaces | Search, demand, PO, receive, reserve, issue, return, count, exception, and barcode-ready flows use live data. |
 
 ## M6 — Vehicle 360, documents, and knowledge
 

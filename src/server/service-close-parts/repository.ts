@@ -2,6 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import { prisma } from "@/server/db/client";
 import { executeAggregateMutation, toJson, type AggregateTx } from "@/server/enterprise-command/aggregate-mutation";
 import type { EnterpriseCommandCommitInput } from "@/server/enterprise-command/repository";
+import { assertPartStockLocationWritable } from "@/server/parts-ledger/count-freeze";
 import type { PurchaseLine, ReceiptLine, TransferLine } from "./domain";
 
 type StockMovement = {
@@ -19,6 +20,7 @@ type StockMovement = {
 };
 
 async function moveStock(tx: AggregateTx, command: EnterpriseCommandCommitInput, movement: StockMovement) {
+  await assertPartStockLocationWritable(tx, command.organizationId, movement.stockLocationId, movement.sourceType);
   const stockLocation = await tx.partStockLocation.findFirst({ where: { id: movement.stockLocationId, organizationId: command.organizationId, isActive: true } });
   const part = await tx.part.findFirst({ where: { id: movement.partId, organizationId: command.organizationId, status: "ACTIVE" } });
   if (!stockLocation || !part) throw new Error("Active part and stock location are required.");
@@ -243,6 +245,9 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
 
     recordCustody(command: EnterpriseCommandCommitInput, data: { actorUserId: string; evidence: string[]; occurredAt: Date; partId: string; quantity: number; reason: string; repairJobId: string | null; reservationId: string | null; sourceId: string; stockLocationId: string; type: "ISSUE" | "INSTALL" | "UNUSED_RETURN"; unitCostCents: number }) {
       return executeAggregateMutation(database, command, "vehicle-operations.parts", async (tx) => {
+        const [costBalance, costPart] = await Promise.all([tx.partStockBalance.findUnique({ where: { partId_stockLocationId: { partId: data.partId, stockLocationId: data.stockLocationId } } }), tx.part.findFirst({ where: { id: data.partId, organizationId: command.organizationId }, select: { standardCostCents: true } })]);
+        if (!costPart) throw new Error("Canonical part was not found.");
+        const unitCostCents = costBalance?.averageCostCents || costPart.standardCostCents;
         if (data.type === "INSTALL") {
           if (!data.repairJobId) throw new Error("Installation requires a repair job.");
           const job = await tx.repairJob.findFirst({ where: { id: data.repairJobId, organizationId: command.organizationId, status: { not: "CANCELLED" } } });
@@ -251,13 +256,13 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
           if (!data.reservationId) throw new Error("Part issue requires an active reservation.");
           const reservation = await tx.partReservation.findFirst({ where: { id: data.reservationId, organizationId: command.organizationId, partId: data.partId, stockLocationId: data.stockLocationId, status: "ACTIVE" }, include: { demand: true } });
           if (!reservation || reservation.quantity !== data.quantity) throw new Error("Issue quantity must match the active reservation.");
-          await moveStock(tx, command, { actorUserId: data.actorUserId, allocatedDelta: -data.quantity, movementType: "ISSUE", occurredAt: data.occurredAt, partId: data.partId, quantityDelta: -data.quantity, reason: data.reason, sourceId: data.sourceId, sourceType: "PART_CUSTODY", stockLocationId: data.stockLocationId, unitCostCents: data.unitCostCents });
+          await moveStock(tx, command, { actorUserId: data.actorUserId, allocatedDelta: -data.quantity, movementType: "ISSUE", occurredAt: data.occurredAt, partId: data.partId, quantityDelta: -data.quantity, reason: data.reason, sourceId: data.sourceId, sourceType: "PART_CUSTODY", stockLocationId: data.stockLocationId, unitCostCents });
           await tx.partReservation.update({ where: { id: reservation.id }, data: { releasedAt: data.occurredAt, status: "CONSUMED" } });
           await tx.repairPartDemand.update({ where: { id: reservation.demandId }, data: { quantityReserved: Math.max(0, reservation.demand.quantityReserved - data.quantity), status: "RELEASED", version: { increment: 1 } } });
         } else {
-          await moveStock(tx, command, { actorUserId: data.actorUserId, movementType: "RETURN", occurredAt: data.occurredAt, partId: data.partId, quantityDelta: data.quantity, reason: data.reason, sourceId: data.sourceId, sourceType: "PART_CUSTODY", stockLocationId: data.stockLocationId, unitCostCents: data.unitCostCents });
+          await moveStock(tx, command, { actorUserId: data.actorUserId, movementType: "RETURN", occurredAt: data.occurredAt, partId: data.partId, quantityDelta: data.quantity, reason: data.reason, sourceId: data.sourceId, sourceType: "PART_CUSTODY", stockLocationId: data.stockLocationId, unitCostCents });
         }
-        const record = await tx.partCustodyEvent.create({ data: { actorUserId: data.actorUserId, correlationId: command.correlationId, evidence: toJson(data.evidence), fromStockLocationId: data.type === "UNUSED_RETURN" ? null : data.stockLocationId, id: command.subjectId, occurredAt: data.occurredAt, organizationId: command.organizationId, partId: data.partId, quantity: data.quantity, reason: data.reason, repairJobId: data.repairJobId, sourceId: data.sourceId, sourceType: "PART_CUSTODY", toStockLocationId: data.type === "UNUSED_RETURN" ? data.stockLocationId : null, type: data.type, unitCostCents: data.unitCostCents } });
+        const record = await tx.partCustodyEvent.create({ data: { actorUserId: data.actorUserId, correlationId: command.correlationId, evidence: toJson(data.evidence), fromStockLocationId: data.type === "UNUSED_RETURN" ? null : data.stockLocationId, id: command.subjectId, occurredAt: data.occurredAt, organizationId: command.organizationId, partId: data.partId, quantity: data.quantity, reason: data.reason, repairJobId: data.repairJobId, sourceId: data.sourceId, sourceType: "PART_CUSTODY", toStockLocationId: data.type === "UNUSED_RETURN" ? data.stockLocationId : null, type: data.type, unitCostCents } });
         return { result: { id: record.id, partId: record.partId, quantity: record.quantity, type: record.type } };
       });
     },
