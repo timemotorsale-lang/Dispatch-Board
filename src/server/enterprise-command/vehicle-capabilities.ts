@@ -11,7 +11,9 @@ export const VEHICLE_CAPABILITIES = [
   "INVENTORY_UNIT_VIEW",
   "INVENTORY_UNIT_MANAGE",
   "REPAIR_ORDER_VIEW",
-  "REPAIR_ORDER_MANAGE"
+  "REPAIR_ORDER_MANAGE",
+  "PARTS_VIEW",
+  "PARTS_MANAGE"
 ] as const;
 export type VehicleCapability = (typeof VEHICLE_CAPABILITIES)[number];
 
