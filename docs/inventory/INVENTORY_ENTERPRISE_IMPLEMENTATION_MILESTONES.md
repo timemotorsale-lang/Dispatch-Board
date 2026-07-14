@@ -5,6 +5,7 @@
 **Status legend:** `[x]` evidenced in repository, `[~]` partial foundation, `[ ]` planned  
 **Roadmap:** [`INVENTORY_ENTERPRISE_ROADMAP.md`](INVENTORY_ENTERPRISE_ROADMAP.md)  
 **Architecture:** [`INVENTORY_ENTERPRISE_ARCHITECTURE.md`](INVENTORY_ENTERPRISE_ARCHITECTURE.md)
+**Governance baseline:** [`governance/README.md`](governance/README.md)
 
 ## Delivery contract
 
@@ -27,10 +28,10 @@ Every implementation card must be a reviewable vertical slice and include, where
 | VEH-001 | [x] | Implement deterministic decision foundation | Versioned lifecycle, vehicle, shop, parts, KPI, command, and safety helpers have automated tests. |
 | VEH-002 | [x] | Create Inventory Control Tower prototype | `/vehicles` exposes the approved visual direction while remaining clearly non-durable prototype data. |
 | VEH-003 | [x] | Approve enterprise architecture and roadmap | Architecture, roadmap, and milestone backlog exist and distinguish current from target behavior. |
-| VEH-004 | [ ] | Create domain glossary and RACI | Every stage, amount, clock, status, owner, approval, and source of truth has one approved definition and accountable business owner. |
-| VEH-005 | [ ] | Approve KPI catalog v1 | KPI formulas, exclusions, time zones, units, reporting windows, owners, and drill-through sources are versioned. |
-| VEH-006 | [ ] | Create threat model and data classification | Vehicle, customer, financial, document, credential, audit, and integration risks have mitigations and owners. |
-| VEH-007 | [ ] | Approve SLO, backup, retention, and incident policies | Availability, latency, freshness, recovery, retention, paging, and incident targets are testable. |
+| VEH-004 | [x] | [Create domain glossary and RACI](governance/VEHICLE_OPERATIONS_GLOSSARY_RACI.md) | Every stage, amount, clock, status, owner, approval, and source of truth has one approved definition and accountable business owner. |
+| VEH-005 | [x] | [Approve KPI catalog v1](governance/VEHICLE_OPERATIONS_KPI_CATALOG.md) | KPI formulas, exclusions, time zones, units, reporting windows, owners, and drill-through sources are versioned. |
+| VEH-006 | [x] | [Create threat model and data classification](governance/VEHICLE_OPERATIONS_THREAT_MODEL.md) | Vehicle, customer, financial, document, credential, audit, and integration risks have mitigations and owners. |
+| VEH-007 | [x] | [Approve SLO, backup, retention, and incident policies](governance/VEHICLE_OPERATIONS_RELIABILITY_POLICY.md) | Availability, latency, freshness, recovery, retention, paging, and incident targets are testable. |
 
 ## M1 — Enterprise command and tenancy foundation
 

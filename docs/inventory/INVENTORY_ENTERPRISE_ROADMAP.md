@@ -5,6 +5,7 @@
 **Status:** Planned program; status markers apply only to this Vehicle Operations program  
 **Architecture:** [`INVENTORY_ENTERPRISE_ARCHITECTURE.md`](INVENTORY_ENTERPRISE_ARCHITECTURE.md)  
 **Implementation backlog:** [`INVENTORY_ENTERPRISE_IMPLEMENTATION_MILESTONES.md`](INVENTORY_ENTERPRISE_IMPLEMENTATION_MILESTONES.md)
+**Governance baseline:** [`governance/README.md`](governance/README.md)
 
 ## 1. Outcome
 
@@ -20,6 +21,7 @@ This roadmap aims for capability and operating-quality parity with leading enter
 - static `/vehicles` control-tower prototype and approved UI source of truth
 - deterministic vehicle, shop, parts, lifecycle, KPI, decision, acceptance, and safety helpers with automated tests
 - documented retail inventory, shop, and parts workflow boundaries
+- completed M0 glossary/RACI, KPI catalog, threat/data-classification model, and reliability/retention/incident policy baseline
 
 ### Not yet implemented as durable Inventory Console behavior
 

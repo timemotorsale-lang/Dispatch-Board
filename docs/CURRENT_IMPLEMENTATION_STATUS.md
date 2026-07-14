@@ -41,6 +41,10 @@ npm run typecheck
 
 Focused appointment scheduling recommendation validation passed for the new recommendation service, route parsing/error handling, unscheduled-draft board integration, and related type safety. Full lint, full test suite, build, and deployment validation were not rerun during this slice.
 
+## Vehicle Operations Governance Baseline — 2026-07-13
+
+Vehicle Operations Milestone 0 (`VEH-004` through `VEH-007`) is complete as a planning and governance baseline. The repository now contains a canonical glossary/RACI, KPI catalog v1, threat model/data classification, and SLO/backup/retention/incident policy under `docs/inventory/governance/`. These documents define implementation requirements and acceptance evidence; they do not claim that the planned vehicle persistence, APIs, security controls, monitoring, backup topology, or incident automation is implemented.
+
 ## Customers Console Baseline
 
 Verified Customers implementation as of 2026-07-10:
