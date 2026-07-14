@@ -633,6 +633,42 @@ enum WorkProcedureStatus {
   RETIRED
 }
 
+enum WorkKnowledgeType {
+  PROCEDURE
+  BULLETIN
+  SAFETY_NOTE
+  REFERENCE
+}
+
+enum WorkKnowledgeStatus {
+  DRAFT
+  APPROVED
+  SUPERSEDED
+  RETIRED
+}
+
+enum WorkKnowledgeEventType {
+  CREATED
+  APPROVED
+  SUPERSEDED
+  RETIRED
+}
+
+enum VehicleOutputFormat {
+  JSON
+  PRINT_HTML
+}
+
+enum VehicleOutputClassification {
+  INTERNAL
+  RESTRICTED
+}
+
+enum VehicleOutputEventType {
+  GENERATED
+  DOWNLOADED
+}
+
 enum TechnicianQualificationType {
   SKILL
   CERTIFICATION
@@ -1105,6 +1141,11 @@ model User {
   uploadedVehicleEvidenceObjects        VehicleEvidenceObject[]                @relation("VehicleEvidenceUploader")
   createdVehicleEvidenceLinks           VehicleEvidenceLink[]                  @relation("VehicleEvidenceLinkCreator")
   vehicleEvidenceEvents                 VehicleEvidenceEvent[]                 @relation("VehicleEvidenceEventActor")
+  createdWorkKnowledgeLinks              WorkKnowledgeLink[]                    @relation("WorkKnowledgeCreator")
+  approvedWorkKnowledgeLinks             WorkKnowledgeLink[]                    @relation("WorkKnowledgeApprover")
+  workKnowledgeEvents                    WorkKnowledgeEvent[]                   @relation("WorkKnowledgeEventActor")
+  requestedVehicleOutputs               VehicleControlledOutput[]              @relation("VehicleOutputRequester")
+  vehicleOutputEvents                    VehicleControlledOutputEvent[]         @relation("VehicleOutputEventActor")
 
   @@index([isActive])
 }
@@ -1281,6 +1322,10 @@ model Organization {
   vehicleEvidenceObjects                VehicleEvidenceObject[]
   vehicleEvidenceLinks                  VehicleEvidenceLink[]
   vehicleEvidenceEvents                 VehicleEvidenceEvent[]
+  workKnowledgeLinks                    WorkKnowledgeLink[]
+  workKnowledgeEvents                   WorkKnowledgeEvent[]
+  vehicleControlledOutputs              VehicleControlledOutput[]
+  vehicleControlledOutputEvents         VehicleControlledOutputEvent[]
   enterpriseProjectionCheckpoints       EnterpriseProjectionCheckpoint[]
 }
 
@@ -1863,6 +1908,7 @@ model Vehicle {
   serviceVisits             ServiceVisit[]
   repairOrders              RepairOrder[]
   evidenceLinks             VehicleEvidenceLink[]
+  controlledOutputs         VehicleControlledOutput[]
 
   @@unique([organizationId, vehicleNumber])
   @@unique([id, organizationId])
@@ -2271,9 +2317,65 @@ model WorkProcedureVersion {
   supersedes       WorkProcedureVersion? @relation("WorkProcedureSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
   supersededBy     WorkProcedureVersion? @relation("WorkProcedureSupersession")
   repairJobs       RepairJob[]
+  knowledgeLinks   WorkKnowledgeLink[]
 
   @@unique([organizationId, workTypeCode, version])
   @@index([organizationId, status, effectiveFrom, effectiveTo])
+}
+
+model WorkKnowledgeLink {
+  id                 String              @id @default(cuid())
+  organizationId     String
+  workTypeCode       String
+  procedureVersionId String?
+  type               WorkKnowledgeType
+  status             WorkKnowledgeStatus @default(DRAFT)
+  title              String
+  uri                String
+  sourceOrganization String
+  sourceReference    String
+  revision           String
+  contentHashSha256  String
+  authority          String              @default("REFERENCE_ONLY")
+  effectiveFrom      DateTime
+  effectiveTo        DateTime?
+  supersedesId       String?             @unique
+  createdByUserId    String
+  approvedByUserId   String?
+  approvedAt         DateTime?
+  reason             String
+  version            Int                 @default(1)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  procedureVersion   WorkProcedureVersion? @relation(fields: [procedureVersionId], references: [id], onDelete: Restrict)
+  supersedes         WorkKnowledgeLink?  @relation("WorkKnowledgeSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy       WorkKnowledgeLink?  @relation("WorkKnowledgeSupersession")
+  createdByUser      User                @relation("WorkKnowledgeCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  approvedByUser     User?               @relation("WorkKnowledgeApprover", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+  events             WorkKnowledgeEvent[]
+
+  @@unique([organizationId, sourceOrganization, sourceReference, revision])
+  @@index([organizationId, workTypeCode, status, effectiveFrom, effectiveTo])
+  @@index([procedureVersionId, status])
+}
+
+model WorkKnowledgeEvent {
+  id                 String                 @id @default(cuid())
+  organizationId     String
+  knowledgeLinkId    String
+  actorUserId        String
+  eventType          WorkKnowledgeEventType
+  reason             String
+  metadata           Json
+  occurredAt         DateTime               @default(now())
+  createdAt          DateTime               @default(now())
+  organization       Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  knowledgeLink      WorkKnowledgeLink      @relation(fields: [knowledgeLinkId], references: [id], onDelete: Restrict)
+  actorUser          User                   @relation("WorkKnowledgeEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([knowledgeLinkId, occurredAt])
+  @@index([organizationId, eventType, occurredAt])
 }
 
 model TechnicianQualification {
@@ -3489,6 +3591,49 @@ model VehicleEvidenceEvent {
   actorUser        User                     @relation("VehicleEvidenceEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
 
   @@index([evidenceObjectId, occurredAt])
+  @@index([organizationId, eventType, occurredAt])
+}
+
+model VehicleControlledOutput {
+  id                 String                      @id @default(cuid())
+  organizationId     String
+  vehicleId          String
+  requestedByUserId  String
+  format             VehicleOutputFormat
+  classification     VehicleOutputClassification
+  reason             String
+  watermark          String
+  fieldManifest      Json
+  redactedFields     Json
+  packageSnapshot    Json
+  checksumSha256     String
+  expiresAt          DateTime
+  createdAt          DateTime                    @default(now())
+  organization       Organization                @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  vehicle            Vehicle                     @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  requestedByUser    User                        @relation("VehicleOutputRequester", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  events             VehicleControlledOutputEvent[]
+
+  @@unique([organizationId, checksumSha256])
+  @@index([organizationId, vehicleId, createdAt])
+  @@index([organizationId, expiresAt])
+}
+
+model VehicleControlledOutputEvent {
+  id                 String                 @id @default(cuid())
+  organizationId     String
+  outputId           String
+  actorUserId        String
+  eventType          VehicleOutputEventType
+  reason             String
+  metadata           Json
+  occurredAt         DateTime               @default(now())
+  createdAt          DateTime               @default(now())
+  organization       Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  output             VehicleControlledOutput @relation(fields: [outputId], references: [id], onDelete: Restrict)
+  actorUser          User                   @relation("VehicleOutputEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([outputId, occurredAt])
   @@index([organizationId, eventType, occurredAt])
 }
 

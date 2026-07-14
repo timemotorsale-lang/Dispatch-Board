@@ -142,9 +142,9 @@ Wave 1 completion evidence: [`ENTERPRISE_PARTS_WAVE_ONE_IMPLEMENTATION.md`](ENTE
 | VEH-091 | [x] | Add Vehicle 360 summary and timeline | Identity, owner, location, stage, work, risk, next action, milestones, and correlated events load from projections. |
 | VEH-092 | [x] | Add Vehicle 360 operational tabs | Inventory, service, parts, appointments, documents, warranty, communications, costs, decisions, and audit are permission-aware. |
 | VEH-093 | [x] | Add relationship graph | Customer, inventory, RO, jobs, parts, appointments, tasks, documents, claims, and external identities are navigable. |
-| VEH-094 | [ ] | Add global operational search | Vehicle, VIN, stock, customer, RO, job, appointment, part, PO, and document metadata search is fast and tenant-safe. |
-| VEH-095 | [ ] | Add procedures and knowledge links | Work types can surface approved procedures, bulletins, safety notes, and revision history without making external content authoritative. |
-| VEH-096 | [ ] | Add controlled exports and print views | Export/print respects field permissions, reason, watermarking where required, and audit evidence. |
+| VEH-094 | [x] | Add global operational search | Vehicle, VIN, stock, customer, RO, job, appointment, part, PO, and document metadata search is fast and tenant-safe. |
+| VEH-095 | [x] | Add procedures and knowledge links | Work types can surface approved procedures, bulletins, safety notes, and revision history without making external content authoritative. |
+| VEH-096 | [x] | Add controlled exports and print views | Export/print respects field permissions, reason, watermarking where required, and audit evidence. |
 
 ## M7 — Customer, warranty, and commercial handoffs
 
