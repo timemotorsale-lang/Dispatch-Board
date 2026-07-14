@@ -111,6 +111,7 @@ npm run build
 - Enterprise Appointment program: [docs/appointments/README.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/appointments/README.md)
 - MVP scope: [docs/MVP_SCOPE.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/MVP_SCOPE.md)
 - Release checklist: [docs/RELEASE_CHECKLIST.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/RELEASE_CHECKLIST.md)
+- Enterprise workspace UI source of truth: [docs/ENTERPRISE_WORKSPACE_UI_SOURCE_OF_TRUTH.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/ENTERPRISE_WORKSPACE_UI_SOURCE_OF_TRUTH.md)
 
 ## MVP release boundary
 
