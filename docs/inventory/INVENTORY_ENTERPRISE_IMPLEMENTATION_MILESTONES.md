@@ -97,12 +97,12 @@ Implementation evidence: [`INVENTORY_UNIT_FOUNDATION_IMPLEMENTATION.md`](INVENTO
 | VEH-054 | [x] | Add estimate and change-order versions | Labor, parts, fees, tax boundary, options, expiry, presentation, and revisions are immutable after presentation. |
 | VEH-055 | [x] | Add authorization workflow | Accepted, declined, deferred, partial, expired, and revoked approvals reference the exact presented estimate version. |
 | VEH-056 | [x] | Add RepairJob and readiness gates | Each job retains work type, labor guide, skill/certification, bay/tool, parts, authorization, priority, and dependencies. |
-| VEH-057 | [ ] | Add work templates and service procedures | Reusable tasks, inspections, safety steps, evidence, standard time, and QC rules are versioned and effective-dated. |
-| VEH-058 | [ ] | Add labor time ledger | Start, pause, reason, resume, finish, correction, overlap, present hours, and approved non-productive time are attributable. |
-| VEH-059 | [ ] | Add shop lane and priority projection | Fast-track eligibility, diagnostic/heavy route, schedule pressure, customer promise, safety, readiness, and explanation are live. |
-| VEH-060 | [ ] | Add technician/bay/resource requirements | Required skills, certifications, bay, tools, equipment, availability, location, and duration are separate from bookings. |
-| VEH-061 | [ ] | Add shop dispatch board | Dispatchers can filter qualified work, book/rebook, current/next stage, inspect conflicts, and record override reasons. |
-| VEH-062 | [ ] | Add technician execution workspace | Mobile users see current/next work, history, instructions, clocks, parts, evidence, blockers, and QC handoff with minimal taps. |
+| VEH-057 | [x] | Add work templates and service procedures | Reusable tasks, inspections, safety steps, evidence, standard time, and QC rules are versioned and effective-dated. |
+| VEH-058 | [x] | Add labor time ledger | Start, pause, reason, resume, finish, correction, overlap, present hours, and approved non-productive time are attributable. |
+| VEH-059 | [x] | Add shop lane and priority projection | Fast-track eligibility, diagnostic/heavy route, schedule pressure, customer promise, safety, readiness, and explanation are live. |
+| VEH-060 | [x] | Add technician/bay/resource requirements | Required skills, certifications, bay, tools, equipment, availability, location, and duration are separate from bookings. |
+| VEH-061 | [x] | Add shop dispatch board | Dispatchers can filter qualified work, book/rebook, current/next stage, inspect conflicts, and record override reasons. |
+| VEH-062 | [x] | Add technician execution workspace | Mobile users see current/next work, history, instructions, clocks, parts, evidence, blockers, and QC handoff with minimal taps. |
 | VEH-063 | [ ] | Add advisor service workspace | Advisors manage status, promises, estimates, approvals, customer contact, exceptions, and delivery readiness. |
 | VEH-064 | [ ] | Add QC and release gate | Applicable completion, safety, peer verification, road test, evidence, and failed-QC return paths are enforced. |
 | VEH-065 | [ ] | Add comeback and follow-up linkage | A comeback references original job/correction, reason review, warranty responsibility, cost, and outcome without punitive automation. |
