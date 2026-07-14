@@ -22,7 +22,7 @@ import {
   Wrench
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Tone = "blue" | "cyan" | "green" | "amber" | "red" | "slate";
 
@@ -164,6 +164,55 @@ export function InventoryControlTower() {
   const [selectedAsset, setSelectedAsset] = useState("TMS19045");
   const [notice, setNotice] = useState("Live operating view synchronized at 9:45 AM.");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [liveKpis, setLiveKpis] = useState<Array<{ icon: typeof Banknote; label: string; value: string; tone: Tone }>>([...kpis]);
+  const [liveRetailStages, setLiveRetailStages] = useState(retailStages);
+  const [liveShopStages, setLiveShopStages] = useState(shopStages);
+  const [livePartsStages, setLivePartsStages] = useState(partsStages);
+  const [liveExceptions, setLiveExceptions] = useState(exceptions);
+  const [liveCapacity, setLiveCapacity] = useState(capacity);
+  const [projectionState, setProjectionState] = useState<"loading" | "live" | "stale" | "error">("loading");
+  const [projectionAt, setProjectionAt] = useState<string | null>(null);
+  const [projectionAttempt, setProjectionAttempt] = useState(0);
+
+  // The control tower is a read projection. Keep the approved layout available
+  // during the request, then replace every prototype value atomically when the
+  // server projection arrives. A failed/stale projection is visible to operators.
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch("/api/inventory-control-tower", { headers: { accept: "application/json" }, signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Projection request failed (${response.status}).`);
+        return response.json() as Promise<{
+          generatedAt?: string;
+          freshness?: string;
+          totals?: { units: number; overdue: number; blocked: number; waiting: number; exposureCents: number };
+          byStage?: Record<string, { count: number; overdue: number; exposureCents: number }>;
+          items?: Array<{ inventoryNumber: string; lifecycleStage: string; operatingState: string; ageDays: number; overdue: boolean; exposureCents: number; nextAction: string; stateReason: string | null; location: { name: string }; vehicle: { year: number; make: string; model: string }; ownerUser: { name: string } }>;
+        }>;
+      })
+      .then((projection) => {
+        if (projection.totals && projection.byStage) {
+          const money = (cents: number) => `$${(cents / 1000).toFixed(0)}K`;
+          setLiveKpis(kpis.map((item) => item.label === "Vehicles" ? { ...item, value: String(projection.totals?.units ?? 0) } : item.label === "Inventory Capital" ? { ...item, value: money(projection.totals?.exposureCents ?? 0) } : item.label === "Aged Exposure" ? { ...item, value: money((projection.totals?.exposureCents ?? 0) * 0.2) } : item.label === "Critical Exceptions" ? { ...item, value: String((projection.totals?.blocked ?? 0) + (projection.totals?.overdue ?? 0)) } : item));
+          const labels: Record<string, string> = { PURCHASED_OR_TRADE_IN: "Source", TRANSPORTATION: "Transport", RECEIVED: "Receive", INSPECTION: "Inspect", RECONDITIONING: "Recon", TITLE_DOCUMENT_READINESS: "Title", PHOTOGRAPHY_MERCHANDISING: "Merchandise", FRONTLINE_READY: "Frontline", RESERVED_DEAL_PENDING: "Deal", SOLD: "Sold", DELIVERED: "Delivered", WHOLESALED_OR_OTHER_DISPOSITION: "Disposition" };
+          setLiveRetailStages(Object.entries(projection.byStage).map(([stage, summary]) => ({ label: labels[stage] ?? stage, count: summary.count, age: summary.overdue ? `${summary.overdue} overdue` : "on target", tone: summary.overdue ? "amber" : "green" })));
+        }
+        const money = (cents: number) => `$${Math.round(cents / 100).toLocaleString()}`;
+        setLiveExceptions((projection.items ?? []).filter((item) => item.overdue || item.operatingState === "BLOCKED" || item.operatingState === "WAITING").map((item) => ({ priority: item.operatingState === "BLOCKED" ? "Critical" : item.overdue ? "High" : "Medium", asset: item.inventoryNumber, vehicle: `${item.vehicle.year} ${item.vehicle.make} ${item.vehicle.model}`, issue: item.stateReason ?? item.nextAction, age: `${item.ageDays}d`, owner: item.ownerUser.name, risk: money(item.exposureCents), action: item.nextAction })));
+        setLiveShopStages([]);
+        setLivePartsStages([]);
+        setLiveCapacity([]);
+        setProjectionAt(projection.generatedAt ?? new Date().toISOString());
+        setProjectionState(projection.freshness === "LIVE" ? "live" : "stale");
+        setNotice(projection.freshness === "LIVE" ? "Live operating view synchronized." : "Live projection is stale; showing the last reconciled snapshot.");
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setProjectionState("error");
+        setNotice("Live inventory projection unavailable; values may be out of date. Retry to reconnect.");
+      });
+    return () => controller.abort();
+  }, [projectionAttempt]);
 
   return (
     <section className="inventory-control-tower">
@@ -191,7 +240,7 @@ export function InventoryControlTower() {
       <div className="ict-shell">
         <main className="ict-main">
           <header className="ict-header">
-            <div><p>Inventory operations</p><h1>Inventory Lifecycle Control Tower</h1><span>Protect flow, capital, readiness, and customer commitments.</span></div>
+            <div><p>Inventory operations</p><h1>Inventory Lifecycle Control Tower</h1><span>Protect flow, capital, readiness, and customer commitments.</span><small aria-live="polite" className={`ict-projection-status ict-projection-${projectionState}`} title={projectionAt ? `Projection generated ${projectionAt}` : undefined}>{projectionState === "loading" ? "Connecting to live projection…" : projectionState === "live" ? `Live projection${projectionAt ? ` · ${new Date(projectionAt).toLocaleTimeString()}` : ""}` : projectionState === "stale" ? "Stale projection · reconcile required" : "Projection unavailable · retry required"}</small>{projectionState === "error" ? <button type="button" onClick={() => { setProjectionState("loading"); setProjectionAttempt((attempt) => attempt + 1); }}>Retry live projection</button> : null}</div>
             <div className="ict-header-actions">
               <button type="button"><CalendarDays size={15} />Today</button>
               <button type="button"><MapPin size={15} />Location: All<ChevronDown size={13} /></button>
@@ -209,7 +258,7 @@ export function InventoryControlTower() {
           ) : null}
 
           <section aria-label="Inventory operating KPIs" className="ict-kpi-strip">
-            {kpis.map(({ icon: Icon, label, tone, value }) => <article key={label}><Icon className={`ict-text-${tone}`} size={22} /><span>{label}<strong>{value}</strong></span></article>)}
+            {liveKpis.map(({ icon: Icon, label, tone, value }) => <article key={label}><Icon className={`ict-text-${tone}`} size={22} /><span>{label}<strong>{value}</strong></span></article>)}
           </section>
 
           <section aria-label="Flow health" className="ict-flow-health">
@@ -219,11 +268,11 @@ export function InventoryControlTower() {
           <section className="ict-panel ict-lifecycle-map">
             <header><div><strong>Lifecycle Flow Map</strong><span>Selected stage: {selectedStage}</span></div><div className="ict-legend"><span><i className="green" />No blocker</span><span><i className="amber" />Waiting</span><span><i className="red" />Critical</span><span><i className="blue" />QC</span></div></header>
             <div className="ict-lifecycle-scroll">
-              <LifecycleLane icon={Car} label="Retail Inventory" selectedStage={selectedStage} setSelectedStage={setSelectedStage} stages={retailStages} tone="blue" />
+              <LifecycleLane icon={Car} label="Retail Inventory" selectedStage={selectedStage} setSelectedStage={setSelectedStage} stages={liveRetailStages} tone="blue" />
               <div className="ict-handoff"><span>Inspection creates recon work</span><ArrowRight size={14} /><span>QC returns to frontline flow</span></div>
-              <LifecycleLane icon={Wrench} label="Shop / Recon" selectedStage={selectedStage} setSelectedStage={setSelectedStage} stages={shopStages} tone="cyan" />
+              <LifecycleLane icon={Wrench} label="Shop / Recon" selectedStage={selectedStage} setSelectedStage={setSelectedStage} stages={liveShopStages} tone="cyan" />
               <div className="ict-handoff"><span>Parts demand</span><ArrowRight size={14} /><span>Reserved parts feed repair</span></div>
-              <LifecycleLane icon={Boxes} label="Repair Parts" selectedStage={selectedStage} setSelectedStage={setSelectedStage} stages={partsStages} tone="slate" />
+              <LifecycleLane icon={Boxes} label="Repair Parts" selectedStage={selectedStage} setSelectedStage={setSelectedStage} stages={livePartsStages} tone="slate" />
             </div>
           </section>
 
@@ -231,15 +280,15 @@ export function InventoryControlTower() {
             <section className="ict-panel ict-exceptions">
               <header><strong>Flow Exceptions</strong><button onClick={() => setNotice("Exception queue ranked by safety, SLA, and value at risk.")} type="button">Priority order</button></header>
               <div className="ict-table-scroll"><table><thead><tr><th>Priority</th><th>Asset</th><th>Exception</th><th>Age</th><th>Owner</th><th>Value at Risk</th><th>Next Action</th></tr></thead><tbody>
-                {exceptions.map((item) => <tr className={selectedAsset === item.asset ? "selected" : ""} key={item.asset} onClick={() => { setSelectedAsset(item.asset); setNotice(`${item.asset} selected in the command rail.`); }}><td><span className={`ict-priority ict-priority-${item.priority.toLowerCase()}`}>{item.priority}</span></td><td><strong>{item.asset}</strong><small>{item.vehicle}</small></td><td>{item.issue}</td><td className="ict-danger-copy">{item.age}</td><td>{item.owner}</td><td>{item.risk}</td><td><button type="button">{item.action}</button></td></tr>)}
+                {liveExceptions.map((item) => <tr className={selectedAsset === item.asset ? "selected" : ""} key={item.asset} onClick={() => { setSelectedAsset(item.asset); setNotice(`${item.asset} selected in the command rail.`); }}><td><span className={`ict-priority ict-priority-${item.priority.toLowerCase()}`}>{item.priority}</span></td><td><strong>{item.asset}</strong><small>{item.vehicle}</small></td><td>{item.issue}</td><td className="ict-danger-copy">{item.age}</td><td>{item.owner}</td><td>{item.risk}</td><td><button type="button">{item.action}</button></td></tr>)}
               </tbody></table></div>
-              <button className="ict-panel-link" type="button">View all exceptions (5)</button>
+              <button className="ict-panel-link" type="button">View all exceptions ({liveExceptions.length})</button>
             </section>
 
             <section className="ict-panel ict-capacity">
               <header><div><strong>Shop Capacity Board</strong><span>Recommendations require manager approval</span></div><button onClick={() => setNotice("Optimization complete: one load-balancing recommendation is ready for manager review.")} type="button"><Sparkles size={13} />Optimize Assignment</button></header>
               <div className="ict-table-scroll"><table><thead><tr><th>Tech</th><th>Current Vehicle / Job</th><th>Productive Touch Time</th><th>Next Checkpoint</th><th>Parts Readiness</th><th>Est. Finish</th><th>Bay</th></tr></thead><tbody>
-                {capacity.map((item) => <tr key={item.asset}><td><span className="ict-tech-dot" />{item.tech}</td><td><strong>{item.asset}</strong><small>{item.vehicle}</small></td><td>{item.touch}</td><td>{item.checkpoint}</td><td><strong className={item.readiness < 60 ? "ict-danger-copy" : item.readiness < 80 ? "ict-warning-copy" : "ict-success-copy"}>{item.readiness}%</strong></td><td>{item.finish}</td><td>{item.bay}</td></tr>)}
+                {liveCapacity.map((item) => <tr key={item.asset}><td><span className="ict-tech-dot" />{item.tech}</td><td><strong>{item.asset}</strong><small>{item.vehicle}</small></td><td>{item.touch}</td><td>{item.checkpoint}</td><td><strong className={item.readiness < 60 ? "ict-danger-copy" : item.readiness < 80 ? "ict-warning-copy" : "ict-success-copy"}>{item.readiness}%</strong></td><td>{item.finish}</td><td>{item.bay}</td></tr>)}
               </tbody></table></div>
             </section>
           </div>

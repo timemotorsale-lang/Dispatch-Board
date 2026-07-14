@@ -1,5 +1,9 @@
 # Current Implementation Status
 
+## 2026-07-14 — VEH-041/042: live inventory control tower
+
+The inventory control tower now has a tenant-scoped live projection and authenticated `GET /api/inventory-control-tower` API. It reconciles open inventory units, lifecycle stages, locations, overdue/blocked/waiting counts, cost exposure, and item-level exceptions. `/vehicles` consumes the projection, reports freshness, supports retry, and removes unsupported prototype shop/parts capacity values when the live response arrives.
+
 ## 2026-07-14 — Wave 5: retail inventory acquisition, readiness, and sale lifecycle
 
 VEH-031–VEH-040 are implemented in the repository. Inventory units now have versioned acquisition appraisals, purchase-authority limits, transport/receipt evidence, recon handoffs, title/document readiness, merchandising packages, frontline gates, controlled reservation/sale/delivery/reversal transitions, cost exposure projections, and lifecycle velocity policy evaluation. The migration is source-controlled and the existing retail-inventory rollout gate remains the activation control. Validation passed with typecheck, lint, and the full test suite.
