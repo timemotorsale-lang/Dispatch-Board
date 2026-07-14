@@ -5,6 +5,78 @@ import { clamp, stableFingerprint, weightedScore } from "./math";
 
 export type ShopWorkOrigin = "CUSTOMER_REPAIR" | "INVENTORY_RECON";
 export type VehicleWorkflowRoute = "RETAIL_INVENTORY" | "SHOP_CUSTOMER_REPAIR" | "SHOP_INVENTORY_RECON";
+export type ShopWorkLane = "FAST_TRACK" | "STANDARD_REPAIR" | "DIAGNOSTIC_HEAVY";
+
+export function classifyShopWorkLane(input: {
+  diagnosticRequired: boolean;
+  estimatedLaborMinutes: number;
+  requiresAdvancedSkill: boolean;
+  safetyScopeConfirmed: boolean;
+}) {
+  if (input.diagnosticRequired || input.requiresAdvancedSkill || !input.safetyScopeConfirmed) {
+    return {
+      lane: "DIAGNOSTIC_HEAVY" as ShopWorkLane,
+      reasonCodes: [
+        ...(input.diagnosticRequired ? ["SHOP_DIAGNOSTIC_REQUIRED"] : []),
+        ...(input.requiresAdvancedSkill ? ["SHOP_ADVANCED_SKILL_REQUIRED"] : []),
+        ...(!input.safetyScopeConfirmed ? ["SHOP_SAFETY_SCOPE_UNCONFIRMED"] : [])
+      ]
+    };
+  }
+  if (input.estimatedLaborMinutes > 0 && input.estimatedLaborMinutes <= 60) {
+    return { lane: "FAST_TRACK" as ShopWorkLane, reasonCodes: ["SHOP_FAST_TRACK_ELIGIBLE"] };
+  }
+  return { lane: "STANDARD_REPAIR" as ShopWorkLane, reasonCodes: ["SHOP_STANDARD_REPAIR"] };
+}
+
+export function evaluateTechnicianQueue(input: {
+  activeJobCount: number;
+  nextJobAuthorized: boolean;
+  nextJobPartsReady: boolean;
+  nextJobSkillEligible: boolean;
+  stagedJobCount: number;
+}) {
+  if (input.activeJobCount > 1 || input.stagedJobCount > 1) {
+    return { action: "REBALANCE_QUEUE" as const, reasonCodes: ["SHOP_QUEUE_LIMIT_EXCEEDED"] };
+  }
+  if (input.activeJobCount === 0) {
+    return { action: "ASSIGN_ACTIVE_JOB" as const, reasonCodes: ["SHOP_ACTIVE_JOB_MISSING"] };
+  }
+  const missing = [
+    ...(!input.nextJobAuthorized ? ["SHOP_NEXT_JOB_NOT_AUTHORIZED"] : []),
+    ...(!input.nextJobPartsReady ? ["SHOP_NEXT_JOB_PARTS_NOT_READY"] : []),
+    ...(!input.nextJobSkillEligible ? ["SHOP_NEXT_JOB_SKILL_MISMATCH"] : [])
+  ];
+  if (input.stagedJobCount === 1) {
+    return missing.length
+      ? { action: "RESOLVE_NEXT_JOB_PREREQUISITES" as const, reasonCodes: missing }
+      : { action: "QUEUE_BALANCED" as const, reasonCodes: ["SHOP_CURRENT_AND_NEXT_READY"] };
+  }
+  return missing.length
+    ? { action: "RESOLVE_NEXT_JOB_PREREQUISITES" as const, reasonCodes: missing }
+    : { action: "STAGE_NEXT_JOB" as const, reasonCodes: ["SHOP_NEXT_JOB_STAGEABLE"] };
+}
+
+export function evaluateQualityRelease(input: {
+  completionEvidencePresent: boolean;
+  heavyRepair: boolean;
+  peerVerificationPassed: boolean;
+  roadTestPassed: boolean;
+  roadTestRequired: boolean;
+  safetyChecksPassed: boolean;
+}) {
+  const reasonCodes = [
+    ...(!input.completionEvidencePresent ? ["SHOP_QC_COMPLETION_EVIDENCE_MISSING"] : []),
+    ...(!input.safetyChecksPassed ? ["SHOP_QC_SAFETY_CHECK_FAILED"] : []),
+    ...(input.heavyRepair && !input.peerVerificationPassed ? ["SHOP_QC_PEER_VERIFICATION_REQUIRED"] : []),
+    ...(input.roadTestRequired && !input.roadTestPassed ? ["SHOP_QC_ROAD_TEST_REQUIRED"] : [])
+  ];
+  return {
+    allowed: reasonCodes.length === 0,
+    action: reasonCodes.length === 0 ? "RELEASE" as const : "RETURN_TO_REPAIR_OR_QC" as const,
+    reasonCodes: reasonCodes.length === 0 ? ["SHOP_QC_RELEASE_GATES_PASSED"] : reasonCodes
+  };
+}
 
 export function routeVehicleWorkflow(input: {
   dealershipOwned: boolean;
@@ -111,4 +183,3 @@ export function determineShopHandoff(origin: ShopWorkOrigin, qcPassed: boolean) 
     ? { allowed: true, destination: "CUSTOMER_DELIVERY" as const, reasonCodes: ["SHOP_HANDOFF_CUSTOMER_DELIVERY"] }
     : { allowed: true, destination: "INVENTORY_TITLE_OR_MERCHANDISING" as const, reasonCodes: ["SHOP_HANDOFF_INVENTORY_RECON_COMPLETE"] };
 }
-

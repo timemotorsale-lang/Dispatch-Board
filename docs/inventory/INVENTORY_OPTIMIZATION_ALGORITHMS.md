@@ -2,10 +2,11 @@
 
 **Product:** Time Motor Sales Dispatch Board  
 **Module:** Inventory Operations Console  
-**Version:** 1.0 planning baseline  
+**Version:** 1.1 implementation refinement
 **Date:** 2026-07-13  
 **Status:** Algorithm foundation implemented; persistence, APIs, and console UI remain future vertical slices  
 **UI source of truth:** [`INVENTORY_CONSOLE_UI_SOURCE_OF_TRUTH.md`](INVENTORY_CONSOLE_UI_SOURCE_OF_TRUTH.md)
+**Enterprise program:** [`INVENTORY_ENTERPRISE_ROADMAP.md`](INVENTORY_ENTERPRISE_ROADMAP.md) · [`INVENTORY_ENTERPRISE_ARCHITECTURE.md`](INVENTORY_ENTERPRISE_ARCHITECTURE.md) · [`INVENTORY_ENTERPRISE_IMPLEMENTATION_MILESTONES.md`](INVENTORY_ENTERPRISE_IMPLEMENTATION_MILESTONES.md)
 
 ---
 
@@ -809,6 +810,55 @@ For every material decision, retain:
 
 Weights must not self-modify in production. Calibration proposals require analysis, approval, versioning, testing, and monitored rollout.
 
+### 8.10 Velocity, shop-lane, queue, and quality controls
+
+The proposed 30/45-day vehicle lifecycle, 72-hour recon target, fast-track shop lane, and two-job technician queue are useful operating policies, not universal constants. They are implemented as organization-scoped, versioned thresholds so managers can calibrate them from actual outcomes.
+
+#### Vehicle velocity policy
+
+Required inputs are current phase, stage age, total inventory age, recon target hours, prime retail window days, and disposition-review day.
+
+- A pre-frontline stage beyond its target creates a blocker-escalation recommendation.
+- A vehicle beyond the prime retail window creates an aging-strategy review.
+- Reaching the disposition-review day creates a manager review; it never automatically reprices or wholesales a vehicle.
+- Invalid policies, including an exit-review day before the prime window ends, stop evaluation.
+- Merchandising quality, market position, lead activity, gross floor, title state, and carrying cost remain inputs to the existing aging and disposition decisions. Age alone does not decide price or disposition.
+
+Initial policy defaults may be 72 recon hours, 30 prime-retail days, and a 45-day disposition review, but production values require management approval and outcome calibration.
+
+#### Shop lane triage
+
+Work may enter `FAST_TRACK` only when estimated labor is 1-60 minutes, diagnostic work is not required, advanced skill is not required, and the safety scope is confirmed. Diagnostic, advanced-skill, or safety-uncertain work routes to `DIAGNOSTIC_HEAVY`; other work routes to `STANDARD_REPAIR`. A short estimate cannot bypass diagnosis or safety review.
+
+#### Technician queue control
+
+The console targets one active job and at most one staged next job per technician. The next job is stageable only when authorization, parts readiness, and skill eligibility are confirmed. Missing prerequisites produce resolution work rather than placing an unready vehicle at a bay. More than one active or staged job produces a rebalancing recommendation. This is a flow-control rule, not a productivity quota.
+
+#### Quality release gate
+
+Release requires completion evidence and passed safety checks. Heavy repairs additionally require peer verification. A road test is required only when the repair type and policy call for one; an arbitrary fixed-distance road test is not appropriate for every vehicle. A failed gate routes the work back to repair or QC and cannot be averaged away by an overall completion percentage.
+
+#### Technician production metrics
+
+Use the following distinct measures over the same controlled reporting window:
+
+```text
+Productivity % = Repair-order clocked hours / Hours present * 100
+Efficiency % = Billable hours earned / Repair-order clocked hours * 100
+Proficiency % = Billable hours earned / Hours present * 100
+First-pass yield % = Non-comeback billable hours / Billable hours earned * 100
+Quality-adjusted proficiency % = Non-comeback billable hours / Hours present * 100
+```
+
+Zero denominators return zero. These metrics are operational signals and are prohibited from autonomous employee discipline. Compare like-for-like work classes and retain the comeback definition, reporting window, labor-guide version, approved non-productive time, and data confidence.
+
+#### Scope exclusions from the source proposals
+
+- Digital lead-response SLA belongs in the Customers/CRM decision engine, linked to a vehicle when applicable.
+- Contracts-in-transit and funding-packet SLA belong in a future Deals/F&I workflow.
+- Photo counts, price percentages, retail price caps, recon-cost caps, and claimed lead-decay or sales-lift percentages remain configurable policy hypotheses until validated with store data.
+- Bay cleaning, parts kitting, and photo staging are task templates/checklist controls; they do not require separate ranking algorithms.
+
 ## 9. Stable reason-code catalog
 
 Initial reason-code families:
@@ -817,6 +867,8 @@ Initial reason-code families:
 - `ACQUISITION_*`: opportunity, market fit, and purchase limit
 - `APPRAISAL_*`: evidence and confidence
 - `RECON_*`: readiness, priority, parts, bay, and cost variance
+- `SHOP_*`: lane routing, queue readiness, QC, and production flow
+- `VELOCITY_*`: configurable lifecycle review gates
 - `TITLE_*`: title and documentation
 - `MERCH_*`: photos, pricing, listings, and frontline readiness
 - `PART_*`: demand, stock, reservation, substitution, and receipt
@@ -945,6 +997,9 @@ The first production Inventory Console should include:
 - lifecycle age and stage-delay engine
 - frontline-readiness gate
 - recon priority and critical ratio
+- configurable vehicle velocity review gates
+- shop-lane triage, one-current/one-next queue control, and quality-release gates
+- technician productivity, efficiency, proficiency, and first-pass-yield metrics
 - parts reservations and receiving controls
 - ABC-XYZ classification
 - reorder point and vendor score

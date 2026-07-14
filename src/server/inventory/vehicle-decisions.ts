@@ -181,6 +181,31 @@ export function recommendAgingAction(input: {
   return { action: "HOLD_AND_MONITOR" as const, reasonCodes: ["AGE_WITHIN_ACTIVE_STRATEGY"] };
 }
 
+export function evaluateVehicleVelocityPolicy(input: {
+  currentPhase: "PRE_FRONTLINE" | "FRONTLINE";
+  dispositionReviewDay: number;
+  primeRetailWindowDays: number;
+  reconTargetHours: number;
+  stageAgeHours: number;
+  totalInventoryAgeDays: number;
+}) {
+  const policyValid = input.dispositionReviewDay > input.primeRetailWindowDays &&
+    input.primeRetailWindowDays > 0 && input.reconTargetHours > 0;
+  if (!policyValid) {
+    return { action: "REVIEW_POLICY_CONFIGURATION" as const, phase: "INVALID_POLICY" as const, reasonCodes: ["VELOCITY_POLICY_INVALID"] };
+  }
+  if (input.currentPhase === "PRE_FRONTLINE" && input.stageAgeHours > input.reconTargetHours) {
+    return { action: "ESCALATE_STAGE_BLOCKER" as const, phase: "PRE_FRONTLINE_LATE" as const, reasonCodes: ["VELOCITY_STAGE_TARGET_BREACHED"] };
+  }
+  if (input.totalInventoryAgeDays >= input.dispositionReviewDay) {
+    return { action: "MANAGER_DISPOSITION_REVIEW" as const, phase: "EXIT_REVIEW" as const, reasonCodes: ["VELOCITY_DISPOSITION_REVIEW_DAY_REACHED"] };
+  }
+  if (input.totalInventoryAgeDays > input.primeRetailWindowDays) {
+    return { action: "MANAGER_AGING_STRATEGY_REVIEW" as const, phase: "AGING_RETAIL" as const, reasonCodes: ["VELOCITY_PRIME_WINDOW_ENDED"] };
+  }
+  return { action: "HOLD_ACTIVE_STRATEGY" as const, phase: "PRIME_WINDOW" as const, reasonCodes: ["VELOCITY_WITHIN_PRIME_WINDOW"] };
+}
+
 export function scoreDisposition(input: {
   carryingCostTrajectory: number;
   customerIntentStrength: number;
@@ -237,4 +262,3 @@ export function evaluatePurchaseAuthorization(input: { authorized: boolean; risk
   const hardRuleCode = evaluateHardRule({ ...input.riskFlags, financialAuthorizationMissing: !input.authorized });
   return { allowed: !hardRuleCode, hardRuleCode };
 }
-

@@ -15,6 +15,9 @@ export const INVENTORY_ALGORITHM_CATALOG: InventoryAlgorithmRegistration[] = [
   ["Frontline Readiness", "frontline-readiness/1.0.0", "Gate retail readiness using evidence", "READINESS", "frontline-ready-within-target"],
   ["Recon Priority", "recon-priority/1.0.0", "Rank ready recon work", "RECON", "recon-cycle-time"],
   ["Shop Work Priority", "shop-work-priority/1.0.0", "Rank customer repair and inventory recon work", "SHOP", "shop-cycle-time"],
+  ["Shop Lane and Queue Control", "shop-lane-queue-control/1.0.0", "Route work and keep one eligible next job staged", "SHOP", "rack-idle-time"],
+  ["Quality Release", "quality-release/1.0.0", "Prevent release until applicable evidence gates pass", "SHOP", "first-pass-yield"],
+  ["Vehicle Velocity Policy", "vehicle-velocity-policy/1.0.0", "Apply configurable lifecycle review gates", "VELOCITY", "gross-per-day"],
   ["Parts Control", "parts-control/1.0.0", "Prioritize count and disposition controls", "PART", "inventory-accuracy"],
   ["Next Best Action", "inventory-next-best-action/1.0.0", "Recommend the highest-value valid action", "NBA", "action-resolution-time"],
   ["Acquisition Opportunity", "acquisition-opportunity/1.0.0", "Rank valid acquisition opportunities", "ACQUISITION", "gross-per-day"]
@@ -51,4 +54,3 @@ export function evaluateInventoryFoundationAcceptance() {
   }));
   return { ready: results.every((result) => result.ready), results };
 }
-

@@ -5,6 +5,7 @@ import {
   calculateMaximumBid,
   evaluateAppraisalConfidence,
   evaluatePurchaseAuthorization,
+  evaluateVehicleVelocityPolicy,
   recommendAgingAction,
   scoreAcquisitionOpportunity,
   scoreDisposition,
@@ -48,5 +49,11 @@ describe("inventory vehicle financial and market algorithms", () => {
   it("repairs merchandising before recommending a price response", () => {
     expect(recommendAgingAction({ carryingCostPressure: 1, comparableMovement: 0, frontlineAgeDays: 90, grossFloorProtected: true, leadAndVdpActivity: 0, marketPricePosition: 1, merchandisingComplete: false }).action).toBe("IMPROVE_MERCHANDISING");
   });
-});
 
+  it("uses configurable review gates without automatically repricing or wholesaling", () => {
+    const lateRecon = evaluateVehicleVelocityPolicy({ currentPhase: "PRE_FRONTLINE", dispositionReviewDay: 45, primeRetailWindowDays: 30, reconTargetHours: 72, stageAgeHours: 80, totalInventoryAgeDays: 5 });
+    const exitReview = evaluateVehicleVelocityPolicy({ currentPhase: "FRONTLINE", dispositionReviewDay: 45, primeRetailWindowDays: 30, reconTargetHours: 72, stageAgeHours: 10, totalInventoryAgeDays: 46 });
+    expect(lateRecon.action).toBe("ESCALATE_STAGE_BLOCKER");
+    expect(exitReview.action).toBe("MANAGER_DISPOSITION_REVIEW");
+  });
+});

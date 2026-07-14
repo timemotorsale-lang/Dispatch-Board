@@ -63,6 +63,31 @@ export function calculatePartKpis(records: PartKpiRecord[]) {
   };
 }
 
+export type TechnicianProductionRecord = {
+  billableHoursEarned: number;
+  comeback: boolean;
+  hoursClockedOnRepairOrders: number;
+  hoursPresent: number;
+};
+
+export function calculateTechnicianProductionKpis(records: TechnicianProductionRecord[]) {
+  const hoursPresent = records.reduce((sum, record) => sum + Math.max(0, record.hoursPresent), 0);
+  const repairOrderHours = records.reduce((sum, record) => sum + Math.max(0, record.hoursClockedOnRepairOrders), 0);
+  const billableHours = records.reduce((sum, record) => sum + Math.max(0, record.billableHoursEarned), 0);
+  const comebackBillableHours = records
+    .filter((record) => record.comeback)
+    .reduce((sum, record) => sum + Math.max(0, record.billableHoursEarned), 0);
+  return {
+    billableHours,
+    efficiencyPercent: ratio(billableHours, repairOrderHours) * 100,
+    firstPassYieldPercent: ratio(billableHours - comebackBillableHours, billableHours) * 100,
+    productivityPercent: ratio(repairOrderHours, hoursPresent) * 100,
+    proficiencyPercent: ratio(billableHours, hoursPresent) * 100,
+    qualityAdjustedProficiencyPercent: ratio(billableHours - comebackBillableHours, hoursPresent) * 100,
+    repairOrderHours
+  };
+}
+
 export type CommandKpiRecord = {
   accepted: boolean;
   alertUseful: boolean | null;
@@ -104,4 +129,3 @@ export function evaluateCalibrationGate(input: {
   if (input.safetyViolationCount > 0) reasonCodes.push("CALIBRATION_SAFETY_VIOLATION");
   return { eligibleForWeightReview: reasonCodes.length === 0, reasonCodes };
 }
-

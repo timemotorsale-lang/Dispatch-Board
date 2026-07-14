@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   calculateCommandKpis,
   calculatePartKpis,
+  calculateTechnicianProductionKpis,
   calculateVehicleKpis,
   evaluateCalibrationGate,
   evaluateInventoryFoundationAcceptance,
@@ -11,6 +12,17 @@ import {
 } from "@/server/inventory";
 
 describe("inventory KPI and rollout acceptance foundation", () => {
+  it("separates technician productivity, efficiency, proficiency, and quality", () => {
+    const kpis = calculateTechnicianProductionKpis([
+      { billableHoursEarned: 10, comeback: false, hoursClockedOnRepairOrders: 8, hoursPresent: 10 },
+      { billableHoursEarned: 2, comeback: true, hoursClockedOnRepairOrders: 2, hoursPresent: 2 }
+    ]);
+    expect(kpis.productivityPercent).toBeCloseTo(83.33, 1);
+    expect(kpis.efficiencyPercent).toBe(120);
+    expect(kpis.proficiencyPercent).toBe(100);
+    expect(kpis.firstPassYieldPercent).toBeCloseTo(83.33, 1);
+  });
+
   it("calculates vehicle lifecycle productivity KPIs", () => {
     const kpis = calculateVehicleKpis([
       { activeHours: 20, daysHeld: 10, daysToFrontline: 3, delivered: true, gross: 2_000, idleHours: 4, reconActualCost: 1_100, reconEstimatedCost: 1_000, sold: true, waitingHours: 6 },
@@ -54,4 +66,3 @@ describe("inventory KPI and rollout acceptance foundation", () => {
     expect(scoreReceivingPriority({ activeReservation: true, customerDeliveryImpact: 1, overdueRepairImpact: 1, safetyImpact: 1 })).toBe(100);
   });
 });
-
