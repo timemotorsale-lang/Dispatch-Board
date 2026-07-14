@@ -393,6 +393,57 @@ enum PartReservationStatus {
   CONSUMED
 }
 
+enum InspectionStatus {
+  DRAFT
+  COMPLETED
+  SUPERSEDED
+}
+
+enum InspectionItemResult {
+  PASS
+  ADVISORY
+  FAIL
+  NOT_APPLICABLE
+}
+
+enum DiagnosticUncertainty {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum EstimateStatus {
+  DRAFT
+  PRESENTED
+  SUPERSEDED
+  EXPIRED
+}
+
+enum AuthorizationDisposition {
+  ACCEPTED
+  DECLINED
+  DEFERRED
+  PARTIAL
+  EXPIRED
+  REVOKED
+}
+
+enum AuthorizationChannel {
+  IN_PERSON
+  PHONE
+  SMS
+  EMAIL
+  INTERNAL
+  WARRANTY
+}
+
+enum RepairJobStatus {
+  AUTHORIZED
+  WAITING_PARTS
+  READY_FOR_REPAIR
+  CANCELLED
+}
+
 enum AppointmentParticipantType {
   INTERNAL_USER
   CUSTOMER
@@ -722,6 +773,11 @@ model User {
   partLedgerEntries                      PartStockLedgerEntry[]                    @relation("PartLedgerActor")
   createdPartDemands                     RepairPartDemand[]                        @relation("PartDemandCreatedBy")
   partReservations                       PartReservation[]                         @relation("PartReservationActor")
+  authoredInspections                    VehicleInspectionVersion[]                @relation("InspectionAuthor")
+  authoredDiagnoses                      RepairDiagnosisVersion[]                  @relation("DiagnosisAuthor")
+  authoredEstimates                      RepairEstimateVersion[]                   @relation("EstimateAuthor")
+  repairAuthorizations                   RepairAuthorization[]                     @relation("AuthorizationDecisionActor")
+  createdRepairJobs                      RepairJob[]                               @relation("RepairJobCreatedBy")
 
   @@index([isActive])
 }
@@ -835,6 +891,11 @@ model Organization {
   repairPartDemands                     RepairPartDemand[]
   partReservations                      PartReservation[]
   repairReadinessEvaluations            RepairReadinessEvaluation[]
+  inspectionVersions                    VehicleInspectionVersion[]
+  diagnosisVersions                     RepairDiagnosisVersion[]
+  estimateVersions                      RepairEstimateVersion[]
+  repairAuthorizations                  RepairAuthorization[]
+  repairJobs                            RepairJob[]
   resourceTypes                         SchedulableResourceType[]
   resources                             SchedulableResource[]
   appointmentCatalogVersions            AppointmentCatalogVersion[]
@@ -1581,6 +1642,11 @@ model RepairOrder {
   stateEvents          RepairOrderStateEvent[]
   partDemands          RepairPartDemand[]
   readinessEvaluations RepairReadinessEvaluation[]
+  inspectionVersions  VehicleInspectionVersion[]
+  diagnosisVersions   RepairDiagnosisVersion[]
+  estimateVersions    RepairEstimateVersion[]
+  authorizations      RepairAuthorization[]
+  repairJobs          RepairJob[]
 
   @@unique([organizationId, repairOrderNumber])
   @@unique([id, organizationId])
@@ -1619,6 +1685,166 @@ model RepairOrderStateEvent {
   @@index([organizationId, occurredAt])
   @@index([correlationId])
   @@index([ownerUserId, occurredAt])
+}
+
+model VehicleInspectionVersion {
+  id               String           @id @default(cuid())
+  organizationId   String
+  repairOrderId    String
+  version          Int
+  status           InspectionStatus @default(COMPLETED)
+  templateCode     String
+  templateVersion  Int
+  templateSnapshot Json
+  items            Json
+  summary          String
+  authorUserId     String
+  startedAt        DateTime
+  completedAt      DateTime
+  supersedesId     String?          @unique
+  createdAt        DateTime         @default(now())
+  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairOrder      RepairOrder      @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  authorUser       User             @relation("InspectionAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  supersedes       VehicleInspectionVersion? @relation("InspectionSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy     VehicleInspectionVersion? @relation("InspectionSupersession")
+
+  @@unique([repairOrderId, version])
+  @@index([organizationId, completedAt])
+}
+
+model RepairDiagnosisVersion {
+  id                 String                @id @default(cuid())
+  organizationId     String
+  repairOrderId      String
+  version            Int
+  concern             String
+  symptoms            Json
+  tests               Json
+  evidence            Json
+  cause                String
+  uncertainty         DiagnosticUncertainty
+  recommendation      String
+  proposedCorrection String
+  technicianUserId   String
+  diagnosedAt         DateTime
+  supersedesId       String?               @unique
+  createdAt          DateTime              @default(now())
+  organization       Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairOrder        RepairOrder           @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  technicianUser     User                  @relation("DiagnosisAuthor", fields: [technicianUserId], references: [id], onDelete: Restrict)
+  supersedes         RepairDiagnosisVersion? @relation("DiagnosisSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy       RepairDiagnosisVersion? @relation("DiagnosisSupersession")
+  repairJobs         RepairJob[]
+
+  @@unique([repairOrderId, version])
+  @@index([organizationId, diagnosedAt])
+}
+
+model RepairEstimateVersion {
+  id                String         @id @default(cuid())
+  organizationId    String
+  repairOrderId     String
+  version           Int
+  status            EstimateStatus @default(PRESENTED)
+  lineItems         Json
+  laborSubtotalCents Int
+  partsSubtotalCents Int
+  feeSubtotalCents   Int
+  taxCents           Int
+  discountCents      Int
+  totalCents         Int
+  taxBoundary        String
+  optionGroups       Json?
+  assumptions        String?
+  expiresAt          DateTime
+  presentedAt        DateTime
+  presentationChannel String
+  authorUserId       String
+  supersedesId       String?        @unique
+  createdAt          DateTime       @default(now())
+  organization       Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairOrder        RepairOrder    @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  authorUser         User           @relation("EstimateAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  supersedes         RepairEstimateVersion? @relation("EstimateSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy       RepairEstimateVersion? @relation("EstimateSupersession")
+  authorizations     RepairAuthorization[]
+  repairJobs         RepairJob[]
+
+  @@unique([repairOrderId, version])
+  @@index([organizationId, status, expiresAt])
+}
+
+model RepairAuthorization {
+  id                      String                   @id @default(cuid())
+  organizationId          String
+  repairOrderId           String
+  estimateVersionId       String
+  disposition             AuthorizationDisposition
+  channel                 AuthorizationChannel
+  authorizedLineKeys      Json
+  authorizedAmountCents   Int
+  decisionActorType       String
+  decisionActorName       String
+  decisionActorReference  String?
+  decidedByUserId         String
+  reason                  String
+  decidedAt               DateTime
+  previousAuthorizationId String?                  @unique
+  createdAt               DateTime                 @default(now())
+  organization            Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairOrder             RepairOrder              @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  estimateVersion         RepairEstimateVersion    @relation(fields: [estimateVersionId], references: [id], onDelete: Restrict)
+  decidedByUser           User                     @relation("AuthorizationDecisionActor", fields: [decidedByUserId], references: [id], onDelete: Restrict)
+  previousAuthorization   RepairAuthorization?     @relation("AuthorizationLineage", fields: [previousAuthorizationId], references: [id], onDelete: Restrict)
+  supersedingAuthorization RepairAuthorization?    @relation("AuthorizationLineage")
+  repairJobs              RepairJob[]
+
+  @@index([repairOrderId, decidedAt])
+  @@index([estimateVersionId, disposition])
+  @@index([organizationId, decidedAt])
+}
+
+model RepairJob {
+  id                    String          @id @default(cuid())
+  organizationId        String
+  repairOrderId         String
+  jobNumber             String
+  diagnosisVersionId    String?
+  estimateVersionId     String
+  authorizationId       String
+  authorizedLineKey     String
+  workTypeCode          String
+  description           String
+  plannedCorrection     String
+  laborGuideMinutes     Int
+  requiredSkills        Json
+  requiredCertifications Json
+  bayRequirements       Json
+  toolRequirements      Json
+  priority              String
+  dependencyJobIds      Json
+  partsRequired         Boolean         @default(false)
+  status                RepairJobStatus @default(AUTHORIZED)
+  readinessReasonCodes  Json
+  authorizedAmountCents Int
+  createdByUserId       String
+  version               Int             @default(1)
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  organization          Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairOrder           RepairOrder     @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  diagnosisVersion      RepairDiagnosisVersion? @relation(fields: [diagnosisVersionId], references: [id], onDelete: Restrict)
+  estimateVersion       RepairEstimateVersion @relation(fields: [estimateVersionId], references: [id], onDelete: Restrict)
+  authorization         RepairAuthorization @relation(fields: [authorizationId], references: [id], onDelete: Restrict)
+  createdByUser         User            @relation("RepairJobCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  partDemands           RepairPartDemand[]
+
+  @@unique([repairOrderId, jobNumber])
+  @@unique([repairOrderId, authorizedLineKey, authorizationId])
+  @@unique([id, organizationId])
+  @@index([organizationId, status, priority])
+  @@index([repairOrderId, status])
 }
 
 model Part {
@@ -1727,6 +1953,7 @@ model RepairPartDemand {
   organizationId      String
   repairOrderId       String
   repairJobReference  String?
+  repairJobId         String?
   partId              String
   quantityRequired    Int
   quantityReserved    Int              @default(0)
@@ -1743,10 +1970,12 @@ model RepairPartDemand {
   part                Part             @relation(fields: [partId], references: [id], onDelete: Restrict)
   createdByUser       User             @relation("PartDemandCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
   reservations        PartReservation[]
+  repairJob           RepairJob?       @relation(fields: [repairJobId], references: [id], onDelete: Restrict)
 
   @@unique([repairOrderId, partId, repairJobReference])
   @@index([organizationId, status, requiredAt])
   @@index([partId, status, requiredAt])
+  @@index([repairJobId, status])
 }
 
 model PartReservation {

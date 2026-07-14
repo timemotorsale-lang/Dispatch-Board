@@ -92,11 +92,11 @@ Implementation evidence: [`INVENTORY_UNIT_FOUNDATION_IMPLEMENTATION.md`](INVENTO
 | --- | --- | --- | --- |
 | VEH-050 | [x] | Approve RepairOrder aggregate ADR | RepairOrder, jobs, inspections, approvals, labor, parts, totals, close/reopen, and DMS boundary are explicit. |
 | VEH-051 | [x] | Add appointment/walk-in service intake | Appointments convert idempotently; customer, vehicle, concern, promise, consent, keys, transport, and intake evidence persist. |
-| VEH-052 | [ ] | Add Digital Vehicle Inspection | Versioned templates capture pass/advisory/fail, measurements, notes, photos/video, author, and timestamps. |
-| VEH-053 | [ ] | Add concern-cause-correction and diagnostic flow | Diagnosis retains symptoms, tests, evidence, technician, uncertainty, recommendation, and change history. |
-| VEH-054 | [ ] | Add estimate and change-order versions | Labor, parts, fees, tax boundary, options, expiry, presentation, and revisions are immutable after presentation. |
-| VEH-055 | [ ] | Add authorization workflow | Accepted, declined, deferred, partial, expired, and revoked approvals reference the exact presented estimate version. |
-| VEH-056 | [ ] | Add RepairJob and readiness gates | Each job retains work type, labor guide, skill/certification, bay/tool, parts, authorization, priority, and dependencies. |
+| VEH-052 | [x] | Add Digital Vehicle Inspection | Versioned templates capture pass/advisory/fail, measurements, notes, photos/video, author, and timestamps. |
+| VEH-053 | [x] | Add concern-cause-correction and diagnostic flow | Diagnosis retains symptoms, tests, evidence, technician, uncertainty, recommendation, and change history. |
+| VEH-054 | [x] | Add estimate and change-order versions | Labor, parts, fees, tax boundary, options, expiry, presentation, and revisions are immutable after presentation. |
+| VEH-055 | [x] | Add authorization workflow | Accepted, declined, deferred, partial, expired, and revoked approvals reference the exact presented estimate version. |
+| VEH-056 | [x] | Add RepairJob and readiness gates | Each job retains work type, labor guide, skill/certification, bay/tool, parts, authorization, priority, and dependencies. |
 | VEH-057 | [ ] | Add work templates and service procedures | Reusable tasks, inspections, safety steps, evidence, standard time, and QC rules are versioned and effective-dated. |
 | VEH-058 | [ ] | Add labor time ledger | Start, pause, reason, resume, finish, correction, overlap, present hours, and approved non-productive time are attributable. |
 | VEH-059 | [ ] | Add shop lane and priority projection | Fast-track eligibility, diagnostic/heavy route, schedule pressure, customer promise, safety, readiness, and explanation are live. |
