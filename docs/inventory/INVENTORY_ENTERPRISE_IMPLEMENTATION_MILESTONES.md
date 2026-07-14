@@ -88,6 +88,8 @@ Implementation evidence: [`INVENTORY_UNIT_FOUNDATION_IMPLEMENTATION.md`](INVENTO
 
 ## M4 — Shop and repair orders
 
+Service-close implementation evidence: [`SERVICE_CLOSE_PARTS_OPERATIONS_IMPLEMENTATION.md`](SERVICE_CLOSE_PARTS_OPERATIONS_IMPLEMENTATION.md)
+
 | ID | Status | Slice | Acceptance |
 | --- | --- | --- | --- |
 | VEH-050 | [x] | Approve RepairOrder aggregate ADR | RepairOrder, jobs, inspections, approvals, labor, parts, totals, close/reopen, and DMS boundary are explicit. |
@@ -107,25 +109,28 @@ Implementation evidence: [`INVENTORY_UNIT_FOUNDATION_IMPLEMENTATION.md`](INVENTO
 | VEH-064 | [x] | Add QC and release gate | Applicable completion, safety, peer verification, road test, evidence, and failed-QC return paths are enforced. |
 | VEH-065 | [x] | Add comeback and follow-up linkage | A comeback references original job/correction, reason review, warranty responsibility, cost, and outcome without punitive automation. |
 | VEH-066 | [x] | Add shop production projections | Productivity, efficiency, proficiency, first-pass yield, quality-adjusted proficiency, idle causes, and confidence reconcile. |
+| VEH-067 | [x] | Add invoice-ready service close and controlled reopen | Authorized jobs, installed-part custody, labor evidence, delivery readiness, release authorization, handoff evidence, close, and manager-reasoned reopen reconcile through audited commands. |
 
 ## M5 — Parts and procurement
+
+Enterprise parts implementation evidence: [`SERVICE_CLOSE_PARTS_OPERATIONS_IMPLEMENTATION.md`](SERVICE_CLOSE_PARTS_OPERATIONS_IMPLEMENTATION.md)
 
 | ID | Status | Slice | Acceptance |
 | --- | --- | --- | --- |
 | VEH-070 | [x] | Approve parts ledger and costing ADR | Quantity, availability, costing, financial handoff, reversal, count, and negative-stock rules are explicit. |
-| VEH-071 | [ ] | Add part, interchange, and vendor masters | Manufacturer/part numbers, supersession, substitutes, units, category, fitment evidence, vendors, and status are normalized. |
+| VEH-071 | [x] | Add part, interchange, and vendor masters | Manufacturer/part numbers, supersession, substitutes, units, category, fitment evidence, vendors, and status are normalized. |
 | VEH-072 | [x] | Add warehouses, bins, and stock balances | Physical/logical locations and current on-hand, allocated, available, ordered, backordered, and damaged projections exist. |
-| VEH-073 | [ ] | Add immutable parts stock ledger | Receipt, transfer, reserve, release, issue, install, return, adjust, and count events balance and reverse explicitly. |
-| VEH-074 | [ ] | Add RepairJob demand and reservation | Demand links to job and source; scarce allocation is authorized, explainable, and prevents double reservation. |
-| VEH-075 | [ ] | Add requisition and vendor comparison | Required date, alternatives, price, ETA, reliability, warranty, return terms, and manager selection are retained. |
-| VEH-076 | [ ] | Add purchase-order aggregate | Draft, approval, issue, acknowledgement, change, cancellation, partial/full receipt, and close are state-controlled. |
-| VEH-077 | [ ] | Add receiving and discrepancy workflow | Scan/manual receipt captures packing source, quantity, damage, wrong part, cost variance, bin, and exception ownership. |
-| VEH-078 | [ ] | Add issue, installation, and unused return | Part custody moves to technician/job/vehicle and unused quantities return through controlled ledger events. |
-| VEH-079 | [ ] | Add transfer workflow | Source availability, destination demand, custody, shipment, receipt, discrepancy, cost, and SLA reconcile across locations. |
-| VEH-080 | [ ] | Add core, warranty, and vendor return recovery | Eligibility, deadline, shipment, acknowledgement, expected/actual credit, dispute, and write-off approval are tracked. |
+| VEH-073 | [x] | Add immutable parts stock ledger | Receipt, transfer, reserve, release, issue, install, return, adjust, and count events balance and reverse explicitly. |
+| VEH-074 | [x] | Add RepairJob demand and reservation | Demand links to job and source; scarce allocation is authorized, explainable, and prevents double reservation. |
+| VEH-075 | [x] | Add requisition and vendor comparison | Required date, alternatives, price, ETA, reliability, warranty, return terms, and manager selection are retained. |
+| VEH-076 | [x] | Add purchase-order aggregate | Draft, approval, issue, acknowledgement, change, cancellation, partial/full receipt, and close are state-controlled. |
+| VEH-077 | [x] | Add receiving and discrepancy workflow | Scan/manual receipt captures packing source, quantity, damage, wrong part, cost variance, bin, and exception ownership. |
+| VEH-078 | [x] | Add issue, installation, and unused return | Part custody moves to technician/job/vehicle and unused quantities return through controlled ledger events. |
+| VEH-079 | [x] | Add transfer workflow | Source availability, destination demand, custody, shipment, receipt, discrepancy, cost, and SLA reconcile across locations. |
+| VEH-080 | [x] | Add core, warranty, and vendor return recovery | Eligibility, deadline, shipment, acknowledgement, expected/actual credit, dispute, and write-off approval are tracked. |
 | VEH-081 | [ ] | Add cycle counts and adjustments | Risk-based count plans freeze/observe affected stock; variances require reason and authority before adjustment. |
 | VEH-082 | [ ] | Add replenishment and obsolescence recommendations | ABC-XYZ, safety stock, reorder, EOQ, dead stock, substitution, and forecast confidence run in advisory mode. |
-| VEH-083 | [ ] | Add parts counter/receiving workspaces | Search, demand, PO, receive, reserve, issue, return, count, exception, and barcode-ready flows use live data. |
+| VEH-083 | [~] | Add parts counter/receiving workspaces | Live sourcing, PO, receiving, custody, transfer, discrepancy, and recovery flows are implemented; count planning and barcode hardware integration remain planned. |
 
 ## M6 — Vehicle 360, documents, and knowledge
 
@@ -149,7 +154,7 @@ Implementation evidence: [`INVENTORY_UNIT_FOUNDATION_IMPLEMENTATION.md`](INVENTO
 | VEH-103 | [ ] | Add estimate approval experience | Authorized customers receive the exact version, approve/decline items, and generate delivery/failure evidence. |
 | VEH-104 | [ ] | Add service status timeline | Customer-safe milestones exclude internal-only notes and show current promise, delays, action needed, and contacts. |
 | VEH-105 | [ ] | Add warranty coverage and claim foundation | Coverage, eligibility, authorization, evidence, labor/parts, claim, decision, payment, and recovery are linked. |
-| VEH-106 | [ ] | Add invoice-ready service handoff | Completed authorized labor/parts/fees export with source links and reconcile to returned DMS/accounting IDs and totals. |
+| VEH-106 | [~] | Add invoice-ready service handoff | The internal source-linked package, submit/accept/reject states, and controlled close are implemented; vendor-specific DMS/accounting adapters and returned-total reconciliation remain planned. |
 | VEH-107 | [ ] | Add sales/F&I/title/delivery handoffs | Vehicle readiness, agreed price reference, documents, sold status, funding/title dependencies, and delivery commands reconcile. |
 | VEH-108 | [ ] | Add customer/partner portal pilot | Least-privilege users can view approved vehicle/service data, appointments, approvals, documents, and status. |
 

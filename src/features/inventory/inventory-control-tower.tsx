@@ -175,6 +175,7 @@ export function InventoryControlTower() {
         <Link href="/vehicles/inventory">Inventory Units</Link>
         <Link href="/vehicles/repair-orders">Repair Orders</Link>
         <Link href="/vehicles/parts">Parts &amp; Readiness</Link>
+        <Link href="/vehicles/service-close-parts">Service Close &amp; Parts Operations</Link>
         <Link href="/vehicles/shop-planning">Shop Planning</Link>
         <Link href="/vehicles/shop-dispatch">Shop Dispatch</Link>
         <Link href="/vehicles/quality-control">Quality Control</Link>

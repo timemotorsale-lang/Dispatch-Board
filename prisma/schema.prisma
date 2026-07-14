@@ -377,6 +377,100 @@ enum PartLedgerMovementType {
   ADJUST
   COUNT
   REVERSAL
+  TRANSFER_OUT
+  TRANSFER_IN
+  CORE_RETURN
+  WARRANTY_RETURN
+  VENDOR_RETURN
+}
+
+enum InvoiceHandoffStatus {
+  READY
+  SUBMITTED
+  ACCEPTED
+  REJECTED
+}
+
+enum RepairOrderClosureType {
+  CLOSED
+  REOPENED
+}
+
+enum PartVendorStatus {
+  ACTIVE
+  INACTIVE
+  ON_HOLD
+}
+
+enum PartInterchangeType {
+  SUBSTITUTE
+  SUPERSESSION
+}
+
+enum PartRequisitionStatus {
+  SOURCING
+  SELECTED
+  ORDERED
+  CANCELLED
+}
+
+enum PartPurchaseOrderStatus {
+  DRAFT
+  APPROVED
+  ISSUED
+  ACKNOWLEDGED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CLOSED
+  CANCELLED
+}
+
+enum PartDiscrepancyType {
+  SHORT
+  OVER
+  DAMAGED
+  WRONG_PART
+  COST_VARIANCE
+}
+
+enum PartDiscrepancyStatus {
+  OPEN
+  RESOLVED
+}
+
+enum PartCustodyType {
+  ISSUE
+  INSTALL
+  UNUSED_RETURN
+  TRANSFER_SHIP
+  TRANSFER_RECEIVE
+  CORE_SHIP
+  WARRANTY_SHIP
+  VENDOR_SHIP
+  CREDIT_ACKNOWLEDGED
+}
+
+enum PartTransferStatus {
+  DRAFT
+  SHIPPED
+  RECEIVED
+  DISCREPANCY
+  CANCELLED
+}
+
+enum PartRecoveryType {
+  CORE
+  WARRANTY
+  VENDOR_RETURN
+}
+
+enum PartRecoveryStatus {
+  ELIGIBLE
+  SHIPPED
+  ACKNOWLEDGED
+  CREDITED
+  DISPUTED
+  WRITTEN_OFF
 }
 
 enum PartDemandStatus {
@@ -904,6 +998,17 @@ model User {
   authoredPresenceRecords               TechnicianPresenceRecord[]                 @relation("PresenceRecordedBy")
   shopProductionSnapshots               ShopProductionSnapshot[]                   @relation("ProductionTechnician")
   generatedProductionSnapshots          ShopProductionSnapshot[]                   @relation("ProductionGeneratedBy")
+  createdInvoicePackages                ServiceInvoicePackage[]                    @relation("InvoicePackageCreatedBy")
+  repairOrderClosureEvents              RepairOrderClosureEvent[]                  @relation("RepairClosureActor")
+  createdPartVendors                    PartVendor[]                               @relation("PartVendorCreatedBy")
+  approvedInterchanges                  PartInterchange[]                          @relation("PartInterchangeApprovedBy")
+  createdPartRequisitions               PartRequisition[]                          @relation("PartRequisitionCreatedBy")
+  createdPurchaseOrders                 PartPurchaseOrder[]                        @relation("PartPurchaseOrderCreatedBy")
+  partReceipts                          PartReceipt[]                              @relation("PartReceiptReceivedBy")
+  resolvedPartDiscrepancies             PartReceivingDiscrepancy[]                 @relation("PartDiscrepancyResolvedBy")
+  partCustodyEvents                     PartCustodyEvent[]                         @relation("PartCustodyActor")
+  createdPartTransfers                  PartTransfer[]                             @relation("PartTransferCreatedBy")
+  createdPartRecoveries                 PartRecoveryCase[]                         @relation("PartRecoveryCreatedBy")
 
   @@index([isActive])
 }
@@ -1035,6 +1140,18 @@ model Organization {
   repairComebackEvents                  RepairComebackEvent[]
   technicianPresenceRecords             TechnicianPresenceRecord[]
   shopProductionSnapshots               ShopProductionSnapshot[]
+  serviceInvoicePackages                ServiceInvoicePackage[]
+  repairOrderClosureEvents              RepairOrderClosureEvent[]
+  partVendors                           PartVendor[]
+  partInterchanges                      PartInterchange[]
+  partVendorOffers                      PartVendorOffer[]
+  partRequisitions                      PartRequisition[]
+  partPurchaseOrders                    PartPurchaseOrder[]
+  partReceipts                          PartReceipt[]
+  partReceivingDiscrepancies            PartReceivingDiscrepancy[]
+  partCustodyEvents                     PartCustodyEvent[]
+  partTransfers                         PartTransfer[]
+  partRecoveryCases                     PartRecoveryCase[]
   resourceTypes                         SchedulableResourceType[]
   resources                             SchedulableResource[]
   appointmentCatalogVersions            AppointmentCatalogVersion[]
@@ -1102,6 +1219,8 @@ model Location {
   repairJobDispatches             RepairJobDispatch[]
   technicianPresenceRecords       TechnicianPresenceRecord[]
   shopProductionSnapshots         ShopProductionSnapshot[]
+  partPurchaseOrders              PartPurchaseOrder[]
+  partTransfers                   PartTransfer[]
 
   @@unique([organizationId, code])
   @@unique([id, organizationId])
@@ -1795,6 +1914,8 @@ model RepairOrder {
   deliveryReadinessEvaluations RepairDeliveryReadinessEvaluation[]
   originalComebackCases RepairComebackCase[] @relation("ComebackOriginalOrder")
   followUpComebackCases RepairComebackCase[] @relation("ComebackFollowUpOrder")
+  invoicePackages      ServiceInvoicePackage[]
+  closureEvents        RepairOrderClosureEvent[]
 
   @@unique([organizationId, repairOrderNumber])
   @@unique([id, organizationId])
@@ -2005,6 +2126,7 @@ model RepairJob {
   laborEvents           RepairJobLaborEvent[]
   qualityInspections    RepairQualityInspection[]
   comebackCases         RepairComebackCase[]
+  partCustodyEvents     PartCustodyEvent[]
 
   @@unique([repairOrderId, jobNumber])
   @@unique([repairOrderId, authorizedLineKey, authorizationId])
@@ -2368,6 +2490,63 @@ model ShopProductionSnapshot {
   @@index([technicianUserId, windowEnd])
 }
 
+model ServiceInvoicePackage {
+  id                   String               @id @default(cuid())
+  organizationId       String
+  repairOrderId        String
+  version              Int
+  status               InvoiceHandoffStatus @default(READY)
+  lineItems            Json
+  authorizedTotalCents Int
+  installedPartsCostCents Int
+  clockedLaborMinutes  Int
+  sourceSnapshot       Json
+  mismatchCodes        Json
+  externalSystemCode   String?
+  externalReference    String?
+  createdByUserId      String
+  reason               String
+  generatedAt          DateTime
+  submittedAt          DateTime?
+  reconciledAt         DateTime?
+  createdAt            DateTime             @default(now())
+  organization         Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairOrder          RepairOrder            @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  createdByUser        User                   @relation("InvoicePackageCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  closureEvents        RepairOrderClosureEvent[]
+
+  @@unique([repairOrderId, version])
+  @@unique([organizationId, externalSystemCode, externalReference])
+  @@index([organizationId, status, generatedAt])
+}
+
+model RepairOrderClosureEvent {
+  id                  String                 @id @default(cuid())
+  organizationId      String
+  repairOrderId       String
+  version             Int
+  type                RepairOrderClosureType
+  invoicePackageId    String?
+  finalOdometer       Int?
+  keysVerified        Boolean
+  recipientName       String?
+  handoffEvidence     Json
+  priorStage          RepairOrderStage
+  resultingStage      RepairOrderStage
+  actorUserId         String
+  reason              String
+  correlationId       String
+  occurredAt          DateTime
+  createdAt           DateTime               @default(now())
+  organization        Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairOrder         RepairOrder             @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  actorUser           User                    @relation("RepairClosureActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  invoicePackage      ServiceInvoicePackage?  @relation(fields: [invoicePackageId], references: [id], onDelete: Restrict)
+
+  @@unique([repairOrderId, version])
+  @@index([organizationId, type, occurredAt])
+}
+
 model Part {
   id                  String                 @id @default(cuid())
   organizationId      String
@@ -2389,6 +2568,12 @@ model Part {
   ledgerEntries       PartStockLedgerEntry[]
   demands             RepairPartDemand[]
   reservations        PartReservation[]
+  primaryInterchanges PartInterchange[]       @relation("PrimaryInterchangePart")
+  alternateInterchanges PartInterchange[]     @relation("AlternateInterchangePart")
+  vendorOffers        PartVendorOffer[]
+  custodyEvents       PartCustodyEvent[]
+  recoveryCases       PartRecoveryCase[]
+  receivingDiscrepancies PartReceivingDiscrepancy[]
 
   @@unique([organizationId, partNumber])
   @@unique([id, organizationId])
@@ -2411,6 +2596,11 @@ model PartStockLocation {
   balances       PartStockBalance[]
   ledgerEntries  PartStockLedgerEntry[]
   reservations   PartReservation[]
+  custodyFromEvents PartCustodyEvent[] @relation("PartCustodyFromLocation")
+  custodyToEvents PartCustodyEvent[] @relation("PartCustodyToLocation")
+  receipts         PartReceipt[]
+  transfersFrom    PartTransfer[] @relation("PartTransferFromLocation")
+  transfersTo      PartTransfer[] @relation("PartTransferToLocation")
 
   @@unique([organizationId, code])
   @@unique([id, organizationId])
@@ -2492,6 +2682,7 @@ model RepairPartDemand {
   createdByUser       User             @relation("PartDemandCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
   reservations        PartReservation[]
   repairJob           RepairJob?       @relation(fields: [repairJobId], references: [id], onDelete: Restrict)
+  requisitions        PartRequisition[]
 
   @@unique([repairOrderId, partId, repairJobReference])
   @@index([organizationId, status, requiredAt])
@@ -2522,6 +2713,262 @@ model PartReservation {
   @@index([organizationId, status, createdAt])
   @@index([demandId, status])
   @@index([stockLocationId, status])
+}
+
+model PartVendor {
+  id               String           @id @default(cuid())
+  organizationId   String
+  code             String
+  name             String
+  status           PartVendorStatus @default(ACTIVE)
+  paymentTerms      String
+  defaultWarranty  String
+  defaultReturnTerms String
+  reliabilityBasisPoints Int        @default(0)
+  createdByUserId  String
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdByUser    User             @relation("PartVendorCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  offers           PartVendorOffer[]
+  purchaseOrders   PartPurchaseOrder[]
+  recoveryCases    PartRecoveryCase[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status, name])
+}
+
+model PartInterchange {
+  id                 String              @id @default(cuid())
+  organizationId     String
+  primaryPartId      String
+  alternatePartId    String
+  type               PartInterchangeType
+  fitmentEvidence    Json
+  approved           Boolean             @default(false)
+  approvedByUserId   String?
+  approvedAt         DateTime?
+  reason             String
+  createdAt          DateTime            @default(now())
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  primaryPart        Part                @relation("PrimaryInterchangePart", fields: [primaryPartId], references: [id], onDelete: Restrict)
+  alternatePart      Part                @relation("AlternateInterchangePart", fields: [alternatePartId], references: [id], onDelete: Restrict)
+  approvedByUser     User?               @relation("PartInterchangeApprovedBy", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, primaryPartId, alternatePartId, type])
+  @@index([alternatePartId, approved])
+}
+
+model PartVendorOffer {
+  id                 String   @id @default(cuid())
+  organizationId     String
+  vendorId           String
+  partId             String
+  vendorPartNumber   String
+  unitCostCents      Int
+  availableQuantity  Int
+  estimatedArrivalAt DateTime?
+  warrantyTerms      String
+  returnTerms        String
+  effectiveFrom      DateTime
+  effectiveTo        DateTime?
+  createdAt          DateTime @default(now())
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  vendor             PartVendor @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  part               Part @relation(fields: [partId], references: [id], onDelete: Restrict)
+  requisitions       PartRequisition[]
+
+  @@unique([vendorId, partId, vendorPartNumber, effectiveFrom])
+  @@index([organizationId, partId, effectiveTo])
+}
+
+model PartRequisition {
+  id                 String                @id @default(cuid())
+  organizationId     String
+  demandId           String
+  status             PartRequisitionStatus @default(SOURCING)
+  requiredAt         DateTime
+  quantity           Int
+  selectedOfferId    String?
+  comparisonSnapshot Json
+  createdByUserId    String
+  reason             String
+  version            Int                  @default(1)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  organization       Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  demand             RepairPartDemand     @relation(fields: [demandId], references: [id], onDelete: Restrict)
+  selectedOffer      PartVendorOffer?      @relation(fields: [selectedOfferId], references: [id], onDelete: Restrict)
+  createdByUser      User                  @relation("PartRequisitionCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  purchaseOrders     PartPurchaseOrder[]
+
+  @@unique([demandId, status])
+  @@index([organizationId, status, requiredAt])
+}
+
+model PartPurchaseOrder {
+  id                 String                  @id @default(cuid())
+  organizationId     String
+  locationId         String
+  vendorId           String
+  requisitionId      String?
+  purchaseOrderNumber String
+  status             PartPurchaseOrderStatus @default(DRAFT)
+  lines              Json
+  orderedTotalCents  Int
+  receivedTotalCents Int                     @default(0)
+  version            Int                     @default(1)
+  createdByUserId    String
+  reason             String
+  issuedAt           DateTime?
+  acknowledgedAt     DateTime?
+  closedAt           DateTime?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  organization       Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location           Location                @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  vendor             PartVendor              @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  requisition        PartRequisition?         @relation(fields: [requisitionId], references: [id], onDelete: Restrict)
+  createdByUser      User                     @relation("PartPurchaseOrderCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  receipts           PartReceipt[]
+
+  @@unique([organizationId, purchaseOrderNumber])
+  @@index([organizationId, status, createdAt])
+}
+
+model PartReceipt {
+  id                  String   @id @default(cuid())
+  organizationId      String
+  purchaseOrderId     String
+  stockLocationId     String
+  packingSource       String
+  invoiceReference    String?
+  lines               Json
+  receivedByUserId    String
+  reason              String
+  receivedAt          DateTime
+  createdAt           DateTime @default(now())
+  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  purchaseOrder       PartPurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  receivedByUser      User @relation("PartReceiptReceivedBy", fields: [receivedByUserId], references: [id], onDelete: Restrict)
+  stockLocation       PartStockLocation @relation(fields: [stockLocationId], references: [id], onDelete: Restrict)
+  discrepancies       PartReceivingDiscrepancy[]
+
+  @@unique([purchaseOrderId, packingSource])
+  @@index([organizationId, receivedAt])
+}
+
+model PartReceivingDiscrepancy {
+  id                 String                @id @default(cuid())
+  organizationId     String
+  receiptId          String
+  type               PartDiscrepancyType
+  status             PartDiscrepancyStatus @default(OPEN)
+  partId             String?
+  expectedQuantity   Int
+  receivedQuantity   Int
+  expectedCostCents  Int
+  receivedCostCents  Int
+  notes              String
+  resolvedByUserId   String?
+  resolution         String?
+  resolvedAt         DateTime?
+  version            Int                   @default(1)
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  organization       Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  receipt            PartReceipt           @relation(fields: [receiptId], references: [id], onDelete: Restrict)
+  resolvedByUser     User?                 @relation("PartDiscrepancyResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: Restrict)
+  part               Part?                 @relation(fields: [partId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status, createdAt])
+}
+
+model PartCustodyEvent {
+  id                  String          @id @default(cuid())
+  organizationId      String
+  type                PartCustodyType
+  partId              String
+  repairJobId         String?
+  fromStockLocationId String?
+  toStockLocationId   String?
+  quantity            Int
+  unitCostCents       Int
+  sourceType          String
+  sourceId            String
+  evidence            Json
+  actorUserId         String
+  reason              String
+  correlationId       String
+  occurredAt          DateTime
+  createdAt           DateTime        @default(now())
+  organization        Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  part                Part            @relation(fields: [partId], references: [id], onDelete: Restrict)
+  repairJob           RepairJob?      @relation(fields: [repairJobId], references: [id], onDelete: Restrict)
+  fromStockLocation   PartStockLocation? @relation("PartCustodyFromLocation", fields: [fromStockLocationId], references: [id], onDelete: Restrict)
+  toStockLocation     PartStockLocation? @relation("PartCustodyToLocation", fields: [toStockLocationId], references: [id], onDelete: Restrict)
+  actorUser           User            @relation("PartCustodyActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, sourceType, sourceId, type])
+  @@index([repairJobId, occurredAt])
+  @@index([partId, occurredAt])
+}
+
+model PartTransfer {
+  id                  String             @id @default(cuid())
+  organizationId      String
+  locationId          String
+  transferNumber      String
+  status              PartTransferStatus @default(DRAFT)
+  fromStockLocationId String
+  toStockLocationId   String
+  lines               Json
+  discrepancyNotes    String?
+  createdByUserId     String
+  reason              String
+  shippedAt           DateTime?
+  receivedAt          DateTime?
+  version             Int                @default(1)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location            Location           @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  createdByUser       User               @relation("PartTransferCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  fromStockLocation   PartStockLocation  @relation("PartTransferFromLocation", fields: [fromStockLocationId], references: [id], onDelete: Restrict)
+  toStockLocation     PartStockLocation  @relation("PartTransferToLocation", fields: [toStockLocationId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, transferNumber])
+  @@index([organizationId, status, createdAt])
+}
+
+model PartRecoveryCase {
+  id                  String             @id @default(cuid())
+  organizationId      String
+  partId              String
+  vendorId            String?
+  type                PartRecoveryType
+  status              PartRecoveryStatus @default(ELIGIBLE)
+  sourceReference     String
+  quantity            Int
+  deadlineAt          DateTime
+  expectedCreditCents Int
+  actualCreditCents   Int?
+  disputeReason       String?
+  createdByUserId     String
+  reason              String
+  shippedAt           DateTime?
+  acknowledgedAt     DateTime?
+  resolvedAt          DateTime?
+  version             Int                @default(1)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  part                Part               @relation(fields: [partId], references: [id], onDelete: Restrict)
+  vendor              PartVendor?        @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  createdByUser       User               @relation("PartRecoveryCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, type, sourceReference])
+  @@index([organizationId, status, deadlineAt])
 }
 
 model RepairReadinessEvaluation {

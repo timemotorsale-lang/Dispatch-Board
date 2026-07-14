@@ -300,6 +300,12 @@ At this baseline:
 - Database-backed versioned appointment-template administration, recurrence persistence/materialization, availability-search API/UI, waitlist persistence/queues, reschedule/bulk execution persistence, full staff directory/admin maintenance, participant reassignment controls, reason-code catalog/templates, full command-center UI wiring, administration UI, browser workflow tests, and persisted production Appointment workflows have not yet been implemented.
 - The existing `/appointments` route now contains the mockup-aligned preview shell and is the intended UI boundary for the next live-service slices.
 
+## Service Financial Close and Enterprise Parts Operations — 2026-07-14
+
+Vehicle Operations Milestones 4H–5D are implemented in the repository. Repair orders can generate source-linked invoice-ready packages, record financial handoff status, close only after delivery/release/invoice/handoff gates pass, and reopen through retained manager-reasoned history. Parts Operations now includes vendor and interchange masters, effective vendor offers, demand requisitions and comparison snapshots, controlled purchase orders, receipt-ledger posting, discrepancy resolution, job/technician custody, location transfers, and core/warranty/vendor-return credit recovery. All mutations use the existing capability, rollout, idempotency, optimistic-version, audit, domain-event, and outbox controls. The live workspace is `/vehicles/service-close-parts`.
+
+The additive migration is source-controlled but was not deployed here. Payment processing, tax/general-ledger posting, external DMS/accounting adapters, cycle-count planning, replenishment/obsolescence recommendations, and barcode hardware integration remain separate planned slices. Verification for this checkpoint passed schema validation, lint, typecheck, 184 test files/1,077 tests, production build, and protected-route smoke validation. See [`docs/inventory/SERVICE_CLOSE_PARTS_OPERATIONS_IMPLEMENTATION.md`](inventory/SERVICE_CLOSE_PARTS_OPERATIONS_IMPLEMENTATION.md).
+
 ## Current Execution Order
 
 1. Complete and accept Appointment architecture decisions.
