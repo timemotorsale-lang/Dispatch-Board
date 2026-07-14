@@ -6,7 +6,8 @@ export const VEHICLE_CAPABILITIES = [
   "VEHICLE_COMMAND_EXECUTE",
   "VEHICLE_ROLLOUT_MANAGE",
   "VEHICLE_HEALTH_VIEW",
-  "VEHICLE_CAPABILITY_MANAGE"
+  "VEHICLE_CAPABILITY_MANAGE",
+  "VEHICLE_DUPLICATE_RESOLVE"
 ] as const;
 export type VehicleCapability = (typeof VEHICLE_CAPABILITIES)[number];
 
@@ -39,7 +40,7 @@ export function evaluateVehicleCapability(input: {
   });
   if (matching.some((grant) => grant.effect === "DENY")) return { allowed: false, reason: "EXPLICIT_DENY" } as const;
   if (isGeneralManager(input.actor)) return { allowed: true, reason: "GENERAL_MANAGER" } as const;
-  if (input.capability === "VEHICLE_ROLLOUT_MANAGE" || input.capability === "VEHICLE_CAPABILITY_MANAGE") {
+  if (input.capability === "VEHICLE_ROLLOUT_MANAGE" || input.capability === "VEHICLE_CAPABILITY_MANAGE" || input.capability === "VEHICLE_DUPLICATE_RESOLVE") {
     return matching.some((grant) => grant.effect === "ALLOW")
       ? { allowed: true, reason: "EXPLICIT_GRANT" } as const
       : { allowed: false, reason: "GENERAL_MANAGER_OR_GRANT_REQUIRED" } as const;

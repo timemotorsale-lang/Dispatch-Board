@@ -51,6 +51,12 @@ Vehicle Operations Milestone 1 (`VEH-010` through `VEH-017`) is implemented in t
 
 This is a shared command foundation, not the M2 canonical vehicle registry or later inventory/shop implementation. The migration has not been deployed here, no production publisher or scheduled worker has been configured, and production pilot/alert/recovery evidence remains pending. Detailed evidence and the M2 adoption contract are in [`docs/inventory/VEHICLE_OPERATIONS_COMMAND_FOUNDATION.md`](inventory/VEHICLE_OPERATIONS_COMMAND_FOUNDATION.md).
 
+## Canonical Vehicle Registry — 2026-07-14
+
+Vehicle Operations Milestone 2 (`VEH-020` through `VEH-028`) is implemented in the repository. The existing appointment/customer-compatible `Vehicle` root is extended in place with canonical VIN/stock controls, documented non-VIN exceptions, versioning, task linkage, and merge lineage. Effective-dated relationships, external identity mappings/conflicts, append-only odometer observations/corrections, attributable custody events, and duplicate-review cases have additive schema and migration coverage. Protected registry APIs provide paginated tenant-safe search and atomic M1-backed mutation commands. `/vehicles/registry` provides search, identity/history inspection, governed create/correction, import preview, odometer/custody capture, and duplicate reconciliation.
+
+This implementation preserves existing appointment/resource/customer references and legacy task text. The database migration, production import, external VIN/DMS adapters, outbox runtime, rollout activation, and production reconciliation evidence were not executed here. See [`docs/inventory/VEHICLE_REGISTRY_IMPLEMENTATION.md`](inventory/VEHICLE_REGISTRY_IMPLEMENTATION.md) and [`docs/inventory/VEHICLE_REGISTRY_ADR_MIGRATION_MAP.md`](inventory/VEHICLE_REGISTRY_ADR_MIGRATION_MAP.md).
+
 ## Customers Console Baseline
 
 Verified Customers implementation as of 2026-07-10:

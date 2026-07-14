@@ -18,6 +18,15 @@ function getModelBlock(schema: string, modelName: string) {
 }
 
 describe("prisma schema constraints", () => {
+  it("declares the VEH-M2 canonical vehicle registry and no-loss migration safeguards", async () => {
+    const schema = await readFile(schemaPath, "utf8");
+    for (const model of ["VehicleRelationship", "VehicleExternalIdentity", "VehicleOdometerObservation", "VehicleCustodyEvent", "VehicleDuplicateCase"]) expect(schema).toContain(`model ${model} {`);
+    const vehicle = getModelBlock(schema, "Vehicle"); expect(vehicle).toMatch(/vinRaw\s+String\?/); expect(vehicle).toMatch(/vinState\s+VehicleVinState/); expect(vehicle).toMatch(/vinValidationSource\s+String\?/); expect(vehicle).toMatch(/version\s+Int\s+@default\(0\)/); expect(vehicle).toMatch(/mergedIntoVehicleId\s+String\?/);
+    expect(getModelBlock(schema, "Task")).toMatch(/vehicleId\s+String\?/);
+    const migrationEntries = await readdir(migrationsPath, { withFileTypes: true });
+    const sql = (await Promise.all(migrationEntries.filter((entry) => entry.isDirectory()).map((entry) => readFile(path.join(migrationsPath, entry.name, "migration.sql"), "utf8")))).join("\n");
+    expect(sql).toMatch(/Vehicle_vin_state_check/); expect(sql).toMatch(/VehicleRelationship_vehicle_tenant_fkey/); expect(sql).toMatch(/VehicleOdometerObservation_reading_check/); expect(sql).toMatch(/VehicleDuplicateCase_resolution_check/); expect(sql).toMatch(/LEGACY_CUSTOMER_VEHICLE/); expect(sql).toMatch(/migration-dup-/); expect(sql).toMatch(/UPDATE "Task" task SET "vehicleId"/);
+  });
   it("declares the VEH-M1 enterprise command, tenancy, rollout, and health foundation", async () => {
     const schema = await readFile(schemaPath, "utf8");
     for (const model of ["EnterpriseAggregateVersion", "EnterpriseCommandLedger", "EnterpriseDomainEvent", "EnterpriseAuditEvent", "EnterpriseOutboxMessage", "VehicleCapabilityGrant", "VehicleOperationsFeatureFlag", "EnterpriseProjectionCheckpoint"]) expect(schema).toContain(`model ${model} {`);
