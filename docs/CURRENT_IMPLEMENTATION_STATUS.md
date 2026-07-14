@@ -1,5 +1,8 @@
 # Current Implementation Status
 
+## 2026-07-14 — M9: integration platform
+
+VEH-120–VEH-129 are implemented as provider-neutral integration foundations: external-system inventory, source authority matrix, adapter contract harness, conflict detection/reconciliation, explicit provider boundaries, and a governed partner API contract. Real provider credentials, durable partner stores, delivery workers, and production acknowledgements remain activation work.
 ## 2026-07-14 — M8: administration and resilience
 
 M8 (VEH-111–VEH-118) is implemented as enterprise-hardening foundations. The console now provides separation-of-duties and dollar-limit evaluation, manager-scoped retention/legal-hold and background-operation projections, bounded audit exploration, disaster-recovery, security, accessibility/performance gates, and an explicit pilot enable/pause/rollback/resume state machine. These controls produce reviewable evidence; they do not claim that a provider backup, scanner, or production pilot has run.
