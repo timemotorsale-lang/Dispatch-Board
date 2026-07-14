@@ -4664,6 +4664,296 @@ model EnterpriseProjectionCheckpoint {
   @@index([organizationId, lastFailureAt])
 }
 
+model CustomerServicePromise {
+  id                     String   @id @default(cuid())
+  organizationId         String
+  repairOrderId          String
+  customerId             String?
+  locationId             String
+  arrivalWindowStart     DateTime?
+  arrivalWindowEnd       DateTime?
+  completionWindowStart  DateTime
+  completionWindowEnd    DateTime
+  transportMode          String
+  transportStatus        String
+  status                 String   @default("ACTIVE")
+  breachReason           String?
+  recoveryAction         String?
+  ownerUserId            String
+  createdByUserId        String
+  version                Int      @default(1)
+  effectiveAt            DateTime
+  fulfilledAt            DateTime?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@unique([repairOrderId, version])
+  @@index([organizationId, status, completionWindowEnd])
+  @@index([customerId, effectiveAt])
+}
+
+model CustomerCommunicationPreference {
+  id              String    @id @default(cuid())
+  organizationId  String
+  customerId      String
+  channel         String
+  purpose         String
+  status          String
+  source          String
+  sourceReference String?
+  quietStartLocal String?
+  quietEndLocal   String?
+  timezone        String
+  effectiveFrom   DateTime
+  effectiveTo     DateTime?
+  recordedByUserId String
+  reason          String
+  version         Int       @default(1)
+  createdAt       DateTime  @default(now())
+
+  @@unique([customerId, channel, purpose, version])
+  @@index([organizationId, customerId, channel, purpose, effectiveFrom])
+}
+
+model CustomerEstimateApprovalRequest {
+  id                    String    @id @default(cuid())
+  organizationId        String
+  repairOrderId         String
+  customerId            String
+  estimateVersionId     String
+  estimateVersionNumber Int
+  tokenHashSha256       String    @unique
+  channel               String
+  destinationMasked     String
+  status                String    @default("PENDING")
+  deliveredAt           DateTime?
+  deliveryEvidence      Json
+  failureEvidence       Json
+  viewedAt              DateTime?
+  decidedAt             DateTime?
+  approvedLineKeys      Json
+  declinedLineKeys      Json
+  decisionName          String?
+  decisionEvidence      Json
+  expiresAt             DateTime
+  createdByUserId       String
+  version               Int       @default(1)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([organizationId, repairOrderId, status])
+  @@index([customerId, expiresAt])
+  @@index([estimateVersionId, status])
+}
+
+model CustomerServiceStatusEvent {
+  id                  String   @id @default(cuid())
+  organizationId      String
+  repairOrderId       String
+  customerId          String?
+  code                String
+  headline            String
+  customerMessage     String
+  promiseSummary      String?
+  delaySummary        String?
+  actionNeeded        String?
+  contactName         String?
+  contactMethod       String?
+  sourceType          String
+  sourceId            String
+  publishedByUserId   String
+  publishedAt         DateTime
+  createdAt           DateTime @default(now())
+
+  @@index([organizationId, repairOrderId, publishedAt])
+  @@index([customerId, publishedAt])
+}
+
+model VehicleWarrantyCoverage {
+  id                   String    @id @default(cuid())
+  organizationId       String
+  vehicleId            String
+  providerCode         String
+  contractReference    String
+  coverageType         String
+  coveredComponents    Json
+  exclusions           Json
+  deductibleCents      Int
+  mileageLimit         Int?
+  effectiveFrom        DateTime
+  effectiveTo          DateTime?
+  status               String    @default("ACTIVE")
+  evidenceObjectIds    Json
+  createdByUserId      String
+  version              Int       @default(1)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@unique([organizationId, providerCode, contractReference, version])
+  @@index([vehicleId, status, effectiveTo])
+}
+
+model VehicleWarrantyClaim {
+  id                       String    @id @default(cuid())
+  organizationId           String
+  vehicleId                String
+  repairOrderId            String
+  coverageId               String
+  claimNumber              String
+  status                   String    @default("DRAFT")
+  eligibilitySnapshot      Json
+  authorizationReference   String?
+  authorizedAt             DateTime?
+  laborLineKeys            Json
+  partLineKeys             Json
+  evidenceObjectIds        Json
+  submittedAmountCents     Int
+  approvedAmountCents      Int?
+  paidAmountCents          Int?
+  recoveredAmountCents     Int?
+  decisionReason           String?
+  submittedAt              DateTime?
+  decidedAt                DateTime?
+  paidAt                   DateTime?
+  createdByUserId          String
+  version                  Int       @default(1)
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  @@unique([organizationId, claimNumber])
+  @@index([repairOrderId, status])
+  @@index([coverageId, status])
+}
+
+model ServiceInvoiceReconciliation {
+  id                    String   @id @default(cuid())
+  organizationId        String
+  invoicePackageId      String
+  externalSystemCode    String
+  externalReference     String
+  returnedSubtotalCents Int
+  returnedTaxCents      Int
+  returnedTotalCents    Int
+  expectedTotalCents    Int
+  discrepancyCents      Int
+  discrepancyCodes     Json
+  status                String
+  reconciledByUserId    String
+  reconciledAt          DateTime
+  reason                String
+  createdAt             DateTime @default(now())
+
+  @@unique([invoicePackageId, externalSystemCode, externalReference])
+  @@index([organizationId, status, reconciledAt])
+}
+
+model VehicleCommercialHandoff {
+  id                    String    @id @default(cuid())
+  organizationId        String
+  vehicleId             String
+  inventoryUnitId       String?
+  customerId            String?
+  handoffType           String
+  status                String    @default("OPEN")
+  agreedPriceReference  String?
+  agreedPriceCents      Int?
+  readinessSnapshot     Json
+  dependencySnapshot    Json
+  evidenceObjectIds     Json
+  externalSystemCode    String?
+  externalReference     String?
+  ownerUserId           String
+  createdByUserId       String
+  completedAt           DateTime?
+  version               Int       @default(1)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([organizationId, vehicleId, handoffType, version])
+  @@index([organizationId, status, handoffType])
+  @@index([inventoryUnitId, status])
+}
+
+model VehiclePortalGrant {
+  id               String    @id @default(cuid())
+  organizationId   String
+  subjectType      String
+  customerId       String?
+  partnerReference String?
+  vehicleId        String
+  tokenHashSha256  String    @unique
+  scopes           Json
+  status           String    @default("ACTIVE")
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  revokedByUserId  String?
+  createdByUserId  String
+  lastAccessedAt   DateTime?
+  version          Int       @default(1)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([organizationId, status, expiresAt])
+  @@index([customerId, vehicleId, status])
+}
+
+model VehiclePortalAccessEvent {
+  id            String   @id @default(cuid())
+  organizationId String
+  portalGrantId String
+  action        String
+  allowed       Boolean
+  scope         String?
+  requestHash   String
+  reasonCode    String
+  occurredAt    DateTime @default(now())
+
+  @@index([portalGrantId, occurredAt])
+  @@index([organizationId, occurredAt])
+}
+
+model VehiclePolicyVersion {
+  id                  String    @id @default(cuid())
+  organizationId      String
+  policyCode          String
+  domain              String
+  version             Int
+  status              String    @default("DRAFT")
+  configuration       Json
+  simulationSnapshot  Json
+  pilotScope          Json
+  outcomeSnapshot     Json
+  effectiveFrom       DateTime?
+  effectiveTo         DateTime?
+  supersedesId        String?
+  rollbackTargetId    String?
+  createdByUserId     String
+  approvedByUserId    String?
+  approvedAt          DateTime?
+  activatedByUserId   String?
+  activatedAt         DateTime?
+  reason              String
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([organizationId, policyCode, version])
+  @@index([organizationId, domain, status])
+}
+
+model VehiclePolicyEvent {
+  id             String   @id @default(cuid())
+  organizationId String
+  policyVersionId String
+  actorUserId    String
+  eventType      String
+  reason         String
+  snapshot       Json
+  occurredAt     DateTime @default(now())
+
+  @@index([policyVersionId, occurredAt])
+  @@index([organizationId, occurredAt])
+}
+
 model GenerationRun {
   id                String                @id @default(cuid())
   boardDate         DateTime              @db.Date

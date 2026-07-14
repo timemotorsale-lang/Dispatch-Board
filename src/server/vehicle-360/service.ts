@@ -75,8 +75,8 @@ export async function getVehicle360(actor: AuthenticatedUser | null, vehicleId: 
       parts: { allowed: access.parts, ...parts },
       appointments: { allowed: true, items: projection.data.appointmentLinks },
       documents: { allowed: access.documents, items: documents },
-      warranty: { allowed: access.service, items: [] as unknown[] },
-      communications: { allowed: access.service, items: access.service ? projection.data.communications : [] },
+      warranty: { allowed: access.service, items: access.service ? [...projection.data.warrantyCoverages, ...projection.data.warrantyClaims] : [] },
+      communications: { allowed: access.service, items: access.service ? [...projection.data.customerStatuses, ...projection.data.servicePromises, ...projection.data.communicationPreferences, ...projection.data.estimateApprovals, ...projection.data.communications] : [] },
       costs: { allowed: access.service, items: costs },
       decisions: { allowed: access.service, items: decisions },
       audit: { allowed: access.audit, items: access.audit ? projection.data.audit : [] }
