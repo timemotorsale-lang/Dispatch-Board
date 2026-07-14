@@ -172,6 +172,7 @@ export function InventoryControlTower() {
           <button aria-current={activeTab === tab ? "page" : undefined} className={activeTab === tab ? "active" : ""} key={tab} onClick={() => { setActiveTab(tab); setNotice(`${tab} workspace selected.`); }} type="button">{tab}</button>
         ))}
         <Link href="/vehicles/registry">Open Registry</Link>
+        <Link href="/vehicles/inventory">Inventory Units</Link>
       </nav>
 
       <div className="ict-shell">

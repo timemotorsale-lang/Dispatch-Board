@@ -57,6 +57,12 @@ Vehicle Operations Milestone 2 (`VEH-020` through `VEH-028`) is implemented in t
 
 This implementation preserves existing appointment/resource/customer references and legacy task text. The database migration, production import, external VIN/DMS adapters, outbox runtime, rollout activation, and production reconciliation evidence were not executed here. See [`docs/inventory/VEHICLE_REGISTRY_IMPLEMENTATION.md`](inventory/VEHICLE_REGISTRY_IMPLEMENTATION.md) and [`docs/inventory/VEHICLE_REGISTRY_ADR_MIGRATION_MAP.md`](inventory/VEHICLE_REGISTRY_ADR_MIGRATION_MAP.md).
 
+## Inventory Unit Foundation — 2026-07-14
+
+Vehicle Operations Milestone 3A (`VEH-030`) is implemented in the repository. `InventoryUnit` now separates a dealership-controlled commercial inventory cycle from canonical physical vehicle identity and retains financial acquisition time, lifecycle stage/start, operating state, accountable owner/location, target, next action, version, and immutable state history. Database constraints enforce tenant-safe references, one open unit per vehicle, unique organization inventory numbers, valid timelines/state, and immutable event rows. Protected APIs and `/vehicles/inventory` provide eligible-vehicle creation, search/detail, active/waiting/blocked control updates, stale-version recovery, and history inspection through the M1 command/audit/event/outbox transaction.
+
+The migration is not deployed and `RETAIL_INVENTORY` remains rollout-disabled by default. VEH-031 through VEH-042, production backfill/import, lifecycle advancement, and live control-tower replacement remain planned. See [`docs/inventory/INVENTORY_UNIT_FOUNDATION_IMPLEMENTATION.md`](inventory/INVENTORY_UNIT_FOUNDATION_IMPLEMENTATION.md) and [`docs/inventory/INVENTORY_UNIT_FOUNDATION_ADR.md`](inventory/INVENTORY_UNIT_FOUNDATION_ADR.md).
+
 ## Customers Console Baseline
 
 Verified Customers implementation as of 2026-07-10:
