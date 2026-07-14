@@ -6,7 +6,7 @@ type WorkspaceMockupReferenceProps = {
 
 export function WorkspaceMockupReference({ image, title, role }: WorkspaceMockupReferenceProps) {
   return (
-    <details className="workspace-mockup-reference">
+    <details className="workspace-mockup-reference" open>
       <summary>
         <span><strong>Approved workspace design</strong><small>{role} · {title}</small></span>
         <span className="workspace-mockup-reference-action">View visual reference</span>

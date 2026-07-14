@@ -80,6 +80,7 @@ export function AppTopbar({ onMenuOpen, user }: AppTopbarProps) {
     { href: "/tasks", label: "Task Workspace", detail: "Shared work and accountability" },
     { href: "/insights", label: "Insights", detail: "Scorecards and forecasts" },
     { href: "/integrations", label: "Integrations", detail: "Provider health and reconciliation" },
+    { href: "/ui-reference", label: "Design Reference", detail: "Approved workspace mockups" },
     ...(isManager(user) ? [{ href: "/administration", label: "Administration", detail: "Governance and access" }] : [])
   ];
   const activeWorkspace = workspaces.find((workspace) => pathname === workspace.href || pathname.startsWith(`${workspace.href}/`)) ?? workspaces[0];

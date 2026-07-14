@@ -34,6 +34,7 @@ describe("enterprise shell navigation", () => {
       "/activity",
       "/insights",
       "/integrations",
+      "/ui-reference",
       "/inventory-manager",
       "/vehicles/inventory",
       "/vehicles/shop-dispatch",

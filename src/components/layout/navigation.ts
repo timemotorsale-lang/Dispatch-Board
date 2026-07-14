@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   FolderKanban,
   Gauge,
+  Images,
   LifeBuoy,
   LayoutTemplate,
   ListChecks,
@@ -163,6 +164,13 @@ export const navigationGroups: NavigationGroup[] = [
         title: "Integrations",
         description: "System events, provider health, and reconciliation signals.",
         icon: PlugZap
+      },
+      {
+        href: "/ui-reference",
+        title: "Workspace Design Reference",
+        description: "Approved role-based mockups and their live console destinations.",
+        icon: Images,
+        badge: "Design"
       },
       {
         href: "/tasks/intake",
