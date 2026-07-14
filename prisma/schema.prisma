@@ -445,6 +445,7 @@ enum RepairJobStatus {
   IN_PROGRESS
   PAUSED
   READY_FOR_QC
+  QC_PASSED
   CANCELLED
 }
 
@@ -491,6 +492,22 @@ enum LaborEventType {
   RESUME
   FINISH
   CORRECTION
+}
+
+enum QualityInspectionDisposition {
+  PASSED
+  FAILED
+}
+
+enum RoadTestOutcome {
+  NOT_REQUIRED
+  PASSED
+  FAILED
+}
+
+enum RepairHandoffDestination {
+  CUSTOMER_DELIVERY
+  INVENTORY_TITLE_OR_MERCHANDISING
 }
 
 enum AppointmentParticipantType {
@@ -835,6 +852,9 @@ model User {
   technicianLaborClocks                 RepairJobLaborClock[]                      @relation("LaborClockTechnician")
   technicianLaborEvents                 RepairJobLaborEvent[]                      @relation("LaborEventTechnician")
   authoredLaborEvents                   RepairJobLaborEvent[]                      @relation("LaborEventActor")
+  qualityInspections                    RepairQualityInspection[]                  @relation("QualityInspector")
+  peerQualityVerifications              RepairQualityInspection[]                  @relation("QualityPeerVerifier")
+  repairReleaseAuthorizations           RepairOrderReleaseAuthorization[]          @relation("RepairReleaseAuthorizer")
 
   @@index([isActive])
 }
@@ -958,6 +978,8 @@ model Organization {
   repairJobDispatches                   RepairJobDispatch[]
   repairJobLaborClocks                  RepairJobLaborClock[]
   repairJobLaborEvents                  RepairJobLaborEvent[]
+  repairQualityInspections              RepairQualityInspection[]
+  repairOrderReleaseAuthorizations      RepairOrderReleaseAuthorization[]
   resourceTypes                         SchedulableResourceType[]
   resources                             SchedulableResource[]
   appointmentCatalogVersions            AppointmentCatalogVersion[]
@@ -1710,6 +1732,8 @@ model RepairOrder {
   estimateVersions    RepairEstimateVersion[]
   authorizations      RepairAuthorization[]
   repairJobs          RepairJob[]
+  qualityInspections  RepairQualityInspection[]
+  releaseAuthorization RepairOrderReleaseAuthorization?
 
   @@unique([organizationId, repairOrderNumber])
   @@unique([id, organizationId])
@@ -1903,6 +1927,8 @@ model RepairJob {
   executionEvidence      Json?
   executionBlockerReason String?
   qcHandoffNotes         String?
+  qcPassedAt             DateTime?
+  qcFailedAt             DateTime?
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
   organization          Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
@@ -1916,6 +1942,7 @@ model RepairJob {
   dispatches            RepairJobDispatch[]
   laborClocks           RepairJobLaborClock[]
   laborEvents           RepairJobLaborEvent[]
+  qualityInspections    RepairQualityInspection[]
 
   @@unique([repairOrderId, jobNumber])
   @@unique([repairOrderId, authorizedLineKey, authorizationId])
@@ -2051,6 +2078,65 @@ model RepairJobLaborEvent {
   @@index([repairJobId, occurredAt])
   @@index([technicianUserId, occurredAt])
   @@index([correlationId])
+}
+
+model RepairQualityInspection {
+  id                       String                       @id @default(cuid())
+  organizationId           String
+  repairOrderId            String
+  repairJobId              String
+  version                  Int
+  disposition              QualityInspectionDisposition
+  templateCode             String
+  templateVersion          Int
+  templateSnapshot         Json
+  checkResults             Json
+  completionEvidence       Json
+  safetyChecksPassed       Boolean
+  peerVerificationRequired Boolean
+  peerVerificationPassed   Boolean
+  peerVerifierUserId       String?
+  roadTestRequired         Boolean
+  roadTestOutcome          RoadTestOutcome
+  roadTestEvidence         Json
+  failureReasonCodes       Json
+  reworkInstructions       String?
+  inspectorUserId          String
+  inspectedAt              DateTime
+  supersedesId             String?                      @unique
+  createdAt                DateTime                     @default(now())
+  organization             Organization                 @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairOrder              RepairOrder                  @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  repairJob                RepairJob                    @relation(fields: [repairJobId], references: [id], onDelete: Restrict)
+  inspectorUser            User                         @relation("QualityInspector", fields: [inspectorUserId], references: [id], onDelete: Restrict)
+  peerVerifierUser         User?                        @relation("QualityPeerVerifier", fields: [peerVerifierUserId], references: [id], onDelete: Restrict)
+  supersedes               RepairQualityInspection?     @relation("QualityInspectionSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy             RepairQualityInspection?     @relation("QualityInspectionSupersession")
+
+  @@unique([repairJobId, version])
+  @@index([organizationId, disposition, inspectedAt])
+  @@index([repairOrderId, inspectedAt])
+}
+
+model RepairOrderReleaseAuthorization {
+  id                 String                    @id @default(cuid())
+  organizationId     String
+  repairOrderId      String                    @unique
+  destination        RepairHandoffDestination
+  qcInspectionIds    Json
+  releaseEvidence    Json
+  keysVerified       Boolean
+  openExceptions     Json
+  authorizedByUserId String
+  authorizedAt       DateTime
+  reason             String
+  createdAt          DateTime                  @default(now())
+  organization       Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairOrder        RepairOrder               @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  authorizedByUser   User                      @relation("RepairReleaseAuthorizer", fields: [authorizedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, authorizedAt])
+  @@index([authorizedByUserId, authorizedAt])
 }
 
 model Part {

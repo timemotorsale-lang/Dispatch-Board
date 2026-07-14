@@ -79,6 +79,10 @@ The migration is not deployed and `RETAIL_INVENTORY` remains rollout-disabled by
 
 Vehicle Operations Milestone 4C (`VEH-057` through `VEH-062`) is implemented. Effective-dated procedures and qualifications now gate location-aware technician, bay, tool, and equipment assignments. The live dispatch board enforces one current and one next job, detects shop and appointment resource conflicts, retains re-dispatch lineage, and requires attributable overrides. Technician execution provides current/next work, procedures, parts, blockers, labor start/pause/resume/finish/correction evidence, and a required evidence-backed QC handoff. All writes use the Milestone 1 command/audit/event/outbox boundary. QC release, advisor workflow, comeback handling, production analytics, invoicing, and close/reopen remain later slices. The migration is source-controlled but not deployed. See [`docs/inventory/SHOP_DISPATCH_EXECUTION_IMPLEMENTATION.md`](inventory/SHOP_DISPATCH_EXECUTION_IMPLEMENTATION.md).
 
+## Quality control and vehicle release — 2026-07-14
+
+Vehicle Operations Milestone 4D (`VEH-064`) is implemented. Immutable per-job QC versions enforce completion evidence, applicable safety checks, diagnostic/heavy peer verification, applicable road-test evidence, and explicit failed-check rework instructions. Failure returns the job to the governed repair/dispatch flow without deleting labor or QC history. Final release authorization is a separate RepairOrder command and remains blocked until every non-cancelled job has a latest passing QC inspection, labor is stopped, keys and final-condition evidence are verified, and open exceptions are empty. Customer versus inventory handoff is derived from RepairOrder origin. Advisor delivery, invoicing/payment, close/reopen, comeback handling, and production analytics are not claimed. The migration is source-controlled but not deployed. See [`docs/inventory/QUALITY_CONTROL_RELEASE_IMPLEMENTATION.md`](inventory/QUALITY_CONTROL_RELEASE_IMPLEMENTATION.md).
+
 ## Customers Console Baseline
 
 Verified Customers implementation as of 2026-07-10:
