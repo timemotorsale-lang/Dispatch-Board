@@ -26,7 +26,7 @@ export default async function WorkspaceDesignReferencePage() {
       <div className="workspace-reference-grid">
         {references.map((reference) => (
           <article className="workspace-reference-card" key={reference.image}>
-            <Image alt={`${reference.title} mockup`} height={700} src={reference.image} width={1200} />
+            <a href={reference.image} rel="noreferrer" target="_blank"><Image alt={`${reference.title} mockup`} height={700} src={reference.image} width={1200} /></a>
             <div><span>{reference.role}</span><h2>{reference.title}</h2><Link className="pill pill-primary" href={reference.href}>Open live workspace</Link></div>
           </article>
         ))}
