@@ -18,6 +18,12 @@ function getModelBlock(schema: string, modelName: string) {
 }
 
 describe("prisma schema constraints", () => {
+  it("declares the VEH-030 inventory unit aggregate and immutable state history", async () => {
+    const schema = await readFile(schemaPath, "utf8"); const unit = getModelBlock(schema, "InventoryUnit"); const event = getModelBlock(schema, "InventoryUnitStateEvent");
+    expect(unit).toMatch(/financialAcquiredAt\s+DateTime/); expect(unit).toMatch(/lifecycleStage\s+InventoryUnitLifecycleStage/); expect(unit).toMatch(/ownerUserId\s+String/); expect(unit).toMatch(/locationId\s+String/); expect(unit).toMatch(/targetAt\s+DateTime/); expect(unit).toMatch(/version\s+Int\s+@default\(1\)/); expect(event).toMatch(/@@unique\(\[inventoryUnitId,\s*version\]\)/);
+    const migrationEntries = await readdir(migrationsPath, { withFileTypes: true }); const sql = (await Promise.all(migrationEntries.filter((entry) => entry.isDirectory()).map((entry) => readFile(path.join(migrationsPath, entry.name, "migration.sql"), "utf8")))).join("\n");
+    expect(sql).toMatch(/InventoryUnit_one_open_unit_per_vehicle_key/); expect(sql).toMatch(/InventoryUnit_vehicle_tenant_fkey/); expect(sql).toMatch(/InventoryUnit_operating_state_check/); expect(sql).toMatch(/prevent_inventory_unit_state_event_mutation/); expect(sql).toMatch(/'RETAIL_INVENTORY'/);
+  });
   it("declares the VEH-M2 canonical vehicle registry and no-loss migration safeguards", async () => {
     const schema = await readFile(schemaPath, "utf8");
     for (const model of ["VehicleRelationship", "VehicleExternalIdentity", "VehicleOdometerObservation", "VehicleCustodyEvent", "VehicleDuplicateCase"]) expect(schema).toContain(`model ${model} {`);

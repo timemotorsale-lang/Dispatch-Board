@@ -66,9 +66,13 @@ Implementation evidence: [`VEHICLE_REGISTRY_IMPLEMENTATION.md`](VEHICLE_REGISTRY
 
 ## M3 — Retail inventory lifecycle
 
+### M3A — Inventory unit foundation
+
+Implementation evidence: [`INVENTORY_UNIT_FOUNDATION_IMPLEMENTATION.md`](INVENTORY_UNIT_FOUNDATION_IMPLEMENTATION.md) · ADR: [`INVENTORY_UNIT_FOUNDATION_ADR.md`](INVENTORY_UNIT_FOUNDATION_ADR.md)
+
 | ID | Status | Slice | Acceptance |
 | --- | --- | --- | --- |
-| VEH-030 | [ ] | Add InventoryUnit aggregate | Dealership-owned inventory has financial acquisition time, lifecycle stage, version, owner, location, target, and state history. |
+| VEH-030 | [x] | Add InventoryUnit aggregate | Dealership-owned inventory has financial acquisition time, lifecycle stage, version, owner, location, target, and state history. |
 | VEH-031 | [ ] | Add acquisition and appraisal records | Condition, comparables, evidence, confidence, estimate, and decision history are retained independently of recommendation output. |
 | VEH-032 | [ ] | Add purchase-limit and authorization command | Maximum bid is reproducible; purchases above authority or without required evidence are rejected and audited. |
 | VEH-033 | [ ] | Add transport, receipt, and intake commands | Custody, damage, keys, documents, source, arrival, and intake exceptions are captured at receipt. |
