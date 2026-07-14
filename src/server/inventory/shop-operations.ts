@@ -175,6 +175,8 @@ export function scoreShopWorkPriority(input: {
   };
 }
 
+export function determineShopHandoff(origin: ShopWorkOrigin, qcPassed: true): { allowed: true; destination: "CUSTOMER_DELIVERY" | "INVENTORY_TITLE_OR_MERCHANDISING"; reasonCodes: string[] };
+export function determineShopHandoff(origin: ShopWorkOrigin, qcPassed: false): { allowed: false; destination: "REPAIRS"; reasonCodes: string[] };
 export function determineShopHandoff(origin: ShopWorkOrigin, qcPassed: boolean) {
   if (!qcPassed) {
     return { allowed: false, destination: "REPAIRS" as const, reasonCodes: ["SHOP_QC_NOT_PASSED"] };
