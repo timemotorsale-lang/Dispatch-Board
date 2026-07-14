@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-07-14 — Vehicle Operations Wave 2: evidence storage and Vehicle 360
+
+Vehicle Operations Milestone 6A–6D (`VEH-090` through `VEH-093`) is implemented in the working tree. The application now has database-backed governed vehicle evidence with server-owned SHA-256 integrity, content signature checks, quarantine, retention, legal hold, access classification, immutable evidence history, authorized audited downloads, enterprise commands, and database constraints/triggers. `/vehicles/360/[id]` projects canonical summary, correlated timeline, permission-aware operational tabs, cost/decision/audit views, and a navigable permission-filtered relationship graph from existing vehicle, customer, inventory, repair, parts, appointment, task, evidence, and audit records.
+
+The implementation uses a bounded PostgreSQL evidence-content store and a built-in signature safety baseline. Production object storage, an approved antivirus/content-disarm provider, migration deployment, feature activation, production retention/restore exercises, browser evidence, and live pilot qualification remain pending. Warranty is present as a governed empty-state pending `VEH-105`; no warranty claim aggregate is implied. See [`docs/inventory/VEHICLE_EVIDENCE_AND_360_IMPLEMENTATION.md`](inventory/VEHICLE_EVIDENCE_AND_360_IMPLEMENTATION.md).
+
 **Verified:** 2026-07-10
 **Purpose:** Evidence-based snapshot of the repository during Enterprise Appointment and Customers planning/implementation
 **Supersedes:** Stale “pre-implementation” statements in older planning documents
