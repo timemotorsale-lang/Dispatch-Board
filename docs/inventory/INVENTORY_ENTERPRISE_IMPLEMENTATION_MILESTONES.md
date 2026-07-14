@@ -35,16 +35,18 @@ Every implementation card must be a reviewable vertical slice and include, where
 
 ## M1 — Enterprise command and tenancy foundation
 
+Implementation evidence: [`VEHICLE_OPERATIONS_COMMAND_FOUNDATION.md`](VEHICLE_OPERATIONS_COMMAND_FOUNDATION.md)
+
 | ID | Status | Slice | Acceptance |
 | --- | --- | --- | --- |
-| VEH-010 | [~] | Consolidate organization and location tenancy | Existing foundations are extended so every new vehicle-domain record has enforced organization/location scope. |
-| VEH-011 | [ ] | Add vehicle capability policy registry | Read and mutation capabilities are server-enforced by role, location, ownership, amount, and delegated authority. |
-| VEH-012 | [ ] | Add command ledger and idempotency contract | Retried commands return the original outcome and conflicting payloads are rejected. |
-| VEH-013 | [ ] | Add optimistic concurrency | Mutations reject stale aggregate versions with a recoverable conflict response and UI. |
-| VEH-014 | [ ] | Add domain-event and immutable audit foundation | Aggregate, event, audit, and activity/outbox writes commit atomically with one correlation ID. |
-| VEH-015 | [ ] | Add transactional outbox and worker | Published side effects are retry-safe, observable, replayable, and cannot be lost after an accepted command. |
-| VEH-016 | [ ] | Add feature rollout controls | Vehicle features support off, shadow, pilot-location, percentage, general, and rollback states. |
-| VEH-017 | [ ] | Add operational health projection | Managers/operators can see command, job, projection, and integration health without accessing secrets. |
+| VEH-010 | [x] | Consolidate organization and location tenancy | Existing foundations are extended so every new vehicle-domain record has enforced organization/location scope. |
+| VEH-011 | [x] | Add vehicle capability policy registry | Read and mutation capabilities are server-enforced by role, location, ownership, amount, and delegated authority. |
+| VEH-012 | [x] | Add command ledger and idempotency contract | Retried commands return the original outcome and conflicting payloads are rejected. |
+| VEH-013 | [x] | Add optimistic concurrency | Mutations reject stale aggregate versions with a recoverable conflict response and UI. |
+| VEH-014 | [x] | Add domain-event and immutable audit foundation | Aggregate, event, audit, and activity/outbox writes commit atomically with one correlation ID. |
+| VEH-015 | [x] | Add transactional outbox and worker | Published side effects are retry-safe, observable, replayable, and cannot be lost after an accepted command. |
+| VEH-016 | [x] | Add feature rollout controls | Vehicle features support off, shadow, pilot-location, percentage, general, and rollback states. |
+| VEH-017 | [x] | Add operational health projection | Managers/operators can see command, job, projection, and integration health without accessing secrets. |
 
 ## M2 — Canonical vehicle registry
 

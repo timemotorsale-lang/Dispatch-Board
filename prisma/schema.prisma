@@ -437,6 +437,30 @@ enum StaffDailyReportStatus {
   SUBMITTED
 }
 
+enum EnterpriseCommandStatus {
+  SUCCEEDED
+  FAILED
+}
+
+enum EnterpriseOutboxStatus {
+  PENDING
+  PROCESSING
+  PUBLISHED
+  DEAD_LETTER
+}
+
+enum CapabilityEffect {
+  ALLOW
+  DENY
+}
+
+enum VehicleOperationsRolloutMode {
+  OFF
+  SHADOW
+  PILOT
+  GENERAL
+}
+
 // Placeholder model for the v0.1.0 foundation migration.
 // Domain models are intentionally deferred to later milestones.
 model BootstrapMarker {
@@ -505,6 +529,11 @@ model User {
   crmDecisionOverrides                   CrmDecisionRecord[]                    @relation("CrmDecisionOverrideUser")
   ownedCustomerLeads                     CustomerLead[]                         @relation("CustomerLeadOwner")
   createdCustomerLeads                   CustomerLead[]                         @relation("CustomerLeadCreatedBy")
+  vehicleCapabilityGrants                VehicleCapabilityGrant[]
+  enterpriseCommandLedgerEntries         EnterpriseCommandLedger[]             @relation("EnterpriseCommandActor")
+  enterpriseAuditEvents                  EnterpriseAuditEvent[]                 @relation("EnterpriseAuditActor")
+  updatedVehicleOperationsFeatureFlags   VehicleOperationsFeatureFlag[]         @relation("VehicleOperationsFeatureFlagUpdater")
+  vehicleOperationsRolloutEvents         VehicleOperationsRolloutEvent[]        @relation("VehicleOperationsRolloutActor")
 
   @@index([isActive])
 }
@@ -616,6 +645,15 @@ model Organization {
   crmFeatureFlags                        CustomerCrmFeatureFlag[]
   crmRolloutEvents                       CustomerCrmRolloutEvent[]
   crmCalibrationSnapshots                CustomerCrmCalibrationSnapshot[]
+  enterpriseAggregateVersions            EnterpriseAggregateVersion[]
+  enterpriseCommandLedgerEntries         EnterpriseCommandLedger[]
+  enterpriseDomainEvents                 EnterpriseDomainEvent[]
+  enterpriseAuditEvents                  EnterpriseAuditEvent[]
+  enterpriseOutboxMessages               EnterpriseOutboxMessage[]
+  vehicleCapabilityGrants                VehicleCapabilityGrant[]
+  vehicleOperationsFeatureFlags          VehicleOperationsFeatureFlag[]
+  vehicleOperationsRolloutEvents         VehicleOperationsRolloutEvent[]
+  enterpriseProjectionCheckpoints        EnterpriseProjectionCheckpoint[]
 }
 
 model Location {
@@ -641,8 +679,17 @@ model Location {
   appointmentCommandLedgerEntries AppointmentCommandLedger[]
   userAccess                      UserLocationAccess[]
   resources                       SchedulableResource[]
+  enterpriseAggregateVersions     EnterpriseAggregateVersion[]
+  enterpriseCommandLedgerEntries  EnterpriseCommandLedger[]
+  enterpriseDomainEvents          EnterpriseDomainEvent[]
+  enterpriseAuditEvents           EnterpriseAuditEvent[]
+  enterpriseOutboxMessages        EnterpriseOutboxMessage[]
+  vehicleCapabilityGrants         VehicleCapabilityGrant[]
+  vehicleOperationsFeatureFlags   VehicleOperationsFeatureFlag[]
+  enterpriseProjectionCheckpoints EnterpriseProjectionCheckpoint[]
 
   @@unique([organizationId, code])
+  @@unique([id, organizationId])
   @@index([organizationId, schedulingStatus])
   @@index([city, region])
 }
@@ -1970,6 +2017,208 @@ model ActivityEvent {
   @@index([boardDayId, createdAt])
   @@index([taskId])
   @@index([concernCaseId, createdAt])
+}
+
+model EnterpriseAggregateVersion {
+  id             String       @id @default(cuid())
+  organizationId String
+  locationId     String?
+  domain         String
+  subjectType    String
+  subjectId      String
+  version        Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location       Location?    @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, domain, subjectType, subjectId])
+  @@index([locationId, domain, subjectType])
+}
+
+model EnterpriseCommandLedger {
+  id              String                  @id @default(cuid())
+  organizationId  String
+  locationId      String?
+  actorUserId     String
+  domain          String
+  subjectType     String
+  subjectId       String
+  commandType     String
+  status          EnterpriseCommandStatus
+  idempotencyKey  String
+  requestHash     String
+  correlationId   String
+  expectedVersion Int
+  resultingVersion Int?
+  resultSnapshot  Json?
+  errorCode       String?
+  errorMessage    String?
+  completedAt     DateTime?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  organization    Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location        Location?               @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  actorUser       User                    @relation("EnterpriseCommandActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  domainEvents    EnterpriseDomainEvent[]
+  auditEvents     EnterpriseAuditEvent[]
+
+  @@unique([organizationId, domain, commandType, idempotencyKey])
+  @@index([subjectType, subjectId, createdAt])
+  @@index([locationId, status, createdAt])
+  @@index([correlationId])
+}
+
+model EnterpriseDomainEvent {
+  id               String                  @id @default(cuid())
+  organizationId   String
+  locationId       String?
+  commandId        String
+  domain            String
+  aggregateType     String
+  aggregateId       String
+  aggregateVersion  Int
+  eventType         String
+  payload           Json
+  occurredAt        DateTime                @default(now())
+  createdAt         DateTime                @default(now())
+  organization      Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location          Location?               @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  command           EnterpriseCommandLedger @relation(fields: [commandId], references: [id], onDelete: Restrict)
+  outboxMessages    EnterpriseOutboxMessage[]
+
+  @@unique([organizationId, domain, aggregateType, aggregateId, aggregateVersion])
+  @@index([commandId])
+  @@index([eventType, occurredAt])
+}
+
+model EnterpriseAuditEvent {
+  id              String                   @id @default(cuid())
+  organizationId  String
+  locationId      String?
+  actorUserId     String
+  commandId       String?
+  domain          String
+  subjectType     String
+  subjectId       String
+  eventType       String
+  reason          String
+  priorValue      Json?
+  newValue        Json?
+  metadata        Json
+  correlationId   String
+  occurredAt      DateTime                 @default(now())
+  createdAt       DateTime                 @default(now())
+  organization    Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location        Location?                @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  actorUser       User                     @relation("EnterpriseAuditActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  command         EnterpriseCommandLedger? @relation(fields: [commandId], references: [id], onDelete: SetNull)
+
+  @@index([subjectType, subjectId, occurredAt])
+  @@index([actorUserId, occurredAt])
+  @@index([correlationId])
+}
+
+model EnterpriseOutboxMessage {
+  id              String                 @id @default(cuid())
+  organizationId  String
+  locationId      String?
+  domainEventId   String
+  topic           String
+  messageKey      String
+  payload         Json
+  status          EnterpriseOutboxStatus @default(PENDING)
+  attemptCount    Int                    @default(0)
+  maxAttempts     Int                    @default(5)
+  nextAttemptAt   DateTime               @default(now())
+  lockedAt        DateTime?
+  publishedAt     DateTime?
+  lastError       String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  organization    Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location        Location?              @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  domainEvent     EnterpriseDomainEvent  @relation(fields: [domainEventId], references: [id], onDelete: Restrict)
+
+  @@unique([domainEventId, topic])
+  @@index([status, nextAttemptAt])
+  @@index([organizationId, locationId, createdAt])
+}
+
+model VehicleCapabilityGrant {
+  id             String           @id @default(cuid())
+  organizationId String
+  locationId     String?
+  userId         String
+  capability     String
+  effect         CapabilityEffect @default(ALLOW)
+  constraints    Json
+  validFrom      DateTime         @default(now())
+  validTo        DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  location       Location?        @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, locationId, userId, capability])
+  @@index([userId, capability, validFrom, validTo])
+}
+
+model VehicleOperationsFeatureFlag {
+  id              String                       @id @default(cuid())
+  organizationId  String
+  locationId      String?
+  code            String
+  mode            VehicleOperationsRolloutMode @default(OFF)
+  rolloutPercent  Int                          @default(0)
+  allowedUserIds  Json
+  version         Int                          @default(1)
+  updatedByUserId String?
+  createdAt       DateTime                     @default(now())
+  updatedAt       DateTime                     @updatedAt
+  organization    Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  location        Location?                    @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  updatedByUser   User?                        @relation("VehicleOperationsFeatureFlagUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, locationId, code])
+  @@index([organizationId, mode])
+}
+
+model VehicleOperationsRolloutEvent {
+  id             String       @id @default(cuid())
+  organizationId String
+  actorUserId    String
+  action         String
+  reason         String
+  priorState     Json
+  nextState      Json
+  correlationId  String
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actorUser      User         @relation("VehicleOperationsRolloutActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, createdAt])
+  @@index([correlationId])
+}
+
+model EnterpriseProjectionCheckpoint {
+  id                 String       @id @default(cuid())
+  organizationId     String
+  locationId         String?
+  projectionCode     String
+  lastEventOccurredAt DateTime?
+  lastSuccessAt      DateTime?
+  lastFailureAt      DateTime?
+  lastError          String?
+  lagSeconds         Int          @default(0)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  location           Location?    @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, locationId, projectionCode])
+  @@index([organizationId, lastFailureAt])
 }
 
 model GenerationRun {
