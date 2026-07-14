@@ -30,7 +30,7 @@ export async function executeEnterpriseVehicleCommand(actor: AuthenticatedUser |
   return { commandId: result.command.id, correlationId: result.command.correlationId, duplicate: result.duplicate, version: result.version, result: result.command.resultSnapshot };
 }
 
-export const VEHICLE_OPERATIONS_FEATURES = ["VEHICLE_OPERATIONS_MASTER", "ENTERPRISE_COMMANDS", "VEHICLE_REGISTRY", "RETAIL_INVENTORY", "SHOP_OPERATIONS", "PARTS_OPERATIONS"] as const;
+export const VEHICLE_OPERATIONS_FEATURES = ["VEHICLE_OPERATIONS_MASTER", "ENTERPRISE_COMMANDS", "VEHICLE_REGISTRY", "RETAIL_INVENTORY", "SHOP_OPERATIONS", "PARTS_OPERATIONS", "VEHICLE_360"] as const;
 export type VehicleOperationsFeatureCode = (typeof VEHICLE_OPERATIONS_FEATURES)[number];
 
 export function evaluateVehicleOperationsFeature(flags: VehicleFeatureFlagRecord[], code: VehicleOperationsFeatureCode, userId: string, locationId: string | null) {

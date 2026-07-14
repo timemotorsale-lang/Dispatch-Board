@@ -520,6 +520,43 @@ enum PartBarcodeType {
   VENDOR
 }
 
+enum VehicleEvidenceStatus {
+  AVAILABLE
+  QUARANTINED
+  DELETED
+}
+
+enum VehicleEvidenceMalwareStatus {
+  CLEAN
+  DETECTED
+  ERROR
+}
+
+enum VehicleEvidenceAccessLevel {
+  INTERNAL
+  RESTRICTED
+}
+
+enum VehicleEvidenceCategory {
+  PHOTO
+  INSPECTION
+  REPAIR
+  TITLE
+  WARRANTY
+  CUSTOMER_APPROVAL
+  DELIVERY
+  OTHER
+}
+
+enum VehicleEvidenceEventType {
+  UPLOADED
+  ACCESSED
+  LINKED
+  QUARANTINED
+  RETENTION_CHANGED
+  DELETED
+}
+
 enum PartDemandStatus {
   OPEN
   PARTIALLY_RESERVED
@@ -985,86 +1022,89 @@ model User {
   reportedConcerns                      ConcernCase[]                          @relation("ConcernReportedByUser")
   ownedConcerns                         ConcernCase[]                          @relation("ConcernAssignedOwner")
   closedConcerns                        ConcernCase[]                          @relation("ConcernClosedByUser")
-  ownedCustomerPromises                 CustomerPromise[]                     @relation("CustomerPromiseOwner")
-  fulfilledCustomerPromises             CustomerPromise[]                     @relation("CustomerPromiseFulfilledBy")
-  ownedCustomers                        Customer[]                            @relation("CustomerOwner")
-  authoredCustomerInteractions          CustomerInteraction[]                 @relation("CustomerInteractionActor")
-  authoredCustomerNotes                 CustomerNote[]                        @relation("CustomerNoteAuthor")
+  ownedCustomerPromises                 CustomerPromise[]                      @relation("CustomerPromiseOwner")
+  fulfilledCustomerPromises             CustomerPromise[]                      @relation("CustomerPromiseFulfilledBy")
+  ownedCustomers                        Customer[]                             @relation("CustomerOwner")
+  authoredCustomerInteractions          CustomerInteraction[]                  @relation("CustomerInteractionActor")
+  authoredCustomerNotes                 CustomerNote[]                         @relation("CustomerNoteAuthor")
   completedChecklistItems               TaskChecklistItem[]                    @relation("TaskChecklistCompletedByUser")
   staffDays                             StaffDay[]
   completedStaffDayDutyItems            StaffDayDutyItem[]                     @relation("StaffDayDutyCompletedByUser")
   claimedWorkRecommendations            WorkRecommendation[]                   @relation("WorkRecommendationClaimedByUser")
   requestedTaskAssignments              TaskAssignmentRequest[]                @relation("TaskAssignmentRequestRequester")
   decidedTaskAssignmentRequests         TaskAssignmentRequest[]                @relation("TaskAssignmentRequestDecisionMaker")
-  submittedStaffDailyReports             StaffDailyReport[]                     @relation("StaffDailyReportSubmittedByUser")
-  taskCollaborations                     TaskCollaborator[]                     @relation("TaskCollaboratorUser")
-  addedTaskCollaborators                 TaskCollaborator[]                     @relation("TaskCollaboratorAddedByUser")
-  crmDecisionOverrides                   CrmDecisionRecord[]                    @relation("CrmDecisionOverrideUser")
-  ownedCustomerLeads                     CustomerLead[]                         @relation("CustomerLeadOwner")
-  createdCustomerLeads                   CustomerLead[]                         @relation("CustomerLeadCreatedBy")
-  vehicleCapabilityGrants                VehicleCapabilityGrant[]
-  enterpriseCommandLedgerEntries         EnterpriseCommandLedger[]             @relation("EnterpriseCommandActor")
-  enterpriseAuditEvents                  EnterpriseAuditEvent[]                 @relation("EnterpriseAuditActor")
-  updatedVehicleOperationsFeatureFlags   VehicleOperationsFeatureFlag[]         @relation("VehicleOperationsFeatureFlagUpdater")
-  vehicleOperationsRolloutEvents         VehicleOperationsRolloutEvent[]        @relation("VehicleOperationsRolloutActor")
-  recordedVehicleOdometerObservations    VehicleOdometerObservation[]           @relation("VehicleOdometerRecorder")
-  recordedVehicleCustodyEvents           VehicleCustodyEvent[]                  @relation("VehicleCustodyRecorder")
-  resolvedVehicleDuplicateCases          VehicleDuplicateCase[]                 @relation("VehicleDuplicateResolver")
-  ownedInventoryUnits                    InventoryUnit[]                         @relation("InventoryUnitOwner")
-  inventoryUnitStateEvents               InventoryUnitStateEvent[]               @relation("InventoryUnitStateActor")
-  inventoryUnitStateOwnershipSnapshots   InventoryUnitStateEvent[]               @relation("InventoryUnitStateOwner")
-  ownedRepairOrders                      RepairOrder[]                            @relation("RepairOrderOwner")
-  createdServiceVisits                   ServiceVisit[]                           @relation("ServiceVisitCreatedBy")
-  repairOrderStateEvents                 RepairOrderStateEvent[]                  @relation("RepairOrderStateActor")
-  repairOrderStateOwnershipSnapshots     RepairOrderStateEvent[]                  @relation("RepairOrderStateOwner")
-  partLedgerEntries                      PartStockLedgerEntry[]                    @relation("PartLedgerActor")
-  createdPartDemands                     RepairPartDemand[]                        @relation("PartDemandCreatedBy")
-  partReservations                       PartReservation[]                         @relation("PartReservationActor")
-  authoredInspections                    VehicleInspectionVersion[]                @relation("InspectionAuthor")
-  authoredDiagnoses                      RepairDiagnosisVersion[]                  @relation("DiagnosisAuthor")
-  authoredEstimates                      RepairEstimateVersion[]                   @relation("EstimateAuthor")
-  repairAuthorizations                   RepairAuthorization[]                     @relation("AuthorizationDecisionActor")
-  createdRepairJobs                      RepairJob[]                               @relation("RepairJobCreatedBy")
-  createdWorkProcedures                  WorkProcedureVersion[]                    @relation("WorkProcedureCreatedBy")
-  technicianQualifications              TechnicianQualification[]                 @relation("QualifiedTechnician")
-  verifiedTechnicianQualifications      TechnicianQualification[]                 @relation("QualificationVerifier")
-  technicianDispatches                  RepairJobDispatch[]                        @relation("DispatchTechnician")
-  assignedRepairJobs                    RepairJobDispatch[]                        @relation("DispatchAssignedBy")
-  technicianLaborClocks                 RepairJobLaborClock[]                      @relation("LaborClockTechnician")
-  technicianLaborEvents                 RepairJobLaborEvent[]                      @relation("LaborEventTechnician")
-  authoredLaborEvents                   RepairJobLaborEvent[]                      @relation("LaborEventActor")
-  qualityInspections                    RepairQualityInspection[]                  @relation("QualityInspector")
-  peerQualityVerifications              RepairQualityInspection[]                  @relation("QualityPeerVerifier")
-  repairReleaseAuthorizations           RepairOrderReleaseAuthorization[]          @relation("RepairReleaseAuthorizer")
-  authoredAdvisorUpdates                RepairAdvisorUpdate[]                       @relation("AdvisorUpdateAuthor")
-  deliveryReadinessEvaluations          RepairDeliveryReadinessEvaluation[]         @relation("DeliveryReadinessEvaluator")
-  createdComebackCases                  RepairComebackCase[]                        @relation("ComebackCreatedBy")
-  resolvedComebackCases                 RepairComebackCase[]                        @relation("ComebackResolvedBy")
-  authoredComebackEvents                RepairComebackEvent[]                       @relation("ComebackEventActor")
-  technicianPresenceRecords             TechnicianPresenceRecord[]                 @relation("PresenceTechnician")
-  authoredPresenceRecords               TechnicianPresenceRecord[]                 @relation("PresenceRecordedBy")
-  shopProductionSnapshots               ShopProductionSnapshot[]                   @relation("ProductionTechnician")
-  generatedProductionSnapshots          ShopProductionSnapshot[]                   @relation("ProductionGeneratedBy")
-  createdInvoicePackages                ServiceInvoicePackage[]                    @relation("InvoicePackageCreatedBy")
-  repairOrderClosureEvents              RepairOrderClosureEvent[]                  @relation("RepairClosureActor")
-  createdPartVendors                    PartVendor[]                               @relation("PartVendorCreatedBy")
-  approvedInterchanges                  PartInterchange[]                          @relation("PartInterchangeApprovedBy")
-  createdPartRequisitions               PartRequisition[]                          @relation("PartRequisitionCreatedBy")
-  createdPurchaseOrders                 PartPurchaseOrder[]                        @relation("PartPurchaseOrderCreatedBy")
-  partReceipts                          PartReceipt[]                              @relation("PartReceiptReceivedBy")
-  resolvedPartDiscrepancies             PartReceivingDiscrepancy[]                 @relation("PartDiscrepancyResolvedBy")
-  partCustodyEvents                     PartCustodyEvent[]                         @relation("PartCustodyActor")
-  createdPartTransfers                  PartTransfer[]                             @relation("PartTransferCreatedBy")
-  createdPartRecoveries                 PartRecoveryCase[]                         @relation("PartRecoveryCreatedBy")
-  assignedPartCycleCounts               PartCycleCount[]                           @relation("PartCycleCountAssignee")
-  createdPartCycleCounts                PartCycleCount[]                           @relation("PartCycleCountCreator")
-  countedPartCycleCountLines            PartCycleCountLine[]                       @relation("PartCycleCountCounter")
-  approvedPartCycleCountLines           PartCycleCountLine[]                       @relation("PartCycleCountApprover")
-  partCycleCountEvents                  PartCycleCountEvent[]                      @relation("PartCycleCountEventActor")
-  createdPartInventoryPolicies          PartInventoryPolicy[]                      @relation("PartInventoryPolicyCreator")
-  generatedPartRecommendationRuns       PartRecommendationRun[]                   @relation("PartRecommendationRunGenerator")
-  decidedPartRecommendations            PartInventoryRecommendation[]             @relation("PartRecommendationDecisionActor")
-  createdPartBarcodeAliases             PartBarcodeAlias[]                         @relation("PartBarcodeAliasCreator")
+  submittedStaffDailyReports            StaffDailyReport[]                     @relation("StaffDailyReportSubmittedByUser")
+  taskCollaborations                    TaskCollaborator[]                     @relation("TaskCollaboratorUser")
+  addedTaskCollaborators                TaskCollaborator[]                     @relation("TaskCollaboratorAddedByUser")
+  crmDecisionOverrides                  CrmDecisionRecord[]                    @relation("CrmDecisionOverrideUser")
+  ownedCustomerLeads                    CustomerLead[]                         @relation("CustomerLeadOwner")
+  createdCustomerLeads                  CustomerLead[]                         @relation("CustomerLeadCreatedBy")
+  vehicleCapabilityGrants               VehicleCapabilityGrant[]
+  enterpriseCommandLedgerEntries        EnterpriseCommandLedger[]              @relation("EnterpriseCommandActor")
+  enterpriseAuditEvents                 EnterpriseAuditEvent[]                 @relation("EnterpriseAuditActor")
+  updatedVehicleOperationsFeatureFlags  VehicleOperationsFeatureFlag[]         @relation("VehicleOperationsFeatureFlagUpdater")
+  vehicleOperationsRolloutEvents        VehicleOperationsRolloutEvent[]        @relation("VehicleOperationsRolloutActor")
+  recordedVehicleOdometerObservations   VehicleOdometerObservation[]           @relation("VehicleOdometerRecorder")
+  recordedVehicleCustodyEvents          VehicleCustodyEvent[]                  @relation("VehicleCustodyRecorder")
+  resolvedVehicleDuplicateCases         VehicleDuplicateCase[]                 @relation("VehicleDuplicateResolver")
+  ownedInventoryUnits                   InventoryUnit[]                        @relation("InventoryUnitOwner")
+  inventoryUnitStateEvents              InventoryUnitStateEvent[]              @relation("InventoryUnitStateActor")
+  inventoryUnitStateOwnershipSnapshots  InventoryUnitStateEvent[]              @relation("InventoryUnitStateOwner")
+  ownedRepairOrders                     RepairOrder[]                          @relation("RepairOrderOwner")
+  createdServiceVisits                  ServiceVisit[]                         @relation("ServiceVisitCreatedBy")
+  repairOrderStateEvents                RepairOrderStateEvent[]                @relation("RepairOrderStateActor")
+  repairOrderStateOwnershipSnapshots    RepairOrderStateEvent[]                @relation("RepairOrderStateOwner")
+  partLedgerEntries                     PartStockLedgerEntry[]                 @relation("PartLedgerActor")
+  createdPartDemands                    RepairPartDemand[]                     @relation("PartDemandCreatedBy")
+  partReservations                      PartReservation[]                      @relation("PartReservationActor")
+  authoredInspections                   VehicleInspectionVersion[]             @relation("InspectionAuthor")
+  authoredDiagnoses                     RepairDiagnosisVersion[]               @relation("DiagnosisAuthor")
+  authoredEstimates                     RepairEstimateVersion[]                @relation("EstimateAuthor")
+  repairAuthorizations                  RepairAuthorization[]                  @relation("AuthorizationDecisionActor")
+  createdRepairJobs                     RepairJob[]                            @relation("RepairJobCreatedBy")
+  createdWorkProcedures                 WorkProcedureVersion[]                 @relation("WorkProcedureCreatedBy")
+  technicianQualifications              TechnicianQualification[]              @relation("QualifiedTechnician")
+  verifiedTechnicianQualifications      TechnicianQualification[]              @relation("QualificationVerifier")
+  technicianDispatches                  RepairJobDispatch[]                    @relation("DispatchTechnician")
+  assignedRepairJobs                    RepairJobDispatch[]                    @relation("DispatchAssignedBy")
+  technicianLaborClocks                 RepairJobLaborClock[]                  @relation("LaborClockTechnician")
+  technicianLaborEvents                 RepairJobLaborEvent[]                  @relation("LaborEventTechnician")
+  authoredLaborEvents                   RepairJobLaborEvent[]                  @relation("LaborEventActor")
+  qualityInspections                    RepairQualityInspection[]              @relation("QualityInspector")
+  peerQualityVerifications              RepairQualityInspection[]              @relation("QualityPeerVerifier")
+  repairReleaseAuthorizations           RepairOrderReleaseAuthorization[]      @relation("RepairReleaseAuthorizer")
+  authoredAdvisorUpdates                RepairAdvisorUpdate[]                  @relation("AdvisorUpdateAuthor")
+  deliveryReadinessEvaluations          RepairDeliveryReadinessEvaluation[]    @relation("DeliveryReadinessEvaluator")
+  createdComebackCases                  RepairComebackCase[]                   @relation("ComebackCreatedBy")
+  resolvedComebackCases                 RepairComebackCase[]                   @relation("ComebackResolvedBy")
+  authoredComebackEvents                RepairComebackEvent[]                  @relation("ComebackEventActor")
+  technicianPresenceRecords             TechnicianPresenceRecord[]             @relation("PresenceTechnician")
+  authoredPresenceRecords               TechnicianPresenceRecord[]             @relation("PresenceRecordedBy")
+  shopProductionSnapshots               ShopProductionSnapshot[]               @relation("ProductionTechnician")
+  generatedProductionSnapshots          ShopProductionSnapshot[]               @relation("ProductionGeneratedBy")
+  createdInvoicePackages                ServiceInvoicePackage[]                @relation("InvoicePackageCreatedBy")
+  repairOrderClosureEvents              RepairOrderClosureEvent[]              @relation("RepairClosureActor")
+  createdPartVendors                    PartVendor[]                           @relation("PartVendorCreatedBy")
+  approvedInterchanges                  PartInterchange[]                      @relation("PartInterchangeApprovedBy")
+  createdPartRequisitions               PartRequisition[]                      @relation("PartRequisitionCreatedBy")
+  createdPurchaseOrders                 PartPurchaseOrder[]                    @relation("PartPurchaseOrderCreatedBy")
+  partReceipts                          PartReceipt[]                          @relation("PartReceiptReceivedBy")
+  resolvedPartDiscrepancies             PartReceivingDiscrepancy[]             @relation("PartDiscrepancyResolvedBy")
+  partCustodyEvents                     PartCustodyEvent[]                     @relation("PartCustodyActor")
+  createdPartTransfers                  PartTransfer[]                         @relation("PartTransferCreatedBy")
+  createdPartRecoveries                 PartRecoveryCase[]                     @relation("PartRecoveryCreatedBy")
+  assignedPartCycleCounts               PartCycleCount[]                       @relation("PartCycleCountAssignee")
+  createdPartCycleCounts                PartCycleCount[]                       @relation("PartCycleCountCreator")
+  countedPartCycleCountLines            PartCycleCountLine[]                   @relation("PartCycleCountCounter")
+  approvedPartCycleCountLines           PartCycleCountLine[]                   @relation("PartCycleCountApprover")
+  partCycleCountEvents                  PartCycleCountEvent[]                  @relation("PartCycleCountEventActor")
+  createdPartInventoryPolicies          PartInventoryPolicy[]                  @relation("PartInventoryPolicyCreator")
+  generatedPartRecommendationRuns       PartRecommendationRun[]                @relation("PartRecommendationRunGenerator")
+  decidedPartRecommendations            PartInventoryRecommendation[]          @relation("PartRecommendationDecisionActor")
+  createdPartBarcodeAliases             PartBarcodeAlias[]                     @relation("PartBarcodeAliasCreator")
+  uploadedVehicleEvidenceObjects        VehicleEvidenceObject[]                @relation("VehicleEvidenceUploader")
+  createdVehicleEvidenceLinks           VehicleEvidenceLink[]                  @relation("VehicleEvidenceLinkCreator")
+  vehicleEvidenceEvents                 VehicleEvidenceEvent[]                 @relation("VehicleEvidenceEventActor")
 
   @@index([isActive])
 }
@@ -1083,28 +1123,28 @@ model Session {
 }
 
 model Role {
-  id          String         @id @default(cuid())
-  name        String         @unique
-  description String?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-  userRoles   UserRole[]
-  roleDuties  RoleDuty[]
-  templates   TaskTemplate[]
+  id                String             @id @default(cuid())
+  name              String             @unique
+  description       String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  userRoles         UserRole[]
+  roleDuties        RoleDuty[]
+  templates         TaskTemplate[]
   staffDayDutyItems StaffDayDutyItem[]
 }
 
 model Duty {
-  id           String         @id @default(cuid())
-  name         String         @unique
-  workflowArea String
-  description  String?
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-  userDuties   UserDuty[]
-  roleDuties   RoleDuty[]
-  templates    TaskTemplate[]
-  sourceTasks  Task[]         @relation("TaskSourceDuty")
+  id                String             @id @default(cuid())
+  name              String             @unique
+  workflowArea      String
+  description       String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  userDuties        UserDuty[]
+  roleDuties        RoleDuty[]
+  templates         TaskTemplate[]
+  sourceTasks       Task[]             @relation("TaskSourceDuty")
   staffDayDutyItems StaffDayDutyItem[]
 }
 
@@ -1223,26 +1263,29 @@ model Organization {
   appointmentAutomationExecutions       AppointmentAutomationExecution[]
   appointmentAutomationRuleChangeEvents AppointmentAutomationRuleChangeEvent[]
   appointmentAutomationExecutionEvents  AppointmentAutomationExecutionEvent[]
-  crmDecisionRecords                     CrmDecisionRecord[]
-  customerLeads                          CustomerLead[]
-  concernCases                           ConcernCase[]
-  customerSlaPolicies                    CustomerSlaPolicy[]
-  crmFeatureFlags                        CustomerCrmFeatureFlag[]
-  crmRolloutEvents                       CustomerCrmRolloutEvent[]
-  crmCalibrationSnapshots                CustomerCrmCalibrationSnapshot[]
-  enterpriseAggregateVersions            EnterpriseAggregateVersion[]
-  enterpriseCommandLedgerEntries         EnterpriseCommandLedger[]
-  enterpriseDomainEvents                 EnterpriseDomainEvent[]
-  enterpriseAuditEvents                  EnterpriseAuditEvent[]
-  enterpriseOutboxMessages               EnterpriseOutboxMessage[]
-  vehicleCapabilityGrants                VehicleCapabilityGrant[]
-  vehicleOperationsFeatureFlags          VehicleOperationsFeatureFlag[]
-  vehicleOperationsRolloutEvents         VehicleOperationsRolloutEvent[]
-  enterpriseProjectionCheckpoints        EnterpriseProjectionCheckpoint[]
+  crmDecisionRecords                    CrmDecisionRecord[]
+  customerLeads                         CustomerLead[]
+  concernCases                          ConcernCase[]
+  customerSlaPolicies                   CustomerSlaPolicy[]
+  crmFeatureFlags                       CustomerCrmFeatureFlag[]
+  crmRolloutEvents                      CustomerCrmRolloutEvent[]
+  crmCalibrationSnapshots               CustomerCrmCalibrationSnapshot[]
+  enterpriseAggregateVersions           EnterpriseAggregateVersion[]
+  enterpriseCommandLedgerEntries        EnterpriseCommandLedger[]
+  enterpriseDomainEvents                EnterpriseDomainEvent[]
+  enterpriseAuditEvents                 EnterpriseAuditEvent[]
+  enterpriseOutboxMessages              EnterpriseOutboxMessage[]
+  vehicleCapabilityGrants               VehicleCapabilityGrant[]
+  vehicleOperationsFeatureFlags         VehicleOperationsFeatureFlag[]
+  vehicleOperationsRolloutEvents        VehicleOperationsRolloutEvent[]
+  vehicleEvidenceObjects                VehicleEvidenceObject[]
+  vehicleEvidenceLinks                  VehicleEvidenceLink[]
+  vehicleEvidenceEvents                 VehicleEvidenceEvent[]
+  enterpriseProjectionCheckpoints       EnterpriseProjectionCheckpoint[]
 }
 
 model Location {
-  id                              String                     @id @default(cuid())
+  id                              String                           @id @default(cuid())
   organizationId                  String
   code                            String
   name                            String
@@ -1253,11 +1296,11 @@ model Location {
   region                          String
   postalCode                      String?
   phoneNumber                     String?
-  countryCode                     String                     @default("US")
-  schedulingStatus                LocationSchedulingStatus   @default(DRAFT)
-  createdAt                       DateTime                   @default(now())
-  updatedAt                       DateTime                   @updatedAt
-  organization                    Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  countryCode                     String                           @default("US")
+  schedulingStatus                LocationSchedulingStatus         @default(DRAFT)
+  createdAt                       DateTime                         @default(now())
+  updatedAt                       DateTime                         @updatedAt
+  organization                    Organization                     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   operatingWindows                LocationOperatingWindow[]
   closures                        LocationClosure[]
   appointments                    Appointment[]
@@ -1272,9 +1315,9 @@ model Location {
   vehicleCapabilityGrants         VehicleCapabilityGrant[]
   vehicleOperationsFeatureFlags   VehicleOperationsFeatureFlag[]
   enterpriseProjectionCheckpoints EnterpriseProjectionCheckpoint[]
-  vehicleCustodyEvents             VehicleCustodyEvent[]
-  inventoryUnits                   InventoryUnit[]
-  inventoryUnitStateEvents         InventoryUnitStateEvent[]
+  vehicleCustodyEvents            VehicleCustodyEvent[]
+  inventoryUnits                  InventoryUnit[]
+  inventoryUnitStateEvents        InventoryUnitStateEvent[]
   serviceVisits                   ServiceVisit[]
   repairOrders                    RepairOrder[]
   repairOrderStateEvents          RepairOrderStateEvent[]
@@ -1284,7 +1327,7 @@ model Location {
   shopProductionSnapshots         ShopProductionSnapshot[]
   partPurchaseOrders              PartPurchaseOrder[]
   partTransfers                   PartTransfer[]
-  partRecommendationRuns         PartRecommendationRun[]
+  partRecommendationRuns          PartRecommendationRun[]
 
   @@unique([organizationId, code])
   @@unique([id, organizationId])
@@ -1568,45 +1611,45 @@ model UserLocationAccess {
 }
 
 model Customer {
-  id                      String                   @id @default(cuid())
-  organizationId          String
-  customerNumber          String
-  displayName             String
-  phoneNumber             String?
-  email                   String?
-  status                  CustomerStatus           @default(ACTIVE)
-  externalReference       String?
-  duplicateKey            String?
-  mergedIntoCustomerId    String?
-  retentionUntil          DateTime?                @db.Date
-  ownerUserId             String?
-  preferredContactMethod  String?
-  preferredContactTime    String?
-  languageCode            String?
-  address                  String?
-  sourceCode               String?
-  lastInteractionAt       DateTime?
-  nextActionAt             DateTime?
-  archivedAt               DateTime?
-  createdAt               DateTime                 @default(now())
-  updatedAt               DateTime                 @updatedAt
-  organization            Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  ownerUser               User?                    @relation("CustomerOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
-  mergedIntoCustomer      Customer?                @relation("CustomerMerge", fields: [mergedIntoCustomerId], references: [id], onDelete: Restrict)
-  mergedCustomers         Customer[]               @relation("CustomerMerge")
-  appointmentParticipants AppointmentParticipant[]
-  crmDecisionRecords      CrmDecisionRecord[]
-  leads                   CustomerLead[]
-  concernCases            ConcernCase[]
-  contactPoints           CustomerContactPoint[]
-  interactions            CustomerInteraction[]
-  notes                   CustomerNote[]
-  vehicleRelationships    CustomerVehicle[]
+  id                           String                        @id @default(cuid())
+  organizationId               String
+  customerNumber               String
+  displayName                  String
+  phoneNumber                  String?
+  email                        String?
+  status                       CustomerStatus                @default(ACTIVE)
+  externalReference            String?
+  duplicateKey                 String?
+  mergedIntoCustomerId         String?
+  retentionUntil               DateTime?                     @db.Date
+  ownerUserId                  String?
+  preferredContactMethod       String?
+  preferredContactTime         String?
+  languageCode                 String?
+  address                      String?
+  sourceCode                   String?
+  lastInteractionAt            DateTime?
+  nextActionAt                 DateTime?
+  archivedAt                   DateTime?
+  createdAt                    DateTime                      @default(now())
+  updatedAt                    DateTime                      @updatedAt
+  organization                 Organization                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  ownerUser                    User?                         @relation("CustomerOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  mergedIntoCustomer           Customer?                     @relation("CustomerMerge", fields: [mergedIntoCustomerId], references: [id], onDelete: Restrict)
+  mergedCustomers              Customer[]                    @relation("CustomerMerge")
+  appointmentParticipants      AppointmentParticipant[]
+  crmDecisionRecords           CrmDecisionRecord[]
+  leads                        CustomerLead[]
+  concernCases                 ConcernCase[]
+  contactPoints                CustomerContactPoint[]
+  interactions                 CustomerInteraction[]
+  notes                        CustomerNote[]
+  vehicleRelationships         CustomerVehicle[]
   registryVehicleRelationships VehicleRelationship[]
-  documentRequirements    CustomerDocumentRequirement[]
-  tasks                   Task[]
-  serviceVisits           ServiceVisit[]
-  repairOrders            RepairOrder[]
+  documentRequirements         CustomerDocumentRequirement[]
+  tasks                        Task[]
+  serviceVisits                ServiceVisit[]
+  repairOrders                 RepairOrder[]
 
   @@unique([organizationId, customerNumber])
   @@unique([id, organizationId])
@@ -1627,6 +1670,7 @@ model CustomerContactPoint {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   customer        Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
   @@unique([customerId, type, normalizedValue])
   @@index([normalizedValue])
 }
@@ -1644,6 +1688,7 @@ model CustomerInteraction {
   createdAt   DateTime @default(now())
   customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   actorUser   User?    @relation("CustomerInteractionActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
   @@index([customerId, occurredAt])
 }
 
@@ -1657,25 +1702,27 @@ model CustomerNote {
   updatedAt    DateTime @updatedAt
   customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   authorUser   User     @relation("CustomerNoteAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+
   @@index([customerId, createdAt])
 }
 
 model CustomerVehicle {
-  id               String   @id @default(cuid())
+  id               String    @id @default(cuid())
   customerId       String
   vehicleId        String
   relationshipType String
   effectiveFrom    DateTime
   effectiveTo      DateTime?
-  createdAt        DateTime @default(now())
-  customer         Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  vehicle          Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  createdAt        DateTime  @default(now())
+  customer         Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  vehicle          Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+
   @@unique([customerId, vehicleId, relationshipType, effectiveFrom])
   @@index([customerId, effectiveTo])
 }
 
 model CustomerDocumentRequirement {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   customerId  String
   type        String
   status      String
@@ -1683,9 +1730,10 @@ model CustomerDocumentRequirement {
   dueAt       DateTime?
   sourceType  String
   sourceId    String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  customer    Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
   @@index([customerId, status, dueAt])
 }
 
@@ -1698,26 +1746,26 @@ model CrmDecisionRecord {
   subjectType           String
   subjectId             String
   normalizedInput       Json
-  score                  Int?
-  priority               String?
+  score                 Int?
+  priority              String?
   recommendedOwnerId    String?
   recommendedActionCode String?
-  dueAt                  DateTime?
-  reasonCodes            Json
-  explanation            String
-  confidence             String
-  missingInputs          Json
-  managerReviewRequired  Boolean      @default(false)
-  decidedAt              DateTime     @default(now())
-  overriddenAt           DateTime?
-  overriddenByUserId     String?
-  overrideReason         String?
-  overrideSnapshot       Json?
-  finalOutcome           Json?
-  createdAt              DateTime     @default(now())
-  organization           Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  customer               Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  overriddenByUser       User?        @relation("CrmDecisionOverrideUser", fields: [overriddenByUserId], references: [id], onDelete: SetNull)
+  dueAt                 DateTime?
+  reasonCodes           Json
+  explanation           String
+  confidence            String
+  missingInputs         Json
+  managerReviewRequired Boolean      @default(false)
+  decidedAt             DateTime     @default(now())
+  overriddenAt          DateTime?
+  overriddenByUserId    String?
+  overrideReason        String?
+  overrideSnapshot      Json?
+  finalOutcome          Json?
+  createdAt             DateTime     @default(now())
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  customer              Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  overriddenByUser      User?        @relation("CrmDecisionOverrideUser", fields: [overriddenByUserId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, decisionType, decidedAt])
   @@index([organizationId, subjectType, subjectId])
@@ -1725,32 +1773,32 @@ model CrmDecisionRecord {
 }
 
 model CustomerLead {
-  id                    String            @id @default(cuid())
+  id                    String                 @id @default(cuid())
   organizationId        String
   customerId            String
   leadNumber            String
   idempotencyKey        String
   requestHash           String
   sourceCode            String
-  stage                  CustomerLeadStage @default(NEW)
+  stage                 CustomerLeadStage      @default(NEW)
   ownerUserId           String
   vehicleInterest       String?
   nextActionCode        String
   nextActionAt          DateTime
   priority              String
-  score                  Int
-  confidence             String
+  score                 Int
+  confidence            String
   lastDecisionId        String?
   qualificationSnapshot Json
-  closedReason           String?
-  closedAt               DateTime?
-  createdByUserId        String
-  createdAt              DateTime          @default(now())
-  updatedAt              DateTime          @updatedAt
-  organization          Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  customer              Customer           @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  ownerUser             User               @relation("CustomerLeadOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
-  createdByUser         User               @relation("CustomerLeadCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  closedReason          String?
+  closedAt              DateTime?
+  createdByUserId       String
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  organization          Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  customer              Customer               @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  ownerUser             User                   @relation("CustomerLeadOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  createdByUser         User                   @relation("CustomerLeadCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
   taskLinks             CustomerLeadTaskLink[]
 
   @@unique([organizationId, leadNumber])
@@ -1761,59 +1809,60 @@ model CustomerLead {
 }
 
 model CustomerLeadTaskLink {
-  id          String       @id @default(cuid())
-  leadId      String
-  taskId      String       @unique
-  actionCode  String
-  decisionId  String
-  createdAt   DateTime     @default(now())
-  lead        CustomerLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  task        Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  id         String       @id @default(cuid())
+  leadId     String
+  taskId     String       @unique
+  actionCode String
+  decisionId String
+  createdAt  DateTime     @default(now())
+  lead       CustomerLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  task       Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@unique([leadId, actionCode, decisionId])
   @@index([leadId, createdAt])
 }
 
 model Vehicle {
-  id                   String                @id @default(cuid())
-  organizationId       String
-  vehicleNumber        String
-  vin                  String?
-  vinRaw               String?
-  vinState             VehicleVinState       @default(LEGACY_UNVERIFIED)
-  vinValidationSource  String?
-  nonVinReason          String?
-  stockNumber          String?
-  stockNumberNormalized String?
-  year                 Int?
-  make                 String?
-  model                String?
-  color                String?
-  licensePlate         String?
-  status               VehicleStatus         @default(ACTIVE)
-  externalReference    String?
-  duplicateKey         String?
-  version              Int                   @default(0)
-  mergedIntoVehicleId  String?
-  retentionUntil       DateTime?             @db.Date
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  organization         Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  appointmentLinks     AppointmentVehicle[]
-  schedulableResources SchedulableResource[] @relation("SchedulableResourceVehicle")
-  customerRelationships CustomerVehicle[]
-  registryRelationships VehicleRelationship[]
-  externalIdentities    VehicleExternalIdentity[]
-  odometerObservations  VehicleOdometerObservation[]
-  custodyEvents         VehicleCustodyEvent[]
-  duplicateCasesAsPrimary VehicleDuplicateCase[] @relation("VehicleDuplicatePrimary")
-  duplicateCasesAsCandidate VehicleDuplicateCase[] @relation("VehicleDuplicateCandidate")
-  mergedIntoVehicle     Vehicle?              @relation("VehicleMergeLineage", fields: [mergedIntoVehicleId], references: [id], onDelete: Restrict)
-  mergedVehicles        Vehicle[]              @relation("VehicleMergeLineage")
-  tasks                 Task[]
-  inventoryUnits        InventoryUnit[]
-  serviceVisits         ServiceVisit[]
-  repairOrders          RepairOrder[]
+  id                        String                       @id @default(cuid())
+  organizationId            String
+  vehicleNumber             String
+  vin                       String?
+  vinRaw                    String?
+  vinState                  VehicleVinState              @default(LEGACY_UNVERIFIED)
+  vinValidationSource       String?
+  nonVinReason              String?
+  stockNumber               String?
+  stockNumberNormalized     String?
+  year                      Int?
+  make                      String?
+  model                     String?
+  color                     String?
+  licensePlate              String?
+  status                    VehicleStatus                @default(ACTIVE)
+  externalReference         String?
+  duplicateKey              String?
+  version                   Int                          @default(0)
+  mergedIntoVehicleId       String?
+  retentionUntil            DateTime?                    @db.Date
+  createdAt                 DateTime                     @default(now())
+  updatedAt                 DateTime                     @updatedAt
+  organization              Organization                 @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  appointmentLinks          AppointmentVehicle[]
+  schedulableResources      SchedulableResource[]        @relation("SchedulableResourceVehicle")
+  customerRelationships     CustomerVehicle[]
+  registryRelationships     VehicleRelationship[]
+  externalIdentities        VehicleExternalIdentity[]
+  odometerObservations      VehicleOdometerObservation[]
+  custodyEvents             VehicleCustodyEvent[]
+  duplicateCasesAsPrimary   VehicleDuplicateCase[]       @relation("VehicleDuplicatePrimary")
+  duplicateCasesAsCandidate VehicleDuplicateCase[]       @relation("VehicleDuplicateCandidate")
+  mergedIntoVehicle         Vehicle?                     @relation("VehicleMergeLineage", fields: [mergedIntoVehicleId], references: [id], onDelete: Restrict)
+  mergedVehicles            Vehicle[]                    @relation("VehicleMergeLineage")
+  tasks                     Task[]
+  inventoryUnits            InventoryUnit[]
+  serviceVisits             ServiceVisit[]
+  repairOrders              RepairOrder[]
+  evidenceLinks             VehicleEvidenceLink[]
 
   @@unique([organizationId, vehicleNumber])
   @@unique([id, organizationId])
@@ -1828,30 +1877,30 @@ model Vehicle {
 }
 
 model InventoryUnit {
-  id                    String                      @id @default(cuid())
-  organizationId        String
-  vehicleId             String
-  inventoryNumber       String
-  lifecycleStage        InventoryUnitLifecycleStage @default(PURCHASED_OR_TRADE_IN)
-  operatingState        InventoryUnitOperatingState @default(ACTIVE)
-  financialAcquiredAt   DateTime
-  stageStartedAt        DateTime
-  ownerUserId           String
-  locationId            String
-  targetAt              DateTime
-  nextAction            String
-  stateReason           String?
-  version               Int                         @default(1)
-  closedAt              DateTime?
-  createdAt             DateTime                    @default(now())
-  updatedAt             DateTime                    @updatedAt
-  organization          Organization                @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  vehicle               Vehicle                     @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
-  ownerUser             User                        @relation("InventoryUnitOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
-  location              Location                    @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  stateEvents           InventoryUnitStateEvent[]
-  serviceVisits         ServiceVisit[]
-  repairOrders          RepairOrder[]
+  id                  String                      @id @default(cuid())
+  organizationId      String
+  vehicleId           String
+  inventoryNumber     String
+  lifecycleStage      InventoryUnitLifecycleStage @default(PURCHASED_OR_TRADE_IN)
+  operatingState      InventoryUnitOperatingState @default(ACTIVE)
+  financialAcquiredAt DateTime
+  stageStartedAt      DateTime
+  ownerUserId         String
+  locationId          String
+  targetAt            DateTime
+  nextAction          String
+  stateReason         String?
+  version             Int                         @default(1)
+  closedAt            DateTime?
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
+  organization        Organization                @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  vehicle             Vehicle                     @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  ownerUser           User                        @relation("InventoryUnitOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  location            Location                    @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  stateEvents         InventoryUnitStateEvent[]
+  serviceVisits       ServiceVisit[]
+  repairOrders        RepairOrder[]
 
   @@unique([organizationId, inventoryNumber])
   @@unique([id, organizationId])
@@ -1862,7 +1911,7 @@ model InventoryUnit {
 }
 
 model InventoryUnitStateEvent {
-  id                 String                      @id @default(cuid())
+  id                 String                       @id @default(cuid())
   organizationId     String
   inventoryUnitId    String
   version            Int
@@ -1875,15 +1924,15 @@ model InventoryUnitStateEvent {
   targetAt           DateTime
   nextAction         String
   reason             String
-  source             InventoryUnitEventSource    @default(USER)
+  source             InventoryUnitEventSource     @default(USER)
   actorUserId        String
   correlationId      String
-  occurredAt         DateTime                    @default(now())
-  inventoryUnit      InventoryUnit               @relation(fields: [inventoryUnitId], references: [id], onDelete: Restrict)
-  organization       Organization                @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  ownerUser          User                        @relation("InventoryUnitStateOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
-  actorUser          User                        @relation("InventoryUnitStateActor", fields: [actorUserId], references: [id], onDelete: Restrict)
-  location           Location                    @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  occurredAt         DateTime                     @default(now())
+  inventoryUnit      InventoryUnit                @relation(fields: [inventoryUnitId], references: [id], onDelete: Restrict)
+  organization       Organization                 @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  ownerUser          User                         @relation("InventoryUnitStateOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  actorUser          User                         @relation("InventoryUnitStateActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  location           Location                     @relation(fields: [locationId], references: [id], onDelete: Restrict)
 
   @@unique([inventoryUnitId, version])
   @@index([organizationId, occurredAt])
@@ -1933,53 +1982,53 @@ model ServiceVisit {
 }
 
 model RepairOrder {
-  id                   String                    @id @default(cuid())
-  organizationId       String
-  locationId           String
-  serviceVisitId       String                    @unique
-  repairOrderNumber    String
-  vehicleId            String
-  customerId           String?
-  inventoryUnitId      String?
-  origin               RepairOrderOrigin
-  intakeSource         RepairOrderIntakeSource
-  stage                RepairOrderStage          @default(INTAKE)
-  operatingState       RepairOrderOperatingState @default(ACTIVE)
-  openedAt             DateTime
-  stageStartedAt       DateTime
-  ownerUserId          String
-  targetAt             DateTime
-  nextAction           String
-  stateReason          String?
-  version              Int                       @default(1)
-  closedAt             DateTime?
-  externalSystemCode   String?
-  externalReference    String?
-  createdAt            DateTime                  @default(now())
-  updatedAt            DateTime                  @updatedAt
-  organization         Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  location             Location                  @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  serviceVisit         ServiceVisit              @relation(fields: [serviceVisitId], references: [id], onDelete: Restrict)
-  vehicle              Vehicle                   @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
-  customer             Customer?                 @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  inventoryUnit        InventoryUnit?            @relation(fields: [inventoryUnitId], references: [id], onDelete: Restrict)
-  ownerUser            User                      @relation("RepairOrderOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
-  stateEvents          RepairOrderStateEvent[]
-  partDemands          RepairPartDemand[]
-  readinessEvaluations RepairReadinessEvaluation[]
-  inspectionVersions  VehicleInspectionVersion[]
-  diagnosisVersions   RepairDiagnosisVersion[]
-  estimateVersions    RepairEstimateVersion[]
-  authorizations      RepairAuthorization[]
-  repairJobs          RepairJob[]
-  qualityInspections  RepairQualityInspection[]
-  releaseAuthorization RepairOrderReleaseAuthorization?
-  advisorUpdates       RepairAdvisorUpdate[]
+  id                           String                              @id @default(cuid())
+  organizationId               String
+  locationId                   String
+  serviceVisitId               String                              @unique
+  repairOrderNumber            String
+  vehicleId                    String
+  customerId                   String?
+  inventoryUnitId              String?
+  origin                       RepairOrderOrigin
+  intakeSource                 RepairOrderIntakeSource
+  stage                        RepairOrderStage                    @default(INTAKE)
+  operatingState               RepairOrderOperatingState           @default(ACTIVE)
+  openedAt                     DateTime
+  stageStartedAt               DateTime
+  ownerUserId                  String
+  targetAt                     DateTime
+  nextAction                   String
+  stateReason                  String?
+  version                      Int                                 @default(1)
+  closedAt                     DateTime?
+  externalSystemCode           String?
+  externalReference            String?
+  createdAt                    DateTime                            @default(now())
+  updatedAt                    DateTime                            @updatedAt
+  organization                 Organization                        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location                     Location                            @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  serviceVisit                 ServiceVisit                        @relation(fields: [serviceVisitId], references: [id], onDelete: Restrict)
+  vehicle                      Vehicle                             @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  customer                     Customer?                           @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  inventoryUnit                InventoryUnit?                      @relation(fields: [inventoryUnitId], references: [id], onDelete: Restrict)
+  ownerUser                    User                                @relation("RepairOrderOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  stateEvents                  RepairOrderStateEvent[]
+  partDemands                  RepairPartDemand[]
+  readinessEvaluations         RepairReadinessEvaluation[]
+  inspectionVersions           VehicleInspectionVersion[]
+  diagnosisVersions            RepairDiagnosisVersion[]
+  estimateVersions             RepairEstimateVersion[]
+  authorizations               RepairAuthorization[]
+  repairJobs                   RepairJob[]
+  qualityInspections           RepairQualityInspection[]
+  releaseAuthorization         RepairOrderReleaseAuthorization?
+  advisorUpdates               RepairAdvisorUpdate[]
   deliveryReadinessEvaluations RepairDeliveryReadinessEvaluation[]
-  originalComebackCases RepairComebackCase[] @relation("ComebackOriginalOrder")
-  followUpComebackCases RepairComebackCase[] @relation("ComebackFollowUpOrder")
-  invoicePackages      ServiceInvoicePackage[]
-  closureEvents        RepairOrderClosureEvent[]
+  originalComebackCases        RepairComebackCase[]                @relation("ComebackOriginalOrder")
+  followUpComebackCases        RepairComebackCase[]                @relation("ComebackFollowUpOrder")
+  invoicePackages              ServiceInvoicePackage[]
+  closureEvents                RepairOrderClosureEvent[]
 
   @@unique([organizationId, repairOrderNumber])
   @@unique([id, organizationId])
@@ -1991,7 +2040,7 @@ model RepairOrder {
 }
 
 model RepairOrderStateEvent {
-  id                 String                    @id @default(cuid())
+  id                 String                     @id @default(cuid())
   organizationId     String
   repairOrderId      String
   version            Int
@@ -2004,15 +2053,15 @@ model RepairOrderStateEvent {
   targetAt           DateTime
   nextAction         String
   reason             String
-  source             RepairOrderEventSource    @default(USER)
+  source             RepairOrderEventSource     @default(USER)
   actorUserId        String
   correlationId      String
-  occurredAt         DateTime                  @default(now())
-  repairOrder        RepairOrder               @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
-  organization       Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  ownerUser          User                      @relation("RepairOrderStateOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
-  actorUser          User                      @relation("RepairOrderStateActor", fields: [actorUserId], references: [id], onDelete: Restrict)
-  location           Location                  @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  occurredAt         DateTime                   @default(now())
+  repairOrder        RepairOrder                @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  organization       Organization               @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  ownerUser          User                       @relation("RepairOrderStateOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  actorUser          User                       @relation("RepairOrderStateActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  location           Location                   @relation(fields: [locationId], references: [id], onDelete: Restrict)
 
   @@unique([repairOrderId, version])
   @@index([organizationId, occurredAt])
@@ -2021,11 +2070,11 @@ model RepairOrderStateEvent {
 }
 
 model VehicleInspectionVersion {
-  id               String           @id @default(cuid())
+  id               String                    @id @default(cuid())
   organizationId   String
   repairOrderId    String
   version          Int
-  status           InspectionStatus @default(COMPLETED)
+  status           InspectionStatus          @default(COMPLETED)
   templateCode     String
   templateVersion  Int
   templateSnapshot Json
@@ -2034,11 +2083,11 @@ model VehicleInspectionVersion {
   authorUserId     String
   startedAt        DateTime
   completedAt      DateTime
-  supersedesId     String?          @unique
-  createdAt        DateTime         @default(now())
-  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  repairOrder      RepairOrder      @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
-  authorUser       User             @relation("InspectionAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  supersedesId     String?                   @unique
+  createdAt        DateTime                  @default(now())
+  organization     Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairOrder      RepairOrder               @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  authorUser       User                      @relation("InspectionAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
   supersedes       VehicleInspectionVersion? @relation("InspectionSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
   supersededBy     VehicleInspectionVersion? @relation("InspectionSupersession")
 
@@ -2047,25 +2096,25 @@ model VehicleInspectionVersion {
 }
 
 model RepairDiagnosisVersion {
-  id                 String                @id @default(cuid())
+  id                 String                  @id @default(cuid())
   organizationId     String
   repairOrderId      String
   version            Int
-  concern             String
-  symptoms            Json
-  tests               Json
-  evidence            Json
-  cause                String
-  uncertainty         DiagnosticUncertainty
-  recommendation      String
+  concern            String
+  symptoms           Json
+  tests              Json
+  evidence           Json
+  cause              String
+  uncertainty        DiagnosticUncertainty
+  recommendation     String
   proposedCorrection String
   technicianUserId   String
-  diagnosedAt         DateTime
-  supersedesId       String?               @unique
-  createdAt          DateTime              @default(now())
-  organization       Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  repairOrder        RepairOrder           @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
-  technicianUser     User                  @relation("DiagnosisAuthor", fields: [technicianUserId], references: [id], onDelete: Restrict)
+  diagnosedAt        DateTime
+  supersedesId       String?                 @unique
+  createdAt          DateTime                @default(now())
+  organization       Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairOrder        RepairOrder             @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  technicianUser     User                    @relation("DiagnosisAuthor", fields: [technicianUserId], references: [id], onDelete: Restrict)
   supersedes         RepairDiagnosisVersion? @relation("DiagnosisSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
   supersededBy       RepairDiagnosisVersion? @relation("DiagnosisSupersession")
   repairJobs         RepairJob[]
@@ -2075,63 +2124,63 @@ model RepairDiagnosisVersion {
 }
 
 model RepairEstimateVersion {
-  id                String         @id @default(cuid())
-  organizationId    String
-  repairOrderId     String
-  version           Int
-  status            EstimateStatus @default(PRESENTED)
-  lineItems         Json
-  laborSubtotalCents Int
-  partsSubtotalCents Int
-  feeSubtotalCents   Int
-  taxCents           Int
-  discountCents      Int
-  totalCents         Int
-  taxBoundary        String
-  optionGroups       Json?
-  assumptions        String?
-  expiresAt          DateTime
-  presentedAt        DateTime
+  id                  String                 @id @default(cuid())
+  organizationId      String
+  repairOrderId       String
+  version             Int
+  status              EstimateStatus         @default(PRESENTED)
+  lineItems           Json
+  laborSubtotalCents  Int
+  partsSubtotalCents  Int
+  feeSubtotalCents    Int
+  taxCents            Int
+  discountCents       Int
+  totalCents          Int
+  taxBoundary         String
+  optionGroups        Json?
+  assumptions         String?
+  expiresAt           DateTime
+  presentedAt         DateTime
   presentationChannel String
-  authorUserId       String
-  supersedesId       String?        @unique
-  createdAt          DateTime       @default(now())
-  organization       Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  repairOrder        RepairOrder    @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
-  authorUser         User           @relation("EstimateAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
-  supersedes         RepairEstimateVersion? @relation("EstimateSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
-  supersededBy       RepairEstimateVersion? @relation("EstimateSupersession")
-  authorizations     RepairAuthorization[]
-  repairJobs         RepairJob[]
+  authorUserId        String
+  supersedesId        String?                @unique
+  createdAt           DateTime               @default(now())
+  organization        Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairOrder         RepairOrder            @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  authorUser          User                   @relation("EstimateAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  supersedes          RepairEstimateVersion? @relation("EstimateSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy        RepairEstimateVersion? @relation("EstimateSupersession")
+  authorizations      RepairAuthorization[]
+  repairJobs          RepairJob[]
 
   @@unique([repairOrderId, version])
   @@index([organizationId, status, expiresAt])
 }
 
 model RepairAuthorization {
-  id                      String                   @id @default(cuid())
-  organizationId          String
-  repairOrderId           String
-  estimateVersionId       String
-  disposition             AuthorizationDisposition
-  channel                 AuthorizationChannel
-  authorizedLineKeys      Json
-  authorizedAmountCents   Int
-  decisionActorType       String
-  decisionActorName       String
-  decisionActorReference  String?
-  decidedByUserId         String
-  reason                  String
-  decidedAt               DateTime
-  previousAuthorizationId String?                  @unique
-  createdAt               DateTime                 @default(now())
-  organization            Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  repairOrder             RepairOrder              @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
-  estimateVersion         RepairEstimateVersion    @relation(fields: [estimateVersionId], references: [id], onDelete: Restrict)
-  decidedByUser           User                     @relation("AuthorizationDecisionActor", fields: [decidedByUserId], references: [id], onDelete: Restrict)
-  previousAuthorization   RepairAuthorization?     @relation("AuthorizationLineage", fields: [previousAuthorizationId], references: [id], onDelete: Restrict)
-  supersedingAuthorization RepairAuthorization?    @relation("AuthorizationLineage")
-  repairJobs              RepairJob[]
+  id                       String                   @id @default(cuid())
+  organizationId           String
+  repairOrderId            String
+  estimateVersionId        String
+  disposition              AuthorizationDisposition
+  channel                  AuthorizationChannel
+  authorizedLineKeys       Json
+  authorizedAmountCents    Int
+  decisionActorType        String
+  decisionActorName        String
+  decisionActorReference   String?
+  decidedByUserId          String
+  reason                   String
+  decidedAt                DateTime
+  previousAuthorizationId  String?                  @unique
+  createdAt                DateTime                 @default(now())
+  organization             Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairOrder              RepairOrder              @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  estimateVersion          RepairEstimateVersion    @relation(fields: [estimateVersionId], references: [id], onDelete: Restrict)
+  decidedByUser            User                     @relation("AuthorizationDecisionActor", fields: [decidedByUserId], references: [id], onDelete: Restrict)
+  previousAuthorization    RepairAuthorization?     @relation("AuthorizationLineage", fields: [previousAuthorizationId], references: [id], onDelete: Restrict)
+  supersedingAuthorization RepairAuthorization?     @relation("AuthorizationLineage")
+  repairJobs               RepairJob[]
 
   @@index([repairOrderId, decidedAt])
   @@index([estimateVersionId, disposition])
@@ -2139,31 +2188,31 @@ model RepairAuthorization {
 }
 
 model RepairJob {
-  id                    String          @id @default(cuid())
-  organizationId        String
-  repairOrderId         String
-  jobNumber             String
-  diagnosisVersionId    String?
-  estimateVersionId     String
-  authorizationId       String
-  authorizedLineKey     String
-  workTypeCode          String
-  description           String
-  plannedCorrection     String
-  laborGuideMinutes     Int
-  requiredSkills        Json
+  id                     String                    @id @default(cuid())
+  organizationId         String
+  repairOrderId          String
+  jobNumber              String
+  diagnosisVersionId     String?
+  estimateVersionId      String
+  authorizationId        String
+  authorizedLineKey      String
+  workTypeCode           String
+  description            String
+  plannedCorrection      String
+  laborGuideMinutes      Int
+  requiredSkills         Json
   requiredCertifications Json
-  bayRequirements       Json
-  toolRequirements      Json
-  priority              String
-  dependencyJobIds      Json
-  partsRequired         Boolean         @default(false)
-  status                RepairJobStatus @default(AUTHORIZED)
-  readinessReasonCodes  Json
-  authorizedAmountCents Int
-  createdByUserId       String
-  version               Int             @default(1)
-  procedureVersionId    String?
+  bayRequirements        Json
+  toolRequirements       Json
+  priority               String
+  dependencyJobIds       Json
+  partsRequired          Boolean                   @default(false)
+  status                 RepairJobStatus           @default(AUTHORIZED)
+  readinessReasonCodes   Json
+  authorizedAmountCents  Int
+  createdByUserId        String
+  version                Int                       @default(1)
+  procedureVersionId     String?
   lane                   ShopWorkLane?
   priorityScore          Int?
   priorityReasonCodes    Json?
@@ -2175,22 +2224,22 @@ model RepairJob {
   qcHandoffNotes         String?
   qcPassedAt             DateTime?
   qcFailedAt             DateTime?
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
-  organization          Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  repairOrder           RepairOrder     @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
-  diagnosisVersion      RepairDiagnosisVersion? @relation(fields: [diagnosisVersionId], references: [id], onDelete: Restrict)
-  estimateVersion       RepairEstimateVersion @relation(fields: [estimateVersionId], references: [id], onDelete: Restrict)
-  authorization         RepairAuthorization @relation(fields: [authorizationId], references: [id], onDelete: Restrict)
-  createdByUser         User            @relation("RepairJobCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  procedureVersion      WorkProcedureVersion? @relation(fields: [procedureVersionId], references: [id], onDelete: Restrict)
-  partDemands           RepairPartDemand[]
-  dispatches            RepairJobDispatch[]
-  laborClocks           RepairJobLaborClock[]
-  laborEvents           RepairJobLaborEvent[]
-  qualityInspections    RepairQualityInspection[]
-  comebackCases         RepairComebackCase[]
-  partCustodyEvents     PartCustodyEvent[]
+  createdAt              DateTime                  @default(now())
+  updatedAt              DateTime                  @updatedAt
+  organization           Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairOrder            RepairOrder               @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  diagnosisVersion       RepairDiagnosisVersion?   @relation(fields: [diagnosisVersionId], references: [id], onDelete: Restrict)
+  estimateVersion        RepairEstimateVersion     @relation(fields: [estimateVersionId], references: [id], onDelete: Restrict)
+  authorization          RepairAuthorization       @relation(fields: [authorizationId], references: [id], onDelete: Restrict)
+  createdByUser          User                      @relation("RepairJobCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  procedureVersion       WorkProcedureVersion?     @relation(fields: [procedureVersionId], references: [id], onDelete: Restrict)
+  partDemands            RepairPartDemand[]
+  dispatches             RepairJobDispatch[]
+  laborClocks            RepairJobLaborClock[]
+  laborEvents            RepairJobLaborEvent[]
+  qualityInspections     RepairQualityInspection[]
+  comebackCases          RepairComebackCase[]
+  partCustodyEvents      PartCustodyEvent[]
 
   @@unique([repairOrderId, jobNumber])
   @@unique([repairOrderId, authorizedLineKey, authorizationId])
@@ -2200,48 +2249,48 @@ model RepairJob {
 }
 
 model WorkProcedureVersion {
-  id                  String              @id @default(cuid())
-  organizationId      String
-  workTypeCode        String
-  version             Int
-  status              WorkProcedureStatus @default(ACTIVE)
-  title               String
-  instructions        Json
-  safetySteps         Json
-  requiredEvidence    Json
-  qcRules             Json
-  standardMinutes     Int
-  effectiveFrom       DateTime
-  effectiveTo         DateTime?
-  supersedesId        String?             @unique
-  createdByUserId     String
-  reason              String
-  createdAt           DateTime            @default(now())
-  organization        Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  createdByUser       User                @relation("WorkProcedureCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  supersedes          WorkProcedureVersion? @relation("WorkProcedureSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
-  supersededBy        WorkProcedureVersion? @relation("WorkProcedureSupersession")
-  repairJobs          RepairJob[]
+  id               String                @id @default(cuid())
+  organizationId   String
+  workTypeCode     String
+  version          Int
+  status           WorkProcedureStatus   @default(ACTIVE)
+  title            String
+  instructions     Json
+  safetySteps      Json
+  requiredEvidence Json
+  qcRules          Json
+  standardMinutes  Int
+  effectiveFrom    DateTime
+  effectiveTo      DateTime?
+  supersedesId     String?               @unique
+  createdByUserId  String
+  reason           String
+  createdAt        DateTime              @default(now())
+  organization     Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdByUser    User                  @relation("WorkProcedureCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  supersedes       WorkProcedureVersion? @relation("WorkProcedureSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy     WorkProcedureVersion? @relation("WorkProcedureSupersession")
+  repairJobs       RepairJob[]
 
   @@unique([organizationId, workTypeCode, version])
   @@index([organizationId, status, effectiveFrom, effectiveTo])
 }
 
 model TechnicianQualification {
-  id                String                      @id @default(cuid())
-  organizationId    String
-  technicianUserId  String
-  type              TechnicianQualificationType
-  code              String
-  effectiveFrom     DateTime
-  effectiveTo       DateTime?
-  sourceReference   String
-  verifiedByUserId  String
-  verifiedAt        DateTime
-  createdAt         DateTime                    @default(now())
-  organization      Organization                @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  technicianUser    User                        @relation("QualifiedTechnician", fields: [technicianUserId], references: [id], onDelete: Restrict)
-  verifiedByUser    User                        @relation("QualificationVerifier", fields: [verifiedByUserId], references: [id], onDelete: Restrict)
+  id               String                      @id @default(cuid())
+  organizationId   String
+  technicianUserId String
+  type             TechnicianQualificationType
+  code             String
+  effectiveFrom    DateTime
+  effectiveTo      DateTime?
+  sourceReference  String
+  verifiedByUserId String
+  verifiedAt       DateTime
+  createdAt        DateTime                    @default(now())
+  organization     Organization                @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  technicianUser   User                        @relation("QualifiedTechnician", fields: [technicianUserId], references: [id], onDelete: Restrict)
+  verifiedByUser   User                        @relation("QualificationVerifier", fields: [verifiedByUserId], references: [id], onDelete: Restrict)
 
   @@unique([organizationId, technicianUserId, type, code, effectiveFrom])
   @@index([organizationId, type, code, effectiveTo])
@@ -2249,33 +2298,33 @@ model TechnicianQualification {
 }
 
 model RepairJobDispatch {
-  id                String               @id @default(cuid())
-  organizationId    String
-  locationId        String
-  repairJobId       String
-  technicianUserId  String
-  bayResourceId     String?
-  resourceIds       Json
-  position          ShopDispatchPosition
-  status            ShopDispatchStatus
-  scheduledStartAt  DateTime
-  scheduledEndAt    DateTime
-  assignedByUserId  String
-  reason             String
-  overrideReason     String?
-  conflictSnapshot  Json
-  supersedesId      String?              @unique
-  version           Int                  @default(1)
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
-  organization      Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  location          Location             @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  repairJob         RepairJob            @relation(fields: [repairJobId], references: [id], onDelete: Restrict)
-  technicianUser    User                 @relation("DispatchTechnician", fields: [technicianUserId], references: [id], onDelete: Restrict)
-  bayResource       SchedulableResource? @relation("DispatchBayResource", fields: [bayResourceId], references: [id], onDelete: Restrict)
-  assignedByUser    User                 @relation("DispatchAssignedBy", fields: [assignedByUserId], references: [id], onDelete: Restrict)
-  supersedes        RepairJobDispatch?   @relation("DispatchSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
-  supersededBy      RepairJobDispatch?   @relation("DispatchSupersession")
+  id               String               @id @default(cuid())
+  organizationId   String
+  locationId       String
+  repairJobId      String
+  technicianUserId String
+  bayResourceId    String?
+  resourceIds      Json
+  position         ShopDispatchPosition
+  status           ShopDispatchStatus
+  scheduledStartAt DateTime
+  scheduledEndAt   DateTime
+  assignedByUserId String
+  reason           String
+  overrideReason   String?
+  conflictSnapshot Json
+  supersedesId     String?              @unique
+  version          Int                  @default(1)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  organization     Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location         Location             @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  repairJob        RepairJob            @relation(fields: [repairJobId], references: [id], onDelete: Restrict)
+  technicianUser   User                 @relation("DispatchTechnician", fields: [technicianUserId], references: [id], onDelete: Restrict)
+  bayResource      SchedulableResource? @relation("DispatchBayResource", fields: [bayResourceId], references: [id], onDelete: Restrict)
+  assignedByUser   User                 @relation("DispatchAssignedBy", fields: [assignedByUserId], references: [id], onDelete: Restrict)
+  supersedes       RepairJobDispatch?   @relation("DispatchSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy     RepairJobDispatch?   @relation("DispatchSupersession")
 
   @@index([organizationId, locationId, status, scheduledStartAt])
   @@index([technicianUserId, status, position])
@@ -2367,9 +2416,9 @@ model RepairQualityInspection {
 }
 
 model RepairOrderReleaseAuthorization {
-  id                 String                    @id @default(cuid())
+  id                 String                   @id @default(cuid())
   organizationId     String
-  repairOrderId      String                    @unique
+  repairOrderId      String                   @unique
   destination        RepairHandoffDestination
   qcInspectionIds    Json
   releaseEvidence    Json
@@ -2378,10 +2427,10 @@ model RepairOrderReleaseAuthorization {
   authorizedByUserId String
   authorizedAt       DateTime
   reason             String
-  createdAt          DateTime                  @default(now())
-  organization       Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  repairOrder        RepairOrder               @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
-  authorizedByUser   User                      @relation("RepairReleaseAuthorizer", fields: [authorizedByUserId], references: [id], onDelete: Restrict)
+  createdAt          DateTime                 @default(now())
+  organization       Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairOrder        RepairOrder              @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  authorizedByUser   User                     @relation("RepairReleaseAuthorizer", fields: [authorizedByUserId], references: [id], onDelete: Restrict)
 
   @@index([organizationId, authorizedAt])
   @@index([authorizedByUserId, authorizedAt])
@@ -2406,8 +2455,8 @@ model RepairAdvisorUpdate {
   occurredAt             DateTime
   createdAt              DateTime                @default(now())
   organization           Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  repairOrder            RepairOrder              @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
-  authorUser             User                     @relation("AdvisorUpdateAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  repairOrder            RepairOrder             @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  authorUser             User                    @relation("AdvisorUpdateAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
 
   @@unique([repairOrderId, version])
   @@index([organizationId, statusCode, occurredAt])
@@ -2415,58 +2464,58 @@ model RepairAdvisorUpdate {
 }
 
 model RepairDeliveryReadinessEvaluation {
-  id                  String                       @id @default(cuid())
-  organizationId      String
-  repairOrderId       String
-  version             Int
-  disposition         DeliveryReadinessDisposition
-  checks              Json
-  blockerCodes        Json
+  id                     String                       @id @default(cuid())
+  organizationId         String
+  repairOrderId          String
+  version                Int
+  disposition            DeliveryReadinessDisposition
+  checks                 Json
+  blockerCodes           Json
   releaseAuthorizationId String?
-  promisedDeliveryAt  DateTime?
-  evaluatorUserId     String
-  reason              String
-  evaluatedAt         DateTime
-  createdAt           DateTime                     @default(now())
-  organization        Organization                 @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  repairOrder         RepairOrder                  @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
-  evaluatorUser       User                         @relation("DeliveryReadinessEvaluator", fields: [evaluatorUserId], references: [id], onDelete: Restrict)
+  promisedDeliveryAt     DateTime?
+  evaluatorUserId        String
+  reason                 String
+  evaluatedAt            DateTime
+  createdAt              DateTime                     @default(now())
+  organization           Organization                 @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairOrder            RepairOrder                  @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  evaluatorUser          User                         @relation("DeliveryReadinessEvaluator", fields: [evaluatorUserId], references: [id], onDelete: Restrict)
 
   @@unique([repairOrderId, version])
   @@index([organizationId, disposition, evaluatedAt])
 }
 
 model RepairComebackCase {
-  id                       String                 @id @default(cuid())
-  organizationId           String
-  originalRepairOrderId    String
-  originalRepairJobId      String
-  followUpRepairOrderId    String?
-  caseNumber               String
-  status                   ComebackStatus         @default(OPEN)
-  reportedConcern          String
-  reasonCategory           String
-  responsibility           ComebackResponsibility @default(UNDETERMINED)
-  estimatedCostCents       Int                    @default(0)
-  actualCostCents          Int?
-  resolutionOutcome        String?
-  followUpDueAt            DateTime
-  followUpCompletedAt      DateTime?
-  createdByUserId          String
-  resolvedByUserId         String?
-  reportedAt               DateTime
-  resolvedAt               DateTime?
-  disciplinaryUseProhibited Boolean               @default(true)
-  version                  Int                    @default(1)
-  createdAt                DateTime               @default(now())
-  updatedAt                DateTime               @updatedAt
-  organization             Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  originalRepairOrder      RepairOrder             @relation("ComebackOriginalOrder", fields: [originalRepairOrderId], references: [id], onDelete: Restrict)
-  originalRepairJob        RepairJob               @relation(fields: [originalRepairJobId], references: [id], onDelete: Restrict)
-  followUpRepairOrder      RepairOrder?            @relation("ComebackFollowUpOrder", fields: [followUpRepairOrderId], references: [id], onDelete: Restrict)
-  createdByUser            User                    @relation("ComebackCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  resolvedByUser           User?                   @relation("ComebackResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: Restrict)
-  events                   RepairComebackEvent[]
+  id                        String                 @id @default(cuid())
+  organizationId            String
+  originalRepairOrderId     String
+  originalRepairJobId       String
+  followUpRepairOrderId     String?
+  caseNumber                String
+  status                    ComebackStatus         @default(OPEN)
+  reportedConcern           String
+  reasonCategory            String
+  responsibility            ComebackResponsibility @default(UNDETERMINED)
+  estimatedCostCents        Int                    @default(0)
+  actualCostCents           Int?
+  resolutionOutcome         String?
+  followUpDueAt             DateTime
+  followUpCompletedAt       DateTime?
+  createdByUserId           String
+  resolvedByUserId          String?
+  reportedAt                DateTime
+  resolvedAt                DateTime?
+  disciplinaryUseProhibited Boolean                @default(true)
+  version                   Int                    @default(1)
+  createdAt                 DateTime               @default(now())
+  updatedAt                 DateTime               @updatedAt
+  organization              Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  originalRepairOrder       RepairOrder            @relation("ComebackOriginalOrder", fields: [originalRepairOrderId], references: [id], onDelete: Restrict)
+  originalRepairJob         RepairJob              @relation(fields: [originalRepairJobId], references: [id], onDelete: Restrict)
+  followUpRepairOrder       RepairOrder?           @relation("ComebackFollowUpOrder", fields: [followUpRepairOrderId], references: [id], onDelete: Restrict)
+  createdByUser             User                   @relation("ComebackCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  resolvedByUser            User?                  @relation("ComebackResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: Restrict)
+  events                    RepairComebackEvent[]
 
   @@unique([organizationId, caseNumber])
   @@index([organizationId, status, followUpDueAt])
@@ -2474,46 +2523,46 @@ model RepairComebackCase {
 }
 
 model RepairComebackEvent {
-  id               String         @id @default(cuid())
-  organizationId   String
-  comebackCaseId   String
-  version          Int
-  fromStatus       ComebackStatus?
-  toStatus         ComebackStatus
-  responsibility   ComebackResponsibility
-  actualCostCents  Int?
-  outcome          String?
-  reason           String
-  actorUserId      String
-  correlationId    String
-  occurredAt       DateTime
-  createdAt        DateTime       @default(now())
-  organization     Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  comebackCase     RepairComebackCase @relation(fields: [comebackCaseId], references: [id], onDelete: Restrict)
-  actorUser        User           @relation("ComebackEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  id              String                 @id @default(cuid())
+  organizationId  String
+  comebackCaseId  String
+  version         Int
+  fromStatus      ComebackStatus?
+  toStatus        ComebackStatus
+  responsibility  ComebackResponsibility
+  actualCostCents Int?
+  outcome         String?
+  reason          String
+  actorUserId     String
+  correlationId   String
+  occurredAt      DateTime
+  createdAt       DateTime               @default(now())
+  organization    Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  comebackCase    RepairComebackCase     @relation(fields: [comebackCaseId], references: [id], onDelete: Restrict)
+  actorUser       User                   @relation("ComebackEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
 
   @@unique([comebackCaseId, version])
   @@index([organizationId, occurredAt])
 }
 
 model TechnicianPresenceRecord {
-  id                           String   @id @default(cuid())
+  id                           String       @id @default(cuid())
   organizationId               String
   locationId                   String
   technicianUserId             String
   startsAt                     DateTime
   endsAt                       DateTime
-  approvedNonProductiveMinutes Int      @default(0)
+  approvedNonProductiveMinutes Int          @default(0)
   idleCauseCode                String?
   sourceCode                   String
   sourceReference              String?
   recordedByUserId             String
   reason                       String
-  createdAt                    DateTime @default(now())
+  createdAt                    DateTime     @default(now())
   organization                 Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  location                     Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  technicianUser               User @relation("PresenceTechnician", fields: [technicianUserId], references: [id], onDelete: Restrict)
-  recordedByUser               User @relation("PresenceRecordedBy", fields: [recordedByUserId], references: [id], onDelete: Restrict)
+  location                     Location     @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  technicianUser               User         @relation("PresenceTechnician", fields: [technicianUserId], references: [id], onDelete: Restrict)
+  recordedByUser               User         @relation("PresenceRecordedBy", fields: [recordedByUserId], references: [id], onDelete: Restrict)
 
   @@unique([organizationId, sourceCode, sourceReference])
   @@index([technicianUserId, startsAt, endsAt])
@@ -2521,33 +2570,33 @@ model TechnicianPresenceRecord {
 }
 
 model ShopProductionSnapshot {
-  id                             String               @id @default(cuid())
-  organizationId                 String
-  locationId                     String
-  technicianUserId               String
-  windowStart                    DateTime
-  windowEnd                      DateTime
-  presentMinutes                 Int
-  repairClockedMinutes           Int
-  earnedMinutes                  Int
-  nonComebackEarnedMinutes       Int
-  approvedNonProductiveMinutes   Int
-  idleCauseMinutes               Json
-  productivityBasisPoints        Int
-  efficiencyBasisPoints          Int
-  proficiencyBasisPoints         Int
-  firstPassYieldBasisPoints      Int
-  qualityAdjustedBasisPoints     Int
-  confidence                     ProductionConfidence
-  reasonCodes                    Json
-  sourceFingerprint              String
-  generatedByUserId              String
-  calculatedAt                   DateTime
-  createdAt                      DateTime             @default(now())
-  organization                   Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  location                       Location             @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  technicianUser                 User                 @relation("ProductionTechnician", fields: [technicianUserId], references: [id], onDelete: Restrict)
-  generatedByUser                User                 @relation("ProductionGeneratedBy", fields: [generatedByUserId], references: [id], onDelete: Restrict)
+  id                           String               @id @default(cuid())
+  organizationId               String
+  locationId                   String
+  technicianUserId             String
+  windowStart                  DateTime
+  windowEnd                    DateTime
+  presentMinutes               Int
+  repairClockedMinutes         Int
+  earnedMinutes                Int
+  nonComebackEarnedMinutes     Int
+  approvedNonProductiveMinutes Int
+  idleCauseMinutes             Json
+  productivityBasisPoints      Int
+  efficiencyBasisPoints        Int
+  proficiencyBasisPoints       Int
+  firstPassYieldBasisPoints    Int
+  qualityAdjustedBasisPoints   Int
+  confidence                   ProductionConfidence
+  reasonCodes                  Json
+  sourceFingerprint            String
+  generatedByUserId            String
+  calculatedAt                 DateTime
+  createdAt                    DateTime             @default(now())
+  organization                 Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location                     Location             @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  technicianUser               User                 @relation("ProductionTechnician", fields: [technicianUserId], references: [id], onDelete: Restrict)
+  generatedByUser              User                 @relation("ProductionGeneratedBy", fields: [generatedByUserId], references: [id], onDelete: Restrict)
 
   @@unique([organizationId, locationId, technicianUserId, windowStart, windowEnd, sourceFingerprint])
   @@index([organizationId, locationId, windowEnd])
@@ -2555,29 +2604,29 @@ model ShopProductionSnapshot {
 }
 
 model ServiceInvoicePackage {
-  id                   String               @id @default(cuid())
-  organizationId       String
-  repairOrderId        String
-  version              Int
-  status               InvoiceHandoffStatus @default(READY)
-  lineItems            Json
-  authorizedTotalCents Int
+  id                      String                    @id @default(cuid())
+  organizationId          String
+  repairOrderId           String
+  version                 Int
+  status                  InvoiceHandoffStatus      @default(READY)
+  lineItems               Json
+  authorizedTotalCents    Int
   installedPartsCostCents Int
-  clockedLaborMinutes  Int
-  sourceSnapshot       Json
-  mismatchCodes        Json
-  externalSystemCode   String?
-  externalReference    String?
-  createdByUserId      String
-  reason               String
-  generatedAt          DateTime
-  submittedAt          DateTime?
-  reconciledAt         DateTime?
-  createdAt            DateTime             @default(now())
-  organization         Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  repairOrder          RepairOrder            @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
-  createdByUser        User                   @relation("InvoicePackageCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  closureEvents        RepairOrderClosureEvent[]
+  clockedLaborMinutes     Int
+  sourceSnapshot          Json
+  mismatchCodes           Json
+  externalSystemCode      String?
+  externalReference       String?
+  createdByUserId         String
+  reason                  String
+  generatedAt             DateTime
+  submittedAt             DateTime?
+  reconciledAt            DateTime?
+  createdAt               DateTime                  @default(now())
+  organization            Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairOrder             RepairOrder               @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  createdByUser           User                      @relation("InvoicePackageCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  closureEvents           RepairOrderClosureEvent[]
 
   @@unique([repairOrderId, version])
   @@unique([organizationId, externalSystemCode, externalReference])
@@ -2585,63 +2634,63 @@ model ServiceInvoicePackage {
 }
 
 model RepairOrderClosureEvent {
-  id                  String                 @id @default(cuid())
-  organizationId      String
-  repairOrderId       String
-  version             Int
-  type                RepairOrderClosureType
-  invoicePackageId    String?
-  finalOdometer       Int?
-  keysVerified        Boolean
-  recipientName       String?
-  handoffEvidence     Json
-  priorStage          RepairOrderStage
-  resultingStage      RepairOrderStage
-  actorUserId         String
-  reason              String
-  correlationId       String
-  occurredAt          DateTime
-  createdAt           DateTime               @default(now())
-  organization        Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  repairOrder         RepairOrder             @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
-  actorUser           User                    @relation("RepairClosureActor", fields: [actorUserId], references: [id], onDelete: Restrict)
-  invoicePackage      ServiceInvoicePackage?  @relation(fields: [invoicePackageId], references: [id], onDelete: Restrict)
+  id               String                 @id @default(cuid())
+  organizationId   String
+  repairOrderId    String
+  version          Int
+  type             RepairOrderClosureType
+  invoicePackageId String?
+  finalOdometer    Int?
+  keysVerified     Boolean
+  recipientName    String?
+  handoffEvidence  Json
+  priorStage       RepairOrderStage
+  resultingStage   RepairOrderStage
+  actorUserId      String
+  reason           String
+  correlationId    String
+  occurredAt       DateTime
+  createdAt        DateTime               @default(now())
+  organization     Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairOrder      RepairOrder            @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  actorUser        User                   @relation("RepairClosureActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  invoicePackage   ServiceInvoicePackage? @relation(fields: [invoicePackageId], references: [id], onDelete: Restrict)
 
   @@unique([repairOrderId, version])
   @@index([organizationId, type, occurredAt])
 }
 
 model Part {
-  id                  String                 @id @default(cuid())
-  organizationId      String
-  partNumber          String
-  manufacturerCode    String?
-  description         String
-  unitOfMeasure       String                 @default("EACH")
-  categoryCode        String?
-  status              PartStatus             @default(ACTIVE)
-  supersededByPartId  String?
-  standardCostCents   Int
-  version             Int                    @default(1)
-  createdAt           DateTime               @default(now())
-  updatedAt           DateTime               @updatedAt
-  organization        Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  supersededByPart    Part?                  @relation("PartSupersession", fields: [supersededByPartId], references: [id], onDelete: Restrict)
-  supersededParts     Part[]                 @relation("PartSupersession")
-  balances            PartStockBalance[]
-  ledgerEntries       PartStockLedgerEntry[]
-  demands             RepairPartDemand[]
-  reservations        PartReservation[]
-  primaryInterchanges PartInterchange[]       @relation("PrimaryInterchangePart")
-  alternateInterchanges PartInterchange[]     @relation("AlternateInterchangePart")
-  vendorOffers        PartVendorOffer[]
-  custodyEvents       PartCustodyEvent[]
-  recoveryCases       PartRecoveryCase[]
+  id                     String                        @id @default(cuid())
+  organizationId         String
+  partNumber             String
+  manufacturerCode       String?
+  description            String
+  unitOfMeasure          String                        @default("EACH")
+  categoryCode           String?
+  status                 PartStatus                    @default(ACTIVE)
+  supersededByPartId     String?
+  standardCostCents      Int
+  version                Int                           @default(1)
+  createdAt              DateTime                      @default(now())
+  updatedAt              DateTime                      @updatedAt
+  organization           Organization                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  supersededByPart       Part?                         @relation("PartSupersession", fields: [supersededByPartId], references: [id], onDelete: Restrict)
+  supersededParts        Part[]                        @relation("PartSupersession")
+  balances               PartStockBalance[]
+  ledgerEntries          PartStockLedgerEntry[]
+  demands                RepairPartDemand[]
+  reservations           PartReservation[]
+  primaryInterchanges    PartInterchange[]             @relation("PrimaryInterchangePart")
+  alternateInterchanges  PartInterchange[]             @relation("AlternateInterchangePart")
+  vendorOffers           PartVendorOffer[]
+  custodyEvents          PartCustodyEvent[]
+  recoveryCases          PartRecoveryCase[]
   receivingDiscrepancies PartReceivingDiscrepancy[]
-  cycleCountLines      PartCycleCountLine[]
-  inventoryPolicies   PartInventoryPolicy[]
-  recommendations     PartInventoryRecommendation[]
-  barcodeAliases      PartBarcodeAlias[]
+  cycleCountLines        PartCycleCountLine[]
+  inventoryPolicies      PartInventoryPolicy[]
+  recommendations        PartInventoryRecommendation[]
+  barcodeAliases         PartBarcodeAlias[]
 
   @@unique([organizationId, partNumber])
   @@unique([id, organizationId])
@@ -2650,28 +2699,28 @@ model Part {
 }
 
 model PartStockLocation {
-  id             String                @id @default(cuid())
-  organizationId String
-  locationId     String
-  code           String
-  name           String
-  type           PartStockLocationType
-  isActive       Boolean               @default(true)
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
-  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  location       Location              @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  balances       PartStockBalance[]
-  ledgerEntries  PartStockLedgerEntry[]
-  reservations   PartReservation[]
-  custodyFromEvents PartCustodyEvent[] @relation("PartCustodyFromLocation")
-  custodyToEvents PartCustodyEvent[] @relation("PartCustodyToLocation")
-  receipts         PartReceipt[]
-  transfersFrom    PartTransfer[] @relation("PartTransferFromLocation")
-  transfersTo      PartTransfer[] @relation("PartTransferToLocation")
-  cycleCounts      PartCycleCount[]
+  id                String                        @id @default(cuid())
+  organizationId    String
+  locationId        String
+  code              String
+  name              String
+  type              PartStockLocationType
+  isActive          Boolean                       @default(true)
+  createdAt         DateTime                      @default(now())
+  updatedAt         DateTime                      @updatedAt
+  organization      Organization                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location          Location                      @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  balances          PartStockBalance[]
+  ledgerEntries     PartStockLedgerEntry[]
+  reservations      PartReservation[]
+  custodyFromEvents PartCustodyEvent[]            @relation("PartCustodyFromLocation")
+  custodyToEvents   PartCustodyEvent[]            @relation("PartCustodyToLocation")
+  receipts          PartReceipt[]
+  transfersFrom     PartTransfer[]                @relation("PartTransferFromLocation")
+  transfersTo       PartTransfer[]                @relation("PartTransferToLocation")
+  cycleCounts       PartCycleCount[]
   inventoryPolicies PartInventoryPolicy[]
-  recommendations PartInventoryRecommendation[]
+  recommendations   PartInventoryRecommendation[]
 
   @@unique([organizationId, code])
   @@unique([id, organizationId])
@@ -2701,29 +2750,29 @@ model PartStockBalance {
 }
 
 model PartStockLedgerEntry {
-  id                  String                 @id @default(cuid())
-  organizationId      String
-  partId              String
-  stockLocationId     String
-  movementType        PartLedgerMovementType
-  quantityDelta       Int
-  allocatedDelta      Int                    @default(0)
-  unitCostCents       Int
-  sourceType          String
-  sourceId            String
-  reversalOfEntryId   String?                @unique
-  actorUserId         String
-  reason              String
-  correlationId       String
-  occurredAt          DateTime               @default(now())
-  createdAt           DateTime               @default(now())
-  organization        Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  part                Part                   @relation(fields: [partId], references: [id], onDelete: Restrict)
-  stockLocation       PartStockLocation      @relation(fields: [stockLocationId], references: [id], onDelete: Restrict)
-  reversalOfEntry     PartStockLedgerEntry?  @relation("PartLedgerReversal", fields: [reversalOfEntryId], references: [id], onDelete: Restrict)
-  reversalEntry       PartStockLedgerEntry?  @relation("PartLedgerReversal")
-  actorUser           User                   @relation("PartLedgerActor", fields: [actorUserId], references: [id], onDelete: Restrict)
-  cycleCountLine      PartCycleCountLine?     @relation("PartCycleCountPostedLedgerEntry")
+  id                String                 @id @default(cuid())
+  organizationId    String
+  partId            String
+  stockLocationId   String
+  movementType      PartLedgerMovementType
+  quantityDelta     Int
+  allocatedDelta    Int                    @default(0)
+  unitCostCents     Int
+  sourceType        String
+  sourceId          String
+  reversalOfEntryId String?                @unique
+  actorUserId       String
+  reason            String
+  correlationId     String
+  occurredAt        DateTime               @default(now())
+  createdAt         DateTime               @default(now())
+  organization      Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  part              Part                   @relation(fields: [partId], references: [id], onDelete: Restrict)
+  stockLocation     PartStockLocation      @relation(fields: [stockLocationId], references: [id], onDelete: Restrict)
+  reversalOfEntry   PartStockLedgerEntry?  @relation("PartLedgerReversal", fields: [reversalOfEntryId], references: [id], onDelete: Restrict)
+  reversalEntry     PartStockLedgerEntry?  @relation("PartLedgerReversal")
+  actorUser         User                   @relation("PartLedgerActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  cycleCountLine    PartCycleCountLine?    @relation("PartCycleCountPostedLedgerEntry")
 
   @@unique([organizationId, sourceType, sourceId, movementType])
   @@index([organizationId, partId, occurredAt])
@@ -2732,28 +2781,28 @@ model PartStockLedgerEntry {
 }
 
 model RepairPartDemand {
-  id                  String           @id @default(cuid())
+  id                  String            @id @default(cuid())
   organizationId      String
   repairOrderId       String
   repairJobReference  String?
   repairJobId         String?
   partId              String
   quantityRequired    Int
-  quantityReserved    Int              @default(0)
+  quantityReserved    Int               @default(0)
   requiredAt          DateTime
-  substitutionAllowed Boolean          @default(false)
-  status              PartDemandStatus @default(OPEN)
+  substitutionAllowed Boolean           @default(false)
+  status              PartDemandStatus  @default(OPEN)
   notes               String?
   createdByUserId     String
-  version             Int              @default(1)
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
-  organization        Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  repairOrder         RepairOrder      @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
-  part                Part             @relation(fields: [partId], references: [id], onDelete: Restrict)
-  createdByUser       User             @relation("PartDemandCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  version             Int               @default(1)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  organization        Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairOrder         RepairOrder       @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  part                Part              @relation(fields: [partId], references: [id], onDelete: Restrict)
+  createdByUser       User              @relation("PartDemandCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
   reservations        PartReservation[]
-  repairJob           RepairJob?       @relation(fields: [repairJobId], references: [id], onDelete: Restrict)
+  repairJob           RepairJob?        @relation(fields: [repairJobId], references: [id], onDelete: Restrict)
   requisitions        PartRequisition[]
 
   @@unique([repairOrderId, partId, repairJobReference])
@@ -2788,51 +2837,51 @@ model PartReservation {
 }
 
 model PartVendor {
-  id               String           @id @default(cuid())
-  organizationId   String
-  code             String
-  name             String
-  status           PartVendorStatus @default(ACTIVE)
-  paymentTerms      String
-  defaultWarranty  String
-  defaultReturnTerms String
-  reliabilityBasisPoints Int        @default(0)
-  createdByUserId  String
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  createdByUser    User             @relation("PartVendorCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  offers           PartVendorOffer[]
-  purchaseOrders   PartPurchaseOrder[]
-  recoveryCases    PartRecoveryCase[]
+  id                     String              @id @default(cuid())
+  organizationId         String
+  code                   String
+  name                   String
+  status                 PartVendorStatus    @default(ACTIVE)
+  paymentTerms           String
+  defaultWarranty        String
+  defaultReturnTerms     String
+  reliabilityBasisPoints Int                 @default(0)
+  createdByUserId        String
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  organization           Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdByUser          User                @relation("PartVendorCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  offers                 PartVendorOffer[]
+  purchaseOrders         PartPurchaseOrder[]
+  recoveryCases          PartRecoveryCase[]
 
   @@unique([organizationId, code])
   @@index([organizationId, status, name])
 }
 
 model PartInterchange {
-  id                 String              @id @default(cuid())
-  organizationId     String
-  primaryPartId      String
-  alternatePartId    String
-  type               PartInterchangeType
-  fitmentEvidence    Json
-  approved           Boolean             @default(false)
-  approvedByUserId   String?
-  approvedAt         DateTime?
-  reason             String
-  createdAt          DateTime            @default(now())
-  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  primaryPart        Part                @relation("PrimaryInterchangePart", fields: [primaryPartId], references: [id], onDelete: Restrict)
-  alternatePart      Part                @relation("AlternateInterchangePart", fields: [alternatePartId], references: [id], onDelete: Restrict)
-  approvedByUser     User?               @relation("PartInterchangeApprovedBy", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+  id               String              @id @default(cuid())
+  organizationId   String
+  primaryPartId    String
+  alternatePartId  String
+  type             PartInterchangeType
+  fitmentEvidence  Json
+  approved         Boolean             @default(false)
+  approvedByUserId String?
+  approvedAt       DateTime?
+  reason           String
+  createdAt        DateTime            @default(now())
+  organization     Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  primaryPart      Part                @relation("PrimaryInterchangePart", fields: [primaryPartId], references: [id], onDelete: Restrict)
+  alternatePart    Part                @relation("AlternateInterchangePart", fields: [alternatePartId], references: [id], onDelete: Restrict)
+  approvedByUser   User?               @relation("PartInterchangeApprovedBy", fields: [approvedByUserId], references: [id], onDelete: Restrict)
 
   @@unique([organizationId, primaryPartId, alternatePartId, type])
   @@index([alternatePartId, approved])
 }
 
 model PartVendorOffer {
-  id                 String   @id @default(cuid())
+  id                 String            @id @default(cuid())
   organizationId     String
   vendorId           String
   partId             String
@@ -2844,10 +2893,10 @@ model PartVendorOffer {
   returnTerms        String
   effectiveFrom      DateTime
   effectiveTo        DateTime?
-  createdAt          DateTime @default(now())
-  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  vendor             PartVendor @relation(fields: [vendorId], references: [id], onDelete: Restrict)
-  part               Part @relation(fields: [partId], references: [id], onDelete: Restrict)
+  createdAt          DateTime          @default(now())
+  organization       Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  vendor             PartVendor        @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  part               Part              @relation(fields: [partId], references: [id], onDelete: Restrict)
   requisitions       PartRequisition[]
 
   @@unique([vendorId, partId, vendorPartNumber, effectiveFrom])
@@ -2865,11 +2914,11 @@ model PartRequisition {
   comparisonSnapshot Json
   createdByUserId    String
   reason             String
-  version            Int                  @default(1)
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
-  organization       Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  demand             RepairPartDemand     @relation(fields: [demandId], references: [id], onDelete: Restrict)
+  version            Int                   @default(1)
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  organization       Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  demand             RepairPartDemand      @relation(fields: [demandId], references: [id], onDelete: Restrict)
   selectedOffer      PartVendorOffer?      @relation(fields: [selectedOfferId], references: [id], onDelete: Restrict)
   createdByUser      User                  @relation("PartRequisitionCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
   purchaseOrders     PartPurchaseOrder[]
@@ -2879,85 +2928,85 @@ model PartRequisition {
 }
 
 model PartPurchaseOrder {
-  id                 String                  @id @default(cuid())
-  organizationId     String
-  locationId         String
-  vendorId           String
-  requisitionId      String?
+  id                  String                  @id @default(cuid())
+  organizationId      String
+  locationId          String
+  vendorId            String
+  requisitionId       String?
   purchaseOrderNumber String
-  status             PartPurchaseOrderStatus @default(DRAFT)
-  lines              Json
-  orderedTotalCents  Int
-  receivedTotalCents Int                     @default(0)
-  version            Int                     @default(1)
-  createdByUserId    String
-  reason             String
-  issuedAt           DateTime?
-  acknowledgedAt     DateTime?
-  closedAt           DateTime?
-  createdAt          DateTime                @default(now())
-  updatedAt          DateTime                @updatedAt
-  organization       Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  location           Location                @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  vendor             PartVendor              @relation(fields: [vendorId], references: [id], onDelete: Restrict)
-  requisition        PartRequisition?         @relation(fields: [requisitionId], references: [id], onDelete: Restrict)
-  createdByUser      User                     @relation("PartPurchaseOrderCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  receipts           PartReceipt[]
+  status              PartPurchaseOrderStatus @default(DRAFT)
+  lines               Json
+  orderedTotalCents   Int
+  receivedTotalCents  Int                     @default(0)
+  version             Int                     @default(1)
+  createdByUserId     String
+  reason              String
+  issuedAt            DateTime?
+  acknowledgedAt      DateTime?
+  closedAt            DateTime?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  organization        Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location            Location                @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  vendor              PartVendor              @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  requisition         PartRequisition?        @relation(fields: [requisitionId], references: [id], onDelete: Restrict)
+  createdByUser       User                    @relation("PartPurchaseOrderCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  receipts            PartReceipt[]
 
   @@unique([organizationId, purchaseOrderNumber])
   @@index([organizationId, status, createdAt])
 }
 
 model PartReceipt {
-  id                  String   @id @default(cuid())
-  organizationId      String
-  purchaseOrderId     String
-  stockLocationId     String
-  packingSource       String
-  invoiceReference    String?
-  lines               Json
-  receivedByUserId    String
-  reason              String
-  receivedAt          DateTime
-  createdAt           DateTime @default(now())
-  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  purchaseOrder       PartPurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
-  receivedByUser      User @relation("PartReceiptReceivedBy", fields: [receivedByUserId], references: [id], onDelete: Restrict)
-  stockLocation       PartStockLocation @relation(fields: [stockLocationId], references: [id], onDelete: Restrict)
-  discrepancies       PartReceivingDiscrepancy[]
+  id               String                     @id @default(cuid())
+  organizationId   String
+  purchaseOrderId  String
+  stockLocationId  String
+  packingSource    String
+  invoiceReference String?
+  lines            Json
+  receivedByUserId String
+  reason           String
+  receivedAt       DateTime
+  createdAt        DateTime                   @default(now())
+  organization     Organization               @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  purchaseOrder    PartPurchaseOrder          @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  receivedByUser   User                       @relation("PartReceiptReceivedBy", fields: [receivedByUserId], references: [id], onDelete: Restrict)
+  stockLocation    PartStockLocation          @relation(fields: [stockLocationId], references: [id], onDelete: Restrict)
+  discrepancies    PartReceivingDiscrepancy[]
 
   @@unique([purchaseOrderId, packingSource])
   @@index([organizationId, receivedAt])
 }
 
 model PartReceivingDiscrepancy {
-  id                 String                @id @default(cuid())
-  organizationId     String
-  receiptId          String
-  type               PartDiscrepancyType
-  status             PartDiscrepancyStatus @default(OPEN)
-  partId             String?
-  expectedQuantity   Int
-  receivedQuantity   Int
-  expectedCostCents  Int
-  receivedCostCents  Int
-  notes              String
-  resolvedByUserId   String?
-  resolution         String?
-  resolvedAt         DateTime?
-  version            Int                   @default(1)
-  createdAt          DateTime              @default(now())
-  updatedAt          DateTime              @updatedAt
-  organization       Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  receipt            PartReceipt           @relation(fields: [receiptId], references: [id], onDelete: Restrict)
-  resolvedByUser     User?                 @relation("PartDiscrepancyResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: Restrict)
-  part               Part?                 @relation(fields: [partId], references: [id], onDelete: Restrict)
+  id                String                @id @default(cuid())
+  organizationId    String
+  receiptId         String
+  type              PartDiscrepancyType
+  status            PartDiscrepancyStatus @default(OPEN)
+  partId            String?
+  expectedQuantity  Int
+  receivedQuantity  Int
+  expectedCostCents Int
+  receivedCostCents Int
+  notes             String
+  resolvedByUserId  String?
+  resolution        String?
+  resolvedAt        DateTime?
+  version           Int                   @default(1)
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  organization      Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  receipt           PartReceipt           @relation(fields: [receiptId], references: [id], onDelete: Restrict)
+  resolvedByUser    User?                 @relation("PartDiscrepancyResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: Restrict)
+  part              Part?                 @relation(fields: [partId], references: [id], onDelete: Restrict)
 
   @@index([organizationId, status, createdAt])
 }
 
 model PartCustodyEvent {
-  id                  String          @id @default(cuid())
+  id                  String             @id @default(cuid())
   organizationId      String
   type                PartCustodyType
   partId              String
@@ -2973,13 +3022,13 @@ model PartCustodyEvent {
   reason              String
   correlationId       String
   occurredAt          DateTime
-  createdAt           DateTime        @default(now())
-  organization        Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  part                Part            @relation(fields: [partId], references: [id], onDelete: Restrict)
-  repairJob           RepairJob?      @relation(fields: [repairJobId], references: [id], onDelete: Restrict)
+  createdAt           DateTime           @default(now())
+  organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  part                Part               @relation(fields: [partId], references: [id], onDelete: Restrict)
+  repairJob           RepairJob?         @relation(fields: [repairJobId], references: [id], onDelete: Restrict)
   fromStockLocation   PartStockLocation? @relation("PartCustodyFromLocation", fields: [fromStockLocationId], references: [id], onDelete: Restrict)
   toStockLocation     PartStockLocation? @relation("PartCustodyToLocation", fields: [toStockLocationId], references: [id], onDelete: Restrict)
-  actorUser           User            @relation("PartCustodyActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  actorUser           User               @relation("PartCustodyActor", fields: [actorUserId], references: [id], onDelete: Restrict)
 
   @@unique([organizationId, sourceType, sourceId, type])
   @@index([repairJobId, occurredAt])
@@ -3029,7 +3078,7 @@ model PartRecoveryCase {
   createdByUserId     String
   reason              String
   shippedAt           DateTime?
-  acknowledgedAt     DateTime?
+  acknowledgedAt      DateTime?
   resolvedAt          DateTime?
   version             Int                @default(1)
   createdAt           DateTime           @default(now())
@@ -3044,33 +3093,33 @@ model PartRecoveryCase {
 }
 
 model PartCycleCount {
-  id                  String               @id @default(cuid())
-  organizationId      String
-  stockLocationId     String
-  countNumber         String
-  type                PartCycleCountType
-  mode                PartCycleCountMode
-  status              PartCycleCountStatus @default(DRAFT)
-  blindCount          Boolean              @default(true)
-  snapshotAt          DateTime
-  ledgerCutoffAt      DateTime
-  assignedToUserId    String?
-  createdByUserId     String
-  reason              String
-  startedAt           DateTime?
-  submittedAt         DateTime?
-  reviewedAt          DateTime?
-  postedAt            DateTime?
-  cancelledAt         DateTime?
-  version             Int                  @default(1)
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  stockLocation       PartStockLocation    @relation(fields: [stockLocationId], references: [id], onDelete: Restrict)
-  assignedToUser      User?                @relation("PartCycleCountAssignee", fields: [assignedToUserId], references: [id], onDelete: Restrict)
-  createdByUser       User                 @relation("PartCycleCountCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  lines               PartCycleCountLine[]
-  events              PartCycleCountEvent[]
+  id               String                @id @default(cuid())
+  organizationId   String
+  stockLocationId  String
+  countNumber      String
+  type             PartCycleCountType
+  mode             PartCycleCountMode
+  status           PartCycleCountStatus  @default(DRAFT)
+  blindCount       Boolean               @default(true)
+  snapshotAt       DateTime
+  ledgerCutoffAt   DateTime
+  assignedToUserId String?
+  createdByUserId  String
+  reason           String
+  startedAt        DateTime?
+  submittedAt      DateTime?
+  reviewedAt       DateTime?
+  postedAt         DateTime?
+  cancelledAt      DateTime?
+  version          Int                   @default(1)
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  organization     Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  stockLocation    PartStockLocation     @relation(fields: [stockLocationId], references: [id], onDelete: Restrict)
+  assignedToUser   User?                 @relation("PartCycleCountAssignee", fields: [assignedToUserId], references: [id], onDelete: Restrict)
+  createdByUser    User                  @relation("PartCycleCountCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  lines            PartCycleCountLine[]
+  events           PartCycleCountEvent[]
 
   @@unique([organizationId, countNumber])
   @@index([organizationId, status, snapshotAt])
@@ -3078,7 +3127,7 @@ model PartCycleCount {
 }
 
 model PartCycleCountLine {
-  id                  String    @id @default(cuid())
+  id                  String                @id @default(cuid())
   organizationId      String
   cycleCountId        String
   partId              String
@@ -3092,17 +3141,17 @@ model PartCycleCountLine {
   countedAt           DateTime?
   evidence            Json
   reasonCode          String?
-  approvalRequired    Boolean   @default(false)
+  approvalRequired    Boolean               @default(false)
   approvedByUserId    String?
   approvedAt          DateTime?
-  postedLedgerEntryId String?   @unique
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  cycleCount          PartCycleCount @relation(fields: [cycleCountId], references: [id], onDelete: Restrict)
-  part                Part @relation(fields: [partId], references: [id], onDelete: Restrict)
-  counterUser         User? @relation("PartCycleCountCounter", fields: [counterUserId], references: [id], onDelete: Restrict)
-  approvedByUser      User? @relation("PartCycleCountApprover", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+  postedLedgerEntryId String?               @unique
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  organization        Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  cycleCount          PartCycleCount        @relation(fields: [cycleCountId], references: [id], onDelete: Restrict)
+  part                Part                  @relation(fields: [partId], references: [id], onDelete: Restrict)
+  counterUser         User?                 @relation("PartCycleCountCounter", fields: [counterUserId], references: [id], onDelete: Restrict)
+  approvedByUser      User?                 @relation("PartCycleCountApprover", fields: [approvedByUserId], references: [id], onDelete: Restrict)
   postedLedgerEntry   PartStockLedgerEntry? @relation("PartCycleCountPostedLedgerEntry", fields: [postedLedgerEntryId], references: [id], onDelete: Restrict)
 
   @@unique([cycleCountId, partId])
@@ -3110,138 +3159,138 @@ model PartCycleCountLine {
 }
 
 model PartCycleCountEvent {
-  id                  String               @id @default(cuid())
-  organizationId      String
-  cycleCountId        String
-  version             Int
-  fromStatus          PartCycleCountStatus?
-  toStatus            PartCycleCountStatus
-  actorUserId         String
-  reason              String
-  correlationId       String
-  occurredAt          DateTime
-  createdAt           DateTime             @default(now())
-  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  cycleCount          PartCycleCount       @relation(fields: [cycleCountId], references: [id], onDelete: Restrict)
-  actorUser           User                 @relation("PartCycleCountEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  id             String                @id @default(cuid())
+  organizationId String
+  cycleCountId   String
+  version        Int
+  fromStatus     PartCycleCountStatus?
+  toStatus       PartCycleCountStatus
+  actorUserId    String
+  reason         String
+  correlationId  String
+  occurredAt     DateTime
+  createdAt      DateTime              @default(now())
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  cycleCount     PartCycleCount        @relation(fields: [cycleCountId], references: [id], onDelete: Restrict)
+  actorUser      User                  @relation("PartCycleCountEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
 
   @@unique([cycleCountId, version])
   @@index([organizationId, occurredAt])
 }
 
 model PartInventoryPolicy {
-  id                       String   @id @default(cuid())
-  organizationId           String
-  partId                   String
-  stockLocationId          String
-  version                  Int
-  isActive                 Boolean  @default(true)
-  abcClass                 String
-  leadTimeDays             Int
-  reviewPeriodDays         Int
-  targetServiceBasisPoints Int
-  safetyStockQuantity      Int
-  reorderPointQuantity     Int?
-  economicOrderQuantity    Int?
-  maxStockQuantity         Int?
-  orderingCostCents        Int
+  id                           String            @id @default(cuid())
+  organizationId               String
+  partId                       String
+  stockLocationId              String
+  version                      Int
+  isActive                     Boolean           @default(true)
+  abcClass                     String
+  leadTimeDays                 Int
+  reviewPeriodDays             Int
+  targetServiceBasisPoints     Int
+  safetyStockQuantity          Int
+  reorderPointQuantity         Int?
+  economicOrderQuantity        Int?
+  maxStockQuantity             Int?
+  orderingCostCents            Int
   annualHoldingRateBasisPoints Int
-  obsolescenceDays         Int
-  effectiveFrom            DateTime
-  effectiveTo              DateTime?
-  createdByUserId          String
-  reason                   String
-  createdAt                DateTime @default(now())
-  organization             Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  part                     Part @relation(fields: [partId], references: [id], onDelete: Restrict)
-  stockLocation            PartStockLocation @relation(fields: [stockLocationId], references: [id], onDelete: Restrict)
-  createdByUser            User @relation("PartInventoryPolicyCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  obsolescenceDays             Int
+  effectiveFrom                DateTime
+  effectiveTo                  DateTime?
+  createdByUserId              String
+  reason                       String
+  createdAt                    DateTime          @default(now())
+  organization                 Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  part                         Part              @relation(fields: [partId], references: [id], onDelete: Restrict)
+  stockLocation                PartStockLocation @relation(fields: [stockLocationId], references: [id], onDelete: Restrict)
+  createdByUser                User              @relation("PartInventoryPolicyCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
 
   @@unique([partId, stockLocationId, version])
   @@index([organizationId, isActive, effectiveFrom, effectiveTo])
 }
 
 model PartRecommendationRun {
-  id                  String   @id @default(cuid())
-  organizationId      String
-  locationId          String?
-  windowStart         DateTime
-  windowEnd           DateTime
-  sourceFingerprint   String
-  policySnapshot      Json
-  generatedByUserId   String
-  reason              String
-  generatedAt         DateTime
-  createdAt           DateTime @default(now())
-  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  location            Location? @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  generatedByUser     User @relation("PartRecommendationRunGenerator", fields: [generatedByUserId], references: [id], onDelete: Restrict)
-  recommendations     PartInventoryRecommendation[]
+  id                String                        @id @default(cuid())
+  organizationId    String
+  locationId        String?
+  windowStart       DateTime
+  windowEnd         DateTime
+  sourceFingerprint String
+  policySnapshot    Json
+  generatedByUserId String
+  reason            String
+  generatedAt       DateTime
+  createdAt         DateTime                      @default(now())
+  organization      Organization                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location          Location?                     @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  generatedByUser   User                          @relation("PartRecommendationRunGenerator", fields: [generatedByUserId], references: [id], onDelete: Restrict)
+  recommendations   PartInventoryRecommendation[]
 
   @@unique([organizationId, sourceFingerprint])
   @@index([organizationId, generatedAt])
 }
 
 model PartInventoryRecommendation {
-  id                       String                       @id @default(cuid())
-  organizationId           String
-  runId                    String
-  partId                   String
-  stockLocationId          String
-  type                     PartRecommendationType
-  status                   PartRecommendationStatus     @default(OPEN)
-  onHandQuantity           Int
-  allocatedQuantity        Int
-  availableQuantity        Int
-  orderedQuantity          Int
-  averageDailyDemandMilli  Int
-  demandStdDevMilli        Int
-  daysSinceLastIssue       Int?
-  safetyStockQuantity      Int
-  reorderPointQuantity     Int
-  economicOrderQuantity    Int
-  recommendedQuantity      Int
-  estimatedCostCents       Int
-  confidence               PartRecommendationConfidence
-  reasonCodes              Json
-  evidence                 Json
-  decidedByUserId          String?
-  decisionReason           String?
-  decidedAt                DateTime?
-  version                  Int                          @default(1)
-  createdAt                DateTime                     @default(now())
-  updatedAt                DateTime                     @updatedAt
-  organization             Organization                 @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  run                      PartRecommendationRun        @relation(fields: [runId], references: [id], onDelete: Restrict)
-  part                     Part                         @relation(fields: [partId], references: [id], onDelete: Restrict)
-  stockLocation            PartStockLocation            @relation(fields: [stockLocationId], references: [id], onDelete: Restrict)
-  decidedByUser            User?                        @relation("PartRecommendationDecisionActor", fields: [decidedByUserId], references: [id], onDelete: Restrict)
+  id                      String                       @id @default(cuid())
+  organizationId          String
+  runId                   String
+  partId                  String
+  stockLocationId         String
+  type                    PartRecommendationType
+  status                  PartRecommendationStatus     @default(OPEN)
+  onHandQuantity          Int
+  allocatedQuantity       Int
+  availableQuantity       Int
+  orderedQuantity         Int
+  averageDailyDemandMilli Int
+  demandStdDevMilli       Int
+  daysSinceLastIssue      Int?
+  safetyStockQuantity     Int
+  reorderPointQuantity    Int
+  economicOrderQuantity   Int
+  recommendedQuantity     Int
+  estimatedCostCents      Int
+  confidence              PartRecommendationConfidence
+  reasonCodes             Json
+  evidence                Json
+  decidedByUserId         String?
+  decisionReason          String?
+  decidedAt               DateTime?
+  version                 Int                          @default(1)
+  createdAt               DateTime                     @default(now())
+  updatedAt               DateTime                     @updatedAt
+  organization            Organization                 @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  run                     PartRecommendationRun        @relation(fields: [runId], references: [id], onDelete: Restrict)
+  part                    Part                         @relation(fields: [partId], references: [id], onDelete: Restrict)
+  stockLocation           PartStockLocation            @relation(fields: [stockLocationId], references: [id], onDelete: Restrict)
+  decidedByUser           User?                        @relation("PartRecommendationDecisionActor", fields: [decidedByUserId], references: [id], onDelete: Restrict)
 
   @@unique([runId, partId, stockLocationId, type])
   @@index([organizationId, status, type, createdAt])
 }
 
 model PartBarcodeAlias {
-  id                  String          @id @default(cuid())
-  organizationId      String
-  partId              String
-  type                PartBarcodeType
-  code                String
-  isActive            Boolean         @default(true)
-  sourceReference     String?
-  createdByUserId     String
-  reason              String
-  createdAt           DateTime        @default(now())
-  organization        Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  part                Part            @relation(fields: [partId], references: [id], onDelete: Restrict)
-  createdByUser       User            @relation("PartBarcodeAliasCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  id              String          @id @default(cuid())
+  organizationId  String
+  partId          String
+  type            PartBarcodeType
+  code            String
+  isActive        Boolean         @default(true)
+  sourceReference String?
+  createdByUserId String
+  reason          String
+  createdAt       DateTime        @default(now())
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  part            Part            @relation(fields: [partId], references: [id], onDelete: Restrict)
+  createdByUser   User            @relation("PartBarcodeAliasCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
 
   @@unique([organizationId, code])
   @@index([partId, isActive])
 }
 
 model RepairReadinessEvaluation {
-  id               String      @id @default(cuid())
+  id               String       @id @default(cuid())
   organizationId   String
   repairOrderId    String
   ready            Boolean
@@ -3250,7 +3299,7 @@ model RepairReadinessEvaluation {
   reasonCodes      Json
   inputFingerprint String
   evaluatedAt      DateTime
-  createdAt        DateTime    @default(now())
+  createdAt        DateTime     @default(now())
   organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   repairOrder      RepairOrder  @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
 
@@ -3301,24 +3350,24 @@ model VehicleExternalIdentity {
 }
 
 model VehicleOdometerObservation {
-  id                      String                           @id @default(cuid())
-  organizationId          String
-  vehicleId               String
-  reading                 Int
-  unit                    VehicleOdometerUnit              @default(MILES)
-  observedAt              DateTime
-  sourceCode              String
-  sourceReference         String?
-  status                  VehicleOdometerObservationStatus @default(ACCEPTED)
-  exceptionReason         String?
-  correctionOfId          String?
-  recordedByUserId        String
-  createdAt               DateTime                         @default(now())
-  organization            Organization                     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  vehicle                 Vehicle                          @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
-  correctionOf            VehicleOdometerObservation?      @relation("VehicleOdometerCorrection", fields: [correctionOfId], references: [id], onDelete: Restrict)
-  corrections             VehicleOdometerObservation[]     @relation("VehicleOdometerCorrection")
-  recordedByUser          User                             @relation("VehicleOdometerRecorder", fields: [recordedByUserId], references: [id], onDelete: Restrict)
+  id               String                           @id @default(cuid())
+  organizationId   String
+  vehicleId        String
+  reading          Int
+  unit             VehicleOdometerUnit              @default(MILES)
+  observedAt       DateTime
+  sourceCode       String
+  sourceReference  String?
+  status           VehicleOdometerObservationStatus @default(ACCEPTED)
+  exceptionReason  String?
+  correctionOfId   String?
+  recordedByUserId String
+  createdAt        DateTime                         @default(now())
+  organization     Organization                     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  vehicle          Vehicle                          @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  correctionOf     VehicleOdometerObservation?      @relation("VehicleOdometerCorrection", fields: [correctionOfId], references: [id], onDelete: Restrict)
+  corrections      VehicleOdometerObservation[]     @relation("VehicleOdometerCorrection")
+  recordedByUser   User                             @relation("VehicleOdometerRecorder", fields: [recordedByUserId], references: [id], onDelete: Restrict)
 
   @@index([vehicleId, observedAt])
   @@index([organizationId, status, observedAt])
@@ -3369,6 +3418,78 @@ model VehicleDuplicateCase {
 
   @@unique([organizationId, primaryVehicleId, candidateVehicleId])
   @@index([organizationId, status, createdAt])
+}
+
+model VehicleEvidenceObject {
+  id               String                       @id @default(cuid())
+  organizationId   String
+  uploadedByUserId String
+  fileName         String
+  contentType      String
+  byteSize         Int
+  checksumSha256   String
+  storageProvider  String                       @default("DATABASE")
+  storageKey       String
+  content          Bytes
+  malwareStatus    VehicleEvidenceMalwareStatus
+  malwareScanner   String
+  malwareScannedAt DateTime
+  accessLevel      VehicleEvidenceAccessLevel   @default(INTERNAL)
+  retentionUntil   DateTime
+  legalHold        Boolean                      @default(false)
+  status           VehicleEvidenceStatus        @default(AVAILABLE)
+  version          Int                          @default(1)
+  deletedAt        DateTime?
+  createdAt        DateTime                     @default(now())
+  updatedAt        DateTime                     @updatedAt
+  organization     Organization                 @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  uploadedByUser   User                         @relation("VehicleEvidenceUploader", fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+  links            VehicleEvidenceLink[]
+  events           VehicleEvidenceEvent[]
+
+  @@unique([organizationId, storageKey])
+  @@unique([id, organizationId])
+  @@index([organizationId, checksumSha256])
+  @@index([organizationId, status, retentionUntil])
+}
+
+model VehicleEvidenceLink {
+  id               String                  @id @default(cuid())
+  organizationId   String
+  evidenceObjectId String
+  vehicleId        String
+  category         VehicleEvidenceCategory
+  subjectType      String
+  subjectId        String
+  relationship     String
+  createdByUserId  String
+  createdAt        DateTime                @default(now())
+  organization     Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  evidenceObject   VehicleEvidenceObject   @relation(fields: [evidenceObjectId], references: [id], onDelete: Restrict)
+  vehicle          Vehicle                 @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  createdByUser    User                    @relation("VehicleEvidenceLinkCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([evidenceObjectId, vehicleId, subjectType, subjectId, relationship])
+  @@index([organizationId, vehicleId, createdAt])
+  @@index([organizationId, subjectType, subjectId])
+}
+
+model VehicleEvidenceEvent {
+  id               String                   @id @default(cuid())
+  organizationId   String
+  evidenceObjectId String
+  actorUserId      String
+  eventType        VehicleEvidenceEventType
+  reason           String
+  metadata         Json
+  occurredAt       DateTime                 @default(now())
+  createdAt        DateTime                 @default(now())
+  organization     Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  evidenceObject   VehicleEvidenceObject    @relation(fields: [evidenceObjectId], references: [id], onDelete: Restrict)
+  actorUser        User                     @relation("VehicleEvidenceEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([evidenceObjectId, occurredAt])
+  @@index([organizationId, eventType, occurredAt])
 }
 
 model AppointmentParticipant {
@@ -3438,34 +3559,34 @@ model SchedulableResourceType {
 }
 
 model SchedulableResource {
-  id               String                           @id @default(cuid())
-  organizationId   String
-  locationId       String
-  resourceTypeId   String
-  code             String
-  name             String
-  status           SchedulableResourceStatus        @default(ACTIVE)
-  capacityMode     ResourceCapacityMode
-  capacity         Int                              @default(1)
-  conflictPolicy   ResourceConflictPolicy
-  userId           String?
-  vehicleId        String?
-  attributes       Json?
-  effectiveFrom    DateTime                         @db.Date
-  effectiveTo      DateTime?                        @db.Date
-  createdAt        DateTime                         @default(now())
-  updatedAt        DateTime                         @updatedAt
-  organization     Organization                     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  location         Location                         @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  resourceType     SchedulableResourceType          @relation(fields: [resourceTypeId], references: [id], onDelete: Restrict)
-  user             User?                            @relation("SchedulableResourceUser", fields: [userId], references: [id], onDelete: Restrict)
-  vehicle          Vehicle?                         @relation("SchedulableResourceVehicle", fields: [vehicleId], references: [id], onDelete: Restrict)
-  operatingWindows ResourceOperatingWindow[]
-  unavailability   ResourceUnavailability[]
-  reservations     AppointmentResourceReservation[]
-  shopDispatchBayAssignments RepairJobDispatch[] @relation("DispatchBayResource")
-  poolMembers      ResourcePoolMember[]             @relation("ResourcePool")
-  memberOfPools    ResourcePoolMember[]             @relation("ResourcePoolMember")
+  id                         String                           @id @default(cuid())
+  organizationId             String
+  locationId                 String
+  resourceTypeId             String
+  code                       String
+  name                       String
+  status                     SchedulableResourceStatus        @default(ACTIVE)
+  capacityMode               ResourceCapacityMode
+  capacity                   Int                              @default(1)
+  conflictPolicy             ResourceConflictPolicy
+  userId                     String?
+  vehicleId                  String?
+  attributes                 Json?
+  effectiveFrom              DateTime                         @db.Date
+  effectiveTo                DateTime?                        @db.Date
+  createdAt                  DateTime                         @default(now())
+  updatedAt                  DateTime                         @updatedAt
+  organization               Organization                     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location                   Location                         @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  resourceType               SchedulableResourceType          @relation(fields: [resourceTypeId], references: [id], onDelete: Restrict)
+  user                       User?                            @relation("SchedulableResourceUser", fields: [userId], references: [id], onDelete: Restrict)
+  vehicle                    Vehicle?                         @relation("SchedulableResourceVehicle", fields: [vehicleId], references: [id], onDelete: Restrict)
+  operatingWindows           ResourceOperatingWindow[]
+  unavailability             ResourceUnavailability[]
+  reservations               AppointmentResourceReservation[]
+  shopDispatchBayAssignments RepairJobDispatch[]              @relation("DispatchBayResource")
+  poolMembers                ResourcePoolMember[]             @relation("ResourcePool")
+  memberOfPools              ResourcePoolMember[]             @relation("ResourcePoolMember")
 
   @@unique([locationId, code])
   @@unique([locationId, userId])
@@ -3613,20 +3734,20 @@ model BoardDay {
 }
 
 model StaffDay {
-  id                     String             @id @default(cuid())
+  id                     String               @id @default(cuid())
   boardDayId             String
   userId                 String
-  status                 StaffDayStatus     @default(PLANNED)
+  status                 StaffDayStatus       @default(PLANNED)
   startAcknowledgedAt    DateTime?
   startingBlockerCode    String?
   startingBlockerNote    String?
   availabilityDeclaredAt DateTime?
   availabilityReasonCode String?
   closedAt               DateTime?
-  createdAt              DateTime           @default(now())
-  updatedAt              DateTime           @updatedAt
-  boardDay               BoardDay           @relation(fields: [boardDayId], references: [id], onDelete: Cascade)
-  user                   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  boardDay               BoardDay             @relation(fields: [boardDayId], references: [id], onDelete: Cascade)
+  user                   User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   dutyItems              StaffDayDutyItem[]
   workRecommendations    WorkRecommendation[]
   dailyReports           StaffDailyReport[]
@@ -3637,21 +3758,21 @@ model StaffDay {
 }
 
 model StaffDailyReport {
-  id                    String                 @id @default(cuid())
-  staffDayId            String
-  version               Int
-  status                StaffDailyReportStatus @default(SUBMITTED)
-  sourceSnapshot        Json
-  accuracyConfirmed     Boolean
-  additionalContext     String?
-  tomorrowFollowUp      String?
-  submittedAt           DateTime
-  submittedByUserId     String
+  id                      String                 @id @default(cuid())
+  staffDayId              String
+  version                 Int
+  status                  StaffDailyReportStatus @default(SUBMITTED)
+  sourceSnapshot          Json
+  accuracyConfirmed       Boolean
+  additionalContext       String?
+  tomorrowFollowUp        String?
+  submittedAt             DateTime
+  submittedByUserId       String
   submittedOnBehalfReason String?
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-  staffDay              StaffDay               @relation(fields: [staffDayId], references: [id], onDelete: Cascade)
-  submittedByUser       User                   @relation("StaffDailyReportSubmittedByUser", fields: [submittedByUserId], references: [id], onDelete: Restrict)
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+  staffDay                StaffDay               @relation(fields: [staffDayId], references: [id], onDelete: Cascade)
+  submittedByUser         User                   @relation("StaffDailyReportSubmittedByUser", fields: [submittedByUserId], references: [id], onDelete: Restrict)
 
   @@unique([staffDayId, version])
   @@index([staffDayId, status, submittedAt])
@@ -3659,22 +3780,22 @@ model StaffDailyReport {
 }
 
 model WorkRecommendation {
-  id                    String                   @id @default(cuid())
-  staffDayId            String
-  taskId                String
-  rank                  Int
-  score                 Int
-  scoreBreakdown        Json
-  explanation           String
-  status                WorkRecommendationStatus @default(SHOWN)
-  dismissalReasonCode   String?
-  claimedAt             DateTime?
-  claimedByUserId       String?
-  createdAt             DateTime                 @default(now())
-  updatedAt             DateTime                 @updatedAt
-  staffDay              StaffDay                 @relation(fields: [staffDayId], references: [id], onDelete: Cascade)
-  task                  Task                     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  claimedByUser         User?                    @relation("WorkRecommendationClaimedByUser", fields: [claimedByUserId], references: [id], onDelete: SetNull)
+  id                  String                   @id @default(cuid())
+  staffDayId          String
+  taskId              String
+  rank                Int
+  score               Int
+  scoreBreakdown      Json
+  explanation         String
+  status              WorkRecommendationStatus @default(SHOWN)
+  dismissalReasonCode String?
+  claimedAt           DateTime?
+  claimedByUserId     String?
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  staffDay            StaffDay                 @relation(fields: [staffDayId], references: [id], onDelete: Cascade)
+  task                Task                     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  claimedByUser       User?                    @relation("WorkRecommendationClaimedByUser", fields: [claimedByUserId], references: [id], onDelete: SetNull)
 
   @@unique([staffDayId, taskId])
   @@index([staffDayId, status, rank])
@@ -3799,56 +3920,56 @@ model ConcernCase {
 }
 
 model CustomerSlaPolicy {
-  id                        String        @id @default(cuid())
-  organizationId            String
-  code                      String
-  version                   Int
-  status                    String        @default("ACTIVE")
-  timezone                  String
-  businessWindows           Json
-  severityTargets           Json
-  pauseReasonCodes          Json
-  effectiveFrom             DateTime
-  effectiveTo               DateTime?
-  createdAt                 DateTime      @default(now())
-  updatedAt                 DateTime      @updatedAt
-  organization              Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  concernCases              ConcernCase[]
+  id               String        @id @default(cuid())
+  organizationId   String
+  code             String
+  version          Int
+  status           String        @default("ACTIVE")
+  timezone         String
+  businessWindows  Json
+  severityTargets  Json
+  pauseReasonCodes Json
+  effectiveFrom    DateTime
+  effectiveTo      DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  organization     Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  concernCases     ConcernCase[]
 
   @@unique([organizationId, code, version])
   @@index([organizationId, status, effectiveFrom])
 }
 
 model CustomerSlaPause {
-  id             String      @id @default(cuid())
-  concernCaseId  String
-  reasonCode     String
-  notes          String
-  startedAt      DateTime
-  nextReviewAt   DateTime
-  endedAt        DateTime?
+  id              String      @id @default(cuid())
+  concernCaseId   String
+  reasonCode      String
+  notes           String
+  startedAt       DateTime
+  nextReviewAt    DateTime
+  endedAt         DateTime?
   startedByUserId String
-  endedByUserId  String?
-  createdAt      DateTime    @default(now())
-  concernCase    ConcernCase @relation(fields: [concernCaseId], references: [id], onDelete: Cascade)
+  endedByUserId   String?
+  createdAt       DateTime    @default(now())
+  concernCase     ConcernCase @relation(fields: [concernCaseId], references: [id], onDelete: Cascade)
 
   @@index([concernCaseId, startedAt])
   @@index([endedAt, nextReviewAt])
 }
 
 model CustomerSlaAlert {
-  id             String      @id @default(cuid())
-  concernCaseId  String
-  clockType      String
-  stage          String
-  taskId         String?
+  id              String      @id @default(cuid())
+  concernCaseId   String
+  clockType       String
+  stage           String
+  taskId          String?
   firstDetectedAt DateTime
-  lastDetectedAt DateTime
-  occurrenceCount Int        @default(1)
-  resolvedAt     DateTime?
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
-  concernCase    ConcernCase @relation(fields: [concernCaseId], references: [id], onDelete: Cascade)
+  lastDetectedAt  DateTime
+  occurrenceCount Int         @default(1)
+  resolvedAt      DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  concernCase     ConcernCase @relation(fields: [concernCaseId], references: [id], onDelete: Cascade)
 
   @@unique([concernCaseId, clockType, stage])
   @@index([stage, resolvedAt, lastDetectedAt])
@@ -3865,6 +3986,7 @@ model CustomerCrmFeatureFlag {
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
   organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   @@unique([organizationId, code])
   @@index([organizationId, enabled])
 }
@@ -3879,39 +4001,41 @@ model CustomerCrmRolloutEvent {
   nextState      Json
   createdAt      DateTime     @default(now())
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   @@index([organizationId, createdAt])
 }
 
 model CustomerCrmCalibrationSnapshot {
-  id             String       @id @default(cuid())
-  organizationId String
-  windowStart    DateTime
-  windowEnd      DateTime
-  metrics        Json
-  readiness      String
-  blockers       Json
+  id              String       @id @default(cuid())
+  organizationId  String
+  windowStart     DateTime
+  windowEnd       DateTime
+  metrics         Json
+  readiness       String
+  blockers        Json
   createdByUserId String
-  createdAt      DateTime     @default(now())
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt       DateTime     @default(now())
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   @@index([organizationId, windowEnd])
 }
 
 model CustomerPromise {
-  id                String       @id @default(cuid())
+  id                String      @id @default(cuid())
   concernCaseId     String
   ownerUserId       String
   promiseType       String
   promisedAt        DateTime
   dueAt             DateTime
-  status            String       @default("OPEN")
+  status            String      @default("OPEN")
   fulfillmentNotes  String?
   fulfilledAt       DateTime?
   fulfilledByUserId String?
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
-  concernCase       ConcernCase  @relation(fields: [concernCaseId], references: [id], onDelete: Cascade)
-  ownerUser         User         @relation("CustomerPromiseOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
-  fulfilledByUser   User?        @relation("CustomerPromiseFulfilledBy", fields: [fulfilledByUserId], references: [id], onDelete: SetNull)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  concernCase       ConcernCase @relation(fields: [concernCaseId], references: [id], onDelete: Cascade)
+  ownerUser         User        @relation("CustomerPromiseOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  fulfilledByUser   User?       @relation("CustomerPromiseFulfilledBy", fields: [fulfilledByUserId], references: [id], onDelete: SetNull)
 
   @@index([status, dueAt])
   @@index([ownerUserId, status, dueAt])
@@ -3952,66 +4076,67 @@ model TaskSavedView {
 }
 
 model Task {
-  id                        String                    @id @default(cuid())
-  boardDayId                String
-  title                     String
-  description               String                    @default("")
-  assignedUserId            String
-  recommendedUserId         String?
-  recommendationReasonCode  String?
-  recommendationExplanation String?
-  status                    TaskStatus                @default(NOT_STARTED)
-  priority                  TaskTemplatePriority      @default(MEDIUM)
-  dueAt                     DateTime
-  createdByUserId           String?
-  requiresManagerApproval   Boolean                   @default(false)
-  vehicleReference          String?
-  customerReference         String?
-  customerId                String?
-  vehicleId                 String?
-  sourceType                TaskSourceType
-  sourceTemplateId          String?
-  templateSnapshot          Json?
-  updateFieldValues         Json?
-  sourceDutyId              String?
-  workflowArea              WorkflowArea
-  blockerReason             String?
-  readyForReviewAt          DateTime?
-  completedAt               DateTime?
-  reviewedByUserId          String?
-  acceptedAt                DateTime?
-  acceptedByUserId          String?
-  completionOverrideAt      DateTime?
+  id                         String                    @id @default(cuid())
+  boardDayId                 String
+  title                      String
+  description                String                    @default("")
+  assignedUserId             String
+  recommendedUserId          String?
+  recommendationReasonCode   String?
+  recommendationExplanation  String?
+  status                     TaskStatus                @default(NOT_STARTED)
+  priority                   TaskTemplatePriority      @default(MEDIUM)
+  dueAt                      DateTime
+  createdByUserId            String?
+  requiresManagerApproval    Boolean                   @default(false)
+  vehicleReference           String?
+  customerReference          String?
+  customerId                 String?
+  vehicleId                  String?
+  sourceType                 TaskSourceType
+  sourceTemplateId           String?
+  templateSnapshot           Json?
+  updateFieldValues          Json?
+  sourceDutyId               String?
+  workflowArea               WorkflowArea
+  blockerReason              String?
+  readyForReviewAt           DateTime?
+  completedAt                DateTime?
+  reviewedByUserId           String?
+  acceptedAt                 DateTime?
+  acceptedByUserId           String?
+  completionOverrideAt       DateTime?
   completionOverrideByUserId String?
-  completionOverrideReason  String?
-  isClaimable               Boolean                   @default(false)
-  carryoverSourceTaskId     String?
-  carryoverReportId         String?
-  createdAt                 DateTime                  @default(now())
-  updatedAt                 DateTime                  @updatedAt
-  boardDay                  BoardDay                  @relation(fields: [boardDayId], references: [id], onDelete: Cascade)
-  assignedUser              User                      @relation("TaskAssignedUser", fields: [assignedUserId], references: [id], onDelete: Restrict)
-  recommendedUser           User?                     @relation("TaskRecommendedUser", fields: [recommendedUserId], references: [id], onDelete: SetNull)
-  createdByUser             User?                     @relation("TaskCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  reviewedByUser            User?                     @relation("TaskReviewedByUser", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
-  acceptedByUser            User?                     @relation("TaskAcceptedByUser", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
-  completionOverrideByUser  User?                     @relation("TaskCompletionOverrideByUser", fields: [completionOverrideByUserId], references: [id], onDelete: SetNull)
-  sourceTemplate            TaskTemplate?             @relation("TaskSourceTemplate", fields: [sourceTemplateId], references: [id], onDelete: SetNull)
-  sourceDuty                Duty?                     @relation("TaskSourceDuty", fields: [sourceDutyId], references: [id], onDelete: SetNull)
-  vehicle                   Vehicle?                  @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
-  activityEvents            ActivityEvent[]
-  checklistItems            TaskChecklistItem[]
-  comments                  TaskComment[]
-  appointmentLinks          AppointmentTaskLink[]
-  appointmentHistoryEvents  AppointmentHistoryEvent[]
-  concernLink               ConcernTaskLink?
-  workRecommendations       WorkRecommendation[]
-  assignmentRequests        TaskAssignmentRequest[]
-  collaborators             TaskCollaborator[]
-  customerLeadLink          CustomerLeadTaskLink?
-  customer                  Customer?                 @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  completionOverrideReason   String?
+  isClaimable                Boolean                   @default(false)
+  carryoverSourceTaskId      String?
+  carryoverReportId          String?
+  createdAt                  DateTime                  @default(now())
+  updatedAt                  DateTime                  @updatedAt
+  boardDay                   BoardDay                  @relation(fields: [boardDayId], references: [id], onDelete: Cascade)
+  assignedUser               User                      @relation("TaskAssignedUser", fields: [assignedUserId], references: [id], onDelete: Restrict)
+  recommendedUser            User?                     @relation("TaskRecommendedUser", fields: [recommendedUserId], references: [id], onDelete: SetNull)
+  createdByUser              User?                     @relation("TaskCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  reviewedByUser             User?                     @relation("TaskReviewedByUser", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  acceptedByUser             User?                     @relation("TaskAcceptedByUser", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+  completionOverrideByUser   User?                     @relation("TaskCompletionOverrideByUser", fields: [completionOverrideByUserId], references: [id], onDelete: SetNull)
+  sourceTemplate             TaskTemplate?             @relation("TaskSourceTemplate", fields: [sourceTemplateId], references: [id], onDelete: SetNull)
+  sourceDuty                 Duty?                     @relation("TaskSourceDuty", fields: [sourceDutyId], references: [id], onDelete: SetNull)
+  vehicle                    Vehicle?                  @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  activityEvents             ActivityEvent[]
+  checklistItems             TaskChecklistItem[]
+  comments                   TaskComment[]
+  appointmentLinks           AppointmentTaskLink[]
+  appointmentHistoryEvents   AppointmentHistoryEvent[]
+  concernLink                ConcernTaskLink?
+  workRecommendations        WorkRecommendation[]
+  assignmentRequests         TaskAssignmentRequest[]
+  collaborators              TaskCollaborator[]
+  customerLeadLink           CustomerLeadTaskLink?
+  customer                   Customer?                 @relation(fields: [customerId], references: [id], onDelete: SetNull)
 
   @@unique([boardDayId, sourceTemplateId, assignedUserId])
+  @@unique([boardDayId, carryoverSourceTaskId])
   @@index([boardDayId, status])
   @@index([boardDayId, assignedUserId])
   @@index([boardDayId, workflowArea])
@@ -4019,7 +4144,6 @@ model Task {
   @@index([completionOverrideByUserId, completionOverrideAt])
   @@index([vehicleId])
   @@index([boardDayId, isClaimable, status])
-  @@unique([boardDayId, carryoverSourceTaskId])
   @@index([carryoverReportId])
   @@index([customerId, status, dueAt])
 }
@@ -4211,31 +4335,31 @@ model EnterpriseAggregateVersion {
 }
 
 model EnterpriseCommandLedger {
-  id              String                  @id @default(cuid())
-  organizationId  String
-  locationId      String?
-  actorUserId     String
-  domain          String
-  subjectType     String
-  subjectId       String
-  commandType     String
-  status          EnterpriseCommandStatus
-  idempotencyKey  String
-  requestHash     String
-  correlationId   String
-  expectedVersion Int
+  id               String                  @id @default(cuid())
+  organizationId   String
+  locationId       String?
+  actorUserId      String
+  domain           String
+  subjectType      String
+  subjectId        String
+  commandType      String
+  status           EnterpriseCommandStatus
+  idempotencyKey   String
+  requestHash      String
+  correlationId    String
+  expectedVersion  Int
   resultingVersion Int?
-  resultSnapshot  Json?
-  errorCode       String?
-  errorMessage    String?
-  completedAt     DateTime?
-  createdAt       DateTime                @default(now())
-  updatedAt       DateTime                @updatedAt
-  organization    Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  location        Location?               @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  actorUser       User                    @relation("EnterpriseCommandActor", fields: [actorUserId], references: [id], onDelete: Restrict)
-  domainEvents    EnterpriseDomainEvent[]
-  auditEvents     EnterpriseAuditEvent[]
+  resultSnapshot   Json?
+  errorCode        String?
+  errorMessage     String?
+  completedAt      DateTime?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  organization     Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location         Location?               @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  actorUser        User                    @relation("EnterpriseCommandActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  domainEvents     EnterpriseDomainEvent[]
+  auditEvents      EnterpriseAuditEvent[]
 
   @@unique([organizationId, domain, commandType, idempotencyKey])
   @@index([subjectType, subjectId, createdAt])
@@ -4244,22 +4368,22 @@ model EnterpriseCommandLedger {
 }
 
 model EnterpriseDomainEvent {
-  id               String                  @id @default(cuid())
+  id               String                    @id @default(cuid())
   organizationId   String
   locationId       String?
   commandId        String
-  domain            String
-  aggregateType     String
-  aggregateId       String
-  aggregateVersion  Int
-  eventType         String
-  payload           Json
-  occurredAt        DateTime                @default(now())
-  createdAt         DateTime                @default(now())
-  organization      Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  location          Location?               @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  command           EnterpriseCommandLedger @relation(fields: [commandId], references: [id], onDelete: Restrict)
-  outboxMessages    EnterpriseOutboxMessage[]
+  domain           String
+  aggregateType    String
+  aggregateId      String
+  aggregateVersion Int
+  eventType        String
+  payload          Json
+  occurredAt       DateTime                  @default(now())
+  createdAt        DateTime                  @default(now())
+  organization     Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location         Location?                 @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  command          EnterpriseCommandLedger   @relation(fields: [commandId], references: [id], onDelete: Restrict)
+  outboxMessages   EnterpriseOutboxMessage[]
 
   @@unique([organizationId, domain, aggregateType, aggregateId, aggregateVersion])
   @@index([commandId])
@@ -4267,26 +4391,26 @@ model EnterpriseDomainEvent {
 }
 
 model EnterpriseAuditEvent {
-  id              String                   @id @default(cuid())
-  organizationId  String
-  locationId      String?
-  actorUserId     String
-  commandId       String?
-  domain          String
-  subjectType     String
-  subjectId       String
-  eventType       String
-  reason          String
-  priorValue      Json?
-  newValue        Json?
-  metadata        Json
-  correlationId   String
-  occurredAt      DateTime                 @default(now())
-  createdAt       DateTime                 @default(now())
-  organization    Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  location        Location?                @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  actorUser       User                     @relation("EnterpriseAuditActor", fields: [actorUserId], references: [id], onDelete: Restrict)
-  command         EnterpriseCommandLedger? @relation(fields: [commandId], references: [id], onDelete: SetNull)
+  id             String                   @id @default(cuid())
+  organizationId String
+  locationId     String?
+  actorUserId    String
+  commandId      String?
+  domain         String
+  subjectType    String
+  subjectId      String
+  eventType      String
+  reason         String
+  priorValue     Json?
+  newValue       Json?
+  metadata       Json
+  correlationId  String
+  occurredAt     DateTime                 @default(now())
+  createdAt      DateTime                 @default(now())
+  organization   Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location       Location?                @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  actorUser      User                     @relation("EnterpriseAuditActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  command        EnterpriseCommandLedger? @relation(fields: [commandId], references: [id], onDelete: SetNull)
 
   @@index([subjectType, subjectId, occurredAt])
   @@index([actorUserId, occurredAt])
@@ -4294,25 +4418,25 @@ model EnterpriseAuditEvent {
 }
 
 model EnterpriseOutboxMessage {
-  id              String                 @id @default(cuid())
-  organizationId  String
-  locationId      String?
-  domainEventId   String
-  topic           String
-  messageKey      String
-  payload         Json
-  status          EnterpriseOutboxStatus @default(PENDING)
-  attemptCount    Int                    @default(0)
-  maxAttempts     Int                    @default(5)
-  nextAttemptAt   DateTime               @default(now())
-  lockedAt        DateTime?
-  publishedAt     DateTime?
-  lastError       String?
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
-  organization    Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  location        Location?              @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  domainEvent     EnterpriseDomainEvent  @relation(fields: [domainEventId], references: [id], onDelete: Restrict)
+  id             String                 @id @default(cuid())
+  organizationId String
+  locationId     String?
+  domainEventId  String
+  topic          String
+  messageKey     String
+  payload        Json
+  status         EnterpriseOutboxStatus @default(PENDING)
+  attemptCount   Int                    @default(0)
+  maxAttempts    Int                    @default(5)
+  nextAttemptAt  DateTime               @default(now())
+  lockedAt       DateTime?
+  publishedAt    DateTime?
+  lastError      String?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location       Location?              @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  domainEvent    EnterpriseDomainEvent  @relation(fields: [domainEventId], references: [id], onDelete: Restrict)
 
   @@unique([domainEventId, topic])
   @@index([status, nextAttemptAt])
@@ -4377,19 +4501,19 @@ model VehicleOperationsRolloutEvent {
 }
 
 model EnterpriseProjectionCheckpoint {
-  id                 String       @id @default(cuid())
-  organizationId     String
-  locationId         String?
-  projectionCode     String
+  id                  String       @id @default(cuid())
+  organizationId      String
+  locationId          String?
+  projectionCode      String
   lastEventOccurredAt DateTime?
-  lastSuccessAt      DateTime?
-  lastFailureAt      DateTime?
-  lastError          String?
-  lagSeconds         Int          @default(0)
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
-  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  location           Location?    @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  lastSuccessAt       DateTime?
+  lastFailureAt       DateTime?
+  lastError           String?
+  lagSeconds          Int          @default(0)
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  location            Location?    @relation(fields: [locationId], references: [id], onDelete: Restrict)
 
   @@unique([organizationId, locationId, projectionCode])
   @@index([organizationId, lastFailureAt])
