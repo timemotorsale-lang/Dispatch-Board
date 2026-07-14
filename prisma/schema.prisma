@@ -473,6 +473,53 @@ enum PartRecoveryStatus {
   WRITTEN_OFF
 }
 
+enum PartCycleCountStatus {
+  DRAFT
+  COUNTING
+  REVIEW_REQUIRED
+  APPROVED
+  POSTED
+  CANCELLED
+}
+
+enum PartCycleCountMode {
+  OBSERVE
+  FREEZE
+}
+
+enum PartCycleCountType {
+  FULL
+  CYCLE
+  SPOT
+}
+
+enum PartRecommendationType {
+  REORDER
+  TRANSFER_REVIEW
+  OBSOLESCENCE_REVIEW
+  NO_ACTION
+}
+
+enum PartRecommendationStatus {
+  OPEN
+  ACKNOWLEDGED
+  DISMISSED
+}
+
+enum PartRecommendationConfidence {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum PartBarcodeType {
+  GTIN
+  UPC
+  OEM
+  INTERNAL
+  VENDOR
+}
+
 enum PartDemandStatus {
   OPEN
   PARTIALLY_RESERVED
@@ -1009,6 +1056,15 @@ model User {
   partCustodyEvents                     PartCustodyEvent[]                         @relation("PartCustodyActor")
   createdPartTransfers                  PartTransfer[]                             @relation("PartTransferCreatedBy")
   createdPartRecoveries                 PartRecoveryCase[]                         @relation("PartRecoveryCreatedBy")
+  assignedPartCycleCounts               PartCycleCount[]                           @relation("PartCycleCountAssignee")
+  createdPartCycleCounts                PartCycleCount[]                           @relation("PartCycleCountCreator")
+  countedPartCycleCountLines            PartCycleCountLine[]                       @relation("PartCycleCountCounter")
+  approvedPartCycleCountLines           PartCycleCountLine[]                       @relation("PartCycleCountApprover")
+  partCycleCountEvents                  PartCycleCountEvent[]                      @relation("PartCycleCountEventActor")
+  createdPartInventoryPolicies          PartInventoryPolicy[]                      @relation("PartInventoryPolicyCreator")
+  generatedPartRecommendationRuns       PartRecommendationRun[]                   @relation("PartRecommendationRunGenerator")
+  decidedPartRecommendations            PartInventoryRecommendation[]             @relation("PartRecommendationDecisionActor")
+  createdPartBarcodeAliases             PartBarcodeAlias[]                         @relation("PartBarcodeAliasCreator")
 
   @@index([isActive])
 }
@@ -1152,6 +1208,13 @@ model Organization {
   partCustodyEvents                     PartCustodyEvent[]
   partTransfers                         PartTransfer[]
   partRecoveryCases                     PartRecoveryCase[]
+  partCycleCounts                       PartCycleCount[]
+  partCycleCountLines                   PartCycleCountLine[]
+  partCycleCountEvents                  PartCycleCountEvent[]
+  partInventoryPolicies                 PartInventoryPolicy[]
+  partRecommendationRuns                PartRecommendationRun[]
+  partInventoryRecommendations          PartInventoryRecommendation[]
+  partBarcodeAliases                    PartBarcodeAlias[]
   resourceTypes                         SchedulableResourceType[]
   resources                             SchedulableResource[]
   appointmentCatalogVersions            AppointmentCatalogVersion[]
@@ -1221,6 +1284,7 @@ model Location {
   shopProductionSnapshots         ShopProductionSnapshot[]
   partPurchaseOrders              PartPurchaseOrder[]
   partTransfers                   PartTransfer[]
+  partRecommendationRuns         PartRecommendationRun[]
 
   @@unique([organizationId, code])
   @@unique([id, organizationId])
@@ -2574,6 +2638,10 @@ model Part {
   custodyEvents       PartCustodyEvent[]
   recoveryCases       PartRecoveryCase[]
   receivingDiscrepancies PartReceivingDiscrepancy[]
+  cycleCountLines      PartCycleCountLine[]
+  inventoryPolicies   PartInventoryPolicy[]
+  recommendations     PartInventoryRecommendation[]
+  barcodeAliases      PartBarcodeAlias[]
 
   @@unique([organizationId, partNumber])
   @@unique([id, organizationId])
@@ -2601,6 +2669,9 @@ model PartStockLocation {
   receipts         PartReceipt[]
   transfersFrom    PartTransfer[] @relation("PartTransferFromLocation")
   transfersTo      PartTransfer[] @relation("PartTransferToLocation")
+  cycleCounts      PartCycleCount[]
+  inventoryPolicies PartInventoryPolicy[]
+  recommendations PartInventoryRecommendation[]
 
   @@unique([organizationId, code])
   @@unique([id, organizationId])
@@ -2652,6 +2723,7 @@ model PartStockLedgerEntry {
   reversalOfEntry     PartStockLedgerEntry?  @relation("PartLedgerReversal", fields: [reversalOfEntryId], references: [id], onDelete: Restrict)
   reversalEntry       PartStockLedgerEntry?  @relation("PartLedgerReversal")
   actorUser           User                   @relation("PartLedgerActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  cycleCountLine      PartCycleCountLine?     @relation("PartCycleCountPostedLedgerEntry")
 
   @@unique([organizationId, sourceType, sourceId, movementType])
   @@index([organizationId, partId, occurredAt])
@@ -2969,6 +3041,203 @@ model PartRecoveryCase {
 
   @@unique([organizationId, type, sourceReference])
   @@index([organizationId, status, deadlineAt])
+}
+
+model PartCycleCount {
+  id                  String               @id @default(cuid())
+  organizationId      String
+  stockLocationId     String
+  countNumber         String
+  type                PartCycleCountType
+  mode                PartCycleCountMode
+  status              PartCycleCountStatus @default(DRAFT)
+  blindCount          Boolean              @default(true)
+  snapshotAt          DateTime
+  ledgerCutoffAt      DateTime
+  assignedToUserId    String?
+  createdByUserId     String
+  reason              String
+  startedAt           DateTime?
+  submittedAt         DateTime?
+  reviewedAt          DateTime?
+  postedAt            DateTime?
+  cancelledAt         DateTime?
+  version             Int                  @default(1)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  stockLocation       PartStockLocation    @relation(fields: [stockLocationId], references: [id], onDelete: Restrict)
+  assignedToUser      User?                @relation("PartCycleCountAssignee", fields: [assignedToUserId], references: [id], onDelete: Restrict)
+  createdByUser       User                 @relation("PartCycleCountCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  lines               PartCycleCountLine[]
+  events              PartCycleCountEvent[]
+
+  @@unique([organizationId, countNumber])
+  @@index([organizationId, status, snapshotAt])
+  @@index([stockLocationId, status])
+}
+
+model PartCycleCountLine {
+  id                  String    @id @default(cuid())
+  organizationId      String
+  cycleCountId        String
+  partId              String
+  snapshotQuantity    Int
+  expectedQuantity    Int
+  countedQuantity     Int?
+  varianceQuantity    Int?
+  expectedCostCents   Int
+  varianceValueCents  Int?
+  counterUserId       String?
+  countedAt           DateTime?
+  evidence            Json
+  reasonCode          String?
+  approvalRequired    Boolean   @default(false)
+  approvedByUserId    String?
+  approvedAt          DateTime?
+  postedLedgerEntryId String?   @unique
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  cycleCount          PartCycleCount @relation(fields: [cycleCountId], references: [id], onDelete: Restrict)
+  part                Part @relation(fields: [partId], references: [id], onDelete: Restrict)
+  counterUser         User? @relation("PartCycleCountCounter", fields: [counterUserId], references: [id], onDelete: Restrict)
+  approvedByUser      User? @relation("PartCycleCountApprover", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+  postedLedgerEntry   PartStockLedgerEntry? @relation("PartCycleCountPostedLedgerEntry", fields: [postedLedgerEntryId], references: [id], onDelete: Restrict)
+
+  @@unique([cycleCountId, partId])
+  @@index([organizationId, approvalRequired, countedAt])
+}
+
+model PartCycleCountEvent {
+  id                  String               @id @default(cuid())
+  organizationId      String
+  cycleCountId        String
+  version             Int
+  fromStatus          PartCycleCountStatus?
+  toStatus            PartCycleCountStatus
+  actorUserId         String
+  reason              String
+  correlationId       String
+  occurredAt          DateTime
+  createdAt           DateTime             @default(now())
+  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  cycleCount          PartCycleCount       @relation(fields: [cycleCountId], references: [id], onDelete: Restrict)
+  actorUser           User                 @relation("PartCycleCountEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@unique([cycleCountId, version])
+  @@index([organizationId, occurredAt])
+}
+
+model PartInventoryPolicy {
+  id                       String   @id @default(cuid())
+  organizationId           String
+  partId                   String
+  stockLocationId          String
+  version                  Int
+  isActive                 Boolean  @default(true)
+  abcClass                 String
+  leadTimeDays             Int
+  reviewPeriodDays         Int
+  targetServiceBasisPoints Int
+  safetyStockQuantity      Int
+  reorderPointQuantity     Int?
+  economicOrderQuantity    Int?
+  maxStockQuantity         Int?
+  orderingCostCents        Int
+  annualHoldingRateBasisPoints Int
+  obsolescenceDays         Int
+  effectiveFrom            DateTime
+  effectiveTo              DateTime?
+  createdByUserId          String
+  reason                   String
+  createdAt                DateTime @default(now())
+  organization             Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  part                     Part @relation(fields: [partId], references: [id], onDelete: Restrict)
+  stockLocation            PartStockLocation @relation(fields: [stockLocationId], references: [id], onDelete: Restrict)
+  createdByUser            User @relation("PartInventoryPolicyCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([partId, stockLocationId, version])
+  @@index([organizationId, isActive, effectiveFrom, effectiveTo])
+}
+
+model PartRecommendationRun {
+  id                  String   @id @default(cuid())
+  organizationId      String
+  locationId          String?
+  windowStart         DateTime
+  windowEnd           DateTime
+  sourceFingerprint   String
+  policySnapshot      Json
+  generatedByUserId   String
+  reason              String
+  generatedAt         DateTime
+  createdAt           DateTime @default(now())
+  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location            Location? @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  generatedByUser     User @relation("PartRecommendationRunGenerator", fields: [generatedByUserId], references: [id], onDelete: Restrict)
+  recommendations     PartInventoryRecommendation[]
+
+  @@unique([organizationId, sourceFingerprint])
+  @@index([organizationId, generatedAt])
+}
+
+model PartInventoryRecommendation {
+  id                       String                       @id @default(cuid())
+  organizationId           String
+  runId                    String
+  partId                   String
+  stockLocationId          String
+  type                     PartRecommendationType
+  status                   PartRecommendationStatus     @default(OPEN)
+  onHandQuantity           Int
+  allocatedQuantity        Int
+  availableQuantity        Int
+  orderedQuantity          Int
+  averageDailyDemandMilli  Int
+  demandStdDevMilli        Int
+  daysSinceLastIssue       Int?
+  safetyStockQuantity      Int
+  reorderPointQuantity     Int
+  economicOrderQuantity    Int
+  recommendedQuantity      Int
+  estimatedCostCents       Int
+  confidence               PartRecommendationConfidence
+  reasonCodes              Json
+  evidence                 Json
+  decidedByUserId          String?
+  decisionReason           String?
+  decidedAt                DateTime?
+  version                  Int                          @default(1)
+  createdAt                DateTime                     @default(now())
+  updatedAt                DateTime                     @updatedAt
+  organization             Organization                 @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  run                      PartRecommendationRun        @relation(fields: [runId], references: [id], onDelete: Restrict)
+  part                     Part                         @relation(fields: [partId], references: [id], onDelete: Restrict)
+  stockLocation            PartStockLocation            @relation(fields: [stockLocationId], references: [id], onDelete: Restrict)
+  decidedByUser            User?                        @relation("PartRecommendationDecisionActor", fields: [decidedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([runId, partId, stockLocationId, type])
+  @@index([organizationId, status, type, createdAt])
+}
+
+model PartBarcodeAlias {
+  id                  String          @id @default(cuid())
+  organizationId      String
+  partId              String
+  type                PartBarcodeType
+  code                String
+  isActive            Boolean         @default(true)
+  sourceReference     String?
+  createdByUserId     String
+  reason              String
+  createdAt           DateTime        @default(now())
+  organization        Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  part                Part            @relation(fields: [partId], references: [id], onDelete: Restrict)
+  createdByUser       User            @relation("PartBarcodeAliasCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, code])
+  @@index([partId, isActive])
 }
 
 model RepairReadinessEvaluation {
