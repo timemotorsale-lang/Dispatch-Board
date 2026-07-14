@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-07-14 — Vehicle Operations Wave 3: discovery, knowledge, and controlled output
+
+Vehicle Operations Milestone 6E–6G (`VEH-094` through `VEH-096`) is implemented in the working tree. `/vehicles/discovery` provides organization-scoped, capability-filtered, bounded and ranked search across vehicle/VIN/stock, customer, repair order/job, appointment, part/barcode, purchase order/vendor, and governed document metadata. Work types now have reference-only external procedure, bulletin, safety-note, and reference revisions with HTTPS/checksum/source controls, effective windows, independent approval, supersession lineage, and immutable events. Authorized users can generate JSON or printable HTML Vehicle 360 packages with classification-specific redaction, field manifests, watermark, SHA-256 integrity, seven-day expiry, immutable generation evidence, and audited downloads.
+
+The database migration, `pg_trgm` extension qualification, `VEHICLE_DISCOVERY` rollout activation, production query-plan/load evidence, publisher checksum operating procedures, output DLP/retention validation, accessibility review, and production browser qualification remain pending. See [`docs/inventory/ENTERPRISE_DISCOVERY_KNOWLEDGE_OUTPUT_IMPLEMENTATION.md`](inventory/ENTERPRISE_DISCOVERY_KNOWLEDGE_OUTPUT_IMPLEMENTATION.md).
+
 ## 2026-07-14 — Vehicle Operations Wave 2: evidence storage and Vehicle 360
 
 Vehicle Operations Milestone 6A–6D (`VEH-090` through `VEH-093`) is implemented in the working tree. The application now has database-backed governed vehicle evidence with server-owned SHA-256 integrity, content signature checks, quarantine, retention, legal hold, access classification, immutable evidence history, authorized audited downloads, enterprise commands, and database constraints/triggers. `/vehicles/360/[id]` projects canonical summary, correlated timeline, permission-aware operational tabs, cost/decision/audit views, and a navigable permission-filtered relationship graph from existing vehicle, customer, inventory, repair, parts, appointment, task, evidence, and audit records.
