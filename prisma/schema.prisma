@@ -354,6 +354,45 @@ enum RepairOrderEventSource {
   MIGRATION
 }
 
+enum PartStatus {
+  ACTIVE
+  INACTIVE
+  SUPERSEDED
+}
+
+enum PartStockLocationType {
+  WAREHOUSE
+  BIN
+  STAGING
+  DAMAGED
+}
+
+enum PartLedgerMovementType {
+  RECEIPT
+  RESERVE
+  RELEASE
+  ISSUE
+  INSTALL
+  RETURN
+  ADJUST
+  COUNT
+  REVERSAL
+}
+
+enum PartDemandStatus {
+  OPEN
+  PARTIALLY_RESERVED
+  RESERVED
+  RELEASED
+  CANCELLED
+}
+
+enum PartReservationStatus {
+  ACTIVE
+  RELEASED
+  CONSUMED
+}
+
 enum AppointmentParticipantType {
   INTERNAL_USER
   CUSTOMER
@@ -680,6 +719,9 @@ model User {
   createdServiceVisits                   ServiceVisit[]                           @relation("ServiceVisitCreatedBy")
   repairOrderStateEvents                 RepairOrderStateEvent[]                  @relation("RepairOrderStateActor")
   repairOrderStateOwnershipSnapshots     RepairOrderStateEvent[]                  @relation("RepairOrderStateOwner")
+  partLedgerEntries                      PartStockLedgerEntry[]                    @relation("PartLedgerActor")
+  createdPartDemands                     RepairPartDemand[]                        @relation("PartDemandCreatedBy")
+  partReservations                       PartReservation[]                         @relation("PartReservationActor")
 
   @@index([isActive])
 }
@@ -786,6 +828,13 @@ model Organization {
   serviceVisits                         ServiceVisit[]
   repairOrders                          RepairOrder[]
   repairOrderStateEvents                RepairOrderStateEvent[]
+  parts                                 Part[]
+  partStockLocations                    PartStockLocation[]
+  partStockBalances                     PartStockBalance[]
+  partLedgerEntries                     PartStockLedgerEntry[]
+  repairPartDemands                     RepairPartDemand[]
+  partReservations                      PartReservation[]
+  repairReadinessEvaluations            RepairReadinessEvaluation[]
   resourceTypes                         SchedulableResourceType[]
   resources                             SchedulableResource[]
   appointmentCatalogVersions            AppointmentCatalogVersion[]
@@ -849,6 +898,7 @@ model Location {
   serviceVisits                   ServiceVisit[]
   repairOrders                    RepairOrder[]
   repairOrderStateEvents          RepairOrderStateEvent[]
+  partStockLocations              PartStockLocation[]
 
   @@unique([organizationId, code])
   @@unique([id, organizationId])
@@ -1529,6 +1579,8 @@ model RepairOrder {
   inventoryUnit        InventoryUnit?            @relation(fields: [inventoryUnitId], references: [id], onDelete: Restrict)
   ownerUser            User                      @relation("RepairOrderOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
   stateEvents          RepairOrderStateEvent[]
+  partDemands          RepairPartDemand[]
+  readinessEvaluations RepairReadinessEvaluation[]
 
   @@unique([organizationId, repairOrderNumber])
   @@unique([id, organizationId])
@@ -1567,6 +1619,177 @@ model RepairOrderStateEvent {
   @@index([organizationId, occurredAt])
   @@index([correlationId])
   @@index([ownerUserId, occurredAt])
+}
+
+model Part {
+  id                  String                 @id @default(cuid())
+  organizationId      String
+  partNumber          String
+  manufacturerCode    String?
+  description         String
+  unitOfMeasure       String                 @default("EACH")
+  categoryCode        String?
+  status              PartStatus             @default(ACTIVE)
+  supersededByPartId  String?
+  standardCostCents   Int
+  version             Int                    @default(1)
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  organization        Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  supersededByPart    Part?                  @relation("PartSupersession", fields: [supersededByPartId], references: [id], onDelete: Restrict)
+  supersededParts     Part[]                 @relation("PartSupersession")
+  balances            PartStockBalance[]
+  ledgerEntries       PartStockLedgerEntry[]
+  demands             RepairPartDemand[]
+  reservations        PartReservation[]
+
+  @@unique([organizationId, partNumber])
+  @@unique([id, organizationId])
+  @@index([organizationId, description])
+  @@index([supersededByPartId])
+}
+
+model PartStockLocation {
+  id             String                @id @default(cuid())
+  organizationId String
+  locationId     String
+  code           String
+  name           String
+  type           PartStockLocationType
+  isActive       Boolean               @default(true)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location       Location              @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  balances       PartStockBalance[]
+  ledgerEntries  PartStockLedgerEntry[]
+  reservations   PartReservation[]
+
+  @@unique([organizationId, code])
+  @@unique([id, organizationId])
+  @@index([organizationId, locationId, isActive])
+}
+
+model PartStockBalance {
+  id                  String            @id @default(cuid())
+  organizationId      String
+  partId              String
+  stockLocationId     String
+  onHandQuantity      Int               @default(0)
+  allocatedQuantity   Int               @default(0)
+  availableQuantity   Int               @default(0)
+  orderedQuantity     Int               @default(0)
+  backorderedQuantity Int               @default(0)
+  damagedQuantity     Int               @default(0)
+  averageCostCents    Int               @default(0)
+  version             Int               @default(0)
+  updatedAt           DateTime          @updatedAt
+  organization        Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  part                Part              @relation(fields: [partId], references: [id], onDelete: Restrict)
+  stockLocation       PartStockLocation @relation(fields: [stockLocationId], references: [id], onDelete: Restrict)
+
+  @@unique([partId, stockLocationId])
+  @@index([organizationId, availableQuantity])
+}
+
+model PartStockLedgerEntry {
+  id                  String                 @id @default(cuid())
+  organizationId      String
+  partId              String
+  stockLocationId     String
+  movementType        PartLedgerMovementType
+  quantityDelta       Int
+  allocatedDelta      Int                    @default(0)
+  unitCostCents       Int
+  sourceType          String
+  sourceId            String
+  reversalOfEntryId   String?                @unique
+  actorUserId         String
+  reason              String
+  correlationId       String
+  occurredAt          DateTime               @default(now())
+  createdAt           DateTime               @default(now())
+  organization        Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  part                Part                   @relation(fields: [partId], references: [id], onDelete: Restrict)
+  stockLocation       PartStockLocation      @relation(fields: [stockLocationId], references: [id], onDelete: Restrict)
+  reversalOfEntry     PartStockLedgerEntry?  @relation("PartLedgerReversal", fields: [reversalOfEntryId], references: [id], onDelete: Restrict)
+  reversalEntry       PartStockLedgerEntry?  @relation("PartLedgerReversal")
+  actorUser           User                   @relation("PartLedgerActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, sourceType, sourceId, movementType])
+  @@index([organizationId, partId, occurredAt])
+  @@index([stockLocationId, occurredAt])
+  @@index([correlationId])
+}
+
+model RepairPartDemand {
+  id                  String           @id @default(cuid())
+  organizationId      String
+  repairOrderId       String
+  repairJobReference  String?
+  partId              String
+  quantityRequired    Int
+  quantityReserved    Int              @default(0)
+  requiredAt          DateTime
+  substitutionAllowed Boolean          @default(false)
+  status              PartDemandStatus @default(OPEN)
+  notes               String?
+  createdByUserId     String
+  version             Int              @default(1)
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  organization        Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairOrder         RepairOrder      @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  part                Part             @relation(fields: [partId], references: [id], onDelete: Restrict)
+  createdByUser       User             @relation("PartDemandCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  reservations        PartReservation[]
+
+  @@unique([repairOrderId, partId, repairJobReference])
+  @@index([organizationId, status, requiredAt])
+  @@index([partId, status, requiredAt])
+}
+
+model PartReservation {
+  id              String                @id @default(cuid())
+  organizationId  String
+  demandId        String
+  partId          String
+  stockLocationId String
+  quantity        Int
+  status          PartReservationStatus @default(ACTIVE)
+  actorUserId     String
+  reason          String
+  correlationId   String
+  releasedAt      DateTime?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  organization    Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  demand          RepairPartDemand      @relation(fields: [demandId], references: [id], onDelete: Restrict)
+  part            Part                  @relation(fields: [partId], references: [id], onDelete: Restrict)
+  stockLocation   PartStockLocation     @relation(fields: [stockLocationId], references: [id], onDelete: Restrict)
+  actorUser       User                  @relation("PartReservationActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status, createdAt])
+  @@index([demandId, status])
+  @@index([stockLocationId, status])
+}
+
+model RepairReadinessEvaluation {
+  id               String      @id @default(cuid())
+  organizationId   String
+  repairOrderId    String
+  ready            Boolean
+  requiredQuantity Int
+  reservedQuantity Int
+  reasonCodes      Json
+  inputFingerprint String
+  evaluatedAt      DateTime
+  createdAt        DateTime    @default(now())
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairOrder      RepairOrder  @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, ready, evaluatedAt])
+  @@index([repairOrderId, evaluatedAt])
 }
 
 model VehicleRelationship {

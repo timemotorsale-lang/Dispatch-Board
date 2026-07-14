@@ -1,0 +1,4 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { describe,expect,it } from "vitest";
+describe("parts ledger schema",()=>{it("contains immutable ledger, balance, demand, reservation, and readiness controls",async()=>{const schema=await readFile(path.join(process.cwd(),"prisma/schema.prisma"),"utf8"),sql=await readFile(path.join(process.cwd(),"prisma/migrations/20260714050000_add_parts_ledger_readiness/migration.sql"),"utf8");expect(schema).toMatch(/model PartStockLedgerEntry/);expect(schema).toMatch(/model RepairPartDemand/);expect(schema).toMatch(/model RepairReadinessEvaluation/);expect(sql).toMatch(/PartStockBalance_equation_check/);expect(sql).toMatch(/PartStockLedgerEntry_source_key/);expect(sql).toMatch(/prevent_part_ledger_mutation/);expect(sql).toMatch(/prevent_readiness_evaluation_mutation/);expect(sql).toMatch(/'PARTS_OPERATIONS'/);});});

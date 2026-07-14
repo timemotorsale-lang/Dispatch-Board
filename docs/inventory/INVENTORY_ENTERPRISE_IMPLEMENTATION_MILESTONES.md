@@ -112,9 +112,9 @@ Implementation evidence: [`INVENTORY_UNIT_FOUNDATION_IMPLEMENTATION.md`](INVENTO
 
 | ID | Status | Slice | Acceptance |
 | --- | --- | --- | --- |
-| VEH-070 | [ ] | Approve parts ledger and costing ADR | Quantity, availability, costing, financial handoff, reversal, count, and negative-stock rules are explicit. |
+| VEH-070 | [x] | Approve parts ledger and costing ADR | Quantity, availability, costing, financial handoff, reversal, count, and negative-stock rules are explicit. |
 | VEH-071 | [ ] | Add part, interchange, and vendor masters | Manufacturer/part numbers, supersession, substitutes, units, category, fitment evidence, vendors, and status are normalized. |
-| VEH-072 | [ ] | Add warehouses, bins, and stock balances | Physical/logical locations and current on-hand, allocated, available, ordered, backordered, and damaged projections exist. |
+| VEH-072 | [x] | Add warehouses, bins, and stock balances | Physical/logical locations and current on-hand, allocated, available, ordered, backordered, and damaged projections exist. |
 | VEH-073 | [ ] | Add immutable parts stock ledger | Receipt, transfer, reserve, release, issue, install, return, adjust, and count events balance and reverse explicitly. |
 | VEH-074 | [ ] | Add RepairJob demand and reservation | Demand links to job and source; scarce allocation is authorized, explainable, and prevents double reservation. |
 | VEH-075 | [ ] | Add requisition and vendor comparison | Required date, alternatives, price, ETA, reliability, warranty, return terms, and manager selection are retained. |
