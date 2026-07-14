@@ -45,6 +45,12 @@ Focused appointment scheduling recommendation validation passed for the new reco
 
 Vehicle Operations Milestone 0 (`VEH-004` through `VEH-007`) is complete as a planning and governance baseline. The repository now contains a canonical glossary/RACI, KPI catalog v1, threat model/data classification, and SLO/backup/retention/incident policy under `docs/inventory/governance/`. These documents define implementation requirements and acceptance evidence; they do not claim that the planned vehicle persistence, APIs, security controls, monitoring, backup topology, or incident automation is implemented.
 
+## Vehicle Operations Enterprise Command Foundation — 2026-07-14
+
+Vehicle Operations Milestone 1 (`VEH-010` through `VEH-017`) is implemented in the repository. The additive Prisma schema and migration provide organization/location enforcement, capability grants, generic aggregate versions, an idempotent command ledger, domain and audit events, a transactional outbox, versioned rollout controls, rollout history, and health checkpoints. Server-side services and protected APIs enforce capabilities, canonical request hashes, stale-version conflicts, audit reasons, and atomic command/event/audit/outbox writes. A retryable worker atomically claims outbox messages and handles publication, backoff, and dead-letter state. Managers have a protected `/settings/vehicle-operations` health and rollout surface with stale-version recovery.
+
+This is a shared command foundation, not the M2 canonical vehicle registry or later inventory/shop implementation. The migration has not been deployed here, no production publisher or scheduled worker has been configured, and production pilot/alert/recovery evidence remains pending. Detailed evidence and the M2 adoption contract are in [`docs/inventory/VEHICLE_OPERATIONS_COMMAND_FOUNDATION.md`](inventory/VEHICLE_OPERATIONS_COMMAND_FOUNDATION.md).
+
 ## Customers Console Baseline
 
 Verified Customers implementation as of 2026-07-10:

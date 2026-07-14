@@ -18,6 +18,21 @@ function getModelBlock(schema: string, modelName: string) {
 }
 
 describe("prisma schema constraints", () => {
+  it("declares the VEH-M1 enterprise command, tenancy, rollout, and health foundation", async () => {
+    const schema = await readFile(schemaPath, "utf8");
+    for (const model of ["EnterpriseAggregateVersion", "EnterpriseCommandLedger", "EnterpriseDomainEvent", "EnterpriseAuditEvent", "EnterpriseOutboxMessage", "VehicleCapabilityGrant", "VehicleOperationsFeatureFlag", "EnterpriseProjectionCheckpoint"]) expect(schema).toContain(`model ${model} {`);
+    expect(getModelBlock(schema, "EnterpriseCommandLedger")).toMatch(/@@unique\(\[organizationId,\s*domain,\s*commandType,\s*idempotencyKey\]\)/);
+    expect(getModelBlock(schema, "EnterpriseAggregateVersion")).toMatch(/version\s+Int\s+@default\(0\)/);
+    expect(getModelBlock(schema, "EnterpriseOutboxMessage")).toMatch(/status\s+EnterpriseOutboxStatus\s+@default\(PENDING\)/);
+    const migrationEntries = await readdir(migrationsPath, { withFileTypes: true });
+    const sql = (await Promise.all(migrationEntries.filter((entry) => entry.isDirectory()).map((entry) => readFile(path.join(migrationsPath, entry.name, "migration.sql"), "utf8")))).join("\n");
+    expect(sql).toMatch(/EnterpriseCommandLedger_required_text_check/);
+    expect(sql).toMatch(/EnterpriseAggregateVersion_location_tenant_fkey/);
+    expect(sql).toMatch(/EnterpriseOutboxMessage_attempt_check/);
+    expect(sql).toMatch(/VehicleCapabilityGrant_org_global_user_capability_key/);
+    expect(sql).toMatch(/VehicleOperationsFeatureFlag_org_global_code_key/);
+    expect(sql).toMatch(/EnterpriseProjectionCheckpoint_org_global_projectionCode_key/);
+  });
   it("declares the DB-021 unique constraints and indexes in Prisma-native schema", async () => {
     const schema = await readFile(schemaPath, "utf8");
     const taskTemplateModel = getModelBlock(schema, "TaskTemplate");
