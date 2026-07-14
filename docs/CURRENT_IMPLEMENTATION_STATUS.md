@@ -1,5 +1,9 @@
 # Current Implementation Status
 
+## 2026-07-14 — M9: integration platform
+
+VEH-120–VEH-129 are implemented as provider-neutral integration foundations: external-system inventory, source authority matrix, adapter contract harness, conflict detection/reconciliation, explicit provider boundaries, and a governed partner API contract. Real provider credentials, durable partner stores, delivery workers, and production acknowledgements remain activation work.
+
 ## 2026-07-14 — VEH-041/042: live inventory control tower
 
 The inventory control tower now has a tenant-scoped live projection and authenticated `GET /api/inventory-control-tower` API. It reconciles open inventory units, lifecycle stages, locations, overdue/blocked/waiting counts, cost exposure, and item-level exceptions. `/vehicles` consumes the projection, reports freshness, supports retry, and removes unsupported prototype shop/parts capacity values when the live response arrives.
