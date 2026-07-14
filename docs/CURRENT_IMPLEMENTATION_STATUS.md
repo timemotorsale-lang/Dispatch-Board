@@ -1,5 +1,9 @@
 # Current Implementation Status
 
+## 2026-07-14 — M8: administration and resilience
+
+M8 (VEH-111–VEH-118) is implemented as enterprise-hardening foundations. The console now provides separation-of-duties and dollar-limit evaluation, manager-scoped retention/legal-hold and background-operation projections, bounded audit exploration, disaster-recovery, security, accessibility/performance gates, and an explicit pilot enable/pause/rollback/resume state machine. These controls produce reviewable evidence; they do not claim that a provider backup, scanner, or production pilot has run.
+
 ## 2026-07-14 — VEH-041/042: live inventory control tower
 
 The inventory control tower now has a tenant-scoped live projection and authenticated `GET /api/inventory-control-tower` API. It reconciles open inventory units, lifecycle stages, locations, overdue/blocked/waiting counts, cost exposure, and item-level exceptions. `/vehicles` consumes the projection, reports freshness, supports retry, and removes unsupported prototype shop/parts capacity values when the live response arrives.
