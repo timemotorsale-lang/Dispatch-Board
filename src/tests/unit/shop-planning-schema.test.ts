@@ -1,0 +1,4 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { describe,expect,it } from "vitest";
+describe("shop planning persistence",()=>{it("defines immutable evidence, exact authorization, jobs, and planning stages",async()=>{const schema=await readFile(path.join(process.cwd(),"prisma/schema.prisma"),"utf8"),sql=await readFile(path.join(process.cwd(),"prisma/migrations/20260714060000_add_shop_planning_core/migration.sql"),"utf8");expect(schema).toMatch(/model VehicleInspectionVersion/);expect(schema).toMatch(/model RepairDiagnosisVersion/);expect(schema).toMatch(/model RepairEstimateVersion/);expect(schema).toMatch(/model RepairAuthorization/);expect(schema).toMatch(/model RepairJob/);expect(sql).toMatch(/RepairOrder_planning_stage_check/);expect(sql).toMatch(/RepairAuthorization_acceptance_check/);expect(sql).toMatch(/RepairJob_authorized_line_key/);expect(sql).toMatch(/prevent_shop_planning_evidence_mutation/);});});
