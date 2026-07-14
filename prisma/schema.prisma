@@ -510,6 +510,46 @@ enum RepairHandoffDestination {
   INVENTORY_TITLE_OR_MERCHANDISING
 }
 
+enum AdvisorContactChannel {
+  IN_PERSON
+  PHONE
+  SMS
+  EMAIL
+  INTERNAL
+}
+
+enum AdvisorContactDirection {
+  INBOUND
+  OUTBOUND
+  INTERNAL
+}
+
+enum DeliveryReadinessDisposition {
+  READY
+  BLOCKED
+}
+
+enum ComebackStatus {
+  OPEN
+  REVIEWING
+  RESOLVED
+  CLOSED
+}
+
+enum ComebackResponsibility {
+  UNDETERMINED
+  DEALERSHIP
+  WARRANTY
+  CUSTOMER
+  VENDOR
+}
+
+enum ProductionConfidence {
+  HIGH
+  MEDIUM
+  LOW
+}
+
 enum AppointmentParticipantType {
   INTERNAL_USER
   CUSTOMER
@@ -855,6 +895,15 @@ model User {
   qualityInspections                    RepairQualityInspection[]                  @relation("QualityInspector")
   peerQualityVerifications              RepairQualityInspection[]                  @relation("QualityPeerVerifier")
   repairReleaseAuthorizations           RepairOrderReleaseAuthorization[]          @relation("RepairReleaseAuthorizer")
+  authoredAdvisorUpdates                RepairAdvisorUpdate[]                       @relation("AdvisorUpdateAuthor")
+  deliveryReadinessEvaluations          RepairDeliveryReadinessEvaluation[]         @relation("DeliveryReadinessEvaluator")
+  createdComebackCases                  RepairComebackCase[]                        @relation("ComebackCreatedBy")
+  resolvedComebackCases                 RepairComebackCase[]                        @relation("ComebackResolvedBy")
+  authoredComebackEvents                RepairComebackEvent[]                       @relation("ComebackEventActor")
+  technicianPresenceRecords             TechnicianPresenceRecord[]                 @relation("PresenceTechnician")
+  authoredPresenceRecords               TechnicianPresenceRecord[]                 @relation("PresenceRecordedBy")
+  shopProductionSnapshots               ShopProductionSnapshot[]                   @relation("ProductionTechnician")
+  generatedProductionSnapshots          ShopProductionSnapshot[]                   @relation("ProductionGeneratedBy")
 
   @@index([isActive])
 }
@@ -980,6 +1029,12 @@ model Organization {
   repairJobLaborEvents                  RepairJobLaborEvent[]
   repairQualityInspections              RepairQualityInspection[]
   repairOrderReleaseAuthorizations      RepairOrderReleaseAuthorization[]
+  repairAdvisorUpdates                  RepairAdvisorUpdate[]
+  deliveryReadinessEvaluations          RepairDeliveryReadinessEvaluation[]
+  repairComebackCases                   RepairComebackCase[]
+  repairComebackEvents                  RepairComebackEvent[]
+  technicianPresenceRecords             TechnicianPresenceRecord[]
+  shopProductionSnapshots               ShopProductionSnapshot[]
   resourceTypes                         SchedulableResourceType[]
   resources                             SchedulableResource[]
   appointmentCatalogVersions            AppointmentCatalogVersion[]
@@ -1045,6 +1100,8 @@ model Location {
   repairOrderStateEvents          RepairOrderStateEvent[]
   partStockLocations              PartStockLocation[]
   repairJobDispatches             RepairJobDispatch[]
+  technicianPresenceRecords       TechnicianPresenceRecord[]
+  shopProductionSnapshots         ShopProductionSnapshot[]
 
   @@unique([organizationId, code])
   @@unique([id, organizationId])
@@ -1734,6 +1791,10 @@ model RepairOrder {
   repairJobs          RepairJob[]
   qualityInspections  RepairQualityInspection[]
   releaseAuthorization RepairOrderReleaseAuthorization?
+  advisorUpdates       RepairAdvisorUpdate[]
+  deliveryReadinessEvaluations RepairDeliveryReadinessEvaluation[]
+  originalComebackCases RepairComebackCase[] @relation("ComebackOriginalOrder")
+  followUpComebackCases RepairComebackCase[] @relation("ComebackFollowUpOrder")
 
   @@unique([organizationId, repairOrderNumber])
   @@unique([id, organizationId])
@@ -1943,6 +2004,7 @@ model RepairJob {
   laborClocks           RepairJobLaborClock[]
   laborEvents           RepairJobLaborEvent[]
   qualityInspections    RepairQualityInspection[]
+  comebackCases         RepairComebackCase[]
 
   @@unique([repairOrderId, jobNumber])
   @@unique([repairOrderId, authorizedLineKey, authorizationId])
@@ -2137,6 +2199,173 @@ model RepairOrderReleaseAuthorization {
 
   @@index([organizationId, authorizedAt])
   @@index([authorizedByUserId, authorizedAt])
+}
+
+model RepairAdvisorUpdate {
+  id                     String                  @id @default(cuid())
+  organizationId         String
+  repairOrderId          String
+  version                Int
+  statusCode             String
+  promiseAt              DateTime?
+  contactChannel         AdvisorContactChannel
+  contactDirection       AdvisorContactDirection
+  contactOutcome         String
+  customerVisibleSummary String
+  internalNotes          String?
+  exceptionCodes         Json
+  nextContactAt          DateTime?
+  authorUserId           String
+  reason                 String
+  occurredAt             DateTime
+  createdAt              DateTime                @default(now())
+  organization           Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairOrder            RepairOrder              @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  authorUser             User                     @relation("AdvisorUpdateAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+
+  @@unique([repairOrderId, version])
+  @@index([organizationId, statusCode, occurredAt])
+  @@index([repairOrderId, occurredAt])
+}
+
+model RepairDeliveryReadinessEvaluation {
+  id                  String                       @id @default(cuid())
+  organizationId      String
+  repairOrderId       String
+  version             Int
+  disposition         DeliveryReadinessDisposition
+  checks              Json
+  blockerCodes        Json
+  releaseAuthorizationId String?
+  promisedDeliveryAt  DateTime?
+  evaluatorUserId     String
+  reason              String
+  evaluatedAt         DateTime
+  createdAt           DateTime                     @default(now())
+  organization        Organization                 @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairOrder         RepairOrder                  @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  evaluatorUser       User                         @relation("DeliveryReadinessEvaluator", fields: [evaluatorUserId], references: [id], onDelete: Restrict)
+
+  @@unique([repairOrderId, version])
+  @@index([organizationId, disposition, evaluatedAt])
+}
+
+model RepairComebackCase {
+  id                       String                 @id @default(cuid())
+  organizationId           String
+  originalRepairOrderId    String
+  originalRepairJobId      String
+  followUpRepairOrderId    String?
+  caseNumber               String
+  status                   ComebackStatus         @default(OPEN)
+  reportedConcern          String
+  reasonCategory           String
+  responsibility           ComebackResponsibility @default(UNDETERMINED)
+  estimatedCostCents       Int                    @default(0)
+  actualCostCents          Int?
+  resolutionOutcome        String?
+  followUpDueAt            DateTime
+  followUpCompletedAt      DateTime?
+  createdByUserId          String
+  resolvedByUserId         String?
+  reportedAt               DateTime
+  resolvedAt               DateTime?
+  disciplinaryUseProhibited Boolean               @default(true)
+  version                  Int                    @default(1)
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+  organization             Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  originalRepairOrder      RepairOrder             @relation("ComebackOriginalOrder", fields: [originalRepairOrderId], references: [id], onDelete: Restrict)
+  originalRepairJob        RepairJob               @relation(fields: [originalRepairJobId], references: [id], onDelete: Restrict)
+  followUpRepairOrder      RepairOrder?            @relation("ComebackFollowUpOrder", fields: [followUpRepairOrderId], references: [id], onDelete: Restrict)
+  createdByUser            User                    @relation("ComebackCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  resolvedByUser           User?                   @relation("ComebackResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: Restrict)
+  events                   RepairComebackEvent[]
+
+  @@unique([organizationId, caseNumber])
+  @@index([organizationId, status, followUpDueAt])
+  @@index([originalRepairJobId, reportedAt])
+}
+
+model RepairComebackEvent {
+  id               String         @id @default(cuid())
+  organizationId   String
+  comebackCaseId   String
+  version          Int
+  fromStatus       ComebackStatus?
+  toStatus         ComebackStatus
+  responsibility   ComebackResponsibility
+  actualCostCents  Int?
+  outcome          String?
+  reason           String
+  actorUserId      String
+  correlationId    String
+  occurredAt       DateTime
+  createdAt        DateTime       @default(now())
+  organization     Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  comebackCase     RepairComebackCase @relation(fields: [comebackCaseId], references: [id], onDelete: Restrict)
+  actorUser        User           @relation("ComebackEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@unique([comebackCaseId, version])
+  @@index([organizationId, occurredAt])
+}
+
+model TechnicianPresenceRecord {
+  id                           String   @id @default(cuid())
+  organizationId               String
+  locationId                   String
+  technicianUserId             String
+  startsAt                     DateTime
+  endsAt                       DateTime
+  approvedNonProductiveMinutes Int      @default(0)
+  idleCauseCode                String?
+  sourceCode                   String
+  sourceReference              String?
+  recordedByUserId             String
+  reason                       String
+  createdAt                    DateTime @default(now())
+  organization                 Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location                     Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  technicianUser               User @relation("PresenceTechnician", fields: [technicianUserId], references: [id], onDelete: Restrict)
+  recordedByUser               User @relation("PresenceRecordedBy", fields: [recordedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, sourceCode, sourceReference])
+  @@index([technicianUserId, startsAt, endsAt])
+  @@index([organizationId, locationId, startsAt])
+}
+
+model ShopProductionSnapshot {
+  id                             String               @id @default(cuid())
+  organizationId                 String
+  locationId                     String
+  technicianUserId               String
+  windowStart                    DateTime
+  windowEnd                      DateTime
+  presentMinutes                 Int
+  repairClockedMinutes           Int
+  earnedMinutes                  Int
+  nonComebackEarnedMinutes       Int
+  approvedNonProductiveMinutes   Int
+  idleCauseMinutes               Json
+  productivityBasisPoints        Int
+  efficiencyBasisPoints          Int
+  proficiencyBasisPoints         Int
+  firstPassYieldBasisPoints      Int
+  qualityAdjustedBasisPoints     Int
+  confidence                     ProductionConfidence
+  reasonCodes                    Json
+  sourceFingerprint              String
+  generatedByUserId              String
+  calculatedAt                   DateTime
+  createdAt                      DateTime             @default(now())
+  organization                   Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location                       Location             @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  technicianUser                 User                 @relation("ProductionTechnician", fields: [technicianUserId], references: [id], onDelete: Restrict)
+  generatedByUser                User                 @relation("ProductionGeneratedBy", fields: [generatedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, locationId, technicianUserId, windowStart, windowEnd, sourceFingerprint])
+  @@index([organizationId, locationId, windowEnd])
+  @@index([technicianUserId, windowEnd])
 }
 
 model Part {

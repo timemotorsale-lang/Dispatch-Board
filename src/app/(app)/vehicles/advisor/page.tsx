@@ -1,0 +1,2 @@
+import { AdvisorWorkspace } from "@/features/inventory/shop-completion-workspaces";import { requireCurrentUser } from "@/server/auth/current-user";import { getShopCompletionWorkspace } from "@/server/shop-completion/service";
+export default async function AdvisorPage(){const user=await requireCurrentUser(),initial=await getShopCompletionWorkspace(user);return <AdvisorWorkspace initial={JSON.parse(JSON.stringify(initial))}/>;}
