@@ -1,5 +1,9 @@
 # Current Implementation Status
 
+## 2026-07-14 — M10: reporting and enterprise scale
+
+VEH-130–VEH-139 are implemented as governed reporting, recommendation, and scale-evidence foundations. Daily metric facts, scorecards, bottleneck/cohort analysis, forecast evaluation, advisory recommendation pilots, responsible summaries, multi-location transfer checks, policy inheritance, and enterprise recovery gates are now available as deterministic services with tests. Production warehouse execution, model deployment, and load/failover drills remain operational activation work.
+
 ## 2026-07-14 — M9: integration platform
 
 VEH-120–VEH-129 are implemented as provider-neutral integration foundations: external-system inventory, source authority matrix, adapter contract harness, conflict detection/reconciliation, explicit provider boundaries, and a governed partner API contract. Real provider credentials, durable partner stores, delivery workers, and production acknowledgements remain activation work.

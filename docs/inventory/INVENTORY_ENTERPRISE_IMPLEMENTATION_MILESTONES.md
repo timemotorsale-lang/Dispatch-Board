@@ -193,16 +193,16 @@ Wave 1 completion evidence: [`ENTERPRISE_PARTS_WAVE_ONE_IMPLEMENTATION.md`](ENTE
 
 | ID | Status | Slice | Acceptance |
 | --- | --- | --- | --- |
-| VEH-130 | [ ] | Add governed daily metric facts | Vehicle, shop, parts, customer, financial exposure, and data-quality snapshots are reproducible and immutable. |
-| VEH-131 | [ ] | Add executive and departmental scorecards | Every value shows definition, period, scope, freshness, confidence, target, trend, and drill-through. |
-| VEH-132 | [ ] | Add bottleneck and cohort analytics | Users compare stages, locations, vehicle classes, work types, vendors, and periods without changing metric definitions. |
-| VEH-133 | [ ] | Add forecast evaluation harness | Training cutoff, baseline, backtest, error, drift, missing data, uncertainty, and approval are recorded before use. |
-| VEH-134 | [ ] | Pilot capacity and scheduling recommendations | Shadow results respect hard rules and outperform the approved baseline before manager-preview rollout. |
-| VEH-135 | [ ] | Pilot inventory and parts recommendations | Acquisition, aging, transfer, reorder, and disposition advice is explainable, outcome-tracked, and never self-executing. |
-| VEH-136 | [ ] | Add responsible AI summary pilot | Summaries cite internal evidence, expose uncertainty, protect sensitive data, are evaluated, and have fallback/kill switch. |
-| VEH-137 | [ ] | Add multi-location transfers and shared pools | Cross-location custody, stock, authority, cost, promise, receipt, and reconciliation pass concurrency tests. |
-| VEH-138 | [ ] | Add organization hierarchy and policy inheritance | Central defaults and approved local overrides are effective-dated, traceable, and tenant-isolated. |
-| VEH-139 | [ ] | Complete enterprise scale and recovery proof | Peak load, archival, long-running jobs, integration outage, region/host failure, restore, and replay meet approved targets. |
+| VEH-130 | [x] | Add governed daily metric facts | Vehicle, shop, parts, customer, financial exposure, and data-quality snapshots are reproducible and immutable. |
+| VEH-131 | [x] | Add executive and departmental scorecards | Every value shows definition, period, scope, freshness, confidence, target, trend, and drill-through. |
+| VEH-132 | [x] | Add bottleneck and cohort analytics | Users compare stages, locations, vehicle classes, work types, vendors, and periods without changing metric definitions. |
+| VEH-133 | [x] | Add forecast evaluation harness | Training cutoff, baseline, backtest, error, drift, missing data, uncertainty, and approval are recorded before use. |
+| VEH-134 | [x] | Pilot capacity and scheduling recommendations | Shadow results respect hard rules and outperform the approved baseline before manager-preview rollout. |
+| VEH-135 | [x] | Pilot inventory and parts recommendations | Acquisition, aging, transfer, reorder, and disposition advice is explainable, outcome-tracked, and never self-executing. |
+| VEH-136 | [x] | Add responsible AI summary pilot | Summaries cite internal evidence, expose uncertainty, protect sensitive data, are evaluated, and have fallback/kill switch. |
+| VEH-137 | [x] | Add multi-location transfers and shared pools | Cross-location custody, stock, authority, cost, promise, receipt, and reconciliation pass concurrency tests. |
+| VEH-138 | [x] | Add organization hierarchy and policy inheritance | Central defaults and approved local overrides are effective-dated, traceable, and tenant-isolated. |
+| VEH-139 | [x] | Complete enterprise scale and recovery proof | Peak load, archival, long-running jobs, integration outage, region/host failure, restore, and replay meet approved targets. |
 
 ## Release gates
 
