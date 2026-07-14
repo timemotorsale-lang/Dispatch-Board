@@ -1,0 +1,4 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { describe,expect,it } from "vitest";
+describe("shop dispatch persistence",()=>{it("defines governed procedures, qualifications, dispatch, and labor evidence",async()=>{const schema=await readFile(path.join(process.cwd(),"prisma/schema.prisma"),"utf8"),sql=await readFile(path.join(process.cwd(),"prisma/migrations/20260714070000_add_shop_dispatch_execution/migration.sql"),"utf8");for(const model of ["WorkProcedureVersion","TechnicianQualification","RepairJobDispatch","RepairJobLaborClock","RepairJobLaborEvent"])expect(schema).toContain(`model ${model}`);expect(sql).toMatch(/RepairJobDispatch_one_current_per_tech_key/);expect(sql).toMatch(/RepairJobDispatch_one_next_per_tech_key/);expect(sql).toMatch(/RepairJobLaborClock_one_running_per_tech_key/);expect(sql).toMatch(/prevent_shop_execution_evidence_mutation/);expect(sql).toMatch(/RepairJobLaborEvent_correction_check/);});});

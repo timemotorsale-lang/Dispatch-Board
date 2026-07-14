@@ -441,7 +441,56 @@ enum RepairJobStatus {
   AUTHORIZED
   WAITING_PARTS
   READY_FOR_REPAIR
+  DISPATCHED
+  IN_PROGRESS
+  PAUSED
+  READY_FOR_QC
   CANCELLED
+}
+
+enum WorkProcedureStatus {
+  DRAFT
+  ACTIVE
+  RETIRED
+}
+
+enum TechnicianQualificationType {
+  SKILL
+  CERTIFICATION
+}
+
+enum ShopWorkLane {
+  FAST_TRACK
+  STANDARD_REPAIR
+  DIAGNOSTIC_HEAVY
+}
+
+enum ShopDispatchPosition {
+  CURRENT
+  NEXT
+}
+
+enum ShopDispatchStatus {
+  STAGED
+  ACTIVE
+  REASSIGNED
+  COMPLETED
+  CANCELLED
+}
+
+enum LaborClockState {
+  NOT_STARTED
+  RUNNING
+  PAUSED
+  FINISHED
+}
+
+enum LaborEventType {
+  START
+  PAUSE
+  RESUME
+  FINISH
+  CORRECTION
 }
 
 enum AppointmentParticipantType {
@@ -778,6 +827,14 @@ model User {
   authoredEstimates                      RepairEstimateVersion[]                   @relation("EstimateAuthor")
   repairAuthorizations                   RepairAuthorization[]                     @relation("AuthorizationDecisionActor")
   createdRepairJobs                      RepairJob[]                               @relation("RepairJobCreatedBy")
+  createdWorkProcedures                  WorkProcedureVersion[]                    @relation("WorkProcedureCreatedBy")
+  technicianQualifications              TechnicianQualification[]                 @relation("QualifiedTechnician")
+  verifiedTechnicianQualifications      TechnicianQualification[]                 @relation("QualificationVerifier")
+  technicianDispatches                  RepairJobDispatch[]                        @relation("DispatchTechnician")
+  assignedRepairJobs                    RepairJobDispatch[]                        @relation("DispatchAssignedBy")
+  technicianLaborClocks                 RepairJobLaborClock[]                      @relation("LaborClockTechnician")
+  technicianLaborEvents                 RepairJobLaborEvent[]                      @relation("LaborEventTechnician")
+  authoredLaborEvents                   RepairJobLaborEvent[]                      @relation("LaborEventActor")
 
   @@index([isActive])
 }
@@ -896,6 +953,11 @@ model Organization {
   estimateVersions                      RepairEstimateVersion[]
   repairAuthorizations                  RepairAuthorization[]
   repairJobs                            RepairJob[]
+  workProcedureVersions                 WorkProcedureVersion[]
+  technicianQualifications              TechnicianQualification[]
+  repairJobDispatches                   RepairJobDispatch[]
+  repairJobLaborClocks                  RepairJobLaborClock[]
+  repairJobLaborEvents                  RepairJobLaborEvent[]
   resourceTypes                         SchedulableResourceType[]
   resources                             SchedulableResource[]
   appointmentCatalogVersions            AppointmentCatalogVersion[]
@@ -960,6 +1022,7 @@ model Location {
   repairOrders                    RepairOrder[]
   repairOrderStateEvents          RepairOrderStateEvent[]
   partStockLocations              PartStockLocation[]
+  repairJobDispatches             RepairJobDispatch[]
 
   @@unique([organizationId, code])
   @@unique([id, organizationId])
@@ -1830,6 +1893,16 @@ model RepairJob {
   authorizedAmountCents Int
   createdByUserId       String
   version               Int             @default(1)
+  procedureVersionId    String?
+  lane                   ShopWorkLane?
+  priorityScore          Int?
+  priorityReasonCodes    Json?
+  dispatchedAt           DateTime?
+  executionStartedAt     DateTime?
+  readyForQcAt           DateTime?
+  executionEvidence      Json?
+  executionBlockerReason String?
+  qcHandoffNotes         String?
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
   organization          Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
@@ -1838,13 +1911,146 @@ model RepairJob {
   estimateVersion       RepairEstimateVersion @relation(fields: [estimateVersionId], references: [id], onDelete: Restrict)
   authorization         RepairAuthorization @relation(fields: [authorizationId], references: [id], onDelete: Restrict)
   createdByUser         User            @relation("RepairJobCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  procedureVersion      WorkProcedureVersion? @relation(fields: [procedureVersionId], references: [id], onDelete: Restrict)
   partDemands           RepairPartDemand[]
+  dispatches            RepairJobDispatch[]
+  laborClocks           RepairJobLaborClock[]
+  laborEvents           RepairJobLaborEvent[]
 
   @@unique([repairOrderId, jobNumber])
   @@unique([repairOrderId, authorizedLineKey, authorizationId])
   @@unique([id, organizationId])
   @@index([organizationId, status, priority])
   @@index([repairOrderId, status])
+}
+
+model WorkProcedureVersion {
+  id                  String              @id @default(cuid())
+  organizationId      String
+  workTypeCode        String
+  version             Int
+  status              WorkProcedureStatus @default(ACTIVE)
+  title               String
+  instructions        Json
+  safetySteps         Json
+  requiredEvidence    Json
+  qcRules             Json
+  standardMinutes     Int
+  effectiveFrom       DateTime
+  effectiveTo         DateTime?
+  supersedesId        String?             @unique
+  createdByUserId     String
+  reason              String
+  createdAt           DateTime            @default(now())
+  organization        Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdByUser       User                @relation("WorkProcedureCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  supersedes          WorkProcedureVersion? @relation("WorkProcedureSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy        WorkProcedureVersion? @relation("WorkProcedureSupersession")
+  repairJobs          RepairJob[]
+
+  @@unique([organizationId, workTypeCode, version])
+  @@index([organizationId, status, effectiveFrom, effectiveTo])
+}
+
+model TechnicianQualification {
+  id                String                      @id @default(cuid())
+  organizationId    String
+  technicianUserId  String
+  type              TechnicianQualificationType
+  code              String
+  effectiveFrom     DateTime
+  effectiveTo       DateTime?
+  sourceReference   String
+  verifiedByUserId  String
+  verifiedAt        DateTime
+  createdAt         DateTime                    @default(now())
+  organization      Organization                @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  technicianUser    User                        @relation("QualifiedTechnician", fields: [technicianUserId], references: [id], onDelete: Restrict)
+  verifiedByUser    User                        @relation("QualificationVerifier", fields: [verifiedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, technicianUserId, type, code, effectiveFrom])
+  @@index([organizationId, type, code, effectiveTo])
+  @@index([technicianUserId, effectiveFrom, effectiveTo])
+}
+
+model RepairJobDispatch {
+  id                String               @id @default(cuid())
+  organizationId    String
+  locationId        String
+  repairJobId       String
+  technicianUserId  String
+  bayResourceId     String?
+  resourceIds       Json
+  position          ShopDispatchPosition
+  status            ShopDispatchStatus
+  scheduledStartAt  DateTime
+  scheduledEndAt    DateTime
+  assignedByUserId  String
+  reason             String
+  overrideReason     String?
+  conflictSnapshot  Json
+  supersedesId      String?              @unique
+  version           Int                  @default(1)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  organization      Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location          Location             @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  repairJob         RepairJob            @relation(fields: [repairJobId], references: [id], onDelete: Restrict)
+  technicianUser    User                 @relation("DispatchTechnician", fields: [technicianUserId], references: [id], onDelete: Restrict)
+  bayResource       SchedulableResource? @relation("DispatchBayResource", fields: [bayResourceId], references: [id], onDelete: Restrict)
+  assignedByUser    User                 @relation("DispatchAssignedBy", fields: [assignedByUserId], references: [id], onDelete: Restrict)
+  supersedes        RepairJobDispatch?   @relation("DispatchSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy      RepairJobDispatch?   @relation("DispatchSupersession")
+
+  @@index([organizationId, locationId, status, scheduledStartAt])
+  @@index([technicianUserId, status, position])
+  @@index([repairJobId, status])
+  @@index([bayResourceId, scheduledStartAt, scheduledEndAt])
+}
+
+model RepairJobLaborClock {
+  id                 String          @id @default(cuid())
+  organizationId     String
+  repairJobId        String
+  technicianUserId   String
+  state              LaborClockState @default(NOT_STARTED)
+  startedAt          DateTime?
+  lastResumedAt      DateTime?
+  accumulatedMinutes Int             @default(0)
+  finishedAt         DateTime?
+  version            Int             @default(0)
+  updatedAt          DateTime        @updatedAt
+  organization       Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairJob          RepairJob       @relation(fields: [repairJobId], references: [id], onDelete: Restrict)
+  technicianUser     User            @relation("LaborClockTechnician", fields: [technicianUserId], references: [id], onDelete: Restrict)
+
+  @@unique([repairJobId, technicianUserId])
+  @@index([organizationId, state, updatedAt])
+  @@index([technicianUserId, state])
+}
+
+model RepairJobLaborEvent {
+  id                        String         @id @default(cuid())
+  organizationId            String
+  repairJobId               String
+  technicianUserId          String
+  eventType                 LaborEventType
+  occurredAt                DateTime
+  reason                    String
+  correctionMinutes         Int?
+  approvedNonProductiveCode String?
+  actorUserId               String
+  correlationId             String
+  createdAt                 DateTime       @default(now())
+  organization              Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairJob                 RepairJob      @relation(fields: [repairJobId], references: [id], onDelete: Restrict)
+  technicianUser            User           @relation("LaborEventTechnician", fields: [technicianUserId], references: [id], onDelete: Restrict)
+  actorUser                 User           @relation("LaborEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, occurredAt])
+  @@index([repairJobId, occurredAt])
+  @@index([technicianUserId, occurredAt])
+  @@index([correlationId])
 }
 
 model Part {
@@ -2226,6 +2432,7 @@ model SchedulableResource {
   operatingWindows ResourceOperatingWindow[]
   unavailability   ResourceUnavailability[]
   reservations     AppointmentResourceReservation[]
+  shopDispatchBayAssignments RepairJobDispatch[] @relation("DispatchBayResource")
   poolMembers      ResourcePoolMember[]             @relation("ResourcePool")
   memberOfPools    ResourcePoolMember[]             @relation("ResourcePoolMember")
 

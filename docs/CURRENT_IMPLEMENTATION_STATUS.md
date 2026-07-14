@@ -75,6 +75,10 @@ Vehicle Operations Milestone 4B (`VEH-052` through `VEH-056`) is implemented. Ve
 
 The migration is not deployed and `RETAIL_INVENTORY` remains rollout-disabled by default. VEH-031 through VEH-042, production backfill/import, lifecycle advancement, and live control-tower replacement remain planned. See [`docs/inventory/INVENTORY_UNIT_FOUNDATION_IMPLEMENTATION.md`](inventory/INVENTORY_UNIT_FOUNDATION_IMPLEMENTATION.md) and [`docs/inventory/INVENTORY_UNIT_FOUNDATION_ADR.md`](inventory/INVENTORY_UNIT_FOUNDATION_ADR.md).
 
+## Shop dispatch and technician execution — 2026-07-14
+
+Vehicle Operations Milestone 4C (`VEH-057` through `VEH-062`) is implemented. Effective-dated procedures and qualifications now gate location-aware technician, bay, tool, and equipment assignments. The live dispatch board enforces one current and one next job, detects shop and appointment resource conflicts, retains re-dispatch lineage, and requires attributable overrides. Technician execution provides current/next work, procedures, parts, blockers, labor start/pause/resume/finish/correction evidence, and a required evidence-backed QC handoff. All writes use the Milestone 1 command/audit/event/outbox boundary. QC release, advisor workflow, comeback handling, production analytics, invoicing, and close/reopen remain later slices. The migration is source-controlled but not deployed. See [`docs/inventory/SHOP_DISPATCH_EXECUTION_IMPLEMENTATION.md`](inventory/SHOP_DISPATCH_EXECUTION_IMPLEMENTATION.md).
+
 ## Customers Console Baseline
 
 Verified Customers implementation as of 2026-07-10:
