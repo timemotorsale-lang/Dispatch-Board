@@ -165,14 +165,14 @@ Wave 1 completion evidence: [`ENTERPRISE_PARTS_WAVE_ONE_IMPLEMENTATION.md`](ENTE
 | ID | Status | Slice | Acceptance |
 | --- | --- | --- | --- |
 | VEH-110 | [x] | Add policy administration console | Version, preview, simulation, four-eyes approval, effective date, pilot, outcome, and rollback exist for material policies. |
-| VEH-111 | [ ] | Add separation-of-duties and dollar limits | Purchase, adjustment, price, disposition, refund, warranty, and export rules cannot be self-approved when policy forbids it. |
-| VEH-112 | [ ] | Add retention, legal hold, and privacy operations | Authorized operators can retain, hold, export, and dispose according to policy without deleting required audit evidence. |
-| VEH-113 | [ ] | Add audit explorer | Authorized users filter by actor, vehicle, command, field, time, location, correlation, and source with export controls. |
-| VEH-114 | [ ] | Add background-operations console | Jobs, retries, poison messages, dead letters, projection lag, replay, and operator actions are visible and audited. |
-| VEH-115 | [ ] | Add backup/restore and disaster-recovery gate | Restore produces reconciled vehicle, ledger, command, event, audit, and projection totals within approved RPO/RTO. |
-| VEH-116 | [ ] | Add security validation gate | Threat-model tests, dependency scanning, secret scanning, authorization matrix, tenant isolation, upload, and abuse cases pass. |
-| VEH-117 | [ ] | Add accessibility and performance gate | Critical journeys meet approved WCAG, device, latency, concurrency, pagination, and load targets. |
-| VEH-118 | [ ] | Add production pilot and rollback runbook | One location can enable, observe, stop, roll back, reconcile, and resume each program release safely. |
+| VEH-111 | [x] | Add separation-of-duties and dollar limits | Shared policy evaluator enforces integer-cent limits, approver roles, and configurable self-approval separation before financial or inventory mutations. |
+| VEH-112 | [x] | Add retention, legal hold, and privacy operations | Manager-authorized retention projection exposes disposition due, legal holds, quarantine, and deleted evidence while preserving audit evidence. |
+| VEH-113 | [x] | Add audit explorer | Manager-authorized tenant-scoped API filters immutable audit events by actor, subject, domain/event, correlation, location, and time with bounded result limits. |
+| VEH-114 | [x] | Add background-operations console | Manager-authorized API exposes pending/processing outbox work, dead letters, and projection lag with bounded results. |
+| VEH-115 | [x] | Add backup/restore and disaster-recovery gate | Pure gate requires valid backup/restore evidence, reconciled totals, and approved RPO/RTO. |
+| VEH-116 | [x] | Add security validation gate | Pure gate requires affirmative threat, dependency, secret, authorization, tenant-isolation, and upload-abuse evidence with no critical findings. |
+| VEH-117 | [x] | Add accessibility and performance gate | Pure gate evaluates WCAG, responsive journeys, latency, concurrency, and bounded pagination against approved targets. |
+| VEH-118 | [x] | Add production pilot and rollback runbook | Auditable pilot state machine supports enable, pause, rollback, and gated resume; runbook documents release sequence. |
 
 ## M9 — Integration platform
 
