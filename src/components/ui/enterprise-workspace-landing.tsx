@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { WorkspaceMockupReference } from "./workspace-mockup-reference";
 
 export type WorkspaceCard = {
   title: string;
@@ -15,7 +14,6 @@ type EnterpriseWorkspaceLandingProps = {
   activeDuty: string;
   cards: WorkspaceCard[];
   primaryAction: { href: string; label: string };
-  mockup?: { image: string; title: string; role: string };
 };
 
 export function EnterpriseWorkspaceLanding({
@@ -24,8 +22,7 @@ export function EnterpriseWorkspaceLanding({
   description,
   activeDuty,
   cards,
-  primaryAction,
-  mockup
+  primaryAction
 }: EnterpriseWorkspaceLandingProps) {
   return (
     <section className="page-stack dashboard-page">
@@ -44,7 +41,6 @@ export function EnterpriseWorkspaceLanding({
       <div className="hero-actions">
         <Link className="pill pill-primary" href={primaryAction.href}>{primaryAction.label}</Link>
       </div>
-      {mockup ? <WorkspaceMockupReference {...mockup} /> : null}
       <div className="dashboard-page-grid">
         {cards.map((card) => (
           <article className="panel-card mvp-route-card" key={card.href}>

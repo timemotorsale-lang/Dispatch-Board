@@ -1,3 +1,2 @@
 import { AdvisorWorkspace } from "@/features/inventory/shop-completion-workspaces";import { requireCurrentUser } from "@/server/auth/current-user";import { getShopCompletionWorkspace } from "@/server/shop-completion/service";
-import { WorkspaceMockupReference } from "@/components/ui/workspace-mockup-reference";
-export default async function AdvisorPage(){const user=await requireCurrentUser(),initial=await getShopCompletionWorkspace(user);return <div className="workspace-page-with-reference"><WorkspaceMockupReference image="/mockups/service-advisor-workspace.png" role="Service advisor and service manager" title="Service Advisor Workspace" /><AdvisorWorkspace initial={JSON.parse(JSON.stringify(initial))}/></div>;}
+export default async function AdvisorPage(){const user=await requireCurrentUser(),initial=await getShopCompletionWorkspace(user);return <AdvisorWorkspace initial={JSON.parse(JSON.stringify(initial))}/>;}

@@ -6088,7 +6088,10 @@ code {
   border-bottom: 1px solid #d7e0eb;
 }
 
-.ict-module-nav button {
+.ict-module-nav button,
+.ict-module-nav a {
+  display: inline-flex;
+  align-items: center;
   min-height: 44px;
   padding: 0 15px;
   color: #2f3e52;
@@ -6099,10 +6102,13 @@ code {
   font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
+  text-decoration: none;
 }
 
 .ict-module-nav button:hover,
-.ict-module-nav button.active {
+.ict-module-nav button.active,
+.ict-module-nav a:hover,
+.ict-module-nav a.active {
   color: var(--ict-blue);
   border-bottom-color: var(--ict-blue);
 }
