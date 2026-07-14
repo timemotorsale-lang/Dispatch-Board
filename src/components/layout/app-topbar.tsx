@@ -71,10 +71,13 @@ export function AppTopbar({ onMenuOpen, user }: AppTopbarProps) {
   const notificationCount = notificationLinks.length;
   const workspaces = [
     { href: "/board", label: "Command Center", detail: "Exceptions and priorities" },
+    { href: "/inventory-manager", label: "Inventory Manager", detail: "Cross-functional inventory decisions" },
     { href: "/vehicles/inventory", label: "Inventory Operations", detail: "Acquisition and readiness" },
     { href: "/vehicles/shop-dispatch", label: "Service Operations", detail: "Dispatch and execution" },
     { href: "/vehicles/parts-counter", label: "Parts Operations", detail: "Availability and shortages" },
     { href: "/customers", label: "Customer Operations", detail: "Lifecycle and promises" },
+    { href: "/appointments", label: "Appointment Workspace", detail: "Schedule and resource commitments" },
+    { href: "/tasks", label: "Task Workspace", detail: "Shared work and accountability" },
     { href: "/insights", label: "Insights", detail: "Scorecards and forecasts" },
     { href: "/integrations", label: "Integrations", detail: "Provider health and reconciliation" },
     ...(isManager(user) ? [{ href: "/administration", label: "Administration", detail: "Governance and access" }] : [])

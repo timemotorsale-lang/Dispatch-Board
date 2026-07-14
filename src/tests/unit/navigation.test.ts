@@ -71,11 +71,10 @@ describe("enterprise shell navigation", () => {
     expect(hrefs).toContain("/administration");
   });
 
-  it("marks prototype destinations explicitly so they are not mistaken for production workspaces", () => {
-    const prototypes = linksFor(user()).filter((item) => item.badge === "Prototype");
-    expect(prototypes.map((item) => item.href)).toEqual(expect.arrayContaining([
-      "/tasks/intake",
-      "/prototype/task-templates"
-    ]));
+  it("adopts the approved task mockups into the shared workspace shell", () => {
+    const taskIntake = linksFor(user()).find((item) => item.href === "/tasks/intake");
+    const templates = linksFor(user()).find((item) => item.href === "/prototype/task-templates");
+    expect(taskIntake?.badge).toBe("Workspace");
+    expect(templates?.badge).toBe("Preview");
   });
 });

@@ -166,17 +166,17 @@ export const navigationGroups: NavigationGroup[] = [
       },
       {
         href: "/tasks/intake",
-        title: "Task Intake",
-        description: "Prototype guided work-shaping and readiness preview.",
+        title: "Task Intake Workspace",
+        description: "Guided work shaping, readiness, collaboration, and accountable handoff.",
         icon: PackageOpen,
-        badge: "Prototype"
+        badge: "Workspace"
       },
       {
         href: "/prototype/task-templates",
-        title: "Task Templates",
-        description: "Prototype-only enterprise workspace design.",
+        title: "Work Template Studio",
+        description: "Manager-owned templates and controlled workflow design.",
         icon: LayoutTemplate,
-        badge: "Prototype"
+        badge: "Preview"
       }
     ]
   },
