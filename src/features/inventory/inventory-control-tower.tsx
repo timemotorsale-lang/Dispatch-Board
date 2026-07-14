@@ -178,6 +178,9 @@ export function InventoryControlTower() {
         <Link href="/vehicles/shop-planning">Shop Planning</Link>
         <Link href="/vehicles/shop-dispatch">Shop Dispatch</Link>
         <Link href="/vehicles/quality-control">Quality Control</Link>
+        <Link href="/vehicles/advisor">Advisor Service</Link>
+        <Link href="/vehicles/comebacks">Comebacks</Link>
+        <Link href="/vehicles/shop-production">Shop Production</Link>
       </nav>
 
       <div className="ict-shell">

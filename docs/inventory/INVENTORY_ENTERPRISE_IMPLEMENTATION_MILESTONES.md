@@ -103,10 +103,10 @@ Implementation evidence: [`INVENTORY_UNIT_FOUNDATION_IMPLEMENTATION.md`](INVENTO
 | VEH-060 | [x] | Add technician/bay/resource requirements | Required skills, certifications, bay, tools, equipment, availability, location, and duration are separate from bookings. |
 | VEH-061 | [x] | Add shop dispatch board | Dispatchers can filter qualified work, book/rebook, current/next stage, inspect conflicts, and record override reasons. |
 | VEH-062 | [x] | Add technician execution workspace | Mobile users see current/next work, history, instructions, clocks, parts, evidence, blockers, and QC handoff with minimal taps. |
-| VEH-063 | [ ] | Add advisor service workspace | Advisors manage status, promises, estimates, approvals, customer contact, exceptions, and delivery readiness. |
+| VEH-063 | [x] | Add advisor service workspace | Advisors manage status, promises, estimates, approvals, customer contact, exceptions, and delivery readiness. |
 | VEH-064 | [x] | Add QC and release gate | Applicable completion, safety, peer verification, road test, evidence, and failed-QC return paths are enforced. |
-| VEH-065 | [ ] | Add comeback and follow-up linkage | A comeback references original job/correction, reason review, warranty responsibility, cost, and outcome without punitive automation. |
-| VEH-066 | [ ] | Add shop production projections | Productivity, efficiency, proficiency, first-pass yield, quality-adjusted proficiency, idle causes, and confidence reconcile. |
+| VEH-065 | [x] | Add comeback and follow-up linkage | A comeback references original job/correction, reason review, warranty responsibility, cost, and outcome without punitive automation. |
+| VEH-066 | [x] | Add shop production projections | Productivity, efficiency, proficiency, first-pass yield, quality-adjusted proficiency, idle causes, and confidence reconcile. |
 
 ## M5 — Parts and procurement
 
