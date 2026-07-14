@@ -299,6 +299,61 @@ enum InventoryUnitEventSource {
   MIGRATION
 }
 
+enum RepairOrderOrigin {
+  CUSTOMER_REPAIR
+  INVENTORY_RECON
+}
+
+enum RepairOrderIntakeSource {
+  APPOINTMENT
+  WALK_IN
+  INVENTORY_RECON
+}
+
+enum RepairOrderStage {
+  INTAKE
+  DIAGNOSIS
+  ESTIMATE
+  AUTHORIZATION
+  READY_FOR_REPAIR
+  REPAIR
+  QUALITY_CONTROL
+  ADVISOR_REVIEW
+  HANDOFF
+  CLOSED
+  CANCELLED
+}
+
+enum RepairOrderOperatingState {
+  ACTIVE
+  WAITING
+  BLOCKED
+  CLOSED
+}
+
+enum RepairOrderConsentStatus {
+  DOCUMENTED
+  NOT_REQUIRED
+  PENDING
+}
+
+enum RepairOrderTransportMode {
+  CUSTOMER_WAITING
+  DROP_OFF
+  LOANER
+  SHUTTLE
+  TOW
+  INTERNAL_TRANSPORT
+  OTHER
+}
+
+enum RepairOrderEventSource {
+  USER
+  SYSTEM
+  INTEGRATION
+  MIGRATION
+}
+
 enum AppointmentParticipantType {
   INTERNAL_USER
   CUSTOMER
@@ -621,6 +676,10 @@ model User {
   ownedInventoryUnits                    InventoryUnit[]                         @relation("InventoryUnitOwner")
   inventoryUnitStateEvents               InventoryUnitStateEvent[]               @relation("InventoryUnitStateActor")
   inventoryUnitStateOwnershipSnapshots   InventoryUnitStateEvent[]               @relation("InventoryUnitStateOwner")
+  ownedRepairOrders                      RepairOrder[]                            @relation("RepairOrderOwner")
+  createdServiceVisits                   ServiceVisit[]                           @relation("ServiceVisitCreatedBy")
+  repairOrderStateEvents                 RepairOrderStateEvent[]                  @relation("RepairOrderStateActor")
+  repairOrderStateOwnershipSnapshots     RepairOrderStateEvent[]                  @relation("RepairOrderStateOwner")
 
   @@index([isActive])
 }
@@ -724,6 +783,9 @@ model Organization {
   vehicleDuplicateCases                 VehicleDuplicateCase[]
   inventoryUnits                        InventoryUnit[]
   inventoryUnitStateEvents              InventoryUnitStateEvent[]
+  serviceVisits                         ServiceVisit[]
+  repairOrders                          RepairOrder[]
+  repairOrderStateEvents                RepairOrderStateEvent[]
   resourceTypes                         SchedulableResourceType[]
   resources                             SchedulableResource[]
   appointmentCatalogVersions            AppointmentCatalogVersion[]
@@ -784,6 +846,9 @@ model Location {
   vehicleCustodyEvents             VehicleCustodyEvent[]
   inventoryUnits                   InventoryUnit[]
   inventoryUnitStateEvents         InventoryUnitStateEvent[]
+  serviceVisits                   ServiceVisit[]
+  repairOrders                    RepairOrder[]
+  repairOrderStateEvents          RepairOrderStateEvent[]
 
   @@unique([organizationId, code])
   @@unique([id, organizationId])
@@ -1036,6 +1101,7 @@ model Appointment {
   commandLedgerEntries           AppointmentCommandLedger[]
   resourceRequirements           AppointmentResourceRequirement[]
   resourceReservations           AppointmentResourceReservation[]
+  serviceVisit                   ServiceVisit?
 
   @@index([locationId, startsAt, endsAt])
   @@index([locationId, bookingStatus, startsAt])
@@ -1103,6 +1169,8 @@ model Customer {
   registryVehicleRelationships VehicleRelationship[]
   documentRequirements    CustomerDocumentRequirement[]
   tasks                   Task[]
+  serviceVisits           ServiceVisit[]
+  repairOrders            RepairOrder[]
 
   @@unique([organizationId, customerNumber])
   @@unique([id, organizationId])
@@ -1308,6 +1376,8 @@ model Vehicle {
   mergedVehicles        Vehicle[]              @relation("VehicleMergeLineage")
   tasks                 Task[]
   inventoryUnits        InventoryUnit[]
+  serviceVisits         ServiceVisit[]
+  repairOrders          RepairOrder[]
 
   @@unique([organizationId, vehicleNumber])
   @@unique([id, organizationId])
@@ -1344,6 +1414,8 @@ model InventoryUnit {
   ownerUser             User                        @relation("InventoryUnitOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
   location              Location                    @relation(fields: [locationId], references: [id], onDelete: Restrict)
   stateEvents           InventoryUnitStateEvent[]
+  serviceVisits         ServiceVisit[]
+  repairOrders          RepairOrder[]
 
   @@unique([organizationId, inventoryNumber])
   @@unique([id, organizationId])
@@ -1378,6 +1450,120 @@ model InventoryUnitStateEvent {
   location           Location                    @relation(fields: [locationId], references: [id], onDelete: Restrict)
 
   @@unique([inventoryUnitId, version])
+  @@index([organizationId, occurredAt])
+  @@index([correlationId])
+  @@index([ownerUserId, occurredAt])
+}
+
+model ServiceVisit {
+  id                String                   @id @default(cuid())
+  organizationId    String
+  locationId        String
+  vehicleId         String
+  customerId        String?
+  appointmentId     String?                  @unique
+  inventoryUnitId   String?
+  origin            RepairOrderOrigin
+  intakeSource      RepairOrderIntakeSource
+  arrivedAt         DateTime
+  concernSummary    String
+  promisedAt        DateTime?
+  promiseNotes      String?
+  consentStatus     RepairOrderConsentStatus
+  consentReference  String?
+  consentedAt       DateTime?
+  keysReceivedCount Int                      @default(0)
+  keyTag            String?
+  transportMode     RepairOrderTransportMode
+  intakeNotes       String?
+  sourceSnapshot    Json?
+  createdByUserId   String
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  organization      Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location          Location                 @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  vehicle           Vehicle                  @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  customer          Customer?                @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  appointment       Appointment?             @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  inventoryUnit     InventoryUnit?           @relation(fields: [inventoryUnitId], references: [id], onDelete: Restrict)
+  createdByUser     User                     @relation("ServiceVisitCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  repairOrder       RepairOrder?
+
+  @@unique([id, organizationId])
+  @@index([organizationId, arrivedAt])
+  @@index([vehicleId, arrivedAt])
+  @@index([customerId, arrivedAt])
+  @@index([inventoryUnitId, arrivedAt])
+}
+
+model RepairOrder {
+  id                   String                    @id @default(cuid())
+  organizationId       String
+  locationId           String
+  serviceVisitId       String                    @unique
+  repairOrderNumber    String
+  vehicleId            String
+  customerId           String?
+  inventoryUnitId      String?
+  origin               RepairOrderOrigin
+  intakeSource         RepairOrderIntakeSource
+  stage                RepairOrderStage          @default(INTAKE)
+  operatingState       RepairOrderOperatingState @default(ACTIVE)
+  openedAt             DateTime
+  stageStartedAt       DateTime
+  ownerUserId          String
+  targetAt             DateTime
+  nextAction           String
+  stateReason          String?
+  version              Int                       @default(1)
+  closedAt             DateTime?
+  externalSystemCode   String?
+  externalReference    String?
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+  organization         Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location             Location                  @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  serviceVisit         ServiceVisit              @relation(fields: [serviceVisitId], references: [id], onDelete: Restrict)
+  vehicle              Vehicle                   @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  customer             Customer?                 @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  inventoryUnit        InventoryUnit?            @relation(fields: [inventoryUnitId], references: [id], onDelete: Restrict)
+  ownerUser            User                      @relation("RepairOrderOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  stateEvents          RepairOrderStateEvent[]
+
+  @@unique([organizationId, repairOrderNumber])
+  @@unique([id, organizationId])
+  @@unique([organizationId, externalSystemCode, externalReference])
+  @@index([organizationId, stage, operatingState, targetAt])
+  @@index([organizationId, ownerUserId, targetAt])
+  @@index([organizationId, locationId, stage])
+  @@index([vehicleId, closedAt])
+}
+
+model RepairOrderStateEvent {
+  id                 String                    @id @default(cuid())
+  organizationId     String
+  repairOrderId      String
+  version            Int
+  fromStage          RepairOrderStage?
+  toStage            RepairOrderStage
+  fromOperatingState RepairOrderOperatingState?
+  toOperatingState   RepairOrderOperatingState
+  ownerUserId        String
+  locationId         String
+  targetAt           DateTime
+  nextAction         String
+  reason             String
+  source             RepairOrderEventSource    @default(USER)
+  actorUserId        String
+  correlationId      String
+  occurredAt         DateTime                  @default(now())
+  repairOrder        RepairOrder               @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  organization       Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  ownerUser          User                      @relation("RepairOrderStateOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  actorUser          User                      @relation("RepairOrderStateActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  location           Location                  @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
+  @@unique([repairOrderId, version])
   @@index([organizationId, occurredAt])
   @@index([correlationId])
   @@index([ownerUserId, occurredAt])

@@ -173,6 +173,7 @@ export function InventoryControlTower() {
         ))}
         <Link href="/vehicles/registry">Open Registry</Link>
         <Link href="/vehicles/inventory">Inventory Units</Link>
+        <Link href="/vehicles/repair-orders">Repair Orders</Link>
       </nav>
 
       <div className="ict-shell">
