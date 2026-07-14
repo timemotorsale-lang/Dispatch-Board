@@ -9,5 +9,7 @@ export * from "./shop-operations";
 export * from "./vehicle-decisions";
 export * from "./vehicle-operations";
 export * from "./costs-velocity";
+export * from "./optimization-pilots";
+export * from "./enterprise-scale-gates";
 export * from "../integrations";
 
