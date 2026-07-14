@@ -1,5 +1,7 @@
 import {
   Activity,
+  BarChart3,
+  Boxes,
   CalendarDays,
   Car,
   ClipboardCheck,
@@ -9,6 +11,8 @@ import {
   LayoutTemplate,
   ListChecks,
   PackageOpen,
+  PlugZap,
+  ShieldCheck,
   Settings,
   Users,
   UserRound,
@@ -38,8 +42,8 @@ export const navigationGroups: NavigationGroup[] = [
     items: [
       {
         href: "/board",
-        title: "Dispatch Board",
-        description: "Daily operations and team visibility.",
+        title: "Command Center",
+        description: "Exceptions, priorities, and daily operational visibility.",
         icon: Gauge
       },
       {
@@ -109,8 +113,39 @@ export const navigationGroups: NavigationGroup[] = [
     ]
   },
   {
-    label: "Operations",
+    label: "Workspaces",
     items: [
+      {
+        href: "/inventory-manager",
+        title: "Inventory Manager Workspace",
+        description: "A cross-functional inventory view for daily operating decisions.",
+        icon: Boxes
+      },
+      {
+        href: "/vehicles/inventory",
+        title: "Inventory Operations",
+        description: "Acquisition, readiness, aging, and capital exposure.",
+        icon: Boxes
+      },
+      {
+        href: "/vehicles/shop-dispatch",
+        title: "Service Operations",
+        description: "Shop dispatch, execution, quality, and delivery readiness.",
+        icon: Wrench
+      },
+      {
+        href: "/vehicles/parts-counter",
+        title: "Parts Operations",
+        description: "Parts availability, reservations, receiving, and shortages.",
+        icon: PackageOpen
+      },
+      {
+        href: "/customers",
+        title: "Customer Operations",
+        description: "Customer lifecycle, promises, approvals, and follow-up.",
+        icon: UserRound,
+        matchExact: true
+      },
       {
         href: "/staff",
         title: "Team",
@@ -118,10 +153,16 @@ export const navigationGroups: NavigationGroup[] = [
         icon: Users
       },
       {
-        href: "/reports",
-        title: "Reports / Insights",
-        description: "Operating reports.",
-        icon: Wrench
+        href: "/insights",
+        title: "Insights",
+        description: "Scorecards, bottlenecks, forecasts, and recommendations.",
+        icon: BarChart3
+      },
+      {
+        href: "/integrations",
+        title: "Integrations",
+        description: "System events, provider health, and reconciliation signals.",
+        icon: PlugZap
       },
       {
         href: "/tasks/intake",
@@ -143,10 +184,10 @@ export const navigationGroups: NavigationGroup[] = [
     label: "Admin",
     items: [
       {
-        href: "/settings/team",
-        title: "Admin",
+        href: "/administration",
+        title: "Administration",
         description: "Staff accounts, roles, duties, templates, and access control.",
-        icon: Users,
+        icon: ShieldCheck,
         isVisible: (user) => canManageSettings(user)
       }
     ]

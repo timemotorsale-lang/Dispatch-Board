@@ -1634,6 +1634,21 @@ code {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 
+.workspace-context-card {
+  min-width: 230px;
+  display: grid;
+  gap: 5px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-soft);
+  color: var(--muted);
+}
+
+.workspace-context-card span { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.workspace-context-card strong { color: var(--ink); font-size: 15px; }
+.workspace-context-card small { line-height: 1.4; }
+
 .placeholder-route-card {
   max-width: 42rem;
 }
@@ -5998,6 +6013,15 @@ code {
   clip: rect(0 0 0 0);
 }
 .app-topbar { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; min-height: 76px; padding: 0 22px; background: rgba(255,255,255,.96); border-bottom: 1px solid #e3e8f0; backdrop-filter: blur(12px); }
+.topbar-workspace-switcher { margin-right: 8px; }
+.workspace-switcher-button { display: inline-flex; align-items: center; gap: 10px; min-width: 190px; padding: 8px 12px; border: 1px solid #dce4ef; border-radius: 10px; background: #f8fafc; color: #1e293b; cursor: pointer; text-align: left; }
+.workspace-switcher-button:hover { border-color: #a9b9ce; background: #f1f5f9; }
+.workspace-switcher-label { display: grid; gap: 2px; flex: 1; }
+.workspace-switcher-label small { color: #64748b; font-size: 9px; font-weight: 700; letter-spacing: .1em; }
+.workspace-switcher-label strong { font-size: 12px; line-height: 1.15; }
+.workspace-switcher-popover { right: 0; width: 290px; }
+.workspace-link-active { background: #eef5ff; }
+.workspace-link-active strong::after { content: "  • active"; color: #2563eb; font-size: 10px; font-weight: 600; }
 .app-topbar-minimal { min-height: 42px; }
 .app-topbar-minimal + .app-content { padding-top: 6px; }
 .app-topbar-tasks { min-height: 34px; }
@@ -8043,6 +8067,8 @@ code {
 
 @media (max-width: 980px) {
   .app-frame { display: block; }
+  .workspace-switcher-button { min-width: 44px; width: 44px; padding: 8px; justify-content: center; }
+  .workspace-switcher-label { display: none; }
   .app-sidebar { position: fixed; left: 0; width: 230px; transform: translateX(-102%); transition: transform .2s ease; box-shadow: 18px 0 40px rgba(4,12,24,.22); }.app-sidebar-open { transform: translateX(0); }.sidebar-close,.topbar-menu { display: grid; }.sidebar-scrim { position: fixed; inset: 0; z-index: 35; display: block; padding: 0; background: rgba(3,11,22,.48); border: 0; }
   .app-topbar { min-height: 64px; padding: 0 14px; }.app-content { padding: 14px; }
   .board-manager-panel-toggle { width: 100%; justify-content: space-between; }

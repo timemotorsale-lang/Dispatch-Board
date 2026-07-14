@@ -1,64 +1,81 @@
 import { describe, expect, it } from "vitest";
 
 import { getNavigationGroups } from "@/components/layout/navigation";
-import { createTestAuthStore } from "@/tests/support/auth-test-store";
+import type { AuthenticatedUser } from "@/server/auth/store";
 
-function listHrefs(groups: ReturnType<typeof getNavigationGroups>) {
-  return groups.flatMap((group) => group.items.map((item) => item.href));
+function user(overrides: Partial<AuthenticatedUser> = {}): AuthenticatedUser {
+  return {
+    id: "user-1",
+    name: "Alex Operator",
+    email: "alex@example.test",
+    isActive: true,
+    roles: ["Staff"],
+    duties: { direct: [], roleDefaults: [], all: [] },
+    ...overrides
+  };
 }
 
-describe("navigation visibility", () => {
-  it("hides manager-only routes from staff users", async () => {
-    const { usersByEmail } = await createTestAuthStore();
-    const staffUser = usersByEmail.get("jordan.sales@local.test");
+function linksFor(testUser: AuthenticatedUser) {
+  return getNavigationGroups(testUser).flatMap((group) => group.items);
+}
 
-    expect(staffUser).toBeDefined();
+describe("enterprise shell navigation", () => {
+  it("keeps the core daily operations reachable from the shared shell", () => {
+    const hrefs = linksFor(user()).map((item) => item.href);
 
-    const hrefs = listHrefs(getNavigationGroups(staffUser!));
-
-    expect(hrefs).not.toContain("/manager-review");
-    expect(hrefs).not.toContain("/settings");
-    expect(hrefs).not.toContain("/settings/team");
-    expect(hrefs).toContain("/staff");
-    expect(hrefs).toContain("/my-tasks");
-    expect(hrefs).toContain("/projects");
+    expect(hrefs).toEqual(expect.arrayContaining([
+      "/board",
+      "/my-tasks",
+      "/tasks",
+      "/vehicles",
+      "/customers",
+      "/customers/customer-360",
+      "/appointments",
+      "/activity",
+      "/insights",
+      "/integrations",
+      "/inventory-manager",
+      "/vehicles/inventory",
+      "/vehicles/shop-dispatch",
+      "/vehicles/parts-counter"
+    ]));
   });
 
-  it("shows manager routes for delegated and General Manager users", async () => {
-    const { usersByEmail } = await createTestAuthStore();
-    const generalManager = usersByEmail.get("morgan.manager@local.test");
-    const delegatedManager = {
-      id: "user-delegate",
-      name: "Delegated Lead",
-      email: "delegate@local.test",
-      isActive: true,
-      roles: ["Salesperson"],
+  it("exposes manager command and administration navigation only to managers", () => {
+    const staffHrefs = linksFor(user()).map((item) => item.href);
+    expect(staffHrefs).not.toContain("/manager-review");
+    expect(staffHrefs).not.toContain("/administration");
+    expect(staffHrefs).not.toContain("/settings");
+
+    const manager = user({
+      roles: ["General Manager"],
+      duties: { direct: [], roleDefaults: [], all: [] }
+    });
+    const managerHrefs = linksFor(manager).map((item) => item.href);
+    expect(managerHrefs).toContain("/manager-review");
+    expect(managerHrefs).toContain("/administration");
+    expect(managerHrefs).toContain("/settings");
+  });
+
+  it("supports delegated manager duties without requiring a second identity", () => {
+    const delegatedManager = user({
       duties: {
         direct: ["Delegated manager capabilities"],
         roleDefaults: [],
         all: ["Delegated manager capabilities"]
       }
-    };
+    });
 
-    expect(generalManager).toBeDefined();
+    const hrefs = linksFor(delegatedManager).map((item) => item.href);
+    expect(hrefs).toContain("/manager-review");
+    expect(hrefs).toContain("/administration");
+  });
 
-    expect(listHrefs(getNavigationGroups(generalManager!))).toEqual(
-      expect.arrayContaining([
-        "/manager-review",
-        "/settings",
-        "/settings/team",
-        "/staff",
-        "/projects"
-      ])
-    );
-    expect(listHrefs(getNavigationGroups(delegatedManager))).toEqual(
-      expect.arrayContaining([
-        "/manager-review",
-        "/settings",
-        "/settings/team",
-        "/staff",
-        "/projects"
-      ])
-    );
+  it("marks prototype destinations explicitly so they are not mistaken for production workspaces", () => {
+    const prototypes = linksFor(user()).filter((item) => item.badge === "Prototype");
+    expect(prototypes.map((item) => item.href)).toEqual(expect.arrayContaining([
+      "/tasks/intake",
+      "/prototype/task-templates"
+    ]));
   });
 });

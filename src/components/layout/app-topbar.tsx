@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Menu, Search } from "lucide-react";
+import { Bell, ChevronDown, Menu, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -34,6 +34,7 @@ export function AppTopbar({ onMenuOpen, user }: AppTopbarProps) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
+  const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false);
   const navigationItems = navigationGroups.flatMap((group) => group.items);
   const quickResults = useMemo(() => {
     const query = searchText.trim().toLowerCase();
@@ -68,12 +69,24 @@ export function AppTopbar({ onMenuOpen, user }: AppTopbarProps) {
     }
   ];
   const notificationCount = notificationLinks.length;
+  const workspaces = [
+    { href: "/board", label: "Command Center", detail: "Exceptions and priorities" },
+    { href: "/vehicles/inventory", label: "Inventory Operations", detail: "Acquisition and readiness" },
+    { href: "/vehicles/shop-dispatch", label: "Service Operations", detail: "Dispatch and execution" },
+    { href: "/vehicles/parts-counter", label: "Parts Operations", detail: "Availability and shortages" },
+    { href: "/customers", label: "Customer Operations", detail: "Lifecycle and promises" },
+    { href: "/insights", label: "Insights", detail: "Scorecards and forecasts" },
+    { href: "/integrations", label: "Integrations", detail: "Provider health and reconciliation" },
+    ...(isManager(user) ? [{ href: "/administration", label: "Administration", detail: "Governance and access" }] : [])
+  ];
+  const activeWorkspace = workspaces.find((workspace) => pathname === workspace.href || pathname.startsWith(`${workspace.href}/`)) ?? workspaces[0];
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
       if (!topbarActionsRef.current?.contains(event.target as Node)) {
         setIsSearchOpen(false);
         setIsNotificationsOpen(false);
+        setIsWorkspaceOpen(false);
       }
     }
 
@@ -81,6 +94,7 @@ export function AppTopbar({ onMenuOpen, user }: AppTopbarProps) {
       if (event.key === "Escape") {
         setIsSearchOpen(false);
         setIsNotificationsOpen(false);
+        setIsWorkspaceOpen(false);
       }
     }
 
@@ -122,6 +136,33 @@ export function AppTopbar({ onMenuOpen, user }: AppTopbarProps) {
         <div className="topbar-spacer" aria-hidden="true" />
       )}
       <div className="topbar-actions" ref={topbarActionsRef}>
+        <div className="topbar-popover-shell topbar-workspace-switcher">
+          <button
+            aria-expanded={isWorkspaceOpen}
+            className="workspace-switcher-button"
+            onClick={() => {
+              setIsWorkspaceOpen((current) => !current);
+              setIsSearchOpen(false);
+              setIsNotificationsOpen(false);
+            }}
+            type="button"
+          >
+            <span className="workspace-switcher-label"><small>WORKSPACE</small><strong>{activeWorkspace.label}</strong></span>
+            <ChevronDown size={16} aria-hidden="true" />
+          </button>
+          {isWorkspaceOpen ? (
+            <div className="topbar-popover workspace-switcher-popover">
+              <div className="topbar-popover-header"><strong>Switch workspace</strong><span>Your identity and permissions stay the same.</span></div>
+              <div className="topbar-popover-list">
+                {workspaces.map((workspace) => (
+                  <Link className={`topbar-popover-link ${workspace.href === activeWorkspace.href ? "workspace-link-active" : ""}`} href={workspace.href} key={workspace.href} onClick={() => setIsWorkspaceOpen(false)}>
+                    <strong>{workspace.label}</strong><span>{workspace.detail}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
         <div className="topbar-popover-shell">
           <button
             aria-expanded={isSearchOpen}
