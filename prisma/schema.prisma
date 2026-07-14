@@ -218,6 +218,58 @@ enum VehicleStatus {
   RETIRED
 }
 
+enum VehicleVinState {
+  VALID
+  NON_VIN_EXCEPTION
+  LEGACY_UNVERIFIED
+}
+
+enum VehicleRelationshipType {
+  CUSTOMER_OWNER
+  CUSTOMER_DRIVER
+  DEALERSHIP_OWNED
+  TRADE_IN
+  CONSIGNMENT
+  SOLD_TO_CUSTOMER
+  SERVICE_ONLY
+  OTHER
+}
+
+enum VehicleExternalIdentityConflictStatus {
+  CLEAR
+  CONFLICT
+  SUPERSEDED
+}
+
+enum VehicleOdometerUnit {
+  MILES
+  KILOMETERS
+}
+
+enum VehicleOdometerObservationStatus {
+  ACCEPTED
+  EXCEPTION
+  CORRECTED
+}
+
+enum VehicleCustodyEventType {
+  CHECK_IN
+  CHECK_OUT
+  LOT_MOVE
+  BAY_MOVE
+  TRANSPORT_PICKUP
+  TRANSPORT_DELIVERY
+  CUSTOMER_DELIVERY
+  CORRECTION
+}
+
+enum VehicleDuplicateCaseStatus {
+  OPEN
+  CONFIRMED_DISTINCT
+  MERGED
+  DISMISSED
+}
+
 enum AppointmentParticipantType {
   INTERNAL_USER
   CUSTOMER
@@ -534,6 +586,9 @@ model User {
   enterpriseAuditEvents                  EnterpriseAuditEvent[]                 @relation("EnterpriseAuditActor")
   updatedVehicleOperationsFeatureFlags   VehicleOperationsFeatureFlag[]         @relation("VehicleOperationsFeatureFlagUpdater")
   vehicleOperationsRolloutEvents         VehicleOperationsRolloutEvent[]        @relation("VehicleOperationsRolloutActor")
+  recordedVehicleOdometerObservations    VehicleOdometerObservation[]           @relation("VehicleOdometerRecorder")
+  recordedVehicleCustodyEvents           VehicleCustodyEvent[]                  @relation("VehicleCustodyRecorder")
+  resolvedVehicleDuplicateCases          VehicleDuplicateCase[]                 @relation("VehicleDuplicateResolver")
 
   @@index([isActive])
 }
@@ -630,6 +685,11 @@ model Organization {
   appointmentCommandLedgerEntries       AppointmentCommandLedger[]
   customers                             Customer[]
   vehicles                              Vehicle[]
+  vehicleRelationships                  VehicleRelationship[]
+  vehicleExternalIdentities             VehicleExternalIdentity[]
+  vehicleOdometerObservations           VehicleOdometerObservation[]
+  vehicleCustodyEvents                  VehicleCustodyEvent[]
+  vehicleDuplicateCases                 VehicleDuplicateCase[]
   resourceTypes                         SchedulableResourceType[]
   resources                             SchedulableResource[]
   appointmentCatalogVersions            AppointmentCatalogVersion[]
@@ -687,6 +747,7 @@ model Location {
   vehicleCapabilityGrants         VehicleCapabilityGrant[]
   vehicleOperationsFeatureFlags   VehicleOperationsFeatureFlag[]
   enterpriseProjectionCheckpoints EnterpriseProjectionCheckpoint[]
+  vehicleCustodyEvents             VehicleCustodyEvent[]
 
   @@unique([organizationId, code])
   @@unique([id, organizationId])
@@ -1003,10 +1064,12 @@ model Customer {
   interactions            CustomerInteraction[]
   notes                   CustomerNote[]
   vehicleRelationships    CustomerVehicle[]
+  registryVehicleRelationships VehicleRelationship[]
   documentRequirements    CustomerDocumentRequirement[]
   tasks                   Task[]
 
   @@unique([organizationId, customerNumber])
+  @@unique([id, organizationId])
   @@unique([organizationId, externalReference])
   @@index([organizationId, displayName])
   @@index([organizationId, duplicateKey])
@@ -1176,7 +1239,12 @@ model Vehicle {
   organizationId       String
   vehicleNumber        String
   vin                  String?
+  vinRaw               String?
+  vinState             VehicleVinState       @default(LEGACY_UNVERIFIED)
+  vinValidationSource  String?
+  nonVinReason          String?
   stockNumber          String?
+  stockNumberNormalized String?
   year                 Int?
   make                 String?
   model                String?
@@ -1185,6 +1253,8 @@ model Vehicle {
   status               VehicleStatus         @default(ACTIVE)
   externalReference    String?
   duplicateKey         String?
+  version              Int                   @default(0)
+  mergedIntoVehicleId  String?
   retentionUntil       DateTime?             @db.Date
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
@@ -1192,13 +1262,139 @@ model Vehicle {
   appointmentLinks     AppointmentVehicle[]
   schedulableResources SchedulableResource[] @relation("SchedulableResourceVehicle")
   customerRelationships CustomerVehicle[]
+  registryRelationships VehicleRelationship[]
+  externalIdentities    VehicleExternalIdentity[]
+  odometerObservations  VehicleOdometerObservation[]
+  custodyEvents         VehicleCustodyEvent[]
+  duplicateCasesAsPrimary VehicleDuplicateCase[] @relation("VehicleDuplicatePrimary")
+  duplicateCasesAsCandidate VehicleDuplicateCase[] @relation("VehicleDuplicateCandidate")
+  mergedIntoVehicle     Vehicle?              @relation("VehicleMergeLineage", fields: [mergedIntoVehicleId], references: [id], onDelete: Restrict)
+  mergedVehicles        Vehicle[]              @relation("VehicleMergeLineage")
+  tasks                 Task[]
 
   @@unique([organizationId, vehicleNumber])
+  @@unique([id, organizationId])
   @@unique([organizationId, vin])
+  @@unique([organizationId, stockNumberNormalized])
   @@unique([organizationId, externalReference])
   @@index([organizationId, stockNumber])
   @@index([organizationId, year, make, model])
   @@index([organizationId, duplicateKey])
+  @@index([organizationId, licensePlate])
+  @@index([mergedIntoVehicleId])
+}
+
+model VehicleRelationship {
+  id               String                  @id @default(cuid())
+  organizationId   String
+  vehicleId        String
+  customerId       String?
+  relationshipType VehicleRelationshipType
+  effectiveFrom    DateTime
+  effectiveTo      DateTime?
+  sourceCode       String
+  sourceReference  String?
+  notes            String?
+  createdAt        DateTime                @default(now())
+  organization     Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  vehicle          Vehicle                 @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  customer         Customer?               @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, vehicleId, relationshipType, effectiveFrom, customerId])
+  @@index([organizationId, customerId, effectiveTo])
+  @@index([vehicleId, effectiveTo])
+}
+
+model VehicleExternalIdentity {
+  id             String                                @id @default(cuid())
+  organizationId String
+  vehicleId      String
+  systemCode     String
+  externalId     String
+  authority      String
+  mappingVersion Int                                   @default(1)
+  lastSyncedAt   DateTime?
+  conflictStatus VehicleExternalIdentityConflictStatus @default(CLEAR)
+  conflictDetail String?
+  createdAt      DateTime                              @default(now())
+  updatedAt      DateTime                              @updatedAt
+  organization   Organization                          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  vehicle        Vehicle                               @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, systemCode, externalId])
+  @@index([vehicleId, systemCode])
+  @@index([organizationId, conflictStatus])
+}
+
+model VehicleOdometerObservation {
+  id                      String                           @id @default(cuid())
+  organizationId          String
+  vehicleId               String
+  reading                 Int
+  unit                    VehicleOdometerUnit              @default(MILES)
+  observedAt              DateTime
+  sourceCode              String
+  sourceReference         String?
+  status                  VehicleOdometerObservationStatus @default(ACCEPTED)
+  exceptionReason         String?
+  correctionOfId          String?
+  recordedByUserId        String
+  createdAt               DateTime                         @default(now())
+  organization            Organization                     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  vehicle                 Vehicle                          @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  correctionOf            VehicleOdometerObservation?      @relation("VehicleOdometerCorrection", fields: [correctionOfId], references: [id], onDelete: Restrict)
+  corrections             VehicleOdometerObservation[]     @relation("VehicleOdometerCorrection")
+  recordedByUser          User                             @relation("VehicleOdometerRecorder", fields: [recordedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([vehicleId, observedAt])
+  @@index([organizationId, status, observedAt])
+  @@index([correctionOfId])
+}
+
+model VehicleCustodyEvent {
+  id               String                  @id @default(cuid())
+  organizationId   String
+  vehicleId        String
+  locationId       String?
+  eventType        VehicleCustodyEventType
+  custodianType    String
+  custodianId      String?
+  positionLabel    String?
+  occurredAt       DateTime
+  sourceCode       String
+  sourceReference  String?
+  reason           String
+  recordedByUserId String
+  createdAt        DateTime                @default(now())
+  organization     Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  vehicle          Vehicle                 @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  location         Location?               @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  recordedByUser   User                    @relation("VehicleCustodyRecorder", fields: [recordedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([vehicleId, occurredAt])
+  @@index([organizationId, locationId, occurredAt])
+}
+
+model VehicleDuplicateCase {
+  id                 String                     @id @default(cuid())
+  organizationId     String
+  primaryVehicleId   String
+  candidateVehicleId String
+  status             VehicleDuplicateCaseStatus @default(OPEN)
+  matchReasons       Json
+  confidence         Int
+  resolutionReason   String?
+  resolvedByUserId   String?
+  resolvedAt         DateTime?
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+  organization       Organization               @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  primaryVehicle     Vehicle                    @relation("VehicleDuplicatePrimary", fields: [primaryVehicleId], references: [id], onDelete: Restrict)
+  candidateVehicle   Vehicle                    @relation("VehicleDuplicateCandidate", fields: [candidateVehicleId], references: [id], onDelete: Restrict)
+  resolvedByUser     User?                      @relation("VehicleDuplicateResolver", fields: [resolvedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, primaryVehicleId, candidateVehicleId])
+  @@index([organizationId, status, createdAt])
 }
 
 model AppointmentParticipant {
@@ -1797,6 +1993,7 @@ model Task {
   vehicleReference          String?
   customerReference         String?
   customerId                String?
+  vehicleId                 String?
   sourceType                TaskSourceType
   sourceTemplateId          String?
   templateSnapshot          Json?
@@ -1826,6 +2023,7 @@ model Task {
   completionOverrideByUser  User?                     @relation("TaskCompletionOverrideByUser", fields: [completionOverrideByUserId], references: [id], onDelete: SetNull)
   sourceTemplate            TaskTemplate?             @relation("TaskSourceTemplate", fields: [sourceTemplateId], references: [id], onDelete: SetNull)
   sourceDuty                Duty?                     @relation("TaskSourceDuty", fields: [sourceDutyId], references: [id], onDelete: SetNull)
+  vehicle                   Vehicle?                  @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
   activityEvents            ActivityEvent[]
   checklistItems            TaskChecklistItem[]
   comments                  TaskComment[]
@@ -1844,6 +2042,7 @@ model Task {
   @@index([boardDayId, workflowArea])
   @@index([acceptedByUserId, acceptedAt])
   @@index([completionOverrideByUserId, completionOverrideAt])
+  @@index([vehicleId])
   @@index([boardDayId, isClaimable, status])
   @@unique([boardDayId, carryoverSourceTaskId])
   @@index([carryoverReportId])

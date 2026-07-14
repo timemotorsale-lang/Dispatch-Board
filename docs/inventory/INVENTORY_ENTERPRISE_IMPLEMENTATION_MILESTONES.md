@@ -50,17 +50,19 @@ Implementation evidence: [`VEHICLE_OPERATIONS_COMMAND_FOUNDATION.md`](VEHICLE_OP
 
 ## M2 — Canonical vehicle registry
 
+Implementation evidence: [`VEHICLE_REGISTRY_IMPLEMENTATION.md`](VEHICLE_REGISTRY_IMPLEMENTATION.md) · ADR/migration map: [`VEHICLE_REGISTRY_ADR_MIGRATION_MAP.md`](VEHICLE_REGISTRY_ADR_MIGRATION_MAP.md)
+
 | ID | Status | Slice | Acceptance |
 | --- | --- | --- | --- |
-| VEH-020 | [ ] | Approve Vehicle ADR and migration map | Existing Vehicle, CustomerVehicle, appointment snapshots, and task references have one no-loss migration plan. |
-| VEH-021 | [ ] | Add canonical vehicle identity | VIN normalization, raw value, stock identity, non-VIN exception, and organization uniqueness are enforced. |
-| VEH-022 | [ ] | Add vehicle ownership and usage relationships | Customer, dealership, trade, consignment, sold, and historical relationships are effective-dated and auditable. |
-| VEH-023 | [ ] | Add external identity map | Every external vehicle ID retains system, authority, mapping version, sync time, and conflict state. |
-| VEH-024 | [ ] | Add odometer observation ledger | Readings are append-only; implausible sequence and correction workflows create visible exceptions. |
-| VEH-025 | [ ] | Add vehicle custody and location events | Current location is projected from attributable moves, check-in/out, transport, bay, lot, and delivery events. |
-| VEH-026 | [ ] | Add vehicle duplicate-review workflow | Potential duplicates are blocked from silent merge and managers can resolve with retained lineage. |
-| VEH-027 | [ ] | Add vehicle registry APIs and search | VIN, partial VIN, stock, plate, year/make/model, customer, and external ID searches are tenant-safe and paginated. |
-| VEH-028 | [ ] | Add vehicle identity UI and import preview | Users can create, inspect, validate, import, reconcile, and correct identities without raw database access. |
+| VEH-020 | [x] | Approve Vehicle ADR and migration map | Existing Vehicle, CustomerVehicle, appointment snapshots, and task references have one no-loss migration plan. |
+| VEH-021 | [x] | Add canonical vehicle identity | VIN normalization, raw value, stock identity, non-VIN exception, and organization uniqueness are enforced. |
+| VEH-022 | [x] | Add vehicle ownership and usage relationships | Customer, dealership, trade, consignment, sold, and historical relationships are effective-dated and auditable. |
+| VEH-023 | [x] | Add external identity map | Every external vehicle ID retains system, authority, mapping version, sync time, and conflict state. |
+| VEH-024 | [x] | Add odometer observation ledger | Readings are append-only; implausible sequence and correction workflows create visible exceptions. |
+| VEH-025 | [x] | Add vehicle custody and location events | Current location is projected from attributable moves, check-in/out, transport, bay, lot, and delivery events. |
+| VEH-026 | [x] | Add vehicle duplicate-review workflow | Potential duplicates are blocked from silent merge and managers can resolve with retained lineage. |
+| VEH-027 | [x] | Add vehicle registry APIs and search | VIN, partial VIN, stock, plate, year/make/model, customer, and external ID searches are tenant-safe and paginated. |
+| VEH-028 | [x] | Add vehicle identity UI and import preview | Users can create, inspect, validate, import, reconcile, and correct identities without raw database access. |
 
 ## M3 — Retail inventory lifecycle
 
