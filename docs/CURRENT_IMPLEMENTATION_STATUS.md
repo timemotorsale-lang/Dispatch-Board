@@ -1,5 +1,9 @@
 # Current Implementation Status
 
+## 2026-07-14 — Wave 5: retail inventory acquisition, readiness, and sale lifecycle
+
+VEH-031–VEH-040 are implemented in the repository. Inventory units now have versioned acquisition appraisals, purchase-authority limits, transport/receipt evidence, recon handoffs, title/document readiness, merchandising packages, frontline gates, controlled reservation/sale/delivery/reversal transitions, cost exposure projections, and lifecycle velocity policy evaluation. The migration is source-controlled and the existing retail-inventory rollout gate remains the activation control. Validation passed with typecheck, lint, and the full test suite.
+
 ## 2026-07-14 — Wave 4: customer lifecycle, warranty, commercial handoffs, and policy administration
 
 Milestones 7A–8A are implemented in the repository. The console now provides canonical customer/service history, versioned service promises and transportation state, purpose-specific consent with quiet-time enforcement, exact-version customer estimate decisions, an explicitly published customer-safe timeline, warranty coverage-to-recovery records, returned invoice-total reconciliation, governed sales/F&I/title/delivery handoffs, scoped expiring customer/partner portal access, and versioned policy simulation/four-eyes approval/pilot/rollback. The operator workspace is `/vehicles/customer-lifecycle`; the public portal is token scoped and excludes internal notes and restricted evidence. The source migration is not deployed and the `CUSTOMER_LIFECYCLE` rollout flag defaults to `OFF`. See [`docs/inventory/CUSTOMER_LIFECYCLE_COMMERCIAL_POLICY_IMPLEMENTATION.md`](inventory/CUSTOMER_LIFECYCLE_COMMERCIAL_POLICY_IMPLEMENTATION.md).

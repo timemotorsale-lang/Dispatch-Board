@@ -299,6 +299,45 @@ enum InventoryUnitEventSource {
   MIGRATION
 }
 
+enum InventoryAppraisalConfidence {
+  LOW
+  MEDIUM
+  HIGH
+  UNKNOWN
+}
+
+enum InventoryAcquisitionDecisionStatus {
+  DRAFT
+  RECOMMENDED
+  APPROVED
+  DECLINED
+  SUPERSEDED
+}
+
+enum InventoryPurchaseAuthorizationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+  REVOKED
+}
+
+enum InventoryReceiptStatus {
+  PLANNED
+  IN_TRANSIT
+  RECEIVED
+  EXCEPTION
+  CANCELLED
+}
+
+enum InventoryTitleReadinessStatus {
+  NOT_STARTED
+  INCOMPLETE
+  READY
+  BLOCKED
+  EXPIRED
+}
+
 enum RepairOrderOrigin {
   CUSTOMER_REPAIR
   INVENTORY_RECON
@@ -1141,11 +1180,11 @@ model User {
   uploadedVehicleEvidenceObjects        VehicleEvidenceObject[]                @relation("VehicleEvidenceUploader")
   createdVehicleEvidenceLinks           VehicleEvidenceLink[]                  @relation("VehicleEvidenceLinkCreator")
   vehicleEvidenceEvents                 VehicleEvidenceEvent[]                 @relation("VehicleEvidenceEventActor")
-  createdWorkKnowledgeLinks              WorkKnowledgeLink[]                    @relation("WorkKnowledgeCreator")
-  approvedWorkKnowledgeLinks             WorkKnowledgeLink[]                    @relation("WorkKnowledgeApprover")
-  workKnowledgeEvents                    WorkKnowledgeEvent[]                   @relation("WorkKnowledgeEventActor")
+  createdWorkKnowledgeLinks             WorkKnowledgeLink[]                    @relation("WorkKnowledgeCreator")
+  approvedWorkKnowledgeLinks            WorkKnowledgeLink[]                    @relation("WorkKnowledgeApprover")
+  workKnowledgeEvents                   WorkKnowledgeEvent[]                   @relation("WorkKnowledgeEventActor")
   requestedVehicleOutputs               VehicleControlledOutput[]              @relation("VehicleOutputRequester")
-  vehicleOutputEvents                    VehicleControlledOutputEvent[]         @relation("VehicleOutputEventActor")
+  vehicleOutputEvents                   VehicleControlledOutputEvent[]         @relation("VehicleOutputEventActor")
 
   @@index([isActive])
 }
@@ -1249,6 +1288,13 @@ model Organization {
   vehicleDuplicateCases                 VehicleDuplicateCase[]
   inventoryUnits                        InventoryUnit[]
   inventoryUnitStateEvents              InventoryUnitStateEvent[]
+  inventoryAcquisitionAppraisals        InventoryAcquisitionAppraisal[]
+  inventoryPurchaseAuthorizations       InventoryPurchaseAuthorization[]
+  inventoryReceipts                     InventoryReceipt[]
+  inventoryReconHandoffs                InventoryReconHandoff[]
+  inventoryTitleReadiness               InventoryTitleReadiness[]
+  inventoryMerchandisingPackages        InventoryMerchandisingPackage[]
+  inventorySaleEvents                   InventorySaleEvent[]
   serviceVisits                         ServiceVisit[]
   repairOrders                          RepairOrder[]
   repairOrderStateEvents                RepairOrderStateEvent[]
@@ -1923,30 +1969,38 @@ model Vehicle {
 }
 
 model InventoryUnit {
-  id                  String                      @id @default(cuid())
-  organizationId      String
-  vehicleId           String
-  inventoryNumber     String
-  lifecycleStage      InventoryUnitLifecycleStage @default(PURCHASED_OR_TRADE_IN)
-  operatingState      InventoryUnitOperatingState @default(ACTIVE)
-  financialAcquiredAt DateTime
-  stageStartedAt      DateTime
-  ownerUserId         String
-  locationId          String
-  targetAt            DateTime
-  nextAction          String
-  stateReason         String?
-  version             Int                         @default(1)
-  closedAt            DateTime?
-  createdAt           DateTime                    @default(now())
-  updatedAt           DateTime                    @updatedAt
-  organization        Organization                @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  vehicle             Vehicle                     @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
-  ownerUser           User                        @relation("InventoryUnitOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
-  location            Location                    @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  stateEvents         InventoryUnitStateEvent[]
-  serviceVisits       ServiceVisit[]
-  repairOrders        RepairOrder[]
+  id                     String                           @id @default(cuid())
+  organizationId         String
+  vehicleId              String
+  inventoryNumber        String
+  lifecycleStage         InventoryUnitLifecycleStage      @default(PURCHASED_OR_TRADE_IN)
+  operatingState         InventoryUnitOperatingState      @default(ACTIVE)
+  financialAcquiredAt    DateTime
+  stageStartedAt         DateTime
+  ownerUserId            String
+  locationId             String
+  targetAt               DateTime
+  nextAction             String
+  stateReason            String?
+  version                Int                              @default(1)
+  closedAt               DateTime?
+  createdAt              DateTime                         @default(now())
+  updatedAt              DateTime                         @updatedAt
+  organization           Organization                     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  vehicle                Vehicle                          @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  ownerUser              User                             @relation("InventoryUnitOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  location               Location                         @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  stateEvents            InventoryUnitStateEvent[]
+  serviceVisits          ServiceVisit[]
+  repairOrders           RepairOrder[]
+  costEntries            InventoryUnitCost[]
+  acquisitionAppraisals  InventoryAcquisitionAppraisal[]
+  purchaseAuthorizations InventoryPurchaseAuthorization[]
+  receipts               InventoryReceipt[]
+  reconHandoffs          InventoryReconHandoff[]
+  titleReadiness         InventoryTitleReadiness[]
+  merchandisingPackage   InventoryMerchandisingPackage?
+  saleEvents             InventorySaleEvent[]
 
   @@unique([organizationId, inventoryNumber])
   @@unique([id, organizationId])
@@ -1954,6 +2008,89 @@ model InventoryUnit {
   @@index([organizationId, ownerUserId, targetAt])
   @@index([organizationId, locationId, lifecycleStage])
   @@index([vehicleId, closedAt])
+}
+
+/// Immutable financial observations supporting inventory exposure and gross-per-day reporting.
+model InventoryUnitCost {
+  id              String        @id @default(cuid())
+  organizationId  String
+  inventoryUnitId String
+  category        String
+  amountCents     Int
+  currency        String        @default("USD")
+  status          String        @default("ESTIMATED")
+  source          String
+  confidence      String        @default("MEDIUM")
+  observedAt      DateTime      @default(now())
+  incurredAt      DateTime?
+  recoveredAt     DateTime?
+  reference       String?
+  notes           String?
+  createdByUserId String?
+  createdAt       DateTime      @default(now())
+  inventoryUnit   InventoryUnit @relation(fields: [inventoryUnitId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, inventoryUnitId, category, observedAt])
+  @@index([organizationId, status, observedAt])
+}
+
+/// Effective-dated, versioned lifecycle targets used by velocity/SLA evaluation.
+model InventoryLifecyclePolicy {
+  id                String    @id @default(cuid())
+  organizationId    String
+  policyCode        String
+  version           Int
+  status            String    @default("DRAFT")
+  configuration     Json
+  effectiveFrom     DateTime?
+  effectiveTo       DateTime?
+  approvedByUserId  String?
+  approvedAt        DateTime?
+  activatedByUserId String?
+  activatedAt       DateTime?
+  reason            String
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([organizationId, policyCode, version])
+  @@index([organizationId, policyCode, status, effectiveFrom])
+}
+
+/// Governed merchandising evidence for a retail inventory unit (VEH-036/037).
+model InventoryMerchandisingPackage {
+  id              String        @id @default(cuid())
+  organizationId  String
+  inventoryUnitId String        @unique
+  status          String        @default("DRAFT")
+  photoReferences Json          @default("[]")
+  description     String?
+  priceCents      Int?
+  listingChannels Json          @default("[]")
+  frontlineReady  Boolean       @default(false)
+  version         Int           @default(1)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  inventoryUnit   InventoryUnit @relation(fields: [inventoryUnitId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status])
+}
+
+/// Immutable commercial lifecycle events (reservation, sale, delivery, reversal) (VEH-038).
+model InventorySaleEvent {
+  id              String        @id @default(cuid())
+  organizationId  String
+  inventoryUnitId String
+  eventType       String
+  reference       String?
+  reason          String
+  actorUserId     String
+  occurredAt      DateTime      @default(now())
+  metadata        Json?
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  inventoryUnit   InventoryUnit @relation(fields: [inventoryUnitId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, inventoryUnitId, occurredAt])
 }
 
 model InventoryUnitStateEvent {
@@ -1984,6 +2121,123 @@ model InventoryUnitStateEvent {
   @@index([organizationId, occurredAt])
   @@index([correlationId])
   @@index([ownerUserId, occurredAt])
+}
+
+/// Immutable appraisal evidence and decision history for an inventory opportunity.
+model InventoryAcquisitionAppraisal {
+  id                   String                             @id @default(cuid())
+  organizationId       String
+  inventoryUnitId      String
+  version              Int
+  conditionSummary     Json
+  comparableSnapshot   Json
+  evidenceObjectIds    Json
+  confidence           InventoryAppraisalConfidence       @default(UNKNOWN)
+  estimatedRetailCents Int?
+  estimatedReconCents  Int?
+  estimatedFeesCents   Int?
+  decisionStatus       InventoryAcquisitionDecisionStatus @default(DRAFT)
+  decisionReason       String?
+  evaluatedAt          DateTime
+  createdByUserId      String
+  createdAt            DateTime                           @default(now())
+  organization         Organization                       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  inventoryUnit        InventoryUnit                      @relation(fields: [inventoryUnitId], references: [id], onDelete: Restrict)
+
+  @@unique([inventoryUnitId, version])
+  @@index([organizationId, decisionStatus, evaluatedAt])
+}
+
+/// Explicit authority decision for a maximum purchase amount.
+model InventoryPurchaseAuthorization {
+  id                  String                               @id @default(cuid())
+  organizationId      String
+  inventoryUnitId     String
+  appraisalId         String?
+  version             Int
+  maximumBidCents     Int
+  authorityLimitCents Int?
+  status              InventoryPurchaseAuthorizationStatus @default(PENDING)
+  evidenceObjectIds   Json
+  reason              String
+  decidedByUserId     String?
+  decidedAt           DateTime?
+  expiresAt           DateTime?
+  createdAt           DateTime                             @default(now())
+  organization        Organization                         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  inventoryUnit       InventoryUnit                        @relation(fields: [inventoryUnitId], references: [id], onDelete: Restrict)
+
+  @@unique([inventoryUnitId, version])
+  @@index([organizationId, status, expiresAt])
+}
+
+/// Custody, condition, and intake evidence at transportation receipt.
+model InventoryReceipt {
+  id                 String                 @id @default(cuid())
+  organizationId     String
+  inventoryUnitId    String
+  status             InventoryReceiptStatus @default(PLANNED)
+  source             String
+  transportReference String?
+  carrier            String?
+  dispatchedAt       DateTime?
+  arrivedAt          DateTime?
+  custodyFrom        String?
+  custodyTo          String?
+  damageSummary      String?
+  keyCount           Int?
+  documentSummary    Json
+  evidenceObjectIds  Json
+  exceptionReason    String?
+  recordedByUserId   String
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  organization       Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  inventoryUnit      InventoryUnit          @relation(fields: [inventoryUnitId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status, arrivedAt])
+  @@index([inventoryUnitId, createdAt])
+}
+
+/// Links a completed inspection to one recon repair order without duplicating work.
+model InventoryReconHandoff {
+  id                String        @id @default(cuid())
+  organizationId    String
+  inventoryUnitId   String
+  repairOrderId     String
+  inspectionVersion Int
+  planSnapshot      Json
+  evidenceObjectIds Json
+  handedOffByUserId String
+  handedOffAt       DateTime      @default(now())
+  organization      Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  inventoryUnit     InventoryUnit @relation(fields: [inventoryUnitId], references: [id], onDelete: Restrict)
+
+  @@unique([inventoryUnitId, inspectionVersion])
+  @@index([organizationId, handedOffAt])
+  @@index([repairOrderId])
+}
+
+/// Versioned title/document checklist that gates downstream readiness.
+model InventoryTitleReadiness {
+  id                   String                        @id @default(cuid())
+  organizationId       String
+  inventoryUnitId      String
+  version              Int
+  status               InventoryTitleReadinessStatus @default(NOT_STARTED)
+  requiredDocuments    Json
+  documentStatuses     Json
+  evidenceObjectIds    Json
+  externalDependencies Json
+  blockerReasons       Json
+  ownerUserId          String
+  evaluatedAt          DateTime
+  createdAt            DateTime                      @default(now())
+  organization         Organization                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  inventoryUnit        InventoryUnit                 @relation(fields: [inventoryUnitId], references: [id], onDelete: Restrict)
+
+  @@unique([inventoryUnitId, version])
+  @@index([organizationId, status, evaluatedAt])
 }
 
 model ServiceVisit {
@@ -2324,35 +2578,35 @@ model WorkProcedureVersion {
 }
 
 model WorkKnowledgeLink {
-  id                 String              @id @default(cuid())
+  id                 String                @id @default(cuid())
   organizationId     String
   workTypeCode       String
   procedureVersionId String?
   type               WorkKnowledgeType
-  status             WorkKnowledgeStatus @default(DRAFT)
+  status             WorkKnowledgeStatus   @default(DRAFT)
   title              String
   uri                String
   sourceOrganization String
   sourceReference    String
   revision           String
   contentHashSha256  String
-  authority          String              @default("REFERENCE_ONLY")
+  authority          String                @default("REFERENCE_ONLY")
   effectiveFrom      DateTime
   effectiveTo        DateTime?
-  supersedesId       String?             @unique
+  supersedesId       String?               @unique
   createdByUserId    String
   approvedByUserId   String?
   approvedAt         DateTime?
   reason             String
-  version            Int                 @default(1)
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  version            Int                   @default(1)
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  organization       Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   procedureVersion   WorkProcedureVersion? @relation(fields: [procedureVersionId], references: [id], onDelete: Restrict)
-  supersedes         WorkKnowledgeLink?  @relation("WorkKnowledgeSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
-  supersededBy       WorkKnowledgeLink?  @relation("WorkKnowledgeSupersession")
-  createdByUser      User                @relation("WorkKnowledgeCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  approvedByUser     User?               @relation("WorkKnowledgeApprover", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+  supersedes         WorkKnowledgeLink?    @relation("WorkKnowledgeSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy       WorkKnowledgeLink?    @relation("WorkKnowledgeSupersession")
+  createdByUser      User                  @relation("WorkKnowledgeCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  approvedByUser     User?                 @relation("WorkKnowledgeApprover", fields: [approvedByUserId], references: [id], onDelete: Restrict)
   events             WorkKnowledgeEvent[]
 
   @@unique([organizationId, sourceOrganization, sourceReference, revision])
@@ -2361,18 +2615,18 @@ model WorkKnowledgeLink {
 }
 
 model WorkKnowledgeEvent {
-  id                 String                 @id @default(cuid())
-  organizationId     String
-  knowledgeLinkId    String
-  actorUserId        String
-  eventType          WorkKnowledgeEventType
-  reason             String
-  metadata           Json
-  occurredAt         DateTime               @default(now())
-  createdAt          DateTime               @default(now())
-  organization       Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  knowledgeLink      WorkKnowledgeLink      @relation(fields: [knowledgeLinkId], references: [id], onDelete: Restrict)
-  actorUser          User                   @relation("WorkKnowledgeEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  id              String                 @id @default(cuid())
+  organizationId  String
+  knowledgeLinkId String
+  actorUserId     String
+  eventType       WorkKnowledgeEventType
+  reason          String
+  metadata        Json
+  occurredAt      DateTime               @default(now())
+  createdAt       DateTime               @default(now())
+  organization    Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  knowledgeLink   WorkKnowledgeLink      @relation(fields: [knowledgeLinkId], references: [id], onDelete: Restrict)
+  actorUser       User                   @relation("WorkKnowledgeEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
 
   @@index([knowledgeLinkId, occurredAt])
   @@index([organizationId, eventType, occurredAt])
@@ -3595,24 +3849,24 @@ model VehicleEvidenceEvent {
 }
 
 model VehicleControlledOutput {
-  id                 String                      @id @default(cuid())
-  organizationId     String
-  vehicleId          String
-  requestedByUserId  String
-  format             VehicleOutputFormat
-  classification     VehicleOutputClassification
-  reason             String
-  watermark          String
-  fieldManifest      Json
-  redactedFields     Json
-  packageSnapshot    Json
-  checksumSha256     String
-  expiresAt          DateTime
-  createdAt          DateTime                    @default(now())
-  organization       Organization                @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  vehicle            Vehicle                     @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
-  requestedByUser    User                        @relation("VehicleOutputRequester", fields: [requestedByUserId], references: [id], onDelete: Restrict)
-  events             VehicleControlledOutputEvent[]
+  id                String                         @id @default(cuid())
+  organizationId    String
+  vehicleId         String
+  requestedByUserId String
+  format            VehicleOutputFormat
+  classification    VehicleOutputClassification
+  reason            String
+  watermark         String
+  fieldManifest     Json
+  redactedFields    Json
+  packageSnapshot   Json
+  checksumSha256    String
+  expiresAt         DateTime
+  createdAt         DateTime                       @default(now())
+  organization      Organization                   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  vehicle           Vehicle                        @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  requestedByUser   User                           @relation("VehicleOutputRequester", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  events            VehicleControlledOutputEvent[]
 
   @@unique([organizationId, checksumSha256])
   @@index([organizationId, vehicleId, createdAt])
@@ -3620,18 +3874,18 @@ model VehicleControlledOutput {
 }
 
 model VehicleControlledOutputEvent {
-  id                 String                 @id @default(cuid())
-  organizationId     String
-  outputId           String
-  actorUserId        String
-  eventType          VehicleOutputEventType
-  reason             String
-  metadata           Json
-  occurredAt         DateTime               @default(now())
-  createdAt          DateTime               @default(now())
-  organization       Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  output             VehicleControlledOutput @relation(fields: [outputId], references: [id], onDelete: Restrict)
-  actorUser          User                   @relation("VehicleOutputEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  id             String                  @id @default(cuid())
+  organizationId String
+  outputId       String
+  actorUserId    String
+  eventType      VehicleOutputEventType
+  reason         String
+  metadata       Json
+  occurredAt     DateTime                @default(now())
+  createdAt      DateTime                @default(now())
+  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  output         VehicleControlledOutput @relation(fields: [outputId], references: [id], onDelete: Restrict)
+  actorUser      User                    @relation("VehicleOutputEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
 
   @@index([outputId, occurredAt])
   @@index([organizationId, eventType, occurredAt])
@@ -4665,27 +4919,27 @@ model EnterpriseProjectionCheckpoint {
 }
 
 model CustomerServicePromise {
-  id                     String   @id @default(cuid())
-  organizationId         String
-  repairOrderId          String
-  customerId             String?
-  locationId             String
-  arrivalWindowStart     DateTime?
-  arrivalWindowEnd       DateTime?
-  completionWindowStart  DateTime
-  completionWindowEnd    DateTime
-  transportMode          String
-  transportStatus        String
-  status                 String   @default("ACTIVE")
-  breachReason           String?
-  recoveryAction         String?
-  ownerUserId            String
-  createdByUserId        String
-  version                Int      @default(1)
-  effectiveAt            DateTime
-  fulfilledAt            DateTime?
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  id                    String    @id @default(cuid())
+  organizationId        String
+  repairOrderId         String
+  customerId            String?
+  locationId            String
+  arrivalWindowStart    DateTime?
+  arrivalWindowEnd      DateTime?
+  completionWindowStart DateTime
+  completionWindowEnd   DateTime
+  transportMode         String
+  transportStatus       String
+  status                String    @default("ACTIVE")
+  breachReason          String?
+  recoveryAction        String?
+  ownerUserId           String
+  createdByUserId       String
+  version               Int       @default(1)
+  effectiveAt           DateTime
+  fulfilledAt           DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   @@unique([repairOrderId, version])
   @@index([organizationId, status, completionWindowEnd])
@@ -4693,23 +4947,23 @@ model CustomerServicePromise {
 }
 
 model CustomerCommunicationPreference {
-  id              String    @id @default(cuid())
-  organizationId  String
-  customerId      String
-  channel         String
-  purpose         String
-  status          String
-  source          String
-  sourceReference String?
-  quietStartLocal String?
-  quietEndLocal   String?
-  timezone        String
-  effectiveFrom   DateTime
-  effectiveTo     DateTime?
+  id               String    @id @default(cuid())
+  organizationId   String
+  customerId       String
+  channel          String
+  purpose          String
+  status           String
+  source           String
+  sourceReference  String?
+  quietStartLocal  String?
+  quietEndLocal    String?
+  timezone         String
+  effectiveFrom    DateTime
+  effectiveTo      DateTime?
   recordedByUserId String
-  reason          String
-  version         Int       @default(1)
-  createdAt       DateTime  @default(now())
+  reason           String
+  version          Int       @default(1)
+  createdAt        DateTime  @default(now())
 
   @@unique([customerId, channel, purpose, version])
   @@index([organizationId, customerId, channel, purpose, effectiveFrom])
@@ -4747,78 +5001,78 @@ model CustomerEstimateApprovalRequest {
 }
 
 model CustomerServiceStatusEvent {
-  id                  String   @id @default(cuid())
-  organizationId      String
-  repairOrderId       String
-  customerId          String?
-  code                String
-  headline            String
-  customerMessage     String
-  promiseSummary      String?
-  delaySummary        String?
-  actionNeeded        String?
-  contactName         String?
-  contactMethod       String?
-  sourceType          String
-  sourceId            String
-  publishedByUserId   String
-  publishedAt         DateTime
-  createdAt           DateTime @default(now())
+  id                String   @id @default(cuid())
+  organizationId    String
+  repairOrderId     String
+  customerId        String?
+  code              String
+  headline          String
+  customerMessage   String
+  promiseSummary    String?
+  delaySummary      String?
+  actionNeeded      String?
+  contactName       String?
+  contactMethod     String?
+  sourceType        String
+  sourceId          String
+  publishedByUserId String
+  publishedAt       DateTime
+  createdAt         DateTime @default(now())
 
   @@index([organizationId, repairOrderId, publishedAt])
   @@index([customerId, publishedAt])
 }
 
 model VehicleWarrantyCoverage {
-  id                   String    @id @default(cuid())
-  organizationId       String
-  vehicleId            String
-  providerCode         String
-  contractReference    String
-  coverageType         String
-  coveredComponents    Json
-  exclusions           Json
-  deductibleCents      Int
-  mileageLimit         Int?
-  effectiveFrom        DateTime
-  effectiveTo          DateTime?
-  status               String    @default("ACTIVE")
-  evidenceObjectIds    Json
-  createdByUserId      String
-  version              Int       @default(1)
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  id                String    @id @default(cuid())
+  organizationId    String
+  vehicleId         String
+  providerCode      String
+  contractReference String
+  coverageType      String
+  coveredComponents Json
+  exclusions        Json
+  deductibleCents   Int
+  mileageLimit      Int?
+  effectiveFrom     DateTime
+  effectiveTo       DateTime?
+  status            String    @default("ACTIVE")
+  evidenceObjectIds Json
+  createdByUserId   String
+  version           Int       @default(1)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@unique([organizationId, providerCode, contractReference, version])
   @@index([vehicleId, status, effectiveTo])
 }
 
 model VehicleWarrantyClaim {
-  id                       String    @id @default(cuid())
-  organizationId           String
-  vehicleId                String
-  repairOrderId            String
-  coverageId               String
-  claimNumber              String
-  status                   String    @default("DRAFT")
-  eligibilitySnapshot      Json
-  authorizationReference   String?
-  authorizedAt             DateTime?
-  laborLineKeys            Json
-  partLineKeys             Json
-  evidenceObjectIds        Json
-  submittedAmountCents     Int
-  approvedAmountCents      Int?
-  paidAmountCents          Int?
-  recoveredAmountCents     Int?
-  decisionReason           String?
-  submittedAt              DateTime?
-  decidedAt                DateTime?
-  paidAt                   DateTime?
-  createdByUserId          String
-  version                  Int       @default(1)
-  createdAt                DateTime  @default(now())
-  updatedAt                DateTime  @updatedAt
+  id                     String    @id @default(cuid())
+  organizationId         String
+  vehicleId              String
+  repairOrderId          String
+  coverageId             String
+  claimNumber            String
+  status                 String    @default("DRAFT")
+  eligibilitySnapshot    Json
+  authorizationReference String?
+  authorizedAt           DateTime?
+  laborLineKeys          Json
+  partLineKeys           Json
+  evidenceObjectIds      Json
+  submittedAmountCents   Int
+  approvedAmountCents    Int?
+  paidAmountCents        Int?
+  recoveredAmountCents   Int?
+  decisionReason         String?
+  submittedAt            DateTime?
+  decidedAt              DateTime?
+  paidAt                 DateTime?
+  createdByUserId        String
+  version                Int       @default(1)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   @@unique([organizationId, claimNumber])
   @@index([repairOrderId, status])
@@ -4836,7 +5090,7 @@ model ServiceInvoiceReconciliation {
   returnedTotalCents    Int
   expectedTotalCents    Int
   discrepancyCents      Int
-  discrepancyCodes     Json
+  discrepancyCodes      Json
   status                String
   reconciledByUserId    String
   reconciledAt          DateTime
@@ -4848,26 +5102,26 @@ model ServiceInvoiceReconciliation {
 }
 
 model VehicleCommercialHandoff {
-  id                    String    @id @default(cuid())
-  organizationId        String
-  vehicleId             String
-  inventoryUnitId       String?
-  customerId            String?
-  handoffType           String
-  status                String    @default("OPEN")
-  agreedPriceReference  String?
-  agreedPriceCents      Int?
-  readinessSnapshot     Json
-  dependencySnapshot    Json
-  evidenceObjectIds     Json
-  externalSystemCode    String?
-  externalReference     String?
-  ownerUserId           String
-  createdByUserId       String
-  completedAt           DateTime?
-  version               Int       @default(1)
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  id                   String    @id @default(cuid())
+  organizationId       String
+  vehicleId            String
+  inventoryUnitId      String?
+  customerId           String?
+  handoffType          String
+  status               String    @default("OPEN")
+  agreedPriceReference String?
+  agreedPriceCents     Int?
+  readinessSnapshot    Json
+  dependencySnapshot   Json
+  evidenceObjectIds    Json
+  externalSystemCode   String?
+  externalReference    String?
+  ownerUserId          String
+  createdByUserId      String
+  completedAt          DateTime?
+  version              Int       @default(1)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   @@unique([organizationId, vehicleId, handoffType, version])
   @@index([organizationId, status, handoffType])
@@ -4898,57 +5152,57 @@ model VehiclePortalGrant {
 }
 
 model VehiclePortalAccessEvent {
-  id            String   @id @default(cuid())
+  id             String   @id @default(cuid())
   organizationId String
-  portalGrantId String
-  action        String
-  allowed       Boolean
-  scope         String?
-  requestHash   String
-  reasonCode    String
-  occurredAt    DateTime @default(now())
+  portalGrantId  String
+  action         String
+  allowed        Boolean
+  scope          String?
+  requestHash    String
+  reasonCode     String
+  occurredAt     DateTime @default(now())
 
   @@index([portalGrantId, occurredAt])
   @@index([organizationId, occurredAt])
 }
 
 model VehiclePolicyVersion {
-  id                  String    @id @default(cuid())
-  organizationId      String
-  policyCode          String
-  domain              String
-  version             Int
-  status              String    @default("DRAFT")
-  configuration       Json
-  simulationSnapshot  Json
-  pilotScope          Json
-  outcomeSnapshot     Json
-  effectiveFrom       DateTime?
-  effectiveTo         DateTime?
-  supersedesId        String?
-  rollbackTargetId    String?
-  createdByUserId     String
-  approvedByUserId    String?
-  approvedAt          DateTime?
-  activatedByUserId   String?
-  activatedAt         DateTime?
-  reason              String
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id                 String    @id @default(cuid())
+  organizationId     String
+  policyCode         String
+  domain             String
+  version            Int
+  status             String    @default("DRAFT")
+  configuration      Json
+  simulationSnapshot Json
+  pilotScope         Json
+  outcomeSnapshot    Json
+  effectiveFrom      DateTime?
+  effectiveTo        DateTime?
+  supersedesId       String?
+  rollbackTargetId   String?
+  createdByUserId    String
+  approvedByUserId   String?
+  approvedAt         DateTime?
+  activatedByUserId  String?
+  activatedAt        DateTime?
+  reason             String
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   @@unique([organizationId, policyCode, version])
   @@index([organizationId, domain, status])
 }
 
 model VehiclePolicyEvent {
-  id             String   @id @default(cuid())
-  organizationId String
+  id              String   @id @default(cuid())
+  organizationId  String
   policyVersionId String
-  actorUserId    String
-  eventType      String
-  reason         String
-  snapshot       Json
-  occurredAt     DateTime @default(now())
+  actorUserId     String
+  eventType       String
+  reason          String
+  snapshot        Json
+  occurredAt      DateTime @default(now())
 
   @@index([policyVersionId, occurredAt])
   @@index([organizationId, occurredAt])
