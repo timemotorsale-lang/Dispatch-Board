@@ -126,10 +126,17 @@ export function createVehicle360Repository(database: PrismaClient = prisma) {
         database.vehicleEvidenceLink.findMany({ where: { organizationId, vehicleId }, orderBy: { createdAt: "desc" }, include: { evidenceObject: { select: evidenceMetadataSelect }, createdByUser: { select: { id: true, name: true } } } })
       ]);
       const repairOrderIds = repairOrders.map((item) => item.id), inventoryIds = inventory.map((item) => item.id), jobIds = repairOrders.flatMap((item) => item.repairJobs.map((job) => job.id)), evidenceIds = documents.map((item) => item.evidenceObjectId), customerIds = [...new Set(vehicle.registryRelationships.flatMap((item) => item.customerId ? [item.customerId] : []))];
-      const [partCustody, communications, audit] = await Promise.all([
+      const [partCustody, communications, audit, warrantyCoverages, warrantyClaims, customerStatuses, commercialHandoffs, servicePromises, communicationPreferences, estimateApprovals] = await Promise.all([
         jobIds.length ? database.partCustodyEvent.findMany({ where: { organizationId, repairJobId: { in: jobIds } }, orderBy: { occurredAt: "desc" }, include: { part: { select: { id: true, partNumber: true, description: true } }, actorUser: { select: { id: true, name: true } } } }) : Promise.resolve([]),
         customerIds.length ? database.customerInteraction.findMany({ where: { organizationId, customerId: { in: customerIds } }, take: 100, orderBy: { occurredAt: "desc" }, include: { actorUser: { select: { id: true, name: true } } } }) : Promise.resolve([]),
-        database.enterpriseAuditEvent.findMany({ where: { organizationId, OR: [{ subjectType: "VEHICLE", subjectId: vehicleId }, ...(inventoryIds.length ? [{ subjectType: "INVENTORY_UNIT", subjectId: { in: inventoryIds } }] : []), ...(repairOrderIds.length ? [{ subjectType: "REPAIR_ORDER", subjectId: { in: repairOrderIds } }] : []), ...(evidenceIds.length ? [{ subjectType: "VEHICLE_EVIDENCE", subjectId: { in: evidenceIds } }] : [])] }, take: 200, orderBy: { occurredAt: "desc" }, include: { actorUser: { select: { id: true, name: true } } } })
+        database.enterpriseAuditEvent.findMany({ where: { organizationId, OR: [{ subjectType: "VEHICLE", subjectId: vehicleId }, ...(inventoryIds.length ? [{ subjectType: "INVENTORY_UNIT", subjectId: { in: inventoryIds } }] : []), ...(repairOrderIds.length ? [{ subjectType: "REPAIR_ORDER", subjectId: { in: repairOrderIds } }] : []), ...(evidenceIds.length ? [{ subjectType: "VEHICLE_EVIDENCE", subjectId: { in: evidenceIds } }] : [])] }, take: 200, orderBy: { occurredAt: "desc" }, include: { actorUser: { select: { id: true, name: true } } } }),
+        database.vehicleWarrantyCoverage.findMany({ where: { organizationId, vehicleId }, orderBy: { createdAt: "desc" } }),
+        database.vehicleWarrantyClaim.findMany({ where: { organizationId, vehicleId }, orderBy: { updatedAt: "desc" } }),
+        repairOrderIds.length ? database.customerServiceStatusEvent.findMany({ where: { organizationId, repairOrderId: { in: repairOrderIds } }, orderBy: { publishedAt: "desc" } }) : Promise.resolve([]),
+        database.vehicleCommercialHandoff.findMany({ where: { organizationId, vehicleId }, orderBy: { updatedAt: "desc" } }),
+        repairOrderIds.length ? database.customerServicePromise.findMany({ where: { organizationId, repairOrderId: { in: repairOrderIds } }, orderBy: { effectiveAt: "desc" } }) : Promise.resolve([]),
+        customerIds.length ? database.customerCommunicationPreference.findMany({ where: { organizationId, customerId: { in: customerIds } }, orderBy: { effectiveFrom: "desc" } }) : Promise.resolve([]),
+        repairOrderIds.length ? database.customerEstimateApprovalRequest.findMany({ where: { organizationId, repairOrderId: { in: repairOrderIds } }, orderBy: { createdAt: "desc" }, select: { id: true, repairOrderId: true, customerId: true, estimateVersionId: true, estimateVersionNumber: true, channel: true, destinationMasked: true, status: true, deliveredAt: true, viewedAt: true, decidedAt: true, expiresAt: true } }) : Promise.resolve([])
       ]);
 
       const timeline: Vehicle360TimelineItem[] = [];
@@ -154,7 +161,7 @@ export function createVehicle360Repository(database: PrismaClient = prisma) {
         summary: { vehicle: { id: vehicle.id, vehicleNumber: vehicle.vehicleNumber, vin: vehicle.vin, vinState: vehicle.vinState, stockNumber: vehicle.stockNumber, year: vehicle.year, make: vehicle.make, model: vehicle.model, color: vehicle.color, licensePlate: vehicle.licensePlate, status: vehicle.status, version: vehicle.version }, owner: activeOrder?.ownerUser ?? activeInventory?.ownerUser ?? vehicle.registryRelationships.find((item) => item.effectiveTo == null)?.customer ?? null, location: activeOrder?.location ?? activeInventory?.location ?? currentCustody?.location ?? null, stage: activeOrder?.stage ?? activeInventory?.lifecycleStage ?? "REGISTRY", operatingState: activeOrder?.operatingState ?? activeInventory?.operatingState ?? vehicle.status, nextAction: activeOrder?.nextAction ?? activeInventory?.nextAction ?? null, targetAt: activeOrder?.targetAt ?? activeInventory?.targetAt ?? null, latestOdometer: vehicle.odometerObservations[0] ?? null, risks },
         timeline: sortVehicleTimeline(timeline),
         graph,
-        data: { vehicle, inventory, repairOrders, appointmentLinks, tasks, documents, partCustody, communications, audit }
+        data: { vehicle, inventory, repairOrders, appointmentLinks, tasks, documents, partCustody, communications, audit, warrantyCoverages, warrantyClaims, customerStatuses, commercialHandoffs, servicePromises, communicationPreferences, estimateApprovals }
       };
     }
   };

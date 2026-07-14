@@ -1,5 +1,9 @@
 # Current Implementation Status
 
+## 2026-07-14 — Wave 4: customer lifecycle, warranty, commercial handoffs, and policy administration
+
+Milestones 7A–8A are implemented in the repository. The console now provides canonical customer/service history, versioned service promises and transportation state, purpose-specific consent with quiet-time enforcement, exact-version customer estimate decisions, an explicitly published customer-safe timeline, warranty coverage-to-recovery records, returned invoice-total reconciliation, governed sales/F&I/title/delivery handoffs, scoped expiring customer/partner portal access, and versioned policy simulation/four-eyes approval/pilot/rollback. The operator workspace is `/vehicles/customer-lifecycle`; the public portal is token scoped and excludes internal notes and restricted evidence. The source migration is not deployed and the `CUSTOMER_LIFECYCLE` rollout flag defaults to `OFF`. See [`docs/inventory/CUSTOMER_LIFECYCLE_COMMERCIAL_POLICY_IMPLEMENTATION.md`](inventory/CUSTOMER_LIFECYCLE_COMMERCIAL_POLICY_IMPLEMENTATION.md).
+
 ## 2026-07-14 — Vehicle Operations Wave 3: discovery, knowledge, and controlled output
 
 Vehicle Operations Milestone 6E–6G (`VEH-094` through `VEH-096`) is implemented in the working tree. `/vehicles/discovery` provides organization-scoped, capability-filtered, bounded and ranked search across vehicle/VIN/stock, customer, repair order/job, appointment, part/barcode, purchase order/vendor, and governed document metadata. Work types now have reference-only external procedure, bulletin, safety-note, and reference revisions with HTTPS/checksum/source controls, effective windows, independent approval, supersession lineage, and immutable events. Authorized users can generate JSON or printable HTML Vehicle 360 packages with classification-specific redaction, field manifests, watermark, SHA-256 integrity, seven-day expiry, immutable generation evidence, and audited downloads.

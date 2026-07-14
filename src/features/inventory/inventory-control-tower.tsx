@@ -174,6 +174,7 @@ export function InventoryControlTower() {
         <Link href="/vehicles/registry">Open Registry</Link>
         <Link href="/vehicles/registry">Vehicle 360</Link>
         <Link href="/vehicles/discovery">Discovery, Knowledge &amp; Output</Link>
+        <Link href="/vehicles/customer-lifecycle">Customer Lifecycle &amp; Commercial Control</Link>
         <Link href="/vehicles/inventory">Inventory Units</Link>
         <Link href="/vehicles/repair-orders">Repair Orders</Link>
         <Link href="/vehicles/parts">Parts &amp; Readiness</Link>

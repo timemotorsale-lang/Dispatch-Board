@@ -21,7 +21,17 @@ export const VEHICLE_CAPABILITIES = [
   "WORK_KNOWLEDGE_VIEW",
   "WORK_KNOWLEDGE_MANAGE",
   "VEHICLE_OUTPUT_CREATE",
-  "VEHICLE_OUTPUT_RESTRICTED"
+  "VEHICLE_OUTPUT_RESTRICTED",
+  "CUSTOMER_LIFECYCLE_VIEW",
+  "CUSTOMER_LIFECYCLE_MANAGE",
+  "WARRANTY_VIEW",
+  "WARRANTY_MANAGE",
+  "COMMERCIAL_HANDOFF_VIEW",
+  "COMMERCIAL_HANDOFF_MANAGE",
+  "VEHICLE_PORTAL_MANAGE",
+  "VEHICLE_POLICY_VIEW",
+  "VEHICLE_POLICY_MANAGE",
+  "VEHICLE_POLICY_APPROVE"
 ] as const;
 export type VehicleCapability = (typeof VEHICLE_CAPABILITIES)[number];
 
@@ -54,7 +64,7 @@ export function evaluateVehicleCapability(input: {
   });
   if (matching.some((grant) => grant.effect === "DENY")) return { allowed: false, reason: "EXPLICIT_DENY" } as const;
   if (isGeneralManager(input.actor)) return { allowed: true, reason: "GENERAL_MANAGER" } as const;
-  if (input.capability === "VEHICLE_ROLLOUT_MANAGE" || input.capability === "VEHICLE_CAPABILITY_MANAGE" || input.capability === "VEHICLE_DUPLICATE_RESOLVE" || input.capability === "VEHICLE_EVIDENCE_RESTRICTED_VIEW" || input.capability === "VEHICLE_OUTPUT_RESTRICTED") {
+  if (input.capability === "VEHICLE_ROLLOUT_MANAGE" || input.capability === "VEHICLE_CAPABILITY_MANAGE" || input.capability === "VEHICLE_DUPLICATE_RESOLVE" || input.capability === "VEHICLE_EVIDENCE_RESTRICTED_VIEW" || input.capability === "VEHICLE_OUTPUT_RESTRICTED" || input.capability === "VEHICLE_PORTAL_MANAGE" || input.capability === "VEHICLE_POLICY_APPROVE") {
     return matching.some((grant) => grant.effect === "ALLOW")
       ? { allowed: true, reason: "EXPLICIT_GRANT" } as const
       : { allowed: false, reason: "GENERAL_MANAGER_OR_GRANT_REQUIRED" } as const;

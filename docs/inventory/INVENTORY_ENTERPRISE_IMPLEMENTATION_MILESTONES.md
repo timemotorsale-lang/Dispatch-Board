@@ -150,21 +150,21 @@ Wave 1 completion evidence: [`ENTERPRISE_PARTS_WAVE_ONE_IMPLEMENTATION.md`](ENTE
 
 | ID | Status | Slice | Acceptance |
 | --- | --- | --- | --- |
-| VEH-100 | [~] | Connect customer 360 and vehicle history | Existing customer records surface canonical vehicle, appointment, promise, case, and service history without duplicates. |
-| VEH-101 | [ ] | Add service promise and transportation flow | Arrival/completion windows, loaner/ride/wait needs, updates, breach, and recovery actions are explicit. |
-| VEH-102 | [ ] | Add consent and communication preferences | Channel, purpose, source, effective time, revocation, and quiet-time rules gate outbound communication. |
-| VEH-103 | [ ] | Add estimate approval experience | Authorized customers receive the exact version, approve/decline items, and generate delivery/failure evidence. |
-| VEH-104 | [ ] | Add service status timeline | Customer-safe milestones exclude internal-only notes and show current promise, delays, action needed, and contacts. |
-| VEH-105 | [ ] | Add warranty coverage and claim foundation | Coverage, eligibility, authorization, evidence, labor/parts, claim, decision, payment, and recovery are linked. |
-| VEH-106 | [~] | Add invoice-ready service handoff | The internal source-linked package, submit/accept/reject states, and controlled close are implemented; vendor-specific DMS/accounting adapters and returned-total reconciliation remain planned. |
-| VEH-107 | [ ] | Add sales/F&I/title/delivery handoffs | Vehicle readiness, agreed price reference, documents, sold status, funding/title dependencies, and delivery commands reconcile. |
-| VEH-108 | [ ] | Add customer/partner portal pilot | Least-privilege users can view approved vehicle/service data, appointments, approvals, documents, and status. |
+| VEH-100 | [x] | Connect customer 360 and vehicle history | Existing customer records surface canonical vehicle, appointment, promise, case, and service history without duplicates. |
+| VEH-101 | [x] | Add service promise and transportation flow | Arrival/completion windows, loaner/ride/wait needs, updates, breach, and recovery actions are explicit. |
+| VEH-102 | [x] | Add consent and communication preferences | Channel, purpose, source, effective time, revocation, and quiet-time rules gate outbound communication. |
+| VEH-103 | [x] | Add estimate approval experience | Authorized customers receive the exact version, approve/decline items, and generate delivery/failure evidence. |
+| VEH-104 | [x] | Add service status timeline | Customer-safe milestones exclude internal-only notes and show current promise, delays, action needed, and contacts. |
+| VEH-105 | [x] | Add warranty coverage and claim foundation | Coverage, eligibility, authorization, evidence, labor/parts, claim, decision, payment, and recovery are linked. |
+| VEH-106 | [x] | Add invoice-ready service handoff | The internal source-linked package, submit/accept/reject states, controlled close, and returned-total reconciliation are implemented; vendor-specific adapters remain integration-platform work. |
+| VEH-107 | [x] | Add sales/F&I/title/delivery handoffs | Vehicle readiness, agreed price reference, documents, sold status, funding/title dependencies, and delivery commands reconcile. |
+| VEH-108 | [x] | Add customer/partner portal pilot | Least-privilege users can view approved vehicle/service data, appointments, approvals, documents, and status. |
 
 ## M8 — Enterprise administration and resilience
 
 | ID | Status | Slice | Acceptance |
 | --- | --- | --- | --- |
-| VEH-110 | [ ] | Add policy administration console | Version, preview, simulation, four-eyes approval, effective date, pilot, outcome, and rollback exist for material policies. |
+| VEH-110 | [x] | Add policy administration console | Version, preview, simulation, four-eyes approval, effective date, pilot, outcome, and rollback exist for material policies. |
 | VEH-111 | [ ] | Add separation-of-duties and dollar limits | Purchase, adjustment, price, disposition, refund, warranty, and export rules cannot be self-approved when policy forbids it. |
 | VEH-112 | [ ] | Add retention, legal hold, and privacy operations | Authorized operators can retain, hold, export, and dispose according to policy without deleting required audit evidence. |
 | VEH-113 | [ ] | Add audit explorer | Authorized users filter by actor, vehicle, command, field, time, location, correlation, and source with export controls. |
