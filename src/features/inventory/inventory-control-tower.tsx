@@ -35,16 +35,16 @@ type LifecycleStage = {
 };
 
 const moduleTabs = [
-  { label: "Control Tower", href: "/vehicles" },
-  { label: "Vehicles", href: "/vehicles/registry" },
-  { label: "Acquisition", href: "/vehicles/discovery" },
-  { label: "Recon", href: "/vehicles/shop-planning" },
-  { label: "Shop Work", href: "/vehicles/shop-dispatch" },
-  { label: "Parts", href: "/vehicles/parts-counter" },
-  { label: "Purchase Orders", href: "/vehicles/service-close-parts" },
-  { label: "Locations", href: "/vehicles/inventory" },
-  { label: "Aging", href: "/vehicles/inventory" },
-  { label: "Exceptions", href: "/manager-review" }
+  { id: "control-tower", label: "Control Tower", href: "/vehicles" },
+  { id: "vehicles", label: "Vehicles", href: "/vehicles/registry" },
+  { id: "acquisition", label: "Acquisition", href: "/vehicles/discovery" },
+  { id: "recon", label: "Recon", href: "/vehicles/shop-planning" },
+  { id: "shop-work", label: "Shop Work", href: "/vehicles/shop-dispatch" },
+  { id: "parts", label: "Parts", href: "/vehicles/parts-counter" },
+  { id: "purchase-orders", label: "Purchase Orders", href: "/vehicles/service-close-parts" },
+  { id: "locations", label: "Locations", href: "/vehicles/inventory?view=locations", activePath: "/vehicles/inventory" },
+  { id: "aging", label: "Aging", href: "/vehicles/inventory?view=aging", activePath: "/vehicles/inventory" },
+  { id: "exceptions", label: "Exceptions", href: "/manager-review" }
 ];
 
 const kpis = [
@@ -220,8 +220,9 @@ export function InventoryControlTower() {
     <section className="inventory-control-tower">
       <nav aria-label="Inventory module" className="ict-module-nav">
         {moduleTabs.map((tab) => {
-          const active = activePathname === tab.href || (tab.href !== "/vehicles" && activePathname.startsWith(`${tab.href}/`));
-          return <Link aria-current={active ? "page" : undefined} className={active ? "active" : ""} href={tab.href} key={tab.href}>{tab.label}</Link>;
+          const activePath = tab.activePath ?? tab.href;
+          const active = activePathname === activePath || (activePath !== "/vehicles" && activePathname.startsWith(`${activePath}/`));
+          return <Link aria-current={active ? "page" : undefined} className={active ? "active" : ""} href={tab.href} key={tab.id}>{tab.label}</Link>;
         })}
         <Link href="/vehicles/registry">Open Registry</Link>
         <Link href="/vehicles/registry">Vehicle 360</Link>

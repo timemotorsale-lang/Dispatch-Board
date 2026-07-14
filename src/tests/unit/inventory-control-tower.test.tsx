@@ -1,7 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { InventoryControlTower } from "@/features/inventory/inventory-control-tower";
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/vehicles"
+}));
 
 describe("InventoryControlTower", () => {
   it("renders the approved lifecycle control-tower structure", () => {
@@ -31,7 +35,9 @@ describe("InventoryControlTower", () => {
     const markup = renderToStaticMarkup(<InventoryControlTower />);
 
     for (const tab of ["Control Tower", "Vehicles", "Acquisition", "Recon", "Shop Work", "Parts", "Purchase Orders", "Locations", "Aging", "Exceptions"]) {
-      expect(markup).toContain(`>${tab}</button>`);
+      expect(markup).toContain(`>${tab}</a>`);
     }
+    expect(markup).toContain('href="/vehicles/inventory?view=locations"');
+    expect(markup).toContain('href="/vehicles/inventory?view=aging"');
   });
 });
