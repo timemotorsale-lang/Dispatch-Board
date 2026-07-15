@@ -5,6 +5,8 @@
 **Scope:** Time Motor Sales Command Control Center global shell and Dispatch Overview  
 **Implementation state:** Initial CCC shell and Dispatch Overview hierarchy implemented; deeper overview composition remains iterative
 
+The expanded Dispatch Live Board navigation is governed by [`DISPATCH_LIVE_BOARD_NAVIGATION_UI_SOURCE_OF_TRUTH.md`](DISPATCH_LIVE_BOARD_NAVIGATION_UI_SOURCE_OF_TRUTH.md). Its approved single-line design supersedes the earlier four-tab treatment for that specific navigation scope.
+
 ## Approved mockup
 
 [![Time Motor Sales Command Control Center shell with Dispatch Overview](ui-mockups/command-control-center-shell-dispatch-overview.png)](ui-mockups/command-control-center-shell-dispatch-overview.png)
@@ -27,6 +29,13 @@ Time Motor Sales Command Control Center
     Dispatch Board
       Overview
       Live Board
+      My Tasks
+      Tasks
+      Projects
+      Appointments
+      Vehicles
+      Customers
+      Manager Review
       Team
       Activity
   Time & Attendance (PLANNED)
@@ -44,7 +53,7 @@ Time Motor Sales Command Control Center
 2. Keep **Dispatch Board** as the only live operational module until another module is intentionally approved and implemented.
 3. Show future modules as deliberately **Planned** and unavailable; never present empty or simulated functionality as live.
 4. Keep the global shell stable: brand, workspace hierarchy, search, store context, business date, notifications, identity, and administration.
-5. Keep Dispatch-local navigation inside the Dispatch module: Overview, Live Board, Team, and Activity.
+5. Keep Dispatch-local navigation inside the Dispatch module using the exact destinations and order governed by the [Dispatch Live Board Navigation UI Source of Truth](DISPATCH_LIVE_BOARD_NAVIGATION_UI_SOURCE_OF_TRUTH.md).
 6. Treat **Dispatch Overview** as the manager's daily launch and readiness surface.
 7. Treat **Live Board** as the deeper execution surface for operating and updating the day's work.
 
@@ -76,6 +85,8 @@ The approved overview prioritizes real Dispatch capabilities:
 
 This record governs the **global Command Control Center shell** and the **Dispatch Overview composition**. The workspace mockups registered in [`ENTERPRISE_WORKSPACE_UI_SOURCE_OF_TRUTH.md`](ENTERPRISE_WORKSPACE_UI_SOURCE_OF_TRUTH.md) continue to govern their respective module interiors.
 
+The [Dispatch Live Board Navigation UI Source of Truth](DISPATCH_LIVE_BOARD_NAVIGATION_UI_SOURCE_OF_TRUTH.md) governs the contextual navigation shown inside Live Board and takes precedence over this record's earlier four-tab treatment for that scope.
+
 When a module-level mockup conflicts with this record only in global shell chrome, navigation hierarchy, or umbrella product naming, this Command Control Center shell record takes precedence. Domain workflows and backend contracts are not superseded.
 
 ## Change control
@@ -101,3 +112,5 @@ The initial implementation establishes:
 - Responsive shell behavior without page-level horizontal overflow at the mobile validation breakpoint.
 
 The implementation preserves existing route and backend behavior. It does not claim that Time & Attendance, People & HR, Compliance, Legal & Accounting, Library & Training, or CCC Insights are implemented.
+
+The approved expanded single-line navigation—Overview, Live Board, My Tasks, Tasks, Projects, Appointments, Vehicles, Customers, Manager Review, Team, and Activity—is not yet implemented. The current implementation remains the initial four-tab treatment until a separate implementation pass is approved and verified.

@@ -4,11 +4,14 @@ These approved mockups are the visual source of truth for the enterprise console
 
 The [Command Control Center Shell UI Source of Truth](COMMAND_CONTROL_CENTER_SHELL_UI_SOURCE_OF_TRUTH.md) governs the global shell, umbrella product naming, and Dispatch Overview composition. Module-level mockups continue to govern their workspace interiors.
 
+The [Dispatch Live Board Navigation UI Source of Truth](DISPATCH_LIVE_BOARD_NAVIGATION_UI_SOURCE_OF_TRUTH.md) governs the one-line contextual navigation within Live Board and supersedes the earlier four-tab treatment for that scope.
+
 ## Approved workspace map
 
 | Mockup | Primary role(s) | Console route | Purpose |
 | --- | --- | --- | --- |
 | [Command Control Center Shell and Dispatch Overview](ui-mockups/command-control-center-shell-dispatch-overview.png) | General manager, dispatch manager, staff | `/board` | Global CCC shell and the Dispatch manager's daily launch, readiness, attention, team-load, and activity overview. Dispatch is the only live module in this approved planning state. |
+| [Dispatch Live Board Navigation](ui-mockups/dispatch-live-board-navigation-source-of-truth.png) | General manager, dispatch manager, staff | `/board?view=live` | Approved single-line access to the existing Dispatch destinations, with Live Board active and permission-aware Manager Review access. |
 | [Inventory Lifecycle Control Tower](ui-mockups/inventory-lifecycle-control-tower.png) | Inventory manager, general manager | `/vehicles` | Cross-functional inventory flow, capital exposure, exceptions, capacity, and readiness. |
 | [Inventory Manager Workspace](ui-mockups/inventory-manager-workspace.png) | Inventory manager | `/inventory-manager` | Daily acquisition, readiness, aging, merchandising, and next-action work. |
 | [Vehicle 360 Workspace](ui-mockups/vehicle-360-workspace.png) | Inventory, service advisor, manager | `/vehicles/360/[id]` | Canonical vehicle identity, lifecycle, repairs, parts, evidence, customer context, and activity. |
