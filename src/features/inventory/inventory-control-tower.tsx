@@ -201,8 +201,6 @@ export function InventoryControlTower() {
         }
         const money = (cents: number) => `$${Math.round(cents / 100).toLocaleString()}`;
         setLiveExceptions((projection.items ?? []).filter((item) => item.overdue || item.operatingState === "BLOCKED" || item.operatingState === "WAITING").map((item) => ({ priority: item.operatingState === "BLOCKED" ? "Critical" : item.overdue ? "High" : "Medium", asset: item.inventoryNumber, vehicle: `${item.vehicle.year} ${item.vehicle.make} ${item.vehicle.model}`, issue: item.stateReason ?? item.nextAction, age: `${item.ageDays}d`, owner: item.ownerUser.name, risk: money(item.exposureCents), action: item.nextAction })));
-        setLiveShopStages([]);
-        setLivePartsStages([]);
         setLiveCapacity([]);
         setProjectionAt(projection.generatedAt ?? new Date().toISOString());
         setProjectionState(projection.freshness === "LIVE" ? "live" : "stale");
