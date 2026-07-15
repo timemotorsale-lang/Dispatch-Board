@@ -11,6 +11,8 @@ This package defines the shared decision architecture for optimizing work across
 
 The goal is not maximum activity or task volume. The goal is maximum reliable business value under legal, safety, financial, privacy, customer, capacity, and human-governance constraints.
 
+**Implementation progress:** Phase 0 constitutional documentation and Phase 1 semantic vocabulary/registry contracts are established. Phase 2 visibility and evidence is not started.
+
 ## Architecture map
 
 | Record | Governs |
@@ -25,6 +27,9 @@ The goal is not maximum activity or task volume. The goal is maximum reliable bu
 | [Automation and AI Governance](AUTOMATION_AND_AI_GOVERNANCE.md) | Automation maturity, confidence, explainability, approval boundaries, AI limitations, and rollback. |
 | [Simulation and Validation](SIMULATION_AND_VALIDATION.md) | Scenario testing, acceptance evidence, shadow evaluation, fairness checks, and rollout gates. |
 | [Implementation Roadmap](IMPLEMENTATION_ROADMAP.md) | Sequenced adoption across the CCC and domain consoles. |
+| [Phase 1 Implementation Decision](PHASE_1_IMPLEMENTATION_DECISION.md) | Approved semantic-registry scope, authority, controls, validation, and rollout decision. |
+| [Enterprise Registry Catalog](ENTERPRISE_REGISTRY_CATALOG.md) | Stable concept, console, reason-code, and event-type identities. |
+| [Console and Source Authority Map](CONSOLE_SOURCE_AUTHORITY_MAP.md) | Current and planned domain sources, authority classifications, and boundaries. |
 
 ## Precedence
 
@@ -40,4 +45,3 @@ Domain algorithms may add stricter eligibility rules, lifecycle gates, and revie
 ## Adoption rule
 
 No score, recommendation, forecast, optimization, or automated action is production-ready until it satisfies the Constitution and the acceptance gates in this package.
-

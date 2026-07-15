@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-07-14 — Enterprise optimization Phase 1 vocabulary and registry
+
+Phase 1 establishes the non-behavioral semantic layer under `src/server/enterprise-optimization/`: canonical enterprise concepts, stable CCC console identities, deterministic cross-console record references, shared reason-code and event-type registries, and explicit source-authority mappings. Dispatch, Tasks, Appointments, Customers, Projects, Vehicles, Inventory, enterprise event/audit foundations, Insights, Administration, and every planned CCC console now have truthful semantic boundaries documented in [`docs/enterprise-optimization/README.md`](enterprise-optimization/README.md).
+
+The registry does not change current application behavior and does not implement priority scoring, capacity calculation, assignment, escalation, automation, or AI. Projects remains explicitly classified as a derived Task projection; planned Time and Attendance, People and HR, Compliance, Legal and Accounting, and Library and Training consoles do not claim sources of truth that do not yet exist. Focused registry tests, typecheck, and lint pass for this checkpoint.
+
 ## 2026-07-14 — Enterprise optimization architecture foundation
 
 The enterprise optimization documentation package is established under [`docs/enterprise-optimization/README.md`](enterprise-optimization/README.md), governed by the [`Enterprise Optimization Constitution`](ENTERPRISE_OPTIMIZATION_CONSTITUTION.md). It defines the shared work model; priority and classes of service; capacity and resource allocation; dependency and flow optimization; risk, exception, and escalation handling; measurement and continuous improvement; automation and AI governance; simulation and validation; and a phased implementation roadmap.

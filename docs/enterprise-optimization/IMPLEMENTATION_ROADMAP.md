@@ -21,13 +21,17 @@ Completion here means the governing records exist. It does not mean the correspo
 
 ## 3. Phase 1 — Enterprise vocabulary and registry
 
-- approve capability, service, workflow, work, commitment, dependency, risk, evidence, decision, event, and outcome definitions
-- identify authoritative sources and owners
-- establish stable reason-code and event-type registries
-- map existing Dispatch, Tasks, Appointments, Customers, Projects, and Inventory records
-- document Time Card, HR, Compliance, Legal and Accounting, and Library and Training mappings before implementation
+**Status:** Implemented semantic foundation
+
+- [x] approve capability, service, workflow, work, commitment, dependency, risk, evidence, decision, event, and outcome definitions
+- [x] identify authoritative sources and owner roles
+- [x] establish stable reason-code and event-type registries
+- [x] map existing Dispatch, Tasks, Appointments, Customers, Projects, Vehicles, and Inventory records
+- [x] document Time and Attendance, HR, Compliance, Legal and Accounting, and Library and Training mappings before implementation
 
 **Exit gate:** identities and meanings are unambiguous across consoles.
+
+**Exit evidence:** [`PHASE_1_IMPLEMENTATION_DECISION.md`](PHASE_1_IMPLEMENTATION_DECISION.md), [`ENTERPRISE_REGISTRY_CATALOG.md`](ENTERPRISE_REGISTRY_CATALOG.md), [`CONSOLE_SOURCE_AUTHORITY_MAP.md`](CONSOLE_SOURCE_AUTHORITY_MAP.md), and the tested contracts in `src/server/enterprise-optimization/`.
 
 ## 4. Phase 2 — Visibility and evidence
 
@@ -124,4 +128,3 @@ Before any phase enters code, create a scoped implementation decision containing
 - automated financial, legal, HR, payroll, pricing, purchasing, or disposition decisions
 
 These require business data, policy ownership, and separate approval.
-
