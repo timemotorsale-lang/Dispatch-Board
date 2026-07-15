@@ -6,7 +6,11 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: APP_NAME,
-  description: "Project foundation scaffold for the Time Motor Sales Dispatch Board."
+  description: "Time Motor Sales Command Control Center and Dispatch Board.",
+  icons: {
+    icon: "/brand/favicon-64.png",
+    apple: "/brand/apple-touch-icon.png"
+  }
 };
 
 type RootLayoutProps = {
