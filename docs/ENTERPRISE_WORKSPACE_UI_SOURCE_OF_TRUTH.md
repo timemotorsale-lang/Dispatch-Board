@@ -10,7 +10,7 @@ The [Dispatch Live Board Navigation UI Source of Truth](DISPATCH_LIVE_BOARD_NAVI
 
 | Mockup | Primary role(s) | Console route | Purpose |
 | --- | --- | --- | --- |
-| [Command Control Center Shell and Dispatch Overview](ui-mockups/command-control-center-shell-dispatch-overview.png) | General manager, dispatch manager, staff | `/board` | Global CCC shell and the Dispatch manager's daily launch, readiness, attention, team-load, and activity overview. Dispatch is the only live module in this approved planning state. |
+| [Command Control Center Shell and Dispatch Overview](ui-mockups/command-control-center-shell-dispatch-overview.png) | General manager, dispatch manager, staff | `/command-center` and `/board` | Global CCC Home and the Dispatch manager's daily launch, readiness, attention, team-load, and activity overview. The global module sidebar is limited to CCC Home; Dispatch is the only live module in this approved planning state. |
 | [Dispatch Live Board Navigation](ui-mockups/dispatch-live-board-navigation-source-of-truth.png) | General manager, dispatch manager, staff | `/board?view=live` | Approved single-line access to the existing Dispatch destinations, with Live Board active and permission-aware Manager Review access. |
 | [Inventory Lifecycle Control Tower](ui-mockups/inventory-lifecycle-control-tower.png) | Inventory manager, general manager | `/vehicles` | Cross-functional inventory flow, capital exposure, exceptions, capacity, and readiness. |
 | [Inventory Manager Workspace](ui-mockups/inventory-manager-workspace.png) | Inventory manager | `/inventory-manager` | Daily acquisition, readiness, aging, merchandising, and next-action work. |
@@ -29,6 +29,7 @@ The [Dispatch Live Board Navigation UI Source of Truth](DISPATCH_LIVE_BOARD_NAVI
 6. The Administration & Integration mockup is a combined visual reference; implementation may remain split into `/administration` and `/integrations` so access controls stay explicit.
 7. Any future visual change should update the relevant image and this mapping before changing production UI.
 8. Until another Command Control Center module is explicitly approved as live, Dispatch Board is the only live module and all future shell entries must be presented as planned rather than simulated.
+9. Populate the global CCC sidebar only on `/command-center`. Inside any console, use console-owned navigation and retain a persistent return to CCC Home.
 
 ## Implementation status
 

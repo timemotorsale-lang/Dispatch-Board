@@ -11,6 +11,8 @@ import { SessionHealthGuard } from "@/features/auth/session-health-guard";
 
 import { AppSidebar } from "./app-sidebar";
 import { AppTopbar } from "./app-topbar";
+import { DispatchConsoleHeader } from "./dispatch-console-header";
+import { isDispatchConsolePath } from "./navigation";
 import { useWorkspaceMode, WorkspaceModeProvider } from "./workspace-mode";
 
 type AppShellProps = {
@@ -22,26 +24,30 @@ function AppShellContent({ children, user }: AppShellProps) {
   const [navigationOpen, setNavigationOpen] = useState(false);
   const pathname = usePathname();
   const { mode } = useWorkspaceMode();
+  const commandCenterHome = pathname === "/command-center";
+  const dispatchConsole = isDispatchConsolePath(pathname);
   const tasksWorkspace = pathname.startsWith("/tasks");
-  const sidebarCompact = tasksWorkspace && mode !== "standard";
+  const sidebarCompact = commandCenterHome && tasksWorkspace && mode !== "standard";
 
   return (
     <div
       className={[
         "app-frame",
+        !commandCenterHome ? "app-frame-console" : "",
         sidebarCompact ? "app-frame-sidebar-compact" : "",
         tasksWorkspace ? `app-frame-workspace-${mode}` : ""
       ].filter(Boolean).join(" ")}
     >
       <SessionHealthGuard />
-      <AppSidebar compact={sidebarCompact} isOpen={navigationOpen} onClose={() => setNavigationOpen(false)} user={user} />
-      {navigationOpen ? (
+      {commandCenterHome ? <AppSidebar compact={sidebarCompact} isOpen={navigationOpen} onClose={() => setNavigationOpen(false)} user={user} /> : null}
+      {commandCenterHome && navigationOpen ? (
         <button className="sidebar-scrim" aria-label="Close navigation" onClick={() => setNavigationOpen(false)} />
       ) : null}
       <div className="app-workspace">
-        <AppTopbar onMenuOpen={() => setNavigationOpen(true)} user={user} />
+        <AppTopbar onMenuOpen={() => setNavigationOpen(true)} showGlobalNavigation={commandCenterHome} user={user} />
+        {dispatchConsole ? <DispatchConsoleHeader user={user} /> : null}
         <main className="app-content">{children}</main>
-        {pathname !== "/board" && pathname !== "/tasks/intake" && pathname !== "/prototype/task-intake" ? (
+        {dispatchConsole && pathname !== "/board" && pathname !== "/tasks/intake" && pathname !== "/prototype/task-intake" ? (
           <Link aria-label="Open Task Intake" className="global-task-intake-launcher" href={`/tasks/intake?returnTo=${encodeURIComponent(pathname)}`} title="Create work from this console">
             <ClipboardPlus size={18} /><span>Task Intake</span>
           </Link>

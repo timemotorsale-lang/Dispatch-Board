@@ -26,15 +26,11 @@ export function AppSidebar({ compact, isOpen, onClose, user }: AppSidebarProps) 
   const dispatchView = searchParams.get("view") === "live" ? "live" : "overview";
   const selectedBoardDate = searchParams.get("date");
   const navigationGroups = getNavigationGroups(user);
-  const dispatchPaths = navigationGroups
-    .flatMap((group) => group.items)
-    .filter((item) => item.parentHref === "/board")
-    .map((item) => item.href.split(/[?#]/, 1)[0]);
 
   return (
     <aside className={["app-sidebar", compact ? "app-sidebar-compact" : "", isOpen ? "app-sidebar-open" : ""].filter(Boolean).join(" ")}>
       <div className="sidebar-brand-row">
-        <Link aria-label="Time Motor Sales" className="sidebar-brand" href="/board" onClick={onClose} title={compact ? "Time Motor Sales" : undefined}>
+        <Link aria-label="Time Motor Sales Command Control Center" className="sidebar-brand" href="/command-center" onClick={onClose} title={compact ? "Time Motor Sales" : undefined}>
           <span className="sidebar-logo" aria-hidden="true">T</span>
           <span><strong>TIME MOTOR SALES</strong><small>COMMAND CONTROL CENTER</small></span>
         </Link>
@@ -55,7 +51,7 @@ export function AppSidebar({ compact, isOpen, onClose, user }: AppSidebarProps) 
                     ? `/board?view=live&date=${encodeURIComponent(selectedBoardDate)}`
                     : item.href;
                 const active = item.title === "Dispatch Board"
-                  ? dispatchPaths.some((dispatchPath) => pathname === dispatchPath || pathname.startsWith(`${dispatchPath}/`))
+                  ? pathname === "/board"
                   : item.title === "Overview"
                     ? pathname === "/board" && dispatchView === "overview"
                     : item.title === "Live Board"

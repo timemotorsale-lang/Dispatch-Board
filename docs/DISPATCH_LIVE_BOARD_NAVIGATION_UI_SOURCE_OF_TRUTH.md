@@ -2,7 +2,7 @@
 
 **Status:** Approved source of truth  
 **Approved:** 2026-07-14  
-**Scope:** Dispatch Board contextual navigation within the Time Motor Sales Command Control Center shell  
+**Scope:** Persistent Dispatch Board console navigation within the Time Motor Sales Command Control Center shell
 **Implementation state:** Implemented and verified in the CCC Dispatch shell
 
 ## Approved mockup
@@ -13,7 +13,7 @@ The approved image is stored at:
 
 `docs/ui-mockups/dispatch-live-board-navigation-source-of-truth.png`
 
-This image and record are the authoritative visual and product reference for navigation presented after entering the Dispatch Board's Live Board.
+This image and record are the authoritative visual and product reference for navigation throughout the Dispatch Board console. Live Board is the active example shown in the approved image.
 
 ## Canonical navigation
 
@@ -44,6 +44,8 @@ Dispatch Board — LIVE
 6. Preserve the compact **Dispatch Board — Live** context treatment shown in the mockup.
 7. Keep the canonical order when permissions hide a destination. **Manager Review** is available only to authorized users.
 8. At narrower widths, the navigation may scroll, progressively collapse, or move into an accessible overflow control, but it must preserve the same order, active state, and access to every permitted destination.
+9. Keep this navigation available across Dispatch destinations and nested workspaces so opening Tasks, Projects, Vehicles, Customers, or another Dispatch area never exposes the global CCC sidebar.
+10. Provide a separate persistent **CCC Home** control in the global command bar. **CCC Home** exits Dispatch; **Overview** remains inside Dispatch.
 
 ## Intended destination map
 

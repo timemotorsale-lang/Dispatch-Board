@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { getNavigationGroups } from "@/components/layout/navigation";
+import {
+  getDispatchNavigationItems,
+  getNavigationGroups,
+  isDispatchConsolePath
+} from "@/components/layout/navigation";
 import type { AuthenticatedUser } from "@/server/auth/store";
 
 function user(overrides: Partial<AuthenticatedUser> = {}): AuthenticatedUser {
@@ -27,19 +31,7 @@ describe("enterprise shell navigation", () => {
 
     expect(dispatch?.href).toBe("/board");
     expect(dispatch?.badge).toBe("Live");
-    expect(liveItems.map((item) => item.title)).toEqual([
-      "Dispatch Board",
-      "Overview",
-      "Live Board",
-      "My Tasks",
-      "Tasks",
-      "Projects",
-      "Appointments",
-      "Vehicles",
-      "Customers",
-      "Team",
-      "Activity"
-    ]);
+    expect(liveItems.map((item) => item.title)).toEqual(["Dispatch Board"]);
   });
 
   it("marks future Command Control Center modules as planned and unavailable", () => {
@@ -84,7 +76,7 @@ describe("enterprise shell navigation", () => {
   });
 
   it("keeps Dispatch-local destinations inside the Dispatch hierarchy", () => {
-    const localItems = linksFor(user()).filter((item) => item.parentHref === "/board");
+    const localItems = getDispatchNavigationItems(user());
 
     expect(localItems.map((item) => item.title)).toEqual([
       "Overview",
@@ -102,7 +94,7 @@ describe("enterprise shell navigation", () => {
 
   it("adds Manager Review in the approved position for managers only", () => {
     const manager = user({ roles: ["General Manager"] });
-    const managerItems = linksFor(manager).filter((item) => item.parentHref === "/board");
+    const managerItems = getDispatchNavigationItems(manager);
 
     expect(managerItems.map((item) => item.title)).toEqual([
       "Overview",
@@ -117,5 +109,13 @@ describe("enterprise shell navigation", () => {
       "Team",
       "Activity"
     ]);
+  });
+
+  it("separates Dispatch console routes from CCC Home", () => {
+    expect(isDispatchConsolePath("/board")).toBe(true);
+    expect(isDispatchConsolePath("/tasks/task-1")).toBe(true);
+    expect(isDispatchConsolePath("/vehicles/360/unit-1")).toBe(true);
+    expect(isDispatchConsolePath("/command-center")).toBe(false);
+    expect(isDispatchConsolePath("/administration")).toBe(false);
   });
 });

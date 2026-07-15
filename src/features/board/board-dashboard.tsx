@@ -470,50 +470,6 @@ export function BoardHero({
 
 export type DispatchBoardView = "overview" | "live";
 
-export function DispatchOverviewHeader({
-  activeView = "overview",
-  boardDate,
-  isManager = false
-}: {
-  activeView?: DispatchBoardView;
-  boardDate?: string;
-  isManager?: boolean;
-}) {
-  const live = activeView === "live";
-  const dateQuery = boardDate ? `date=${encodeURIComponent(boardDate)}` : "";
-  const overviewHref = dateQuery ? `/board?${dateQuery}` : "/board";
-  const liveHref = `/board?${["view=live", dateQuery].filter(Boolean).join("&")}`;
-  const tabs = [
-    { href: overviewHref, label: "Overview", active: !live },
-    { href: liveHref, label: "Live Board", active: live },
-    { href: "/my-tasks", label: "My Tasks" },
-    { href: "/tasks", label: "Tasks" },
-    { href: "/projects", label: "Projects" },
-    { href: "/appointments", label: "Appointments" },
-    { href: "/vehicles", label: "Vehicles" },
-    { href: "/customers", label: "Customers" },
-    ...(isManager ? [{ href: "/manager-review", label: "Manager Review" }] : []),
-    { href: "/staff", label: "Team" },
-    { href: "/activity", label: "Activity" }
-  ];
-  return (
-    <header className="dispatch-overview-header">
-      <div className="dispatch-overview-title">
-        <h1>{live ? "Live Board" : "Dispatch Overview"}</h1>
-        <p>{live ? "Operate and update today’s work" : "Today’s operating command"}</p>
-      </div>
-      <nav aria-label="Dispatch workspace" className="dispatch-overview-tabs">
-        <span className="dispatch-overview-context">Dispatch Board <small>Live</small></span>
-        {tabs.map((tab) => (
-          <Link aria-current={tab.active ? "page" : undefined} className={tab.active ? "active" : undefined} href={tab.href} key={tab.label}>
-            {tab.label}
-          </Link>
-        ))}
-      </nav>
-    </header>
-  );
-}
-
 export type Metric = {
   label: string;
   value: number;

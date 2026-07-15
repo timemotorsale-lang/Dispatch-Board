@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Building2, CalendarDays, Menu, Search } from "lucide-react";
+import { Bell, Building2, CalendarDays, House, Menu, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -8,9 +8,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { isManager } from "@/server/policies/access";
 
-import { getNavigationGroups } from "./navigation";
+import { getDispatchNavigationItems, getNavigationGroups, isDispatchConsolePath } from "./navigation";
 
-type AppTopbarProps = { onMenuOpen(): void; user: AuthenticatedUser };
+type AppTopbarProps = { onMenuOpen(): void; showGlobalNavigation: boolean; user: AuthenticatedUser };
 
 function initials(name: string) {
   return name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
@@ -25,6 +25,7 @@ function formatBusinessDate() {
 }
 
 function getBreadcrumb(pathname: string, dispatchView: "overview" | "live") {
+  if (pathname === "/command-center") return ["Command Control Center"];
   if (pathname === "/board") return ["Command Control Center", "Dispatch", dispatchView === "live" ? "Live Board" : "Overview"];
   if (pathname === "/activity") return ["Command Control Center", "Dispatch", "Activity"];
   if (pathname === "/staff") return ["Command Control Center", "Dispatch", "Team"];
@@ -40,13 +41,18 @@ function getBreadcrumb(pathname: string, dispatchView: "overview" | "live") {
   return ["Command Control Center", "Dispatch", "Workspace"];
 }
 
-export function AppTopbar({ onMenuOpen, user }: AppTopbarProps) {
+export function AppTopbar({ onMenuOpen, showGlobalNavigation, user }: AppTopbarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const dispatchView = searchParams.get("view") === "live" ? "live" : "overview";
+  const commandCenterHome = pathname === "/command-center";
+  const dispatchConsole = isDispatchConsolePath(pathname);
   const actionsRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
-  const navigationItems = getNavigationGroups(user).flatMap((group) => group.items).filter((item) => !item.disabled);
+  const navigationItems = [
+    ...getNavigationGroups(user).flatMap((group) => group.items),
+    ...getDispatchNavigationItems(user)
+  ].filter((item) => !item.disabled);
   const breadcrumb = getBreadcrumb(pathname, dispatchView);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -94,19 +100,26 @@ export function AppTopbar({ onMenuOpen, user }: AppTopbarProps) {
 
   return (
     <header className="app-topbar ccc-topbar">
-      <button className="topbar-icon topbar-menu" aria-label="Open navigation" onClick={onMenuOpen} type="button">
-        <Menu size={20} />
-      </button>
+      {showGlobalNavigation ? (
+        <button className="topbar-icon topbar-menu" aria-label="Open navigation" onClick={onMenuOpen} type="button">
+          <Menu size={20} />
+        </button>
+      ) : (
+        <Link aria-label="Command Center Home" className="ccc-home-link" href="/command-center">
+          <House size={15} /><span>CCC Home</span>
+        </Link>
+      )}
 
       <nav aria-label="Workspace breadcrumb" className="ccc-breadcrumb">
         {breadcrumb.map((part, index) => (
           <span className={index === breadcrumb.length - 1 ? "ccc-breadcrumb-current" : ""} key={part}>
-            {part}{index < breadcrumb.length - 1 ? <i aria-hidden="true">/</i> : null}
+            {index === 0 && breadcrumb.length > 1 ? <Link href="/command-center">{part}</Link> : part}
+            {index < breadcrumb.length - 1 ? <i aria-hidden="true">/</i> : null}
           </span>
         ))}
       </nav>
 
-      <span className="ccc-dispatch-status"><i aria-hidden="true" />Dispatch online</span>
+      <span className="ccc-dispatch-status"><i aria-hidden="true" />{commandCenterHome ? "CCC online" : dispatchConsole ? "Dispatch online" : "Console active"}</span>
 
       <div className="topbar-actions" ref={actionsRef}>
         <div className="topbar-popover-shell ccc-search-shell">
