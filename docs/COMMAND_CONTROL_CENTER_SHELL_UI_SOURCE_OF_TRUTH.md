@@ -5,6 +5,10 @@
 **Scope:** Time Motor Sales Command Control Center global shell and Dispatch Overview  
 **Implementation state:** Initial CCC shell and Dispatch Overview hierarchy implemented; deeper overview composition remains iterative
 
+The expanded Dispatch Live Board navigation is governed by [`DISPATCH_LIVE_BOARD_NAVIGATION_UI_SOURCE_OF_TRUTH.md`](DISPATCH_LIVE_BOARD_NAVIGATION_UI_SOURCE_OF_TRUTH.md). Its approved single-line design supersedes the earlier four-tab treatment for that specific navigation scope.
+
+The approved shell-containment model is implemented: the global CCC sidebar appears only on authenticated CCC Home at `/command-center`. Operational consoles replace it with a console-owned sidebar, retain the global command bar, and provide an explicit **CCC Home** return control.
+
 ## Approved mockup
 
 [![Time Motor Sales Command Control Center shell with Dispatch Overview](ui-mockups/command-control-center-shell-dispatch-overview.png)](ui-mockups/command-control-center-shell-dispatch-overview.png)
@@ -19,6 +23,8 @@ Time Motor Sales Command Control Center is the future-ready umbrella shell for t
 
 The shell establishes a durable information hierarchy without requiring the broader Command Control Center program to be implemented before Dispatch Board is settled.
 
+Cross-console optimization, recommendation, escalation, and automation are governed by the [`Enterprise Optimization Constitution`](ENTERPRISE_OPTIMIZATION_CONSTITUTION.md) and its [`architecture package`](enterprise-optimization/README.md). This UI source of truth defines where governed intelligence may appear; it does not itself activate or authorize an algorithm.
+
 ## Governing hierarchy
 
 ```text
@@ -27,6 +33,13 @@ Time Motor Sales Command Control Center
     Dispatch Board
       Overview
       Live Board
+      My Tasks
+      Tasks
+      Projects
+      Appointments
+      Vehicles
+      Customers
+      Manager Review
       Team
       Activity
   Time & Attendance (PLANNED)
@@ -44,9 +57,12 @@ Time Motor Sales Command Control Center
 2. Keep **Dispatch Board** as the only live operational module until another module is intentionally approved and implemented.
 3. Show future modules as deliberately **Planned** and unavailable; never present empty or simulated functionality as live.
 4. Keep the global shell stable: brand, workspace hierarchy, search, store context, business date, notifications, identity, and administration.
-5. Keep Dispatch-local navigation inside the Dispatch module: Overview, Live Board, Team, and Activity.
+5. Keep Dispatch-local navigation inside the Dispatch module using the exact destinations and order governed by the [Dispatch Live Board Navigation UI Source of Truth](DISPATCH_LIVE_BOARD_NAVIGATION_UI_SOURCE_OF_TRUTH.md).
 6. Treat **Dispatch Overview** as the manager's daily launch and readiness surface.
 7. Treat **Live Board** as the deeper execution surface for operating and updating the day's work.
+8. Show the global CCC module sidebar only on **CCC Home**. Inside an operational console, replace it with that console's own navigation; never populate global CCC modules there.
+9. Keep the global command bar visible inside consoles, including Time Motor Sales identity, breadcrumb, store context, search, notifications, identity, and an explicit return to **CCC Home**.
+10. Treat **CCC Home** and a console's **Overview** as different destinations: CCC Home exits the console; Overview remains inside it.
 
 ## Dispatch Overview content contract
 
@@ -76,6 +92,8 @@ The approved overview prioritizes real Dispatch capabilities:
 
 This record governs the **global Command Control Center shell** and the **Dispatch Overview composition**. The workspace mockups registered in [`ENTERPRISE_WORKSPACE_UI_SOURCE_OF_TRUTH.md`](ENTERPRISE_WORKSPACE_UI_SOURCE_OF_TRUTH.md) continue to govern their respective module interiors.
 
+The [Dispatch Live Board Navigation UI Source of Truth](DISPATCH_LIVE_BOARD_NAVIGATION_UI_SOURCE_OF_TRUTH.md) governs the contextual navigation shown inside Live Board and takes precedence over this record's earlier four-tab treatment for that scope.
+
 When a module-level mockup conflicts with this record only in global shell chrome, navigation hierarchy, or umbrella product naming, this Command Control Center shell record takes precedence. Domain workflows and backend contracts are not superseded.
 
 ## Change control
@@ -92,11 +110,20 @@ Future changes to the approved shell should update:
 The initial implementation establishes:
 
 - Command Control Center umbrella branding.
+- An authenticated CCC Home at `/command-center`, where the global module sidebar and enterprise console launcher are available.
+- Console containment that replaces the global CCC sidebar with console-owned navigation in operational workspaces and restores global navigation on CCC Home.
+- A persistent CCC Home control and linked breadcrumb in the global command bar on console routes.
 - A persistent CCC command bar with breadcrumb, Dispatch status, search, store context, notifications, and identity.
 - Dispatch Board as the only live module in the primary shell.
 - Deliberately locked Planned states for future CCC modules.
-- Dispatch-local Overview, Live Board, Team, and Activity navigation.
+- The approved single-line Dispatch navigation: Overview, Live Board, My Tasks, Tasks, Projects, Appointments, Vehicles, Customers, permission-aware Manager Review, Team, and Activity.
+- Persistent Dispatch console navigation across the full Dispatch route family, including nested task, project, customer, and vehicle workspaces.
+- A Dispatch-owned left sidebar populated from the same approved destinations and permissions as the Dispatch console header.
+- A reusable console-sidebar contract used by Dispatch and the existing Administration console, ready for additional consoles when their own destinations are approved.
+- A dedicated Live Board sub-view at `/board?view=live`, with synchronized sidebar, breadcrumb, and local tabs plus a persistent return tab to Dispatch Overview.
 - Dispatch Overview framing around the existing live board date, generation health, Task Intake, Generate Board, task metrics, team load, project context, customer/vehicle context, task table, manager attention, and activity behavior.
 - Responsive shell behavior without page-level horizontal overflow at the mobile validation breakpoint.
 
 The implementation preserves existing route and backend behavior. It does not claim that Time & Attendance, People & HR, Compliance, Legal & Accounting, Library & Training, or CCC Insights are implemented.
+
+The expanded navigation is implemented in the Live Board header and synchronized with the existing Dispatch destinations in the application sidebar. Manager Review remains limited to authorized managers, and narrower layouts retain access through horizontal navigation overflow.

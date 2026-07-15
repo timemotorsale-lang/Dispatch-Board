@@ -468,22 +468,7 @@ export function BoardHero({
   );
 }
 
-export function DispatchOverviewHeader() {
-  return (
-    <header className="dispatch-overview-header">
-      <div className="dispatch-overview-title">
-        <h1>Dispatch Overview</h1>
-        <p>Today&apos;s operating command</p>
-      </div>
-      <nav aria-label="Dispatch workspace" className="dispatch-overview-tabs">
-        <Link aria-current="page" className="active" href="/board">Overview</Link>
-        <Link href="/board#live-board">Live Board</Link>
-        <Link href="/staff">Team</Link>
-        <Link href="/activity">Activity</Link>
-      </nav>
-    </header>
-  );
-}
+export type DispatchBoardView = "overview" | "live";
 
 export type Metric = {
   label: string;

@@ -8,6 +8,7 @@ import { getBoardDateInTimeZone, normalizeBoardDate } from "@/server/validation/
 type BoardPageProps = {
   searchParams?: Promise<{
     date?: string | string[];
+    view?: string | string[];
   }>;
 };
 
@@ -42,6 +43,9 @@ export default async function BoardPage({ searchParams }: BoardPageProps) {
   const requestedBoardDate = Array.isArray(resolvedSearchParams?.date)
     ? resolvedSearchParams?.date[0]
     : resolvedSearchParams?.date;
+  const requestedView = Array.isArray(resolvedSearchParams?.view)
+    ? resolvedSearchParams?.view[0]
+    : resolvedSearchParams?.view;
   const settings = await getGenerationSettings();
   const todayBoardDate = getBoardDateInTimeZone(new Date(), settings.timezone);
   const { boardDate, errorMessage } = resolveSelectedBoardDate(requestedBoardDate, todayBoardDate);
@@ -52,6 +56,7 @@ export default async function BoardPage({ searchParams }: BoardPageProps) {
       assignableUsers={assignableUsers}
       initialBoardDate={boardDate}
       initialDateError={errorMessage}
+      initialView={requestedView === "live" ? "live" : "overview"}
       isManager={manager}
       key={boardDate}
       todayBoardDate={todayBoardDate}
