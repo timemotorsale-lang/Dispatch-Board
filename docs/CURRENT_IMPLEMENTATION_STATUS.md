@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-07-14 — Enterprise optimization architecture foundation
+
+The enterprise optimization documentation package is established under [`docs/enterprise-optimization/README.md`](enterprise-optimization/README.md), governed by the [`Enterprise Optimization Constitution`](ENTERPRISE_OPTIMIZATION_CONSTITUTION.md). It defines the shared work model; priority and classes of service; capacity and resource allocation; dependency and flow optimization; risk, exception, and escalation handling; measurement and continuous improvement; automation and AI governance; simulation and validation; and a phased implementation roadmap.
+
+This checkpoint is documentation and governance only. It does not add or activate application code, database structures, APIs, user-interface behavior, scoring weights, automated assignments, or AI decision-making. Existing Inventory optimization specifications remain domain specializations and inherit the enterprise Constitution. Any production algorithm must pass the documented policy-approval, data-quality, simulation, shadow-mode, human-authority, explainability, and rollback gates before activation.
+
 ## 2026-07-14 — Command Control Center shell foundation
 
 The approved Time Motor Sales Command Control Center shell is implemented as the shared application frame. Dispatch Board is the only live module in the primary shell; Time & Attendance, People & HR, Compliance, Legal & Accounting, Library & Training, and Insights are visibly locked as Planned. The shell now provides CCC branding, Dispatch-local Overview/Live Board/Team/Activity navigation, a persistent command bar, and an updated Dispatch Overview frame while preserving the existing board-generation, scheduler-health, task-intake, metrics, team-load, projects, customer/vehicle context, manager-attention, task-table, and activity behavior. Focused navigation/UI contract tests, typecheck, lint, and desktop/mobile browser inspection cover this checkpoint. The planned CCC modules are not implemented.

@@ -4,6 +4,8 @@
 **Roadmap status:** Dispatch Board foundation implemented; Enterprise Appointment E1 in progress; Enterprise Tasks and Customers Module directions refined
 **Primary goal:** Preserve and harden the working Dispatch Board while delivering approved Appointment, Tasks, and Customers module paths through reviewable vertical slices.
 
+> **Enterprise optimization program:** The cross-console governing rules and adoption sequence live in [`docs/enterprise-optimization/README.md`](enterprise-optimization/README.md) and its [`implementation roadmap`](enterprise-optimization/IMPLEMENTATION_ROADMAP.md). This program begins with shared vocabulary, evidence, deterministic recommendations, simulation, and shadow-mode validation. It does not authorize universal scoring weights or autonomous decisions; those require separate policy approval and measured validation.
+
 > **Enterprise Appointment Program:** The Appointment Command Center has an approved Enterprise Release 1.0 planning package in [`docs/appointments/README.md`](appointments/README.md). That package supersedes MVP-level appointment assumptions in this roadmap for the Appointment feature only. It remains planned work until its implementation milestones are completed.
 
 > **Projects Module planning package:** The Projects Hub and Project Workspace roadmap now has a dedicated module guide in [`docs/projects/PROJECTS_MODULE_GUIDE.md`](projects/PROJECTS_MODULE_GUIDE.md). Use that document for project-module scope, boundaries, milestone IDs, and implementation guardrails so Projects work does not drift into a full Dispatch Board rewrite.

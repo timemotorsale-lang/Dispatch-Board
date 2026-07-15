@@ -23,6 +23,8 @@ Time Motor Sales Command Control Center is the future-ready umbrella shell for t
 
 The shell establishes a durable information hierarchy without requiring the broader Command Control Center program to be implemented before Dispatch Board is settled.
 
+Cross-console optimization, recommendation, escalation, and automation are governed by the [`Enterprise Optimization Constitution`](ENTERPRISE_OPTIMIZATION_CONSTITUTION.md) and its [`architecture package`](enterprise-optimization/README.md). This UI source of truth defines where governed intelligence may appear; it does not itself activate or authorize an algorithm.
+
 ## Governing hierarchy
 
 ```text
