@@ -10,7 +10,7 @@ import { isManager } from "@/server/policies/access";
 
 import { getDispatchNavigationItems, getNavigationGroups, isDispatchConsolePath } from "./navigation";
 
-type AppTopbarProps = { onMenuOpen(): void; showGlobalNavigation: boolean; user: AuthenticatedUser };
+type AppTopbarProps = { commandCenterHome: boolean; onMenuOpen(): void; showNavigationMenu: boolean; user: AuthenticatedUser };
 
 function initials(name: string) {
   return name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
@@ -41,11 +41,10 @@ function getBreadcrumb(pathname: string, dispatchView: "overview" | "live") {
   return ["Command Control Center", "Dispatch", "Workspace"];
 }
 
-export function AppTopbar({ onMenuOpen, showGlobalNavigation, user }: AppTopbarProps) {
+export function AppTopbar({ commandCenterHome, onMenuOpen, showNavigationMenu, user }: AppTopbarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const dispatchView = searchParams.get("view") === "live" ? "live" : "overview";
-  const commandCenterHome = pathname === "/command-center";
   const dispatchConsole = isDispatchConsolePath(pathname);
   const actionsRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -100,15 +99,16 @@ export function AppTopbar({ onMenuOpen, showGlobalNavigation, user }: AppTopbarP
 
   return (
     <header className="app-topbar ccc-topbar">
-      {showGlobalNavigation ? (
+      {showNavigationMenu ? (
         <button className="topbar-icon topbar-menu" aria-label="Open navigation" onClick={onMenuOpen} type="button">
           <Menu size={20} />
         </button>
-      ) : (
+      ) : null}
+      {!commandCenterHome ? (
         <Link aria-label="Command Center Home" className="ccc-home-link" href="/command-center">
           <House size={15} /><span>CCC Home</span>
         </Link>
-      )}
+      ) : null}
 
       <nav aria-label="Workspace breadcrumb" className="ccc-breadcrumb">
         {breadcrumb.map((part, index) => (

@@ -6061,6 +6061,7 @@ code {
 /* Command Control Center shell */
 .app-frame { grid-template-columns: 228px minmax(0, 1fr); background: #f3f6fa; }
 .app-frame-console { grid-template-columns: minmax(0, 1fr); }
+.app-frame-console-sidebar { grid-template-columns: 228px minmax(0, 1fr); }
 .app-sidebar { padding: 16px 8px 12px; background: linear-gradient(180deg, #061426 0%, #071a30 55%, #06172a 100%); }
 .sidebar-brand-row { min-height: 72px; padding: 0 10px 17px; }
 .sidebar-brand { gap: 10px; }
@@ -6084,6 +6085,16 @@ code {
 .sidebar-link-disabled:hover { color: #a5b2c2; background: transparent; }
 .sidebar-planned-lock { color: #7f8da0; }
 .sidebar-account { border-radius: 6px; }
+.console-sidebar .sidebar-brand strong { letter-spacing: .08em; }
+.console-sidebar-status { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 8px 2px 2px; padding: 9px 8px; color: #c8d5e4; background: rgba(12,38,65,.72); border: 1px solid #203e5e; border-radius: 6px; }
+.console-sidebar-status span { display: inline-flex; align-items: center; gap: 7px; overflow: hidden; font-size: 8px; font-weight: 800; letter-spacing: .045em; text-transform: uppercase; text-overflow: ellipsis; white-space: nowrap; }
+.console-sidebar-status i { width: 7px; height: 7px; flex: 0 0 auto; background: #52dd7f; border-radius: 50%; }
+.console-sidebar-status small { padding: 3px 5px; color: #d9ffe7; background: #11713c; border-radius: 4px; font-size: 6px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.console-sidebar-navigation { align-content: start; gap: 2px; padding-top: 8px; }
+.console-sidebar-navigation .sidebar-link { min-height: 34px; }
+.console-sidebar-ccc-home { display: flex; align-items: center; gap: 8px; margin: auto 2px 9px; padding: 9px 10px; color: #b8c7d8; background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.1); border-radius: 6px; font-size: 9px; font-weight: 750; }
+.console-sidebar-ccc-home:hover { color: #fff; background: rgba(255,255,255,.07); }
+.console-sidebar .sidebar-account { margin-top: 0; }
 
 .ccc-topbar { min-height: 58px; padding: 0 16px; color: #dce7f4; background: #061426; border-bottom-color: #19314c; backdrop-filter: none; }
 .ccc-breadcrumb { display: flex; align-items: center; gap: 8px; min-width: 0; color: #b7c4d3; font-size: 10px; white-space: nowrap; }

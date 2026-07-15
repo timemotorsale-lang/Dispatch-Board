@@ -11,6 +11,8 @@ import { SessionHealthGuard } from "@/features/auth/session-health-guard";
 
 import { AppSidebar } from "./app-sidebar";
 import { AppTopbar } from "./app-topbar";
+import { ConsoleSidebar } from "./console-sidebar";
+import { getConsoleNavigation } from "./console-navigation";
 import { DispatchConsoleHeader } from "./dispatch-console-header";
 import { isDispatchConsolePath } from "./navigation";
 import { useWorkspaceMode, WorkspaceModeProvider } from "./workspace-mode";
@@ -26,6 +28,8 @@ function AppShellContent({ children, user }: AppShellProps) {
   const { mode } = useWorkspaceMode();
   const commandCenterHome = pathname === "/command-center";
   const dispatchConsole = isDispatchConsolePath(pathname);
+  const consoleNavigation = getConsoleNavigation(pathname, user);
+  const hasSidebar = commandCenterHome || Boolean(consoleNavigation);
   const tasksWorkspace = pathname.startsWith("/tasks");
   const sidebarCompact = commandCenterHome && tasksWorkspace && mode !== "standard";
 
@@ -34,17 +38,19 @@ function AppShellContent({ children, user }: AppShellProps) {
       className={[
         "app-frame",
         !commandCenterHome ? "app-frame-console" : "",
+        consoleNavigation ? "app-frame-console-sidebar" : "",
         sidebarCompact ? "app-frame-sidebar-compact" : "",
         tasksWorkspace ? `app-frame-workspace-${mode}` : ""
       ].filter(Boolean).join(" ")}
     >
       <SessionHealthGuard />
       {commandCenterHome ? <AppSidebar compact={sidebarCompact} isOpen={navigationOpen} onClose={() => setNavigationOpen(false)} user={user} /> : null}
-      {commandCenterHome && navigationOpen ? (
+      {consoleNavigation ? <ConsoleSidebar console={consoleNavigation} isOpen={navigationOpen} onClose={() => setNavigationOpen(false)} user={user} /> : null}
+      {hasSidebar && navigationOpen ? (
         <button className="sidebar-scrim" aria-label="Close navigation" onClick={() => setNavigationOpen(false)} />
       ) : null}
       <div className="app-workspace">
-        <AppTopbar onMenuOpen={() => setNavigationOpen(true)} showGlobalNavigation={commandCenterHome} user={user} />
+        <AppTopbar commandCenterHome={commandCenterHome} onMenuOpen={() => setNavigationOpen(true)} showNavigationMenu={hasSidebar} user={user} />
         {dispatchConsole ? <DispatchConsoleHeader user={user} /> : null}
         <main className="app-content">{children}</main>
         {dispatchConsole && pathname !== "/board" && pathname !== "/tasks/intake" && pathname !== "/prototype/task-intake" ? (

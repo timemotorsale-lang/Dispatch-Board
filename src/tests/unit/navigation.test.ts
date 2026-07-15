@@ -5,6 +5,7 @@ import {
   getNavigationGroups,
   isDispatchConsolePath
 } from "@/components/layout/navigation";
+import { getConsoleNavigation } from "@/components/layout/console-navigation";
 import type { AuthenticatedUser } from "@/server/auth/store";
 
 function user(overrides: Partial<AuthenticatedUser> = {}): AuthenticatedUser {
@@ -117,5 +118,32 @@ describe("enterprise shell navigation", () => {
     expect(isDispatchConsolePath("/vehicles/360/unit-1")).toBe(true);
     expect(isDispatchConsolePath("/command-center")).toBe(false);
     expect(isDispatchConsolePath("/administration")).toBe(false);
+  });
+
+  it("assigns each implemented console its own sidebar navigation", () => {
+    const staffDispatch = getConsoleNavigation("/tasks/task-1", user());
+    const manager = user({ roles: ["General Manager"] });
+    const managerAdministration = getConsoleNavigation("/settings/team", manager);
+
+    expect(staffDispatch?.subtitle).toBe("Dispatch Board");
+    expect(staffDispatch?.items.map((item) => item.title)).toEqual([
+      "Overview",
+      "Live Board",
+      "My Tasks",
+      "Tasks",
+      "Projects",
+      "Appointments",
+      "Vehicles",
+      "Customers",
+      "Team",
+      "Activity"
+    ]);
+    expect(managerAdministration?.subtitle).toBe("Administration Console");
+    expect(managerAdministration?.items.map((item) => item.title)).toEqual([
+      "Administration",
+      "Integrations",
+      "Settings"
+    ]);
+    expect(getConsoleNavigation("/command-center", manager)).toBeNull();
   });
 });

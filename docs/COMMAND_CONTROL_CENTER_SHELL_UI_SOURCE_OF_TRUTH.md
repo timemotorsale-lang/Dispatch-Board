@@ -7,7 +7,7 @@
 
 The expanded Dispatch Live Board navigation is governed by [`DISPATCH_LIVE_BOARD_NAVIGATION_UI_SOURCE_OF_TRUTH.md`](DISPATCH_LIVE_BOARD_NAVIGATION_UI_SOURCE_OF_TRUTH.md). Its approved single-line design supersedes the earlier four-tab treatment for that specific navigation scope.
 
-The approved shell-containment model is implemented: the global CCC sidebar appears only on authenticated CCC Home at `/command-center`. Operational consoles suppress the global sidebar, retain the global command bar, and provide an explicit **CCC Home** return control.
+The approved shell-containment model is implemented: the global CCC sidebar appears only on authenticated CCC Home at `/command-center`. Operational consoles replace it with a console-owned sidebar, retain the global command bar, and provide an explicit **CCC Home** return control.
 
 ## Approved mockup
 
@@ -58,7 +58,7 @@ Time Motor Sales Command Control Center
 5. Keep Dispatch-local navigation inside the Dispatch module using the exact destinations and order governed by the [Dispatch Live Board Navigation UI Source of Truth](DISPATCH_LIVE_BOARD_NAVIGATION_UI_SOURCE_OF_TRUTH.md).
 6. Treat **Dispatch Overview** as the manager's daily launch and readiness surface.
 7. Treat **Live Board** as the deeper execution surface for operating and updating the day's work.
-8. Show the global CCC module sidebar only on **CCC Home**. Never populate global CCC module navigation inside an operational console.
+8. Show the global CCC module sidebar only on **CCC Home**. Inside an operational console, replace it with that console's own navigation; never populate global CCC modules there.
 9. Keep the global command bar visible inside consoles, including Time Motor Sales identity, breadcrumb, store context, search, notifications, identity, and an explicit return to **CCC Home**.
 10. Treat **CCC Home** and a console's **Overview** as different destinations: CCC Home exits the console; Overview remains inside it.
 
@@ -109,13 +109,15 @@ The initial implementation establishes:
 
 - Command Control Center umbrella branding.
 - An authenticated CCC Home at `/command-center`, where the global module sidebar and enterprise console launcher are available.
-- Console containment that removes the global CCC sidebar from operational workspaces and restores it on CCC Home.
+- Console containment that replaces the global CCC sidebar with console-owned navigation in operational workspaces and restores global navigation on CCC Home.
 - A persistent CCC Home control and linked breadcrumb in the global command bar on console routes.
 - A persistent CCC command bar with breadcrumb, Dispatch status, search, store context, notifications, and identity.
 - Dispatch Board as the only live module in the primary shell.
 - Deliberately locked Planned states for future CCC modules.
 - The approved single-line Dispatch navigation: Overview, Live Board, My Tasks, Tasks, Projects, Appointments, Vehicles, Customers, permission-aware Manager Review, Team, and Activity.
 - Persistent Dispatch console navigation across the full Dispatch route family, including nested task, project, customer, and vehicle workspaces.
+- A Dispatch-owned left sidebar populated from the same approved destinations and permissions as the Dispatch console header.
+- A reusable console-sidebar contract used by Dispatch and the existing Administration console, ready for additional consoles when their own destinations are approved.
 - A dedicated Live Board sub-view at `/board?view=live`, with synchronized sidebar, breadcrumb, and local tabs plus a persistent return tab to Dispatch Overview.
 - Dispatch Overview framing around the existing live board date, generation health, Task Intake, Generate Board, task metrics, team load, project context, customer/vehicle context, task table, manager attention, and activity behavior.
 - Responsive shell behavior without page-level horizontal overflow at the mobile validation breakpoint.

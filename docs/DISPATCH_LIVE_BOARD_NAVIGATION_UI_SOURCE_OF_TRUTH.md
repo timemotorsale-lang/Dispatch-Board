@@ -46,6 +46,7 @@ Dispatch Board — LIVE
 8. At narrower widths, the navigation may scroll, progressively collapse, or move into an accessible overflow control, but it must preserve the same order, active state, and access to every permitted destination.
 9. Keep this navigation available across Dispatch destinations and nested workspaces so opening Tasks, Projects, Vehicles, Customers, or another Dispatch area never exposes the global CCC sidebar.
 10. Provide a separate persistent **CCC Home** control in the global command bar. **CCC Home** exits Dispatch; **Overview** remains inside Dispatch.
+11. Populate the Dispatch-owned left sidebar with the same approved destinations, order, selected-state logic, and permission filtering. The sidebar belongs to Dispatch and must never contain global CCC modules.
 
 ## Intended destination map
 

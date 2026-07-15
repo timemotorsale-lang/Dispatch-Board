@@ -29,7 +29,7 @@ The [Dispatch Live Board Navigation UI Source of Truth](DISPATCH_LIVE_BOARD_NAVI
 6. The Administration & Integration mockup is a combined visual reference; implementation may remain split into `/administration` and `/integrations` so access controls stay explicit.
 7. Any future visual change should update the relevant image and this mapping before changing production UI.
 8. Until another Command Control Center module is explicitly approved as live, Dispatch Board is the only live module and all future shell entries must be presented as planned rather than simulated.
-9. Populate the global CCC sidebar only on `/command-center`. Inside any console, use console-owned navigation and retain a persistent return to CCC Home.
+9. Populate the global CCC sidebar only on `/command-center`. Inside any console, replace it with that console's own sidebar/navigation and retain a persistent return to CCC Home.
 
 ## Implementation status
 
