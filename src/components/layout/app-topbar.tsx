@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { isManager } from "@/server/policies/access";
+import { TimeMotorSalesLogo } from "@/components/brand/time-motor-sales-logo";
 
 import { getDispatchNavigationItems, getNavigationGroups, isDispatchConsolePath } from "./navigation";
 
@@ -104,6 +105,10 @@ export function AppTopbar({ commandCenterHome, onMenuOpen, showNavigationMenu, u
           <Menu size={20} />
         </button>
       ) : null}
+      <Link aria-label="Time Motor Sales Command Control Center Home" className="ccc-topbar-brand" href="/command-center">
+        <TimeMotorSalesLogo className="ccc-topbar-brand-horizontal" decorative priority variant="horizontal-reversed" />
+        <TimeMotorSalesLogo className="ccc-topbar-brand-mark" decorative priority variant="mark" />
+      </Link>
       {!commandCenterHome ? (
         <Link aria-label="Command Center Home" className="ccc-home-link" href="/command-center">
           <House size={15} /><span>CCC Home</span>

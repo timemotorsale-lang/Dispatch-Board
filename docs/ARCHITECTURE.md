@@ -8,6 +8,8 @@
 
 **Tasks Console UI source of truth:** [`docs/TASKS_CONSOLE_UI_SOURCE_OF_TRUTH.md`](TASKS_CONSOLE_UI_SOURCE_OF_TRUTH.md)
 
+**CCC brand source of truth:** [`docs/TIME_MOTOR_SALES_LOGO_SOURCE_OF_TRUTH.md`](TIME_MOTOR_SALES_LOGO_SOURCE_OF_TRUTH.md)
+
 ---
 
 > **Enterprise optimization architecture:** The governing Constitution, common work model, algorithm specifications, validation rules, automation controls, and phased adoption path live in [`docs/enterprise-optimization/README.md`](enterprise-optimization/README.md). The [`Enterprise Optimization Constitution`](ENTERPRISE_OPTIMIZATION_CONSTITUTION.md) applies to optimization, recommendation, escalation, and automation across the Command Control Center and every operational console. Domain specifications may strengthen these rules but may not weaken their safety, compliance, authorization, evidence, explainability, or audit requirements. This package is an architecture baseline; it does not by itself activate application behavior.

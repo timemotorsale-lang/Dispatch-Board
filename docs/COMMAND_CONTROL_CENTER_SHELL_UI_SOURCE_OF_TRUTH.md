@@ -5,6 +5,8 @@
 **Scope:** Time Motor Sales Command Control Center global shell and Dispatch Overview  
 **Implementation state:** Initial CCC shell and Dispatch Overview hierarchy implemented; deeper overview composition remains iterative
 
+The corporate identity and responsive placement rules are governed by the [`Time Motor Sales Logo and CCC Brand Source of Truth`](TIME_MOTOR_SALES_LOGO_SOURCE_OF_TRUTH.md). Every console inherits that identity through the shared shell and may not introduce a competing company mark.
+
 The expanded Dispatch Live Board navigation is governed by [`DISPATCH_LIVE_BOARD_NAVIGATION_UI_SOURCE_OF_TRUTH.md`](DISPATCH_LIVE_BOARD_NAVIGATION_UI_SOURCE_OF_TRUTH.md). Its approved single-line design supersedes the earlier four-tab treatment for that specific navigation scope.
 
 The approved shell-containment model is implemented: the global CCC sidebar appears only on authenticated CCC Home at `/command-center`. Operational consoles replace it with a console-owned sidebar, retain the global command bar, and provide an explicit **CCC Home** return control.

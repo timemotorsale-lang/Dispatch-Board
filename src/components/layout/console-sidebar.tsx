@@ -6,6 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 
 import { LogoutButton } from "@/features/auth/logout-button";
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { TimeMotorSalesLogo } from "@/components/brand/time-motor-sales-logo";
 
 import type { ConsoleNavigationDefinition } from "./console-navigation";
 
@@ -38,7 +39,7 @@ export function ConsoleSidebar({ console, isOpen, onClose, user }: ConsoleSideba
     <aside className={["app-sidebar", "console-sidebar", isOpen ? "app-sidebar-open" : ""].filter(Boolean).join(" ")}>
       <div className="sidebar-brand-row">
         <Link aria-label={`${console.subtitle} home`} className="sidebar-brand" href={console.homeHref} onClick={onClose}>
-          <span className="sidebar-logo" aria-hidden="true">T</span>
+          <span className="sidebar-logo" aria-hidden="true"><TimeMotorSalesLogo decorative priority variant="mark" /></span>
           <span><strong>{console.title}</strong><small>{console.subtitle}</small></span>
         </Link>
         <button className="sidebar-close" aria-label="Close navigation" onClick={onClose} type="button"><X size={20} /></button>

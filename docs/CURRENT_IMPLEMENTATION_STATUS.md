@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-07-14 — Time Motor Sales responsive CCC identity
+
+The approved Time Motor Sales logo system is implemented through the shared application shell and governed by [`docs/TIME_MOTOR_SALES_LOGO_SOURCE_OF_TRUTH.md`](TIME_MOTOR_SALES_LOGO_SOURCE_OF_TRUTH.md). The reversed horizontal logo appears in the global CCC command bar and CCC Home hero, the compact TMS mark appears at constrained widths and in CCC/console sidebars, authentication uses the standard horizontal logo, and browser/mobile metadata uses approved compact assets. Because operational consoles inherit `AppShell`, present and future console pages receive the corporate identity without duplicating page-level logo markup.
+
+The former red `T` placeholder is retired. The approved concept image is preserved under `docs/ui-mockups/`, and transparent production assets live under `public/brand/`. Current assets are high-resolution PNGs; mathematically clean SVG and vector-PDF masters remain a future production-format refinement that may not redesign the approved identity.
+
 ## 2026-07-14 — Enterprise optimization Phase 1 vocabulary and registry
 
 Phase 1 establishes the non-behavioral semantic layer under `src/server/enterprise-optimization/`: canonical enterprise concepts, stable CCC console identities, deterministic cross-console record references, shared reason-code and event-type registries, and explicit source-authority mappings. Dispatch, Tasks, Appointments, Customers, Projects, Vehicles, Inventory, enterprise event/audit foundations, Insights, Administration, and every planned CCC console now have truthful semantic boundaries documented in [`docs/enterprise-optimization/README.md`](enterprise-optimization/README.md).

@@ -6,6 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 
 import { LogoutButton } from "@/features/auth/logout-button";
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { TimeMotorSalesLogo } from "@/components/brand/time-motor-sales-logo";
 
 import { getNavigationGroups } from "./navigation";
 
@@ -31,7 +32,7 @@ export function AppSidebar({ compact, isOpen, onClose, user }: AppSidebarProps) 
     <aside className={["app-sidebar", compact ? "app-sidebar-compact" : "", isOpen ? "app-sidebar-open" : ""].filter(Boolean).join(" ")}>
       <div className="sidebar-brand-row">
         <Link aria-label="Time Motor Sales Command Control Center" className="sidebar-brand" href="/command-center" onClick={onClose} title={compact ? "Time Motor Sales" : undefined}>
-          <span className="sidebar-logo" aria-hidden="true">T</span>
+          <span className="sidebar-logo" aria-hidden="true"><TimeMotorSalesLogo decorative priority variant="mark" /></span>
           <span><strong>TIME MOTOR SALES</strong><small>COMMAND CONTROL CENTER</small></span>
         </Link>
         <button className="sidebar-close" aria-label="Close navigation" onClick={onClose} type="button"><X size={20} /></button>

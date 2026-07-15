@@ -2,6 +2,7 @@ import { ArrowRight, LockKeyhole } from "lucide-react";
 import Link from "next/link";
 
 import { getNavigationGroups } from "@/components/layout/navigation";
+import { TimeMotorSalesLogo } from "@/components/brand/time-motor-sales-logo";
 import { requireCurrentUser } from "@/server/auth/current-user";
 
 export default async function CommandCenterHomePage() {
@@ -12,7 +13,7 @@ export default async function CommandCenterHomePage() {
     <div className="ccc-home-page">
       <header className="ccc-home-hero">
         <div>
-          <span className="eyebrow">Time Motor Sales</span>
+          <TimeMotorSalesLogo className="ccc-home-hero-logo" decorative priority variant="horizontal-reversed" />
           <h1>Command Control Center</h1>
           <p>Select an operational console. Each console opens as a focused command center with its own navigation and a persistent path back here.</p>
         </div>

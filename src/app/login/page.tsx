@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { LoginForm } from "@/features/auth/login-form";
+import { TimeMotorSalesLogo } from "@/components/brand/time-motor-sales-logo";
 
 import { APP_NAME } from "../config";
 import { redirectAuthenticatedUser } from "@/server/auth/current-user";
@@ -26,6 +27,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     <main className="page-shell">
       <section className="page-stack">
         <div className="page-copy">
+          <TimeMotorSalesLogo className="auth-brand-logo" priority />
           <span className="eyebrow">Secure sign-in</span>
           <h1>{APP_NAME}</h1>
           <p>
