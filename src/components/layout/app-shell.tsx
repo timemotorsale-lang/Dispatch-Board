@@ -41,7 +41,7 @@ function AppShellContent({ children, user }: AppShellProps) {
       <div className="app-workspace">
         <AppTopbar onMenuOpen={() => setNavigationOpen(true)} user={user} />
         <main className="app-content">{children}</main>
-        {pathname !== "/tasks/intake" && pathname !== "/prototype/task-intake" ? (
+        {pathname !== "/board" && pathname !== "/tasks/intake" && pathname !== "/prototype/task-intake" ? (
           <Link aria-label="Open Task Intake" className="global-task-intake-launcher" href={`/tasks/intake?returnTo=${encodeURIComponent(pathname)}`} title="Create work from this console">
             <ClipboardPlus size={18} /><span>Task Intake</span>
           </Link>

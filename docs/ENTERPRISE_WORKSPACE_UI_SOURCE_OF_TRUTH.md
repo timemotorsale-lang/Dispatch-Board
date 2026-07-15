@@ -1,11 +1,14 @@
 # Enterprise Workspace UI Source of Truth
 
-These six approved mockups are the visual source of truth for the enterprise console. They define layout, hierarchy, density, navigation placement, status treatment, and role context. They do not replace the backend as the source of truth for data, permissions, workflow state, or audit history.
+These approved mockups are the visual source of truth for the enterprise console. They define layout, hierarchy, density, navigation placement, status treatment, and role context. They do not replace the backend as the source of truth for data, permissions, workflow state, or audit history.
+
+The [Command Control Center Shell UI Source of Truth](COMMAND_CONTROL_CENTER_SHELL_UI_SOURCE_OF_TRUTH.md) governs the global shell, umbrella product naming, and Dispatch Overview composition. Module-level mockups continue to govern their workspace interiors.
 
 ## Approved workspace map
 
 | Mockup | Primary role(s) | Console route | Purpose |
 | --- | --- | --- | --- |
+| [Command Control Center Shell and Dispatch Overview](ui-mockups/command-control-center-shell-dispatch-overview.png) | General manager, dispatch manager, staff | `/board` | Global CCC shell and the Dispatch manager's daily launch, readiness, attention, team-load, and activity overview. Dispatch is the only live module in this approved planning state. |
 | [Inventory Lifecycle Control Tower](ui-mockups/inventory-lifecycle-control-tower.png) | Inventory manager, general manager | `/vehicles` | Cross-functional inventory flow, capital exposure, exceptions, capacity, and readiness. |
 | [Inventory Manager Workspace](ui-mockups/inventory-manager-workspace.png) | Inventory manager | `/inventory-manager` | Daily acquisition, readiness, aging, merchandising, and next-action work. |
 | [Vehicle 360 Workspace](ui-mockups/vehicle-360-workspace.png) | Inventory, service advisor, manager | `/vehicles/360/[id]` | Canonical vehicle identity, lifecycle, repairs, parts, evidence, customer context, and activity. |
@@ -22,7 +25,8 @@ These six approved mockups are the visual source of truth for the enterprise con
 5. Vehicle 360 is the cross-functional record workspace. Inventory, service, parts, customer, evidence, and activity links should converge there instead of creating duplicate vehicle views.
 6. The Administration & Integration mockup is a combined visual reference; implementation may remain split into `/administration` and `/integrations` so access controls stay explicit.
 7. Any future visual change should update the relevant image and this mapping before changing production UI.
+8. Until another Command Control Center module is explicitly approved as live, Dispatch Board is the only live module and all future shell entries must be presented as planned rather than simulated.
 
 ## Implementation status
 
-The image assets are preserved in this repository for review and record keeping. The shared shell and route foundations are implemented. The next UI implementation pass should align each route's detailed layout to its corresponding mockup while retaining the current backend contracts and operational actions.
+The image assets are preserved in this repository for review and record keeping. The initial Command Control Center shell and Dispatch Overview hierarchy are implemented from the approved mockup while retaining existing backend contracts and operational actions. Planned CCC modules remain unavailable. Module interiors should continue to align to their corresponding mockups through scoped, verified implementation passes.

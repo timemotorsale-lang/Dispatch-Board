@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronsRight, LogOut, X } from "lucide-react";
+import { ChevronDown, ChevronsRight, LockKeyhole, LogOut, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -29,7 +29,7 @@ export function AppSidebar({ compact, isOpen, onClose, user }: AppSidebarProps) 
       <div className="sidebar-brand-row">
         <Link aria-label="Time Motor Sales" className="sidebar-brand" href="/board" onClick={onClose} title={compact ? "Time Motor Sales" : undefined}>
           <span className="sidebar-logo" aria-hidden="true">T</span>
-          <span><strong>TIME</strong><small>MOTOR SALES</small></span>
+          <span><strong>TIME MOTOR SALES</strong><small>COMMAND CONTROL CENTER</small></span>
         </Link>
         <button className="sidebar-close" aria-label="Close navigation" onClick={onClose} type="button"><X size={20} /></button>
       </div>
@@ -45,22 +45,34 @@ export function AppSidebar({ compact, isOpen, onClose, user }: AppSidebarProps) 
                 const parentCurrent = item.matchExact && pathname.startsWith(`${item.href}/`);
                 const className = [
                   "sidebar-link",
+                  item.title === "Dispatch Board" ? "sidebar-link-module" : "",
                   item.parentHref ? "sidebar-link-child" : "",
                   active ? "sidebar-link-active" : "",
                   parentCurrent ? "sidebar-link-parent-current" : ""
                 ].filter(Boolean).join(" ");
-                return (
+                const content = (
+                  <>
+                    <Icon aria-hidden="true" size={18} strokeWidth={1.8} />
+                    <span>{item.title}</span>
+                    {item.badge ? <small className={item.disabled ? "sidebar-badge sidebar-badge-planned" : "sidebar-badge sidebar-badge-live"}>{item.badge}</small> : null}
+                    {item.disabled ? <LockKeyhole className="sidebar-planned-lock" aria-hidden="true" size={12} /> : null}
+                  </>
+                );
+
+                return item.disabled ? (
+                  <div aria-disabled="true" className={`${className} sidebar-link-disabled`} key={item.href} title={`${item.title} is planned`}>
+                    {content}
+                  </div>
+                ) : (
                   <Link
                     aria-current={active ? "page" : undefined}
                     className={className}
                     href={item.href}
-                    key={item.href}
+                    key={`${item.href}-${item.title}`}
                     onClick={onClose}
                     title={compact ? item.title : undefined}
                   >
-                    <Icon aria-hidden="true" size={18} strokeWidth={1.8} />
-                    <span>{item.title}</span>
-                    {item.badge ? <small className="sidebar-badge">{item.badge}</small> : null}
+                    {content}
                   </Link>
                 );
               })}

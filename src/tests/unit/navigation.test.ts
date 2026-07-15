@@ -20,31 +20,38 @@ function linksFor(testUser: AuthenticatedUser) {
 }
 
 describe("enterprise shell navigation", () => {
-  it("keeps the core daily operations reachable from the shared shell", () => {
-    const hrefs = linksFor(user()).map((item) => item.href);
+  it("presents Dispatch as the only live Command Control Center module", () => {
+    const links = linksFor(user());
+    const dispatch = links.find((item) => item.title === "Dispatch Board");
+    const liveItems = links.filter((item) => !item.disabled);
 
-    expect(hrefs).toEqual(expect.arrayContaining([
-      "/board",
-      "/my-tasks",
-      "/tasks",
-      "/vehicles",
-      "/customers",
-      "/customers/customer-360",
-      "/appointments",
-      "/activity",
-      "/insights",
-      "/integrations",
-      "/ui-reference",
-      "/inventory-manager",
-      "/vehicles/inventory",
-      "/vehicles/shop-dispatch",
-      "/vehicles/parts-counter"
-    ]));
+    expect(dispatch?.href).toBe("/board");
+    expect(dispatch?.badge).toBe("Live");
+    expect(liveItems.map((item) => item.title)).toEqual([
+      "Dispatch Board",
+      "Overview",
+      "Live Board",
+      "Team",
+      "Activity"
+    ]);
   });
 
-  it("exposes manager command and administration navigation only to managers", () => {
+  it("marks future Command Control Center modules as planned and unavailable", () => {
+    const planned = linksFor(user()).filter((item) => item.disabled);
+
+    expect(planned.map((item) => item.title)).toEqual([
+      "Time & Attendance",
+      "People & HR",
+      "Compliance",
+      "Legal & Accounting",
+      "Library & Training",
+      "Insights"
+    ]);
+    expect(planned.every((item) => item.badge === "Planned")).toBe(true);
+  });
+
+  it("exposes administration and settings navigation only to managers", () => {
     const staffHrefs = linksFor(user()).map((item) => item.href);
-    expect(staffHrefs).not.toContain("/manager-review");
     expect(staffHrefs).not.toContain("/administration");
     expect(staffHrefs).not.toContain("/settings");
 
@@ -53,7 +60,6 @@ describe("enterprise shell navigation", () => {
       duties: { direct: [], roleDefaults: [], all: [] }
     });
     const managerHrefs = linksFor(manager).map((item) => item.href);
-    expect(managerHrefs).toContain("/manager-review");
     expect(managerHrefs).toContain("/administration");
     expect(managerHrefs).toContain("/settings");
   });
@@ -68,14 +74,12 @@ describe("enterprise shell navigation", () => {
     });
 
     const hrefs = linksFor(delegatedManager).map((item) => item.href);
-    expect(hrefs).toContain("/manager-review");
     expect(hrefs).toContain("/administration");
   });
 
-  it("adopts the approved task mockups into the shared workspace shell", () => {
-    const taskIntake = linksFor(user()).find((item) => item.href === "/tasks/intake");
-    const templates = linksFor(user()).find((item) => item.href === "/prototype/task-templates");
-    expect(taskIntake?.badge).toBe("Workspace");
-    expect(templates?.badge).toBe("Preview");
+  it("keeps Dispatch-local destinations inside the Dispatch hierarchy", () => {
+    const localItems = linksFor(user()).filter((item) => item.parentHref === "/board");
+
+    expect(localItems.map((item) => item.title)).toEqual(["Overview", "Live Board", "Team", "Activity"]);
   });
 });
