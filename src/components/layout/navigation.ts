@@ -1,23 +1,21 @@
 import {
   Activity,
-  CalendarDays,
-  Car,
+  BarChart3,
+  BookOpen,
+  BriefcaseBusiness,
+  Clock3,
   ClipboardCheck,
-  FolderKanban,
   Gauge,
-  LifeBuoy,
-  LayoutTemplate,
+  Landmark,
   ListChecks,
-  PackageOpen,
   Settings,
+  ShieldCheck,
   Users,
-  UserRound,
-  Wrench,
   type LucideIcon
 } from "lucide-react";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
-import { canManageSettings, isManager } from "@/server/policies/access";
+import { canManageSettings } from "@/server/policies/access";
 
 export type NavigationItem = {
   href: string;
@@ -25,6 +23,7 @@ export type NavigationItem = {
   description: string;
   icon: LucideIcon;
   badge?: string;
+  disabled?: boolean;
   matchExact?: boolean;
   parentHref?: string;
   isVisible?(user: AuthenticatedUser): boolean;
@@ -34,130 +33,114 @@ export type NavigationGroup = { label: string; items: NavigationItem[] };
 
 export const navigationGroups: NavigationGroup[] = [
   {
-    label: "",
+    label: "Operations",
     items: [
       {
         href: "/board",
         title: "Dispatch Board",
-        description: "Daily operations and team visibility.",
-        icon: Gauge
-      },
-      {
-        href: "/my-tasks",
-        title: "My Tasks",
-        description: "Your assigned work for today.",
-        icon: ClipboardCheck
-      },
-      {
-        href: "/tasks",
-        title: "Tasks",
-        description: "Shared task workflow.",
-        icon: ListChecks
-      },
-      {
-        href: "/projects",
-        title: "Projects",
-        description: "Department project boards and views.",
-        icon: FolderKanban
-      },
-      {
-        href: "/vehicles",
-        title: "Vehicles",
-        description: "Vehicle coordination.",
-        icon: Car
-      },
-      {
-        href: "/customers",
-        title: "Customers",
-        description: "Customer visibility.",
-        icon: UserRound,
+        description: "Today’s operating command, exceptions, and board readiness.",
+        icon: Gauge,
+        badge: "Live",
         matchExact: true
       },
       {
-        href: "/customers/customer-360",
-        title: "Customer 360",
-        description: "Unified customer profile and relationship history.",
-        icon: UserRound,
-        parentHref: "/customers"
-      },
-      {
-        href: "/customers/resolutions",
-        title: "Customer Resolution",
-        description: "Customer cases, SLA, and resolution queues.",
-        icon: LifeBuoy,
-        parentHref: "/customers"
-      },
-      {
-        href: "/appointments",
-        title: "Appointments",
-        description: "Upcoming appointments.",
-        icon: CalendarDays
-      },
-      {
-        href: "/manager-review",
-        title: "Manager Review Command Center",
-        description: "Decisions, quality control, and operational intervention.",
+        href: "/board",
+        title: "Overview",
+        description: "Daily readiness, workload, and manager attention.",
         icon: ClipboardCheck,
-        isVisible: (user) => isManager(user)
+        parentHref: "/board",
+        matchExact: true
       },
       {
-        href: "/activity",
-        title: "Activity Feed",
-        description: "Today's operating updates.",
-        icon: Activity
-      }
-    ]
-  },
-  {
-    label: "Operations",
-    items: [
+        href: "/board#live-board",
+        title: "Live Board",
+        description: "Operate and update today’s work.",
+        icon: ListChecks,
+        parentHref: "/board"
+      },
       {
         href: "/staff",
         title: "Team",
-        description: "Staff and responsibilities.",
-        icon: Users
-      },
-      {
-        href: "/reports",
-        title: "Reports / Insights",
-        description: "Operating reports.",
-        icon: Wrench
-      },
-      {
-        href: "/tasks/intake",
-        title: "Task Intake",
-        description: "Prototype guided work-shaping and readiness preview.",
-        icon: PackageOpen,
-        badge: "Prototype"
-      },
-      {
-        href: "/prototype/task-templates",
-        title: "Task Templates",
-        description: "Prototype-only enterprise workspace design.",
-        icon: LayoutTemplate,
-        badge: "Prototype"
-      }
-    ]
-  },
-  {
-    label: "Admin",
-    items: [
-      {
-        href: "/settings/team",
-        title: "Admin",
-        description: "Staff accounts, roles, duties, templates, and access control.",
+        description: "Team duties and execution context.",
         icon: Users,
-        isVisible: (user) => canManageSettings(user)
+        parentHref: "/board"
+      },
+      {
+        href: "/activity",
+        title: "Activity",
+        description: "Recorded Dispatch events and updates.",
+        icon: Activity,
+        parentHref: "/board"
       }
     ]
   },
   {
-    label: "Settings",
+    label: "Planned",
     items: [
+      {
+        href: "/time-attendance",
+        title: "Time & Attendance",
+        description: "Time cards, corrections, review, and payroll handoff.",
+        icon: Clock3,
+        badge: "Planned",
+        disabled: true
+      },
+      {
+        href: "/people-hr",
+        title: "People & HR",
+        description: "Employee operations and controlled HR records.",
+        icon: Users,
+        badge: "Planned",
+        disabled: true
+      },
+      {
+        href: "/compliance",
+        title: "Compliance",
+        description: "Licenses, permits, renewals, and evidence.",
+        icon: ShieldCheck,
+        badge: "Planned",
+        disabled: true
+      },
+      {
+        href: "/legal-accounting",
+        title: "Legal & Accounting",
+        description: "Obligations, requests, documents, and follow-up.",
+        icon: Landmark,
+        badge: "Planned",
+        disabled: true
+      },
+      {
+        href: "/library-training",
+        title: "Library & Training",
+        description: "Controlled forms, procedures, and training.",
+        icon: BookOpen,
+        badge: "Planned",
+        disabled: true
+      },
+      {
+        href: "/insights",
+        title: "Insights",
+        description: "Governed scorecards and operating intelligence.",
+        icon: BarChart3,
+        badge: "Planned",
+        disabled: true
+      }
+    ]
+  },
+  {
+    label: "Control",
+    items: [
+      {
+        href: "/administration",
+        title: "Administration",
+        description: "Staff accounts, roles, duties, templates, and access control.",
+        icon: BriefcaseBusiness,
+        isVisible: (user) => canManageSettings(user)
+      },
       {
         href: "/settings",
-        title: "Board Settings",
-        description: "Generation and board settings.",
+        title: "Settings",
+        description: "Dispatch generation and board settings.",
         icon: Settings,
         isVisible: (user) => canManageSettings(user)
       }

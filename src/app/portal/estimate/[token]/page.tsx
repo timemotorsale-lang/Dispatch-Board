@@ -1,1 +1,5 @@
-export { default, dynamic } from "../../vehicle/[token]/page";
+import VehiclePortalPage from "../../vehicle/[token]/page";
+
+export const dynamic = "force-dynamic";
+
+export default VehiclePortalPage;

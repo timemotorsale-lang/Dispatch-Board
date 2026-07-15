@@ -1,64 +1,85 @@
 import { describe, expect, it } from "vitest";
 
 import { getNavigationGroups } from "@/components/layout/navigation";
-import { createTestAuthStore } from "@/tests/support/auth-test-store";
+import type { AuthenticatedUser } from "@/server/auth/store";
 
-function listHrefs(groups: ReturnType<typeof getNavigationGroups>) {
-  return groups.flatMap((group) => group.items.map((item) => item.href));
+function user(overrides: Partial<AuthenticatedUser> = {}): AuthenticatedUser {
+  return {
+    id: "user-1",
+    name: "Alex Operator",
+    email: "alex@example.test",
+    isActive: true,
+    roles: ["Staff"],
+    duties: { direct: [], roleDefaults: [], all: [] },
+    ...overrides
+  };
 }
 
-describe("navigation visibility", () => {
-  it("hides manager-only routes from staff users", async () => {
-    const { usersByEmail } = await createTestAuthStore();
-    const staffUser = usersByEmail.get("jordan.sales@local.test");
+function linksFor(testUser: AuthenticatedUser) {
+  return getNavigationGroups(testUser).flatMap((group) => group.items);
+}
 
-    expect(staffUser).toBeDefined();
+describe("enterprise shell navigation", () => {
+  it("presents Dispatch as the only live Command Control Center module", () => {
+    const links = linksFor(user());
+    const dispatch = links.find((item) => item.title === "Dispatch Board");
+    const liveItems = links.filter((item) => !item.disabled);
 
-    const hrefs = listHrefs(getNavigationGroups(staffUser!));
-
-    expect(hrefs).not.toContain("/manager-review");
-    expect(hrefs).not.toContain("/settings");
-    expect(hrefs).not.toContain("/settings/team");
-    expect(hrefs).toContain("/staff");
-    expect(hrefs).toContain("/my-tasks");
-    expect(hrefs).toContain("/projects");
+    expect(dispatch?.href).toBe("/board");
+    expect(dispatch?.badge).toBe("Live");
+    expect(liveItems.map((item) => item.title)).toEqual([
+      "Dispatch Board",
+      "Overview",
+      "Live Board",
+      "Team",
+      "Activity"
+    ]);
   });
 
-  it("shows manager routes for delegated and General Manager users", async () => {
-    const { usersByEmail } = await createTestAuthStore();
-    const generalManager = usersByEmail.get("morgan.manager@local.test");
-    const delegatedManager = {
-      id: "user-delegate",
-      name: "Delegated Lead",
-      email: "delegate@local.test",
-      isActive: true,
-      roles: ["Salesperson"],
+  it("marks future Command Control Center modules as planned and unavailable", () => {
+    const planned = linksFor(user()).filter((item) => item.disabled);
+
+    expect(planned.map((item) => item.title)).toEqual([
+      "Time & Attendance",
+      "People & HR",
+      "Compliance",
+      "Legal & Accounting",
+      "Library & Training",
+      "Insights"
+    ]);
+    expect(planned.every((item) => item.badge === "Planned")).toBe(true);
+  });
+
+  it("exposes administration and settings navigation only to managers", () => {
+    const staffHrefs = linksFor(user()).map((item) => item.href);
+    expect(staffHrefs).not.toContain("/administration");
+    expect(staffHrefs).not.toContain("/settings");
+
+    const manager = user({
+      roles: ["General Manager"],
+      duties: { direct: [], roleDefaults: [], all: [] }
+    });
+    const managerHrefs = linksFor(manager).map((item) => item.href);
+    expect(managerHrefs).toContain("/administration");
+    expect(managerHrefs).toContain("/settings");
+  });
+
+  it("supports delegated manager duties without requiring a second identity", () => {
+    const delegatedManager = user({
       duties: {
         direct: ["Delegated manager capabilities"],
         roleDefaults: [],
         all: ["Delegated manager capabilities"]
       }
-    };
+    });
 
-    expect(generalManager).toBeDefined();
+    const hrefs = linksFor(delegatedManager).map((item) => item.href);
+    expect(hrefs).toContain("/administration");
+  });
 
-    expect(listHrefs(getNavigationGroups(generalManager!))).toEqual(
-      expect.arrayContaining([
-        "/manager-review",
-        "/settings",
-        "/settings/team",
-        "/staff",
-        "/projects"
-      ])
-    );
-    expect(listHrefs(getNavigationGroups(delegatedManager))).toEqual(
-      expect.arrayContaining([
-        "/manager-review",
-        "/settings",
-        "/settings/team",
-        "/staff",
-        "/projects"
-      ])
-    );
+  it("keeps Dispatch-local destinations inside the Dispatch hierarchy", () => {
+    const localItems = linksFor(user()).filter((item) => item.parentHref === "/board");
+
+    expect(localItems.map((item) => item.title)).toEqual(["Overview", "Live Board", "Team", "Activity"]);
   });
 });

@@ -11,6 +11,7 @@ import type { ActiveUserSummary } from "@/server/services/user-summary";
 import {
   BoardControls,
   BoardHero,
+  DispatchOverviewHeader,
   ManagerHealthPanelToggle,
   MetricStrip,
   OperationsStrip,
@@ -391,6 +392,7 @@ export function BoardScreen({
 
   return (
     <section className="dispatch-board-page">
+      <DispatchOverviewHeader />
       <BoardHero
         boardDate={loadState.date}
         generationStatus={board?.generationStatus}

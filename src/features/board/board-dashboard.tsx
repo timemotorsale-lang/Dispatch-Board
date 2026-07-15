@@ -456,11 +456,32 @@ export function BoardHero({
   latestGeneration?: BoardReadModel["latestGeneration"];
   toolbar: ReactNode;
 }) {
+  const generationDetail = latestGeneration
+    ? `${latestGeneration.triggeredBy === "manual" ? "Manual" : "Automatic"} run ${latestGeneration.status === "success" ? "succeeded" : latestGeneration.status} at ${formatTime(latestGeneration.attemptedAt)}${latestGeneration.createdTaskCount !== null ? ` · ${latestGeneration.createdTaskCount} tasks created` : ""}${latestGeneration.skippedExistingTaskCount !== null ? ` · ${latestGeneration.skippedExistingTaskCount} duplicates skipped` : ""}`
+    : "No generation run has been recorded for this board date.";
+
   return (
     <section className="board-hero">
-      <div><p className="section-kicker">Daily dispatch board</p><h1>{formatBoardDate(boardDate)}</h1><p>One board. Everyone in the loop.</p></div>
+      <div><p className="section-kicker">Daily dispatch board</p><h1>{formatBoardDate(boardDate)}</h1><p className="board-generation-summary">{generationDetail}</p></div>
       <div className="board-hero-actions"><span className="operating-status"><span />{getBoardStatusLabel(generationStatus, latestGeneration)}</span>{toolbar}</div>
     </section>
+  );
+}
+
+export function DispatchOverviewHeader() {
+  return (
+    <header className="dispatch-overview-header">
+      <div className="dispatch-overview-title">
+        <h1>Dispatch Overview</h1>
+        <p>Today&apos;s operating command</p>
+      </div>
+      <nav aria-label="Dispatch workspace" className="dispatch-overview-tabs">
+        <Link aria-current="page" className="active" href="/board">Overview</Link>
+        <Link href="/board#live-board">Live Board</Link>
+        <Link href="/staff">Team</Link>
+        <Link href="/activity">Activity</Link>
+      </nav>
+    </header>
   );
 }
 
@@ -649,7 +670,7 @@ export function TaskBoard({
     );
   }
 
-  return <section className="task-board"><header className="task-board-header"><div><span>Board tasks</span><h2>{formatBoardDate(boardDate, true)}</h2></div><small>{presentation.filteredTasks.length} tasks visible</small></header>
+  return <section className="task-board" id="live-board"><header className="task-board-header"><div><span>Live Board</span><h2>{formatBoardDate(boardDate, true)}</h2></div><small>{presentation.filteredTasks.length} tasks visible</small></header>
     <div className="desktop-task-table"><table><thead><tr><th>Item / Details</th><th>Workflow / Type</th><th>Assigned To</th><th>Status</th><th>Due / Time Left</th><th>Urgency</th><th>Next Action</th></tr></thead>{presentation.groups.map((group) => <tbody key={group.key}><tr className="table-group-row"><td colSpan={7}>{group.label}<span>{group.taskCount}</span></td></tr>{group.tasks.map((task) => { const taskUrgency = urgency(task); const recommendationSummary = getRecommendationSummary(task); return <tr key={task.id} className="task-row"><td><strong>{task.title}</strong><span>{task.vehicleReference || task.customerReference || task.description || "No reference"}</span>{task.vehicleReference && task.customerReference ? <small>Customer: {task.customerReference}</small> : null}</td><td><span className="workflow-chip">{formatBoardEnumLabel(task.workflowArea)}</span><small>{formatBoardEnumLabel(task.sourceType)}</small></td><td><span className="assignee"><span className="mini-avatar">{task.assignedUser?.name[0] ?? "?"}</span>{task.assignedUser?.name ?? "Unassigned"}</span>{recommendationSummary ? <small>{recommendationSummary}</small> : null}</td><td><span className={statusClass(task.status)}>{formatBoardEnumLabel(task.status)}</span></td><td><strong>{formatTime(task.dueAt)}</strong><small>{timeLeft(task.dueAt)}</small></td><td><span className={taskUrgency.className}>↑ {taskUrgency.label}</span></td><td><Link className="row-action" href={`/tasks/${task.id}`}>{task.status === "READY_FOR_REVIEW" ? "Review" : task.status === "BLOCKED" ? "Resolve" : "Update"}</Link></td></tr>; })}</tbody>)}</table></div>
     <div className="mobile-task-list">{presentation.groups.map((group) => <section key={group.key}><h3>{group.label}<span>{group.taskCount}</span></h3>{group.tasks.map((task) => <TaskCard key={task.id} task={task} />)}</section>)}</div>
     <footer className="task-board-footer"><span>Showing {presentation.filteredTasks.length} of {presentation.filteredTasks.length} items</span><div><button disabled type="button">‹</button><button className="active" type="button">1</button><button disabled type="button">›</button></div></footer>
