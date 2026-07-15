@@ -2,7 +2,7 @@
 
 import { Bell, Building2, CalendarDays, Menu, Search } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
@@ -24,8 +24,8 @@ function formatBusinessDate() {
   }).format(new Date());
 }
 
-function getBreadcrumb(pathname: string) {
-  if (pathname === "/board") return ["Command Control Center", "Dispatch", "Overview"];
+function getBreadcrumb(pathname: string, dispatchView: "overview" | "live") {
+  if (pathname === "/board") return ["Command Control Center", "Dispatch", dispatchView === "live" ? "Live Board" : "Overview"];
   if (pathname === "/activity") return ["Command Control Center", "Dispatch", "Activity"];
   if (pathname === "/staff") return ["Command Control Center", "Dispatch", "Team"];
   if (pathname === "/my-tasks") return ["Command Control Center", "Dispatch", "My Tasks"];
@@ -37,10 +37,12 @@ function getBreadcrumb(pathname: string) {
 
 export function AppTopbar({ onMenuOpen, user }: AppTopbarProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const dispatchView = searchParams.get("view") === "live" ? "live" : "overview";
   const actionsRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const navigationItems = getNavigationGroups(user).flatMap((group) => group.items).filter((item) => !item.disabled);
-  const breadcrumb = getBreadcrumb(pathname);
+  const breadcrumb = getBreadcrumb(pathname, dispatchView);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
@@ -55,7 +57,7 @@ export function AppTopbar({ onMenuOpen, user }: AppTopbarProps) {
     ...(isManager(user)
       ? [{ href: "/manager-review", label: "Manager review", detail: "Open approvals and work waiting for review." }]
       : []),
-    { href: "/board#live-board", label: "Live Board", detail: "Return to today’s operating work." }
+    { href: "/board?view=live", label: "Live Board", detail: "Return to today’s operating work." }
   ];
 
   useEffect(() => {

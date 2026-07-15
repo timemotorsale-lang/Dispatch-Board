@@ -11,6 +11,7 @@ import type { ActiveUserSummary } from "@/server/services/user-summary";
 
 import type { BoardGenerationActionFeedback } from "./board-generation-feedback";
 import { formatBoardEnumLabel } from "./board-grouping";
+import type { DispatchBoardView } from "./board-dashboard";
 
 type ManualTaskCreateResponse = {
   task: {
@@ -22,6 +23,7 @@ type ManualTaskCreateResponse = {
 type BoardToolbarProps = {
   assignableUsers: ActiveUserSummary[];
   boardDate: string;
+  boardView: DispatchBoardView;
   generationFeedback: BoardGenerationActionFeedback;
   generationStatus: string | undefined;
   isGeneratePending: boolean;
@@ -85,8 +87,8 @@ function toDueAtIso(boardDate: string, dueTime: string) {
   return new Date(`${boardDate}T${dueTime}:00`).toISOString();
 }
 
-function buildBoardUrl(boardDate: string) {
-  return `/board?date=${encodeURIComponent(boardDate)}`;
+function buildBoardUrl(boardDate: string, boardView: DispatchBoardView) {
+  return `/board?${boardView === "live" ? "view=live&" : ""}date=${encodeURIComponent(boardDate)}`;
 }
 
 function formatGenerationTimestamp(value: string) {
@@ -166,6 +168,7 @@ function getGenerationHealthMessage(
 export function BoardToolbar({
   assignableUsers,
   boardDate,
+  boardView,
   generationFeedback,
   generationStatus,
   isGeneratePending,
@@ -191,7 +194,7 @@ export function BoardToolbar({
 
     setTaskFeedback(null);
     onBoardDateChange(nextBoardDate);
-    router.replace(buildBoardUrl(nextBoardDate));
+    router.replace(buildBoardUrl(nextBoardDate, boardView));
   }
 
   function resetTaskForm() {
@@ -294,7 +297,7 @@ export function BoardToolbar({
             <>
               <Link
                 className="pill pill-secondary"
-                href="/tasks/intake?returnTo=%2Fboard"
+                href={`/tasks/intake?returnTo=${encodeURIComponent(buildBoardUrl(boardDate, boardView))}`}
               >
                 Task Intake
               </Link>

@@ -4,6 +4,8 @@
 
 The approved Time Motor Sales Command Control Center shell is implemented as the shared application frame. Dispatch Board is the only live module in the primary shell; Time & Attendance, People & HR, Compliance, Legal & Accounting, Library & Training, and Insights are visibly locked as Planned. The shell now provides CCC branding, Dispatch-local Overview/Live Board/Team/Activity navigation, a persistent command bar, and an updated Dispatch Overview frame while preserving the existing board-generation, scheduler-health, task-intake, metrics, team-load, projects, customer/vehicle context, manager-attention, task-table, and activity behavior. Focused navigation/UI contract tests, typecheck, lint, and desktop/mobile browser inspection cover this checkpoint. The planned CCC modules are not implemented.
 
+Live Board is now a dedicated Dispatch sub-view at `/board?view=live` rather than an asynchronous page anchor. Its local tab, sidebar selection, and CCC breadcrumb stay synchronized, and the Live Board header retains a visible Dispatch Overview return tab.
+
 ## 2026-07-14 — M10: reporting and enterprise scale
 
 VEH-130–VEH-139 are implemented as governed reporting, recommendation, and scale-evidence foundations. Daily metric facts, scorecards, bottleneck/cohort analysis, forecast evaluation, advisory recommendation pilots, responsible summaries, multi-location transfer checks, policy inheritance, and enterprise recovery gates are now available as deterministic services with tests. Production warehouse execution, model deployment, and load/failover drills remain operational activation work.

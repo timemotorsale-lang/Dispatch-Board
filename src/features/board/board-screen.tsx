@@ -19,6 +19,7 @@ import {
   SchedulerHealthPanel,
   TaskBoard,
   formatBoardDate,
+  type DispatchBoardView,
   type Metric
 } from "./board-dashboard";
 import type { BoardGenerationActionFeedback } from "./board-generation-feedback";
@@ -36,6 +37,7 @@ type BoardScreenProps = {
   todayBoardDate: string;
   isManager: boolean;
   initialDateError: string | null;
+  initialView: DispatchBoardView;
 };
 
 type BoardApiPayload = BoardReadLookupResult & { error?: string };
@@ -153,7 +155,8 @@ export function BoardScreen({
   initialBoardDate,
   todayBoardDate,
   isManager,
-  initialDateError
+  initialDateError,
+  initialView
 }: BoardScreenProps) {
   const [selectedBoardDate, setSelectedBoardDate] = useState(initialBoardDate);
   const [loadState, setLoadState] = useState<BoardLoadState>({
@@ -392,7 +395,7 @@ export function BoardScreen({
 
   return (
     <section className="dispatch-board-page">
-      <DispatchOverviewHeader />
+      <DispatchOverviewHeader activeView={initialView} boardDate={selectedBoardDate} />
       <BoardHero
         boardDate={loadState.date}
         generationStatus={board?.generationStatus}
@@ -412,6 +415,7 @@ export function BoardScreen({
             <BoardToolbar
               assignableUsers={assignableUsers}
               boardDate={selectedBoardDate}
+              boardView={initialView}
               generationFeedback={generationFeedback}
               generationStatus={board?.generationStatus}
               isGeneratePending={isGeneratePending}
@@ -474,11 +478,13 @@ export function BoardScreen({
             metrics={createMetrics(board)}
             onMetricSelect={handleMetricSelect}
           />
-          <OperationsStrip
-            activeAssigneeId={filters.assigneeId}
-            onAssigneeSelect={handleAssigneeSelect}
-            tasks={board.tasks}
-          />
+          {initialView === "overview" ? (
+            <OperationsStrip
+              activeAssigneeId={filters.assigneeId}
+              onAssigneeSelect={handleAssigneeSelect}
+              tasks={board.tasks}
+            />
+          ) : null}
           <div className="board-and-rail">
             <div className="board-primary-column" ref={boardPrimaryRef}>
               <BoardControls

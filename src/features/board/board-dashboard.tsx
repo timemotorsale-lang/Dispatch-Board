@@ -468,16 +468,22 @@ export function BoardHero({
   );
 }
 
-export function DispatchOverviewHeader() {
+export type DispatchBoardView = "overview" | "live";
+
+export function DispatchOverviewHeader({ activeView = "overview", boardDate }: { activeView?: DispatchBoardView; boardDate?: string }) {
+  const live = activeView === "live";
+  const dateQuery = boardDate ? `date=${encodeURIComponent(boardDate)}` : "";
+  const overviewHref = dateQuery ? `/board?${dateQuery}` : "/board";
+  const liveHref = `/board?${["view=live", dateQuery].filter(Boolean).join("&")}`;
   return (
     <header className="dispatch-overview-header">
       <div className="dispatch-overview-title">
-        <h1>Dispatch Overview</h1>
-        <p>Today&apos;s operating command</p>
+        <h1>{live ? "Live Board" : "Dispatch Overview"}</h1>
+        <p>{live ? "Operate and update today’s work" : "Today’s operating command"}</p>
       </div>
       <nav aria-label="Dispatch workspace" className="dispatch-overview-tabs">
-        <Link aria-current="page" className="active" href="/board">Overview</Link>
-        <Link href="/board#live-board">Live Board</Link>
+        <Link aria-current={!live ? "page" : undefined} className={!live ? "active" : undefined} href={overviewHref}>Dispatch Overview</Link>
+        <Link aria-current={live ? "page" : undefined} className={live ? "active" : undefined} href={liveHref}>Live Board</Link>
         <Link href="/staff">Team</Link>
         <Link href="/activity">Activity</Link>
       </nav>

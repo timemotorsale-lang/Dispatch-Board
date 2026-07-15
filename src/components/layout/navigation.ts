@@ -52,7 +52,7 @@ export const navigationGroups: NavigationGroup[] = [
         matchExact: true
       },
       {
-        href: "/board#live-board",
+        href: "/board?view=live",
         title: "Live Board",
         description: "Operate and update today’s work.",
         icon: ListChecks,

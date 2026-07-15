@@ -96,6 +96,7 @@ The initial implementation establishes:
 - Dispatch Board as the only live module in the primary shell.
 - Deliberately locked Planned states for future CCC modules.
 - Dispatch-local Overview, Live Board, Team, and Activity navigation.
+- A dedicated Live Board sub-view at `/board?view=live`, with synchronized sidebar, breadcrumb, and local tabs plus a persistent return tab to Dispatch Overview.
 - Dispatch Overview framing around the existing live board date, generation health, Task Intake, Generate Board, task metrics, team load, project context, customer/vehicle context, task table, manager attention, and activity behavior.
 - Responsive shell behavior without page-level horizontal overflow at the mobile validation breakpoint.
 

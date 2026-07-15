@@ -2,7 +2,7 @@
 
 import { ChevronDown, ChevronsRight, LockKeyhole, LogOut, X } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 import { LogoutButton } from "@/features/auth/logout-button";
 import type { AuthenticatedUser } from "@/server/auth/store";
@@ -22,6 +22,9 @@ function initials(name: string) {
 
 export function AppSidebar({ compact, isOpen, onClose, user }: AppSidebarProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const dispatchView = searchParams.get("view") === "live" ? "live" : "overview";
+  const selectedBoardDate = searchParams.get("date");
   const navigationGroups = getNavigationGroups(user);
 
   return (
@@ -41,8 +44,20 @@ export function AppSidebar({ compact, isOpen, onClose, user }: AppSidebarProps) 
             <nav aria-label={group.label || "Primary navigation"}>
               {group.items.map((item) => {
                 const Icon = item.icon;
-                const active = pathname === item.href || (!item.matchExact && pathname.startsWith(`${item.href}/`));
-                const parentCurrent = item.matchExact && pathname.startsWith(`${item.href}/`);
+                const baseHref = item.href.split(/[?#]/, 1)[0];
+                const resolvedHref = item.title === "Overview" && selectedBoardDate
+                  ? `/board?date=${encodeURIComponent(selectedBoardDate)}`
+                  : item.title === "Live Board" && selectedBoardDate
+                    ? `/board?view=live&date=${encodeURIComponent(selectedBoardDate)}`
+                    : item.href;
+                const active = item.title === "Dispatch Board"
+                  ? pathname === "/board" || pathname === "/staff" || pathname === "/activity"
+                  : item.title === "Overview"
+                    ? pathname === "/board" && dispatchView === "overview"
+                    : item.title === "Live Board"
+                      ? pathname === "/board" && dispatchView === "live"
+                      : pathname === baseHref || (!item.matchExact && pathname.startsWith(`${baseHref}/`));
+                const parentCurrent = item.matchExact && pathname.startsWith(`${baseHref}/`);
                 const className = [
                   "sidebar-link",
                   item.title === "Dispatch Board" ? "sidebar-link-module" : "",
@@ -67,7 +82,7 @@ export function AppSidebar({ compact, isOpen, onClose, user }: AppSidebarProps) 
                   <Link
                     aria-current={active ? "page" : undefined}
                     className={className}
-                    href={item.href}
+                    href={resolvedHref}
                     key={`${item.href}-${item.title}`}
                     onClick={onClose}
                     title={compact ? item.title : undefined}
