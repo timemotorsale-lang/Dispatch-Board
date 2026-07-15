@@ -395,7 +395,7 @@ export function BoardScreen({
 
   return (
     <section className="dispatch-board-page">
-      <DispatchOverviewHeader activeView={initialView} boardDate={selectedBoardDate} />
+      <DispatchOverviewHeader activeView={initialView} boardDate={selectedBoardDate} isManager={isManager} />
       <BoardHero
         boardDate={loadState.date}
         generationStatus={board?.generationStatus}

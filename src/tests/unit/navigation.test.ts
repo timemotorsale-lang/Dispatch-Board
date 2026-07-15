@@ -31,6 +31,12 @@ describe("enterprise shell navigation", () => {
       "Dispatch Board",
       "Overview",
       "Live Board",
+      "My Tasks",
+      "Tasks",
+      "Projects",
+      "Appointments",
+      "Vehicles",
+      "Customers",
       "Team",
       "Activity"
     ]);
@@ -80,6 +86,36 @@ describe("enterprise shell navigation", () => {
   it("keeps Dispatch-local destinations inside the Dispatch hierarchy", () => {
     const localItems = linksFor(user()).filter((item) => item.parentHref === "/board");
 
-    expect(localItems.map((item) => item.title)).toEqual(["Overview", "Live Board", "Team", "Activity"]);
+    expect(localItems.map((item) => item.title)).toEqual([
+      "Overview",
+      "Live Board",
+      "My Tasks",
+      "Tasks",
+      "Projects",
+      "Appointments",
+      "Vehicles",
+      "Customers",
+      "Team",
+      "Activity"
+    ]);
+  });
+
+  it("adds Manager Review in the approved position for managers only", () => {
+    const manager = user({ roles: ["General Manager"] });
+    const managerItems = linksFor(manager).filter((item) => item.parentHref === "/board");
+
+    expect(managerItems.map((item) => item.title)).toEqual([
+      "Overview",
+      "Live Board",
+      "My Tasks",
+      "Tasks",
+      "Projects",
+      "Appointments",
+      "Vehicles",
+      "Customers",
+      "Manager Review",
+      "Team",
+      "Activity"
+    ]);
   });
 });

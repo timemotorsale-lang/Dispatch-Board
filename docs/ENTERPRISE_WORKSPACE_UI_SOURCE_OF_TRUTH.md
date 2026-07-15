@@ -32,4 +32,4 @@ The [Dispatch Live Board Navigation UI Source of Truth](DISPATCH_LIVE_BOARD_NAVI
 
 ## Implementation status
 
-The image assets are preserved in this repository for review and record keeping. The initial Command Control Center shell and Dispatch Overview hierarchy are implemented from the approved mockup while retaining existing backend contracts and operational actions. Planned CCC modules remain unavailable. Module interiors should continue to align to their corresponding mockups through scoped, verified implementation passes.
+The image assets are preserved in this repository for review and record keeping. The Command Control Center shell, Dispatch Overview hierarchy, and approved single-line Dispatch navigation are implemented from their source mockups while retaining existing backend contracts and operational actions. Planned CCC modules remain unavailable. Module interiors should continue to align to their corresponding mockups through scoped, verified implementation passes.

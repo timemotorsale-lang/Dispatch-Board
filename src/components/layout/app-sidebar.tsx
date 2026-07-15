@@ -26,6 +26,10 @@ export function AppSidebar({ compact, isOpen, onClose, user }: AppSidebarProps) 
   const dispatchView = searchParams.get("view") === "live" ? "live" : "overview";
   const selectedBoardDate = searchParams.get("date");
   const navigationGroups = getNavigationGroups(user);
+  const dispatchPaths = navigationGroups
+    .flatMap((group) => group.items)
+    .filter((item) => item.parentHref === "/board")
+    .map((item) => item.href.split(/[?#]/, 1)[0]);
 
   return (
     <aside className={["app-sidebar", compact ? "app-sidebar-compact" : "", isOpen ? "app-sidebar-open" : ""].filter(Boolean).join(" ")}>
@@ -51,7 +55,7 @@ export function AppSidebar({ compact, isOpen, onClose, user }: AppSidebarProps) 
                     ? `/board?view=live&date=${encodeURIComponent(selectedBoardDate)}`
                     : item.href;
                 const active = item.title === "Dispatch Board"
-                  ? pathname === "/board" || pathname === "/staff" || pathname === "/activity"
+                  ? dispatchPaths.some((dispatchPath) => pathname === dispatchPath || pathname.startsWith(`${dispatchPath}/`))
                   : item.title === "Overview"
                     ? pathname === "/board" && dispatchView === "overview"
                     : item.title === "Live Board"

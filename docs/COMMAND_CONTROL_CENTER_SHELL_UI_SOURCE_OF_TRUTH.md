@@ -106,11 +106,11 @@ The initial implementation establishes:
 - A persistent CCC command bar with breadcrumb, Dispatch status, search, store context, notifications, and identity.
 - Dispatch Board as the only live module in the primary shell.
 - Deliberately locked Planned states for future CCC modules.
-- Dispatch-local Overview, Live Board, Team, and Activity navigation.
+- The approved single-line Dispatch navigation: Overview, Live Board, My Tasks, Tasks, Projects, Appointments, Vehicles, Customers, permission-aware Manager Review, Team, and Activity.
 - A dedicated Live Board sub-view at `/board?view=live`, with synchronized sidebar, breadcrumb, and local tabs plus a persistent return tab to Dispatch Overview.
 - Dispatch Overview framing around the existing live board date, generation health, Task Intake, Generate Board, task metrics, team load, project context, customer/vehicle context, task table, manager attention, and activity behavior.
 - Responsive shell behavior without page-level horizontal overflow at the mobile validation breakpoint.
 
 The implementation preserves existing route and backend behavior. It does not claim that Time & Attendance, People & HR, Compliance, Legal & Accounting, Library & Training, or CCC Insights are implemented.
 
-The approved expanded single-line navigation—Overview, Live Board, My Tasks, Tasks, Projects, Appointments, Vehicles, Customers, Manager Review, Team, and Activity—is not yet implemented. The current implementation remains the initial four-tab treatment until a separate implementation pass is approved and verified.
+The expanded navigation is implemented in the Live Board header and synchronized with the existing Dispatch destinations in the application sidebar. Manager Review remains limited to authorized managers, and narrower layouts retain access through horizontal navigation overflow.
