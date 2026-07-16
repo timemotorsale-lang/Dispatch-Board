@@ -606,6 +606,6 @@ Workshop 2B is complete only when:
 
 ## 27. Next Workshop 2 packet
 
-Workshop 2 continues with the **Evidence, Privacy, and Security Matrix**, covering `ITF-APR-050`-`057`: evidence criticality, capture and verification, access classification, retention, sensitive-document handling, correction/supersession/quarantine, audit access, and privacy/security incident behavior.
+Workshop 2 continues with the **Evidence, Privacy, and Security Matrix**, covering `ITF-APR-050`-`056`: evidence criticality, capture and verification, access classification, retention, sensitive-document handling, correction/supersession/quarantine, audit access, and privacy/security incident behavior.
 
 Authority/financial approval does not make the first implementation slice ready for code. Applicable role, evidence, timing, source/integration, pilot, and stage-specific decisions must also be approved or safely deferred, and implementation activation remains separately gated.

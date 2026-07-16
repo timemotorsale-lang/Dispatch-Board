@@ -3,7 +3,7 @@
 **Status:** Open; no dealership policy or code activation approved  
 **Version:** `0.1.0`
 
-Workshop 1 recommendations and the decision capture sheet are available in [`APPROVAL_WORKSHOP_01_PROGRAM_SCOPE_PILOT_CHARTER.md`](APPROVAL_WORKSHOP_01_PROGRAM_SCOPE_PILOT_CHARTER.md). Workshop 2 role and responsibility recommendations for `ITF-APR-020`-`025` are available in [`APPROVAL_WORKSHOP_02_ENTERPRISE_ROLE_RESPONSIBILITY_CATALOG.md`](APPROVAL_WORKSHOP_02_ENTERPRISE_ROLE_RESPONSIBILITY_CATALOG.md). Workshop 2 authority and financial recommendations for `ITF-APR-030`-`035` are available in [`APPROVAL_WORKSHOP_02B_AUTHORITY_FINANCIAL_CONTROL_MATRIX.md`](APPROVAL_WORKSHOP_02B_AUTHORITY_FINANCIAL_CONTROL_MATRIX.md). These packets do not change any `OPEN` state until authorized sign-off is recorded here.
+Workshop 1 recommendations and the decision capture sheet are available in [`APPROVAL_WORKSHOP_01_PROGRAM_SCOPE_PILOT_CHARTER.md`](APPROVAL_WORKSHOP_01_PROGRAM_SCOPE_PILOT_CHARTER.md). Workshop 2 role and responsibility recommendations for `ITF-APR-020`-`025` are available in [`APPROVAL_WORKSHOP_02_ENTERPRISE_ROLE_RESPONSIBILITY_CATALOG.md`](APPROVAL_WORKSHOP_02_ENTERPRISE_ROLE_RESPONSIBILITY_CATALOG.md). Workshop 2 authority and financial recommendations for `ITF-APR-030`-`035` are available in [`APPROVAL_WORKSHOP_02B_AUTHORITY_FINANCIAL_CONTROL_MATRIX.md`](APPROVAL_WORKSHOP_02B_AUTHORITY_FINANCIAL_CONTROL_MATRIX.md). Workshop 2 evidence, privacy, and security recommendations for `ITF-APR-050`-`056` are available in [`APPROVAL_WORKSHOP_02C_EVIDENCE_PRIVACY_SECURITY_MATRIX.md`](APPROVAL_WORKSHOP_02C_EVIDENCE_PRIVACY_SECURITY_MATRIX.md). These packets do not change any `OPEN` state until authorized sign-off is recorded here.
 
 ## 1. Decision states
 
