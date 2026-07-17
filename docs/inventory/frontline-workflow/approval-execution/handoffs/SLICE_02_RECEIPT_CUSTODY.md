@@ -41,4 +41,4 @@ Approved policy → receipt/custody aggregate → versioned persistence → perm
 
 ## Readiness blockers
 
-Decisions `080`-`089`, exact people/locations/evidence/safety and predecessor/global controls remain open. The non-code workflow package is complete, but no document substitutes for attributable policy approval or separate technical-design/implementation authority.
+Decisions `080` and `088` are approved and `085` is safely deferred. Decisions `081`–`084`, `086`, `087`, `089`, exact people/locations/evidence configuration and predecessor/global controls remain open. The non-code workflow package is complete, but no document substitutes for attributable policy approval or separate technical-design/implementation authority.

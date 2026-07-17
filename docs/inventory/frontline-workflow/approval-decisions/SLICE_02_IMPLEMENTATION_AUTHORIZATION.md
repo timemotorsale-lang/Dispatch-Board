@@ -1,6 +1,6 @@
 # Slice 2 Implementation Authorization Resolution
 
-**Resolution status:** `BLOCKED — DOCUMENTATION COMPLETE, APPROVALS OPEN`
+**Resolution status:** `BLOCKED — DOCUMENTATION COMPLETE, 7 SLICE 2 DECISIONS OPEN`
 **Slice:** Observed arrival → custody verification → receipt completed → inspection handoff
 
 ## Required findings
@@ -65,7 +65,7 @@ Exact authorized scope, version, conditions and exclusions: —
 | State | Current result |
 | --- | --- |
 | Workflow documentation | COMPLETE |
-| Policy | 10 DECISIONS OPEN |
+| Policy | PARTIAL — 2 APPROVED / 1 DEFERRED_SAFE / 7 OPEN_REQUIRED_INPUT |
 | Technical design | NOT AUTHORIZED |
 | Code implementation | NOT AUTHORIZED |
 | Shadow | NOT AUTHORIZED |

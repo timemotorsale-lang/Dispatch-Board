@@ -94,15 +94,15 @@
 
 | Decision | Recommended | Exact proposed policy | Safe default | Authority / owner | Dependencies / slices | Closure evidence | State |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `ITF-APR-080` | APPROVE | Keep arrival observed, physical control, custody acceptance, intake completion and receipt completion distinct | Arrival observed only | Inventory/Receiving / workflow owner | `061`,`062`; S2 | State/handoff approval | OPEN |
+| `ITF-APR-080` | APPROVE | Keep arrival observed, physical control, custody acceptance, intake completion and receipt completion distinct | Arrival observed only | Inventory/Receiving / workflow owner | `061`,`062`; S2 | `ITF-AE3-APR-080` | APPROVED |
 | `ITF-APR-081` | APPROVE_WITH_CHANGE | Name receivers/backups and exact receiving, secure, quarantine and after-hours locations/hours/procedure | No unattended/unspecified route | Operations + Receiving | `013`,`022`; S2 | Roster/location procedure | OPEN |
 | `ITF-APR-082` | APPROVE_WITH_CHANGE | Require VIN/identity, odometer, arrival, location, custody, receiver, time and evidence | No custody acceptance | Inventory + Receiving/Data | `050`,`061`,`062`,`081`; S2 | Receipt evidence manifest | OPEN |
 | `ITF-APR-083` | APPROVE_WITH_CHANGE | Define expected/observed keys, documents, accessories, personal property, custody, discrepancy and recovery | Preserve actual; discrepancy open | Receiving + Inventory/Claims | `050`,`082`; S2 | Property/custody template | OPEN |
 | `ITF-APR-084` | APPROVE_WITH_CHANGE | Define comparable arrival-condition evidence by source, method, vehicle, risk and safe conditions | Hold/restricted alternate | Inventory + Receiving/Claims | `053`,`082`; S2 | Condition evidence matrix | OPEN |
-| `ITF-APR-085` | APPROVE_WITH_CHANGE | Define limited movement, drivers/methods and EV, leak, fire, environmental, structural and hazard containment | Emergency process only | Operations + Shop/Safety | `051`,`052`,`084`; S2 | Safety/movement procedure | OPEN |
+| `ITF-APR-085` | APPROVE_WITH_CHANGE | Define limited movement, drivers/methods and EV, leak, fire, environmental, structural and hazard containment | Emergency process only | Operations + Shop/Safety | `051`,`052`,`084`; S2 | `ITF-AE3-APR-085`; qualified closure evidence still required | DEFERRED_SAFE |
 | `ITF-APR-086` | APPROVE_WITH_CHANGE | Define eligibility for secure, temporary, restricted, quarantine and inspection-ready placement | Safest approved containment | Operations/Location + Receiving | `013`,`081`,`085`; S2 | Placement matrix | OPEN |
 | `ITF-APR-087` | APPROVE_WITH_CHANGE | Define discrepancy materiality, owner, evidence, correction, claim, rejection/return, expiry and follow-up | Material discrepancy blocks | Inventory + Claims/Receiving | `083`,`084`; S2 | Discrepancy/claim policy | OPEN |
-| `ITF-APR-088` | APPROVE | Receipt requires current identity, custody, location, property, condition, restrictions, evidence and accepted exceptions | Receipt incomplete | Inventory + Receiving | `082`-`087`; S2 | Gate/tabletop proof | OPEN |
+| `ITF-APR-088` | APPROVE | Receipt requires current identity, custody, location, property, condition, restrictions, evidence and accepted exceptions | Receipt incomplete | Inventory + Receiving | `082`-`087`; S2 | `ITF-AE3-APR-088`; operational inputs/tabletop still required | APPROVED |
 | `ITF-APR-089` | APPROVE_WITH_CHANGE | Name Inspection handoff producer/consumer, envelope, acceptance/rejection, target, capacity wait and escalation | Owned wait; no completion | Inventory + Shop/Inspection | `088`,`040`-`045`; S2-S3 | Handoff contract | OPEN |
 
 ## AE-3 — Inspection and Triage (10)
@@ -212,4 +212,4 @@
 
 ## Ledger result
 
-Recommended dispositions: `APPROVE` 36; `APPROVE_WITH_CHANGE` 91; `DEFER_SAFE` 3; `REJECT` 0. Current executed dispositions are maintained separately: 19 approved, 3 safely deferred and 108 open.
+Recommended dispositions: `APPROVE` 36; `APPROVE_WITH_CHANGE` 91; `DEFER_SAFE` 3; `REJECT` 0. Current executed dispositions are maintained separately: 21 approved, 4 safely deferred and 105 open.

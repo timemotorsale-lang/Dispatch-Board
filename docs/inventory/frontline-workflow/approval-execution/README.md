@@ -2,7 +2,7 @@
 
 **Formal title:** Time Motor Sales Inventory-to-Frontline Enterprise Workflow — Policy, Authority, Controls, Pilot, and Implementation Approval  
 **Short name:** ITF Enterprise Approval  
-**Status:** `READY_FOR_EXECUTION`; not conducted; not approved  
+**Status:** `PARTIAL_EXECUTION`; 25 authorized dispositions recorded; master workflow not approved
 **Workflow version proposed for approval:** `ITF-1.0`  
 **Prepared:** 2026-07-16
 
@@ -10,7 +10,7 @@
 
 This package converts the completed Inventory-to-Frontline planning catalogs into one controlled approval program while preserving separate decisions, gates, and future implementation handoffs for all nine lifecycle slices.
 
-It does not record dealership signatures, make legal determinations, approve dollar limits, activate workflow behavior, or authorize simultaneous implementation. Every `ITF-APR-*` decision remains `OPEN` until an authorized person records a valid disposition.
+It does not make legal determinations, invent dollar limits, activate workflow behavior, or authorize simultaneous implementation. Each `ITF-APR-*` decision remains `OPEN` until an authorized person records a valid disposition; 25 dispositions are currently recorded and 105 decisions remain open.
 
 ## Governing sources
 
@@ -28,7 +28,7 @@ It does not record dealership signatures, make legal determinations, approve dol
 | AE-0 | [`AE_00_ENTRY_GATE.md`](AE_00_ENTRY_GATE.md) | Ready; gate not signed |
 | AE-1 | [`AE_01_PROGRAM_SCOPE_PILOT.md`](AE_01_PROGRAM_SCOPE_PILOT.md) | 15 approved; 3 open |
 | AE-2 | [`AE_02_ENTERPRISE_CONTROLS.md`](AE_02_ENTERPRISE_CONTROLS.md) | 4 approved; 3 safely deferred; 25 open |
-| AE-3 | [`AE_03_RECEIPT_INSPECTION.md`](AE_03_RECEIPT_INSPECTION.md) | 20 decisions OPEN |
+| AE-3 | [`AE_03_RECEIPT_INSPECTION.md`](AE_03_RECEIPT_INSPECTION.md) | Slice 2: 2 approved, 1 safely deferred, 7 open; Slice 3: 10 open |
 | AE-4 | [`AE_04_RECON_REPAIR_QC.md`](AE_04_RECON_REPAIR_QC.md) | 30 decisions OPEN |
 | AE-5 | [`AE_05_TITLE_DOCUMENTS.md`](AE_05_TITLE_DOCUMENTS.md) | 10 decisions OPEN |
 | AE-6 | [`AE_06_MERCHANDISING_PRICING.md`](AE_06_MERCHANDISING_PRICING.md) | 10 decisions OPEN |
