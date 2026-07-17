@@ -3,6 +3,8 @@
 **Status:** `READY_FOR_AUTHORIZED_COMPLETION`; not entered
 **Purpose:** Establish who may decide what before any `SRO-APR-*` decision is executed
 
+**Active completion record:** [`../approval-decisions/AE_00_AUTHORITY_AND_SESSION_RECORD.md`](../approval-decisions/AE_00_AUTHORITY_AND_SESSION_RECORD.md)
+
 ## Known authority context
 
 Prior Inventory-to-Frontline records identify Eli Aswan as ultimate General/Operations reviewer and backup and Brock Harris as Inventory workflow owner. That context may inform participant selection but does not automatically extend either person's authority to every Shop/Recon decision. Exact Shop/Recon authority must be confirmed in this record.

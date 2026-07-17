@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-07-16 — Shop and Recon Optimization approval-decisions workspace
+
+The documentation-only decision workspace is prepared under [`docs/shop-repair-optimization/approval-decisions/README.md`](shop-repair-optimization/approval-decisions/README.md). It provides the actual SRO AE-0 session record, exact authority-confirmation packet, and eight-workshop decision gate for `SRO-APR-001` through `079`, while reusing the single governing ledger, signature journal, missing-input register, tabletop suite and master authorization records from the approval-execution package.
+
+AE-0 is entered as `ENTER_APPROVAL_EXECUTION` for Time Motor Sales / Minneapolis / `SRO-1.0` / America/Chicago / `SRO-APR-001`–`079`, effective 2026-07-16 with exact time not captured. The user asserted authority through Codex; chat identity was not independently verified. Workshops 1–7 are passed for policy. Enterprise SRO totals are 69 closed—12 `APPROVED` and 57 `APPROVED_WITH_CHANGE`—and 10 open. Workshop 8 is in decision review. All independent/qualified-review, financial, privacy/security/provider, consent/prediction/outreach and unavailable-scope restrictions remain in force. Design, code, shadow, pilot and activation remain `NOT AUTHORIZED`.
+
 ## 2026-07-16 — Shop and Recon Optimization approval-execution workspace
 
 The documentation-only approval-execution program for all eight Shop and Recon workshops is established under [`docs/shop-repair-optimization/approval-execution/README.md`](shop-repair-optimization/approval-execution/README.md). It contains an AE-0 authority/session gate, a consolidated ledger covering all 79 `SRO-APR-*` decisions exactly once, eight workshop execution gates, an immutable decision-journal contract, grouped missing-input controls, 27 enterprise tabletop cases, execution totals and separate policy, design, code, shadow, pilot and production-activation resolutions.

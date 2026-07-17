@@ -46,6 +46,7 @@ The program reuses canonical `Vehicle`, `ServiceVisit`, `RepairOrder`, `RepairJo
 | [`WORKSHOPS_01_08_PROGRAM.md`](WORKSHOPS_01_08_PROGRAM.md) | Consecutive approval workshops, decisions, participants, outputs, and exit gates. |
 | [`APPROVAL_REGISTER.md`](APPROVAL_REGISTER.md) | All open dealership decisions required before implementation or activation. |
 | [`approval-execution/README.md`](approval-execution/README.md) | Controlled AE-0 entry, 79-decision ledger, eight workshop gates, signature journal, missing inputs, tabletop suite, and separate authorization resolution. |
+| [`approval-decisions/README.md`](approval-decisions/README.md) | Active authority confirmation, AE-0 session entry, and actual eight-workshop decision-recording workspace. |
 | [`IMPLEMENTATION_AND_PILOT_ROADMAP.md`](IMPLEMENTATION_AND_PILOT_ROADMAP.md) | Safe vertical slices from instrumentation through monitored decision support. |
 | [`TRACEABILITY_MATRIX.md`](TRACEABILITY_MATRIX.md) | Workstream-to-algorithm, decision, scenario, workshop, outcome, and implementation mapping. |
 
