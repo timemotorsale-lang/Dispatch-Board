@@ -7,6 +7,7 @@
 **Status:** Documentation and planning only; no application implementation is authorized by this document  
 **Planning branch:** `codex/parts-operations-implementation-plan`  
 **Approved UX source:** [`PARTS_OPERATIONS_WORKSPACE_UI_SOURCE_OF_TRUTH.md`](PARTS_OPERATIONS_WORKSPACE_UI_SOURCE_OF_TRUTH.md)
+**Phase 2 workflow and algorithm catalog:** [`PARTS_OPERATIONS_WORKFLOW_AND_ALGORITHM_CATALOG.md`](PARTS_OPERATIONS_WORKFLOW_AND_ALGORITHM_CATALOG.md)
 
 ## 1. Purpose
 
