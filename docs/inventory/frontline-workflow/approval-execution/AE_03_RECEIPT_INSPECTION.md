@@ -1,6 +1,6 @@
 # AE-3 — Receipt, Custody, Inspection, and Safety Approval
 
-**Status:** Ready for execution; Slice 2 non-code execution packet implemented; approval session not conducted
+**Status:** Slice 2 partial approval execution recorded; 3 of 10 Slice 2 decisions closed; AE-3 remains open
 **Decisions:** `ITF-APR-080`-`099` (20 total)  
 **Slices:** 2 and 3  
 **Source:** [`Approval Workshop 03`](../APPROVAL_WORKSHOP_03_RECEIPT_CUSTODY_INSPECTION_SAFETY.md)
@@ -27,4 +27,4 @@ AE-3 exits only when all 20 decisions have authorized dispositions, applicable A
 
 ## Slice 2 execution packet
 
-The Slice 2 operating flow, staff playbook, ten-decision gate, open-input register, tabletop cases and separate authorization record are maintained in the [`approval-decisions workspace`](../approval-decisions/README.md). Their preparation changes no `OPEN` policy state and authorizes no technical design, code, shadow, pilot or activation.
+The Slice 2 operating flow, staff playbook, ten-decision gate, open-input register, tabletop cases and separate authorization record are maintained in the [`approval-decisions workspace`](../approval-decisions/README.md). `ITF-APR-080` and `088` are approved; `085` is safely deferred; `081`–`084`, `086`, `087` and `089` remain open. This partial execution authorizes no technical design, code, shadow, pilot or activation.

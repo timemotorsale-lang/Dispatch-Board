@@ -11,7 +11,7 @@ All 50 pre-Workshop 3 decisions now have recommended dispositions and safe defau
 
 Workshops 3-8 are prepared consecutively in [`APPROVAL_WORKSHOPS_03_08_PROGRAM_INDEX.md`](APPROVAL_WORKSHOPS_03_08_PROGRAM_INDEX.md), with decision packets for `ITF-APR-080`-`159` and the final enterprise tabletop/pilot sign-off. These packets do not change any `OPEN` state or authorize code, pilot, or activation.
 
-The full approval-execution program is prepared under [`approval-execution/README.md`](approval-execution/README.md). Its [`Consolidated 130-Decision Disposition Ledger`](approval-execution/CONSOLIDATED_130_DECISION_LEDGER.md) contains each existing identifier exactly once with recommended disposition, proposed policy, safe default, authority, dependencies, affected slices and closure evidence. Its [`Execution Approval Register`](approval-execution/EXECUTION_APPROVAL_REGISTER.md) is the signature-control record. After partial Slice 1 execution, 19 decisions are `APPROVED`, 3 are `DEFERRED`, and 108 remain `OPEN`.
+The full approval-execution program is prepared under [`approval-execution/README.md`](approval-execution/README.md). Its [`Consolidated 130-Decision Disposition Ledger`](approval-execution/CONSOLIDATED_130_DECISION_LEDGER.md) contains each existing identifier exactly once with recommended disposition, proposed policy, safe default, authority, dependencies, affected slices and closure evidence. Its [`Execution Approval Register`](approval-execution/EXECUTION_APPROVAL_REGISTER.md) is the signature-control record. After partial Slice 1 and Slice 2 execution, 21 decisions are `APPROVED`, 4 are `DEFERRED_SAFE`, and 105 remain `OPEN`.
 
 The actual decision-entry workspace is prepared under [`approval-decisions/README.md`](approval-decisions/README.md). It currently contains zero signed records. Its forms remain execution instruments only and do not change this register until valid attributable approvals are entered and reconciled.
 
@@ -120,15 +120,15 @@ Approval records must include decision owner, approver, date, effective scope, r
 
 | Decision ID | Required decision | Status |
 | --- | --- | --- |
-| `ITF-APR-080` | Approve distinction among arrival observed, custody controlled, and receipt complete | OPEN |
+| `ITF-APR-080` | Approve distinction among arrival observed, custody controlled, and receipt complete | APPROVED |
 | `ITF-APR-081` | Approve receiving roles, locations, hours, and after-hours containment procedure | OPEN |
 | `ITF-APR-082` | Approve physical identity, odometer, arrival, and custody evidence requirements | OPEN |
 | `ITF-APR-083` | Approve key, document, accessory, and personal-property inventory requirements | OPEN |
 | `ITF-APR-084` | Approve arrival-condition evidence by acquisition source, transport method, and risk | OPEN |
-| `ITF-APR-085` | Approve limited-movement, safety, EV/high-voltage, environmental, and hazard-containment boundaries | OPEN |
+| `ITF-APR-085` | Approve limited-movement, safety, EV/high-voltage, environmental, and hazard-containment boundaries | DEFERRED_SAFE |
 | `ITF-APR-086` | Approve secure, temporary, restricted, quarantine, and inspection-placement eligibility | OPEN |
 | `ITF-APR-087` | Approve discrepancy materiality, carry-forward, correction, claim, return/rejection, and risk-acceptance authority | OPEN |
-| `ITF-APR-088` | Approve Receipt completion gate and permitted noncritical exceptions | OPEN |
+| `ITF-APR-088` | Approve Receipt completion gate and permitted noncritical exceptions | APPROVED |
 | `ITF-APR-089` | Approve Inspection and Triage handoff ownership, target, and waiting-capacity behavior | OPEN |
 
 ## 11. Inspection and Triage policy

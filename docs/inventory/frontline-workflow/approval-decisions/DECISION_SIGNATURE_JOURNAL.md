@@ -1,6 +1,6 @@
 # Inventory-to-Frontline Decision Signature Journal
 
-**Status:** Slice 1 partial execution recorded; 22 decisions closed; 28 Slice 1 decisions remain open
+**Status:** Slice 1 partial execution and Slice 2 partial execution recorded; 25 decisions closed; 105 enterprise decisions remain open
 **Source recommendations:** [`Consolidated Ledger`](../approval-execution/CONSOLIDATED_130_DECISION_LEDGER.md)
 
 ## Valid decision record
@@ -59,16 +59,20 @@ supersedesApprovalRecordId:
 | `ITF-AE1-APR-073` | `ITF-APR-073` | APPROVE | Ledger row adopted without change | Eli Aswan — ultimate GM/pilot authority | Same | Zero critical failures plus approved success thresholds before expansion | Same | VALID |
 | `ITF-AE1-APR-075` | `ITF-APR-075` | APPROVE | Ledger row adopted without change | Eli Aswan — ultimate GM/Inventory authority | Same | Automatic start requires later separate authorization | Same | VALID |
 
+| `ITF-AE3-APR-080` | `ITF-APR-080` | APPROVE | Ledger row adopted without change: arrival observed, physical control, custody acceptance, intake completion and receipt completion remain distinct | Eli Aswan — ultimate GM/Operations authority; Brock Harris operating owner | Time Motor Sales Minneapolis; `ITF-1.0`; Slice 2 policy only | Does not operationalize receipt while sources, roles, evidence and locations remain open | AE-0 authority confirmation + user instruction to implement the complete Slice 2 approval-execution branch; effective 2026-07-16, exact time not captured; chat-user identity not independently verified | VALID |
+| `ITF-AE3-APR-085` | `ITF-APR-085` | DEFER_SAFE | Internal driving and any movement/hazard route lacking approved qualified procedure are disabled; only an already-authorized qualified emergency/containment process may act | Eli Aswan — ultimate safety/insurance and Operations authority | Same | Owner: Eli Aswan; review before enabling any affected movement/hazard scope; requires qualified procedure, roles, equipment, evidence and independent review where applicable | Same | VALID |
+| `ITF-AE3-APR-088` | `ITF-APR-088` | APPROVE | Ledger row adopted without change: receipt requires current identity, custody, location, property, condition, restrictions, evidence and accepted exceptions; critical gates are non-waivable | Eli Aswan — ultimate GM/Operations authority; Brock Harris operating owner | Same | Policy adoption only; receipt gate cannot operate until `081`–`087` and applicable predecessor controls close | Same | VALID |
+
 ## Control totals
 
 | Measure | Count |
 | --- | ---: |
 | Expected enterprise decisions | 130 |
-| Valid journal records | 22 |
-| Approved | 19 |
+| Valid journal records | 25 |
+| Approved | 21 |
 | Approved with change | 0 |
-| Safely deferred | 3 |
+| Safely deferred | 4 |
 | Rejected | 0 |
-| Still open | 108 |
+| Still open | 105 |
 
 These totals change only after valid signed records are entered and independently checked against the applicable decision gate.
