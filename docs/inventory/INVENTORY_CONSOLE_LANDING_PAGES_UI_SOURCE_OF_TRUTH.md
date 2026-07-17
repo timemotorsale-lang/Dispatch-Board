@@ -2,7 +2,7 @@
 
 **Product:** Time Motor Sales Dispatch Board
 **Module:** Inventory Console
-**Version:** 1.2 approved baseline
+**Version:** 1.3 approved baseline
 **Date adopted:** 2026-07-16; refined and re-approved 2026-07-17
 **Status:** Approved visual and interaction source of truth; implementation not yet started
 
@@ -10,7 +10,7 @@
 
 ## 1. Approval decision
 
-The three images in this document are the binding desktop landing-page references for the Inventory Console.
+The five images in this document are the binding desktop landing-page and deeper-workspace references for the Inventory Console.
 
 - Selecting **Home** must land the staff member on the approved Inventory Console Home page.
 - Selecting **Inventory Lifecycle** must land the staff member on the approved Inventory Lifecycle page.
@@ -18,6 +18,8 @@ The three images in this document are the binding desktop landing-page reference
 - **Reviews** and **Approvals** remain first-class console destinations and must also be visible in the relevant landing-page workflow panels.
 - **Disposition & Wholesale** is an explicit deeper workspace under Inventory Lifecycle, reached through the prominent **Open Disposition & Wholesale** command.
 - **Parts Operations** is an explicit deeper workspace under Shop & Recon, reached through the prominent **Open Parts Operations** command.
+- Selecting **Open Disposition & Wholesale** must land the staff member on the approved Disposition & Wholesale workspace.
+- Selecting **Open Parts Operations** must land the staff member on the approved Parts Operations workspace.
 
 The images define the approved information hierarchy, page composition, navigation emphasis, operational density, visual language, and relationship between summary metrics and actionable work. Values, names, counts, dates, and example vehicles shown in the mockups are illustrative and must be supplied by authoritative application data when implemented.
 
@@ -96,15 +98,35 @@ The implementation must preserve:
 - parts operations metrics for requests, orders, receipts, issues, installations, transfers, reconciliation, and exceptions when supported by authoritative data
 - daily throughput, work-type cycle time, and at-risk completion summaries
 
-## 5. Navigation contract
+## 5. Disposition & Wholesale workspace
+
+![Approved Disposition & Wholesale workspace](assets/disposition-wholesale-workspace-source-of-truth.png)
+
+**Required destination:** the deeper workspace reached through **Open Disposition & Wholesale** from Home or Inventory Lifecycle.
+
+The approved local navigation, eight operational milestones, recommendation workbench, role visibility, validation, approvals, records, tasks, events, implementation slices, and capability boundaries are binding as defined in [`DISPOSITION_WHOLESALE_WORKSPACE_UI_SOURCE_OF_TRUTH.md`](DISPOSITION_WHOLESALE_WORKSPACE_UI_SOURCE_OF_TRUTH.md).
+
+Disposition & Wholesale remains subordinate to Inventory Lifecycle and must not be added as an eighth primary console navigation item.
+
+## 6. Parts Operations workspace
+
+![Approved Parts Operations workspace](assets/parts-operations-workspace-source-of-truth.png)
+
+**Required destination:** the deeper workspace reached through **Open Parts Operations** from Home or Shop & Recon.
+
+The approved local navigation, nine operational milestones, parts work queue, role visibility, validation, approvals, records, tasks, events, implementation slices, immutable quantity and custody controls, and capability boundaries are binding as defined in [`PARTS_OPERATIONS_WORKSPACE_UI_SOURCE_OF_TRUTH.md`](PARTS_OPERATIONS_WORKSPACE_UI_SOURCE_OF_TRUTH.md).
+
+Parts Operations remains subordinate to Shop & Recon and must not be added as an eighth primary console navigation item.
+
+## 7. Navigation contract
 
 | Staff action | Required landing destination |
 | --- | --- |
 | Enter the Inventory Console or select **Home** | Approved Inventory Console Home landing page in section 2 |
 | Select **Inventory Lifecycle** | Approved Inventory Lifecycle landing page in section 3 |
 | Select **Shop & Recon** | Approved Shop & Recon landing page in section 4 |
-| Select **Open Disposition & Wholesale** | Disposition & Wholesale workspace within Inventory Lifecycle, preserving location, filter, and return context |
-| Select **Open Parts Operations** | Parts Operations workspace within Shop & Recon, preserving location, filter, and return context |
+| Select **Open Disposition & Wholesale** | Approved Disposition & Wholesale workspace in section 5, preserving location, filter, and return context |
+| Select **Open Parts Operations** | Approved Parts Operations workspace in section 6, preserving location, filter, and return context |
 | Select **Reviews** | Enterprise review queue scoped by role and location |
 | Select **Approvals** | Enterprise approval queue scoped by authority and location |
 | Select a landing-page review or approval item | The corresponding review or approval detail, with return context preserved |
@@ -113,7 +135,7 @@ The implementation must preserve:
 
 The application route names may follow the repository's routing conventions, but the navigation behavior above is binding. Staff must not be sent to a generic inventory list or an unrelated dashboard when selecting either approved category.
 
-## 6. Shared interaction contract
+## 8. Shared interaction contract
 
 - KPI cards filter or open the corresponding operational population; they are not static decoration.
 - `+ Start Workflow` exposes only commands permitted for the staff member, location, selected context, and current workflow state.
@@ -130,10 +152,10 @@ The application route names may follow the repository's routing conventions, but
 - Data freshness, partial-data, source-unavailable, loading, empty, error, and permission-denied states must be explicit.
 - Role-based layouts may prioritize different panels, but they must preserve the approved page identity and core operating model.
 
-## 7. Relationship to the detailed control tower
+## 9. Relationship to the detailed control tower
 
 This decision supersedes the older control-tower mockup only as the **default Inventory Lifecycle landing-page composition**. The detailed lifecycle swimlanes, selected-asset command rail, Shop execution rules, parts controls, governance requirements, and backend contracts in [`INVENTORY_CONSOLE_UI_SOURCE_OF_TRUTH.md`](INVENTORY_CONSOLE_UI_SOURCE_OF_TRUTH.md) remain valid for deeper workspaces where they do not conflict with this approved landing-page decision.
 
-## 8. Change control
+## 10. Change control
 
-Any material change to the Home routing model, workflow-start command, primary navigation, either destination page's pipeline or production flow, **Open Disposition & Wholesale**, **Open Parts Operations**, priority-work placement, Reviews & Approvals visibility, event-log access, approval guardrails, or core operating panels requires explicit product approval and a versioned update to this document and its approved image.
+Any material change to the Home routing model, workflow-start command, primary navigation, any approved landing page or deeper workspace, **Open Disposition & Wholesale**, **Open Parts Operations**, local workspace tabs or milestones, priority-work placement, Reviews & Approvals visibility, event-log access, approval guardrails, or core operating panels requires explicit product approval and a versioned update to the applicable source-of-truth document and approved image.
