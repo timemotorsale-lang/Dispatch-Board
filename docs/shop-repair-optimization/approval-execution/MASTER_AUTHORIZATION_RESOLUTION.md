@@ -1,6 +1,6 @@
 # Shop and Recon Optimization Master Authorization Resolution
 
-**Status:** `NOT_AUTHORIZED — AE-0 NOT ENTERED; 79 POLICY DECISIONS OPEN`
+**Status:** `NOT_AUTHORIZED — WORKSHOPS 1–7 PASSED; 69 CLOSED; 10 POLICY DECISIONS OPEN`
 **Proposed version:** `SRO-1.0`
 
 ## Required findings
@@ -19,7 +19,7 @@ Before any implementation authorization, the approving authorities must find tha
 
 | Resolution | Current state | Required future evidence |
 | --- | --- | --- |
-| Policy | 79 OPEN | Valid decision records and dependency closure |
+| Policy | PARTIAL — 12 APPROVED / 57 APPROVED_WITH_CHANGE / 10 OPEN | Valid decision records and dependency closure |
 | Technical design | NOT AUTHORIZED | Approved policy plus architecture/acceptance boundary |
 | Code implementation | NOT AUTHORIZED | Named slice, authorized scope, tests and delivery controls |
 | Shadow evaluation | NOT AUTHORIZED | Implemented version, data/source validity, thresholds and monitoring |
