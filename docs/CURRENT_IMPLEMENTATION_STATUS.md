@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-07-16 — Shop and Recon Optimization approval-execution workspace
+
+The documentation-only approval-execution program for all eight Shop and Recon workshops is established under [`docs/shop-repair-optimization/approval-execution/README.md`](shop-repair-optimization/approval-execution/README.md). It contains an AE-0 authority/session gate, a consolidated ledger covering all 79 `SRO-APR-*` decisions exactly once, eight workshop execution gates, an immutable decision-journal contract, grouped missing-input controls, 27 enterprise tabletop cases, execution totals and separate policy, design, code, shadow, pilot and production-activation resolutions.
+
+This checkpoint adds no application behavior and records no dealership approval. AE-0 is not entered; all 79 decisions remain `OPEN`; exact Shop, Dispatch, Advisor, Parts, QC, Finance, Privacy, Algorithm, Integration, Customer and qualified-review authority/configuration is still required. The complete Shop/Recon program remains `NO-GO FOR DESIGN/CODE/SHADOW/PILOT/ACTIVATION`.
+
 ## 2026-07-16 — Inventory-to-Frontline Slice 2 non-code workflow package
 
 The documentation implementation for Slice 2 — observed arrival through custody verification, receipt completion and accepted Inspection/Triage handoff — is established in the [`approval-decisions workspace`](inventory/frontline-workflow/approval-decisions/README.md). It includes a guided twelve-step staff workflow, single-workbench staff playbook, evidence and exception controls, versioned receipt-completion gate, Inspection handoff contract, ten-decision execution gate, exact open-input register, fourteen-case tabletop packet and separate implementation-authorization resolution.

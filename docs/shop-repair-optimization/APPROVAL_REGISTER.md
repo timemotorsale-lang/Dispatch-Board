@@ -1,7 +1,9 @@
 # Shop Optimization Approval Register
 
-**Status:** All 79 decisions `OPEN`  
+**Status:** All 79 decisions `OPEN`; execution workspace prepared
 **Rule:** Recommendations below are not dealership policy until signed by the named authority.
+
+**Execution workspace:** [`approval-execution/README.md`](approval-execution/README.md)
 
 ## Workshop 1 — Charter and scope
 
