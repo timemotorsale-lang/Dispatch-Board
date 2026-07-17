@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-07-16 — Inventory-to-Frontline Slice 2 non-code workflow package
+
+The documentation implementation for Slice 2 — observed arrival through custody verification, receipt completion and accepted Inspection/Triage handoff — is established in the [`approval-decisions workspace`](inventory/frontline-workflow/approval-decisions/README.md). It includes a guided twelve-step staff workflow, single-workbench staff playbook, evidence and exception controls, versioned receipt-completion gate, Inspection handoff contract, ten-decision execution gate, exact open-input register, fourteen-case tabletop packet and separate implementation-authorization resolution.
+
+This checkpoint adds no application behavior. `ITF-APR-080` through `089` remain `OPEN`; exact receiving people, locations, hours, evidence, movement/hazard, placement, discrepancy and Inspection-consumer configuration is still required. Applicable predecessor/global decisions also remain unresolved. Internal driving and authoritative live-provider integration remain safely excluded. Slice 2 is `NOT AUTHORIZED` for technical design, code, shadow use, pilot or activation.
+
 ## 2026-07-16 — Inventory-to-Frontline approval-decisions execution workspace
 
 The documentation-only approval decision workspace is prepared under [`docs/inventory/frontline-workflow/approval-decisions/README.md`](inventory/frontline-workflow/approval-decisions/README.md). It provides the AE-0 authority/session record, an immutable-signature journal contract, a 50-decision Slice 1 execution gate, and a separate Slice 1 implementation-authorization resolution with explicit design, implementation, shadow, pilot and activation states.

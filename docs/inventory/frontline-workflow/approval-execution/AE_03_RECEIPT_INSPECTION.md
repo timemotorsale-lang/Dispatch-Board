@@ -1,6 +1,6 @@
 # AE-3 — Receipt, Custody, Inspection, and Safety Approval
 
-**Status:** Ready for execution; not conducted  
+**Status:** Ready for execution; Slice 2 non-code execution packet implemented; approval session not conducted
 **Decisions:** `ITF-APR-080`-`099` (20 total)  
 **Slices:** 2 and 3  
 **Source:** [`Approval Workshop 03`](../APPROVAL_WORKSHOP_03_RECEIPT_CUSTODY_INSPECTION_SAFETY.md)
@@ -24,3 +24,7 @@ Observed arrival is not accepted custody; unspecified/unattended receipt is unav
 ## Exit gate
 
 AE-3 exits only when all 20 decisions have authorized dispositions, applicable AE-1/AE-2 prerequisites are resolved or safely deferred, tabletop evidence is accepted, and Slices 2 and 3 receive separate design-readiness outcomes. Current result: both slices `NO-GO FOR CODE`.
+
+## Slice 2 execution packet
+
+The Slice 2 operating flow, staff playbook, ten-decision gate, open-input register, tabletop cases and separate authorization record are maintained in the [`approval-decisions workspace`](../approval-decisions/README.md). Their preparation changes no `OPEN` policy state and authorizes no technical design, code, shadow, pilot or activation.
