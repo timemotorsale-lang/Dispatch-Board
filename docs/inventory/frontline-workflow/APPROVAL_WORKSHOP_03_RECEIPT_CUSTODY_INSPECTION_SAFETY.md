@@ -1,6 +1,6 @@
 # Approval Workshop 03 - Receipt, Custody, Inspection, and Safety Approval
 
-**Status:** Decision-ready; not conducted  
+**Status:** Decision-ready; Slice 2 execution documents prepared; workshop not conducted
 **Decisions:** `ITF-APR-080`-`099`  
 **Slices:** 2. Receipt and Custody; 3. Inspection and Triage  
 **Current gate:** `GO FOR APPROVAL WORKSHOP`; `NO-GO FOR CODE`  
@@ -105,4 +105,6 @@ Each slice retains separate implementation, verification, pilot and activation g
 Required: GM/Operations; Inventory; Receiving/Custody; Shop/Safety/Inspection; Privacy/Data/Evidence; applicable Insurance/Specialist; workflow/pilot owners.
 
 **Current result:** documentation ready; 20 decisions `OPEN`; Slices 2 and 3 `NO-GO FOR CODE` until authorized sign-off.
+
+The Slice 2 execution materials are linked from the [`approval-decisions workspace`](approval-decisions/README.md). They provide the exact operating and verification structure for `080`–`089` but do not close those decisions.
 

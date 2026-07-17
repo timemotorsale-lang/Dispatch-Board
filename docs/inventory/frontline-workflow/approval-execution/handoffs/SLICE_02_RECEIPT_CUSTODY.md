@@ -1,8 +1,10 @@
 # Slice 2 Future Handoff — Receipt and Custody
 
-**Status:** Prepared; `NO-GO FOR DESIGN/CODE/PILOT/ACTIVATION`  
+**Status:** Workflow/staff/approval documentation implemented; `NO-GO FOR DESIGN/CODE/PILOT/ACTIVATION`
 **Direct approvals:** `ITF-APR-080`-`089`; applicable global/predecessor approvals  
 **Catalog:** [`Receipt and Custody`](../../RECEIPT_CUSTODY_DECISION_CATALOG.md)
+
+**Execution workspace:** [`Slice 2 workflow package`](../../approval-decisions/SLICE_02_RECEIPT_CUSTODY_WORKFLOW.md), [`decision gate`](../../approval-decisions/SLICE_02_DECISION_EXECUTION_GATE.md), [`open inputs`](../../approval-decisions/SLICE_02_OPEN_DECISIONS.md), [`tabletop`](../../approval-decisions/SLICE_02_TABLETOP_AND_ACCEPTANCE.md), and [`authorization`](../../approval-decisions/SLICE_02_IMPLEMENTATION_AUTHORIZATION.md)
 
 ## Outcome and boundary
 
@@ -39,4 +41,4 @@ Approved policy → receipt/custody aggregate → versioned persistence → perm
 
 ## Readiness blockers
 
-Decisions `080`-`089`, exact people/locations/evidence/safety and predecessor/global controls remain open.
+Decisions `080`-`089`, exact people/locations/evidence/safety and predecessor/global controls remain open. The non-code workflow package is complete, but no document substitutes for attributable policy approval or separate technical-design/implementation authority.
