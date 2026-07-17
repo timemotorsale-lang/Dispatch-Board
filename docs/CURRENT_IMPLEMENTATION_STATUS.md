@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-07-16 — Inventory-to-Frontline approval-decisions execution workspace
+
+The documentation-only approval decision workspace is prepared under [`docs/inventory/frontline-workflow/approval-decisions/README.md`](inventory/frontline-workflow/approval-decisions/README.md). It provides the AE-0 authority/session record, an immutable-signature journal contract, a 50-decision Slice 1 execution gate, and a separate Slice 1 implementation-authorization resolution with explicit design, implementation, shadow, pilot and activation states.
+
+The user confirmed AE-0 entry as `ENTER_WITH_SAFE_DEFERRALS` for the `ITF-1.0` Minneapolis Slice 1 approval process, with Eli Aswan as the named ultimate General/Operations authority and Brock Harris as Inventory/transport/receiving owner. Internal driving, authoritative live provider integration, independent self-review and unqualified legal determinations remain excluded. The confirmation is recorded from the Codex conversation without independent chat-user identity or handwritten-signature verification. The signature journal remains empty, all 130 enterprise decisions remain `OPEN`, all 50 Slice 1 prerequisites remain `OPEN`, and Slice 1 remains `NOT AUTHORIZED` for design, implementation, shadow, pilot and activation.
+
 ## 2026-07-16 — Inventory-to-Frontline enterprise approval-execution baseline
 
 The complete documentation-only approval program is prepared under [`docs/inventory/frontline-workflow/approval-execution/README.md`](inventory/frontline-workflow/approval-execution/README.md). It provides separate AE-0 through AE-9 milestone packets, one consolidated ledger containing all 130 existing `ITF-APR-*` decisions exactly once, an execution approval register, gap/dependency and nine-slice readiness records, cross-slice consistency review, a 26-case enterprise tabletop suite, pilot-readiness assessment, master approval resolution, traceability matrix, and nine separate future implementation handoffs.
