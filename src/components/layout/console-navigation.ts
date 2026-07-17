@@ -1,4 +1,4 @@
-import { BriefcaseBusiness, Plug, Settings } from "lucide-react";
+import { BarChart3, BriefcaseBusiness, House, MessageSquareText, Plug, RefreshCw, Settings, ShieldCheck, Wrench } from "lucide-react";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { canManageSettings } from "@/server/policies/access";
@@ -34,7 +34,69 @@ const administrationItems: NavigationItem[] = [
   }
 ];
 
+const inventoryItems: NavigationItem[] = [
+  {
+    href: "/vehicles",
+    title: "Home",
+    description: "Inventory Console operating home.",
+    icon: House,
+    matchExact: true
+  },
+  {
+    activePaths: ["/vehicles/inventory", "/vehicles/discovery", "/vehicles/registry"],
+    href: "/vehicles/inventory",
+    title: "Inventory Lifecycle",
+    description: "Acquisition through sale, transfer, or disposition.",
+    icon: RefreshCw
+  },
+  {
+    activePaths: ["/vehicles/parts-operations", "/vehicles/parts", "/vehicles/parts-counter", "/vehicles/service-close-parts", "/vehicles/shop-planning", "/vehicles/shop-dispatch", "/vehicles/shop-production", "/vehicles/quality-control"],
+    href: "/vehicles/shop-production",
+    title: "Shop & Recon",
+    description: "Daily production, capacity, constraints, and parts readiness.",
+    icon: Wrench
+  },
+  {
+    href: "/manager-review?scope=inventory&view=reviews",
+    title: "Reviews",
+    description: "Inventory and shop work awaiting review.",
+    icon: MessageSquareText
+  },
+  {
+    href: "/manager-review?scope=inventory&view=approvals",
+    title: "Approvals",
+    description: "Authority-scoped consequential decisions.",
+    icon: ShieldCheck
+  },
+  {
+    href: "/reports?scope=inventory",
+    title: "Reports",
+    description: "Governed inventory, shop, and parts reporting.",
+    icon: BarChart3
+  },
+  {
+    href: "/settings/vehicle-operations",
+    title: "Administration",
+    description: "Vehicle-operation policies, rollout, and health.",
+    icon: Settings
+  }
+];
+
+export function isInventoryConsolePath(pathname: string) {
+  return pathname === "/inventory-manager" || pathname === "/vehicles" || pathname.startsWith("/vehicles/");
+}
+
 export function getConsoleNavigation(pathname: string, user: AuthenticatedUser): ConsoleNavigationDefinition | null {
+  if (isInventoryConsolePath(pathname)) {
+    return {
+      badge: "Live",
+      homeHref: "/vehicles",
+      items: inventoryItems,
+      subtitle: "Vehicle Operations",
+      title: "Inventory Console"
+    };
+  }
+
   if (isDispatchConsolePath(pathname)) {
     return {
       badge: "Live",

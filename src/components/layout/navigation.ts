@@ -24,6 +24,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { canManageSettings, isManager } from "@/server/policies/access";
 
 export type NavigationItem = {
+  activePaths?: string[];
   href: string;
   title: string;
   description: string;

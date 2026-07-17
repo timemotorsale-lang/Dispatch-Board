@@ -122,6 +122,7 @@ describe("enterprise shell navigation", () => {
 
   it("assigns each implemented console its own sidebar navigation", () => {
     const staffDispatch = getConsoleNavigation("/tasks/task-1", user());
+    const inventoryConsole = getConsoleNavigation("/vehicles/parts-operations", user());
     const manager = user({ roles: ["General Manager"] });
     const managerAdministration = getConsoleNavigation("/settings/team", manager);
 
@@ -143,6 +144,16 @@ describe("enterprise shell navigation", () => {
       "Administration",
       "Integrations",
       "Settings"
+    ]);
+    expect(inventoryConsole?.title).toBe("Inventory Console");
+    expect(inventoryConsole?.items.map((item) => item.title)).toEqual([
+      "Home",
+      "Inventory Lifecycle",
+      "Shop & Recon",
+      "Reviews",
+      "Approvals",
+      "Reports",
+      "Administration"
     ]);
     expect(getConsoleNavigation("/command-center", manager)).toBeNull();
   });

@@ -12,7 +12,7 @@ import { SessionHealthGuard } from "@/features/auth/session-health-guard";
 import { AppSidebar } from "./app-sidebar";
 import { AppTopbar } from "./app-topbar";
 import { ConsoleSidebar } from "./console-sidebar";
-import { getConsoleNavigation } from "./console-navigation";
+import { getConsoleNavigation, isInventoryConsolePath } from "./console-navigation";
 import { DispatchConsoleHeader } from "./dispatch-console-header";
 import { isDispatchConsolePath } from "./navigation";
 import { useWorkspaceMode, WorkspaceModeProvider } from "./workspace-mode";
@@ -27,7 +27,7 @@ function AppShellContent({ children, user }: AppShellProps) {
   const pathname = usePathname();
   const { mode } = useWorkspaceMode();
   const commandCenterHome = pathname === "/command-center";
-  const dispatchConsole = isDispatchConsolePath(pathname);
+  const dispatchConsole = isDispatchConsolePath(pathname) && !isInventoryConsolePath(pathname);
   const consoleNavigation = getConsoleNavigation(pathname, user);
   const hasSidebar = commandCenterHome || Boolean(consoleNavigation);
   const tasksWorkspace = pathname.startsWith("/tasks");
