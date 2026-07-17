@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-07-16 — Shop and Repair Optimization planning baseline
+
+The planning-complete Shop and Repair Optimization package is established under [`docs/shop-repair-optimization/README.md`](shop-repair-optimization/README.md). It governs customer-pay, inventory-recon, and internal/fleet shop lanes across six workstreams: shop flow/WIP, capacity/dispatch, parts/repair execution, pricing/margin, technician/advisor assistance, and customer intelligence/retention. The package contains 37 algorithm definitions, 17 recurring staff decisions, 50 acceptance scenarios, 79 approval decisions, eight consecutive approval workshops, source-authority and confidence rules, safety/financial/privacy/fairness guardrails, a simplified staff experience, balanced measurement, and a nine-stage implementation sequence from instrumentation through controlled expansion.
+
+This checkpoint is documentation only. All `SRO-APR-001` through `SRO-APR-079` decisions remain `OPEN`; no algorithm, pricing matrix, AI assistant, customer message, automatic assignment, purchase, QC decision, vehicle release, or predictive outreach is activated. Existing Vehicle Operations shop, dispatch, parts, QC, advisor, comeback, and production foundations remain implementation facts and are reused rather than reclassified as delivery of this new optimization program. The recommended first future code boundary is instrumentation plus job-start readiness/WIP decision support, followed by capacity-aware human-confirmed dispatch only after the applicable workshop approvals.
+
 ## 2026-07-15 — Inventory-to-Frontline workflow planning baseline
 
 The catalog-complete planning package for a governed Inventory-to-Frontline workflow is established under [`docs/inventory/frontline-workflow/README.md`](inventory/frontline-workflow/README.md). It defines the workflow lifecycle, fully modeled Acquisition/Transportation, Receipt/Custody, Inspection/Triage, Recon Planning/Approval, Parts/Repair Execution, Quality/Safety Verification, Title/Document Readiness, Merchandising/Pricing, and Frontline Release Review decision/scenario catalogs, roles and operating controls, the adaptive staff experience, acceptance and pilot evidence, an explicit dealership approval register, and a completed cross-catalog consistency/approval review.
