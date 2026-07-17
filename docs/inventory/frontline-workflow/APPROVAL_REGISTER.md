@@ -7,6 +7,8 @@ Workshop 1 recommendations and the decision capture sheet are available in [`APP
 
 Workshop 2 closeout, gap ownership, and nine-slice readiness are consolidated in [`APPROVAL_WORKSHOP_02F_CONSOLIDATED_DECISION_READOUT.md`](APPROVAL_WORKSHOP_02F_CONSOLIDATED_DECISION_READOUT.md), [`WORKSHOP_02_GAP_REGISTER.md`](WORKSHOP_02_GAP_REGISTER.md), and [`WORKSHOP_02_SLICE_READINESS_MATRIX.md`](WORKSHOP_02_SLICE_READINESS_MATRIX.md). These artifacts preserve the current `NO-GO FOR CODE` and do not themselves approve any decision.
 
+All 50 pre-Workshop 3 decisions now have recommended dispositions and safe defaults in [`PRE_WORKSHOP_03_RECOMMENDED_DISPOSITION_LEDGER.md`](PRE_WORKSHOP_03_RECOMMENDED_DISPOSITION_LEDGER.md). Final planning completion and the remaining authorization gate are recorded in [`PRE_WORKSHOP_03_ENTRY_GATE_RECORD.md`](PRE_WORKSHOP_03_ENTRY_GATE_RECORD.md). Recommendations do not change the `OPEN` states below.
+
 ## 1. Decision states
 
 - `OPEN` — dealership decision required.

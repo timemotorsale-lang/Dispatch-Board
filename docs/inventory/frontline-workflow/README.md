@@ -47,6 +47,8 @@ Existing canonical `Vehicle`, `InventoryUnit`, lifecycle, task, command, event, 
 | [`APPROVAL_WORKSHOP_02F_CONSOLIDATED_DECISION_READOUT.md`](APPROVAL_WORKSHOP_02F_CONSOLIDATED_DECISION_READOUT.md) | Workshop 2F closeout: consolidated readout for all 32 Workshop 2 decisions, decision rules, participants, consistency checks, stress tests, sign-off, and readiness decision. |
 | [`WORKSHOP_02_GAP_REGISTER.md`](WORKSHOP_02_GAP_REGISTER.md) | Workshop 2 unresolved-control register with severity, containment, owners, closure evidence, and slice impact. |
 | [`WORKSHOP_02_SLICE_READINESS_MATRIX.md`](WORKSHOP_02_SLICE_READINESS_MATRIX.md) | Workshop 2 readiness assessment across all nine lifecycle slices and the Workshop 3 entry gate. |
+| [`PRE_WORKSHOP_03_RECOMMENDED_DISPOSITION_LEDGER.md`](PRE_WORKSHOP_03_RECOMMENDED_DISPOSITION_LEDGER.md) | Recommended dispositions and safe defaults for all 50 Workshop 1/2 prerequisite decisions, leaving only authorized signature fields. |
+| [`PRE_WORKSHOP_03_ENTRY_GATE_RECORD.md`](PRE_WORKSHOP_03_ENTRY_GATE_RECORD.md) | Final confirmation that all planning steps and nine lifecycle slice catalogs are complete before Workshop 3, with authorization and no-code boundaries. |
 | [`OPERATING_CONTROLS.md`](OPERATING_CONTROLS.md) | Roles, authority, separation of duties, evidence, exceptions, timing, financial controls, and policy configuration. |
 | [`STAFF_EXPERIENCE.md`](STAFF_EXPERIENCE.md) | How staff and managers access, understand, and operate adaptive workflow decisions. |
 | [`ACCEPTANCE_AND_PILOT_PLAN.md`](ACCEPTANCE_AND_PILOT_PLAN.md) | Scenario tests, shadow/manual pilot, activation, monitoring, pause, rollback, and expansion gates. |
