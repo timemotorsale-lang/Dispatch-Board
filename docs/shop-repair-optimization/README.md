@@ -45,6 +45,7 @@ The program reuses canonical `Vehicle`, `ServiceVisit`, `RepairOrder`, `RepairJo
 | [`MEASUREMENT_AND_CALIBRATION.md`](MEASUREMENT_AND_CALIBRATION.md) | KPI definitions, fairness/quality protections, outcome attribution, drift, and change control. |
 | [`WORKSHOPS_01_08_PROGRAM.md`](WORKSHOPS_01_08_PROGRAM.md) | Consecutive approval workshops, decisions, participants, outputs, and exit gates. |
 | [`APPROVAL_REGISTER.md`](APPROVAL_REGISTER.md) | All open dealership decisions required before implementation or activation. |
+| [`approval-execution/README.md`](approval-execution/README.md) | Controlled AE-0 entry, 79-decision ledger, eight workshop gates, signature journal, missing inputs, tabletop suite, and separate authorization resolution. |
 | [`IMPLEMENTATION_AND_PILOT_ROADMAP.md`](IMPLEMENTATION_AND_PILOT_ROADMAP.md) | Safe vertical slices from instrumentation through monitored decision support. |
 | [`TRACEABILITY_MATRIX.md`](TRACEABILITY_MATRIX.md) | Workstream-to-algorithm, decision, scenario, workshop, outcome, and implementation mapping. |
 

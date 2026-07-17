@@ -1,6 +1,6 @@
 # Approval Workshops 01-08 Program
 
-**Status:** Prepared; not conducted  
+**Status:** Planning prepared; approval-execution workspace prepared; workshops not conducted
 **Decision state:** All decisions remain `OPEN`
 
 ## Program sequence
@@ -97,3 +97,5 @@ Exit: signed decision register and explicit `NO_GO`, `SHADOW_ONLY`, or named-sli
 ## Workshop conduct rule
 
 For every decision, choose `APPROVE`, `APPROVE_WITH_CHANGE`, `DEFER_SAFE`, or `REJECT`. Approval records approver, authority, time, effective scope, exact policy language, conditions, dependencies, and affected algorithms/scenarios. Discussion or silence is not approval.
+
+Execution records, gates and evidence are maintained in [`approval-execution/README.md`](approval-execution/README.md). Their preparation does not change any `OPEN` state.
