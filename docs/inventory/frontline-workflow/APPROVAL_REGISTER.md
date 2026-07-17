@@ -11,6 +11,8 @@ All 50 pre-Workshop 3 decisions now have recommended dispositions and safe defau
 
 Workshops 3-8 are prepared consecutively in [`APPROVAL_WORKSHOPS_03_08_PROGRAM_INDEX.md`](APPROVAL_WORKSHOPS_03_08_PROGRAM_INDEX.md), with decision packets for `ITF-APR-080`-`159` and the final enterprise tabletop/pilot sign-off. These packets do not change any `OPEN` state or authorize code, pilot, or activation.
 
+The full approval-execution program is now prepared under [`approval-execution/README.md`](approval-execution/README.md). Its [`Consolidated 130-Decision Disposition Ledger`](approval-execution/CONSOLIDATED_130_DECISION_LEDGER.md) contains each existing identifier exactly once with recommended disposition, proposed policy, safe default, authority, dependencies, affected slices and closure evidence. Its [`Execution Approval Register`](approval-execution/EXECUTION_APPROVAL_REGISTER.md) is the signature-control record. All 130 decisions remain `OPEN`; the execution package does not itself approve them.
+
 ## 1. Decision states
 
 - `OPEN` — dealership decision required.
