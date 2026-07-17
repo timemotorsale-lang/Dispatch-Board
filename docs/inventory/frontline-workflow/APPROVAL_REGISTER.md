@@ -9,6 +9,8 @@ Workshop 2 closeout, gap ownership, and nine-slice readiness are consolidated in
 
 All 50 pre-Workshop 3 decisions now have recommended dispositions and safe defaults in [`PRE_WORKSHOP_03_RECOMMENDED_DISPOSITION_LEDGER.md`](PRE_WORKSHOP_03_RECOMMENDED_DISPOSITION_LEDGER.md). Final planning completion and the remaining authorization gate are recorded in [`PRE_WORKSHOP_03_ENTRY_GATE_RECORD.md`](PRE_WORKSHOP_03_ENTRY_GATE_RECORD.md). Recommendations do not change the `OPEN` states below.
 
+Workshops 3-8 are prepared consecutively in [`APPROVAL_WORKSHOPS_03_08_PROGRAM_INDEX.md`](APPROVAL_WORKSHOPS_03_08_PROGRAM_INDEX.md), with decision packets for `ITF-APR-080`-`159` and the final enterprise tabletop/pilot sign-off. These packets do not change any `OPEN` state or authorize code, pilot, or activation.
+
 ## 1. Decision states
 
 - `OPEN` — dealership decision required.
