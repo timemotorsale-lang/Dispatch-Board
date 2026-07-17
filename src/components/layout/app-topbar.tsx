@@ -10,6 +10,7 @@ import { isManager } from "@/server/policies/access";
 import { TimeMotorSalesLogo } from "@/components/brand/time-motor-sales-logo";
 
 import { getDispatchNavigationItems, getNavigationGroups, isDispatchConsolePath } from "./navigation";
+import { isInventoryConsolePath } from "./console-navigation";
 
 type AppTopbarProps = { commandCenterHome: boolean; onMenuOpen(): void; showNavigationMenu: boolean; user: AuthenticatedUser };
 
@@ -34,7 +35,7 @@ function getBreadcrumb(pathname: string, dispatchView: "overview" | "live") {
   if (pathname.startsWith("/tasks")) return ["Command Control Center", "Dispatch", "Tasks"];
   if (pathname.startsWith("/projects")) return ["Command Control Center", "Dispatch", "Projects"];
   if (pathname.startsWith("/appointments")) return ["Command Control Center", "Dispatch", "Appointments"];
-  if (pathname.startsWith("/vehicles")) return ["Command Control Center", "Dispatch", "Vehicles"];
+  if (pathname.startsWith("/vehicles")) return ["Command Control Center", "Inventory Console", pathname.startsWith("/vehicles/parts-operations") ? "Parts Operations" : "Vehicles"];
   if (pathname.startsWith("/customers")) return ["Command Control Center", "Dispatch", "Customers"];
   if (pathname.startsWith("/manager-review")) return ["Command Control Center", "Dispatch", "Manager Review"];
   if (pathname.startsWith("/administration")) return ["Command Control Center", "Administration"];
@@ -46,7 +47,8 @@ export function AppTopbar({ commandCenterHome, onMenuOpen, showNavigationMenu, u
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const dispatchView = searchParams.get("view") === "live" ? "live" : "overview";
-  const dispatchConsole = isDispatchConsolePath(pathname);
+  const inventoryConsole = isInventoryConsolePath(pathname);
+  const dispatchConsole = isDispatchConsolePath(pathname) && !inventoryConsole;
   const actionsRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const navigationItems = [
@@ -124,7 +126,7 @@ export function AppTopbar({ commandCenterHome, onMenuOpen, showNavigationMenu, u
         ))}
       </nav>
 
-      <span className="ccc-dispatch-status"><i aria-hidden="true" />{commandCenterHome ? "CCC online" : dispatchConsole ? "Dispatch online" : "Console active"}</span>
+      <span className="ccc-dispatch-status"><i aria-hidden="true" />{commandCenterHome ? "CCC online" : inventoryConsole ? "Inventory live" : dispatchConsole ? "Dispatch online" : "Console active"}</span>
 
       <div className="topbar-actions" ref={actionsRef}>
         <div className="topbar-popover-shell ccc-search-shell">

@@ -40,7 +40,7 @@ const moduleTabs = [
   { id: "acquisition", label: "Acquisition", href: "/vehicles/discovery" },
   { id: "recon", label: "Recon", href: "/vehicles/shop-planning" },
   { id: "shop-work", label: "Shop Work", href: "/vehicles/shop-dispatch" },
-  { id: "parts", label: "Parts", href: "/vehicles/parts-counter" },
+  { id: "parts", label: "Parts Operations", href: "/vehicles/parts-operations" },
   { id: "purchase-orders", label: "Purchase Orders", href: "/vehicles/service-close-parts" },
   { id: "locations", label: "Locations", href: "/vehicles/inventory?view=locations", activePath: "/vehicles/inventory" },
   { id: "aging", label: "Aging", href: "/vehicles/inventory?view=aging", activePath: "/vehicles/inventory" },
@@ -168,8 +168,8 @@ export function InventoryControlTower() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [liveKpis, setLiveKpis] = useState<Array<{ icon: typeof Banknote; label: string; value: string; tone: Tone }>>([...kpis]);
   const [liveRetailStages, setLiveRetailStages] = useState(retailStages);
-  const [liveShopStages, setLiveShopStages] = useState(shopStages);
-  const [livePartsStages, setLivePartsStages] = useState(partsStages);
+  const [liveShopStages] = useState(shopStages);
+  const [livePartsStages] = useState(partsStages);
   const [liveExceptions, setLiveExceptions] = useState(exceptions);
   const [liveCapacity, setLiveCapacity] = useState(capacity);
   const [projectionState, setProjectionState] = useState<"loading" | "live" | "stale" | "error">("loading");

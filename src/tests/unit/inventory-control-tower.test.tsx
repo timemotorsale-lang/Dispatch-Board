@@ -34,9 +34,10 @@ describe("InventoryControlTower", () => {
   it("exposes the approved inventory module workspaces", () => {
     const markup = renderToStaticMarkup(<InventoryControlTower />);
 
-    for (const tab of ["Control Tower", "Vehicles", "Acquisition", "Recon", "Shop Work", "Parts", "Purchase Orders", "Locations", "Aging", "Exceptions"]) {
+    for (const tab of ["Control Tower", "Vehicles", "Acquisition", "Recon", "Shop Work", "Parts Operations", "Purchase Orders", "Locations", "Aging", "Exceptions"]) {
       expect(markup).toContain(`>${tab}</a>`);
     }
+    expect(markup).toContain('href="/vehicles/parts-operations"');
     expect(markup).toContain('href="/vehicles/inventory?view=locations"');
     expect(markup).toContain('href="/vehicles/inventory?view=aging"');
   });

@@ -21,11 +21,14 @@ function initials(name: string) {
   return name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 }
 
-function isActive(pathname: string, dispatchView: "overview" | "live", href: string) {
+function isActive(pathname: string, dispatchView: "overview" | "live", item: ConsoleNavigationDefinition["items"][number]) {
+  const { activePaths, href, matchExact } = item;
   const baseHref = href.split(/[?#]/, 1)[0];
 
   if (href === "/board") return pathname === "/board" && dispatchView === "overview";
   if (href.startsWith("/board?view=live")) return pathname === "/board" && dispatchView === "live";
+  if (activePaths?.some((path) => pathname === path || pathname.startsWith(`${path}/`))) return true;
+  if (matchExact) return pathname === baseHref;
   return pathname === baseHref || pathname.startsWith(`${baseHref}/`);
 }
 
@@ -53,7 +56,7 @@ export function ConsoleSidebar({ console, isOpen, onClose, user }: ConsoleSideba
       <nav aria-label={`${console.subtitle} navigation`} className="sidebar-navigation console-sidebar-navigation">
         {console.items.map((item) => {
           const Icon = item.icon;
-          const active = isActive(pathname, dispatchView, item.href);
+          const active = isActive(pathname, dispatchView, item);
           const href = item.href === "/board" && selectedBoardDate
             ? `/board?date=${encodeURIComponent(selectedBoardDate)}`
             : item.href.startsWith("/board?view=live") && selectedBoardDate
