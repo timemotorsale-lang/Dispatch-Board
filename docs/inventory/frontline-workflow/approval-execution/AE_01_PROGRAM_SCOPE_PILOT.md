@@ -22,7 +22,7 @@ These are global prerequisites. Slice 1 uses them directly; Slices 2-9 inherit t
 
 ## Current recommendation
 
-Adopt the source recommendations except decisions requiring exact dealership facts (`013`, `015`, `074`), which remain `APPROVE_WITH_CHANGE` recommendations until locations/calendars/authorities are named. All 18 authoritative states remain `OPEN`.
+Fifteen decisions are approved through the Slice 1 Decision Signature Journal. Decisions `013`, `015` and `074` remain `OPEN_REQUIRED_INPUT` until exact locations, calendars and pilot-control conditions are supplied.
 
 ## Exit gate
 

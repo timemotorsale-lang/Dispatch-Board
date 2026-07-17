@@ -27,7 +27,7 @@ Where names, dollar values, legal/insurance determinations, retention periods, c
 
 ## Current recommendation
 
-Three decisions recommend `DEFER_SAFE` (`051`, `052`, `063`); the source ledger recommends approval or approval-with-change for the others. Any additional decision whose required authority cannot be supplied must remain `OPEN` and use its documented safe default. Authoritative state remains `OPEN` for all 32.
+Seven AE-2 decisions have executed dispositions: `034`, `056`, `061` and `064` are approved; `051`, `052` and `063` are safely deferred. The other 25 remain `OPEN`, including 22 applicable to Slice 1 that require exact company inputs and three not required for this first gate.
 
 ## Exit gate
 

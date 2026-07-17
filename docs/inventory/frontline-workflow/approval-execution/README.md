@@ -26,8 +26,8 @@ It does not record dealership signatures, make legal determinations, approve dol
 | Milestone | Packet | Current result |
 | --- | --- | --- |
 | AE-0 | [`AE_00_ENTRY_GATE.md`](AE_00_ENTRY_GATE.md) | Ready; gate not signed |
-| AE-1 | [`AE_01_PROGRAM_SCOPE_PILOT.md`](AE_01_PROGRAM_SCOPE_PILOT.md) | 18 decisions OPEN |
-| AE-2 | [`AE_02_ENTERPRISE_CONTROLS.md`](AE_02_ENTERPRISE_CONTROLS.md) | 32 decisions OPEN |
+| AE-1 | [`AE_01_PROGRAM_SCOPE_PILOT.md`](AE_01_PROGRAM_SCOPE_PILOT.md) | 15 approved; 3 open |
+| AE-2 | [`AE_02_ENTERPRISE_CONTROLS.md`](AE_02_ENTERPRISE_CONTROLS.md) | 4 approved; 3 safely deferred; 25 open |
 | AE-3 | [`AE_03_RECEIPT_INSPECTION.md`](AE_03_RECEIPT_INSPECTION.md) | 20 decisions OPEN |
 | AE-4 | [`AE_04_RECON_REPAIR_QC.md`](AE_04_RECON_REPAIR_QC.md) | 30 decisions OPEN |
 | AE-5 | [`AE_05_TITLE_DOCUMENTS.md`](AE_05_TITLE_DOCUMENTS.md) | 10 decisions OPEN |
