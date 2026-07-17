@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-07-16 — Inventory-to-Frontline enterprise approval-execution baseline
+
+The complete documentation-only approval program is prepared under [`docs/inventory/frontline-workflow/approval-execution/README.md`](inventory/frontline-workflow/approval-execution/README.md). It provides separate AE-0 through AE-9 milestone packets, one consolidated ledger containing all 130 existing `ITF-APR-*` decisions exactly once, an execution approval register, gap/dependency and nine-slice readiness records, cross-slice consistency review, a 26-case enterprise tabletop suite, pilot-readiness assessment, master approval resolution, traceability matrix, and nine separate future implementation handoffs.
+
+This checkpoint does not record dealership approval or add application behavior. All 130 decisions remain `OPEN`; every lifecycle slice remains `NO-GO FOR DESIGN/CODE/PILOT/ACTIVATION`; and the master resolution is `READY FOR SIGNATURE — NOT APPROVED`. The package explicitly separates policy approval, design authorization, implementation authorization, shadow authorization, pilot authorization and activation authorization. The first possible future implementation boundary remains authoritative acquisition through an accepted Receipt/Custody handoff, subject to the applicable signed decisions and separate implementation authority.
+
 ## 2026-07-16 — Shop and Repair Optimization planning baseline
 
 The planning-complete Shop and Repair Optimization package is established under [`docs/shop-repair-optimization/README.md`](shop-repair-optimization/README.md). It governs customer-pay, inventory-recon, and internal/fleet shop lanes across six workstreams: shop flow/WIP, capacity/dispatch, parts/repair execution, pricing/margin, technician/advisor assistance, and customer intelligence/retention. The package contains 37 algorithm definitions, 17 recurring staff decisions, 50 acceptance scenarios, 79 approval decisions, eight consecutive approval workshops, source-authority and confidence rules, safety/financial/privacy/fairness guardrails, a simplified staff experience, balanced measurement, and a nine-stage implementation sequence from instrumentation through controlled expansion.
