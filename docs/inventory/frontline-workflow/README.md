@@ -61,6 +61,7 @@ Existing canonical `Vehicle`, `InventoryUnit`, lifecycle, task, command, event, 
 | [`ACCEPTANCE_AND_PILOT_PLAN.md`](ACCEPTANCE_AND_PILOT_PLAN.md) | Scenario tests, shadow/manual pilot, activation, monitoring, pause, rollback, and expansion gates. |
 | [`APPROVAL_REGISTER.md`](APPROVAL_REGISTER.md) | Open dealership decisions and the documentation-to-code approval gate. |
 | [`approval-execution/README.md`](approval-execution/README.md) | Complete AE-0–AE-9 execution program, 130-decision ledger, master resolution, nine separate implementation handoffs, tabletop, gaps, readiness, pilot and traceability records. |
+| [`approval-decisions/README.md`](approval-decisions/README.md) | Actual decision-execution workspace with AE-0 authority record, Slice 1's 50-decision gate, signature journal and separate implementation-authorization resolution. |
 
 ## Delivery sequence
 

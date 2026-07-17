@@ -13,6 +13,8 @@ Workshops 3-8 are prepared consecutively in [`APPROVAL_WORKSHOPS_03_08_PROGRAM_I
 
 The full approval-execution program is now prepared under [`approval-execution/README.md`](approval-execution/README.md). Its [`Consolidated 130-Decision Disposition Ledger`](approval-execution/CONSOLIDATED_130_DECISION_LEDGER.md) contains each existing identifier exactly once with recommended disposition, proposed policy, safe default, authority, dependencies, affected slices and closure evidence. Its [`Execution Approval Register`](approval-execution/EXECUTION_APPROVAL_REGISTER.md) is the signature-control record. All 130 decisions remain `OPEN`; the execution package does not itself approve them.
 
+The actual decision-entry workspace is prepared under [`approval-decisions/README.md`](approval-decisions/README.md). It currently contains zero signed records. Its forms remain execution instruments only and do not change this register until valid attributable approvals are entered and reconciled.
+
 ## 1. Decision states
 
 - `OPEN` — dealership decision required.

@@ -66,6 +66,10 @@ It does not record dealership signatures, make legal determinations, approve dol
 
 Authorized participants choose `APPROVE`, `APPROVE_WITH_CHANGE`, `DEFER_SAFE`, or `REJECT`. Until the required approval record is complete, the authoritative state is `OPEN` and the documented safe default controls. Recommended dispositions are proposals, never signatures.
 
+## Decision-execution workspace
+
+Actual authority/session records, Slice 1's 50-decision gate, signature journal and separate implementation-authorization resolution are prepared under [`../approval-decisions/README.md`](../approval-decisions/README.md). Those blank execution records do not change the current approval state.
+
 ## Program gate
 
 The current program result is `READY FOR APPROVAL EXECUTION`, `NO-GO FOR CODE`, `NO-GO FOR PILOT`, and `NO-GO FOR ACTIVATION`.
