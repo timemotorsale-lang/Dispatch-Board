@@ -2,8 +2,8 @@
 
 **Product:** Time Motor Sales Dispatch Board
 **Module:** Inventory Console
-**Version:** 1.1 approved baseline
-**Date adopted:** 2026-07-16
+**Version:** 1.2 approved baseline
+**Date adopted:** 2026-07-16; refined and re-approved 2026-07-17
 **Status:** Approved visual and interaction source of truth; implementation not yet started
 
 ---
@@ -16,8 +16,12 @@ The three images in this document are the binding desktop landing-page reference
 - Selecting **Inventory Lifecycle** must land the staff member on the approved Inventory Lifecycle page.
 - Selecting **Shop & Recon** must land the staff member on the approved Shop & Recon page.
 - **Reviews** and **Approvals** remain first-class console destinations and must also be visible in the relevant landing-page workflow panels.
+- **Disposition & Wholesale** is an explicit deeper workspace under Inventory Lifecycle, reached through the prominent **Open Disposition & Wholesale** command.
+- **Parts Operations** is an explicit deeper workspace under Shop & Recon, reached through the prominent **Open Parts Operations** command.
 
 The images define the approved information hierarchy, page composition, navigation emphasis, operational density, visual language, and relationship between summary metrics and actionable work. Values, names, counts, dates, and example vehicles shown in the mockups are illustrative and must be supplied by authoritative application data when implemented.
+
+Wholesale algorithms and parts recommendations are decision support. They may explain and propose actions, but an authorized staff member must review and explicitly approve any consequential action.
 
 ## 2. Inventory Console Home landing page
 
@@ -35,8 +39,11 @@ The implementation must preserve:
 - compact operational KPIs covering active inventory, inventory capital, aged exposure, needs attention, in-shop work, and waiting-parts work
 - explicit blocked, overdue, and waiting breakdown for work needing attention
 - equal routing prominence for Inventory Lifecycle and Shop & Recon
+- equal, prominent contextual commands for **Open Disposition & Wholesale** and **Open Parts Operations** without adding either as a primary navigation tab
 - Inventory Lifecycle stage-target performance and visible bottleneck state
+- visible wholesale/disposition priority work, candidate count, recommendation context, and approval state
 - Shop & Recon projected-on-time performance and explicit Inventory Recon versus Customer Repair workload separation
+- visible parts readiness, waiting-parts work, and parts-operations health
 - contextual links to deeper capabilities instead of additional primary tabs
 - Priority Work with My Work, Team, and Exceptions views
 - Reviews & Approvals with direct authorized actions
@@ -57,11 +64,15 @@ The implementation must preserve:
 - selected Inventory Lifecycle navigation state
 - Reviews and Approvals navigation with visible pending counts when available
 - compact filters and interactive KPI strip
-- lifecycle pipeline from acquisition through sale or transfer
+- a prominent **Open Disposition & Wholesale** command in the page header
+- lifecycle pipeline from acquisition through the final **Sold / Wholesale / Transferred** state
 - visible bottleneck identification
+- aged-exposure and disposition-candidate visibility
 - priority work queue with ownership, blockers, due state, and next action
+- disposition recommendations that expose their rationale and remain advisory until authorized approval
+- wholesale disposition approval in the relevant Reviews & Approvals context
 - Reviews & Approvals panel with direct Review and Approve actions subject to authorization
-- lifecycle velocity, stage bottleneck, and inventory-aging summaries
+- lifecycle velocity, stage bottleneck, inventory-aging, and disposition summaries
 
 ## 4. Shop & Recon landing page
 
@@ -75,10 +86,14 @@ The implementation must preserve:
 - selected Shop & Recon navigation state
 - Reviews and Approvals navigation with visible pending counts when available
 - compact filters and actionable daily-production KPIs
+- a prominent **Open Parts Operations** command in the page header
 - production flow from unassigned work through completion
 - prominent constraint and waiting-parts visibility
+- parts-readiness and waiting-on-parts readiness metrics
 - readable vehicle work cards with ownership, promise state, readiness, priority, and blockers
-- Capacity & Assignment, Blocker Center, and Reviews & Approvals operating panels
+- Capacity & Assignment, Blocker Center, Reviews & Approvals, and Parts Operations operating panels
+- purchase and substitution recommendations that require authorized human approval
+- parts operations metrics for requests, orders, receipts, issues, installations, transfers, reconciliation, and exceptions when supported by authoritative data
 - daily throughput, work-type cycle time, and at-risk completion summaries
 
 ## 5. Navigation contract
@@ -88,6 +103,8 @@ The implementation must preserve:
 | Enter the Inventory Console or select **Home** | Approved Inventory Console Home landing page in section 2 |
 | Select **Inventory Lifecycle** | Approved Inventory Lifecycle landing page in section 3 |
 | Select **Shop & Recon** | Approved Shop & Recon landing page in section 4 |
+| Select **Open Disposition & Wholesale** | Disposition & Wholesale workspace within Inventory Lifecycle, preserving location, filter, and return context |
+| Select **Open Parts Operations** | Parts Operations workspace within Shop & Recon, preserving location, filter, and return context |
 | Select **Reviews** | Enterprise review queue scoped by role and location |
 | Select **Approvals** | Enterprise approval queue scoped by authority and location |
 | Select a landing-page review or approval item | The corresponding review or approval detail, with return context preserved |
@@ -107,6 +124,8 @@ The application route names may follow the repository's routing conventions, but
 - Search supports the identifiers available from authoritative backend sources.
 - Reviews and approvals show owner, age, status, and the next authorized action.
 - Approval actions enforce server-side authority, required reasons, and audit history.
+- Wholesale recommendations must expose available rationale, source freshness, assumptions, confidence or uncertainty, and alternatives; price changes, channel activation, transfers, releases, or disposition decisions require an authorized human command.
+- Parts recommendations must expose available rationale, source freshness, constraints, and alternatives; purchases, substitutions, transfers, adjustments, issues, installations, or reconciliation actions require an authorized human command.
 - Blocked, overdue, waiting, and stale states use text or icons in addition to color.
 - Data freshness, partial-data, source-unavailable, loading, empty, error, and permission-denied states must be explicit.
 - Role-based layouts may prioritize different panels, but they must preserve the approved page identity and core operating model.
@@ -117,4 +136,4 @@ This decision supersedes the older control-tower mockup only as the **default In
 
 ## 8. Change control
 
-Any material change to the Home routing model, workflow-start command, primary navigation, either destination page's pipeline or production flow, priority-work placement, Reviews & Approvals visibility, event-log access, or core operating panels requires explicit product approval and a versioned update to this document and its approved image.
+Any material change to the Home routing model, workflow-start command, primary navigation, either destination page's pipeline or production flow, **Open Disposition & Wholesale**, **Open Parts Operations**, priority-work placement, Reviews & Approvals visibility, event-log access, approval guardrails, or core operating panels requires explicit product approval and a versioned update to this document and its approved image.
