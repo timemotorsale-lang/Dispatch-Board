@@ -2,7 +2,7 @@
 
 **Workshop status:** Decision-ready planning draft; not conducted  
 **Decision state:** All decisions remain `OPEN` until authorized sign-off  
-**Covers:** `ITF-APR-030`-`035`; supports stage-specific authority decisions  
+**Covers:** `ITF-APR-030`-`036`; supports stage-specific authority decisions
 **Program:** Inventory-to-Frontline  
 **Pilot scope:** Time Motor Sales - Minneapolis, subject to Workshop 1 approval  
 **Prepared:** 2026-07-16  
@@ -355,6 +355,14 @@ Potential splitting indicators include:
 
 When correlation is uncertain, hold commitment, show the suspected related items, and route to the financial authority. Detection is not an allegation of misconduct; it is a control requiring human review.
 
+### 15.1 Acquisition economics and disposition review (`ITF-APR-036`)
+
+Policy must define when current total inventory investment, forecast-to-complete, carrying exposure, expected customer price/margin, condition, title risk, demand, or time-to-frontline requires a fresh human economics/disposition review.
+
+The threshold must specify exact inputs, authoritative sources, freshness, aggregation, confidence/unknown handling, reviewer, alternatives, and re-review triggers. Crossing it does not automatically dispose, wholesale, reduce required work, change customer price, or stop safety/custody action. It creates an owned decision among approved alternatives such as continue current plan, revise scope subject to all gates, seek higher authority, obtain more evidence, hold, return/reject where contractually allowed, transfer route, or initiate a separate disposition process.
+
+Safety, identity, custody, title/disclosure, privacy, and already-incurred obligations remain protected regardless of economics. Uncertain future credits or optimistic price cannot reduce exposure without approved evidence.
+
 ## 16. Emergency custody and safety expenditure (`ITF-APR-035`)
 
 Emergency authority is allowed only when delay presents an immediate, credible risk to people, property, vehicle custody, or hazard containment and the normal approval path is unavailable within the safe response window.
@@ -505,6 +513,7 @@ Audit is immutable and access-controlled. Operational staff may see the explanat
 | `ITF-APR-033` | Require reapproval on the stricter approved absolute/percentage variance plus any material scope/source/method/vendor/expiry/gate change | GM/Operations + functional/financial owners | OPEN |
 | `ITF-APR-034` | Aggregate gross correlated exposure across the vehicle/cycle, business purpose, plan/job/order/provider chain, and time window; prohibit splitting and premature credit netting | GM/Operations + Office/Controller | OPEN |
 | `ITF-APR-035` | Allow only minimum necessary emergency safety/custody containment within an exact limit and category, followed by attributable retrospective review | GM/Operations + Safety/Insurance + Office/Controller | OPEN |
+| `ITF-APR-036` | Require a human economics/disposition review when approved current-investment, forecast-to-complete, carrying, margin, age, or risk thresholds are reached; prohibit automatic disposition or gate reduction | GM/Operations + Inventory + Office/Controller | OPEN |
 
 ## 23. Financial-policy capture sheet
 
@@ -558,6 +567,7 @@ Workshop 2B does not pass until participants can determine permitted action, exp
 16. A system/provider reports a commitment timeout after the provider may have accepted it.
 17. A cost was incurred without authority and staff request retrospective approval.
 18. A safety/title hard gate fails after spend was approved.
+19. Current investment and forecast-to-complete cross the approved economics-review threshold while the vehicle remains subject to safety and custody obligations.
 
 Expected behavior: calculate complete current exposure, preserve the original authority state, stop or contain unsafe/unauthorized action, route to the exact eligible authority, and never transform commercial urgency into approval.
 
@@ -588,13 +598,13 @@ Bring:
 8. Approve narrow emergency categories, limits, coverage, and review.
 9. Validate pricing authority remains separate from spend authority.
 10. Run all stress tests and assign unresolved gaps.
-11. Record `ITF-APR-030`-`035` dispositions in the Approval Register.
+11. Record `ITF-APR-030`-`036` dispositions in the Approval Register.
 
 ## 26. Exit criteria
 
 Workshop 2B is complete only when:
 
-- `ITF-APR-030`-`035` have recorded dispositions and complete approval metadata;
+- `ITF-APR-030`-`036` have recorded dispositions and complete approval metadata;
 - all live pilot financial capabilities have named primary/backup authorities and upper boundaries;
 - all limits, currencies, cost classes, quote rules, expiries, and reapproval thresholds are exact and published;
 - cumulative/correlated exposure and anti-splitting behavior are approved;
