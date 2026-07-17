@@ -3,7 +3,7 @@
 **Resolution status:** `READY FOR SIGNATURE`; not approved  
 **Proposed workflow version:** `ITF-1.0`  
 **Proposed organization/location:** Time Motor Sales / Minneapolis, subject to `ITF-APR-010` and `013`  
-**Current decision totals:** 130 OPEN; 0 approved; 0 approved-with-change; 0 safely deferred by authority; 0 rejected
+**Current decision totals:** 108 OPEN; 19 approved; 0 approved-with-change; 3 safely deferred by authority; 0 rejected
 
 ## Proposed resolution
 
@@ -34,7 +34,7 @@ The individual decision record controls over summaries. Any `OPEN`, expired, con
 
 | Slice | Policy | Design | Implementation | Shadow | Pilot | Activation |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 Acquisition/Transportation | OPEN | NO | NO | NO | NO | NO |
+| 1 Acquisition/Transportation | PARTIAL — 28 applicable inputs OPEN | NO | NO | NO | NO | NO |
 | 2 Receipt/Custody | OPEN | NO | NO | NO | NO | NO |
 | 3 Inspection/Triage | OPEN | NO | NO | NO | NO | NO |
 | 4 Recon Planning | OPEN | NO | NO | NO | NO | NO |

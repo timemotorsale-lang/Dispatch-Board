@@ -11,7 +11,7 @@ All 50 pre-Workshop 3 decisions now have recommended dispositions and safe defau
 
 Workshops 3-8 are prepared consecutively in [`APPROVAL_WORKSHOPS_03_08_PROGRAM_INDEX.md`](APPROVAL_WORKSHOPS_03_08_PROGRAM_INDEX.md), with decision packets for `ITF-APR-080`-`159` and the final enterprise tabletop/pilot sign-off. These packets do not change any `OPEN` state or authorize code, pilot, or activation.
 
-The full approval-execution program is now prepared under [`approval-execution/README.md`](approval-execution/README.md). Its [`Consolidated 130-Decision Disposition Ledger`](approval-execution/CONSOLIDATED_130_DECISION_LEDGER.md) contains each existing identifier exactly once with recommended disposition, proposed policy, safe default, authority, dependencies, affected slices and closure evidence. Its [`Execution Approval Register`](approval-execution/EXECUTION_APPROVAL_REGISTER.md) is the signature-control record. All 130 decisions remain `OPEN`; the execution package does not itself approve them.
+The full approval-execution program is prepared under [`approval-execution/README.md`](approval-execution/README.md). Its [`Consolidated 130-Decision Disposition Ledger`](approval-execution/CONSOLIDATED_130_DECISION_LEDGER.md) contains each existing identifier exactly once with recommended disposition, proposed policy, safe default, authority, dependencies, affected slices and closure evidence. Its [`Execution Approval Register`](approval-execution/EXECUTION_APPROVAL_REGISTER.md) is the signature-control record. After partial Slice 1 execution, 19 decisions are `APPROVED`, 3 are `DEFERRED`, and 108 remain `OPEN`.
 
 The actual decision-entry workspace is prepared under [`approval-decisions/README.md`](approval-decisions/README.md). It currently contains zero signed records. Its forms remain execution instruments only and do not change this register until valid attributable approvals are entered and reconciled.
 
@@ -30,22 +30,22 @@ Approval records must include decision owner, approver, date, effective scope, r
 
 | Decision ID | Decision | Status | Required owner |
 | --- | --- | --- | --- |
-| `ITF-APR-001` | Approve Inventory-to-Frontline outcome, scope, and precedence | OPEN | General/Operations Manager |
-| `ITF-APR-002` | Approve canonical lifecycle and first code boundary ending at Receipt handoff | OPEN | Workflow + policy owners |
-| `ITF-APR-003` | Approve Acquisition/Transportation trigger catalog | OPEN | Inventory Manager |
-| `ITF-APR-004` | Approve decision questions, response options, and terminology | OPEN | Inventory Manager + pilot staff |
-| `ITF-APR-005` | Approve non-waivable identity, safety, release, custody, and evidence gates | OPEN | Policy owner |
-| `ITF-APR-006` | Approve cancellation, reversal, and disposition boundaries | OPEN | General/Operations Manager |
+| `ITF-APR-001` | Approve Inventory-to-Frontline outcome, scope, and precedence | APPROVED | General/Operations Manager |
+| `ITF-APR-002` | Approve canonical lifecycle and first code boundary ending at Receipt handoff | APPROVED | Workflow + policy owners |
+| `ITF-APR-003` | Approve Acquisition/Transportation trigger catalog | APPROVED | Inventory Manager |
+| `ITF-APR-004` | Approve decision questions, response options, and terminology | APPROVED | Inventory Manager + pilot staff |
+| `ITF-APR-005` | Approve non-waivable identity, safety, release, custody, and evidence gates | APPROVED | Policy owner |
+| `ITF-APR-006` | Approve cancellation, reversal, and disposition boundaries | APPROVED | General/Operations Manager |
 
 ## 3. Organization and operating scope
 
 | Decision ID | Required decision | Status |
 | --- | --- | --- |
-| `ITF-APR-010` | Pilot organization and location | OPEN |
-| `ITF-APR-011` | Eligible acquisition types and sources | OPEN |
-| `ITF-APR-012` | Eligible vehicle classes and exclusions | OPEN |
+| `ITF-APR-010` | Pilot organization and location | APPROVED |
+| `ITF-APR-011` | Eligible acquisition types and sources | APPROVED |
+| `ITF-APR-012` | Eligible vehicle classes and exclusions | APPROVED |
 | `ITF-APR-013` | Approved destinations, temporary locations, hours, and receiving capabilities | OPEN |
-| `ITF-APR-014` | Approved transport methods, carriers/providers, and eligibility source | OPEN |
+| `ITF-APR-014` | Approved transport methods, carriers/providers, and eligibility source | APPROVED |
 | `ITF-APR-015` | Operating timezone, calendars, holidays, and after-hours behavior | OPEN |
 
 ## 4. Roles and authority
@@ -67,7 +67,7 @@ Approval records must include decision owner, approver, date, effective scope, r
 | `ITF-APR-031` | Staff, Inventory Manager, General Manager, and upper authority limits | OPEN |
 | `ITF-APR-032` | Quote requirements and approved quote sources | OPEN |
 | `ITF-APR-033` | Reapproval threshold and quote expiry | OPEN |
-| `ITF-APR-034` | Correlated cost/exposure aggregation and anti-splitting rule | OPEN |
+| `ITF-APR-034` | Correlated cost/exposure aggregation and anti-splitting rule | APPROVED |
 | `ITF-APR-035` | Emergency custody/safety expenditure authority | OPEN |
 | `ITF-APR-036` | Acquisition-economics/disposition-review threshold | OPEN |
 
@@ -87,34 +87,34 @@ Approval records must include decision owner, approver, date, effective scope, r
 | Decision ID | Required decision | Status |
 | --- | --- | --- |
 | `ITF-APR-050` | Approve first-slice evidence catalog and criticality | OPEN |
-| `ITF-APR-051` | Roadworthiness/legal-operation evidence source and validity period | OPEN |
-| `ITF-APR-052` | Driver/insurance eligibility source and validity period | OPEN |
+| `ITF-APR-051` | Roadworthiness/legal-operation evidence source and validity period | DEFERRED |
+| `ITF-APR-052` | Driver/insurance eligibility source and validity period | DEFERRED |
 | `ITF-APR-053` | Pre/post transport condition evidence by risk/method/source | OPEN |
 | `ITF-APR-054` | Sensitive-data classification and role visibility | OPEN |
 | `ITF-APR-055` | Retention, legal hold, export, and disposal rules | OPEN |
-| `ITF-APR-056` | Evidence correction, rejection, supersession, and quarantine authority | OPEN |
+| `ITF-APR-056` | Evidence correction, rejection, supersession, and quarantine authority | APPROVED |
 
 ## 8. Integrations and data authority
 
 | Decision ID | Required decision | Status |
 | --- | --- | --- |
 | `ITF-APR-060` | Acquisition system/source authority by field | OPEN |
-| `ITF-APR-061` | Canonical vehicle identity and VIN verification source | OPEN |
+| `ITF-APR-061` | Canonical vehicle identity and VIN verification source | APPROVED |
 | `ITF-APR-062` | Location/custody source authority | OPEN |
-| `ITF-APR-063` | Carrier/provider confirmation and tracking sources | OPEN |
-| `ITF-APR-064` | DMS/accounting/website integration boundary | OPEN |
+| `ITF-APR-063` | Carrier/provider confirmation and tracking sources | DEFERRED |
+| `ITF-APR-064` | DMS/accounting/website integration boundary | APPROVED |
 | `ITF-APR-065` | Data freshness, conflict resolution, and degraded-operation rules | OPEN |
 
 ## 9. Pilot and activation
 
 | Decision ID | Required decision | Status |
 | --- | --- | --- |
-| `ITF-APR-070` | Approve tabletop participants and representative cases | OPEN |
-| `ITF-APR-071` | Approve shadow trigger accuracy/data sufficiency thresholds | OPEN |
-| `ITF-APR-072` | Approve manual pilot cohort, volume, duration, and training | OPEN |
-| `ITF-APR-073` | Approve control/reliability, outcome, staff, and alert success thresholds | OPEN |
+| `ITF-APR-070` | Approve tabletop participants and representative cases | APPROVED |
+| `ITF-APR-071` | Approve shadow trigger accuracy/data sufficiency thresholds | APPROVED |
+| `ITF-APR-072` | Approve manual pilot cohort, volume, duration, and training | APPROVED |
+| `ITF-APR-073` | Approve control/reliability, outcome, staff, and alert success thresholds | APPROVED |
 | `ITF-APR-074` | Name pilot monitoring, incident, pause, rollback, and resume authorities | OPEN |
-| `ITF-APR-075` | Approve automatic-start scope after shadow/manual pilot | OPEN |
+| `ITF-APR-075` | Approve automatic-start scope after shadow/manual pilot | APPROVED |
 
 ## 10. Receipt and Custody policy
 

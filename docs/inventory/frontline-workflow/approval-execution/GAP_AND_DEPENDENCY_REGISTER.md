@@ -7,7 +7,7 @@
 
 | Gap | Severity | Affected decisions/slices | Safe containment | Closure owner/authority | Closure evidence | State |
 | --- | --- | --- | --- | --- | --- | --- |
-| `ITF-AE-GAP-001` Authorized signatures absent | Critical | All 130; ALL | All decisions OPEN; no code/pilot/activation | GM/Operations + packet authorities | Valid approval records | OPEN |
+| `ITF-AE-GAP-001` Approval execution incomplete | Critical | 108 open decisions; ALL | No code/pilot/activation | GM/Operations + packet authorities | Remaining valid approval records | OPEN |
 | `ITF-AE-GAP-002` Exact named roles/backups incomplete | Critical | `020`-`025`; ALL | Commands/actions unavailable | GM/Operations | Accepted RACI/capability/coverage | OPEN |
 | `ITF-AE-GAP-003` Financial limits/thresholds absent | Critical | `030`-`036`; S1,S4-S9 | No financial automation/commitment | GM/Owner/Controller | Signed limit/quote/reapproval matrices | OPEN |
 | `ITF-AE-GAP-004` Calendar/SLA/escalation values absent | High | `015`,`040`-`045`; ALL | Age visible; manual escalation only | Operations | Effective calendars/targets/rosters | OPEN |

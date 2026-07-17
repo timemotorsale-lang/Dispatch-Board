@@ -1,19 +1,19 @@
 # Execution Approval Register
 
-**Status:** Signature-control record; zero authorized decisions
+**Status:** Slice 1 partial execution recorded; 22 authorized dispositions; 108 decisions remain open
 
 ## Summary
 
 | Packet | Decisions | OPEN | Authorized | Gate |
 | --- | ---: | ---: | ---: | --- |
-| AE-1 | 18 | 18 | 0 | NO-GO |
-| AE-2 | 32 | 32 | 0 | NO-GO |
+| AE-1 | 18 | 3 | 15 | PARTIAL / NO-GO |
+| AE-2 | 32 | 25 | 7 | PARTIAL / NO-GO |
 | AE-3 | 20 | 20 | 0 | NO-GO |
 | AE-4 | 30 | 30 | 0 | NO-GO |
 | AE-5 | 10 | 10 | 0 | NO-GO |
 | AE-6 | 10 | 10 | 0 | NO-GO |
 | AE-7 | 10 | 10 | 0 | NO-GO |
-| **Total** | **130** | **130** | **0** | **NO-GO** |
+| **Total** | **130** | **108** | **22** | **NO-GO** |
 
 ## Required record per decision
 
@@ -46,4 +46,4 @@ recorder and immutable approval-record reference
 
 | Session | Packet | Date/time | Authorized participants | Decisions attempted | Closed | Deferred | Rejected | Evidence | State |
 | --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- |
-| Not scheduled | — | — | — | 0 | 0 | 0 | 0 | — | OPEN |
+| `ITF-AE0-2026-01` / Slice 1 partial execution | AE-1/AE-2 applicable | 2026-07-16; exact time not captured | Eli Aswan authority; Brock Harris operating owner; user-confirmed via Codex | 50 | 19 | 3 | 0 | Decision Signature Journal; 28 missing-input holds | PARTIAL |

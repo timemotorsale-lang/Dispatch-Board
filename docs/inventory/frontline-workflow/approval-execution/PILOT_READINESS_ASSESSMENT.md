@@ -5,7 +5,7 @@
 
 | Dimension | Required evidence | Current evidence | Result |
 | --- | --- | --- | --- |
-| Policy | Applicable decisions authorized | 130 OPEN | FAIL |
+| Policy | Applicable decisions authorized | 19 approved; 3 safely deferred; 108 open | FAIL |
 | Scope/cohort | Exact location, vehicles, routes and exclusions | Recommended only | FAIL |
 | Roles/coverage | Named trained primary/backups and separation | Incomplete | FAIL |
 | Safety/legal/title | Qualified approved policies | Not supplied | FAIL |

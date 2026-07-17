@@ -1,7 +1,7 @@
 # Consolidated 130-Decision Disposition Ledger
 
-**Status:** Prepared recommendations; zero authorized dispositions  
-**Rule:** Each `ITF-APR-*` identifier appears exactly once in this ledger. `Recommended` is advisory; `State` remains `OPEN` until the execution register contains valid authority and evidence.
+**Status:** Planning recommendation ledger; current execution state is maintained in the Execution Approval Register and Decision Signature Journal
+**Rule:** Each `ITF-APR-*` identifier appears exactly once in this ledger. `Recommended` is advisory. The row-level `State` column preserves the preparation baseline and is superseded by later valid execution records.
 
 ## Field conventions
 
@@ -212,4 +212,4 @@
 
 ## Ledger result
 
-Recommended dispositions: `APPROVE` 36; `APPROVE_WITH_CHANGE` 91; `DEFER_SAFE` 3; `REJECT` 0. These counts are recommendations only. Authorized dispositions: 0. Open decisions: 130.
+Recommended dispositions: `APPROVE` 36; `APPROVE_WITH_CHANGE` 91; `DEFER_SAFE` 3; `REJECT` 0. Current executed dispositions are maintained separately: 19 approved, 3 safely deferred and 108 open.

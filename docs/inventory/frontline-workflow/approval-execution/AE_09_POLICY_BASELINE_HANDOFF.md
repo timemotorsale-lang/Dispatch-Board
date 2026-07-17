@@ -46,4 +46,4 @@ The first possible implementation remains **authoritative acquisition through an
 
 ## Current result
 
-No approved baseline can be frozen. All 130 decisions remain `OPEN`; every slice remains `NO-GO FOR CODE`, pilot and activation.
+No complete approved baseline can be frozen. Nineteen decisions are approved, three are safely deferred and 108 remain open; every slice remains `NO-GO FOR CODE`, pilot and activation.
