@@ -13,5 +13,6 @@ describe("program integration validation workspace", () => {
     expect(html).toContain("Vertical slices</span><strong>121");
     expect(html).toContain("No production-readiness shortcut");
     expect(html).toContain("EVIDENCE_REQUIRED");
+    expect(html).toContain("Vertical slices");
   });
 });

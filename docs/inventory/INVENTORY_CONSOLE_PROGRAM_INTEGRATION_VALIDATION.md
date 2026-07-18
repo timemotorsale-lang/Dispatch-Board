@@ -18,6 +18,8 @@ The implementation has three surfaces:
 
 The executable result is intentionally not written into an R12 readiness record. Operational evidence must be collected through the R12 workflow with named owners, dates, measurements, references, and independent review.
 
+The subsequent 121-slice classification is documented in [`INVENTORY_CONSOLE_VERTICAL_SLICE_CONFORMANCE_AUDIT.md`](INVENTORY_CONSOLE_VERTICAL_SLICE_CONFORMANCE_AUDIT.md). Program conformance proves that the release structure connects; the slice audit separately proves which individual acceptance units are complete, partial, decision-blocked, or dependent on external evidence.
+
 ## 2. Program invariants
 
 The validator fails closed when any of these repository contracts break:
