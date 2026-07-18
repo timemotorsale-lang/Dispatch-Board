@@ -136,6 +136,8 @@ IC-040 through IC-048 are implemented for the bounded internal repository exit i
 
 **Exit gate:** Inventory-to-Frontline approval register and pilot sign-off authorize controlled activation.
 
+IC-050 through IC-059 now have a bounded internal repository implementation documented in [`R5_INVENTORY_TO_FRONTLINE_IMPLEMENTATION.md`](R5_INVENTORY_TO_FRONTLINE_IMPLEMENTATION.md). The single INV-ITF coordination aggregate, purpose-built command path, authoritative R4/Shop/Parts/title/merchandising handoffs, whole-package release gate, four-eyes controls, immutable history, suspension, and correction/re-review path are present. External acknowledgements and reconciliation, migration application, representative nine-slice tabletop evidence, accessibility/performance evidence, pilot sign-off, and production activation remain pending; therefore the M5 controlled-activation exit gate is not yet passed.
+
 ## 8. M6 — Retail completion
 
 | ID | Slice | Acceptance |

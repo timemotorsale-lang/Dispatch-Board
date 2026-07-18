@@ -3,7 +3,7 @@ import Link from "next/link";
 
 const catalog = [
   { id: "WL-01", title: "Add / Acquire Vehicle", description: "Start evidence qualification and appraisal before any InventoryUnit or commitment exists.", href: "/vehicles/acquisition-appraisal", icon: CarFront, state: "R4 GOVERNED" },
-  { id: "WL-02", title: "Receive Vehicle", description: "Receipt and custody intake remains approval-gated until its frontline slice is enabled.", href: null, icon: CarFront, state: "APPROVAL GATED" },
+  { id: "WL-02", title: "Inventory to Frontline", description: "Continue acquired inventory through transport, receipt, inspection, recon, title, merchandising, and independent release.", href: "/vehicles/inventory-to-frontline", icon: CarFront, state: "R5 GOVERNED" },
   { id: "WL-03", title: "Start Inspection", description: "Requires an eligible received vehicle and qualified inspection context.", href: null, icon: Search, state: "CONTEXT REQUIRED" },
   { id: "WL-04", title: "Request Inventory Recon", description: "Open the purpose-built inventory-recon RepairOrder intake.", href: "/vehicles/repair-orders?source=INVENTORY_RECON", icon: Wrench, state: "AVAILABLE FOUNDATION" },
   { id: "WL-05", title: "Create Repair Order", description: "Open the customer or inventory repair intake workspace.", href: "/vehicles/repair-orders", icon: Wrench, state: "AVAILABLE FOUNDATION" },
