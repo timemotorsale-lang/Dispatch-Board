@@ -19,6 +19,7 @@
 | [`R1_FOUNDATION_IMPLEMENTATION.md`](R1_FOUNDATION_IMPLEMENTATION.md) | Implemented IC-010 through IC-017 conformance harness, fixed cross-domain fixture, verification, capability truth, and repository exit evidence |
 | [`r2-shell-home/README.md`](r2-shell-home/README.md) | Read-only IC-020 through IC-028 shell/Home conformance evidence, source-of-truth mismatches, reusable capabilities, gaps, and dependency blockers |
 | [`R2_SHELL_HOME_IMPLEMENTATION.md`](R2_SHELL_HOME_IMPLEMENTATION.md) | Implemented IC-020 through IC-028 shell/Home routes, live and unavailable-state contracts, launcher, system views, tests, and repository exit evidence |
+| [`R3_LIFECYCLE_CONTROL_TOWER_IMPLEMENTATION.md`](R3_LIFECYCLE_CONTROL_TOWER_IMPLEMENTATION.md) | Implemented InventoryUnit-backed IC-030 through IC-039 lifecycle landing, Control Tower, context transitions, fixed-fixture reconciliation, honest dependent-source boundaries, and remaining pilot gates |
 
 These documents form one coordinated execution contract. A change to domain ownership, release order, approval boundary, external authority, or activation gate must update all affected documents.
 
