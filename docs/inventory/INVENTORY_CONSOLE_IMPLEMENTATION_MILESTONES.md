@@ -230,6 +230,8 @@ IC-090 through IC-099 now have a bounded repository implementation documented in
 
 **Exit gate:** Enterprise governance works consistently across Inventory, Shop, Parts, and Wholesale.
 
+IC-100 through IC-109 now have a bounded repository implementation documented in [`R10_GOVERNANCE_REPORTING_ADMIN_IMPLEMENTATION.md`](R10_GOVERNANCE_REPORTING_ADMIN_IMPLEMENTATION.md). Global Reviews and Approvals compose authoritative cross-domain work without a generic decision endpoint; Reports expose definition, cutoff, scope, quality and drill-through; Administration composes existing policy, access, capability, rollout, audit, operations and retention services. Controlled export/print, historical KPI facts and restatement, broad policy simulation, authorized replay/retry, representative access/privacy/support table tops, accessibility/performance evidence, pilot sign-off and production activation remain pending; therefore the M10 activation exit gate is not yet passed.
+
 ## 13. M11 — Integration ecosystem
 
 | ID | Slice | Acceptance |
