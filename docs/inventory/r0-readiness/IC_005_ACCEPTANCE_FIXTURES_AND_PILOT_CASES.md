@@ -1,7 +1,9 @@
 # IC-005 — Acceptance Fixtures and Pilot Cases
 
-**State:** `CONDITIONALLY READY`; approval and fixture data remain pending  
+**State:** `SYNTHETIC FIXTURE DESIGN AUTHORIZED; PILOT DEFERRED`
 **Data rule:** Synthetic fixtures only until approved source extracts and migration controls exist
+
+`R0-AUTH-001` authorizes stable synthetic fixture implementation and local verification. The pilot decision record remains intentionally open and must be signed before any staff, location, real data, or production-like pilot is activated.
 
 ## Fixed fixture contract
 

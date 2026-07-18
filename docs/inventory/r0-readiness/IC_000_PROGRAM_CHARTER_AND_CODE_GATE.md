@@ -1,8 +1,10 @@
 # IC-000 — Program Charter and No-Code-to-Code Gate
 
-**State:** `BLOCKED FOR SIGN-OFF`  
+**State:** `RESOLVED FOR BOUNDED REPOSITORY IMPLEMENTATION`
 **Scope:** Enterprise Inventory Console R0-R12  
-**Current authority:** Documentation implementation only
+**Current authority:** R1–R3 repository code authorized by [`R0-AUTH-001`](R0_CODE_AUTHORIZATION_RESOLUTION.md); pilot and production activation prohibited
+
+> The authorization resolution supersedes this document's earlier blanket code prohibition. Unresolved named production ownership, actual-system, target, pilot, and release decisions remain binding later gates but no longer block rollout-disabled synthetic repository implementation.
 
 ## Charter
 
@@ -40,7 +42,7 @@ One person may fill more than one role only when the separation-of-duties matrix
 
 ## First-transition scope
 
-R0 authorizes no application code. The recommended next order, after this gate passes, is M1 foundation conformance beginning with IC-010. Existing implementation is inspected and tested first; gaps are implemented only when separately authorized.
+R0 authorizes R1–R3 repository implementation in dependency order under [`R0-AUTH-001`](R0_CODE_AUTHORIZATION_RESOLUTION.md). Work begins with M1 foundation conformance and implementation at IC-010. Existing implementation is inspected and tested first; only demonstrated gaps are implemented. No pilot, production activation, external call, real-data migration, or git publication action is implied.
 
 ## Pilot and release fields
 
@@ -73,10 +75,10 @@ Recommended Minneapolis/20-vehicle/30-day values in earlier planning remain prop
 - [ ] Named people accept every required ownership role.
 - [ ] Actual source systems and field/workflow authority are approved.
 - [ ] KPI targets, quality/freshness, materiality, and pilot thresholds are approved.
-- [ ] Fixed first-slice acceptance fixtures are approved.
+- [x] Synthetic first-slice fixture design is authorized by `R0-AUTH-001`; expected results must be fixed during R1.
 - [ ] Pilot, pause, rollback, support, and release decision records are signed.
-- [ ] First M1 execution order states code authority and git/activation limits.
-- [ ] No material canonical-domain, command, navigation, or authority question remains.
+- [x] First M1 execution order states code authority and git/activation limits.
+- [x] Internal canonical-domain, command, navigation, and synthetic source-authority boundaries are fixed for R1; external authority remains deferred.
 
-**Gate result:** `NO-GO FOR M1 CODE` until all unchecked blocking items are resolved and signed.
+**Gate result:** `GO FOR BOUNDED R1 REPOSITORY IMPLEMENTATION` under `R0-AUTH-001`. Unchecked operational items block pilot and production, not synthetic rollout-disabled repository work.
 

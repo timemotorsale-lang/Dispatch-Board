@@ -5,13 +5,13 @@
 **Assessment date:** 2026-07-18  
 **Branch:** `codex/inventory-console-r1-foundation-conformance`  
 **Mode:** Read-only conformance assessment and safe local verification  
-**Result:** `PARTIAL — CODE MUTATION BLOCKED BY R0`
+**Result:** `PARTIAL — R0 BLOCK REMOVED; R1 IMPLEMENTATION REQUIRED`
 
 ## Executive result
 
 The repository contains substantial reusable enterprise foundations. The canonical Vehicle Registry, InventoryUnit, RepairOrder, Parts ledger, enterprise command ledger, aggregate versioning, audit, domain event, transactional outbox, capability, rollout, projection checkpoint, evidence, policy, saved-view, review, and resilience building blocks are present and their focused tests pass.
 
-This does not complete R1. The merged [R0 readiness gate](../r0-readiness/README.md) still says M1 code transition is not authorized, and its [IC-000 gate](../r0-readiness/IC_000_PROGRAM_CHARTER_AND_CODE_GATE.md) remains `NO-GO FOR M1 CODE`. This branch therefore contains no application-code changes.
+This does not complete R1. [`R0-AUTH-001`](../r0-readiness/R0_CODE_AUTHORIZATION_RESOLUTION.md) now authorizes bounded repository implementation, but IC-010 through IC-017 still require implementation and exit evidence. This assessment branch itself contains no application-code changes.
 
 ## Binding acceptance
 
@@ -65,11 +65,10 @@ Coverage included command validation/hashing, capabilities, rollout, outbox retr
 
 Before code mutation begins:
 
-1. close or explicitly amend the R0 `NO-GO FOR M1 CODE` decision through approved change control;
-2. name the required business/product, architecture, security, data, finance/title, integration, support, and pilot owners;
-3. approve the synthetic cross-domain conformance fixture and first executable slice order;
-4. state commit, push, PR, and merge behavior;
-5. keep all R1 capability rollout disabled and prohibit external calls, real-data migration, pilot, and production activation unless separately authorized.
+1. execute the authorized R1 order in `R0-AUTH-001` on a dedicated implementation branch;
+2. implement the synthetic cross-domain conformance fixture and close demonstrated gaps;
+3. keep all R1 capability rollout disabled and prohibit external calls, real-data migration, pilot, and production activation;
+4. obtain separate authority before commit, push, PR, or merge if those actions are desired.
 
 ## Recommended executable order after authorization
 

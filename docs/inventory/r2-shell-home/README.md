@@ -5,7 +5,7 @@
 **Assessment date:** 2026-07-18  
 **Branch:** `codex/inventory-console-r2-shell-home`  
 **Mode:** Read-only conformance assessment and safe local verification  
-**Result:** `PARTIAL — IMPLEMENTATION BLOCKED BY R0 AND R1 GATES`
+**Result:** `PARTIAL — R0 BLOCK REMOVED; R1 EXIT AND R2 IMPLEMENTATION REQUIRED`
 
 ## Executive result
 
@@ -13,10 +13,7 @@ The repository has useful R2 building blocks: an Inventory Console navigation de
 
 The approved Inventory Console Home is not implemented. `/vehicles` still renders the older detailed Inventory Lifecycle Control Tower, including a large horizontal module-tab wall, representative values, local-only interactions, and UI-derived metrics. The Workflow Launcher is documentation-only, saved views are task-specific rather than a shared Console contract, and Reviews/Approvals/Event Log are not yet composed into the approved Home experience.
 
-Application-code mutation remains blocked because:
-
-1. the merged [R0 readiness gate](../r0-readiness/README.md) says M1 code transition is not authorized; and
-2. the merged [R1 assessment](../r1-foundation-conformance/README.md) remains partial and does not pass the M1 exit gate.
+[`R0-AUTH-001`](../r0-readiness/R0_CODE_AUTHORIZATION_RESOLUTION.md) now authorizes bounded repository implementation. R2 still cannot begin until the [R1 assessment](../r1-foundation-conformance/README.md) is converted into implemented, verified IC-010 through IC-017 exit evidence.
 
 This branch therefore contains no application-code changes.
 
@@ -88,11 +85,10 @@ These gaps must be fixed through authorized R2 slices, not by relabeling the cur
 
 Before R2 code mutation:
 
-1. close or formally amend the R0 code-authorization gate;
-2. complete and accept the applicable IC-010 through IC-017 R1 foundations;
-3. authorize R2 code for named slices with rollout disabled and no external or production activation;
-4. approve fixed synthetic Home, scope, search, saved-view, launcher, review/approval, and failure-state fixtures;
-5. state commit, push, PR, and merge behavior.
+1. complete and accept the applicable IC-010 through IC-017 R1 foundations;
+2. execute R2 with rollout disabled and no external or production activation under `R0-AUTH-001`;
+3. implement fixed synthetic Home, scope, search, saved-view, launcher, review/approval, and failure-state fixtures;
+4. obtain separate authority before commit, push, PR, or merge if those actions are desired.
 
 ## Recommended executable order after authorization
 
