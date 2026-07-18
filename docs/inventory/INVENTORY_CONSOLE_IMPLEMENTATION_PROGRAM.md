@@ -12,6 +12,7 @@
 | [`INVENTORY_CONSOLE_IMPLEMENTATION_ROADMAP.md`](INVENTORY_CONSOLE_IMPLEMENTATION_ROADMAP.md) | Outcomes, scope, release train, dependencies, rollout, success, and stop conditions |
 | [`INVENTORY_CONSOLE_IMPLEMENTATION_ARCHITECTURE.md`](INVENTORY_CONSOLE_IMPLEMENTATION_ARCHITECTURE.md) | Domain ownership, command/event/read architecture, integrations, security, reliability, and deployment boundaries |
 | [`INVENTORY_CONSOLE_IMPLEMENTATION_MILESTONES.md`](INVENTORY_CONSOLE_IMPLEMENTATION_MILESTONES.md) | 121 planned vertical slices, acceptance evidence, critical path, gates, and first implementation batch |
+| [`INVENTORY_CONSOLE_IMPLEMENTATION_EXECUTION_PROTOCOL.md`](INVENTORY_CONSOLE_IMPLEMENTATION_EXECUTION_PROTOCOL.md) | Reusable order language, authority boundaries, engineering requirements, slice loop, definition of done, and reporting format |
 
 These documents form one coordinated execution contract. A change to domain ownership, release order, approval boundary, external authority, or activation gate must update all affected documents.
 
