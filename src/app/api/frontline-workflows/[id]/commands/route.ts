@@ -1,0 +1,4 @@
+import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/server/auth/current-user";
+import { runFrontlineCommand } from "@/server/inventory-frontline/service";
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }) { try { return NextResponse.json(await runFrontlineCommand(await getCurrentUser(), (await context.params).id, await request.json())); } catch (error) { const message = error instanceof Error ? error.message : "Frontline command failed."; return NextResponse.json({ error: message }, { status: message.includes("version") || message.includes("Idempotency") || message.includes("not enabled") ? 409 : message === "Authentication required." ? 401 : message.startsWith("Vehicle capability required") ? 403 : 400 }); } }

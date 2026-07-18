@@ -350,6 +350,56 @@ enum InventoryAcquisitionType {
   TRANSFER
 }
 
+enum InventoryFrontlineStage {
+  ACQUISITION_VALIDATION
+  TRANSPORT_PLANNING
+  IN_TRANSIT
+  RECEIPT_AND_CUSTODY
+  INSPECTION_AND_TRIAGE
+  RECON_PLAN_AND_APPROVAL
+  PARTS_AND_REPAIR_EXECUTION
+  QUALITY_AND_SAFETY_VERIFICATION
+  TITLE_DOCUMENT_READINESS
+  MERCHANDISING_AND_PRICING
+  FRONTLINE_RELEASE_REVIEW
+  FRONTLINE_READY
+  POST_RELEASE_VERIFICATION
+  HOLD
+  DISPOSITION_REVIEW
+  CANCELLED_BEFORE_CONTROL
+  CLOSED_REVERSED
+}
+
+enum InventoryFrontlineOperatingState {
+  ACTIVE
+  WAITING
+  BLOCKED
+  SUSPENDED
+  COMPLETED
+  CANCELLED
+}
+
+enum InventoryRetailCompletionStage {
+  AVAILABLE_FOR_SALE
+  RESERVED_DEAL_PENDING
+  SALE_AUTHORIZATION
+  DELIVERY_READINESS
+  DELIVERY_HOLD
+  SOLD_AWAITING_DELIVERY
+  RECONCILIATION_HOLD
+  DELIVERED_RECONCILED
+  UNWIND_REVIEW
+  CANCELLED
+}
+
+enum InventoryRetailCompletionOperatingState {
+  ACTIVE
+  WAITING
+  BLOCKED
+  COMPLETED
+  CANCELLED
+}
+
 enum InventoryReceiptStatus {
   PLANNED
   IN_TRANSIT
@@ -1153,6 +1203,10 @@ model User {
   ownedInventoryUnits                   InventoryUnit[]                        @relation("InventoryUnitOwner")
   ownedInventoryAcquisitionCases        InventoryAcquisitionCase[]             @relation("InventoryAcquisitionCaseOwner")
   inventoryAcquisitionCaseEvents        InventoryAcquisitionCaseEvent[]        @relation("InventoryAcquisitionCaseEventActor")
+  ownedInventoryFrontlineWorkflows      InventoryFrontlineWorkflow[]           @relation("InventoryFrontlineWorkflowOwner")
+  inventoryFrontlineWorkflowEvents      InventoryFrontlineWorkflowEvent[]       @relation("InventoryFrontlineWorkflowEventActor")
+  ownedInventoryRetailCompletions       InventoryRetailCompletion[]             @relation("InventoryRetailCompletionOwner")
+  inventoryRetailCompletionEvents       InventoryRetailCompletionEvent[]        @relation("InventoryRetailCompletionEventActor")
   inventoryUnitStateEvents              InventoryUnitStateEvent[]              @relation("InventoryUnitStateActor")
   inventoryUnitStateOwnershipSnapshots  InventoryUnitStateEvent[]              @relation("InventoryUnitStateOwner")
   ownedRepairOrders                     RepairOrder[]                          @relation("RepairOrderOwner")
@@ -1319,6 +1373,10 @@ model Organization {
   inventoryUnits                        InventoryUnit[]
   inventoryAcquisitionCases             InventoryAcquisitionCase[]
   inventoryAcquisitionCaseEvents        InventoryAcquisitionCaseEvent[]
+  inventoryFrontlineWorkflows           InventoryFrontlineWorkflow[]
+  inventoryFrontlineWorkflowEvents      InventoryFrontlineWorkflowEvent[]
+  inventoryRetailCompletions            InventoryRetailCompletion[]
+  inventoryRetailCompletionEvents       InventoryRetailCompletionEvent[]
   inventoryUnitStateEvents              InventoryUnitStateEvent[]
   inventoryAcquisitionAppraisals        InventoryAcquisitionAppraisal[]
   inventoryPurchaseAuthorizations       InventoryPurchaseAuthorization[]
@@ -1441,6 +1499,8 @@ model Location {
   vehicleCustodyEvents            VehicleCustodyEvent[]
   inventoryUnits                  InventoryUnit[]
   inventoryAcquisitionCases       InventoryAcquisitionCase[]
+  inventoryFrontlineWorkflows     InventoryFrontlineWorkflow[]
+  inventoryRetailCompletions      InventoryRetailCompletion[]
   inventoryUnitStateEvents        InventoryUnitStateEvent[]
   serviceVisits                   ServiceVisit[]
   repairOrders                    RepairOrder[]
@@ -2036,6 +2096,8 @@ model InventoryUnit {
   merchandisingPackage   InventoryMerchandisingPackage?
   saleEvents             InventorySaleEvent[]
   acquisitionCase        InventoryAcquisitionCase?
+  frontlineWorkflow      InventoryFrontlineWorkflow?
+  retailCompletion       InventoryRetailCompletion?
 
   @@unique([organizationId, inventoryNumber])
   @@unique([id, organizationId])
@@ -2103,6 +2165,133 @@ model InventoryAcquisitionCaseEvent {
   actorUser       User                            @relation("InventoryAcquisitionCaseEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
 
   @@unique([acquisitionCaseId, version])
+  @@index([organizationId, occurredAt])
+  @@index([correlationId])
+}
+
+/// INV-ITF coordination aggregate; owning domains remain authoritative for Shop, Parts, title, and merchandising.
+model InventoryFrontlineWorkflow {
+  id                    String                            @id @default(cuid())
+  organizationId        String
+  locationId            String
+  inventoryUnitId       String                            @unique
+  ownerUserId           String
+  repairOrderId         String?
+  workflowVersion       String
+  policyVersion         String
+  stage                 InventoryFrontlineStage           @default(ACQUISITION_VALIDATION)
+  operatingState        InventoryFrontlineOperatingState  @default(ACTIVE)
+  acquisitionSnapshot   Json
+  transportSnapshot     Json
+  receiptSnapshot       Json
+  inspectionSnapshot    Json
+  reconSnapshot         Json
+  executionSnapshot     Json
+  qualitySnapshot       Json
+  titleSnapshot         Json
+  merchandisingSnapshot Json
+  releaseSnapshot       Json
+  postReleaseSnapshot   Json
+  exceptionSnapshot     Json
+  targetAt              DateTime
+  nextAction            String
+  version               Int                               @default(1)
+  createdAt             DateTime                          @default(now())
+  updatedAt             DateTime                          @updatedAt
+  organization          Organization                      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location              Location                          @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  inventoryUnit         InventoryUnit                     @relation(fields: [inventoryUnitId], references: [id], onDelete: Restrict)
+  ownerUser             User                              @relation("InventoryFrontlineWorkflowOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  repairOrder           RepairOrder?                      @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  events                InventoryFrontlineWorkflowEvent[]
+
+  @@index([organizationId, stage, operatingState, targetAt])
+  @@index([organizationId, locationId, stage])
+  @@index([ownerUserId, operatingState, targetAt])
+  @@index([repairOrderId])
+}
+
+/// Immutable workflow coordination, gate, suspension, correction, and release evidence.
+model InventoryFrontlineWorkflowEvent {
+  id             String                           @id @default(cuid())
+  organizationId String
+  workflowId     String
+  version        Int
+  fromStage      InventoryFrontlineStage?
+  toStage        InventoryFrontlineStage
+  fromState      InventoryFrontlineOperatingState?
+  toState        InventoryFrontlineOperatingState
+  commandType    String
+  snapshot       Json
+  actorUserId    String
+  reason         String
+  correlationId  String
+  occurredAt     DateTime                         @default(now())
+  organization   Organization                     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  workflow       InventoryFrontlineWorkflow        @relation(fields: [workflowId], references: [id], onDelete: Restrict)
+  actorUser      User                               @relation("InventoryFrontlineWorkflowEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@unique([workflowId, version])
+  @@index([organizationId, occurredAt])
+  @@index([correlationId])
+}
+
+/// Governed retail availability, reservation, sale, delivery, unwind, and reconciliation aggregate.
+model InventoryRetailCompletion {
+  id                      String                                  @id @default(cuid())
+  organizationId          String
+  locationId              String
+  inventoryUnitId         String                                  @unique
+  ownerUserId             String
+  workflowVersion         String
+  policyVersion           String
+  stage                   InventoryRetailCompletionStage          @default(AVAILABLE_FOR_SALE)
+  operatingState          InventoryRetailCompletionOperatingState @default(ACTIVE)
+  availabilitySnapshot    Json
+  reservationSnapshot     Json
+  saleAuthorizationSnapshot Json
+  deliveryReadinessSnapshot Json
+  deliverySnapshot        Json
+  unwindSnapshot          Json
+  reconciliationSnapshot  Json
+  exceptionSnapshot       Json
+  targetAt                DateTime
+  nextAction              String
+  version                 Int                                     @default(1)
+  createdAt               DateTime                                @default(now())
+  updatedAt               DateTime                                @updatedAt
+  organization            Organization                            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location                Location                                @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  inventoryUnit           InventoryUnit                           @relation(fields: [inventoryUnitId], references: [id], onDelete: Restrict)
+  ownerUser               User                                    @relation("InventoryRetailCompletionOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  events                  InventoryRetailCompletionEvent[]
+
+  @@index([organizationId, stage, operatingState, targetAt])
+  @@index([organizationId, locationId, stage])
+  @@index([ownerUserId, operatingState, targetAt])
+}
+
+/// Immutable retail-completion command, decision, handoff, and compensation history.
+model InventoryRetailCompletionEvent {
+  id             String                                  @id @default(cuid())
+  organizationId String
+  completionId   String
+  version        Int
+  fromStage      InventoryRetailCompletionStage?
+  toStage        InventoryRetailCompletionStage
+  fromState      InventoryRetailCompletionOperatingState?
+  toState        InventoryRetailCompletionOperatingState
+  commandType    String
+  snapshot       Json
+  actorUserId    String
+  reason         String
+  correlationId  String
+  occurredAt     DateTime                                @default(now())
+  organization   Organization                            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  completion     InventoryRetailCompletion               @relation(fields: [completionId], references: [id], onDelete: Restrict)
+  actorUser      User                                    @relation("InventoryRetailCompletionEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@unique([completionId, version])
   @@index([organizationId, occurredAt])
   @@index([correlationId])
 }
@@ -2426,6 +2615,7 @@ model RepairOrder {
   followUpComebackCases        RepairComebackCase[]                @relation("ComebackFollowUpOrder")
   invoicePackages              ServiceInvoicePackage[]
   closureEvents                RepairOrderClosureEvent[]
+  inventoryFrontlineWorkflows  InventoryFrontlineWorkflow[]
 
   @@unique([organizationId, repairOrderNumber])
   @@unique([id, organizationId])
