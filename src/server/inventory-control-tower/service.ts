@@ -14,13 +14,14 @@ async function authorize(actor: AuthenticatedUser | null, input: Dependencies) {
   const foundation = input.foundationRepository ?? createEnterpriseCommandRepository();
   const grants = await foundation.listCapabilityGrants(user.id, organizationId);
   assertVehicleCapability({ actor: user, capability: "INVENTORY_UNIT_VIEW" as VehicleCapability, grants, locationId: null, now: (input.now ?? (() => new Date()))() });
-  return { user, organizationId, now: input.now ?? (() => new Date()) };
+  return { user, organizationId, grants, now: input.now ?? (() => new Date()) };
 }
 
 export async function getInventoryControlTowerProjection(actor: AuthenticatedUser | null, query: { stage?: unknown; locationId?: unknown } = {}, input: Dependencies = {}) {
   const context = await authorize(actor, input);
   const stage = typeof query.stage === "string" && stages.includes(query.stage as (typeof stages)[number]) ? query.stage : undefined;
   const locationId = typeof query.locationId === "string" && query.locationId.trim() ? query.locationId : undefined;
+  if (locationId) assertVehicleCapability({ actor: context.user, capability: "INVENTORY_UNIT_VIEW" as VehicleCapability, grants: context.grants, locationId, now: context.now() });
   const where = { organizationId: context.organizationId, closedAt: null, ...(stage ? { lifecycleStage: stage as never } : {}), ...(locationId ? { locationId } : {}) };
   const units = await prisma.inventoryUnit.findMany({ where, select: { id: true, inventoryNumber: true, lifecycleStage: true, operatingState: true, targetAt: true, stageStartedAt: true, financialAcquiredAt: true, nextAction: true, stateReason: true, locationId: true, location: { select: { code: true, name: true } }, vehicle: { select: { vehicleNumber: true, stockNumber: true, year: true, make: true, model: true, vin: true } }, ownerUser: { select: { id: true, name: true } }, costEntries: { select: { amountCents: true, status: true } } }, orderBy: [{ targetAt: "asc" }, { inventoryNumber: "asc" }] });
   const now = context.now();

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { InventoryControlTower } from "@/features/inventory/inventory-control-tower";
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/vehicles"
+  usePathname: () => "/vehicles/control-tower"
 }));
 
 describe("InventoryControlTower", () => {

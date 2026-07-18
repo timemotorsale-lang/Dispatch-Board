@@ -18,6 +18,7 @@
 | [`r1-foundation-conformance/README.md`](r1-foundation-conformance/README.md) | Read-only IC-010 through IC-017 repository conformance evidence, reusable foundations, gaps, verification, and authorization blockers |
 | [`R1_FOUNDATION_IMPLEMENTATION.md`](R1_FOUNDATION_IMPLEMENTATION.md) | Implemented IC-010 through IC-017 conformance harness, fixed cross-domain fixture, verification, capability truth, and repository exit evidence |
 | [`r2-shell-home/README.md`](r2-shell-home/README.md) | Read-only IC-020 through IC-028 shell/Home conformance evidence, source-of-truth mismatches, reusable capabilities, gaps, and dependency blockers |
+| [`R2_SHELL_HOME_IMPLEMENTATION.md`](R2_SHELL_HOME_IMPLEMENTATION.md) | Implemented IC-020 through IC-028 shell/Home routes, live and unavailable-state contracts, launcher, system views, tests, and repository exit evidence |
 
 These documents form one coordinated execution contract. A change to domain ownership, release order, approval boundary, external authority, or activation gate must update all affected documents.
 
