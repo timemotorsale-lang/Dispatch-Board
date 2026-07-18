@@ -16,6 +16,7 @@ import {
   normalizeOffer,
   normalizeOfferSelection,
   normalizePurchaseOrder,
+  normalizePurchaseRevision,
   normalizePurchaseTransition,
   normalizeReceipt,
   normalizeRecovery,
@@ -61,6 +62,23 @@ export async function getServiceClosePartsWorkspace(actor: AuthenticatedUser | n
   await authorize(actor, "SHOP_OPERATIONS", false, null, context);
   await authorize(actor, "PARTS_OPERATIONS", false, null, context);
   return context.repository.overview(context.organizationId);
+}
+
+export async function getPartsOperationsSource(actor: AuthenticatedUser | null, input: Dependencies = {}) {
+  const context = dependencies(input);
+  await authorize(actor, "PARTS_OPERATIONS", false, null, context);
+  const overview = await context.repository.overview(context.organizationId);
+  return {
+    custodyEvents: overview.custodyEvents,
+    demands: overview.demands,
+    discrepancies: overview.discrepancies,
+    locations: overview.locations,
+    offers: overview.offers,
+    purchaseOrders: overview.purchaseOrders,
+    recoveries: overview.recoveries,
+    requisitions: overview.requisitions,
+    transfers: overview.transfers,
+  };
 }
 
 export async function executeServiceClosePartsCommand(actor: AuthenticatedUser | null, value: unknown, input: Dependencies = {}) {
@@ -114,6 +132,10 @@ export async function executeServiceClosePartsCommand(actor: AuthenticatedUser |
   if (action === "TRANSITION_PURCHASE_ORDER") {
     const record = view.purchaseOrders.find((item) => item.id === subjectId); if (!record) throw new Error("Purchase order was not found."); const data = normalizePurchaseTransition(raw, record.status), version = await context.repository.aggregateVersion(context.organizationId, "PARTS_OPERATIONS", "PART_PURCHASE_ORDER", record.id);
     return context.repository.transitionPurchaseOrder(command({ actorUserId: user.id, commandType: action, domain: "PARTS_OPERATIONS", expectedVersion: version, idempotencyKey: data.idempotencyKey, locationId: record.locationId, organizationId: context.organizationId, payload: payload(data), reason: data.reason, subjectId: record.id, subjectType: "PART_PURCHASE_ORDER" }), record.id, data);
+  }
+  if (action === "REVISE_PURCHASE_ORDER") {
+    const record = view.purchaseOrders.find((item) => item.id === subjectId); if (!record) throw new Error("Purchase order was not found."); const data = normalizePurchaseRevision(raw, record.status), version = await context.repository.aggregateVersion(context.organizationId, "PARTS_OPERATIONS", "PART_PURCHASE_ORDER", record.id);
+    return context.repository.revisePurchaseOrder(command({ actorUserId: user.id, commandType: action, domain: "PARTS_OPERATIONS", expectedVersion: version, idempotencyKey: data.idempotencyKey, locationId: record.locationId, organizationId: context.organizationId, payload: payload(data), reason: data.reason, subjectId: record.id, subjectType: "PART_PURCHASE_ORDER" }), record.id, data);
   }
   if (action === "RECEIVE_PURCHASE_ORDER") {
     const record = view.purchaseOrders.find((item) => item.id === subjectId); if (!record) throw new Error("Purchase order was not found."); const data = normalizeReceipt(raw), version = await context.repository.aggregateVersion(context.organizationId, "PARTS_OPERATIONS", "PART_PURCHASE_ORDER", record.id);

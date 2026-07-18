@@ -3,7 +3,7 @@ import { prisma } from "@/server/db/client";
 import { executeAggregateMutation, toJson, type AggregateTx } from "@/server/enterprise-command/aggregate-mutation";
 import type { EnterpriseCommandCommitInput } from "@/server/enterprise-command/repository";
 import { assertPartStockLocationWritable } from "@/server/parts-ledger/count-freeze";
-import type { PurchaseLine, ReceiptLine, TransferLine } from "./domain";
+import { assertIndependentPartsApproval, type PurchaseLine, type ReceiptLine, type TransferLine } from "./domain";
 
 type StockMovement = {
   actorUserId: string;
@@ -74,14 +74,14 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
         }),
         database.partPurchaseOrder.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" }, take: 200, include: { vendor: { select: { name: true } }, location: { select: { name: true } } } }),
         database.partReceipt.findMany({ where: { organizationId }, orderBy: { receivedAt: "desc" }, take: 200, include: { purchaseOrder: { select: { purchaseOrderNumber: true } } } }),
-        database.partReceivingDiscrepancy.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" }, take: 200 }),
+        database.partReceivingDiscrepancy.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" }, take: 200, include: { receipt: { select: { purchaseOrder: { select: { locationId: true } } } } } }),
         database.partCustodyEvent.findMany({ where: { organizationId }, orderBy: { occurredAt: "desc" }, take: 250, include: { part: { select: { partNumber: true } }, repairJob: { select: { jobNumber: true } } } }),
         database.partTransfer.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" }, take: 200 }),
         database.partRecoveryCase.findMany({ where: { organizationId }, orderBy: { deadlineAt: "asc" }, take: 200, include: { part: { select: { partNumber: true } }, vendor: { select: { name: true } } } }),
         database.part.findMany({ where: { organizationId, status: "ACTIVE" }, orderBy: { partNumber: "asc" }, select: { id: true, partNumber: true, description: true, standardCostCents: true } }),
         database.partStockLocation.findMany({ where: { organizationId, isActive: true }, orderBy: { name: "asc" }, select: { id: true, code: true, name: true, locationId: true } }),
         database.location.findMany({ where: { organizationId }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
-        database.repairPartDemand.findMany({ where: { organizationId, status: { in: ["OPEN", "PARTIALLY_RESERVED"] } }, orderBy: { requiredAt: "asc" }, take: 200, include: { part: { select: { partNumber: true, description: true } }, repairOrder: { select: { repairOrderNumber: true } } } }),
+        database.repairPartDemand.findMany({ where: { organizationId, status: { in: ["OPEN", "PARTIALLY_RESERVED"] } }, orderBy: { requiredAt: "asc" }, take: 200, include: { part: { select: { partNumber: true, description: true } }, repairOrder: { select: { locationId: true, repairOrderNumber: true } } } }),
       ]);
       return { custodyEvents, demands, discrepancies, interchanges, locations, offers, parts, purchaseOrders, receipts, recoveries, repairOrders, requisitions, stockLocations, transfers, vendors };
     },
@@ -207,8 +207,18 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
       return executeAggregateMutation(database, command, "vehicle-operations.parts", async (tx, version) => {
         const record = await tx.partPurchaseOrder.findFirst({ where: { id: purchaseOrderId, organizationId: command.organizationId } });
         if (!record) throw new Error("Purchase order was not found.");
+        if (data.toStatus === "APPROVED") assertIndependentPartsApproval("PURCHASE_APPROVAL", record.createdByUserId, command.actorUserId);
         const next = await tx.partPurchaseOrder.update({ where: { id: record.id }, data: { acknowledgedAt: data.toStatus === "ACKNOWLEDGED" ? data.occurredAt : record.acknowledgedAt, closedAt: ["CLOSED", "CANCELLED"].includes(data.toStatus) ? data.occurredAt : record.closedAt, issuedAt: data.toStatus === "ISSUED" ? data.occurredAt : record.issuedAt, status: data.toStatus as never, version } });
         return { previous: record, result: { id: next.id, status: next.status, version } };
+      });
+    },
+
+    revisePurchaseOrder(command: EnterpriseCommandCommitInput, purchaseOrderId: string, data: { lines: PurchaseLine[]; reason: string }) {
+      return executeAggregateMutation(database, command, "vehicle-operations.parts", async (tx, version) => {
+        const record = await tx.partPurchaseOrder.findFirst({ where: { id: purchaseOrderId, organizationId: command.organizationId, status: { in: ["DRAFT", "APPROVED"] } } });
+        if (!record) throw new Error("Only a draft or approved purchase order may be revised.");
+        const next = await tx.partPurchaseOrder.update({ where: { id: record.id }, data: { lines: toJson(data.lines), orderedTotalCents: total(data.lines), status: "DRAFT", version } });
+        return { previous: record, result: { approvalInvalidated: record.status === "APPROVED", id: next.id, orderedTotalCents: next.orderedTotalCents, status: next.status, version } };
       });
     },
 
@@ -280,6 +290,7 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
       return executeAggregateMutation(database, command, "vehicle-operations.parts", async (tx, version) => {
         const record = await tx.partTransfer.findFirst({ where: { id: transferId, organizationId: command.organizationId } });
         if (!record) throw new Error("Part transfer was not found.");
+        if (data.toStatus === "SHIPPED") assertIndependentPartsApproval("TRANSFER_RELEASE", record.createdByUserId, data.actorUserId);
         const lines = record.lines as TransferLine[];
         if (data.toStatus === "SHIPPED" || data.toStatus === "RECEIVED") {
           for (const [index, line] of lines.entries()) {
@@ -307,6 +318,7 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
       return executeAggregateMutation(database, command, "vehicle-operations.parts", async (tx, version) => {
         const record = await tx.partRecoveryCase.findFirst({ where: { id: recoveryId, organizationId: command.organizationId }, include: { part: true } });
         if (!record) throw new Error("Part recovery case was not found.");
+        if (data.toStatus === "WRITTEN_OFF") assertIndependentPartsApproval("RECOVERY_WRITE_OFF", record.createdByUserId, data.actorUserId);
         if (data.toStatus === "SHIPPED") {
           if (!data.stockLocationId) throw new Error("Recovery shipment requires a stock location.");
           const movementType = record.type === "CORE" ? "CORE_RETURN" : record.type === "WARRANTY" ? "WARRANTY_RETURN" : "VENDOR_RETURN";

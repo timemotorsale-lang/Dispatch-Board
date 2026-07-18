@@ -1,20 +1,20 @@
 import { PartsOperationsWorkspace } from "@/features/inventory/parts-operations-workspace";
 import { requireCurrentUser } from "@/server/auth/current-user";
-import { getPartsWorkspace } from "@/server/parts-ledger/service";
-import { getPartsWaveOneWorkspace } from "@/server/parts-wave-one/service";
-import { getServiceClosePartsWorkspace } from "@/server/service-close-parts/service";
+import { getPartsOperationsWorkspace } from "@/server/parts-operations/service";
 
-export default async function PartsOperationsPage() {
+type SearchParams = Promise<{ view?: string }>;
+
+export default async function PartsOperationsPage({ searchParams }: { searchParams: SearchParams }) {
   const user = await requireCurrentUser();
-  const [ledger, waveOne, service] = await Promise.all([
-    getPartsWorkspace(user),
-    getPartsWaveOneWorkspace(user),
-    getServiceClosePartsWorkspace(user)
+  const [{ view }, initial] = await Promise.all([
+    searchParams,
+    getPartsOperationsWorkspace(user)
   ]);
 
   return (
     <PartsOperationsWorkspace
-      initial={JSON.parse(JSON.stringify({ ledger, service, waveOne }))}
+      initial={JSON.parse(JSON.stringify(initial))}
+      initialView={view}
     />
   );
 }

@@ -192,6 +192,8 @@ IC-070 through IC-079 now have a bounded repository implementation documented in
 
 **Exit gate:** Quantity, custody, value, PO/receipt, transfer, recovery, count, and job readiness reconcile under load and retry.
 
+IC-080 through IC-089 now have a bounded repository implementation documented in [`R8_PARTS_OPERATIONS_IMPLEMENTATION.md`](R8_PARTS_OPERATIONS_IMPLEMENTATION.md). The approved nine-destination workspace composes the authoritative Parts ledger, demand, sourcing, purchasing, receiving, custody, transfer, recovery, count, and advisory recommendation aggregates; destination URLs and filters are stable; Parts-only reads no longer expose the broader service-close payload; and consequential purchase approval, transfer release, recovery write-off, and count variance boundaries require independent humans. Configurable authority thresholds, live provider/hardware adapters, representative concurrency and physical-reconciliation table tops, accessibility/performance evidence, pilot sign-off, migration deployment confirmation, and production activation remain pending; therefore the M8 activation exit gate is not yet passed.
+
 ## 11. M9 — Disposition & Wholesale
 
 | ID | Slice | Acceptance |

@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { normalizeClose, normalizeCustody, normalizePurchaseTransition, normalizeReceipt, normalizeRecoveryTransition, normalizeTransfer } from "@/server/service-close-parts/domain";
+import { assertIndependentPartsApproval, normalizeClose, normalizeCustody, normalizePurchaseRevision, normalizePurchaseTransition, normalizeReceipt, normalizeRecoveryTransition, normalizeTransfer } from "@/server/service-close-parts/domain";
 
 const base = { idempotencyKey: "command-1", reason: "Record governed operational evidence." };
 
 describe("service close and enterprise parts rules", () => {
+  it("requires independent actors at consequential approval boundaries", () => {
+    expect(() => assertIndependentPartsApproval("PURCHASE_APPROVAL", "user-1", "user-1")).toThrow("different authorized user");
+    expect(() => assertIndependentPartsApproval("TRANSFER_RELEASE", "user-1", "user-1")).toThrow("different authorized user");
+    expect(() => assertIndependentPartsApproval("RECOVERY_WRITE_OFF", "user-1", "user-1")).toThrow("different authorized user");
+    expect(() => assertIndependentPartsApproval("PURCHASE_APPROVAL", "user-1", "user-2")).not.toThrow();
+  });
   it("requires attributable physical handoff evidence to close", () => {
     expect(() => normalizeClose({ ...base, finalOdometer: 100, handoffEvidence: [], keysVerified: true, occurredAt: "2026-07-14T12:00:00Z", recipientName: "Customer" })).toThrow("evidence");
     expect(normalizeClose({ ...base, finalOdometer: 100, handoffEvidence: ["signature-1"], keysVerified: true, occurredAt: "2026-07-14T12:00:00Z", recipientName: "Customer" })).toMatchObject({ keysVerified: true, recipientName: "Customer" });
@@ -12,6 +18,11 @@ describe("service close and enterprise parts rules", () => {
   it("enforces purchase-order state transitions", () => {
     expect(normalizePurchaseTransition({ ...base, occurredAt: "2026-07-14T12:00:00Z", toStatus: "APPROVED" }, "DRAFT")).toMatchObject({ toStatus: "APPROVED" });
     expect(() => normalizePurchaseTransition({ ...base, occurredAt: "2026-07-14T12:00:00Z", toStatus: "CLOSED" }, "DRAFT")).toThrow("cannot transition");
+  });
+
+  it("allows controlled pre-issue revision and rejects post-issue change", () => {
+    expect(normalizePurchaseRevision({ ...base, lines: [{ partId: "part", quantity: 2, unitCostCents: 125 }] }, "APPROVED")).toMatchObject({ lines: [{ quantity: 2, unitCostCents: 125 }] });
+    expect(() => normalizePurchaseRevision({ ...base, lines: [{ partId: "part", quantity: 2, unitCostCents: 125 }] }, "ISSUED")).toThrow("cannot be revised");
   });
 
   it("rejects damaged receipt quantity above receipt quantity", () => {
