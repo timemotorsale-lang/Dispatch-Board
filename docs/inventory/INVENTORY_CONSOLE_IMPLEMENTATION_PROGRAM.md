@@ -20,6 +20,7 @@
 | [`r2-shell-home/README.md`](r2-shell-home/README.md) | Read-only IC-020 through IC-028 shell/Home conformance evidence, source-of-truth mismatches, reusable capabilities, gaps, and dependency blockers |
 | [`R2_SHELL_HOME_IMPLEMENTATION.md`](R2_SHELL_HOME_IMPLEMENTATION.md) | Implemented IC-020 through IC-028 shell/Home routes, live and unavailable-state contracts, launcher, system views, tests, and repository exit evidence |
 | [`R3_LIFECYCLE_CONTROL_TOWER_IMPLEMENTATION.md`](R3_LIFECYCLE_CONTROL_TOWER_IMPLEMENTATION.md) | Implemented InventoryUnit-backed IC-030 through IC-039 lifecycle landing, Control Tower, context transitions, fixed-fixture reconciliation, honest dependent-source boundaries, and remaining pilot gates |
+| [`R4_ACQUISITION_APPRAISAL_IMPLEMENTATION.md`](R4_ACQUISITION_APPRAISAL_IMPLEMENTATION.md) | Implemented pre-control IC-040 through IC-048 Acquisition Case workflow, evidence/appraisal/recommendation/authorization boundaries, atomic InventoryUnit creation, internal handoff, tests, and remaining deployment/integration gates |
 
 These documents form one coordinated execution contract. A change to domain ownership, release order, approval boundary, external authority, or activation gate must update all affected documents.
 

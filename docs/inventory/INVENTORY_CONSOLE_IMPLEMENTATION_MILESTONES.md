@@ -115,6 +115,10 @@ A pre-implementation shell/Home assessment is retained in [`r2-shell-home/README
 
 **Exit gate:** No opportunity/appraisal/recommendation/import creates inventory or commits above authority.
 
+### R4 repository evidence — 2026-07-18
+
+IC-040 through IC-048 are implemented for the bounded internal repository exit in [`R4_ACQUISITION_APPRAISAL_IMPLEMENTATION.md`](R4_ACQUISITION_APPRAISAL_IMPLEMENTATION.md). The pre-control Acquisition Case, evidence/appraisal/recommendation/authorization boundaries, exact accepted commitment, atomic InventoryUnit creation, cancellation/reversal behavior, and internal handoff are present. Migration deployment, cross-vehicle cumulative-capital policy, external acknowledgements, scheduled expiry/escalation, pilot fixtures, and production activation remain pending and must not be described as live.
+
 ## 7. M5 — Inventory-to-Frontline
 
 | ID | Slice | Acceptance |
