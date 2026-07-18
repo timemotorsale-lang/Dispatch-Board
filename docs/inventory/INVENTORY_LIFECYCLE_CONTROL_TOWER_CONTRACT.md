@@ -455,7 +455,9 @@ For every projection and material interaction, define:
 
 ## 19. Planning decisions required
 
-- Approve the exact default landing-page KPI cards, pipeline stage grouping, lower panels, role-prioritized layouts, and the proposed **Open Control Tower** visual revision.
+The **Open Control Tower** header action, its placement before **Open Disposition & Wholesale**, context preservation, breadcrumb, and visible return path were approved on 2026-07-18. Remaining planning decisions are:
+
+- Approve the exact default landing-page KPI cards, pipeline stage grouping, lower panels, and role-prioritized layouts.
 - Approve stage-to-event mappings, primary/alternate/terminal classification, cross-lane dependency rules, and current-state conflict resolution.
 - Approve KPI versions, default windows, comparison periods, targets, quality grades, currency/cost basis, and drill-through privacy exceptions.
 - Approve filter dimensions, saved-view sharing/defaults, search identifiers, export controls, and return-context behavior.
