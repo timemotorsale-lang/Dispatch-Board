@@ -3,7 +3,7 @@
 **Product:** Time Motor Sales Dispatch Board  
 **Version:** 1.0 planning baseline  
 **Date:** 2026-07-18  
-**Status:** Master documentation index; no application implementation is authorized  
+**Status:** Master documentation index; R0 readiness documentation is in progress; no application code is authorized
 
 ## 1. Program documents
 
@@ -13,6 +13,7 @@
 | [`INVENTORY_CONSOLE_IMPLEMENTATION_ARCHITECTURE.md`](INVENTORY_CONSOLE_IMPLEMENTATION_ARCHITECTURE.md) | Domain ownership, command/event/read architecture, integrations, security, reliability, and deployment boundaries |
 | [`INVENTORY_CONSOLE_IMPLEMENTATION_MILESTONES.md`](INVENTORY_CONSOLE_IMPLEMENTATION_MILESTONES.md) | 121 planned vertical slices, acceptance evidence, critical path, gates, and first implementation batch |
 | [`INVENTORY_CONSOLE_IMPLEMENTATION_EXECUTION_PROTOCOL.md`](INVENTORY_CONSOLE_IMPLEMENTATION_EXECUTION_PROTOCOL.md) | Reusable order language, authority boundaries, engineering requirements, slice loop, definition of done, and reporting format |
+| [`r0-readiness/README.md`](r0-readiness/README.md) | R0/M0 evidence for IC-000 through IC-005, open decisions, sign-off gates, and the M1 code-authorization boundary |
 
 These documents form one coordinated execution contract. A change to domain ownership, release order, approval boundary, external authority, or activation gate must update all affected documents.
 

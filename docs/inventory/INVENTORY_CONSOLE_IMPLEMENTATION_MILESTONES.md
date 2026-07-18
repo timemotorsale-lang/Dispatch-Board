@@ -37,6 +37,10 @@ Status remains `PLANNED` until a separately approved implementation branch deliv
 
 **Exit gate:** Named business, product, architecture, security, data, finance/title, integration, support, and pilot owners authorize M1 planning-to-code transition.
 
+### R0 readiness evidence — 2026-07-18
+
+The documentation-only R0 implementation package is indexed in [`r0-readiness/README.md`](r0-readiness/README.md). It records the source freeze, traceability, internal domain authority, KPI/quality requirements, acceptance case suite, and all unresolved human decisions. IC-000 through IC-005 remain incomplete until their named signatures and blocking decisions are supplied; this evidence does not authorize M1 application code.
+
 ## 3. M1 — Shared enterprise foundation conformance
 
 | ID | Slice | Acceptance |
