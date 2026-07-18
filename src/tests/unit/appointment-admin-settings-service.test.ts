@@ -7,7 +7,7 @@ import {
   ResourceUnavailabilityType,
   SchedulableResourceStatus
 } from "@prisma/client";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   applyRecurringAppointmentClosureTemplateForManager,
@@ -30,6 +30,8 @@ import {
   updateAppointmentAdminSettings
 } from "@/server/services/appointment-admin-settings";
 import { createTestAuthStore } from "@/tests/support/auth-test-store";
+
+afterEach(() => vi.useRealTimers());
 
 function createLocation(overrides: Record<string, unknown> = {}) {
   return {
@@ -747,6 +749,8 @@ describe("appointment admin settings service", () => {
   });
 
   it("surfaces overlap review and runtime precedence for overlapping resource windows", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-08T12:00:00.000Z"));
     const { usersByEmail } = await createTestAuthStore();
     const manager = usersByEmail.get("morgan.manager@local.test") ?? null;
     const { repository } = createRepository();
