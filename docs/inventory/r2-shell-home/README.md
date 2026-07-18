@@ -5,7 +5,7 @@
 **Assessment date:** 2026-07-18  
 **Branch:** `codex/inventory-console-r2-shell-home`  
 **Mode:** Read-only conformance assessment and safe local verification  
-**Result:** `PARTIAL — R0 BLOCK REMOVED; R1 EXIT AND R2 IMPLEMENTATION REQUIRED`
+**Result:** `READY FOR R2 IMPLEMENTATION — R1 REPOSITORY EXIT PASSED`
 
 ## Executive result
 
@@ -13,7 +13,7 @@ The repository has useful R2 building blocks: an Inventory Console navigation de
 
 The approved Inventory Console Home is not implemented. `/vehicles` still renders the older detailed Inventory Lifecycle Control Tower, including a large horizontal module-tab wall, representative values, local-only interactions, and UI-derived metrics. The Workflow Launcher is documentation-only, saved views are task-specific rather than a shared Console contract, and Reviews/Approvals/Event Log are not yet composed into the approved Home experience.
 
-[`R0-AUTH-001`](../r0-readiness/R0_CODE_AUTHORIZATION_RESOLUTION.md) now authorizes bounded repository implementation. R2 still cannot begin until the [R1 assessment](../r1-foundation-conformance/README.md) is converted into implemented, verified IC-010 through IC-017 exit evidence.
+[`R0-AUTH-001`](../r0-readiness/R0_CODE_AUTHORIZATION_RESOLUTION.md) authorizes bounded repository implementation, and the [R1 implementation](../R1_FOUNDATION_IMPLEMENTATION.md) now passes its synthetic repository exit. R2 may begin after the R1 branch is reviewed and merged.
 
 This branch therefore contains no application-code changes.
 
@@ -85,7 +85,7 @@ These gaps must be fixed through authorized R2 slices, not by relabeling the cur
 
 Before R2 code mutation:
 
-1. complete and accept the applicable IC-010 through IC-017 R1 foundations;
+1. merge the verified R1 implementation into the R2 baseline;
 2. execute R2 with rollout disabled and no external or production activation under `R0-AUTH-001`;
 3. implement fixed synthetic Home, scope, search, saved-view, launcher, review/approval, and failure-state fixtures;
 4. obtain separate authority before commit, push, PR, or merge if those actions are desired.

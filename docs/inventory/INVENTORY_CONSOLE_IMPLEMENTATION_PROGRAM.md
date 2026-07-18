@@ -16,6 +16,7 @@
 | [`r0-readiness/README.md`](r0-readiness/README.md) | R0/M0 evidence for IC-000 through IC-005, open decisions, sign-off gates, and the M1 code-authorization boundary |
 | [`r0-readiness/R0_CODE_AUTHORIZATION_RESOLUTION.md`](r0-readiness/R0_CODE_AUTHORIZATION_RESOLUTION.md) | Binding bounded authorization for dependency-ordered R1–R3 repository implementation with synthetic fixtures and rollout disabled |
 | [`r1-foundation-conformance/README.md`](r1-foundation-conformance/README.md) | Read-only IC-010 through IC-017 repository conformance evidence, reusable foundations, gaps, verification, and authorization blockers |
+| [`R1_FOUNDATION_IMPLEMENTATION.md`](R1_FOUNDATION_IMPLEMENTATION.md) | Implemented IC-010 through IC-017 conformance harness, fixed cross-domain fixture, verification, capability truth, and repository exit evidence |
 | [`r2-shell-home/README.md`](r2-shell-home/README.md) | Read-only IC-020 through IC-028 shell/Home conformance evidence, source-of-truth mismatches, reusable capabilities, gaps, and dependency blockers |
 
 These documents form one coordinated execution contract. A change to domain ownership, release order, approval boundary, external authority, or activation gate must update all affected documents.
