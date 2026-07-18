@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "test:e2e": "node scripts/run-e2e.mjs",
     "test:e2e:ui": "playwright test --ui",
+    "validate:inventory-console": "tsx scripts/validate-inventory-console-program.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:reset": "prisma migrate reset",
