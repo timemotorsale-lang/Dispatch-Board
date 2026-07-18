@@ -20,8 +20,8 @@ export default async function VehiclesPage({ searchParams }: { searchParams: Pro
     } catch { /* permission-scoped decision counts stay unavailable */ }
     data = {
       byLocation: projection.byLocation.map((item) => ({ count: item.count, locationId: item.locationId, name: item.name })),
-      byStage: Object.entries(projection.byStage).map(([stage, summary]) => ({ count: summary.count, label: stageLabels[stage] ?? stage, stage })),
-      error: null, freshness: projection.freshness === "LIVE" ? "LIVE" : "STALE", generatedAt: projection.generatedAt, locationId: projection.filters.locationId, savedView, savedViewNotice,
+      byStage: projection.byStage.map((summary) => ({ count: summary.count, label: stageLabels[summary.stage] ?? summary.label, stage: summary.stage })),
+      error: null, freshness: projection.freshness === "COMPLETE" ? "LIVE" : "STALE", generatedAt: projection.generatedAt, locationId: projection.filters.locationId, savedView, savedViewNotice,
       priorityWork: projection.items.filter((item) => (savedView === "BLOCKED" ? item.operatingState === "BLOCKED" : savedView === "OVERDUE" ? item.overdue : item.overdue || item.operatingState === "BLOCKED" || item.operatingState === "WAITING")).map((item) => ({ ageDays: item.ageDays, id: item.id, inventoryNumber: item.inventoryNumber, issue: item.stateReason ?? item.nextAction, owner: item.ownerUser.name, overdue: item.overdue, state: item.operatingState, vehicle: `${item.vehicle.year} ${item.vehicle.make} ${item.vehicle.model}` })),
       reviews,
       totals: { active: projection.totals.units, blocked: projection.totals.blocked, exposureCents: projection.totals.exposureCents, overdue: projection.totals.overdue, waiting: projection.totals.waiting },

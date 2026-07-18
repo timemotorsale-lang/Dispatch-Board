@@ -1,16 +1,18 @@
-import { InventoryUnitFoundationWorkspace } from "@/features/inventory/inventory-unit-foundation-workspace";
+import { InventoryLifecycleLanding } from "@/features/inventory/inventory-lifecycle-landing";
 import { requireCurrentUser } from "@/server/auth/current-user";
-import { getInventoryUnitCreateOptions, listInventoryUnits } from "@/server/inventory-unit/service";
+import { getInventoryControlTowerProjection } from "@/server/inventory-control-tower/service";
 
-type InventoryUnitFoundationPageProps = {
-  searchParams?: Promise<{
-    view?: string;
-  }>;
-};
+type PageProps = { searchParams?: Promise<{ locationId?: string; view?: string }> };
 
-export default async function InventoryUnitFoundationPage({ searchParams }: InventoryUnitFoundationPageProps) {
-  const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const initialView = resolvedSearchParams?.view === "locations" || resolvedSearchParams?.view === "aging" ? resolvedSearchParams.view : "units";
-  const user = await requireCurrentUser(); const [initial, options] = await Promise.all([listInventoryUnits(user, { page: 1, pageSize: 25, query: "" }), getInventoryUnitCreateOptions(user)]);
-  return <InventoryUnitFoundationWorkspace initial={JSON.parse(JSON.stringify(initial))} initialView={initialView} options={JSON.parse(JSON.stringify(options))} />;
+export default async function InventoryLifecyclePage({ searchParams }: PageProps) {
+  const query = searchParams ? await searchParams : {};
+  const user = await requireCurrentUser();
+  const projection = await getInventoryControlTowerProjection(user, { locationId: query.locationId });
+  const returnQuery = new URLSearchParams();
+  if (query.locationId) returnQuery.set("locationId", query.locationId);
+  if (query.view) returnQuery.set("view", query.view);
+  const returnTo = `/vehicles/inventory${returnQuery.size ? `?${returnQuery.toString()}` : ""}`;
+  const towerQuery = new URLSearchParams({ returnTo });
+  if (query.locationId) towerQuery.set("locationId", query.locationId);
+  return <InventoryLifecycleLanding projection={JSON.parse(JSON.stringify(projection))} controlTowerHref={`/vehicles/control-tower?${towerQuery.toString()}`} />;
 }
