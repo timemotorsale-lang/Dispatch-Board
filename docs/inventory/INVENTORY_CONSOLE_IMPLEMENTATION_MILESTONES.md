@@ -154,6 +154,8 @@ IC-050 through IC-059 now have a bounded internal repository implementation docu
 
 **Exit gate:** Happy, competing reservation, delivery hold, external outage, unwind, and reconciliation cases pass.
 
+IC-060 through IC-068 now have a bounded internal repository implementation documented in [`R6_RETAIL_COMPLETION_IMPLEMENTATION.md`](R6_RETAIL_COMPLETION_IMPLEMENTATION.md). The single INV-RETAIL aggregate, R5 availability gate, reservations, exact-price four-eyes sale approval, delivery hold/readiness, observed custody handoff, reconciliation hold, matched acknowledgement, compensated unwind, projections, navigation, and immutable history are present. Scheduled expiry/tasks, provider adapters and retry queues, Control Tower retail projection, representative outage/competing-demand/unwind table tops, migration application, pilot sign-off, and production activation remain pending; therefore the M6 activation exit gate is not yet passed.
+
 ## 9. M7 — Shop & Recon
 
 | ID | Slice | Acceptance |

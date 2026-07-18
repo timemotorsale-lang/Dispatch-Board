@@ -59,6 +59,8 @@ describe("Inventory Console Workflow Launcher", () => {
     expect(markup).toContain("INVENTORY_MANAGER");
     expect(markup).toContain("R5 GOVERNED");
     expect(markup).toContain('/vehicles/inventory-to-frontline');
+    expect(markup).toContain("R6 GOVERNED");
+    expect(markup).toContain('/vehicles/retail-completion');
     expect(markup).toContain("CONTEXT REQUIRED");
     expect(markup).toContain("does not offer generic stage changes");
   });

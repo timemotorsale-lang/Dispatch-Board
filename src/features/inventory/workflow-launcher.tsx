@@ -10,6 +10,7 @@ const catalog = [
   { id: "WL-06", title: "Report Blocker", description: "Select affected work first so the blocker has an owner, reason, and due time.", href: "/tasks/intake?workflowArea=INVENTORY", icon: AlertTriangle, state: "CONTEXT PREFERRED" },
   { id: "WL-07", title: "Request Approval", description: "Open the governed decision queue; exact proposal/version context is required.", href: "/manager-review?scope=inventory&view=approvals", icon: ShieldCheck, state: "CONTEXT REQUIRED" },
   { id: "WL-08", title: "Create General Task", description: "Create ad hoc work without changing a governed vehicle workflow.", href: "/tasks/intake?workflowArea=INVENTORY", icon: ClipboardPlus, state: "AVAILABLE" },
+  { id: "WL-09", title: "Complete Retail Sale", description: "Govern frontline availability, reservation, exact sale approval, delivery, reconciliation, and unwind.", href: "/vehicles/retail-completion", icon: ShieldCheck, state: "R6 GOVERNED" },
   { id: "WL-C01", title: "Request Parts", description: "Create or inspect job-linked demand in Parts & Readiness.", href: "/vehicles/parts", icon: Boxes, state: "CONTEXT REQUIRED" },
 ];
 

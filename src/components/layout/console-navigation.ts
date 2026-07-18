@@ -43,7 +43,7 @@ const inventoryItems: NavigationItem[] = [
     matchExact: true
   },
   {
-    activePaths: ["/vehicles/inventory", "/vehicles/control-tower", "/vehicles/acquisition-appraisal", "/vehicles/inventory-to-frontline", "/vehicles/disposition-wholesale", "/vehicles/discovery", "/vehicles/registry"],
+    activePaths: ["/vehicles/inventory", "/vehicles/control-tower", "/vehicles/acquisition-appraisal", "/vehicles/inventory-to-frontline", "/vehicles/retail-completion", "/vehicles/disposition-wholesale", "/vehicles/discovery", "/vehicles/registry"],
     href: "/vehicles/inventory",
     title: "Inventory Lifecycle",
     description: "Acquisition through sale, transfer, or disposition.",
