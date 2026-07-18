@@ -1,7 +1,9 @@
 # IC-004 — KPI, Target, and Data-Quality Baseline
 
-**State:** `BLOCKED FOR TARGET APPROVAL`  
+**State:** `APPROVED FOR SYNTHETIC CONFORMANCE; PRODUCTION TARGETS DEFERRED`
 **Definition source:** [Vehicle Operations KPI Catalog v1](../governance/VEHICLE_OPERATIONS_KPI_CATALOG.md)
+
+`R0-AUTH-001` permits implementation of metric envelopes, approved definitions, quality grades, synthetic fixtures, and reconciliation. It does not authorize production targets, alert thresholds, employee ranking, publication, pilot, or activation.
 
 ## Governing metric envelope
 

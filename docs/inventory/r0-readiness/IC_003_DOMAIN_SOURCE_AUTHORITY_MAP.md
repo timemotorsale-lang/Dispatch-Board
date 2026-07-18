@@ -1,8 +1,10 @@
 # IC-003 — Domain and Source-Authority Map
 
-**State:** `BLOCKED FOR ACTUAL-SYSTEM INPUTS`  
+**State:** `INTERNAL AUTHORITY APPROVED; ACTUAL SYSTEMS DEFERRED`
 **Internal architecture:** Defined  
 **External field/workflow authority:** Not yet approved
+
+`R0-AUTH-001` permits internal repository conformance and provider-neutral synthetic contracts. Every actual external adapter remains blocked until this register is completed and approved.
 
 ## Internal authority
 

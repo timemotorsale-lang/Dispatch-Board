@@ -39,7 +39,9 @@ Status remains `PLANNED` until a separately approved implementation branch deliv
 
 ### R0 readiness evidence — 2026-07-18
 
-The documentation-only R0 implementation package is indexed in [`r0-readiness/README.md`](r0-readiness/README.md). It records the source freeze, traceability, internal domain authority, KPI/quality requirements, acceptance case suite, and all unresolved human decisions. IC-000 through IC-005 remain incomplete until their named signatures and blocking decisions are supplied; this evidence does not authorize M1 application code.
+The R0 package is indexed in [`r0-readiness/README.md`](r0-readiness/README.md). It records the source freeze, traceability, internal domain authority, KPI/quality requirements, acceptance cases, and unresolved operational decisions. The repository-development exit is resolved; the operational-release exit remains pending.
+
+**Authorization resolution:** [`R0-AUTH-001`](r0-readiness/R0_CODE_AUTHORIZATION_RESOLUTION.md) supersedes the blanket M1 code prohibition and authorizes dependency-ordered R1–R3 repository implementation with synthetic fixtures and rollout disabled. Named operational decisions remain mandatory before real systems, deployment, pilot, or production activation.
 
 ## 3. M1 — Shared enterprise foundation conformance
 
@@ -58,7 +60,7 @@ The documentation-only R0 implementation package is indexed in [`r0-readiness/RE
 
 ### R1 conformance evidence — 2026-07-18
 
-A read-only repository assessment is recorded in [`r1-foundation-conformance/README.md`](r1-foundation-conformance/README.md). The existing foundations passed 62 targeted tests and schema validation, but IC-010 through IC-017 remain partial and application-code mutation remains blocked by the unresolved R0 authorization gate.
+A read-only repository assessment is recorded in [`r1-foundation-conformance/README.md`](r1-foundation-conformance/README.md). The existing foundations passed 62 targeted tests and schema validation, but IC-010 through IC-017 remain partial and require implementation under `R0-AUTH-001` before the M1 exit gate passes.
 
 ## 4. M2 — Shared console shell and Home
 
@@ -78,7 +80,7 @@ A read-only repository assessment is recorded in [`r1-foundation-conformance/REA
 
 ### R2 conformance evidence — 2026-07-18
 
-A read-only shell/Home assessment is recorded in [`r2-shell-home/README.md`](r2-shell-home/README.md). Existing navigation, search, review, event, KPI, saved-view, and Control Tower foundations passed 59 targeted tests, but IC-020 through IC-028 remain partial or unimplemented. The current `/vehicles` route still exposes the older detailed Control Tower and representative values, while R2 code mutation remains blocked by unresolved R0 and R1 gates.
+A read-only shell/Home assessment is recorded in [`r2-shell-home/README.md`](r2-shell-home/README.md). Existing navigation, search, review, event, KPI, saved-view, and Control Tower foundations passed 59 targeted tests, but IC-020 through IC-028 remain partial or unimplemented. R0 authorization is resolved; R2 remains dependency-blocked until R1 passes and then requires its own implementation and exit evidence.
 
 ## 5. M3 — Inventory Lifecycle and Control Tower
 

@@ -3,7 +3,7 @@
 **Product:** Time Motor Sales Dispatch Board  
 **Version:** 1.0 planning baseline  
 **Date:** 2026-07-18  
-**Status:** Master documentation index; R0 readiness documentation is in progress; no application code is authorized
+**Status:** R0 resolved for bounded repository implementation; pilot and production activation remain unauthorized
 
 ## 1. Program documents
 
@@ -14,6 +14,7 @@
 | [`INVENTORY_CONSOLE_IMPLEMENTATION_MILESTONES.md`](INVENTORY_CONSOLE_IMPLEMENTATION_MILESTONES.md) | 121 planned vertical slices, acceptance evidence, critical path, gates, and first implementation batch |
 | [`INVENTORY_CONSOLE_IMPLEMENTATION_EXECUTION_PROTOCOL.md`](INVENTORY_CONSOLE_IMPLEMENTATION_EXECUTION_PROTOCOL.md) | Reusable order language, authority boundaries, engineering requirements, slice loop, definition of done, and reporting format |
 | [`r0-readiness/README.md`](r0-readiness/README.md) | R0/M0 evidence for IC-000 through IC-005, open decisions, sign-off gates, and the M1 code-authorization boundary |
+| [`r0-readiness/R0_CODE_AUTHORIZATION_RESOLUTION.md`](r0-readiness/R0_CODE_AUTHORIZATION_RESOLUTION.md) | Binding bounded authorization for dependency-ordered R1–R3 repository implementation with synthetic fixtures and rollout disabled |
 | [`r1-foundation-conformance/README.md`](r1-foundation-conformance/README.md) | Read-only IC-010 through IC-017 repository conformance evidence, reusable foundations, gaps, verification, and authorization blockers |
 | [`r2-shell-home/README.md`](r2-shell-home/README.md) | Read-only IC-020 through IC-028 shell/Home conformance evidence, source-of-truth mismatches, reusable capabilities, gaps, and dependency blockers |
 
