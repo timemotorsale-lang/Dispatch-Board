@@ -1188,6 +1188,33 @@ enum VehicleOperationsRolloutMode {
   GENERAL
 }
 
+enum InventoryConsolePilotStatus {
+  DRAFT
+  EVIDENCE_IN_PROGRESS
+  READY_FOR_AUTHORIZATION
+  AUTHORIZED
+  ACTIVE
+  PAUSED
+  ROLLED_BACK
+  COMPLETED
+  REJECTED
+}
+
+enum InventoryConsoleEvidenceStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  SUBMITTED
+  PASSED
+  FAILED
+  WAIVED
+}
+
+enum InventoryConsoleSignoffDecision {
+  PENDING
+  APPROVE
+  REJECT
+}
+
 // Placeholder model for the v0.1.0 foundation migration.
 // Domain models are intentionally deferred to later milestones.
 model BootstrapMarker {
@@ -1533,6 +1560,9 @@ model Organization {
   enterpriseProjectionCheckpoints       EnterpriseProjectionCheckpoint[]
   enterpriseIntegrationExchanges        EnterpriseIntegrationExchange[]
   enterpriseIntegrationConflicts        EnterpriseIntegrationConflict[]
+  inventoryConsolePilots                InventoryConsolePilot[]
+  inventoryConsoleReadinessEvidence     InventoryConsoleReadinessEvidence[]
+  inventoryConsoleSignoffs              InventoryConsoleSignoff[]
 }
 
 model Location {
@@ -5700,6 +5730,84 @@ model VehiclePolicyEvent {
 
   @@index([policyVersionId, occurredAt])
   @@index([organizationId, occurredAt])
+}
+
+model InventoryConsolePilot {
+  id                    String                      @id @default(cuid())
+  organizationId        String
+  code                  String
+  name                  String
+  status                InventoryConsolePilotStatus @default(DRAFT)
+  scopeSnapshot         Json
+  thresholdSnapshot     Json
+  pauseCriteriaSnapshot Json
+  rollbackPlanSnapshot  Json
+  baselineSnapshot      Json
+  outcomeSnapshot       Json
+  ownerUserId           String
+  supportOwnerUserId    String?
+  authorizationNote     String?
+  authorizedByUserId    String?
+  authorizedAt          DateTime?
+  activatedByUserId     String?
+  activatedAt           DateTime?
+  pausedAt              DateTime?
+  completedAt           DateTime?
+  version               Int                         @default(1)
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+  organization          Organization                @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  evidence              InventoryConsoleReadinessEvidence[]
+  signoffs              InventoryConsoleSignoff[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status, updatedAt])
+}
+
+model InventoryConsoleReadinessEvidence {
+  id                 String                         @id @default(cuid())
+  organizationId     String
+  pilotId            String
+  gateCode           String
+  status             InventoryConsoleEvidenceStatus @default(NOT_STARTED)
+  summary            String
+  evidenceReferences Json
+  measurementSnapshot Json
+  submittedByUserId  String?
+  submittedAt        DateTime?
+  reviewedByUserId   String?
+  reviewedAt         DateTime?
+  expiresAt          DateTime?
+  waiverAuthority    String?
+  waiverReason       String?
+  version            Int                            @default(1)
+  createdAt          DateTime                       @default(now())
+  updatedAt          DateTime                       @updatedAt
+  organization       Organization                   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  pilot              InventoryConsolePilot          @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+
+  @@unique([pilotId, gateCode])
+  @@index([organizationId, gateCode, status])
+}
+
+model InventoryConsoleSignoff {
+  id             String                           @id @default(cuid())
+  organizationId String
+  pilotId        String
+  dimension      String
+  decision       InventoryConsoleSignoffDecision @default(PENDING)
+  signerUserId   String?
+  reason         String?
+  evidenceRefs   Json
+  decidedAt      DateTime?
+  version        Int                              @default(1)
+  createdAt      DateTime                         @default(now())
+  updatedAt      DateTime                         @updatedAt
+  organization   Organization                     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  pilot          InventoryConsolePilot            @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+
+  @@unique([pilotId, dimension])
+  @@index([organizationId, decision, updatedAt])
 }
 
 model GenerationRun {

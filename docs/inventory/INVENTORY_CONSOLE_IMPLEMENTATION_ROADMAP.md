@@ -218,6 +218,8 @@ Deliver nine approved slices:
 
 **Exit:** Business, data, security, reliability, experience, operations, measurement, and executive go/no-go gates pass.
 
+Implementation status: the fail-closed R12 readiness and pilot control plane is implemented and documented in [`R12_ENTERPRISE_READINESS_PILOT_IMPLEMENTATION.md`](R12_ENTERPRISE_READINESS_PILOT_IMPLEMENTATION.md). This supplies the evidence, authorization, pause/rollback, outcome, and sign-off machinery; it does not itself satisfy the exit gate, authorize a real pilot, or declare GA.
+
 ## 6. Dependency sequence
 
 ```text

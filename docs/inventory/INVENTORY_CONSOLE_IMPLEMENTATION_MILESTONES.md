@@ -266,6 +266,8 @@ IC-110 through IC-119 now have a bounded repository and sandbox-harness implemen
 | IC-128 | Outcome review and calibration | Baselines/targets, decision outcomes, data quality, recommendation error, workload and benefit meet approved thresholds |
 | IC-129 | Expansion/GA decision | Business, data, security, reliability, experience, operations, measurement and executive sign-off recorded |
 
+R12 now has a bounded control-plane implementation documented in [`R12_ENTERPRISE_READINESS_PILOT_IMPLEMENTATION.md`](R12_ENTERPRISE_READINESS_PILOT_IMPLEMENTATION.md). Readiness gates, exact pilot scope, thresholds, pause/rollback evidence, outcomes and eight expansion sign-offs are durable and versioned; evidence pass requires independent review; and activation remains fail-closed until named authority is configured. The source-controlled migration has not been applied and no pilot or GA decision is implied.
+
 ## 15. Critical path
 
 ```text
