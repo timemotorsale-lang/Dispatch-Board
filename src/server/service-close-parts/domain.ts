@@ -193,3 +193,15 @@ export function normalizeRecoveryTransition(value: unknown, currentStatus: strin
   if (toStatus === "DISPUTED" && !disputeReason) throw new Error("Disputed recovery requires a dispute reason.");
   return { ...base(raw), actualCreditCents, disputeReason, occurredAt: date(raw.occurredAt, "Recovery transition time"), stockLocationId: optional(raw.stockLocationId, 100), toStatus };
 }
+
+export function normalizePurchaseRevision(value: unknown, currentStatus: string) {
+  if (!["DRAFT", "APPROVED"].includes(currentStatus)) throw new Error(`Purchase order cannot be revised from ${currentStatus}.`);
+  const raw = object(value);
+  return { ...base(raw), lines: lines(raw.lines, "Purchase order revision") };
+}
+
+export function assertIndependentPartsApproval(action: "PURCHASE_APPROVAL" | "TRANSFER_RELEASE" | "RECOVERY_WRITE_OFF", preparedByUserId: string, actorUserId: string) {
+  if (preparedByUserId !== actorUserId) return;
+  const labels = { PURCHASE_APPROVAL: "Purchase order approval", TRANSFER_RELEASE: "Transfer release", RECOVERY_WRITE_OFF: "Recovery write-off" } as const;
+  throw new Error(`${labels[action]} requires a different authorized user than the preparer.`);
+}

@@ -8,6 +8,9 @@ describe("PartsOperationsWorkspace", () => {
     const markup = renderToStaticMarkup(
       <PartsOperationsWorkspace
         initial={{
+          capability: { barcodeHardware: "UNVERIFIED_MANUAL_FALLBACK", recommendations: "ADVISORY_NON_EXECUTING", vendorAdapters: "DISABLED" },
+          contractVersion: "parts-operations/r8.0.0",
+          generatedAt: "2026-07-18T14:00:00.000Z",
           ledger: {
             repairOrders: [{
               id: "ro-1",
@@ -25,7 +28,7 @@ describe("PartsOperationsWorkspace", () => {
               part: { description: "Brake caliper", partNumber: "BC-100" },
               quantityRequired: 1,
               quantityReserved: 0,
-              repairOrder: { repairOrderNumber: "RO-1001" },
+              repairOrder: { locationId: "loc-1", repairOrderNumber: "RO-1001" },
               requiredAt: "2026-07-18T15:00:00.000Z",
               status: "OPEN"
             }],
@@ -53,6 +56,9 @@ describe("PartsOperationsWorkspace", () => {
     expect(markup).toContain("Parts Milestones");
     expect(markup).toContain("Parts Work Queue");
     expect(markup).toContain("Recommendations are advisory");
+    expect(markup).toContain("parts-operations?view=demand");
+    expect(markup).toContain("parts-operations?view=counts-exceptions");
+    expect(markup).toContain("Vendor adapters: DISABLED");
     expect(markup).toContain('href="/vehicles/service-close-parts"');
     expect(markup).toContain('href="/vehicles/parts-counter"');
     expect(markup).toContain("BC-100");
