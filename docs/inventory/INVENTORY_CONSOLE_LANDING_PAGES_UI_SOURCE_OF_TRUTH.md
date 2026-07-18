@@ -2,8 +2,8 @@
 
 **Product:** Time Motor Sales Dispatch Board
 **Module:** Inventory Console
-**Version:** 1.3 approved baseline
-**Date adopted:** 2026-07-16; refined and re-approved 2026-07-17
+**Version:** 1.4 approved baseline
+**Date adopted:** 2026-07-16; refined and re-approved 2026-07-17; Control Tower navigation approved 2026-07-18
 **Status:** Approved visual and interaction source of truth; implementation not yet started
 
 ---
@@ -14,11 +14,13 @@ The five images in this document are the binding desktop landing-page and deeper
 
 - Selecting **Home** must land the staff member on the approved Inventory Console Home page.
 - Selecting **Inventory Lifecycle** must land the staff member on the approved Inventory Lifecycle page.
+- **Control Tower** is an explicit deeper workspace under Inventory Lifecycle, reached through the primary **Open Control Tower** command.
 - Selecting **Shop & Recon** must land the staff member on the approved Shop & Recon page.
 - **Reviews** and **Approvals** remain first-class console destinations and must also be visible in the relevant landing-page workflow panels.
 - **Disposition & Wholesale** is an explicit deeper workspace under Inventory Lifecycle, reached through the prominent **Open Disposition & Wholesale** command.
 - **Parts Operations** is an explicit deeper workspace under Shop & Recon, reached through the prominent **Open Parts Operations** command.
 - Selecting **Open Disposition & Wholesale** must land the staff member on the approved Disposition & Wholesale workspace.
+- Selecting **Open Control Tower** must land the staff member on the detailed Inventory Lifecycle Control Tower with the permitted landing-page context preserved.
 - Selecting **Open Parts Operations** must land the staff member on the approved Parts Operations workspace.
 
 The images define the approved information hierarchy, page composition, navigation emphasis, operational density, visual language, and relationship between summary metrics and actionable work. Values, names, counts, dates, and example vehicles shown in the mockups are illustrative and must be supplied by authoritative application data when implemented.
@@ -56,13 +58,9 @@ The Home page is an attention, workflow-start, and routing surface. It must not 
 
 ## 3. Inventory Lifecycle landing page
 
-![Approved Inventory Lifecycle landing page](assets/inventory-lifecycle-landing-page-source-of-truth.png)
+![Approved Inventory Lifecycle landing page with explicit Control Tower navigation](assets/inventory-lifecycle-landing-page-control-tower-navigation-v2.png)
 
-### 3.1 Control Tower navigation refinement — review image
-
-![Inventory Lifecycle landing page with explicit Control Tower navigation](assets/inventory-lifecycle-landing-page-control-tower-navigation-v2.png)
-
-The image above is the proposed visual refinement for final review. It adds a primary **Open Control Tower** action immediately before the existing **Open Disposition & Wholesale** action without changing the approved KPIs, pipeline, priority work, Reviews & Approvals, or summary panels. The prior approved image remains retained for change history until this revision receives explicit final visual approval.
+The image above is the binding Inventory Lifecycle landing-page reference. The **Open Control Tower** refinement received explicit product approval on 2026-07-18. The prior `inventory-lifecycle-landing-page-source-of-truth.png` asset is retained only as historical change evidence and no longer governs implementation.
 
 **Required destination:** the default page reached from the **Inventory Lifecycle** console navigation item.
 
