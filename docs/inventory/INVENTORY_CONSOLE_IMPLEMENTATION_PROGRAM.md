@@ -14,6 +14,7 @@
 | [`INVENTORY_CONSOLE_IMPLEMENTATION_MILESTONES.md`](INVENTORY_CONSOLE_IMPLEMENTATION_MILESTONES.md) | 121 planned vertical slices, acceptance evidence, critical path, gates, and first implementation batch |
 | [`INVENTORY_CONSOLE_IMPLEMENTATION_EXECUTION_PROTOCOL.md`](INVENTORY_CONSOLE_IMPLEMENTATION_EXECUTION_PROTOCOL.md) | Reusable order language, authority boundaries, engineering requirements, slice loop, definition of done, and reporting format |
 | [`r0-readiness/README.md`](r0-readiness/README.md) | R0/M0 evidence for IC-000 through IC-005, open decisions, sign-off gates, and the M1 code-authorization boundary |
+| [`r1-foundation-conformance/README.md`](r1-foundation-conformance/README.md) | Read-only IC-010 through IC-017 repository conformance evidence, reusable foundations, gaps, verification, and authorization blockers |
 
 These documents form one coordinated execution contract. A change to domain ownership, release order, approval boundary, external authority, or activation gate must update all affected documents.
 
