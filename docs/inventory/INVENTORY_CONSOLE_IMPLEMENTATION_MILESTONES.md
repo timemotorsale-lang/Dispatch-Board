@@ -80,7 +80,7 @@ A pre-implementation assessment is retained in [`r1-foundation-conformance/READM
 
 ### R2 conformance evidence — 2026-07-18
 
-A read-only shell/Home assessment is recorded in [`r2-shell-home/README.md`](r2-shell-home/README.md). Existing navigation, search, review, event, KPI, saved-view, and Control Tower foundations passed 59 targeted tests, but IC-020 through IC-028 remain partial or unimplemented. R0 authorization and the bounded R1 repository exit now pass; R2 requires its dedicated implementation and exit evidence.
+A pre-implementation shell/Home assessment is retained in [`r2-shell-home/README.md`](r2-shell-home/README.md). IC-020 through IC-028 are now implemented for the bounded honest-routing exit in [`R2_SHELL_HOME_IMPLEMENTATION.md`](R2_SHELL_HOME_IMPLEMENTATION.md). Typecheck, lint, focused tests, and the production build pass; Shop/Parts/throughput facts and gated workflow commands remain explicitly unavailable rather than represented by mockup data.
 
 ## 5. M3 — Inventory Lifecycle and Control Tower
 

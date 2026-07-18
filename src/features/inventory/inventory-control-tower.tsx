@@ -35,7 +35,7 @@ type LifecycleStage = {
 };
 
 const moduleTabs = [
-  { id: "control-tower", label: "Control Tower", href: "/vehicles" },
+  { id: "control-tower", label: "Control Tower", href: "/vehicles/control-tower" },
   { id: "vehicles", label: "Vehicles", href: "/vehicles/registry" },
   { id: "acquisition", label: "Acquisition", href: "/vehicles/discovery" },
   { id: "recon", label: "Recon", href: "/vehicles/shop-planning" },

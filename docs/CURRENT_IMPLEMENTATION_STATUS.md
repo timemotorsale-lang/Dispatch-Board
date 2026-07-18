@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-07-18 — Inventory Console R2 shell and Home
+
+Inventory Console R2/M2 (`IC-020` through `IC-028`) is implemented for the bounded repository exit. `/vehicles` is now the enterprise Home with exactly seven primary destinations, authoritative InventoryUnit scope/KPIs/stages/priority work, permission-scoped decision routing, versioned system URL views, search and Event Log access, and explicit live/stale/unavailable states. The older detailed Control Tower moved to `/vehicles/control-tower`; `/vehicles/workflows` provides the phase-one role/context-aware catalog; and `/vehicles/disposition-wholesale` is an honest rollout-disabled destination rather than a broken link or false activation.
+
+Typecheck, lint, 36 focused tests, and the Next.js production build pass. Shop, Parts, throughput, wholesale execution, and external adapter facts remain unavailable or disabled on Home and never fall back to representative mockup values. No schema, deployment, external call, pilot, or production activation occurred. See [`docs/inventory/R2_SHELL_HOME_IMPLEMENTATION.md`](inventory/R2_SHELL_HOME_IMPLEMENTATION.md).
+
 ## 2026-07-18 — Inventory Console R1 foundation conformance
 
 Inventory Console R1/M1 (`IC-010` through `IC-017`) is implemented for the bounded repository-development exit authorized by `R0-AUTH-001`. A deterministic conformance harness and fixed synthetic fixture verify canonical Vehicle/InventoryUnit identity and cycles, customer-repair separation, Parts quantity/custody, location/role/field/amount/four-eyes authority, idempotency and optimistic versions, correlated audit/event/outbox evidence, work deduplication and approvals, evidence security/retention/legal hold, effective policy and OFF/SHADOW rollout, ordered replayable projections, and migration/restore/replay/reconciliation gates across InventoryUnit, RepairOrder, Parts, and approval subjects.

@@ -5,13 +5,15 @@
 **Assessment date:** 2026-07-18  
 **Branch:** `codex/inventory-console-r2-shell-home`  
 **Mode:** Read-only conformance assessment and safe local verification  
-**Result:** `READY FOR R2 IMPLEMENTATION — R1 REPOSITORY EXIT PASSED`
+**Result:** `SUPERSEDED BY VERIFIED R2 IMPLEMENTATION`
+
+> **Implementation update:** IC-020 through IC-028 are implemented for the bounded repository exit in [`R2_SHELL_HOME_IMPLEMENTATION.md`](../R2_SHELL_HOME_IMPLEMENTATION.md). The assessment below remains as pre-implementation gap evidence.
 
 ## Executive result
 
-The repository has useful R2 building blocks: an Inventory Console navigation definition with exactly seven destinations, canonical Vehicle Discovery search, Vehicle 360 links, task saved views, manager review, activity/event feeds, Control Tower projections, KPI services, and explicit projection loading/stale/error behavior.
+The repository had useful R2 building blocks: an Inventory Console navigation definition with exactly seven destinations, canonical Vehicle Discovery search, Vehicle 360 links, task saved views, manager review, activity/event feeds, Control Tower projections, KPI services, and explicit projection loading/stale/error behavior.
 
-The approved Inventory Console Home is not implemented. `/vehicles` still renders the older detailed Inventory Lifecycle Control Tower, including a large horizontal module-tab wall, representative values, local-only interactions, and UI-derived metrics. The Workflow Launcher is documentation-only, saved views are task-specific rather than a shared Console contract, and Reviews/Approvals/Event Log are not yet composed into the approved Home experience.
+The later R2 implementation resolves the Home/Control Tower route split, Home composition, safe system views, launcher, live InventoryUnit facts, decision/event routing, and honest unavailable states. This paragraph is retained as the historical condition before implementation.
 
 [`R0-AUTH-001`](../r0-readiness/R0_CODE_AUTHORIZATION_RESOLUTION.md) authorizes bounded repository implementation, and the [R1 implementation](../R1_FOUNDATION_IMPLEMENTATION.md) now passes its synthetic repository exit. R2 may begin after the R1 branch is reviewed and merged.
 

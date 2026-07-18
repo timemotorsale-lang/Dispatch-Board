@@ -1,0 +1,81 @@
+import { AlertTriangle, ArrowRight, BarChart3, Boxes, CarFront, CheckCircle2, ClipboardList, Database, History, Play, Search, ShieldCheck, Wrench } from "lucide-react";
+import Link from "next/link";
+
+export type InventoryHomeData = {
+  byLocation: Array<{ count: number; locationId: string; name: string }>;
+  byStage: Array<{ count: number; label: string; stage: string }>;
+  error: string | null;
+  freshness: "LIVE" | "STALE" | "UNAVAILABLE";
+  generatedAt: string | null;
+  locationId: string | null;
+  savedView: "ALL" | "ATTENTION" | "BLOCKED" | "OVERDUE";
+  savedViewNotice: string | null;
+  priorityWork: Array<{ ageDays: number; id: string; inventoryNumber: string; issue: string; owner: string; overdue: boolean; state: string; vehicle: string }>;
+  reviews: { approvals: number; reviews: number; available: boolean };
+  totals: { active: number; blocked: number; exposureCents: number; overdue: number; waiting: number };
+};
+
+const money = (cents: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(cents / 100);
+
+export function InventoryConsoleHome({ data }: { data: InventoryHomeData }) {
+  const attention = data.totals.blocked + data.totals.overdue + data.totals.waiting;
+  const freshnessLabel = data.freshness === "LIVE" ? "Live data" : data.freshness === "STALE" ? "Stale — verify before acting" : "Unavailable";
+  return (
+    <section className="inventory-console-home">
+      <header className="ich-hero">
+        <div><p>Inventory Console</p><h1>Vehicle Operations Home</h1><span>Start work, protect flow, and route attention to the right operating workspace.</span></div>
+        <div className="ich-hero-actions"><Link className="ich-primary-action" href="/vehicles/workflows"><Play size={16} />Start Workflow</Link><Link href="/vehicles/discovery"><Search size={16} />Search</Link></div>
+      </header>
+
+      <div className={`ich-data-state ich-data-${data.freshness.toLowerCase()}`} role="status">
+        <Database size={15} /><strong>{freshnessLabel}</strong><span>{data.generatedAt ? `Cutoff ${new Date(data.generatedAt).toLocaleString()}` : data.error ?? "No authoritative snapshot is available."}</span>
+      </div>
+
+      <form action="/vehicles" className="ich-scope-bar" method="get">
+        <label>Location scope<select defaultValue={data.locationId ?? ""} name="locationId"><option value="">All permitted locations</option>{data.byLocation.map((location) => <option key={location.locationId} value={location.locationId}>{location.name} ({location.count})</option>)}</select></label>
+        <button type="submit">Apply scope</button><Link href="/vehicles">Clear</Link><span>System view contract v1 · permission-scoped</span>
+      </form>
+      <nav aria-label="Inventory Home saved views" className="ich-saved-views">{(["ALL", "ATTENTION", "BLOCKED", "OVERDUE"] as const).map((view) => <Link aria-current={data.savedView === view ? "page" : undefined} className={data.savedView === view ? "active" : ""} href={`/vehicles?view=${view}${data.locationId ? `&locationId=${encodeURIComponent(data.locationId)}` : ""}`} key={view}>{view === "ALL" ? "All inventory" : view[0] + view.slice(1).toLowerCase()}</Link>)}{data.savedViewNotice ? <span role="status">{data.savedViewNotice}</span> : null}</nav>
+
+      <section aria-label="Inventory Console KPIs" className="ich-kpis">
+        <article><CarFront /><span>Active inventory<strong>{data.freshness === "UNAVAILABLE" ? "—" : data.totals.active}</strong></span></article>
+        <article><BarChart3 /><span>Inventory capital<strong>{data.freshness === "UNAVAILABLE" ? "—" : money(data.totals.exposureCents)}</strong></span></article>
+        <article className={attention ? "attention" : ""}><AlertTriangle /><span>Needs attention<strong>{data.freshness === "UNAVAILABLE" ? "—" : attention}</strong><small>{data.totals.blocked} blocked · {data.totals.overdue} overdue · {data.totals.waiting} waiting</small></span></article>
+        <article><Wrench /><span>In-shop work<strong>Unavailable</strong><small>Shop projection not connected to Home</small></span></article>
+        <article><Boxes /><span>Waiting parts<strong>Unavailable</strong><small>Parts readiness projection not connected</small></span></article>
+        <article><ShieldCheck /><span>Pending decisions<strong>{data.reviews.available ? data.reviews.reviews + data.reviews.approvals : "Restricted"}</strong><small>{data.reviews.reviews} reviews · {data.reviews.approvals} approvals</small></span></article>
+      </section>
+
+      <section className="ich-route-grid">
+        <article className="ich-route-card">
+          <header><CarFront size={21} /><div><strong>Inventory Lifecycle</strong><span>Acquisition through sale, transfer, or disposition.</span></div></header>
+          <div className="ich-stage-strip">{data.byStage.filter((stage) => stage.count > 0).slice(0, 7).map((stage) => <Link href={`/vehicles/inventory?stage=${encodeURIComponent(stage.stage)}`} key={stage.stage}><span>{stage.label}</span><strong>{stage.count}</strong></Link>)}{data.byStage.every((stage) => stage.count === 0) ? <p>No active lifecycle records in this scope.</p> : null}</div>
+          <footer><Link href="/vehicles/inventory">Open Inventory Lifecycle<ArrowRight size={15} /></Link><Link href="/vehicles/control-tower">Open Control Tower</Link><Link href="/vehicles/disposition-wholesale">Open Disposition &amp; Wholesale</Link></footer>
+        </article>
+        <article className="ich-route-card">
+          <header><Wrench size={21} /><div><strong>Shop &amp; Recon</strong><span>Daily production, constraints, quality, and parts readiness.</span></div></header>
+          <div className="ich-unavailable"><AlertTriangle size={18} /><div><strong>Home summary unavailable</strong><span>The authoritative Shop production projection has not been connected. Open the workspace for current supported operations.</span></div></div>
+          <footer><Link href="/vehicles/shop-production">Open Shop &amp; Recon<ArrowRight size={15} /></Link><Link href="/vehicles/parts-operations">Open Parts Operations</Link></footer>
+        </article>
+      </section>
+
+      <div className="ich-work-grid">
+        <section className="ich-panel"><header><div><strong>Priority Work</strong><span>Exceptions ranked by current authoritative inventory state.</span></div><Link href="/vehicles/inventory?view=exceptions">View all</Link></header>
+          {data.priorityWork.length ? <ol className="ich-priority-list">{data.priorityWork.slice(0, 6).map((item) => <li key={item.id}><span className={item.state === "BLOCKED" ? "critical" : item.overdue ? "warning" : "neutral"}>{item.state === "BLOCKED" ? "Critical" : item.overdue ? "Overdue" : "Waiting"}</span><div><strong>{item.inventoryNumber} · {item.vehicle}</strong><small>{item.issue}</small></div><div><span>{item.owner}</span><small>{item.ageDays} days in lifecycle</small></div><Link href={`/vehicles/inventory?id=${encodeURIComponent(item.id)}`}>Open</Link></li>)}</ol> : <div className="ich-empty"><CheckCircle2 size={20} /><span>No blocked, overdue, or waiting inventory records in this scope.</span></div>}
+        </section>
+
+        <section className="ich-panel ich-decisions"><header><div><strong>Reviews &amp; Approvals</strong><span>Review and approval remain distinct decisions.</span></div></header>
+          {data.reviews.available ? <div><Link href="/manager-review?scope=inventory&view=reviews"><ClipboardList /><span>Reviews<strong>{data.reviews.reviews}</strong></span></Link><Link href="/manager-review?scope=inventory&view=approvals"><ShieldCheck /><span>Approvals<strong>{data.reviews.approvals}</strong></span></Link></div> : <div className="ich-unavailable"><ShieldCheck size={18} /><span>Your current role cannot view enterprise decision counts.</span></div>}
+        </section>
+      </div>
+
+      <section className="ich-health-grid">
+        <article><strong>Flow Health</strong><span>Inventory lifecycle</span><b className={data.freshness === "LIVE" ? "healthy" : "warning"}>{freshnessLabel}</b><span>Shop and Parts summaries</span><b>Unavailable</b></article>
+        <article><strong>Today’s Throughput</strong><div className="ich-unavailable"><BarChart3 size={18} /><span>No governed cross-domain throughput fact is connected.</span></div></article>
+        <article><strong>Data &amp; Integration Health</strong><span>Inventory projection</span><b className={data.freshness === "LIVE" ? "healthy" : "warning"}>{data.freshness}</b><span>External adapters</span><b>Disabled</b></article>
+      </section>
+
+      <footer className="ich-footer"><Link href="/activity?scope=inventory"><History size={15} />View Event Log</Link><span>Mockup values are never used as operational facts.</span></footer>
+    </section>
+  );
+}

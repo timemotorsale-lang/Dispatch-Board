@@ -35,6 +35,10 @@ function getBreadcrumb(pathname: string, dispatchView: "overview" | "live") {
   if (pathname.startsWith("/tasks")) return ["Command Control Center", "Dispatch", "Tasks"];
   if (pathname.startsWith("/projects")) return ["Command Control Center", "Dispatch", "Projects"];
   if (pathname.startsWith("/appointments")) return ["Command Control Center", "Dispatch", "Appointments"];
+  if (pathname === "/vehicles") return ["Command Control Center", "Inventory Console", "Home"];
+  if (pathname.startsWith("/vehicles/control-tower")) return ["Command Control Center", "Inventory Console", "Inventory Lifecycle", "Control Tower"];
+  if (pathname.startsWith("/vehicles/disposition-wholesale")) return ["Command Control Center", "Inventory Console", "Inventory Lifecycle", "Disposition & Wholesale"];
+  if (pathname.startsWith("/vehicles/workflows")) return ["Command Control Center", "Inventory Console", "Start Workflow"];
   if (pathname.startsWith("/vehicles")) return ["Command Control Center", "Inventory Console", pathname.startsWith("/vehicles/parts-operations") ? "Parts Operations" : "Vehicles"];
   if (pathname.startsWith("/customers")) return ["Command Control Center", "Dispatch", "Customers"];
   if (pathname.startsWith("/manager-review")) return ["Command Control Center", "Dispatch", "Manager Review"];
