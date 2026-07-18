@@ -173,6 +173,8 @@ IC-060 through IC-068 now have a bounded internal repository implementation docu
 
 **Exit gate:** Customer Repair and Inventory Recon end-to-end cases reconcile while remaining distinct.
 
+IC-070 through IC-079 now have a bounded repository implementation documented in [`R7_SHOP_RECON_IMPLEMENTATION.md`](R7_SHOP_RECON_IMPLEMENTATION.md). The approved landing projects the authoritative RepairOrder/RepairJob model, keeps Customer Repair and Inventory Recon distinct, reconciles every open order to one pipeline stage, and routes staff to established planning, dispatch/execution, Parts, QC, advisor, approvals, comeback, production, close, and Control Tower workspaces. External adapters, representative end-to-end and concurrency table tops, accessibility/mobile and production-volume validation, pilot sign-off, and production activation remain pending; therefore the M7 activation exit gate is not yet passed.
+
 ## 10. M8 — Parts Operations
 
 | ID | Slice | Acceptance |

@@ -1,0 +1,2 @@
+import { ProductionWorkspace } from "@/features/inventory/shop-completion-workspaces";import { requireCurrentUser } from "@/server/auth/current-user";import { getShopCompletionWorkspace } from "@/server/shop-completion/service";
+export default async function ShopMetricsPage(){const user=await requireCurrentUser(),initial=await getShopCompletionWorkspace(user);return <ProductionWorkspace initial={JSON.parse(JSON.stringify(initial))}/>;}

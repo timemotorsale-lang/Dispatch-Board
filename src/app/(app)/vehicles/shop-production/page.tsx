@@ -1,2 +1,2 @@
-import { ProductionWorkspace } from "@/features/inventory/shop-completion-workspaces";import { requireCurrentUser } from "@/server/auth/current-user";import { getShopCompletionWorkspace } from "@/server/shop-completion/service";
-export default async function ShopProductionPage(){const user=await requireCurrentUser(),initial=await getShopCompletionWorkspace(user);return <ProductionWorkspace initial={JSON.parse(JSON.stringify(initial))}/>;}
+import { ShopReconLanding } from "@/features/inventory/shop-recon-landing";import { requireCurrentUser } from "@/server/auth/current-user";import { getShopReconLanding } from "@/server/shop-completion/service";
+export default async function ShopProductionPage(){const user=await requireCurrentUser(),model=await getShopReconLanding(user);return <ShopReconLanding model={JSON.parse(JSON.stringify(model))}/>;}
