@@ -400,6 +400,28 @@ enum InventoryRetailCompletionOperatingState {
   CANCELLED
 }
 
+enum InventoryDispositionStage {
+  CANDIDATE_REVIEW
+  APPRAISAL
+  CHANNEL_PRICING
+  APPROVAL
+  ACTIVATION
+  OFFERS_BIDS
+  SALE_TRANSFER
+  SETTLEMENT
+  CLOSED
+}
+
+enum InventoryDispositionOperatingState {
+  ACTIVE
+  WAITING
+  BLOCKED
+  DEFERRED
+  DISMISSED
+  CANCELLED
+  CLOSED
+}
+
 enum InventoryReceiptStatus {
   PLANNED
   IN_TRANSIT
@@ -1207,6 +1229,8 @@ model User {
   inventoryFrontlineWorkflowEvents      InventoryFrontlineWorkflowEvent[]       @relation("InventoryFrontlineWorkflowEventActor")
   ownedInventoryRetailCompletions       InventoryRetailCompletion[]             @relation("InventoryRetailCompletionOwner")
   inventoryRetailCompletionEvents       InventoryRetailCompletionEvent[]        @relation("InventoryRetailCompletionEventActor")
+  ownedInventoryDispositionCases        InventoryDispositionCase[]              @relation("InventoryDispositionCaseOwner")
+  inventoryDispositionCaseEvents        InventoryDispositionCaseEvent[]         @relation("InventoryDispositionCaseEventActor")
   inventoryUnitStateEvents              InventoryUnitStateEvent[]              @relation("InventoryUnitStateActor")
   inventoryUnitStateOwnershipSnapshots  InventoryUnitStateEvent[]              @relation("InventoryUnitStateOwner")
   ownedRepairOrders                     RepairOrder[]                          @relation("RepairOrderOwner")
@@ -1377,6 +1401,8 @@ model Organization {
   inventoryFrontlineWorkflowEvents      InventoryFrontlineWorkflowEvent[]
   inventoryRetailCompletions            InventoryRetailCompletion[]
   inventoryRetailCompletionEvents       InventoryRetailCompletionEvent[]
+  inventoryDispositionCases             InventoryDispositionCase[]
+  inventoryDispositionCaseEvents        InventoryDispositionCaseEvent[]
   inventoryUnitStateEvents              InventoryUnitStateEvent[]
   inventoryAcquisitionAppraisals        InventoryAcquisitionAppraisal[]
   inventoryPurchaseAuthorizations       InventoryPurchaseAuthorization[]
@@ -1501,6 +1527,7 @@ model Location {
   inventoryAcquisitionCases       InventoryAcquisitionCase[]
   inventoryFrontlineWorkflows     InventoryFrontlineWorkflow[]
   inventoryRetailCompletions      InventoryRetailCompletion[]
+  inventoryDispositionCases       InventoryDispositionCase[]
   inventoryUnitStateEvents        InventoryUnitStateEvent[]
   serviceVisits                   ServiceVisit[]
   repairOrders                    RepairOrder[]
@@ -2098,6 +2125,7 @@ model InventoryUnit {
   acquisitionCase        InventoryAcquisitionCase?
   frontlineWorkflow      InventoryFrontlineWorkflow?
   retailCompletion       InventoryRetailCompletion?
+  dispositionCase       InventoryDispositionCase?
 
   @@unique([organizationId, inventoryNumber])
   @@unique([id, organizationId])
@@ -2105,6 +2133,70 @@ model InventoryUnit {
   @@index([organizationId, ownerUserId, targetAt])
   @@index([organizationId, locationId, lifecycleStage])
   @@index([vehicleId, closedAt])
+}
+
+model InventoryDispositionCase {
+  id                     String                              @id @default(cuid())
+  organizationId         String
+  inventoryUnitId        String                              @unique
+  locationId             String
+  ownerUserId            String
+  stage                  InventoryDispositionStage           @default(CANDIDATE_REVIEW)
+  operatingState         InventoryDispositionOperatingState  @default(ACTIVE)
+  reasonCodes            Json
+  candidateSnapshot      Json
+  appraisalVersions      Json
+  proposalVersions       Json
+  approvalSnapshot       Json
+  activationSnapshot     Json
+  offerVersions          Json
+  completionSnapshot     Json
+  settlementSnapshot     Json
+  recommendationSnapshot Json
+  exceptionSnapshot      Json
+  targetAt               DateTime
+  nextAction             String
+  stateReason            String?
+  deferredUntil          DateTime?
+  expiresAt              DateTime?
+  version                Int                                 @default(1)
+  closedAt               DateTime?
+  createdAt              DateTime                            @default(now())
+  updatedAt              DateTime                            @updatedAt
+  organization           Organization                        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  inventoryUnit          InventoryUnit                       @relation(fields: [inventoryUnitId], references: [id], onDelete: Restrict)
+  location               Location                            @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  ownerUser              User                                @relation("InventoryDispositionCaseOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  events                 InventoryDispositionCaseEvent[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId, stage, operatingState, targetAt])
+  @@index([organizationId, locationId, stage])
+  @@index([organizationId, ownerUserId, targetAt])
+}
+
+model InventoryDispositionCaseEvent {
+  id                String                              @id @default(cuid())
+  organizationId    String
+  dispositionCaseId String
+  version           Int
+  fromStage         InventoryDispositionStage?
+  toStage           InventoryDispositionStage
+  fromOperatingState InventoryDispositionOperatingState?
+  toOperatingState  InventoryDispositionOperatingState
+  commandType       String
+  snapshot          Json
+  actorUserId       String
+  reason            String
+  correlationId     String
+  occurredAt        DateTime                            @default(now())
+  organization      Organization                        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  dispositionCase   InventoryDispositionCase            @relation(fields: [dispositionCaseId], references: [id], onDelete: Restrict)
+  actorUser         User                                @relation("InventoryDispositionCaseEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@unique([dispositionCaseId, version])
+  @@index([organizationId, occurredAt])
+  @@index([actorUserId, occurredAt])
 }
 
 /// Pre-control acquisition aggregate. It cannot reference an InventoryUnit until an evidenced commitment is confirmed.
