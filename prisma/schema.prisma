@@ -322,6 +322,34 @@ enum InventoryPurchaseAuthorizationStatus {
   REVOKED
 }
 
+enum InventoryAcquisitionCaseStatus {
+  EVIDENCE_REQUIRED
+  READY_FOR_APPRAISAL
+  APPRAISAL_REVIEW
+  PROPOSAL_READY
+  AUTHORIZATION_PENDING
+  AUTHORIZED
+  OFFER_PENDING
+  COMMITMENT_ACCEPTED
+  INVENTORY_UNIT_CREATED
+  HANDOFF_READY
+  WATCH
+  DECLINED
+  INSUFFICIENT
+  REJECTED
+  EXPIRED
+  CANCELLED
+  REVERSAL_REVIEW
+  EXCEPTION
+}
+
+enum InventoryAcquisitionType {
+  PURCHASE
+  TRADE
+  CONSIGNMENT
+  TRANSFER
+}
+
 enum InventoryReceiptStatus {
   PLANNED
   IN_TRANSIT
@@ -1123,6 +1151,8 @@ model User {
   recordedVehicleCustodyEvents          VehicleCustodyEvent[]                  @relation("VehicleCustodyRecorder")
   resolvedVehicleDuplicateCases         VehicleDuplicateCase[]                 @relation("VehicleDuplicateResolver")
   ownedInventoryUnits                   InventoryUnit[]                        @relation("InventoryUnitOwner")
+  ownedInventoryAcquisitionCases        InventoryAcquisitionCase[]             @relation("InventoryAcquisitionCaseOwner")
+  inventoryAcquisitionCaseEvents        InventoryAcquisitionCaseEvent[]        @relation("InventoryAcquisitionCaseEventActor")
   inventoryUnitStateEvents              InventoryUnitStateEvent[]              @relation("InventoryUnitStateActor")
   inventoryUnitStateOwnershipSnapshots  InventoryUnitStateEvent[]              @relation("InventoryUnitStateOwner")
   ownedRepairOrders                     RepairOrder[]                          @relation("RepairOrderOwner")
@@ -1287,6 +1317,8 @@ model Organization {
   vehicleCustodyEvents                  VehicleCustodyEvent[]
   vehicleDuplicateCases                 VehicleDuplicateCase[]
   inventoryUnits                        InventoryUnit[]
+  inventoryAcquisitionCases             InventoryAcquisitionCase[]
+  inventoryAcquisitionCaseEvents        InventoryAcquisitionCaseEvent[]
   inventoryUnitStateEvents              InventoryUnitStateEvent[]
   inventoryAcquisitionAppraisals        InventoryAcquisitionAppraisal[]
   inventoryPurchaseAuthorizations       InventoryPurchaseAuthorization[]
@@ -1408,6 +1440,7 @@ model Location {
   enterpriseProjectionCheckpoints EnterpriseProjectionCheckpoint[]
   vehicleCustodyEvents            VehicleCustodyEvent[]
   inventoryUnits                  InventoryUnit[]
+  inventoryAcquisitionCases       InventoryAcquisitionCase[]
   inventoryUnitStateEvents        InventoryUnitStateEvent[]
   serviceVisits                   ServiceVisit[]
   repairOrders                    RepairOrder[]
@@ -1951,6 +1984,7 @@ model Vehicle {
   mergedVehicles            Vehicle[]                    @relation("VehicleMergeLineage")
   tasks                     Task[]
   inventoryUnits            InventoryUnit[]
+  inventoryAcquisitionCases InventoryAcquisitionCase[]
   serviceVisits             ServiceVisit[]
   repairOrders              RepairOrder[]
   evidenceLinks             VehicleEvidenceLink[]
@@ -2001,6 +2035,7 @@ model InventoryUnit {
   titleReadiness         InventoryTitleReadiness[]
   merchandisingPackage   InventoryMerchandisingPackage?
   saleEvents             InventorySaleEvent[]
+  acquisitionCase        InventoryAcquisitionCase?
 
   @@unique([organizationId, inventoryNumber])
   @@unique([id, organizationId])
@@ -2008,6 +2043,68 @@ model InventoryUnit {
   @@index([organizationId, ownerUserId, targetAt])
   @@index([organizationId, locationId, lifecycleStage])
   @@index([vehicleId, closedAt])
+}
+
+/// Pre-control acquisition aggregate. It cannot reference an InventoryUnit until an evidenced commitment is confirmed.
+model InventoryAcquisitionCase {
+  id                     String                         @id @default(cuid())
+  organizationId         String
+  locationId             String
+  vehicleId              String
+  ownerUserId            String
+  source                 String
+  sourceReference        String
+  acquisitionType        InventoryAcquisitionType
+  intendedUse            String
+  status                 InventoryAcquisitionCaseStatus @default(EVIDENCE_REQUIRED)
+  identitySnapshot       Json
+  evidenceSnapshot       Json
+  appraisalSnapshot      Json
+  recommendationSnapshot Json
+  authorizationSnapshot  Json
+  offerSnapshot          Json
+  commitmentSnapshot     Json
+  resolutionSnapshot     Json
+  inventoryUnitId        String?                        @unique
+  expiresAt              DateTime
+  version                Int                            @default(1)
+  createdAt              DateTime                       @default(now())
+  updatedAt              DateTime                       @updatedAt
+  organization           Organization                   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location               Location                       @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  vehicle                Vehicle                        @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  ownerUser              User                           @relation("InventoryAcquisitionCaseOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  inventoryUnit          InventoryUnit?                 @relation(fields: [inventoryUnitId], references: [id], onDelete: Restrict)
+  events                 InventoryAcquisitionCaseEvent[]
+
+  @@unique([organizationId, source, sourceReference])
+  @@index([organizationId, status, expiresAt])
+  @@index([organizationId, locationId, status])
+  @@index([vehicleId, status])
+  @@index([ownerUserId, status, expiresAt])
+}
+
+/// Immutable Acquisition Case state, decision, correction, and handoff evidence.
+model InventoryAcquisitionCaseEvent {
+  id             String                          @id @default(cuid())
+  organizationId String
+  acquisitionCaseId String
+  version        Int
+  fromStatus     InventoryAcquisitionCaseStatus?
+  toStatus       InventoryAcquisitionCaseStatus
+  commandType    String
+  snapshot       Json
+  actorUserId    String
+  reason         String
+  correlationId  String
+  occurredAt     DateTime                        @default(now())
+  organization   Organization                    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  acquisitionCase InventoryAcquisitionCase        @relation(fields: [acquisitionCaseId], references: [id], onDelete: Restrict)
+  actorUser       User                            @relation("InventoryAcquisitionCaseEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@unique([acquisitionCaseId, version])
+  @@index([organizationId, occurredAt])
+  @@index([correlationId])
 }
 
 /// Immutable financial observations supporting inventory exposure and gross-per-day reporting.

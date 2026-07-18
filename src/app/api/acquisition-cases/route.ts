@@ -1,0 +1,6 @@
+import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/server/auth/current-user";
+import { createAcquisitionCase, listAcquisitionCases } from "@/server/acquisition-appraisal/service";
+
+export async function GET(request: Request) { try { const url = new URL(request.url); return NextResponse.json(await listAcquisitionCases(await getCurrentUser(), { locationId: url.searchParams.get("locationId") })); } catch (error) { const message = error instanceof Error ? error.message : "Acquisition cases could not be loaded."; return NextResponse.json({ error: message }, { status: message === "Authentication required." ? 401 : message.startsWith("Vehicle capability required") ? 403 : 400 }); } }
+export async function POST(request: Request) { try { return NextResponse.json(await createAcquisitionCase(await getCurrentUser(), await request.json()), { status: 201 }); } catch (error) { const message = error instanceof Error ? error.message : "Acquisition opportunity could not be created."; return NextResponse.json({ error: message }, { status: message === "Authentication required." ? 401 : message.startsWith("Vehicle capability required") ? 403 : message.includes("not enabled") ? 409 : 400 }); } }
