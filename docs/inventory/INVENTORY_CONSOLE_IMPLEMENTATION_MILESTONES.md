@@ -56,6 +56,10 @@ The documentation-only R0 implementation package is indexed in [`r0-readiness/RE
 
 **Exit gate:** Foundation conformance suite passes across at least one InventoryUnit, RepairOrder, Parts, and approval command.
 
+### R1 conformance evidence — 2026-07-18
+
+A read-only repository assessment is recorded in [`r1-foundation-conformance/README.md`](r1-foundation-conformance/README.md). The existing foundations passed 62 targeted tests and schema validation, but IC-010 through IC-017 remain partial and application-code mutation remains blocked by the unresolved R0 authorization gate.
+
 ## 4. M2 — Shared console shell and Home
 
 | ID | Slice | Acceptance |
