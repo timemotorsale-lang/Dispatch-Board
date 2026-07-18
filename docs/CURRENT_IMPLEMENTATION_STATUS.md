@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-07-18 — Inventory Console R1 foundation conformance
+
+Inventory Console R1/M1 (`IC-010` through `IC-017`) is implemented for the bounded repository-development exit authorized by `R0-AUTH-001`. A deterministic conformance harness and fixed synthetic fixture verify canonical Vehicle/InventoryUnit identity and cycles, customer-repair separation, Parts quantity/custody, location/role/field/amount/four-eyes authority, idempotency and optimistic versions, correlated audit/event/outbox evidence, work deduplication and approvals, evidence security/retention/legal hold, effective policy and OFF/SHADOW rollout, ordered replayable projections, and migration/restore/replay/reconciliation gates across InventoryUnit, RepairOrder, Parts, and approval subjects.
+
+Verification passed Prisma schema validation, repository lint, TypeScript typecheck, and 18 focused test files/71 tests. No schema was changed or deployed, no production-like recovery drill or real integration was run, and no rollout, pilot, or production activation occurred. See [`docs/inventory/R1_FOUNDATION_IMPLEMENTATION.md`](inventory/R1_FOUNDATION_IMPLEMENTATION.md).
+
 ## 2026-07-16 — Shop and Recon Optimization approval-decisions workspace
 
 The documentation-only decision workspace is prepared under [`docs/shop-repair-optimization/approval-decisions/README.md`](shop-repair-optimization/approval-decisions/README.md). It provides the actual SRO AE-0 session record, exact authority-confirmation packet, and eight-workshop decision gate for `SRO-APR-001` through `079`, while reusing the single governing ledger, signature journal, missing-input register, tabletop suite and master authorization records from the approval-execution package.

@@ -60,7 +60,7 @@ The R0 package is indexed in [`r0-readiness/README.md`](r0-readiness/README.md).
 
 ### R1 conformance evidence — 2026-07-18
 
-A read-only repository assessment is recorded in [`r1-foundation-conformance/README.md`](r1-foundation-conformance/README.md). The existing foundations passed 62 targeted tests and schema validation, but IC-010 through IC-017 remain partial and require implementation under `R0-AUTH-001` before the M1 exit gate passes.
+A pre-implementation assessment is retained in [`r1-foundation-conformance/README.md`](r1-foundation-conformance/README.md). IC-010 through IC-017 are now implemented and verified for the bounded synthetic repository exit in [`R1_FOUNDATION_IMPLEMENTATION.md`](R1_FOUNDATION_IMPLEMENTATION.md): schema validation, lint, typecheck, and 18 focused test files/71 tests pass. Database deployment, production-like recovery evidence, external systems, pilot, and production activation remain unclaimed.
 
 ## 4. M2 — Shared console shell and Home
 
@@ -80,7 +80,7 @@ A read-only repository assessment is recorded in [`r1-foundation-conformance/REA
 
 ### R2 conformance evidence — 2026-07-18
 
-A read-only shell/Home assessment is recorded in [`r2-shell-home/README.md`](r2-shell-home/README.md). Existing navigation, search, review, event, KPI, saved-view, and Control Tower foundations passed 59 targeted tests, but IC-020 through IC-028 remain partial or unimplemented. R0 authorization is resolved; R2 remains dependency-blocked until R1 passes and then requires its own implementation and exit evidence.
+A read-only shell/Home assessment is recorded in [`r2-shell-home/README.md`](r2-shell-home/README.md). Existing navigation, search, review, event, KPI, saved-view, and Control Tower foundations passed 59 targeted tests, but IC-020 through IC-028 remain partial or unimplemented. R0 authorization and the bounded R1 repository exit now pass; R2 requires its dedicated implementation and exit evidence.
 
 ## 5. M3 — Inventory Lifecycle and Control Tower
 

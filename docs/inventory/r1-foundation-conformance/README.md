@@ -5,13 +5,15 @@
 **Assessment date:** 2026-07-18  
 **Branch:** `codex/inventory-console-r1-foundation-conformance`  
 **Mode:** Read-only conformance assessment and safe local verification  
-**Result:** `PARTIAL — R0 BLOCK REMOVED; R1 IMPLEMENTATION REQUIRED`
+**Result:** `SUPERSEDED BY VERIFIED R1 IMPLEMENTATION`
+
+> **Implementation update:** IC-010 through IC-017 are implemented and verified for the bounded synthetic repository exit in [`R1_FOUNDATION_IMPLEMENTATION.md`](../R1_FOUNDATION_IMPLEMENTATION.md). The assessment below is retained as pre-implementation gap evidence.
 
 ## Executive result
 
 The repository contains substantial reusable enterprise foundations. The canonical Vehicle Registry, InventoryUnit, RepairOrder, Parts ledger, enterprise command ledger, aggregate versioning, audit, domain event, transactional outbox, capability, rollout, projection checkpoint, evidence, policy, saved-view, review, and resilience building blocks are present and their focused tests pass.
 
-This does not complete R1. [`R0-AUTH-001`](../r0-readiness/R0_CODE_AUTHORIZATION_RESOLUTION.md) now authorizes bounded repository implementation, but IC-010 through IC-017 still require implementation and exit evidence. This assessment branch itself contains no application-code changes.
+This assessment did not complete R1 by itself. The later implementation closes its repository-level conformance gaps; deployment, real recovery drills, external integration, pilot, and production evidence remain later gates.
 
 ## Binding acceptance
 
