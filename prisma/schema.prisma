@@ -1134,6 +1134,48 @@ enum EnterpriseOutboxStatus {
   DEAD_LETTER
 }
 
+enum EnterpriseIntegrationDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum EnterpriseIntegrationEnvironment {
+  SANDBOX
+  PILOT
+  PRODUCTION
+}
+
+enum EnterpriseIntegrationExchangeState {
+  RECEIVED
+  VALIDATED
+  REQUESTED
+  PENDING_ACKNOWLEDGEMENT
+  ACKNOWLEDGED
+  REJECTED
+  FAILED_RETRYABLE
+  FAILED_FINAL
+  RECONCILIATION_REQUIRED
+  RECONCILED
+  CANCELLED
+}
+
+enum EnterpriseIntegrationConflictKind {
+  MISSING
+  DUPLICATE
+  MISMATCHED
+  STALE
+  REJECTED
+  OUT_OF_BALANCE
+}
+
+enum EnterpriseIntegrationConflictStatus {
+  OPEN
+  INVESTIGATING
+  RESOLVED
+  ACCEPTED_DIFFERENCE
+  CANCELLED
+}
+
 enum CapabilityEffect {
   ALLOW
   DENY
@@ -1489,6 +1531,8 @@ model Organization {
   vehicleControlledOutputs              VehicleControlledOutput[]
   vehicleControlledOutputEvents         VehicleControlledOutputEvent[]
   enterpriseProjectionCheckpoints       EnterpriseProjectionCheckpoint[]
+  enterpriseIntegrationExchanges        EnterpriseIntegrationExchange[]
+  enterpriseIntegrationConflicts        EnterpriseIntegrationConflict[]
 }
 
 model Location {
@@ -5295,6 +5339,77 @@ model EnterpriseProjectionCheckpoint {
 
   @@unique([organizationId, locationId, projectionCode])
   @@index([organizationId, lastFailureAt])
+}
+
+/// Provider-neutral inbound/outbound exchange ledger. Secrets and credentials are never stored here.
+model EnterpriseIntegrationExchange {
+  id                      String                               @id @default(cuid())
+  organizationId          String
+  systemCode              String
+  adapterVersion          String
+  mappingVersion          String
+  environment             EnterpriseIntegrationEnvironment    @default(SANDBOX)
+  direction               EnterpriseIntegrationDirection
+  resourceType            String
+  internalRecordId        String?
+  externalReference       String?
+  idempotencyKey          String
+  requestHash             String
+  correlationId           String
+  state                   EnterpriseIntegrationExchangeState
+  acknowledgementCode     String?
+  acknowledgementSnapshot Json
+  lineageSnapshot         Json
+  attemptCount            Int                                  @default(0)
+  maxAttempts             Int                                  @default(5)
+  nextAttemptAt           DateTime?
+  requestedAt             DateTime?
+  acknowledgedAt          DateTime?
+  lastErrorCode           String?
+  lastErrorMessage        String?
+  version                 Int                                  @default(1)
+  occurredAt              DateTime
+  createdAt               DateTime                             @default(now())
+  updatedAt               DateTime                             @updatedAt
+  organization            Organization                         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  conflicts               EnterpriseIntegrationConflict[]
+
+  @@unique([organizationId, systemCode, direction, idempotencyKey])
+  @@index([organizationId, systemCode, state, updatedAt])
+  @@index([organizationId, externalReference])
+  @@index([correlationId])
+}
+
+/// Owned reconciliation case; resolving it does not silently overwrite either side of the evidence.
+model EnterpriseIntegrationConflict {
+  id                String                              @id @default(cuid())
+  organizationId    String
+  exchangeId        String?
+  systemCode        String
+  kind              EnterpriseIntegrationConflictKind
+  status            EnterpriseIntegrationConflictStatus @default(OPEN)
+  entityType        String
+  entityId          String
+  externalReference String?
+  summary           String
+  internalSnapshot  Json
+  externalSnapshot  Json
+  ownerUserId       String?
+  resolutionCode    String?
+  resolutionNotes   String?
+  verifiedByUserId  String?
+  version           Int                                 @default(1)
+  detectedAt        DateTime                            @default(now())
+  resolvedAt        DateTime?
+  createdAt         DateTime                            @default(now())
+  updatedAt         DateTime                            @updatedAt
+  organization      Organization                        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  exchange          EnterpriseIntegrationExchange?      @relation(fields: [exchangeId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, detectedAt])
+  @@index([organizationId, systemCode, kind])
+  @@index([entityType, entityId])
+  @@index([exchangeId])
 }
 
 model CustomerServicePromise {

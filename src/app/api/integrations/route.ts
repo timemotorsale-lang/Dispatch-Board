@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/server/auth/current-user";
-import { assertAuthenticatedUser } from "@/server/policies/access";
-import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
-import { getIntegrationRegistry, ingestIntegrationRecords, listIntegrationConflicts, reconcileIntegrationConflicts } from "@/server/integrations";
-function failure(error: unknown) { const message = error instanceof Error ? error.message : "Integration request failed."; return NextResponse.json({ error: message }, { status: message === "Authentication required." ? 401 : 400 }); }
-export async function GET(request: Request) { try { const user = assertAuthenticatedUser(await getCurrentUser()); const url = new URL(request.url); return NextResponse.json({ registry: getIntegrationRegistry(), conflicts: listIntegrationConflicts({ organizationId: INITIAL_ORGANIZATION.id, system: (url.searchParams.get("system") as never) || undefined, status: (url.searchParams.get("status") as never) || undefined }), actorUserId: user.id }); } catch (error) { return failure(error); } }
-export async function POST(request: Request) { try { const user = assertAuthenticatedUser(await getCurrentUser()); const body = await request.json(); if (body.action === "RECONCILE") return NextResponse.json(reconcileIntegrationConflicts({ ...body, actorUserId: user.id, organizationId: INITIAL_ORGANIZATION.id })); return NextResponse.json(ingestIntegrationRecords({ ...body, organizationId: INITIAL_ORGANIZATION.id })); } catch (error) { return failure(error); } }
+import { EnterpriseCommandConflictError } from "@/server/enterprise-command/domain";
+import { executeR11IntegrationCommand, getR11IntegrationEcosystem } from "@/server/integrations/r11-service";
+
+function failure(error: unknown) { const message = error instanceof Error ? error.message : "Integration ecosystem request failed."; const status = message === "Authentication required." ? 401 : message.includes("manager privileges") ? 403 : error instanceof EnterpriseCommandConflictError ? 409 : 400; return NextResponse.json({ error: message }, { status }); }
+export async function GET() { try { return NextResponse.json(await getR11IntegrationEcosystem(await getCurrentUser())); } catch (error) { return failure(error); } }
+export async function POST(request: Request) { try { return NextResponse.json(await executeR11IntegrationCommand(await getCurrentUser(), await request.json().catch(() => null))); } catch (error) { return failure(error); } }
