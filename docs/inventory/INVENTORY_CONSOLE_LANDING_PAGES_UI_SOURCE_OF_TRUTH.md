@@ -58,6 +58,12 @@ The Home page is an attention, workflow-start, and routing surface. It must not 
 
 ![Approved Inventory Lifecycle landing page](assets/inventory-lifecycle-landing-page-source-of-truth.png)
 
+### 3.1 Control Tower navigation refinement — review image
+
+![Inventory Lifecycle landing page with explicit Control Tower navigation](assets/inventory-lifecycle-landing-page-control-tower-navigation-v2.png)
+
+The image above is the proposed visual refinement for final review. It adds a primary **Open Control Tower** action immediately before the existing **Open Disposition & Wholesale** action without changing the approved KPIs, pipeline, priority work, Reviews & Approvals, or summary panels. The prior approved image remains retained for change history until this revision receives explicit final visual approval.
+
 **Required destination:** the default page reached from the **Inventory Lifecycle** console navigation item.
 
 The implementation must preserve:
@@ -66,6 +72,7 @@ The implementation must preserve:
 - selected Inventory Lifecycle navigation state
 - Reviews and Approvals navigation with visible pending counts when available
 - compact filters and interactive KPI strip
+- a visible primary **Open Control Tower** command in the page header
 - a prominent **Open Disposition & Wholesale** command in the page header
 - lifecycle pipeline from acquisition through the final **Sold / Wholesale / Transferred** state
 - visible bottleneck identification
@@ -124,6 +131,7 @@ Parts Operations remains subordinate to Shop & Recon and must not be added as an
 | --- | --- |
 | Enter the Inventory Console or select **Home** | Approved Inventory Console Home landing page in section 2 |
 | Select **Inventory Lifecycle** | Approved Inventory Lifecycle landing page in section 3 |
+| Select **Open Control Tower** | Detailed Inventory Lifecycle Control Tower, preserving location, filters, saved view, operating cutoff, selected stage/record, and return context |
 | Select **Shop & Recon** | Approved Shop & Recon landing page in section 4 |
 | Select **Open Disposition & Wholesale** | Approved Disposition & Wholesale workspace in section 5, preserving location, filter, and return context |
 | Select **Open Parts Operations** | Approved Parts Operations workspace in section 6, preserving location, filter, and return context |
@@ -138,6 +146,8 @@ The application route names may follow the repository's routing conventions, but
 ## 8. Shared interaction contract
 
 - KPI cards filter or open the corresponding operational population; they are not static decoration.
+- **Open Control Tower** opens the detailed Inventory Lifecycle workspace and preserves the current permitted operating context.
+- The detailed Control Tower shows `Inventory Lifecycle > Control Tower` and a visible **Back to Inventory Lifecycle** action that restores the originating landing-page context.
 - `+ Start Workflow` exposes only commands permitted for the staff member, location, selected context, and current workflow state.
 - Every accepted workflow-start command creates traceable backend state and an auditable event.
 - System-triggered events appear in the appropriate workflow, notification, health, or event-history surface rather than as navigation tabs.

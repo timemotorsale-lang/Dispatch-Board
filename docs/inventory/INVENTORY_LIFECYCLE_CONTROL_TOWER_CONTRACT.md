@@ -58,7 +58,46 @@ Required components:
 - advisory disposition recommendations and **Open Disposition & Wholesale**;
 - Reviews & Approvals with permission-aware counts and exact-version actions;
 - lifecycle velocity, stage bottleneck, aging, exposure, disposition, sale/delivery, and data-health summaries;
+- a solid primary **Open Control Tower** action immediately before the secondary **Open Disposition & Wholesale** action;
 - View Event Log and role-aware **+ Start Workflow**.
+
+### Landing-to-Control-Tower transition
+
+The default connection is explicit and bidirectional:
+
+```text
+Inventory Console
+  → Inventory Lifecycle
+  → Inventory Lifecycle landing page
+  → Open Control Tower
+  → Detailed Inventory Lifecycle Control Tower
+  → Back to Inventory Lifecycle
+```
+
+**Open Control Tower** preserves:
+
+- organization and permitted location set;
+- active filters, sort/group choices, and saved-view identity/version;
+- business date, reporting period, and as-of cutoff;
+- selected KPI, lifecycle stage, exception, work item, review/approval, or InventoryUnit where applicable;
+- originating panel and scroll/focus return reference;
+- permission-safe return context.
+
+The deeper workspace shows the breadcrumb `Inventory Lifecycle > Control Tower` and a visible **Back to Inventory Lifecycle** action. Returning restores the originating landing-page state when it remains valid and permitted. If a saved view, filter, record, or permission changed, the landing page explains the adjustment instead of silently broadening scope or failing.
+
+Contextual entry points supplement the header action:
+
+| Landing-page action | Control Tower destination |
+| --- | --- |
+| Select **Open Control Tower** | Full detailed workspace under the current landing scope |
+| Open a KPI population | Matching KPI drill-through with metric version, period, filters, and cutoff preserved |
+| Open a lifecycle stage | Matching stage population and bottleneck context |
+| Open a priority work item | Corresponding population with the InventoryUnit selected in the command rail/drawer |
+| Open an exception | Exception population filtered by reason/severity with the source record selected |
+| Open a review or approval analysis | Matching contextual population; the global Review/Approval detail remains the decision surface |
+| Select **View full report/analysis** | Matching detailed analysis panel with landing context preserved |
+
+Pipeline and KPI interactions may continue to filter the landing page for quick triage. Actions that navigate deeper must be labeled explicitly; staff must not be surprised by an unannounced page transition.
 
 ### Deeper Control Tower workspace
 
@@ -416,7 +455,7 @@ For every projection and material interaction, define:
 
 ## 19. Planning decisions required
 
-- Approve the exact default landing-page KPI cards, pipeline stage grouping, lower panels, role-prioritized layouts, and deeper Control Tower entry point.
+- Approve the exact default landing-page KPI cards, pipeline stage grouping, lower panels, role-prioritized layouts, and the proposed **Open Control Tower** visual revision.
 - Approve stage-to-event mappings, primary/alternate/terminal classification, cross-lane dependency rules, and current-state conflict resolution.
 - Approve KPI versions, default windows, comparison periods, targets, quality grades, currency/cost basis, and drill-through privacy exceptions.
 - Approve filter dimensions, saved-view sharing/defaults, search identifiers, export controls, and return-context behavior.
