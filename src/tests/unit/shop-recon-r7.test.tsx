@@ -1,0 +1,82 @@
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it } from "vitest";
+import { ShopReconLanding } from "@/features/inventory/shop-recon-landing";
+import { buildShopReconProjection } from "@/server/shop-recon/projection";
+
+const now = new Date("2026-07-18T15:00:00.000Z");
+
+function order(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "ro-1",
+    repairOrderNumber: "RO-1001",
+    origin: "CUSTOMER_REPAIR",
+    stage: "INTAKE",
+    operatingState: "ACTIVE",
+    targetAt: "2026-07-19T15:00:00.000Z",
+    nextAction: "Complete intake",
+    stateReason: null,
+    ownerUser: { id: "owner-1", name: "Alex Advisor" },
+    location: { id: "location-1", name: "North Shop" },
+    vehicle: { vehicleNumber: "V-101", year: 2024, make: "Ford", model: "F-150" },
+    customer: { displayName: "Jordan Customer" },
+    inventoryUnit: null,
+    serviceVisit: { promisedAt: "2026-07-19T15:00:00.000Z", concernSummary: "Brake vibration" },
+    estimateVersions: [],
+    releaseAuthorization: null,
+    repairJobs: [],
+    ...overrides,
+  };
+}
+
+describe("R7 Shop & Recon landing projection", () => {
+  it("assigns every open order to exactly one pipeline stage", () => {
+    const orders = [
+      order(),
+      order({ id: "ro-2", stage: "READY_FOR_REPAIR", repairJobs: [{ id: "j-2", jobNumber: "2", description: "Ready", status: "READY_FOR_REPAIR", partDemands: [], dispatches: [] }] }),
+      order({ id: "ro-3", stage: "QUALITY_CONTROL", repairJobs: [{ id: "j-3", jobNumber: "3", description: "QC", status: "READY_FOR_QC", partDemands: [], dispatches: [] }] }),
+    ];
+    const model = buildShopReconProjection(orders, now);
+    expect(model.pipeline.reduce((sum, stage) => sum + stage.count, 0)).toBe(model.totals.openOrders);
+    expect(model.pipeline.find((stage) => stage.key === "QC")?.count).toBe(1);
+  });
+
+  it("keeps customer repair and inventory recon operationally distinct", () => {
+    const model = buildShopReconProjection([
+      order(),
+      order({ id: "ro-2", origin: "INVENTORY_RECON", customer: null, inventoryUnit: { inventoryNumber: "INV-200" } }),
+    ], now);
+    expect(model.totals).toMatchObject({ customerRepair: 1, inventoryRecon: 1, openOrders: 2 });
+  });
+
+  it("surfaces parts, assignment, promise, approval, and quality constraints", () => {
+    const model = buildShopReconProjection([order({
+      stage: "ESTIMATE",
+      targetAt: "2026-07-18T14:00:00.000Z",
+      estimateVersions: [{ status: "PRESENTED", authorizations: [] }],
+      repairJobs: [{
+        id: "job-1",
+        jobNumber: "1",
+        description: "Front brakes",
+        status: "READY_FOR_QC",
+        partDemands: [{ quantityRequired: 2, quantityReserved: 1 }],
+        dispatches: [],
+      }],
+    })], now);
+    expect(model.totals).toMatchObject({ waitingParts: 1, atRisk: 1 });
+    expect(model.approvals.estimate).toBe(1);
+    expect(model.reviews.quality).toBe(1);
+  });
+
+  it("renders the approved Parts command, reviews, handoffs, and capability truth", () => {
+    const projection = buildShopReconProjection([order()], now);
+    const html = renderToStaticMarkup(<ShopReconLanding model={{ ...projection, reviews: { ...projection.reviews, comebacks: 2 } }} />);
+    expect(html).toContain("Open Parts Operations");
+    expect(html).toContain("Customer Repair");
+    expect(html).toContain("Inventory Recon");
+    expect(html).toContain("Reviews &amp; approvals");
+    expect(html).toContain("Invoice-ready close");
+    expect(html).toContain("Inventory Control Tower");
+    expect(html).toContain("Automatic discipline: PROHIBITED");
+    expect(html).not.toContain("/vehicles/shop-execution");
+  });
+});
