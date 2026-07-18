@@ -76,6 +76,10 @@ A read-only repository assessment is recorded in [`r1-foundation-conformance/REA
 
 **Exit gate:** Home contains no representative data and routes every authorized staff journey correctly.
 
+### R2 conformance evidence — 2026-07-18
+
+A read-only shell/Home assessment is recorded in [`r2-shell-home/README.md`](r2-shell-home/README.md). Existing navigation, search, review, event, KPI, saved-view, and Control Tower foundations passed 59 targeted tests, but IC-020 through IC-028 remain partial or unimplemented. The current `/vehicles` route still exposes the older detailed Control Tower and representative values, while R2 code mutation remains blocked by unresolved R0 and R1 gates.
+
 ## 5. M3 — Inventory Lifecycle and Control Tower
 
 | ID | Slice | Acceptance |
