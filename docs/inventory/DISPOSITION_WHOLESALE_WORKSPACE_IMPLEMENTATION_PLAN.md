@@ -8,6 +8,7 @@
 **Planning branch:** `codex/disposition-wholesale-implementation-plan`  
 **Approved UX source:** [`DISPOSITION_WHOLESALE_WORKSPACE_UI_SOURCE_OF_TRUTH.md`](DISPOSITION_WHOLESALE_WORKSPACE_UI_SOURCE_OF_TRUTH.md)  
 **Enterprise algorithm baseline:** [`INVENTORY_OPTIMIZATION_ALGORITHMS.md`](INVENTORY_OPTIMIZATION_ALGORITHMS.md)
+**Phase 2 workflow and algorithm catalog:** [`DISPOSITION_WHOLESALE_WORKFLOW_AND_ALGORITHM_CATALOG.md`](DISPOSITION_WHOLESALE_WORKFLOW_AND_ALGORITHM_CATALOG.md)
 
 ## 1. Purpose
 
