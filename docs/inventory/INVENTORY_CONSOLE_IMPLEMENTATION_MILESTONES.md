@@ -211,6 +211,8 @@ IC-080 through IC-089 now have a bounded repository implementation documented in
 
 **Exit gate:** Activation, offer, release, sale/transfer, and settlement cannot be overstated; full exception/reconciliation cases pass.
 
+IC-090 through IC-099 now have a bounded repository implementation documented in [`R9_DISPOSITION_WHOLESALE_IMPLEMENTATION.md`](R9_DISPOSITION_WHOLESALE_IMPLEMENTATION.md). The approved seven-destination workspace composes a controlled InventoryDispositionCase with the canonical InventoryUnit, preserves eight business milestones, uses advisory candidate/channel recommendations, binds consequential decisions to exact versions and independent actors, and requires acknowledged external evidence before activation or settlement may be described as complete. Configurable authority policies, calibrated algorithms, live provider adapters, representative concurrency/reconciliation table tops, accessibility/performance evidence, migration deployment confirmation, pilot sign-off, and production activation remain pending; therefore the M9 activation exit gate is not yet passed.
+
 ## 12. M10 — Cross-console governance, reporting, and administration
 
 | ID | Slice | Acceptance |
