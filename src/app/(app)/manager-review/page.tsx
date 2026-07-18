@@ -1,6 +1,7 @@
 import type { ComponentProps } from "react";
 
 import { ManagerReviewScreen } from "@/features/manager-review/manager-review-screen";
+import { GovernanceDecisionWorkspace } from "@/features/inventory/governance-decision-workspace";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { canReviewWorkflows } from "@/server/policies/access";
 import {
@@ -10,11 +11,14 @@ import {
 } from "@/server/services/manager-review";
 import { listActiveUserSummaries } from "@/server/services/user-summary";
 import { getTeamExecutionHealth } from "@/server/services/team-execution-health";
+import { getInventoryGovernanceConsole } from "@/server/inventory-governance/service";
 
 type ManagerReviewPageProps = {
   searchParams?: Promise<{
     date?: string | string[];
     focus?: string | string[];
+    scope?: string | string[];
+    view?: string | string[];
   }>;
 };
 
@@ -41,6 +45,8 @@ export default async function ManagerReviewPage({ searchParams }: ManagerReviewP
     ? resolvedSearchParams?.date[0]
     : resolvedSearchParams?.date;
   const initialFocus = normalizeFocus(resolvedSearchParams?.focus);
+  const scope = Array.isArray(resolvedSearchParams?.scope) ? resolvedSearchParams.scope[0] : resolvedSearchParams?.scope;
+  const view = Array.isArray(resolvedSearchParams?.view) ? resolvedSearchParams.view[0] : resolvedSearchParams?.view;
 
   if (!canReviewWorkflows(user)) {
     return (
@@ -61,6 +67,10 @@ export default async function ManagerReviewPage({ searchParams }: ManagerReviewP
         </div>
       </section>
     );
+  }
+
+  if (view === "reviews" || view === "approvals" || scope === "inventory" || scope === "shop" || scope === "parts") {
+    return <GovernanceDecisionWorkspace model={await getInventoryGovernanceConsole(user)} scope={scope ?? "all"} view={view ?? "reviews"} />;
   }
 
   const screenProps: ComponentProps<typeof ManagerReviewScreen> = {

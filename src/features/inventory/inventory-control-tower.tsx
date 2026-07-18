@@ -5,8 +5,8 @@ const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "
 const formatCurrency = (cents: number) => currency.format(cents / 100);
 const formatDate = (date: Date | string) => new Date(date).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
 
-function UnavailablePanel({ title, reason, href, action }: { title: string; reason: string; href: string; action: string }) {
-  return <article className="ict-panel ict-unavailable"><span className="status-chip">Unavailable in R3</span><h2>{title}</h2><p>{reason}</p><Link className="text-link" href={href}>{action}</Link></article>;
+function ConnectedPanel({ title, reason, href, action }: { title: string; reason: string; href: string; action: string }) {
+  return <article className="ict-panel"><span className="status-chip">Connected workspace</span><h2>{title}</h2><p>{reason}</p><Link className="text-link" href={href}>{action}</Link></article>;
 }
 
 export function InventoryControlTower({ projection, backHref = "/vehicles/inventory" }: { projection: InventoryControlTowerProjection; backHref?: string }) {
@@ -50,10 +50,10 @@ export function InventoryControlTower({ projection, backHref = "/vehicles/invent
     <section className="ict-panel"><header><div><strong>Capital &amp; aging portfolio</strong><span>Recorded non-void cost entries only</span></div></header><div className="ict-aging-bars">{projection.agingBands.map((band) => <div key={band.key}><span>{band.label}</span><strong>{band.count} units</strong><small>{formatCurrency(band.exposureCents)}</small></div>)}</div></section>
 
     <div className="ict-r3-unavailable-grid">
-      <UnavailablePanel title="Shop / Recon dependencies" reason={projection.dependentSources.shopRecon.reason} href="/vehicles/shop-production" action="Open Shop & Recon" />
-      <UnavailablePanel title="Parts dependencies" reason={projection.dependentSources.parts.reason} href="/vehicles/parts-operations" action="Open Parts Operations" />
-      <UnavailablePanel title="Reviews & approvals" reason={projection.dependentSources.reviewsApprovals.reason} href="/manager-review?scope=inventory" action="Open Manager Review" />
-      <UnavailablePanel title="Disposition recommendations" reason={projection.dependentSources.recommendations.reason} href="/vehicles/disposition-wholesale" action="Open Disposition & Wholesale" />
+      <ConnectedPanel title="Shop / Recon dependencies" reason="R7 owns reconciled Shop and RepairOrder work; open it without duplicating state in the Control Tower." href="/vehicles/shop-recon" action="Open Shop & Recon" />
+      <ConnectedPanel title="Parts dependencies" reason="R8 owns Parts demand, purchasing, custody, recovery, and count evidence." href="/vehicles/parts-operations" action="Open Parts Operations" />
+      <ConnectedPanel title="Reviews & approvals" reason="R10 composes permission-scoped review and exact-version approval queues across owning domains." href="/manager-review?scope=inventory&view=reviews" action="Open Reviews" />
+      <ConnectedPanel title="Disposition recommendations" reason="R9 owns advisory candidate and channel recommendations; no recommendation executes a disposition." href="/vehicles/disposition-wholesale" action="Open Disposition & Wholesale" />
     </div>
   </section>;
 }

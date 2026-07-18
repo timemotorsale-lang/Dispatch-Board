@@ -57,17 +57,17 @@ describe("R3 Inventory Lifecycle UI", () => {
     expect(markup).toContain("Open Control Tower");
     expect(markup).toContain("Open Disposition &amp; Wholesale");
     expect(markup).toContain("+ Start Workflow");
-    expect(markup).toContain("No placeholder recommendation is shown.");
+    expect(markup).toContain("R9 disposition recommendations are advisory, explained, and non-executing.");
   });
 
-  it("renders live control-tower facts and truthful unavailable dependencies", () => {
+  it("renders live control-tower facts and connected downstream workspaces", () => {
     const markup = renderToStaticMarkup(<InventoryControlTower projection={projection} backHref="/vehicles/inventory?view=attention" />);
     expect(markup).toContain("Inventory Lifecycle Control Tower");
     expect(markup).toContain("Back to Inventory Lifecycle");
     expect(markup).toContain("INV-100");
     expect(markup).toContain("Resolve brake-parts constraint");
-    expect(markup).toContain("Unavailable in R3");
-    expect(markup).toContain("no reconciled RepairOrder dependency projection");
+    expect(markup).toContain("Connected workspace");
+    expect(markup).toContain("R10 composes permission-scoped review and exact-version approval queues");
     expect(markup).not.toContain("2019 Toyota Camry SE");
     expect(markup).not.toContain("High confidence");
   });
