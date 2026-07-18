@@ -249,6 +249,8 @@ IC-100 through IC-109 now have a bounded repository implementation documented in
 
 **Exit gate:** Only adapter workflows with approved sandbox/pilot reconciliation may be labeled live.
 
+IC-110 through IC-119 now have a bounded repository and sandbox-harness implementation documented in [`R11_INTEGRATION_ECOSYSTEM_IMPLEMENTATION.md`](R11_INTEGRATION_ECOSYSTEM_IMPLEMENTATION.md). Eight provider boundaries have explicit registry and source-authority contracts; inbound/outbound exchanges, acknowledgements, retry evidence, conflicts and independent reconciliation are durable; sensitive credential/card fields are prohibited; and the partner boundary enforces scopes, pagination, rate, idempotency, HTTPS webhook and version contracts. Actual providers, credential vault/network configuration, signed webhook verification, provider-specific sandbox round trips, pilot reconciliation, migration deployment confirmation and production activation remain pending; therefore the M11 activation exit gate is not yet passed and every adapter remains sandbox-only.
+
 ## 14. M12 — Enterprise readiness and pilot
 
 | ID | Slice | Acceptance |

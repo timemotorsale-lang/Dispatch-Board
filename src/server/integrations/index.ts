@@ -2,3 +2,6 @@ export * from "./domain";
 export * from "./service";
 export * from "./integration-platform";
 export * from "./partner-api";
+export * from "./r11-catalog";
+export * from "./r11-domain";
+export * from "./r11-service";
