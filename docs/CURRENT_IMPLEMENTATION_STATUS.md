@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-07-18 — Inventory Console gap closure Wave 1 shared foundations
+
+IC-023 and IC-025 are now repository-complete. Inventory Console Home has Console-owned personal/team saved views with safe filter recovery and permission re-evaluation, plus authoritative Shop, Parts, 24-hour throughput, and provider-neutral integration-health facts. Universal discovery now includes owner-scoped governed work items, and Home exposes My Work, Team, and Exceptions views; IC-022 and IC-026 remain partial for return-context and cross-domain priority composition. The automated 121-slice ledger now reports 46 complete and 54 partial slices, with all external-evidence and decision gates unchanged. See [`docs/inventory/INVENTORY_CONSOLE_GAP_CLOSURE_WAVE_1_SHARED_FOUNDATIONS.md`](inventory/INVENTORY_CONSOLE_GAP_CLOSURE_WAVE_1_SHARED_FOUNDATIONS.md).
+
+The saved-view migration is source-controlled only. No migration was applied, no provider was contacted, and no rollout, pilot, commit, push, or merge was performed.
+
 ## 2026-07-18 — Inventory Console R2 shell and Home
 
 Inventory Console R2/M2 (`IC-020` through `IC-028`) is implemented for the bounded repository exit. `/vehicles` is now the enterprise Home with exactly seven primary destinations, authoritative InventoryUnit scope/KPIs/stages/priority work, permission-scoped decision routing, versioned system URL views, search and Event Log access, and explicit live/stale/unavailable states. The older detailed Control Tower moved to `/vehicles/control-tower`; `/vehicles/workflows` provides the phase-one role/context-aware catalog; and `/vehicles/disposition-wholesale` is an honest rollout-disabled destination rather than a broken link or false activation.

@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 
-type SearchType = "VEHICLE" | "CUSTOMER" | "REPAIR_ORDER" | "REPAIR_JOB" | "APPOINTMENT" | "PART" | "PURCHASE_ORDER" | "DOCUMENT";
+type SearchType = "VEHICLE" | "CUSTOMER" | "REPAIR_ORDER" | "REPAIR_JOB" | "APPOINTMENT" | "PART" | "PURCHASE_ORDER" | "DOCUMENT" | "WORK_ITEM";
 type SearchResult = { id: string; type: SearchType; label: string; detail: string; status: string | null; href: string; matchedFields: string[]; score: number };
 type Procedure = { id: string; workTypeCode: string; version: number; status: string; title: string; effectiveFrom: string; effectiveTo: string | null };
 type KnowledgeLink = { id: string; workTypeCode: string; procedureVersionId: string | null; type: string; status: string; title: string; uri: string; sourceOrganization: string; sourceReference: string; revision: string; contentHashSha256: string; authority: string; effectiveFrom: string; effectiveTo: string | null; supersedesId: string | null; version: number; createdAt: string; createdByUser: { id: string; name: string }; approvedByUser: { id: string; name: string } | null; events: Array<{ id: string; eventType: string; reason: string; occurredAt: string }> };
 type Knowledge = { procedures: Procedure[]; links: KnowledgeLink[]; effectiveApprovedLinks: KnowledgeLink[] };
-const allTypes: SearchType[] = ["VEHICLE", "CUSTOMER", "REPAIR_ORDER", "REPAIR_JOB", "APPOINTMENT", "PART", "PURCHASE_ORDER", "DOCUMENT"];
+const allTypes: SearchType[] = ["VEHICLE", "CUSTOMER", "REPAIR_ORDER", "REPAIR_JOB", "APPOINTMENT", "PART", "PURCHASE_ORDER", "DOCUMENT", "WORK_ITEM"];
 const show = (value: string) => value.replaceAll("_", " ");
 
 export function VehicleDiscoveryWorkspace({ initialKnowledge }: { initialKnowledge: Knowledge }) {

@@ -5,12 +5,16 @@ import { InventoryConsoleHome, type InventoryHomeData } from "@/features/invento
 import { WorkflowLauncher } from "@/features/inventory/workflow-launcher";
 
 const data: InventoryHomeData = {
+  activeSavedViewId: null,
   byLocation: [{ count: 2, locationId: "loc-001", name: "Minneapolis" }],
   byStage: [{ count: 2, label: "Inspection", stage: "INSPECTION" }],
+  canShareSavedViews: true,
   error: null,
   freshness: "LIVE",
   generatedAt: "2026-07-18T12:00:00.000Z",
   locationId: null,
+  operational: { shop: { active: 4, blocked: 1 }, parts: { waitingDemands: 3, unreservedUnits: 5 }, throughput: { inventoryTransitions: 7, repairOrdersClosed: 2, windowHours: 24 }, integration: { exchanges: 9, exceptions: 0, status: "HEALTHY", latestAt: "2026-07-18T12:00:00.000Z" } },
+  savedViews: [],
   savedView: "ALL",
   savedViewNotice: null,
   priorityWork: [{ ageDays: 5, id: "unit-001", inventoryNumber: "TMS-001", issue: "Complete inspection", owner: "Inventory Owner", overdue: true, state: "ACTIVE", vehicle: "2020 Honda Accord" }],
@@ -35,17 +39,17 @@ describe("Inventory Console R2 Home", () => {
     expect(markup).not.toContain("Purchase Orders</a>");
   });
 
-  it("labels disconnected Shop, Parts, throughput, and adapter facts honestly", () => {
+  it("renders connected Shop, Parts, throughput, and integration facts", () => {
     const markup = renderToStaticMarkup(<InventoryConsoleHome data={data} />);
-    expect(markup).toContain("Shop projection not connected to Home");
-    expect(markup).toContain("Parts readiness projection not connected");
-    expect(markup).toContain("No governed cross-domain throughput fact is connected");
-    expect(markup).toContain("External adapters");
-    expect(markup).toContain("Disabled");
+    expect(markup).toContain("4");
+    expect(markup).toContain("3");
+    expect(markup).toContain("Last 24 Hours");
+    expect(markup).toContain("Provider-neutral exchanges");
+    expect(markup).toContain("HEALTHY");
   });
 
   it("renders explicit unavailable state without representative values", () => {
-    const markup = renderToStaticMarkup(<InventoryConsoleHome data={{ ...data, byLocation: [], byStage: [], freshness: "UNAVAILABLE", generatedAt: null, error: "Projection offline", priorityWork: [], reviews: { approvals: 0, reviews: 0, available: false }, totals: { active: 0, blocked: 0, exposureCents: 0, overdue: 0, waiting: 0 } }} />);
+    const markup = renderToStaticMarkup(<InventoryConsoleHome data={{ ...data, byLocation: [], byStage: [], freshness: "UNAVAILABLE", generatedAt: null, error: "Projection offline", operational: null, priorityWork: [], reviews: { approvals: 0, reviews: 0, available: false }, totals: { active: 0, blocked: 0, exposureCents: 0, overdue: 0, waiting: 0 } }} />);
     expect(markup).toContain("Unavailable");
     expect(markup).toContain("Projection offline");
     expect(markup).toContain("Your current role cannot view enterprise decision counts");

@@ -1159,6 +1159,11 @@ enum EnterpriseIntegrationExchangeState {
   CANCELLED
 }
 
+enum InventoryConsoleSavedViewVisibility {
+  PERSONAL
+  TEAM
+}
+
 enum EnterpriseIntegrationConflictKind {
   MISSING
   DUPLICATE
@@ -1263,6 +1268,7 @@ model User {
   appointmentAutomationRuleChangeEvents AppointmentAutomationRuleChangeEvent[] @relation("AppointmentAutomationRuleChangeEventActorUser")
   appointmentAutomationExecutionEvents  AppointmentAutomationExecutionEvent[]  @relation("AppointmentAutomationExecutionEventActorUser")
   createdTaskSavedViews                 TaskSavedView[]                        @relation("TaskSavedViewCreatedByUser")
+  createdInventoryConsoleSavedViews     InventoryConsoleSavedView[]            @relation("InventoryConsoleSavedViewCreatedByUser")
   reportedConcerns                      ConcernCase[]                          @relation("ConcernReportedByUser")
   ownedConcerns                         ConcernCase[]                          @relation("ConcernAssignedOwner")
   closedConcerns                        ConcernCase[]                          @relation("ConcernClosedByUser")
@@ -1563,6 +1569,7 @@ model Organization {
   inventoryConsolePilots                InventoryConsolePilot[]
   inventoryConsoleReadinessEvidence     InventoryConsoleReadinessEvidence[]
   inventoryConsoleSignoffs              InventoryConsoleSignoff[]
+  inventoryConsoleSavedViews            InventoryConsoleSavedView[]
 }
 
 model Location {
@@ -4925,6 +4932,26 @@ model TaskSavedView {
 
   @@index([createdAt])
   @@index([createdByUserId])
+}
+
+/// Durable, permission-neutral Inventory Console navigation filters. Applying a view
+/// never grants access; the destination projection re-authorizes its stored scope.
+model InventoryConsoleSavedView {
+  id              String                              @id @default(cuid())
+  organizationId  String
+  createdByUserId String
+  name            String
+  visibility      InventoryConsoleSavedViewVisibility @default(PERSONAL)
+  config          Json
+  version         Int                                 @default(1)
+  createdAt       DateTime                            @default(now())
+  updatedAt       DateTime                            @updatedAt
+  organization    Organization                        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdByUser   User                                @relation("InventoryConsoleSavedViewCreatedByUser", fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, createdByUserId, name])
+  @@index([organizationId, visibility, updatedAt])
+  @@index([createdByUserId, updatedAt])
 }
 
 model Task {

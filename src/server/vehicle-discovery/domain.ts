@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-export const OPERATIONAL_SEARCH_TYPES = ["VEHICLE", "CUSTOMER", "REPAIR_ORDER", "REPAIR_JOB", "APPOINTMENT", "PART", "PURCHASE_ORDER", "DOCUMENT"] as const;
+export const OPERATIONAL_SEARCH_TYPES = ["VEHICLE", "CUSTOMER", "REPAIR_ORDER", "REPAIR_JOB", "APPOINTMENT", "PART", "PURCHASE_ORDER", "DOCUMENT", "WORK_ITEM"] as const;
 export type OperationalSearchType = (typeof OPERATIONAL_SEARCH_TYPES)[number];
 export type OperationalSearchResult = { id: string; type: OperationalSearchType; label: string; detail: string; status: string | null; href: string; matchedFields: string[]; score: number };
 
@@ -24,7 +24,7 @@ export function scoreOperationalSearchResult(query: string, fields: Record<strin
   for (const [field, raw] of Object.entries(fields)) {
     const value = raw?.trim().toLowerCase(); if (!value || !value.includes(needle)) continue;
     matchedFields.push(field); score += value === needle ? 100 : value.startsWith(needle) ? 60 : 25;
-    if (["vin", "stockNumber", "vehicleNumber", "customerNumber", "repairOrderNumber", "jobNumber", "appointmentNumber", "partNumber", "purchaseOrderNumber"].includes(field)) score += 20;
+    if (["vin", "stockNumber", "vehicleNumber", "customerNumber", "repairOrderNumber", "jobNumber", "appointmentNumber", "partNumber", "purchaseOrderNumber", "taskId"].includes(field)) score += 20;
   }
   return { matchedFields, score };
 }

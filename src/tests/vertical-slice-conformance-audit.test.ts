@@ -13,13 +13,16 @@ describe("Inventory Console 121-slice conformance audit", () => {
     expect(report.disposition).toBe("AUDITED");
     expect(report.completionClaim).toBe("REPOSITORY_ONLY");
     expect(report.rows).toHaveLength(121);
-    expect(report.counts).toEqual({ COMPLETE: 44, PARTIAL: 56, NOT_STARTED: 0, EXTERNAL_EVIDENCE_REQUIRED: 17, BLOCKED_BY_DECISION: 4 });
+    expect(report.counts).toEqual({ COMPLETE: 46, PARTIAL: 54, NOT_STARTED: 0, EXTERNAL_EVIDENCE_REQUIRED: 17, BLOCKED_BY_DECISION: 4 });
     expect(report.rows.every((row) => row.evidenceReferences.length === 2 && row.remainingGap.length > 20 && row.nextAction.length > 20)).toBe(true);
   });
 
   it("preserves representative repository, external, and decision classifications", () => {
     const report = auditInventoryConsoleVerticalSlices(milestones(), new Set(walk(root))), byId = new Map(report.rows.map((row) => [row.id, row]));
     expect(byId.get("IC-012")?.status).toBe("COMPLETE");
+    expect(byId.get("IC-023")?.status).toBe("COMPLETE");
+    expect(byId.get("IC-025")?.status).toBe("COMPLETE");
+    expect(byId.get("IC-026")?.status).toBe("PARTIAL");
     expect(byId.get("IC-032")?.status).toBe("PARTIAL");
     expect(byId.get("IC-113")?.status).toBe("EXTERNAL_EVIDENCE_REQUIRED");
     expect(byId.get("IC-110")?.status).toBe("BLOCKED_BY_DECISION");

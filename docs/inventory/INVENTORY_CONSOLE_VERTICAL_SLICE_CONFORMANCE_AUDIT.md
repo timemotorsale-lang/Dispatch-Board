@@ -10,8 +10,8 @@
 
 | Classification | Count | Meaning |
 | --- | ---: | --- |
-| `COMPLETE` | 44 | The slice's repository acceptance is demonstrated by its owning implementation and tests. Deployment, operational validation, pilot, and activation are not implied. |
-| `PARTIAL` | 56 | A real implementation/control boundary exists, but one or more named acceptance behaviors remain unfinished or unverified. |
+| `COMPLETE` | 46 | The slice's repository acceptance is demonstrated by its owning implementation and tests. Deployment, operational validation, pilot, and activation are not implied. |
+| `PARTIAL` | 54 | A real implementation/control boundary exists, but one or more named acceptance behaviors remain unfinished or unverified. |
 | `NOT_STARTED` | 0 | No slice lacks all planning, control, or implementation evidence. This does not convert partial work into completion. |
 | `EXTERNAL_EVIDENCE_REQUIRED` | 17 | Completion requires a real provider, environment, recovery, accessibility, performance, migration, pilot, or expansion exercise that repository code cannot manufacture. |
 | `BLOCKED_BY_DECISION` | 4 | A named owner, source-authority, target, pilot, or release decision is missing and must be approved before dependent activation. |
@@ -40,9 +40,9 @@ The manager-facing classification is available at `/administration/program-valid
 
 ## 3. Repository-complete slices
 
-The 44 repository-complete slices are:
+The 46 repository-complete slices are:
 
-`IC-001`, `IC-010`–`IC-013`, `IC-016`, `IC-021`, `IC-030`, `IC-033`, `IC-038`–`IC-044`, `IC-046`, `IC-070`–`IC-073`, `IC-075`–`IC-077`, `IC-080`–`IC-082`, `IC-084`–`IC-088`, `IC-090`–`IC-093`, `IC-095`, `IC-100`–`IC-102`, `IC-105`, `IC-107`, `IC-112`, and `IC-118`.
+`IC-001`, `IC-010`–`IC-013`, `IC-016`, `IC-021`, `IC-023`, `IC-025`, `IC-030`, `IC-033`, `IC-038`–`IC-044`, `IC-046`, `IC-070`–`IC-073`, `IC-075`–`IC-077`, `IC-080`–`IC-082`, `IC-084`–`IC-088`, `IC-090`–`IC-093`, `IC-095`, `IC-100`–`IC-102`, `IC-105`, `IC-107`, `IC-112`, and `IC-118`.
 
 These remain subject to regression protection and any later operational evidence applicable to their release. They must not be reopened merely to inflate a gap-closure branch.
 
@@ -70,7 +70,7 @@ Repository fixtures may prepare these exercises but cannot mark them complete.
 
 ## 6. Partial-slice gap themes
 
-The 56 partial slices fall into five dependency-ordered themes:
+The 54 partial slices fall into five dependency-ordered themes:
 
 1. shared evidence, policy, saved-view, search, launcher, Home, and honest-state completeness;
 2. Lifecycle cross-lane joins, event-history statistics, capital detail, decisions, selected-asset joins, and integration health;

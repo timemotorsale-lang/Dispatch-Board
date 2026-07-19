@@ -4,7 +4,7 @@ import { normalizeEnterpriseCommand } from "@/server/enterprise-command/domain";
 import { createEnterpriseCommandRepository, type EnterpriseCommandRepository } from "@/server/enterprise-command/repository";
 import { evaluateVehicleOperationsFeature } from "@/server/enterprise-command/service";
 import { assertVehicleCapability, evaluateVehicleCapability, type VehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
-import { assertAuthenticatedUser } from "@/server/policies/access";
+import { assertAuthenticatedUser, isManager } from "@/server/policies/access";
 import { getVehicle360 } from "@/server/vehicle-360/service";
 import { buildControlledVehiclePackage, normalizeControlledOutput, normalizeKnowledgeApproval, normalizeKnowledgeDraft, normalizeOperationalSearch, renderControlledPrint, stableControlledId, type OperationalSearchType } from "./domain";
 import { createVehicleDiscoveryRepository, type VehicleDiscoveryRepository } from "./repository";
@@ -26,10 +26,10 @@ function command(input: { actorUserId: string; commandType: string; domain: stri
 export async function searchVehicleOperations(actor: AuthenticatedUser | null, query: { limit?: unknown; query?: unknown; types?: unknown }, input: Dependencies = {}) {
   const context = deps(input), normalized = normalizeOperationalSearch(query), { grants, user } = await authorize(actor, "VEHICLE_DISCOVERY_VIEW", context);
   const allowed = (capability: VehicleCapability) => evaluateVehicleCapability({ actor: user, capability, grants, locationId: null, now: context.now() }).allowed;
-  const capabilityByType: Record<OperationalSearchType, VehicleCapability> = { VEHICLE: "VEHICLE_OPERATIONS_VIEW", CUSTOMER: "VEHICLE_OPERATIONS_VIEW", REPAIR_ORDER: "REPAIR_ORDER_VIEW", REPAIR_JOB: "REPAIR_ORDER_VIEW", APPOINTMENT: "VEHICLE_OPERATIONS_VIEW", PART: "PARTS_VIEW", PURCHASE_ORDER: "PARTS_VIEW", DOCUMENT: "VEHICLE_EVIDENCE_VIEW" };
+  const capabilityByType: Record<OperationalSearchType, VehicleCapability> = { VEHICLE: "VEHICLE_OPERATIONS_VIEW", CUSTOMER: "VEHICLE_OPERATIONS_VIEW", REPAIR_ORDER: "REPAIR_ORDER_VIEW", REPAIR_JOB: "REPAIR_ORDER_VIEW", APPOINTMENT: "VEHICLE_OPERATIONS_VIEW", PART: "PARTS_VIEW", PURCHASE_ORDER: "PARTS_VIEW", DOCUMENT: "VEHICLE_EVIDENCE_VIEW", WORK_ITEM: "VEHICLE_OPERATIONS_VIEW" };
   const types = normalized.types.filter((type) => allowed(capabilityByType[type]));
   if (!types.length) return { query: normalized.query, results: [], searchedTypes: [], restrictedTypes: normalized.types };
-  const result = await context.repository.search(context.organizationId, normalized.query, types, normalized.limit, allowed("VEHICLE_EVIDENCE_RESTRICTED_VIEW"));
+  const result = await context.repository.search(context.organizationId, normalized.query, types, normalized.limit, allowed("VEHICLE_EVIDENCE_RESTRICTED_VIEW"), { actorUserId: user.id, canViewTeam: isManager(user) });
   return { ...result, restrictedTypes: normalized.types.filter((type) => !types.includes(type)) };
 }
 
