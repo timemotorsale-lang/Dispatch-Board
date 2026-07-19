@@ -50,6 +50,9 @@ export function evaluateVehicleCapability(input: {
   grants?: VehicleCapabilityGrantRecord[];
   locationId: string | null;
   amountCents?: number | null;
+  cumulativeRelatedAmountCents?: number | null;
+  priorActorUserId?: string | null;
+  requestedFields?: string[];
   resourceOwnerUserId?: string | null;
   now?: Date;
 }) {
@@ -60,6 +63,10 @@ export function evaluateVehicleCapability(input: {
     const constraints = grant.constraints && typeof grant.constraints === "object" && !Array.isArray(grant.constraints) ? grant.constraints as Record<string, unknown> : {};
     if (constraints.ownResourcesOnly === true && input.resourceOwnerUserId !== input.actor?.id) return false;
     if (typeof constraints.maxAmountCents === "number" && typeof input.amountCents === "number" && input.amountCents > constraints.maxAmountCents) return false;
+    if (typeof constraints.maxCumulativeAmountCents === "number" && typeof input.cumulativeRelatedAmountCents === "number" && input.cumulativeRelatedAmountCents > constraints.maxCumulativeAmountCents) return false;
+    if (constraints.requiresIndependentApproval === true && input.priorActorUserId === input.actor?.id) return false;
+    const fieldAllowlist = Array.isArray(constraints.fieldAllowlist) ? constraints.fieldAllowlist.filter((field): field is string => typeof field === "string") : [];
+    if (fieldAllowlist.length && input.requestedFields?.some(field => !fieldAllowlist.includes(field))) return false;
     return true;
   });
   if (matching.some((grant) => grant.effect === "DENY")) return { allowed: false, reason: "EXPLICIT_DENY" } as const;

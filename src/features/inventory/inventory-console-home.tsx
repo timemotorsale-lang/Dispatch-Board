@@ -3,6 +3,7 @@ import Link from "next/link";
 import { InventoryConsoleSavedViews } from "./inventory-console-saved-views";
 import type { InventoryConsoleSavedViewModel, InventoryConsoleWorkView } from "@/server/inventory-console-saved-views";
 import type { InventoryConsoleOperationalFacts } from "@/server/inventory-console-home";
+import type { InventoryPriorityWorkItem } from "@/server/inventory-console-home/priority-work";
 
 export type InventoryHomeData = {
   byLocation: Array<{ count: number; locationId: string; name: string }>;
@@ -17,7 +18,7 @@ export type InventoryHomeData = {
   savedView: InventoryConsoleWorkView;
   savedViewNotice: string | null;
   operational: InventoryConsoleOperationalFacts | null;
-  priorityWork: Array<{ ageDays: number; id: string; inventoryNumber: string; issue: string; owner: string; overdue: boolean; state: string; vehicle: string }>;
+  priorityWork: InventoryPriorityWorkItem[];
   reviews: { approvals: number; reviews: number; available: boolean };
   totals: { active: number; blocked: number; exposureCents: number; overdue: number; waiting: number };
 };
@@ -68,8 +69,8 @@ export function InventoryConsoleHome({ data }: { data: InventoryHomeData }) {
       </section>
 
       <div className="ich-work-grid">
-        <section className="ich-panel"><header><div><strong>Priority Work</strong><span>Exceptions ranked by current authoritative inventory state.</span></div><Link href="/vehicles/inventory?view=exceptions">View all</Link></header>
-          {data.priorityWork.length ? <ol className="ich-priority-list">{data.priorityWork.slice(0, 6).map((item) => <li key={item.id}><span className={item.state === "BLOCKED" ? "critical" : item.overdue ? "warning" : "neutral"}>{item.state === "BLOCKED" ? "Critical" : item.overdue ? "Overdue" : "Waiting"}</span><div><strong>{item.inventoryNumber} · {item.vehicle}</strong><small>{item.issue}</small></div><div><span>{item.owner}</span><small>{item.ageDays} days in lifecycle</small></div><Link href={`/vehicles/inventory?id=${encodeURIComponent(item.id)}`}>Open</Link></li>)}</ol> : <div className="ich-empty"><CheckCircle2 size={20} /><span>No blocked, overdue, or waiting inventory records in this scope.</span></div>}
+        <section className="ich-panel"><header><div><strong>Priority Work · {data.savedView}</strong><span>Deduplicated My Work, Team, and exception tiers from authoritative inventory state.</span></div><Link href="/vehicles?view=ALL">View all</Link></header>
+          {data.priorityWork.length ? <ol className="ich-priority-list">{data.priorityWork.slice(0, 6).map((item) => <li key={item.id}><span className={item.tier === "P0" ? "critical" : item.tier === "P1" ? "warning" : "neutral"}>{item.tier} · {item.reasonCode}</span><div><strong>{item.inventoryNumber} · {item.vehicle}</strong><small>{item.issue} · Next: {item.nextAction}</small></div><div><span>{item.owner} · {item.queue}</span><small>Due {new Date(item.dueAt).toLocaleString()} · {item.ageDays} lifecycle days{item.escalated ? " · ESCALATED" : ""}</small></div><Link href={`/vehicles/inventory?id=${encodeURIComponent(item.id)}&returnTo=${encodeURIComponent(`/vehicles?view=${data.savedView}`)}`}>Open</Link></li>)}</ol> : <div className="ich-empty"><CheckCircle2 size={20} /><span>No blocked, overdue, or waiting inventory records in this view.</span></div>}
         </section>
 
         <section className="ich-panel ich-decisions"><header><div><strong>Reviews &amp; Approvals</strong><span>Review and approval remain distinct decisions.</span></div></header>

@@ -10,8 +10,8 @@
 
 | Classification | Count | Meaning |
 | --- | ---: | --- |
-| `COMPLETE` | 62 | The slice's repository acceptance is demonstrated by its owning implementation and tests. Deployment, operational validation, pilot, and activation are not implied. |
-| `PARTIAL` | 38 | A real implementation/control boundary exists, but one or more named acceptance behaviors remain unfinished or unverified. |
+| `COMPLETE` | 69 | The slice's repository acceptance is demonstrated by its owning implementation and tests. Deployment, operational validation, pilot, and activation are not implied. |
+| `PARTIAL` | 31 | A real implementation/control boundary exists, but one or more named acceptance behaviors remain unfinished or unverified. |
 | `NOT_STARTED` | 0 | No slice lacks all planning, control, or implementation evidence. This does not convert partial work into completion. |
 | `EXTERNAL_EVIDENCE_REQUIRED` | 17 | Completion requires a real provider, environment, recovery, accessibility, performance, migration, pilot, or expansion exercise that repository code cannot manufacture. |
 | `BLOCKED_BY_DECISION` | 4 | A named owner, source-authority, target, pilot, or release decision is missing and must be approved before dependent activation. |
@@ -40,11 +40,11 @@ The manager-facing classification is available at `/administration/program-valid
 
 ## 3. Repository-complete slices
 
-The 62 repository-complete slices are:
+The 69 repository-complete slices are:
 
-`IC-001`, `IC-010`–`IC-013`, `IC-016`, `IC-021`, `IC-023`, `IC-025`, `IC-030`–`IC-039`, `IC-040`–`IC-044`, `IC-046`, `IC-058`, `IC-067`, `IC-068`, `IC-070`–`IC-073`, `IC-075`–`IC-077`, `IC-080`–`IC-082`, `IC-084`–`IC-088`, `IC-090`–`IC-093`, `IC-095`, `IC-098`, `IC-100`–`IC-105`, `IC-107`–`IC-109`, `IC-111`, `IC-112`, `IC-118`, and `IC-119`.
+`IC-001`, `IC-002`, `IC-010`–`IC-014`, `IC-016`, `IC-021`–`IC-027`, `IC-030`–`IC-044`, `IC-046`, `IC-058`, `IC-067`, `IC-068`, `IC-070`–`IC-073`, `IC-075`–`IC-077`, `IC-080`–`IC-082`, `IC-084`–`IC-088`, `IC-090`–`IC-093`, `IC-095`, `IC-098`, `IC-100`–`IC-109`, `IC-111`, `IC-112`, `IC-118`, and `IC-119`.
 
-Wave 3 closes `IC-058`, `IC-067`, `IC-068`, and `IC-098`; Wave 4 closes `IC-103`, `IC-104`, `IC-108`, and `IC-109`; Wave 5 closes the repository acceptance for `IC-111` and `IC-119`. See the corresponding gap-closure evidence documents. These and the previously complete slices remain subject to regression protection and later operational evidence.
+Wave 3 closes `IC-058`, `IC-067`, `IC-068`, and `IC-098`; Wave 4 closes `IC-103`, `IC-104`, `IC-108`, and `IC-109`; Wave 5 closes `IC-111` and `IC-119`; Wave 6 closes `IC-002`, `IC-014`, `IC-022`, `IC-024`, `IC-026`, `IC-027`, and `IC-106`. See the corresponding gap-closure evidence documents. These and the previously complete slices remain subject to regression protection and later operational evidence.
 
 ## 4. Decision-blocked slices
 
@@ -70,7 +70,7 @@ Repository fixtures may prepare these exercises but cannot mark them complete.
 
 ## 6. Partial-slice gap themes
 
-The 38 partial slices fall into four dependency-ordered themes:
+The 31 partial slices fall into four dependency-ordered themes:
 
 1. shared evidence, policy, saved-view, search, launcher, Home, and honest-state completeness;
 2. Lifecycle cross-lane joins, event-history statistics, capital detail, decisions, selected-asset joins, and integration health;
@@ -88,10 +88,11 @@ Do not implement all 56 partial slices in one branch. Use independently verified
 3. `codex/inventory-console-gap-closure-wave-3-domain-workflows`
 4. `codex/inventory-console-gap-closure-wave-4-governance-operations`
 5. `codex/inventory-console-gap-closure-wave-5-integration-hardening`
+6. `codex/inventory-console-gap-closure-wave-6-shared-experience-authority`
 
 Decision-blocked and external-evidence slices stay outside coding waves until their named prerequisites exist.
 
-The post-Wave-5 conformance review is documented in [`INVENTORY_CONSOLE_POST_GAP_CLOSURE_CONFORMANCE_REVIEW.md`](INVENTORY_CONSOLE_POST_GAP_CLOSURE_CONFORMANCE_REVIEW.md). It assigns all 38 remaining partial slices exactly once: 27 retain a repository component across Waves 6–8, while 11 proceed only through an operational-evidence track. This planning assignment does not itself reclassify any slice.
+The post-Wave-5 conformance review is documented in [`INVENTORY_CONSOLE_POST_GAP_CLOSURE_CONFORMANCE_REVIEW.md`](INVENTORY_CONSOLE_POST_GAP_CLOSURE_CONFORMANCE_REVIEW.md). Wave 6 then closes seven repository slices. The 31 remaining partial slices are assigned exactly once: 20 retain a repository component across Waves 7–8, while 11 proceed only through an operational-evidence track.
 
 ## 8. Audit stop boundary
 
@@ -104,4 +105,4 @@ This branch classifies and exposes evidence; it does not close any business-func
 - Focused tests cover the valid ledger, representative classifications, missing milestone/evidence failure, and runtime-safe manager index.
 - TypeScript typecheck and ESLint pass.
 - Production build passes.
-- Complete repository suite passes: 223 test files and 1,257 tests.
+- Complete repository suite passes: 225 test files and 1,266 tests.

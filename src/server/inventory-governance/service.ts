@@ -2,6 +2,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import { prisma } from "@/server/db/client";
 import { assertAuthenticatedUser, isGeneralManager, isManager } from "@/server/policies/access";
+import { stableAuthoritySubjectId } from "./authority-domain";
 
 type QueueKind = "REVIEW" | "APPROVAL";
 type QueueItem = {
@@ -16,6 +17,7 @@ const list = (value: unknown) => Array.isArray(value) ? value as Record<string, 
 const cents = (...values: unknown[]) => { const value = values.find(candidate => Number.isInteger(Number(candidate))); return value == null ? null : Number(value); };
 const iso = (value: Date) => value.toISOString();
 const age = (now: Date, value: Date) => Math.max(0, Math.round((now.getTime() - value.getTime()) / 3_600_000));
+export function contextualDecisionHref(item: QueueItem) { const [path, query = ""] = item.actionHref.split("?"), parameters = new URLSearchParams(query); parameters.set("decisionId", item.id); parameters.set("expectedVersion", String(item.version)); parameters.set("returnTo", `/manager-review?scope=inventory&view=${item.kind === "APPROVAL" ? "approvals" : "reviews"}`); if (item.policyVersion) parameters.set("policyVersion", item.policyVersion); return `${path}?${parameters.toString()}`; }
 
 function authorize(actor: AuthenticatedUser | null) {
   const user = assertAuthenticatedUser(actor);
@@ -57,9 +59,11 @@ export async function getInventoryGovernanceConsole(actor: AuthenticatedUser | n
   for (const item of retail) { const sale = object(item.saleAuthorizationSnapshot); queue.push({ id: `RETAIL:${item.id}`, kind: item.stage === "SALE_AUTHORIZATION" ? "APPROVAL" : "REVIEW", domain: "RETAIL_COMPLETION", type: item.stage, title: `Retail completion · ${item.inventoryUnit.inventoryNumber}`, subject: item.nextAction, owner: item.ownerUser.name, location: item.location.name, dueAt: iso(item.targetAt), ageHours: age(now, item.updatedAt), overdue: item.targetAt < now, version: item.version, policyVersion: item.policyVersion, amountCents: cents(sale.amountCents, sale.saleAmountCents), evidence: ["Sale/delivery exact-version snapshot", "Readiness and exception evidence"], state: `${item.stage}/${item.operatingState}`, actionLabel: "Open retail completion", actionHref: `/vehicles/retail-completion?completionId=${item.id}` }); }
   for (const item of disposition) { const proposal = list(item.proposalVersions).at(-1) ?? {}; queue.push({ id: `DISPOSITION:${item.id}`, kind: item.stage === "APPROVAL" ? "APPROVAL" : "REVIEW", domain: "DISPOSITION_WHOLESALE", type: item.stage === "APPROVAL" ? "CHANNEL_PRICE_RESERVE" : "EXCEPTION", title: `${item.stage === "APPROVAL" ? "Disposition approval" : "Disposition exception"} · ${item.inventoryUnit.inventoryNumber}`, subject: item.nextAction, owner: item.ownerUser.name, location: item.location.name, dueAt: iso(item.targetAt), ageHours: age(now, item.updatedAt), overdue: item.targetAt < now, version: item.version, policyVersion: String(proposal.policyVersion ?? "R9 governed policy"), amountCents: cents(proposal.askingCents, proposal.reserveCents), evidence: ["Exact proposal and policy version", "Appraisal, reserve, fees, and channel evidence"], state: `${item.stage}/${item.operatingState}`, actionLabel: "Open disposition decision", actionHref: `/vehicles/disposition-wholesale?caseId=${item.id}` }); }
   for (const item of purchaseOrders) queue.push({ id: `PARTS_PO:${item.id}`, kind: "APPROVAL", domain: "PARTS", type: "PURCHASE_ORDER", title: `Purchase order approval · ${item.purchaseOrderNumber}`, subject: item.vendor.name, owner: item.createdByUser.name, location: item.location.name, dueAt: iso(item.createdAt), ageHours: age(now, item.createdAt), overdue: false, version: item.version, policyVersion: "Parts purchase authority", amountCents: item.orderedTotalCents, evidence: ["Frozen line and vendor comparison", "Exact PO amount and version"], state: item.status, actionLabel: "Open Parts approvals", actionHref: "/vehicles/parts-operations?view=purchase-orders" });
+  for (const item of queue) item.actionHref = contextualDecisionHref(item);
   queue.sort((a, b) => Number(b.overdue) - Number(a.overdue) || a.dueAt.localeCompare(b.dueAt));
 
   const reviews = queue.filter(item => item.kind === "REVIEW"), approvals = queue.filter(item => item.kind === "APPROVAL");
+  const authorityAggregates = await prisma.enterpriseAggregateVersion.findMany({ where: { organizationId, domain: "CAPABILITY_AUTHORITY", subjectType: "CAPABILITY_AUTHORITY" }, select: { subjectId: true, version: true } }), authorityVersions = new Map(authorityAggregates.map(item => [item.subjectId, item.version]));
   const facts = [
     { code: "INV_OPEN_UNITS", label: "Open inventory units", value: inventoryStageGroups.reduce((sum, item) => sum + item._count._all, 0), unit: "COUNT", definitionVersion: "INV-KPI-001/v1", quality: "AUTHORITATIVE", drillHref: "/vehicles/control-tower" },
     { code: "SHOP_OPEN_ORDERS", label: "Open Shop orders", value: repairStateGroups.reduce((sum, item) => sum + item._count._all, 0), unit: "COUNT", definitionVersion: "SHOP-KPI-001/v1", quality: "AUTHORITATIVE", drillHref: "/vehicles/shop-recon" },
@@ -71,13 +75,13 @@ export async function getInventoryGovernanceConsole(actor: AuthenticatedUser | n
 
   return {
     contractVersion: "inventory-governance/r10.0.0", generatedAt: iso(now), scope: { organizationId, locationIds: isGeneralManager(user) ? locations.map(item => item.id) : locationIds, global: isGeneralManager(user) },
-    capabilities: { decisions: "CONTEXTUAL_DOMAIN_COMMANDS", exports: "CONTROLLED_GM_CSV_WITH_AUDIT", policyPublication: "EXISTING_FOUR_EYES_DOMAIN_COMMANDS", providerOperations: "AUTHORIZED_INTERNAL_REQUEUE_ONLY" },
+    capabilities: { authorityAdministration: isGeneralManager(user) ? "GENERAL_MANAGER_WRITE" : "READ_ONLY", decisions: "CONTEXTUAL_DOMAIN_COMMANDS", exports: "CONTROLLED_GM_CSV_WITH_AUDIT", policyPublication: "EXISTING_FOUR_EYES_DOMAIN_COMMANDS", providerOperations: "AUTHORIZED_INTERNAL_REQUEUE_ONLY" },
     totals: { reviews: reviews.length, approvals: approvals.length, overdue: queue.filter(item => item.overdue).length, failedCommands, outboxAttention: pendingOutbox, retentionDue: evidenceDue },
     reviews, approvals, reports: { facts, inventoryStages: inventoryStageGroups.map(item => ({ code: item.lifecycleStage, count: item._count._all })), repairStates: repairStateGroups.map(item => ({ code: item.stage, count: item._count._all })), snapshot: { cutoffAt: iso(now), timezone: "America/Chicago", restatement: "CURRENT_SNAPSHOT", cohort: "AUTHORIZED_LOCATION_SCOPE" } },
     administration: {
       roles: roles.map(item => ({ id: item.id, name: item.name, users: item._count.userRoles, duties: item._count.roleDuties })),
       users: users.map(item => ({ ...item, roles: item.userRoles.map(role => role.role.name) })), locations,
-      grants: grants.map(item => ({ id: item.id, user: item.user.name, capability: item.capability, effect: item.effect, location: item.location?.name ?? "Enterprise", constraints: item.constraints, validFrom: iso(item.validFrom), validTo: item.validTo ? iso(item.validTo) : null })),
+      grants: grants.map(item => ({ id: item.id, userId: item.userId, user: item.user.name, capability: item.capability, effect: item.effect, locationId: item.locationId, location: item.location?.name ?? "Enterprise", constraints: item.constraints, authorityVersion: authorityVersions.get(stableAuthoritySubjectId(organizationId, item.userId, item.locationId, item.capability)) ?? 0, validFrom: iso(item.validFrom), validTo: item.validTo ? iso(item.validTo) : null })),
       flags: flags.map(item => ({ id: item.id, code: item.code, mode: item.mode, rolloutPercent: item.rolloutPercent, version: item.version, location: item.location?.name ?? "Enterprise", updatedAt: iso(item.updatedAt) })),
       policies: policies.map(item => ({ id: item.id, code: item.policyCode, domain: item.domain, version: item.version, status: item.status, createdByUserId: item.createdByUserId, approvedByUserId: item.approvedByUserId, effectiveFrom: item.effectiveFrom ? iso(item.effectiveFrom) : null, effectiveTo: item.effectiveTo ? iso(item.effectiveTo) : null })),
       operations: { failedCommands24h: failedCommands, outboxAttention: pendingOutbox, retentionDue: evidenceDue, projections: checkpoints.map(item => ({ code: item.projectionCode, lagSeconds: item.lagSeconds, state: item.lastFailureAt && (!item.lastSuccessAt || item.lastFailureAt > item.lastSuccessAt) ? "FAILED" : item.lagSeconds > 60 ? "LAGGING" : "HEALTHY", lastError: item.lastError })) },

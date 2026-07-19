@@ -7,12 +7,12 @@ export type VerticalSliceAuditRow = {
 };
 
 const COMPLETE_IDS = new Set([
-  "IC-001", "IC-010", "IC-011", "IC-012", "IC-013", "IC-016", "IC-021", "IC-023", "IC-025",
+  "IC-001", "IC-002", "IC-010", "IC-011", "IC-012", "IC-013", "IC-014", "IC-016", "IC-021", "IC-022", "IC-023", "IC-024", "IC-025", "IC-026", "IC-027",
   "IC-030", "IC-031", "IC-032", "IC-033", "IC-034", "IC-035", "IC-036", "IC-037", "IC-038", "IC-039", "IC-040", "IC-041", "IC-042", "IC-043", "IC-044", "IC-046",
   "IC-058", "IC-067", "IC-068",
   "IC-070", "IC-071", "IC-072", "IC-073", "IC-075", "IC-076", "IC-077",
   "IC-080", "IC-081", "IC-082", "IC-084", "IC-085", "IC-086", "IC-087", "IC-088",
-  "IC-090", "IC-091", "IC-092", "IC-093", "IC-095", "IC-098", "IC-100", "IC-101", "IC-102", "IC-103", "IC-104", "IC-105", "IC-107", "IC-108", "IC-109", "IC-111", "IC-112", "IC-118", "IC-119"
+  "IC-090", "IC-091", "IC-092", "IC-093", "IC-095", "IC-098", "IC-100", "IC-101", "IC-102", "IC-103", "IC-104", "IC-105", "IC-106", "IC-107", "IC-108", "IC-109", "IC-111", "IC-112", "IC-118", "IC-119"
 ]);
 const EXTERNAL_IDS = new Set(["IC-017", "IC-059", "IC-113", "IC-114", "IC-115", "IC-116", "IC-117", "IC-120", "IC-121", "IC-122", "IC-123", "IC-124", "IC-125", "IC-126", "IC-127", "IC-128", "IC-129"]);
 const BLOCKED_IDS = new Set(["IC-000", "IC-003", "IC-004", "IC-110"]);
@@ -34,15 +34,9 @@ const DEFAULT_GAPS: Record<string, string> = {
 };
 
 const GAP_OVERRIDES: Record<string, string> = {
-  "IC-002": "Visible-action traceability is strong across implemented workspaces, but it has not been exhaustively certified for every value, permission, event, projection, and integration effect.",
   "IC-005": "Synthetic fixtures exist, but the complete representative pilot, accessibility, outage, recovery, and rollback case set is not approved and executed.",
-  "IC-014": "Integrity, quarantine, retention, and legal-hold rules exist; end-to-end upload scanning and field-access evidence remain incomplete.",
   "IC-015": "Versioned policy and OFF/SHADOW rollout controls exist; full inheritance, pilot outcome, pause, and rollback conformance remains incomplete.",
   "IC-020": "Seven destinations and responsive shell exist; approved tablet/mobile accessibility journeys are not independently validated.",
-  "IC-022": "Vehicle Discovery is permission-filtered, but universal cross-domain identifiers and complete return-context coverage remain incomplete.",
-  "IC-024": "Phase-one launcher routes to purpose-built workspaces; some forms, previews, receipts, and recovery paths remain gated by owning slices.",
-  "IC-026": "Inventory priority work exists; complete My Work, Team, exception escalation, and cross-domain deduplication coverage remains incomplete.",
-  "IC-027": "Permission-scoped counts and queue links exist; complete contextual direct-action coverage remains incomplete.",
   "IC-028": "Honest UI states exist; full cross-domain recovery and accessibility validation remains incomplete.",
   "IC-045": "Offer/counter versions and accepted evidence exist; live external acknowledgement and variance/reapproval tabletop evidence are incomplete.",
   "IC-047": "Cancellation and non-destructive reversal exist; title, payment, custody compensation, and operational verification remain incomplete.",
@@ -61,7 +55,6 @@ const GAP_OVERRIDES: Record<string, string> = {
   "IC-096": "Internal sale/transfer completion gates exist; external receipt/handoff reconciliation and unwind tabletop evidence remain incomplete.",
   "IC-097": "Settlement reconciliation rules exist; live accounting/provider acknowledgement and mismatch operations remain incomplete.",
   "IC-099": "Wholesale workspace exists; accessibility/performance, live provider, deployment, and release evidence remain incomplete.",
-  "IC-106": "Roles and capability grants are projected; complete delegation, amount-limit, field-visibility, and separation administration remains incomplete."
 };
 
 const EXTERNAL_GAPS: Record<string, string> = {

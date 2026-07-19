@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import { InventoryConsoleHome, type InventoryHomeData } from "@/features/inventory/inventory-console-home";
 import { WorkflowLauncher } from "@/features/inventory/workflow-launcher";
+import type { AuthenticatedUser } from "@/server/auth/store";
+import { getInventoryWorkflowLauncher } from "@/server/inventory-workflow-launcher/service";
 
 const data: InventoryHomeData = {
   activeSavedViewId: null,
@@ -58,14 +60,15 @@ describe("Inventory Console R2 Home", () => {
 
 describe("Inventory Console Workflow Launcher", () => {
   it("renders the phase-one catalog with role context and gated explanations", () => {
-    const markup = renderToStaticMarkup(<WorkflowLauncher roles={["INVENTORY_MANAGER"]} />);
+    const actor: AuthenticatedUser = { id: "inventory-manager", name: "Inventory Manager", email: "inventory@example.com", isActive: true, roles: ["Inventory Manager"], duties: { direct: [], roleDefaults: [], all: [] } };
+    const markup = renderToStaticMarkup(<WorkflowLauncher model={getInventoryWorkflowLauncher(actor)} />);
     for (const id of ["WL-01", "WL-02", "WL-03", "WL-04", "WL-05", "WL-06", "WL-07", "WL-08", "WL-C01"]) expect(markup).toContain(id);
-    expect(markup).toContain("INVENTORY_MANAGER");
+    expect(markup).toContain("Inventory Manager");
     expect(markup).toContain("R5 GOVERNED");
     expect(markup).toContain('/vehicles/inventory-to-frontline');
     expect(markup).toContain("R6 GOVERNED");
     expect(markup).toContain('/vehicles/retail-completion');
     expect(markup).toContain("CONTEXT REQUIRED");
-    expect(markup).toContain("does not offer generic stage changes");
+    expect(markup).toContain("never performs a generic stage change");
   });
 });

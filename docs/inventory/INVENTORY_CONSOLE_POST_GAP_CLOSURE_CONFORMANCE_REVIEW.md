@@ -1,7 +1,7 @@
 # Inventory Console Post-Gap-Closure Conformance Review
 
 **Branch:** `codex/inventory-console-post-gap-closure-conformance-review`  
-**Scope:** R0–R12 and IC-000–IC-129 after gap-closure Waves 1–5  
+**Scope:** R0–R12 and IC-000–IC-129 after gap-closure Waves 1–6
 **Contract:** `inventory-console-post-gap-closure-review/v1`  
 **Disposition:** `REVIEWED`  
 **Completion claim:** `NONE_REVIEW_ONLY`
@@ -12,19 +12,19 @@ The merged program remains internally consistent and the executable 121-slice au
 
 | Classification | Count |
 | --- | ---: |
-| Repository complete | 62 |
-| Partial | 38 |
+| Repository complete | 69 |
+| Partial | 31 |
 | External evidence required | 17 |
 | Decision blocked | 4 |
 | Not started | 0 |
 | Total | 121 |
 
-This review does not reclassify or complete a slice. It separates the 38 partial slices into the correct next execution mode:
+Wave 6 has now reclassified seven slices at repository scope. The executable review separates the 31 remaining partial slices into the correct next execution mode:
 
-- 27 contain a remaining repository behavior and should proceed through three dependency-ordered coding waves, followed by reassessment.
+- 20 contain a remaining repository behavior and should proceed through two dependency-ordered coding waves, followed by reassessment.
 - 11 have no responsible next coding action identified; their recorded gaps require operational, provider, accessibility, deployment, pilot, or release evidence.
 
-The next branch is `codex/inventory-console-gap-closure-wave-6-shared-experience-authority`.
+The next branch is `codex/inventory-console-gap-closure-wave-7-lifecycle-automation-recovery`.
 
 ## 2. Review rules
 
@@ -36,7 +36,7 @@ The review applies five fail-closed rules:
 4. Provider acknowledgements, accessibility results, deployment evidence, pilot outcomes, and approvals may not be synthesized in code or fixtures.
 5. Every wave must rerun the authoritative 121-slice audit before any reclassification.
 
-## 3. Wave 6 — shared experience and authority
+## 3. Wave 6 — shared experience and authority (repository complete)
 
 **Branch:** `codex/inventory-console-gap-closure-wave-6-shared-experience-authority`  
 **Slices:** 7
@@ -51,7 +51,7 @@ The review applies five fail-closed rules:
 | IC-027 | Complete contextual direct approval/review actions with exact-version and separation-of-duties enforcement |
 | IC-106 | Complete delegation, amount limits, field visibility, anti-splitting, and separation-of-duties administration |
 
-Wave 6 precedes domain automation because the later waves depend on consistent authority, launcher, work, approval, evidence, and navigation behavior.
+Wave 6 now passes its focused repository conformance gate. Its evidence is documented in [`INVENTORY_CONSOLE_GAP_CLOSURE_WAVE_6_SHARED_EXPERIENCE_AUTHORITY.md`](INVENTORY_CONSOLE_GAP_CLOSURE_WAVE_6_SHARED_EXPERIENCE_AUTHORITY.md), and its seven slices are no longer assigned to the executable remaining-work tracks. Later operational gates remain unchanged.
 
 ## 4. Wave 7 — lifecycle automation and recovery
 
@@ -105,4 +105,4 @@ These slices stay partial until the named evidence is independently recorded. Th
 
 ## 8. Exit gate for this review
 
-The review is complete when the executable plan assigns all 38 partial slices exactly once, reconciles to the authoritative audit, preserves the 62/38/17/4 baseline, identifies the next dependency-ordered branch, and passes typecheck, lint, focused tests, the 121-slice audit, and production build.
+The review remains conformant when the executable plan assigns all 31 partial slices exactly once, reconciles to the authoritative audit, preserves the 69/31/17/4 classification, identifies the next dependency-ordered branch, and passes typecheck, lint, focused tests, the 121-slice audit, and production build.

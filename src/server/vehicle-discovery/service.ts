@@ -6,7 +6,7 @@ import { evaluateVehicleOperationsFeature } from "@/server/enterprise-command/se
 import { assertVehicleCapability, evaluateVehicleCapability, type VehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
 import { assertAuthenticatedUser, isManager } from "@/server/policies/access";
 import { getVehicle360 } from "@/server/vehicle-360/service";
-import { buildControlledVehiclePackage, normalizeControlledOutput, normalizeKnowledgeApproval, normalizeKnowledgeDraft, normalizeOperationalSearch, renderControlledPrint, stableControlledId, type OperationalSearchType } from "./domain";
+import { buildControlledVehiclePackage, normalizeControlledOutput, normalizeKnowledgeApproval, normalizeKnowledgeDraft, normalizeOperationalReturnContext, normalizeOperationalSearch, renderControlledPrint, stableControlledId, withOperationalReturnContext, type OperationalSearchType } from "./domain";
 import { createVehicleDiscoveryRepository, type VehicleDiscoveryRepository } from "./repository";
 
 type Dependencies = { now?: () => Date; organizationId?: string; repository?: VehicleDiscoveryRepository; foundationRepository?: EnterpriseCommandRepository; enforceRollout?: boolean };
@@ -23,14 +23,14 @@ async function authorize(actor: AuthenticatedUser | null, capability: VehicleCap
 
 function command(input: { actorUserId: string; commandType: string; domain: string; expectedVersion: number; idempotencyKey: string; organizationId: string; payload: Record<string, unknown>; reason: string; subjectId: string; subjectType: string }) { return normalizeEnterpriseCommand({ ...input, locationId: null }); }
 
-export async function searchVehicleOperations(actor: AuthenticatedUser | null, query: { limit?: unknown; query?: unknown; types?: unknown }, input: Dependencies = {}) {
-  const context = deps(input), normalized = normalizeOperationalSearch(query), { grants, user } = await authorize(actor, "VEHICLE_DISCOVERY_VIEW", context);
+export async function searchVehicleOperations(actor: AuthenticatedUser | null, query: { limit?: unknown; query?: unknown; returnTo?: unknown; types?: unknown }, input: Dependencies = {}) {
+  const context = deps(input), normalized = normalizeOperationalSearch(query), returnTo = normalizeOperationalReturnContext(query.returnTo), { grants, user } = await authorize(actor, "VEHICLE_DISCOVERY_VIEW", context);
   const allowed = (capability: VehicleCapability) => evaluateVehicleCapability({ actor: user, capability, grants, locationId: null, now: context.now() }).allowed;
   const capabilityByType: Record<OperationalSearchType, VehicleCapability> = { VEHICLE: "VEHICLE_OPERATIONS_VIEW", CUSTOMER: "VEHICLE_OPERATIONS_VIEW", REPAIR_ORDER: "REPAIR_ORDER_VIEW", REPAIR_JOB: "REPAIR_ORDER_VIEW", APPOINTMENT: "VEHICLE_OPERATIONS_VIEW", PART: "PARTS_VIEW", PURCHASE_ORDER: "PARTS_VIEW", DOCUMENT: "VEHICLE_EVIDENCE_VIEW", WORK_ITEM: "VEHICLE_OPERATIONS_VIEW" };
   const types = normalized.types.filter((type) => allowed(capabilityByType[type]));
   if (!types.length) return { query: normalized.query, results: [], searchedTypes: [], restrictedTypes: normalized.types };
   const result = await context.repository.search(context.organizationId, normalized.query, types, normalized.limit, allowed("VEHICLE_EVIDENCE_RESTRICTED_VIEW"), { actorUserId: user.id, canViewTeam: isManager(user) });
-  return { ...result, restrictedTypes: normalized.types.filter((type) => !types.includes(type)) };
+  return { ...result, results: result.results.map(item => ({ ...item, href: withOperationalReturnContext(item.href, returnTo) })), returnTo, restrictedTypes: normalized.types.filter((type) => !types.includes(type)) };
 }
 
 export async function getWorkKnowledgeWorkspace(actor: AuthenticatedUser | null, input: Dependencies = {}) { const context = deps(input); await authorize(actor, "WORK_KNOWLEDGE_VIEW", context); return context.repository.knowledgeOverview(context.organizationId, context.now()); }

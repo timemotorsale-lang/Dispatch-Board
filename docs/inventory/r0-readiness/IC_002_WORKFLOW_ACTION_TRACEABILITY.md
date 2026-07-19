@@ -90,3 +90,6 @@ WL-C01 and WL-C02 are context-only. Other phase-one choices may also be hidden, 
 - Final field-level privacy/export rules.
 
 No unresolved item may be filled with a UI-only assumption.
+# Wave 6 repository conformance amendment — 2026-07-18
+
+IC-002 is now repository-complete. `src/server/inventory-console-wave6/traceability.ts` provides a fail-closed, executable trace catalog for the 11 visible Workflow Launcher actions and seven shared Console experience/authority actions. Every entry maps its surface to an authoritative record, command or query, permission, work effect, domain event, projection, and integration effect; duplicate, missing, or incomplete entries fail the Wave 6 conformance test. Operational integrations and pilot behavior remain subject to their separate evidence gates.
