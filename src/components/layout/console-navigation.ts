@@ -50,8 +50,8 @@ const inventoryItems: NavigationItem[] = [
     icon: RefreshCw
   },
   {
-    activePaths: ["/vehicles/parts-operations", "/vehicles/parts", "/vehicles/parts-counter", "/vehicles/service-close-parts", "/vehicles/repair-orders", "/vehicles/shop-planning", "/vehicles/shop-dispatch", "/vehicles/shop-production", "/vehicles/shop-metrics", "/vehicles/quality-control", "/vehicles/advisor", "/vehicles/comebacks"],
-    href: "/vehicles/shop-production",
+    activePaths: ["/vehicles/shop-recon", "/vehicles/parts-operations", "/vehicles/parts", "/vehicles/parts-counter", "/vehicles/service-close-parts", "/vehicles/repair-orders", "/vehicles/shop-planning", "/vehicles/shop-dispatch", "/vehicles/shop-production", "/vehicles/shop-metrics", "/vehicles/quality-control", "/vehicles/advisor", "/vehicles/comebacks"],
+    href: "/vehicles/shop-recon",
     title: "Shop & Recon",
     description: "Daily production, capacity, constraints, and parts readiness.",
     icon: Wrench

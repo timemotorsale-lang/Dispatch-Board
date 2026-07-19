@@ -155,6 +155,7 @@ describe("enterprise shell navigation", () => {
       "Reports",
       "Administration"
     ]);
+    expect(inventoryConsole?.items.find((item) => item.title === "Shop & Recon")?.href).toBe("/vehicles/shop-recon");
     expect(getConsoleNavigation("/command-center", manager)).toBeNull();
   });
 });

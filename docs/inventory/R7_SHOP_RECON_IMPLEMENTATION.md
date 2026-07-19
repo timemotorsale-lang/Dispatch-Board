@@ -7,7 +7,7 @@ Slices: IC-070 through IC-079
 
 ## 1. Outcome
 
-R7 provides one permission-aware Shop & Recon operating entry point at `/vehicles/shop-production`. It separates Customer Repair from Inventory Recon while projecting both from the authoritative RepairOrder and RepairJob records. It does not create a second shop state model.
+R7 provides one permission-aware Shop & Recon operating entry point at `/vehicles/shop-recon`. The earlier `/vehicles/shop-production` deep link remains compatible and renders the same authoritative landing projection. It separates Customer Repair from Inventory Recon while projecting both from the authoritative RepairOrder and RepairJob records. It does not create a second shop state model.
 
 The approved landing composition now includes:
 
