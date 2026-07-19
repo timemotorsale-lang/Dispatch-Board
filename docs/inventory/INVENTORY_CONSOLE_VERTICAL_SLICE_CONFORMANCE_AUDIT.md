@@ -91,6 +91,8 @@ Do not implement all 56 partial slices in one branch. Use independently verified
 
 Decision-blocked and external-evidence slices stay outside coding waves until their named prerequisites exist.
 
+The post-Wave-5 conformance review is documented in [`INVENTORY_CONSOLE_POST_GAP_CLOSURE_CONFORMANCE_REVIEW.md`](INVENTORY_CONSOLE_POST_GAP_CLOSURE_CONFORMANCE_REVIEW.md). It assigns all 38 remaining partial slices exactly once: 27 retain a repository component across Waves 6–8, while 11 proceed only through an operational-evidence track. This planning assignment does not itself reclassify any slice.
+
 ## 8. Audit stop boundary
 
 This branch classifies and exposes evidence; it does not close any business-function gap, invent provider/pilot results, apply migrations, change rollout flags, or mark an R12 gate passed. Reclassification requires a concrete evidence change plus an updated automated audit expectation.
