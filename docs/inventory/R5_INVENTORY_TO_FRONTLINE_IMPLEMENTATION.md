@@ -25,7 +25,7 @@ The Inventory Lifecycle landing page, global Inventory navigation, and Workflow 
 | IC-055 | Independent reviewer, critical QC/safety/legal/road-test hard gates, no score averaging | Qualified-reviewer policy matrix and failed-QC rework tabletop |
 | IC-056 | Versioned authoritative title-readiness record, evidence, requirement policy, dependency-clear gate, independent reviewer | Title-agency acknowledgement/reconciliation and due/escalation automation |
 | IC-057 | Verified facts, media, content, five-photo minimum, human-approved price, versioned package, explicit channel reconciliation | Listing-channel acknowledgement/reconciliation and publication freshness monitoring |
-| IC-058 | Whole-package fail-closed evaluator, four-eyes release, atomic InventoryUnit/package release, physical/internal/digital verification, suspension, correction, and mandatory re-review | Operational reinstatement cases, notification delivery, and pilot sign-off |
+| IC-058 | Whole-package fail-closed evaluator, four-eyes release, atomic InventoryUnit/package release, physical/internal/digital verification, suspension, correction, mandatory re-review, and cross-domain reinstatement intervention routing | Real notification delivery and pilot sign-off remain activation evidence gates |
 | IC-059 | Deterministic domain test suite plus R3/R4/navigation regressions | Full nine-slice happy/alternate/failure/reversal tabletop, accessibility/performance evidence, pilot readiness approval |
 
 ## Workflow and authority boundaries

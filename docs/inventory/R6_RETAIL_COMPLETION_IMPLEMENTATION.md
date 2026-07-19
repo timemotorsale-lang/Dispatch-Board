@@ -24,8 +24,8 @@ Staff enter the workspace at `/vehicles/retail-completion` from Inventory Lifecy
 | IC-064 | Documents, keys/accessories, custody, location, condition, mileage, promise, payment reference, evidence, and fail-closed hold/resubmit | Representative delivery-hold tabletop and operational sign-off |
 | IC-065 | Authenticated actor, recipient/time/location/evidence, observed custody handoff, InventoryUnit `DELIVERED`, and downstream reconciliation hold | Provider-backed delivery acknowledgement and custody pilot evidence |
 | IC-066 | Pre/post-delivery unwind request, returned custody/condition, title and financial-effect references, evidence, independent approval, valid frontline re-entry | Title/accounting compensation adapters and complex post-delivery cancellation fixtures |
-| IC-067 | Immutable linked compensation snapshot, idempotent replay, mismatch rejection, reopen through unwind, explicit matched acknowledgement | Dedicated mismatch work queue, adapter replay worker, provider outage tabletop |
-| IC-068 | Permission/location-scoped queue, stage totals, clocks/next actions, immutable history, Inventory Lifecycle navigation, and governed launcher | Control Tower retail projection, cross-console review queues, approved KPI baselines |
+| IC-067 | Immutable linked compensation snapshot, idempotent command replay, mismatch rejection, reopen through unwind, explicit matched acknowledgement, and a dedicated cross-domain mismatch intervention route | Live adapter replay and provider-outage evidence remain activation gates, not repository acceptance gaps |
+| IC-068 | Permission/location-scoped queue, stage totals, clocks/next actions, immutable history, Control Tower projection, cross-domain intervention queue, Inventory Lifecycle navigation, and governed launcher | Approved production KPI baselines remain governed by the R0 decision gate |
 
 ## Workflow and authority boundaries
 
