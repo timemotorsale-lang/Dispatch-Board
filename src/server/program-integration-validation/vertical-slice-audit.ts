@@ -9,9 +9,10 @@ export type VerticalSliceAuditRow = {
 const COMPLETE_IDS = new Set([
   "IC-001", "IC-010", "IC-011", "IC-012", "IC-013", "IC-016", "IC-021", "IC-023", "IC-025",
   "IC-030", "IC-031", "IC-032", "IC-033", "IC-034", "IC-035", "IC-036", "IC-037", "IC-038", "IC-039", "IC-040", "IC-041", "IC-042", "IC-043", "IC-044", "IC-046",
+  "IC-058", "IC-067", "IC-068",
   "IC-070", "IC-071", "IC-072", "IC-073", "IC-075", "IC-076", "IC-077",
   "IC-080", "IC-081", "IC-082", "IC-084", "IC-085", "IC-086", "IC-087", "IC-088",
-  "IC-090", "IC-091", "IC-092", "IC-093", "IC-095", "IC-100", "IC-101", "IC-102", "IC-105", "IC-107", "IC-112", "IC-118"
+  "IC-090", "IC-091", "IC-092", "IC-093", "IC-095", "IC-098", "IC-100", "IC-101", "IC-102", "IC-105", "IC-107", "IC-112", "IC-118"
 ]);
 const EXTERNAL_IDS = new Set(["IC-017", "IC-059", "IC-113", "IC-114", "IC-115", "IC-116", "IC-117", "IC-120", "IC-121", "IC-122", "IC-123", "IC-124", "IC-125", "IC-126", "IC-127", "IC-128", "IC-129"]);
 const BLOCKED_IDS = new Set(["IC-000", "IC-003", "IC-004", "IC-110"]);
@@ -48,12 +49,9 @@ const GAP_OVERRIDES: Record<string, string> = {
   "IC-048": "Internal downstream handoff is idempotent; transport/provider acknowledgement, rejection, and reconciliation remain disabled.",
   "IC-050": "Internal transport/no-transport control exists; carrier acknowledgement, reconciliation, and automated exception escalation remain incomplete.",
   "IC-054": "Authoritative Shop and Parts gates are read; production activation, supplier/custody integration, and representative workload evidence remain incomplete.",
-  "IC-058": "Whole-package release and suspension are implemented; operational reinstatement, notifications, and pilot sign-off remain incomplete.",
   "IC-060": "Frontline eligibility is enforced; real publication freshness and pilot reconciliation remain incomplete.",
   "IC-062": "Command-time expiry works; scheduled expiry, tasks, notifications, and promise effects remain incomplete.",
   "IC-063": "Exact-version sale approval works; enterprise amount policy and DMS/payment acknowledgement remain incomplete.",
-  "IC-067": "Compensation and mismatch rejection exist; dedicated mismatch queue, replay worker, and provider outage evidence remain incomplete.",
-  "IC-068": "Retail queue and clocks exist; Control Tower projection, complete global queues, and approved KPI baselines remain incomplete.",
   "IC-074": "Technician execution controls exist; approved mobile accessibility validation remains incomplete.",
   "IC-078": "Close/reopen gates exist; real downstream acknowledgement and mismatch reconciliation remain incomplete.",
   "IC-079": "Shop landing and handoffs exist; representative concurrency, accessibility/performance, deployment, and pilot evidence remain incomplete.",
@@ -62,7 +60,6 @@ const GAP_OVERRIDES: Record<string, string> = {
   "IC-094": "Activation evidence and sandbox/manual states exist; no live provider adapter or certified external acknowledgement is enabled.",
   "IC-096": "Internal sale/transfer completion gates exist; external receipt/handoff reconciliation and unwind tabletop evidence remain incomplete.",
   "IC-097": "Settlement reconciliation rules exist; live accounting/provider acknowledgement and mismatch operations remain incomplete.",
-  "IC-098": "Recommendations are versioned and advisory; calibration, back-testing, outcome linkage, and approved thresholds remain incomplete.",
   "IC-099": "Wholesale workspace exists; accessibility/performance, live provider, deployment, and release evidence remain incomplete.",
   "IC-103": "Current governed KPI snapshots exist; historical facts, cohorts, targets, and restatement workflow remain incomplete.",
   "IC-104": "Export is fail-closed and preview-only; controlled field/row scope, reason, watermark, bounded volume, and audit execution are not activated.",

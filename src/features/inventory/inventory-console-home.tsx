@@ -58,7 +58,7 @@ export function InventoryConsoleHome({ data }: { data: InventoryHomeData }) {
         <article className="ich-route-card">
           <header><CarFront size={21} /><div><strong>Inventory Lifecycle</strong><span>Acquisition through sale, transfer, or disposition.</span></div></header>
           <div className="ich-stage-strip">{data.byStage.filter((stage) => stage.count > 0).slice(0, 7).map((stage) => <Link href={`/vehicles/inventory?stage=${encodeURIComponent(stage.stage)}`} key={stage.stage}><span>{stage.label}</span><strong>{stage.count}</strong></Link>)}{data.byStage.every((stage) => stage.count === 0) ? <p>No active lifecycle records in this scope.</p> : null}</div>
-          <footer><Link href="/vehicles/inventory">Open Inventory Lifecycle<ArrowRight size={15} /></Link><Link href="/vehicles/control-tower">Open Control Tower</Link><Link href="/vehicles/disposition-wholesale">Open Disposition &amp; Wholesale</Link></footer>
+          <footer><Link href="/vehicles/inventory">Open Inventory Lifecycle<ArrowRight size={15} /></Link><Link href="/vehicles/control-tower">Open Control Tower</Link><Link href="/vehicles/workflow-operations">Review Workflow Operations</Link><Link href="/vehicles/disposition-wholesale">Open Disposition &amp; Wholesale</Link></footer>
         </article>
         <article className="ich-route-card">
           <header><Wrench size={21} /><div><strong>Shop &amp; Recon</strong><span>Daily production, constraints, quality, and parts readiness.</span></div></header>

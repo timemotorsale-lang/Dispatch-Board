@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowRight, Boxes, CarFront, ClipboardPlus, Search, ShieldCheck, Wrench } from "lucide-react";
+import { AlertTriangle, ArrowRight, Boxes, CarFront, ClipboardPlus, ListChecks, Search, ShieldCheck, Wrench } from "lucide-react";
 import Link from "next/link";
 
 const catalog = [
@@ -12,6 +12,7 @@ const catalog = [
   { id: "WL-08", title: "Create General Task", description: "Create ad hoc work without changing a governed vehicle workflow.", href: "/tasks/intake?workflowArea=INVENTORY", icon: ClipboardPlus, state: "AVAILABLE" },
   { id: "WL-09", title: "Complete Retail Sale", description: "Govern frontline availability, reservation, exact sale approval, delivery, reconciliation, and unwind.", href: "/vehicles/retail-completion", icon: ShieldCheck, state: "R6 GOVERNED" },
   { id: "WL-C01", title: "Request Parts", description: "Create or inspect job-linked demand in Parts & Readiness.", href: "/vehicles/parts", icon: Boxes, state: "CONTEXT REQUIRED" },
+  { id: "WL-O01", title: "Review Workflow Operations", description: "Open the cross-domain queue for due actions, holds, discrepancies, and reconciliation work.", href: "/vehicles/workflow-operations", icon: ListChecks, state: "WAVE 3 GOVERNED" },
 ];
 
 export function WorkflowLauncher({ roles }: { roles: string[] }) {

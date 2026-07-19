@@ -38,6 +38,7 @@ function getBreadcrumb(pathname: string, dispatchView: "overview" | "live") {
   if (pathname === "/vehicles") return ["Command Control Center", "Inventory Console", "Home"];
   if (pathname.startsWith("/vehicles/control-tower")) return ["Command Control Center", "Inventory Console", "Inventory Lifecycle", "Control Tower"];
   if (pathname.startsWith("/vehicles/disposition-wholesale")) return ["Command Control Center", "Inventory Console", "Inventory Lifecycle", "Disposition & Wholesale"];
+  if (pathname.startsWith("/vehicles/workflow-operations")) return ["Command Control Center", "Inventory Console", "Workflow Operations"];
   if (pathname.startsWith("/vehicles/workflows")) return ["Command Control Center", "Inventory Console", "Start Workflow"];
   if (pathname.startsWith("/vehicles")) return ["Command Control Center", "Inventory Console", pathname.startsWith("/vehicles/parts-operations") ? "Parts Operations" : "Vehicles"];
   if (pathname.startsWith("/customers")) return ["Command Control Center", "Dispatch", "Customers"];
