@@ -5398,6 +5398,60 @@ model EnterpriseProjectionCheckpoint {
   @@index([organizationId, lastFailureAt])
 }
 
+/// Durable governance workflow for reports, exports, operational incidents, and privacy/support cases.
+model InventoryGovernanceRecord {
+  id                String   @id @default(cuid())
+  organizationId    String
+  locationId        String?
+  recordType        String
+  status            String
+  subjectType       String
+  subjectId         String?
+  ownerUserId       String
+  requestedByUserId String
+  approvedByUserId  String?
+  idempotencyKey    String
+  requestHash       String
+  reason            String
+  scopeSnapshot     Json
+  resultSnapshot    Json
+  contentHash       String?
+  watermark         String?
+  rowCount          Int      @default(0)
+  version           Int      @default(1)
+  expiresAt         DateTime?
+  closedAt          DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  events            InventoryGovernanceRecordEvent[]
+
+  @@unique([organizationId, recordType, idempotencyKey])
+  @@index([organizationId, recordType, status, updatedAt])
+  @@index([organizationId, ownerUserId, status])
+  @@index([subjectType, subjectId])
+}
+
+/// Immutable history for every accepted governance workflow transition.
+model InventoryGovernanceRecordEvent {
+  id               String                    @id @default(cuid())
+  organizationId   String
+  recordId         String
+  version          Int
+  action           String
+  fromStatus       String?
+  toStatus         String
+  actorUserId      String
+  reason           String
+  correlationId    String
+  snapshot         Json
+  occurredAt       DateTime                  @default(now())
+  record           InventoryGovernanceRecord @relation(fields: [recordId], references: [id], onDelete: Restrict)
+
+  @@unique([recordId, version])
+  @@index([organizationId, occurredAt])
+  @@index([correlationId])
+}
+
 /// Provider-neutral inbound/outbound exchange ledger. Secrets and credentials are never stored here.
 model EnterpriseIntegrationExchange {
   id                      String                               @id @default(cuid())
