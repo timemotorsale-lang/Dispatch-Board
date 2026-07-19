@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-07-19 — Inventory Console Add Vehicle workflow
+
+The approved Add Vehicle vertical slice is repository-implemented at `/vehicles/workflows/add-vehicle` and linked from Start Workflow. It provides duplicate-first VIN validation, a documented non-VIN exception, required relationship/reason/brief-description context, manual authoritative year/make/model confirmation, location selection, local draft convenience, an explainable deterministic next-workflow recommendation, explicit consequence preview, and a governed idempotent canonical Vehicle create command. The customer-service route prepares walk-in Service Intake context without silently creating a RepairOrder.
+
+The implementation deliberately does not claim camera OCR, external VIN decoding, automatic customer association, production activation, or automatic creation of an InventoryUnit, stock number, acquisition cost, purchase commitment, RepairOrder, or ownership relationship. Vehicle registry mutation remains capability and rollout gated. The official visual and operating contract is [`docs/inventory/INVENTORY_START_WORKFLOW_ADD_VEHICLE_UI_SOURCE_OF_TRUTH.md`](inventory/INVENTORY_START_WORKFLOW_ADD_VEHICLE_UI_SOURCE_OF_TRUTH.md).
+
 ## 2026-07-18 — Inventory Console gap closure Wave 2 lifecycle projections
 
 IC-031, IC-032, and IC-034 through IC-037 are now repository-complete. The Lifecycle Control Tower composes authoritative event-history distributions, Inventory Recon and Parts readiness, versioned decisions and recommendations, capital components, selected-asset operational joins, and integration/projection health with manual and recovery paths. Customer repair remains excluded from inventory-recon totals, recommendations remain non-executing, and owning workspaces retain mutation authority. The automated ledger now reports 52 complete and 48 partial slices. See [`docs/inventory/INVENTORY_CONSOLE_GAP_CLOSURE_WAVE_2_LIFECYCLE_PROJECTIONS.md`](inventory/INVENTORY_CONSOLE_GAP_CLOSURE_WAVE_2_LIFECYCLE_PROJECTIONS.md).

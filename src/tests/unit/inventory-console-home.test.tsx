@@ -65,7 +65,9 @@ describe("Inventory Console Workflow Launcher", () => {
   it("renders the phase-one catalog with role context and gated explanations", () => {
     const actor: AuthenticatedUser = { id: "inventory-manager", name: "Inventory Manager", email: "inventory@example.com", isActive: true, roles: ["Inventory Manager"], duties: { direct: [], roleDefaults: [], all: [] } };
     const markup = renderToStaticMarkup(<WorkflowLauncher model={getInventoryWorkflowLauncher(actor)} />);
-    for (const id of ["WL-01", "WL-02", "WL-03", "WL-04", "WL-05", "WL-06", "WL-07", "WL-08", "WL-C01"]) expect(markup).toContain(id);
+    for (const id of ["WL-01", "WL-01B", "WL-02", "WL-03", "WL-04", "WL-05", "WL-06", "WL-07", "WL-08", "WL-C01"]) expect(markup).toContain(id);
+    expect(markup).toContain("Add Vehicle");
+    expect(markup).toContain('/vehicles/workflows/add-vehicle');
     expect(markup).toContain("Inventory Manager");
     expect(markup).toContain("R5 GOVERNED");
     expect(markup).toContain('/vehicles/inventory-to-frontline');

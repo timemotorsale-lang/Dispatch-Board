@@ -54,6 +54,13 @@ const detailInclude = {
 
 export function createVehicleRegistryRepository(database: PrismaClient = prisma) {
   return {
+    getCreateOptions(organizationId: string) {
+      return database.location.findMany({
+        where: { organizationId },
+        orderBy: [{ name: "asc" }, { code: "asc" }],
+        select: { id: true, code: true, name: true }
+      });
+    },
     async search(organizationId: string, input: { page: number; pageSize: number; query: string }) {
       const query = input.query.trim();
       const where: Prisma.VehicleWhereInput = { organizationId, mergedIntoVehicleId: null };
