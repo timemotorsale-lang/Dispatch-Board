@@ -1,6 +1,6 @@
 import { calculateMaximumBid, evaluateAppraisalConfidence } from "@/server/inventory/vehicle-decisions";
 
-export const acquisitionCaseStatuses = ["EVIDENCE_REQUIRED", "READY_FOR_APPRAISAL", "APPRAISAL_REVIEW", "PROPOSAL_READY", "AUTHORIZATION_PENDING", "AUTHORIZED", "OFFER_PENDING", "COMMITMENT_ACCEPTED", "INVENTORY_UNIT_CREATED", "HANDOFF_READY", "WATCH", "DECLINED", "INSUFFICIENT", "REJECTED", "EXPIRED", "CANCELLED", "REVERSAL_REVIEW", "EXCEPTION"] as const;
+export const acquisitionCaseStatuses = ["EVIDENCE_REQUIRED", "READY_FOR_APPRAISAL", "APPRAISAL_REVIEW", "PROPOSAL_READY", "AUTHORIZATION_PENDING", "AUTHORIZED", "OFFER_PENDING", "COMMITMENT_ACCEPTED", "INVENTORY_UNIT_CREATED", "HANDOFF_READY", "WATCH", "DECLINED", "INSUFFICIENT", "REJECTED", "EXPIRED", "CANCELLED", "REVERSAL_REVIEW", "REVERSED", "EXCEPTION"] as const;
 export type AcquisitionCaseStatus = (typeof acquisitionCaseStatuses)[number];
 
 const string = (value: unknown, label: string) => { const result = typeof value === "string" ? value.trim() : ""; if (!result) throw new Error(`${label} is required.`); return result; };
@@ -69,3 +69,5 @@ export function normalizeFinancialAcquisition(value: Record<string, unknown>, co
   const targetAt = date(value.targetAt, "Stage target"); if (targetAt <= effectiveAt) throw new Error("Stage target must be after financial acquisition.");
   return { ...base, effectiveAt, inventoryNumber: string(value.inventoryNumber, "Inventory number"), nextAction: string(value.nextAction, "Next action"), ownerUserId: string(value.ownerUserId, "Inventory owner"), targetAt };
 }
+
+export function normalizeAcquisitionReversal(value: Record<string, unknown>, actorUserId: string, now: Date) { const base = command(value), evidenceObjectIds = Array.isArray(value.evidenceObjectIds) ? value.evidenceObjectIds.filter((item): item is string => typeof item === "string" && Boolean(item.trim())) : [], verifiedByUserId = string(value.verifiedByUserId, "Independent reversal verifier"); if (verifiedByUserId === actorUserId) throw new Error("Acquisition reversal requires an independent verifier."); if (!evidenceObjectIds.length) throw new Error("Acquisition reversal requires compensation evidence."); const compensation = { custody: string(value.custodyDisposition, "Custody disposition"), payment: string(value.paymentDisposition, "Payment disposition"), title: string(value.titleDisposition, "Title disposition") }; return { ...base, compensation, evidenceObjectIds, reversedAt: now, verifiedByUserId }; }

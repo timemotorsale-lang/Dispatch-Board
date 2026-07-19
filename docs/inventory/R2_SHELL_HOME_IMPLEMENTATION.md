@@ -80,3 +80,7 @@ The migration is source-controlled only and is not applied by this branch. Pilot
 ## Wave 6 shared-experience amendment — 2026-07-18
 
 IC-022, IC-024, IC-026, and IC-027 are now repository-complete. Discovery preserves validated internal return context across all authorized result types; the launcher is server-derived and publishes complete intake, validation, confirmation, approval, creation, and recovery contracts; Priority Work applies deduplicated P0/P1/P2 My/Team queues with escalation facts; and contextual decisions carry exact decision, version, policy, and queue-return context. Owning domain commands continue to enforce authority and separation of duties.
+
+## Wave 7 lifecycle-recovery amendment — 2026-07-19
+
+IC-028 now projects explicit normal, waiting, escalation-due, correction-required, suspended-review, alternate-route, and terminal recovery states for Inventory-to-Frontline work. Recovery targets are recorded by the owning lifecycle command rather than inferred by the UI. Independent cross-device accessibility validation remains required, so this mixed slice stays partial.

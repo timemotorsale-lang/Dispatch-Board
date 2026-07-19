@@ -1,7 +1,7 @@
 import { getVerticalSliceClassificationIndex } from "./vertical-slice-audit";
 
 export type PostGapClosureTrack = {
-  code: "WAVE_7_LIFECYCLE_AUTOMATION_RECOVERY" | "WAVE_8_DOMAIN_RECONCILIATION" | "OPERATIONAL_EVIDENCE";
+  code: "WAVE_8_DOMAIN_RECONCILIATION" | "OPERATIONAL_EVIDENCE";
   branch: string | null;
   execution: "REPOSITORY_THEN_REASSESS" | "EVIDENCE_ONLY";
   ids: readonly string[];
@@ -9,13 +9,6 @@ export type PostGapClosureTrack = {
 };
 
 export const POST_GAP_CLOSURE_TRACKS: readonly PostGapClosureTrack[] = [
-  {
-    code: "WAVE_7_LIFECYCLE_AUTOMATION_RECOVERY",
-    branch: "codex/inventory-console-gap-closure-wave-7-lifecycle-automation-recovery",
-    execution: "REPOSITORY_THEN_REASSESS",
-    ids: ["IC-015", "IC-028", "IC-047", "IC-050", "IC-051", "IC-052", "IC-053", "IC-054", "IC-055", "IC-056", "IC-057"],
-    purpose: "Close rollout inheritance, honest recovery, compensation, escalation, lifecycle automation, and cross-domain execution gaps before external validation."
-  },
   {
     code: "WAVE_8_DOMAIN_RECONCILIATION",
     branch: "codex/inventory-console-gap-closure-wave-8-domain-reconciliation",
@@ -27,8 +20,8 @@ export const POST_GAP_CLOSURE_TRACKS: readonly PostGapClosureTrack[] = [
     code: "OPERATIONAL_EVIDENCE",
     branch: null,
     execution: "EVIDENCE_ONLY",
-    ids: ["IC-005", "IC-020", "IC-045", "IC-048", "IC-060", "IC-074", "IC-078", "IC-079", "IC-094", "IC-096", "IC-099"],
-    purpose: "Collect approvals, representative table-tops, provider acknowledgements, accessibility/performance, deployment, pilot, and release evidence without inventing repository work."
+    ids: ["IC-005", "IC-015", "IC-020", "IC-028", "IC-045", "IC-047", "IC-048", "IC-050", "IC-051", "IC-052", "IC-053", "IC-054", "IC-055", "IC-056", "IC-057", "IC-060", "IC-074", "IC-078", "IC-079", "IC-094", "IC-096", "IC-099"],
+    purpose: "Collect approvals, representative table-tops, provider acknowledgements, accessibility/performance, compensation/recovery exercises, deployment, pilot, and release evidence after repository behavior is present."
   }
 ] as const;
 

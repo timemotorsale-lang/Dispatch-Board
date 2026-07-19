@@ -62,3 +62,7 @@ Operational deployment, real-system integration, pilot, and production release r
 ## Wave 6 evidence amendment — 2026-07-18
 
 IC-014 is now repository-complete. Wave 6 verifies the existing evidence service end to end for signature scanning, fail-closed quarantine, restricted capability enforcement, clean-only download, access events, retention/legal hold, integrity, and immutable lineage. This is repository evidence only and does not substitute for production security, privacy, recovery, or pilot review.
+
+## Wave 7 lifecycle-automation amendment — 2026-07-19
+
+IC-015 now includes location-over-global feature inheritance, location-scoped pause through `OFF`, exact-version feature updates, and audited rollback to the immediately prior rollout state. Representative pilot outcomes and a real production pause/rollback exercise remain operational evidence; the slice therefore remains partial in the mixed-scope 121-slice ledger.

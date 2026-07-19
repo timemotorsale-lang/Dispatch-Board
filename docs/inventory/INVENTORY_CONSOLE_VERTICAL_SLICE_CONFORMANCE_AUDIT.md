@@ -89,10 +89,12 @@ Do not implement all 56 partial slices in one branch. Use independently verified
 4. `codex/inventory-console-gap-closure-wave-4-governance-operations`
 5. `codex/inventory-console-gap-closure-wave-5-integration-hardening`
 6. `codex/inventory-console-gap-closure-wave-6-shared-experience-authority`
+7. `codex/inventory-console-gap-closure-wave-7-lifecycle-automation-recovery`
+8. `codex/inventory-console-gap-closure-wave-8-domain-reconciliation`
 
 Decision-blocked and external-evidence slices stay outside coding waves until their named prerequisites exist.
 
-The post-Wave-5 conformance review is documented in [`INVENTORY_CONSOLE_POST_GAP_CLOSURE_CONFORMANCE_REVIEW.md`](INVENTORY_CONSOLE_POST_GAP_CLOSURE_CONFORMANCE_REVIEW.md). Wave 6 then closes seven repository slices. The 31 remaining partial slices are assigned exactly once: 20 retain a repository component across Waves 7–8, while 11 proceed only through an operational-evidence track.
+The post-Wave-5 conformance review is documented in [`INVENTORY_CONSOLE_POST_GAP_CLOSURE_CONFORMANCE_REVIEW.md`](INVENTORY_CONSOLE_POST_GAP_CLOSURE_CONFORMANCE_REVIEW.md). Wave 6 closes seven repository slices. Wave 7 closes the remaining repository behavior for 11 mixed slices without claiming their external gates. The 31 partial slices are now assigned exactly once: 9 retain a repository component in Wave 8, while 22 proceed only through an operational-evidence track.
 
 ## 8. Audit stop boundary
 

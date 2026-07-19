@@ -1,7 +1,7 @@
 # Inventory Console Post-Gap-Closure Conformance Review
 
 **Branch:** `codex/inventory-console-post-gap-closure-conformance-review`  
-**Scope:** R0–R12 and IC-000–IC-129 after gap-closure Waves 1–6
+**Scope:** R0–R12 and IC-000–IC-129 after gap-closure Waves 1–7
 **Contract:** `inventory-console-post-gap-closure-review/v1`  
 **Disposition:** `REVIEWED`  
 **Completion claim:** `NONE_REVIEW_ONLY`
@@ -19,12 +19,12 @@ The merged program remains internally consistent and the executable 121-slice au
 | Not started | 0 |
 | Total | 121 |
 
-Wave 6 has now reclassified seven slices at repository scope. The executable review separates the 31 remaining partial slices into the correct next execution mode:
+Waves 6 and 7 have now closed their identified repository gaps. The executable review separates the 31 remaining partial slices into the correct next execution mode:
 
-- 20 contain a remaining repository behavior and should proceed through two dependency-ordered coding waves, followed by reassessment.
-- 11 have no responsible next coding action identified; their recorded gaps require operational, provider, accessibility, deployment, pilot, or release evidence.
+- 9 contain a remaining repository behavior and should proceed through Wave 8, followed by reassessment.
+- 22 have no responsible next coding action identified; their recorded gaps require operational, provider, accessibility, deployment, pilot, recovery, or release evidence.
 
-The next branch is `codex/inventory-console-gap-closure-wave-7-lifecycle-automation-recovery`.
+The next branch is `codex/inventory-console-gap-closure-wave-8-domain-reconciliation`.
 
 ## 2. Review rules
 
@@ -53,16 +53,16 @@ The review applies five fail-closed rules:
 
 Wave 6 now passes its focused repository conformance gate. Its evidence is documented in [`INVENTORY_CONSOLE_GAP_CLOSURE_WAVE_6_SHARED_EXPERIENCE_AUTHORITY.md`](INVENTORY_CONSOLE_GAP_CLOSURE_WAVE_6_SHARED_EXPERIENCE_AUTHORITY.md), and its seven slices are no longer assigned to the executable remaining-work tracks. Later operational gates remain unchanged.
 
-## 4. Wave 7 — lifecycle automation and recovery
+## 4. Wave 7 — lifecycle automation and recovery (repository complete)
 
 **Branch:** `codex/inventory-console-gap-closure-wave-7-lifecycle-automation-recovery`  
 **Slices:** 11
 
 `IC-015`, `IC-028`, `IC-047`, and `IC-050`–`IC-057`
 
-This wave should complete rollout inheritance and pause/rollback behavior, honest recovery states, non-destructive compensation, automated transport escalation, and remaining Inventory-to-Frontline automation across receipt, inspection, recon planning, Parts/repair, quality, title, merchandising, pricing, and publication.
+This wave now completes rollout inheritance and pause/rollback behavior, honest recovery states, non-destructive compensation, deterministic overdue escalation, and remaining Inventory-to-Frontline recovery across receipt, inspection, recon planning, Parts/repair, quality, title, merchandising, pricing, and publication.
 
-Passing repository tests will not satisfy provider reconciliation, representative tabletop, accessibility/performance, deployment, or pilot evidence contained in these mixed acceptance criteria.
+Its repository conformance registry and evidence are documented in [`INVENTORY_CONSOLE_GAP_CLOSURE_WAVE_7_LIFECYCLE_AUTOMATION_RECOVERY.md`](INVENTORY_CONSOLE_GAP_CLOSURE_WAVE_7_LIFECYCLE_AUTOMATION_RECOVERY.md). Provider reconciliation, representative tabletop, accessibility/performance, deployment, recovery exercises, and pilot evidence remain pending, so these mixed slices stay partial and move to the operational-evidence track.
 
 ## 5. Wave 8 — domain reconciliation
 
@@ -77,14 +77,25 @@ Live DMS, payment, vendor, accounting, hardware, accessibility, performance, dep
 
 ## 6. Operational-evidence track — no coding branch
 
-The following 11 partial slices have no justified next coding action in the current ledger:
+The following 22 partial slices have no justified next coding action in the current ledger:
 
 | Slice | Required next evidence |
 | --- | --- |
 | IC-005 | Approved and executed representative acceptance/tabletop cases |
+| IC-015 | Representative pilot outcome and production pause/rollback exercise |
 | IC-020 | Independently validated tablet/mobile accessibility journeys |
+| IC-028 | Independent cross-device recovery-state accessibility validation |
 | IC-045 | Live acknowledgement and variance/reapproval tabletop evidence |
+| IC-047 | Operational compensation and downstream reconciliation exercise |
 | IC-048 | Transport-provider acknowledgement, rejection, and reconciliation evidence |
+| IC-050 | Carrier acknowledgement and provider reconciliation |
+| IC-051 | Receiving tabletop and operational sign-off |
+| IC-052 | Diagnostic/title tabletop |
+| IC-053 | Recon scope-change and alternate-route tabletop |
+| IC-054 | Supplier/custody integration and representative workload evidence |
+| IC-055 | Qualified-reviewer matrix and failed-QC tabletop |
+| IC-056 | Title-agency acknowledgement and reconciliation |
+| IC-057 | Listing acknowledgement and production freshness evidence |
 | IC-060 | Real publication freshness and pilot reconciliation |
 | IC-074 | Approved technician mobile accessibility validation |
 | IC-078 | Real downstream acknowledgement and mismatch reconciliation |

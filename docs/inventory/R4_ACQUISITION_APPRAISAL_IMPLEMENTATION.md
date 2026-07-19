@@ -91,3 +91,7 @@ Migration `20260718130000_inventory_console_r4_acquisition_appraisal` adds two a
 ## R4 repository exit
 
 The bounded internal exit passes: no opportunity, evidence package, appraisal, recommendation, unapproved offer, or unsupported external assertion creates inventory. R4 must not be represented as deployed, externally integrated, pilot-ready, or production-complete until migration, cumulative-capital policy, provider contracts, pilot fixtures, operational sign-off, and activation evidence exist.
+
+## Wave 7 compensation amendment — 2026-07-19
+
+IC-047 now separates pre-control cancellation from a terminal post-control `COMPLETE_REVERSAL` command. Reversal requires an independent verifier, evidence, and explicit title, payment, and custody dispositions; it atomically closes the acquisition relationship, recovers eligible acquisition costs, closes the InventoryUnit and any frontline workflow, and preserves command/audit/event/outbox history. Open repair work or retail completion fails closed into the owning unwind path. Operational compensation and downstream reconciliation still require a real exercise, so the mixed slice remains partial.
