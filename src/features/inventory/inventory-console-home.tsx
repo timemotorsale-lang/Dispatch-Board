@@ -1,5 +1,8 @@
 import { AlertTriangle, ArrowRight, BarChart3, Boxes, CarFront, CheckCircle2, ClipboardList, Database, History, Play, Search, ShieldCheck, Wrench } from "lucide-react";
 import Link from "next/link";
+import { InventoryConsoleSavedViews } from "./inventory-console-saved-views";
+import type { InventoryConsoleSavedViewModel, InventoryConsoleWorkView } from "@/server/inventory-console-saved-views";
+import type { InventoryConsoleOperationalFacts } from "@/server/inventory-console-home";
 
 export type InventoryHomeData = {
   byLocation: Array<{ count: number; locationId: string; name: string }>;
@@ -8,8 +11,12 @@ export type InventoryHomeData = {
   freshness: "LIVE" | "STALE" | "UNAVAILABLE";
   generatedAt: string | null;
   locationId: string | null;
-  savedView: "ALL" | "ATTENTION" | "BLOCKED" | "OVERDUE";
+  activeSavedViewId: string | null;
+  canShareSavedViews: boolean;
+  savedViews: InventoryConsoleSavedViewModel[];
+  savedView: InventoryConsoleWorkView;
   savedViewNotice: string | null;
+  operational: InventoryConsoleOperationalFacts | null;
   priorityWork: Array<{ ageDays: number; id: string; inventoryNumber: string; issue: string; owner: string; overdue: boolean; state: string; vehicle: string }>;
   reviews: { approvals: number; reviews: number; available: boolean };
   totals: { active: number; blocked: number; exposureCents: number; overdue: number; waiting: number };
@@ -35,14 +42,15 @@ export function InventoryConsoleHome({ data }: { data: InventoryHomeData }) {
         <label>Location scope<select defaultValue={data.locationId ?? ""} name="locationId"><option value="">All permitted locations</option>{data.byLocation.map((location) => <option key={location.locationId} value={location.locationId}>{location.name} ({location.count})</option>)}</select></label>
         <button type="submit">Apply scope</button><Link href="/vehicles">Clear</Link><span>System view contract v1 · permission-scoped</span>
       </form>
-      <nav aria-label="Inventory Home saved views" className="ich-saved-views">{(["ALL", "ATTENTION", "BLOCKED", "OVERDUE"] as const).map((view) => <Link aria-current={data.savedView === view ? "page" : undefined} className={data.savedView === view ? "active" : ""} href={`/vehicles?view=${view}${data.locationId ? `&locationId=${encodeURIComponent(data.locationId)}` : ""}`} key={view}>{view === "ALL" ? "All inventory" : view[0] + view.slice(1).toLowerCase()}</Link>)}{data.savedViewNotice ? <span role="status">{data.savedViewNotice}</span> : null}</nav>
+      <InventoryConsoleSavedViews activeId={data.activeSavedViewId} activeView={data.savedView} canShare={data.canShareSavedViews} locationId={data.locationId} savedViews={data.savedViews} />
+      {data.savedViewNotice ? <p className="ich-view-notice" role="status">{data.savedViewNotice}</p> : null}
 
       <section aria-label="Inventory Console KPIs" className="ich-kpis">
         <article><CarFront /><span>Active inventory<strong>{data.freshness === "UNAVAILABLE" ? "—" : data.totals.active}</strong></span></article>
         <article><BarChart3 /><span>Inventory capital<strong>{data.freshness === "UNAVAILABLE" ? "—" : money(data.totals.exposureCents)}</strong></span></article>
         <article className={attention ? "attention" : ""}><AlertTriangle /><span>Needs attention<strong>{data.freshness === "UNAVAILABLE" ? "—" : attention}</strong><small>{data.totals.blocked} blocked · {data.totals.overdue} overdue · {data.totals.waiting} waiting</small></span></article>
-        <article><Wrench /><span>In-shop work<strong>Unavailable</strong><small>Shop projection not connected to Home</small></span></article>
-        <article><Boxes /><span>Waiting parts<strong>Unavailable</strong><small>Parts readiness projection not connected</small></span></article>
+        <article><Wrench /><span>In-shop work<strong>{data.operational?.shop.active ?? "—"}</strong><small>{data.operational ? `${data.operational.shop.blocked} blocked repair orders` : "Shop facts unavailable"}</small></span></article>
+        <article><Boxes /><span>Waiting parts<strong>{data.operational?.parts.waitingDemands ?? "—"}</strong><small>{data.operational ? `${data.operational.parts.unreservedUnits} units not yet reserved` : "Parts facts unavailable"}</small></span></article>
         <article><ShieldCheck /><span>Pending decisions<strong>{data.reviews.available ? data.reviews.reviews + data.reviews.approvals : "Restricted"}</strong><small>{data.reviews.reviews} reviews · {data.reviews.approvals} approvals</small></span></article>
       </section>
 
@@ -54,7 +62,7 @@ export function InventoryConsoleHome({ data }: { data: InventoryHomeData }) {
         </article>
         <article className="ich-route-card">
           <header><Wrench size={21} /><div><strong>Shop &amp; Recon</strong><span>Daily production, constraints, quality, and parts readiness.</span></div></header>
-          <div className="ich-unavailable"><AlertTriangle size={18} /><div><strong>Home summary unavailable</strong><span>The authoritative Shop production projection has not been connected. Open the workspace for current supported operations.</span></div></div>
+          {data.operational ? <div className="ich-operational-summary"><span>Open repair orders<strong>{data.operational.shop.active}</strong></span><span>Blocked<strong>{data.operational.shop.blocked}</strong></span><span>Parts demands<strong>{data.operational.parts.waitingDemands}</strong></span></div> : <div className="ich-unavailable"><AlertTriangle size={18} /><div><strong>Operational facts unavailable</strong><span>Open the workspace for current supported operations.</span></div></div>}
           <footer><Link href="/vehicles/shop-production">Open Shop &amp; Recon<ArrowRight size={15} /></Link><Link href="/vehicles/parts-operations">Open Parts Operations</Link></footer>
         </article>
       </section>
@@ -70,9 +78,9 @@ export function InventoryConsoleHome({ data }: { data: InventoryHomeData }) {
       </div>
 
       <section className="ich-health-grid">
-        <article><strong>Flow Health</strong><span>Inventory lifecycle</span><b className={data.freshness === "LIVE" ? "healthy" : "warning"}>{freshnessLabel}</b><span>Shop and Parts summaries</span><b>Unavailable</b></article>
-        <article><strong>Today’s Throughput</strong><div className="ich-unavailable"><BarChart3 size={18} /><span>No governed cross-domain throughput fact is connected.</span></div></article>
-        <article><strong>Data &amp; Integration Health</strong><span>Inventory projection</span><b className={data.freshness === "LIVE" ? "healthy" : "warning"}>{data.freshness}</b><span>External adapters</span><b>Disabled</b></article>
+        <article><strong>Flow Health</strong><span>Inventory lifecycle</span><b className={data.freshness === "LIVE" ? "healthy" : "warning"}>{freshnessLabel}</b><span>Shop / Parts facts</span><b className={data.operational ? "healthy" : "warning"}>{data.operational ? "CONNECTED" : "UNAVAILABLE"}</b></article>
+        <article><strong>Last 24 Hours</strong><span>Inventory transitions</span><b>{data.operational?.throughput.inventoryTransitions ?? "—"}</b><span>Repair orders closed</span><b>{data.operational?.throughput.repairOrdersClosed ?? "—"}</b></article>
+        <article><strong>Data &amp; Integration Health</strong><span>Inventory projection</span><b className={data.freshness === "LIVE" ? "healthy" : "warning"}>{data.freshness}</b><span>Provider-neutral exchanges</span><b className={data.operational?.integration.status === "HEALTHY" ? "healthy" : data.operational?.integration.status === "ATTENTION" ? "warning" : ""}>{data.operational ? `${data.operational.integration.status} · ${data.operational.integration.exceptions} exceptions` : "UNAVAILABLE"}</b></article>
       </section>
 
       <footer className="ich-footer"><Link href="/activity?scope=inventory"><History size={15} />View Event Log</Link><span>Mockup values are never used as operational facts.</span></footer>

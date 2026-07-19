@@ -15,4 +15,12 @@ describe("Wave 3 enterprise persistence", () => {
     expect(migration).toMatch(/Vehicle_vehicleNumber_trgm_idx/);
     expect(migration).toMatch(/'VEHICLE_DISCOVERY', 'OFF'/);
   });
+
+  it("defines durable Console-owned personal and team saved views", async () => {
+    const schema = await readFile(path.join(process.cwd(), "prisma/schema.prisma"), "utf8"), migration = await readFile(path.join(process.cwd(), "prisma/migrations/20260718223000_inventory_console_gap_closure_wave_1/migration.sql"), "utf8");
+    expect(schema).toContain("model InventoryConsoleSavedView");
+    expect(schema).toContain("InventoryConsoleSavedViewVisibility");
+    expect(migration).toContain("InventoryConsoleSavedView_name_check");
+    expect(migration).toContain("InventoryConsoleSavedView_organizationId_createdByUserId_name_key");
+  });
 });

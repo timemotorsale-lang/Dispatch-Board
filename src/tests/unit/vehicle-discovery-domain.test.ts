@@ -10,6 +10,7 @@ describe("enterprise discovery, knowledge, and controlled output domain", () => 
       { id: "high", type: "REPAIR_ORDER", label: "High", detail: "", status: null, href: "/", matchedFields: ["repairOrderNumber"], score: 120 }
     ], 1);
     expect(ranked[0].id).toBe("high");
+    expect(normalizeOperationalSearch({ query: "inspection" }).types).toContain("WORK_ITEM");
   });
 
   it("requires reference-only knowledge to use safe HTTPS and a publisher checksum", () => {

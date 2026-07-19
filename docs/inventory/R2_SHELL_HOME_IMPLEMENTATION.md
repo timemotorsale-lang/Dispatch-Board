@@ -66,3 +66,13 @@
 
 The bounded R2 exit passes: Home contains no representative operational data and routes every currently authorized journey to a real or honestly gated destination. R3 may begin from a baseline containing this implementation after review and merge.
 
+## Wave 1 shared-foundation amendment — 2026-07-18
+
+The gap-closure branch `codex/inventory-console-gap-closure-wave-1-shared-foundations` supersedes the original boundaries for IC-023 and IC-025:
+
+- IC-023 now has a Console-owned durable saved-view model and migration, personal and manager-published team visibility, version metadata, safe invalid/retired-filter recovery, create/delete APIs, Home management UI, and permission re-evaluation whenever a stored location opens. The Task saved-view model remains separate.
+- IC-025 now composes authoritative open/blocked RepairOrder counts, unresolved Parts demand and unreserved quantity, 24-hour Inventory transition and RepairOrder closure throughput, and provider-neutral integration exchange/exception health. Source failures render unavailable; an empty exchange ledger renders `NOT_CONFIGURED`.
+- IC-022 now includes governed work items in capability-filtered discovery. Staff searches are limited to assigned work; managers may search team work. Full return-context coverage remains partial.
+- IC-026 now exposes system views for My Work, Team, Exceptions, Blocked, and Overdue, but remains partial until cross-domain priority composition, escalation, and deduplication are complete.
+
+The migration is source-controlled only and is not applied by this branch. Pilot, deployment, provider activation, accessibility evidence, and production rollout remain separate gates.

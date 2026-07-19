@@ -7,7 +7,7 @@ export type VerticalSliceAuditRow = {
 };
 
 const COMPLETE_IDS = new Set([
-  "IC-001", "IC-010", "IC-011", "IC-012", "IC-013", "IC-016", "IC-021",
+  "IC-001", "IC-010", "IC-011", "IC-012", "IC-013", "IC-016", "IC-021", "IC-023", "IC-025",
   "IC-030", "IC-033", "IC-038", "IC-039", "IC-040", "IC-041", "IC-042", "IC-043", "IC-044", "IC-046",
   "IC-070", "IC-071", "IC-072", "IC-073", "IC-075", "IC-076", "IC-077",
   "IC-080", "IC-081", "IC-082", "IC-084", "IC-085", "IC-086", "IC-087", "IC-088",
@@ -39,9 +39,7 @@ const GAP_OVERRIDES: Record<string, string> = {
   "IC-015": "Versioned policy and OFF/SHADOW rollout controls exist; full inheritance, pilot outcome, pause, and rollback conformance remains incomplete.",
   "IC-020": "Seven destinations and responsive shell exist; approved tablet/mobile accessibility journeys are not independently validated.",
   "IC-022": "Vehicle Discovery is permission-filtered, but universal cross-domain identifiers and complete return-context coverage remain incomplete.",
-  "IC-023": "Versioned system URL views exist; durable user-created/shared Inventory Console saved views are not implemented.",
   "IC-024": "Phase-one launcher routes to purpose-built workspaces; some forms, previews, receipts, and recovery paths remain gated by owning slices.",
-  "IC-025": "InventoryUnit Home facts are live; Shop, Parts, throughput, and integration-health facts remain explicitly unavailable.",
   "IC-026": "Inventory priority work exists; complete My Work, Team, exception escalation, and cross-domain deduplication coverage remains incomplete.",
   "IC-027": "Permission-scoped counts and queue links exist; complete contextual direct-action coverage remains incomplete.",
   "IC-028": "Honest UI states exist; full cross-domain recovery and accessibility validation remains incomplete.",
