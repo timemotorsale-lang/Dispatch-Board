@@ -23,7 +23,7 @@ describe("R10 inventory governance, reporting, and administration", () => {
   });
   it("renders governed KPI definitions, cutoff, quality, and drill-through", () => {
     const markup = renderToStaticMarkup(<GovernedReportsWorkspace model={model as never} />);
-    for (const token of ["GOV-KPI-002/v1", "Quality: COMPLETE", "CURRENT_SNAPSHOT", "Open governed drill-through", "preview-only"]) expect(markup).toContain(token);
+    for (const token of ["GOV-KPI-002/v1", "Quality: COMPLETE", "CURRENT_SNAPSHOT", "Open governed drill-through", "Open controlled exports"]) expect(markup).toContain(token);
   });
   it("renders policy, access, audit, operations, and retention administration destinations", () => {
     const markup = renderToStaticMarkup(<GovernanceAdministrationWorkspace model={model as never} />);

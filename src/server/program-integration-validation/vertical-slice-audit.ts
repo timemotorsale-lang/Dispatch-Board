@@ -12,7 +12,7 @@ const COMPLETE_IDS = new Set([
   "IC-058", "IC-067", "IC-068",
   "IC-070", "IC-071", "IC-072", "IC-073", "IC-075", "IC-076", "IC-077",
   "IC-080", "IC-081", "IC-082", "IC-084", "IC-085", "IC-086", "IC-087", "IC-088",
-  "IC-090", "IC-091", "IC-092", "IC-093", "IC-095", "IC-098", "IC-100", "IC-101", "IC-102", "IC-105", "IC-107", "IC-112", "IC-118"
+  "IC-090", "IC-091", "IC-092", "IC-093", "IC-095", "IC-098", "IC-100", "IC-101", "IC-102", "IC-103", "IC-104", "IC-105", "IC-107", "IC-108", "IC-109", "IC-112", "IC-118"
 ]);
 const EXTERNAL_IDS = new Set(["IC-017", "IC-059", "IC-113", "IC-114", "IC-115", "IC-116", "IC-117", "IC-120", "IC-121", "IC-122", "IC-123", "IC-124", "IC-125", "IC-126", "IC-127", "IC-128", "IC-129"]);
 const BLOCKED_IDS = new Set(["IC-000", "IC-003", "IC-004", "IC-110"]);
@@ -61,11 +61,7 @@ const GAP_OVERRIDES: Record<string, string> = {
   "IC-096": "Internal sale/transfer completion gates exist; external receipt/handoff reconciliation and unwind tabletop evidence remain incomplete.",
   "IC-097": "Settlement reconciliation rules exist; live accounting/provider acknowledgement and mismatch operations remain incomplete.",
   "IC-099": "Wholesale workspace exists; accessibility/performance, live provider, deployment, and release evidence remain incomplete.",
-  "IC-103": "Current governed KPI snapshots exist; historical facts, cohorts, targets, and restatement workflow remain incomplete.",
-  "IC-104": "Export is fail-closed and preview-only; controlled field/row scope, reason, watermark, bounded volume, and audit execution are not activated.",
   "IC-106": "Roles and capability grants are projected; complete delegation, amount-limit, field-visibility, and separation administration remains incomplete.",
-  "IC-108": "Failures, outbox attention, projection lag, and errors are observable; authorized replay/retry, incidents, ownership, and resolution workflow are incomplete.",
-  "IC-109": "Retention and legal-hold truth is projected; privacy execution, production runbooks, training, ownership, and support workflows remain incomplete.",
   "IC-111": "Registry and durable exchange harness exist; real credential vault, provider auth, signed webhook, metrics, and certified contract tests remain incomplete.",
   "IC-119": "Partner scopes, limits, idempotency, HTTPS, versioning, and deprecation are enforced; no real credential or webhook is activated."
 };

@@ -71,7 +71,7 @@ export async function getInventoryGovernanceConsole(actor: AuthenticatedUser | n
 
   return {
     contractVersion: "inventory-governance/r10.0.0", generatedAt: iso(now), scope: { organizationId, locationIds: isGeneralManager(user) ? locations.map(item => item.id) : locationIds, global: isGeneralManager(user) },
-    capabilities: { decisions: "CONTEXTUAL_DOMAIN_COMMANDS", exports: "PREVIEW_ONLY_NOT_ACTIVATED", policyPublication: "EXISTING_FOUR_EYES_DOMAIN_COMMANDS", providerOperations: "OBSERVE_ONLY" },
+    capabilities: { decisions: "CONTEXTUAL_DOMAIN_COMMANDS", exports: "CONTROLLED_GM_CSV_WITH_AUDIT", policyPublication: "EXISTING_FOUR_EYES_DOMAIN_COMMANDS", providerOperations: "AUTHORIZED_INTERNAL_REQUEUE_ONLY" },
     totals: { reviews: reviews.length, approvals: approvals.length, overdue: queue.filter(item => item.overdue).length, failedCommands, outboxAttention: pendingOutbox, retentionDue: evidenceDue },
     reviews, approvals, reports: { facts, inventoryStages: inventoryStageGroups.map(item => ({ code: item.lifecycleStage, count: item._count._all })), repairStates: repairStateGroups.map(item => ({ code: item.stage, count: item._count._all })), snapshot: { cutoffAt: iso(now), timezone: "America/Chicago", restatement: "CURRENT_SNAPSHOT", cohort: "AUTHORIZED_LOCATION_SCOPE" } },
     administration: {
