@@ -40,6 +40,11 @@ export async function listVehicleRegistry(actor: AuthenticatedUser | null, query
   return context.repository.search(context.organizationId, { page, pageSize, query: typeof query.query === "string" ? query.query : "" });
 }
 
+export async function getVehicleRegistryCreateOptions(actor: AuthenticatedUser | null, input: Dependencies = {}) {
+  const context = deps(input); await authorize(actor, "VEHICLE_OPERATIONS_VIEW", null, context);
+  return { locations: await context.repository.getCreateOptions(context.organizationId) };
+}
+
 export async function getVehicleRegistryDetail(actor: AuthenticatedUser | null, vehicleId: string, input: Dependencies = {}) {
   const context = deps(input); await authorize(actor, "VEHICLE_OPERATIONS_VIEW", null, context);
   const vehicle = await context.repository.getDetail(context.organizationId, required(vehicleId, "Vehicle ID", 100));
@@ -48,15 +53,20 @@ export async function getVehicleRegistryDetail(actor: AuthenticatedUser | null, 
 }
 
 export async function createRegistryVehicle(actor: AuthenticatedUser | null, value: unknown, input: Dependencies = {}) {
-  const context = deps(input); const raw = record(value, "Vehicle create request"); const identity = normalizeVehicleIdentity(raw);
-  const user = await authorize(actor, "VEHICLE_COMMAND_EXECUTE", identity.locationId, context, true); const id = randomUUID();
-  return context.repository.createVehicle(command({ actorUserId: user.id, commandType: "CREATE_VEHICLE", expectedVersion: 0, idempotencyKey: identity.idempotencyKey, locationId: identity.locationId, organizationId: context.organizationId, payload: identity, reason: identity.reason, subjectId: id }), identity);
+  const context = deps(input); const raw = record(value, "Vehicle create request"); const id = randomUUID();
+  const normalized = normalizeVehicleIdentity({ ...raw, vehicleNumber: typeof raw.vehicleNumber === "string" && raw.vehicleNumber.trim() ? raw.vehicleNumber : `VEH-${id.slice(0, 8).toUpperCase()}` });
+  const { idempotencyKey, locationId, reason, ...identity } = normalized;
+  const user = await authorize(actor, "VEHICLE_COMMAND_EXECUTE", locationId, context, true);
+  const workflowContext = raw.workflowContext && typeof raw.workflowContext === "object" && !Array.isArray(raw.workflowContext) ? raw.workflowContext as Record<string, unknown> : null;
+  const payload = workflowContext ? { ...identity, workflowContext } : identity;
+  return context.repository.createVehicle(command({ actorUserId: user.id, commandType: "CREATE_VEHICLE", expectedVersion: 0, idempotencyKey, locationId, organizationId: context.organizationId, payload, reason, subjectId: id }), identity);
 }
 
 export async function correctRegistryVehicle(actor: AuthenticatedUser | null, vehicleId: string, value: unknown, input: Dependencies = {}) {
-  const context = deps(input); const raw = record(value, "Vehicle correction request"); const identity = normalizeVehicleIdentity(raw);
-  const user = await authorize(actor, "VEHICLE_COMMAND_EXECUTE", identity.locationId, context, true);
-  return context.repository.correctIdentity(command({ actorUserId: user.id, commandType: "CORRECT_VEHICLE_IDENTITY", expectedVersion: expected(raw.expectedVersion), idempotencyKey: identity.idempotencyKey, locationId: identity.locationId, organizationId: context.organizationId, payload: identity, reason: identity.reason, subjectId: required(vehicleId, "Vehicle ID") }), identity);
+  const context = deps(input); const raw = record(value, "Vehicle correction request"); const normalized = normalizeVehicleIdentity(raw);
+  const { idempotencyKey, locationId, reason, ...identity } = normalized;
+  const user = await authorize(actor, "VEHICLE_COMMAND_EXECUTE", locationId, context, true);
+  return context.repository.correctIdentity(command({ actorUserId: user.id, commandType: "CORRECT_VEHICLE_IDENTITY", expectedVersion: expected(raw.expectedVersion), idempotencyKey, locationId, organizationId: context.organizationId, payload: identity, reason, subjectId: required(vehicleId, "Vehicle ID") }), identity);
 }
 
 export async function addVehicleRelationship(actor: AuthenticatedUser | null, vehicleId: string, value: unknown, input: Dependencies = {}) {

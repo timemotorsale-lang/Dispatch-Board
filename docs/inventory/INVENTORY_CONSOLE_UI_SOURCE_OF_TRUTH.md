@@ -137,6 +137,8 @@ The Shop Capacity Board must distinguish optimization recommendations from manag
 
 ### 3.7 Right command rail
 
+The Vehicle Lifecycle Card family and the refined selected-vehicle command composition are governed by [`INVENTORY_EXECUTION_VEHICLE_CARD_UI_SOURCE_OF_TRUTH.md`](INVENTORY_EXECUTION_VEHICLE_CARD_UI_SOURCE_OF_TRUTH.md). That source supersedes this subsection only for the refined card fields, terminology, compact-card relationship, removal of generic `Update Stage`, and approved action hierarchy. The rail placement and overall Control Tower composition remain governed here.
+
 The selected-asset rail extends from beneath the module navigation to the bottom of the viewport and scrolls independently.
 
 It includes:

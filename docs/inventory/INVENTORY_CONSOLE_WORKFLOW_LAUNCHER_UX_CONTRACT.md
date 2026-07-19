@@ -2,10 +2,12 @@
 
 **Product:** Time Motor Sales Dispatch Board
 **Module:** Inventory Console
-**Design version:** 0.1.0
+**Design version:** 0.2.0
 **Date:** 2026-07-16
-**Status:** Design exercise complete; proposed for product review
-**Activation:** Documentation only; no implementation or workflow activation authorized
+**Status:** Active launcher contract; approved Add Vehicle slice implemented; remaining proposed scope retains its stated gates
+**Activation:** Repository implementation is authorized only for the approved Add Vehicle slice and separately implemented foundations; no production rollout or complete Orchestrator activation is implied
+**Proposed final Start Workflow specification:** [`INVENTORY_START_WORKFLOW_ORCHESTRATOR_PRODUCT_SPECIFICATION.md`](INVENTORY_START_WORKFLOW_ORCHESTRATOR_PRODUCT_SPECIFICATION.md)
+**Approved Add Vehicle contract:** [`INVENTORY_START_WORKFLOW_ADD_VEHICLE_UI_SOURCE_OF_TRUTH.md`](INVENTORY_START_WORKFLOW_ADD_VEHICLE_UI_SOURCE_OF_TRUTH.md)
 
 ---
 
@@ -100,7 +102,8 @@ Do not use internal event names, model names, or algorithm names as card titles.
 
 | ID | Staff-facing choice | Form | Minimum context | Availability target | Primary authority |
 | --- | --- | --- | --- | --- | --- |
-| `WL-01` | Add / Acquire Vehicle | Acquisition Intake | Canonical or newly registered vehicle | Available foundation; policy thresholds remain governed | Inventory manager or `INVENTORY_UNIT_MANAGE` grant |
+| `WL-01` | Add Vehicle | Add Vehicle | None; searches or creates canonical Vehicle | Implemented repository foundation; mutation remains capability and rollout governed | Vehicle command authority at location |
+| `WL-01B` | Start Acquisition | Acquisition Intake | Canonical or newly registered vehicle | Available governed foundation; commitment authority remains separate | Inventory manager or acquisition authority |
 | `WL-02` | Receive Vehicle | Receipt & Custody Intake | Open inventory unit | Approval gated by Inventory-to-Frontline slice | Inventory/receiving authority at location |
 | `WL-03` | Start Inspection | Inspection Start Intake | Received vehicle or eligible repair order | Contextual foundation; full trigger behavior approval gated | Qualified inspector/technician |
 | `WL-04` | Request Inventory Recon | Inventory Recon Request | Open dealership inventory unit | Available repair-order intake foundation | Inventory manager or authorized Shop dispatcher |
