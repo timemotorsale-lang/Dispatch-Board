@@ -73,10 +73,11 @@ describe("R7 Shop & Recon landing projection", () => {
     expect(html).toContain("Open Parts Operations");
     expect(html).toContain("Customer Repair");
     expect(html).toContain("Inventory Recon");
-    expect(html).toContain("Reviews &amp; approvals");
-    expect(html).toContain("Invoice-ready close");
-    expect(html).toContain("Inventory Control Tower");
-    expect(html).toContain("Automatic discipline: PROHIBITED");
+    expect(html).toContain("Reviews &amp; Approvals");
+    expect(html).toContain("Capacity &amp; Assignment");
+    expect(html).toContain("Blocker Center");
+    expect(html).toContain("At-Risk Completion");
+    expect(html).toContain("External adapters: DISABLED");
     expect(html).not.toContain("/vehicles/shop-execution");
   });
 });

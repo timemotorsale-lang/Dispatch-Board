@@ -14,7 +14,6 @@ import {
   PackageCheck,
   PackageOpen,
   RefreshCw,
-  Search,
   ShieldCheck,
   ShoppingCart,
   Truck,
@@ -136,16 +135,21 @@ type Model = {
 
 type QueueRow = {
   action: string;
+  availability: string;
   blocker: string;
   href: string;
   id: string;
   kind: string;
   locationId: string | null;
+  owner: string;
   part: string;
   reference: string;
+  reservation: string;
   required: string;
   status: string;
   tone: "danger" | "success" | "warning";
+  vehicle: string;
+  vendorEta: string;
 };
 
 const closedPurchaseStates = new Set(["CANCELLED", "CLOSED"]);
@@ -182,17 +186,6 @@ const localTabs = [
 
 type PartsView = (typeof localTabs)[number][1];
 const validViews = new Set<PartsView>(localTabs.map(([, view]) => view));
-const destination: Record<PartsView, { action: string; copy: string; href: string }> = {
-  overview: { action: "Open governed workflow", copy: "Attention, readiness, milestones, work, approvals, and exceptions across the Parts lifecycle.", href: "/vehicles/service-close-parts" },
-  demand: { action: "Open demand & reservations", copy: "RepairJob-linked need, required date, priority, availability, reservation, fitment, and alternatives.", href: "/vehicles/parts" },
-  requisitions: { action: "Open sourcing controls", copy: "Versioned vendor offers, ETA, reliability, warranty, return terms, alternatives, and selected-source evidence.", href: "/vehicles/service-close-parts" },
-  "purchase-orders": { action: "Open purchase controls", copy: "Draft, approval, issue, acknowledgement, partial receipt, cancellation, and close under version authority.", href: "/vehicles/service-close-parts" },
-  receiving: { action: "Open receiving counter", copy: "Scan or manual receipt, condition, cost, duplicate protection, discrepancy ownership, and bin confirmation.", href: "/vehicles/parts-counter" },
-  inventory: { action: "Open inventory control", copy: "Part masters, warehouses, bins, immutable ledger, balances, damaged stock, reversals, and availability.", href: "/vehicles/parts-counter" },
-  transfers: { action: "Open transfer controls", copy: "Source protection, cross-location custody, shipment, receipt, discrepancy, cost, and reconciliation.", href: "/vehicles/service-close-parts" },
-  "returns-recovery": { action: "Open recovery controls", copy: "Core, warranty, and vendor returns with deadlines, evidence, acknowledgement, credit, dispute, and write-off.", href: "/vehicles/service-close-parts" },
-  "counts-exceptions": { action: "Open counts & recommendations", copy: "Blind counts, freeze or observe, independent variance approval, adjustment, and non-executing advice.", href: "/vehicles/parts-counter" },
-};
 
 function partsHref(view: PartsView) {
   return view === "overview" ? "/vehicles/parts-operations" : `/vehicles/parts-operations?view=${view}`;
@@ -201,10 +194,10 @@ function partsHref(view: PartsView) {
 export function PartsOperationsWorkspace({ initial, initialView }: { initial: Model; initialView?: string }) {
   const currentView: PartsView = validViews.has(initialView as PartsView) ? initialView as PartsView : "overview";
   const [renderedAt] = useState(() => Date.now());
-  const [search, setSearch] = useState("");
   const [locationId, setLocationId] = useState("ALL");
   const [workType, setWorkType] = useState("ALL");
-  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [queueView, setQueueView] = useState<"MY" | "TEAM" | "EXCEPTIONS">("MY");
+  const [approvalView, setApprovalView] = useState<"REVIEWS" | "APPROVALS">("REVIEWS");
 
   const balances = initial.waveOne.parts.flatMap((part) => part.balances);
   const balanceTotals = balances.reduce(
@@ -225,10 +218,22 @@ export function PartsOperationsWorkspace({ initial, initialView }: { initial: Mo
   const recoveryAtRisk = openRecoveries.reduce((sum, item) => sum + Math.max(0, item.expectedCreditCents - (item.actualCreditCents ?? 0)), 0);
   const today = new Date(renderedAt).toISOString().slice(0, 10);
   const arrivingToday = initial.service.offers.filter((offer) => offer.estimatedArrivalAt?.slice(0, 10) === today).length;
+  const repairOrdersByNumber = new Map(initial.ledger.repairOrders.map((order) => [order.repairOrderNumber, order]));
+  const reservationQuantityByOrder = new Map<string, number>();
+  for (const reservation of initial.waveOne.reservations) {
+    const orderNumber = reservation.demand.repairOrder.repairOrderNumber;
+    reservationQuantityByOrder.set(orderNumber, (reservationQuantityByOrder.get(orderNumber) ?? 0) + reservation.quantity);
+  }
+  const vehicleFor = (repairOrderNumber: string) => {
+    const vehicle = repairOrdersByNumber.get(repairOrderNumber)?.vehicle;
+    return vehicle ? `${vehicle.year} ${vehicle.make} ${vehicle.model} · ${vehicle.vehicleNumber}` : "—";
+  };
+  const queueDefaults = { availability: "—", owner: "—", reservation: "—", vehicle: "—", vendorEta: "—" };
 
   const queue: QueueRow[] = (() => {
     const demandRows = initial.service.demands.slice(0, 4).map((demand) => ({
       action: demand.quantityReserved ? "Review reservation" : "Source part",
+      availability: demand.quantityReserved >= demand.quantityRequired ? "Reserved" : demand.quantityReserved ? "Partial" : "Unreserved",
       blocker: demand.quantityReserved ? `${demand.quantityReserved}/${demand.quantityRequired} reserved` : "Not reserved",
       href: "/vehicles/parts",
       id: `demand-${demand.id}`,
@@ -236,9 +241,11 @@ export function PartsOperationsWorkspace({ initial, initialView }: { initial: Mo
       locationId: demand.repairOrder.locationId,
       part: `${demand.part.partNumber} · ${demand.part.description}`,
       reference: demand.repairOrder.repairOrderNumber,
+      reservation: `${demand.quantityReserved}/${demand.quantityRequired}`,
       required: dateLabel(demand.requiredAt),
       status: demand.status,
-      tone: (new Date(demand.requiredAt).getTime() < renderedAt ? "danger" : "warning") as QueueRow["tone"]
+      tone: (new Date(demand.requiredAt).getTime() < renderedAt ? "danger" : "warning") as QueueRow["tone"],
+      vehicle: vehicleFor(demand.repairOrder.repairOrderNumber)
     }));
     const discrepancyRows = openDiscrepancies.slice(0, 2).map((item) => ({
       action: "Resolve discrepancy",
@@ -255,6 +262,7 @@ export function PartsOperationsWorkspace({ initial, initialView }: { initial: Mo
     }));
     const requisitionRows = initial.service.requisitions.filter((item) => item.status !== "CANCELLED" && item.status !== "ORDERED").slice(0, 3).map((item) => ({
       action: item.selectedOffer ? "Review selected source" : "Compare sources",
+      availability: item.selectedOffer ? "Source selected" : "Sourcing",
       blocker: item.selectedOffer ? `Selected ${item.selectedOffer.vendor.name}` : "Source decision pending",
       href: "/vehicles/service-close-parts",
       id: `requisition-${item.id}`,
@@ -262,9 +270,12 @@ export function PartsOperationsWorkspace({ initial, initialView }: { initial: Mo
       locationId: item.demand.repairOrder.locationId,
       part: `${item.demand.part.partNumber} · ${item.demand.part.description}`,
       reference: item.demand.repairOrder.repairOrderNumber,
+      reservation: reservationQuantityByOrder.has(item.demand.repairOrder.repairOrderNumber) ? `${reservationQuantityByOrder.get(item.demand.repairOrder.repairOrderNumber)} reserved` : "None",
       required: dateLabel(item.requiredAt),
       status: item.status,
-      tone: (new Date(item.requiredAt).getTime() < renderedAt ? "danger" : "warning") as QueueRow["tone"]
+      tone: (new Date(item.requiredAt).getTime() < renderedAt ? "danger" : "warning") as QueueRow["tone"],
+      vehicle: vehicleFor(item.demand.repairOrder.repairOrderNumber),
+      vendorEta: item.selectedOffer?.vendor.name ?? "Pending source"
     }));
     const purchaseRows = openPurchaseOrders.slice(0, 4).map((item) => ({
       action: item.status === "DRAFT" ? "Review approval" : "Track order",
@@ -277,7 +288,8 @@ export function PartsOperationsWorkspace({ initial, initialView }: { initial: Mo
       reference: item.location.name,
       required: ageLabel(item.createdAt, renderedAt),
       status: item.status,
-      tone: (item.status === "DRAFT" ? "danger" : "warning") as QueueRow["tone"]
+      tone: (item.status === "DRAFT" ? "danger" : "warning") as QueueRow["tone"],
+      vendorEta: item.vendor.name
     }));
     const transferRows = initial.service.transfers.filter((item) => item.status !== "RECEIVED" && item.status !== "CANCELLED").slice(0, 2).map((item) => ({
       action: item.status === "DRAFT" ? "Review transfer" : "Track transfer",
@@ -303,7 +315,8 @@ export function PartsOperationsWorkspace({ initial, initialView }: { initial: Mo
       reference: item.vendor?.name ?? "Vendor pending",
       required: dateLabel(item.deadlineAt),
       status: item.status,
-      tone: (new Date(item.deadlineAt).getTime() < renderedAt + 3 * 86_400_000 ? "danger" : "warning") as QueueRow["tone"]
+      tone: (new Date(item.deadlineAt).getTime() < renderedAt + 3 * 86_400_000 ? "danger" : "warning") as QueueRow["tone"],
+      vendorEta: item.vendor?.name ?? "Vendor pending"
     }));
     const countRows = initial.waveOne.counts.filter((item) => !["POSTED", "CANCELLED"].includes(item.status)).slice(0, 3).map((item) => ({
       action: item.status === "REVIEW_REQUIRED" ? "Review variance" : "Continue count",
@@ -331,19 +344,18 @@ export function PartsOperationsWorkspace({ initial, initialView }: { initial: Mo
       status: item.status,
       tone: "warning" as const
     }));
-    return [...demandRows, ...requisitionRows, ...purchaseRows, ...discrepancyRows, ...transferRows, ...recoveryRows, ...countRows, ...recommendationRows];
+    return [...demandRows, ...requisitionRows, ...purchaseRows, ...discrepancyRows, ...transferRows, ...recoveryRows, ...countRows, ...recommendationRows].map((row) => ({ ...queueDefaults, ...row }));
   })();
 
   const visibleQueue = queue.filter((row) => {
-    const matchesSearch = !search.trim() || `${row.kind} ${row.part} ${row.reference} ${row.blocker}`.toLowerCase().includes(search.trim().toLowerCase());
     const matchesType = workType === "ALL" || row.kind.toUpperCase() === workType;
-    const matchesStatus = statusFilter === "ALL" || row.tone.toUpperCase() === statusFilter;
     const matchesLocation = locationId === "ALL" || row.locationId === locationId;
     const kindsByView: Partial<Record<PartsView, string[]>> = {
       demand: ["Demand"], requisitions: ["Requisition"], "purchase-orders": ["Purchase Order"], receiving: ["Receiving"], inventory: ["Demand", "Count", "Recommendation"], transfers: ["Transfer"], "returns-recovery": ["Recovery"], "counts-exceptions": ["Count", "Recommendation", "Receiving"]
     };
     const matchesView = currentView === "overview" || kindsByView[currentView]?.includes(row.kind);
-    return matchesSearch && matchesType && matchesStatus && matchesLocation && matchesView;
+    const matchesQueueView = queueView !== "EXCEPTIONS" || row.tone === "danger";
+    return matchesType && matchesLocation && matchesView && matchesQueueView;
   });
 
   const milestones = [
@@ -359,10 +371,11 @@ export function PartsOperationsWorkspace({ initial, initialView }: { initial: Mo
   ] as const;
 
   const approvals = [
-    ...initial.service.purchaseOrders.filter((item) => item.status === "DRAFT").slice(0, 2).map((item) => ({ amount: money(item.orderedTotalCents), href: "/vehicles/service-close-parts", label: `Purchase approval · ${item.purchaseOrderNumber}`, state: "Approve" })),
-    ...initial.waveOne.counts.filter((item) => item.status === "REVIEW_REQUIRED").slice(0, 2).map((item) => ({ amount: "Variance review", href: "/vehicles/parts-counter", label: `Inventory adjustment · ${item.countNumber}`, state: "Review" })),
-    ...initial.waveOne.recommendations.filter((item) => item.status === "OPEN" && item.type !== "NO_ACTION").slice(0, 2).map((item) => ({ amount: item.confidence, href: "/vehicles/parts-counter", label: `${item.type.replaceAll("_", " ")} · ${item.part.partNumber}`, state: "Review" }))
+    ...initial.service.purchaseOrders.filter((item) => item.status === "DRAFT").slice(0, 3).map((item) => ({ age: ageLabel(item.createdAt, renderedAt), amount: money(item.orderedTotalCents), href: "/vehicles/service-close-parts", label: `Purchase approval · ${item.purchaseOrderNumber}`, owner: "—", state: "Approve", view: "APPROVALS" as const })),
+    ...initial.waveOne.counts.filter((item) => item.status === "REVIEW_REQUIRED").slice(0, 3).map((item) => ({ age: "Open", amount: "—", href: "/vehicles/parts-counter", label: `Inventory adjustment · ${item.countNumber}`, owner: "—", state: "Review", view: "REVIEWS" as const })),
+    ...initial.waveOne.recommendations.filter((item) => item.status === "OPEN" && item.type !== "NO_ACTION").slice(0, 3).map((item) => ({ age: "Open", amount: money(item.estimatedCostCents), href: "/vehicles/parts-counter", label: `${item.type.replaceAll("_", " ")} · ${item.part.partNumber}`, owner: "—", state: "Review", view: "REVIEWS" as const }))
   ].slice(0, 5);
+  const visibleApprovals = approvals.filter((item) => item.view === approvalView);
 
   const selectedRecommendation = initial.waveOne.recommendations.find((item) => item.status === "OPEN" && item.type !== "NO_ACTION");
   const kpiCards: Array<{ href: string; icon: LucideIcon; label: string; tone: string; value: number | string }> = [
@@ -376,10 +389,10 @@ export function PartsOperationsWorkspace({ initial, initialView }: { initial: Mo
   ];
 
   return (
-    <section className="parts-operations-page">
+    <section aria-label={`Parts Operations; Vendor adapters: ${initial.capability.vendorAdapters}; barcode: ${initial.capability.barcodeHardware}; recommendations: ${initial.capability.recommendations}`} className="parts-operations-page">
       <header className="parts-operations-header">
         <div>
-          <p><Link href="/vehicles/shop-production">Shop &amp; Recon</Link><span>/</span>Parts Operations</p>
+          <p><Link href="/vehicles/shop-recon">Shop &amp; Recon</Link><span>/</span>Parts Operations</p>
           <h1>Parts Operations</h1>
           <small>Demand, sourcing, custody, availability, and recovery control</small>
         </div>
@@ -395,17 +408,13 @@ export function PartsOperationsWorkspace({ initial, initialView }: { initial: Mo
         {localTabs.map(([label, view]) => <Link aria-current={currentView === view ? "page" : undefined} className={currentView === view ? "active" : ""} href={partsHref(view)} key={label}>{label}</Link>)}
       </nav>
 
-      <section className="parts-destination-context">
-        <span><strong>{localTabs.find(([, view]) => view === currentView)?.[0]}</strong><small>{destination[currentView].copy}</small></span>
-        <span><b>Repository controls active · {initial.contractVersion}</b><small>Vendor adapters: {initial.capability.vendorAdapters} · barcode: {initial.capability.barcodeHardware} · as of {dateLabel(initial.generatedAt)}</small></span>
-        <Link href={destination[currentView].href}>{destination[currentView].action}<ArrowRight size={13} /></Link>
-      </section>
-
       <section aria-label="Parts Operations filters" className="parts-operations-filters">
-        <label><span>Search work</span><div><Search size={14} /><input placeholder="Part, RO, PO, transfer…" value={search} onChange={(event) => setSearch(event.target.value)} /></div></label>
         <label><span>Location</span><select value={locationId} onChange={(event) => setLocationId(event.target.value)}><option value="ALL">All locations</option>{initial.service.locations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
         <label><span>Work type</span><select value={workType} onChange={(event) => setWorkType(event.target.value)}><option value="ALL">All work</option><option value="DEMAND">Demand</option><option value="REQUISITION">Requisition</option><option value="PURCHASE ORDER">Purchase Order</option><option value="RECEIVING">Receiving</option><option value="TRANSFER">Transfer</option><option value="RECOVERY">Recovery</option><option value="COUNT">Count</option><option value="RECOMMENDATION">Recommendation</option></select></label>
-        <label><span>Attention</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="ALL">All states</option><option value="DANGER">Action needed</option><option value="WARNING">At risk</option></select></label>
+        <label><span>Vendor</span><select disabled><option>All vendors</option></select></label>
+        <label><span>Availability</span><select disabled><option>All availability</option></select></label>
+        <label><span>Owner</span><select disabled><option>All permitted owners</option></select></label>
+        <label><span>Date Range</span><select disabled><option>{dateLabel(initial.generatedAt)}</option></select></label>
       </section>
 
       <section aria-label="Parts Operations KPIs" className="parts-operations-kpis">
@@ -430,18 +439,18 @@ export function PartsOperationsWorkspace({ initial, initialView }: { initial: Mo
 
       <div className="parts-operations-primary-grid">
         <section className="parts-operations-panel parts-work-queue">
-          <header><div><strong>Parts Work Queue</strong><span>My Work</span><span>Team</span><span>Exceptions</span></div><small>{visibleQueue.length} visible</small></header>
-          <div className="parts-table-scroll"><table><thead><tr><th>Type</th><th>Part / Description</th><th>RO / Reference</th><th>Required / Age</th><th>Status</th><th>Blocker</th><th>Action</th></tr></thead><tbody>
-            {visibleQueue.map((row) => <tr key={row.id}><td><span className={`parts-status parts-status-${row.tone}`}>{row.kind}</span></td><td><strong>{row.part}</strong></td><td>{row.reference}</td><td>{row.required}</td><td>{row.status.replaceAll("_", " ")}</td><td>{row.blocker}</td><td><Link href={row.href}>{row.action}</Link></td></tr>)}
+          <header><div><strong>Parts Work Queue</strong><span className="parts-segmented-control" role="group" aria-label="Parts work categories">{([["MY", "My Work"], ["TEAM", "Team"], ["EXCEPTIONS", "Exceptions"]] as const).map(([value, label]) => <button aria-pressed={queueView === value} className={queueView === value ? "active" : ""} key={value} onClick={() => setQueueView(value)} type="button">{label}</button>)}</span></div><small>{visibleQueue.length} visible</small></header>
+          <div className="parts-table-scroll"><table><thead><tr><th>Type</th><th>Part # / Description</th><th>Repair Order / Job</th><th>Vehicle</th><th>Required By</th><th>Availability</th><th>Vendor / ETA</th><th>Reservation</th><th>Owner</th><th>Blocker</th><th>Action</th></tr></thead><tbody>
+            {visibleQueue.map((row) => <tr key={row.id}><td><span className={`parts-status parts-status-${row.tone}`}>{row.kind}</span></td><td><strong>{row.part}</strong></td><td>{row.reference}</td><td>{row.vehicle}</td><td>{row.required}</td><td>{row.availability}</td><td>{row.vendorEta}</td><td>{row.reservation}</td><td>{row.owner}</td><td><span className={`parts-status parts-status-${row.tone}`}>{row.blocker}</span></td><td><Link href={row.href}>{row.action}</Link></td></tr>)}
           </tbody></table></div>
           {!visibleQueue.length ? <div className="parts-empty"><CheckCircle2 size={22} /><strong>No work matches this view</strong><span>Clear filters or open another local workspace.</span></div> : null}
           <p className="parts-advisory"><ShieldCheck size={14} /><strong>Recommendations are {initial.capability.recommendations.replaceAll("_", " ").toLowerCase()}.</strong> Authorized approval is required for purchase, substitution, transfer, adjustment, issue, installation, reconciliation, write-off, or policy exception.</p>
         </section>
 
         <section className="parts-operations-panel parts-approvals">
-          <header><strong>Reviews &amp; Approvals</strong><Link href="/manager-review">View all</Link></header>
-          <div>{approvals.map((item) => <article key={`${item.label}-${item.amount}`}><span><strong>{item.label}</strong><small>{item.amount}</small></span><Link href={item.href}>{item.state}</Link></article>)}</div>
-          {!approvals.length ? <div className="parts-empty"><CheckCircle2 size={20} /><strong>No pending parts approvals</strong><span>Restricted actions still enforce server-side authority.</span></div> : null}
+          <header><div><strong>Reviews &amp; Approvals</strong><span className="parts-segmented-control" role="group" aria-label="Review and approval categories"><button aria-pressed={approvalView === "REVIEWS"} className={approvalView === "REVIEWS" ? "active" : ""} onClick={() => setApprovalView("REVIEWS")} type="button">Reviews <b>{approvals.filter((item) => item.view === "REVIEWS").length}</b></button><button aria-pressed={approvalView === "APPROVALS"} className={approvalView === "APPROVALS" ? "active" : ""} onClick={() => setApprovalView("APPROVALS")} type="button">Approvals <b>{approvals.filter((item) => item.view === "APPROVALS").length}</b></button></span></div><Link href="/manager-review">View all</Link></header>
+          <div className="parts-approval-table"><table><thead><tr><th>Item</th><th>Owner</th><th>Age</th><th>Amount</th><th>Action</th></tr></thead><tbody>{visibleApprovals.map((item) => <tr key={`${item.label}-${item.amount}`}><td><strong>{item.label}</strong></td><td>{item.owner}</td><td>{item.age}</td><td>{item.amount}</td><td><Link href={item.href}>{item.state}</Link></td></tr>)}</tbody></table></div>
+          {!visibleApprovals.length ? <div className="parts-empty"><CheckCircle2 size={20} /><strong>No pending parts {approvalView.toLowerCase()}</strong><span>Restricted actions still enforce server-side authority.</span></div> : null}
         </section>
       </div>
 
@@ -478,8 +487,13 @@ export function PartsOperationsWorkspace({ initial, initialView }: { initial: Mo
             <p><span>Selected</span><strong>{selectedRecommendation.part.partNumber} · {selectedRecommendation.stockLocation.code}</strong></p>
             <p><span>Recommendation</span><strong>{selectedRecommendation.type.replaceAll("_", " ")} · {selectedRecommendation.recommendedQuantity}</strong></p>
             <p><span>Why recommended</span><strong>{selectedRecommendation.reasonCodes.join(" · ") || "Policy and ledger evidence"}</strong></p>
+            <p><span>Fitment evidence</span><strong>Not available in the current recommendation projection</strong></p>
+            <p><span>Vendor comparison / ETA</span><strong>{initial.capability.vendorAdapters === "DISABLED" ? "Unavailable · vendor adapters disabled" : "Open sourcing evidence"}</strong></p>
+            <p><span>Alternatives</span><strong>None supplied by the authoritative recommendation</strong></p>
             <p><span>Confidence</span><strong>{selectedRecommendation.confidence}</strong></p>
+            <p><span>Uncertainty</span><strong>{selectedRecommendation.confidence === "HIGH" ? "Low · verify fitment and availability before approval" : "Material · human review required"}</strong></p>
             <p><span>Estimated value</span><strong>{money(selectedRecommendation.estimatedCostCents)}</strong></p>
+            <p><span>Last refreshed</span><strong>{dateLabel(initial.generatedAt)}</strong></p>
           </div> : <div className="parts-empty"><RefreshCw size={20} /><strong>No open recommendation</strong><span>Run the governed analysis from Inventory Control.</span></div>}
         </article>
       </section>

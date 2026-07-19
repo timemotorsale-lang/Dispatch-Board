@@ -4,7 +4,7 @@
 **Module:** Inventory Console → Inventory Lifecycle  
 **Version:** 1.0 approved baseline  
 **Date:** 2026-07-17  
-**Status:** Approved visual, workflow, and interaction source of truth; implementation not yet started  
+**Status:** Approved visual, workflow, and interaction source of truth; visual-conformance implementation completed 2026-07-19
 **Working branch:** `codex/inventory-wholesale-parts-workspaces`
 
 ## 1. Approved mockup
@@ -28,6 +28,13 @@ This is the deeper workspace reached through **Open Disposition & Wholesale**. I
 | Offers & Bids | Offer intake, bid comparison, expiry, counter, acceptance, and rejection |
 | Settlements | Sale/transfer completion, release gates, credits, and financial handoff |
 | Exceptions | Stale evidence, integration failures, holds, mismatches, and reconciliation work |
+
+### Binding overview execution areas
+
+- **Recommendation Workbench** preserves the approved **My Work**, **Team**, and **Exceptions** categories and the complete fact sequence: Vehicle, Stock #, Exposure, Evidence Freshness, Recommended Channel, Confidence, Rationale Summary, Owner, Due State, and Action.
+- **Reviews & Approvals** preserves separate **Reviews** and **Approvals** categories and the approved facts: Item, Owner, Age, Amount, and Action.
+- A value absent from an authoritative projection is shown as unavailable; the interface must not manufacture a channel, amount, timestamp, owner, or external acknowledgement.
+- The four supporting panels remain Channel Performance, Offers & Bids, Settlement & Reconciliation, and Decision Explanation.
 
 ## 4. Operational milestones
 

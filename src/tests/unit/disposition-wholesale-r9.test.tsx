@@ -49,7 +49,15 @@ describe("R9 Disposition & Wholesale", () => {
     expect(markup).toContain("Channels &amp; Listings");
     expect(markup).toContain("Settled &amp; Reconciled");
     expect(markup).toContain("DISABLED_MANUAL_SANDBOX_ONLY");
-    expect(markup).toContain("Recommendations rank only eligible records and never execute");
+    expect(markup).toContain("Recommendations rank eligible records and never execute");
+    expect(markup).toContain("Recommendation Workbench");
+    expect(markup).toContain("Recommendation work categories");
+    expect(markup).toContain("Stock #");
+    expect(markup).toContain("Rationale Summary");
+    expect(markup).toContain("Reviews &amp; Approvals");
+    expect(markup).toContain("Disposition review and approval categories");
+    expect(markup).toContain("Channel Performance");
+    expect(markup).toContain("Decision Explanation");
   });
   it("defines the authoritative aggregate and source-controlled migration", () => {
     const schema = readFileSync("prisma/schema.prisma", "utf8"), migration = readFileSync("prisma/migrations/20260718190000_inventory_console_r9_disposition_wholesale/migration.sql", "utf8");

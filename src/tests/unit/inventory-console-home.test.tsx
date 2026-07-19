@@ -19,15 +19,16 @@ const data: InventoryHomeData = {
   savedViews: [],
   savedView: "ALL",
   savedViewNotice: null,
-  priorityWork: [{ ageDays: 5, id: "unit-001", inventoryNumber: "TMS-001", issue: "Complete inspection", owner: "Inventory Owner", overdue: true, state: "ACTIVE", vehicle: "2020 Honda Accord" }],
-  reviews: { approvals: 1, reviews: 2, available: true },
-  totals: { active: 2, blocked: 0, exposureCents: 2_500_000, overdue: 1, waiting: 0 },
+  priorityWork: [{ ageDays: 5, dueAt: "2026-07-17T12:00:00.000Z", escalated: true, id: "unit-001", inventoryNumber: "TMS-001", issue: "Complete inspection", nextAction: "Complete inspection", owner: "Inventory Owner", ownerUserId: "owner-1", overdue: true, queue: "TEAM", reasonCode: "OVERDUE", state: "ACTIVE", tier: "P1", vehicle: "2020 Honda Accord" }],
+  reviews: { approvals: 1, reviews: 2, available: true, items: [{ actionHref: "/vehicles/inventory", actionLabel: "Review", ageHours: 24, amountCents: null, domain: "INVENTORY", id: "review-1", kind: "REVIEW", overdue: false, owner: "Manager Owner", state: "READY", subject: "TMS-001", title: "Title exception review" }] },
+  totals: { active: 2, agedExposureCents: 500_000, blocked: 0, exposureCents: 2_500_000, overdue: 1, waiting: 0 },
 };
 
 describe("Inventory Console R2 Home", () => {
   it("renders the approved Home hierarchy and deeper workspace routing", () => {
     const markup = renderToStaticMarkup(<InventoryConsoleHome data={data} />);
-    expect(markup).toContain("Vehicle Operations Home");
+    expect(markup).toContain("Operations Home");
+    expect(markup).toContain("Aged Exposure");
     expect(markup).toContain("Start Workflow");
     expect(markup).toContain("Inventory Lifecycle");
     expect(markup).toContain("Shop &amp; Recon");
@@ -35,6 +36,8 @@ describe("Inventory Console R2 Home", () => {
     expect(markup).toContain("Open Disposition &amp; Wholesale");
     expect(markup).toContain("Open Parts Operations");
     expect(markup).toContain("Priority Work");
+    expect(markup).toContain("Current Stage");
+    expect(markup).toContain("Title exception review");
     expect(markup).toContain("Reviews &amp; Approvals");
     expect(markup).toContain("Data &amp; Integration Health");
     expect(markup).toContain("View Event Log");
@@ -45,13 +48,13 @@ describe("Inventory Console R2 Home", () => {
     const markup = renderToStaticMarkup(<InventoryConsoleHome data={data} />);
     expect(markup).toContain("4");
     expect(markup).toContain("3");
-    expect(markup).toContain("Last 24 Hours");
+    expect(markup).toContain("Today&#x27;s Throughput");
     expect(markup).toContain("Provider-neutral exchanges");
     expect(markup).toContain("HEALTHY");
   });
 
   it("renders explicit unavailable state without representative values", () => {
-    const markup = renderToStaticMarkup(<InventoryConsoleHome data={{ ...data, byLocation: [], byStage: [], freshness: "UNAVAILABLE", generatedAt: null, error: "Projection offline", operational: null, priorityWork: [], reviews: { approvals: 0, reviews: 0, available: false }, totals: { active: 0, blocked: 0, exposureCents: 0, overdue: 0, waiting: 0 } }} />);
+    const markup = renderToStaticMarkup(<InventoryConsoleHome data={{ ...data, byLocation: [], byStage: [], freshness: "UNAVAILABLE", generatedAt: null, error: "Projection offline", operational: null, priorityWork: [], reviews: { approvals: 0, reviews: 0, available: false, items: [] }, totals: { active: 0, agedExposureCents: 0, blocked: 0, exposureCents: 0, overdue: 0, waiting: 0 } }} />);
     expect(markup).toContain("Unavailable");
     expect(markup).toContain("Projection offline");
     expect(markup).toContain("Your current role cannot view enterprise decision counts");

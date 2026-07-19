@@ -53,21 +53,27 @@ describe("R3 Inventory Lifecycle UI", () => {
 
   it("renders the focused landing and explicit deeper transition", () => {
     const markup = renderToStaticMarkup(<InventoryLifecycleLanding projection={projection} controlTowerHref="/vehicles/control-tower?returnTo=%2Fvehicles%2Finventory" />);
-    expect(markup).toContain("Move every vehicle to its best next outcome.");
+    expect(markup).toContain("Enterprise inventory health and movement");
     expect(markup).toContain("Open Control Tower");
     expect(markup).toContain("Open Disposition &amp; Wholesale");
-    expect(markup).toContain("+ Start Workflow");
-    expect(markup).toContain("R9 disposition recommendations are advisory, explained, and non-executing.");
+    expect(markup).toContain("Lifecycle Pipeline");
+    expect(markup).toContain("Lifecycle Velocity");
+    expect(markup).toContain("Stage Bottlenecks");
+    expect(markup).toContain("Inventory Aging");
   });
 
   it("renders live control-tower facts and connected downstream workspaces", () => {
     const markup = renderToStaticMarkup(<InventoryControlTower projection={projection} backHref="/vehicles/inventory?view=attention" />);
     expect(markup).toContain("Inventory Lifecycle Control Tower");
-    expect(markup).toContain("Back to Inventory Lifecycle");
+    expect(markup).toContain("Lifecycle Flow Map");
     expect(markup).toContain("INV-100");
     expect(markup).toContain("Resolve brake-parts constraint");
-    expect(markup).toContain("Connected workspace");
-    expect(markup).toContain("R10 composes permission-scoped review and exact-version approval queues");
+    expect(markup).toContain("Retail Inventory");
+    expect(markup).toContain("Shop / Recon");
+    expect(markup).toContain("Repair Parts");
+    expect(markup).toContain("Flow Exceptions");
+    expect(markup).toContain("Shop Capacity Board");
+    expect(markup).toContain("Capital &amp; Aging Portfolio");
     expect(markup).not.toContain("2019 Toyota Camry SE");
     expect(markup).not.toContain("High confidence");
   });
@@ -75,6 +81,11 @@ describe("R3 Inventory Lifecycle UI", () => {
   it("renders connected lifecycle distributions, cross-lane facts, selected context, capital, decisions, and health", () => {
     const base = buildInventoryControlTowerProjection(units, now), enhanced = { ...base, stageFlow: base.byStage.map((stage) => ({ stage: stage.stage, entries30d: 2, exits30d: 1, medianDays: 3, p90Days: 7, sampleSize: 4, active: 1, waiting: 0, idle: 0, blocked: 0, breached: 0, exposureCents: 100, ownerCount: 1 })), crossLane: { status: "CONNECTED", inventoryReconOrders: 2, activeOrders: 2, blockedOrders: 1, openJobs: 3, qcPassedJobs: 1, qcHandoffReady: false, waitingPartDemands: 2, unreservedPartUnits: 4, earliestEstimatedArrivalAt: null, readinessConfidence: "LOW", customerRepairOrdersExcluded: 5 }, decisions: { status: "CONNECTED", approvals: 2, recommendations: 1, expired: 0, items: [] }, capital: { actualCents: 2_000_000, estimatedCents: 750_000, byCategory: [{ key: "ACQUISITION", exposureCents: 2_000_000 }], byConfidence: [], excludedEntries: 0, reconciliationCents: 2_750_000 }, selectedContext: { inventoryUnitId: "unit-blocked", repairOrders: [{ id: "ro1", partDemands: [] }], parts: { openDemands: 2, unreservedUnits: 4 }, tasks: [{ id: "t1" }], decisions: [{ id: "d1" }], auditEvents: [], commands: [], validCommands: ["Open Shop & Recon"], fieldRestrictions: ["Restricted fields remain capability-filtered."] }, health: { status: "ATTENTION", deadLetters: 1, openConflicts: 1, laggingProjections: [], conflicts: [{ id: "c1", systemCode: "DMS", summary: "Mismatch", ownerUserId: null }], affectedPanels: ["Integration reconciliation"], manualPath: "Continue internal evidence capture.", recoveryAction: "Reconcile and verify." } } as unknown as InventoryControlTowerProjection;
     const markup = renderToStaticMarkup(<InventoryControlTower projection={enhanced} />);
-    expect(markup).toContain("2 in · 1 out"); expect(markup).toContain("3d median · 7d p90"); expect(markup).toContain("5 customer-repair orders are excluded"); expect(markup).toContain("Actual"); expect(markup).toContain("Open conflicts"); expect(markup).toContain("Restricted fields remain capability-filtered");
+    expect(markup).toContain("Shop Flow");
+    expect(markup).toContain("Parts Readiness");
+    expect(markup).toContain("Financial Exposure");
+    expect(markup).toContain("Linked Work");
+    expect(markup).toContain("1 Tasks · 1 Repair Orders · 1 Decisions");
+    expect(markup).toContain("Audit Trail");
   });
 });

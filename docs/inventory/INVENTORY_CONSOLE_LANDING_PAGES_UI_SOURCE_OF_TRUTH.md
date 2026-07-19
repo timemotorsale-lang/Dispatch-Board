@@ -4,13 +4,13 @@
 **Module:** Inventory Console
 **Version:** 1.4 approved baseline
 **Date adopted:** 2026-07-16; refined and re-approved 2026-07-17; Control Tower navigation approved 2026-07-18
-**Status:** Approved visual and interaction source of truth; implementation not yet started
+**Status:** Approved visual and interaction source of truth; visual-conformance implementation completed 2026-07-19
 
 ---
 
 ## 1. Approval decision
 
-The five images in this document are the binding desktop landing-page and deeper-workspace references for the Inventory Console.
+The five images in this document are binding desktop landing-page and deeper-workspace screen specifications for the Inventory Console. They are the source of truth, not reference points. Implementations must reproduce their visible composition exactly; any deliberate visual departure requires a versioned image update and renewed approval.
 
 - Selecting **Home** must land the staff member on the approved Inventory Console Home page.
 - Selecting **Inventory Lifecycle** must land the staff member on the approved Inventory Lifecycle page.

@@ -55,6 +55,11 @@ describe("PartsOperationsWorkspace", () => {
     expect(markup).toContain("Parts Operations");
     expect(markup).toContain("Parts Milestones");
     expect(markup).toContain("Parts Work Queue");
+    expect(markup).toContain("Part # / Description");
+    expect(markup).toContain("Repair Order / Job");
+    expect(markup).toContain("2025 Ford F-150 · TMS-100");
+    expect(markup).toContain("Reviews &amp; Approvals");
+    expect(markup).toContain("Review and approval categories");
     expect(markup).toContain("Recommendations are advisory");
     expect(markup).toContain("parts-operations?view=demand");
     expect(markup).toContain("parts-operations?view=counts-exceptions");
