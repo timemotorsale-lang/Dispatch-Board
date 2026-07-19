@@ -71,3 +71,9 @@ Supported Control Tower context parameters are `locationId`, `stage`, `inventory
 ## R3 repository exit
 
 The fixed-fixture repository exit passes for the implemented InventoryUnit projection and its landing/Control Tower drill-throughs. R3 must not be represented as pilot-ready or production-complete until Shop/Parts dependencies, exact-version decisions, pilot fixtures, operational sign-off, and activation evidence exist. R4 may be implemented in repository-only mode under the existing R0 bounded authorization; no R3 production dependency is implied.
+
+## Wave 2 lifecycle-projection amendment — 2026-07-18
+
+The gap-closure branch `codex/inventory-console-gap-closure-wave-2-lifecycle-projections` supersedes the original unavailable boundaries for IC-031, IC-032, and IC-034 through IC-037. The Control Tower now uses existing authoritative records for event-history flow distributions, Inventory Recon and Parts dependencies, versioned decisions/recommendations, capital components/confidence, selected-asset operational joins, and health/recovery context. Details and stop boundaries are recorded in [`INVENTORY_CONSOLE_GAP_CLOSURE_WAVE_2_LIFECYCLE_PROJECTIONS.md`](INVENTORY_CONSOLE_GAP_CLOSURE_WAVE_2_LIFECYCLE_PROJECTIONS.md).
+
+This amendment changes repository projection completeness only. Production-scale event volume, real providers, operational accessibility/performance, deployment, pilot evidence, and activation remain governed by their existing external-evidence gates.

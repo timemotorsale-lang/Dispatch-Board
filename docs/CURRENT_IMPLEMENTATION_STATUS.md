@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-07-18 — Inventory Console gap closure Wave 2 lifecycle projections
+
+IC-031, IC-032, and IC-034 through IC-037 are now repository-complete. The Lifecycle Control Tower composes authoritative event-history distributions, Inventory Recon and Parts readiness, versioned decisions and recommendations, capital components, selected-asset operational joins, and integration/projection health with manual and recovery paths. Customer repair remains excluded from inventory-recon totals, recommendations remain non-executing, and owning workspaces retain mutation authority. The automated ledger now reports 52 complete and 48 partial slices. See [`docs/inventory/INVENTORY_CONSOLE_GAP_CLOSURE_WAVE_2_LIFECYCLE_PROJECTIONS.md`](inventory/INVENTORY_CONSOLE_GAP_CLOSURE_WAVE_2_LIFECYCLE_PROJECTIONS.md).
+
+Wave 1 was included by fast-forward because this branch was initially created from the pre-Wave-1 `main` baseline. No provider, migration application, rollout, pilot, deployment, commit, push, or merge to `main` was performed by Wave 2.
+
 ## 2026-07-18 — Inventory Console gap closure Wave 1 shared foundations
 
 IC-023 and IC-025 are now repository-complete. Inventory Console Home has Console-owned personal/team saved views with safe filter recovery and permission re-evaluation, plus authoritative Shop, Parts, 24-hour throughput, and provider-neutral integration-health facts. Universal discovery now includes owner-scoped governed work items, and Home exposes My Work, Team, and Exceptions views; IC-022 and IC-026 remain partial for return-context and cross-domain priority composition. The automated 121-slice ledger now reports 46 complete and 54 partial slices, with all external-evidence and decision gates unchanged. See [`docs/inventory/INVENTORY_CONSOLE_GAP_CLOSURE_WAVE_1_SHARED_FOUNDATIONS.md`](inventory/INVENTORY_CONSOLE_GAP_CLOSURE_WAVE_1_SHARED_FOUNDATIONS.md).

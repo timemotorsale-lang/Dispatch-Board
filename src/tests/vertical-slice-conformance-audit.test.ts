@@ -13,7 +13,7 @@ describe("Inventory Console 121-slice conformance audit", () => {
     expect(report.disposition).toBe("AUDITED");
     expect(report.completionClaim).toBe("REPOSITORY_ONLY");
     expect(report.rows).toHaveLength(121);
-    expect(report.counts).toEqual({ COMPLETE: 46, PARTIAL: 54, NOT_STARTED: 0, EXTERNAL_EVIDENCE_REQUIRED: 17, BLOCKED_BY_DECISION: 4 });
+    expect(report.counts).toEqual({ COMPLETE: 52, PARTIAL: 48, NOT_STARTED: 0, EXTERNAL_EVIDENCE_REQUIRED: 17, BLOCKED_BY_DECISION: 4 });
     expect(report.rows.every((row) => row.evidenceReferences.length === 2 && row.remainingGap.length > 20 && row.nextAction.length > 20)).toBe(true);
   });
 
@@ -23,7 +23,7 @@ describe("Inventory Console 121-slice conformance audit", () => {
     expect(byId.get("IC-023")?.status).toBe("COMPLETE");
     expect(byId.get("IC-025")?.status).toBe("COMPLETE");
     expect(byId.get("IC-026")?.status).toBe("PARTIAL");
-    expect(byId.get("IC-032")?.status).toBe("PARTIAL");
+    for (const id of ["IC-031", "IC-032", "IC-034", "IC-035", "IC-036", "IC-037"]) expect(byId.get(id)?.status).toBe("COMPLETE");
     expect(byId.get("IC-113")?.status).toBe("EXTERNAL_EVIDENCE_REQUIRED");
     expect(byId.get("IC-110")?.status).toBe("BLOCKED_BY_DECISION");
     expect(byId.get("IC-129")?.remainingGap).toMatch(/No eight-dimension/);
