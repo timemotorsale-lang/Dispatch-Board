@@ -1,128 +1,58 @@
+import type { CSSProperties } from "react";
+import { AlertTriangle, CalendarDays, CheckCircle2, Clock3, Download, PackageOpen, UserRound, Wrench } from "lucide-react";
 import Link from "next/link";
 
-type Item = {
-  id: string;
-  repairOrderNumber: string;
-  origin: string;
-  stage: string;
-  operatingState: string;
-  targetAt: string;
-  nextAction: string;
-  blocker: string | null;
-  owner: string;
-  location: string;
-  vehicle: string;
-  subject: string;
-  concern: string;
-  waitingParts: boolean;
-  unassigned: boolean;
-  atRisk: boolean;
-  approvalPending: boolean;
-  technician: string | null;
-  bay: string | null;
-  jobCount: number;
-  qcPending: number;
-};
-
-type Model = {
-  contractVersion: string;
-  freshness: string;
-  generatedAt: string;
-  totals: {
-    openOrders: number;
-    projectedOnTime: number;
-    waitingParts: number;
-    unassigned: number;
-    atRisk: number;
-    customerRepair: number;
-    inventoryRecon: number;
-  };
-  pipeline: Array<{ key: string; label: string; count: number }>;
-  items: Item[];
-  reviews: { quality: number; comebacks: number };
-  approvals: { estimate: number };
-  capability: {
-    partsRecommendations: string;
-    externalAdapters: string;
-    automaticDiscipline: string;
-  };
-};
+type Item = { id: string; repairOrderNumber: string; origin: string; stage: string; operatingState: string; targetAt: string; nextAction: string; blocker: string | null; owner: string; location: string; vehicle: string; subject: string; concern: string; waitingParts: boolean; unassigned: boolean; atRisk: boolean; approvalPending: boolean; technician: string | null; bay: string | null; jobCount: number; qcPending: number };
+type Model = { contractVersion: string; freshness: string; generatedAt: string; totals: { openOrders: number; projectedOnTime: number; waitingParts: number; unassigned: number; atRisk: number; customerRepair: number; inventoryRecon: number }; pipeline: Array<{ key: string; label: string; count: number }>; items: Item[]; reviews: { quality: number; comebacks: number }; approvals: { estimate: number }; capability: { partsRecommendations: string; externalAdapters: string; automaticDiscipline: string } };
 
 export function ShopReconLanding({ model }: { model: Model }) {
-  return (
-    <section className="page-stack shop-r7-landing">
-      <header className="page-copy">
-        <span className="eyebrow">Inventory Console &middot; R7 Shop &amp; Recon</span>
-        <h1>Keep every repair moving.</h1>
-        <p>One daily operating view for customer repair and inventory recon, with accountable work, promise risk, capacity, parts constraints, quality, approvals, and evidence-backed handoffs.</p>
-        <div className="form-actions">
-          <Link className="button button-primary" href="/vehicles/parts-operations">Open Parts Operations</Link>
-          <Link className="pill pill-secondary" href="/vehicles/repair-orders">Start / open RepairOrder</Link>
-          <Link className="pill pill-secondary" href="/vehicles/shop-planning">Diagnosis &amp; planning</Link>
-          <Link className="pill pill-secondary" href="/vehicles/shop-dispatch">Capacity &amp; assignment</Link>
-          <Link className="pill pill-secondary" href="/vehicles/shop-metrics">Production metrics</Link>
-          <Link className="pill pill-secondary" href="/vehicles/control-tower">Inventory Control Tower</Link>
-        </div>
-      </header>
+  const now = new Date(model.generatedAt);
+  const dateKey = now.toISOString().slice(0, 10);
+  const overdue = model.items.filter((item) => new Date(item.targetAt) < now).length;
+  const dueToday = model.items.filter((item) => item.targetAt.slice(0, 10) === dateKey).length;
+  const partsReadiness = model.totals.openOrders ? Math.round(((model.totals.openOrders - model.totals.waitingParts) / model.totals.openOrders) * 100) : 100;
+  const columns = [
+    { key: "unassigned", label: "Unassigned", items: model.items.filter((item) => item.unassigned) },
+    { key: "diagnosing", label: "Diagnosing", items: model.items.filter((item) => ["INTAKE", "DIAGNOSIS"].includes(item.stage)) },
+    { key: "approval", label: "Estimate / Approval", items: model.items.filter((item) => item.approvalPending || ["ESTIMATE", "AUTHORIZATION"].includes(item.stage)) },
+    { key: "parts", label: "Waiting on Parts", items: model.items.filter((item) => item.waitingParts) },
+    { key: "repair", label: "In Progress", items: model.items.filter((item) => ["READY_FOR_REPAIR", "REPAIRS"].includes(item.stage) && !item.waitingParts) },
+    { key: "quality", label: "Quality Check", items: model.items.filter((item) => item.stage === "QUALITY_CONTROL" || item.qcPending > 0) },
+    { key: "complete", label: "Complete / Handoff", items: model.items.filter((item) => ["ADVISOR_REVIEW", "HANDOFF"].includes(item.stage)) },
+  ];
+  const blockers = model.items.filter((item) => item.blocker || item.waitingParts || item.approvalPending || item.atRisk).slice(0, 5);
+  const technicians = [...new Set(model.items.map((item) => item.technician).filter((value): value is string => Boolean(value)))].map((name) => ({ name, assigned: model.items.filter((item) => item.technician === name).length }));
+  const decisionRows = [
+    ...model.items.filter((item) => item.qcPending > 0).map((item) => ({ ...item, decision: "Quality review", action: "Review", href: `/vehicles/quality-control?repairOrderId=${item.id}` })),
+    ...model.items.filter((item) => item.approvalPending).map((item) => ({ ...item, decision: "Recon estimate approval", action: "Approve", href: `/manager-review?scope=shop&view=approvals&repairOrderId=${item.id}` })),
+  ];
+  const mediumRisk = model.items.filter((item) => !item.atRisk && (item.waitingParts || item.approvalPending)).length;
+  const lowRisk = Math.max(0, model.totals.openOrders - model.totals.atRisk - mediumRisk);
 
-      <section className="ict-integrity">
-        <strong>{model.freshness} &middot; {model.contractVersion}</strong>
-        <span>As of {new Date(model.generatedAt).toLocaleString()}</span>
-        <span>External service, DMS, payment, messaging, and accounting adapters are disabled.</span>
-      </section>
+  return <section aria-label={`Shop and Recon; Customer Repair ${model.totals.customerRepair}; Inventory Recon ${model.totals.inventoryRecon}; ${model.freshness}; ${model.contractVersion}; External adapters: ${model.capability.externalAdapters}`} className="shop-r7-landing visual-console-page">
+    <header className="vcp-header"><div><p>Inventory Console</p><h1>Shop &amp; Recon</h1><span>Daily production, capacity, and obstacle management</span></div><div className="vcp-actions"><Link className="vcp-primary" href="/vehicles/parts-operations"><PackageOpen size={15} />Open Parts Operations</Link><button disabled>Saved Views</button><button disabled title="Export activation is pending"><Download size={15} />Export</button></div></header>
 
-      <section className="ict-kpi-strip">
-        {[
-          { label: "Open work", value: model.totals.openOrders },
-          { label: "Projected on time", value: `${model.totals.projectedOnTime}%` },
-          { label: "Waiting on parts", value: model.totals.waitingParts },
-          { label: "Needs assignment", value: model.totals.unassigned },
-          { label: "At risk", value: model.totals.atRisk },
-        ].map((metric) => <article key={metric.label}><span>{metric.label}<strong>{metric.value}</strong></span></article>)}
-      </section>
+    <section className="vcp-filter-bar" aria-label="Shop and Recon filters"><label>Location<select disabled><option>All permitted locations</option></select></label><label>Work Type<select disabled><option>All work</option></select></label><label>Technician<select disabled><option>All technicians</option></select></label><label>Vendor<select disabled><option>All vendors</option></select></label><label>Status<select disabled><option>All states</option></select></label><label>Date<select disabled><option>{now.toLocaleDateString()}</option></select></label></section>
+    <Link className="sr-only" href="/vehicles/control-tower">Inventory Control Tower</Link>
 
-      <section className="shop-r7-workload" aria-label="Workload separation">
-        <article><span>Customer Repair</span><strong>{model.totals.customerRepair}</strong><small>Customer promise and consent remain visible</small></article>
-        <article><span>Inventory Recon</span><strong>{model.totals.inventoryRecon}</strong><small>Inventory handoff remains distinct</small></article>
-      </section>
+    <section className="vcp-kpis vcp-kpis-seven" aria-label="Shop and Recon KPIs">{[
+      { icon: Wrench, label: "In Shop", value: model.totals.openOrders, detail: "Open repair orders", tone: "blue" },
+      { icon: UserRound, label: "Ready to Assign", value: model.totals.unassigned, detail: "Needs accountable owner", tone: "blue" },
+      { icon: CalendarDays, label: "Due Today", value: dueToday, detail: "Current target date", tone: "amber" },
+      { icon: AlertTriangle, label: "Overdue", value: overdue, detail: "Target passed", tone: "red" },
+      { icon: PackageOpen, label: "Parts Readiness", value: `${partsReadiness}%`, detail: `${model.totals.waitingParts} waiting`, tone: "orange" },
+      { icon: CheckCircle2, label: "Completed Today", value: "—", detail: "Closure history unavailable", tone: "green" },
+      { icon: Clock3, label: "Avg. Cycle Time", value: "—", detail: "History unavailable", tone: "purple" },
+    ].map(({ icon: Icon, label, value, detail, tone }) => <article className={`vcp-kpi tone-${tone}`} key={label}><Icon size={21} /><span>{label}<strong>{value}</strong><small>{detail}</small></span></article>)}</section>
 
-      <section className="shop-r7-pipeline" aria-label="Shop production pipeline">
-        {model.pipeline.map((stage) => <article key={stage.key}><span>{stage.label}</span><strong>{stage.count}</strong></article>)}
-      </section>
+    <section className="shop-board" aria-label="Shop production board">{columns.map((column) => <article className={column.key === "parts" && column.items.length ? "attention" : ""} key={column.key}><header><div><strong>{column.label}</strong><small>{column.items.length ? `${column.items.length} work items` : "No current work"}</small></div><b>{column.items.length}</b></header><div>{column.items.slice(0, 3).map((item) => <Link href={`/vehicles/repair-orders?repairOrderId=${item.id}`} key={item.id}><header><strong>{item.vehicle}</strong><span className={item.atRisk ? "high" : item.waitingParts || item.approvalPending ? "medium" : "standard"}>{item.atRisk ? "High" : item.waitingParts || item.approvalPending ? "Medium" : "Standard"}</span></header><small>{item.repairOrderNumber} · {item.subject}</small><p>{item.blocker ?? item.nextAction}</p><footer><em><i>{(item.technician ?? item.owner).split(" ").map((part) => part[0]).join("").slice(0, 2)}</i>{item.technician ?? item.owner}</em><time dateTime={item.targetAt}>Promised<br />{new Date(item.targetAt).toLocaleString()}</time></footer></Link>)}</div>{column.items.length > 3 ? <Link className="shop-board-more" href="/vehicles/repair-orders">+ {column.items.length - 3} more</Link> : null}{!column.items.length ? <p className="shop-board-empty">No current work</p> : null}</article>)}</section>
 
-      <div className="shop-r7-grid">
-        <section className="panel-card page-stack">
-          <header><div><h2>Priority work</h2><p>Promise, constraint, readiness, and assignment signals from live RepairOrders</p></div></header>
-          {model.items.length ? model.items.slice(0, 12).map((item) => (
-            <Link className={`shop-r7-work-card${item.atRisk ? " at-risk" : ""}`} href={`/vehicles/repair-orders?repairOrderId=${item.id}`} key={item.id}>
-              <span>
-                <strong>{item.repairOrderNumber} &middot; {item.vehicle}</strong>
-                <small>{item.origin.replaceAll("_", " ")} &middot; {item.subject} &middot; {item.location}</small>
-                <small>{item.concern}</small>
-              </span>
-              <span>
-                <b>{item.stage.replaceAll("_", " ")} / {item.operatingState}</b>
-                <small>{item.technician ?? item.owner}{item.bay ? ` · ${item.bay}` : ""}</small>
-                <small>{item.waitingParts ? "Waiting on parts · " : ""}{item.unassigned ? "Needs assignment · " : ""}{item.approvalPending ? "Approval pending · " : ""}{new Date(item.targetAt).toLocaleString()}</small>
-                <small>{item.blocker ?? item.nextAction}</small>
-              </span>
-            </Link>
-          )) : <p>No open Shop or Recon work exists in this permitted scope.</p>}
-        </section>
+    <div className="shop-operations-grid">
+      <section className="vcp-panel shop-capacity"><header><strong>Capacity &amp; Assignment</strong><Link href="/vehicles/shop-dispatch">Assign Work</Link></header><div className="shop-mini-head"><span>Technician</span><span>Assigned / Capacity</span><span>Available</span></div>{technicians.map((technician) => <p key={technician.name}><strong>{technician.name}</strong><span>{technician.assigned} / — hrs</span><em>—</em></p>)}{!technicians.length ? <p className="vcp-empty">Technician capacity facts are unavailable.</p> : null}<Link className="shop-panel-all" href="/vehicles/shop-dispatch">View all technicians</Link></section>
+      <section className="vcp-panel shop-blockers"><header><strong>Blocker Center</strong><Link href="/vehicles/repair-orders">All blockers</Link></header><nav aria-label="Blocker categories"><Link className="active" href="/vehicles/shop-recon">All Blockers</Link><Link href="/vehicles/shop-recon?blocker=parts">Parts</Link><Link href="/vehicles/shop-recon?blocker=approvals">Approvals</Link><Link href="/vehicles/shop-recon?blocker=vendors">Vendors</Link></nav><div className="shop-blocker-head"><span>Blocker</span><span>Impacted</span><span>Age</span><span>Owner</span><span>Escalation</span><span>Action</span></div>{blockers.map((item) => <Link href={`/vehicles/repair-orders?repairOrderId=${item.id}`} key={item.id}><AlertTriangle size={14} /><span><strong>{item.blocker ?? (item.waitingParts ? "Part backorder" : item.approvalPending ? "Approval pending" : "Promise at risk")}</strong></span><span>1 vehicle</span><span>—</span><span>{item.owner}</span><em>{item.atRisk ? "At risk" : "Monitor"}</em><b>View</b></Link>)}{!blockers.length ? <p className="vcp-empty">No current blockers.</p> : null}<Link className="shop-panel-all" href="/vehicles/repair-orders">View all blockers</Link></section>
+      <section className="vcp-panel shop-decisions"><header><strong>Reviews &amp; Approvals</strong><Link href="/manager-review?scope=shop">View all</Link></header><nav aria-label="Shop decision categories"><Link className="active" href="/manager-review?scope=shop&view=reviews">Reviews <b>{model.reviews.quality + model.reviews.comebacks}</b></Link><Link href="/manager-review?scope=shop&view=approvals">Approvals <b>{model.approvals.estimate}</b></Link></nav><div className="shop-decision-head"><span>Item</span><span>Age</span><span>Owner</span><span>Amount</span><span>Action</span></div>{decisionRows.slice(0, 5).map((item) => <Link href={item.href} key={`${item.decision}:${item.id}`}><span><strong>{item.decision}</strong><small>{item.vehicle} · {item.repairOrderNumber}</small></span><span>—</span><span>{item.owner}</span><span>—</span><b>{item.action}</b></Link>)}{!decisionRows.length ? <p className="vcp-empty">No governed reviews or approvals.</p> : null}<Link className="shop-panel-all" href="/manager-review?scope=shop">View all reviews &amp; approvals</Link></section>
+    </div>
 
-        <aside className="page-stack">
-          <section className="panel-card page-stack"><h2>Capacity &amp; assignment</h2><p><strong>{model.totals.unassigned}</strong> ready orders need assignment.</p><Link className="text-link" href="/vehicles/shop-dispatch">Open dispatch board</Link><Link className="text-link" href="/vehicles/shop-dispatch">Open technician execution</Link></section>
-          <section className="panel-card page-stack"><h2>Blocker Center</h2><p><strong>{model.totals.waitingParts}</strong> waiting on Parts &middot; <strong>{model.totals.atRisk}</strong> at risk.</p><Link className="text-link" href="/vehicles/parts-operations">Open Parts dependencies</Link><Link className="text-link" href="/vehicles/advisor">Open promise and advisor work</Link></section>
-          <section className="panel-card page-stack"><h2>Reviews &amp; approvals</h2><p><strong>{model.reviews.quality}</strong> quality reviews &middot; <strong>{model.reviews.comebacks}</strong> comeback reviews &middot; <strong>{model.approvals.estimate}</strong> estimate decisions pending.</p><Link className="text-link" href="/vehicles/quality-control">Open Quality Control</Link><Link className="text-link" href="/manager-review?scope=shop&view=approvals">Open Approvals</Link><Link className="text-link" href="/vehicles/comebacks">Open Comebacks</Link></section>
-          <section className="panel-card page-stack"><h2>Invoice-ready close</h2><p>Authorized labor, installed-part custody, QC, delivery readiness, release, handoff, acknowledgement, mismatch, close, and controlled reopen remain evidence-gated.</p><Link className="text-link" href="/vehicles/service-close-parts">Open service close</Link></section>
-        </aside>
-      </div>
-
-      <section className="ict-integrity">
-        <span>Parts recommendations: {model.capability.partsRecommendations}</span>
-        <span>Automatic discipline: {model.capability.automaticDiscipline}</span>
-        <span>Provider state: {model.capability.externalAdapters}</span>
-      </section>
-    </section>
-  );
+    <section className="shop-analytics-grid"><article className="vcp-panel"><header><div><strong>Daily Throughput</strong><span>Current production snapshot · history unavailable</span></div></header><div className="vcp-column-chart">{columns.map((column) => <div key={column.key}><span style={{ "--bar": `${Math.max(4, column.items.length / Math.max(1, ...columns.map((item) => item.items.length)) * 100)}%` } as CSSProperties}><b>{column.items.length}</b></span><small>{column.label}</small></div>)}</div></article><article className="vcp-panel"><header><div><strong>Parts Operations</strong><span>Readiness and constrained work</span></div></header><div className="shop-parts-facts"><p><span>Jobs ready to start</span><strong>{Math.max(0, model.totals.openOrders - model.totals.waitingParts)}</strong></p><p><span>Backordered jobs</span><strong>{model.totals.waitingParts}</strong></p><p><span>Parts arriving today</span><strong>—</strong></p><p><span>Receipt discrepancies</span><strong>—</strong></p><p><span>Core / warranty recovery at risk</span><strong>—</strong></p></div><Link className="shop-panel-all" href="/vehicles/parts-operations">Open Parts Operations →</Link></article><article className="vcp-panel vcp-aging"><header><div><strong>At-Risk Completion</strong><span>Current open repair orders</span></div></header><div><div className="vcp-donut" style={{ background: `conic-gradient(#df2736 0 ${model.totals.openOrders ? model.totals.atRisk / model.totals.openOrders * 100 : 0}%, #f39a05 0 ${model.totals.openOrders ? (model.totals.atRisk + mediumRisk) / model.totals.openOrders * 100 : 0}%, #0a8a4e 0)` }}><span><strong>{model.totals.atRisk + mediumRisk}</strong><small>Vehicles at risk</small></span></div><ul><li><i style={{ background: "#df2736" }} /><span>High risk</span><strong>{model.totals.atRisk}</strong></li><li><i style={{ background: "#f39a05" }} /><span>Medium risk</span><strong>{mediumRisk}</strong></li><li><i style={{ background: "#0a8a4e" }} /><span>Low risk</span><strong>{lowRisk}</strong></li></ul></div></article></section>
+  </section>;
 }

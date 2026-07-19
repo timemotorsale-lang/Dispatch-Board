@@ -4,7 +4,7 @@
 **Module:** Inventory Console → Shop & Recon  
 **Version:** 1.0 approved baseline  
 **Date:** 2026-07-17  
-**Status:** Approved visual, workflow, and interaction source of truth; implementation not yet started  
+**Status:** Approved visual, workflow, and interaction source of truth; visual-conformance implementation completed 2026-07-19
 **Working branch:** `codex/inventory-wholesale-parts-workspaces`
 
 ## 1. Approved mockup
@@ -30,6 +30,13 @@ This is the deeper workspace reached through **Open Parts Operations**. It is no
 | Transfers | Source availability, custody, shipment, receipt, discrepancy, cost, and SLA |
 | Returns & Recovery | Core, warranty, vendor return, acknowledgement, credit, dispute, and write-off |
 | Counts & Exceptions | Full/cycle/spot counts, variance approval, adjustment, anomaly, and exception ownership |
+
+### Binding overview execution areas
+
+- **Parts Work Queue** preserves the approved **My Work**, **Team**, and **Exceptions** categories and the complete fact sequence: Type, Part # / Description, Repair Order / Job, Vehicle, Required By, Availability, Vendor / ETA, Reservation, Owner, Blocker, and Action.
+- **Reviews & Approvals** preserves separate **Reviews** and **Approvals** categories and the approved facts: Item, Owner, Age, Amount, and Action.
+- A value that is absent from an authoritative projection is shown as unavailable; the interface must not manufacture an owner, ETA, availability result, or approval fact to make the page appear complete.
+- The five supporting panels remain Supply & Availability, Purchase Orders & Receiving, Transfers & Custody, Returns & Recovery, and Recommendation Explanation.
 
 ## 4. Operational milestones
 
