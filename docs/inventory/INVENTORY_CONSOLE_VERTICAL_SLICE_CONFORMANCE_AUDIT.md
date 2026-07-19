@@ -10,8 +10,8 @@
 
 | Classification | Count | Meaning |
 | --- | ---: | --- |
-| `COMPLETE` | 60 | The slice's repository acceptance is demonstrated by its owning implementation and tests. Deployment, operational validation, pilot, and activation are not implied. |
-| `PARTIAL` | 40 | A real implementation/control boundary exists, but one or more named acceptance behaviors remain unfinished or unverified. |
+| `COMPLETE` | 62 | The slice's repository acceptance is demonstrated by its owning implementation and tests. Deployment, operational validation, pilot, and activation are not implied. |
+| `PARTIAL` | 38 | A real implementation/control boundary exists, but one or more named acceptance behaviors remain unfinished or unverified. |
 | `NOT_STARTED` | 0 | No slice lacks all planning, control, or implementation evidence. This does not convert partial work into completion. |
 | `EXTERNAL_EVIDENCE_REQUIRED` | 17 | Completion requires a real provider, environment, recovery, accessibility, performance, migration, pilot, or expansion exercise that repository code cannot manufacture. |
 | `BLOCKED_BY_DECISION` | 4 | A named owner, source-authority, target, pilot, or release decision is missing and must be approved before dependent activation. |
@@ -40,11 +40,11 @@ The manager-facing classification is available at `/administration/program-valid
 
 ## 3. Repository-complete slices
 
-The 60 repository-complete slices are:
+The 62 repository-complete slices are:
 
-`IC-001`, `IC-010`–`IC-013`, `IC-016`, `IC-021`, `IC-023`, `IC-025`, `IC-030`–`IC-039`, `IC-040`–`IC-044`, `IC-046`, `IC-058`, `IC-067`, `IC-068`, `IC-070`–`IC-073`, `IC-075`–`IC-077`, `IC-080`–`IC-082`, `IC-084`–`IC-088`, `IC-090`–`IC-093`, `IC-095`, `IC-098`, `IC-100`–`IC-105`, `IC-107`–`IC-109`, `IC-112`, and `IC-118`.
+`IC-001`, `IC-010`–`IC-013`, `IC-016`, `IC-021`, `IC-023`, `IC-025`, `IC-030`–`IC-039`, `IC-040`–`IC-044`, `IC-046`, `IC-058`, `IC-067`, `IC-068`, `IC-070`–`IC-073`, `IC-075`–`IC-077`, `IC-080`–`IC-082`, `IC-084`–`IC-088`, `IC-090`–`IC-093`, `IC-095`, `IC-098`, `IC-100`–`IC-105`, `IC-107`–`IC-109`, `IC-111`, `IC-112`, `IC-118`, and `IC-119`.
 
-Wave 3 closes `IC-058`, `IC-067`, `IC-068`, and `IC-098`; Wave 4 closes `IC-103`, `IC-104`, `IC-108`, and `IC-109`. See the corresponding gap-closure evidence documents. These and the previously complete slices remain subject to regression protection and later operational evidence.
+Wave 3 closes `IC-058`, `IC-067`, `IC-068`, and `IC-098`; Wave 4 closes `IC-103`, `IC-104`, `IC-108`, and `IC-109`; Wave 5 closes the repository acceptance for `IC-111` and `IC-119`. See the corresponding gap-closure evidence documents. These and the previously complete slices remain subject to regression protection and later operational evidence.
 
 ## 4. Decision-blocked slices
 
@@ -70,13 +70,12 @@ Repository fixtures may prepare these exercises but cannot mark them complete.
 
 ## 6. Partial-slice gap themes
 
-The 40 partial slices fall into five dependency-ordered themes:
+The 38 partial slices fall into four dependency-ordered themes:
 
 1. shared evidence, policy, saved-view, search, launcher, Home, and honest-state completeness;
 2. Lifecycle cross-lane joins, event-history statistics, capital detail, decisions, selected-asset joins, and integration health;
 3. domain automation, provider acknowledgement/reconciliation, mismatch operations, reinstatement, and representative tabletop coverage across Acquisition, Frontline, Retail, Shop, Parts, and Wholesale;
-4. controlled export, historical KPI/restatement, capability administration, background operations, retention/privacy, and support workflows;
-5. integration credentials/auth/webhooks and provider-neutral harness completion.
+4. controlled export, historical KPI/restatement, capability administration, background operations, retention/privacy, and support workflows.
 
 The executable ledger carries the slice-specific gap rather than relying only on these themes.
 
@@ -103,4 +102,4 @@ This branch classifies and exposes evidence; it does not close any business-func
 - Focused tests cover the valid ledger, representative classifications, missing milestone/evidence failure, and runtime-safe manager index.
 - TypeScript typecheck and ESLint pass.
 - Production build passes.
-- Complete repository suite passes: 216 test files and 1,231 tests.
+- Complete repository suite passes: 223 test files and 1,257 tests.

@@ -5523,6 +5523,110 @@ model EnterpriseIntegrationConflict {
   @@index([exchangeId])
 }
 
+/// Secret-free credential metadata. Secret material remains in an external vault/environment resolver.
+model IntegrationCredentialReference {
+  id             String   @id @default(cuid())
+  organizationId String
+  partnerId      String
+  systemCode     String
+  keyId          String
+  secretRef      String
+  idempotencyKey String
+  requestHash    String
+  status         String   @default("SANDBOX_ACTIVE")
+  scopes         Json
+  allowedOrigins Json
+  rateLimit      Int      @default(60)
+  ownerUserId    String
+  createdByUserId String
+  version        Int      @default(1)
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  subscriptions  IntegrationWebhookSubscription[]
+  partnerRequests IntegrationPartnerRequest[]
+
+  @@unique([organizationId, partnerId, keyId])
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, status, expiresAt])
+  @@index([partnerId, status])
+}
+
+model IntegrationWebhookSubscription {
+  id                    String   @id @default(cuid())
+  organizationId        String
+  credentialReferenceId String
+  url                   String
+  eventTypes            Json
+  apiVersion            String
+  secretRef             String
+  idempotencyKey        String
+  requestHash           String
+  allowedOrigins        Json
+  timestampToleranceSec Int      @default(300)
+  status                String   @default("SANDBOX_ACTIVE")
+  version               Int      @default(1)
+  createdByUserId       String
+  expiresAt             DateTime?
+  revokedAt             DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  credential            IntegrationCredentialReference @relation(fields: [credentialReferenceId], references: [id], onDelete: Restrict)
+  deliveries            IntegrationWebhookDelivery[]
+
+  @@index([organizationId, status, updatedAt])
+  @@unique([organizationId, idempotencyKey])
+  @@index([credentialReferenceId, status])
+}
+
+/// Replay-protected signed webhook receipt. Raw signatures and secret values are never persisted.
+model IntegrationWebhookDelivery {
+  id             String   @id @default(cuid())
+  organizationId String
+  subscriptionId String
+  deliveryId     String
+  eventType      String
+  apiVersion     String
+  origin         String
+  bodyHash       String
+  signatureKeyId String
+  status         String
+  rejectionCode  String?
+  receivedAt     DateTime
+  eventTimestamp DateTime
+  createdAt      DateTime @default(now())
+  subscription   IntegrationWebhookSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, subscriptionId, deliveryId])
+  @@index([organizationId, status, receivedAt])
+  @@index([subscriptionId, receivedAt])
+}
+
+/// Durable partner request ledger for scope, rate, idempotency, version, and audit enforcement.
+model IntegrationPartnerRequest {
+  id                    String   @id @default(cuid())
+  organizationId        String
+  credentialReferenceId String
+  idempotencyKey        String
+  requestHash           String
+  requiredScope         String
+  apiVersion            String
+  method                String
+  resource              String
+  status                String
+  responseHash          String?
+  correlationId         String
+  requestedAt           DateTime
+  completedAt           DateTime?
+  createdAt             DateTime @default(now())
+  credential            IntegrationCredentialReference @relation(fields: [credentialReferenceId], references: [id], onDelete: Restrict)
+
+  @@unique([credentialReferenceId, idempotencyKey])
+  @@index([organizationId, credentialReferenceId, requestedAt])
+  @@index([correlationId])
+}
+
 model CustomerServicePromise {
   id                    String    @id @default(cuid())
   organizationId        String
