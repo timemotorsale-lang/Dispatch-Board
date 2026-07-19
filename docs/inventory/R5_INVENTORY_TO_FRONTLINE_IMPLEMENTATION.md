@@ -89,3 +89,9 @@ The repository contains the internal aggregate, migration artifact, commands, pr
 External carrier, title-agency, listing, DMS, accounting, and notification adapters remain disabled and were not contacted. Scheduled escalation, full accessibility/performance evidence, provider reconciliation, representative end-to-end tabletop cases, migration deployment, pilot sign-off, support readiness, and production activation remain pending.
 
 No commit, push, pull request, merge, deployment, external mutation, migration application, pilot, or rollout activation was performed.
+
+## Wave 7 lifecycle-automation amendment — 2026-07-19
+
+IC-050 through IC-057 now include deterministic overdue evaluation, idempotent owned escalation, and exact recovery to the responsible lifecycle stage. Receipt and inspection failures retain accountable correction routes; material recon scope changes invalidate approval; alternate disposition is explicit; failed QC creates evidence-backed rework; title holds and publication exceptions capture owner/dependency/due/retry facts. The scheduled boundary requires an active attributable automation actor and remains undeployed.
+
+Repository behavior is complete for the Wave 7 gaps, but these mixed slices remain partial until their named carrier/provider acknowledgements, representative table-tops, accessibility, workload, deployment, freshness, and pilot evidence are independently recorded. See [`INVENTORY_CONSOLE_GAP_CLOSURE_WAVE_7_LIFECYCLE_AUTOMATION_RECOVERY.md`](INVENTORY_CONSOLE_GAP_CLOSURE_WAVE_7_LIFECYCLE_AUTOMATION_RECOVERY.md).

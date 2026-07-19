@@ -66,12 +66,15 @@ export async function updateVehicleOperationsFeature(actor: AuthenticatedUser | 
   const expectedVersion = Number(raw.expectedVersion);
   const rolloutPercent = Number(raw.rolloutPercent);
   const reason = String(raw.reason ?? "").trim();
+  const locationId = typeof raw.locationId === "string" && raw.locationId.trim() ? raw.locationId.trim() : null;
   if (!VEHICLE_OPERATIONS_FEATURES.includes(code)) throw new Error("Vehicle Operations feature code is invalid.");
   if (!(["OFF", "SHADOW", "PILOT", "GENERAL"] as string[]).includes(mode)) throw new Error("Vehicle Operations rollout mode is invalid.");
   if (!Number.isInteger(expectedVersion) || expectedVersion < 1) throw new Error("Expected feature version is required.");
   if (!Number.isInteger(rolloutPercent) || rolloutPercent < 0 || rolloutPercent > 100) throw new Error("Rollout percent must be from 0 through 100.");
   if (reason.length < 10) throw new Error("Rollout changes require a reason of at least 10 characters.");
   if (mode !== "PILOT" && rolloutPercent !== 0 && mode !== "GENERAL") throw new Error("Only PILOT or GENERAL mode can use a rollout percentage.");
-  const flag = await deps.repository.updateFeatureFlag({ actorUserId: user.id, allowedUserIds: users(raw.allowedUserIds), code, correlationId: randomUUID(), expectedVersion, locationId: null, mode, organizationId: deps.organizationId, reason, rolloutPercent: mode === "GENERAL" ? 100 : rolloutPercent });
+  const flag = await deps.repository.updateFeatureFlag({ actorUserId: user.id, allowedUserIds: users(raw.allowedUserIds), code, correlationId: randomUUID(), expectedVersion, locationId, mode, organizationId: deps.organizationId, reason, rolloutPercent: mode === "GENERAL" ? 100 : rolloutPercent });
   return { ...flag, allowedUserIds: users(flag.allowedUserIds), updatedAt: flag.updatedAt.toISOString() };
 }
+
+export async function rollbackVehicleOperationsFeature(actor: AuthenticatedUser | null, value: unknown, input: Dependencies = {}) { const deps = dependencies(input), user = await authorize(actor, "VEHICLE_ROLLOUT_MANAGE", null, deps); if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Feature rollback must be an object."); const raw = value as Record<string, unknown>, code = String(raw.code ?? "") as VehicleOperationsFeatureCode, expectedVersion = Number(raw.expectedVersion), locationId = typeof raw.locationId === "string" && raw.locationId.trim() ? raw.locationId.trim() : null, reason = String(raw.reason ?? "").trim(); if (!VEHICLE_OPERATIONS_FEATURES.includes(code)) throw new Error("Vehicle Operations feature code is invalid."); if (!Number.isInteger(expectedVersion) || expectedVersion < 2) throw new Error("Exact current feature version is required for rollback."); if (reason.length < 10) throw new Error("Rollout rollback requires a reason of at least 10 characters."); if (!deps.repository.rollbackFeatureFlag) throw new Error("Feature rollback repository is unavailable."); const flag = await deps.repository.rollbackFeatureFlag({ actorUserId: user.id, code, correlationId: randomUUID(), expectedVersion, locationId, organizationId: deps.organizationId, reason }); return { ...flag, allowedUserIds: users(flag.allowedUserIds), updatedAt: flag.updatedAt.toISOString() }; }

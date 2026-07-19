@@ -340,6 +340,7 @@ enum InventoryAcquisitionCaseStatus {
   EXPIRED
   CANCELLED
   REVERSAL_REVIEW
+  REVERSED
   EXCEPTION
 }
 
