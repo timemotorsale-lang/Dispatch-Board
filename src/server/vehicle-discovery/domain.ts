@@ -4,6 +4,9 @@ export const OPERATIONAL_SEARCH_TYPES = ["VEHICLE", "CUSTOMER", "REPAIR_ORDER", 
 export type OperationalSearchType = (typeof OPERATIONAL_SEARCH_TYPES)[number];
 export type OperationalSearchResult = { id: string; type: OperationalSearchType; label: string; detail: string; status: string | null; href: string; matchedFields: string[]; score: number };
 
+export function normalizeOperationalReturnContext(value: unknown) { const result = typeof value === "string" ? value.trim() : "/vehicles/discovery"; if (!result.startsWith("/") || result.startsWith("//") || result.length > 500) throw new Error("Search return context must be an internal application path."); return result; }
+export function withOperationalReturnContext(href: string, returnTo: string) { const separator = href.includes("?") ? "&" : "?"; return `${href}${separator}returnTo=${encodeURIComponent(returnTo)}`; }
+
 function record(value: unknown, label: string) { if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${label} must be an object.`); return value as Record<string, unknown>; }
 function required(value: unknown, label: string, max = 500) { const result = typeof value === "string" ? value.trim() : ""; if (!result) throw new Error(`${label} is required.`); if (result.length > max) throw new Error(`${label} must be ${max} characters or fewer.`); return result; }
 function optional(value: unknown, max = 500) { const result = typeof value === "string" ? value.trim() : ""; if (result.length > max) throw new Error(`Value must be ${max} characters or fewer.`); return result || null; }

@@ -78,3 +78,7 @@ Repository completion does not authorize production activation. The following re
 - accessibility, performance, security, recovery, training, pilot and business sign-off.
 
 Until these gates pass, R10 is a bounded governance/read implementation with contextual domain decisions and no claim that export, provider recovery, or enterprise policy activation is generally available.
+
+## Wave 6 authority amendment — 2026-07-18
+
+IC-106 is now repository-complete. General Managers have an audited, idempotent, exact-version command surface for allow/deny capability grants with effective dates, location scope, single and cumulative amount limits, field allowlists, own-resource constraints, and independent-approval requirements. The command writes the authoritative grant, enterprise command receipt, domain event, audit record, and outbox message. Operational assignment approval, representative authorization table tops, and production activation remain separate gates.

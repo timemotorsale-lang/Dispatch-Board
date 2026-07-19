@@ -1,0 +1,18 @@
+import { createHash } from "node:crypto";
+import { VEHICLE_CAPABILITIES, type VehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
+const object = (value: unknown) => { if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Authority command must be an object."); return value as Record<string, unknown>; };
+const text = (value: unknown, label: string, min = 1, max = 500) => { const result = typeof value === "string" ? value.trim() : ""; if (result.length < min) throw new Error(`${label} must be at least ${min} characters.`); if (result.length > max) throw new Error(`${label} must be ${max} characters or fewer.`); return result; };
+const optional = (value: unknown, max = 200) => { const result = typeof value === "string" ? value.trim() : ""; if (result.length > max) throw new Error(`Value must be ${max} characters or fewer.`); return result || null; };
+const amount = (value: unknown, label: string) => { if (value == null || value === "") return null; const result = Number(value); if (!Number.isSafeInteger(result) || result < 0) throw new Error(`${label} must be a non-negative integer number of cents.`); return result; };
+const fields = (value: unknown) => { if (!Array.isArray(value)) throw new Error("Field allowlist must be an array."); return [...new Set(value.map(item => text(item, "Field", 1, 120)))].sort(); };
+
+export function stableAuthoritySubjectId(organizationId: string, userId: string, locationId: string | null, capability: string) { return `auth-${createHash("sha256").update(`${organizationId}:${locationId ?? "GLOBAL"}:${userId}:${capability}`).digest("hex").slice(0, 24)}`; }
+export function normalizeAuthorityCommand(value: unknown, now: Date) {
+  const raw = object(value), action = text(raw.action, "Action", 1, 80).toUpperCase(); if (action !== "UPSERT_CAPABILITY_GRANT") throw new Error("Authority action is not supported.");
+  const capability = text(raw.capability, "Capability", 1, 100) as VehicleCapability; if (!(VEHICLE_CAPABILITIES as readonly string[]).includes(capability)) throw new Error("Capability is not supported.");
+  const effect = text(raw.effect, "Effect", 1, 20).toUpperCase(); if (!['ALLOW','DENY'].includes(effect)) throw new Error("Authority effect must be ALLOW or DENY.");
+  const expectedVersion = Number(raw.expectedVersion ?? 0); if (!Number.isInteger(expectedVersion) || expectedVersion < 0) throw new Error("Expected authority version must be a non-negative integer.");
+  const validFrom = raw.validFrom ? new Date(String(raw.validFrom)) : now, validTo = raw.validTo ? new Date(String(raw.validTo)) : null; if (Number.isNaN(validFrom.getTime()) || (validTo && Number.isNaN(validTo.getTime()))) throw new Error("Authority validity dates must be valid."); if (validTo && validTo <= validFrom) throw new Error("Authority expiry must follow its start.");
+  const maxAmountCents = amount(raw.maxAmountCents, "Amount limit"), maxCumulativeAmountCents = amount(raw.maxCumulativeAmountCents, "Cumulative amount limit"); if (maxAmountCents != null && maxCumulativeAmountCents != null && maxCumulativeAmountCents < maxAmountCents) throw new Error("Cumulative limit cannot be lower than the single-action limit.");
+  return { action, capability, effect: effect as "ALLOW" | "DENY", expectedVersion, fieldAllowlist: fields(raw.fieldAllowlist ?? []), idempotencyKey: text(raw.idempotencyKey, "Idempotency key", 8, 200), locationId: optional(raw.locationId, 100), maxAmountCents, maxCumulativeAmountCents, ownResourcesOnly: raw.ownResourcesOnly === true, reason: text(raw.reason, "Reason", 10, 500), requiresIndependentApproval: raw.requiresIndependentApproval === true, userId: text(raw.userId, "User", 1, 100), validFrom, validTo };
+}

@@ -76,3 +76,7 @@ The gap-closure branch `codex/inventory-console-gap-closure-wave-1-shared-founda
 - IC-026 now exposes system views for My Work, Team, Exceptions, Blocked, and Overdue, but remains partial until cross-domain priority composition, escalation, and deduplication are complete.
 
 The migration is source-controlled only and is not applied by this branch. Pilot, deployment, provider activation, accessibility evidence, and production rollout remain separate gates.
+
+## Wave 6 shared-experience amendment — 2026-07-18
+
+IC-022, IC-024, IC-026, and IC-027 are now repository-complete. Discovery preserves validated internal return context across all authorized result types; the launcher is server-derived and publishes complete intake, validation, confirmation, approval, creation, and recovery contracts; Priority Work applies deduplicated P0/P1/P2 My/Team queues with escalation facts; and contextual decisions carry exact decision, version, policy, and queue-return context. Owning domain commands continue to enforce authority and separation of duties.

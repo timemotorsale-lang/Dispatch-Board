@@ -1,7 +1,7 @@
 import { getVerticalSliceClassificationIndex } from "./vertical-slice-audit";
 
 export type PostGapClosureTrack = {
-  code: "WAVE_6_SHARED_EXPERIENCE_AUTHORITY" | "WAVE_7_LIFECYCLE_AUTOMATION_RECOVERY" | "WAVE_8_DOMAIN_RECONCILIATION" | "OPERATIONAL_EVIDENCE";
+  code: "WAVE_7_LIFECYCLE_AUTOMATION_RECOVERY" | "WAVE_8_DOMAIN_RECONCILIATION" | "OPERATIONAL_EVIDENCE";
   branch: string | null;
   execution: "REPOSITORY_THEN_REASSESS" | "EVIDENCE_ONLY";
   ids: readonly string[];
@@ -9,13 +9,6 @@ export type PostGapClosureTrack = {
 };
 
 export const POST_GAP_CLOSURE_TRACKS: readonly PostGapClosureTrack[] = [
-  {
-    code: "WAVE_6_SHARED_EXPERIENCE_AUTHORITY",
-    branch: "codex/inventory-console-gap-closure-wave-6-shared-experience-authority",
-    execution: "REPOSITORY_THEN_REASSESS",
-    ids: ["IC-002", "IC-014", "IC-022", "IC-024", "IC-026", "IC-027", "IC-106"],
-    purpose: "Close traceability, evidence access, cross-domain search/context, launcher, priority-work, approval-action, and authority-administration repository gaps."
-  },
   {
     code: "WAVE_7_LIFECYCLE_AUTOMATION_RECOVERY",
     branch: "codex/inventory-console-gap-closure-wave-7-lifecycle-automation-recovery",

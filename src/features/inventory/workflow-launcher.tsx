@@ -1,20 +1,13 @@
-import { AlertTriangle, ArrowRight, Boxes, CarFront, ClipboardPlus, ListChecks, Search, ShieldCheck, Wrench } from "lucide-react";
+import { AlertTriangle, ArrowRight, Boxes, CarFront, ClipboardPlus, ListChecks, Search, ShieldCheck, Wrench, type LucideIcon } from "lucide-react";
 import Link from "next/link";
+import type { getInventoryWorkflowLauncher } from "@/server/inventory-workflow-launcher/service";
+type Model = ReturnType<typeof getInventoryWorkflowLauncher>;
+const icons: Record<Model["cards"][number]["icon"], LucideIcon> = { alert: AlertTriangle, car: CarFront, operations: ListChecks, parts: Boxes, search: Search, shield: ShieldCheck, task: ClipboardPlus, wrench: Wrench };
 
-const catalog = [
-  { id: "WL-01", title: "Add / Acquire Vehicle", description: "Start evidence qualification and appraisal before any InventoryUnit or commitment exists.", href: "/vehicles/acquisition-appraisal", icon: CarFront, state: "R4 GOVERNED" },
-  { id: "WL-02", title: "Inventory to Frontline", description: "Continue acquired inventory through transport, receipt, inspection, recon, title, merchandising, and independent release.", href: "/vehicles/inventory-to-frontline", icon: CarFront, state: "R5 GOVERNED" },
-  { id: "WL-03", title: "Start Inspection", description: "Requires an eligible received vehicle and qualified inspection context.", href: null, icon: Search, state: "CONTEXT REQUIRED" },
-  { id: "WL-04", title: "Request Inventory Recon", description: "Open the purpose-built inventory-recon RepairOrder intake.", href: "/vehicles/repair-orders?source=INVENTORY_RECON", icon: Wrench, state: "AVAILABLE FOUNDATION" },
-  { id: "WL-05", title: "Create Repair Order", description: "Open the customer or inventory repair intake workspace.", href: "/vehicles/repair-orders", icon: Wrench, state: "AVAILABLE FOUNDATION" },
-  { id: "WL-06", title: "Report Blocker", description: "Select affected work first so the blocker has an owner, reason, and due time.", href: "/tasks/intake?workflowArea=INVENTORY", icon: AlertTriangle, state: "CONTEXT PREFERRED" },
-  { id: "WL-07", title: "Request Approval", description: "Open the governed decision queue; exact proposal/version context is required.", href: "/manager-review?scope=inventory&view=approvals", icon: ShieldCheck, state: "CONTEXT REQUIRED" },
-  { id: "WL-08", title: "Create General Task", description: "Create ad hoc work without changing a governed vehicle workflow.", href: "/tasks/intake?workflowArea=INVENTORY", icon: ClipboardPlus, state: "AVAILABLE" },
-  { id: "WL-09", title: "Complete Retail Sale", description: "Govern frontline availability, reservation, exact sale approval, delivery, reconciliation, and unwind.", href: "/vehicles/retail-completion", icon: ShieldCheck, state: "R6 GOVERNED" },
-  { id: "WL-C01", title: "Request Parts", description: "Create or inspect job-linked demand in Parts & Readiness.", href: "/vehicles/parts", icon: Boxes, state: "CONTEXT REQUIRED" },
-  { id: "WL-O01", title: "Review Workflow Operations", description: "Open the cross-domain queue for due actions, holds, discrepancies, and reconciliation work.", href: "/vehicles/workflow-operations", icon: ListChecks, state: "WAVE 3 GOVERNED" },
-];
-
-export function WorkflowLauncher({ roles }: { roles: string[] }) {
-  return <section className="inventory-workflow-launcher"><header><div><p>Inventory Console</p><h1>Start Workflow</h1><span>Choose a purpose-built intake. Availability is rechecked server-side when a command is submitted.</span></div><Link href="/vehicles">Back to Home</Link></header><div className="iwl-context"><ShieldCheck size={17} /><span>Signed in with {roles.length ? roles.join(", ") : "staff"} access. Disabled choices explain the missing context or rollout gate.</span></div><div className="iwl-grid">{catalog.map(({ description, href, icon: Icon, id, state, title }) => <article className={href ? "" : "disabled"} key={id}><header><Icon size={20} /><span>{id}</span><b>{state}</b></header><h2>{title}</h2><p>{description}</p>{href ? <Link href={href}>Open intake<ArrowRight size={15} /></Link> : <button disabled type="button">Not available in current context</button>}</article>)}</div><footer><AlertTriangle size={16} /><span>The launcher does not offer generic stage changes. Every accepted workflow must return its created records, tasks, approvals, and events.</span></footer></section>;
+export function WorkflowLauncher({ model }: { model: Model }) {
+  return <section className="inventory-workflow-launcher"><header><div><p>Inventory Console</p><h1>Start Workflow</h1><span>Choose a purpose-built intake. Role, context, validation, approval, and recovery are explicit before you leave the launcher.</span></div><Link href="/vehicles">Back to Home</Link></header>
+    <div className="iwl-context"><ShieldCheck size={17} /><span>Signed in with {model.actor.roles.length ? model.actor.roles.join(", ") : "staff"} access · {model.totals.available}/{model.totals.visible} visible workflows available in current context · {model.contractVersion}</span></div>
+    <div className="iwl-grid">{model.cards.map(item => { const Icon = icons[item.icon]; return <article className={item.enabled ? "" : "disabled"} key={item.id}><header><Icon size={20} /><span>{item.id}</span><b>{item.state}</b></header><h2>{item.title}</h2><p>{item.description}</p><small>{item.availabilityReason}</small><details><summary>Intake contract</summary><p><strong>Creates:</strong> {item.creates.join(" · ")}</p><p><strong>Validation:</strong> {item.validation}</p><p><strong>Confirmation:</strong> {item.confirmation}</p><p><strong>Approval:</strong> {item.approval}</p><p><strong>Recovery:</strong> {item.recovery}</p></details>{item.href ? <Link href={item.href}>Open purpose-built intake<ArrowRight size={15} /></Link> : <button disabled type="button">Add required context</button>}</article>; })}</div>
+    <footer><AlertTriangle size={16} /><span>The launcher never performs a generic stage change. Every accepted intake must return its durable record, version, tasks/approvals, events, and recovery route.</span></footer>
+  </section>;
 }

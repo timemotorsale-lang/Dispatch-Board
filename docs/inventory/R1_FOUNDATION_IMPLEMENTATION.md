@@ -58,3 +58,7 @@ R1 now has one deterministic conformance harness over the existing canonical Veh
 The bounded repository-level M1 exit required by [`R0-AUTH-001`](r0-readiness/R0_CODE_AUTHORIZATION_RESOLUTION.md) passes. R2 implementation may begin from a baseline containing this change after review and merge.
 
 Operational deployment, real-system integration, pilot, and production release remain governed by their later gates and cannot use this synthetic result as production evidence.
+
+## Wave 6 evidence amendment — 2026-07-18
+
+IC-014 is now repository-complete. Wave 6 verifies the existing evidence service end to end for signature scanning, fail-closed quarantine, restricted capability enforcement, clean-only download, access events, retention/legal hold, integrity, and immutable lineage. This is repository evidence only and does not substitute for production security, privacy, recovery, or pilot review.
