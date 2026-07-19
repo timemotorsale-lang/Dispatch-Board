@@ -8,7 +8,7 @@ export type VerticalSliceAuditRow = {
 
 const COMPLETE_IDS = new Set([
   "IC-001", "IC-010", "IC-011", "IC-012", "IC-013", "IC-016", "IC-021", "IC-023", "IC-025",
-  "IC-030", "IC-033", "IC-038", "IC-039", "IC-040", "IC-041", "IC-042", "IC-043", "IC-044", "IC-046",
+  "IC-030", "IC-031", "IC-032", "IC-033", "IC-034", "IC-035", "IC-036", "IC-037", "IC-038", "IC-039", "IC-040", "IC-041", "IC-042", "IC-043", "IC-044", "IC-046",
   "IC-070", "IC-071", "IC-072", "IC-073", "IC-075", "IC-076", "IC-077",
   "IC-080", "IC-081", "IC-082", "IC-084", "IC-085", "IC-086", "IC-087", "IC-088",
   "IC-090", "IC-091", "IC-092", "IC-093", "IC-095", "IC-100", "IC-101", "IC-102", "IC-105", "IC-107", "IC-112", "IC-118"
@@ -43,12 +43,6 @@ const GAP_OVERRIDES: Record<string, string> = {
   "IC-026": "Inventory priority work exists; complete My Work, Team, exception escalation, and cross-domain deduplication coverage remains incomplete.",
   "IC-027": "Permission-scoped counts and queue links exist; complete contextual direct-action coverage remains incomplete.",
   "IC-028": "Honest UI states exist; full cross-domain recovery and accessibility validation remains incomplete.",
-  "IC-031": "Counts, average age, and targets exist; entry/exit distributions and median/p90 require representative event-history volume.",
-  "IC-032": "Shop and Parts dependency panels are honest but unavailable; a reconciled cross-lane dependency projection is not implemented.",
-  "IC-034": "Owning workspaces are linked, but integrated review, approval, recommendation, expiry, decision, and outcome projections are incomplete.",
-  "IC-035": "Recorded USD exposure and acquisition aging exist; component confidence and broader capital/carrying-cost reconciliation are incomplete.",
-  "IC-036": "Selected InventoryUnit facts exist; joined Shop, Parts, task, approval, audit, command, and field-policy detail is incomplete.",
-  "IC-037": "Projection freshness and partial reasons exist; connected source conflicts, dead letters, owners, manual paths, and recovery are incomplete.",
   "IC-045": "Offer/counter versions and accepted evidence exist; live external acknowledgement and variance/reapproval tabletop evidence are incomplete.",
   "IC-047": "Cancellation and non-destructive reversal exist; title, payment, custody compensation, and operational verification remain incomplete.",
   "IC-048": "Internal downstream handoff is idempotent; transport/provider acknowledgement, rejection, and reconciliation remain disabled.",

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { InventoryControlTower } from "@/features/inventory/inventory-control-tower";
 import { InventoryLifecycleLanding } from "@/features/inventory/inventory-lifecycle-landing";
-import { buildInventoryControlTowerProjection, type InventoryControlTowerSourceUnit } from "@/server/inventory-control-tower/service";
+import { buildInventoryControlTowerProjection, type InventoryControlTowerProjection, type InventoryControlTowerSourceUnit } from "@/server/inventory-control-tower/service";
 
 const now = new Date("2026-07-18T15:00:00.000Z");
 const units: InventoryControlTowerSourceUnit[] = [
@@ -70,5 +70,11 @@ describe("R3 Inventory Lifecycle UI", () => {
     expect(markup).toContain("R10 composes permission-scoped review and exact-version approval queues");
     expect(markup).not.toContain("2019 Toyota Camry SE");
     expect(markup).not.toContain("High confidence");
+  });
+
+  it("renders connected lifecycle distributions, cross-lane facts, selected context, capital, decisions, and health", () => {
+    const base = buildInventoryControlTowerProjection(units, now), enhanced = { ...base, stageFlow: base.byStage.map((stage) => ({ stage: stage.stage, entries30d: 2, exits30d: 1, medianDays: 3, p90Days: 7, sampleSize: 4, active: 1, waiting: 0, idle: 0, blocked: 0, breached: 0, exposureCents: 100, ownerCount: 1 })), crossLane: { status: "CONNECTED", inventoryReconOrders: 2, activeOrders: 2, blockedOrders: 1, openJobs: 3, qcPassedJobs: 1, qcHandoffReady: false, waitingPartDemands: 2, unreservedPartUnits: 4, earliestEstimatedArrivalAt: null, readinessConfidence: "LOW", customerRepairOrdersExcluded: 5 }, decisions: { status: "CONNECTED", approvals: 2, recommendations: 1, expired: 0, items: [] }, capital: { actualCents: 2_000_000, estimatedCents: 750_000, byCategory: [{ key: "ACQUISITION", exposureCents: 2_000_000 }], byConfidence: [], excludedEntries: 0, reconciliationCents: 2_750_000 }, selectedContext: { inventoryUnitId: "unit-blocked", repairOrders: [{ id: "ro1", partDemands: [] }], parts: { openDemands: 2, unreservedUnits: 4 }, tasks: [{ id: "t1" }], decisions: [{ id: "d1" }], auditEvents: [], commands: [], validCommands: ["Open Shop & Recon"], fieldRestrictions: ["Restricted fields remain capability-filtered."] }, health: { status: "ATTENTION", deadLetters: 1, openConflicts: 1, laggingProjections: [], conflicts: [{ id: "c1", systemCode: "DMS", summary: "Mismatch", ownerUserId: null }], affectedPanels: ["Integration reconciliation"], manualPath: "Continue internal evidence capture.", recoveryAction: "Reconcile and verify." } } as unknown as InventoryControlTowerProjection;
+    const markup = renderToStaticMarkup(<InventoryControlTower projection={enhanced} />);
+    expect(markup).toContain("2 in · 1 out"); expect(markup).toContain("3d median · 7d p90"); expect(markup).toContain("5 customer-repair orders are excluded"); expect(markup).toContain("Actual"); expect(markup).toContain("Open conflicts"); expect(markup).toContain("Restricted fields remain capability-filtered");
   });
 });
