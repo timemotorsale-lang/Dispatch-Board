@@ -67,10 +67,12 @@ describe("R7 Shop & Recon landing projection", () => {
     expect(model.reviews.quality).toBe(1);
   });
 
-  it("renders the approved Parts command, reviews, handoffs, and capability truth", () => {
+  it("renders service intake, Parts, reviews, handoffs, and capability truth", () => {
     const projection = buildShopReconProjection([order()], now);
     const html = renderToStaticMarkup(<ShopReconLanding model={{ ...projection, reviews: { ...projection.reviews, comebacks: 2 } }} />);
-    expect(html).toContain("Open Parts Operations");
+    expect(html).toContain("Check In Vehicle");
+    expect(html).toContain("/vehicles/repair-orders?intakeSource=WALK_IN");
+    expect(html).toContain("Parts Operations");
     expect(html).toContain("Customer Repair");
     expect(html).toContain("Inventory Recon");
     expect(html).toContain("Reviews &amp; Approvals");

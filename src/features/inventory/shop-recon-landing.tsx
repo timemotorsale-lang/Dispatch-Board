@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { AlertTriangle, CalendarDays, CheckCircle2, Clock3, Download, PackageOpen, UserRound, Wrench } from "lucide-react";
+import { AlertTriangle, CalendarDays, CheckCircle2, ClipboardPlus, Clock3, Download, PackageOpen, UserRound, Wrench } from "lucide-react";
 import Link from "next/link";
 
 type Item = { id: string; repairOrderNumber: string; origin: string; stage: string; operatingState: string; targetAt: string; nextAction: string; blocker: string | null; owner: string; location: string; vehicle: string; subject: string; concern: string; waitingParts: boolean; unassigned: boolean; atRisk: boolean; approvalPending: boolean; technician: string | null; bay: string | null; jobCount: number; qcPending: number };
@@ -30,7 +30,7 @@ export function ShopReconLanding({ model }: { model: Model }) {
   const lowRisk = Math.max(0, model.totals.openOrders - model.totals.atRisk - mediumRisk);
 
   return <section aria-label={`Shop and Recon; Customer Repair ${model.totals.customerRepair}; Inventory Recon ${model.totals.inventoryRecon}; ${model.freshness}; ${model.contractVersion}; External adapters: ${model.capability.externalAdapters}`} className="shop-r7-landing visual-console-page">
-    <header className="vcp-header"><div><p>Inventory Console</p><h1>Shop &amp; Recon</h1><span>Daily production, capacity, and obstacle management</span></div><div className="vcp-actions"><Link className="vcp-primary" href="/vehicles/parts-operations"><PackageOpen size={15} />Open Parts Operations</Link><button disabled>Saved Views</button><button disabled title="Export activation is pending"><Download size={15} />Export</button></div></header>
+    <header className="vcp-header"><div><p>Inventory Console</p><h1>Shop &amp; Recon</h1><span>Daily production, capacity, and obstacle management</span></div><div className="vcp-actions"><Link className="vcp-primary" href="/vehicles/repair-orders?intakeSource=WALK_IN"><ClipboardPlus size={15} />Check In Vehicle</Link><Link href="/vehicles/parts-operations"><PackageOpen size={15} />Parts Operations</Link><button disabled>Saved Views</button><button disabled title="Export activation is pending"><Download size={15} />Export</button></div></header>
 
     <section className="vcp-filter-bar" aria-label="Shop and Recon filters"><label>Location<select disabled><option>All permitted locations</option></select></label><label>Work Type<select disabled><option>All work</option></select></label><label>Technician<select disabled><option>All technicians</option></select></label><label>Vendor<select disabled><option>All vendors</option></select></label><label>Status<select disabled><option>All states</option></select></label><label>Date<select disabled><option>{now.toLocaleDateString()}</option></select></label></section>
     <Link className="sr-only" href="/vehicles/control-tower">Inventory Control Tower</Link>
