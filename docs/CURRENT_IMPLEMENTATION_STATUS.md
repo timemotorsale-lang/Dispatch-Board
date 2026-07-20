@@ -475,6 +475,12 @@ Vehicle Operations Milestones 5E–5G (`VEH-081` through `VEH-083`) are implemen
 
 The migration is source-controlled but not deployed. Hardware-specific scanner/label integrations, automated purchasing/transfers/disposal, policy auto-tuning, backfill, and production pilot evidence remain outside this slice. See [`docs/inventory/ENTERPRISE_PARTS_WAVE_ONE_IMPLEMENTATION.md`](inventory/ENTERPRISE_PARTS_WAVE_ONE_IMPLEMENTATION.md).
 
+## Enterprise Vehicle Intake and Repair-Order Workbench — 2026-07-20
+
+The approved vehicle-intake and repair-order mockups are now official product documentation and the corresponding replacement experience is implemented. Intake is search-first across canonical customers, vehicles, eligible appointments, and open repair orders; supports governed inline customer and vehicle creation; preserves a 2,000-character customer concern; evaluates live appointment and service-capacity readiness; records custody and consent; and creates the canonical repair order. The repair-order route now opens a compact concern-centered enterprise workbench with vehicle, customer, custody, readiness, ownership, traceability, diagnostic-plan guidance, existing diagnosis/estimate/job facts, downstream gates, and direct access to the governed planning workflow.
+
+The approved references and behavioral contract are maintained in [`docs/inventory/VEHICLE_SERVICE_INTAKE_AND_REPAIR_ORDER_UI_SOURCE_OF_TRUTH.md`](inventory/VEHICLE_SERVICE_INTAKE_AND_REPAIR_ORDER_UI_SOURCE_OF_TRUTH.md). Suggested diagnostic steps remain advisory and do not assert a cause or authorize repair work.
+
 ## Current Execution Order
 
 1. Complete and accept Appointment architecture decisions.

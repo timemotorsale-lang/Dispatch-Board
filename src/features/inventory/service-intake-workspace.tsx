@@ -1,8 +1,8 @@
 "use client";
 
 import {
-  ArrowLeft,
   CalendarClock,
+  CalendarDays,
   CarFront,
   Check,
   CheckCircle2,
@@ -11,19 +11,23 @@ import {
   Clock3,
   KeyRound,
   MessageSquareText,
+  Plus,
   Search,
   ShieldCheck,
   Sparkles,
   UserRound,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 export type ServiceIntakeOptions = {
-  customers: Array<{ customerNumber?: string; displayName: string; id: string }>;
+  appointments: Array<{ appointmentNumber: string; id: string; locationId: string; startsAt: string | null; title: string; participants: Array<{ customer: null | { customerNumber?: string; displayName: string; email?: string | null; id: string; phoneNumber?: string | null } }>; vehicles: Array<{ vehicle: { color?: string | null; id: string; licensePlate?: string | null; make: string | null; model: string | null; vehicleNumber: string; vin?: string | null; year: number | null } }> }>;
+  customers: Array<{ customerNumber?: string; displayName: string; email?: string | null; id: string; phoneNumber?: string | null }>;
   locations: Array<{ code?: string; id: string; name: string }>;
+  repairOrders: Array<{ customer: null | { displayName: string }; id: string; operatingState: string; repairOrderNumber: string; stage: string; vehicle: ServiceIntakeOptions["vehicles"][number] }>;
   users: Array<{ email?: string; id: string; name: string }>;
-  vehicles: Array<{ id: string; make: string | null; model: string | null; vehicleNumber: string; year: number | null }>;
+  vehicles: Array<{ color?: string | null; id: string; licensePlate?: string | null; make: string | null; model: string | null; vehicleNumber: string; vin?: string | null; year: number | null }>;
 };
 
 type IntakeState = {
@@ -79,7 +83,7 @@ function buildInitial(options: ServiceIntakeOptions): IntakeState {
     consentReference: "",
     consentStatus: "PENDING",
     consentedAt: "",
-    customerId: options.customers[0]?.id ?? "",
+    customerId: "",
     frequency: "",
     intakeNotes: "",
     keyTag: "",
@@ -93,15 +97,20 @@ function buildInitial(options: ServiceIntakeOptions): IntakeState {
     targetAt: local(new Date(now.getTime() + 2 * 60 * 60_000)),
     transportMode: "DROP_OFF",
     urgency: "STANDARD",
-    vehicleId: options.vehicles[0]?.id ?? "",
+    vehicleId: "",
     warningIndicators: "",
   };
 }
 
 export function ServiceIntakeWorkspace({ options }: { options: ServiceIntakeOptions }) {
   const [form, setForm] = useState<IntakeState>(() => buildInitial(options));
-  const [vehicleQuery, setVehicleQuery] = useState("");
-  const [customerQuery, setCustomerQuery] = useState("");
+  const [arrivalQuery, setArrivalQuery] = useState("");
+  const [arrivalMode, setArrivalMode] = useState<"recent" | "search" | "today">("search");
+  const [customerRecords, setCustomerRecords] = useState(options.customers);
+  const [vehicleRecords, setVehicleRecords] = useState(options.vehicles);
+  const [drawer, setDrawer] = useState<"customer" | "vehicle" | null>(null);
+  const [newCustomer, setNewCustomer] = useState({ address: "", displayName: "", email: "", phoneNumber: "", preferredContactMethod: "PHONE" });
+  const [newVehicle, setNewVehicle] = useState({ color: "", licensePlate: "", make: "", model: "", vin: "", year: "" });
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [created, setCreated] = useState<{ id: string; repairOrderNumber: string } | null>(null);
@@ -109,16 +118,24 @@ export function ServiceIntakeWorkspace({ options }: { options: ServiceIntakeOpti
   const [readinessError, setReadinessError] = useState("");
   const [readinessLoading, setReadinessLoading] = useState(false);
 
-  const vehicles = useMemo(() => {
-    const query = vehicleQuery.trim().toLocaleLowerCase();
-    return query ? options.vehicles.filter((vehicle) => vehicleLabel(vehicle).toLocaleLowerCase().includes(query)) : options.vehicles;
-  }, [options.vehicles, vehicleQuery]);
-  const customers = useMemo(() => {
-    const query = customerQuery.trim().toLocaleLowerCase();
-    return query ? options.customers.filter((customer) => `${customer.displayName} ${customer.customerNumber ?? ""}`.toLocaleLowerCase().includes(query)) : options.customers;
-  }, [customerQuery, options.customers]);
-  const selectedVehicle = options.vehicles.find((vehicle) => vehicle.id === form.vehicleId);
-  const selectedCustomer = options.customers.find((customer) => customer.id === form.customerId);
+  const arrivalMatches = useMemo(() => {
+    const query = arrivalQuery.trim().toLocaleLowerCase();
+    const contains = (value: unknown) => String(value ?? "").toLocaleLowerCase().includes(query);
+    if (!query && arrivalMode === "today") {
+      const today = new Date().toDateString();
+      return { appointments: options.appointments.filter((appointment) => appointment.startsAt && new Date(appointment.startsAt).toDateString() === today).slice(0, 8), customers: [], repairOrders: [], vehicles: [] };
+    }
+    if (!query && arrivalMode === "recent") return { appointments: [], customers: customerRecords.slice(0, 8), repairOrders: [], vehicles: [] };
+    if (!query) return { appointments: [], customers: [], repairOrders: [], vehicles: [] };
+    return {
+      appointments: options.appointments.filter((appointment) => contains(appointment.appointmentNumber) || contains(appointment.title) || contains(appointment.participants[0]?.customer?.displayName) || contains(appointment.vehicles[0]?.vehicle.vin) || contains(appointment.vehicles[0]?.vehicle.licensePlate)).slice(0, 4),
+      customers: customerRecords.filter((customer) => contains(customer.displayName) || contains(customer.customerNumber) || contains(customer.phoneNumber) || contains(customer.email)).slice(0, 4),
+      repairOrders: options.repairOrders.filter((order) => contains(order.repairOrderNumber) || contains(order.customer?.displayName) || contains(vehicleLabel(order.vehicle)) || contains(order.vehicle.vin) || contains(order.vehicle.licensePlate)).slice(0, 4),
+      vehicles: vehicleRecords.filter((vehicle) => contains(vehicleLabel(vehicle)) || contains(vehicle.vin) || contains(vehicle.licensePlate)).slice(0, 4),
+    };
+  }, [arrivalMode, arrivalQuery, customerRecords, options.appointments, options.repairOrders, vehicleRecords]);
+  const selectedVehicle = vehicleRecords.find((vehicle) => vehicle.id === form.vehicleId);
+  const selectedCustomer = customerRecords.find((customer) => customer.id === form.customerId);
   const selectedLocation = options.locations.find((location) => location.id === form.locationId);
   const selectedOwner = options.users.find((user) => user.id === form.ownerUserId);
   const checklist = [
@@ -166,6 +183,76 @@ export function ServiceIntakeWorkspace({ options }: { options: ServiceIntakeOpti
 
   function addPrompt(prompt: string) {
     setForm((current) => ({ ...current, concernSummary: current.concernSummary ? `${current.concernSummary.trim()} ${prompt}` : prompt }));
+  }
+
+  function chooseCustomer(customerId: string) {
+    update("customerId", customerId);
+    setArrivalQuery("");
+  }
+
+  function chooseVehicle(vehicleId: string) {
+    update("vehicleId", vehicleId);
+    setArrivalQuery("");
+  }
+
+  function chooseAppointment(appointment: ServiceIntakeOptions["appointments"][number]) {
+    const customer = appointment.participants[0]?.customer;
+    const vehicle = appointment.vehicles[0]?.vehicle;
+    if (customer && !customerRecords.some((record) => record.id === customer.id)) setCustomerRecords((records) => [...records, customer]);
+    if (vehicle && !vehicleRecords.some((record) => record.id === vehicle.id)) setVehicleRecords((records) => [...records, vehicle]);
+    setForm((current) => ({ ...current, customerId: customer?.id ?? current.customerId, vehicleId: vehicle?.id ?? current.vehicleId, locationId: appointment.locationId || current.locationId }));
+    setArrivalQuery("");
+  }
+
+  async function createCustomer() {
+    setBusy(true);
+    setNotice("");
+    try {
+      const response = await fetch("/api/service-intake/customers", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...newCustomer, locationId: form.locationId }) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !body.customer) throw new Error(body.error ?? "Customer could not be created.");
+      const customer = body.customer as ServiceIntakeOptions["customers"][number];
+      setCustomerRecords((records) => records.some((record) => record.id === customer.id) ? records : [...records, customer]);
+      update("customerId", customer.id);
+      setDrawer(null);
+      setNewCustomer({ address: "", displayName: "", email: "", phoneNumber: "", preferredContactMethod: "PHONE" });
+      setNotice(body.duplicate ? "An existing matching customer was selected; no duplicate was created." : "Customer created and selected for this intake.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Customer could not be created.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function createVehicle() {
+    const normalizedVin = newVehicle.vin.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const existing = vehicleRecords.find((vehicle) => vehicle.vin?.toUpperCase() === normalizedVin || newVehicle.licensePlate && vehicle.licensePlate?.toUpperCase() === newVehicle.licensePlate.toUpperCase());
+    if (existing) {
+      chooseVehicle(existing.id);
+      setDrawer(null);
+      setNotice("A matching vehicle already exists and was selected; no duplicate was created.");
+      return;
+    }
+    setBusy(true);
+    setNotice("");
+    try {
+      const response = await fetch("/api/vehicles", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...newVehicle, year: newVehicle.year ? Number(newVehicle.year) : null, locationId: form.locationId, idempotencyKey: crypto.randomUUID(), reason: "Create a canonical customer vehicle during governed service intake." }) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !body.result?.id) throw new Error(body.error ?? "Vehicle could not be created.");
+      const vehicle = { ...newVehicle, id: String(body.result.id), year: newVehicle.year ? Number(newVehicle.year) : null, vehicleNumber: String(body.result.vehicleNumber), vin: normalizedVin } satisfies ServiceIntakeOptions["vehicles"][number];
+      setVehicleRecords((records) => [...records, vehicle]);
+      update("vehicleId", vehicle.id);
+      if (form.customerId) {
+        await fetch(`/api/vehicles/${encodeURIComponent(vehicle.id)}/commands`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "ADD_RELATIONSHIP", customerId: form.customerId, effectiveFrom: new Date().toISOString(), expectedVersion: Number(body.version ?? 1), idempotencyKey: crypto.randomUUID(), locationId: form.locationId, reason: "Link the newly created service vehicle to the intake customer.", relationshipType: "SERVICE_ONLY", sourceCode: "SERVICE_INTAKE" }) });
+      }
+      setDrawer(null);
+      setNewVehicle({ color: "", licensePlate: "", make: "", model: "", vin: "", year: "" });
+      setNotice(body.result.duplicateReviewId ? "Vehicle created with a possible-duplicate review flag and selected for intake." : "Vehicle created and selected for this intake.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Vehicle could not be created.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function submit(event: FormEvent) {
@@ -249,71 +336,97 @@ export function ServiceIntakeWorkspace({ options }: { options: ServiceIntakeOpti
     </section>;
   }
 
-  return <form className="service-intake-shell" onSubmit={submit}>
+  return <form className="service-intake-shell sic-reference-v2" onSubmit={submit}>
     <header className="sic-header">
-      <div><Link href="/vehicles/shop-recon"><ArrowLeft />Shop &amp; Recon</Link><p>Advisor Workspace</p><h1>Check In Vehicle</h1><span>Capture the customer&apos;s story once, establish custody, and create accountable shop work.</span></div>
-      <div className="sic-header-state"><ShieldCheck /><span><strong>Governed intake</strong>Permissions, rollout, duplicate protection, and audit history are enforced.</span></div>
+      <div><Link className="sic-back-to-shop" href="/vehicles/shop-recon">← Back to Shop &amp; Recon</Link><span className="sic-advisor-label">Advisor Workspace</span><i /><h1>Check In Vehicle</h1><span className="sic-governed"><ShieldCheck />Governed intake</span></div>
+      <div className="sic-header-state"><ShieldCheck /><span><strong>Governed intake</strong>Canonical records, policy gates, and audit history are enforced.</span></div>
     </header>
 
     <nav aria-label="Check-in progress" className="sic-progress">
-      <span className="active"><b>1</b><i>Customer &amp; vehicle</i></span><em /><span className="active"><b>2</b><i>Concern &amp; visit</i></span><em /><span className="active"><b>3</b><i>Authorization &amp; handoff</i></span>
+      <span className="active"><b>1</b><i>Find Arrival</i></span><em /><span><b>2</b><i>Appointment &amp; Capacity</i></span><em /><span><b>3</b><i>Customer Concern</i></span><em /><span><b>4</b><i>Authorization &amp; Handoff</i></span>
     </nav>
 
     {notice ? <div className={ready ? "sic-notice" : "sic-notice error"} role="status"><ClipboardCheck />{notice}</div> : null}
 
     <div className="sic-layout">
       <main className="sic-main">
-        <section className="sic-card sic-identity">
-          <header><span>1</span><div><h2>Customer &amp; vehicle</h2><p>Search the canonical records before creating work.</p></div></header>
-          <div className="sic-two-column">
-            <div className="sic-lookup"><label><span><UserRound />Customer search</span><div><Search /><input onChange={(event) => setCustomerQuery(event.target.value)} placeholder="Name or customer number" value={customerQuery} /></div></label><select aria-label="Customer" onChange={(event) => update("customerId", event.target.value)} value={form.customerId}><option value="">Select customer</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.displayName}{customer.customerNumber ? ` · ${customer.customerNumber}` : ""}</option>)}</select>{selectedCustomer ? <p><Check />{selectedCustomer.displayName}<small>Canonical customer record</small></p> : <Link href="/customers">Customer not found? Open Customer 360</Link>}</div>
-            <div className="sic-lookup"><label><span><CarFront />Vehicle search</span><div><Search /><input onChange={(event) => setVehicleQuery(event.target.value)} placeholder="Year, make, model, or vehicle #" value={vehicleQuery} /></div></label><select aria-label="Vehicle" onChange={(event) => update("vehicleId", event.target.value)} value={form.vehicleId}><option value="">Select vehicle</option>{vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicleLabel(vehicle)}</option>)}</select>{selectedVehicle ? <p><Check />{vehicleLabel(selectedVehicle)}<small>Canonical vehicle record</small></p> : <Link href="/vehicles/workflows/add-vehicle">Vehicle not found? Add vehicle</Link>}</div>
+        <section className="sic-card sic-identity sic-find-arrival">
+          <header><span>1</span><div><h2>Find Customer, Vehicle, or Appointment</h2><p>Search canonical records before creating work. No match? Create the missing record without leaving intake.</p></div></header>
+          <label className="sic-arrival-search"><Search /><input aria-label="Find customer, vehicle, or appointment" onChange={(event) => { setArrivalMode("search"); setArrivalQuery(event.target.value); }} placeholder="Search name, phone, email, VIN, plate, appointment, or RO..." type="search" value={arrivalQuery} /></label>
+          <div className="sic-arrival-actions"><div><button onClick={() => { setArrivalQuery(""); setArrivalMode("today"); }} type="button"><CalendarDays />Today&apos;s Arrivals</button><button onClick={() => { setArrivalQuery(""); setArrivalMode("recent"); }} type="button"><UserRound />Recent Customers</button><button onClick={() => { setArrivalMode("search"); setArrivalQuery(""); setNotice("Walk-in intake selected. Find or add the customer and vehicle to continue."); }} type="button">Walk-In</button><button onClick={() => { update("transportMode", "TOW"); setNotice("Tow-in selected. Capture the customer, vehicle, keys, and custody facts before check-in."); }} type="button"><CarFront />Tow-In</button></div><div><button className="create" onClick={() => setDrawer("customer")} type="button"><Plus />Add New Customer</button><button className="create" onClick={() => setDrawer("vehicle")} type="button"><Plus />Add New Vehicle</button></div></div>
+          {arrivalQuery || arrivalMode !== "search" ? <div className="sic-arrival-results" role="listbox" aria-label="Arrival search results">
+            {arrivalMatches.appointments.map((appointment) => <button key={appointment.id} onClick={() => chooseAppointment(appointment)} type="button"><CalendarClock /><span><strong>{appointment.appointmentNumber} · {appointment.title}</strong><small>{appointment.participants[0]?.customer?.displayName ?? "Customer"} · {appointment.vehicles[0] ? vehicleLabel(appointment.vehicles[0].vehicle) : "Vehicle not linked"}</small></span><b>Appointment</b></button>)}
+            {arrivalMatches.customers.map((customer) => <button key={customer.id} onClick={() => chooseCustomer(customer.id)} type="button"><UserRound /><span><strong>{customer.displayName}</strong><small>{customer.phoneNumber ?? customer.email ?? customer.customerNumber ?? "Canonical customer"}</small></span><b>Customer</b></button>)}
+            {arrivalMatches.repairOrders.map((order) => <Link href={`/vehicles/repair-orders?repairOrderId=${order.id}`} key={order.id}><ClipboardCheck /><span><strong>{order.repairOrderNumber} · {vehicleLabel(order.vehicle)}</strong><small>{order.customer?.displayName ?? "Internal vehicle"} · {order.stage.replaceAll("_", " ")}</small></span><b>Open RO</b></Link>)}
+            {arrivalMatches.vehicles.map((vehicle) => <button key={vehicle.id} onClick={() => chooseVehicle(vehicle.id)} type="button"><CarFront /><span><strong>{vehicleLabel(vehicle)}</strong><small>{vehicle.vin ?? vehicle.licensePlate ?? "Canonical vehicle"}</small></span><b>Vehicle</b></button>)}
+            {!arrivalMatches.appointments.length && !arrivalMatches.customers.length && !arrivalMatches.repairOrders.length && !arrivalMatches.vehicles.length ? <div className="sic-arrival-empty"><strong>No matching record found</strong><span>Add a new customer or vehicle, or refine the search.</span></div> : null}
+          </div> : null}
+          <div className="sic-selected-arrival">
+            <article className={selectedCustomer ? "selected" : ""}><UserRound /><div><small>Customer</small><strong>{selectedCustomer?.displayName ?? "Select customer"}</strong><span>{selectedCustomer?.phoneNumber ?? selectedCustomer?.email ?? "Search or add a canonical customer"}</span></div>{selectedCustomer ? <button onClick={() => update("customerId", "")} type="button">Change</button> : null}</article>
+            <article className={selectedVehicle ? "selected" : ""}><CarFront /><div><small>Vehicle</small><strong>{selectedVehicle ? vehicleLabel(selectedVehicle) : "Select vehicle"}</strong><span>{selectedVehicle?.vin ?? selectedVehicle?.licensePlate ?? "Search or add a canonical vehicle"}</span></div>{selectedVehicle ? <button onClick={() => update("vehicleId", "")} type="button">Change</button> : null}</article>
+            <article className={readiness?.appointment ? "selected appointment" : ""}><CalendarClock /><div><small>Appointment</small><strong>{readiness?.appointment?.appointmentNumber ?? "No appointment matched"}</strong><span>{readiness?.appointment?.startsAt ? new Date(readiness.appointment.startsAt).toLocaleString() : "Walk-in readiness will apply"}</span></div></article>
           </div>
         </section>
 
         <section className={`sic-card sic-live-readiness ${readiness?.status.toLocaleLowerCase().replaceAll("_", "-") ?? "loading"}`}>
           <header><span><CalendarClock /></span><div><h2>Live service readiness</h2><p>Appointment match, current shop load, staff, bay capacity, resource reservations, and promise risk.</p></div><button disabled={readinessLoading || !form.customerId || !form.vehicleId} onClick={() => void evaluateReadiness()} type="button">{readinessLoading ? "Checking…" : "Refresh live facts"}</button></header>
-          {readiness ? <><div className="sic-readiness-decision"><div><strong>{readiness.status === "READY" ? "Ready to accept" : readiness.status === "ACCEPT_WITH_CONSTRAINTS" ? "Accept with constraints" : "Manager review recommended"}</strong><span>{readiness.recommendation}</span></div><dl><div><dt>Custody</dt><dd>Accept</dd></div><div><dt>Diagnosis</dt><dd>{readiness.diagnosisOutlook.replaceAll("_", " ").toLocaleLowerCase()}</dd></div><div><dt>Promise</dt><dd>{readiness.promiseConfidence.replaceAll("_", " ").toLocaleLowerCase()}</dd></div></dl></div>
-            {readiness.appointment ? <div className="sic-appointment-match"><CheckCircle2 /><div><strong>{readiness.appointment.appointmentNumber} · {readiness.appointment.title}</strong><span>{readiness.appointment.startsAt ? new Date(readiness.appointment.startsAt).toLocaleString() : "Time not scheduled"} · {readiness.appointment.timing.toLocaleLowerCase()} · Owner {readiness.appointment.owner ?? "unassigned"}</span></div><Link href={`/appointments?appointmentNumber=${encodeURIComponent(readiness.appointment.appointmentNumber)}`}>Open appointment</Link></div> : <div className="sic-appointment-match walk-in"><CalendarClock /><div><strong>No eligible appointment matched</strong><span>This intake will remain a walk-in and use current live capacity facts.</span></div><Link href="/appointments">Find appointment</Link></div>}
-            <div className="sic-readiness-checks">{readiness.checks.map((check) => <article className={check.status.toLocaleLowerCase()} key={check.code}><i>{check.status === "PASS" ? <Check /> : "!"}</i><div><strong>{check.label}</strong><span>{check.message}</span></div><b>{check.status}</b></article>)}</div>
-            <footer><span>Snapshot {readiness.snapshotId.slice(0, 8)} · {new Date(readiness.generatedAt).toLocaleTimeString()} · {readiness.policyVersion}</span><span>{readiness.facts.openRepairOrders} open · {readiness.facts.overdueRepairOrders} overdue · Staff {readiness.facts.availableStaffCapacity}/{readiness.facts.activeStaffCapacity} · Bays {readiness.facts.availableBayCapacity}/{readiness.facts.activeBayCapacity}</span></footer></> : <div className={readinessError ? "sic-readiness-unavailable error" : "sic-readiness-unavailable"}><CalendarClock /><div><strong>{readinessError ? "Readiness unavailable" : "Select a customer and vehicle"}</strong><span>{readinessError || "Live appointment and capacity facts will appear here."}</span></div></div>}
+          {readiness ? <><div className="sic-capacity-grid">
+            <article className="appointment"><small>Matched appointment</small><strong>{readiness.appointment?.startsAt ? new Date(readiness.appointment.startsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "Walk-in"}</strong><span>{readiness.appointment?.appointmentNumber ?? "Current capacity"}</span></article>
+            <article><small>Arrival status</small><b className="status">{readiness.appointment?.timing ?? "ARRIVED"}</b><span>{new Date(form.arrivedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span></article>
+            <article><small>Staff</small><strong>{readiness.facts.availableStaffCapacity} / {readiness.facts.activeStaffCapacity}</strong><i><em style={{ width: `${Math.min(100, readiness.facts.availableStaffCapacity / Math.max(1, readiness.facts.activeStaffCapacity) * 100)}%` }} /></i></article>
+            <article><small>Bays</small><strong>{readiness.facts.availableBayCapacity} / {readiness.facts.activeBayCapacity}</strong><i><em style={{ width: `${Math.min(100, readiness.facts.availableBayCapacity / Math.max(1, readiness.facts.activeBayCapacity) * 100)}%` }} /></i></article>
+            <article><small>Shop load</small><strong>{readiness.facts.openRepairOrders}</strong><span>{readiness.facts.overdueRepairOrders} overdue</span></article>
+            <article><small>Promise confidence</small><strong>{readiness.promiseConfidence.replaceAll("_", " ")}</strong><span>{readiness.diagnosisOutlook.replaceAll("_", " ")}</span></article>
+            <article className="decision"><small>Intake decision</small><b>{readiness.status === "READY" ? "Accept" : readiness.status === "ACCEPT_WITH_CONSTRAINTS" ? "Accept with constraints" : "Manager review"}</b><span>{readiness.recommendation}</span></article>
+          </div><footer><span>Custody: Accept</span><span>Diagnosis: {readiness.diagnosisOutlook.replaceAll("_", " ").toLocaleLowerCase()}</span><span>Promise: {readiness.promiseConfidence.replaceAll("_", " ").toLocaleLowerCase()}</span><span>Live snapshot {new Date(readiness.generatedAt).toLocaleTimeString()}</span></footer></> : <div className={readinessError ? "sic-readiness-unavailable error" : "sic-readiness-unavailable"}><CalendarClock /><div><strong>{readinessError ? "Readiness unavailable" : "Select a customer and vehicle"}</strong><span>{readinessError || "Live appointment and capacity facts will appear here."}</span></div></div>}
         </section>
 
         <section className="sic-card sic-concern">
-          <header><span>2</span><div><h2>Customer concern</h2><p>Record what the customer reports in their own words. This becomes the technician&apos;s starting context.</p></div><em>{form.concernSummary.length} / 2,000</em></header>
-          <label className="sic-concern-field"><span>What is the customer experiencing? <b>Required</b></span><textarea maxLength={2000} onChange={(event) => update("concernSummary", event.target.value)} placeholder="Example: Customer reports a grinding noise from the front passenger side when braking below 25 mph. It started three days ago and is getting louder. ABS warning light came on this morning…" rows={9} value={form.concernSummary} /><small><MessageSquareText />Be specific about the symptom, location, conditions, timing, and what changed.</small></label>
+          <header><span>3</span><div><h2>Customer concern</h2><p>Record what the customer reports in their own words. This becomes the technician&apos;s starting context.</p></div><em>{form.concernSummary.length} / 2,000</em></header>
+          <label className="sic-concern-field"><span>What is the customer experiencing? <b>Required</b></span><textarea maxLength={2000} onChange={(event) => update("concernSummary", event.target.value)} placeholder="Example: Customer reports a grinding noise from the front passenger side when braking below 25 mph. It started three days ago and is getting louder. ABS warning light came on this morning…" rows={5} value={form.concernSummary} /><small><MessageSquareText />Be specific about the symptom, location, conditions, timing, and what changed.</small></label>
           <div className="sic-prompts"><span><Sparkles />Helpful prompts</span>{["Customer states…", "Occurs when…", "Started approximately…", "Warning light/message…", "Previous repair related to…"].map((prompt) => <button key={prompt} onClick={() => addPrompt(prompt)} type="button">+ {prompt}</button>)}</div>
-          <div className="sic-three-column"><label><span>When did it start?</span><input onChange={(event) => update("onset", event.target.value)} placeholder="Today, last week, after repair…" value={form.onset} /></label><label><span>Frequency / conditions</span><input onChange={(event) => update("frequency", event.target.value)} placeholder="Constant, cold start, highway…" value={form.frequency} /></label><label><span>Warning indicators</span><input onChange={(event) => update("warningIndicators", event.target.value)} placeholder="ABS, check engine, message…" value={form.warningIndicators} /></label></div>
-          <label className="sic-notes"><span>Advisor-only intake notes</span><textarea maxLength={2000} onChange={(event) => update("intakeNotes", event.target.value)} placeholder="Observations, prior conversations, access instructions, or context not stated by the customer." rows={4} value={form.intakeNotes} /></label>
+          <details className="sic-more-context"><summary>Additional concern context &amp; advisor notes</summary><div className="sic-three-column"><label><span>When did it start?</span><input onChange={(event) => update("onset", event.target.value)} placeholder="Today, last week, after repair…" value={form.onset} /></label><label><span>Frequency / conditions</span><input onChange={(event) => update("frequency", event.target.value)} placeholder="Constant, cold start, highway…" value={form.frequency} /></label><label><span>Warning indicators</span><input onChange={(event) => update("warningIndicators", event.target.value)} placeholder="ABS, check engine, message…" value={form.warningIndicators} /></label></div><label className="sic-notes"><span>Advisor-only intake notes</span><textarea maxLength={2000} onChange={(event) => update("intakeNotes", event.target.value)} placeholder="Observations, prior conversations, access instructions, or context not stated by the customer." rows={3} value={form.intakeNotes} /></label></details>
         </section>
 
-        <section className="sic-card">
-          <header><span>3</span><div><h2>Visit, custody &amp; promise</h2><p>Establish who has the vehicle, how the customer is traveling, and who owns the next action.</p></div></header>
-          <div className="sic-three-column">
+        <section className="sic-card sic-custody-card">
+          <header><div><h2>Visit &amp; Custody</h2><p>Establish arrival, keys, and customer transportation.</p></div></header>
+          <div className="sic-custody-row">
             <label><span><Clock3 />Arrival</span><input onChange={(event) => update("arrivedAt", event.target.value)} required type="datetime-local" value={form.arrivedAt} /></label>
-            <label><span><CalendarClock />Intake target</span><input onChange={(event) => update("targetAt", event.target.value)} required type="datetime-local" value={form.targetAt} /></label>
-            <label><span>Customer promise</span><input onChange={(event) => update("promisedAt", event.target.value)} type="datetime-local" value={form.promisedAt} /></label>
-            <label><span>Location</span><select onChange={(event) => update("locationId", event.target.value)} value={form.locationId}>{options.locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
-            <label><span>Advisor / owner</span><select onChange={(event) => update("ownerUserId", event.target.value)} value={form.ownerUserId}>{options.users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label>
-            <label><span>Priority</span><select onChange={(event) => update("urgency", event.target.value)} value={form.urgency}><option value="STANDARD">Standard</option><option value="WAITING_CUSTOMER">Customer waiting</option><option value="SAFETY_CONCERN">Potential safety concern</option><option value="COMEBACK_REVIEW">Possible comeback</option></select></label>
             <label><span><KeyRound />Keys received</span><input max={20} min={0} onChange={(event) => update("keysReceivedCount", Number(event.target.value))} type="number" value={form.keysReceivedCount} /></label>
-            <label><span>Key tag</span><input onChange={(event) => update("keyTag", event.target.value)} placeholder="Tag or locker reference" value={form.keyTag} /></label>
-            <label><span>Transportation</span><select onChange={(event) => update("transportMode", event.target.value)} value={form.transportMode}><option value="CUSTOMER_WAITING">Customer waiting</option><option value="DROP_OFF">Drop-off</option><option value="LOANER">Loaner</option><option value="SHUTTLE">Shuttle</option><option value="TOW">Tow</option><option value="OTHER">Other</option></select></label>
+            <label><span>Key tag</span><input onChange={(event) => update("keyTag", event.target.value)} placeholder="Tag reference" value={form.keyTag} /></label>
+            <label><span>Transportation</span><select onChange={(event) => update("transportMode", event.target.value)} value={form.transportMode}><option value="CUSTOMER_WAITING">Customer waiting</option><option value="DROP_OFF">Customer drive / drop-off</option><option value="LOANER">Loaner</option><option value="SHUTTLE">Shuttle</option><option value="TOW">Tow</option><option value="OTHER">Other</option></select></label>
           </div>
-          <div className="sic-two-column sic-consent">
+          <details className="sic-more-context"><summary>Authorization, ownership, promise &amp; advanced custody</summary><div className="sic-three-column"><label><span><CalendarClock />Intake target</span><input onChange={(event) => update("targetAt", event.target.value)} required type="datetime-local" value={form.targetAt} /></label><label><span>Customer promise</span><input onChange={(event) => update("promisedAt", event.target.value)} type="datetime-local" value={form.promisedAt} /></label><label><span>Location</span><select onChange={(event) => update("locationId", event.target.value)} value={form.locationId}>{options.locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label><label><span>Advisor / owner</span><select onChange={(event) => update("ownerUserId", event.target.value)} value={form.ownerUserId}>{options.users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label><label><span>Priority</span><select onChange={(event) => update("urgency", event.target.value)} value={form.urgency}><option value="STANDARD">Standard</option><option value="WAITING_CUSTOMER">Customer waiting</option><option value="SAFETY_CONCERN">Potential safety concern</option><option value="COMEBACK_REVIEW">Possible comeback</option></select></label></div><div className="sic-two-column sic-consent">
             <label><span>Consent status</span><select onChange={(event) => update("consentStatus", event.target.value as IntakeState["consentStatus"])} value={form.consentStatus}><option value="PENDING">Pending</option><option value="DOCUMENTED">Documented</option><option value="NOT_REQUIRED">Not required</option></select></label>
             {form.consentStatus === "DOCUMENTED" ? <><label><span>Consent reference</span><input onChange={(event) => update("consentReference", event.target.value)} placeholder="Signature, call, or document reference" value={form.consentReference} /></label><label><span>Consent recorded at</span><input onChange={(event) => update("consentedAt", event.target.value)} type="datetime-local" value={form.consentedAt} /></label></> : null}
             <label><span>Promise notes</span><input onChange={(event) => update("promiseNotes", event.target.value)} placeholder="What did we commit to communicate or complete?" value={form.promiseNotes} /></label>
-          </div>
+          </div></details>
         </section>
       </main>
 
       <aside className="sic-sidebar">
-        <section className="sic-summary"><p>Live intake summary</p><h2>{selectedCustomer?.displayName ?? "Select customer"}</h2><span>{selectedVehicle ? vehicleLabel(selectedVehicle) : "Select vehicle"}</span><dl><div><dt>Location</dt><dd>{selectedLocation?.name ?? "Required"}</dd></div><div><dt>Owner</dt><dd>{selectedOwner?.name ?? "Required"}</dd></div><div><dt>Transportation</dt><dd>{form.transportMode.replaceAll("_", " ").toLocaleLowerCase()}</dd></div><div><dt>Target</dt><dd>{form.targetAt ? new Date(form.targetAt).toLocaleString() : "Required"}</dd></div></dl></section>
-        <section className="sic-readiness"><h2>Check-in readiness</h2>{checklist.map((item) => <p className={item.ready ? "ready" : ""} key={item.label}><i>{item.ready ? <Check /> : null}</i><span>{item.label}</span><b>{item.ready ? "Ready" : "Required"}</b></p>)}<strong>{checklist.filter((item) => item.ready).length} of {checklist.length} complete</strong></section>
-        <section className="sic-effects"><ShieldCheck /><div><h2>What this creates</h2><p>One governed repair order, immutable intake evidence, accountable ownership, and a visible Unassigned/Intake work item.</p></div></section>
+        <section className="sic-intake-summary"><h2>Live Intake Summary</h2><article><UserRound /><div><small>Customer</small><strong>{selectedCustomer?.displayName ?? "Select customer"}</strong><span>{selectedCustomer?.phoneNumber ?? selectedCustomer?.email ?? "Canonical customer required"}</span></div></article><article><CarFront /><div><small>Vehicle</small><strong>{selectedVehicle ? vehicleLabel(selectedVehicle) : "Select vehicle"}</strong><span>{selectedVehicle?.vin ?? selectedVehicle?.licensePlate ?? "Canonical vehicle required"}</span></div></article><article><CalendarClock /><div><small>Appointment</small><strong>{readiness?.appointment?.appointmentNumber ?? "No appointment matched"}</strong><span>{readiness?.appointment?.startsAt ? new Date(readiness.appointment.startsAt).toLocaleString() : "Walk-in readiness applies"}</span></div></article><div className="sic-summary-progress"><span>Readiness overview</span><b>{checklist.filter((item) => item.ready).length}/{checklist.length} complete</b><i><em style={{ width: `${checklist.filter((item) => item.ready).length / checklist.length * 100}%` }} /></i></div><dl><div><dt>Custody status</dt><dd>{form.keysReceivedCount > 0 ? "Accept" : "Review"}</dd></div><div><dt>Advisor</dt><dd>{selectedOwner?.name ?? "Required"}</dd></div><div><dt>Location</dt><dd>{selectedLocation?.name ?? "Required"}</dd></div><div><dt>Target update</dt><dd>{form.targetAt ? new Date(form.targetAt).toLocaleString() : "Required"}</dd></div></dl><div className="sic-readiness"><h2>Check-in requirements</h2>{checklist.map((item) => <p className={item.ready ? "ready" : ""} key={item.label}><i>{item.ready ? <Check /> : null}</i><span>{item.label}</span></p>)}<strong>{checklist.filter((item) => item.ready).length} / {checklist.length}</strong></div></section>
       </aside>
     </div>
+
+    {drawer ? <div className="sic-drawer-backdrop" role="presentation"><section aria-label={drawer === "customer" ? "Add new customer" : "Add new vehicle"} aria-modal="true" className="sic-create-drawer" role="dialog">
+      <header><div><small>Find Arrival</small><h2>{drawer === "customer" ? "Add New Customer" : "Add New Vehicle"}</h2><p>The server checks canonical records and duplicate signals before this record is selected.</p></div><button aria-label="Close" onClick={() => setDrawer(null)} type="button"><X /></button></header>
+      {drawer === "customer" ? <div className="sic-drawer-fields">
+        <label><span>Customer name <b>Required</b></span><input autoFocus onChange={(event) => setNewCustomer((value) => ({ ...value, displayName: event.target.value }))} value={newCustomer.displayName} /></label>
+        <label><span>Mobile phone</span><input onChange={(event) => setNewCustomer((value) => ({ ...value, phoneNumber: event.target.value }))} type="tel" value={newCustomer.phoneNumber} /></label>
+        <label><span>Email</span><input onChange={(event) => setNewCustomer((value) => ({ ...value, email: event.target.value }))} type="email" value={newCustomer.email} /></label>
+        <label><span>Preferred contact</span><select onChange={(event) => setNewCustomer((value) => ({ ...value, preferredContactMethod: event.target.value }))} value={newCustomer.preferredContactMethod}><option value="PHONE">Phone</option><option value="SMS">Text message</option><option value="EMAIL">Email</option></select></label>
+        <label className="wide"><span>Address</span><input onChange={(event) => setNewCustomer((value) => ({ ...value, address: event.target.value }))} value={newCustomer.address} /></label>
+      </div> : <div className="sic-drawer-fields">
+        <label className="wide"><span>VIN <b>Required</b></span><input autoFocus maxLength={17} onChange={(event) => setNewVehicle((value) => ({ ...value, vin: event.target.value.toUpperCase() }))} placeholder="17-character VIN" value={newVehicle.vin} /></label>
+        <label><span>Year</span><input max={new Date().getFullYear() + 2} min={1886} onChange={(event) => setNewVehicle((value) => ({ ...value, year: event.target.value }))} type="number" value={newVehicle.year} /></label>
+        <label><span>Make</span><input onChange={(event) => setNewVehicle((value) => ({ ...value, make: event.target.value }))} value={newVehicle.make} /></label>
+        <label><span>Model</span><input onChange={(event) => setNewVehicle((value) => ({ ...value, model: event.target.value }))} value={newVehicle.model} /></label>
+        <label><span>Color</span><input onChange={(event) => setNewVehicle((value) => ({ ...value, color: event.target.value }))} value={newVehicle.color} /></label>
+        <label><span>License plate</span><input onChange={(event) => setNewVehicle((value) => ({ ...value, licensePlate: event.target.value.toUpperCase() }))} value={newVehicle.licensePlate} /></label>
+      </div>}
+      <footer><button onClick={() => setDrawer(null)} type="button">Cancel</button><button className="primary" disabled={busy || (drawer === "customer" ? !newCustomer.displayName || !newCustomer.phoneNumber && !newCustomer.email : newVehicle.vin.length !== 17)} onClick={() => void (drawer === "customer" ? createCustomer() : createVehicle())} type="button">{busy ? "Saving…" : drawer === "customer" ? "Create & Select Customer" : "Create & Select Vehicle"}</button></footer>
+    </section></div> : null}
 
     <footer className="sic-footer"><div><Link href="/vehicles/shop-recon">Cancel</Link><span><ShieldCheck />No repair authorization or estimate approval is implied by check-in.</span></div><button disabled={busy || !ready} type="submit">{busy ? "Creating repair order…" : "Complete Check-In & Create Repair Order"}<ChevronRight /></button></footer>
   </form>;

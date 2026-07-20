@@ -8,7 +8,7 @@ async function execute(database: PrismaClient, input: EnterpriseCommandCommitInp
 
 export type RepairOrderCreateRecord = { actorUserId: string; appointmentId: string | null; arrivedAt: Date; consentReference: string | null; consentStatus: "DOCUMENTED"|"NOT_REQUIRED"|"PENDING"; consentedAt: Date | null; concernSummary: string; customerId: string | null; intakeNotes: string | null; intakeSource: "APPOINTMENT"|"WALK_IN"|"INVENTORY_RECON"; inventoryUnitId: string | null; keyTag: string | null; keysReceivedCount: number; locationId: string; nextAction: string; operatingState: "ACTIVE"|"WAITING"|"BLOCKED"; ownerUserId: string; promisedAt: Date | null; promiseNotes: string | null; readinessSnapshotId: string | null; repairOrderNumber: string; stateReason: string | null; targetAt: Date; transportMode: "CUSTOMER_WAITING"|"DROP_OFF"|"LOANER"|"SHUTTLE"|"TOW"|"INTERNAL_TRANSPORT"|"OTHER"; vehicleId: string | null };
 export type RepairOrderControlRecord = Pick<RepairOrderCreateRecord,"actorUserId"|"locationId"|"nextAction"|"operatingState"|"ownerUserId"|"stateReason"|"targetAt">;
-const vehicleSelect = { id: true, vehicleNumber: true, vin: true, stockNumber: true, year: true, make: true, model: true, color: true };
+const vehicleSelect = { id: true, vehicleNumber: true, vin: true, stockNumber: true, year: true, make: true, model: true, color: true, licensePlate: true };
 const detailInclude = { vehicle: { select: vehicleSelect }, customer: { select: { id: true, customerNumber: true, displayName: true, phoneNumber: true, email: true } }, inventoryUnit: { select: { id: true, inventoryNumber: true } }, ownerUser: { select: { id: true, name: true, email: true } }, location: { select: { id: true, code: true, name: true } }, serviceVisit: { include: { appointment: { select: { id: true, appointmentNumber: true, title: true, startsAt: true } }, createdByUser: { select: { id: true, name: true } } } }, stateEvents: { orderBy: { version: "desc" as const }, take: 100, include: { actorUser: { select: { id: true, name: true } }, ownerUser: { select: { id: true, name: true } }, location: { select: { id: true, code: true, name: true } } } } };
 
 export function createRepairOrderRepository(database: PrismaClient = prisma) { return {
@@ -16,19 +16,25 @@ export function createRepairOrderRepository(database: PrismaClient = prisma) { r
   async search(organizationId: string, input: { page: number; pageSize: number; query: string; state?: string }) { const where: Prisma.RepairOrderWhereInput = { organizationId, closedAt: null }; if (input.state) where.operatingState = input.state as Prisma.EnumRepairOrderOperatingStateFilter; if (input.query.trim()) where.AND = input.query.trim().split(/\s+/).map((token) => ({ OR: [{ repairOrderNumber: { contains: token, mode: "insensitive" } }, { nextAction: { contains: token, mode: "insensitive" } }, { vehicle: { vehicleNumber: { contains: token, mode: "insensitive" } } }, { vehicle: { vin: { contains: token.toUpperCase() } } }, { customer: { displayName: { contains: token, mode: "insensitive" } } }, { inventoryUnit: { inventoryNumber: { contains: token, mode: "insensitive" } } }, { ownerUser: { name: { contains: token, mode: "insensitive" } } }] })); const [total,items]=await Promise.all([database.repairOrder.count({where}),database.repairOrder.findMany({where,orderBy:[{targetAt:"asc"},{repairOrderNumber:"asc"}],skip:(input.page-1)*input.pageSize,take:input.pageSize,include:{vehicle:{select:vehicleSelect},customer:{select:{id:true,displayName:true}},inventoryUnit:{select:{id:true,inventoryNumber:true}},ownerUser:{select:{id:true,name:true}},location:{select:{id:true,code:true,name:true}},serviceVisit:{select:{concernSummary:true,transportMode:true}},_count:{select:{stateEvents:true}}}})]); return {items,page:input.page,pageSize:input.pageSize,total,totalPages:Math.max(1,Math.ceil(total/input.pageSize))}; },
   getDetail(organizationId: string, id: string) { return database.repairOrder.findFirst({ where: { id, organizationId }, include: detailInclude }); },
   async getCreateOptions(organizationId: string) {
-    const [appointments, vehicles, customers, inventoryUnits, locations, users] = await Promise.all([
+    const [appointments, vehicles, customers, inventoryUnits, locations, users, repairOrders] = await Promise.all([
       database.appointment.findMany({
         where: { organizationId, cancelledAt: null, noShowAt: null, serviceVisit: null, vehicles: { some: { isPrimary: true } }, participants: { some: { participantType: "CUSTOMER", isPrimary: true, customerId: { not: null } } } },
         orderBy: { startsAt: "asc" }, take: 100,
-        select: { id: true, appointmentNumber: true, title: true, startsAt: true, locationId: true, vehicles: { where: { isPrimary: true }, take: 1, select: { vehicle: { select: vehicleSelect } } }, participants: { where: { participantType: "CUSTOMER", isPrimary: true }, take: 1, select: { customer: { select: { id: true, displayName: true } } } } }
+        select: { id: true, appointmentNumber: true, title: true, startsAt: true, locationId: true, vehicles: { where: { isPrimary: true }, take: 1, select: { vehicle: { select: vehicleSelect } } }, participants: { where: { participantType: "CUSTOMER", isPrimary: true }, take: 1, select: { customer: { select: { id: true, customerNumber: true, displayName: true, phoneNumber: true, email: true } } } } }
       }),
       database.vehicle.findMany({ where: { organizationId, status: "ACTIVE", mergedIntoVehicleId: null }, orderBy: { vehicleNumber: "asc" }, select: vehicleSelect }),
-      database.customer.findMany({ where: { organizationId, status: "ACTIVE", mergedIntoCustomerId: null }, orderBy: { displayName: "asc" }, select: { id: true, customerNumber: true, displayName: true } }),
+      database.customer.findMany({ where: { organizationId, status: "ACTIVE", mergedIntoCustomerId: null }, orderBy: { displayName: "asc" }, select: { id: true, customerNumber: true, displayName: true, phoneNumber: true, email: true } }),
       database.inventoryUnit.findMany({ where: { organizationId, closedAt: null }, orderBy: { inventoryNumber: "asc" }, select: { id: true, inventoryNumber: true, locationId: true, vehicle: { select: vehicleSelect } } }),
       database.location.findMany({ where: { organizationId }, orderBy: { name: "asc" }, select: { id: true, code: true, name: true } }),
-      database.user.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true, email: true } })
+      database.user.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true, email: true } }),
+      database.repairOrder.findMany({
+        where: { organizationId, closedAt: null },
+        orderBy: { updatedAt: "desc" },
+        take: 100,
+        select: { id: true, operatingState: true, repairOrderNumber: true, stage: true, customer: { select: { displayName: true } }, vehicle: { select: vehicleSelect } },
+      })
     ]);
-    return { appointments, vehicles, customers, inventoryUnits, locations, users };
+    return { appointments, vehicles, customers, inventoryUnits, locations, users, repairOrders };
   },
   async validateReadinessSnapshot(organizationId: string, data: Pick<RepairOrderCreateRecord, "appointmentId" | "customerId" | "locationId" | "readinessSnapshotId" | "vehicleId">, now: Date) {
     if (!data.readinessSnapshotId) return;
