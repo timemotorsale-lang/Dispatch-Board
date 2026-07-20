@@ -22,7 +22,7 @@ describe("Inventory Console gap closure Wave 6", () => {
     expect(withContext.cards.find(item => item.id === "WL-07")?.href).toContain("expectedVersion=3");
     expect(withContext.cards.every(item => item.creates.length && item.validation && item.confirmation && item.approval && item.recovery)).toBe(true);
     const markup = renderToStaticMarkup(<WorkflowLauncher model={withContext} />);
-    for (const token of ["Open purpose-built intake", "Intake contract", "Validation:", "Confirmation:", "Recovery:"]) expect(markup).toContain(token);
+    for (const token of ["Recommended for you", "Start", "Intake contract", "Validation:", "Confirmation:", "Recovery:"]) expect(markup).toContain(token);
   });
 
   it("builds deduplicated My Work, Team, and exception queues with hard tiers", () => {

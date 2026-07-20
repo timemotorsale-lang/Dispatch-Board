@@ -1,5 +1,9 @@
 # Current Implementation Status
 
+## 2026-07-19 — CCC Enterprise Workflow Launcher planning baseline
+
+The official documentation-only source of truth for the CCC Enterprise Workflow Launcher now lives in [`CCC_ENTERPRISE_WORKFLOW_LAUNCHER_SOURCE_OF_TRUTH.md`](CCC_ENTERPRISE_WORKFLOW_LAUNCHER_SOURCE_OF_TRUTH.md). It defines the active-console-first Cards/List experience, universal search, registry and runtime architecture, authority and recovery boundaries, a cross-console workflow-family catalog, and gated implementation milestones. The Inventory Start Workflow mockup embedded there was approved as the binding visual and interaction baseline on 2026-07-19. This planning record does not activate workflows or strengthen the implementation state of any listed capability; the evidence-based states below remain authoritative.
+
 ## 2026-07-19 — Console navigation performance tune-up
 
 The shared authenticated shell now renders an immediate route-level loading state during console transitions and deduplicates repeated authenticated-user reads within a server render. Independent server reads are parallelized on the high-traffic Dispatch Overview, Tasks, My Tasks, Projects, Manager Review, Appointments, and Inventory Home routes, preserving existing permission, fallback, and unavailable-state behavior while removing avoidable request waterfalls.
