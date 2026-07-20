@@ -6,7 +6,7 @@ type Tx = Prisma.TransactionClient;
 function json(value: unknown): Prisma.InputJsonValue { return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue; }
 async function execute(database: PrismaClient, input: EnterpriseCommandCommitInput, mutate: (tx: Tx, version: number) => Promise<{ result: unknown; previous?: unknown }>) { return database.$transaction(async (tx) => { const existing = await tx.enterpriseCommandLedger.findUnique({ where: { organizationId_domain_commandType_idempotencyKey: { organizationId: input.organizationId, domain: input.domain, commandType: input.commandType, idempotencyKey: input.idempotencyKey } } }); if (existing) { if (existing.requestHash !== input.requestHash) throw new EnterpriseCommandConflictError("Idempotency key was already used with a different request.", "IDEMPOTENCY_KEY_REUSED"); return { duplicate: true, result: existing.resultSnapshot, version: existing.resultingVersion ?? input.expectedVersion }; } const key = { organizationId_domain_subjectType_subjectId: { organizationId: input.organizationId, domain: input.domain, subjectType: input.subjectType, subjectId: input.subjectId } }; const aggregate = await tx.enterpriseAggregateVersion.findUnique({ where: key }); const currentVersion = aggregate?.version ?? 0; if (currentVersion !== input.expectedVersion) throw new EnterpriseCommandConflictError(`Expected version ${input.expectedVersion}, but current version is ${currentVersion}.`, "VERSION_CONFLICT"); const version = currentVersion + 1; const mutation = await mutate(tx, version); if (aggregate) await tx.enterpriseAggregateVersion.update({ where: { id: aggregate.id }, data: { version, locationId: input.locationId } }); else await tx.enterpriseAggregateVersion.create({ data: { organizationId: input.organizationId, locationId: input.locationId, domain: input.domain, subjectType: input.subjectType, subjectId: input.subjectId, version } }); const resultSnapshot = json(mutation.result); const command = await tx.enterpriseCommandLedger.create({ data: { organizationId: input.organizationId, locationId: input.locationId, actorUserId: input.actorUserId, domain: input.domain, subjectType: input.subjectType, subjectId: input.subjectId, commandType: input.commandType, status: "SUCCEEDED", idempotencyKey: input.idempotencyKey, requestHash: input.requestHash, correlationId: input.correlationId, expectedVersion: input.expectedVersion, resultingVersion: version, resultSnapshot, completedAt: new Date() } }); const eventType = `${input.commandType}_COMPLETED`; const event = await tx.enterpriseDomainEvent.create({ data: { organizationId: input.organizationId, locationId: input.locationId, commandId: command.id, domain: input.domain, aggregateType: input.subjectType, aggregateId: input.subjectId, aggregateVersion: version, eventType, payload: json({ ...input.payload, reason: input.reason, result: mutation.result }) } }); await tx.enterpriseAuditEvent.create({ data: { organizationId: input.organizationId, locationId: input.locationId, actorUserId: input.actorUserId, commandId: command.id, domain: input.domain, subjectType: input.subjectType, subjectId: input.subjectId, eventType, reason: input.reason, priorValue: mutation.previous == null ? undefined : json(mutation.previous), newValue: resultSnapshot, metadata: json({ requestHash: input.requestHash }), correlationId: input.correlationId } }); await tx.enterpriseOutboxMessage.create({ data: { organizationId: input.organizationId, locationId: input.locationId, domainEventId: event.id, topic: "vehicle-operations.shop", messageKey: input.subjectId, payload: json({ aggregateId: input.subjectId, aggregateVersion: version, correlationId: input.correlationId, eventId: event.id, eventType }) } }); return { duplicate: false, result: mutation.result, version }; }); }
 
-export type RepairOrderCreateRecord = { actorUserId: string; appointmentId: string | null; arrivedAt: Date; consentReference: string | null; consentStatus: "DOCUMENTED"|"NOT_REQUIRED"|"PENDING"; consentedAt: Date | null; concernSummary: string; customerId: string | null; intakeNotes: string | null; intakeSource: "APPOINTMENT"|"WALK_IN"|"INVENTORY_RECON"; inventoryUnitId: string | null; keyTag: string | null; keysReceivedCount: number; locationId: string; nextAction: string; operatingState: "ACTIVE"|"WAITING"|"BLOCKED"; ownerUserId: string; promisedAt: Date | null; promiseNotes: string | null; repairOrderNumber: string; stateReason: string | null; targetAt: Date; transportMode: "CUSTOMER_WAITING"|"DROP_OFF"|"LOANER"|"SHUTTLE"|"TOW"|"INTERNAL_TRANSPORT"|"OTHER"; vehicleId: string | null };
+export type RepairOrderCreateRecord = { actorUserId: string; appointmentId: string | null; arrivedAt: Date; consentReference: string | null; consentStatus: "DOCUMENTED"|"NOT_REQUIRED"|"PENDING"; consentedAt: Date | null; concernSummary: string; customerId: string | null; intakeNotes: string | null; intakeSource: "APPOINTMENT"|"WALK_IN"|"INVENTORY_RECON"; inventoryUnitId: string | null; keyTag: string | null; keysReceivedCount: number; locationId: string; nextAction: string; operatingState: "ACTIVE"|"WAITING"|"BLOCKED"; ownerUserId: string; promisedAt: Date | null; promiseNotes: string | null; readinessSnapshotId: string | null; repairOrderNumber: string; stateReason: string | null; targetAt: Date; transportMode: "CUSTOMER_WAITING"|"DROP_OFF"|"LOANER"|"SHUTTLE"|"TOW"|"INTERNAL_TRANSPORT"|"OTHER"; vehicleId: string | null };
 export type RepairOrderControlRecord = Pick<RepairOrderCreateRecord,"actorUserId"|"locationId"|"nextAction"|"operatingState"|"ownerUserId"|"stateReason"|"targetAt">;
 const vehicleSelect = { id: true, vehicleNumber: true, vin: true, stockNumber: true, year: true, make: true, model: true, color: true };
 const detailInclude = { vehicle: { select: vehicleSelect }, customer: { select: { id: true, customerNumber: true, displayName: true, phoneNumber: true, email: true } }, inventoryUnit: { select: { id: true, inventoryNumber: true } }, ownerUser: { select: { id: true, name: true, email: true } }, location: { select: { id: true, code: true, name: true } }, serviceVisit: { include: { appointment: { select: { id: true, appointmentNumber: true, title: true, startsAt: true } }, createdByUser: { select: { id: true, name: true } } } }, stateEvents: { orderBy: { version: "desc" as const }, take: 100, include: { actorUser: { select: { id: true, name: true } }, ownerUser: { select: { id: true, name: true } }, location: { select: { id: true, code: true, name: true } } } } };
@@ -29,6 +29,34 @@ export function createRepairOrderRepository(database: PrismaClient = prisma) { r
       database.user.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true, email: true } })
     ]);
     return { appointments, vehicles, customers, inventoryUnits, locations, users };
+  },
+  async validateReadinessSnapshot(organizationId: string, data: Pick<RepairOrderCreateRecord, "appointmentId" | "customerId" | "locationId" | "readinessSnapshotId" | "vehicleId">, now: Date) {
+    if (!data.readinessSnapshotId) return;
+    const snapshot = await database.serviceIntakeReadinessSnapshot.findFirst({
+      where: {
+        id: data.readinessSnapshotId,
+        organizationId,
+        locationId: data.locationId,
+        expiresAt: { gt: now },
+        ...(data.appointmentId
+          ? { appointmentId: data.appointmentId }
+          : { appointmentId: null, customerId: data.customerId!, vehicleId: data.vehicleId! }),
+      },
+      select: { id: true },
+    });
+    if (!snapshot) throw new Error("Service-readiness facts are stale or do not match this intake. Refresh readiness before check-in.");
+  },
+  async attachReadinessSnapshot(organizationId: string, repairOrderId: string, readinessSnapshotId: string | null) {
+    if (!readinessSnapshotId) return;
+    const repairOrder = await database.repairOrder.findFirst({
+      where: { id: repairOrderId, organizationId },
+      select: { serviceVisitId: true },
+    });
+    if (!repairOrder) throw new Error("The created repair order could not be linked to its readiness evidence.");
+    await database.serviceVisit.update({
+      where: { id: repairOrder.serviceVisitId },
+      data: { readinessSnapshotId },
+    });
   },
   // Intake identifiers begin as nullable inputs and are resolved from their authoritative source.
   // eslint-disable-next-line prefer-const

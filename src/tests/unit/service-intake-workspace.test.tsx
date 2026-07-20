@@ -16,6 +16,8 @@ describe("enterprise service intake workspace", () => {
 
     expect(html).toContain("Check In Vehicle");
     expect(html).toContain("Customer &amp; vehicle");
+    expect(html).toContain("Live service readiness");
+    expect(html).toContain("Live appointment and capacity facts will appear here");
     expect(html).toContain("Customer concern");
     expect(html).toContain("rows=\"9\"");
     expect(html).toContain("maxLength=\"2000\"");

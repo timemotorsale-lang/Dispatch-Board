@@ -17,7 +17,7 @@ import {
   UserRound,
 } from "lucide-react";
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 export type ServiceIntakeOptions = {
   customers: Array<{ customerNumber?: string; displayName: string; id: string }>;
@@ -48,6 +48,23 @@ type IntakeState = {
   urgency: string;
   vehicleId: string;
   warningIndicators: string;
+};
+
+type ServiceReadiness = {
+  appointment: null | { appointmentNumber: string; attendanceStatus: string; endsAt: string | null; expectedVersion: number; id: string; owner: string | null; startsAt: string | null; timing: string; title: string };
+  alternatives: string[];
+  canAcceptCustody: true;
+  checks: Array<{ code: string; label: string; message: string; status: "PASS" | "REVIEW" | "WARNING" }>;
+  confidence: "HIGH" | "LOW" | "MEDIUM";
+  diagnosisOutlook: "CAPACITY_REVIEW" | "LIKELY_TODAY" | "SCHEDULED_WINDOW";
+  expiresAt: string;
+  facts: { activeBayCapacity: number; activeStaffCapacity: number; availableBayCapacity: number; availableStaffCapacity: number; matchedAppointmentCount: number; openRepairOrders: number; overdueRepairOrders: number; reservedBayCapacity: number; reservedStaffCapacity: number };
+  generatedAt: string;
+  policyVersion: string;
+  promiseConfidence: "CONDITIONAL" | "DO_NOT_PROMISE" | "HIGH";
+  recommendation: string;
+  snapshotId: string;
+  status: "ACCEPT_WITH_CONSTRAINTS" | "MANAGER_REVIEW" | "READY";
 };
 
 const local = (date: Date) => new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
@@ -88,6 +105,9 @@ export function ServiceIntakeWorkspace({ options }: { options: ServiceIntakeOpti
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [created, setCreated] = useState<{ id: string; repairOrderNumber: string } | null>(null);
+  const [readiness, setReadiness] = useState<ServiceReadiness | null>(null);
+  const [readinessError, setReadinessError] = useState("");
+  const [readinessLoading, setReadinessLoading] = useState(false);
 
   const vehicles = useMemo(() => {
     const query = vehicleQuery.trim().toLocaleLowerCase();
@@ -101,15 +121,44 @@ export function ServiceIntakeWorkspace({ options }: { options: ServiceIntakeOpti
   const selectedCustomer = options.customers.find((customer) => customer.id === form.customerId);
   const selectedLocation = options.locations.find((location) => location.id === form.locationId);
   const selectedOwner = options.users.find((user) => user.id === form.ownerUserId);
-  const readiness = [
+  const checklist = [
     { label: "Customer selected", ready: Boolean(form.customerId) },
     { label: "Vehicle selected", ready: Boolean(form.vehicleId) },
     { label: "Concern captured", ready: form.concernSummary.trim().length >= 10 },
     { label: "Keys & transportation", ready: form.keysReceivedCount >= 0 && Boolean(form.transportMode) },
+    { label: "Live service readiness", ready: Boolean(readiness) },
     { label: "Owner & target", ready: Boolean(form.ownerUserId && form.targetAt) },
     { label: "Consent disposition", ready: form.consentStatus !== "DOCUMENTED" || Boolean(form.consentReference && form.consentedAt) },
   ];
-  const ready = readiness.every((item) => item.ready);
+  const ready = checklist.every((item) => item.ready);
+
+  const evaluateReadiness = useCallback(async () => {
+    if (!form.customerId || !form.vehicleId || !form.locationId || !form.arrivedAt) {
+      setReadiness(null);
+      setReadinessError("");
+      return null;
+    }
+    setReadinessLoading(true);
+    setReadinessError("");
+    try {
+      const response = await fetch("/api/service-intake/readiness", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ arrivedAt: new Date(form.arrivedAt).toISOString(), customerId: form.customerId, locationId: form.locationId, vehicleId: form.vehicleId }) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !body.readiness) throw new Error(body.error ?? "Live service readiness is unavailable.");
+      setReadiness(body.readiness as ServiceReadiness);
+      return body.readiness as ServiceReadiness;
+    } catch (error) {
+      setReadiness(null);
+      setReadinessError(error instanceof Error ? error.message : "Live service readiness is unavailable.");
+      return null;
+    } finally {
+      setReadinessLoading(false);
+    }
+  }, [form.arrivedAt, form.customerId, form.locationId, form.vehicleId]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void evaluateReadiness(), 0);
+    return () => window.clearTimeout(timer);
+  }, [evaluateReadiness]);
 
   function update<K extends keyof IntakeState>(key: K, value: IntakeState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -135,20 +184,29 @@ export function ServiceIntakeWorkspace({ options }: { options: ServiceIntakeOpti
       form.intakeNotes.trim(),
     ].filter(Boolean).join("\n");
     try {
+      const freshReadiness = await evaluateReadiness();
+      if (!freshReadiness) throw new Error("A current service-readiness evaluation is required before check-in.");
+      const appointment = freshReadiness.appointment;
+      if (appointment && appointment.attendanceStatus === "EXPECTED") {
+        const commandKey = `service-intake-check-in-${appointment.id}-${crypto.randomUUID()}`;
+        const appointmentResponse = await fetch("/api/appointments/commands", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ appointmentId: appointment.id, commandType: "CHECK_IN", correlationId: commandKey, expectedAppointmentVersion: appointment.expectedVersion, idempotencyKey: commandKey, payload: {} }) });
+        const appointmentBody = await appointmentResponse.json().catch(() => ({}));
+        if (!appointmentResponse.ok || !appointmentBody.accepted) throw new Error(appointmentBody.error ?? appointmentBody.execution?.rejectionReasons?.join(" ") ?? "The matched appointment could not be checked in.");
+      }
       const response = await fetch("/api/repair-orders", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          appointmentId: null,
+          appointmentId: appointment?.id ?? null,
           arrivedAt: new Date(form.arrivedAt).toISOString(),
           concernSummary: form.concernSummary,
           consentReference: form.consentReference || null,
           consentStatus: form.consentStatus,
           consentedAt: form.consentedAt ? new Date(form.consentedAt).toISOString() : null,
-          customerId: form.customerId,
+          customerId: appointment ? null : form.customerId,
           idempotencyKey: crypto.randomUUID(),
           intakeNotes: structuredNotes || null,
-          intakeSource: "WALK_IN",
+          intakeSource: appointment ? "APPOINTMENT" : "WALK_IN",
           inventoryUnitId: null,
           keyTag: form.keyTag || null,
           keysReceivedCount: form.keysReceivedCount,
@@ -158,11 +216,14 @@ export function ServiceIntakeWorkspace({ options }: { options: ServiceIntakeOpti
           ownerUserId: form.ownerUserId,
           promisedAt: form.promisedAt ? new Date(form.promisedAt).toISOString() : null,
           promiseNotes: form.promiseNotes || null,
-          reason: "Create governed walk-in service intake with attributable customer, vehicle, concern, custody, and handoff facts.",
+          readinessSnapshotId: freshReadiness.snapshotId,
+          reason: appointment
+            ? "Create governed appointment service intake with attributable customer, vehicle, concern, custody, and readiness facts."
+            : "Create governed walk-in service intake with attributable customer, vehicle, concern, custody, and readiness facts.",
           stateReason: null,
           targetAt: new Date(form.targetAt).toISOString(),
           transportMode: form.transportMode,
-          vehicleId: form.vehicleId,
+          vehicleId: appointment ? null : form.vehicleId,
         }),
       });
       const body = await response.json().catch(() => ({}));
@@ -210,9 +271,17 @@ export function ServiceIntakeWorkspace({ options }: { options: ServiceIntakeOpti
           </div>
         </section>
 
+        <section className={`sic-card sic-live-readiness ${readiness?.status.toLocaleLowerCase().replaceAll("_", "-") ?? "loading"}`}>
+          <header><span><CalendarClock /></span><div><h2>Live service readiness</h2><p>Appointment match, current shop load, staff, bay capacity, resource reservations, and promise risk.</p></div><button disabled={readinessLoading || !form.customerId || !form.vehicleId} onClick={() => void evaluateReadiness()} type="button">{readinessLoading ? "Checking…" : "Refresh live facts"}</button></header>
+          {readiness ? <><div className="sic-readiness-decision"><div><strong>{readiness.status === "READY" ? "Ready to accept" : readiness.status === "ACCEPT_WITH_CONSTRAINTS" ? "Accept with constraints" : "Manager review recommended"}</strong><span>{readiness.recommendation}</span></div><dl><div><dt>Custody</dt><dd>Accept</dd></div><div><dt>Diagnosis</dt><dd>{readiness.diagnosisOutlook.replaceAll("_", " ").toLocaleLowerCase()}</dd></div><div><dt>Promise</dt><dd>{readiness.promiseConfidence.replaceAll("_", " ").toLocaleLowerCase()}</dd></div></dl></div>
+            {readiness.appointment ? <div className="sic-appointment-match"><CheckCircle2 /><div><strong>{readiness.appointment.appointmentNumber} · {readiness.appointment.title}</strong><span>{readiness.appointment.startsAt ? new Date(readiness.appointment.startsAt).toLocaleString() : "Time not scheduled"} · {readiness.appointment.timing.toLocaleLowerCase()} · Owner {readiness.appointment.owner ?? "unassigned"}</span></div><Link href={`/appointments?appointmentNumber=${encodeURIComponent(readiness.appointment.appointmentNumber)}`}>Open appointment</Link></div> : <div className="sic-appointment-match walk-in"><CalendarClock /><div><strong>No eligible appointment matched</strong><span>This intake will remain a walk-in and use current live capacity facts.</span></div><Link href="/appointments">Find appointment</Link></div>}
+            <div className="sic-readiness-checks">{readiness.checks.map((check) => <article className={check.status.toLocaleLowerCase()} key={check.code}><i>{check.status === "PASS" ? <Check /> : "!"}</i><div><strong>{check.label}</strong><span>{check.message}</span></div><b>{check.status}</b></article>)}</div>
+            <footer><span>Snapshot {readiness.snapshotId.slice(0, 8)} · {new Date(readiness.generatedAt).toLocaleTimeString()} · {readiness.policyVersion}</span><span>{readiness.facts.openRepairOrders} open · {readiness.facts.overdueRepairOrders} overdue · Staff {readiness.facts.availableStaffCapacity}/{readiness.facts.activeStaffCapacity} · Bays {readiness.facts.availableBayCapacity}/{readiness.facts.activeBayCapacity}</span></footer></> : <div className={readinessError ? "sic-readiness-unavailable error" : "sic-readiness-unavailable"}><CalendarClock /><div><strong>{readinessError ? "Readiness unavailable" : "Select a customer and vehicle"}</strong><span>{readinessError || "Live appointment and capacity facts will appear here."}</span></div></div>}
+        </section>
+
         <section className="sic-card sic-concern">
           <header><span>2</span><div><h2>Customer concern</h2><p>Record what the customer reports in their own words. This becomes the technician&apos;s starting context.</p></div><em>{form.concernSummary.length} / 2,000</em></header>
-          <label className="sic-concern-field"><span>What is the customer experiencing? <b>Required</b></span><textarea autoFocus maxLength={2000} onChange={(event) => update("concernSummary", event.target.value)} placeholder="Example: Customer reports a grinding noise from the front passenger side when braking below 25 mph. It started three days ago and is getting louder. ABS warning light came on this morning…" rows={9} value={form.concernSummary} /><small><MessageSquareText />Be specific about the symptom, location, conditions, timing, and what changed.</small></label>
+          <label className="sic-concern-field"><span>What is the customer experiencing? <b>Required</b></span><textarea maxLength={2000} onChange={(event) => update("concernSummary", event.target.value)} placeholder="Example: Customer reports a grinding noise from the front passenger side when braking below 25 mph. It started three days ago and is getting louder. ABS warning light came on this morning…" rows={9} value={form.concernSummary} /><small><MessageSquareText />Be specific about the symptom, location, conditions, timing, and what changed.</small></label>
           <div className="sic-prompts"><span><Sparkles />Helpful prompts</span>{["Customer states…", "Occurs when…", "Started approximately…", "Warning light/message…", "Previous repair related to…"].map((prompt) => <button key={prompt} onClick={() => addPrompt(prompt)} type="button">+ {prompt}</button>)}</div>
           <div className="sic-three-column"><label><span>When did it start?</span><input onChange={(event) => update("onset", event.target.value)} placeholder="Today, last week, after repair…" value={form.onset} /></label><label><span>Frequency / conditions</span><input onChange={(event) => update("frequency", event.target.value)} placeholder="Constant, cold start, highway…" value={form.frequency} /></label><label><span>Warning indicators</span><input onChange={(event) => update("warningIndicators", event.target.value)} placeholder="ABS, check engine, message…" value={form.warningIndicators} /></label></div>
           <label className="sic-notes"><span>Advisor-only intake notes</span><textarea maxLength={2000} onChange={(event) => update("intakeNotes", event.target.value)} placeholder="Observations, prior conversations, access instructions, or context not stated by the customer." rows={4} value={form.intakeNotes} /></label>
@@ -241,7 +310,7 @@ export function ServiceIntakeWorkspace({ options }: { options: ServiceIntakeOpti
 
       <aside className="sic-sidebar">
         <section className="sic-summary"><p>Live intake summary</p><h2>{selectedCustomer?.displayName ?? "Select customer"}</h2><span>{selectedVehicle ? vehicleLabel(selectedVehicle) : "Select vehicle"}</span><dl><div><dt>Location</dt><dd>{selectedLocation?.name ?? "Required"}</dd></div><div><dt>Owner</dt><dd>{selectedOwner?.name ?? "Required"}</dd></div><div><dt>Transportation</dt><dd>{form.transportMode.replaceAll("_", " ").toLocaleLowerCase()}</dd></div><div><dt>Target</dt><dd>{form.targetAt ? new Date(form.targetAt).toLocaleString() : "Required"}</dd></div></dl></section>
-        <section className="sic-readiness"><h2>Check-in readiness</h2>{readiness.map((item) => <p className={item.ready ? "ready" : ""} key={item.label}><i>{item.ready ? <Check /> : null}</i><span>{item.label}</span><b>{item.ready ? "Ready" : "Required"}</b></p>)}<strong>{readiness.filter((item) => item.ready).length} of {readiness.length} complete</strong></section>
+        <section className="sic-readiness"><h2>Check-in readiness</h2>{checklist.map((item) => <p className={item.ready ? "ready" : ""} key={item.label}><i>{item.ready ? <Check /> : null}</i><span>{item.label}</span><b>{item.ready ? "Ready" : "Required"}</b></p>)}<strong>{checklist.filter((item) => item.ready).length} of {checklist.length} complete</strong></section>
         <section className="sic-effects"><ShieldCheck /><div><h2>What this creates</h2><p>One governed repair order, immutable intake evidence, accountable ownership, and a visible Unassigned/Intake work item.</p></div></section>
       </aside>
     </div>
