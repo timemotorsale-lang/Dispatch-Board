@@ -1102,7 +1102,7 @@ export type AppointmentBoardSettings = {
   businessHoursLabel: string;
 };
 
-type AppointmentBoardShellProps = {
+export type AppointmentBoardShellProps = {
   boardSettings?: AppointmentBoardSettings | null;
   initialFocus?: {
     appointmentNumber?: string | null;

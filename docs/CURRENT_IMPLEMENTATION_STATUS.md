@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-07-19 — Console navigation performance tune-up
+
+The shared authenticated shell now renders an immediate route-level loading state during console transitions and deduplicates repeated authenticated-user reads within a server render. Independent server reads are parallelized on the high-traffic Dispatch Overview, Tasks, My Tasks, Projects, Manager Review, Appointments, and Inventory Home routes, preserving existing permission, fallback, and unavailable-state behavior while removing avoidable request waterfalls.
+
+A deeper client-loading slice now places the two largest interactive workspaces, Appointments and Tasks, behind lightweight route loaders. Their authenticated server reads and permissions still complete before the workspace receives its props, but navigation can paint a stable console-shaped loading surface before parsing and hydrating the large client implementation. In the optimized build, each route's incremental initial loader is about 4.1 KB; approximately 357 KB of Appointments JavaScript and 249 KB of Tasks JavaScript are moved off the route's initial entry and loaded as deferred workspace chunks. This is a load-order improvement rather than a claim that the underlying feature bundles have been made smaller. The production build, TypeScript validation, lint, and 42 focused Appointments/Tasks tests pass.
+
 ## 2026-07-19 — Inventory Execution Operating System MVP
 
 The Inventory Execution Operating System MVP is repository-implemented on `codex/inventory-eos-mvp-implementation`. It adds a versioned Inventory Work Packet over the existing Task backbone; the official lifecycle Vehicle Card; a vehicle-centered execution Workbench; governed time sessions; rapid structured technician closeout; blocker, completion, and accepted-handoff controls; manager next-plan publication; deterministic readiness and next-best-work guidance; and an integrated receipt-to-recon launcher. The implementation reuses Vehicle 360, Repair Orders, Parts, Shop, evidence, authority, audit, and outbox foundations instead of creating parallel systems of record.

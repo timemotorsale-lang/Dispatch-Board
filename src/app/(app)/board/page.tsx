@@ -37,16 +37,18 @@ function resolveSelectedBoardDate(
 }
 
 export default async function BoardPage({ searchParams }: BoardPageProps) {
-  const user = await requireCurrentUser();
+  const [user, resolvedSearchParams, settings] = await Promise.all([
+    requireCurrentUser(),
+    searchParams,
+    getGenerationSettings()
+  ]);
   const manager = isManager(user);
-  const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const requestedBoardDate = Array.isArray(resolvedSearchParams?.date)
     ? resolvedSearchParams?.date[0]
     : resolvedSearchParams?.date;
   const requestedView = Array.isArray(resolvedSearchParams?.view)
     ? resolvedSearchParams?.view[0]
     : resolvedSearchParams?.view;
-  const settings = await getGenerationSettings();
   const todayBoardDate = getBoardDateInTimeZone(new Date(), settings.timezone);
   const { boardDate, errorMessage } = resolveSelectedBoardDate(requestedBoardDate, todayBoardDate);
   const assignableUsers = manager ? await listActiveUserSummaries() : [];

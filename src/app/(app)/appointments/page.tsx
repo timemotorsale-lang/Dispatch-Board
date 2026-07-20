@@ -1,4 +1,4 @@
-import { AppointmentBoardShell } from "@/features/appointments/appointment-board-shell";
+import { AppointmentBoardLoader } from "@/features/appointments/appointment-board-loader";
 import { getAppointmentBoardSettings } from "@/server/services/appointment-admin-settings";
 
 type AppointmentsPageProps = {
@@ -9,11 +9,13 @@ type AppointmentsPageProps = {
 };
 
 export default async function AppointmentsPage({ searchParams }: AppointmentsPageProps) {
-  const boardSettings = await getAppointmentBoardSettings().catch(() => null);
-  const focusParams = await searchParams;
+  const [boardSettings, focusParams] = await Promise.all([
+    getAppointmentBoardSettings().catch(() => null),
+    searchParams
+  ]);
 
   return (
-    <AppointmentBoardShell
+    <AppointmentBoardLoader
       boardSettings={boardSettings}
       initialFocus={{
         appointmentNumber: focusParams?.appointment ?? null,

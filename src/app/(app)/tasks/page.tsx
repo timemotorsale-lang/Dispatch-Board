@@ -1,4 +1,4 @@
-import { TasksConsoleScreen } from "@/features/tasks/tasks-console-screen";
+import { TasksConsoleLoader } from "@/features/tasks/tasks-console-loader";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { isManager } from "@/server/policies/access";
 import { getGenerationSettings } from "@/server/services/app-settings-service";
@@ -47,9 +47,12 @@ function resolveSelectedBoardDate(
 }
 
 export default async function TasksPage({ searchParams }: TasksPageProps) {
-  const user = await requireCurrentUser();
+  const [user, resolvedSearchParams, settings] = await Promise.all([
+    requireCurrentUser(),
+    searchParams,
+    getGenerationSettings()
+  ]);
   const manager = isManager(user);
-  const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const requestedBoardDate = Array.isArray(resolvedSearchParams?.date)
     ? resolvedSearchParams.date[0]
     : resolvedSearchParams?.date;
@@ -61,7 +64,6 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
     : resolvedSearchParams?.concern;
   const readParam = (value: string | string[] | undefined) => Array.isArray(value) ? value[0] : value;
   const requestedTaskId = readParam(resolvedSearchParams?.task);
-  const settings = await getGenerationSettings();
   const todayBoardDate = getBoardDateInTimeZone(new Date(), settings.timezone);
   const { boardDate, errorMessage: dateErrorMessage } = resolveSelectedBoardDate(
     requestedBoardDate,
@@ -72,12 +74,17 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
   let initialTask = null;
   let initialSavedViews: TaskSavedViewModel[] = [];
   let screenErrorMessage = dateErrorMessage;
-  const assignableUsers = manager ? await listActiveUserSummaries() : [];
+  let assignableUsers: Awaited<ReturnType<typeof listActiveUserSummaries>> = [];
 
   try {
-    initialSavedViews = await listTaskSavedViews(user);
-    const boardLookup = await getBoardReadModelForDate(user, boardDate);
+    const [resolvedAssignableUsers, resolvedSavedViews, boardLookup] = await Promise.all([
+      manager ? listActiveUserSummaries() : Promise.resolve([]),
+      listTaskSavedViews(user),
+      getBoardReadModelForDate(user, boardDate)
+    ]);
 
+    assignableUsers = resolvedAssignableUsers;
+    initialSavedViews = resolvedSavedViews;
     board = boardLookup.board;
 
     const selectedTask = board?.tasks.find((task) => task.id === requestedTaskId) ?? board?.tasks[0];
@@ -90,7 +97,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
   }
 
   return (
-    <TasksConsoleScreen
+    <TasksConsoleLoader
       assignableUsers={assignableUsers}
       board={board}
       boardDate={boardDate}

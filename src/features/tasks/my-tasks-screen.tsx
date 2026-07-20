@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { TaskStatus, WorkflowArea } from "@prisma/client";
 import {
   BellRing,
@@ -822,12 +822,8 @@ export function MyTasksScreen({
   userName
 }: MyTasksScreenProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [isRefreshPending, startRefreshTransition] = useTransition();
-  const requestedFilter = searchParams.get("filter");
-  const activeFilter: MyTasksFilter = requestedFilter === "open" || requestedFilter === "dueSoon" || requestedFilter === "blockedWaiting" || requestedFilter === "readyForReview" || requestedFilter === "completed"
-    ? requestedFilter
-    : "all";
+  const [activeFilter, setActiveFilter] = useState<MyTasksFilter>("all");
   const [displayMode, setDisplayMode] = useState<DisplayMode>("list");
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>("Overview");
   const [searchText, setSearchText] = useState("");
@@ -880,13 +876,6 @@ export function MyTasksScreen({
     startRefreshTransition(() => {
       router.refresh();
     });
-  }
-
-  function selectFilter(filter: MyTasksFilter) {
-    const nextParams = new URLSearchParams(searchParams.toString());
-    if (filter === "all") nextParams.delete("filter");
-    else nextParams.set("filter", filter);
-    router.replace(`/my-tasks${nextParams.size ? `?${nextParams.toString()}` : ""}`, { scroll: false });
   }
 
   useLiveRefresh(() => {
@@ -1177,7 +1166,7 @@ export function MyTasksScreen({
                         ? "enterprise-filter-chip enterprise-filter-chip-active"
                         : "enterprise-filter-chip"
                     }
-                    onClick={() => selectFilter(filterOption.value)}
+                    onClick={() => setActiveFilter(filterOption.value)}
                     type="button"
                   >
                     {filterOption.label}

@@ -10,11 +10,12 @@ import { getTaskCompletionReadiness } from "@/server/services/task-execution-rea
 
 export default async function MyTasksPage() {
   const user = await requireCurrentUser();
+  const executionFlags = getStaffExecutionFlags();
   const screenProps: ComponentProps<typeof MyTasksScreen> = {
     boardDate: new Date().toISOString().slice(0, 10),
     boardExists: false,
-    availableWorkEnabled: getStaffExecutionFlags().availableWorkEnabled,
-    endOfDayHandoffEnabled: getStaffExecutionFlags().endOfDayReportEnabled,
+    availableWorkEnabled: executionFlags.availableWorkEnabled,
+    endOfDayHandoffEnabled: executionFlags.endOfDayReportEnabled,
     currentUserId: user.id,
     errorMessage: null,
     fullBoardHref: "/board",
@@ -37,15 +38,16 @@ export default async function MyTasksPage() {
     screenProps.generatedAt = myTasks.generatedAt;
     screenProps.generationStatus = myTasks.generationStatus;
     screenProps.initialTasks = myTasks.tasks;
-    if (getStaffExecutionFlags().taskAcceptanceEnabled) {
-      screenProps.initialReadinessByTask = Object.fromEntries(
-        await Promise.all(myTasks.tasks.map(async (task) => [
+    const [readinessEntries, staffDayResult] = await Promise.all([
+      executionFlags.taskAcceptanceEnabled
+        ? Promise.all(myTasks.tasks.map(async (task) => [
           task.id,
           await getTaskCompletionReadiness(user, task.id)
-        ]))
-      );
-    }
-    const staffDayResult = await getStaffDay(user, myTasks.date);
+        ] as const))
+        : Promise.resolve([]),
+      getStaffDay(user, myTasks.date)
+    ]);
+    screenProps.initialReadinessByTask = Object.fromEntries(readinessEntries);
     screenProps.initialStaffDay = staffDayResult.startDayEnabled ? staffDayResult.staffDay : null;
   } catch (error) {
     screenProps.errorMessage =
