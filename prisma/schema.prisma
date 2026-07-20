@@ -1002,6 +1002,59 @@ enum TaskStatus {
   COMPLETED
 }
 
+enum InventoryWorkPacketState {
+  PLANNED
+  CURRENT
+  STAGED
+  WAITING
+  BLOCKED
+  READY_FOR_REVIEW
+  COMPLETED
+  CANCELLED
+}
+
+enum InventoryWorkUrgency {
+  P0
+  P1
+  P2
+  P3
+  P4
+}
+
+enum InventoryWorkReadiness {
+  READY
+  CONDITIONAL
+  NOT_READY
+  UNKNOWN
+}
+
+enum InventoryWorkSessionStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum InventoryCloseoutOutcome {
+  COMPLETED
+  PARTIAL
+  CANNOT_COMPLETE
+  FURTHER_DIAGNOSIS
+}
+
+enum InventoryWorkHandoffStatus {
+  OFFERED
+  ACCEPTED
+  REJECTED
+}
+
+enum InventoryManagerDecision {
+  APPROVE_COMPLETE
+  RETURN_FOR_REWORK
+  REQUIRE_DIAGNOSIS
+  HOLD
+  CANCEL
+}
+
 enum TaskSourceType {
   TEMPLATE
   MANAGER
@@ -5014,6 +5067,7 @@ model Task {
   collaborators              TaskCollaborator[]
   customerLeadLink           CustomerLeadTaskLink?
   customer                   Customer?                 @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  inventoryWorkPacket        InventoryWorkPacket?
 
   @@unique([boardDayId, sourceTemplateId, assignedUserId])
   @@unique([boardDayId, carryoverSourceTaskId])
@@ -5026,6 +5080,152 @@ model Task {
   @@index([boardDayId, isClaimable, status])
   @@index([carryoverReportId])
   @@index([customerId, status, dueAt])
+}
+
+/// Vehicle-centered execution contract that extends, but never replaces, its authoritative Task.
+model InventoryWorkPacket {
+  id                   String                     @id @default(cuid())
+  organizationId       String
+  taskId               String                     @unique
+  vehicleId            String
+  inventoryUnitId      String?
+  repairOrderId        String?
+  repairJobId          String?
+  locationId           String?
+  stageCode             String
+  state                 InventoryWorkPacketState   @default(PLANNED)
+  purpose               String
+  nextAction            String
+  definitionOfDone      String
+  urgency               InventoryWorkUrgency       @default(P3)
+  urgencyReason         String
+  readiness             InventoryWorkReadiness     @default(UNKNOWN)
+  readinessSnapshot     Json
+  dependencySnapshot    Json
+  evidenceRequirements  Json
+  blockerRecovery       Json?
+  handoff               Json?
+  targetAt              DateTime
+  nextCheckAt           DateTime?
+  escalationAt          DateTime?
+  estimatedMinutes      Int?
+  policyVersion         String
+  version               Int                        @default(1)
+  createdByUserId       String
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+  task                   Task                       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  workSessions           InventoryWorkSession[]
+  closeout               InventoryTechnicianCloseout?
+  handoffs               InventoryWorkHandoff[]
+  managerPlan            InventoryManagerPlan?
+
+  @@index([organizationId, vehicleId, state])
+  @@index([organizationId, state, targetAt])
+  @@index([taskId, version])
+  @@index([inventoryUnitId])
+  @@index([repairOrderId])
+}
+
+model InventoryManagerPlan {
+  id                    String                   @id @default(cuid())
+  organizationId        String
+  workPacketId          String                   @unique
+  decision              InventoryManagerDecision
+  direction             String
+  internalNote          String?
+  nextWorkSnapshot      Json?
+  publishedTaskId       String?
+  publishedWorkPacketId String?
+  decidedByUserId       String
+  decidedAt             DateTime                 @default(now())
+  version               Int                      @default(1)
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+  workPacket            InventoryWorkPacket      @relation(fields: [workPacketId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, decision, decidedAt])
+  @@index([decidedByUserId, decidedAt])
+  @@index([publishedTaskId])
+}
+
+model InventoryTechnicianCloseout {
+  id                  String                    @id @default(cuid())
+  organizationId      String
+  workPacketId        String                    @unique
+  workSessionId       String?
+  outcome             InventoryCloseoutOutcome
+  workPerformed       Json
+  partsDisposition    Json
+  findings            Json
+  verification        Json
+  qcState             String
+  explanation         String?
+  observation         String?
+  testsPerformed      String?
+  recommendedNextStep String?
+  diagnosticMinutes   Int?
+  operability         String?
+  dependencySnapshot  Json?
+  optionalNotes       String?
+  evidenceSnapshot    Json
+  submittedByUserId   String
+  submittedAt         DateTime                  @default(now())
+  version             Int                       @default(1)
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+  workPacket          InventoryWorkPacket       @relation(fields: [workPacketId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, outcome, submittedAt])
+  @@index([submittedByUserId, submittedAt])
+}
+
+model InventoryWorkHandoff {
+  id                 String                     @id @default(cuid())
+  organizationId     String
+  workPacketId       String
+  fromUserId         String
+  toUserId           String
+  nextAction         String
+  targetAt           DateTime
+  status             InventoryWorkHandoffStatus @default(OFFERED)
+  offeredAt          DateTime                   @default(now())
+  acceptedAt         DateTime?
+  rejectedAt         DateTime?
+  responseReasonCode String?
+  responseNote       String?
+  version            Int                        @default(1)
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+  workPacket         InventoryWorkPacket        @relation(fields: [workPacketId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, toUserId, status, targetAt])
+  @@index([workPacketId, status])
+}
+
+/// Touch-time session for workflow guidance. It is not an employee surveillance or discipline record.
+model InventoryWorkSession {
+  id                     String                     @id @default(cuid())
+  organizationId         String
+  workPacketId           String
+  userId                 String
+  status                 InventoryWorkSessionStatus @default(ACTIVE)
+  startedAt              DateTime
+  activeSince            DateTime?
+  endedAt                DateTime?
+  accumulatedSeconds     Int                        @default(0)
+  estimateAtStartMinutes Int?
+  lastCheckpointAt       DateTime?
+  checkpointCode         String?
+  checkpointNote         String?
+  version                Int                        @default(1)
+  createdAt              DateTime                   @default(now())
+  updatedAt              DateTime                   @updatedAt
+  workPacket             InventoryWorkPacket        @relation(fields: [workPacketId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, workPacketId, status])
+  @@index([organizationId, userId, status])
+  @@index([workPacketId, startedAt])
 }
 
 model TaskCollaborator {
