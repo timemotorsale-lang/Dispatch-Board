@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-07-19 — Inventory Start Workflow approved launcher UI
+
+The `/vehicles/workflows` landing route now implements the approved Inventory Start Workflow launcher source of truth. It provides the compact enterprise header, universal Inventory workflow search, Cards/List presentation, Recommended, Recent, Favorites, All Workflows, My Drafts, and Needs Attention collections, role-and-availability context, six curated recommended workflows, progressive workflow details, and the secondary recommendation guide. The launcher continues to use the existing server-derived 13-workflow catalog, visibility policy, availability state, validation, confirmation, approval, recovery, and purpose-built intake destinations rather than duplicating those rules in the interface.
+
+Recent and Favorites are intentionally session-local convenience state, and My Drafts is an honest empty state because durable workflow-draft persistence is not yet implemented. The future `All CCC` scope is visible but disabled until the enterprise cross-console workflow registry is delivered; it does not imply that other-console workflows have been activated. Repository implementation does not alter provider, rollout, migration, pilot, deployment, or production-activation status.
+
 ## 2026-07-19 — CCC Enterprise Workflow Launcher planning baseline
 
 The official documentation-only source of truth for the CCC Enterprise Workflow Launcher now lives in [`CCC_ENTERPRISE_WORKFLOW_LAUNCHER_SOURCE_OF_TRUTH.md`](CCC_ENTERPRISE_WORKFLOW_LAUNCHER_SOURCE_OF_TRUTH.md). It defines the active-console-first Cards/List experience, universal search, registry and runtime architecture, authority and recovery boundaries, a cross-console workflow-family catalog, and gated implementation milestones. The Inventory Start Workflow mockup embedded there was approved as the binding visual and interaction baseline on 2026-07-19. This planning record does not activate workflows or strengthen the implementation state of any listed capability; the evidence-based states below remain authoritative.
