@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 
 import { vi } from "vitest";
 import { TaskDetailWorkspace } from "@/features/tasks/detail/task-detail-workspace";
+import { normalizeRequiredUpdateProgress } from "@/features/tasks/detail/task-required-update-progress";
+import { TaskWorkbenchActionBar } from "@/features/tasks/detail/task-workbench-action-bar";
 import type { TaskReadModel } from "@/server/services/task-read";
 
 vi.mock("next/navigation", () => ({
@@ -70,6 +72,37 @@ function createTask(overrides: Partial<TaskReadModel> = {}): TaskReadModel {
 }
 
 describe("task detail workspace", () => {
+  it("keeps task actions available when completion progress is absent", () => {
+    const markup = renderToStaticMarkup(
+      <TaskWorkbenchActionBar
+        canComplete
+        returnTo="/tasks"
+        status={TaskStatus.IN_PROGRESS}
+        taskId="task-with-legacy-data"
+      />
+    );
+
+    expect(markup).toContain("Review completion");
+    expect(markup).not.toContain("of <!-- -->0<!-- --> ready");
+  });
+
+  it("normalizes malformed completion progress instead of exposing unsafe state", () => {
+    expect(normalizeRequiredUpdateProgress(undefined)).toEqual({
+      missingFieldKeys: [],
+      readyCount: 0,
+      totalCount: 0
+    });
+    expect(normalizeRequiredUpdateProgress({
+      missingFieldKeys: ["focus_summary", null, 42],
+      readyCount: 9,
+      totalCount: 3
+    })).toEqual({
+      missingFieldKeys: ["focus_summary"],
+      readyCount: 3,
+      totalCount: 3
+    });
+  });
+
   it("renders the enterprise split workspace with workbench and metadata rail", () => {
     const markup = renderToStaticMarkup(
       <TaskDetailWorkspace
@@ -116,7 +149,8 @@ describe("task detail workspace", () => {
     expect(markup).toContain("Checklist");
     expect(markup).toContain("Confirm the reported symptom and operating conditions");
     expect(markup).toContain("Inspect the affected safety or mechanical system");
-    expect(markup).toContain("Case Notes (1)");
+    expect(markup).toContain("Case Notes");
+    expect(markup).toContain('class="etw-note-heading"');
     expect(markup).toContain("Expand All");
     expect(markup).toContain("Collapse All");
     expect(markup).toContain("Customer Communication");
@@ -128,13 +162,43 @@ describe("task detail workspace", () => {
     expect(markup).toContain("Open Board");
     expect(markup).toContain("No appointment is linked yet.");
     expect(markup).toContain("Estimated Time");
-    expect(markup).toContain("Mark complete");
+    expect(markup).toContain("Review completion");
+    expect(markup).toContain("Focus view");
     expect(markup).toContain("Collaborators");
     expect(markup).toContain("Share");
     expect(markup).toContain("Subtasks");
     expect(markup).toContain("Add a subtask...");
     expect(markup).not.toContain("Activity (Latest)");
     expect(markup).toContain("More task actions");
+    expect(markup).toContain("Insert Customer contacted note");
+    expect(markup).not.toContain("Internal Notes (Manager Only)");
+  });
+
+  it("guides incomplete completion updates to the authoritative form", () => {
+    const markup = renderToStaticMarkup(
+      <TaskDetailWorkspace
+        activityEvents={[]}
+        actorIsManager
+        assignableUsers={[]}
+        canComment
+        canCreateAppointment
+        canUpdateStatus
+        task={createTask({
+          requiredUpdateFields: [
+            { key: "focus_summary", label: "Focus summary", type: "long_text", required: true, helpText: null },
+            { key: "top_priority", label: "Top priority", type: "short_text", required: true, helpText: null },
+            { key: "next_step", label: "Next step", type: "short_text", required: true, helpText: null }
+          ],
+          updateFieldValues: { next_step: "Review with the team" }
+        })}
+      />
+    );
+
+    expect(markup).toContain("Finish required update");
+    expect(markup).toContain("1 of 3 ready");
+    expect(markup).toContain('id="required-task-update"');
+    expect(markup).toContain('id="task-update-focus_summary"');
+    expect(markup).toContain('id="task-update-top_priority"');
   });
 
   it("shows linked appointments on the task rail with a board return path", () => {

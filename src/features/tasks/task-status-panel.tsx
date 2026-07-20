@@ -1,7 +1,7 @@
 "use client";
 
 import { TaskStatus } from "@prisma/client";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   getAllowedMyTaskStatuses,
@@ -10,6 +10,7 @@ import {
 } from "@/features/tasks/my-tasks-helpers";
 import type { TaskReadModel } from "@/server/services/task-read";
 import type { TaskCompletionReadiness } from "@/server/services/task-execution-readiness";
+import { REQUIRED_UPDATE_PROGRESS_EVENT } from "@/features/tasks/detail/task-required-update-progress";
 
 type TaskStatusPanelProps = {
   actorIsManager: boolean;
@@ -50,6 +51,7 @@ function isGuidedUpdateFieldComplete(
 }
 
 export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = null, task }: TaskStatusPanelProps) {
+  const requiredUpdateFields = useMemo(() => task.requiredUpdateFields ?? [], [task.requiredUpdateFields]);
   const [status, setStatus] = useState(task.status as TaskStatus);
   const [savedStatus, setSavedStatus] = useState(task.status as TaskStatus);
   const [blockerReason, setBlockerReason] = useState(task.blockerReason ?? "");
@@ -80,11 +82,14 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = 
     : [];
   const needsBlockerReason = status === TaskStatus.BLOCKED;
   const trimmedBlockerReason = blockerReason.trim();
-  const hasGuidedUpdateFields = task.requiredUpdateFields.length > 0;
-  const missingRequiredUpdateFields = task.requiredUpdateFields.filter(
-    (field) => field.required && !isGuidedUpdateFieldComplete(field, updateFieldValues[field.key])
+  const hasGuidedUpdateFields = requiredUpdateFields.length > 0;
+  const missingRequiredUpdateFields = useMemo(
+    () => requiredUpdateFields.filter(
+      (field) => field.required && !isGuidedUpdateFieldComplete(field, updateFieldValues[field.key])
+    ),
+    [requiredUpdateFields, updateFieldValues]
   );
-  const guidedUpdateFieldsCompleteCount = task.requiredUpdateFields.filter((field) =>
+  const guidedUpdateFieldsCompleteCount = requiredUpdateFields.filter((field) =>
     isGuidedUpdateFieldComplete(field, updateFieldValues[field.key])
   ).length;
   const shouldHighlightGuidedUpdates =
@@ -94,6 +99,17 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = 
     !isSubmitting &&
     allowedStatuses.length > 0 &&
     (!needsBlockerReason || Boolean(trimmedBlockerReason));
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent(REQUIRED_UPDATE_PROGRESS_EVENT, {
+      detail: {
+        taskId: task.id,
+        missingFieldKeys: missingRequiredUpdateFields.map((field) => field.key),
+        readyCount: guidedUpdateFieldsCompleteCount,
+        totalCount: requiredUpdateFields.length
+      }
+    }));
+  }, [guidedUpdateFieldsCompleteCount, missingRequiredUpdateFields, requiredUpdateFields.length, task.id]);
 
   async function submit(nextStatus: TaskStatus) {
     setIsSubmitting(true);
@@ -146,7 +162,7 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = 
   }
 
   return (
-    <article className="panel-card">
+    <article className="panel-card" id="required-task-update" tabIndex={-1}>
       <strong>Workflow action</strong>
       <h2>Update status</h2>
       <p>Use this panel to move the task forward, record a blocker, or complete manager review.</p>
@@ -204,7 +220,7 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = 
                 </div>
                 <div className="my-task-guided-update-progress">
                   <span>
-                    {guidedUpdateFieldsCompleteCount} of {task.requiredUpdateFields.length} ready
+                    {guidedUpdateFieldsCompleteCount} of {requiredUpdateFields.length} ready
                   </span>
                   {shouldHighlightGuidedUpdates && missingRequiredUpdateFields.length > 0 ? (
                     <small>Needed for review or completion</small>
@@ -221,7 +237,7 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = 
               ) : null}
 
               <div className="my-task-guided-update-fields">
-                {task.requiredUpdateFields.map((field) => {
+                {requiredUpdateFields.map((field) => {
                   const value = updateFieldValues[field.key];
                   const isComplete = isGuidedUpdateFieldComplete(field, value);
 
@@ -233,6 +249,7 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = 
                       >
                         <span>{field.label}{field.required ? " *" : ""}</span>
                         <select
+                          id={`task-update-${field.key}`}
                           disabled={isSubmitting}
                           value={typeof value === "boolean" ? String(value) : ""}
                           onChange={(event) => {
@@ -261,6 +278,7 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = 
                       >
                         <span>{field.label}{field.required ? " *" : ""}</span>
                         <select
+                          id={`task-update-${field.key}`}
                           disabled={isSubmitting}
                           value={typeof value === "string" ? value : ""}
                           onChange={(event) => {
@@ -291,6 +309,7 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = 
                       >
                         <span>{field.label}{field.required ? " *" : ""}</span>
                         <textarea
+                          id={`task-update-${field.key}`}
                           disabled={isSubmitting}
                           placeholder={field.helpText ?? undefined}
                           rows={4}
@@ -315,6 +334,7 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = 
                     >
                       <span>{field.label}{field.required ? " *" : ""}</span>
                       <input
+                        id={`task-update-${field.key}`}
                         disabled={isSubmitting}
                         placeholder={field.helpText ?? undefined}
                         value={typeof value === "string" ? value : ""}

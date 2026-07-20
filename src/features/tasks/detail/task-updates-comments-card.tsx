@@ -31,6 +31,13 @@ type TaskCommentCreateResponse = {
   error?: string;
 } | null;
 
+const TASK_NOTE_SHORTCUTS = [
+  { label: "Customer contacted", text: "Customer contacted — outcome: " },
+  { label: "DMV called", text: "DMV called — outcome: " },
+  { label: "Waiting on document", text: "Waiting on document — document/owner: " },
+  { label: "Follow-up scheduled", text: "Follow-up scheduled — date/time: " }
+];
+
 export function TaskUpdatesCommentsCard({
   canComment,
   compact = false,
@@ -137,29 +144,35 @@ export function TaskUpdatesCommentsCard({
     }
   }
 
+  function insertQuickNote(text: string) {
+    setDraftBody((current) => `${current.trimEnd()}${current.trim() ? "\n" : ""}${text}`.slice(0, 2000));
+    setErrorMessage(null);
+  }
+
   if (compact) {
     return (
       <section className="etw-notes-card">
-        <div className="etw-note-tabs"><button className="active" type="button">Case Notes ({feedItems.filter((item) => item.kind === "comment").length})</button><button type="button">Internal Notes (Manager Only)</button></div>
+        <div className="etw-note-heading"><strong>Case Notes</strong><span>{feedItems.filter((item) => item.kind === "comment").length}</span></div>
         {canComment ? (
           <form className="etw-note-composer" onSubmit={handleSubmit}>
             <RichTextComposer
               ariaLabel="Post a comment"
               compact
               disabled={isSubmitting}
-              helperText="Format the note or use @ to mention a teammate."
+              helperText="Select text before applying Bold or Link. Use a shortcut below to start a structured note."
               onChange={(value) => {
                 setDraftBody(value);
                 setErrorMessage(null);
               }}
               placeholder="Add a note... use @ to mention"
               rows={2}
+              toolbarVariant="task-note"
               value={draftBody}
             />
             <button disabled={!canSubmitTaskComment(draftBody, isSubmitting)} type="submit">{isSubmitting ? "Adding..." : "Add Note"}</button>
           </form>
         ) : <p className="task-workspace-empty-copy">Only the assigned staff member or a manager can add notes.</p>}
-        <div className="etw-note-actions"><button type="button">Customer contacted</button><button type="button">DMV called</button><button type="button">Waiting on document</button><button type="button">Follow-up scheduled</button><button type="button">Escalate</button><button aria-label="More note actions" type="button">...</button></div>
+        {canComment ? <div aria-label="Note shortcuts" className="etw-note-actions">{TASK_NOTE_SHORTCUTS.map((shortcut) => <button aria-label={`Insert ${shortcut.label} note`} key={shortcut.label} onClick={() => insertQuickNote(shortcut.text)} type="button">{shortcut.label}</button>)}</div> : null}
         {errorMessage ? <div className="notice notice-danger my-task-inline-notice" role="alert"><p>{errorMessage}</p></div> : null}
       </section>
     );

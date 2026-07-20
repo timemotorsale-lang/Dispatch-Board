@@ -50,6 +50,7 @@ type RichTextComposerProps = {
   placeholder?: string;
   required?: boolean;
   rows?: number;
+  toolbarVariant?: "full" | "task-note";
   value: string;
 };
 
@@ -239,6 +240,7 @@ export function RichTextComposer({
   placeholder,
   required = false,
   rows = 4,
+  toolbarVariant = "full",
   value
 }: RichTextComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -321,6 +323,9 @@ export function RichTextComposer({
     { command: "code", icon: <Code2 size={16} />, label: "Inline code" },
     { command: "link", icon: <Link2 size={16} />, label: "Add link" }
   ];
+  const visibleButtons = toolbarVariant === "task-note"
+    ? buttons.filter((button) => button.command === "bold" || button.command === "unordered-list" || button.command === "link")
+    : buttons;
 
   return (
     <div className={["rich-text-composer", compact ? "rich-text-composer-compact" : "", expanded ? "rich-text-composer-expanded" : "", className].filter(Boolean).join(" ")}>
@@ -355,8 +360,8 @@ export function RichTextComposer({
         />
       )}
 
-      <div aria-label="Comment formatting" className="rich-text-toolbar" role="toolbar">
-        {buttons.map((button) => (
+      <div aria-label="Comment formatting" className={`rich-text-toolbar rich-text-toolbar-${toolbarVariant}`} role="toolbar">
+        {visibleButtons.map((button) => (
           <button
             aria-label={button.label}
             disabled={disabled || previewOpen}
@@ -367,13 +372,14 @@ export function RichTextComposer({
             type="button"
           >
             {button.icon}
+            {toolbarVariant === "task-note" ? <span>{button.command === "unordered-list" ? "Bullets" : button.label}</span> : null}
           </button>
         ))}
         <span className="rich-text-toolbar-divider" />
-        <button aria-label="Mention someone" disabled={disabled || previewOpen} onClick={() => insertText("@")} onPointerDown={preserveSelection} title="Mention someone" type="button"><AtSign size={16} /></button>
-        <button aria-expanded={emojiOpen} aria-label="Add emoji" disabled={disabled || previewOpen} onClick={() => setEmojiOpen((current) => !current)} onPointerDown={preserveSelection} title="Add emoji" type="button"><Smile size={16} /></button>
-        <button aria-label={expanded ? "Collapse comment editor" : "Expand comment editor"} disabled={disabled || previewOpen} onClick={() => setExpanded((current) => !current)} onPointerDown={preserveSelection} title={expanded ? "Collapse editor" : "Expand editor"} type="button">{expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button>
-        <button aria-label={previewOpen ? "Edit comment" : "Preview comment"} className="rich-text-preview-toggle" disabled={disabled || !value.trim()} onClick={() => setPreviewOpen((current) => !current)} onPointerDown={preserveSelection} title={previewOpen ? "Return to editing" : "Preview formatting"} type="button">{previewOpen ? <EyeOff size={16} /> : <Eye size={16} />}</button>
+        <button aria-label="Mention someone" disabled={disabled || previewOpen} onClick={() => insertText("@")} onPointerDown={preserveSelection} title="Mention someone" type="button"><AtSign size={16} />{toolbarVariant === "task-note" ? <span>Mention</span> : null}</button>
+        <button aria-expanded={emojiOpen} aria-label="Add emoji" disabled={disabled || previewOpen} onClick={() => setEmojiOpen((current) => !current)} onPointerDown={preserveSelection} title="Add emoji" type="button"><Smile size={16} />{toolbarVariant === "task-note" ? <span>Emoji</span> : null}</button>
+        {toolbarVariant === "full" ? <button aria-label={expanded ? "Collapse comment editor" : "Expand comment editor"} disabled={disabled || previewOpen} onClick={() => setExpanded((current) => !current)} onPointerDown={preserveSelection} title={expanded ? "Collapse editor" : "Expand editor"} type="button">{expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button> : null}
+        {toolbarVariant === "full" ? <button aria-label={previewOpen ? "Edit comment" : "Preview comment"} className="rich-text-preview-toggle" disabled={disabled || !value.trim()} onClick={() => setPreviewOpen((current) => !current)} onPointerDown={preserveSelection} title={previewOpen ? "Return to editing" : "Preview formatting"} type="button">{previewOpen ? <EyeOff size={16} /> : <Eye size={16} />}</button> : null}
       </div>
 
       {emojiOpen && !previewOpen ? (
