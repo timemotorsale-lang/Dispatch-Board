@@ -49,23 +49,41 @@ export function DispatchConsoleHeader({ user }: DispatchConsoleHeaderProps) {
   const searchParams = useSearchParams();
   const live = pathname === "/board" && searchParams.get("view") === "live";
   const boardDate = searchParams.get("date");
+  const department = searchParams.get("department");
 
-  return <DispatchConsoleHeaderView boardDate={boardDate} live={live} pathname={pathname} user={user} />;
+  return <DispatchConsoleHeaderView boardDate={boardDate} department={department} live={live} pathname={pathname} user={user} />;
 }
 
 export function DispatchConsoleHeaderView({
   boardDate,
+  department = null,
   live,
   pathname,
   user
 }: DispatchConsoleHeaderProps & {
   boardDate: string | null;
+  department?: string | null;
   live: boolean;
   pathname: string;
 }) {
   const dateQuery = boardDate ? `date=${encodeURIComponent(boardDate)}` : "";
-  const copy = getConsoleCopy(pathname, live);
   const items = getDispatchNavigationItems(user);
+  const dispatchHref = dateQuery ? `/board?${dateQuery}` : "/board";
+  const activeItem = items.find((item) => {
+    if (!isActiveDestination(pathname, live, item.href)) return false;
+    const expectedDepartment = item.activeQuery?.department;
+    return expectedDepartment === undefined || (expectedDepartment === null ? !department : expectedDepartment === department);
+  });
+  const workspaceItem = activeItem?.href === "/board" ? null : activeItem;
+  const copy = workspaceItem && ["Sales", "Marketing", "Advertising"].includes(workspaceItem.title)
+    ? { title: workspaceItem.title, description: workspaceItem.description }
+    : getConsoleCopy(pathname, live);
+
+  const getWorkspaceHref = (href: string) => {
+    if (href.startsWith("/board?view=live")) return `/board?${["view=live", dateQuery].filter(Boolean).join("&")}`;
+    if (!dateQuery || href.includes("date=")) return href;
+    return `${href}${href.includes("?") ? "&" : "?"}${dateQuery}`;
+  };
 
   return (
     <header className="dispatch-console-header">
@@ -74,21 +92,23 @@ export function DispatchConsoleHeaderView({
         <p>{copy.description}</p>
       </div>
       <nav aria-label="Dispatch console" className="dispatch-console-tabs">
-        <span className="dispatch-console-context">Dispatch Board <small>Live</small></span>
-        {items.map((item) => {
-          const href = item.href === "/board"
-            ? dateQuery ? `/board?${dateQuery}` : "/board"
-            : item.href.startsWith("/board?view=live")
-              ? `/board?${["view=live", dateQuery].filter(Boolean).join("&")}`
-              : item.href;
-          const active = isActiveDestination(pathname, live, item.href);
-
-          return (
-            <Link aria-current={active ? "page" : undefined} className={active ? "active" : undefined} href={href} key={item.title}>
-              {item.title}
+        <Link href="/command-center">CCC Home</Link>
+        <span aria-hidden="true" className="dispatch-console-tab-separator">/</span>
+        <Link
+          aria-current={!workspaceItem ? "page" : undefined}
+          className={!workspaceItem ? "active dispatch-console-root" : "dispatch-console-root"}
+          href={dispatchHref}
+        >
+          Dispatch Board <small>Live</small>
+        </Link>
+        {workspaceItem ? (
+          <>
+            <span aria-hidden="true" className="dispatch-console-tab-separator">/</span>
+            <Link aria-current="page" className="active" href={getWorkspaceHref(workspaceItem.href)}>
+              {workspaceItem.title}
             </Link>
-          );
-        })}
+          </>
+        ) : null}
       </nav>
     </header>
   );

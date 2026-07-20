@@ -6093,8 +6093,6 @@ code {
 .console-sidebar-status small { padding: 3px 5px; color: #d9ffe7; background: #11713c; border-radius: 4px; font-size: 6px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
 .console-sidebar-navigation { align-content: start; gap: 2px; padding-top: 8px; }
 .console-sidebar-navigation .sidebar-link { min-height: 34px; }
-.console-sidebar-ccc-home { display: flex; align-items: center; gap: 8px; margin: auto 2px 9px; padding: 9px 10px; color: #b8c7d8; background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.1); border-radius: 6px; font-size: 9px; font-weight: 750; }
-.console-sidebar-ccc-home:hover { color: #fff; background: rgba(255,255,255,.07); }
 .console-sidebar .sidebar-account { margin-top: 0; }
 
 .ccc-topbar { min-height: 58px; padding: 0 16px; color: #dce7f4; background: #061426; border-bottom-color: #19314c; backdrop-filter: none; }
@@ -6132,11 +6130,12 @@ code {
 .dispatch-console-title p { margin: 3px 0 0; color: #66758a; font-size: 10px; }
 .dispatch-console-tabs { display: flex; min-width: 0; align-items: center; align-self: stretch; gap: 2px; overflow-x: auto; scrollbar-width: none; white-space: nowrap; }
 .dispatch-console-tabs::-webkit-scrollbar { display: none; }
-.dispatch-console-context { display: inline-flex; align-items: center; gap: 7px; margin-right: 8px; color: #5e6f86; font-size: 9px; font-weight: 800; letter-spacing: .035em; text-transform: uppercase; }
-.dispatch-console-context small { padding: 3px 6px; color: #247a3b; background: #e9f5eb; border: 1px solid #cce6d1; border-radius: 4px; font-size: 7px; letter-spacing: .04em; }
 .dispatch-console-tabs a { position: relative; display: inline-flex; align-items: center; min-height: 100%; padding: 0 9px; color: #283a53; font-size: 9px; font-weight: 700; }
 .dispatch-console-tabs a:hover,.dispatch-console-tabs a.active { color: #075ad9; }
 .dispatch-console-tabs a.active::after { position: absolute; right: 8px; bottom: -1px; left: 8px; height: 3px; background: #075ad9; content: ""; }
+.dispatch-console-root { gap: 7px; }
+.dispatch-console-root small { padding: 3px 6px; color: #247a3b; background: #e9f5eb; border: 1px solid #cce6d1; border-radius: 4px; font-size: 7px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.dispatch-console-tab-separator { color: #aab5c4; font-size: 10px; }
 
 .ccc-home-page { display: grid; gap: 22px; max-width: 1320px; margin: 0 auto; }
 .ccc-home-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding: 25px 26px; color: #fff; background: linear-gradient(125deg, #07182c, #0a2948); border: 1px solid #183a5d; border-radius: 12px; box-shadow: 0 14px 34px rgba(6,20,38,.14); }

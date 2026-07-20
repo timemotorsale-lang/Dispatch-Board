@@ -41,6 +41,9 @@ Time Motor Sales Command Control Center
       Appointments
       Vehicles
       Customers
+      Sales
+        Marketing
+        Advertising
       Manager Review
       Team
       Activity
@@ -59,7 +62,7 @@ Time Motor Sales Command Control Center
 2. Keep **Dispatch Board** as the only live operational module until another module is intentionally approved and implemented.
 3. Show future modules as deliberately **Planned** and unavailable; never present empty or simulated functionality as live.
 4. Keep the global shell stable: brand, workspace hierarchy, search, store context, business date, notifications, identity, and administration.
-5. Keep Dispatch-local navigation inside the Dispatch module using the exact destinations and order governed by the [Dispatch Live Board Navigation UI Source of Truth](DISPATCH_LIVE_BOARD_NAVIGATION_UI_SOURCE_OF_TRUTH.md).
+5. Keep each built console's complete approved navigation in its console-owned sidebar. Dispatch restores access to all Dispatch workspaces, including Sales with nested Marketing and Advertising views. Keep **CCC Home** and the top-level **Dispatch Board** return control in the top workspace strip rather than duplicating them as sidebar exit tabs.
 6. Treat **Dispatch Overview** as the manager's daily launch and readiness surface.
 7. Treat **Live Board** as the deeper execution surface for operating and updating the day's work.
 8. Show the global CCC module sidebar only on **CCC Home**. Inside an operational console, replace it with that console's own navigation; never populate global CCC modules there.
@@ -118,14 +121,15 @@ The initial implementation establishes:
 - A persistent CCC command bar with breadcrumb, Dispatch status, search, store context, notifications, and identity.
 - Dispatch Board as the only live module in the primary shell.
 - Deliberately locked Planned states for future CCC modules.
-- The approved single-line Dispatch navigation: Overview, Live Board, My Tasks, Tasks, Projects, Appointments, Vehicles, Customers, permission-aware Manager Review, Team, and Activity.
-- Persistent Dispatch console navigation across the full Dispatch route family, including nested task, project, customer, and vehicle workspaces.
-- A Dispatch-owned left sidebar populated from the same approved destinations and permissions as the Dispatch console header.
+- A console-owned operating sidebar containing the complete navigation for that built console, with no CCC Home exit duplicate.
+- A scoped top workspace strip containing only CCC Home, Dispatch Board, and the active Dispatch workspace (for example, My Tasks), with page-level tabs owned by the workspace itself.
+- Persistent Dispatch console access across the full Dispatch route family, including nested task, project, customer, sales, marketing, advertising, and vehicle workspaces.
+- A Dispatch-owned left sidebar populated with Overview, Live Board, My Tasks, Tasks, Projects, Appointments, Vehicles, Customers, Sales with nested Marketing and Advertising views, permission-aware Manager Review, Team, and Activity.
 - A reusable console-sidebar contract used by Dispatch and the existing Administration console, ready for additional consoles when their own destinations are approved.
-- A dedicated Live Board sub-view at `/board?view=live`, with synchronized sidebar, breadcrumb, and local tabs plus a persistent return tab to Dispatch Overview.
+- A dedicated Live Board sub-view at `/board?view=live`, with synchronized sidebar and scoped console path plus a persistent return to Dispatch Board.
 - Dispatch Overview framing around the existing live board date, generation health, Task Intake, Generate Board, task metrics, team load, project context, customer/vehicle context, task table, manager attention, and activity behavior.
 - Responsive shell behavior without page-level horizontal overflow at the mobile validation breakpoint.
 
 The implementation preserves existing route and backend behavior. It does not claim that Time & Attendance, People & HR, Compliance, Legal & Accounting, Library & Training, or CCC Insights are implemented.
 
-The expanded navigation is implemented in the Live Board header and synchronized with the existing Dispatch destinations in the application sidebar. Manager Review remains limited to authorized managers, and narrower layouts retain access through horizontal navigation overflow.
+Each built console restores its complete console-owned sidebar. The top strip remains scope-aware and contains CCC Home, Dispatch Board, and the current workspace without repeating the full sidebar menu. Manager Review remains limited to authorized managers.

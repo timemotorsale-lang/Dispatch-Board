@@ -1,5 +1,6 @@
 import {
   Activity,
+  BadgeDollarSign,
   BarChart3,
   BookOpen,
   BriefcaseBusiness,
@@ -12,6 +13,7 @@ import {
   Gauge,
   Landmark,
   ListChecks,
+  Megaphone,
   Settings,
   ShieldCheck,
   SquareCheckBig,
@@ -25,12 +27,14 @@ import { canManageSettings, isManager } from "@/server/policies/access";
 
 export type NavigationItem = {
   activePaths?: string[];
+  activeQuery?: Record<string, string | null>;
   href: string;
   title: string;
   description: string;
   icon: LucideIcon;
   badge?: string;
   disabled?: boolean;
+  isNested?: boolean;
   matchExact?: boolean;
   parentHref?: string;
   isVisible?(user: AuthenticatedUser): boolean;
@@ -45,7 +49,8 @@ export const dispatchNavigationItems: NavigationItem[] = [
     description: "Daily readiness, workload, and manager attention.",
     icon: ClipboardCheck,
     parentHref: "/board",
-    matchExact: true
+    matchExact: true,
+    activeQuery: { view: null }
   },
   {
     href: "/board?view=live",
@@ -66,7 +71,8 @@ export const dispatchNavigationItems: NavigationItem[] = [
     title: "Tasks",
     description: "Search, organize, and manage Dispatch work.",
     icon: SquareCheckBig,
-    parentHref: "/board"
+    parentHref: "/board",
+    activeQuery: { department: null }
   },
   {
     href: "/projects",
@@ -95,6 +101,32 @@ export const dispatchNavigationItems: NavigationItem[] = [
     description: "Customer records and connected work.",
     icon: ContactRound,
     parentHref: "/board"
+  },
+  {
+    href: "/tasks?department=SALES",
+    title: "Sales",
+    description: "Sales leads, follow-up, appointments, negotiations, and delivery work.",
+    icon: BadgeDollarSign,
+    parentHref: "/board",
+    activeQuery: { department: "SALES" }
+  },
+  {
+    href: "/tasks?department=MARKETING",
+    title: "Marketing",
+    description: "Marketing campaigns, content, and audience work.",
+    icon: Megaphone,
+    isNested: true,
+    parentHref: "/tasks?department=SALES",
+    activeQuery: { department: "MARKETING" }
+  },
+  {
+    href: "/tasks?department=ADVERTISING",
+    title: "Advertising",
+    description: "Vehicle listings, paid promotion, and advertising work.",
+    icon: Megaphone,
+    isNested: true,
+    parentHref: "/tasks?department=SALES",
+    activeQuery: { department: "ADVERTISING" }
   },
   {
     href: "/manager-review",
