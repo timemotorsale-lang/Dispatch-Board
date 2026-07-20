@@ -75,6 +75,10 @@ function statusTone(status: string) {
   return "pending";
 }
 
+function hasRequiredUpdateValue(value: string | boolean | undefined) {
+  return typeof value === "boolean" || typeof value === "string" && value.trim().length > 0;
+}
+
 export function TaskDetailWorkspace({
   activityEvents,
   actorIsManager,
@@ -94,6 +98,15 @@ export function TaskDetailWorkspace({
   const associatedUnit = buildAssociatedUnit(task);
   const planning = buildPlanningFields(task);
   const tags = buildTaskTags(task);
+  const requiredUpdateFields = task.requiredUpdateFields ?? [];
+  const updateFieldValues = task.updateFieldValues ?? {};
+  const requiredUpdateProgress = {
+    missingFieldKeys: requiredUpdateFields
+      .filter((field) => field.required && !hasRequiredUpdateValue(updateFieldValues[field.key]))
+      .map((field) => field.key),
+    readyCount: requiredUpdateFields.filter((field) => !field.required || hasRequiredUpdateValue(updateFieldValues[field.key])).length,
+    totalCount: requiredUpdateFields.length
+  };
   const recordNumber = concern?.concernNumber ?? formatTaskDisplayNumber(task.id);
   const recordTitle = concern?.title ?? task.title;
   const recordDescription = concern?.description ?? task.description ?? "No case summary has been recorded.";
@@ -153,7 +166,7 @@ export function TaskDetailWorkspace({
       </nav>
 
       <div className="etw-breadcrumb"><Link href={returnTo}>Cases &amp; Tasks</Link><ChevronRight size={13} /><span>Case #{recordNumber}</span></div>
-      <TaskWorkbenchActionBar canComplete={canUpdateStatus} returnTo={returnTo} status={task.status} taskId={task.id} />
+      <TaskWorkbenchActionBar canComplete={canUpdateStatus} initialRequiredUpdateProgress={requiredUpdateProgress} returnTo={returnTo} status={task.status} taskId={task.id} />
 
       <div className="etw-layout">
         <aside className="etw-context-rail">

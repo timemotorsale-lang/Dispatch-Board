@@ -56,4 +56,20 @@ describe("rich text composer", () => {
       markup.indexOf('aria-label="Comment formatting"')
     );
   });
+
+  it("offers a simplified, visibly labelled task-note toolbar", () => {
+    const markup = renderToStaticMarkup(
+      <RichTextComposer ariaLabel="Task note" onChange={vi.fn()} toolbarVariant="task-note" value="Update" />
+    );
+
+    expect(markup).toContain("rich-text-toolbar-task-note");
+    expect(markup).toContain(">Bold</span>");
+    expect(markup).toContain(">Bullets</span>");
+    expect(markup).toContain(">Mention</span>");
+    expect(markup).toContain(">Emoji</span>");
+    expect(markup).toContain('aria-label="Add link"');
+    expect(markup).not.toContain('aria-label="Underline"');
+    expect(markup).not.toContain('aria-label="Preview comment"');
+    expect(markup).not.toContain('aria-label="Expand comment editor"');
+  });
 });
