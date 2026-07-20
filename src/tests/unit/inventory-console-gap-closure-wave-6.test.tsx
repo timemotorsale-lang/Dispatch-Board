@@ -64,6 +64,6 @@ describe("Inventory Console gap closure Wave 6", () => {
   it("adds exact decision/version/policy/return context and exhaustively traces Wave 6 actions", () => {
     const href = contextualDecisionHref({ id: "DISPOSITION:case-1", kind: "APPROVAL", domain: "DISPOSITION", type: "PRICE", title: "Approval", subject: "Unit", owner: "Manager", location: "Main", dueAt: now.toISOString(), ageHours: 1, overdue: false, version: 4, policyVersion: "DWH/v2", amountCents: 1000, evidence: [], state: "WAITING", actionLabel: "Open", actionHref: "/vehicles/disposition-wholesale?caseId=case-1" });
     for (const token of ["decisionId=DISPOSITION%3Acase-1", "expectedVersion=4", "policyVersion=DWH%2Fv2", "returnTo="]) expect(href).toContain(token);
-    expect(auditInventoryConsoleWave6Traceability()).toMatchObject({ disposition: "CONFORMS", blockers: [], requiredActions: 18, tracedActions: 18 });
+    expect(auditInventoryConsoleWave6Traceability()).toMatchObject({ disposition: "CONFORMS", blockers: [], requiredActions: 20, tracedActions: 20 });
   });
 });

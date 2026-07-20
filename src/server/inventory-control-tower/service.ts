@@ -14,7 +14,7 @@ export type InventoryControlTowerSourceUnit = {
   id: string; inventoryNumber: string; lifecycleStage: InventoryLifecycleStage; operatingState: string;
   targetAt: Date; stageStartedAt: Date; financialAcquiredAt: Date; nextAction: string; stateReason: string | null; locationId: string;
   location: { code: string; name: string };
-  vehicle: { vehicleNumber: string; stockNumber: string | null; year: number | null; make: string | null; model: string | null; vin: string | null };
+  vehicle: { id: string; vehicleNumber: string; stockNumber: string | null; year: number | null; make: string | null; model: string | null; vin: string | null };
   ownerUser: { id: string; name: string };
   costEntries: Array<{ amountCents: number; currency: string; status: string; category?: string; confidence?: string }>;
 };
