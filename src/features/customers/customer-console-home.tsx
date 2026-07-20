@@ -20,9 +20,8 @@ import {
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
+import { useAppearance } from "@/components/layout/appearance";
 import type { CustomerDashboardReadModel } from "@/server/services/customer-console-read-service";
-
-type CustomerTheme = "light" | "dark";
 
 const dashboardMetricIcons = {
   "Total Customers": Users,
@@ -32,29 +31,21 @@ const dashboardMetricIcons = {
   "Sales This Month": CircleDollarSign
 };
 
-function applyCustomerTheme(theme: CustomerTheme) {
-  document.body.classList.add("customer-console-shell");
-  document.body.classList.toggle("customer-console-dark-shell", theme === "dark");
-}
-
 export function CustomerConsoleHome() {
-  const [theme, setTheme] = useState<CustomerTheme>("light");
+  const { appearance: theme, setAppearance } = useAppearance();
   const [readModel, setReadModel] = useState<CustomerDashboardReadModel | null>(null);
   const [readError, setReadError] = useState("");
 
   useEffect(() => {
-    const storedTheme = window.localStorage.getItem("customer-console-theme");
-    const initialTheme: CustomerTheme = storedTheme === "dark" ? "dark" : "light";
-    const frame = window.requestAnimationFrame(() => {
-      setTheme(initialTheme);
-      applyCustomerTheme(initialTheme);
-    });
-
+    document.body.classList.add("customer-console-shell");
     return () => {
-      window.cancelAnimationFrame(frame);
       document.body.classList.remove("customer-console-shell", "customer-console-dark-shell");
     };
   }, []);
+
+  useEffect(() => {
+    document.body.classList.toggle("customer-console-dark-shell", theme === "dark");
+  }, [theme]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -71,12 +62,6 @@ export function CustomerConsoleHome() {
       });
     return () => controller.abort();
   }, []);
-
-  function selectTheme(nextTheme: CustomerTheme) {
-    setTheme(nextTheme);
-    applyCustomerTheme(nextTheme);
-    window.localStorage.setItem("customer-console-theme", nextTheme);
-  }
 
   return (
     <section className="customer-console customer-home" data-theme={theme} aria-label="Customer Command Center">
@@ -104,8 +89,8 @@ export function CustomerConsoleHome() {
             <div className="customer-home-welcome-actions">
               <label><span>Date</span><input aria-label="Dashboard date" type="date" defaultValue="2025-05-30" /></label>
               <div className="customer-theme-switch" aria-label="Customer console appearance" role="group">
-                <button aria-label="Use light background" aria-pressed={theme === "light"} className={theme === "light" ? "customer-theme-option active" : "customer-theme-option"} onClick={() => selectTheme("light")} type="button"><Sun size={14} /> Light</button>
-                <button aria-label="Use dark background" aria-pressed={theme === "dark"} className={theme === "dark" ? "customer-theme-option active" : "customer-theme-option"} onClick={() => selectTheme("dark")} type="button"><Moon size={14} /> Dark</button>
+                <button aria-label="Use light background" aria-pressed={theme === "light"} className={theme === "light" ? "customer-theme-option active" : "customer-theme-option"} onClick={() => setAppearance("light")} type="button"><Sun size={14} /> Light</button>
+                <button aria-label="Use dark background" aria-pressed={theme === "dark"} className={theme === "dark" ? "customer-theme-option active" : "customer-theme-option"} onClick={() => setAppearance("dark")} type="button"><Moon size={14} /> Dark</button>
               </div>
               <button className="customer-customize-button" type="button">Customize</button>
             </div>

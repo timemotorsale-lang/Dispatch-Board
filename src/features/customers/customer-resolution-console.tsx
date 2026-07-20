@@ -8,9 +8,8 @@ import {
 import Link from "next/link";
 import { useDeferredValue, useEffect, useState } from "react";
 
+import { useAppearance } from "@/components/layout/appearance";
 import type { CustomerResolutionReadModel } from "@/server/services/customer-console-read-service";
-
-type CustomerTheme = "light" | "dark";
 type ResolutionTab = "All Cases" | "My Cases" | "Unassigned" | "Overdue" | "Escalated" | "Resolved";
 type DetailTab = "Details" | "Timeline" | "Customer" | "Vehicle" | "Related";
 
@@ -28,13 +27,8 @@ const metricIcons = {
   "Avg. Resolution Time": Clock3
 };
 
-function applyTheme(theme: CustomerTheme) {
-  document.body.classList.add("customer-console-shell");
-  document.body.classList.toggle("customer-console-dark-shell", theme === "dark");
-}
-
 export function CustomerResolutionConsole() {
-  const [theme, setTheme] = useState<CustomerTheme>("light");
+  const { appearance: theme, setAppearance } = useAppearance();
   const [activeTab, setActiveTab] = useState<ResolutionTab>("All Cases");
   const [detailTab, setDetailTab] = useState<DetailTab>("Details");
   const [selectedId, setSelectedId] = useState("");
@@ -45,17 +39,15 @@ export function CustomerResolutionConsole() {
   const deferredSearch = useDeferredValue(search);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem("customer-console-theme");
-    const initial: CustomerTheme = stored === "dark" ? "dark" : "light";
-    const frame = window.requestAnimationFrame(() => {
-      setTheme(initial);
-      applyTheme(initial);
-    });
+    document.body.classList.add("customer-console-shell");
     return () => {
-      window.cancelAnimationFrame(frame);
       document.body.classList.remove("customer-console-shell", "customer-console-dark-shell");
     };
   }, []);
+
+  useEffect(() => {
+    document.body.classList.toggle("customer-console-dark-shell", theme === "dark");
+  }, [theme]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -86,12 +78,6 @@ export function CustomerResolutionConsole() {
     return () => controller.abort();
   }, [activeTab, deferredSearch, detailTab, selectedId]);
 
-  function selectTheme(nextTheme: CustomerTheme) {
-    setTheme(nextTheme);
-    applyTheme(nextTheme);
-    window.localStorage.setItem("customer-console-theme", nextTheme);
-  }
-
   const caseRows = readModel?.cases ?? [];
   const selectedCase = readModel?.selectedCase ?? null;
 
@@ -100,7 +86,7 @@ export function CustomerResolutionConsole() {
       <header className="customer-console-toolbar customer-resolution-toolbar">
         <label className="customer-console-search"><Search size={16} /><input aria-label="Search customers and cases" placeholder="Search customers, tickets, vehicles, orders..." type="search" /><kbd>Ctrl K</kbd></label>
         <nav className="customer-module-switcher" aria-label="Customer console sections"><Link href="/customers">Overview</Link><Link href="/customers/customer-360">Customer 360</Link><Link aria-current="page" className="active" href="/customers/resolutions">Resolution</Link></nav>
-        <div className="customer-theme-switch" aria-label="Customer console appearance" role="group"><button aria-label="Use light background" aria-pressed={theme === "light"} className={theme === "light" ? "customer-theme-option active" : "customer-theme-option"} onClick={() => selectTheme("light")} type="button"><Sun size={14} /> Light</button><button aria-label="Use dark background" aria-pressed={theme === "dark"} className={theme === "dark" ? "customer-theme-option active" : "customer-theme-option"} onClick={() => selectTheme("dark")} type="button"><Moon size={14} /> Dark</button></div>
+        <div className="customer-theme-switch" aria-label="Customer console appearance" role="group"><button aria-label="Use light background" aria-pressed={theme === "light"} className={theme === "light" ? "customer-theme-option active" : "customer-theme-option"} onClick={() => setAppearance("light")} type="button"><Sun size={14} /> Light</button><button aria-label="Use dark background" aria-pressed={theme === "dark"} className={theme === "dark" ? "customer-theme-option active" : "customer-theme-option"} onClick={() => setAppearance("dark")} type="button"><Moon size={14} /> Dark</button></div>
         <button className="customer-quick-action" type="button"><Plus size={15} /> New <ChevronDown size={12} /></button>
         <button className="customer-resolution-icon" aria-label="Notifications" type="button"><Bell size={17} /><span>6</span></button><button className="customer-resolution-icon" aria-label="Messages" type="button"><Mail size={17} /></button>
       </header>

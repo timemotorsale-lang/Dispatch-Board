@@ -11,6 +11,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { AppTopbar } from "@/components/layout/app-topbar";
+import { AppearanceProvider } from "@/components/layout/appearance";
 
 const testUser: AuthenticatedUser = {
   id: "user-1",
@@ -28,12 +29,14 @@ describe("application top bar console switching", () => {
 
   it("provides direct CCC Home and Dispatch switches from the Inventory console", () => {
     const markup = renderToStaticMarkup(
-      <AppTopbar
-        commandCenterHome={false}
-        onMenuOpen={() => undefined}
-        showNavigationMenu
-        user={testUser}
-      />
+      <AppearanceProvider>
+        <AppTopbar
+          commandCenterHome={false}
+          onMenuOpen={() => undefined}
+          showNavigationMenu
+          user={testUser}
+        />
+      </AppearanceProvider>
     );
 
     expect(markup).toContain('aria-label="Command Center Home"');
@@ -41,18 +44,23 @@ describe("application top bar console switching", () => {
     expect(markup).toContain('aria-label="Open Dispatch Board console"');
     expect(markup).toContain('href="/board"');
     expect(markup).toContain("Dispatch</span>");
+    expect(markup).toContain('aria-label="Application appearance"');
+    expect(markup).toContain('aria-label="Use light appearance"');
+    expect(markup).toContain('aria-label="Use dark appearance"');
   });
 
   it("does not duplicate the Dispatch switch inside the active Dispatch console", () => {
     currentPathname = "/tasks";
 
     const markup = renderToStaticMarkup(
-      <AppTopbar
-        commandCenterHome={false}
-        onMenuOpen={() => undefined}
-        showNavigationMenu
-        user={testUser}
-      />
+      <AppearanceProvider>
+        <AppTopbar
+          commandCenterHome={false}
+          onMenuOpen={() => undefined}
+          showNavigationMenu
+          user={testUser}
+        />
+      </AppearanceProvider>
     );
 
     expect(markup).not.toContain('aria-label="Open Dispatch Board console"');
