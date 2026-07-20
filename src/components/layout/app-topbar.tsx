@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Building2, CalendarDays, House, Menu, Search } from "lucide-react";
+import { Bell, Building2, CalendarDays, Columns3, House, Menu, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -119,6 +119,11 @@ export function AppTopbar({ commandCenterHome, onMenuOpen, showNavigationMenu, u
       {!commandCenterHome ? (
         <Link aria-label="Command Center Home" className="ccc-home-link" href="/command-center">
           <House size={15} /><span>CCC Home</span>
+        </Link>
+      ) : null}
+      {inventoryConsole ? (
+        <Link aria-label="Open Dispatch Board console" className="ccc-home-link ccc-dispatch-link" href="/board">
+          <Columns3 size={15} /><span>Dispatch</span>
         </Link>
       ) : null}
 
