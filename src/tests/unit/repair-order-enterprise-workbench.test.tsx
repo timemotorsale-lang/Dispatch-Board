@@ -22,5 +22,10 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("It does not assume the cause or authorize repair work");
     expect(html).toContain("Release to Diagnosis");
     expect(html).toContain("Customer authorization is required before any repair work is performed");
+    expect(html).toContain('href="#diagnosis"');
+    expect(html).toContain('id="diagnosis"');
+    expect(html).toContain('href="#timeline"');
+    expect(html).toContain('id="timeline"');
+    expect(html).toContain("Not yet recorded");
   });
 });

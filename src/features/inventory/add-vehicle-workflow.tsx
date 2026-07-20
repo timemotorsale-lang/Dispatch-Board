@@ -42,7 +42,7 @@ function existingHref(code: string, vehicleId: string, description: string) {
   if (code === "CREATE_SERVICE_INTAKE") return `/vehicles/repair-orders?${new URLSearchParams({ concernSummary: description, intakeSource: "WALK_IN", vehicleId }).toString()}`;
   if (code === "SCHEDULE_APPOINTMENT") return `/appointments?${new URLSearchParams({ vehicleId }).toString()}`;
   if (code === "START_ACQUISITION_APPRAISAL") return `/vehicles/acquisition-appraisal?${new URLSearchParams({ vehicleId }).toString()}`;
-  if (code === "REVIEW_INVENTORY_CONTROL") return `/vehicles/inventory/units?${new URLSearchParams({ vehicleId }).toString()}`;
+  if (code === "REVIEW_INVENTORY_CONTROL") return `/vehicles/registry?${new URLSearchParams({ vehicleId }).toString()}`;
   return `/vehicles/360/${vehicleId}`;
 }
 

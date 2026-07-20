@@ -7,6 +7,7 @@ describe("PartsOperationsWorkspace", () => {
   it("renders the approved overview and routes consequential work to governed surfaces", () => {
     const markup = renderToStaticMarkup(
       <PartsOperationsWorkspace
+        initialRepairOrderId="ro-1"
         initial={{
           capability: { barcodeHardware: "UNVERIFIED_MANUAL_FALLBACK", recommendations: "ADVISORY_NON_EXECUTING", vendorAdapters: "DISABLED" },
           contractVersion: "parts-operations/r8.0.0",
@@ -63,6 +64,7 @@ describe("PartsOperationsWorkspace", () => {
     expect(markup).toContain("Recommendations are advisory");
     expect(markup).toContain("parts-operations?view=demand");
     expect(markup).toContain("parts-operations?view=counts-exceptions");
+    expect(markup).toContain("repairOrderId=ro-1");
     expect(markup).toContain("Vendor adapters: DISABLED");
     expect(markup).toContain('href="/vehicles/service-close-parts"');
     expect(markup).toContain('href="/vehicles/parts-counter"');

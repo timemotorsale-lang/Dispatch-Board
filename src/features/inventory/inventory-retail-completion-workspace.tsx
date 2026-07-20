@@ -8,8 +8,9 @@ type Options={units:Array<{id:string;inventoryNumber:string;locationId:string;ve
 const local=(date:Date)=>new Date(date.getTime()-date.getTimezoneOffset()*60_000).toISOString().slice(0,16);
 const vehicle=(unit:Workflow["inventoryUnit"])=>[unit.vehicle.year,unit.vehicle.make,unit.vehicle.model].filter(Boolean).join(" ")||unit.vehicle.vehicleNumber;
 
-export function InventoryRetailCompletionWorkspace({initial,options}:{initial:Model;options:Options}) {
-  const [model,setModel]=useState(initial),[selected,setSelected]=useState<Workflow|null>(initial.items[0]??null),[notice,setNotice]=useState(""),[busy,setBusy]=useState(false);
+export function InventoryRetailCompletionWorkspace({initial,initialCompletionId,options}:{initial:Model;initialCompletionId?:string;options:Options}) {
+  const initialSelection=initial.items.find(item=>item.id===initialCompletionId)??initial.items[0]??null;
+  const [model,setModel]=useState(initial),[selected,setSelected]=useState<Workflow|null>(initialSelection),[notice,setNotice]=useState(""),[busy,setBusy]=useState(false);
   const [start,setStart]=useState(()=>({inventoryUnitId:options.units[0]?.id??"",ownerUserId:options.users[0]?.id??"",policyVersion:"INV-RETAIL-POLICY/1.0.0",targetAt:local(new Date(Date.now()+14*86_400_000))}));
   async function request(url:string,init?:RequestInit){const response=await fetch(url,init),body=await response.json().catch(()=>({}));if(!response.ok)throw new Error(body.error??"Retail-completion request failed.");return body}
   async function refresh(id?:string){const next=await request("/api/retail-completions") as Model;setModel(next);setSelected(next.items.find(item=>item.id===(id??selected?.id))??next.items[0]??null)}

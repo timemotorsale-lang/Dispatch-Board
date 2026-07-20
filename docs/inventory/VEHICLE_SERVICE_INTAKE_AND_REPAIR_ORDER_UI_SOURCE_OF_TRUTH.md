@@ -3,7 +3,8 @@
 **Status:** Approved for implementation  
 **Approved:** 2026-07-20  
 **Product area:** Inventory Console / Shop & Recon  
-**Routes:** `/vehicles/repair-orders?intakeSource=WALK_IN`, `/vehicles/repair-orders?repairOrderId=:id`
+**Routes:** `/vehicles/repair-orders?intakeSource=WALK_IN`, `/vehicles/repair-workbench`, `/vehicles/repair-workbench?repairOrderId=:id`  
+**Legacy detail alias:** `/vehicles/repair-orders?repairOrderId=:id` redirects to the canonical workbench route.
 
 ## Approved references
 
@@ -30,6 +31,8 @@ The intake workspace exists to identify the arrival, preserve the customer's wor
 ## Repair-order workbench contract
 
 The repair-order workbench is the execution home after check-in. It preserves the intake record and progressively governs diagnosis, estimate, authorization, repair jobs, quality control, and customer handoff.
+
+The navigation tab opens the most recently updated open repair order directly. `?view=all` opens the explicit repair-order selector. When no open repair order exists, the workspace must show an honest empty state and direct the advisor to complete vehicle check-in; it must not populate the approved UI with simulated operational data.
 
 - The customer's original concern remains distinct from technician findings, cause, recommendation, and correction.
 - Concern work is represented as accountable workstreams with a suggested diagnostic plan, evidence requirements, owners, dependencies, and status.

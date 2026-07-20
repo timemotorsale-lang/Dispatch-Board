@@ -24,9 +24,11 @@ async function request(body?: Json) {
   return result;
 }
 
-export function DispositionWholesaleWorkspace({ initial, initialView }: { initial: Model; initialView?: string }) {
-  const view = tabs.some(([, code]) => code === initialView) ? initialView as View : "overview";
-  const [model, setModel] = useState(initial), [selectedId, setSelectedId] = useState(initial.cases[0]?.id ?? ""), [notice, setNotice] = useState(""), [busy, setBusy] = useState(false), [locationId, setLocationId] = useState("ALL");
+export function DispositionWholesaleWorkspace({ initial, initialCaseId, initialView }: { initial: Model; initialCaseId?: string; initialView?: string }) {
+  const initialCase = initial.cases.find((record) => record.id === initialCaseId);
+  const caseView: View = initialCase?.stage === "CANDIDATE_REVIEW" ? "candidates" : initialCase?.stage === "APPRAISAL" ? "appraisals" : initialCase?.stage === "OFFERS_BIDS" ? "offers" : ["SALE_TRANSFER", "SETTLEMENT", "CLOSED"].includes(initialCase?.stage ?? "") ? "settlements" : initialCase ? "channels" : "overview";
+  const view = tabs.some(([, code]) => code === initialView) ? initialView as View : caseView;
+  const [model, setModel] = useState(initial), [selectedId, setSelectedId] = useState(initialCase?.id ?? initial.cases[0]?.id ?? ""), [notice, setNotice] = useState(""), [busy, setBusy] = useState(false), [locationId, setLocationId] = useState("ALL");
   const [recommendationView, setRecommendationView] = useState<"MY" | "TEAM" | "EXCEPTIONS">("MY");
   const [approvalView, setApprovalView] = useState<"REVIEWS" | "APPROVALS">("REVIEWS");
   const [appraisal, setAppraisal] = useState({ low: "10000", high: "14000", confidence: "MEDIUM", evidence: "manual-appraisal-evidence", comparable: "verified-comparable-reference" });

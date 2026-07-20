@@ -82,4 +82,16 @@ describe("R7 Shop & Recon landing projection", () => {
     expect(html).toContain("External adapters: DISABLED");
     expect(html).not.toContain("/vehicles/shop-execution");
   });
+
+  it("makes blocker category links change the rendered queue and active state", () => {
+    const projection = buildShopReconProjection([order({
+      repairJobs: [{ id: "job-1", jobNumber: "1", description: "Front brakes", status: "READY_FOR_REPAIR", partDemands: [{ quantityRequired: 2, quantityReserved: 0 }], dispatches: [] }],
+    })], now);
+    const html = renderToStaticMarkup(<ShopReconLanding initialBlocker="parts" model={projection} />);
+
+    expect(html).toContain('href="/vehicles/shop-recon?blocker=parts"');
+    expect(html).toContain('aria-current="page"');
+    expect(html).toContain("Part backorder");
+    expect(html).toContain('href="/vehicles/repair-workbench?repairOrderId=ro-1"');
+  });
 });

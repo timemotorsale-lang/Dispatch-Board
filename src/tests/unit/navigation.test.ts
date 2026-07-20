@@ -172,12 +172,14 @@ describe("enterprise shell navigation", () => {
       "Home",
       "Inventory Lifecycle",
       "Shop & Recon",
+      "Repair Workbench",
       "Reviews",
       "Approvals",
       "Reports",
       "Administration"
     ]);
     expect(inventoryConsole?.items.find((item) => item.title === "Shop & Recon")?.href).toBe("/vehicles/shop-recon");
+    expect(inventoryConsole?.items.find((item) => item.title === "Repair Workbench")?.href).toBe("/vehicles/repair-workbench");
     expect(getConsoleNavigation("/command-center", manager)).toBeNull();
   });
 });

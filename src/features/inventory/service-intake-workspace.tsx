@@ -332,7 +332,7 @@ export function ServiceIntakeWorkspace({ options }: { options: ServiceIntakeOpti
       <h1>{created.repairOrderNumber}</h1>
       <span>{selectedCustomer?.displayName} · {selectedVehicle ? vehicleLabel(selectedVehicle) : "Vehicle"}</span>
       <div className="sic-success-summary"><strong>Ready for intake review</strong><span>The governed repair order, customer concern, custody details, owner, target, and audit evidence are now available to Shop &amp; Recon.</span></div>
-      <div className="sic-success-actions"><Link className="primary" href={`/vehicles/repair-orders?repairOrderId=${created.id}`}>Open repair order <ChevronRight /></Link><Link href="/vehicles/shop-recon">Return to Shop &amp; Recon</Link></div>
+      <div className="sic-success-actions"><Link className="primary" href={`/vehicles/repair-workbench?repairOrderId=${created.id}`}>Open repair workbench <ChevronRight /></Link><Link href="/vehicles/shop-recon">Return to Shop &amp; Recon</Link></div>
     </section>;
   }
 
@@ -357,7 +357,7 @@ export function ServiceIntakeWorkspace({ options }: { options: ServiceIntakeOpti
           {arrivalQuery || arrivalMode !== "search" ? <div className="sic-arrival-results" role="listbox" aria-label="Arrival search results">
             {arrivalMatches.appointments.map((appointment) => <button key={appointment.id} onClick={() => chooseAppointment(appointment)} type="button"><CalendarClock /><span><strong>{appointment.appointmentNumber} · {appointment.title}</strong><small>{appointment.participants[0]?.customer?.displayName ?? "Customer"} · {appointment.vehicles[0] ? vehicleLabel(appointment.vehicles[0].vehicle) : "Vehicle not linked"}</small></span><b>Appointment</b></button>)}
             {arrivalMatches.customers.map((customer) => <button key={customer.id} onClick={() => chooseCustomer(customer.id)} type="button"><UserRound /><span><strong>{customer.displayName}</strong><small>{customer.phoneNumber ?? customer.email ?? customer.customerNumber ?? "Canonical customer"}</small></span><b>Customer</b></button>)}
-            {arrivalMatches.repairOrders.map((order) => <Link href={`/vehicles/repair-orders?repairOrderId=${order.id}`} key={order.id}><ClipboardCheck /><span><strong>{order.repairOrderNumber} · {vehicleLabel(order.vehicle)}</strong><small>{order.customer?.displayName ?? "Internal vehicle"} · {order.stage.replaceAll("_", " ")}</small></span><b>Open RO</b></Link>)}
+            {arrivalMatches.repairOrders.map((order) => <Link href={`/vehicles/repair-workbench?repairOrderId=${order.id}`} key={order.id}><ClipboardCheck /><span><strong>{order.repairOrderNumber} · {vehicleLabel(order.vehicle)}</strong><small>{order.customer?.displayName ?? "Internal vehicle"} · {order.stage.replaceAll("_", " ")}</small></span><b>Open Workbench</b></Link>)}
             {arrivalMatches.vehicles.map((vehicle) => <button key={vehicle.id} onClick={() => chooseVehicle(vehicle.id)} type="button"><CarFront /><span><strong>{vehicleLabel(vehicle)}</strong><small>{vehicle.vin ?? vehicle.licensePlate ?? "Canonical vehicle"}</small></span><b>Vehicle</b></button>)}
             {!arrivalMatches.appointments.length && !arrivalMatches.customers.length && !arrivalMatches.repairOrders.length && !arrivalMatches.vehicles.length ? <div className="sic-arrival-empty"><strong>No matching record found</strong><span>Add a new customer or vehicle, or refine the search.</span></div> : null}
           </div> : null}
