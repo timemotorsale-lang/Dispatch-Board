@@ -1,7 +1,9 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { WorkflowDecisionGuide } from "@/features/inventory/workflow-decision-guide";
+import type { AuthenticatedUser } from "@/server/auth/store";
 import { evaluateWorkEligibility, rankNextBestWork, type OrchestrationCandidate } from "@/server/inventory-execution/orchestration-domain";
+import { getInventoryOrchestration } from "@/server/inventory-execution/orchestration-service";
 
 const now = new Date("2026-07-19T18:00:00Z");
 function candidate(overrides: Partial<OrchestrationCandidate> = {}): OrchestrationCandidate { return { id: "packet-1", vehicleId: "vehicle-1", taskId: "task-1", title: "Receive vehicle", state: "STAGED", urgency: "P2", readiness: "READY", readinessItems: [{ code: "VEHICLE_PRESENT", required: true, satisfied: true }], dependencyItems: [{ code: "KEYS", required: true, satisfied: true }], targetAt: new Date("2026-07-19T19:00:00Z"), createdAt: new Date("2026-07-19T16:00:00Z"), dataState: "FRESH", assignedUserId: "staff", actorHasAuthority: true, hasCompetingCurrentWork: false, ...overrides }; }
@@ -31,5 +33,24 @@ describe("Inventory EOS deterministic orchestration", () => {
   it("shows unavailable state when the authoritative work source is absent", () => {
     const html = renderToStaticMarkup(<WorkflowDecisionGuide model={{ status: "UNAVAILABLE", generatedAt: now.toISOString(), mode: "ADVISORY", policy: "No recommendation is produced without its authoritative work source.", ranked: [], reason: "Migration not applied." }} />);
     expect(html).toContain("No recommendation available"); expect(html).toContain("Migration not applied");
+  });
+
+  it("keeps the workflow launcher available when the generated data client is stale", async () => {
+    const manager: AuthenticatedUser = {
+      id: "manager-1",
+      name: "Manager",
+      email: "manager@example.test",
+      isActive: true,
+      roles: ["General Manager"],
+      duties: { direct: [], roleDefaults: [], all: [] }
+    };
+
+    const projection = await getInventoryOrchestration(manager, {}, { client: {}, now: () => now });
+
+    expect(projection).toMatchObject({
+      status: "UNAVAILABLE",
+      ranked: [],
+      reason: expect.stringContaining("workflow launcher remains available")
+    });
   });
 });

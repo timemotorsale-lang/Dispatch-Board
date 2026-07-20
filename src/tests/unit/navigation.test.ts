@@ -88,6 +88,9 @@ describe("enterprise shell navigation", () => {
       "Appointments",
       "Vehicles",
       "Customers",
+      "Sales",
+      "Marketing",
+      "Advertising",
       "Team",
       "Activity"
     ]);
@@ -106,10 +109,25 @@ describe("enterprise shell navigation", () => {
       "Appointments",
       "Vehicles",
       "Customers",
+      "Sales",
+      "Marketing",
+      "Advertising",
       "Manager Review",
       "Team",
       "Activity"
     ]);
+  });
+
+  it("nests working Marketing and Advertising views beneath Sales", () => {
+    const items = getDispatchNavigationItems(user());
+    const salesItems = items.filter((item) => item.title === "Sales" || item.isNested);
+
+    expect(salesItems.map((item) => [item.title, item.href])).toEqual([
+      ["Sales", "/tasks?department=SALES"],
+      ["Marketing", "/tasks?department=MARKETING"],
+      ["Advertising", "/tasks?department=ADVERTISING"]
+    ]);
+    expect(salesItems.slice(1).every((item) => item.parentHref === "/tasks?department=SALES")).toBe(true);
   });
 
   it("separates Dispatch console routes from CCC Home", () => {
@@ -127,6 +145,7 @@ describe("enterprise shell navigation", () => {
     const managerAdministration = getConsoleNavigation("/settings/team", manager);
 
     expect(staffDispatch?.subtitle).toBe("Dispatch Board");
+    expect(staffDispatch?.homeHref).toBe("/board");
     expect(staffDispatch?.items.map((item) => item.title)).toEqual([
       "Overview",
       "Live Board",
@@ -136,6 +155,9 @@ describe("enterprise shell navigation", () => {
       "Appointments",
       "Vehicles",
       "Customers",
+      "Sales",
+      "Marketing",
+      "Advertising",
       "Team",
       "Activity"
     ]);

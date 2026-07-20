@@ -39,8 +39,7 @@ function normalizeFocus(value: string | string[] | undefined): ManagerReviewFocu
 }
 
 export default async function ManagerReviewPage({ searchParams }: ManagerReviewPageProps) {
-  const user = await requireCurrentUser();
-  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const [user, resolvedSearchParams] = await Promise.all([requireCurrentUser(), searchParams]);
   const requestedDate = Array.isArray(resolvedSearchParams?.date)
     ? resolvedSearchParams?.date[0]
     : resolvedSearchParams?.date;
@@ -87,10 +86,12 @@ export default async function ManagerReviewPage({ searchParams }: ManagerReviewP
   };
 
   try {
-    const reviewQueue = requestedDate
-      ? await getManagerReviewViewModelForDate(user, requestedDate)
-      : await getManagerReviewViewModelForToday(user);
-    const assignableUsers = await listActiveUserSummaries();
+    const [reviewQueue, assignableUsers] = await Promise.all([
+      requestedDate
+        ? getManagerReviewViewModelForDate(user, requestedDate)
+        : getManagerReviewViewModelForToday(user),
+      listActiveUserSummaries()
+    ]);
     screenProps.boardDate = reviewQueue.date;
     screenProps.boardExists = reviewQueue.boardExists;
     screenProps.fullBoardHref = `/board?date=${encodeURIComponent(reviewQueue.date)}`;

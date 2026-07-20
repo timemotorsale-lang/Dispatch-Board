@@ -10,13 +10,17 @@ import { isManager } from "@/server/policies/access";
 const stageLabels: Record<string, string> = { PURCHASED_OR_TRADE_IN: "Acquired", TRANSPORTATION: "Transport", RECEIVED: "Received", INSPECTION: "Inspection", RECONDITIONING: "Recon", TITLE_DOCUMENT_READINESS: "Title", PHOTOGRAPHY_MERCHANDISING: "Merchandising", FRONTLINE_READY: "Frontline", RESERVED_DEAL_PENDING: "Deal pending", SOLD: "Sold", DELIVERED: "Delivered", WHOLESALED_OR_OTHER_DISPOSITION: "Disposition" };
 
 export default async function VehiclesPage({ searchParams }: { searchParams: Promise<{ locationId?: string; savedViewId?: string; view?: string }> }) {
-  const user = await requireCurrentUser();
-  const { locationId: requestedLocationId, savedViewId, view: requestedView } = await searchParams;
+  const [user, { locationId: requestedLocationId, savedViewId, view: requestedView }] = await Promise.all([
+    requireCurrentUser(),
+    searchParams
+  ]);
   let savedViews: InventoryHomeData["savedViews"] = [];
   let selectedSavedView: InventoryHomeData["savedViews"][number] | null = null;
   try {
-    savedViews = await listInventoryConsoleSavedViews(user);
-    selectedSavedView = savedViewId ? await getInventoryConsoleSavedView(user, savedViewId) : null;
+    [savedViews, selectedSavedView] = await Promise.all([
+      listInventoryConsoleSavedViews(user),
+      savedViewId ? getInventoryConsoleSavedView(user, savedViewId) : Promise.resolve(null)
+    ]);
   } catch { /* View storage must not hide the operational Home. */ }
   const requestedCode = String(requestedView ?? "ALL").toUpperCase() as InventoryConsoleWorkView;
   const systemView = INVENTORY_CONSOLE_WORK_VIEWS.includes(requestedCode) ? requestedCode : "ALL";
@@ -28,16 +32,17 @@ export default async function VehiclesPage({ searchParams }: { searchParams: Pro
   let data: InventoryHomeData;
   try {
     const projection = await getInventoryControlTowerProjection(user, { locationId });
+    const [governance, operational] = await Promise.all([
+      getInventoryGovernanceConsole(user).catch(() => null),
+      getInventoryConsoleOperationalFacts({ locationId: projection.filters.locationId }).catch(() => null)
+    ]);
     let reviews: InventoryHomeData["reviews"] = { approvals: 0, reviews: 0, available: false, items: [] };
-    try {
-      const governance = await getInventoryGovernanceConsole(user);
+    if (governance) {
       const locationName = projection.byLocation.find((item) => item.locationId === projection.filters.locationId)?.name;
       const scopedReviews = locationName ? governance.reviews.filter((item) => item.location === locationName) : governance.reviews;
       const scopedApprovals = locationName ? governance.approvals.filter((item) => item.location === locationName) : governance.approvals;
       reviews = { approvals: scopedApprovals.length, reviews: scopedReviews.length, available: true, items: [...scopedReviews, ...scopedApprovals].sort((left, right) => Number(right.overdue) - Number(left.overdue) || left.dueAt.localeCompare(right.dueAt)).map((item) => ({ actionHref: item.actionHref, actionLabel: item.actionLabel, ageHours: item.ageHours, amountCents: item.amountCents, domain: item.domain, id: item.id, kind: item.kind, overdue: item.overdue, owner: item.owner, state: item.state, subject: item.subject, title: item.title })) };
-    } catch { /* Permission-scoped decision counts stay unavailable. */ }
-    let operational: InventoryHomeData["operational"] = null;
-    try { operational = await getInventoryConsoleOperationalFacts({ locationId: projection.filters.locationId }); } catch { /* Source-specific unavailable state is rendered. */ }
+    }
     const priorityItems = buildInventoryPriorityWork(projection.items, user.id, savedView, new Date(projection.generatedAt));
     data = {
       activeSavedViewId: selectedSavedView?.id ?? null,

@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "prebuild": "prisma generate",
+    "predev": "prisma generate",
     "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",

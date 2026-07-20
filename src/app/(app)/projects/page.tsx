@@ -21,8 +21,7 @@ function getSingleValue(value: string | string[] | undefined) {
 }
 
 export default async function ProjectsPage({ searchParams }: ProjectsPageProps) {
-  const user = await requireCurrentUser();
-  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const [user, resolvedSearchParams] = await Promise.all([requireCurrentUser(), searchParams]);
   const [boardResult, activityResult] = await Promise.all([
     getBoardReadModelForToday(user),
     listActivityFeedEventsForToday(user)

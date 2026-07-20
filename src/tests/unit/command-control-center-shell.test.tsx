@@ -16,44 +16,62 @@ function user(manager = false): AuthenticatedUser {
 }
 
 describe("Command Control Center shell", () => {
-  it("presents the approved Dispatch-local workspace hierarchy", () => {
+  it("presents only the current Dispatch workspace hierarchy", () => {
     const markup = renderToStaticMarkup(
       <DispatchConsoleHeaderView boardDate={null} live={false} pathname="/board" user={user()} />
     );
 
     expect(markup).toContain("Dispatch Overview");
     expect(markup).toContain("Today’s operating command");
-    expect(markup).toContain('href="/board">Overview</a>');
-    expect(markup).toContain('href="/board?view=live"');
-    expect(markup).toContain('href="/my-tasks"');
-    expect(markup).toContain('href="/tasks"');
-    expect(markup).toContain('href="/projects"');
-    expect(markup).toContain('href="/appointments"');
-    expect(markup).toContain('href="/vehicles"');
-    expect(markup).toContain('href="/customers"');
-    expect(markup).toContain('href="/staff"');
-    expect(markup).toContain('href="/activity"');
-    expect(markup).not.toContain('href="/manager-review"');
+    expect(markup).toContain('href="/command-center">CCC Home</a>');
+    expect(markup).toContain('aria-current="page" class="active dispatch-console-root" href="/board">Dispatch Board');
+    expect(markup).not.toContain('href="/my-tasks"');
+    expect(markup).not.toContain('href="/tasks"');
   });
 
-  it("keeps a visible return tab to Dispatch Overview from Live Board", () => {
+  it("shows only CCC Home, Dispatch Board, and Live Board in the Live Board workspace", () => {
     const markup = renderToStaticMarkup(
       <DispatchConsoleHeaderView boardDate={null} live pathname="/board" user={user(true)} />
     );
 
     expect(markup).toContain("Live Board");
     expect(markup).toContain("Operate and update today’s work");
-    expect(markup).toContain('<a href="/board">Overview</a>');
+    expect(markup).toContain('<a href="/command-center">CCC Home</a>');
+    expect(markup).toContain('class="dispatch-console-root" href="/board">Dispatch Board');
     expect(markup).toContain('aria-current="page" class="active" href="/board?view=live"');
-    expect(markup).toContain('href="/manager-review"');
+    expect(markup).not.toContain('href="/my-tasks"');
   });
 
-  it("keeps Dispatch navigation active throughout the console", () => {
+  it("shows only the active workspace in the Dispatch header", () => {
     const markup = renderToStaticMarkup(
       <DispatchConsoleHeaderView boardDate={null} live={false} pathname="/vehicles/360/unit-1" user={user(true)} />
     );
 
     expect(markup).toContain("Vehicles");
     expect(markup).toContain('aria-current="page" class="active" href="/vehicles"');
+    expect(markup).toContain('href="/command-center">CCC Home</a>');
+    expect(markup).not.toContain('href="/my-tasks"');
+    expect(markup).not.toContain('href="/tasks"');
+  });
+
+  it("scopes My Tasks to its three-level console path", () => {
+    const markup = renderToStaticMarkup(
+      <DispatchConsoleHeaderView boardDate="2026-07-19" live={false} pathname="/my-tasks" user={user()} />
+    );
+
+    expect(markup).toContain('href="/command-center">CCC Home</a>');
+    expect(markup).toContain('href="/board?date=2026-07-19">Dispatch Board');
+    expect(markup).toContain('aria-current="page" class="active" href="/my-tasks?date=2026-07-19">My Tasks</a>');
+    expect(markup).not.toContain('href="/projects"');
+    expect(markup).not.toContain('href="/appointments"');
+  });
+
+  it("uses the Sales family as the active top workspace for department views", () => {
+    const markup = renderToStaticMarkup(
+      <DispatchConsoleHeaderView boardDate="2026-07-19" department="MARKETING" live={false} pathname="/tasks" user={user()} />
+    );
+
+    expect(markup).toContain("Marketing campaigns, content, and audience work.");
+    expect(markup).toContain('aria-current="page" class="active" href="/tasks?department=MARKETING&amp;date=2026-07-19">Marketing</a>');
   });
 });

@@ -39,7 +39,7 @@ import type { TaskReadModel } from "@/server/services/task-read";
 import type { TaskSavedViewModel } from "@/server/services/task-saved-views";
 import type { ActiveUserSummary } from "@/server/services/user-summary";
 
-type TasksConsoleScreenProps = {
+export type TasksConsoleScreenProps = {
   assignableUsers: ActiveUserSummary[];
   board: BoardReadModel | null;
   boardDate: string;
