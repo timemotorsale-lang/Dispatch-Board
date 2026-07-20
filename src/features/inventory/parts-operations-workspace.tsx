@@ -144,6 +144,7 @@ type QueueRow = {
   owner: string;
   part: string;
   reference: string;
+  repairOrderId?: string;
   reservation: string;
   required: string;
   status: string;
@@ -187,11 +188,15 @@ const localTabs = [
 type PartsView = (typeof localTabs)[number][1];
 const validViews = new Set<PartsView>(localTabs.map(([, view]) => view));
 
-function partsHref(view: PartsView) {
-  return view === "overview" ? "/vehicles/parts-operations" : `/vehicles/parts-operations?view=${view}`;
+function partsHref(view: PartsView, repairOrderId?: string) {
+  const params = new URLSearchParams();
+  if (view !== "overview") params.set("view", view);
+  if (repairOrderId) params.set("repairOrderId", repairOrderId);
+  const query = params.toString();
+  return query ? `/vehicles/parts-operations?${query}` : "/vehicles/parts-operations";
 }
 
-export function PartsOperationsWorkspace({ initial, initialView }: { initial: Model; initialView?: string }) {
+export function PartsOperationsWorkspace({ initial, initialRepairOrderId, initialView }: { initial: Model; initialRepairOrderId?: string; initialView?: string }) {
   const currentView: PartsView = validViews.has(initialView as PartsView) ? initialView as PartsView : "overview";
   const [renderedAt] = useState(() => Date.now());
   const [locationId, setLocationId] = useState("ALL");
@@ -219,6 +224,7 @@ export function PartsOperationsWorkspace({ initial, initialView }: { initial: Mo
   const today = new Date(renderedAt).toISOString().slice(0, 10);
   const arrivingToday = initial.service.offers.filter((offer) => offer.estimatedArrivalAt?.slice(0, 10) === today).length;
   const repairOrdersByNumber = new Map(initial.ledger.repairOrders.map((order) => [order.repairOrderNumber, order]));
+  const repairOrderIdFor = (repairOrderNumber: string) => repairOrdersByNumber.get(repairOrderNumber)?.id;
   const reservationQuantityByOrder = new Map<string, number>();
   for (const reservation of initial.waveOne.reservations) {
     const orderNumber = reservation.demand.repairOrder.repairOrderNumber;
@@ -241,6 +247,7 @@ export function PartsOperationsWorkspace({ initial, initialView }: { initial: Mo
       locationId: demand.repairOrder.locationId,
       part: `${demand.part.partNumber} · ${demand.part.description}`,
       reference: demand.repairOrder.repairOrderNumber,
+      repairOrderId: repairOrderIdFor(demand.repairOrder.repairOrderNumber),
       reservation: `${demand.quantityReserved}/${demand.quantityRequired}`,
       required: dateLabel(demand.requiredAt),
       status: demand.status,
@@ -270,6 +277,7 @@ export function PartsOperationsWorkspace({ initial, initialView }: { initial: Mo
       locationId: item.demand.repairOrder.locationId,
       part: `${item.demand.part.partNumber} · ${item.demand.part.description}`,
       reference: item.demand.repairOrder.repairOrderNumber,
+      repairOrderId: repairOrderIdFor(item.demand.repairOrder.repairOrderNumber),
       reservation: reservationQuantityByOrder.has(item.demand.repairOrder.repairOrderNumber) ? `${reservationQuantityByOrder.get(item.demand.repairOrder.repairOrderNumber)} reserved` : "None",
       required: dateLabel(item.requiredAt),
       status: item.status,
@@ -355,7 +363,8 @@ export function PartsOperationsWorkspace({ initial, initialView }: { initial: Mo
     };
     const matchesView = currentView === "overview" || kindsByView[currentView]?.includes(row.kind);
     const matchesQueueView = queueView !== "EXCEPTIONS" || row.tone === "danger";
-    return matchesType && matchesLocation && matchesView && matchesQueueView;
+    const matchesRepairOrder = !initialRepairOrderId || row.repairOrderId === initialRepairOrderId;
+    return matchesType && matchesLocation && matchesView && matchesQueueView && matchesRepairOrder;
   });
 
   const milestones = [
@@ -405,7 +414,7 @@ export function PartsOperationsWorkspace({ initial, initialView }: { initial: Mo
       </header>
 
       <nav aria-label="Parts Operations workspace" className="parts-operations-tabs">
-        {localTabs.map(([label, view]) => <Link aria-current={currentView === view ? "page" : undefined} className={currentView === view ? "active" : ""} href={partsHref(view)} key={label}>{label}</Link>)}
+        {localTabs.map(([label, view]) => <Link aria-current={currentView === view ? "page" : undefined} className={currentView === view ? "active" : ""} href={partsHref(view, initialRepairOrderId)} key={label}>{label}</Link>)}
       </nav>
 
       <section aria-label="Parts Operations filters" className="parts-operations-filters">
@@ -430,7 +439,7 @@ export function PartsOperationsWorkspace({ initial, initialView }: { initial: Mo
         <div className="parts-milestones">
           {milestones.map(([label, value, tone], index) => (
             <div className="parts-milestone-wrap" key={label}>
-              <Link className={`parts-milestone parts-state-${tone}`} href={partsHref(localTabs[Math.min(index + 1, localTabs.length - 1)][1])}><span>{label}</span><strong>{value}</strong><i /></Link>
+              <Link className={`parts-milestone parts-state-${tone}`} href={partsHref(localTabs[Math.min(index + 1, localTabs.length - 1)][1], initialRepairOrderId)}><span>{label}</span><strong>{value}</strong><i /></Link>
               {index < milestones.length - 1 ? <ArrowRight aria-hidden="true" size={14} /> : null}
             </div>
           ))}

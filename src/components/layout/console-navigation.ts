@@ -1,4 +1,4 @@
-import { BarChart3, BriefcaseBusiness, House, MessageSquareText, Plug, RefreshCw, Settings, ShieldCheck, Wrench } from "lucide-react";
+import { BarChart3, BriefcaseBusiness, ClipboardList, House, MessageSquareText, Plug, RefreshCw, Settings, ShieldCheck, Wrench } from "lucide-react";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { canManageSettings } from "@/server/policies/access";
@@ -50,11 +50,18 @@ const inventoryItems: NavigationItem[] = [
     icon: RefreshCw
   },
   {
-    activePaths: ["/vehicles/shop-recon", "/vehicles/parts-operations", "/vehicles/parts", "/vehicles/parts-counter", "/vehicles/service-close-parts", "/vehicles/repair-orders", "/vehicles/shop-planning", "/vehicles/shop-dispatch", "/vehicles/shop-production", "/vehicles/shop-metrics", "/vehicles/quality-control", "/vehicles/advisor", "/vehicles/comebacks"],
+    activePaths: ["/vehicles/shop-recon", "/vehicles/parts-operations", "/vehicles/parts", "/vehicles/parts-counter", "/vehicles/service-close-parts", "/vehicles/shop-planning", "/vehicles/shop-dispatch", "/vehicles/shop-production", "/vehicles/shop-metrics", "/vehicles/quality-control", "/vehicles/advisor", "/vehicles/comebacks"],
     href: "/vehicles/shop-recon",
     title: "Shop & Recon",
     description: "Daily production, capacity, constraints, and parts readiness.",
     icon: Wrench
+  },
+  {
+    activePaths: ["/vehicles/repair-workbench", "/vehicles/repair-orders"],
+    href: "/vehicles/repair-workbench",
+    title: "Repair Workbench",
+    description: "Find a repair order and open its enterprise execution workbench.",
+    icon: ClipboardList
   },
   {
     href: "/manager-review?scope=inventory&view=reviews",

@@ -67,10 +67,12 @@ describe("R7 Shop & Recon landing projection", () => {
     expect(model.reviews.quality).toBe(1);
   });
 
-  it("renders the approved Parts command, reviews, handoffs, and capability truth", () => {
+  it("renders service intake, Parts, reviews, handoffs, and capability truth", () => {
     const projection = buildShopReconProjection([order()], now);
     const html = renderToStaticMarkup(<ShopReconLanding model={{ ...projection, reviews: { ...projection.reviews, comebacks: 2 } }} />);
-    expect(html).toContain("Open Parts Operations");
+    expect(html).toContain("Check In Vehicle");
+    expect(html).toContain("/vehicles/repair-orders?intakeSource=WALK_IN");
+    expect(html).toContain("Parts Operations");
     expect(html).toContain("Customer Repair");
     expect(html).toContain("Inventory Recon");
     expect(html).toContain("Reviews &amp; Approvals");
@@ -79,5 +81,17 @@ describe("R7 Shop & Recon landing projection", () => {
     expect(html).toContain("At-Risk Completion");
     expect(html).toContain("External adapters: DISABLED");
     expect(html).not.toContain("/vehicles/shop-execution");
+  });
+
+  it("makes blocker category links change the rendered queue and active state", () => {
+    const projection = buildShopReconProjection([order({
+      repairJobs: [{ id: "job-1", jobNumber: "1", description: "Front brakes", status: "READY_FOR_REPAIR", partDemands: [{ quantityRequired: 2, quantityReserved: 0 }], dispatches: [] }],
+    })], now);
+    const html = renderToStaticMarkup(<ShopReconLanding initialBlocker="parts" model={projection} />);
+
+    expect(html).toContain('href="/vehicles/shop-recon?blocker=parts"');
+    expect(html).toContain('aria-current="page"');
+    expect(html).toContain("Part backorder");
+    expect(html).toContain('href="/vehicles/repair-workbench?repairOrderId=ro-1"');
   });
 });

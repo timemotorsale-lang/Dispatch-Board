@@ -1363,6 +1363,7 @@ model User {
   inventoryUnitStateEvents              InventoryUnitStateEvent[]              @relation("InventoryUnitStateActor")
   inventoryUnitStateOwnershipSnapshots  InventoryUnitStateEvent[]              @relation("InventoryUnitStateOwner")
   ownedRepairOrders                     RepairOrder[]                          @relation("RepairOrderOwner")
+  evaluatedServiceIntakeReadiness       ServiceIntakeReadinessSnapshot[]       @relation("ServiceIntakeReadinessEvaluator")
   createdServiceVisits                  ServiceVisit[]                         @relation("ServiceVisitCreatedBy")
   repairOrderStateEvents                RepairOrderStateEvent[]                @relation("RepairOrderStateActor")
   repairOrderStateOwnershipSnapshots    RepairOrderStateEvent[]                @relation("RepairOrderStateOwner")
@@ -1541,6 +1542,7 @@ model Organization {
   inventoryMerchandisingPackages        InventoryMerchandisingPackage[]
   inventorySaleEvents                   InventorySaleEvent[]
   serviceVisits                         ServiceVisit[]
+  serviceIntakeReadinessSnapshots       ServiceIntakeReadinessSnapshot[]
   repairOrders                          RepairOrder[]
   repairOrderStateEvents                RepairOrderStateEvent[]
   parts                                 Part[]
@@ -1665,6 +1667,7 @@ model Location {
   inventoryDispositionCases       InventoryDispositionCase[]
   inventoryUnitStateEvents        InventoryUnitStateEvent[]
   serviceVisits                   ServiceVisit[]
+  serviceIntakeReadinessSnapshots ServiceIntakeReadinessSnapshot[]
   repairOrders                    RepairOrder[]
   repairOrderStateEvents          RepairOrderStateEvent[]
   partStockLocations              PartStockLocation[]
@@ -1927,6 +1930,7 @@ model Appointment {
   resourceRequirements           AppointmentResourceRequirement[]
   resourceReservations           AppointmentResourceReservation[]
   serviceVisit                   ServiceVisit?
+  serviceIntakeReadinessSnapshots ServiceIntakeReadinessSnapshot[]
 
   @@index([locationId, startsAt, endsAt])
   @@index([locationId, bookingStatus, startsAt])
@@ -1995,6 +1999,7 @@ model Customer {
   documentRequirements         CustomerDocumentRequirement[]
   tasks                        Task[]
   serviceVisits                ServiceVisit[]
+  serviceIntakeReadinessSnapshots ServiceIntakeReadinessSnapshot[]
   repairOrders                 RepairOrder[]
 
   @@unique([organizationId, customerNumber])
@@ -2208,6 +2213,7 @@ model Vehicle {
   inventoryUnits            InventoryUnit[]
   inventoryAcquisitionCases InventoryAcquisitionCase[]
   serviceVisits             ServiceVisit[]
+  serviceIntakeReadinessSnapshots ServiceIntakeReadinessSnapshot[]
   repairOrders              RepairOrder[]
   evidenceLinks             VehicleEvidenceLink[]
   controlledOutputs         VehicleControlledOutput[]
@@ -2775,6 +2781,7 @@ model ServiceVisit {
   transportMode     RepairOrderTransportMode
   intakeNotes       String?
   sourceSnapshot    Json?
+  readinessSnapshotId String?                  @unique
   createdByUserId   String
   createdAt         DateTime                 @default(now())
   updatedAt         DateTime                 @updatedAt
@@ -2785,6 +2792,7 @@ model ServiceVisit {
   appointment       Appointment?             @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
   inventoryUnit     InventoryUnit?           @relation(fields: [inventoryUnitId], references: [id], onDelete: Restrict)
   createdByUser     User                     @relation("ServiceVisitCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  readinessSnapshot ServiceIntakeReadinessSnapshot? @relation(fields: [readinessSnapshotId], references: [id], onDelete: Restrict)
   repairOrder       RepairOrder?
 
   @@unique([id, organizationId])
@@ -2792,6 +2800,40 @@ model ServiceVisit {
   @@index([vehicleId, arrivedAt])
   @@index([customerId, arrivedAt])
   @@index([inventoryUnitId, arrivedAt])
+}
+
+model ServiceIntakeReadinessSnapshot {
+  id                String   @id
+  organizationId    String
+  locationId        String
+  appointmentId     String?
+  customerId        String
+  vehicleId         String
+  evaluatedByUserId String
+  contractVersion   String
+  policyVersion     String
+  status            String
+  confidence        String
+  diagnosisOutlook  String
+  promiseConfidence String
+  recommendation    String
+  facts             Json
+  checks            Json
+  generatedAt       DateTime
+  expiresAt         DateTime
+  createdAt         DateTime @default(now())
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location          Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  appointment       Appointment? @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  customer          Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  vehicle           Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  evaluatedByUser   User @relation("ServiceIntakeReadinessEvaluator", fields: [evaluatedByUserId], references: [id], onDelete: Restrict)
+  serviceVisit      ServiceVisit?
+
+  @@index([organizationId, locationId, generatedAt])
+  @@index([appointmentId, generatedAt])
+  @@index([customerId, vehicleId, generatedAt])
+  @@index([expiresAt])
 }
 
 model RepairOrder {

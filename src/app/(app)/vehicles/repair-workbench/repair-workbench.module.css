@@ -1,0 +1,72 @@
+.directory {
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.directory > :global(.page-copy) {
+  padding: 4px 2px;
+}
+
+.directory > :global(.panel-card) {
+  border-radius: 12px;
+}
+
+.directory form:global(.form-actions) {
+  align-items: end;
+}
+
+.directory form :global(.form-field) {
+  flex: 1 1 520px;
+}
+
+.orderList {
+  display: grid;
+  gap: 8px;
+}
+
+.order {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1.5fr) minmax(220px, 0.75fr) auto;
+  align-items: center;
+  gap: 14px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.order > span {
+  display: grid;
+  gap: 3px;
+}
+
+.order small {
+  color: #64748b;
+}
+
+.order > em {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 7px;
+  padding: 8px 10px;
+  color: #fff;
+  background: #0966d8;
+  font-style: normal;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+@media (max-width: 850px) {
+  .directory {
+    padding: 16px;
+  }
+
+  .order {
+    grid-template-columns: 24px minmax(0, 1fr);
+  }
+
+  .order > span:nth-of-type(2),
+  .order > em {
+    grid-column: 2;
+  }
+}

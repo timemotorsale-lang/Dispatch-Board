@@ -2,4 +2,4 @@ import { AcquisitionAppraisalWorkspace } from "@/features/inventory/acquisition-
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { getAcquisitionCaseOptions, listAcquisitionCases } from "@/server/acquisition-appraisal/service";
 
-export default async function AcquisitionAppraisalPage() { const user = await requireCurrentUser(); const [initial, options] = await Promise.all([listAcquisitionCases(user), getAcquisitionCaseOptions(user)]); return <AcquisitionAppraisalWorkspace initial={JSON.parse(JSON.stringify(initial))} options={JSON.parse(JSON.stringify(options))} />; }
+export default async function AcquisitionAppraisalPage({ searchParams }: { searchParams?: Promise<{ caseId?: string; vehicleId?: string }> }) { const user = await requireCurrentUser(); const params = searchParams ? await searchParams : {}; const [initial, options] = await Promise.all([listAcquisitionCases(user), getAcquisitionCaseOptions(user)]); return <AcquisitionAppraisalWorkspace initial={JSON.parse(JSON.stringify(initial))} initialCaseId={params.caseId} initialVehicleId={params.vehicleId} options={JSON.parse(JSON.stringify(options))} />; }
