@@ -11,10 +11,20 @@ function list(value: unknown): RecordItem[] { return Array.isArray(value) ? valu
 function text(value: unknown, fallback = "Unavailable") { return typeof value === "string" && value.trim() ? value.trim() : fallback; }
 
 async function defaultPacketReader(vehicleId: string) {
+  const packetDelegate = (prisma as Partial<Pick<typeof prisma, "inventoryWorkPacket">>)
+    .inventoryWorkPacket;
+
+  if (!packetDelegate) {
+    return {
+      unavailable: true,
+      reason: "Inventory execution data is temporarily unavailable while the data client is updated."
+    };
+  }
+
   try {
-    return await prisma.inventoryWorkPacket.findMany({ where: { vehicleId, state: { notIn: ["COMPLETED", "CANCELLED"] } }, include: { task: { select: { id: true, title: true, description: true, assignedUser: { select: { id: true, name: true } }, status: true, dueAt: true, checklistItems: { orderBy: { sortOrder: "asc" }, select: { id: true, label: true, isRequired: true, completed: true } } }, workSessions: { where: { status: { in: ["ACTIVE", "PAUSED"] } }, orderBy: { startedAt: "desc" }, take: 1 }, closeout: true, handoffs: { orderBy: { offeredAt: "desc" }, take: 5 } } }, orderBy: [{ state: "asc" }, { targetAt: "asc" }] });
+    return await packetDelegate.findMany({ where: { vehicleId, state: { notIn: ["COMPLETED", "CANCELLED"] } }, include: { task: { select: { id: true, title: true, description: true, assignedUser: { select: { id: true, name: true } }, status: true, dueAt: true, checklistItems: { orderBy: { sortOrder: "asc" }, select: { id: true, label: true, isRequired: true, completed: true } } }, workSessions: { where: { status: { in: ["ACTIVE", "PAUSED"] } }, orderBy: { startedAt: "desc" }, take: 1 }, closeout: true, handoffs: { orderBy: { offeredAt: "desc" }, take: 5 } } }, orderBy: [{ state: "asc" }, { targetAt: "asc" }] });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2021") return { unavailable: true, reason: "Inventory Work Packet migration is not applied in this environment." };
+    if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === "P2021" || error.code === "P2022")) return { unavailable: true, reason: "Inventory Work Packet migration is not applied in this environment." };
     throw error;
   }
 }

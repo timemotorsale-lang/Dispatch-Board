@@ -41,13 +41,18 @@ function assertSupportedDatabaseUrl() {
   );
 }
 
-function hasCurrentPrismaAppointmentModels(client: PrismaClient | undefined) {
-  return Boolean(client && "userLocationAccess" in client);
+function hasCurrentPrismaModels(client: PrismaClient | undefined) {
+  return Boolean(
+    client &&
+      "userLocationAccess" in client &&
+      "inventoryWorkPacket" in client &&
+      "inventoryWorkSession" in client
+  );
 }
 
 assertSupportedDatabaseUrl();
 
-export const prisma = hasCurrentPrismaAppointmentModels(globalForPrisma.prisma)
+export const prisma = hasCurrentPrismaModels(globalForPrisma.prisma)
   ? globalForPrisma.prisma!
   : new PrismaClient();
 

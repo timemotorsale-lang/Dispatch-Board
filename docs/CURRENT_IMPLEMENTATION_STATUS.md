@@ -8,6 +8,8 @@ A deeper client-loading slice now places the two largest interactive workspaces,
 
 The Inventory Console top bar also provides a direct Dispatch switch beside CCC Home. Inventory-local operating destinations remain in the Inventory sidebar, while the two cross-console destinations stay in the shared top-bar area.
 
+The Start Workflow route now fails independently from its optional Inventory execution recommendation. A stale generated Prisma client or an unapplied Inventory Work Packet schema returns an explicit unavailable advisory while the purpose-built workflow launcher continues to render. Development and production builds regenerate the Prisma client before Next.js starts, and the development Prisma singleton is refreshed when the Inventory execution delegates are missing.
+
 ## 2026-07-19 — Inventory Execution Operating System MVP
 
 The Inventory Execution Operating System MVP is repository-implemented on `codex/inventory-eos-mvp-implementation`. It adds a versioned Inventory Work Packet over the existing Task backbone; the official lifecycle Vehicle Card; a vehicle-centered execution Workbench; governed time sessions; rapid structured technician closeout; blocker, completion, and accepted-handoff controls; manager next-plan publication; deterministic readiness and next-best-work guidance; and an integrated receipt-to-recon launcher. The implementation reuses Vehicle 360, Repair Orders, Parts, Shop, evidence, authority, audit, and outbox foundations instead of creating parallel systems of record.
