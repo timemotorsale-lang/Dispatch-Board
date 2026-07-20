@@ -1,5 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 
+import { reusePrismaClient } from "@/server/db/prisma-client-lifecycle";
+
 const globalForPrisma = globalThis as typeof globalThis & {
   prisma?: PrismaClient;
 };
@@ -41,20 +43,9 @@ function assertSupportedDatabaseUrl() {
   );
 }
 
-function hasCurrentPrismaModels(client: PrismaClient | undefined) {
-  return Boolean(
-    client &&
-      "userLocationAccess" in client &&
-      "inventoryWorkPacket" in client &&
-      "inventoryWorkSession" in client
-  );
-}
-
 assertSupportedDatabaseUrl();
 
-export const prisma = hasCurrentPrismaModels(globalForPrisma.prisma)
-  ? globalForPrisma.prisma!
-  : new PrismaClient();
+export const prisma = reusePrismaClient(globalForPrisma.prisma, () => new PrismaClient());
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;

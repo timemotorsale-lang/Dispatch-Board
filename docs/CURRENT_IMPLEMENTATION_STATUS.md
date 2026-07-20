@@ -8,7 +8,7 @@ A deeper client-loading slice now places the two largest interactive workspaces,
 
 The Inventory Console top bar also provides a direct Dispatch switch beside CCC Home. Inventory-local operating destinations remain in the Inventory sidebar, while the two cross-console destinations stay in the shared top-bar area.
 
-The Start Workflow route now fails independently from its optional Inventory execution recommendation. A stale generated Prisma client or an unapplied Inventory Work Packet schema returns an explicit unavailable advisory while the purpose-built workflow launcher continues to render. Development and production builds regenerate the Prisma client before Next.js starts, and the development Prisma singleton is refreshed when the Inventory execution delegates are missing.
+The Start Workflow route now fails independently from its optional Inventory execution recommendation. A stale generated Prisma client or an unapplied Inventory Work Packet schema returns an explicit unavailable advisory while the purpose-built workflow launcher continues to render. Development and production builds regenerate the Prisma client before Next.js starts. The development Prisma singleton is always reused across hot reloads so compatibility checks cannot leak database connections; optional Inventory execution services perform their own delegate checks and degrade locally instead of replacing the shared client or failing the console.
 
 ## 2026-07-19 — Inventory Execution Operating System MVP
 
