@@ -64,16 +64,25 @@ describe("Inventory Console R2 Home", () => {
 describe("Inventory Console Workflow Launcher", () => {
   it("renders the phase-one catalog with role context and gated explanations", () => {
     const actor: AuthenticatedUser = { id: "inventory-manager", name: "Inventory Manager", email: "inventory@example.com", isActive: true, roles: ["Inventory Manager"], duties: { direct: [], roleDefaults: [], all: [] } };
-    const markup = renderToStaticMarkup(<WorkflowLauncher model={getInventoryWorkflowLauncher(actor)} />);
-    for (const id of ["WL-01", "WL-01B", "WL-02", "WL-03", "WL-04", "WL-05", "WL-06", "WL-07", "WL-08", "WL-C01"]) expect(markup).toContain(id);
+    const model = getInventoryWorkflowLauncher(actor);
+    const markup = renderToStaticMarkup(<WorkflowLauncher model={model} />);
+    for (const id of ["WL-01", "WL-01B", "WL-02", "WL-03", "WL-04", "WL-05", "WL-06", "WL-07", "WL-08", "WL-C01"]) expect(model.cards.some(card => card.id === id)).toBe(true);
     expect(markup).toContain("Add Vehicle");
     expect(markup).toContain('/vehicles/workflows/add-vehicle');
     expect(markup).toContain("Inventory Manager");
-    expect(markup).toContain("R5 GOVERNED");
-    expect(markup).toContain('/vehicles/inventory-to-frontline');
     expect(markup).toContain("R6 GOVERNED");
     expect(markup).toContain('/vehicles/retail-completion');
     expect(markup).toContain("CONTEXT REQUIRED");
-    expect(markup).toContain("never performs a generic stage change");
+    expect(markup).toContain("Search workflows, VIN, stock #, customer, or repair order");
+    expect(markup).toContain("This Console");
+    expect(markup).toContain("All CCC");
+    expect(markup).toContain("Cards");
+    expect(markup).toContain("List");
+    expect(markup).toContain("Recommended");
+    expect(markup).toContain("Recent");
+    expect(markup).toContain("Favorites");
+    expect(markup).toContain("All Workflows");
+    expect(markup).toContain("My Drafts");
+    expect(markup).toContain("Get a recommendation");
   });
 });

@@ -10,6 +10,8 @@
 
 **CCC brand source of truth:** [`docs/TIME_MOTOR_SALES_LOGO_SOURCE_OF_TRUTH.md`](TIME_MOTOR_SALES_LOGO_SOURCE_OF_TRUTH.md)
 
+**CCC Enterprise Workflow Launcher source of truth:** [`docs/CCC_ENTERPRISE_WORKFLOW_LAUNCHER_SOURCE_OF_TRUTH.md`](CCC_ENTERPRISE_WORKFLOW_LAUNCHER_SOURCE_OF_TRUTH.md)
+
 ---
 
 > **Enterprise optimization architecture:** The governing Constitution, common work model, algorithm specifications, validation rules, automation controls, and phased adoption path live in [`docs/enterprise-optimization/README.md`](enterprise-optimization/README.md). The [`Enterprise Optimization Constitution`](ENTERPRISE_OPTIMIZATION_CONSTITUTION.md) applies to optimization, recommendation, escalation, and automation across the Command Control Center and every operational console. Domain specifications may strengthen these rules but may not weaken their safety, compliance, authorization, evidence, explainability, or audit requirements. This package is an architecture baseline; it does not by itself activate application behavior.
@@ -17,6 +19,8 @@
 > **Projects Module planning package:** The dedicated Projects Module boundary, architecture shape, milestone plan, and Codex guidance live in [`docs/projects/PROJECTS_MODULE_GUIDE.md`](projects/PROJECTS_MODULE_GUIDE.md). That guide defines the Projects feature as a module inside the parent Dispatch Board, not a separate app rewrite.
 
 > **Enterprise Tasks Module planning package:** The task-module boundary, tier strategy, workflow rules, and milestone IDs live in [`docs/ENTERPRISE_TASKS_MODULE.md`](ENTERPRISE_TASKS_MODULE.md). That guide defines Tasks as an integrated Dispatch Board module, not a separate product or deployment.
+
+> **CCC Enterprise Workflow Launcher planning package:** The cross-console launcher experience, registry contract, workflow-family catalog, authority and recovery boundaries, and staged rollout gates live in [`docs/CCC_ENTERPRISE_WORKFLOW_LAUNCHER_SOURCE_OF_TRUTH.md`](CCC_ENTERPRISE_WORKFLOW_LAUNCHER_SOURCE_OF_TRUTH.md). It is a planning baseline and does not make catalog entries implemented or launchable.
 
 > **Customers Console planning package:** The customer-domain boundary, architecture decisions, rollout roadmap, and milestone IDs live in [`docs/customers/README.md`](customers/README.md). That package defines Customers as the customer intelligence and customer operations layer inside the Dispatch Board, not a separate CRM deployment or a copy of another product.
 

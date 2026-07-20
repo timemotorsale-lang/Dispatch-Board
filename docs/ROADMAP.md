@@ -16,6 +16,8 @@
 
 > **Staff Execution and Handoff planning package:** DB-ACCOUNTABILITY-059 architecture and its six feature-flagged implementation milestones live in [`docs/STAFF_EXECUTION_HANDOFF_ENGINE.md`](STAFF_EXECUTION_HANDOFF_ENGINE.md) and [`docs/STAFF_EXECUTION_HANDOFF_ROADMAP.md`](STAFF_EXECUTION_HANDOFF_ROADMAP.md). Use these documents for daily role checklists, Start Day, completion evidence, available-work matching, end-of-day handoff, carryover, and Team Execution Health.
 
+> **CCC Enterprise Workflow Launcher planning package:** The official launcher architecture, enterprise workflow-family catalog, and gated milestone sequence live in [`docs/CCC_ENTERPRISE_WORKFLOW_LAUNCHER_SOURCE_OF_TRUTH.md`](CCC_ENTERPRISE_WORKFLOW_LAUNCHER_SOURCE_OF_TRUTH.md). Use it for Start Workflow, Cards/List presentation, search, context, registry, permissions, drafts, receipts, and cross-console workflow onboarding. Catalog presence is not proof of implementation.
+
 ---
 
 ## How to use this roadmap
