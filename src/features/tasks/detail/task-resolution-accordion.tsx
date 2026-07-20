@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, ChevronDown, ChevronRight, Plus, UserRound } from "lucide-react";
+import { CalendarClock, ChevronDown, ChevronRight, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -53,7 +53,6 @@ export function TaskResolutionAccordion({
         <div className="etw-resolution-actions">
           <button onClick={() => setExpandedIds(new Set(tasks.map((item) => item.id)))} type="button">Expand All</button>
           <button onClick={() => setExpandedIds(new Set())} type="button">Collapse All</button>
-          <Link className="primary" href={`/tasks/intake?returnTo=${encodeURIComponent(`/tasks/${selectedTaskId}`)}${concernId ? `&concern=${encodeURIComponent(concernId)}` : ""}`}><Plus size={13} /> Task Intake</Link>
         </div>
         <div className="etw-progress" aria-label={`${completionPercent}% complete`}><span style={{ width: `${completionPercent}%` }} /></div>
       </header>

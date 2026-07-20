@@ -163,6 +163,10 @@ describe("task detail workspace", () => {
     expect(markup).toContain("No appointment is linked yet.");
     expect(markup).toContain("Estimated Time");
     expect(markup).toContain("Review completion");
+    expect(markup).toContain('class="etw-new-action"');
+    expect(markup).toContain("Task Intake");
+    expect(markup).not.toContain("+ New");
+    expect(markup).not.toContain('class="primary" href="/tasks/intake');
     expect(markup).toContain("Focus view");
     expect(markup).toContain("Collaborators");
     expect(markup).toContain("Share");

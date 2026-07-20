@@ -158,7 +158,7 @@ export function TaskDetailWorkspace({
       <header className="etw-command-bar">
         <div className="etw-brand"><ClipboardCheck size={20} /><div><strong>Time Motor Sales</strong><span>Task Resolution Workbench</span></div></div>
         <label className="etw-search"><span aria-hidden="true">/</span><input aria-label="Search workbench" placeholder="Search customers, vehicles, tasks, cases, VIN, anything..." /></label>
-        <div className="etw-command-actions"><Link href={returnTo}>Return to Tasks</Link><Link className="etw-new-action" href="/tasks?create=1">+ New</Link></div>
+        <div className="etw-command-actions"><Link href={returnTo}>Return to Tasks</Link><Link className="etw-new-action" href={`/tasks/intake?returnTo=${encodeURIComponent(`/tasks/${task.id}`)}${concern?.id ? `&concern=${encodeURIComponent(concern.id)}` : ""}`}>Task Intake</Link></div>
       </header>
 
       <nav className="etw-module-nav" aria-label="Workbench modules">
