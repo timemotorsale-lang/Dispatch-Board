@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import { APP_NAME } from "./config";
+import { appearanceInitializationScript } from "@/components/layout/appearance-config";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -19,7 +20,8 @@ type RootLayoutProps = {
 
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head><script dangerouslySetInnerHTML={{ __html: appearanceInitializationScript }} /></head>
       <body>{children}</body>
     </html>
   );

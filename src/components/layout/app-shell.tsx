@@ -16,6 +16,7 @@ import { getConsoleNavigation, isInventoryConsolePath } from "./console-navigati
 import { DispatchConsoleHeader } from "./dispatch-console-header";
 import { isDispatchConsolePath } from "./navigation";
 import { useWorkspaceMode, WorkspaceModeProvider } from "./workspace-mode";
+import { AppearanceProvider } from "./appearance";
 
 type AppShellProps = {
   children: ReactNode;
@@ -65,8 +66,10 @@ function AppShellContent({ children, user }: AppShellProps) {
 
 export function AppShell(props: AppShellProps) {
   return (
-    <WorkspaceModeProvider>
-      <AppShellContent {...props} />
-    </WorkspaceModeProvider>
+    <AppearanceProvider>
+      <WorkspaceModeProvider>
+        <AppShellContent {...props} />
+      </WorkspaceModeProvider>
+    </AppearanceProvider>
   );
 }

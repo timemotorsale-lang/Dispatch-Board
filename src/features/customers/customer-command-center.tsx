@@ -8,9 +8,8 @@ import {
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { useAppearance } from "@/components/layout/appearance";
 import type { Customer360ReadModel, Customer360Tab } from "@/server/services/customer-console-read-service";
-
-type CustomerTheme = "light" | "dark";
 const tabs: Array<{ label: string; value: Customer360Tab }> = [
   { label: "Overview", value: "overview" }, { label: "Timeline", value: "timeline" },
   { label: "Deals", value: "deals" }, { label: "Cases", value: "cases" },
@@ -31,30 +30,23 @@ const quickActions = [
   { label: "Schedule Appt", icon: CalendarDays }, { label: "Upload Doc", icon: Upload }
 ] as const;
 
-function setDocumentTheme(theme: CustomerTheme) {
-  document.body.classList.add("customer-console-shell");
-  document.body.classList.toggle("customer-console-dark-shell", theme === "dark");
-}
-
 export function CustomerCommandCenter({ customerId }: { customerId?: string } = {}) {
-  const [theme, setTheme] = useState<CustomerTheme>("light");
+  const { appearance: theme, setAppearance } = useAppearance();
   const [activeTab, setActiveTab] = useState<Customer360Tab>("overview");
   const [readModel, setReadModel] = useState<Customer360ReadModel | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [readError, setReadError] = useState("");
 
   useEffect(() => {
-    const savedTheme = window.localStorage.getItem("customer-console-theme");
-    const initialTheme: CustomerTheme = savedTheme === "dark" ? "dark" : "light";
-    const frame = window.requestAnimationFrame(() => {
-      setTheme(initialTheme);
-      setDocumentTheme(initialTheme);
-    });
+    document.body.classList.add("customer-console-shell");
     return () => {
-      window.cancelAnimationFrame(frame);
       document.body.classList.remove("customer-console-shell", "customer-console-dark-shell");
     };
   }, []);
+
+  useEffect(() => {
+    document.body.classList.toggle("customer-console-dark-shell", theme === "dark");
+  }, [theme]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -80,19 +72,13 @@ export function CustomerCommandCenter({ customerId }: { customerId?: string } = 
     return () => controller.abort();
   }, [activeTab, customerId]);
 
-  function selectTheme(nextTheme: CustomerTheme) {
-    setTheme(nextTheme);
-    setDocumentTheme(nextTheme);
-    window.localStorage.setItem("customer-console-theme", nextTheme);
-  }
-
   const customer = readModel?.customer;
   return (
     <section className="customer-console" data-theme={theme} aria-label="Customer 360 Console">
       <header className="customer-console-toolbar">
         <label className="customer-console-search"><Search size={17} /><input aria-label="Search Customer 360" placeholder="Search customers, leads, vehicles, cases, appointments..." type="search" /><kbd>Ctrl K</kbd></label>
         <nav className="customer-module-switcher" aria-label="Customer console sections"><Link href="/customers">Overview</Link><Link aria-current="page" className="active" href="/customers/customer-360">Customer 360</Link><Link href="/customers/resolutions">Resolution</Link></nav>
-        <div className="customer-theme-switch" aria-label="Customer console appearance" role="group"><button aria-label="Use light background" aria-pressed={theme === "light"} className={theme === "light" ? "customer-theme-option active" : "customer-theme-option"} onClick={() => selectTheme("light")} type="button"><Sun size={15} /> Light</button><button aria-label="Use dark background" aria-pressed={theme === "dark"} className={theme === "dark" ? "customer-theme-option active" : "customer-theme-option"} onClick={() => selectTheme("dark")} type="button"><Moon size={15} /> Dark</button></div>
+        <div className="customer-theme-switch" aria-label="Customer console appearance" role="group"><button aria-label="Use light background" aria-pressed={theme === "light"} className={theme === "light" ? "customer-theme-option active" : "customer-theme-option"} onClick={() => setAppearance("light")} type="button"><Sun size={15} /> Light</button><button aria-label="Use dark background" aria-pressed={theme === "dark"} className={theme === "dark" ? "customer-theme-option active" : "customer-theme-option"} onClick={() => setAppearance("dark")} type="button"><Moon size={15} /> Dark</button></div>
         <button className="customer-quick-action" type="button"><Plus size={16} /> Quick Action</button>
       </header>
 

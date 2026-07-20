@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Building2, CalendarDays, Columns3, House, Menu, Search } from "lucide-react";
+import { Bell, Building2, CalendarDays, Columns3, House, Menu, Moon, Search, Sun } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -11,6 +11,7 @@ import { TimeMotorSalesLogo } from "@/components/brand/time-motor-sales-logo";
 
 import { getDispatchNavigationItems, getNavigationGroups, isDispatchConsolePath } from "./navigation";
 import { isInventoryConsolePath } from "./console-navigation";
+import { useAppearance } from "./appearance";
 
 type AppTopbarProps = { commandCenterHome: boolean; onMenuOpen(): void; showNavigationMenu: boolean; user: AuthenticatedUser };
 
@@ -49,6 +50,7 @@ function getBreadcrumb(pathname: string, dispatchView: "overview" | "live") {
 }
 
 export function AppTopbar({ commandCenterHome, onMenuOpen, showNavigationMenu, user }: AppTopbarProps) {
+  const { appearance, setAppearance } = useAppearance();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const dispatchView = searchParams.get("view") === "live" ? "live" : "overview";
@@ -139,6 +141,10 @@ export function AppTopbar({ commandCenterHome, onMenuOpen, showNavigationMenu, u
       <span className="ccc-dispatch-status"><i aria-hidden="true" />{commandCenterHome ? "CCC online" : inventoryConsole ? "Inventory live" : dispatchConsole ? "Dispatch online" : "Console active"}</span>
 
       <div className="topbar-actions" ref={actionsRef}>
+        <div aria-label="Application appearance" className="app-appearance-switch" role="group">
+          <button aria-label="Use light appearance" aria-pressed={appearance === "light"} className={appearance === "light" ? "active" : ""} onClick={() => setAppearance("light")} title="Light appearance" type="button"><Sun size={14} /><span>Light</span></button>
+          <button aria-label="Use dark appearance" aria-pressed={appearance === "dark"} className={appearance === "dark" ? "active" : ""} onClick={() => setAppearance("dark")} title="Dark appearance" type="button"><Moon size={14} /><span>Dark</span></button>
+        </div>
         <div className="topbar-popover-shell ccc-search-shell">
           <button
             aria-expanded={isSearchOpen}
