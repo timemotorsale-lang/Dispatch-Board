@@ -33,6 +33,8 @@ The console owns the evidence-driven diagnostic case and reasoning lifecycle. It
 14. [`DIAGNOSTICS_IMPLEMENTATION_MILESTONES.md`](DIAGNOSTICS_IMPLEMENTATION_MILESTONES.md) — reviewable vertical slices, dependencies, evidence, and exit gates.
 15. [`DIAGNOSTICS_IMPLEMENTATION_MASTER_PLAN.md`](DIAGNOSTICS_IMPLEMENTATION_MASTER_PLAN.md) — consolidated implementation architecture, delivery waves, critical path, and detailed scope/evidence for all 50 milestones.
 16. [`DIAGNOSTICS_TECHNICIAN_WORKSPACE_UI_SOURCE_OF_TRUTH.md`](DIAGNOSTICS_TECHNICIAN_WORKSPACE_UI_SOURCE_OF_TRUTH.md) — provisionally approved technician-facing visual direction, role boundary, simplicity rules, and required usability validation.
+17. [`DIAGNOSTICS_ENTERPRISE_LABOR_GUIDE_UI_SOURCE_OF_TRUTH.md`](DIAGNOSTICS_ENTERPRISE_LABOR_GUIDE_UI_SOURCE_OF_TRUTH.md) — provisionally approved Enterprise Labor Guide landing-page mockup, advisor/technician/manager role boundaries, and implementation acceptance rules.
+18. [`DIAGNOSTICS_ENTERPRISE_LABOR_GUIDE_UI_BACKEND_CONTEXT.md`](DIAGNOSTICS_ENTERPRISE_LABOR_GUIDE_UI_BACKEND_CONTEXT.md) — adopted backend/product behavior context for the light Labor Guide mockup, DVI-to-estimate conversion, one-click draft creation, labor intelligence, parts query boundaries, and audit rules.
 
 ## Implementation Records
 
