@@ -85,35 +85,35 @@ For the expanded build scope, affected layers, critical path, day-one boundary, 
 
 **Gate `DG-G4`:** diagnosis, authorization, execution, and verified closure are fully traceable without authority leakage.
 
-### Knowledge Operations and Pilot — `DGN-035` through `DGN-041`
+### Release 3 — Estimate Intelligence and Repair Execution Planning — `DGN-035` through `DGN-044`
 
 | ID | Deliverable | Depends on | Exit evidence |
 | --- | --- | --- | --- |
-| `DGN-035` | Knowledge source, applicability, review, release, suspension, retirement, and withdrawal services. | 004, 020 | Policy, separation-of-duty, affected-case, and rollback tests. |
-| `DGN-036` | Diagnostic Procedure Authoring Studio for ontology/rule/test/calculation administration with schema validation, semantic diff, affected-case analysis, and simulation preview. | 021–027, 035 | Invalid release rejection, source/applicability review, diff, scenario result, separation of duties, approval, and rollback evidence. |
-| `DGN-037` | Knowledge quality, source freshness, active-version, and affected-case dashboard. | 035–036 | Reconciled read models and alert proof. |
-| `DGN-038` | Operational metrics, outcome attribution, override/abstention, verification, and comeback dashboard. | 033–037 | Metric definitions reconcile to case-level records; anti-gaming review. |
-| `DGN-039` | Shadow-mode run using historical/synthetic approved cases. | 027, 034–038 | Accuracy is not the sole gate: safety, abstention, explanation, time, and data-quality thresholds reported. |
-| `DGN-040` | Limited pilot with named users, case types, support, kill switch, and daily review. | 039 | Approved pilot report; no unresolved critical safety, privacy, integrity, or recovery defect. |
-| `DGN-041` | Day-one rollout decision and runbooks. | 040 | Explicit `APPROVE`, `HOLD`, or `ROLL_BACK` decision with signoffs and current evidence. |
+| `DGN-035` | **Complete — planning only.** Release 3 Pilot Readiness Gate for estimate-intelligence shadow/pilot activation. See [`implementation/DGN_035_044_ESTIMATE_INTELLIGENCE_PLANNING.md`](implementation/DGN_035_044_ESTIMATE_INTELLIGENCE_PLANNING.md). | 034 | Gate checklist, allowed users/case types, kill switch, rollback, and DG-G4 hold review; no runtime behavior claimed. |
+| `DGN-036` | **Complete — planning only.** Advisor Review Workspace for cause, correction, risk, proof, customer language, and estimate readiness. | 035 | Advisor-visible proven/assumed/blocked/customer-presentable states defined; implementation deferred. |
+| `DGN-037` | **Complete — planning only.** Estimate Draft Contract from diagnostic repair handoff into existing Repair Estimate authority. | 036 | Draft lines, totals, fees/taxes, risk reserves, expiration, lineage, and replay rules defined; implementation deferred. |
+| `DGN-038` | **Complete — planning only.** Selectable Estimate Strategy Engine with model registry, comparison, checksums, audit, and overrides. | 037 | DispatchBoard Standard, Three-Tier Labor Guide, and Elite Enterprise strategy contracts adopted; implementation deferred. |
+| `DGN-039` | **Complete — planning only.** Enterprise Labor Guide Module for labor operation catalog, book-hour ranges, low/medium/high tiers, skill/tool/bay needs, safety, source lineage, and overrides. | 038 | Versioned, attributable labor recommendations defined; implementation deferred. |
+| `DGN-040` | **Complete — planning only.** Parts Demand and GP Curve Mapping with fitment, substitutes, availability, ETA, and markup boundaries. | 038–039 | Parts recommendation boundary into existing Parts authority defined; implementation deferred. |
+| `DGN-041` | **Complete — planning only.** Labor Economics, Bump, and Margin Protection for short-job friction, minimum economics, tier-rate interaction, and capped effective rates. | 039 | Labor-pricing explanation, cap, disallow, manager-review, and margin-leak warning rules defined; implementation deferred. |
+| `DGN-042` | **Complete — planning only.** Capacity and Dispatch Impact Model for technician skill, bay/lift/tool constraints, hours, blockers, and feasible windows. | 039–041 | Execution feasibility display defined without appointment booking or technician assignment; implementation deferred. |
+| `DGN-043` | **Complete — planning only.** Customer Explanation and Heat-Risk Hooks for advisor-ready language and future sentiment monitoring. | 037–042 | Concern/cause/correction/consequence/verification language and advisory-only heat hooks defined; implementation deferred. |
+| `DGN-044` | **Complete — planning only.** Repair Execution Handoff Gate from approved estimate to jobs, parts, dispatch, QC, and verification. | 037–043 | Exact lineage and no cross-domain mutation leakage rules defined; implementation deferred. |
 
-**Gates `DG-G5` and `DG-G6`:** knowledge operations are safe and the initial production pilot earns an explicit rollout decision.
+**Gate `DG-G5`:** Release 3 may proceed to implementation only after the selectable estimate strategy contract, authority boundaries, and advisor acceptance criteria are approved.
 
-### Expansion, Learning, and AI — `DGN-042` through `DGN-050`
+### Knowledge Operations, Expansion, Learning, and AI — `DGN-045` through `DGN-050`
 
 | ID | Deliverable | Depends on | Exit evidence |
 | --- | --- | --- | --- |
-| `DGN-042` | Repeatable diagnostic-family release template and review board. | 035–041 | One second system family completes the full release template. |
-| `DGN-043` | Cooling/overheating family. | 042 | Sources, hazards, scenarios, shadow, limited rollout, monitoring. |
-| `DGN-044` | Brake noise/pulsation/hydraulic family with elevated safety controls. | 042–043 | Independent safety review and verification/QC proof. |
-| `DGN-045` | HVAC and misfire/drivability family releases. | 042–044 | Separate applicability, scenario, and rollout evidence per family. |
-| `DGN-046` | Similar verified-case retrieval and outcome analytics. | 038–042 | Permission, de-identification where required, relevance, and false-analogy tests. |
-| `DGN-047` | Controlled calibration proposal workflow; no autonomous rule change. | 038, 046 | Offline simulation, independent approval, shadow, rollback, and drift monitoring. |
-| `DGN-048` | Provider-neutral AI gateway, governed retrieval, citations, prompt/model/tool registry, and kill switch. | 035–047 | Privacy, access, injection, source, latency, cost, and disabled-mode tests. |
-| `DGN-049` | AI-assisted dictation, summaries, missing-evidence detection, and approved-procedure explanation. | 048 | Groundedness, structured-output, abstention, harmful-output, and human-confirmation evaluation. |
-| `DGN-050` | AI hypothesis/test-plan/similar-case drafts in shadow then limited assistive mode. | 046, 048–049 | Technical review, comparative evaluation, override/outcome monitoring, explicit promotion decision. |
+| `DGN-045` | Knowledge source, applicability, review, release, suspension, retirement, and withdrawal services. | 004, 020, 044 | Policy, separation-of-duty, affected-case, and rollback tests. |
+| `DGN-046` | Diagnostic Procedure Authoring Studio and repeatable diagnostic-family release template. | 021–027, 045 | Invalid release rejection, source/applicability review, diff, scenario result, separation of duties, approval, and rollback evidence. |
+| `DGN-047` | Operational metrics, outcome attribution, override/abstention, verification, comeback, and estimate-performance dashboard. | 038–045 | Metric definitions reconcile to case-level and estimate-level records; anti-gaming review. |
+| `DGN-048` | Controlled learning and calibration proposal workflow; no autonomous rule or pricing change. | 047 | Offline simulation, independent approval, shadow, rollback, and drift monitoring. |
+| `DGN-049` | Provider-neutral AI gateway, governed retrieval, citations, prompt/model/tool registry, and kill switch. | 045–048 | Privacy, access, injection, source, latency, cost, and disabled-mode tests. |
+| `DGN-050` | AI-assisted dictation, summaries, missing-evidence detection, customer explanation drafts, and hypothesis/test-plan drafts in shadow then limited assistive mode. | 046, 048–049 | Groundedness, structured-output, abstention, harmful-output, human-confirmation, comparative evaluation, and explicit promotion decision. |
 
-**Gates `DG-G7` through `DG-G9`:** system expansion is repeatable, learning is governed, and AI earns only bounded assistive authority.
+**Gates `DG-G6` through `DG-G9`:** knowledge operations are safe, learning is governed, system expansion is repeatable, and AI earns only bounded assistive authority.
 
 ## Definition of Day-One Production Readiness
 

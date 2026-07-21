@@ -46,7 +46,7 @@ The library rejects non-finite values, invalid dimensions/units, impossible nega
 ## Explicitly not delivered
 
 - No external or licensed content ingestion.
-- No knowledge-administration service or Procedure Authoring Studio; those remain DGN-035–036.
+- No knowledge-administration service or Procedure Authoring Studio; those are now carried forward under DGN-045–046.
 - No database deployment, production seed activation, or rollout enablement.
 - No hypotheses, conflict sets, causal evaluation, next-test ranking, conclusion, repair handoff, or verification execution; those begin with DGN-022.
 - No assertion of all-make, vehicle-specific, or production diagnostic coverage.
