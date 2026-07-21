@@ -481,6 +481,12 @@ The approved vehicle-intake and repair-order mockups are now official product do
 
 The approved references and behavioral contract are maintained in [`docs/inventory/VEHICLE_SERVICE_INTAKE_AND_REPAIR_ORDER_UI_SOURCE_OF_TRUTH.md`](inventory/VEHICLE_SERVICE_INTAKE_AND_REPAIR_ORDER_UI_SOURCE_OF_TRUTH.md). Suggested diagnostic steps remain advisory and do not assert a cause or authorize repair work.
 
+## Enterprise Diagnostics Console Planning Baseline — 2026-07-20
+
+An independent Enterprise Diagnostics Console has been approved as a first-class bounded domain inside Dispatch Board. The official planning package now includes the architecture, current-market capability benchmark, diagnostic algorithm catalog, consistency and causal reasoning specification, automotive ontology and knowledge graph, integrated diagnostic lab suite, scan/live-data/network intelligence, electrical and waveform diagnostics, intermittent-fault investigation, procedure authoring/release, simulation/benchmark/training, diagnostic quality/mastery/verification, phased roadmap, 50 implementation milestones, and a consolidated implementation master plan. The package is maintained in [`docs/diagnostics/README.md`](diagnostics/README.md). The planned console will reuse canonical vehicle, repair-order, evidence, task, appointment, parts, estimate, authorization, repair-job, QC, audit, and activity foundations while owning diagnostic cases, hypotheses, tests, reasoning, conclusions, recommendations, and verification.
+
+This is planning status only. The `/diagnostics` console, diagnostic-case persistence, reasoning engine, knowledge administration, hardware adapters, and initial starting/charging/no-start workflow are not implemented by this package.
+
 ## Current Execution Order
 
 1. Complete and accept Appointment architecture decisions.
