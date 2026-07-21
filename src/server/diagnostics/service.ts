@@ -13,6 +13,7 @@ import {
   normalizeDiagnosticTransition
 } from "./domain";
 import { diagnosticFactId, normalizeDiagnosticEvidenceLink, normalizeDiagnosticMeasurement, normalizeDiagnosticObservation } from "./evidence-domain";
+import { diagnosticTestId, normalizeDiagnosticTestDefinition, normalizeDiagnosticTestLifecycle, normalizeDiagnosticTestPlan, type DiagnosticTestLifecycleAction } from "./test-execution-domain";
 import { createDiagnosticCaseRepository, type DiagnosticCaseDetailRecord, type DiagnosticCaseIdentityRecord, type DiagnosticCaseRepository } from "./repository";
 
 type Dependencies = {
@@ -37,8 +38,8 @@ function payload(value: unknown) {
   return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
 }
 
-function command(input: { actorUserId: string; commandType: string; expectedVersion: number; idempotencyKey: string; locationId: string; organizationId: string; payload: Record<string, unknown>; reason: string; subjectId: string }) {
-  return normalizeEnterpriseCommand({ ...input, domain: "DIAGNOSTICS", subjectType: "DIAGNOSTIC_CASE" });
+function command(input: { actorUserId: string; commandType: string; expectedVersion: number; idempotencyKey: string; locationId: string | null; organizationId: string; payload: Record<string, unknown>; reason: string; subjectId: string; subjectType?: string }) {
+  return normalizeEnterpriseCommand({ ...input, domain: "DIAGNOSTICS", subjectType: input.subjectType ?? "DIAGNOSTIC_CASE" });
 }
 
 async function grantsFor(user: AuthenticatedUser, context: ReturnType<typeof dependencies>) {
@@ -81,10 +82,16 @@ export async function listDiagnosticCases(actor: AuthenticatedUser | null, input
 export async function getDiagnosticCase(actor: AuthenticatedUser | null, caseId: string, input: Dependencies = {}) {
   const context = dependencies(input);
   const identity = await loadCaseIdentity(caseId, context);
-  await authorize(actor, "DIAGNOSTIC_CASE_VIEW", identity.locationId, context, identity.assignedUserId);
+  const { grants, user } = await authorize(actor, "DIAGNOSTIC_CASE_VIEW", identity.locationId, context, identity.assignedUserId);
   const detail = await context.repository.get(context.organizationId, caseId);
   if (!detail) throw new Error("Diagnostic case was not found.");
-  return detail;
+  const now = context.now();
+  const facts = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_EVIDENCE_VIEW", grants, locationId: identity.locationId, now, resourceOwnerUserId: identity.assignedUserId }).allowed;
+  const vehicleEvidence = evaluateVehicleCapability({ actor: user, capability: "VEHICLE_EVIDENCE_VIEW", grants, locationId: null, now }).allowed;
+  const restricted = evaluateVehicleCapability({ actor: user, capability: "VEHICLE_EVIDENCE_RESTRICTED_VIEW", grants, locationId: null, now }).allowed;
+  const plan = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_TEST_PLAN_MANAGE", grants, locationId: identity.locationId, now, resourceOwnerUserId: identity.assignedUserId }).allowed;
+  const execute = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_TEST_EXECUTE", grants, locationId: identity.locationId, now, resourceOwnerUserId: identity.assignedUserId }).allowed;
+  return projectCase(detail, now, { facts, attachments: facts && vehicleEvidence, restricted, tests: facts && (plan || execute) });
 }
 
 export async function createDiagnosticCase(actor: AuthenticatedUser | null, value: unknown, input: Dependencies = {}) {
@@ -173,6 +180,61 @@ export async function transitionDiagnosticCase(actor: AuthenticatedUser | null, 
   }), { occurredAt, reasonCode: data.reasonCode, targetStatus: data.targetStatus });
 }
 
+export async function registerDiagnosticTestDefinition(actor: AuthenticatedUser | null, value: unknown, input: Dependencies = {}) {
+  const context = dependencies(input);
+  const data = normalizeDiagnosticTestDefinition(value, context.now());
+  const user = assertAuthenticatedUser(actor);
+  if (!isManager(user)) throw new Error("Diagnostic test-definition management requires manager authority.");
+  await authorize(actor, "DIAGNOSTIC_TEST_DEFINITION_MANAGE", null, context, null, true, "DIAGNOSTIC_EVIDENCE");
+  if (!context.repository.registerTestDefinition) throw new Error("Diagnostic test-definition persistence is unavailable.");
+  const subjectId = diagnosticTestId("dtd", context.organizationId, data.definitionKey, "aggregate");
+  const id = diagnosticTestId("dtd", context.organizationId, data.definitionKey, String(data.definitionVersion));
+  return context.repository.registerTestDefinition(command({ actorUserId: user.id, commandType: "REGISTER_DIAGNOSTIC_TEST_DEFINITION", expectedVersion: data.expectedVersion, idempotencyKey: data.idempotencyKey, locationId: null, organizationId: context.organizationId, payload: payload({ definitionKey: data.definitionKey, definitionVersion: data.definitionVersion, checksum: data.checksum, supersedesId: data.supersedesId }), reason: data.reason, subjectId, subjectType: "DIAGNOSTIC_TEST_DEFINITION" }), { ...data, id });
+}
+
+export async function listDiagnosticTestDefinitions(actor: AuthenticatedUser | null, input: Dependencies = {}) {
+  const context = dependencies(input);
+  await authorize(actor, "DIAGNOSTIC_TEST_PLAN_MANAGE", null, context);
+  if (!context.repository.listTestDefinitions) throw new Error("Diagnostic test-definition projection is unavailable.");
+  const now = context.now();
+  return (await context.repository.listTestDefinitions(context.organizationId)).map((definition) => ({
+    id: definition.id, definitionKey: definition.definitionKey, version: definition.version, name: definition.name, purpose: definition.purpose,
+    ontologyLinks: definition.ontologyLinks, applicability: definition.applicability, qualifications: definition.qualifications, hazards: definition.hazards,
+    prerequisites: definition.prerequisites, tools: definition.tools, vehicleState: definition.vehicleState, procedure: definition.procedure, branches: definition.branches,
+    interpretations: definition.interpretations, requiredEvidence: definition.requiredEvidence, sourceVersions: definition.sourceVersions,
+    estimatedMinutes: definition.estimatedMinutes, estimatedCostDecimal: definition.estimatedCostDecimal?.toString() ?? null, riskTier: definition.riskTier,
+    checksum: definition.checksum, effectiveAt: definition.effectiveAt.toISOString(), expiresAt: definition.expiresAt?.toISOString() ?? null,
+    supersedesId: definition.supersedesId, supersededById: definition.supersededBy?.id ?? null,
+    executable: !definition.supersededBy && definition.effectiveAt <= now && (!definition.expiresAt || definition.expiresAt > now) && definition.riskTier !== "R4"
+  }));
+}
+
+export async function createDiagnosticTestPlan(actor: AuthenticatedUser | null, caseId: string, value: unknown, input: Dependencies = {}) {
+  const context = dependencies(input);
+  const data = normalizeDiagnosticTestPlan(value);
+  const diagnosticCase = await loadCaseIdentity(caseId, context);
+  const { user } = await authorize(actor, "DIAGNOSTIC_TEST_PLAN_MANAGE", diagnosticCase.locationId, context, diagnosticCase.assignedUserId, true, "DIAGNOSTIC_EVIDENCE");
+  assertOwnerTransition(user, diagnosticCase);
+  if (!context.repository.createTestPlan) throw new Error("Diagnostic test-plan persistence is unavailable.");
+  const id = diagnosticTestId("dtp", context.organizationId, diagnosticCase.id, data.idempotencyKey);
+  const nodeIds = data.nodes.map((node) => diagnosticTestId("dtn", context.organizationId, id, node.nodeKey));
+  return context.repository.createTestPlan(command({ actorUserId: user.id, commandType: data.supersedesId ? "REVISE_DIAGNOSTIC_TEST_PLAN" : "CREATE_DIAGNOSTIC_TEST_PLAN", expectedVersion: data.expectedVersion, idempotencyKey: data.idempotencyKey, locationId: diagnosticCase.locationId, organizationId: context.organizationId, payload: payload({ graphChecksum: data.graphChecksum, nodeCount: data.nodes.length, supersedesId: data.supersedesId }), reason: data.reason, subjectId: diagnosticCase.id }), { ...data, id, nodeIds });
+}
+
+const lifecycleCommandTypes: Record<DiagnosticTestLifecycleAction, string> = { START: "START_DIAGNOSTIC_TEST", PAUSE: "PAUSE_DIAGNOSTIC_TEST", RESUME: "RESUME_DIAGNOSTIC_TEST", COMPLETE: "COMPLETE_DIAGNOSTIC_TEST", INVALIDATE: "INVALIDATE_DIAGNOSTIC_TEST", CANCEL: "CANCEL_DIAGNOSTIC_TEST" };
+
+export async function executeDiagnosticTestLifecycle(actor: AuthenticatedUser | null, caseId: string, action: DiagnosticTestLifecycleAction, value: unknown, input: Dependencies = {}) {
+  const context = dependencies(input);
+  const data = normalizeDiagnosticTestLifecycle(value, action, context.now());
+  const diagnosticCase = await loadCaseIdentity(caseId, context);
+  const { user } = await authorize(actor, "DIAGNOSTIC_TEST_EXECUTE", diagnosticCase.locationId, context, diagnosticCase.assignedUserId, true, "DIAGNOSTIC_EVIDENCE");
+  assertOwnerTransition(user, diagnosticCase);
+  if (!context.repository.executeTestLifecycle) throw new Error("Diagnostic test-execution persistence is unavailable.");
+  const executionKey = data.executionKey ?? diagnosticTestId("dte", context.organizationId, diagnosticCase.id, data.idempotencyKey);
+  const eventId = diagnosticTestId("dte", context.organizationId, executionKey, data.idempotencyKey);
+  return context.repository.executeTestLifecycle(command({ actorUserId: user.id, commandType: lifecycleCommandTypes[action], expectedVersion: data.expectedVersion, idempotencyKey: data.idempotencyKey, locationId: diagnosticCase.locationId, organizationId: context.organizationId, payload: payload({ action, executionKey, planNodeId: data.planNodeId, reasonCode: data.reasonCode, repeatOfExecutionKey: data.repeatOfExecutionKey }), reason: data.reason, subjectId: diagnosticCase.id }), { ...data, eventId, executionKey });
+}
+
 export async function recordDiagnosticObservation(actor: AuthenticatedUser | null, caseId: string, value: unknown, input: Dependencies = {}) {
   const context = dependencies(input);
   const data = normalizeDiagnosticObservation(value, context.now());
@@ -256,7 +318,7 @@ function blocker(diagnosticCase: DiagnosticCaseDetailRecord) {
   return null;
 }
 
-function projectCase(diagnosticCase: DiagnosticCaseDetailRecord, now: Date, evidenceAccess: { attachments: boolean; facts: boolean; restricted: boolean } = { attachments: false, facts: false, restricted: false }) {
+function projectCase(diagnosticCase: DiagnosticCaseDetailRecord, now: Date, evidenceAccess: { attachments: boolean; facts: boolean; restricted: boolean; tests?: boolean } = { attachments: false, facts: false, restricted: false, tests: false }) {
   const concern = diagnosticCase.concernVersions[0];
   const vehicleLabel = [diagnosticCase.vehicle.year, diagnosticCase.vehicle.make, diagnosticCase.vehicle.model].filter(Boolean).join(" ") || diagnosticCase.vehicle.vehicleNumber;
   return {
@@ -308,6 +370,20 @@ function projectCase(diagnosticCase: DiagnosticCaseDetailRecord, now: Date, evid
       id: link.id, evidenceObjectId: link.evidenceObjectId, subjectType: link.subjectType, subjectId: link.subjectId, purpose: link.purpose, relationship: link.relationship,
       createdByUser: link.createdByUser, createdAt: link.createdAt.toISOString(),
       evidence: { ...link.evidenceObject, retentionUntil: link.evidenceObject.retentionUntil.toISOString(), createdAt: link.evidenceObject.createdAt.toISOString(), downloadUrl: link.evidenceObject.status === "AVAILABLE" && link.evidenceObject.malwareStatus === "CLEAN" ? `/api/vehicle-evidence/${encodeURIComponent(link.evidenceObject.id)}/content` : null }
+    })) : [],
+    testPlans: evidenceAccess.tests ? diagnosticCase.testPlanVersions.map((plan) => ({
+      id: plan.id, version: plan.version, status: plan.supersededBy ? "SUPERSEDED" : plan.status, rationale: plan.rationale, applicability: plan.applicability, graphChecksum: plan.graphChecksum,
+      supersedesId: plan.supersedesId, supersededById: plan.supersededBy?.id ?? null, authoredByUser: plan.authoredByUser, createdAt: plan.createdAt.toISOString(),
+      nodes: plan.nodes.map((node) => ({ id: node.id, nodeKey: node.nodeKey, sequence: node.sequence, title: node.title, dependencyNodeKeys: node.dependencyNodeKeys, branchRules: node.branchRules, requiredEvidenceOverride: node.requiredEvidenceOverride,
+        definition: { id: node.definitionVersion.id, definitionKey: node.definitionVersion.definitionKey, version: node.definitionVersion.version, name: node.definitionVersion.name, purpose: node.definitionVersion.purpose, qualifications: node.definitionVersion.qualifications, hazards: node.definitionVersion.hazards, prerequisites: node.definitionVersion.prerequisites, tools: node.definitionVersion.tools, vehicleState: node.definitionVersion.vehicleState, procedure: node.definitionVersion.procedure, branches: node.definitionVersion.branches, interpretations: node.definitionVersion.interpretations, requiredEvidence: node.definitionVersion.requiredEvidence, estimatedMinutes: node.definitionVersion.estimatedMinutes, riskTier: node.definitionVersion.riskTier, checksum: node.definitionVersion.checksum, effectiveAt: node.definitionVersion.effectiveAt.toISOString(), expiresAt: node.definitionVersion.expiresAt?.toISOString() ?? null } }))
+    })) : [],
+    testExecutions: evidenceAccess.tests ? diagnosticCase.testExecutions.map((execution) => ({
+      id: execution.id, executionKey: execution.executionKey, revision: execution.revision, state: execution.state, planNode: execution.planNode,
+      definitionVersionId: execution.definitionVersionId, reasonCode: execution.reasonCode, reason: execution.reason, actualConditions: execution.actualConditions,
+      deviations: execution.deviations, inputs: execution.inputs, results: execution.results, evidenceSummary: execution.evidenceSummary, prerequisiteSnapshot: execution.prerequisiteSnapshot,
+      actorUser: execution.actorUser, previousEventId: execution.previousEventId, repeatOfExecutionKey: execution.repeatOfExecutionKey,
+      startedAt: execution.startedAt?.toISOString() ?? null, pausedAt: execution.pausedAt?.toISOString() ?? null, completedAt: execution.completedAt?.toISOString() ?? null,
+      invalidatedAt: execution.invalidatedAt?.toISOString() ?? null, cancelledAt: execution.cancelledAt?.toISOString() ?? null, occurredAt: execution.occurredAt.toISOString()
     })) : [],
     timeline: diagnosticCase.stateEvents.map((event) => ({
       id: event.id,
@@ -384,6 +460,8 @@ export async function getDiagnosticCaseWorkspace(actor: AuthenticatedUser | null
   const evidenceOwner = isManager(user) || detail.assignedUserId === user.id;
   const canRecordEvidence = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_EVIDENCE_RECORD", grants, locationId: detail.locationId, now: context.now(), resourceOwnerUserId: detail.assignedUserId }).allowed && evidenceOwner;
   const canLinkEvidence = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_EVIDENCE_LINK", grants, locationId: detail.locationId, now: context.now(), resourceOwnerUserId: detail.assignedUserId }).allowed && vehicleEvidenceView && evidenceOwner;
+  const canPlanTests = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_TEST_PLAN_MANAGE", grants, locationId: detail.locationId, now: context.now(), resourceOwnerUserId: detail.assignedUserId }).allowed && evidenceOwner;
+  const canExecuteTests = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_TEST_EXECUTE", grants, locationId: detail.locationId, now: context.now(), resourceOwnerUserId: detail.assignedUserId }).allowed && evidenceOwner;
   const evidenceCandidates = evidenceView && vehicleEvidenceView && context.repository.listEvidenceCandidates ? await context.repository.listEvidenceCandidates(context.organizationId, detail.vehicleId) : [];
   return {
     state: "COMPLETE" as const,
@@ -391,10 +469,10 @@ export async function getDiagnosticCaseWorkspace(actor: AuthenticatedUser | null
     viewer: { id: user.id, name: user.name },
     rollout: { executable: rollout.executable, reason: rollout.reason },
     evidenceRollout: { executable: evidenceRollout.executable, reason: evidenceRollout.reason },
-    permissions: { canAssign, canTransition: transitionCapability && evidenceOwner, canRecordEvidence, canLinkEvidence },
+    permissions: { canAssign, canTransition: transitionCapability && evidenceOwner, canRecordEvidence, canLinkEvidence, canPlanTests, canExecuteTests },
     assignableUsers: canAssign ? assignableUsers : [],
     evidenceCandidates: evidenceCandidates.filter((item) => item.accessLevel !== "RESTRICTED" || restrictedEvidenceView).map((item) => ({ ...item, retentionUntil: item.retentionUntil.toISOString(), linkable: item.status === "AVAILABLE" && item.malwareStatus === "CLEAN" })),
-    diagnosticCase: projectCase(detail, context.now(), { facts: evidenceView, attachments: evidenceView && vehicleEvidenceView, restricted: restrictedEvidenceView })
+    diagnosticCase: projectCase(detail, context.now(), { facts: evidenceView, attachments: evidenceView && vehicleEvidenceView, restricted: restrictedEvidenceView, tests: evidenceView && (canPlanTests || canExecuteTests) })
   };
 }
 
