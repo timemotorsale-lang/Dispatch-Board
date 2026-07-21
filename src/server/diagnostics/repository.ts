@@ -27,22 +27,6 @@ export type DiagnosticRepairOrderContext = {
   version: number;
 };
 
-export type DiagnosticCaseRepository = {
-  assign(command: EnterpriseCommandCommitInput, data: { assignedUserId: string; occurredAt: Date; reasonCode: string }): Promise<DiagnosticMutationResult>;
-  create(command: EnterpriseCommandCommitInput, data: { assignedUserId: string | null; canonicalConcernStatement: string; concernFingerprint: string; concernKey: string; concernSource: string; concernStatement: string; openedAt: Date; operatingConditions: Record<string, unknown>; repairOrderVersion: number; riskTier: DiagnosticRiskTier; reasonCode: string }): Promise<DiagnosticMutationResult>;
-  get(organizationId: string, caseId: string): Promise<DiagnosticCaseIdentityRecord | null>;
-  getIdentity(organizationId: string, caseId: string): Promise<DiagnosticCaseIdentityRecord | null>;
-  getRepairOrderContext(organizationId: string, repairOrderId: string): Promise<DiagnosticRepairOrderContext | null>;
-  list(organizationId: string): Promise<DiagnosticCaseIdentityRecord[]>;
-  transition(command: EnterpriseCommandCommitInput, data: { occurredAt: Date; reasonCode: string; targetStatus: DiagnosticCaseStatus }): Promise<DiagnosticMutationResult>;
-};
-
-type DiagnosticMutationResult = { duplicate: boolean; result: unknown; version: number };
-
-function json(value: unknown): Prisma.InputJsonValue {
-  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
-}
-
 const detailInclude = {
   assignedUser: { select: { id: true, name: true } },
   concernVersions: { orderBy: { version: "desc" as const } },
@@ -52,6 +36,26 @@ const detailInclude = {
   stateEvents: { orderBy: { version: "desc" as const }, take: 100 },
   vehicle: { select: { id: true, vehicleNumber: true, vin: true, year: true, make: true, model: true } }
 };
+
+export type DiagnosticCaseDetailRecord = Prisma.DiagnosticCaseGetPayload<{ include: typeof detailInclude }>;
+export type DiagnosticAssignableUserRecord = { id: string; name: string };
+
+export type DiagnosticCaseRepository = {
+  assign(command: EnterpriseCommandCommitInput, data: { assignedUserId: string; occurredAt: Date; reasonCode: string }): Promise<DiagnosticMutationResult>;
+  create(command: EnterpriseCommandCommitInput, data: { assignedUserId: string | null; canonicalConcernStatement: string; concernFingerprint: string; concernKey: string; concernSource: string; concernStatement: string; openedAt: Date; operatingConditions: Record<string, unknown>; repairOrderVersion: number; riskTier: DiagnosticRiskTier; reasonCode: string }): Promise<DiagnosticMutationResult>;
+  get(organizationId: string, caseId: string): Promise<DiagnosticCaseDetailRecord | null>;
+  getIdentity(organizationId: string, caseId: string): Promise<DiagnosticCaseIdentityRecord | null>;
+  getRepairOrderContext(organizationId: string, repairOrderId: string): Promise<DiagnosticRepairOrderContext | null>;
+  list(organizationId: string): Promise<DiagnosticCaseDetailRecord[]>;
+  listAssignableUsers?(): Promise<DiagnosticAssignableUserRecord[]>;
+  transition(command: EnterpriseCommandCommitInput, data: { occurredAt: Date; reasonCode: string; targetStatus: DiagnosticCaseStatus }): Promise<DiagnosticMutationResult>;
+};
+
+type DiagnosticMutationResult = { duplicate: boolean; result: unknown; version: number };
+
+function json(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
 
 async function execute(
   database: PrismaClient,
@@ -175,7 +179,7 @@ export function createDiagnosticCaseRepository(database: PrismaClient = prisma):
     },
 
     get(organizationId, caseId) {
-      return database.diagnosticCase.findFirst({ where: { id: caseId, organizationId }, include: detailInclude }) as Promise<DiagnosticCaseIdentityRecord | null>;
+      return database.diagnosticCase.findFirst({ where: { id: caseId, organizationId }, include: detailInclude });
     },
 
     list(organizationId) {
@@ -184,7 +188,15 @@ export function createDiagnosticCaseRepository(database: PrismaClient = prisma):
         orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
         take: 200,
         include: detailInclude
-      }) as Promise<DiagnosticCaseIdentityRecord[]>;
+      });
+    },
+
+    listAssignableUsers() {
+      return database.user.findMany({
+        where: { isActive: true },
+        orderBy: { name: "asc" },
+        select: { id: true, name: true }
+      });
     },
 
     create(command, data) {
