@@ -81,6 +81,15 @@ describe("DGN-038 estimate strategy engine", () => {
       }
     });
     expect(result.economicsEvaluation.authorityBoundary.partsOrderProhibited).toBe(true);
+    expect(result.selectedOutput.capacityExplanationResultChecksum).toMatch(/^[0-9a-f]{64}$/);
+    expect(result.selectedOutput.cycleTimeDays).toBeGreaterThan(0);
+    expect(result.selectedOutput.explanationPackages.map((item) => item.audience)).toContain("CUSTOMER");
+    expect(result.capacityExplanationEvaluation.authorityBoundary).toMatchObject({
+      dispatchMutationProhibited: true,
+      schedulingMutationProhibited: true,
+      customerPresentationProhibited: true,
+      authorizationRequestProhibited: true
+    });
   });
 });
 
