@@ -35,6 +35,7 @@ The console owns the evidence-driven diagnostic case and reasoning lifecycle. It
 16. [`DIAGNOSTICS_TECHNICIAN_WORKSPACE_UI_SOURCE_OF_TRUTH.md`](DIAGNOSTICS_TECHNICIAN_WORKSPACE_UI_SOURCE_OF_TRUTH.md) — provisionally approved technician-facing visual direction, role boundary, simplicity rules, and required usability validation.
 17. [`DIAGNOSTICS_ENTERPRISE_LABOR_GUIDE_UI_SOURCE_OF_TRUTH.md`](DIAGNOSTICS_ENTERPRISE_LABOR_GUIDE_UI_SOURCE_OF_TRUTH.md) — provisionally approved Enterprise Labor Guide landing-page mockup, advisor/technician/manager role boundaries, and implementation acceptance rules.
 18. [`DIAGNOSTICS_ENTERPRISE_LABOR_GUIDE_UI_BACKEND_CONTEXT.md`](DIAGNOSTICS_ENTERPRISE_LABOR_GUIDE_UI_BACKEND_CONTEXT.md) — adopted backend/product behavior context for the light Labor Guide mockup, DVI-to-estimate conversion, one-click draft creation, labor intelligence, parts query boundaries, and audit rules.
+19. [`DIAGNOSTICS_AUTOBODY_ESTIMATE_UI_SOURCE_OF_TRUTH.md`](DIAGNOSTICS_AUTOBODY_ESTIMATE_UI_SOURCE_OF_TRUTH.md) — provisionally approved Autobody Estimate Intelligence landing-page mockup, photo-to-estimate direction, insurance-quality draft boundaries, productivity signals, and authority rules.
 
 ## Implementation Records
 
@@ -60,6 +61,7 @@ The console owns the evidence-driven diagnostic case and reasoning lifecycle. It
 - [`DGN-035–037 — Advisor Estimate Foundation Implementation`](implementation/DGN_035_037_ADVISOR_ESTIMATE_FOUNDATION_IMPLEMENTATION.md) — advisor-review estimate draft contract, immutable lineage, workspace panel, and no-auto-execution authority boundary implemented in source.
 - [`DGN-038 — Estimate Strategy Engine Implementation`](implementation/DGN_038_ESTIMATE_STRATEGY_ENGINE_IMPLEMENTATION.md) — selectable estimate strategy registry, comparison outputs, checksums, and advisory-only authority boundaries implemented in source.
 - [`DGN-039 — Autobody Estimate Capability Planning`](implementation/DGN_039_AUTOBODY_ESTIMATE_CAPABILITY_PLANNING.md) — enterprise bodywork, paint/refinish, structural/frame, ADAS/calibration, supplement, insurance/customer-pay, parts, capacity, and productivity-optimization planning adopted for the Labor Guide foundation.
+- [`Autobody Estimate UI Source of Truth`](DIAGNOSTICS_AUTOBODY_ESTIMATE_UI_SOURCE_OF_TRUTH.md) — approved landing-page visual direction for bodywork photo intake, damage map, operation builder, insurance-quality estimate draft, supplement risk, ADAS gate, productivity band, and draft-only authority boundary.
 - [`DGN-035–044 — Estimate Intelligence and Repair Execution Planning`](implementation/DGN_035_044_ESTIMATE_INTELLIGENCE_PLANNING.md) — Release 3 advisor review, selectable estimate strategies, Enterprise Labor Guide module, labor/parts/capacity intelligence, and repair execution handoff architecture adopted as planning only.
 
 ## Current Truth

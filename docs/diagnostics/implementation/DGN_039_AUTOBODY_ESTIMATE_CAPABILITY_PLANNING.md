@@ -5,6 +5,8 @@
 **Date:** 2026-07-21  
 **Scope:** Enterprise autobody estimate intelligence planning for body labor, paint/refinish, structural/frame, ADAS/calibration, parts, supplements, insurance/customer-pay workflows, productivity optimization, and repair execution handoff boundaries.
 
+**UI source of truth:** [`../DIAGNOSTICS_AUTOBODY_ESTIMATE_UI_SOURCE_OF_TRUTH.md`](../DIAGNOSTICS_AUTOBODY_ESTIMATE_UI_SOURCE_OF_TRUTH.md)
+
 ## Executive Decision
 
 Autobody estimating will become a first-class repair domain inside the Release 3 Estimate Intelligence Layer.
@@ -62,6 +64,34 @@ Autobody-specific extension:
 
 The autobody experience should be a dedicated mode or workspace under Estimate Intelligence / Labor Guide, not a separate disconnected app.
 
+The preferred console architecture is a **three-pane lifecycle layout**:
+
+1. **3D Damage and OEM Structural Map**
+   - vehicle identity, claim/RO context, material construction notes, photo evidence, impact zones, structural measurement warnings, and ADAS sensor detection.
+
+2. **Structural and Bodywork Matrix**
+   - R&I, R&R, repair, replace, section, frame setup, measure, pull, weld/bond/rivet, overlap, and repair-vs-replace decision support.
+
+3. **Refinish, Materials, and ADAS Calibration**
+   - refinish hours, blend logic, paint/material cost model, pre/post scan, calibration requirements, and evidence gates.
+
+The summary band should show labor hours, parts subtotal, paint/materials, draft total, supplement risk, cycle-time target, GP safeguard, and estimator/manager review state.
+
+Safe review actions may include:
+
+- prepare supplement package;
+- print draft blueprint;
+- send for estimator review.
+
+Unsafe direct actions must remain blocked from this screen:
+
+- insurer submission;
+- customer authorization;
+- parts order;
+- body-shop dispatch;
+- schedule commitment;
+- final repair release.
+
 Primary landing zones:
 
 | Zone | Purpose |
@@ -105,6 +135,34 @@ Every autobody estimate operation should be classified by domain:
 Every operation must state included work, excluded work, source class, estimate confidence, and whether it is customer-pay, insurance-facing, internal, or supplement-only.
 
 ## Core Autobody Algorithms and Logic
+
+## Adopted Algorithm Notice
+
+The reviewed collision-console material is adopted as planning input for the autobody capability. It is conceptual guidance only. Dispatch Board must not copy proprietary vendor screens, data, formulas, labor databases, or insurer workflows from any third-party estimating product.
+
+The official implementation target is our own governed autobody estimate intelligence layer, inspired by the standard capabilities expected in elite collision operations:
+
+1. **Optical damage analysis and photo-to-estimate assistance**
+   - uploaded damage photos should eventually help identify affected panels, visible severity, missing photo angles, likely operation families, and initial draft line candidates;
+   - photo analysis must remain advisor/estimator-reviewed and must never silently create an official estimate.
+
+2. **3D structural frame and datum-point reasoning**
+   - structural measurement logic should support X/Y/Z deviation tracking, frame-rack setup, measurement-plan requirements, pull/setup labor, and structural safety blockers;
+   - OEM procedure availability and licensing must be respected before any vehicle-specific structural rule is used.
+
+3. **Paint, refinish, blend, and material calculation**
+   - refinish logic should account for base panel area, blend factor, finish stage, tri-coat/special-finish complexity, material rate, waste, hazmat, booth/load factors, and adjacent-panel blending;
+   - material charges must remain visible, explainable, and margin-protected.
+
+4. **Supplement, compliance, and ADAS rule engine**
+   - the bodywork engine should detect supplement risk, hidden damage likelihood, missing evidence, ADAS triggers, pre/post scan requirements, calibration gates, and insurer/OEM documentation needs;
+   - compliance rules must fail closed when required evidence, procedure data, or calibration proof is missing.
+
+5. **Cycle-time and productivity optimization**
+   - collision estimates must project key-to-key cycle time using body technician capacity, frame rack availability, paint booth load, parts ETA, supplement probability, ADAS/calibration availability, QC, and delivery-readiness constraints;
+   - cycle-time output is advisory until accepted by the existing scheduling/dispatch authority.
+
+These algorithm families should be considered required planning coverage for future DGN-039 implementation design.
 
 ### 1. Damage Intake and Severity Classification
 
@@ -572,4 +630,3 @@ Autobody capability should not be considered implementation-ready until planning
 - cycle-time projection does not equal scheduling;
 - official estimate/authorization remains downstream;
 - no unlicensed proprietary estimating data is copied into the system.
-
