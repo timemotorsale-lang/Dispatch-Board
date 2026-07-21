@@ -189,7 +189,7 @@ Build scope:
 
 Evidence: contract review, formal examples, migration rehearsal plan, threat/failure review.
 
-**Gate `DG-G0`:** no implementation begins until Wave 0 decisions are explicit and approved.
+**Gate `DG-G0`: Approved with holds on 2026-07-20.** Wave 0 decisions are explicit and accepted. The gate authorizes only `DGN-007` through `DGN-009`; source ingestion, reasoning, publishing, pilot, and AI remain gated. See [`implementation/DG_G0_FOUNDATION_GATE_REVIEW.md`](implementation/DG_G0_FOUNDATION_GATE_REVIEW.md).
 
 ### Wave 1 — Independent diagnostic case console
 

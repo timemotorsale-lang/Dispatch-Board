@@ -1,6 +1,7 @@
 # Diagnostics Console Planning Package
 
-**Status:** Approved product direction; planning baseline only  
+**Status:** Foundation contracts approved with holds; runtime implementation not started
+
 **Established:** 2026-07-20  
 **Parent product:** Time Motor Sales Dispatch Board  
 **Primary console:** `/diagnostics`  
@@ -36,7 +37,13 @@ The console owns the evidence-driven diagnostic case and reasoning lifecycle. It
 ## Implementation Records
 
 - [`Implementation record index`](implementation/README.md)
-- [`DGN-001 — Domain Authority and Diagnosis Publishing Contract`](implementation/DGN_001_DOMAIN_AUTHORITY_AND_DIAGNOSIS_PUBLISHING_CONTRACT.md) — implemented architecture contract; runtime Diagnostics behavior remains unstarted and `DG-G0` remains open.
+- [`DGN-001 — Domain Authority and Diagnosis Publishing Contract`](implementation/DGN_001_DOMAIN_AUTHORITY_AND_DIAGNOSIS_PUBLISHING_CONTRACT.md)
+- [`DGN-002 — Authority, Safety, and Escalation Contract`](implementation/DGN_002_AUTHORITY_SAFETY_AND_ESCALATION_CONTRACT.md)
+- [`DGN-003 — No-Start Ontology, Scope, and Scenario Contract`](implementation/DGN_003_NO_START_ONTOLOGY_SCOPE_AND_SCENARIOS.md)
+- [`DGN-004 — Knowledge Source and License Register`](implementation/DGN_004_KNOWLEDGE_SOURCE_AND_LICENSE_REGISTER.md)
+- [`DGN-005 — Benchmark, Measurement, and Pilot Contract`](implementation/DGN_005_BENCHMARK_MEASUREMENT_AND_PILOT_CONTRACT.md)
+- [`DGN-006 — Domain, Command, Schema, Event, and Migration Contract`](implementation/DGN_006_DOMAIN_COMMAND_SCHEMA_EVENT_AND_MIGRATION_CONTRACT.md)
+- [`DG-G0 — Foundation Gate Review`](implementation/DG_G0_FOUNDATION_GATE_REVIEW.md) — approved with holds; `DGN-007` through `DGN-009` case-core work is authorized next.
 
 ## Current Truth
 
@@ -49,7 +56,7 @@ Dispatch Board already has substantial foundations that Diagnostics must reuse:
 - enterprise task, appointment, activity, audit, command, idempotency, optimistic-concurrency, event, and outbox patterns;
 - shop-repair optimization and enterprise automation/AI governance packages.
 
-The independent Diagnostics Console, its diagnostic case model, hypothesis/test reasoning engine, knowledge administration, and initial no-start workflow are **not implemented** by this planning package.
+The independent Diagnostics Console, its diagnostic case model, hypothesis/test reasoning engine, knowledge administration, and initial no-start workflow are **not yet implemented**. DGN-001 through DGN-006 establish approved contracts only. DG-G0 authorizes the additive DGN-007 through DGN-009 case core; source ingestion, reasoning, publishing, pilot, and AI remain gated.
 
 ## Non-Negotiable Product Principles
 
