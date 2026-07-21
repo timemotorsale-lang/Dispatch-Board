@@ -80,8 +80,8 @@ For the expanded build scope, affected layers, critical path, day-one boundary, 
 | `DGN-030` | **Implemented in source.** Estimate/authorization handoff and changed-scope return path. | 029 | No unauthorized job creation; stale estimate/auth and partial acceptance scenarios; advisor acceptance remains separate. |
 | `DGN-031` | **Implemented in source.** Tasks/Appointments/Dispatch resource-requirement bridge. | 029 | Eligibility, collision, delay, cancellation, and manager-override scenarios; no task, appointment, or dispatch mutation is created by Diagnostics. |
 | `DGN-032` | **Implemented in source.** Parts demand/readiness bridge with substitute-review boundary. | 029 | No direct purchase/balance mutation; fitment, shortage, ETA, and replay scenarios; parts acceptance remains separate. |
-| `DGN-033` | Versioned concern-specific post-repair Verification Lab plan and execution workflow. | 028–032 | Pass, fail, inconclusive, unsafe-road-test, independent-review, regression, and reopen tests. |
-| `DGN-034` | End-to-end no-start concern-to-verified-repair workflow and repair-order summary. | 028–033 | Manager, advisor, technician, parts, dispatcher, and QC browser acceptance. |
+| `DGN-033` | **Implemented in source.** Versioned concern-specific post-repair Verification Lab plan and execution workflow. See [`implementation/DGN_033_034_VERIFICATION_CLOSED_LOOP_IMPLEMENTATION.md`](implementation/DGN_033_034_VERIFICATION_CLOSED_LOOP_IMPLEMENTATION.md). | 028–032 | Pass, fail, inconclusive, unsafe-road-test, independent-review, regression, and reopen tests; migrated-runtime and representative browser proof remain open. |
+| `DGN-034` | **Implemented in source.** End-to-end no-start concern-to-verified-repair workflow and repair-order summary. | 028–033 | Manager, advisor, technician, parts, dispatcher, and QC browser acceptance remain formal `DG-G4` gate evidence. |
 
 **Gate `DG-G4`:** diagnosis, authorization, execution, and verified closure are fully traceable without authority leakage.
 

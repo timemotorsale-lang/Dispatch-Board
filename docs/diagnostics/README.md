@@ -1,6 +1,6 @@
 # Diagnostics Console Planning Package
 
-**Status:** Foundation approved; DGN-007–027 case, evidence, testing, reasoning, adaptive next-test, conclusion, and generic no-start proof controls implemented in source
+**Status:** Foundation approved; DGN-007–034 case, evidence, testing, reasoning, adaptive next-test, conclusion, repair handoff, and verification closed-loop controls implemented in source
 
 **Established:** 2026-07-20  
 **Parent product:** Time Motor Sales Dispatch Board  
@@ -54,6 +54,7 @@ The console owns the evidence-driven diagnostic case and reasoning lifecycle. It
 - [`DGN-022–023 — Reasoning Core Implementation`](implementation/DGN_022_023_REASONING_CORE_IMPLEMENTATION.md) — immutable hypotheses, bounded minimal diagnoses, truth revision, and deterministic consistency/causal evaluation implemented in source.
 - [`DGN-024–025 — Adaptive Testing Implementation`](implementation/DGN_024_025_ADAPTIVE_TESTING_IMPLEMENTATION.md) — fail-closed next-test eligibility, transparent optimization, alternatives, and immutable authorized override lineage implemented in source.
 - [`DGN-026–027 — Conclusion Controls and No-Start Proof`](implementation/DGN_026_027_CONCLUSION_NO_START_PROOF_IMPLEMENTATION.md) — governed technical conclusions, guided technician reasoning UI, and the blinded nine-family generic no-start corpus implemented in source.
+- [`DGN-033–034 — Verification Closed Loop Implementation`](implementation/DGN_033_034_VERIFICATION_CLOSED_LOOP_IMPLEMENTATION.md) — governed post-repair verification plans, pass/fail/unsafe outcomes, closure controls, and immutable repair-proof lineage implemented in source.
 
 ## Current Truth
 
@@ -66,7 +67,7 @@ Dispatch Board already has substantial foundations that Diagnostics must reuse:
 - enterprise task, appointment, activity, audit, command, idempotency, optimistic-concurrency, event, and outbox patterns;
 - shop-repair optimization and enterprise automation/AI governance packages.
 
-The diagnostic case model, backend lifecycle, independent console, technician workspace, Repair Order bridge, immutable evidence/testing foundations, lab shells, evidence reconstruction, quality/safety gates, governed knowledge persistence, generic no-start graph/test seed, unit-safe engineering calculations, immutable hypotheses/evidence links, bounded minimal diagnoses, deterministic consistency/causal evaluation, fail-closed next-test eligibility, transparent optimization, authorized override lineage, governed conclusion controls, connected reasoning UI, and simulation-only no-start proof corpus are implemented in source through DGN-027. The migrations are not deployed and rollout remains disabled. Approved production reasoning/adaptive/conclusion providers, licensed vehicle-specific knowledge, hardware adapters, diagnosis publication, repair handoffs, and verification execution are **not yet implemented**. Publishing, pilot, and AI remain gated.
+The diagnostic case model, backend lifecycle, independent console, technician workspace, Repair Order bridge, immutable evidence/testing foundations, lab shells, evidence reconstruction, quality/safety gates, governed knowledge persistence, generic no-start graph/test seed, unit-safe engineering calculations, immutable hypotheses/evidence links, bounded minimal diagnoses, deterministic consistency/causal evaluation, fail-closed next-test eligibility, transparent optimization, authorized override lineage, governed conclusion controls, connected reasoning UI, simulation-only no-start proof corpus, repair handoffs, and closed-loop verification controls are implemented in source through DGN-034. The migrations are not deployed and rollout remains disabled. Approved production reasoning/adaptive/conclusion providers, licensed vehicle-specific knowledge, hardware adapters, production diagnosis publication, pilot activation, and AI remain gated.
 
 ## Non-Negotiable Product Principles
 
