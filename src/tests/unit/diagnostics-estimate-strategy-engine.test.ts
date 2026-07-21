@@ -71,6 +71,16 @@ describe("DGN-038 estimate strategy engine", () => {
       complexityTier: "HIGH"
     });
     expect(result.laborGuideEvaluation.summary.sourceVersions).toContain("TMS_DIAGNOSTIC_LABOR_GUIDE@2026.07.21");
+    expect(result.selectedOutput.economicsResultChecksum).toMatch(/^[0-9a-f]{64}$/);
+    expect(result.selectedOutput.partDemandCandidates[0]).toMatchObject({
+      partKey: "ALTERNATOR",
+      authorityBoundary: {
+        demandSignalOnly: true,
+        purchaseMutationProhibited: true,
+        reservationMutationProhibited: true
+      }
+    });
+    expect(result.economicsEvaluation.authorityBoundary.partsOrderProhibited).toBe(true);
   });
 });
 
