@@ -231,10 +231,20 @@ function inferComplexity(operation: DiagnosticRepairOperation, domain: Diagnosti
 
 function matchCatalog(operation: DiagnosticRepairOperation) {
   const haystack = canonical(`${operation.key} ${operation.description} ${operation.workTypeCode} ${operation.requiredSkills.join(" ")}`);
-  return DIAGNOSTIC_LABOR_GUIDE_SEED_CATALOG.find((catalog) => {
-    const candidates = [catalog.operationKey, catalog.title, catalog.customerSafeTitle, ...catalog.aliases, ...catalog.repairFamilies].map(canonical);
-    return candidates.some((candidate) => candidate && haystack.includes(candidate));
-  }) ?? null;
+  const scored = DIAGNOSTIC_LABOR_GUIDE_SEED_CATALOG.map((catalog) => {
+    const operationKey = canonical(catalog.operationKey);
+    const titles = [catalog.title, catalog.customerSafeTitle].map(canonical);
+    const aliases = catalog.aliases.map(canonical);
+    const families = catalog.repairFamilies.map(canonical);
+    const score = [
+      haystack.includes(operationKey) ? 100 : 0,
+      ...titles.map((candidate) => candidate && haystack.includes(candidate) ? 40 : 0),
+      ...aliases.map((candidate) => candidate && haystack.includes(candidate) ? 15 : 0),
+      ...families.map((candidate) => candidate && haystack.includes(candidate) ? 5 : 0)
+    ].reduce((sum, value) => sum + value, 0);
+    return { catalog, score };
+  }).sort((a, b) => b.score - a.score);
+  return scored[0] && scored[0].score > 0 ? scored[0].catalog : null;
 }
 
 function mergeCatalog(operation: DiagnosticRepairOperation, catalog: DiagnosticLaborGuideOperation | null): DiagnosticLaborGuideRecommendation {
