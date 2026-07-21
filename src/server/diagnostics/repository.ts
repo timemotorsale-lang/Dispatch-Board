@@ -7,6 +7,7 @@ import { DiagnosticCaseDuplicateError, isTerminalDiagnosticStatus, nextDiagnosti
 import type { normalizeDiagnosticEvidenceLink, normalizeDiagnosticMeasurement, normalizeDiagnosticObservation } from "./evidence-domain";
 import type { normalizeDiagnosticTestDefinition, normalizeDiagnosticTestLifecycle, normalizeDiagnosticTestPlan } from "./test-execution-domain";
 import { nextTestExecutionState, type DiagnosticTestLifecycleAction, type DiagnosticTestExecutionState } from "./test-execution-domain";
+import { assertDiagnosticGateReady, evaluateDiagnosticQualitySafetyGates } from "./quality-safety-gates";
 
 type Tx = Prisma.TransactionClient;
 
@@ -305,7 +306,7 @@ export function createDiagnosticCaseRepository(database: PrismaClient = prisma):
     executeTestLifecycle(command, data) {
       const eventNames: Record<DiagnosticTestLifecycleAction, string> = { START: "DiagnosticTestStarted", PAUSE: "DiagnosticTestPaused", RESUME: "DiagnosticTestResumed", COMPLETE: "DiagnosticTestCompleted", INVALIDATE: "DiagnosticTestInvalidated", CANCEL: "DiagnosticTestCancelled" };
       return execute(database, command, eventNames[data.action], data.reasonCode, async (tx, version) => {
-        const diagnosticCase = await tx.diagnosticCase.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId } });
+        const diagnosticCase = await tx.diagnosticCase.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId }, include: { vehicle: { select: { id: true, vin: true, year: true, make: true, model: true } } } });
         if (!diagnosticCase) throw new Error("Diagnostic case was not found.");
         if (diagnosticCase.version !== version - 1) throw new EnterpriseCommandConflictError(`Expected case version ${version - 1}, but current version is ${diagnosticCase.version}.`, "VERSION_CONFLICT");
         if (isTerminalDiagnosticStatus(diagnosticCase.status as DiagnosticCaseStatus)) throw new Error("Terminal diagnostic cases must be reopened before executing tests.");
@@ -329,17 +330,48 @@ export function createDiagnosticCaseRepository(database: PrismaClient = prisma):
         if (data.action === "COMPLETE" && !Object.keys(data.results).length) throw new Error("Completing a diagnostic test requires structured results.");
         const requiredEvidenceEntries = Array.isArray(node.definitionVersion.requiredEvidence) ? node.definitionVersion.requiredEvidence : [];
         if (data.action === "COMPLETE" && requiredEvidenceEntries.length && data.evidenceSummary.requirementsSatisfied !== true) throw new Error("Completing this diagnostic test requires an explicit required-evidence summary.");
-        const qualificationEntries = (Array.isArray(node.definitionVersion.qualifications) ? node.definitionVersion.qualifications : []).map((qualification) => typeof qualification === "string" ? qualification : String((qualification as Record<string, unknown>).code ?? "")).filter(Boolean);
-        const verifiedQualifications = data.action === "START" && qualificationEntries.length ? await tx.technicianQualification.findMany({ where: { organizationId: command.organizationId, technicianUserId: command.actorUserId, code: { in: qualificationEntries }, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: now } }] }, select: { code: true, type: true, verifiedAt: true, verifiedByUserId: true } }) : [];
+        const qualificationEntries = [...new Set((Array.isArray(node.definitionVersion.qualifications) ? node.definitionVersion.qualifications : []).map((qualification) => (typeof qualification === "string" ? qualification : String((qualification as Record<string, unknown>).code ?? "")).trim().toUpperCase()).filter(Boolean))];
+        const verifiedQualifications = ["START", "COMPLETE"].includes(data.action) && qualificationEntries.length ? await tx.technicianQualification.findMany({ where: { organizationId: command.organizationId, technicianUserId: command.actorUserId, code: { in: qualificationEntries }, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: now } }] }, select: { code: true, type: true, verifiedAt: true, verifiedByUserId: true } }) : [];
         const verifiedCodes = new Set(verifiedQualifications.map((qualification) => qualification.code));
         const missingQualifications = qualificationEntries.filter((qualification) => !verifiedCodes.has(qualification));
         if (data.action === "START" && missingQualifications.length) throw new Error(`The acting technician is missing required qualifications: ${missingQualifications.join(", ")}.`);
-        const prerequisiteSnapshot = { ...data.prerequisiteSnapshot, serverVerifiedQualifications: verifiedQualifications };
+        const prerequisiteBase = data.action === "START" ? data.prerequisiteSnapshot : prior?.prerequisiteSnapshot && typeof prior.prerequisiteSnapshot === "object" && !Array.isArray(prior.prerequisiteSnapshot) ? prior.prerequisiteSnapshot as Record<string, unknown> : data.prerequisiteSnapshot;
+        let qualitySafetyEvaluation: ReturnType<typeof evaluateDiagnosticQualitySafetyGates> | null = null;
+        if (data.action === "START" || data.action === "COMPLETE") {
+          const dependencyNodeKeys = Array.isArray(node.dependencyNodeKeys) ? node.dependencyNodeKeys.map(String) : [];
+          const [completedDependencies, observations, measurements, evidenceLinks] = await Promise.all([
+            dependencyNodeKeys.length ? tx.diagnosticTestExecution.findMany({ where: { organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, state: "COMPLETED", nextEvent: null, planNode: { testPlanVersionId: node.testPlanVersionId, nodeKey: { in: dependencyNodeKeys } } }, select: { planNode: { select: { nodeKey: true } } } }) : Promise.resolve([]),
+            data.action === "COMPLETE" ? tx.diagnosticObservation.findMany({ where: { organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, correctedBy: null }, select: { correctedBy: { select: { id: true } }, independenceGroup: true, observedAt: true, qualityReasonCode: true, qualityStatus: true, reliability: true } }) : Promise.resolve([]),
+            data.action === "COMPLETE" ? tx.diagnosticMeasurement.findMany({ where: { organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, supersededBy: null }, select: { instrument: true, independenceGroup: true, measuredAt: true, normalizedUnit: true, normalizedValue: true, plausibilityStatus: true, qualityReasonCode: true, qualityStatus: true, quantity: true, supersededBy: { select: { id: true } } } }) : Promise.resolve([]),
+            data.action === "COMPLETE" ? tx.diagnosticEvidenceLink.findMany({ where: { organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id }, include: { evidenceObject: { select: { malwareStatus: true, status: true } } } }) : Promise.resolve([])
+          ]);
+          qualitySafetyEvaluation = evaluateDiagnosticQualitySafetyGates({
+            actualConditions: Object.keys(data.actualConditions).length ? data.actualConditions : prior?.actualConditions && typeof prior.actualConditions === "object" && !Array.isArray(prior.actualConditions) ? prior.actualConditions as Record<string, unknown> : {},
+            caseRiskTier: diagnosticCase.riskTier,
+            completedDependencyNodeKeys: completedDependencies.map((item) => item.planNode.nodeKey),
+            definition: { applicability: node.definitionVersion.applicability, effectiveAt: node.definitionVersion.effectiveAt, expiresAt: node.definitionVersion.expiresAt, hazards: node.definitionVersion.hazards, prerequisites: node.definitionVersion.prerequisites, qualifications: node.definitionVersion.qualifications, requiredEvidence: node.definitionVersion.requiredEvidence, riskTier: node.definitionVersion.riskTier, sourceVersions: node.definitionVersion.sourceVersions, tools: node.definitionVersion.tools, vehicleState: node.definitionVersion.vehicleState },
+            dependencyNodeKeys,
+            evidenceLinks: evidenceLinks.map((item) => ({ subjectId: item.subjectId, subjectType: item.subjectType, evidence: { malwareStatus: item.evidenceObject.malwareStatus, status: item.evidenceObject.status } })),
+            evidenceSummary: data.evidenceSummary,
+            measurements: measurements.map((item) => ({ instrument: item.instrument, independenceGroup: item.independenceGroup, measuredAt: item.measuredAt.toISOString(), normalizedUnit: item.normalizedUnit, normalizedValue: item.normalizedValue.toString(), plausibilityStatus: item.plausibilityStatus, qualityReasonCode: item.qualityReasonCode, qualityStatus: item.qualityStatus, quantity: item.quantity, supersededById: item.supersededBy?.id ?? null })),
+            now,
+            observations: observations.map((item) => ({ correctedById: item.correctedBy?.id ?? null, independenceGroup: item.independenceGroup, observedAt: item.observedAt.toISOString(), qualityReasonCode: item.qualityReasonCode, qualityStatus: item.qualityStatus, reliability: item.reliability })),
+            planApplicability: node.testPlanVersion.applicability,
+            phase: data.action,
+            prerequisiteSnapshot: prerequisiteBase,
+            requiredEvidenceOverride: node.requiredEvidenceOverride,
+            verifiedQualificationCodes: verifiedQualifications.map((item) => item.code),
+            vehicle: diagnosticCase.vehicle
+          });
+          assertDiagnosticGateReady(qualitySafetyEvaluation);
+        }
+        const prerequisiteSnapshot = { ...prerequisiteBase, serverVerifiedQualifications: verifiedQualifications, ...(qualitySafetyEvaluation ? { qualitySafetyEvaluation } : {}) };
+        const evidenceSummary = { ...data.evidenceSummary, ...(qualitySafetyEvaluation && data.action === "COMPLETE" ? { qualitySafetyEvaluation } : {}) };
         const currentState = prior ? prior.state as DiagnosticTestExecutionState : null;
         const nextState = nextTestExecutionState(currentState, data.action);
         const event = await tx.diagnosticTestExecution.create({ data: {
           id: data.eventId, organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, planNodeId: node.id, definitionVersionId: node.definitionVersionId, executionKey: data.executionKey,
-          revision: (prior?.revision ?? 0) + 1, state: nextState, reasonCode: data.reasonCode, reason: data.reason, actualConditions: json(data.actualConditions), deviations: json(data.deviations), inputs: json(data.inputs), results: json(data.results), evidenceSummary: json(data.evidenceSummary), prerequisiteSnapshot: json(prerequisiteSnapshot), actorUserId: command.actorUserId, previousEventId: prior?.id, repeatOfExecutionKey: data.repeatOfExecutionKey,
+          revision: (prior?.revision ?? 0) + 1, state: nextState, reasonCode: data.reasonCode, reason: data.reason, actualConditions: json(data.actualConditions), deviations: json(data.deviations), inputs: json(data.inputs), results: json(data.results), evidenceSummary: json(evidenceSummary), prerequisiteSnapshot: json(prerequisiteSnapshot), actorUserId: command.actorUserId, previousEventId: prior?.id, repeatOfExecutionKey: data.repeatOfExecutionKey,
           startedAt: prior?.startedAt ?? (data.action === "START" ? now : null), pausedAt: data.action === "PAUSE" ? now : prior?.pausedAt, completedAt: data.action === "COMPLETE" ? now : prior?.completedAt, invalidatedAt: data.action === "INVALIDATE" ? now : prior?.invalidatedAt, cancelledAt: data.action === "CANCEL" ? now : prior?.cancelledAt, occurredAt: now
         } });
         await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { version, status: nextState === "RUNNING" ? "TESTING" : diagnosticCase.status } });
