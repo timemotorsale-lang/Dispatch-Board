@@ -6,6 +6,8 @@
 **Milestone family:** `DGN-001` through `DGN-050`  
 **Program gates:** `DG-G0` through `DG-G10`
 
+> **Release 3 supersession notice:** The original Wave 5/Wave 6 sequencing for `DGN-035` through `DGN-044` has been superseded by [`implementation/DGN_035_044_ESTIMATE_INTELLIGENCE_PLANNING.md`](implementation/DGN_035_044_ESTIMATE_INTELLIGENCE_PLANNING.md). That record is authoritative for Release 3 estimate intelligence, selectable estimate models, the Enterprise Labor Guide module, advisor review, labor/parts/capacity impact, and repair-execution handoff planning. The older knowledge-operations, expansion, learning, and AI items move to `DGN-045` through `DGN-050` in the active milestone map.
+
 ## 1. Purpose
 
 This document consolidates the Diagnostics architecture, roadmap, and milestone program into one implementation view. It shows the intended extent of the work and the order in which the system becomes trustworthy.
@@ -23,8 +25,8 @@ The program is not a single feature build. It is a controlled progression from d
 | First diagnostic family | Starting, charging, crank/no-crank, and bounded crank-no-start. |
 | Enterprise integrations | Vehicle 360, Repair Orders, Tasks, Appointments/Dispatch, Parts, Estimates, Authorization, Repair Jobs, QC, Comebacks, Activity, Audit, Events/Outbox. |
 | Governance | Source rights, applicability, versioning, separation of duties, simulation, shadow mode, pilot, monitoring, kill switch, rollback, affected-case analysis. |
-| Day-one production path | `DGN-001` through `DGN-041`. |
-| Advanced expansion | `DGN-042` through `DGN-050`, followed by additional system-family release trains. |
+| Day-one production path | `DGN-001` through `DGN-034` for diagnostic closed-loop execution, followed by governed Release 3 estimate-intelligence implementation after planning approval. |
+| Advanced expansion | `DGN-045` through `DGN-050`, followed by additional system-family release trains. |
 
 ## 3. Implementation Architecture
 
@@ -111,8 +113,8 @@ These are target boundaries, not authorization to create them before their miles
 | 2. Evidence and laboratory foundation | 013–019 | Structured measurements, evidence, governed tests, and data-quality/safety gates. | `DG-G2` |
 | 3. Deterministic no-start reasoning | 020–027 | Explainable consistency/causal engine and adaptive guided diagnosis. | `DG-G3` |
 | 4. Closed-loop repair execution | 028–034 | Confirmed cause flows through authorized work to verified resolution. | `DG-G4` |
-| 5. Knowledge operations and pilot | 035–041 | Governed authoring, monitoring, shadow evaluation, limited pilot, rollout decision. | `DG-G5–G6` |
-| 6. Coverage, learning, and AI | 042–050 | Repeatable system-family expansion, controlled learning, supervised AI. | `DG-G7–G9` |
+| 5. Estimate intelligence and repair execution planning | 035–044 | Advisor review, selectable estimate strategies, Enterprise Labor Guide, labor/parts/capacity intelligence, customer explanation, and repair-execution handoff architecture. | `DG-G5` |
+| 6. Knowledge operations, learning, and AI | 045–050 | Governed knowledge operations, controlled learning, repeatable expansion, and supervised AI. | `DG-G6–G9` |
 | 7. Enterprise ecosystem | Post-050 | Multi-location, certified adapters, licensed connectors, resilience, justified service extraction. | `DG-G10` |
 
 ## 5. Detailed Milestone Ledger
@@ -361,7 +363,9 @@ Prove advisor, technician, diagnostician, dispatcher, parts, manager, and QC wor
 
 **Gate `DG-G4`:** the system proves not only why a repair was recommended, but whether it resolved the original concern.
 
-### Wave 5 — Knowledge operations, measurement, and production pilot
+### Wave 5 — Superseded historical detail for knowledge operations, measurement, and production pilot
+
+> This historical detail no longer governs active `DGN-035` through `DGN-044` planning. Use [`implementation/DGN_035_044_ESTIMATE_INTELLIGENCE_PLANNING.md`](implementation/DGN_035_044_ESTIMATE_INTELLIGENCE_PLANNING.md) and [`DIAGNOSTICS_IMPLEMENTATION_MILESTONES.md`](DIAGNOSTICS_IMPLEMENTATION_MILESTONES.md) for the active Release 3 estimate-intelligence plan. Knowledge operations, learning, expansion, and AI are now carried forward under `DGN-045` through `DGN-050`.
 
 #### `DGN-035` — Knowledge lifecycle services
 
