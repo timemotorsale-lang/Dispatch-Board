@@ -8,6 +8,7 @@ import type { normalizeDiagnosticEvidenceLink, normalizeDiagnosticMeasurement, n
 import type { normalizeDiagnosticTestDefinition, normalizeDiagnosticTestLifecycle, normalizeDiagnosticTestPlan } from "./test-execution-domain";
 import { nextTestExecutionState, type DiagnosticTestLifecycleAction, type DiagnosticTestExecutionState } from "./test-execution-domain";
 import { assertDiagnosticGateReady, evaluateDiagnosticQualitySafetyGates } from "./quality-safety-gates";
+import { diagnosticReasoningId, type evaluateDiagnosticReasoning, type ReasoningEvidence } from "./reasoning-core";
 
 type Tx = Prisma.TransactionClient;
 
@@ -42,6 +43,7 @@ const detailInclude = {
   evidenceLinks: { orderBy: { createdAt: "desc" as const }, include: { createdByUser: { select: { id: true, name: true } }, evidenceObject: { select: { id: true, fileName: true, contentType: true, byteSize: true, checksumSha256: true, malwareStatus: true, accessLevel: true, retentionUntil: true, legalHold: true, status: true, version: true, createdAt: true } } } },
   testPlanVersions: { orderBy: { version: "desc" as const }, include: { nodes: { orderBy: { sequence: "asc" as const }, include: { definitionVersion: true } }, authoredByUser: { select: { id: true, name: true } }, supersededBy: { select: { id: true } } } },
   testExecutions: { orderBy: { occurredAt: "desc" as const }, include: { actorUser: { select: { id: true, name: true } }, planNode: { select: { id: true, nodeKey: true, title: true } } } },
+  reasoningEvaluations: { orderBy: { sequence: "desc" as const }, take: 20, include: { hypotheses: { orderBy: { rank: "asc" as const }, include: { evidenceLinks: true } }, supersededBy: { select: { id: true } } } },
   stateEvents: { orderBy: { version: "desc" as const }, take: 100 },
   vehicle: { select: { id: true, vehicleNumber: true, vin: true, year: true, make: true, model: true } }
 };
@@ -67,6 +69,7 @@ export type DiagnosticCaseRepository = {
   registerTestDefinition?(command: EnterpriseCommandCommitInput, data: ReturnType<typeof normalizeDiagnosticTestDefinition> & { id: string }): Promise<DiagnosticMutationResult>;
   createTestPlan?(command: EnterpriseCommandCommitInput, data: ReturnType<typeof normalizeDiagnosticTestPlan> & { id: string; nodeIds: string[] }): Promise<DiagnosticMutationResult>;
   executeTestLifecycle?(command: EnterpriseCommandCommitInput, data: ReturnType<typeof normalizeDiagnosticTestLifecycle> & { eventId: string; executionKey: string }): Promise<DiagnosticMutationResult>;
+  recordReasoningEvaluation?(command: EnterpriseCommandCommitInput, data: { evaluationId: string; evidence: ReasoningEvidence[]; occurredAt: Date; result: ReturnType<typeof evaluateDiagnosticReasoning>; supersedesId: string | null }): Promise<DiagnosticMutationResult>;
   transition(command: EnterpriseCommandCommitInput, data: { occurredAt: Date; reasonCode: string; targetStatus: DiagnosticCaseStatus }): Promise<DiagnosticMutationResult>;
 };
 
@@ -255,6 +258,57 @@ export function createDiagnosticCaseRepository(database: PrismaClient = prisma):
           estimatedMinutes: data.estimatedMinutes, estimatedCostDecimal: data.estimatedCostDecimal, riskTier: data.riskTier, checksum: data.checksum, effectiveAt: data.effectiveAt, expiresAt: data.expiresAt, authoredByUserId: command.actorUserId, supersedesId: data.supersedesId
         }, select: { id: true, definitionKey: true, version: true, checksum: true, effectiveAt: true, expiresAt: true } });
         return { result: { ...definition, aggregateVersion } };
+      });
+    },
+
+    recordReasoningEvaluation(command, data) {
+      return execute(database, command, "DiagnosticReasoningEvaluated", data.result.abstentionRequired ? "REASONING_ABSTENTION_REQUIRED" : "REASONING_EVALUATED", async (tx, version) => {
+        const diagnosticCase = await tx.diagnosticCase.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId }, include: { concernVersions: { orderBy: { version: "desc" }, take: 1 }, reasoningEvaluations: { orderBy: { sequence: "desc" }, take: 1, include: { hypotheses: true } } } });
+        if (!diagnosticCase) throw new Error("Diagnostic case was not found.");
+        if (diagnosticCase.version !== version - 1) throw new EnterpriseCommandConflictError(`Expected case version ${version - 1}, but current version is ${diagnosticCase.version}.`, "VERSION_CONFLICT");
+        const concern = diagnosticCase.concernVersions[0]; if (!concern) throw new Error("Diagnostic reasoning requires a current concern version.");
+        const prior = diagnosticCase.reasoningEvaluations[0] ?? null;
+        if (prior && data.supersedesId !== prior.id) throw new Error("A new reasoning evaluation must supersede the latest case evaluation.");
+        if (!prior && data.supersedesId) throw new Error("The first reasoning evaluation cannot supersede another evaluation.");
+        const sequence = (prior?.sequence ?? 0) + 1;
+        const evaluation = await tx.diagnosticReasoningEvaluation.create({ data: {
+          id: data.evaluationId, organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, concernVersionId: concern.id, sequence,
+          engineVersion: data.result.engineVersion, policyVersion: data.result.policyVersion, modelVersion: data.result.modelVersion, ruleSetVersion: data.result.ruleSetVersion,
+          knowledgeChecksum: data.result.knowledgeChecksum, calculationVersions: json(data.result.calculationVersions), sourceVersions: json(data.result.sourceVersions),
+          vehicleContext: json(data.result.vehicleContext), includedEvidence: json(data.result.includedEvidence), excludedEvidence: json(data.result.excludedEvidence),
+          assumptions: json(data.result.assumptions), abnormalModes: json(data.result.abnormalModes), conflicts: json(data.result.conflicts), candidateDiagnoses: json(data.result.candidates),
+          causalPredictions: json(data.result.causalPredictions), missingExpectedEffects: json(data.result.missingExpectedEffects), recommendedTests: json(data.result.recommendedTests),
+          hardBlockers: json(data.result.hardBlockers), reasonCodes: json(data.result.reasonCodes), bounds: json(data.result.bounds), generationComplete: data.result.generationComplete,
+          abstentionRequired: data.result.abstentionRequired, timedOut: data.result.timedOut, degraded: data.result.degraded, computationDurationMs: data.result.computationDurationMs,
+          inputChecksum: data.result.inputChecksum, resultChecksum: data.result.resultChecksum, evaluatedByUserId: command.actorUserId, supersedesId: data.supersedesId, occurredAt: data.occurredAt
+        } });
+        const priorHypotheses = new Map((prior?.hypotheses ?? []).map((hypothesis) => [hypothesis.hypothesisKey, hypothesis]));
+        for (const candidate of data.result.candidates) {
+          const hypothesisId = diagnosticReasoningId("dhp", command.organizationId, evaluation.id, candidate.key);
+          await tx.diagnosticHypothesis.create({ data: {
+            id: hypothesisId, organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, reasoningEvaluationId: evaluation.id, hypothesisKey: candidate.key,
+            status: candidate.status, candidateAssumptions: json(candidate.assumptions), abnormalModes: json(candidate.abnormalModes), commonCause: candidate.commonCause,
+            intermittent: candidate.intermittent, rank: candidate.rank, causalState: candidate.causalState, explanationCodes: json(candidate.explanationCodes),
+            supportingEvidenceKeys: json(candidate.supportingEvidenceKeys), contradictingEvidenceKeys: json(candidate.contradictingEvidenceKeys), missingExpectedEvidenceKeys: json(candidate.missingExpectedEvidenceKeys),
+            supersedesId: priorHypotheses.get(candidate.key)?.id ?? null
+          } });
+          const relationships = [
+            ...candidate.supportingEvidenceKeys.map((evidenceKey) => ({ evidenceKey, relationship: "SUPPORTS" as const, rationaleCode: "REASONING_AFFIRMATIVE_SUPPORT" })),
+            ...candidate.contradictingEvidenceKeys.map((evidenceKey) => ({ evidenceKey, relationship: "CONTRADICTS" as const, rationaleCode: "REASONING_CANDIDATE_CONTRADICTED" }))
+          ];
+          for (const link of relationships) {
+            const source = data.evidence.find((item) => item.key.trim().toUpperCase() === link.evidenceKey);
+            if (!source) continue;
+            await tx.diagnosticHypothesisEvidence.create({ data: {
+              id: diagnosticReasoningId("dhe", command.organizationId, hypothesisId, `${link.relationship}:${link.evidenceKey}`), organizationId: command.organizationId,
+              diagnosticCaseId: diagnosticCase.id, hypothesisId, evidenceKey: link.evidenceKey, evidenceType: source.evidenceType, relationship: link.relationship,
+              observationId: source.evidenceType === "OBSERVATION" ? source.evidenceId : null, measurementId: source.evidenceType === "MEASUREMENT" ? source.evidenceId : null,
+              testExecutionId: source.evidenceType === "TEST_EXECUTION" ? source.evidenceId : null, independenceGroup: source.independenceGroup, rationaleCode: link.rationaleCode
+            } });
+          }
+        }
+        await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { version } });
+        return { previous: prior ? { evaluationId: prior.id, resultChecksum: prior.resultChecksum, sequence: prior.sequence } : undefined, result: { id: evaluation.id, sequence, version, resultChecksum: evaluation.resultChecksum, abstentionRequired: evaluation.abstentionRequired, generationComplete: evaluation.generationComplete, candidateCount: data.result.candidates.length, reasonCodes: data.result.reasonCodes } };
       });
     },
 

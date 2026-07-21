@@ -15,6 +15,7 @@ import {
 import { diagnosticFactId, normalizeDiagnosticEvidenceLink, normalizeDiagnosticMeasurement, normalizeDiagnosticObservation } from "./evidence-domain";
 import { buildDiagnosticEvidenceReview } from "./evidence-review";
 import { buildDiagnosticCaseQualitySummary, DIAGNOSTIC_GATE_POLICY_VERSION } from "./quality-safety-gates";
+import { diagnosticReasoningId, evaluateDiagnosticReasoning, normalizeDiagnosticReasoningCommand, type DiagnosticReasoningModel, type ReasoningEvidence } from "./reasoning-core";
 import { diagnosticTestId, normalizeDiagnosticTestDefinition, normalizeDiagnosticTestLifecycle, normalizeDiagnosticTestPlan, type DiagnosticTestLifecycleAction } from "./test-execution-domain";
 import { createDiagnosticCaseRepository, type DiagnosticCaseDetailRecord, type DiagnosticCaseIdentityRecord, type DiagnosticCaseRepository } from "./repository";
 
@@ -24,7 +25,10 @@ type Dependencies = {
   now?: () => Date;
   organizationId?: string;
   repository?: DiagnosticCaseRepository;
+  reasoningProvider?: DiagnosticReasoningProvider;
 };
+
+export type DiagnosticReasoningProvider = (input: { diagnosticCase: DiagnosticCaseDetailRecord; now: Date; organizationId: string }) => Promise<{ model: DiagnosticReasoningModel; evidence: ReasoningEvidence[] } | null>;
 
 function dependencies(input: Dependencies) {
   return {
@@ -32,7 +36,8 @@ function dependencies(input: Dependencies) {
     foundationRepository: input.foundationRepository ?? createEnterpriseCommandRepository(),
     now: input.now ?? (() => new Date()),
     organizationId: input.organizationId ?? INITIAL_ORGANIZATION.id,
-    repository: input.repository ?? createDiagnosticCaseRepository()
+    repository: input.repository ?? createDiagnosticCaseRepository(),
+    reasoningProvider: input.reasoningProvider ?? null
   };
 }
 
@@ -55,7 +60,7 @@ async function authorize(
   context: ReturnType<typeof dependencies>,
   resourceOwnerUserId: string | null = null,
   mutation = false,
-  feature: "DIAGNOSTIC_CASES" | "DIAGNOSTIC_EVIDENCE" = "DIAGNOSTIC_CASES"
+  feature: "DIAGNOSTIC_CASES" | "DIAGNOSTIC_EVIDENCE" | "DIAGNOSTIC_REASONING" = "DIAGNOSTIC_CASES"
 ) {
   const user = assertAuthenticatedUser(actor);
   const grants = await grantsFor(user, context);
@@ -63,7 +68,7 @@ async function authorize(
   if (mutation && context.enforceRollout) {
     const flags = await context.foundationRepository.listFeatureFlags(context.organizationId);
     const decision = evaluateDiagnosticsFeature(flags, feature, user.id, locationId);
-    if (!decision.executable) throw new Error(`Diagnostic ${feature === "DIAGNOSTIC_EVIDENCE" ? "evidence" : "case"} mutations are not enabled (${decision.reason}).`);
+    if (!decision.executable) throw new Error(`Diagnostic ${feature === "DIAGNOSTIC_EVIDENCE" ? "evidence" : feature === "DIAGNOSTIC_REASONING" ? "reasoning" : "case"} mutations are not enabled (${decision.reason}).`);
   }
   return { grants, user };
 }
@@ -237,6 +242,22 @@ export async function executeDiagnosticTestLifecycle(actor: AuthenticatedUser | 
   return context.repository.executeTestLifecycle(command({ actorUserId: user.id, commandType: lifecycleCommandTypes[action], expectedVersion: data.expectedVersion, idempotencyKey: data.idempotencyKey, locationId: diagnosticCase.locationId, organizationId: context.organizationId, payload: payload({ action, executionKey, planNodeId: data.planNodeId, reasonCode: data.reasonCode, repeatOfExecutionKey: data.repeatOfExecutionKey }), reason: data.reason, subjectId: diagnosticCase.id }), { ...data, eventId, executionKey });
 }
 
+export async function evaluateDiagnosticCaseReasoning(actor: AuthenticatedUser | null, caseId: string, value: unknown, input: Dependencies = {}) {
+  const context = dependencies(input); const data = normalizeDiagnosticReasoningCommand(value); const identity = await loadCaseIdentity(caseId, context);
+  const { user } = await authorize(actor, "DIAGNOSTIC_REASONING_EVALUATE", identity.locationId, context, identity.assignedUserId, true, "DIAGNOSTIC_REASONING");
+  assertOwnerTransition(user, identity);
+  if (!context.reasoningProvider) throw new Error("An approved diagnostic reasoning model provider is unavailable.");
+  if (!context.repository.recordReasoningEvaluation) throw new Error("Diagnostic reasoning persistence is unavailable.");
+  const detail = await context.repository.get(context.organizationId, caseId); if (!detail) throw new Error("Diagnostic case was not found.");
+  const approved = await context.reasoningProvider({ diagnosticCase: detail, now: context.now(), organizationId: context.organizationId });
+  if (!approved) throw new Error("No approved diagnostic reasoning model applies to this case.");
+  const quality = buildDiagnosticCaseQualitySummary({ now: context.now(), observations: detail.observations.map((item) => ({ correctedById: item.correctedBy?.id ?? null, independenceGroup: item.independenceGroup, observedAt: item.observedAt.toISOString(), qualityReasonCode: item.qualityReasonCode, qualityStatus: item.qualityStatus })), measurements: detail.measurements.map((item) => ({ instrument: item.instrument, independenceGroup: item.independenceGroup, measuredAt: item.measuredAt.toISOString(), normalizedUnit: item.normalizedUnit, normalizedValue: item.normalizedValue.toString(), plausibilityStatus: item.plausibilityStatus, qualityReasonCode: item.qualityReasonCode, qualityStatus: item.qualityStatus, quantity: item.quantity, supersededById: item.supersededBy?.id ?? null })) });
+  const concern = detail.concernVersions[0]; if (!concern) throw new Error("Diagnostic reasoning requires a current concern version.");
+  const occurredAt = context.now(); const result = evaluateDiagnosticReasoning({ diagnosticCaseId: caseId, concernVersionId: concern.id, vehicle: { id: detail.vehicle.id, make: detail.vehicle.make ?? "", model: detail.vehicle.model ?? "", year: detail.vehicle.year ?? 0 }, model: approved.model, evidence: approved.evidence, gateDisposition: quality.disposition, gateReasonCodes: quality.reasonCodes, bounds: data.bounds, now: occurredAt });
+  const evaluationId = diagnosticReasoningId("dre", context.organizationId, caseId, data.idempotencyKey);
+  return context.repository.recordReasoningEvaluation(command({ actorUserId: user.id, commandType: "EVALUATE_DIAGNOSTIC_CASE", expectedVersion: data.expectedVersion, idempotencyKey: data.idempotencyKey, locationId: identity.locationId, organizationId: context.organizationId, payload: payload({ inputChecksum: result.inputChecksum, modelVersion: result.modelVersion, resultChecksum: result.resultChecksum, supersedesId: data.supersedesId }), reason: data.reason, subjectId: caseId }), { evaluationId, evidence: approved.evidence, occurredAt, result, supersedesId: data.supersedesId });
+}
+
 export async function recordDiagnosticObservation(actor: AuthenticatedUser | null, caseId: string, value: unknown, input: Dependencies = {}) {
   const context = dependencies(input);
   const data = normalizeDiagnosticObservation(value, context.now());
@@ -320,7 +341,7 @@ function blocker(diagnosticCase: DiagnosticCaseDetailRecord) {
   return null;
 }
 
-function projectCase(diagnosticCase: DiagnosticCaseDetailRecord, now: Date, evidenceAccess: { attachments: boolean; facts: boolean; restricted: boolean; tests?: boolean } = { attachments: false, facts: false, restricted: false, tests: false }) {
+function projectCase(diagnosticCase: DiagnosticCaseDetailRecord, now: Date, evidenceAccess: { attachments: boolean; facts: boolean; restricted: boolean; tests?: boolean; reasoning?: boolean } = { attachments: false, facts: false, restricted: false, tests: false, reasoning: false }) {
   const concern = diagnosticCase.concernVersions[0];
   const vehicleLabel = [diagnosticCase.vehicle.year, diagnosticCase.vehicle.make, diagnosticCase.vehicle.model].filter(Boolean).join(" ") || diagnosticCase.vehicle.vehicleNumber;
   return {
@@ -387,6 +408,7 @@ function projectCase(diagnosticCase: DiagnosticCaseDetailRecord, now: Date, evid
       startedAt: execution.startedAt?.toISOString() ?? null, pausedAt: execution.pausedAt?.toISOString() ?? null, completedAt: execution.completedAt?.toISOString() ?? null,
       invalidatedAt: execution.invalidatedAt?.toISOString() ?? null, cancelledAt: execution.cancelledAt?.toISOString() ?? null, occurredAt: execution.occurredAt.toISOString()
     })) : [],
+    reasoningEvaluations: evidenceAccess.reasoning ? (diagnosticCase.reasoningEvaluations ?? []).map((evaluation) => ({ id: evaluation.id, sequence: evaluation.sequence, engineVersion: evaluation.engineVersion, policyVersion: evaluation.policyVersion, modelVersion: evaluation.modelVersion, ruleSetVersion: evaluation.ruleSetVersion, knowledgeChecksum: evaluation.knowledgeChecksum, calculationVersions: evaluation.calculationVersions, sourceVersions: evaluation.sourceVersions, conflicts: evaluation.conflicts, candidateDiagnoses: evaluation.candidateDiagnoses, causalPredictions: evaluation.causalPredictions, missingExpectedEffects: evaluation.missingExpectedEffects, recommendedTests: evaluation.recommendedTests, hardBlockers: evaluation.hardBlockers, reasonCodes: evaluation.reasonCodes, bounds: evaluation.bounds, generationComplete: evaluation.generationComplete, abstentionRequired: evaluation.abstentionRequired, timedOut: evaluation.timedOut, degraded: evaluation.degraded, inputChecksum: evaluation.inputChecksum, resultChecksum: evaluation.resultChecksum, supersedesId: evaluation.supersedesId, supersededById: evaluation.supersededBy?.id ?? null, occurredAt: evaluation.occurredAt.toISOString(), hypotheses: evaluation.hypotheses.map((hypothesis) => ({ id: hypothesis.id, hypothesisKey: hypothesis.hypothesisKey, status: hypothesis.status, candidateAssumptions: hypothesis.candidateAssumptions, abnormalModes: hypothesis.abnormalModes, commonCause: hypothesis.commonCause, intermittent: hypothesis.intermittent, rank: hypothesis.rank, causalState: hypothesis.causalState, explanationCodes: hypothesis.explanationCodes, supportingEvidenceKeys: hypothesis.supportingEvidenceKeys, contradictingEvidenceKeys: hypothesis.contradictingEvidenceKeys, missingExpectedEvidenceKeys: hypothesis.missingExpectedEvidenceKeys, supersedesId: hypothesis.supersedesId, evidenceLinks: hypothesis.evidenceLinks })) })) : [],
     timeline: diagnosticCase.stateEvents.map((event) => ({
       id: event.id,
       version: event.version,
@@ -464,16 +486,19 @@ export async function getDiagnosticCaseWorkspace(actor: AuthenticatedUser | null
   const canLinkEvidence = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_EVIDENCE_LINK", grants, locationId: detail.locationId, now: context.now(), resourceOwnerUserId: detail.assignedUserId }).allowed && vehicleEvidenceView && evidenceOwner;
   const canPlanTests = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_TEST_PLAN_MANAGE", grants, locationId: detail.locationId, now: context.now(), resourceOwnerUserId: detail.assignedUserId }).allowed && evidenceOwner;
   const canExecuteTests = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_TEST_EXECUTE", grants, locationId: detail.locationId, now: context.now(), resourceOwnerUserId: detail.assignedUserId }).allowed && evidenceOwner;
+  const canEvaluateReasoning = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_REASONING_EVALUATE", grants, locationId: detail.locationId, now: context.now(), resourceOwnerUserId: detail.assignedUserId }).allowed && evidenceOwner;
   const evidenceCandidates = evidenceView && vehicleEvidenceView && context.repository.listEvidenceCandidates ? await context.repository.listEvidenceCandidates(context.organizationId, detail.vehicleId) : [];
   const generatedAt = context.now();
-  const diagnosticCase = projectCase(detail, generatedAt, { facts: evidenceView, attachments: evidenceView && vehicleEvidenceView, restricted: restrictedEvidenceView, tests: evidenceView && (canPlanTests || canExecuteTests) });
+  const diagnosticCase = projectCase(detail, generatedAt, { facts: evidenceView, attachments: evidenceView && vehicleEvidenceView, restricted: restrictedEvidenceView, tests: evidenceView && (canPlanTests || canExecuteTests), reasoning: evidenceView && canEvaluateReasoning });
+  const reasoningRollout = evaluateDiagnosticsFeature(flags, "DIAGNOSTIC_REASONING", user.id, detail.locationId);
   return {
     state: "COMPLETE" as const,
     generatedAt: generatedAt.toISOString(),
     viewer: { id: user.id, name: user.name },
     rollout: { executable: rollout.executable, reason: rollout.reason },
     evidenceRollout: { executable: evidenceRollout.executable, reason: evidenceRollout.reason },
-    permissions: { canAssign, canTransition: transitionCapability && evidenceOwner, canRecordEvidence, canLinkEvidence, canPlanTests, canExecuteTests },
+    reasoningRollout: { executable: reasoningRollout.executable, reason: reasoningRollout.reason },
+    permissions: { canAssign, canTransition: transitionCapability && evidenceOwner, canRecordEvidence, canLinkEvidence, canPlanTests, canExecuteTests, canEvaluateReasoning },
     assignableUsers: canAssign ? assignableUsers : [],
     evidenceCandidates: evidenceCandidates.filter((item) => item.accessLevel !== "RESTRICTED" || restrictedEvidenceView).map((item) => ({ ...item, retentionUntil: item.retentionUntil.toISOString(), linkable: item.status === "AVAILABLE" && item.malwareStatus === "CLEAN" })),
     diagnosticCase,

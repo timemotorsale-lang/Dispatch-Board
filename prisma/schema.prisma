@@ -790,6 +790,31 @@ enum DiagnosticKnowledgeReleaseState {
   RETIRED
 }
 
+enum DiagnosticHypothesisStatus {
+  GENERATED
+  SUPPORTED
+  CONTRADICTED
+  DISCRIMINATION_REQUIRED
+  OUT_OF_MODEL
+  REJECTED_BY_TECHNICIAN
+  CONFIRMED
+  SUPERSEDED
+}
+
+enum DiagnosticHypothesisEvidenceRelationship {
+  SUPPORTS
+  CONTRADICTS
+  ASSUMES
+  RETRACTS
+}
+
+enum DiagnosticHypothesisEvidenceType {
+  OBSERVATION
+  MEASUREMENT
+  TEST_EXECUTION
+  MODEL_FACT
+}
+
 enum PartDemandStatus {
   OPEN
   PARTIALLY_RESERVED
@@ -1519,6 +1544,7 @@ model User {
   authoredDiagnosticTestDefinitions     DiagnosticTestDefinitionVersion[]       @relation("DiagnosticTestDefinitionAuthor")
   authoredDiagnosticTestPlans           DiagnosticTestPlanVersion[]             @relation("DiagnosticTestPlanAuthor")
   diagnosticTestExecutionEvents         DiagnosticTestExecution[]               @relation("DiagnosticTestExecutionActor")
+  diagnosticReasoningEvaluations        DiagnosticReasoningEvaluation[]          @relation("DiagnosticReasoningEvaluator")
   authoredDiagnosticKnowledgeSources    DiagnosticKnowledgeSourceVersion[]       @relation("DiagnosticKnowledgeSourceAuthor")
   technicalReviewedKnowledgeSources     DiagnosticKnowledgeSourceVersion[]       @relation("DiagnosticKnowledgeSourceTechnicalReviewer")
   rightsReviewedKnowledgeSources        DiagnosticKnowledgeSourceVersion[]       @relation("DiagnosticKnowledgeSourceRightsReviewer")
@@ -1788,6 +1814,9 @@ model Organization {
   diagnosticKnowledgeSourceVersions     DiagnosticKnowledgeSourceVersion[]
   diagnosticRuleSetVersions             DiagnosticRuleSetVersion[]
   diagnosticRuleSetSourceLinks          DiagnosticRuleSetSourceLink[]
+  diagnosticHypotheses                  DiagnosticHypothesis[]
+  diagnosticHypothesisEvidence          DiagnosticHypothesisEvidence[]
+  diagnosticReasoningEvaluations        DiagnosticReasoningEvaluation[]
 }
 
 model Location {
@@ -3093,6 +3122,9 @@ model DiagnosticCase {
   testPlanVersions      DiagnosticTestPlanVersion[]
   testPlanNodes         DiagnosticTestPlanNode[]
   testExecutions        DiagnosticTestExecution[]
+  hypotheses            DiagnosticHypothesis[]
+  hypothesisEvidence    DiagnosticHypothesisEvidence[]
+  reasoningEvaluations  DiagnosticReasoningEvaluation[]
 
   @@unique([id, organizationId])
   @@unique([repairOrderId, concernKey])
@@ -3121,6 +3153,7 @@ model DiagnosticConcernVersion {
   supersededBy        DiagnosticConcernVersion? @relation("DiagnosticConcernSupersession")
   observations        DiagnosticObservation[]
   measurements        DiagnosticMeasurement[]
+  reasoningEvaluations DiagnosticReasoningEvaluation[]
 
   @@unique([diagnosticCaseId, version])
   @@unique([id, organizationId])
@@ -3180,6 +3213,7 @@ model DiagnosticObservation {
   corrects            DiagnosticObservation?    @relation("DiagnosticObservationCorrection", fields: [correctsId], references: [id], onDelete: Restrict)
   correctedBy         DiagnosticObservation?    @relation("DiagnosticObservationCorrection")
   evidenceLinks       DiagnosticEvidenceLink[]
+  hypothesisEvidence DiagnosticHypothesisEvidence[]
 
   @@unique([id, organizationId])
   @@index([diagnosticCaseId, observedAt])
@@ -3226,6 +3260,7 @@ model DiagnosticMeasurement {
   supersedes              DiagnosticMeasurement?         @relation("DiagnosticMeasurementSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
   supersededBy            DiagnosticMeasurement?         @relation("DiagnosticMeasurementSupersession")
   evidenceLinks           DiagnosticEvidenceLink[]
+  hypothesisEvidence     DiagnosticHypothesisEvidence[]
 
   @@unique([id, organizationId])
   @@index([diagnosticCaseId, measuredAt])
@@ -3387,6 +3422,7 @@ model DiagnosticTestExecution {
   previousEvent        DiagnosticTestExecution?       @relation("DiagnosticTestExecutionHistory", fields: [previousEventId], references: [id], onDelete: Restrict)
   nextEvent            DiagnosticTestExecution?       @relation("DiagnosticTestExecutionHistory")
   evidenceLinks        DiagnosticEvidenceLink[]
+  hypothesisEvidence  DiagnosticHypothesisEvidence[]
 
   @@unique([executionKey, revision])
   @@unique([previousEventId])
@@ -3485,6 +3521,116 @@ model DiagnosticRuleSetSourceLink {
   @@unique([ruleSetVersionId, knowledgeSourceVersionId, purpose])
   @@unique([id, organizationId])
   @@index([organizationId, knowledgeSourceVersionId])
+}
+
+model DiagnosticReasoningEvaluation {
+  id                     String                         @id
+  organizationId         String
+  diagnosticCaseId       String
+  concernVersionId       String
+  sequence               Int
+  engineVersion          String
+  policyVersion          String
+  modelVersion           String
+  ruleSetVersion         String
+  knowledgeChecksum      String
+  calculationVersions    Json
+  sourceVersions         Json
+  vehicleContext         Json
+  includedEvidence       Json
+  excludedEvidence       Json
+  assumptions            Json
+  abnormalModes          Json
+  conflicts              Json
+  candidateDiagnoses     Json
+  causalPredictions      Json
+  missingExpectedEffects Json
+  recommendedTests       Json
+  hardBlockers           Json
+  reasonCodes            Json
+  bounds                  Json
+  generationComplete     Boolean
+  abstentionRequired     Boolean
+  timedOut               Boolean
+  degraded               Boolean
+  computationDurationMs  Int
+  inputChecksum          String
+  resultChecksum         String
+  evaluatedByUserId      String
+  supersedesId           String?                        @unique
+  occurredAt             DateTime
+  createdAt              DateTime                       @default(now())
+  organization           Organization                   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  diagnosticCase         DiagnosticCase                 @relation(fields: [diagnosticCaseId], references: [id], onDelete: Restrict)
+  concernVersion         DiagnosticConcernVersion       @relation(fields: [concernVersionId], references: [id], onDelete: Restrict)
+  evaluatedByUser        User                           @relation("DiagnosticReasoningEvaluator", fields: [evaluatedByUserId], references: [id], onDelete: Restrict)
+  supersedes             DiagnosticReasoningEvaluation? @relation("DiagnosticReasoningSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy           DiagnosticReasoningEvaluation? @relation("DiagnosticReasoningSupersession")
+  hypotheses             DiagnosticHypothesis[]
+
+  @@unique([diagnosticCaseId, sequence])
+  @@unique([id, organizationId])
+  @@index([organizationId, diagnosticCaseId, occurredAt])
+  @@index([organizationId, abstentionRequired, occurredAt])
+}
+
+model DiagnosticHypothesis {
+  id                          String                     @id
+  organizationId              String
+  diagnosticCaseId            String
+  reasoningEvaluationId       String
+  hypothesisKey               String
+  status                      DiagnosticHypothesisStatus
+  candidateAssumptions        Json
+  abnormalModes               Json
+  commonCause                 Boolean                    @default(false)
+  intermittent                Boolean                    @default(false)
+  rank                        Int
+  causalState                 String
+  explanationCodes            Json
+  supportingEvidenceKeys      Json
+  contradictingEvidenceKeys   Json
+  missingExpectedEvidenceKeys Json
+  supersedesId                String?                    @unique
+  createdAt                   DateTime                   @default(now())
+  organization                Organization               @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  diagnosticCase              DiagnosticCase             @relation(fields: [diagnosticCaseId], references: [id], onDelete: Restrict)
+  reasoningEvaluation         DiagnosticReasoningEvaluation @relation(fields: [reasoningEvaluationId], references: [id], onDelete: Restrict)
+  supersedes                  DiagnosticHypothesis?      @relation("DiagnosticHypothesisSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy                DiagnosticHypothesis?      @relation("DiagnosticHypothesisSupersession")
+  evidenceLinks               DiagnosticHypothesisEvidence[]
+
+  @@unique([reasoningEvaluationId, hypothesisKey])
+  @@unique([id, organizationId])
+  @@index([diagnosticCaseId, status, createdAt])
+  @@index([organizationId, hypothesisKey, createdAt])
+}
+
+model DiagnosticHypothesisEvidence {
+  id                 String                                   @id
+  organizationId     String
+  diagnosticCaseId   String
+  hypothesisId       String
+  evidenceKey        String
+  evidenceType       DiagnosticHypothesisEvidenceType
+  relationship       DiagnosticHypothesisEvidenceRelationship
+  observationId      String?
+  measurementId      String?
+  testExecutionId    String?
+  independenceGroup  String
+  rationaleCode      String
+  createdAt          DateTime                                 @default(now())
+  organization       Organization                             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  diagnosticCase     DiagnosticCase                           @relation(fields: [diagnosticCaseId], references: [id], onDelete: Restrict)
+  hypothesis         DiagnosticHypothesis                     @relation(fields: [hypothesisId], references: [id], onDelete: Restrict)
+  observation        DiagnosticObservation?                   @relation(fields: [observationId], references: [id], onDelete: Restrict)
+  measurement        DiagnosticMeasurement?                   @relation(fields: [measurementId], references: [id], onDelete: Restrict)
+  testExecution      DiagnosticTestExecution?                 @relation(fields: [testExecutionId], references: [id], onDelete: Restrict)
+
+  @@unique([hypothesisId, evidenceKey, relationship])
+  @@unique([id, organizationId])
+  @@index([diagnosticCaseId, createdAt])
+  @@index([organizationId, evidenceType, relationship])
 }
 
 model RepairOrderStateEvent {
