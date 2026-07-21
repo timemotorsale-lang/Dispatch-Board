@@ -15,6 +15,7 @@ const diagnosticCase = {
   vehicle: { id: "vehicle-1", vehicleNumber: "V-10", vin: "VIN10", year: 2020, make: "Ford", model: "F-150", label: "2020 Ford F-150" },
   openedAt: "2026-07-20T12:00:00.000Z", updatedAt: "2026-07-20T13:00:00.000Z", closedAt: null, ageHours: 2,
   nextAction: "Continue the current diagnostic stage", blocker: null, confidence: "NOT_ASSESSED",
+  concernVersionId: "concern-1", observations: [], measurements: [], evidenceLinks: [],
   timeline: [{ id: "event-1", version: 2, eventType: "STATUS_CHANGED", fromStatus: "DRAFT", toStatus: "TRIAGE", reasonCode: "CASE_TRIAGE_STARTED", reason: "Technician began safety and operability triage.", actorUserId: "tech-1", occurredAt: "2026-07-20T13:00:00.000Z" }]
 };
 
@@ -30,10 +31,11 @@ describe("diagnostics case console", () => {
   });
 
   it("renders the five-stage technician workspace without inventing evidence", () => {
-    const model = { state: "COMPLETE", generatedAt: "2026-07-20T14:00:00.000Z", viewer: { id: "tech-1", name: "Walter Mechanic" }, rollout: { executable: true, reason: "GENERAL" }, permissions: { canAssign: false, canTransition: true }, assignableUsers: [], diagnosticCase } as unknown as DiagnosticCaseWorkspaceModel;
+    const model = { state: "COMPLETE", generatedAt: "2026-07-20T14:00:00.000Z", viewer: { id: "tech-1", name: "Walter Mechanic" }, rollout: { executable: true, reason: "GENERAL" }, evidenceRollout: { executable: true, reason: "GENERAL" }, permissions: { canAssign: false, canTransition: true, canRecordEvidence: true, canLinkEvidence: true }, assignableUsers: [], evidenceCandidates: [], diagnosticCase } as unknown as DiagnosticCaseWorkspaceModel;
     const html = renderToStaticMarkup(<DiagnosticCaseWorkspace model={model} />);
     for (const stage of ["Concern", "Evidence", "Test", "Cause", "Verify"]) expect(html).toContain(stage);
-    expect(html).toContain("No observations, measurements, or attachments are available yet.");
+    expect(html).toContain("No observations recorded.");
+    expect(html).toContain("No measurements recorded.");
     expect(html).toContain("No candidate causes have been proposed.");
     expect(html).not.toMatch(/\b\d{1,3}%\b/);
   });

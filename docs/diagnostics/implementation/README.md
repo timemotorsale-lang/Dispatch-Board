@@ -16,5 +16,7 @@ This directory contains evidence-backed records for completed Diagnostics implem
 | `DGN-010` | Implemented in source — independent console and permission-filtered case queue | [`DGN_010_012_CASE_CONSOLE_IMPLEMENTATION.md`](DGN_010_012_CASE_CONSOLE_IMPLEMENTATION.md) |
 | `DGN-011` | Implemented in source — technician case workspace and governed lifecycle controls | [`DGN_010_012_CASE_CONSOLE_IMPLEMENTATION.md`](DGN_010_012_CASE_CONSOLE_IMPLEMENTATION.md) |
 | `DGN-012` | Implemented in source — Repair Order create/open/summary bridge | [`DGN_010_012_CASE_CONSOLE_IMPLEMENTATION.md`](DGN_010_012_CASE_CONSOLE_IMPLEMENTATION.md) |
+| `DGN-013` | Implemented in source — immutable observations, normalized measurements, plausibility, and correction lineage | [`DGN_013_014_EVIDENCE_FOUNDATION_IMPLEMENTATION.md`](DGN_013_014_EVIDENCE_FOUNDATION_IMPLEMENTATION.md) |
+| `DGN-014` | Implemented in source — governed Vehicle Evidence links and permission-filtered technician evidence UI | [`DGN_013_014_EVIDENCE_FOUNDATION_IMPLEMENTATION.md`](DGN_013_014_EVIDENCE_FOUNDATION_IMPLEMENTATION.md) |
 
 [`DG-G0`](DG_G0_FOUNDATION_GATE_REVIEW.md) is **approved with holds**. DGN-007–012 are implemented in source. `DG-G1` remains open pending migrated-runtime browser, accessibility, and technician-usability evidence. Source ingestion, reasoning, publishing, pilot, and AI remain gated.

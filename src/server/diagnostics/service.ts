@@ -12,6 +12,7 @@ import {
   normalizeDiagnosticAssignment,
   normalizeDiagnosticTransition
 } from "./domain";
+import { diagnosticFactId, normalizeDiagnosticEvidenceLink, normalizeDiagnosticMeasurement, normalizeDiagnosticObservation } from "./evidence-domain";
 import { createDiagnosticCaseRepository, type DiagnosticCaseDetailRecord, type DiagnosticCaseIdentityRecord, type DiagnosticCaseRepository } from "./repository";
 
 type Dependencies = {
@@ -50,15 +51,16 @@ async function authorize(
   locationId: string | null,
   context: ReturnType<typeof dependencies>,
   resourceOwnerUserId: string | null = null,
-  mutation = false
+  mutation = false,
+  feature: "DIAGNOSTIC_CASES" | "DIAGNOSTIC_EVIDENCE" = "DIAGNOSTIC_CASES"
 ) {
   const user = assertAuthenticatedUser(actor);
   const grants = await grantsFor(user, context);
   assertVehicleCapability({ actor: user, capability, grants, locationId, now: context.now(), resourceOwnerUserId });
   if (mutation && context.enforceRollout) {
     const flags = await context.foundationRepository.listFeatureFlags(context.organizationId);
-    const decision = evaluateDiagnosticsFeature(flags, "DIAGNOSTIC_CASES", user.id, locationId);
-    if (!decision.executable) throw new Error(`Diagnostic case mutations are not enabled (${decision.reason}).`);
+    const decision = evaluateDiagnosticsFeature(flags, feature, user.id, locationId);
+    if (!decision.executable) throw new Error(`Diagnostic ${feature === "DIAGNOSTIC_EVIDENCE" ? "evidence" : "case"} mutations are not enabled (${decision.reason}).`);
   }
   return { grants, user };
 }
@@ -171,6 +173,61 @@ export async function transitionDiagnosticCase(actor: AuthenticatedUser | null, 
   }), { occurredAt, reasonCode: data.reasonCode, targetStatus: data.targetStatus });
 }
 
+export async function recordDiagnosticObservation(actor: AuthenticatedUser | null, caseId: string, value: unknown, input: Dependencies = {}) {
+  const context = dependencies(input);
+  const data = normalizeDiagnosticObservation(value, context.now());
+  const diagnosticCase = await loadCaseIdentity(caseId, context);
+  const { user } = await authorize(actor, "DIAGNOSTIC_EVIDENCE_RECORD", diagnosticCase.locationId, context, diagnosticCase.assignedUserId, true, "DIAGNOSTIC_EVIDENCE");
+  assertOwnerTransition(user, diagnosticCase);
+  if (!context.repository.recordObservation) throw new Error("Diagnostic observation persistence is unavailable.");
+  const id = diagnosticFactId("obs", context.organizationId, diagnosticCase.id, data.idempotencyKey);
+  return context.repository.recordObservation(command({
+    actorUserId: user.id, commandType: data.correctsId ? "CORRECT_DIAGNOSTIC_FACT" : "RECORD_DIAGNOSTIC_OBSERVATION", expectedVersion: data.expectedVersion,
+    idempotencyKey: data.idempotencyKey, locationId: diagnosticCase.locationId, organizationId: context.organizationId,
+    payload: payload({ correctsId: data.correctsId, factClass: data.factClass, observationId: id, qualityReasonCode: data.qualityReasonCode, source: data.source }),
+    reason: data.reason, subjectId: diagnosticCase.id
+  }), { ...data, id });
+}
+
+export async function recordDiagnosticMeasurement(actor: AuthenticatedUser | null, caseId: string, value: unknown, input: Dependencies = {}) {
+  const context = dependencies(input);
+  const data = normalizeDiagnosticMeasurement(value, context.now());
+  const diagnosticCase = await loadCaseIdentity(caseId, context);
+  const { user } = await authorize(actor, "DIAGNOSTIC_EVIDENCE_RECORD", diagnosticCase.locationId, context, diagnosticCase.assignedUserId, true, "DIAGNOSTIC_EVIDENCE");
+  assertOwnerTransition(user, diagnosticCase);
+  if (!context.repository.recordMeasurement) throw new Error("Diagnostic measurement persistence is unavailable.");
+  const id = diagnosticFactId("mea", context.organizationId, diagnosticCase.id, data.idempotencyKey);
+  return context.repository.recordMeasurement(command({
+    actorUserId: user.id, commandType: data.supersedesId ? "CORRECT_DIAGNOSTIC_FACT" : "RECORD_DIAGNOSTIC_MEASUREMENT", expectedVersion: data.expectedVersion,
+    idempotencyKey: data.idempotencyKey, locationId: diagnosticCase.locationId, organizationId: context.organizationId,
+    payload: payload({ measurementId: id, normalizedUnit: data.normalizedUnit, plausibilityStatus: data.plausibilityStatus, qualityReasonCode: data.qualityReasonCode, quantity: data.quantity, supersedesId: data.supersedesId }),
+    reason: data.reason, subjectId: diagnosticCase.id
+  }), { ...data, id });
+}
+
+export async function linkDiagnosticEvidence(actor: AuthenticatedUser | null, caseId: string, value: unknown, input: Dependencies = {}) {
+  const context = dependencies(input);
+  const data = normalizeDiagnosticEvidenceLink(value);
+  const diagnosticCase = await loadCaseIdentity(caseId, context);
+  const { grants, user } = await authorize(actor, "DIAGNOSTIC_EVIDENCE_LINK", diagnosticCase.locationId, context, diagnosticCase.assignedUserId, true, "DIAGNOSTIC_EVIDENCE");
+  assertOwnerTransition(user, diagnosticCase);
+  assertVehicleCapability({ actor: user, capability: "VEHICLE_EVIDENCE_VIEW", grants, locationId: null, now: context.now() });
+  if (!context.repository.getEvidenceContext || !context.repository.linkEvidence) throw new Error("Diagnostic evidence linking is unavailable.");
+  const evidence = await context.repository.getEvidenceContext(context.organizationId, data.evidenceObjectId);
+  if (!evidence) throw new Error("Vehicle Evidence object was not found.");
+  if (evidence.accessLevel === "RESTRICTED") assertVehicleCapability({ actor: user, capability: "VEHICLE_EVIDENCE_RESTRICTED_VIEW", grants, locationId: null, now: context.now() });
+  if (evidence.status !== "AVAILABLE" || evidence.malwareStatus !== "CLEAN") throw new Error("Vehicle Evidence object must be available and malware-clean before linking.");
+  const detail = await context.repository.get(context.organizationId, diagnosticCase.id);
+  if (!detail || !evidence.vehicleIds.includes(detail.vehicleId)) throw new Error("Vehicle Evidence object does not belong to the diagnostic-case vehicle.");
+  const id = diagnosticFactId("del", context.organizationId, diagnosticCase.id, data.idempotencyKey);
+  return context.repository.linkEvidence(command({
+    actorUserId: user.id, commandType: "LINK_DIAGNOSTIC_EVIDENCE", expectedVersion: data.expectedVersion, idempotencyKey: data.idempotencyKey,
+    locationId: diagnosticCase.locationId, organizationId: context.organizationId,
+    payload: payload({ diagnosticEvidenceLinkId: id, evidenceObjectId: data.evidenceObjectId, relationship: data.relationship, subjectId: data.subjectId, subjectType: data.subjectType }),
+    reason: data.reason, subjectId: diagnosticCase.id
+  }), { ...data, id });
+}
+
 const terminalStatuses = new Set(["VERIFIED_CLOSED", "INCONCLUSIVE", "NO_FAULT_FOUND", "ABANDONED"]);
 const waitingStatuses = new Set(["WAITING_FOR_VEHICLE", "WAITING_FOR_AUTHORIZATION", "WAITING_FOR_TOOL", "WAITING_FOR_INFORMATION", "WAITING_FOR_PART"]);
 
@@ -199,7 +256,7 @@ function blocker(diagnosticCase: DiagnosticCaseDetailRecord) {
   return null;
 }
 
-function projectCase(diagnosticCase: DiagnosticCaseDetailRecord, now: Date) {
+function projectCase(diagnosticCase: DiagnosticCaseDetailRecord, now: Date, evidenceAccess: { attachments: boolean; facts: boolean; restricted: boolean } = { attachments: false, facts: false, restricted: false }) {
   const concern = diagnosticCase.concernVersions[0];
   const vehicleLabel = [diagnosticCase.vehicle.year, diagnosticCase.vehicle.make, diagnosticCase.vehicle.model].filter(Boolean).join(" ") || diagnosticCase.vehicle.vehicleNumber;
   return {
@@ -212,6 +269,7 @@ function projectCase(diagnosticCase: DiagnosticCaseDetailRecord, now: Date) {
     concernKey: diagnosticCase.concernKey,
     concern: concern?.statement ?? diagnosticCase.repairOrder.serviceVisit.concernSummary,
     concernSource: concern?.source ?? "REPAIR_ORDER_CONCERN",
+    concernVersionId: concern?.id ?? null,
     operatingConditions: concern?.operatingConditions && typeof concern.operatingConditions === "object" && !Array.isArray(concern.operatingConditions) ? concern.operatingConditions : {},
     concernVersion: concern?.version ?? diagnosticCase.currentConcernVersion,
     assignedUser: diagnosticCase.assignedUser,
@@ -226,6 +284,31 @@ function projectCase(diagnosticCase: DiagnosticCaseDetailRecord, now: Date) {
     nextAction: nextAction(diagnosticCase),
     blocker: blocker(diagnosticCase),
     confidence: "NOT_ASSESSED" as const,
+    observations: evidenceAccess.facts ? diagnosticCase.observations.map((observation) => ({
+      id: observation.id, factClass: observation.factClass, statement: observation.statement, structuredValue: observation.structuredValue,
+      operatingConditions: observation.operatingConditions, source: observation.source, reliability: observation.reliability,
+      qualityStatus: observation.qualityStatus, qualityReasonCode: observation.qualityReasonCode, independenceGroup: observation.independenceGroup,
+      timeWindowStart: observation.timeWindowStart.toISOString(), timeWindowEnd: observation.timeWindowEnd.toISOString(), observedAt: observation.observedAt.toISOString(),
+      rawSource: observation.rawSource, authorUser: observation.authorUser, correctsId: observation.correctsId, correctedById: observation.correctedBy?.id ?? null,
+      createdAt: observation.createdAt.toISOString()
+    })) : [],
+    measurements: evidenceAccess.facts ? diagnosticCase.measurements.map((measurement) => ({
+      id: measurement.id, quantity: measurement.quantity, value: measurement.valueDecimal.toString(), unit: measurement.unit,
+      normalizedValue: measurement.normalizedValue.toString(), normalizedUnit: measurement.normalizedUnit,
+      referenceMinimum: measurement.referenceMinimum?.toString() ?? null, referenceMaximum: measurement.referenceMaximum?.toString() ?? null,
+      normalizedReferenceMin: measurement.normalizedReferenceMin?.toString() ?? null, normalizedReferenceMax: measurement.normalizedReferenceMax?.toString() ?? null,
+      tolerance: measurement.tolerance, instrument: measurement.instrument, setup: measurement.setup, operatingConditions: measurement.operatingConditions,
+      source: measurement.source, reliability: measurement.reliability, qualityStatus: measurement.qualityStatus, qualityReasonCode: measurement.qualityReasonCode,
+      plausibilityStatus: measurement.plausibilityStatus, plausibilityReasonCode: measurement.plausibilityReasonCode, independenceGroup: measurement.independenceGroup,
+      timeWindowStart: measurement.timeWindowStart.toISOString(), timeWindowEnd: measurement.timeWindowEnd.toISOString(), measuredAt: measurement.measuredAt.toISOString(),
+      rawSource: measurement.rawSource, authorUser: measurement.authorUser, supersedesId: measurement.supersedesId, supersededById: measurement.supersededBy?.id ?? null,
+      createdAt: measurement.createdAt.toISOString()
+    })) : [],
+    evidenceLinks: evidenceAccess.attachments ? diagnosticCase.evidenceLinks.filter((link) => link.evidenceObject.accessLevel !== "RESTRICTED" || evidenceAccess.restricted).map((link) => ({
+      id: link.id, evidenceObjectId: link.evidenceObjectId, subjectType: link.subjectType, subjectId: link.subjectId, purpose: link.purpose, relationship: link.relationship,
+      createdByUser: link.createdByUser, createdAt: link.createdAt.toISOString(),
+      evidence: { ...link.evidenceObject, retentionUntil: link.evidenceObject.retentionUntil.toISOString(), createdAt: link.evidenceObject.createdAt.toISOString(), downloadUrl: link.evidenceObject.status === "AVAILABLE" && link.evidenceObject.malwareStatus === "CLEAN" ? `/api/vehicle-evidence/${encodeURIComponent(link.evidenceObject.id)}/content` : null }
+    })) : [],
     timeline: diagnosticCase.stateEvents.map((event) => ({
       id: event.id,
       version: event.version,
@@ -292,16 +375,26 @@ export async function getDiagnosticCaseWorkspace(actor: AuthenticatedUser | null
   assertVehicleCapability({ actor: user, capability: "DIAGNOSTIC_CASE_VIEW", grants, locationId: identity.locationId, now: context.now(), resourceOwnerUserId: identity.assignedUserId });
   if (!detail) throw new Error("Diagnostic case was not found.");
   const rollout = evaluateDiagnosticsFeature(flags, "DIAGNOSTIC_CASES", user.id, detail.locationId);
+  const evidenceRollout = evaluateDiagnosticsFeature(flags, "DIAGNOSTIC_EVIDENCE", user.id, detail.locationId);
   const canAssign = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_CASE_ASSIGN", grants, locationId: detail.locationId, now: context.now(), resourceOwnerUserId: detail.assignedUserId }).allowed;
   const transitionCapability = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_CASE_TRANSITION", grants, locationId: detail.locationId, now: context.now(), resourceOwnerUserId: detail.assignedUserId }).allowed;
+  const evidenceView = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_EVIDENCE_VIEW", grants, locationId: detail.locationId, now: context.now(), resourceOwnerUserId: detail.assignedUserId }).allowed;
+  const vehicleEvidenceView = evaluateVehicleCapability({ actor: user, capability: "VEHICLE_EVIDENCE_VIEW", grants, locationId: null, now: context.now() }).allowed;
+  const restrictedEvidenceView = evaluateVehicleCapability({ actor: user, capability: "VEHICLE_EVIDENCE_RESTRICTED_VIEW", grants, locationId: null, now: context.now() }).allowed;
+  const evidenceOwner = isManager(user) || detail.assignedUserId === user.id;
+  const canRecordEvidence = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_EVIDENCE_RECORD", grants, locationId: detail.locationId, now: context.now(), resourceOwnerUserId: detail.assignedUserId }).allowed && evidenceOwner;
+  const canLinkEvidence = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_EVIDENCE_LINK", grants, locationId: detail.locationId, now: context.now(), resourceOwnerUserId: detail.assignedUserId }).allowed && vehicleEvidenceView && evidenceOwner;
+  const evidenceCandidates = evidenceView && vehicleEvidenceView && context.repository.listEvidenceCandidates ? await context.repository.listEvidenceCandidates(context.organizationId, detail.vehicleId) : [];
   return {
     state: "COMPLETE" as const,
     generatedAt: context.now().toISOString(),
     viewer: { id: user.id, name: user.name },
     rollout: { executable: rollout.executable, reason: rollout.reason },
-    permissions: { canAssign, canTransition: transitionCapability && (isManager(user) || detail.assignedUserId === user.id) },
+    evidenceRollout: { executable: evidenceRollout.executable, reason: evidenceRollout.reason },
+    permissions: { canAssign, canTransition: transitionCapability && evidenceOwner, canRecordEvidence, canLinkEvidence },
     assignableUsers: canAssign ? assignableUsers : [],
-    diagnosticCase: projectCase(detail, context.now())
+    evidenceCandidates: evidenceCandidates.filter((item) => item.accessLevel !== "RESTRICTED" || restrictedEvidenceView).map((item) => ({ ...item, retentionUntil: item.retentionUntil.toISOString(), linkable: item.status === "AVAILABLE" && item.malwareStatus === "CLEAN" })),
+    diagnosticCase: projectCase(detail, context.now(), { facts: evidenceView, attachments: evidenceView && vehicleEvidenceView, restricted: restrictedEvidenceView })
   };
 }
 

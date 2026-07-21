@@ -697,6 +697,52 @@ enum VehicleEvidenceEventType {
   DELETED
 }
 
+enum DiagnosticFactClass {
+  REPORTED
+  OBSERVED
+  MEASURED
+  CALCULATED
+}
+
+enum DiagnosticFactSource {
+  CUSTOMER
+  TECHNICIAN
+  VEHICLE_SYSTEM
+  TEST_EQUIPMENT
+  IMPORTED_RECORD
+}
+
+enum DiagnosticReliability {
+  UNASSESSED
+  LOW
+  MEDIUM
+  HIGH
+  VERIFIED
+}
+
+enum DiagnosticQualityStatus {
+  VALID
+  SUSPECT
+  INVALID
+}
+
+enum DiagnosticPlausibilityStatus {
+  PLAUSIBLE
+  OUT_OF_RANGE
+  NOT_EVALUATED
+}
+
+enum DiagnosticEvidenceSubjectType {
+  CASE
+  CONCERN
+  OBSERVATION
+  MEASUREMENT
+  TEST_EXECUTION
+  HYPOTHESIS
+  CONCLUSION
+  VERIFICATION
+}
+
 enum PartDemandStatus {
   OPEN
   PARTIALLY_RESERVED
@@ -1420,6 +1466,9 @@ model User {
   assignedDiagnosticCases               DiagnosticCase[]                       @relation("DiagnosticCaseAssignedTo")
   authoredDiagnosticConcerns            DiagnosticConcernVersion[]             @relation("DiagnosticConcernAuthor")
   diagnosticCaseStateEvents             DiagnosticCaseStateEvent[]             @relation("DiagnosticCaseStateActor")
+  authoredDiagnosticObservations        DiagnosticObservation[]                 @relation("DiagnosticObservationAuthor")
+  authoredDiagnosticMeasurements        DiagnosticMeasurement[]                 @relation("DiagnosticMeasurementAuthor")
+  createdDiagnosticEvidenceLinks        DiagnosticEvidenceLink[]                @relation("DiagnosticEvidenceLinkCreator")
   createdWorkProcedures                 WorkProcedureVersion[]                 @relation("WorkProcedureCreatedBy")
   technicianQualifications              TechnicianQualification[]              @relation("QualifiedTechnician")
   verifiedTechnicianQualifications      TechnicianQualification[]              @relation("QualificationVerifier")
@@ -1674,6 +1723,9 @@ model Organization {
   diagnosticCases                       DiagnosticCase[]
   diagnosticConcernVersions             DiagnosticConcernVersion[]
   diagnosticCaseStateEvents             DiagnosticCaseStateEvent[]
+  diagnosticObservations                DiagnosticObservation[]
+  diagnosticMeasurements                DiagnosticMeasurement[]
+  diagnosticEvidenceLinks               DiagnosticEvidenceLink[]
 }
 
 model Location {
@@ -2973,6 +3025,9 @@ model DiagnosticCase {
   createdByUser         User                       @relation("DiagnosticCaseCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
   concernVersions       DiagnosticConcernVersion[]
   stateEvents           DiagnosticCaseStateEvent[]
+  observations          DiagnosticObservation[]
+  measurements          DiagnosticMeasurement[]
+  evidenceLinks         DiagnosticEvidenceLink[]
 
   @@unique([id, organizationId])
   @@unique([repairOrderId, concernKey])
@@ -2999,8 +3054,11 @@ model DiagnosticConcernVersion {
   authorUser          User                      @relation("DiagnosticConcernAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
   supersedes          DiagnosticConcernVersion? @relation("DiagnosticConcernSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
   supersededBy        DiagnosticConcernVersion? @relation("DiagnosticConcernSupersession")
+  observations        DiagnosticObservation[]
+  measurements        DiagnosticMeasurement[]
 
   @@unique([diagnosticCaseId, version])
+  @@unique([id, organizationId])
   @@index([organizationId, createdAt])
 }
 
@@ -3027,6 +3085,115 @@ model DiagnosticCaseStateEvent {
   @@index([organizationId, occurredAt])
   @@index([correlationId])
   @@index([toAssignedUserId, occurredAt])
+}
+
+model DiagnosticObservation {
+  id                  String                    @id
+  organizationId      String
+  diagnosticCaseId    String
+  concernVersionId    String
+  factClass           DiagnosticFactClass
+  statement           String
+  structuredValue     Json?
+  operatingConditions Json
+  source              DiagnosticFactSource
+  reliability         DiagnosticReliability     @default(UNASSESSED)
+  qualityStatus       DiagnosticQualityStatus   @default(VALID)
+  qualityReasonCode   String
+  independenceGroup   String
+  timeWindowStart     DateTime
+  timeWindowEnd       DateTime
+  observedAt          DateTime
+  rawSource           Json
+  authorUserId        String
+  correctsId          String?                   @unique
+  createdAt           DateTime                  @default(now())
+  organization        Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  diagnosticCase      DiagnosticCase            @relation(fields: [diagnosticCaseId], references: [id], onDelete: Restrict)
+  concernVersion      DiagnosticConcernVersion  @relation(fields: [concernVersionId], references: [id], onDelete: Restrict)
+  authorUser          User                      @relation("DiagnosticObservationAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  corrects            DiagnosticObservation?    @relation("DiagnosticObservationCorrection", fields: [correctsId], references: [id], onDelete: Restrict)
+  correctedBy         DiagnosticObservation?    @relation("DiagnosticObservationCorrection")
+  evidenceLinks       DiagnosticEvidenceLink[]
+
+  @@unique([id, organizationId])
+  @@index([diagnosticCaseId, observedAt])
+  @@index([organizationId, qualityStatus, createdAt])
+  @@index([independenceGroup, observedAt])
+}
+
+model DiagnosticMeasurement {
+  id                     String                         @id
+  organizationId         String
+  diagnosticCaseId       String
+  concernVersionId       String
+  quantity               String
+  valueDecimal           Decimal                        @db.Decimal(24, 8)
+  unit                    String
+  normalizedValue        Decimal                        @db.Decimal(24, 8)
+  normalizedUnit         String
+  referenceMinimum       Decimal?                       @db.Decimal(24, 8)
+  referenceMaximum       Decimal?                       @db.Decimal(24, 8)
+  normalizedReferenceMin Decimal?                       @db.Decimal(24, 8)
+  normalizedReferenceMax Decimal?                       @db.Decimal(24, 8)
+  tolerance              Json
+  instrument             Json
+  setup                  Json
+  operatingConditions    Json
+  source                  DiagnosticFactSource
+  reliability             DiagnosticReliability         @default(UNASSESSED)
+  qualityStatus           DiagnosticQualityStatus       @default(VALID)
+  qualityReasonCode       String
+  plausibilityStatus      DiagnosticPlausibilityStatus
+  plausibilityReasonCode  String
+  independenceGroup       String
+  timeWindowStart         DateTime
+  timeWindowEnd           DateTime
+  measuredAt              DateTime
+  rawSource               Json
+  authorUserId            String
+  supersedesId            String?                        @unique
+  createdAt               DateTime                       @default(now())
+  organization            Organization                   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  diagnosticCase          DiagnosticCase                 @relation(fields: [diagnosticCaseId], references: [id], onDelete: Restrict)
+  concernVersion          DiagnosticConcernVersion       @relation(fields: [concernVersionId], references: [id], onDelete: Restrict)
+  authorUser              User                           @relation("DiagnosticMeasurementAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  supersedes              DiagnosticMeasurement?         @relation("DiagnosticMeasurementSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy            DiagnosticMeasurement?         @relation("DiagnosticMeasurementSupersession")
+  evidenceLinks           DiagnosticEvidenceLink[]
+
+  @@unique([id, organizationId])
+  @@index([diagnosticCaseId, measuredAt])
+  @@index([organizationId, qualityStatus, createdAt])
+  @@index([quantity, normalizedUnit, measuredAt])
+  @@index([independenceGroup, measuredAt])
+}
+
+model DiagnosticEvidenceLink {
+  id               String                         @id
+  organizationId   String
+  diagnosticCaseId String
+  evidenceObjectId String
+  subjectType      DiagnosticEvidenceSubjectType
+  subjectId        String
+  observationId    String?
+  measurementId    String?
+  purpose          String
+  relationship     String
+  createdByUserId  String
+  createdAt        DateTime                       @default(now())
+  organization     Organization                   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  diagnosticCase   DiagnosticCase                 @relation(fields: [diagnosticCaseId], references: [id], onDelete: Restrict)
+  evidenceObject   VehicleEvidenceObject          @relation(fields: [evidenceObjectId], references: [id], onDelete: Restrict)
+  observation      DiagnosticObservation?         @relation(fields: [observationId], references: [id], onDelete: Restrict)
+  measurement      DiagnosticMeasurement?         @relation(fields: [measurementId], references: [id], onDelete: Restrict)
+  createdByUser    User                           @relation("DiagnosticEvidenceLinkCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([evidenceObjectId, diagnosticCaseId, subjectType, subjectId, relationship])
+  @@unique([id, organizationId])
+  @@index([diagnosticCaseId, createdAt])
+  @@index([organizationId, evidenceObjectId])
+  @@index([subjectType, subjectId])
 }
 
 model RepairOrderStateEvent {
@@ -4491,6 +4658,7 @@ model VehicleEvidenceObject {
   organization     Organization                 @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   uploadedByUser   User                         @relation("VehicleEvidenceUploader", fields: [uploadedByUserId], references: [id], onDelete: Restrict)
   links            VehicleEvidenceLink[]
+  diagnosticLinks  DiagnosticEvidenceLink[]
   events           VehicleEvidenceEvent[]
 
   @@unique([organizationId, storageKey])

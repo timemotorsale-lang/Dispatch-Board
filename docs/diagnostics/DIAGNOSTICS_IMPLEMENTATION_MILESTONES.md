@@ -46,8 +46,8 @@ For the expanded build scope, affected layers, critical path, day-one boundary, 
 
 | ID | Deliverable | Depends on | Exit evidence |
 | --- | --- | --- | --- |
-| `DGN-013` | Observation and measurement contracts with units, conditions, source, reliability, fact class, and correction lineage. | 007–009 | Unit normalization, plausibility, supersession, and audit tests. |
-| `DGN-014` | Vehicle Evidence links to case/concern/test/hypothesis/conclusion/verification. | 013 | Access, malware/quarantine, retention, restricted evidence, and link-integrity tests. |
+| `DGN-013` | **Implemented in source.** Observation and measurement contracts with units, conditions, source, reliability, fact class, plausibility, and immutable correction lineage. | 007–009 | Unit normalization, dimensional mismatch, plausibility, time-window, supersession, authority, and schema/audit contract tests pass. |
+| `DGN-014` | **Implemented in source.** Governed Vehicle Evidence links and permission-filtered technician attachment workflow; future target types remain hard-rejected until their owning aggregates exist. | 013 | Access, malware/quarantine, deleted, restricted, cross-tenant, wrong-vehicle, retention-metadata, and link-integrity tests pass. |
 | `DGN-015` | Versioned test-definition and test-plan aggregates with ontology links, applicability, prerequisites, hazards, branching, and required evidence. | 006, 013 | Version/applicability/safety/semantic-integrity contract tests. |
 | `DGN-016` | Test start/pause/complete/invalidate commands and immutable execution evidence. | 015 | Replay, qualification, prerequisite, stale-version, deviation, and cancellation tests. |
 | `DGN-017` | Shared-context technician test execution and initial Systems/Electrical/Scan/Live Data/Waveform lab shells optimized for mobile/shop and desktop expert use. Follow [`DIAGNOSTICS_TECHNICIAN_WORKSPACE_UI_SOURCE_OF_TRUTH.md`](DIAGNOSTICS_TECHNICIAN_WORKSPACE_UI_SOURCE_OF_TRUTH.md). | 013–016 | Gloved/mobile and desktop review, technician usability evidence, lab-to-case provenance, no data loss, resume/recovery proof. |
