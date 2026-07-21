@@ -7,5 +7,6 @@ export * from "./reasoning-core";
 export * from "./adaptive-testing";
 export * from "./conclusion-domain";
 export * from "./repair-handoff-domain";
+export * from "./estimate-advisor-domain";
 export * from "./verification-domain";
 export * from "./no-start-proof";

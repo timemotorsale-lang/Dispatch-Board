@@ -11,6 +11,7 @@ import { assertDiagnosticGateReady, evaluateDiagnosticQualitySafetyGates } from 
 import { diagnosticReasoningId, type evaluateDiagnosticReasoning, type ReasoningEvidence } from "./reasoning-core";
 import type { createDiagnosticTestOverride, evaluateAdaptiveDiagnosticTests } from "./adaptive-testing";
 import type { evaluateDiagnosticConclusionControls, normalizeDiagnosticConclusionCommand } from "./conclusion-domain";
+import type { evaluateDiagnosticEstimateAdvisorControls, normalizeDiagnosticEstimateAdvisorCommand } from "./estimate-advisor-domain";
 import type { evaluateDiagnosticRepairHandoffControls, normalizeDiagnosticRepairHandoffCommand } from "./repair-handoff-domain";
 import type { evaluateDiagnosticVerificationControls, normalizeDiagnosticVerificationCommand } from "./verification-domain";
 
@@ -51,6 +52,7 @@ const detailInclude = {
   adaptiveTestEvaluations: { orderBy: { sequence: "desc" as const }, take: 20, include: { overrides: { orderBy: { occurredAt: "desc" as const } } } },
   conclusionVersions: { orderBy: { version: "desc" as const }, take: 20, include: { authorUser: { select: { id: true, name: true } }, reviewerUser: { select: { id: true, name: true } }, supersededBy: { select: { id: true } } } },
   repairHandoffVersions: { orderBy: { version: "desc" as const }, take: 20, include: { authorUser: { select: { id: true, name: true } }, repairDiagnosisVersion: { select: { id: true, version: true } }, supersededBy: { select: { id: true } } } },
+  estimateDraftVersions: { orderBy: { version: "desc" as const }, take: 20, include: { authorUser: { select: { id: true, name: true } }, repairHandoffVersion: { select: { id: true, version: true } }, repairDiagnosisVersion: { select: { id: true, version: true } }, supersededBy: { select: { id: true } } } },
   verificationVersions: { orderBy: { version: "desc" as const }, take: 20, include: { authorUser: { select: { id: true, name: true } }, reviewerUser: { select: { id: true, name: true } }, supersededBy: { select: { id: true } } } },
   stateEvents: { orderBy: { version: "desc" as const }, take: 100 },
   vehicle: { select: { id: true, vehicleNumber: true, vin: true, year: true, make: true, model: true } }
@@ -81,6 +83,7 @@ export type DiagnosticCaseRepository = {
   recordAdaptiveTestEvaluation?(command: EnterpriseCommandCommitInput, data: { evaluationId: string; occurredAt: Date; result: ReturnType<typeof evaluateAdaptiveDiagnosticTests> }): Promise<DiagnosticMutationResult>;
   recordAdaptiveTestOverride?(command: EnterpriseCommandCommitInput, data: { overrideId: string; occurredAt: Date; override: ReturnType<typeof createDiagnosticTestOverride> }): Promise<DiagnosticMutationResult>;
   recordConclusion?(command: EnterpriseCommandCommitInput, data: { conclusionId: string; occurredAt: Date; commandData: ReturnType<typeof normalizeDiagnosticConclusionCommand>; control: ReturnType<typeof evaluateDiagnosticConclusionControls>; sourceVersions: unknown[]; safetySnapshot: Record<string, unknown>; conclusionChecksum: string }): Promise<DiagnosticMutationResult>;
+  recordEstimateDraft?(command: EnterpriseCommandCommitInput, data: { draftId: string; occurredAt: Date; commandData: ReturnType<typeof normalizeDiagnosticEstimateAdvisorCommand>; control: ReturnType<typeof evaluateDiagnosticEstimateAdvisorControls>; draftChecksum: string; estimateAuthorityBoundary: Record<string, unknown> }): Promise<DiagnosticMutationResult>;
   recordRepairHandoff?(command: EnterpriseCommandCommitInput, data: { handoffId: string; occurredAt: Date; commandData: ReturnType<typeof normalizeDiagnosticRepairHandoffCommand>; control: ReturnType<typeof evaluateDiagnosticRepairHandoffControls>; handoffChecksum: string }): Promise<DiagnosticMutationResult>;
   recordVerification?(command: EnterpriseCommandCommitInput, data: { verificationId: string; occurredAt: Date; commandData: ReturnType<typeof normalizeDiagnosticVerificationCommand>; control: ReturnType<typeof evaluateDiagnosticVerificationControls>; repairEvidenceSnapshot: Record<string, unknown>; verificationChecksum: string }): Promise<DiagnosticMutationResult>;
   transition(command: EnterpriseCommandCommitInput, data: { occurredAt: Date; reasonCode: string; targetStatus: DiagnosticCaseStatus }): Promise<DiagnosticMutationResult>;
@@ -453,6 +456,45 @@ export function createDiagnosticCaseRepository(database: PrismaClient = prisma):
         await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { status: "HANDED_OFF", version } });
         await tx.diagnosticCaseStateEvent.create({ data: { organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, version, eventType: "STATUS_CHANGED", fromStatus: diagnosticCase.status, toStatus: "HANDED_OFF", fromAssignedUserId: diagnosticCase.assignedUserId, toAssignedUserId: diagnosticCase.assignedUserId, reasonCode: `REPAIR_HANDOFF_${data.commandData.handoffType}`, reason: command.reason, actorUserId: command.actorUserId, correlationId: command.correlationId, occurredAt: data.occurredAt } });
         return { previous: prior ? { id: prior.id, handoffType: prior.handoffType, handoffChecksum: prior.handoffChecksum } : undefined, result: { id: record.id, handoffVersion, handoffType: record.handoffType, status: record.status, repairDiagnosisVersionId: diagnosisVersionId, repairDiagnosisVersion: diagnosisVersion, handoffChecksum: record.handoffChecksum, version } };
+      });
+    },
+
+    recordEstimateDraft(command, data) {
+      return execute(database, command, "DiagnosticEstimateDraftRecorded", `ESTIMATE_DRAFT_${data.control.status}`, async (tx, version) => {
+        const diagnosticCase = await tx.diagnosticCase.findFirst({
+          where: { id: command.subjectId, organizationId: command.organizationId },
+          include: {
+            concernVersions: { orderBy: { version: "desc" }, take: 1 },
+            conclusionVersions: { orderBy: { version: "desc" }, take: 1 },
+            repairHandoffVersions: { orderBy: { version: "desc" }, take: 20 },
+            estimateDraftVersions: { orderBy: { version: "desc" }, take: 1 }
+          }
+        });
+        if (!diagnosticCase) throw new Error("Diagnostic case was not found.");
+        if (diagnosticCase.version !== version - 1) throw new EnterpriseCommandConflictError(`Expected case version ${version - 1}, but current version is ${diagnosticCase.version}.`, "VERSION_CONFLICT");
+        if (!data.control.allowed) throw new Error(`Diagnostic advisor estimate is blocked: ${data.control.reasonCodes.join(", ")}.`);
+        const concern = diagnosticCase.concernVersions[0]; if (!concern) throw new Error("Diagnostic advisor estimate requires a current concern version.");
+        const conclusion = await tx.diagnosticConclusionVersion.findFirst({ where: { id: command.payload.conclusionVersionId as string, diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId } });
+        if (!conclusion || conclusion.status !== "CONFIRMED" || conclusion.conclusionChecksum !== command.payload.conclusionChecksum) throw new Error("Advisor estimate must bind to the exact confirmed diagnostic conclusion.");
+        const handoff = await tx.diagnosticRepairHandoffVersion.findFirst({ where: { id: command.payload.repairHandoffVersionId as string, diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId } });
+        if (!handoff || handoff.status !== "PUBLISHED" || handoff.handoffType !== "PUBLISH_DIAGNOSIS" || handoff.handoffChecksum !== command.payload.repairHandoffChecksum || !handoff.repairDiagnosisVersionId) throw new Error("Advisor estimate must bind to the exact published repair diagnosis handoff.");
+        const prior = diagnosticCase.estimateDraftVersions[0] ?? null;
+        if ((prior?.id ?? null) !== data.commandData.supersedesId) throw new Error("Advisor estimate command must extend the latest draft lineage.");
+        const draftVersion = (prior?.version ?? 0) + 1;
+        const record = await tx.diagnosticEstimateDraftVersion.create({ data: {
+          id: data.draftId, organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, repairOrderId: diagnosticCase.repairOrderId,
+          concernVersionId: concern.id, conclusionVersionId: conclusion.id, repairHandoffVersionId: handoff.id, repairDiagnosisVersionId: handoff.repairDiagnosisVersionId,
+          version: draftVersion, status: data.control.status, selectedStrategy: data.commandData.selectedStrategy, advisorSummary: data.commandData.advisorSummary,
+          customerConcernSummary: data.commandData.customerConcernSummary, customerCauseSummary: data.commandData.customerCauseSummary, customerCorrectionSummary: data.commandData.customerCorrectionSummary,
+          assumptions: json(data.commandData.assumptions), notIncluded: json(data.commandData.notIncluded), draftLines: json(data.commandData.draftLines),
+          totals: json({ laborSubtotalCents: data.control.laborSubtotalCents, partsSubtotalCents: data.control.partsSubtotalCents, feeSubtotalCents: data.control.feeSubtotalCents, totalBeforeTaxCents: data.control.totalBeforeTaxCents, warningCodes: data.control.warningCodes }),
+          taxBoundary: data.commandData.taxBoundary, estimateAuthorityBoundary: json(data.estimateAuthorityBoundary), policyVersion: data.control.policyVersion,
+          conclusionChecksum: conclusion.conclusionChecksum, repairHandoffChecksum: handoff.handoffChecksum, draftChecksum: data.draftChecksum, controlDecisionChecksum: data.control.decisionChecksum,
+          authorUserId: command.actorUserId, supersedesId: data.commandData.supersedesId, expiresAt: data.commandData.expiresAt, occurredAt: data.occurredAt
+        } });
+        await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { version } });
+        await tx.diagnosticCaseStateEvent.create({ data: { organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, version, eventType: "STATUS_CHANGED", fromStatus: diagnosticCase.status, toStatus: diagnosticCase.status, fromAssignedUserId: diagnosticCase.assignedUserId, toAssignedUserId: diagnosticCase.assignedUserId, reasonCode: `ESTIMATE_DRAFT_${data.control.status}`, reason: command.reason, actorUserId: command.actorUserId, correlationId: command.correlationId, occurredAt: data.occurredAt } });
+        return { previous: prior ? { id: prior.id, status: prior.status, draftChecksum: prior.draftChecksum } : undefined, result: { id: record.id, draftVersion, status: record.status, selectedStrategy: record.selectedStrategy, totalBeforeTaxCents: data.control.totalBeforeTaxCents, draftChecksum: record.draftChecksum, version } };
       });
     },
 
