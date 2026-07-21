@@ -33,9 +33,9 @@ For the expanded build scope, affected layers, critical path, day-one boundary, 
 
 | ID | Deliverable | Depends on | Exit evidence |
 | --- | --- | --- | --- |
-| `DGN-007` | Additive case foundation migration, repositories, domain invariants, events, audit, and outbox mappings. | 006 | Schema validation, migration tests, org/location isolation, immutable-event proof. |
-| `DGN-008` | Case create/read commands linked to canonical repair-order concern; duplicate/replay protection. | 007 | Integration tests for valid, stale, duplicate, denied, and cross-org attempts. |
-| `DGN-009` | Case assignment, state transitions, blockers, escalation, reopen, and abandonment commands. | 008 | State-machine and permission matrix tests. |
+| `DGN-007` | **Implemented in source.** Additive case foundation migration, repositories, domain invariants, events, audit, and outbox mappings. See [`implementation/DGN_007_009_CASE_CORE_IMPLEMENTATION.md`](implementation/DGN_007_009_CASE_CORE_IMPLEMENTATION.md). | 006 | Schema validation, tenant constraints, immutable-history triggers, and focused tests pass; migration deployment remains an environment operation. |
+| `DGN-008` | **Implemented in source.** Case create/read commands linked to canonical Repair Order concern with concern-specific decomposition, duplicate protection, and replay-safe identity. | 007 | Valid, denied, permission-filtered, deterministic identity, canonical-source, and replay routing tests pass. |
+| `DGN-009` | **Implemented in source.** Case assignment, state transitions, blockers/waiting, escalation, reopen, and abandonment commands. | 008 | State-machine, assignment authority, assigned-technician, rollout-off, waiting/resume, and terminal/reopen tests pass. |
 | `DGN-010` | `/diagnostics` console shell and permission-filtered queue read model. | 008–009 | Loading, empty, error, stale, restricted, and populated browser states. |
 | `DGN-011` | `/diagnostics/cases/[caseId]` header, concern, ownership, lifecycle, and timeline workspace. | 009–010 | Desktop/mobile/accessibility workflow proof. |
 | `DGN-012` | Repair Order Workbench bridge: create/open case and display governed summary without duplicated logic. | 008–011 | End-to-end RO-to-case traceability and honest unavailable states. |

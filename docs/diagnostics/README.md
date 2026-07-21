@@ -1,6 +1,6 @@
 # Diagnostics Console Planning Package
 
-**Status:** Foundation contracts approved with holds; runtime implementation not started
+**Status:** Foundation approved; DGN-007–009 case core implemented in source
 
 **Established:** 2026-07-20  
 **Parent product:** Time Motor Sales Dispatch Board  
@@ -43,7 +43,8 @@ The console owns the evidence-driven diagnostic case and reasoning lifecycle. It
 - [`DGN-004 — Knowledge Source and License Register`](implementation/DGN_004_KNOWLEDGE_SOURCE_AND_LICENSE_REGISTER.md)
 - [`DGN-005 — Benchmark, Measurement, and Pilot Contract`](implementation/DGN_005_BENCHMARK_MEASUREMENT_AND_PILOT_CONTRACT.md)
 - [`DGN-006 — Domain, Command, Schema, Event, and Migration Contract`](implementation/DGN_006_DOMAIN_COMMAND_SCHEMA_EVENT_AND_MIGRATION_CONTRACT.md)
-- [`DG-G0 — Foundation Gate Review`](implementation/DG_G0_FOUNDATION_GATE_REVIEW.md) — approved with holds; `DGN-007` through `DGN-009` case-core work is authorized next.
+- [`DG-G0 — Foundation Gate Review`](implementation/DG_G0_FOUNDATION_GATE_REVIEW.md) — approved with holds; its authorized `DGN-007` through `DGN-009` case-core scope is now implemented in source.
+- [`DGN-007–009 — Diagnostic Case Core Implementation`](implementation/DGN_007_009_CASE_CORE_IMPLEMENTATION.md) — persistence, commands, lifecycle, authority, audit/events/outbox, APIs, and focused verification implemented in source.
 
 ## Current Truth
 
@@ -56,7 +57,7 @@ Dispatch Board already has substantial foundations that Diagnostics must reuse:
 - enterprise task, appointment, activity, audit, command, idempotency, optimistic-concurrency, event, and outbox patterns;
 - shop-repair optimization and enterprise automation/AI governance packages.
 
-The independent Diagnostics Console, its diagnostic case model, hypothesis/test reasoning engine, knowledge administration, and initial no-start workflow are **not yet implemented**. DGN-001 through DGN-006 establish approved contracts only. DG-G0 authorizes the additive DGN-007 through DGN-009 case core; source ingestion, reasoning, publishing, pilot, and AI remain gated.
+The diagnostic case model and DGN-007–009 backend lifecycle are implemented in source. The independent `/diagnostics` UI, evidence/test workflow, hypothesis reasoning engine, conclusion publishing, knowledge administration, and initial no-start execution workflow are **not yet implemented**. Source ingestion, reasoning, publishing, pilot, and AI remain gated.
 
 ## Non-Negotiable Product Principles
 
