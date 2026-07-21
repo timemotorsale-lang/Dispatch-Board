@@ -18,7 +18,8 @@ import { buildDiagnosticCaseQualitySummary, DIAGNOSTIC_GATE_POLICY_VERSION } fro
 import { diagnosticReasoningId, evaluateDiagnosticReasoning, normalizeDiagnosticReasoningCommand, type DiagnosticReasoningModel, type ReasoningEvidence } from "./reasoning-core";
 import { createDiagnosticTestOverride, diagnosticAdaptiveTestingId, evaluateAdaptiveDiagnosticTests, normalizeAdaptiveTestingCommand, normalizeAdaptiveTestOverrideCommand, type DiagnosticTestCandidateDefinition, type DiagnosticTestWeights } from "./adaptive-testing";
 import { diagnosticConclusionId, evaluateDiagnosticConclusionControls, normalizeDiagnosticConclusionCommand, type DiagnosticConclusionAction, type DiagnosticConclusionCandidate } from "./conclusion-domain";
-import { buildStandardDiagnosticEstimateDraftLines, diagnosticEstimateDraftId, evaluateDiagnosticEstimateAdvisorControls, normalizeDiagnosticEstimateAdvisorCommand } from "./estimate-advisor-domain";
+import { DIAGNOSTIC_ESTIMATE_STRATEGIES, buildStandardDiagnosticEstimateDraftLines, diagnosticEstimateDraftId, evaluateDiagnosticEstimateAdvisorControls, normalizeDiagnosticEstimateAdvisorCommand } from "./estimate-advisor-domain";
+import { evaluateDiagnosticEstimateStrategies } from "./estimate-strategy-engine";
 import { diagnosticRepairHandoffId, evaluateDiagnosticRepairHandoffControls, normalizeDiagnosticRepairHandoffCommand } from "./repair-handoff-domain";
 import { diagnosticVerificationId, evaluateDiagnosticVerificationControls, normalizeDiagnosticVerificationCommand } from "./verification-domain";
 import { diagnosticTestId, normalizeDiagnosticTestDefinition, normalizeDiagnosticTestLifecycle, normalizeDiagnosticTestPlan, type DiagnosticTestLifecycleAction } from "./test-execution-domain";
@@ -370,8 +371,18 @@ export async function recordDiagnosticAdvisorEstimateDraft(actor: AuthenticatedU
     ? detail.repairHandoffVersions.find((item) => item.id === data.repairHandoffId) ?? null
     : detail.repairHandoffVersions.find((item) => item.handoffType === "PUBLISH_DIAGNOSIS" && item.status === "PUBLISHED" && item.repairDiagnosisVersionId) ?? null;
   if (data.repairHandoffId && !handoff) throw new Error("Selected repair handoff was not found in this case.");
-  const draftLines = data.draftLines.length ? data.draftLines : handoff && data.laborRateCents ? buildStandardDiagnosticEstimateDraftLines({ operations: handoff.operations as Parameters<typeof buildStandardDiagnosticEstimateDraftLines>[0]["operations"], laborRateCents: data.laborRateCents, partPlaceholderUnitCents: data.partPlaceholderUnitCents ?? 0 }) : [];
   const occurredAt = context.now();
+  const strategyEvaluation = handoff && data.laborRateCents ? evaluateDiagnosticEstimateStrategies({
+    diagnosticCaseId: caseId,
+    repairOrderId: detail.repairOrderId,
+    operations: handoff.operations as Parameters<typeof buildStandardDiagnosticEstimateDraftLines>[0]["operations"],
+    laborRateCents: data.laborRateCents,
+    partPlaceholderUnitCents: data.partPlaceholderUnitCents ?? 0,
+    selectedStrategy: data.selectedStrategy,
+    compareStrategies: [...DIAGNOSTIC_ESTIMATE_STRATEGIES],
+    occurredAt: occurredAt.toISOString()
+  }) : null;
+  const draftLines = data.draftLines.length ? data.draftLines : strategyEvaluation ? strategyEvaluation.selectedOutput.draftLines : [];
   const control = evaluateDiagnosticEstimateAdvisorControls({
     diagnosticCaseId: caseId,
     repairOrderId: detail.repairOrderId,
@@ -392,8 +403,8 @@ export async function recordDiagnosticAdvisorEstimateDraft(actor: AuthenticatedU
   });
   if (!control.allowed) throw new Error(`Diagnostic advisor estimate is blocked: ${control.reasonCodes.join(", ")}.`);
   const draftId = diagnosticEstimateDraftId(context.organizationId, caseId, data.idempotencyKey);
-  const draftChecksum = hashEnterpriseCommand({ caseId, conclusionChecksum: latestConclusion?.conclusionChecksum, repairHandoffChecksum: handoff?.handoffChecksum, selectedStrategy: data.selectedStrategy, advisorSummary: data.advisorSummary, customerLanguage: { concern: data.customerConcernSummary, cause: data.customerCauseSummary, correction: data.customerCorrectionSummary }, assumptions: data.assumptions, notIncluded: data.notIncluded, draftLines, taxBoundary: data.taxBoundary });
-  const commandData = { ...data, draftLines };
+  const draftChecksum = hashEnterpriseCommand({ caseId, conclusionChecksum: latestConclusion?.conclusionChecksum, repairHandoffChecksum: handoff?.handoffChecksum, selectedStrategy: data.selectedStrategy, strategyEvaluationChecksum: strategyEvaluation?.resultChecksum ?? null, advisorSummary: data.advisorSummary, customerLanguage: { concern: data.customerConcernSummary, cause: data.customerCauseSummary, correction: data.customerCorrectionSummary }, assumptions: data.assumptions, notIncluded: data.notIncluded, draftLines, taxBoundary: data.taxBoundary });
+  const commandData = { ...data, draftLines, strategyEvaluation };
   const estimateAuthorityBoundary = { advisoryOnly: true, officialEstimateAuthority: "RepairEstimateVersion", customerPresentationProhibited: true, customerAuthorizationProhibited: true, partsPurchaseProhibited: true, jobCreationProhibited: true, dispatchMutationProhibited: true };
   return context.repository.recordEstimateDraft(command({ actorUserId: user.id, commandType: "DIAGNOSTIC_ADVISOR_ESTIMATE_DRAFT", expectedVersion: data.expectedVersion, idempotencyKey: data.idempotencyKey, locationId: identity.locationId, organizationId: context.organizationId, payload: payload({ conclusionChecksum: latestConclusion?.conclusionChecksum, conclusionVersionId: latestConclusion?.id, controlDecisionChecksum: control.decisionChecksum, draftChecksum, repairHandoffChecksum: handoff?.handoffChecksum, repairHandoffVersionId: handoff?.id, selectedStrategy: data.selectedStrategy, supersedesId: data.supersedesId }), reason: data.reason, subjectId: caseId }), { draftId, occurredAt, commandData, control, draftChecksum, estimateAuthorityBoundary });
 }

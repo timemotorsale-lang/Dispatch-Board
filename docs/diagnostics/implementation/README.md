@@ -2,6 +2,8 @@
 
 This directory contains evidence-backed records for completed Diagnostics implementation milestones. A milestone record distinguishes contract completion from runtime behavior and names every remaining gate.
 
+> Release 3 update: `DGN-038` is now implemented in source. See [`DGN_038_ESTIMATE_STRATEGY_ENGINE_IMPLEMENTATION.md`](DGN_038_ESTIMATE_STRATEGY_ENGINE_IMPLEMENTATION.md). `DGN-039` through `DGN-044` remain planning-only until their implementation branches are completed.
+
 | Milestone | Status | Record |
 | --- | --- | --- |
 | `DGN-001` | Complete — architecture contract; no runtime behavior | [`DGN_001_DOMAIN_AUTHORITY_AND_DIAGNOSIS_PUBLISHING_CONTRACT.md`](DGN_001_DOMAIN_AUTHORITY_AND_DIAGNOSIS_PUBLISHING_CONTRACT.md) |
