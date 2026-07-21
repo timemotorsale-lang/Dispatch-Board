@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Clock3, Search, ShieldAlert, Stethoscope, UserRound, Wrench } from "lucide-react";
+import { AlertTriangle, BookOpen, Camera, CheckCircle2, Clock3, FileText, Search, ShieldAlert, Stethoscope, UserRound, Wrench } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
@@ -26,13 +26,35 @@ export function DiagnosticsCommandCenter({ model }: { model: DiagnosticsCommandC
 
   if (model.restricted) return <section className={styles.unavailable}><ShieldAlert /><span className={styles.eyebrow}>Diagnostics restricted</span><h1>Diagnostic cases are not available for this account</h1><p>A Diagnostics view capability or location-scoped case assignment is required. No case facts have been exposed.</p><Link href="/board">Return to Dispatch Board</Link></section>;
 
+  const activeCount = model.items.filter((item) => !["VERIFIED_CLOSED", "INCONCLUSIVE", "NO_FAULT_FOUND", "ABANDONED"].includes(item.status)).length;
+
   return <section className={styles.console} aria-label="Diagnostics Command Center">
     <header className={styles.hero}>
-      <div><span className={styles.eyebrow}>Technician diagnostic operations</span><h1>Diagnostics Command Center</h1><p>Prioritize concern-specific cases, see blockers, and enter one governed diagnostic workspace.</p></div>
+      <div><span className={styles.eyebrow}>Enterprise diagnostic operations</span><h1>Diagnostics Command Center</h1><p>One controlled front door for technician diagnosis, advisor review, labor intelligence, autobody estimate drafting, and rollout-gated pilot readiness.</p></div>
       <div className={styles.freshness}><span className={model.freshness === "CURRENT" ? styles.liveDot : styles.holdDot} />{model.rollout.executable ? "Commands enabled" : "Read-only foundation"}<small>{model.freshness === "CURRENT" ? "Refreshed" : "Stale snapshot from"} {new Date(model.generatedAt).toLocaleTimeString()}</small></div>
     </header>
 
     {!model.rollout.executable ? <div className={styles.hold} role="status"><ShieldAlert size={18} /><span><strong>Diagnostic commands are held by rollout control.</strong> Cases remain available for review; mutations stay disabled ({label(model.rollout.reason)}).</span></div> : null}
+
+    <section className={styles.commandLanding} aria-label="Diagnostic workflow landing">
+      <article className={styles.commandPrimaryCard}>
+        <div><span className={styles.eyebrow}>Live review lane</span><h2>Case Queue</h2><p>Open active diagnostic cases, review blockers, and enter the governed technician workspace.</p></div>
+        <strong>{activeCount}</strong>
+        <a href="#diagnostic-case-queue">Review case queue</a>
+      </article>
+      <Link className={styles.commandModuleCard} href="/diagnostics/labor-guide">
+        <BookOpen /><span>Labor Guide</span><strong>Estimate intelligence</strong><p>VIN/context-aware labor draft, overlap, rate, and GP safeguard review.</p>
+      </Link>
+      <Link className={styles.commandModuleCard} href="/diagnostics/advisor-review">
+        <FileText /><span>Advisor Review</span><strong>Handoff approval lane</strong><p>Review diagnosis-to-estimate packets before customer, parts, dispatch, or QC authority.</p>
+      </Link>
+      <Link className={styles.commandModuleCard} href="/diagnostics/autobody-estimate">
+        <Camera /><span>Autobody Estimate</span><strong>Photo-to-estimate planning</strong><p>Damage photo intake, body labor, refinish, supplement, and ADAS gate workspace.</p>
+      </Link>
+      <article className={styles.commandModuleCard} aria-label="Pilot readiness gate">
+        <CheckCircle2 /><span>Pilot Gate</span><strong>DGN-045 accepted</strong><p>Release 3 can move into Release 4 implementation; production remains blocked.</p>
+      </article>
+    </section>
 
     <div className={styles.metrics} aria-label="Queue summary">
       <article><Wrench /><span>My active</span><strong>{model.summary.mine}</strong></article>
@@ -41,7 +63,7 @@ export function DiagnosticsCommandCenter({ model }: { model: DiagnosticsCommandC
       <article><UserRound /><span>Unassigned</span><strong>{model.summary.unassigned}</strong></article>
     </div>
 
-    <section className={styles.queuePanel}>
+    <section className={styles.queuePanel} id="diagnostic-case-queue">
       <header><div><h2>Case queue</h2><p>{items.length} of {model.items.length} visible cases</p></div><Link href="/vehicles/repair-workbench?view=all">Open Repair Orders</Link></header>
       <div className={styles.filters}>
         <label className={styles.search}><Search size={16} /><span className="sr-only">Search diagnostic cases</span><input onChange={(event) => setQuery(event.target.value)} placeholder="Search vehicle, RO, concern, or owner" value={query} /></label>
