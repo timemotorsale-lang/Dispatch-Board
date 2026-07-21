@@ -4,6 +4,9 @@ import { Activity, AlertTriangle, CalendarClock, Check, ChevronRight, ClipboardC
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { RepairOrderDiagnosticsBridge } from "@/features/diagnostics/repair-order-diagnostics-bridge";
+import type { getRepairOrderDiagnosticsBridge } from "@/server/diagnostics/service";
+
 type RepairOrderWorkbenchOrder = {
   id: string;
   repairOrderNumber: string;
@@ -28,6 +31,7 @@ type RepairOrderWorkbenchOrder = {
 };
 
 type Options = { users: Array<{ id: string; name: string }> };
+type DiagnosticsBridge = Awaited<ReturnType<typeof getRepairOrderDiagnosticsBridge>> | { state: "UNAVAILABLE"; reason: string; repairOrderId: string };
 
 type PlanItem = { evidence: string; label: string; objective: string };
 
@@ -62,7 +66,7 @@ function diagnosticPlan(concern: string): PlanItem[] {
 const format = (value: string) => value.replaceAll("_", " ").toLocaleLowerCase().replace(/^./, (letter) => letter.toUpperCase());
 const date = (value: string | null) => value ? new Date(value).toLocaleString() : "Not recorded";
 
-export function RepairOrderEnterpriseWorkbench({ order, options }: { order: RepairOrderWorkbenchOrder; options: Options }) {
+export function RepairOrderEnterpriseWorkbench({ diagnostics, order, options }: { diagnostics?: DiagnosticsBridge; order: RepairOrderWorkbenchOrder; options: Options }) {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [ownerUserId, setOwnerUserId] = useState(order.ownerUser.id);
@@ -102,6 +106,7 @@ export function RepairOrderEnterpriseWorkbench({ order, options }: { order: Repa
     <header className="rowb-header"><div><Link href="/vehicles/repair-workbench?view=all">← All Repair Orders</Link><span>Repair Order Workbench</span><h1>{order.repairOrderNumber}</h1></div><dl><div><dt>Vehicle</dt><dd>{vehicle}</dd></div><div><dt>Customer</dt><dd>{order.customer?.displayName ?? order.inventoryUnit?.inventoryNumber ?? "Internal work"}</dd></div><div><dt>Stage</dt><dd>{format(order.stage)}</dd></div><div><dt>Arrival</dt><dd>{date(order.serviceVisit.arrivedAt)}</dd></div><div><dt>Promise</dt><dd>{date(order.serviceVisit.promisedAt)}</dd></div><div><dt>Audit</dt><dd>Version {order.version}</dd></div></dl></header>
     <nav className="rowb-lifecycle" aria-label="Repair lifecycle">{["Intake", "Diagnose", "Estimate", "Approval", "Repair", "Quality Check", "Handoff"].map((label, index) => { const reached = index === 0 || index === 1 && Boolean(order.inspectionVersions.length || diagnosis) || index === 2 && Boolean(estimate) || index === 3 && Boolean(authorization) || index === 4 && Boolean(order.repairJobs.length); return <span className={reached ? "reached" : "locked"} key={label}><i>{reached ? <Check /> : <LockKeyhole />}</i>{label}</span>; })}</nav>
     {notice ? <div className="rowb-notice" role="status">{notice}</div> : null}
+    <RepairOrderDiagnosticsBridge bridge={diagnostics ?? { state: "UNAVAILABLE", repairOrderId: order.id, reason: "Diagnostics bridge was not supplied." }} />
     <div className="rowb-layout">
       <aside className="rowb-context">
         <section><h2><UserRound />Customer / Vehicle</h2><strong>{order.customer?.displayName ?? "No customer linked"}</strong><span>{vehicle}</span><small>{order.vehicle.vin ?? order.vehicle.vehicleNumber}</small></section>

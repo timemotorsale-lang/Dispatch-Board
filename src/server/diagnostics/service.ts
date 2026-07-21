@@ -12,7 +12,7 @@ import {
   normalizeDiagnosticAssignment,
   normalizeDiagnosticTransition
 } from "./domain";
-import { createDiagnosticCaseRepository, type DiagnosticCaseIdentityRecord, type DiagnosticCaseRepository } from "./repository";
+import { createDiagnosticCaseRepository, type DiagnosticCaseDetailRecord, type DiagnosticCaseIdentityRecord, type DiagnosticCaseRepository } from "./repository";
 
 type Dependencies = {
   enforceRollout?: boolean;
@@ -169,4 +169,156 @@ export async function transitionDiagnosticCase(actor: AuthenticatedUser | null, 
     reason: data.reason,
     subjectId: diagnosticCase.id
   }), { occurredAt, reasonCode: data.reasonCode, targetStatus: data.targetStatus });
+}
+
+const terminalStatuses = new Set(["VERIFIED_CLOSED", "INCONCLUSIVE", "NO_FAULT_FOUND", "ABANDONED"]);
+const waitingStatuses = new Set(["WAITING_FOR_VEHICLE", "WAITING_FOR_AUTHORIZATION", "WAITING_FOR_TOOL", "WAITING_FOR_INFORMATION", "WAITING_FOR_PART"]);
+
+function caseStage(status: string) {
+  if (["DRAFT", "TRIAGE", "REOPENED"].includes(status)) return "CONCERN" as const;
+  if (["TEST_PLAN_READY", "TESTING"].includes(status)) return "TEST" as const;
+  if (["CAUSE_PROPOSED", "CONFIRMATION_REQUIRED", "CONFIRMED", "REPAIR_PLANNING", "HANDED_OFF"].includes(status)) return "CAUSE" as const;
+  if (["POST_REPAIR_VERIFICATION", "VERIFIED_CLOSED"].includes(status)) return "VERIFY" as const;
+  return "EVIDENCE" as const;
+}
+
+function nextAction(diagnosticCase: DiagnosticCaseDetailRecord) {
+  if (!diagnosticCase.assignedUser) return "Assign an accountable technician";
+  if (diagnosticCase.status === "DRAFT") return "Begin safety and operability triage";
+  if (waitingStatuses.has(diagnosticCase.status)) return "Resolve the recorded blocker";
+  if (diagnosticCase.status === "ESCALATED") return "Complete escalation review";
+  if (terminalStatuses.has(diagnosticCase.status)) return diagnosticCase.status === "VERIFIED_CLOSED" ? "Review verified record" : "Review conclusion or reopen";
+  if (diagnosticCase.status === "REOPENED") return "Return the case to triage";
+  return "Continue the current diagnostic stage";
+}
+
+function blocker(diagnosticCase: DiagnosticCaseDetailRecord) {
+  if (waitingStatuses.has(diagnosticCase.status) || diagnosticCase.status === "ESCALATED") {
+    return diagnosticCase.stateEvents[0]?.reason ?? diagnosticCase.status.replaceAll("_", " ");
+  }
+  return null;
+}
+
+function projectCase(diagnosticCase: DiagnosticCaseDetailRecord, now: Date) {
+  const concern = diagnosticCase.concernVersions[0];
+  const vehicleLabel = [diagnosticCase.vehicle.year, diagnosticCase.vehicle.make, diagnosticCase.vehicle.model].filter(Boolean).join(" ") || diagnosticCase.vehicle.vehicleNumber;
+  return {
+    id: diagnosticCase.id,
+    version: diagnosticCase.version,
+    status: diagnosticCase.status,
+    resumeStatus: diagnosticCase.resumeStatus,
+    stage: caseStage((waitingStatuses.has(diagnosticCase.status) || diagnosticCase.status === "ESCALATED") && diagnosticCase.resumeStatus ? diagnosticCase.resumeStatus : diagnosticCase.status),
+    riskTier: diagnosticCase.riskTier,
+    concernKey: diagnosticCase.concernKey,
+    concern: concern?.statement ?? diagnosticCase.repairOrder.serviceVisit.concernSummary,
+    concernSource: concern?.source ?? "REPAIR_ORDER_CONCERN",
+    operatingConditions: concern?.operatingConditions && typeof concern.operatingConditions === "object" && !Array.isArray(concern.operatingConditions) ? concern.operatingConditions : {},
+    concernVersion: concern?.version ?? diagnosticCase.currentConcernVersion,
+    assignedUser: diagnosticCase.assignedUser,
+    createdByUser: diagnosticCase.createdByUser,
+    location: diagnosticCase.location,
+    repairOrder: { id: diagnosticCase.repairOrder.id, repairOrderNumber: diagnosticCase.repairOrder.repairOrderNumber },
+    vehicle: { ...diagnosticCase.vehicle, label: vehicleLabel },
+    openedAt: diagnosticCase.openedAt.toISOString(),
+    updatedAt: diagnosticCase.updatedAt.toISOString(),
+    closedAt: diagnosticCase.closedAt?.toISOString() ?? null,
+    ageHours: Math.max(0, Math.floor((now.getTime() - diagnosticCase.openedAt.getTime()) / 3_600_000)),
+    nextAction: nextAction(diagnosticCase),
+    blocker: blocker(diagnosticCase),
+    confidence: "NOT_ASSESSED" as const,
+    timeline: diagnosticCase.stateEvents.map((event) => ({
+      id: event.id,
+      version: event.version,
+      eventType: event.eventType,
+      fromStatus: event.fromStatus,
+      toStatus: event.toStatus,
+      reasonCode: event.reasonCode,
+      reason: event.reason,
+      actorUserId: event.actorUserId,
+      occurredAt: event.occurredAt.toISOString()
+    }))
+  };
+}
+
+async function diagnosticsReadContext(actor: AuthenticatedUser | null, input: Dependencies) {
+  const context = dependencies(input);
+  const user = assertAuthenticatedUser(actor);
+  const [grants, flags, cases] = await Promise.all([
+    grantsFor(user, context),
+    context.foundationRepository.listFeatureFlags(context.organizationId),
+    context.repository.list(context.organizationId)
+  ]);
+  const visibleCases = cases.filter((diagnosticCase) => evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_CASE_VIEW", grants, locationId: diagnosticCase.locationId, now: context.now(), resourceOwnerUserId: diagnosticCase.assignedUserId }).allowed);
+  return { cases: visibleCases, context, flags, grants, user };
+}
+
+export type DiagnosticsCommandCenterModel = Awaited<ReturnType<typeof getDiagnosticsCommandCenter>>;
+
+export async function getDiagnosticsCommandCenter(actor: AuthenticatedUser | null, input: Dependencies = {}) {
+  const read = await diagnosticsReadContext(actor, input);
+  const now = read.context.now();
+  const rollout = evaluateDiagnosticsFeature(read.flags, "DIAGNOSTIC_CASES", read.user.id, null);
+  const items = read.cases.map((item) => projectCase(item, now));
+  const broadView = evaluateVehicleCapability({ actor: read.user, capability: "DIAGNOSTIC_CASE_VIEW", grants: read.grants, locationId: null, now });
+  return {
+    state: "COMPLETE" as const,
+    freshness: "CURRENT" as const,
+    restricted: !broadView.allowed && items.length === 0,
+    generatedAt: now.toISOString(),
+    viewer: { id: read.user.id, name: read.user.name },
+    rollout: { executable: rollout.executable, reason: rollout.reason },
+    summary: {
+      mine: items.filter((item) => item.assignedUser?.id === read.user.id && !terminalStatuses.has(item.status)).length,
+      waiting: items.filter((item) => waitingStatuses.has(item.status)).length,
+      escalated: items.filter((item) => item.status === "ESCALATED").length,
+      unassigned: items.filter((item) => !item.assignedUser && !terminalStatuses.has(item.status)).length
+    },
+    items
+  };
+}
+
+export type DiagnosticCaseWorkspaceModel = Awaited<ReturnType<typeof getDiagnosticCaseWorkspace>>;
+
+export async function getDiagnosticCaseWorkspace(actor: AuthenticatedUser | null, caseId: string, input: Dependencies = {}) {
+  const context = dependencies(input);
+  const user = assertAuthenticatedUser(actor);
+  const identity = await loadCaseIdentity(caseId, context);
+  const [grants, flags, detail, assignableUsers] = await Promise.all([
+    grantsFor(user, context),
+    context.foundationRepository.listFeatureFlags(context.organizationId),
+    context.repository.get(context.organizationId, caseId),
+    context.repository.listAssignableUsers?.() ?? Promise.resolve([])
+  ]);
+  assertVehicleCapability({ actor: user, capability: "DIAGNOSTIC_CASE_VIEW", grants, locationId: identity.locationId, now: context.now(), resourceOwnerUserId: identity.assignedUserId });
+  if (!detail) throw new Error("Diagnostic case was not found.");
+  const rollout = evaluateDiagnosticsFeature(flags, "DIAGNOSTIC_CASES", user.id, detail.locationId);
+  const canAssign = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_CASE_ASSIGN", grants, locationId: detail.locationId, now: context.now(), resourceOwnerUserId: detail.assignedUserId }).allowed;
+  const transitionCapability = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_CASE_TRANSITION", grants, locationId: detail.locationId, now: context.now(), resourceOwnerUserId: detail.assignedUserId }).allowed;
+  return {
+    state: "COMPLETE" as const,
+    generatedAt: context.now().toISOString(),
+    viewer: { id: user.id, name: user.name },
+    rollout: { executable: rollout.executable, reason: rollout.reason },
+    permissions: { canAssign, canTransition: transitionCapability && (isManager(user) || detail.assignedUserId === user.id) },
+    assignableUsers: canAssign ? assignableUsers : [],
+    diagnosticCase: projectCase(detail, context.now())
+  };
+}
+
+export async function getRepairOrderDiagnosticsBridge(actor: AuthenticatedUser | null, repairOrderId: string, input: Dependencies = {}) {
+  const read = await diagnosticsReadContext(actor, input);
+  const repairOrder = await read.context.repository.getRepairOrderContext(read.context.organizationId, repairOrderId);
+  if (!repairOrder) throw new Error("An open repair order was not found for diagnostics.");
+  const view = evaluateVehicleCapability({ actor: read.user, capability: "DIAGNOSTIC_CASE_VIEW", grants: read.grants, locationId: repairOrder.locationId, now: read.context.now() });
+  if (!view.allowed) return { state: "RESTRICTED" as const, reason: view.reason, repairOrderId, cases: [], canCreate: false, rollout: { executable: false, reason: "CAPABILITY_REQUIRED" } };
+  const create = evaluateVehicleCapability({ actor: read.user, capability: "DIAGNOSTIC_CASE_CREATE", grants: read.grants, locationId: repairOrder.locationId, now: read.context.now() });
+  const rollout = evaluateDiagnosticsFeature(read.flags, "DIAGNOSTIC_CASES", read.user.id, repairOrder.locationId);
+  return {
+    state: "COMPLETE" as const,
+    repairOrderId,
+    repairOrderNumber: repairOrder.repairOrderNumber,
+    canCreate: create.allowed && rollout.executable && !repairOrder.closedAt,
+    rollout: { executable: rollout.executable, reason: rollout.reason },
+    cases: read.cases.filter((item) => item.repairOrderId === repairOrderId).map((item) => projectCase(item, read.context.now()))
+  };
 }

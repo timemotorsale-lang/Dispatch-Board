@@ -1,6 +1,6 @@
 # Diagnostics Console Planning Package
 
-**Status:** Foundation approved; DGN-007–009 case core implemented in source
+**Status:** Foundation approved; DGN-007–012 case core and console implemented in source
 
 **Established:** 2026-07-20  
 **Parent product:** Time Motor Sales Dispatch Board  
@@ -45,6 +45,7 @@ The console owns the evidence-driven diagnostic case and reasoning lifecycle. It
 - [`DGN-006 — Domain, Command, Schema, Event, and Migration Contract`](implementation/DGN_006_DOMAIN_COMMAND_SCHEMA_EVENT_AND_MIGRATION_CONTRACT.md)
 - [`DG-G0 — Foundation Gate Review`](implementation/DG_G0_FOUNDATION_GATE_REVIEW.md) — approved with holds; its authorized `DGN-007` through `DGN-009` case-core scope is now implemented in source.
 - [`DGN-007–009 — Diagnostic Case Core Implementation`](implementation/DGN_007_009_CASE_CORE_IMPLEMENTATION.md) — persistence, commands, lifecycle, authority, audit/events/outbox, APIs, and focused verification implemented in source.
+- [`DGN-010–012 — Diagnostic Case Console Implementation`](implementation/DGN_010_012_CASE_CONSOLE_IMPLEMENTATION.md) — independent queue, technician case workspace, and governed Repair Order bridge implemented in source.
 
 ## Current Truth
 
@@ -57,7 +58,7 @@ Dispatch Board already has substantial foundations that Diagnostics must reuse:
 - enterprise task, appointment, activity, audit, command, idempotency, optimistic-concurrency, event, and outbox patterns;
 - shop-repair optimization and enterprise automation/AI governance packages.
 
-The diagnostic case model and DGN-007–009 backend lifecycle are implemented in source. The independent `/diagnostics` UI, evidence/test workflow, hypothesis reasoning engine, conclusion publishing, knowledge administration, and initial no-start execution workflow are **not yet implemented**. Source ingestion, reasoning, publishing, pilot, and AI remain gated.
+The diagnostic case model, DGN-007–009 backend lifecycle, independent `/diagnostics` queue, technician case workspace, and Repair Order bridge are implemented in source. The migration is not deployed by these branches and rollout remains disabled. Evidence/test execution, hypothesis reasoning, conclusion publishing, knowledge administration, and the initial no-start execution workflow are **not yet implemented**. Source ingestion, reasoning, publishing, pilot, and AI remain gated.
 
 ## Non-Negotiable Product Principles
 

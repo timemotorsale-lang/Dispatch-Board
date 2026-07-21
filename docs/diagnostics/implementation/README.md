@@ -13,5 +13,8 @@ This directory contains evidence-backed records for completed Diagnostics implem
 | `DGN-007` | Implemented in source — additive case persistence and immutable history | [`DGN_007_009_CASE_CORE_IMPLEMENTATION.md`](DGN_007_009_CASE_CORE_IMPLEMENTATION.md) |
 | `DGN-008` | Implemented in source — governed case create/read and replay protection | [`DGN_007_009_CASE_CORE_IMPLEMENTATION.md`](DGN_007_009_CASE_CORE_IMPLEMENTATION.md) |
 | `DGN-009` | Implemented in source — assignment, lifecycle, waiting, escalation, abandonment, and reopen | [`DGN_007_009_CASE_CORE_IMPLEMENTATION.md`](DGN_007_009_CASE_CORE_IMPLEMENTATION.md) |
+| `DGN-010` | Implemented in source — independent console and permission-filtered case queue | [`DGN_010_012_CASE_CONSOLE_IMPLEMENTATION.md`](DGN_010_012_CASE_CONSOLE_IMPLEMENTATION.md) |
+| `DGN-011` | Implemented in source — technician case workspace and governed lifecycle controls | [`DGN_010_012_CASE_CONSOLE_IMPLEMENTATION.md`](DGN_010_012_CASE_CONSOLE_IMPLEMENTATION.md) |
+| `DGN-012` | Implemented in source — Repair Order create/open/summary bridge | [`DGN_010_012_CASE_CONSOLE_IMPLEMENTATION.md`](DGN_010_012_CASE_CONSOLE_IMPLEMENTATION.md) |
 
-[`DG-G0`](DG_G0_FOUNDATION_GATE_REVIEW.md) is **approved with holds** and its authorized DGN-007–009 case-core slice is implemented in source. `DG-G1` remains open pending DGN-010–012. Source ingestion, reasoning, publishing, pilot, and AI remain gated.
+[`DG-G0`](DG_G0_FOUNDATION_GATE_REVIEW.md) is **approved with holds**. DGN-007–012 are implemented in source. `DG-G1` remains open pending migrated-runtime browser, accessibility, and technician-usability evidence. Source ingestion, reasoning, publishing, pilot, and AI remain gated.

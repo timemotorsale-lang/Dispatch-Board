@@ -17,6 +17,7 @@ import {
   Settings,
   ShieldCheck,
   SquareCheckBig,
+  Stethoscope,
   UserRoundCheck,
   Users,
   type LucideIcon
@@ -93,6 +94,13 @@ export const dispatchNavigationItems: NavigationItem[] = [
     title: "Vehicles",
     description: "Vehicle records and operational status.",
     icon: CarFront,
+    parentHref: "/board"
+  },
+  {
+    href: "/diagnostics",
+    title: "Diagnostics",
+    description: "Technician case queue, concern triage, and diagnostic execution.",
+    icon: Stethoscope,
     parentHref: "/board"
   },
   {

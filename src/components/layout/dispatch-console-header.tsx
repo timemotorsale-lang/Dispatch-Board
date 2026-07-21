@@ -17,6 +17,7 @@ const consoleCopy: Array<{ description: string; path: string; title: string }> =
   { path: "/projects", title: "Projects", description: "Coordinate operational projects and work areas" },
   { path: "/appointments", title: "Appointments", description: "Manage the appointment schedule and commitments" },
   { path: "/vehicles", title: "Vehicles", description: "Operate vehicle records and readiness workflows" },
+  { path: "/diagnostics", title: "Diagnostics", description: "Prioritize and execute technician diagnostic cases" },
   { path: "/customers", title: "Customers", description: "Manage customer records and connected work" },
   { path: "/manager-review", title: "Manager Review", description: "Review approvals, exceptions, and escalations" },
   { path: "/staff", title: "Team", description: "Manage team duties and execution context" },

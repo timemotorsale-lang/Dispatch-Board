@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { RepairOrderEnterpriseWorkbench } from "@/features/inventory/repair-order-enterprise-workbench";
 import { requireCurrentUser } from "@/server/auth/current-user";
+import { getRepairOrderDiagnosticsBridge } from "@/server/diagnostics/service";
 import { getRepairOrderCreateOptions, listRepairOrders } from "@/server/repair-order/service";
 import { getShopPlanningDetail } from "@/server/shop-planning/service";
 
@@ -16,18 +17,25 @@ function vehicleLabel(order: Awaited<ReturnType<typeof listRepairOrders>>["items
   return [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber;
 }
 
+async function diagnosticsBridge(user: Awaited<ReturnType<typeof requireCurrentUser>>, repairOrderId: string) {
+  try { return await getRepairOrderDiagnosticsBridge(user, repairOrderId); }
+  catch (error) { return { state: "UNAVAILABLE" as const, repairOrderId, reason: error instanceof Error ? error.message : "Diagnostics could not be loaded." }; }
+}
+
 export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
   const user = await requireCurrentUser();
   const params = searchParams ? await searchParams : {};
 
   if (params.repairOrderId) {
-    const [order, options] = await Promise.all([
+    const [order, options, diagnostics] = await Promise.all([
       getShopPlanningDetail(user, params.repairOrderId),
-      getRepairOrderCreateOptions(user)
+      getRepairOrderCreateOptions(user),
+      diagnosticsBridge(user, params.repairOrderId)
     ]);
 
     return (
       <RepairOrderEnterpriseWorkbench
+        diagnostics={JSON.parse(JSON.stringify(diagnostics))}
         options={{ users: JSON.parse(JSON.stringify(options.users)) }}
         order={JSON.parse(JSON.stringify(order))}
       />
@@ -38,13 +46,15 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
   const orders = await listRepairOrders(user, { page: 1, pageSize: 50, query });
 
   if (params.view !== "all" && orders.items[0]) {
-    const [order, options] = await Promise.all([
+    const [order, options, diagnostics] = await Promise.all([
       getShopPlanningDetail(user, orders.items[0].id),
-      getRepairOrderCreateOptions(user)
+      getRepairOrderCreateOptions(user),
+      diagnosticsBridge(user, orders.items[0].id)
     ]);
 
     return (
       <RepairOrderEnterpriseWorkbench
+        diagnostics={JSON.parse(JSON.stringify(diagnostics))}
         options={{ users: JSON.parse(JSON.stringify(options.users)) }}
         order={JSON.parse(JSON.stringify(order))}
       />
