@@ -862,6 +862,12 @@ enum DiagnosticVerificationStatus {
   UNSAFE
 }
 
+enum DiagnosticEstimateDraftStatus {
+  DRAFTED
+  READY_FOR_ADVISOR_REVIEW
+  BLOCKED
+}
+
 enum PartDemandStatus {
   OPEN
   PARTIALLY_RESERVED
@@ -1599,6 +1605,7 @@ model User {
   authoredDiagnosticRepairHandoffs      DiagnosticRepairHandoffVersion[]       @relation("DiagnosticRepairHandoffAuthor")
   authoredDiagnosticVerifications       DiagnosticVerificationVersion[]        @relation("DiagnosticVerificationAuthor")
   reviewedDiagnosticVerifications       DiagnosticVerificationVersion[]        @relation("DiagnosticVerificationReviewer")
+  authoredDiagnosticEstimateDrafts      DiagnosticEstimateDraftVersion[]       @relation("DiagnosticEstimateDraftAuthor")
   authoredDiagnosticKnowledgeSources    DiagnosticKnowledgeSourceVersion[]     @relation("DiagnosticKnowledgeSourceAuthor")
   technicalReviewedKnowledgeSources     DiagnosticKnowledgeSourceVersion[]     @relation("DiagnosticKnowledgeSourceTechnicalReviewer")
   rightsReviewedKnowledgeSources        DiagnosticKnowledgeSourceVersion[]     @relation("DiagnosticKnowledgeSourceRightsReviewer")
@@ -1876,6 +1883,7 @@ model Organization {
   diagnosticConclusionVersions          DiagnosticConclusionVersion[]
   diagnosticRepairHandoffVersions       DiagnosticRepairHandoffVersion[]
   diagnosticVerificationVersions        DiagnosticVerificationVersion[]
+  diagnosticEstimateDraftVersions       DiagnosticEstimateDraftVersion[]
 }
 
 model Location {
@@ -3139,6 +3147,7 @@ model RepairOrder {
   inventoryFrontlineWorkflows  InventoryFrontlineWorkflow[]
   diagnosticCases              DiagnosticCase[]
   diagnosticRepairHandoffs     DiagnosticRepairHandoffVersion[]
+  diagnosticEstimateDrafts     DiagnosticEstimateDraftVersion[]
   diagnosticVerifications      DiagnosticVerificationVersion[]
 
   @@unique([organizationId, repairOrderNumber])
@@ -3191,6 +3200,7 @@ model DiagnosticCase {
   conclusionVersions      DiagnosticConclusionVersion[]
   repairHandoffVersions   DiagnosticRepairHandoffVersion[]
   verificationVersions    DiagnosticVerificationVersion[]
+  estimateDraftVersions   DiagnosticEstimateDraftVersion[]
 
   @@unique([id, organizationId])
   @@unique([repairOrderId, concernKey])
@@ -3223,6 +3233,7 @@ model DiagnosticConcernVersion {
   conclusionVersions   DiagnosticConclusionVersion[]
   repairHandoffVersions DiagnosticRepairHandoffVersion[]
   verificationVersions  DiagnosticVerificationVersion[]
+  estimateDraftVersions DiagnosticEstimateDraftVersion[]
 
   @@unique([diagnosticCaseId, version])
   @@unique([id, organizationId])
@@ -3806,6 +3817,7 @@ model DiagnosticConclusionVersion {
   supersededBy             DiagnosticConclusionVersion?  @relation("DiagnosticConclusionSupersession")
   repairHandoffVersions    DiagnosticRepairHandoffVersion[]
   verificationVersions     DiagnosticVerificationVersion[]
+  estimateDraftVersions    DiagnosticEstimateDraftVersion[]
 
   @@unique([diagnosticCaseId, version])
   @@unique([id, organizationId])
@@ -3893,6 +3905,7 @@ model RepairDiagnosisVersion {
   supersededBy       RepairDiagnosisVersion? @relation("DiagnosisSupersession")
   repairJobs         RepairJob[]
   diagnosticHandoffs DiagnosticRepairHandoffVersion[]
+  diagnosticEstimateDrafts DiagnosticEstimateDraftVersion[]
 
   @@unique([repairOrderId, version])
   @@index([organizationId, diagnosedAt])
@@ -3934,11 +3947,62 @@ model DiagnosticRepairHandoffVersion {
   supersedes               DiagnosticRepairHandoffVersion? @relation("DiagnosticRepairHandoffSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
   supersededBy             DiagnosticRepairHandoffVersion? @relation("DiagnosticRepairHandoffSupersession")
   verificationVersions     DiagnosticVerificationVersion[]
+  estimateDraftVersions    DiagnosticEstimateDraftVersion[]
 
   @@unique([diagnosticCaseId, version])
   @@unique([id, organizationId])
   @@index([organizationId, repairOrderId, occurredAt])
   @@index([organizationId, handoffType, status, occurredAt])
+  @@index([repairDiagnosisVersionId])
+}
+
+model DiagnosticEstimateDraftVersion {
+  id                        String                         @id
+  organizationId            String
+  diagnosticCaseId          String
+  repairOrderId             String
+  concernVersionId          String
+  conclusionVersionId       String
+  repairHandoffVersionId    String
+  repairDiagnosisVersionId  String
+  version                   Int
+  status                    DiagnosticEstimateDraftStatus
+  selectedStrategy          String
+  advisorSummary            String
+  customerConcernSummary    String
+  customerCauseSummary      String
+  customerCorrectionSummary String
+  assumptions               Json
+  notIncluded               Json
+  draftLines                Json
+  totals                    Json
+  taxBoundary               String
+  estimateAuthorityBoundary Json
+  policyVersion             String
+  conclusionChecksum        String
+  repairHandoffChecksum     String
+  draftChecksum             String
+  controlDecisionChecksum   String
+  authorUserId              String
+  supersedesId              String?                        @unique
+  expiresAt                 DateTime
+  occurredAt                DateTime
+  createdAt                 DateTime                       @default(now())
+  organization              Organization                   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  diagnosticCase            DiagnosticCase                 @relation(fields: [diagnosticCaseId], references: [id], onDelete: Restrict)
+  repairOrder               RepairOrder                    @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  concernVersion            DiagnosticConcernVersion       @relation(fields: [concernVersionId], references: [id], onDelete: Restrict)
+  conclusionVersion         DiagnosticConclusionVersion    @relation(fields: [conclusionVersionId], references: [id], onDelete: Restrict)
+  repairHandoffVersion      DiagnosticRepairHandoffVersion @relation(fields: [repairHandoffVersionId], references: [id], onDelete: Restrict)
+  repairDiagnosisVersion    RepairDiagnosisVersion         @relation(fields: [repairDiagnosisVersionId], references: [id], onDelete: Restrict)
+  authorUser                User                           @relation("DiagnosticEstimateDraftAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  supersedes                DiagnosticEstimateDraftVersion? @relation("DiagnosticEstimateDraftSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy              DiagnosticEstimateDraftVersion? @relation("DiagnosticEstimateDraftSupersession")
+
+  @@unique([diagnosticCaseId, version])
+  @@unique([id, organizationId])
+  @@index([organizationId, repairOrderId, occurredAt])
+  @@index([organizationId, status, occurredAt])
   @@index([repairDiagnosisVersionId])
 }
 

@@ -44,6 +44,10 @@ export function DiagnosticCaseWorkspace({ model }: { model: DiagnosticCaseWorksp
   const [handoffType, setHandoffType] = useState<"PUBLISH_DIAGNOSIS" | "REPAIR_RECOMMENDATION" | "ESTIMATE_AUTHORIZATION" | "DISPATCH_REQUIREMENTS" | "PARTS_READINESS">("PUBLISH_DIAGNOSIS");
   const [repairRecommendation, setRepairRecommendation] = useState("");
   const [proposedCorrection, setProposedCorrection] = useState("");
+  const [estimateStrategy, setEstimateStrategy] = useState<"STANDARD_SHOP_MODEL" | "THREE_TIER_LABOR_GUIDE_MODEL" | "ELITE_ENTERPRISE_MODEL">("STANDARD_SHOP_MODEL");
+  const [estimateLaborRate, setEstimateLaborRate] = useState("16500");
+  const [estimateAdvisorSummary, setEstimateAdvisorSummary] = useState("");
+  const [estimateAssumptions, setEstimateAssumptions] = useState("Advisor must review labor guide, part pricing, taxes, and customer authorization before presentation.");
   const [verificationAction, setVerificationAction] = useState<"PLAN" | "PASS" | "FAIL" | "INCONCLUSIVE" | "UNSAFE">("PLAN");
   const [verificationRepairSummary, setVerificationRepairSummary] = useState("");
   const [verificationNotes, setVerificationNotes] = useState("");
@@ -54,6 +58,7 @@ export function DiagnosticCaseWorkspace({ model }: { model: DiagnosticCaseWorksp
   const latestConclusion = item.conclusionVersions?.[0] ?? null;
   const latestHandoff = item.repairHandoffVersions?.[0] ?? null;
   const publishedDiagnosis = item.repairHandoffVersions?.find((entry) => entry.handoffType === "PUBLISH_DIAGNOSIS" && entry.repairDiagnosisVersionId) ?? null;
+  const latestEstimateDraft = item.estimateDraftVersions?.[0] ?? null;
   const latestVerification = item.verificationVersions?.[0] ?? null;
   const commandEnabled = model.rollout.executable;
 
@@ -139,6 +144,17 @@ export function DiagnosticCaseWorkspace({ model }: { model: DiagnosticCaseWorksp
             <label className={styles.wideField}><span>Recommendation</span><textarea onChange={(event) => setRepairRecommendation(event.target.value)} placeholder="Summarize what repair path should be reviewed next." required rows={2} value={repairRecommendation} /></label>
             <label className={styles.wideField}><span>Proposed correction</span><textarea onChange={(event) => setProposedCorrection(event.target.value)} placeholder="Describe the correction package without creating an estimate, job, or parts order." required rows={2} value={proposedCorrection} /></label>
             <button disabled={busy || !model.publishingRollout?.executable || !model.permissions.canRepairHandoff || latestConclusion?.status !== "CONFIRMED" || repairRecommendation.trim().length < 10 || proposedCorrection.trim().length < 10 || (handoffType !== "PUBLISH_DIAGNOSIS" && !publishedDiagnosis)} type="submit">Record repair handoff</button>
+          </form>
+        </section>
+
+        <section className={styles.estimatePanel}><header><div><span className={styles.eyebrow}>DGN-035-037 · Advisor estimate foundation</span><h2>Advisor repair estimate draft</h2><p>Create a controlled draft package from the confirmed diagnosis. This does not present a customer estimate, authorize work, order parts, or dispatch a technician.</p></div><span>{latestEstimateDraft ? label(latestEstimateDraft.status) : "No draft"}</span></header>
+          {latestEstimateDraft ? <article className={styles.handoffRecord}><ClipboardList /><div><strong>{label(latestEstimateDraft.selectedStrategy)}</strong><p>{latestEstimateDraft.advisorSummary}</p><small>Draft v{latestEstimateDraft.version} · repair diagnosis v{latestEstimateDraft.repairDiagnosisVersion} · checksum {latestEstimateDraft.draftChecksum.slice(0, 12)}…</small></div></article> : null}
+          <form className={styles.handoffForm} onSubmit={(event) => { event.preventDefault(); const expiry = new Date(Date.now() + 7 * 86_400_000).toISOString(); void execute(`/api/diagnostics/cases/${encodeURIComponent(item.id)}/advisor-estimate`, { repairHandoffId: publishedDiagnosis?.id ?? null, selectedStrategy: estimateStrategy, advisorSummary: estimateAdvisorSummary, customerConcernSummary: item.concern, customerCauseSummary: latestConclusion?.causeStatement ?? "Confirmed diagnostic cause requires advisor review before customer presentation.", customerCorrectionSummary: publishedDiagnosis?.proposedCorrection ?? proposedCorrection, assumptions: estimateAssumptions.split(/\n+/).map((entry) => entry.trim()).filter(Boolean), notIncluded: ["Final taxes, fees, discounts, parts availability, customer authorization, job creation, and dispatch remain owned by their existing authorities."], laborRateCents: Number(estimateLaborRate), partPlaceholderUnitCents: 0, taxBoundary: "Existing Repair Estimate authority must calculate final taxes before customer presentation.", expiresAt: expiry, supersedesId: latestEstimateDraft?.id ?? null, reason: "Create advisor-review diagnostic estimate draft from the published diagnosis handoff." }); }}>
+            <label><span>Estimate model</span><select onChange={(event) => setEstimateStrategy(event.target.value as typeof estimateStrategy)} value={estimateStrategy}><option value="STANDARD_SHOP_MODEL">DispatchBoard standard</option><option value="THREE_TIER_LABOR_GUIDE_MODEL">Three-tier labor guide</option><option value="ELITE_ENTERPRISE_MODEL">Elite enterprise</option></select></label>
+            <label><span>Draft labor rate / hr</span><input inputMode="numeric" onChange={(event) => setEstimateLaborRate(event.target.value)} value={estimateLaborRate} /></label>
+            <label className={styles.wideField}><span>Advisor summary</span><textarea onChange={(event) => setEstimateAdvisorSummary(event.target.value)} placeholder="Explain what the advisor should review before creating the official customer estimate." required rows={2} value={estimateAdvisorSummary} /></label>
+            <label className={styles.wideField}><span>Assumptions and boundaries</span><textarea onChange={(event) => setEstimateAssumptions(event.target.value)} rows={2} value={estimateAssumptions} /></label>
+            <button disabled={busy || !model.publishingRollout?.executable || !model.permissions.canAdvisorEstimate || !publishedDiagnosis || latestConclusion?.status !== "CONFIRMED" || estimateAdvisorSummary.trim().length < 10 || !Number.isInteger(Number(estimateLaborRate)) || Number(estimateLaborRate) < 1} type="submit">Create advisor draft</button>
           </form>
         </section>
 
