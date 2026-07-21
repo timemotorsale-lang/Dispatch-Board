@@ -11,6 +11,7 @@ import { assertDiagnosticGateReady, evaluateDiagnosticQualitySafetyGates } from 
 import { diagnosticReasoningId, type evaluateDiagnosticReasoning, type ReasoningEvidence } from "./reasoning-core";
 import type { createDiagnosticTestOverride, evaluateAdaptiveDiagnosticTests } from "./adaptive-testing";
 import type { evaluateDiagnosticConclusionControls, normalizeDiagnosticConclusionCommand } from "./conclusion-domain";
+import type { evaluateDiagnosticRepairHandoffControls, normalizeDiagnosticRepairHandoffCommand } from "./repair-handoff-domain";
 
 type Tx = Prisma.TransactionClient;
 
@@ -48,6 +49,7 @@ const detailInclude = {
   reasoningEvaluations: { orderBy: { sequence: "desc" as const }, take: 20, include: { hypotheses: { orderBy: { rank: "asc" as const }, include: { evidenceLinks: true } }, supersededBy: { select: { id: true } } } },
   adaptiveTestEvaluations: { orderBy: { sequence: "desc" as const }, take: 20, include: { overrides: { orderBy: { occurredAt: "desc" as const } } } },
   conclusionVersions: { orderBy: { version: "desc" as const }, take: 20, include: { authorUser: { select: { id: true, name: true } }, reviewerUser: { select: { id: true, name: true } }, supersededBy: { select: { id: true } } } },
+  repairHandoffVersions: { orderBy: { version: "desc" as const }, take: 20, include: { authorUser: { select: { id: true, name: true } }, repairDiagnosisVersion: { select: { id: true, version: true } }, supersededBy: { select: { id: true } } } },
   stateEvents: { orderBy: { version: "desc" as const }, take: 100 },
   vehicle: { select: { id: true, vehicleNumber: true, vin: true, year: true, make: true, model: true } }
 };
@@ -77,6 +79,7 @@ export type DiagnosticCaseRepository = {
   recordAdaptiveTestEvaluation?(command: EnterpriseCommandCommitInput, data: { evaluationId: string; occurredAt: Date; result: ReturnType<typeof evaluateAdaptiveDiagnosticTests> }): Promise<DiagnosticMutationResult>;
   recordAdaptiveTestOverride?(command: EnterpriseCommandCommitInput, data: { overrideId: string; occurredAt: Date; override: ReturnType<typeof createDiagnosticTestOverride> }): Promise<DiagnosticMutationResult>;
   recordConclusion?(command: EnterpriseCommandCommitInput, data: { conclusionId: string; occurredAt: Date; commandData: ReturnType<typeof normalizeDiagnosticConclusionCommand>; control: ReturnType<typeof evaluateDiagnosticConclusionControls>; sourceVersions: unknown[]; safetySnapshot: Record<string, unknown>; conclusionChecksum: string }): Promise<DiagnosticMutationResult>;
+  recordRepairHandoff?(command: EnterpriseCommandCommitInput, data: { handoffId: string; occurredAt: Date; commandData: ReturnType<typeof normalizeDiagnosticRepairHandoffCommand>; control: ReturnType<typeof evaluateDiagnosticRepairHandoffControls>; handoffChecksum: string }): Promise<DiagnosticMutationResult>;
   transition(command: EnterpriseCommandCommitInput, data: { occurredAt: Date; reasonCode: string; targetStatus: DiagnosticCaseStatus }): Promise<DiagnosticMutationResult>;
 };
 
@@ -381,6 +384,72 @@ export function createDiagnosticCaseRepository(database: PrismaClient = prisma):
         await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { status: targetStatus, resumeStatus, version } });
         await tx.diagnosticCaseStateEvent.create({ data: { organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, version, eventType: targetStatus === "ESCALATED" ? "ESCALATED" : "STATUS_CHANGED", fromStatus: diagnosticCase.status, toStatus: targetStatus, fromAssignedUserId: diagnosticCase.assignedUserId, toAssignedUserId: diagnosticCase.assignedUserId, reasonCode: `CONCLUSION_${data.control.status}`, reason: command.reason, actorUserId: command.actorUserId, correlationId: command.correlationId, occurredAt: data.occurredAt } });
         return { previous: prior ? { id: prior.id, status: prior.status, conclusionChecksum: prior.conclusionChecksum } : undefined, result: { id: record.id, conclusionVersion, status: record.status, caseStatus: targetStatus, conclusionChecksum: record.conclusionChecksum, version } };
+      });
+    },
+
+    recordRepairHandoff(command, data) {
+      return execute(database, command, "DiagnosticRepairHandoffRecorded", `REPAIR_HANDOFF_${data.commandData.handoffType}`, async (tx, version) => {
+        const diagnosticCase = await tx.diagnosticCase.findFirst({
+          where: { id: command.subjectId, organizationId: command.organizationId },
+          include: {
+            concernVersions: { orderBy: { version: "desc" }, take: 1 },
+            conclusionVersions: { orderBy: { version: "desc" }, take: 1 },
+            observations: { where: { correctsId: null }, orderBy: { observedAt: "desc" }, take: 12 },
+            testExecutions: { where: { state: "COMPLETED" }, orderBy: { occurredAt: "desc" }, take: 12, include: { planNode: { select: { title: true } } } },
+            repairHandoffVersions: { orderBy: { version: "desc" }, take: 1 }
+          }
+        });
+        if (!diagnosticCase) throw new Error("Diagnostic case was not found.");
+        if (diagnosticCase.version !== version - 1) throw new EnterpriseCommandConflictError(`Expected case version ${version - 1}, but current version is ${diagnosticCase.version}.`, "VERSION_CONFLICT");
+        if (!data.control.allowed) throw new Error(`Diagnostic repair handoff is blocked: ${data.control.reasonCodes.join(", ")}.`);
+        const concern = diagnosticCase.concernVersions[0]; if (!concern) throw new Error("Diagnostic repair handoff requires a current concern version.");
+        const conclusion = await tx.diagnosticConclusionVersion.findFirst({ where: { id: command.payload.conclusionVersionId as string, diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId } });
+        if (!conclusion || conclusion.status !== "CONFIRMED" || conclusion.conclusionChecksum !== command.payload.conclusionChecksum) throw new Error("Repair handoff must bind to the exact confirmed diagnostic conclusion.");
+        if (diagnosticCase.conclusionVersions[0]?.id !== conclusion.id) throw new Error("Repair handoff must use the latest diagnostic conclusion.");
+        const prior = diagnosticCase.repairHandoffVersions[0] ?? null;
+        if ((prior?.id ?? null) !== data.commandData.supersedesId) throw new Error("Repair handoff command must extend the latest handoff lineage.");
+        let diagnosisVersionId: string | null = null;
+        let diagnosisVersion: number | null = null;
+        if (data.commandData.handoffType === "PUBLISH_DIAGNOSIS") {
+          const latestDiagnosis = await tx.repairDiagnosisVersion.findFirst({ where: { repairOrderId: diagnosticCase.repairOrderId, organizationId: command.organizationId }, orderBy: { version: "desc" } });
+          if (latestDiagnosis && latestDiagnosis.createdAt > conclusion.occurredAt) throw new Error("Repair diagnosis changed after the bound diagnostic conclusion; return scope for review.");
+          const repairDiagnosis = await tx.repairDiagnosisVersion.create({ data: {
+            organizationId: command.organizationId,
+            repairOrderId: diagnosticCase.repairOrderId,
+            version: (latestDiagnosis?.version ?? 0) + 1,
+            concern: concern.statement,
+            symptoms: json(diagnosticCase.observations.map((item) => item.statement)),
+            tests: json(diagnosticCase.testExecutions.map((item) => ({ name: item.planNode?.title ?? item.executionKey, result: item.reason }))),
+            evidence: json(data.commandData.operations.flatMap((operation) => [operation.key, ...operation.qcChecks])),
+            cause: conclusion.causeStatement ?? data.commandData.recommendation,
+            uncertainty: conclusion.uncertainty === "LOW" || conclusion.uncertainty === "MEDIUM" ? conclusion.uncertainty : "HIGH",
+            recommendation: data.commandData.recommendation,
+            proposedCorrection: data.commandData.proposedCorrection,
+            technicianUserId: conclusion.authorUserId,
+            diagnosedAt: data.occurredAt,
+            supersedesId: latestDiagnosis?.id
+          } });
+          diagnosisVersionId = repairDiagnosis.id;
+          diagnosisVersion = repairDiagnosis.version;
+        } else {
+          const latestDiagnosis = await tx.repairDiagnosisVersion.findFirst({ where: { repairOrderId: diagnosticCase.repairOrderId, organizationId: command.organizationId }, orderBy: { version: "desc" }, select: { id: true, version: true } });
+          if (!latestDiagnosis) throw new Error("Repair handoff requires a published repair diagnosis first.");
+          diagnosisVersionId = latestDiagnosis.id;
+          diagnosisVersion = latestDiagnosis.version;
+        }
+        const handoffVersion = (prior?.version ?? 0) + 1;
+        const record = await tx.diagnosticRepairHandoffVersion.create({ data: {
+          id: data.handoffId, organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, repairOrderId: diagnosticCase.repairOrderId,
+          concernVersionId: concern.id, conclusionVersionId: conclusion.id, repairDiagnosisVersionId: diagnosisVersionId, version: handoffVersion,
+          handoffType: data.commandData.handoffType, status: data.control.status, recommendation: data.commandData.recommendation, proposedCorrection: data.commandData.proposedCorrection,
+          operations: json(data.commandData.operations), estimateBoundary: json(data.commandData.estimateBoundary), dispatchBoundary: json(data.commandData.dispatchBoundary),
+          partsBoundary: json(data.commandData.partsBoundary), sourceVersions: json(data.commandData.sourceVersions), policyVersion: data.control.policyVersion,
+          conclusionChecksum: conclusion.conclusionChecksum, handoffChecksum: data.handoffChecksum, controlDecisionChecksum: data.control.decisionChecksum,
+          authorUserId: command.actorUserId, supersedesId: data.commandData.supersedesId, occurredAt: data.occurredAt
+        } });
+        await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { status: "HANDED_OFF", version } });
+        await tx.diagnosticCaseStateEvent.create({ data: { organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, version, eventType: "STATUS_CHANGED", fromStatus: diagnosticCase.status, toStatus: "HANDED_OFF", fromAssignedUserId: diagnosticCase.assignedUserId, toAssignedUserId: diagnosticCase.assignedUserId, reasonCode: `REPAIR_HANDOFF_${data.commandData.handoffType}`, reason: command.reason, actorUserId: command.actorUserId, correlationId: command.correlationId, occurredAt: data.occurredAt } });
+        return { previous: prior ? { id: prior.id, handoffType: prior.handoffType, handoffChecksum: prior.handoffChecksum } : undefined, result: { id: record.id, handoffVersion, handoffType: record.handoffType, status: record.status, repairDiagnosisVersionId: diagnosisVersionId, repairDiagnosisVersion: diagnosisVersion, handoffChecksum: record.handoffChecksum, version } };
       });
     },
 

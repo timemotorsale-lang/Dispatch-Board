@@ -75,11 +75,11 @@ For the expanded build scope, affected layers, critical path, day-one boundary, 
 
 | ID | Deliverable | Depends on | Exit evidence |
 | --- | --- | --- | --- |
-| `DGN-028` | Publish confirmed conclusion to versioned repair diagnosis with exact lineage. | 026 | Atomicity, replay, supersession, and cross-domain reconciliation tests. |
-| `DGN-029` | Repair recommendation package: operations, duration range, skills, certifications, bay/tools, parts, hazards, procedures, and QC. | 028 | Completeness, applicability, authorization-boundary, and version tests. |
-| `DGN-030` | Estimate/authorization handoff and changed-scope return path. | 029 | No unauthorized job creation; stale estimate/auth and partial acceptance scenarios. |
-| `DGN-031` | Tasks/Appointments/Dispatch resource-requirement bridge. | 029 | Eligibility, collision, delay, cancellation, and manager-override scenarios. |
-| `DGN-032` | Parts demand/readiness bridge with substitute-review boundary. | 029 | No direct purchase/balance mutation; fitment, shortage, ETA, and replay scenarios. |
+| `DGN-028` | **Implemented in source.** Publish confirmed conclusion to versioned repair diagnosis with exact lineage. See [`implementation/DGN_028_032_REPAIR_HANDOFFS_IMPLEMENTATION.md`](implementation/DGN_028_032_REPAIR_HANDOFFS_IMPLEMENTATION.md). | 026 | Atomicity, replay, supersession, and cross-domain reconciliation tests; migrated-runtime and consumer acceptance remain open. |
+| `DGN-029` | **Implemented in source.** Repair recommendation package: operations, duration range, skills, certifications, bay/tools, parts, hazards, procedures, and QC. | 028 | Completeness, applicability, authorization-boundary, and version tests; downstream acceptance remains owned by repair planning. |
+| `DGN-030` | **Implemented in source.** Estimate/authorization handoff and changed-scope return path. | 029 | No unauthorized job creation; stale estimate/auth and partial acceptance scenarios; advisor acceptance remains separate. |
+| `DGN-031` | **Implemented in source.** Tasks/Appointments/Dispatch resource-requirement bridge. | 029 | Eligibility, collision, delay, cancellation, and manager-override scenarios; no task, appointment, or dispatch mutation is created by Diagnostics. |
+| `DGN-032` | **Implemented in source.** Parts demand/readiness bridge with substitute-review boundary. | 029 | No direct purchase/balance mutation; fitment, shortage, ETA, and replay scenarios; parts acceptance remains separate. |
 | `DGN-033` | Versioned concern-specific post-repair Verification Lab plan and execution workflow. | 028–032 | Pass, fail, inconclusive, unsafe-road-test, independent-review, regression, and reopen tests. |
 | `DGN-034` | End-to-end no-start concern-to-verified-repair workflow and repair-order summary. | 028–033 | Manager, advisor, technician, parts, dispatcher, and QC browser acceptance. |
 
