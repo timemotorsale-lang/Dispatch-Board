@@ -1,6 +1,7 @@
 import { hashEnterpriseCommand } from "@/server/enterprise-command/domain";
 
 import { buildStandardDiagnosticEstimateDraftLines, type DiagnosticEstimateDraftLine, type DiagnosticEstimateStrategy } from "./estimate-advisor-domain";
+import { evaluateDiagnosticCapacityExplanation, type DiagnosticCapacityExplanationResult } from "./capacity-explanation-domain";
 import { evaluateDiagnosticLaborGuide, type DiagnosticLaborComplexityTier, type DiagnosticLaborGuideRecommendation } from "./labor-guide-domain";
 import { evaluateDiagnosticPartsLaborEconomics, type DiagnosticPartDemandCandidate, type DiagnosticPartsLaborEconomicsResult } from "./parts-labor-economics-domain";
 import type { DiagnosticRepairOperation } from "./repair-handoff-domain";
@@ -54,6 +55,10 @@ export type DiagnosticEstimateStrategyOutput = {
   partDemandCandidates: DiagnosticPartDemandCandidate[];
   economicsResultChecksum: string;
   materialChargeCents: number;
+  capacityExplanationResultChecksum: string;
+  capacityRisk: DiagnosticCapacityExplanationResult["capacityImpact"]["capacityRisk"];
+  cycleTimeDays: number;
+  explanationPackages: DiagnosticCapacityExplanationResult["explanationPackages"];
   outputChecksum: string;
 };
 
@@ -147,7 +152,7 @@ function strategyLines(input: DiagnosticEstimateStrategyEvaluationInput, strateg
   return withLaborRate(baseLines, rate, `Strategy ${strategy} applied ${highestTier.toLowerCase()} labor complexity and kept output draft-only.`);
 }
 
-function buildStrategyOutput(input: DiagnosticEstimateStrategyEvaluationInput, strategy: DiagnosticEstimateStrategy, laborGuideEvaluation: ReturnType<typeof evaluateDiagnosticLaborGuide>, economicsEvaluation: DiagnosticPartsLaborEconomicsResult): DiagnosticEstimateStrategyOutput {
+function buildStrategyOutput(input: DiagnosticEstimateStrategyEvaluationInput, strategy: DiagnosticEstimateStrategy, laborGuideEvaluation: ReturnType<typeof evaluateDiagnosticLaborGuide>, economicsEvaluation: DiagnosticPartsLaborEconomicsResult, capacityExplanationEvaluation: DiagnosticCapacityExplanationResult): DiagnosticEstimateStrategyOutput {
   const registry = DIAGNOSTIC_ESTIMATE_STRATEGY_REGISTRY[strategy];
   const draftLines = strategyLines(input, strategy, laborGuideEvaluation.recommendations, economicsEvaluation);
   const totalValues = totals(draftLines);
@@ -155,17 +160,20 @@ function buildStrategyOutput(input: DiagnosticEstimateStrategyEvaluationInput, s
   const warningCodes = [
     input.partPlaceholderUnitCents == null || input.partPlaceholderUnitCents === 0 ? "ESTIMATE_STRATEGY_PART_PRICING_PENDING" : "",
     complexityTiers.includes("HIGH") ? "ESTIMATE_STRATEGY_HIGH_COMPLEXITY_LABOR" : "",
-    ...economicsEvaluation.warningCodes
+    ...economicsEvaluation.warningCodes,
+    ...capacityExplanationEvaluation.warningCodes
   ];
   const requiredApprovalCodes = [
     strategy === "ELITE_ENTERPRISE_MODEL" ? "ESTIMATE_STRATEGY_MANAGER_REVIEW_RECOMMENDED" : "",
     complexityTiers.includes("HIGH") ? "ESTIMATE_STRATEGY_COMPLEXITY_REVIEW_RECOMMENDED" : "",
-    ...economicsEvaluation.managerReviewCodes
+    ...economicsEvaluation.managerReviewCodes,
+    ...capacityExplanationEvaluation.managerReviewCodes
   ];
   const explanationCodes = unique([
     "ESTIMATE_STRATEGY_ADVISORY_ONLY",
     "ESTIMATE_STRATEGY_LABOR_GUIDE_LINKED",
     "ESTIMATE_STRATEGY_PARTS_LABOR_ECONOMICS_LINKED",
+    "ESTIMATE_STRATEGY_CAPACITY_EXPLANATION_LINKED",
     `ESTIMATE_STRATEGY_${strategy}`,
     ...complexityTiers.map((tier) => `LABOR_COMPLEXITY_${tier}`),
     ...laborGuideEvaluation.recommendations.flatMap((recommendation) => recommendation.explanationCodes)
@@ -185,7 +193,11 @@ function buildStrategyOutput(input: DiagnosticEstimateStrategyEvaluationInput, s
     laborGuideResultChecksum: laborGuideEvaluation.resultChecksum,
     partDemandCandidates: economicsEvaluation.partDemandCandidates,
     economicsResultChecksum: economicsEvaluation.resultChecksum,
-    materialChargeCents: economicsEvaluation.totals.materialChargeCents
+    materialChargeCents: economicsEvaluation.totals.materialChargeCents,
+    capacityExplanationResultChecksum: capacityExplanationEvaluation.resultChecksum,
+    capacityRisk: capacityExplanationEvaluation.capacityImpact.capacityRisk,
+    cycleTimeDays: capacityExplanationEvaluation.capacityImpact.cycleTimeDays,
+    explanationPackages: capacityExplanationEvaluation.explanationPackages
   };
   return { ...output, outputChecksum: hashEnterpriseCommand({ engineVersion: DIAGNOSTIC_ESTIMATE_STRATEGY_ENGINE_VERSION, input, output }) };
 }
@@ -195,8 +207,9 @@ export function evaluateDiagnosticEstimateStrategies(input: DiagnosticEstimateSt
   if (input.laborRateCents < 1 || !Number.isInteger(input.laborRateCents)) throw new Error("Estimate strategy evaluation requires a positive labor rate.");
   const laborGuideEvaluation = evaluateDiagnosticLaborGuide({ operations: input.operations, occurredAt: input.occurredAt });
   const economicsEvaluation = evaluateDiagnosticPartsLaborEconomics({ operations: input.operations, laborGuideRecommendations: laborGuideEvaluation.recommendations, baseLaborRateCents: input.laborRateCents, partPlaceholderUnitCents: input.partPlaceholderUnitCents ?? 0, occurredAt: input.occurredAt });
+  const capacityExplanationEvaluation = evaluateDiagnosticCapacityExplanation({ diagnosticCaseId: input.diagnosticCaseId, repairOrderId: input.repairOrderId, operations: input.operations, laborGuideRecommendations: laborGuideEvaluation.recommendations, economics: economicsEvaluation, occurredAt: input.occurredAt });
   const compareStrategies = unique([input.selectedStrategy, ...(input.compareStrategies ?? [])]) as DiagnosticEstimateStrategy[];
-  const outputs = compareStrategies.map((strategy) => buildStrategyOutput(input, strategy, laborGuideEvaluation, economicsEvaluation));
+  const outputs = compareStrategies.map((strategy) => buildStrategyOutput(input, strategy, laborGuideEvaluation, economicsEvaluation, capacityExplanationEvaluation));
   const selectedOutput = outputs.find((output) => output.strategy === input.selectedStrategy);
   if (!selectedOutput) throw new Error("Selected estimate strategy output was not generated.");
   const baseline = outputs.find((output) => output.strategy === "STANDARD_SHOP_MODEL") ?? selectedOutput;
@@ -216,6 +229,7 @@ export function evaluateDiagnosticEstimateStrategies(input: DiagnosticEstimateSt
     registry: compareStrategies.map((strategy) => DIAGNOSTIC_ESTIMATE_STRATEGY_REGISTRY[strategy]),
     laborGuideEvaluation,
     economicsEvaluation,
+    capacityExplanationEvaluation,
     authorityBoundary
   };
   return { ...result, resultChecksum: hashEnterpriseCommand({ input, result }) };
