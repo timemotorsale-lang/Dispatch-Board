@@ -19,6 +19,7 @@ import { diagnosticReasoningId, evaluateDiagnosticReasoning, normalizeDiagnostic
 import { createDiagnosticTestOverride, diagnosticAdaptiveTestingId, evaluateAdaptiveDiagnosticTests, normalizeAdaptiveTestingCommand, normalizeAdaptiveTestOverrideCommand, type DiagnosticTestCandidateDefinition, type DiagnosticTestWeights } from "./adaptive-testing";
 import { diagnosticConclusionId, evaluateDiagnosticConclusionControls, normalizeDiagnosticConclusionCommand, type DiagnosticConclusionAction, type DiagnosticConclusionCandidate } from "./conclusion-domain";
 import { diagnosticRepairHandoffId, evaluateDiagnosticRepairHandoffControls, normalizeDiagnosticRepairHandoffCommand } from "./repair-handoff-domain";
+import { diagnosticVerificationId, evaluateDiagnosticVerificationControls, normalizeDiagnosticVerificationCommand } from "./verification-domain";
 import { diagnosticTestId, normalizeDiagnosticTestDefinition, normalizeDiagnosticTestLifecycle, normalizeDiagnosticTestPlan, type DiagnosticTestLifecycleAction } from "./test-execution-domain";
 import { createDiagnosticCaseRepository, type DiagnosticCaseDetailRecord, type DiagnosticCaseIdentityRecord, type DiagnosticCaseRepository } from "./repository";
 
@@ -357,6 +358,46 @@ export async function recordDiagnosticRepairHandoff(actor: AuthenticatedUser | n
   return context.repository.recordRepairHandoff(command({ actorUserId: user.id, commandType: `DIAGNOSTIC_REPAIR_HANDOFF_${data.handoffType}`, expectedVersion: data.expectedVersion, idempotencyKey: data.idempotencyKey, locationId: identity.locationId, organizationId: context.organizationId, payload: payload({ conclusionChecksum: conclusion?.conclusionChecksum, conclusionVersionId: conclusion?.id, controlDecisionChecksum: control.decisionChecksum, handoffChecksum, handoffType: data.handoffType, supersedesId: data.supersedesId }), reason: data.reason, subjectId: caseId }), { handoffId, occurredAt, commandData: { ...data, sourceVersions }, control, handoffChecksum });
 }
 
+export async function recordDiagnosticVerification(actor: AuthenticatedUser | null, caseId: string, value: unknown, input: Dependencies = {}) {
+  const context = dependencies(input); const data = normalizeDiagnosticVerificationCommand(value); const identity = await loadCaseIdentity(caseId, context);
+  const { user } = await authorize(actor, "DIAGNOSTIC_VERIFICATION_MANAGE", identity.locationId, context, identity.assignedUserId, true, "DIAGNOSTIC_PUBLISHING");
+  if (!isManager(user) && identity.assignedUserId !== user.id) throw new Error("Diagnostic verification requires assignment to the acting technician or manager authority.");
+  if (!context.repository.recordVerification) throw new Error("Diagnostic verification persistence is unavailable.");
+  const detail = await context.repository.get(context.organizationId, caseId); if (!detail) throw new Error("Diagnostic case was not found.");
+  const latestConclusion = detail.conclusionVersions[0] ?? null;
+  const conclusion = data.conclusionId ? detail.conclusionVersions.find((item) => item.id === data.conclusionId) ?? null : latestConclusion;
+  if (data.conclusionId && !conclusion) throw new Error("Selected conclusion was not found in this case.");
+  const latestPublishedHandoff = detail.repairHandoffVersions?.find((item) => item.handoffType === "PUBLISH_DIAGNOSIS" && item.status === "PUBLISHED" && item.repairDiagnosisVersionId) ?? null;
+  const handoff = data.repairHandoffId ? detail.repairHandoffVersions?.find((item) => item.id === data.repairHandoffId) ?? null : latestPublishedHandoff;
+  if (data.repairHandoffId && !handoff) throw new Error("Selected repair handoff was not found in this case.");
+  const latestVerification = detail.verificationVersions?.[0] ?? null;
+  const checks = data.action === "PLAN" ? data.checks : data.checks.length ? data.checks : latestVerification && Array.isArray(latestVerification.planChecks) ? latestVerification.planChecks as ReturnType<typeof normalizeDiagnosticVerificationCommand>["checks"] : [];
+  const independentReviewRequired = detail.riskTier === "R3" && data.action === "PASS";
+  const control = evaluateDiagnosticVerificationControls({
+    action: data.action,
+    diagnosticCaseId: caseId,
+    currentCaseStatus: detail.status,
+    riskTier: detail.riskTier,
+    conclusion: conclusion ? { id: conclusion.id, status: conclusion.status, conclusionChecksum: conclusion.conclusionChecksum, causeStatement: conclusion.causeStatement } : null,
+    repairHandoff: handoff ? { id: handoff.id, status: handoff.status, repairDiagnosisVersionId: handoff.repairDiagnosisVersionId, handoffChecksum: handoff.handoffChecksum, occurredAt: handoff.occurredAt.toISOString() } : null,
+    latestVerification: latestVerification ? { id: latestVerification.id, status: latestVerification.status } : null,
+    originalConcern: data.originalConcern,
+    repairSummary: data.repairSummary,
+    checks,
+    performedChecks: data.performedChecks,
+    regressionChecks: data.regressionChecks,
+    roadTestSafety: data.roadTestSafety,
+    independentReviewRequired,
+    reviewerUserId: data.reviewerUserId,
+    actorUserId: user.id
+  });
+  if (!control.allowed) throw new Error(`Diagnostic verification is blocked: ${control.reasonCodes.join(", ")}.`);
+  const repairEvidenceSnapshot = { repairOrderId: detail.repairOrderId, repairHandoffId: handoff?.id ?? null, repairDiagnosisVersionId: handoff?.repairDiagnosisVersionId ?? null, latestTestExecutions: detail.testExecutions.slice(0, 10).map((execution) => ({ id: execution.id, executionKey: execution.executionKey, state: execution.state, occurredAt: execution.occurredAt.toISOString() })), latestHandoffType: handoff?.handoffType ?? null };
+  const verificationId = diagnosticVerificationId(context.organizationId, caseId, data.idempotencyKey); const occurredAt = context.now();
+  const verificationChecksum = hashEnterpriseCommand({ caseId, checks, conclusionChecksum: conclusion?.conclusionChecksum, data: { action: data.action, performedChecks: data.performedChecks, regressionChecks: data.regressionChecks, roadTestSafety: data.roadTestSafety }, handoffChecksum: handoff?.handoffChecksum, repairEvidenceSnapshot });
+  return context.repository.recordVerification(command({ actorUserId: user.id, commandType: `DIAGNOSTIC_VERIFICATION_${data.action}`, expectedVersion: data.expectedVersion, idempotencyKey: data.idempotencyKey, locationId: identity.locationId, organizationId: context.organizationId, payload: payload({ conclusionChecksum: conclusion?.conclusionChecksum, conclusionVersionId: conclusion?.id, controlDecisionChecksum: control.decisionChecksum, repairHandoffChecksum: handoff?.handoffChecksum, repairHandoffVersionId: handoff?.id, supersedesId: data.supersedesId, verificationChecksum }), reason: data.reason, subjectId: caseId }), { verificationId, occurredAt, commandData: { ...data, checks }, control, repairEvidenceSnapshot, verificationChecksum });
+}
+
 export async function recordDiagnosticObservation(actor: AuthenticatedUser | null, caseId: string, value: unknown, input: Dependencies = {}) {
   const context = dependencies(input);
   const data = normalizeDiagnosticObservation(value, context.now());
@@ -511,6 +552,7 @@ function projectCase(diagnosticCase: DiagnosticCaseDetailRecord, now: Date, evid
     adaptiveTestEvaluations: evidenceAccess.reasoning ? (diagnosticCase.adaptiveTestEvaluations ?? []).map((evaluation) => ({ id: evaluation.id, sequence: evaluation.sequence, reasoningEvaluationId: evaluation.reasoningEvaluationId, engineVersion: evaluation.engineVersion, eligibilityPolicyVersion: evaluation.eligibilityPolicyVersion, optimizationPolicyVersion: evaluation.optimizationPolicyVersion, reasoningResultChecksum: evaluation.reasoningResultChecksum, weights: evaluation.weights, weightsChecksum: evaluation.weightsChecksum, lookAhead: evaluation.lookAhead, eligibleTests: evaluation.eligibleTests, excludedTests: evaluation.excludedTests, recommendedTestKey: evaluation.recommendedTestKey, alternatives: evaluation.alternatives, abstentionRequired: evaluation.abstentionRequired, reasonCodes: evaluation.reasonCodes, inputChecksum: evaluation.inputChecksum, resultChecksum: evaluation.resultChecksum, occurredAt: evaluation.occurredAt.toISOString(), overrides: evaluation.overrides.map((override) => ({ id: override.id, recommendedTestKey: override.recommendedTestKey, selectedTestKey: override.selectedTestKey, reasonCode: override.reasonCode, reason: override.reason, policyVersion: override.policyVersion, lineageChecksum: override.lineageChecksum, actorUserId: override.actorUserId, priorOverrideId: override.priorOverrideId, occurredAt: override.occurredAt.toISOString() })) })) : [],
     conclusionVersions: evidenceAccess.reasoning ? (diagnosticCase.conclusionVersions ?? []).map((conclusion) => ({ id: conclusion.id, version: conclusion.version, action: conclusion.action, status: conclusion.status, reasoningEvaluationId: conclusion.reasoningEvaluationId, hypothesisId: conclusion.hypothesisId, causeStatement: conclusion.causeStatement, uncertainty: conclusion.uncertainty, evidenceBasisKeys: conclusion.evidenceBasisKeys, contradictionKeys: conclusion.contradictionKeys, addressedAlternativeKeys: conclusion.addressedAlternativeKeys, limitations: conclusion.limitations, sourceVersions: conclusion.sourceVersions, safetySnapshot: conclusion.safetySnapshot, policyVersion: conclusion.policyVersion, reasoningResultChecksum: conclusion.reasoningResultChecksum, conclusionChecksum: conclusion.conclusionChecksum, authorUser: conclusion.authorUser, reviewerUser: conclusion.reviewerUser, supersedesId: conclusion.supersedesId, supersededById: conclusion.supersededBy?.id ?? null, occurredAt: conclusion.occurredAt.toISOString() })) : [],
     repairHandoffVersions: evidenceAccess.reasoning ? (diagnosticCase.repairHandoffVersions ?? []).map((handoff) => ({ id: handoff.id, version: handoff.version, handoffType: handoff.handoffType, status: handoff.status, conclusionVersionId: handoff.conclusionVersionId, repairDiagnosisVersionId: handoff.repairDiagnosisVersionId, repairDiagnosisVersion: handoff.repairDiagnosisVersion?.version ?? null, recommendation: handoff.recommendation, proposedCorrection: handoff.proposedCorrection, operations: handoff.operations, estimateBoundary: handoff.estimateBoundary, dispatchBoundary: handoff.dispatchBoundary, partsBoundary: handoff.partsBoundary, sourceVersions: handoff.sourceVersions, policyVersion: handoff.policyVersion, conclusionChecksum: handoff.conclusionChecksum, handoffChecksum: handoff.handoffChecksum, authorUser: handoff.authorUser, supersedesId: handoff.supersedesId, supersededById: handoff.supersededBy?.id ?? null, occurredAt: handoff.occurredAt.toISOString() })) : [],
+    verificationVersions: evidenceAccess.reasoning ? (diagnosticCase.verificationVersions ?? []).map((verification) => ({ id: verification.id, version: verification.version, action: verification.action, status: verification.status, conclusionVersionId: verification.conclusionVersionId, repairHandoffVersionId: verification.repairHandoffVersionId, originalConcern: verification.originalConcern, repairSummary: verification.repairSummary, planChecks: verification.planChecks, performedChecks: verification.performedChecks, regressionChecks: verification.regressionChecks, limitations: verification.limitations, roadTestSafety: verification.roadTestSafety, repairEvidenceSnapshot: verification.repairEvidenceSnapshot, outcomeSummary: verification.outcomeSummary, policyVersion: verification.policyVersion, conclusionChecksum: verification.conclusionChecksum, repairHandoffChecksum: verification.repairHandoffChecksum, verificationChecksum: verification.verificationChecksum, authorUser: verification.authorUser, reviewerUser: verification.reviewerUser, supersedesId: verification.supersedesId, supersededById: verification.supersededBy?.id ?? null, occurredAt: verification.occurredAt.toISOString() })) : [],
     timeline: diagnosticCase.stateEvents.map((event) => ({
       id: event.id,
       version: event.version,
@@ -594,6 +636,7 @@ export async function getDiagnosticCaseWorkspace(actor: AuthenticatedUser | null
   const canProposeConclusion = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_CONCLUSION_PROPOSE", grants, locationId: detail.locationId, now: context.now(), resourceOwnerUserId: detail.assignedUserId }).allowed && evidenceOwner;
   const canConfirmConclusion = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_CONCLUSION_CONFIRM", grants, locationId: detail.locationId, now: context.now(), resourceOwnerUserId: detail.assignedUserId }).allowed && evidenceOwner;
   const canRepairHandoff = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_REPAIR_HANDOFF_MANAGE", grants, locationId: detail.locationId, now: context.now(), resourceOwnerUserId: detail.assignedUserId }).allowed && evidenceOwner;
+  const canVerifyRepair = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_VERIFICATION_MANAGE", grants, locationId: detail.locationId, now: context.now(), resourceOwnerUserId: detail.assignedUserId }).allowed && evidenceOwner;
   const evidenceCandidates = evidenceView && vehicleEvidenceView && context.repository.listEvidenceCandidates ? await context.repository.listEvidenceCandidates(context.organizationId, detail.vehicleId) : [];
   const generatedAt = context.now();
   const diagnosticCase = projectCase(detail, generatedAt, { facts: evidenceView, attachments: evidenceView && vehicleEvidenceView, restricted: restrictedEvidenceView, tests: evidenceView && (canPlanTests || canExecuteTests), reasoning: evidenceView && canEvaluateReasoning });
@@ -607,7 +650,7 @@ export async function getDiagnosticCaseWorkspace(actor: AuthenticatedUser | null
     evidenceRollout: { executable: evidenceRollout.executable, reason: evidenceRollout.reason },
     reasoningRollout: { executable: reasoningRollout.executable, reason: reasoningRollout.reason },
     publishingRollout: { executable: publishingRollout.executable, reason: publishingRollout.reason },
-    permissions: { canAssign, canTransition: transitionCapability && evidenceOwner, canRecordEvidence, canLinkEvidence, canPlanTests, canExecuteTests, canEvaluateReasoning, canEvaluateAdaptiveTests, canOverrideAdaptiveTest, canProposeConclusion, canConfirmConclusion, canRepairHandoff },
+    permissions: { canAssign, canTransition: transitionCapability && evidenceOwner, canRecordEvidence, canLinkEvidence, canPlanTests, canExecuteTests, canEvaluateReasoning, canEvaluateAdaptiveTests, canOverrideAdaptiveTest, canProposeConclusion, canConfirmConclusion, canRepairHandoff, canVerifyRepair },
     assignableUsers: canAssign ? assignableUsers : [],
     evidenceCandidates: evidenceCandidates.filter((item) => item.accessLevel !== "RESTRICTED" || restrictedEvidenceView).map((item) => ({ ...item, retentionUntil: item.retentionUntil.toISOString(), linkable: item.status === "AVAILABLE" && item.malwareStatus === "CLEAN" })),
     diagnosticCase,

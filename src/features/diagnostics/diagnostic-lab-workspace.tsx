@@ -87,7 +87,7 @@ function LabPanel({ activeLab, item, measurements }: { activeLab: Exclude<LabId,
     MECHANICAL: { title: "Mechanical lab", description: "Review pressure, speed, temperature, and flow measurements without converting them into a diagnosis." },
     HYPOTHESIS: { title: "Hypothesis lab", description: "Review the latest governed candidates, causal state, contradictions, and reasoning rank before making a human conclusion." },
     INTERMITTENT: { title: "Intermittent lab", description: "Reconstruct time-ordered observations, tests, and repeat lineage. Automated trigger capture is not connected." },
-    VERIFICATION: { title: "Verification lab", description: "Post-repair verification remains unavailable until its governed plan and publication milestones land." }
+    VERIFICATION: { title: "Verification lab", description: "Use the closed-loop verification panel above to plan proof checks, record pass/fail evidence, escalate unsafe results, and close only after the repair is verified." }
   };
   const definition = definitions[activeLab];
   const vehicleSystemFacts = item.observations.filter((entry) => entry.source === "VEHICLE_SYSTEM" || entry.source === "IMPORTED_RECORD");
@@ -98,7 +98,7 @@ function LabPanel({ activeLab, item, measurements }: { activeLab: Exclude<LabId,
     {activeLab === "WAVEFORM" ? <EvidenceList title="Governed waveform evidence" empty="No waveform attachment is linked to this case." items={item.evidenceLinks.filter((entry) => /wave|scope|oscill/i.test(`${entry.evidence.fileName} ${entry.purpose}`)).map((entry) => ({ id: entry.id, title: entry.evidence.fileName, detail: `${label(entry.evidence.status)} · SHA-256 ${entry.evidence.checksumSha256.slice(0, 12)}…` }))} /> : null}
     {activeLab === "INTERMITTENT" ? <EvidenceList title="Temporal evidence" empty="No time-series evidence has been recorded." items={item.testExecutions.map((entry) => ({ id: entry.id, title: `${entry.planNode.title} · ${label(entry.state)}`, detail: `${new Date(entry.occurredAt).toLocaleString()} · revision ${entry.revision}` }))} /> : null}
     {activeLab === "HYPOTHESIS" ? <EvidenceList title="Current reasoning candidates" empty="No reasoning evaluation is available for this case." items={(item.reasoningEvaluations?.[0]?.hypotheses ?? []).map((entry) => ({ id: entry.id, title: `${entry.hypothesisKey} · ${label(entry.status)}`, detail: `${label(entry.causalState)} · rank ${entry.rank} · ${(entry.supportingEvidenceKeys as string[]).length} supporting / ${(entry.contradictingEvidenceKeys as string[]).length} contradicting evidence links` }))} /> : null}
-    {activeLab === "VERIFICATION" ? <div className={styles.labEmpty}><AlertTriangle /><strong>Verification execution not active</strong><p>{definition.description}</p></div> : null}
+    {activeLab === "VERIFICATION" ? <div className={styles.labEmpty}><AlertTriangle /><strong>Verification governed above</strong><p>{definition.description}</p></div> : null}
   </>;
 }
 

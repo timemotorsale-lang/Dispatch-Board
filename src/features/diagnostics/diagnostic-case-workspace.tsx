@@ -44,6 +44,9 @@ export function DiagnosticCaseWorkspace({ model }: { model: DiagnosticCaseWorksp
   const [handoffType, setHandoffType] = useState<"PUBLISH_DIAGNOSIS" | "REPAIR_RECOMMENDATION" | "ESTIMATE_AUTHORIZATION" | "DISPATCH_REQUIREMENTS" | "PARTS_READINESS">("PUBLISH_DIAGNOSIS");
   const [repairRecommendation, setRepairRecommendation] = useState("");
   const [proposedCorrection, setProposedCorrection] = useState("");
+  const [verificationAction, setVerificationAction] = useState<"PLAN" | "PASS" | "FAIL" | "INCONCLUSIVE" | "UNSAFE">("PLAN");
+  const [verificationRepairSummary, setVerificationRepairSummary] = useState("");
+  const [verificationNotes, setVerificationNotes] = useState("");
   const action = useMemo(() => primaryTransition(model), [model]);
   const item = model.diagnosticCase;
   const latestReasoning = item.reasoningEvaluations?.[0] ?? null;
@@ -51,6 +54,7 @@ export function DiagnosticCaseWorkspace({ model }: { model: DiagnosticCaseWorksp
   const latestConclusion = item.conclusionVersions?.[0] ?? null;
   const latestHandoff = item.repairHandoffVersions?.[0] ?? null;
   const publishedDiagnosis = item.repairHandoffVersions?.find((entry) => entry.handoffType === "PUBLISH_DIAGNOSIS" && entry.repairDiagnosisVersionId) ?? null;
+  const latestVerification = item.verificationVersions?.[0] ?? null;
   const commandEnabled = model.rollout.executable;
 
   async function execute(url: string, body: Record<string, unknown>) {
@@ -135,6 +139,16 @@ export function DiagnosticCaseWorkspace({ model }: { model: DiagnosticCaseWorksp
             <label className={styles.wideField}><span>Recommendation</span><textarea onChange={(event) => setRepairRecommendation(event.target.value)} placeholder="Summarize what repair path should be reviewed next." required rows={2} value={repairRecommendation} /></label>
             <label className={styles.wideField}><span>Proposed correction</span><textarea onChange={(event) => setProposedCorrection(event.target.value)} placeholder="Describe the correction package without creating an estimate, job, or parts order." required rows={2} value={proposedCorrection} /></label>
             <button disabled={busy || !model.publishingRollout?.executable || !model.permissions.canRepairHandoff || latestConclusion?.status !== "CONFIRMED" || repairRecommendation.trim().length < 10 || proposedCorrection.trim().length < 10 || (handoffType !== "PUBLISH_DIAGNOSIS" && !publishedDiagnosis)} type="submit">Record repair handoff</button>
+          </form>
+        </section>
+
+        <section className={styles.verificationPanel}><header><div><span className={styles.eyebrow}>DGN-033-034 · Verification Lab</span><h2>Closed-loop repair proof</h2><p>Close the diagnostic case only after the original concern and regression checks are verified against the repair package.</p></div><span>{latestVerification ? label(latestVerification.status) : "No verification"}</span></header>
+          {latestVerification ? <article className={styles.handoffRecord}><Check /><div><strong>{latestVerification.outcomeSummary ?? label(latestVerification.status)}</strong><p>{latestVerification.repairSummary}</p><small>Verification v{latestVerification.version} · checksum {latestVerification.verificationChecksum.slice(0, 12)}…{latestVerification.reviewerUser ? ` · reviewed by ${latestVerification.reviewerUser.name}` : ""}</small></div></article> : null}
+          <form className={styles.handoffForm} onSubmit={(event) => { event.preventDefault(); const checks = [{ key: "ORIGINAL_CONCERN", label: "Original concern reproduction", method: "CUSTOMER_CONCERN_REPRODUCTION", expectedResult: "Original concern no longer reproduces under documented conditions.", required: true, safetyCritical: false }, { key: "POST_REPAIR_FUNCTION", label: "Post-repair function test", method: "FUNCTION_TEST", expectedResult: "System operates normally after repair.", required: true, safetyCritical: false }]; const performedChecks = verificationAction === "PLAN" ? [] : checks.map((check) => ({ checkKey: check.key, result: verificationAction === "PASS" ? "PASS" : verificationAction === "FAIL" && check.key === "ORIGINAL_CONCERN" ? "FAIL" : "NOT_PERFORMED", evidenceKeys: [], notes: verificationNotes || null })); void execute(`/api/diagnostics/cases/${encodeURIComponent(item.id)}/verification`, { action: verificationAction, conclusionId: latestConclusion?.id ?? null, repairHandoffId: publishedDiagnosis?.id ?? null, originalConcern: item.concern, repairSummary: verificationRepairSummary, checks, performedChecks, regressionChecks: verificationAction === "PASS" ? ["POST_REPAIR_FUNCTION"] : [], roadTestSafety: verificationAction === "UNSAFE" ? "UNSAFE" : "NOT_REQUIRED", limitations: verificationNotes ? [verificationNotes] : [], reviewerUserId: null, supersedesId: latestVerification?.id ?? null, reason: `Record ${label(verificationAction)} verification for the diagnostic case.` }); }}>
+            <label><span>Verification action</span><select onChange={(event) => setVerificationAction(event.target.value as typeof verificationAction)} value={verificationAction}><option value="PLAN">Create verification plan</option><option value="PASS">Pass and close case</option><option value="FAIL">Fail and reopen testing</option><option value="INCONCLUSIVE">Inconclusive</option><option value="UNSAFE">Unsafe / escalate</option></select></label>
+            <label className={styles.wideField}><span>Repair summary</span><textarea onChange={(event) => setVerificationRepairSummary(event.target.value)} placeholder="State the repair actually being verified." required rows={2} value={verificationRepairSummary} /></label>
+            <label className={styles.wideField}><span>Verification notes</span><textarea onChange={(event) => setVerificationNotes(event.target.value)} placeholder="Record pass evidence, failed symptom, limitation, or unsafe condition." rows={2} value={verificationNotes} /></label>
+            <button disabled={busy || !model.publishingRollout?.executable || !model.permissions.canVerifyRepair || !publishedDiagnosis || verificationRepairSummary.trim().length < 10 || (verificationAction !== "PLAN" && latestVerification?.status !== "PLANNED")} type="submit">Record verification</button>
           </form>
         </section>
 
