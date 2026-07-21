@@ -760,6 +760,36 @@ enum DiagnosticTestExecutionState {
   CANCELLED
 }
 
+enum DiagnosticKnowledgeSourceClass {
+  ENGINEERING
+  SHOP_PROCEDURE
+  OEM_LICENSED
+  REGULATORY
+  STANDARD
+  COMMERCIAL
+  TOOL_EVIDENCE
+  VERIFIED_CASE
+  COMMUNITY_ADVISORY
+}
+
+enum DiagnosticKnowledgeRightsStatus {
+  HOLD
+  AUTHORIZED
+  WITHDRAWN
+  EXPIRED
+  PROHIBITED
+}
+
+enum DiagnosticKnowledgeReleaseState {
+  DRAFT
+  REVIEW
+  APPROVED
+  SHADOW
+  ACTIVE
+  SUSPENDED
+  RETIRED
+}
+
 enum PartDemandStatus {
   OPEN
   PARTIALLY_RESERVED
@@ -1489,6 +1519,11 @@ model User {
   authoredDiagnosticTestDefinitions     DiagnosticTestDefinitionVersion[]       @relation("DiagnosticTestDefinitionAuthor")
   authoredDiagnosticTestPlans           DiagnosticTestPlanVersion[]             @relation("DiagnosticTestPlanAuthor")
   diagnosticTestExecutionEvents         DiagnosticTestExecution[]               @relation("DiagnosticTestExecutionActor")
+  authoredDiagnosticKnowledgeSources    DiagnosticKnowledgeSourceVersion[]       @relation("DiagnosticKnowledgeSourceAuthor")
+  technicalReviewedKnowledgeSources     DiagnosticKnowledgeSourceVersion[]       @relation("DiagnosticKnowledgeSourceTechnicalReviewer")
+  rightsReviewedKnowledgeSources        DiagnosticKnowledgeSourceVersion[]       @relation("DiagnosticKnowledgeSourceRightsReviewer")
+  authoredDiagnosticRuleSets            DiagnosticRuleSetVersion[]               @relation("DiagnosticRuleSetAuthor")
+  reviewedDiagnosticRuleSets            DiagnosticRuleSetVersion[]               @relation("DiagnosticRuleSetReviewer")
   createdWorkProcedures                 WorkProcedureVersion[]                 @relation("WorkProcedureCreatedBy")
   technicianQualifications              TechnicianQualification[]              @relation("QualifiedTechnician")
   verifiedTechnicianQualifications      TechnicianQualification[]              @relation("QualificationVerifier")
@@ -1750,6 +1785,9 @@ model Organization {
   diagnosticTestPlanVersions            DiagnosticTestPlanVersion[]
   diagnosticTestPlanNodes               DiagnosticTestPlanNode[]
   diagnosticTestExecutions              DiagnosticTestExecution[]
+  diagnosticKnowledgeSourceVersions     DiagnosticKnowledgeSourceVersion[]
+  diagnosticRuleSetVersions             DiagnosticRuleSetVersion[]
+  diagnosticRuleSetSourceLinks          DiagnosticRuleSetSourceLink[]
 }
 
 model Location {
@@ -3356,6 +3394,97 @@ model DiagnosticTestExecution {
   @@index([diagnosticCaseId, occurredAt])
   @@index([organizationId, state, occurredAt])
   @@index([planNodeId, occurredAt])
+}
+
+model DiagnosticKnowledgeSourceVersion {
+  id                         String                           @id
+  organizationId             String
+  sourceKey                  String
+  version                    Int
+  sourceClass                DiagnosticKnowledgeSourceClass
+  rightsStatus               DiagnosticKnowledgeRightsStatus
+  ownerName                  String
+  sourceReference            String
+  revision                   String
+  usageRights                Json
+  applicability              Json
+  retrievedAt                DateTime
+  effectiveAt                DateTime
+  expiresAt                  DateTime?
+  withdrawnAt                DateTime?
+  withdrawalReasonCode       String?
+  checksum                   String
+  authoredByUserId           String
+  technicalReviewedByUserId  String?
+  rightsReviewedByUserId     String?
+  approvedAt                 DateTime?
+  supersedesId               String?                          @unique
+  createdAt                  DateTime                         @default(now())
+  organization               Organization                     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  authoredByUser             User                             @relation("DiagnosticKnowledgeSourceAuthor", fields: [authoredByUserId], references: [id], onDelete: Restrict)
+  technicalReviewedByUser    User?                            @relation("DiagnosticKnowledgeSourceTechnicalReviewer", fields: [technicalReviewedByUserId], references: [id], onDelete: Restrict)
+  rightsReviewedByUser       User?                            @relation("DiagnosticKnowledgeSourceRightsReviewer", fields: [rightsReviewedByUserId], references: [id], onDelete: Restrict)
+  supersedes                 DiagnosticKnowledgeSourceVersion? @relation("DiagnosticKnowledgeSourceSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy               DiagnosticKnowledgeSourceVersion? @relation("DiagnosticKnowledgeSourceSupersession")
+  ruleSetLinks               DiagnosticRuleSetSourceLink[]
+
+  @@unique([organizationId, sourceKey, version])
+  @@unique([id, organizationId])
+  @@index([organizationId, sourceKey, rightsStatus, effectiveAt])
+  @@index([organizationId, expiresAt, withdrawnAt])
+}
+
+model DiagnosticRuleSetVersion {
+  id                    String                            @id
+  organizationId        String
+  ruleSetKey            String
+  version               Int
+  releaseState          DiagnosticKnowledgeReleaseState
+  purpose               String
+  ontologyGraph         Json
+  applicability         Json
+  rules                 Json
+  testDefinitionKeys    Json
+  calculationVersions   Json
+  checksum              String
+  authoredByUserId      String
+  reviewedByUserId      String?
+  approvedAt            DateTime?
+  effectiveAt           DateTime
+  expiresAt             DateTime?
+  supersedesId          String?                           @unique
+  rollbackPredecessorId String?
+  createdAt             DateTime                          @default(now())
+  organization          Organization                      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  authoredByUser        User                              @relation("DiagnosticRuleSetAuthor", fields: [authoredByUserId], references: [id], onDelete: Restrict)
+  reviewedByUser        User?                             @relation("DiagnosticRuleSetReviewer", fields: [reviewedByUserId], references: [id], onDelete: Restrict)
+  supersedes            DiagnosticRuleSetVersion?         @relation("DiagnosticRuleSetSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy          DiagnosticRuleSetVersion?         @relation("DiagnosticRuleSetSupersession")
+  rollbackPredecessor   DiagnosticRuleSetVersion?         @relation("DiagnosticRuleSetRollback", fields: [rollbackPredecessorId], references: [id], onDelete: Restrict)
+  rollbackVersions      DiagnosticRuleSetVersion[]        @relation("DiagnosticRuleSetRollback")
+  sourceLinks           DiagnosticRuleSetSourceLink[]
+
+  @@unique([organizationId, ruleSetKey, version])
+  @@unique([id, organizationId])
+  @@index([organizationId, ruleSetKey, releaseState, effectiveAt])
+  @@index([organizationId, expiresAt])
+}
+
+model DiagnosticRuleSetSourceLink {
+  id                      String                           @id
+  organizationId          String
+  ruleSetVersionId        String
+  knowledgeSourceVersionId String
+  citation                Json
+  purpose                 String
+  createdAt               DateTime                         @default(now())
+  organization            Organization                     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  ruleSetVersion          DiagnosticRuleSetVersion         @relation(fields: [ruleSetVersionId], references: [id], onDelete: Restrict)
+  knowledgeSourceVersion  DiagnosticKnowledgeSourceVersion @relation(fields: [knowledgeSourceVersionId], references: [id], onDelete: Restrict)
+
+  @@unique([ruleSetVersionId, knowledgeSourceVersionId, purpose])
+  @@unique([id, organizationId])
+  @@index([organizationId, knowledgeSourceVersionId])
 }
 
 model RepairOrderStateEvent {

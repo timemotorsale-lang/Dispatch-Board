@@ -50,6 +50,7 @@ The console owns the evidence-driven diagnostic case and reasoning lifecycle. It
 - [`DGN-015–016 — Diagnostic Test Planning and Execution Implementation`](implementation/DGN_015_016_TEST_EXECUTION_IMPLEMENTATION.md) — immutable definitions, validated case-plan graphs, and append-only execution lifecycle implemented in source.
 - [`DGN-017–018 — Technician Workspace and Evidence Review Implementation`](implementation/DGN_017_018_TECHNICIAN_WORKSPACE_IMPLEMENTATION.md) — shared-context lab shells, governed Test Navigator, and permission-filtered evidence reconstruction implemented in source.
 - [`DGN-019 — Quality and Safety Gates Implementation`](implementation/DGN_019_QUALITY_SAFETY_GATES_IMPLEMENTATION.md) — deterministic applicability, source, evidence-quality, independence, safety, and test-readiness evaluation implemented in source.
+- [`DGN-020–021 — Knowledge and Calculations Implementation`](implementation/DGN_020_021_KNOWLEDGE_CALCULATIONS_IMPLEMENTATION.md) — governed no-start source/graph/test seed and unit-safe engineering calculations implemented in source.
 
 ## Current Truth
 
@@ -62,7 +63,7 @@ Dispatch Board already has substantial foundations that Diagnostics must reuse:
 - enterprise task, appointment, activity, audit, command, idempotency, optimistic-concurrency, event, and outbox patterns;
 - shop-repair optimization and enterprise automation/AI governance packages.
 
-The diagnostic case model, backend lifecycle, independent console, technician workspace, Repair Order bridge, immutable observation/measurement foundation, governed Vehicle Evidence linking, immutable test definitions, case-plan graphs, append-only execution lifecycle, shared-context lab shells, Test Navigator, evidence reconstruction/comparison, and deterministic quality/safety/test-readiness gates are implemented in source through DGN-019. The migrations are not deployed by these branches and rollout remains disabled. Hardware adapters, hypothesis reasoning, conclusion publishing, knowledge administration, and the initial no-start execution workflow are **not yet implemented**. Source ingestion, reasoning, publishing, pilot, and AI remain gated.
+The diagnostic case model, backend lifecycle, independent console, technician workspace, Repair Order bridge, immutable observation/measurement foundation, governed Vehicle Evidence linking, immutable test definitions, case-plan graphs, append-only execution lifecycle, shared-context lab shells, Test Navigator, evidence reconstruction/comparison, deterministic quality/safety/test-readiness gates, governed knowledge/rule-set/citation persistence, generic no-start graph/test seed, and unit-safe engineering calculation library are implemented in source through DGN-021. The migrations are not deployed by these branches and rollout remains disabled. Hardware adapters, hypothesis reasoning, conclusion publishing, knowledge administration, and the complete no-start execution workflow are **not yet implemented**. Licensed source ingestion, reasoning, publishing, pilot, and AI remain gated.
 
 ## Non-Negotiable Product Principles
 
