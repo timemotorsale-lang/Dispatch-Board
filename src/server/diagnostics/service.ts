@@ -16,6 +16,7 @@ import { diagnosticFactId, normalizeDiagnosticEvidenceLink, normalizeDiagnosticM
 import { buildDiagnosticEvidenceReview } from "./evidence-review";
 import { buildDiagnosticCaseQualitySummary, DIAGNOSTIC_GATE_POLICY_VERSION } from "./quality-safety-gates";
 import { diagnosticReasoningId, evaluateDiagnosticReasoning, normalizeDiagnosticReasoningCommand, type DiagnosticReasoningModel, type ReasoningEvidence } from "./reasoning-core";
+import { createDiagnosticTestOverride, diagnosticAdaptiveTestingId, evaluateAdaptiveDiagnosticTests, normalizeAdaptiveTestingCommand, normalizeAdaptiveTestOverrideCommand, type DiagnosticTestCandidateDefinition, type DiagnosticTestWeights } from "./adaptive-testing";
 import { diagnosticTestId, normalizeDiagnosticTestDefinition, normalizeDiagnosticTestLifecycle, normalizeDiagnosticTestPlan, type DiagnosticTestLifecycleAction } from "./test-execution-domain";
 import { createDiagnosticCaseRepository, type DiagnosticCaseDetailRecord, type DiagnosticCaseIdentityRecord, type DiagnosticCaseRepository } from "./repository";
 
@@ -26,9 +27,11 @@ type Dependencies = {
   organizationId?: string;
   repository?: DiagnosticCaseRepository;
   reasoningProvider?: DiagnosticReasoningProvider;
+  adaptiveTestingProvider?: DiagnosticAdaptiveTestingProvider;
 };
 
 export type DiagnosticReasoningProvider = (input: { diagnosticCase: DiagnosticCaseDetailRecord; now: Date; organizationId: string }) => Promise<{ model: DiagnosticReasoningModel; evidence: ReasoningEvidence[] } | null>;
+export type DiagnosticAdaptiveTestingProvider = (input: { diagnosticCase: DiagnosticCaseDetailRecord; now: Date; organizationId: string }) => Promise<{ definitions: DiagnosticTestCandidateDefinition[]; operationalContext: { satisfiedPrerequisites: string[]; controlledHazards: string[]; capabilities: string[]; qualifications: string[]; availableTools: string[]; availableResources: string[]; authorizations: string[]; vehicleState: string; vehicleConfiguration?: Record<string, unknown> }; weights?: DiagnosticTestWeights } | null>;
 
 function dependencies(input: Dependencies) {
   return {
@@ -37,7 +40,8 @@ function dependencies(input: Dependencies) {
     now: input.now ?? (() => new Date()),
     organizationId: input.organizationId ?? INITIAL_ORGANIZATION.id,
     repository: input.repository ?? createDiagnosticCaseRepository(),
-    reasoningProvider: input.reasoningProvider ?? null
+    reasoningProvider: input.reasoningProvider ?? null,
+    adaptiveTestingProvider: input.adaptiveTestingProvider ?? null
   };
 }
 
@@ -258,6 +262,39 @@ export async function evaluateDiagnosticCaseReasoning(actor: AuthenticatedUser |
   return context.repository.recordReasoningEvaluation(command({ actorUserId: user.id, commandType: "EVALUATE_DIAGNOSTIC_CASE", expectedVersion: data.expectedVersion, idempotencyKey: data.idempotencyKey, locationId: identity.locationId, organizationId: context.organizationId, payload: payload({ inputChecksum: result.inputChecksum, modelVersion: result.modelVersion, resultChecksum: result.resultChecksum, supersedesId: data.supersedesId }), reason: data.reason, subjectId: caseId }), { evaluationId, evidence: approved.evidence, occurredAt, result, supersedesId: data.supersedesId });
 }
 
+export async function evaluateDiagnosticAdaptiveTests(actor: AuthenticatedUser | null, caseId: string, value: unknown, input: Dependencies = {}) {
+  const context = dependencies(input); const data = normalizeAdaptiveTestingCommand(value); const identity = await loadCaseIdentity(caseId, context);
+  const { user } = await authorize(actor, "DIAGNOSTIC_ADAPTIVE_TEST_EVALUATE", identity.locationId, context, identity.assignedUserId, true, "DIAGNOSTIC_REASONING");
+  assertOwnerTransition(user, identity);
+  if (!context.adaptiveTestingProvider) throw new Error("An approved adaptive-testing provider is unavailable.");
+  if (!context.repository.recordAdaptiveTestEvaluation) throw new Error("Adaptive-testing persistence is unavailable.");
+  const detail = await context.repository.get(context.organizationId, caseId); if (!detail) throw new Error("Diagnostic case was not found.");
+  const reasoning = detail.reasoningEvaluations[0]; if (!reasoning) throw new Error("Adaptive testing requires a completed reasoning evaluation.");
+  const viableHypothesisKeys = reasoning.hypotheses.filter((item) => !["CONTRADICTED", "OUT_OF_MODEL", "REJECTED_BY_TECHNICIAN", "SUPERSEDED"].includes(item.status)).map((item) => item.hypothesisKey);
+  if (!reasoning.generationComplete || viableHypothesisKeys.length < 2) throw new Error("Adaptive testing requires a complete reasoning evaluation with at least two viable hypotheses.");
+  const approved = await context.adaptiveTestingProvider({ diagnosticCase: detail, now: context.now(), organizationId: context.organizationId });
+  if (!approved) throw new Error("No approved adaptive-testing package applies to this case.");
+  const conflicts = Array.isArray(reasoning.conflicts) ? reasoning.conflicts as Array<Record<string, unknown>> : [];
+  const result = evaluateAdaptiveDiagnosticTests({ context: { diagnosticCaseId: caseId, reasoningEvaluationId: reasoning.id, reasoningResultChecksum: reasoning.resultChecksum, now: context.now().toISOString(), vehicle: { make: detail.vehicle.make ?? "", model: detail.vehicle.model ?? "", year: detail.vehicle.year ?? 0, configuration: approved.operationalContext.vehicleConfiguration, state: approved.operationalContext.vehicleState }, viableHypothesisKeys, unresolvedConflictKeys: conflicts.map((item) => String(item.key ?? "")).filter(Boolean), satisfiedPrerequisites: approved.operationalContext.satisfiedPrerequisites, controlledHazards: approved.operationalContext.controlledHazards, capabilities: approved.operationalContext.capabilities, qualifications: approved.operationalContext.qualifications, availableTools: approved.operationalContext.availableTools, availableResources: approved.operationalContext.availableResources, authorizations: approved.operationalContext.authorizations }, definitions: approved.definitions, weights: approved.weights, maximumLookAheadTests: data.maximumLookAheadTests });
+  const occurredAt = context.now(); const evaluationId = diagnosticAdaptiveTestingId("dat", context.organizationId, caseId, data.idempotencyKey);
+  return context.repository.recordAdaptiveTestEvaluation(command({ actorUserId: user.id, commandType: "EVALUATE_DIAGNOSTIC_ADAPTIVE_TESTS", expectedVersion: data.expectedVersion, idempotencyKey: data.idempotencyKey, locationId: identity.locationId, organizationId: context.organizationId, payload: payload({ reasoningEvaluationId: reasoning.id, reasoningResultChecksum: reasoning.resultChecksum, resultChecksum: result.resultChecksum, weightsChecksum: result.weightsChecksum }), reason: data.reason, subjectId: caseId }), { evaluationId, occurredAt, result });
+}
+
+export async function overrideDiagnosticAdaptiveTest(actor: AuthenticatedUser | null, caseId: string, evaluationId: string, value: unknown, input: Dependencies = {}) {
+  const context = dependencies(input); const data = normalizeAdaptiveTestOverrideCommand(value); const identity = await loadCaseIdentity(caseId, context);
+  const { user } = await authorize(actor, "DIAGNOSTIC_ADAPTIVE_TEST_OVERRIDE", identity.locationId, context, identity.assignedUserId, true, "DIAGNOSTIC_REASONING");
+  assertOwnerTransition(user, identity); if (!context.repository.recordAdaptiveTestOverride) throw new Error("Adaptive-test override persistence is unavailable.");
+  const detail = await context.repository.get(context.organizationId, caseId); if (!detail) throw new Error("Diagnostic case was not found.");
+  const evaluation = detail.adaptiveTestEvaluations.find((item) => item.id === evaluationId); if (!evaluation) throw new Error("Adaptive-test evaluation was not found in this case.");
+  if (detail.adaptiveTestEvaluations[0]?.id !== evaluation.id) throw new Error("Only the latest adaptive-test evaluation may be overridden.");
+  const eligible = Array.isArray(evaluation.eligibleTests) ? evaluation.eligibleTests as Array<Record<string, unknown>> : [];
+  if (!evaluation.recommendedTestKey) throw new Error("An abstaining adaptive-test evaluation cannot be overridden.");
+  const priorOverrideId = evaluation.overrides[0]?.id ?? null;
+  const override = createDiagnosticTestOverride({ evaluationId, recommendedTestKey: evaluation.recommendedTestKey, selectedTestKey: data.selectedTestKey, eligibleTestKeys: eligible.map((item) => String(item.testKey ?? "")).filter(Boolean), actorUserId: user.id, reason: data.reason, authorized: true, priorOverrideId });
+  const occurredAt = context.now(); const overrideId = diagnosticAdaptiveTestingId("dto", context.organizationId, evaluationId, data.idempotencyKey);
+  return context.repository.recordAdaptiveTestOverride(command({ actorUserId: user.id, commandType: "OVERRIDE_DIAGNOSTIC_ADAPTIVE_TEST", expectedVersion: data.expectedVersion, idempotencyKey: data.idempotencyKey, locationId: identity.locationId, organizationId: context.organizationId, payload: payload({ evaluationId, recommendedTestKey: override.recommendedTestKey, selectedTestKey: override.selectedTestKey, lineageChecksum: override.lineageChecksum, priorOverrideId }), reason: data.reason, subjectId: caseId }), { overrideId, occurredAt, override });
+}
+
 export async function recordDiagnosticObservation(actor: AuthenticatedUser | null, caseId: string, value: unknown, input: Dependencies = {}) {
   const context = dependencies(input);
   const data = normalizeDiagnosticObservation(value, context.now());
@@ -409,6 +446,7 @@ function projectCase(diagnosticCase: DiagnosticCaseDetailRecord, now: Date, evid
       invalidatedAt: execution.invalidatedAt?.toISOString() ?? null, cancelledAt: execution.cancelledAt?.toISOString() ?? null, occurredAt: execution.occurredAt.toISOString()
     })) : [],
     reasoningEvaluations: evidenceAccess.reasoning ? (diagnosticCase.reasoningEvaluations ?? []).map((evaluation) => ({ id: evaluation.id, sequence: evaluation.sequence, engineVersion: evaluation.engineVersion, policyVersion: evaluation.policyVersion, modelVersion: evaluation.modelVersion, ruleSetVersion: evaluation.ruleSetVersion, knowledgeChecksum: evaluation.knowledgeChecksum, calculationVersions: evaluation.calculationVersions, sourceVersions: evaluation.sourceVersions, conflicts: evaluation.conflicts, candidateDiagnoses: evaluation.candidateDiagnoses, causalPredictions: evaluation.causalPredictions, missingExpectedEffects: evaluation.missingExpectedEffects, recommendedTests: evaluation.recommendedTests, hardBlockers: evaluation.hardBlockers, reasonCodes: evaluation.reasonCodes, bounds: evaluation.bounds, generationComplete: evaluation.generationComplete, abstentionRequired: evaluation.abstentionRequired, timedOut: evaluation.timedOut, degraded: evaluation.degraded, inputChecksum: evaluation.inputChecksum, resultChecksum: evaluation.resultChecksum, supersedesId: evaluation.supersedesId, supersededById: evaluation.supersededBy?.id ?? null, occurredAt: evaluation.occurredAt.toISOString(), hypotheses: evaluation.hypotheses.map((hypothesis) => ({ id: hypothesis.id, hypothesisKey: hypothesis.hypothesisKey, status: hypothesis.status, candidateAssumptions: hypothesis.candidateAssumptions, abnormalModes: hypothesis.abnormalModes, commonCause: hypothesis.commonCause, intermittent: hypothesis.intermittent, rank: hypothesis.rank, causalState: hypothesis.causalState, explanationCodes: hypothesis.explanationCodes, supportingEvidenceKeys: hypothesis.supportingEvidenceKeys, contradictingEvidenceKeys: hypothesis.contradictingEvidenceKeys, missingExpectedEvidenceKeys: hypothesis.missingExpectedEvidenceKeys, supersedesId: hypothesis.supersedesId, evidenceLinks: hypothesis.evidenceLinks })) })) : [],
+    adaptiveTestEvaluations: evidenceAccess.reasoning ? (diagnosticCase.adaptiveTestEvaluations ?? []).map((evaluation) => ({ id: evaluation.id, sequence: evaluation.sequence, reasoningEvaluationId: evaluation.reasoningEvaluationId, engineVersion: evaluation.engineVersion, eligibilityPolicyVersion: evaluation.eligibilityPolicyVersion, optimizationPolicyVersion: evaluation.optimizationPolicyVersion, reasoningResultChecksum: evaluation.reasoningResultChecksum, weights: evaluation.weights, weightsChecksum: evaluation.weightsChecksum, lookAhead: evaluation.lookAhead, eligibleTests: evaluation.eligibleTests, excludedTests: evaluation.excludedTests, recommendedTestKey: evaluation.recommendedTestKey, alternatives: evaluation.alternatives, abstentionRequired: evaluation.abstentionRequired, reasonCodes: evaluation.reasonCodes, inputChecksum: evaluation.inputChecksum, resultChecksum: evaluation.resultChecksum, occurredAt: evaluation.occurredAt.toISOString(), overrides: evaluation.overrides.map((override) => ({ id: override.id, recommendedTestKey: override.recommendedTestKey, selectedTestKey: override.selectedTestKey, reasonCode: override.reasonCode, reason: override.reason, policyVersion: override.policyVersion, lineageChecksum: override.lineageChecksum, actorUserId: override.actorUserId, priorOverrideId: override.priorOverrideId, occurredAt: override.occurredAt.toISOString() })) })) : [],
     timeline: diagnosticCase.stateEvents.map((event) => ({
       id: event.id,
       version: event.version,
@@ -487,6 +525,8 @@ export async function getDiagnosticCaseWorkspace(actor: AuthenticatedUser | null
   const canPlanTests = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_TEST_PLAN_MANAGE", grants, locationId: detail.locationId, now: context.now(), resourceOwnerUserId: detail.assignedUserId }).allowed && evidenceOwner;
   const canExecuteTests = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_TEST_EXECUTE", grants, locationId: detail.locationId, now: context.now(), resourceOwnerUserId: detail.assignedUserId }).allowed && evidenceOwner;
   const canEvaluateReasoning = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_REASONING_EVALUATE", grants, locationId: detail.locationId, now: context.now(), resourceOwnerUserId: detail.assignedUserId }).allowed && evidenceOwner;
+  const canEvaluateAdaptiveTests = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_ADAPTIVE_TEST_EVALUATE", grants, locationId: detail.locationId, now: context.now(), resourceOwnerUserId: detail.assignedUserId }).allowed && evidenceOwner;
+  const canOverrideAdaptiveTest = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_ADAPTIVE_TEST_OVERRIDE", grants, locationId: detail.locationId, now: context.now(), resourceOwnerUserId: detail.assignedUserId }).allowed && evidenceOwner;
   const evidenceCandidates = evidenceView && vehicleEvidenceView && context.repository.listEvidenceCandidates ? await context.repository.listEvidenceCandidates(context.organizationId, detail.vehicleId) : [];
   const generatedAt = context.now();
   const diagnosticCase = projectCase(detail, generatedAt, { facts: evidenceView, attachments: evidenceView && vehicleEvidenceView, restricted: restrictedEvidenceView, tests: evidenceView && (canPlanTests || canExecuteTests), reasoning: evidenceView && canEvaluateReasoning });
@@ -498,7 +538,7 @@ export async function getDiagnosticCaseWorkspace(actor: AuthenticatedUser | null
     rollout: { executable: rollout.executable, reason: rollout.reason },
     evidenceRollout: { executable: evidenceRollout.executable, reason: evidenceRollout.reason },
     reasoningRollout: { executable: reasoningRollout.executable, reason: reasoningRollout.reason },
-    permissions: { canAssign, canTransition: transitionCapability && evidenceOwner, canRecordEvidence, canLinkEvidence, canPlanTests, canExecuteTests, canEvaluateReasoning },
+    permissions: { canAssign, canTransition: transitionCapability && evidenceOwner, canRecordEvidence, canLinkEvidence, canPlanTests, canExecuteTests, canEvaluateReasoning, canEvaluateAdaptiveTests, canOverrideAdaptiveTest },
     assignableUsers: canAssign ? assignableUsers : [],
     evidenceCandidates: evidenceCandidates.filter((item) => item.accessLevel !== "RESTRICTED" || restrictedEvidenceView).map((item) => ({ ...item, retentionUntil: item.retentionUntil.toISOString(), linkable: item.status === "AVAILABLE" && item.malwareStatus === "CLEAN" })),
     diagnosticCase,
