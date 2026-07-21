@@ -9,6 +9,7 @@ import type { normalizeDiagnosticTestDefinition, normalizeDiagnosticTestLifecycl
 import { nextTestExecutionState, type DiagnosticTestLifecycleAction, type DiagnosticTestExecutionState } from "./test-execution-domain";
 import { assertDiagnosticGateReady, evaluateDiagnosticQualitySafetyGates } from "./quality-safety-gates";
 import { diagnosticReasoningId, type evaluateDiagnosticReasoning, type ReasoningEvidence } from "./reasoning-core";
+import type { createDiagnosticTestOverride, evaluateAdaptiveDiagnosticTests } from "./adaptive-testing";
 
 type Tx = Prisma.TransactionClient;
 
@@ -44,6 +45,7 @@ const detailInclude = {
   testPlanVersions: { orderBy: { version: "desc" as const }, include: { nodes: { orderBy: { sequence: "asc" as const }, include: { definitionVersion: true } }, authoredByUser: { select: { id: true, name: true } }, supersededBy: { select: { id: true } } } },
   testExecutions: { orderBy: { occurredAt: "desc" as const }, include: { actorUser: { select: { id: true, name: true } }, planNode: { select: { id: true, nodeKey: true, title: true } } } },
   reasoningEvaluations: { orderBy: { sequence: "desc" as const }, take: 20, include: { hypotheses: { orderBy: { rank: "asc" as const }, include: { evidenceLinks: true } }, supersededBy: { select: { id: true } } } },
+  adaptiveTestEvaluations: { orderBy: { sequence: "desc" as const }, take: 20, include: { overrides: { orderBy: { occurredAt: "desc" as const } } } },
   stateEvents: { orderBy: { version: "desc" as const }, take: 100 },
   vehicle: { select: { id: true, vehicleNumber: true, vin: true, year: true, make: true, model: true } }
 };
@@ -70,6 +72,8 @@ export type DiagnosticCaseRepository = {
   createTestPlan?(command: EnterpriseCommandCommitInput, data: ReturnType<typeof normalizeDiagnosticTestPlan> & { id: string; nodeIds: string[] }): Promise<DiagnosticMutationResult>;
   executeTestLifecycle?(command: EnterpriseCommandCommitInput, data: ReturnType<typeof normalizeDiagnosticTestLifecycle> & { eventId: string; executionKey: string }): Promise<DiagnosticMutationResult>;
   recordReasoningEvaluation?(command: EnterpriseCommandCommitInput, data: { evaluationId: string; evidence: ReasoningEvidence[]; occurredAt: Date; result: ReturnType<typeof evaluateDiagnosticReasoning>; supersedesId: string | null }): Promise<DiagnosticMutationResult>;
+  recordAdaptiveTestEvaluation?(command: EnterpriseCommandCommitInput, data: { evaluationId: string; occurredAt: Date; result: ReturnType<typeof evaluateAdaptiveDiagnosticTests> }): Promise<DiagnosticMutationResult>;
+  recordAdaptiveTestOverride?(command: EnterpriseCommandCommitInput, data: { overrideId: string; occurredAt: Date; override: ReturnType<typeof createDiagnosticTestOverride> }): Promise<DiagnosticMutationResult>;
   transition(command: EnterpriseCommandCommitInput, data: { occurredAt: Date; reasonCode: string; targetStatus: DiagnosticCaseStatus }): Promise<DiagnosticMutationResult>;
 };
 
@@ -309,6 +313,47 @@ export function createDiagnosticCaseRepository(database: PrismaClient = prisma):
         }
         await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { version } });
         return { previous: prior ? { evaluationId: prior.id, resultChecksum: prior.resultChecksum, sequence: prior.sequence } : undefined, result: { id: evaluation.id, sequence, version, resultChecksum: evaluation.resultChecksum, abstentionRequired: evaluation.abstentionRequired, generationComplete: evaluation.generationComplete, candidateCount: data.result.candidates.length, reasonCodes: data.result.reasonCodes } };
+      });
+    },
+
+    recordAdaptiveTestEvaluation(command, data) {
+      return execute(database, command, "DiagnosticAdaptiveTestsEvaluated", data.result.abstentionRequired ? "TEST_ABSTENTION_REQUIRED" : "TEST_RECOMMENDATION_AVAILABLE", async (tx, version) => {
+        const diagnosticCase = await tx.diagnosticCase.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId }, include: { adaptiveTestEvaluations: { orderBy: { sequence: "desc" }, take: 1 } } });
+        if (!diagnosticCase) throw new Error("Diagnostic case was not found.");
+        if (diagnosticCase.version !== version - 1) throw new EnterpriseCommandConflictError(`Expected case version ${version - 1}, but current version is ${diagnosticCase.version}.`, "VERSION_CONFLICT");
+        if (isTerminalDiagnosticStatus(diagnosticCase.status as DiagnosticCaseStatus)) throw new Error("Terminal diagnostic cases must be reopened before adaptive testing.");
+        const reasoning = await tx.diagnosticReasoningEvaluation.findFirst({ where: { id: data.result.reasoningEvaluationId, diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId, resultChecksum: data.result.reasoningResultChecksum } });
+        if (!reasoning) throw new Error("Adaptive testing requires the exact current-case reasoning evaluation and checksum.");
+        const latestReasoning = await tx.diagnosticReasoningEvaluation.findFirst({ where: { diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId }, orderBy: { sequence: "desc" }, select: { id: true } });
+        if (latestReasoning?.id !== reasoning.id) throw new Error("Adaptive testing must use the latest reasoning evaluation.");
+        const sequence = (diagnosticCase.adaptiveTestEvaluations[0]?.sequence ?? 0) + 1;
+        const evaluation = await tx.diagnosticAdaptiveTestEvaluation.create({ data: {
+          id: data.evaluationId, organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, reasoningEvaluationId: reasoning.id, sequence,
+          engineVersion: data.result.engineVersion, eligibilityPolicyVersion: data.result.eligibilityPolicyVersion, optimizationPolicyVersion: data.result.optimizationPolicyVersion,
+          reasoningResultChecksum: data.result.reasoningResultChecksum, weights: json(data.result.weights), weightsChecksum: data.result.weightsChecksum, lookAhead: json(data.result.lookAhead),
+          eligibleTests: json(data.result.eligibleTests), excludedTests: json(data.result.excludedTests), recommendedTestKey: data.result.recommendedTestKey, alternatives: json(data.result.alternatives),
+          abstentionRequired: data.result.abstentionRequired, reasonCodes: json(data.result.reasonCodes), inputChecksum: data.result.inputChecksum, resultChecksum: data.result.resultChecksum,
+          evaluatedByUserId: command.actorUserId, occurredAt: data.occurredAt
+        } });
+        await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { version } });
+        return { result: { id: evaluation.id, sequence, version, recommendedTestKey: evaluation.recommendedTestKey, abstentionRequired: evaluation.abstentionRequired, resultChecksum: evaluation.resultChecksum, eligibleTestCount: data.result.eligibleTests.length, excludedTestCount: data.result.excludedTests.length } };
+      });
+    },
+
+    recordAdaptiveTestOverride(command, data) {
+      return execute(database, command, "DiagnosticAdaptiveTestOverridden", data.override.reasonCode, async (tx, version) => {
+        const diagnosticCase = await tx.diagnosticCase.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId } });
+        if (!diagnosticCase) throw new Error("Diagnostic case was not found.");
+        if (diagnosticCase.version !== version - 1) throw new EnterpriseCommandConflictError(`Expected case version ${version - 1}, but current version is ${diagnosticCase.version}.`, "VERSION_CONFLICT");
+        if (isTerminalDiagnosticStatus(diagnosticCase.status as DiagnosticCaseStatus)) throw new Error("Terminal diagnostic cases must be reopened before overriding adaptive tests.");
+        const evaluation = await tx.diagnosticAdaptiveTestEvaluation.findFirst({ where: { id: data.override.evaluationId, diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId }, include: { overrides: { orderBy: { occurredAt: "desc" }, take: 1 } } });
+        if (!evaluation) throw new Error("Adaptive-test evaluation was not found in this case.");
+        const latest = await tx.diagnosticAdaptiveTestEvaluation.findFirst({ where: { diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId }, orderBy: { sequence: "desc" }, select: { id: true } });
+        if (latest?.id !== evaluation.id) throw new Error("Only the latest adaptive-test evaluation may be overridden.");
+        if ((evaluation.overrides[0]?.id ?? null) !== data.override.priorOverrideId) throw new Error("Adaptive-test override must extend the latest override lineage.");
+        const record = await tx.diagnosticAdaptiveTestOverride.create({ data: { id: data.overrideId, organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, adaptiveTestEvaluationId: evaluation.id, recommendedTestKey: data.override.recommendedTestKey, selectedTestKey: data.override.selectedTestKey, reasonCode: data.override.reasonCode, reason: data.override.reason, policyVersion: data.override.policyVersion, lineageChecksum: data.override.lineageChecksum, actorUserId: command.actorUserId, priorOverrideId: data.override.priorOverrideId, occurredAt: data.occurredAt } });
+        await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { version } });
+        return { previous: { recommendedTestKey: evaluation.recommendedTestKey, priorOverrideId: data.override.priorOverrideId }, result: { id: record.id, evaluationId: evaluation.id, selectedTestKey: record.selectedTestKey, lineageChecksum: record.lineageChecksum, version } };
       });
     },
 
