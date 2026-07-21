@@ -13,6 +13,7 @@ import {
   normalizeDiagnosticTransition
 } from "./domain";
 import { diagnosticFactId, normalizeDiagnosticEvidenceLink, normalizeDiagnosticMeasurement, normalizeDiagnosticObservation } from "./evidence-domain";
+import { buildDiagnosticEvidenceReview } from "./evidence-review";
 import { diagnosticTestId, normalizeDiagnosticTestDefinition, normalizeDiagnosticTestLifecycle, normalizeDiagnosticTestPlan, type DiagnosticTestLifecycleAction } from "./test-execution-domain";
 import { createDiagnosticCaseRepository, type DiagnosticCaseDetailRecord, type DiagnosticCaseIdentityRecord, type DiagnosticCaseRepository } from "./repository";
 
@@ -375,7 +376,7 @@ function projectCase(diagnosticCase: DiagnosticCaseDetailRecord, now: Date, evid
       id: plan.id, version: plan.version, status: plan.supersededBy ? "SUPERSEDED" : plan.status, rationale: plan.rationale, applicability: plan.applicability, graphChecksum: plan.graphChecksum,
       supersedesId: plan.supersedesId, supersededById: plan.supersededBy?.id ?? null, authoredByUser: plan.authoredByUser, createdAt: plan.createdAt.toISOString(),
       nodes: plan.nodes.map((node) => ({ id: node.id, nodeKey: node.nodeKey, sequence: node.sequence, title: node.title, dependencyNodeKeys: node.dependencyNodeKeys, branchRules: node.branchRules, requiredEvidenceOverride: node.requiredEvidenceOverride,
-        definition: { id: node.definitionVersion.id, definitionKey: node.definitionVersion.definitionKey, version: node.definitionVersion.version, name: node.definitionVersion.name, purpose: node.definitionVersion.purpose, qualifications: node.definitionVersion.qualifications, hazards: node.definitionVersion.hazards, prerequisites: node.definitionVersion.prerequisites, tools: node.definitionVersion.tools, vehicleState: node.definitionVersion.vehicleState, procedure: node.definitionVersion.procedure, branches: node.definitionVersion.branches, interpretations: node.definitionVersion.interpretations, requiredEvidence: node.definitionVersion.requiredEvidence, estimatedMinutes: node.definitionVersion.estimatedMinutes, riskTier: node.definitionVersion.riskTier, checksum: node.definitionVersion.checksum, effectiveAt: node.definitionVersion.effectiveAt.toISOString(), expiresAt: node.definitionVersion.expiresAt?.toISOString() ?? null } }))
+        definition: { id: node.definitionVersion.id, definitionKey: node.definitionVersion.definitionKey, version: node.definitionVersion.version, name: node.definitionVersion.name, purpose: node.definitionVersion.purpose, qualifications: node.definitionVersion.qualifications, hazards: node.definitionVersion.hazards, prerequisites: node.definitionVersion.prerequisites, tools: node.definitionVersion.tools, vehicleState: node.definitionVersion.vehicleState, procedure: node.definitionVersion.procedure, branches: node.definitionVersion.branches, interpretations: node.definitionVersion.interpretations, requiredEvidence: node.definitionVersion.requiredEvidence, sourceVersions: node.definitionVersion.sourceVersions, estimatedMinutes: node.definitionVersion.estimatedMinutes, riskTier: node.definitionVersion.riskTier, checksum: node.definitionVersion.checksum, effectiveAt: node.definitionVersion.effectiveAt.toISOString(), expiresAt: node.definitionVersion.expiresAt?.toISOString() ?? null } }))
     })) : [],
     testExecutions: evidenceAccess.tests ? diagnosticCase.testExecutions.map((execution) => ({
       id: execution.id, executionKey: execution.executionKey, revision: execution.revision, state: execution.state, planNode: execution.planNode,
@@ -463,16 +464,19 @@ export async function getDiagnosticCaseWorkspace(actor: AuthenticatedUser | null
   const canPlanTests = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_TEST_PLAN_MANAGE", grants, locationId: detail.locationId, now: context.now(), resourceOwnerUserId: detail.assignedUserId }).allowed && evidenceOwner;
   const canExecuteTests = evaluateVehicleCapability({ actor: user, capability: "DIAGNOSTIC_TEST_EXECUTE", grants, locationId: detail.locationId, now: context.now(), resourceOwnerUserId: detail.assignedUserId }).allowed && evidenceOwner;
   const evidenceCandidates = evidenceView && vehicleEvidenceView && context.repository.listEvidenceCandidates ? await context.repository.listEvidenceCandidates(context.organizationId, detail.vehicleId) : [];
+  const generatedAt = context.now();
+  const diagnosticCase = projectCase(detail, generatedAt, { facts: evidenceView, attachments: evidenceView && vehicleEvidenceView, restricted: restrictedEvidenceView, tests: evidenceView && (canPlanTests || canExecuteTests) });
   return {
     state: "COMPLETE" as const,
-    generatedAt: context.now().toISOString(),
+    generatedAt: generatedAt.toISOString(),
     viewer: { id: user.id, name: user.name },
     rollout: { executable: rollout.executable, reason: rollout.reason },
     evidenceRollout: { executable: evidenceRollout.executable, reason: evidenceRollout.reason },
     permissions: { canAssign, canTransition: transitionCapability && evidenceOwner, canRecordEvidence, canLinkEvidence, canPlanTests, canExecuteTests },
     assignableUsers: canAssign ? assignableUsers : [],
     evidenceCandidates: evidenceCandidates.filter((item) => item.accessLevel !== "RESTRICTED" || restrictedEvidenceView).map((item) => ({ ...item, retentionUntil: item.retentionUntil.toISOString(), linkable: item.status === "AVAILABLE" && item.malwareStatus === "CLEAN" })),
-    diagnosticCase: projectCase(detail, context.now(), { facts: evidenceView, attachments: evidenceView && vehicleEvidenceView, restricted: restrictedEvidenceView, tests: evidenceView && (canPlanTests || canExecuteTests) })
+    diagnosticCase,
+    evidenceReview: buildDiagnosticEvidenceReview({ permitted: evidenceView, now: generatedAt, observations: diagnosticCase.observations, measurements: diagnosticCase.measurements, evidenceLinks: diagnosticCase.evidenceLinks, testExecutions: diagnosticCase.testExecutions, testPlans: diagnosticCase.testPlans })
   };
 }
 

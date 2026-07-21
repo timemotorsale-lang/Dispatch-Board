@@ -1,11 +1,12 @@
 "use client";
 
-import { Activity, AlertTriangle, ArrowLeft, Check, ClipboardList, Eye, Gauge, Link2, LockKeyhole, Plus, RefreshCw, Ruler, ShieldAlert, Stethoscope, UserRound, Zap } from "lucide-react";
+import { Activity, AlertTriangle, ArrowLeft, Check, ClipboardList, Eye, Gauge, Link2, Plus, RefreshCw, Ruler, ShieldAlert, Stethoscope, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import type { DiagnosticCaseWorkspaceModel } from "@/server/diagnostics/service";
+import { DiagnosticEvidenceReview, DiagnosticLabWorkspace } from "./diagnostic-lab-workspace";
 import styles from "./diagnostics.module.css";
 
 const label = (value: string) => value.replaceAll("_", " ").toLocaleLowerCase().replace(/^./, (letter) => letter.toUpperCase());
@@ -88,7 +89,7 @@ export function DiagnosticCaseWorkspace({ model }: { model: DiagnosticCaseWorksp
           </form> : null}
           {captureMode === "LINK" ? <form className={styles.captureForm} onSubmit={(event) => { event.preventDefault(); const separator = evidenceTarget.indexOf(":"); void execute(`/api/diagnostics/cases/${encodeURIComponent(item.id)}/evidence`, { evidenceObjectId, purpose: "Supports diagnostic fact review and reproducibility.", reason: "Linked governed Vehicle Evidence to the diagnostic case record.", relationship: "SUPPORTS", subjectType: evidenceTarget.slice(0, separator), subjectId: evidenceTarget.slice(separator + 1) }); }}>
             <label className={styles.wideField}><span>Vehicle Evidence object</span><select onChange={(event) => setEvidenceObjectId(event.target.value)} required value={evidenceObjectId}><option value="">Select an available, malware-clean object</option>{model.evidenceCandidates.map((candidate) => <option disabled={!candidate.linkable} key={candidate.id} value={candidate.id}>{candidate.fileName} · {label(candidate.accessLevel)} · {candidate.linkable ? "Available" : label(candidate.status)}</option>)}</select><small>{model.evidenceCandidates.length ? "Restricted objects appear only with explicit restricted-evidence access." : "No permitted Vehicle Evidence objects are available for this vehicle."}</small></label>
-            <label className={styles.wideField}><span>Link to</span><select onChange={(event) => setEvidenceTarget(event.target.value)} value={evidenceTarget}><option value={`CASE:${item.id}`}>Diagnostic case</option>{item.concernVersionId ? <option value={`CONCERN:${item.concernVersionId}`}>Current concern</option> : null}{item.observations.map((fact) => <option key={fact.id} value={`OBSERVATION:${fact.id}`}>Observation · {fact.statement.slice(0, 70)}</option>)}{item.measurements.map((fact) => <option key={fact.id} value={`MEASUREMENT:${fact.id}`}>Measurement · {fact.quantity} {fact.value} {fact.unit}</option>)}</select></label>
+            <label className={styles.wideField}><span>Link to</span><select onChange={(event) => setEvidenceTarget(event.target.value)} value={evidenceTarget}><option value={`CASE:${item.id}`}>Diagnostic case</option>{item.concernVersionId ? <option value={`CONCERN:${item.concernVersionId}`}>Current concern</option> : null}{item.observations.map((fact) => <option key={fact.id} value={`OBSERVATION:${fact.id}`}>Observation · {fact.statement.slice(0, 70)}</option>)}{item.measurements.map((fact) => <option key={fact.id} value={`MEASUREMENT:${fact.id}`}>Measurement · {fact.quantity} {fact.value} {fact.unit}</option>)}{item.testExecutions.map((execution) => <option key={execution.id} value={`TEST_EXECUTION:${execution.id}`}>Test · {execution.planNode.title} · {label(execution.state)}</option>)}</select></label>
             <button disabled={busy || !model.evidenceRollout.executable || !evidenceObjectId.trim()} type="submit"><Link2 /> Link governed evidence</button>
           </form> : null}
           <div className={styles.factColumns}>
@@ -98,9 +99,11 @@ export function DiagnosticCaseWorkspace({ model }: { model: DiagnosticCaseWorksp
           <section className={styles.attachments}><header><Link2 /><h3>Governed attachments</h3><span>{item.evidenceLinks.length}</span></header>{item.evidenceLinks.length ? item.evidenceLinks.map((link) => <article key={link.id}><div><strong>{link.evidence.status === "DELETED" ? "Deleted evidence object" : link.evidence.fileName}</strong><small>{label(link.subjectType)} · {label(link.relationship)} · SHA-256 {link.evidence.checksumSha256.slice(0, 12)}…</small></div><span>{label(link.evidence.accessLevel)} · {label(link.evidence.status)}</span>{link.evidence.downloadUrl ? <a href={link.evidence.downloadUrl}>Open</a> : <b>Unavailable</b>}</article>) : <div className={styles.moduleEmpty}><p>No governed attachments linked.</p><small>Upload and malware scanning remain under Vehicle Evidence authority.</small></div>}</section>
         </section>
 
-        <div className={styles.evidenceGrid}><section><header><Stethoscope /><h2>Hypotheses</h2><span>Not assessed</span></header><div className={styles.moduleEmpty}><p>No candidate causes have been proposed. Facts recorded above do not automatically become a diagnosis.</p><small>Hypothesis reasoning activates in DGN-017–019.</small></div></section><section><header><Gauge /><h2>Consistency evaluation</h2><span>Not run</span></header><div className={styles.moduleEmpty}><p>No reasoning evaluation has consumed these facts.</p><small>Deterministic consistency evaluation activates in its owning milestone.</small></div></section></div>
+        <DiagnosticEvidenceReview model={model} />
 
-        <section className={styles.labShell}><header><div><span className={styles.eyebrow}>Progressive diagnostic labs</span><h2>Tool workspace</h2></div><small>Modules activate only when their governed milestone is delivered.</small></header><div>{[{ icon: Activity, name: "Scan & network" }, { icon: Gauge, name: "Live data" }, { icon: Zap, name: "Electrical" }, { icon: Activity, name: "Waveform" }].map(({ icon: Icon, name }) => <article key={name}><Icon /><strong>{name}</strong><span><LockKeyhole /> Staged</span></article>)}</div></section>
+        <div className={styles.evidenceGrid}><section><header><Stethoscope /><h2>Hypotheses</h2><span>Not assessed</span></header><div className={styles.moduleEmpty}><p>No candidate causes have been proposed. Facts recorded above do not automatically become a diagnosis.</p><small>Hypothesis reasoning activates in DGN-022–023.</small></div></section><section><header><Gauge /><h2>Consistency evaluation</h2><span>Not run</span></header><div className={styles.moduleEmpty}><p>No reasoning evaluation has consumed these facts.</p><small>Deterministic consistency evaluation activates in its owning milestone.</small></div></section></div>
+
+        <DiagnosticLabWorkspace busy={busy} execute={execute} model={model} />
       </main>
 
       <aside className={styles.caseRail}>
