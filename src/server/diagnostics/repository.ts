@@ -4,6 +4,7 @@ import { prisma } from "@/server/db/client";
 import { EnterpriseCommandConflictError } from "@/server/enterprise-command/domain";
 import type { EnterpriseCommandCommitInput } from "@/server/enterprise-command/repository";
 import { DiagnosticCaseDuplicateError, isTerminalDiagnosticStatus, nextDiagnosticCaseState, type DiagnosticCaseStatus, type DiagnosticRiskTier } from "./domain";
+import type { normalizeDiagnosticEvidenceLink, normalizeDiagnosticMeasurement, normalizeDiagnosticObservation } from "./evidence-domain";
 
 type Tx = Prisma.TransactionClient;
 
@@ -33,6 +34,9 @@ const detailInclude = {
   createdByUser: { select: { id: true, name: true } },
   location: { select: { id: true, code: true, name: true } },
   repairOrder: { select: { id: true, repairOrderNumber: true, serviceVisit: { select: { concernSummary: true } } } },
+  observations: { orderBy: { observedAt: "desc" as const }, include: { authorUser: { select: { id: true, name: true } }, correctedBy: { select: { id: true } } } },
+  measurements: { orderBy: { measuredAt: "desc" as const }, include: { authorUser: { select: { id: true, name: true } }, supersededBy: { select: { id: true } } } },
+  evidenceLinks: { orderBy: { createdAt: "desc" as const }, include: { createdByUser: { select: { id: true, name: true } }, evidenceObject: { select: { id: true, fileName: true, contentType: true, byteSize: true, checksumSha256: true, malwareStatus: true, accessLevel: true, retentionUntil: true, legalHold: true, status: true, version: true, createdAt: true } } } },
   stateEvents: { orderBy: { version: "desc" as const }, take: 100 },
   vehicle: { select: { id: true, vehicleNumber: true, vin: true, year: true, make: true, model: true } }
 };
@@ -48,6 +52,11 @@ export type DiagnosticCaseRepository = {
   getRepairOrderContext(organizationId: string, repairOrderId: string): Promise<DiagnosticRepairOrderContext | null>;
   list(organizationId: string): Promise<DiagnosticCaseDetailRecord[]>;
   listAssignableUsers?(): Promise<DiagnosticAssignableUserRecord[]>;
+  listEvidenceCandidates?(organizationId: string, vehicleId: string): Promise<Array<{ accessLevel: "INTERNAL" | "RESTRICTED"; byteSize: number; checksumSha256: string; contentType: string; fileName: string; id: string; legalHold: boolean; malwareStatus: "CLEAN" | "DETECTED" | "ERROR"; retentionUntil: Date; status: "AVAILABLE" | "QUARANTINED" | "DELETED"; version: number }>>;
+  getEvidenceContext?(organizationId: string, evidenceObjectId: string): Promise<{ accessLevel: "INTERNAL" | "RESTRICTED"; id: string; malwareStatus: "CLEAN" | "DETECTED" | "ERROR"; status: "AVAILABLE" | "QUARANTINED" | "DELETED"; vehicleIds: string[] } | null>;
+  recordObservation?(command: EnterpriseCommandCommitInput, data: ReturnType<typeof normalizeDiagnosticObservation> & { id: string }): Promise<DiagnosticMutationResult>;
+  recordMeasurement?(command: EnterpriseCommandCommitInput, data: ReturnType<typeof normalizeDiagnosticMeasurement> & { id: string }): Promise<DiagnosticMutationResult>;
+  linkEvidence?(command: EnterpriseCommandCommitInput, data: ReturnType<typeof normalizeDiagnosticEvidenceLink> & { id: string }): Promise<DiagnosticMutationResult>;
   transition(command: EnterpriseCommandCommitInput, data: { occurredAt: Date; reasonCode: string; targetStatus: DiagnosticCaseStatus }): Promise<DiagnosticMutationResult>;
 };
 
@@ -196,6 +205,97 @@ export function createDiagnosticCaseRepository(database: PrismaClient = prisma):
         where: { isActive: true },
         orderBy: { name: "asc" },
         select: { id: true, name: true }
+      });
+    },
+
+    async getEvidenceContext(organizationId, evidenceObjectId) {
+      const evidence = await database.vehicleEvidenceObject.findFirst({
+        where: { id: evidenceObjectId, organizationId },
+        select: { accessLevel: true, id: true, malwareStatus: true, status: true, links: { select: { vehicleId: true } } }
+      });
+      return evidence ? { accessLevel: evidence.accessLevel, id: evidence.id, malwareStatus: evidence.malwareStatus, status: evidence.status, vehicleIds: [...new Set(evidence.links.map((item) => item.vehicleId))] } : null;
+    },
+
+    listEvidenceCandidates(organizationId, vehicleId) {
+      return database.vehicleEvidenceObject.findMany({
+        where: { organizationId, links: { some: { organizationId, vehicleId } } },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+        select: { accessLevel: true, byteSize: true, checksumSha256: true, contentType: true, fileName: true, id: true, legalHold: true, malwareStatus: true, retentionUntil: true, status: true, version: true }
+      });
+    },
+
+    recordObservation(command, data) {
+      return execute(database, command, data.correctsId ? "DiagnosticFactCorrected" : "DiagnosticObservationRecorded", data.qualityReasonCode, async (tx, version) => {
+        const diagnosticCase = await tx.diagnosticCase.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId } });
+        if (!diagnosticCase) throw new Error("Diagnostic case was not found.");
+        if (diagnosticCase.version !== version - 1) throw new EnterpriseCommandConflictError(`Expected case version ${version - 1}, but current version is ${diagnosticCase.version}.`, "VERSION_CONFLICT");
+        if (isTerminalDiagnosticStatus(diagnosticCase.status as DiagnosticCaseStatus)) throw new Error("Terminal diagnostic cases must be reopened before evidence can be recorded.");
+        const concern = await tx.diagnosticConcernVersion.findFirst({ where: { diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId, version: diagnosticCase.currentConcernVersion }, select: { id: true } });
+        if (!concern) throw new Error("Current diagnostic concern version was not found.");
+        if (data.correctsId) {
+          const prior = await tx.diagnosticObservation.findFirst({ where: { id: data.correctsId, diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId }, select: { id: true, correctedBy: { select: { id: true } } } });
+          if (!prior) throw new Error("Corrected diagnostic observation was not found in this case.");
+          if (prior.correctedBy) throw new Error("Diagnostic observation already has a correction.");
+        }
+        const observation = await tx.diagnosticObservation.create({ data: {
+          id: data.id, organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, concernVersionId: concern.id,
+          factClass: data.factClass, statement: data.statement, structuredValue: data.structuredValue == null ? undefined : json(data.structuredValue), operatingConditions: json(data.operatingConditions), source: data.source,
+          reliability: data.reliability, qualityStatus: data.qualityStatus, qualityReasonCode: data.qualityReasonCode, independenceGroup: data.independenceGroup,
+          timeWindowStart: data.timeWindowStart, timeWindowEnd: data.timeWindowEnd, observedAt: data.observedAt, rawSource: json(data.rawSource), authorUserId: command.actorUserId, correctsId: data.correctsId
+        }, select: { id: true, factClass: true, qualityStatus: true, correctsId: true, observedAt: true } });
+        await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { version } });
+        return { previous: data.correctsId ? { correctedObservationId: data.correctsId } : undefined, result: { caseId: diagnosticCase.id, concernVersionId: concern.id, observationId: observation.id, factClass: observation.factClass, qualityStatus: observation.qualityStatus, correctsId: observation.correctsId, observedAt: observation.observedAt.toISOString(), version } };
+      });
+    },
+
+    recordMeasurement(command, data) {
+      return execute(database, command, data.supersedesId ? "DiagnosticFactCorrected" : "DiagnosticMeasurementRecorded", data.qualityReasonCode, async (tx, version) => {
+        const diagnosticCase = await tx.diagnosticCase.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId } });
+        if (!diagnosticCase) throw new Error("Diagnostic case was not found.");
+        if (diagnosticCase.version !== version - 1) throw new EnterpriseCommandConflictError(`Expected case version ${version - 1}, but current version is ${diagnosticCase.version}.`, "VERSION_CONFLICT");
+        if (isTerminalDiagnosticStatus(diagnosticCase.status as DiagnosticCaseStatus)) throw new Error("Terminal diagnostic cases must be reopened before evidence can be recorded.");
+        const concern = await tx.diagnosticConcernVersion.findFirst({ where: { diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId, version: diagnosticCase.currentConcernVersion }, select: { id: true } });
+        if (!concern) throw new Error("Current diagnostic concern version was not found.");
+        if (data.supersedesId) {
+          const prior = await tx.diagnosticMeasurement.findFirst({ where: { id: data.supersedesId, diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId }, select: { id: true, supersededBy: { select: { id: true } } } });
+          if (!prior) throw new Error("Superseded diagnostic measurement was not found in this case.");
+          if (prior.supersededBy) throw new Error("Diagnostic measurement already has a correction.");
+        }
+        const measurement = await tx.diagnosticMeasurement.create({ data: {
+          id: data.id, organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, concernVersionId: concern.id,
+          quantity: data.quantity, valueDecimal: data.valueDecimal, unit: data.unit, normalizedValue: data.normalizedValue, normalizedUnit: data.normalizedUnit,
+          referenceMinimum: data.referenceMinimum, referenceMaximum: data.referenceMaximum, normalizedReferenceMin: data.normalizedReferenceMin, normalizedReferenceMax: data.normalizedReferenceMax,
+          tolerance: json(data.tolerance), instrument: json(data.instrument), setup: json(data.setup), operatingConditions: json(data.operatingConditions), source: data.source,
+          reliability: data.reliability, qualityStatus: data.qualityStatus, qualityReasonCode: data.qualityReasonCode, plausibilityStatus: data.plausibilityStatus, plausibilityReasonCode: data.plausibilityReasonCode,
+          independenceGroup: data.independenceGroup, timeWindowStart: data.timeWindowStart, timeWindowEnd: data.timeWindowEnd, measuredAt: data.measuredAt, rawSource: json(data.rawSource), authorUserId: command.actorUserId, supersedesId: data.supersedesId
+        }, select: { id: true, normalizedValue: true, normalizedUnit: true, plausibilityStatus: true, qualityStatus: true, supersedesId: true, measuredAt: true } });
+        await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { version } });
+        return { previous: data.supersedesId ? { supersededMeasurementId: data.supersedesId } : undefined, result: { caseId: diagnosticCase.id, concernVersionId: concern.id, measurementId: measurement.id, normalizedValue: measurement.normalizedValue.toString(), normalizedUnit: measurement.normalizedUnit, plausibilityStatus: measurement.plausibilityStatus, qualityStatus: measurement.qualityStatus, supersedesId: measurement.supersedesId, measuredAt: measurement.measuredAt.toISOString(), version } };
+      });
+    },
+
+    linkEvidence(command, data) {
+      return execute(database, command, "DiagnosticEvidenceLinked", "DATA_EVIDENCE_LINKED", async (tx, version) => {
+        const diagnosticCase = await tx.diagnosticCase.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId } });
+        if (!diagnosticCase) throw new Error("Diagnostic case was not found.");
+        if (diagnosticCase.version !== version - 1) throw new EnterpriseCommandConflictError(`Expected case version ${version - 1}, but current version is ${diagnosticCase.version}.`, "VERSION_CONFLICT");
+        if (isTerminalDiagnosticStatus(diagnosticCase.status as DiagnosticCaseStatus)) throw new Error("Terminal diagnostic cases must be reopened before evidence can be linked.");
+        const evidence = await tx.vehicleEvidenceObject.findFirst({ where: { id: data.evidenceObjectId, organizationId: command.organizationId }, include: { links: { where: { vehicleId: diagnosticCase.vehicleId }, select: { id: true } } } });
+        if (!evidence) throw new Error("Vehicle Evidence object was not found.");
+        if (evidence.status !== "AVAILABLE" || evidence.malwareStatus !== "CLEAN") throw new Error("Vehicle Evidence object must be available and malware-clean before linking.");
+        if (!evidence.links.length) throw new Error("Vehicle Evidence object does not belong to the diagnostic-case vehicle.");
+        const observationId = data.subjectType === "OBSERVATION" ? data.subjectId : null;
+        const measurementId = data.subjectType === "MEASUREMENT" ? data.subjectId : null;
+        if (data.subjectType === "CASE" && data.subjectId !== diagnosticCase.id) throw new Error("Diagnostic case evidence target is invalid.");
+        if (data.subjectType === "CONCERN" && !await tx.diagnosticConcernVersion.findFirst({ where: { id: data.subjectId, diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId }, select: { id: true } })) throw new Error("Diagnostic concern evidence target is invalid.");
+        if (observationId && !await tx.diagnosticObservation.findFirst({ where: { id: observationId, diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId }, select: { id: true } })) throw new Error("Diagnostic observation evidence target is invalid.");
+        if (measurementId && !await tx.diagnosticMeasurement.findFirst({ where: { id: measurementId, diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId }, select: { id: true } })) throw new Error("Diagnostic measurement evidence target is invalid.");
+        if (["TEST_EXECUTION", "HYPOTHESIS", "CONCLUSION", "VERIFICATION"].includes(data.subjectType)) throw new Error(`${data.subjectType.replaceAll("_", " ")} evidence targets are not active yet.`);
+        const link = await tx.diagnosticEvidenceLink.create({ data: { id: data.id, organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, evidenceObjectId: evidence.id, subjectType: data.subjectType, subjectId: data.subjectId, observationId, measurementId, purpose: data.purpose, relationship: data.relationship, createdByUserId: command.actorUserId }, select: { id: true, evidenceObjectId: true, subjectType: true, subjectId: true, createdAt: true } });
+        await tx.vehicleEvidenceEvent.create({ data: { organizationId: command.organizationId, evidenceObjectId: evidence.id, actorUserId: command.actorUserId, eventType: "LINKED", reason: command.reason, metadata: json({ diagnosticCaseId: diagnosticCase.id, diagnosticEvidenceLinkId: link.id, relationship: data.relationship, subjectId: data.subjectId, subjectType: data.subjectType }) } });
+        await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { version } });
+        return { result: { caseId: diagnosticCase.id, diagnosticEvidenceLinkId: link.id, evidenceObjectId: link.evidenceObjectId, subjectType: link.subjectType, subjectId: link.subjectId, createdAt: link.createdAt.toISOString(), version } };
       });
     },
 
