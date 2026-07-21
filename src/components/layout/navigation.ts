@@ -8,6 +8,7 @@ import {
   CarFront,
   Clock3,
   ClipboardCheck,
+  FileText,
   ContactRound,
   FolderKanban,
   Gauge,
@@ -110,6 +111,22 @@ export const dispatchNavigationItems: NavigationItem[] = [
     title: "Labor Guide",
     description: "Enterprise labor intelligence, estimate draft preparation, overlap, rate, and GP safeguards.",
     icon: BookOpen,
+    isNested: true,
+    parentHref: "/diagnostics"
+  },
+  {
+    href: "/diagnostics/advisor-review",
+    title: "Advisor Review",
+    description: "Review diagnosis-to-estimate drafts, handoff packets, customer language, and approval holds.",
+    icon: FileText,
+    isNested: true,
+    parentHref: "/diagnostics"
+  },
+  {
+    href: "/diagnostics/autobody-estimate",
+    title: "Autobody Estimate",
+    description: "Photo intake, damage mapping, insurance-quality bodywork drafts, supplements, and ADAS gates.",
+    icon: CarFront,
     isNested: true,
     parentHref: "/diagnostics"
   },

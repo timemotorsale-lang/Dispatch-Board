@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 import { DiagnosticCaseWorkspace } from "@/features/diagnostics/diagnostic-case-workspace";
+import { DiagnosticAdvisorReviewConsole } from "@/features/diagnostics/advisor-review-console";
+import { DiagnosticAutobodyEstimateConsole } from "@/features/diagnostics/autobody-estimate-console";
 import { DiagnosticsCommandCenter } from "@/features/diagnostics/diagnostics-command-center";
 import type { DiagnosticCaseWorkspaceModel, DiagnosticsCommandCenterModel } from "@/server/diagnostics/service";
 
@@ -25,6 +27,10 @@ describe("diagnostics case console", () => {
     const model = { state: "COMPLETE", freshness: "CURRENT", restricted: false, generatedAt: "2026-07-20T14:00:00.000Z", viewer: { id: "tech-1", name: "Walter Mechanic" }, rollout: { executable: false, reason: "DIAGNOSTICS_MASTER_OFF" }, summary: { mine: 1, waiting: 0, escalated: 0, unassigned: 0 }, items: [diagnosticCase] } as unknown as DiagnosticsCommandCenterModel;
     const html = renderToStaticMarkup(<DiagnosticsCommandCenter model={model} />);
     expect(html).toContain("Diagnostics Command Center");
+    expect(html).toContain("Labor Guide");
+    expect(html).toContain("Advisor Review");
+    expect(html).toContain("Autobody Estimate");
+    expect(html).toContain("Pilot Gate");
     expect(html).toContain("Intermittent no-start after hot soak");
     expect(html).toContain("2020 Ford F-150");
     expect(html).toContain("Read-only foundation");
@@ -47,5 +53,23 @@ describe("diagnostics case console", () => {
     expect(html).toContain("Quality &amp; safety gates");
     expect(html).toContain("DGN-019/1.0.0");
     expect(html).not.toMatch(/\b\d{1,3}%\b/);
+  });
+
+  it("renders the advisor review landing page with downstream authority blocks", () => {
+    const html = renderToStaticMarkup(<DiagnosticAdvisorReviewConsole />);
+    expect(html).toContain("Advisor Review Console");
+    expect(html).toContain("DGN-044 downstream packets");
+    expect(html).toContain("Parts authority required");
+    expect(html).toContain("Customer presentation");
+    expect(html).toContain("Parts order or reservation");
+  });
+
+  it("renders the autobody estimate landing page as gated insurance-quality draft review", () => {
+    const html = renderToStaticMarkup(<DiagnosticAutobodyEstimateConsole />);
+    expect(html).toContain("Autobody Estimate Console");
+    expect(html).toContain("Photo intake");
+    expect(html).toContain("Insurance-quality draft builder");
+    expect(html).toContain("ADAS");
+    expect(html).toContain("Not an insurer submission tool yet");
   });
 });

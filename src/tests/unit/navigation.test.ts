@@ -88,6 +88,9 @@ describe("enterprise shell navigation", () => {
       "Appointments",
       "Vehicles",
       "Diagnostics",
+      "Labor Guide",
+      "Advisor Review",
+      "Autobody Estimate",
       "Customers",
       "Sales",
       "Marketing",
@@ -110,6 +113,9 @@ describe("enterprise shell navigation", () => {
       "Appointments",
       "Vehicles",
       "Diagnostics",
+      "Labor Guide",
+      "Advisor Review",
+      "Autobody Estimate",
       "Customers",
       "Sales",
       "Marketing",
@@ -122,7 +128,7 @@ describe("enterprise shell navigation", () => {
 
   it("nests working Marketing and Advertising views beneath Sales", () => {
     const items = getDispatchNavigationItems(user());
-    const salesItems = items.filter((item) => item.title === "Sales" || item.isNested);
+    const salesItems = items.filter((item) => item.title === "Sales" || item.parentHref === "/tasks?department=SALES");
 
     expect(salesItems.map((item) => [item.title, item.href])).toEqual([
       ["Sales", "/tasks?department=SALES"],
@@ -130,6 +136,18 @@ describe("enterprise shell navigation", () => {
       ["Advertising", "/tasks?department=ADVERTISING"]
     ]);
     expect(salesItems.slice(1).every((item) => item.parentHref === "/tasks?department=SALES")).toBe(true);
+  });
+
+  it("nests diagnostic workflow pages beneath Diagnostics", () => {
+    const diagnosticItems = getDispatchNavigationItems(user()).filter((item) => item.title === "Diagnostics" || item.parentHref === "/diagnostics");
+
+    expect(diagnosticItems.map((item) => [item.title, item.href])).toEqual([
+      ["Diagnostics", "/diagnostics"],
+      ["Labor Guide", "/diagnostics/labor-guide"],
+      ["Advisor Review", "/diagnostics/advisor-review"],
+      ["Autobody Estimate", "/diagnostics/autobody-estimate"]
+    ]);
+    expect(diagnosticItems.slice(1).every((item) => item.isNested)).toBe(true);
   });
 
   it("separates Dispatch console routes from CCC Home", () => {
@@ -157,6 +175,9 @@ describe("enterprise shell navigation", () => {
       "Appointments",
       "Vehicles",
       "Diagnostics",
+      "Labor Guide",
+      "Advisor Review",
+      "Autobody Estimate",
       "Customers",
       "Sales",
       "Marketing",
