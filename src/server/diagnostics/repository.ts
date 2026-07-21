@@ -10,6 +10,7 @@ import { nextTestExecutionState, type DiagnosticTestLifecycleAction, type Diagno
 import { assertDiagnosticGateReady, evaluateDiagnosticQualitySafetyGates } from "./quality-safety-gates";
 import { diagnosticReasoningId, type evaluateDiagnosticReasoning, type ReasoningEvidence } from "./reasoning-core";
 import type { createDiagnosticTestOverride, evaluateAdaptiveDiagnosticTests } from "./adaptive-testing";
+import type { evaluateDiagnosticConclusionControls, normalizeDiagnosticConclusionCommand } from "./conclusion-domain";
 
 type Tx = Prisma.TransactionClient;
 
@@ -46,6 +47,7 @@ const detailInclude = {
   testExecutions: { orderBy: { occurredAt: "desc" as const }, include: { actorUser: { select: { id: true, name: true } }, planNode: { select: { id: true, nodeKey: true, title: true } } } },
   reasoningEvaluations: { orderBy: { sequence: "desc" as const }, take: 20, include: { hypotheses: { orderBy: { rank: "asc" as const }, include: { evidenceLinks: true } }, supersededBy: { select: { id: true } } } },
   adaptiveTestEvaluations: { orderBy: { sequence: "desc" as const }, take: 20, include: { overrides: { orderBy: { occurredAt: "desc" as const } } } },
+  conclusionVersions: { orderBy: { version: "desc" as const }, take: 20, include: { authorUser: { select: { id: true, name: true } }, reviewerUser: { select: { id: true, name: true } }, supersededBy: { select: { id: true } } } },
   stateEvents: { orderBy: { version: "desc" as const }, take: 100 },
   vehicle: { select: { id: true, vehicleNumber: true, vin: true, year: true, make: true, model: true } }
 };
@@ -74,6 +76,7 @@ export type DiagnosticCaseRepository = {
   recordReasoningEvaluation?(command: EnterpriseCommandCommitInput, data: { evaluationId: string; evidence: ReasoningEvidence[]; occurredAt: Date; result: ReturnType<typeof evaluateDiagnosticReasoning>; supersedesId: string | null }): Promise<DiagnosticMutationResult>;
   recordAdaptiveTestEvaluation?(command: EnterpriseCommandCommitInput, data: { evaluationId: string; occurredAt: Date; result: ReturnType<typeof evaluateAdaptiveDiagnosticTests> }): Promise<DiagnosticMutationResult>;
   recordAdaptiveTestOverride?(command: EnterpriseCommandCommitInput, data: { overrideId: string; occurredAt: Date; override: ReturnType<typeof createDiagnosticTestOverride> }): Promise<DiagnosticMutationResult>;
+  recordConclusion?(command: EnterpriseCommandCommitInput, data: { conclusionId: string; occurredAt: Date; commandData: ReturnType<typeof normalizeDiagnosticConclusionCommand>; control: ReturnType<typeof evaluateDiagnosticConclusionControls>; sourceVersions: unknown[]; safetySnapshot: Record<string, unknown>; conclusionChecksum: string }): Promise<DiagnosticMutationResult>;
   transition(command: EnterpriseCommandCommitInput, data: { occurredAt: Date; reasonCode: string; targetStatus: DiagnosticCaseStatus }): Promise<DiagnosticMutationResult>;
 };
 
@@ -354,6 +357,30 @@ export function createDiagnosticCaseRepository(database: PrismaClient = prisma):
         const record = await tx.diagnosticAdaptiveTestOverride.create({ data: { id: data.overrideId, organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, adaptiveTestEvaluationId: evaluation.id, recommendedTestKey: data.override.recommendedTestKey, selectedTestKey: data.override.selectedTestKey, reasonCode: data.override.reasonCode, reason: data.override.reason, policyVersion: data.override.policyVersion, lineageChecksum: data.override.lineageChecksum, actorUserId: command.actorUserId, priorOverrideId: data.override.priorOverrideId, occurredAt: data.occurredAt } });
         await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { version } });
         return { previous: { recommendedTestKey: evaluation.recommendedTestKey, priorOverrideId: data.override.priorOverrideId }, result: { id: record.id, evaluationId: evaluation.id, selectedTestKey: record.selectedTestKey, lineageChecksum: record.lineageChecksum, version } };
+      });
+    },
+
+    recordConclusion(command, data) {
+      return execute(database, command, "DiagnosticConclusionRecorded", `CONCLUSION_${data.control.status}`, async (tx, version) => {
+        const diagnosticCase = await tx.diagnosticCase.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId }, include: { concernVersions: { orderBy: { version: "desc" }, take: 1 }, conclusionVersions: { orderBy: { version: "desc" }, take: 1 } } });
+        if (!diagnosticCase) throw new Error("Diagnostic case was not found.");
+        if (diagnosticCase.version !== version - 1) throw new EnterpriseCommandConflictError(`Expected case version ${version - 1}, but current version is ${diagnosticCase.version}.`, "VERSION_CONFLICT");
+        if (!data.control.allowed) throw new Error(`Diagnostic conclusion is blocked: ${data.control.reasonCodes.join(", ")}.`);
+        const concern = diagnosticCase.concernVersions[0]; if (!concern) throw new Error("Diagnostic conclusion requires a current concern version.");
+        const exactReasoning = await tx.diagnosticReasoningEvaluation.findFirst({ where: { id: command.payload.reasoningEvaluationId as string, diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId }, include: { hypotheses: true } });
+        if (!exactReasoning || exactReasoning.resultChecksum !== command.payload.reasoningResultChecksum) throw new Error("Conclusion must bind to the exact current-case reasoning checksum.");
+        const latestReasoning = await tx.diagnosticReasoningEvaluation.findFirst({ where: { diagnosticCaseId: diagnosticCase.id, organizationId: command.organizationId }, orderBy: { sequence: "desc" }, select: { id: true } });
+        if (latestReasoning?.id !== exactReasoning.id) throw new Error("Conclusion must use the latest reasoning evaluation.");
+        if (data.control.hypothesisId && !exactReasoning.hypotheses.some((item) => item.id === data.control.hypothesisId)) throw new Error("Conclusion hypothesis does not belong to the bound reasoning evaluation.");
+        const prior = diagnosticCase.conclusionVersions[0] ?? null;
+        if ((prior?.id ?? null) !== data.commandData.supersedesId) throw new Error("Conclusion command must extend the latest conclusion lineage.");
+        const conclusionVersion = (prior?.version ?? 0) + 1;
+        const record = await tx.diagnosticConclusionVersion.create({ data: { id: data.conclusionId, organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, concernVersionId: concern.id, reasoningEvaluationId: exactReasoning.id, hypothesisId: data.control.hypothesisId, version: conclusionVersion, action: data.control.action, status: data.control.status, causeStatement: data.commandData.causeStatement, uncertainty: data.commandData.uncertainty, evidenceBasisKeys: json(data.control.evidenceBasisKeys), contradictionKeys: json(data.control.hypothesisId ? exactReasoning.hypotheses.find((item) => item.id === data.control.hypothesisId)?.contradictingEvidenceKeys ?? [] : []), addressedAlternativeKeys: json(data.control.alternativesAddressed), limitations: json(data.commandData.limitations), sourceVersions: json(data.sourceVersions), safetySnapshot: json(data.safetySnapshot), policyVersion: data.control.policyVersion, reasoningResultChecksum: exactReasoning.resultChecksum, controlDecisionChecksum: data.control.decisionChecksum, conclusionChecksum: data.conclusionChecksum, authorUserId: command.actorUserId, reviewerUserId: data.control.reviewerUserId, supersedesId: data.commandData.supersedesId, occurredAt: data.occurredAt } });
+        const targetStatus = data.control.status === "PROPOSED" ? "CAUSE_PROPOSED" : data.control.status === "CONFIRMED" ? "CONFIRMED" : data.control.status === "ESCALATED" ? "ESCALATED" : data.control.status === "ABSTAINED" ? data.commandData.abstentionDisposition : "TESTING";
+        const resumeStatus = targetStatus === "ESCALATED" ? diagnosticCase.status : diagnosticCase.resumeStatus;
+        await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { status: targetStatus, resumeStatus, version } });
+        await tx.diagnosticCaseStateEvent.create({ data: { organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, version, eventType: targetStatus === "ESCALATED" ? "ESCALATED" : "STATUS_CHANGED", fromStatus: diagnosticCase.status, toStatus: targetStatus, fromAssignedUserId: diagnosticCase.assignedUserId, toAssignedUserId: diagnosticCase.assignedUserId, reasonCode: `CONCLUSION_${data.control.status}`, reason: command.reason, actorUserId: command.actorUserId, correlationId: command.correlationId, occurredAt: data.occurredAt } });
+        return { previous: prior ? { id: prior.id, status: prior.status, conclusionChecksum: prior.conclusionChecksum } : undefined, result: { id: record.id, conclusionVersion, status: record.status, caseStatus: targetStatus, conclusionChecksum: record.conclusionChecksum, version } };
       });
     },
 

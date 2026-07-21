@@ -37,7 +37,9 @@ describe("diagnostics case console", () => {
     for (const stage of ["Concern", "Evidence", "Test", "Cause", "Verify"]) expect(html).toContain(stage);
     expect(html).toContain("No observations recorded.");
     expect(html).toContain("No measurements recorded.");
-    expect(html).toContain("No candidate causes have been proposed.");
+    expect(html).toContain("No governed reasoning evaluation is available.");
+    expect(html).toContain("Diagnostic conclusion");
+    expect(html).toContain("Record governed decision");
     expect(html).toContain("Technician labs");
     expect(html).toContain("Battery loaded voltage");
     expect(html).toContain("Start test");

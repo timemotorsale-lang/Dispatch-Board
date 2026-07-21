@@ -815,6 +815,23 @@ enum DiagnosticHypothesisEvidenceType {
   MODEL_FACT
 }
 
+enum DiagnosticConclusionAction {
+  PROPOSE
+  CONFIRM
+  REJECT
+  SUPERSEDE
+  ABSTAIN
+  ESCALATE
+}
+
+enum DiagnosticConclusionStatus {
+  PROPOSED
+  CONFIRMED
+  REJECTED
+  ABSTAINED
+  ESCALATED
+}
+
 enum PartDemandStatus {
   OPEN
   PARTIALLY_RESERVED
@@ -1547,6 +1564,8 @@ model User {
   diagnosticReasoningEvaluations        DiagnosticReasoningEvaluation[]        @relation("DiagnosticReasoningEvaluator")
   diagnosticAdaptiveTestEvaluations     DiagnosticAdaptiveTestEvaluation[]     @relation("DiagnosticAdaptiveTestEvaluator")
   diagnosticAdaptiveTestOverrides       DiagnosticAdaptiveTestOverride[]       @relation("DiagnosticAdaptiveTestOverrideActor")
+  authoredDiagnosticConclusions         DiagnosticConclusionVersion[]          @relation("DiagnosticConclusionAuthor")
+  reviewedDiagnosticConclusions         DiagnosticConclusionVersion[]          @relation("DiagnosticConclusionReviewer")
   authoredDiagnosticKnowledgeSources    DiagnosticKnowledgeSourceVersion[]     @relation("DiagnosticKnowledgeSourceAuthor")
   technicalReviewedKnowledgeSources     DiagnosticKnowledgeSourceVersion[]     @relation("DiagnosticKnowledgeSourceTechnicalReviewer")
   rightsReviewedKnowledgeSources        DiagnosticKnowledgeSourceVersion[]     @relation("DiagnosticKnowledgeSourceRightsReviewer")
@@ -1821,6 +1840,7 @@ model Organization {
   diagnosticReasoningEvaluations        DiagnosticReasoningEvaluation[]
   diagnosticAdaptiveTestEvaluations     DiagnosticAdaptiveTestEvaluation[]
   diagnosticAdaptiveTestOverrides       DiagnosticAdaptiveTestOverride[]
+  diagnosticConclusionVersions          DiagnosticConclusionVersion[]
 }
 
 model Location {
@@ -3131,6 +3151,7 @@ model DiagnosticCase {
   reasoningEvaluations    DiagnosticReasoningEvaluation[]
   adaptiveTestEvaluations DiagnosticAdaptiveTestEvaluation[]
   adaptiveTestOverrides   DiagnosticAdaptiveTestOverride[]
+  conclusionVersions      DiagnosticConclusionVersion[]
 
   @@unique([id, organizationId])
   @@unique([repairOrderId, concernKey])
@@ -3160,6 +3181,7 @@ model DiagnosticConcernVersion {
   observations         DiagnosticObservation[]
   measurements         DiagnosticMeasurement[]
   reasoningEvaluations DiagnosticReasoningEvaluation[]
+  conclusionVersions   DiagnosticConclusionVersion[]
 
   @@unique([diagnosticCaseId, version])
   @@unique([id, organizationId])
@@ -3574,6 +3596,7 @@ model DiagnosticReasoningEvaluation {
   supersededBy            DiagnosticReasoningEvaluation?     @relation("DiagnosticReasoningSupersession")
   hypotheses              DiagnosticHypothesis[]
   adaptiveTestEvaluations DiagnosticAdaptiveTestEvaluation[]
+  conclusionVersions      DiagnosticConclusionVersion[]
 
   @@unique([diagnosticCaseId, sequence])
   @@unique([id, organizationId])
@@ -3606,6 +3629,7 @@ model DiagnosticHypothesis {
   supersedes                  DiagnosticHypothesis?          @relation("DiagnosticHypothesisSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
   supersededBy                DiagnosticHypothesis?          @relation("DiagnosticHypothesisSupersession")
   evidenceLinks               DiagnosticHypothesisEvidence[]
+  conclusionVersions          DiagnosticConclusionVersion[]
 
   @@unique([reasoningEvaluationId, hypothesisKey])
   @@unique([id, organizationId])
@@ -3701,6 +3725,49 @@ model DiagnosticAdaptiveTestOverride {
   @@unique([id, organizationId])
   @@index([organizationId, diagnosticCaseId, occurredAt])
   @@index([adaptiveTestEvaluationId, occurredAt])
+}
+
+model DiagnosticConclusionVersion {
+  id                       String                        @id
+  organizationId           String
+  diagnosticCaseId         String
+  concernVersionId         String
+  reasoningEvaluationId    String
+  hypothesisId             String?
+  version                  Int
+  action                   DiagnosticConclusionAction
+  status                   DiagnosticConclusionStatus
+  causeStatement           String?
+  uncertainty              String
+  evidenceBasisKeys        Json
+  contradictionKeys        Json
+  addressedAlternativeKeys Json
+  limitations              Json
+  sourceVersions           Json
+  safetySnapshot           Json
+  policyVersion            String
+  reasoningResultChecksum  String
+  controlDecisionChecksum  String
+  conclusionChecksum       String
+  authorUserId             String
+  reviewerUserId           String?
+  supersedesId             String?                       @unique
+  occurredAt               DateTime
+  createdAt                DateTime                      @default(now())
+  organization             Organization                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  diagnosticCase           DiagnosticCase                @relation(fields: [diagnosticCaseId], references: [id], onDelete: Restrict)
+  concernVersion           DiagnosticConcernVersion      @relation(fields: [concernVersionId], references: [id], onDelete: Restrict)
+  reasoningEvaluation      DiagnosticReasoningEvaluation @relation(fields: [reasoningEvaluationId], references: [id], onDelete: Restrict)
+  hypothesis               DiagnosticHypothesis?         @relation(fields: [hypothesisId], references: [id], onDelete: Restrict)
+  authorUser               User                          @relation("DiagnosticConclusionAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  reviewerUser             User?                         @relation("DiagnosticConclusionReviewer", fields: [reviewerUserId], references: [id], onDelete: Restrict)
+  supersedes               DiagnosticConclusionVersion?  @relation("DiagnosticConclusionSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy             DiagnosticConclusionVersion?  @relation("DiagnosticConclusionSupersession")
+
+  @@unique([diagnosticCaseId, version])
+  @@unique([id, organizationId])
+  @@index([organizationId, diagnosticCaseId, occurredAt])
+  @@index([organizationId, status, occurredAt])
 }
 
 model RepairOrderStateEvent {
