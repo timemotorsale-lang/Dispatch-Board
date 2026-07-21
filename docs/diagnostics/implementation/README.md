@@ -10,5 +10,8 @@ This directory contains evidence-backed records for completed Diagnostics implem
 | `DGN-004` | Complete — source/license governance; no held-source ingestion authorized | [`DGN_004_KNOWLEDGE_SOURCE_AND_LICENSE_REGISTER.md`](DGN_004_KNOWLEDGE_SOURCE_AND_LICENSE_REGISTER.md) |
 | `DGN-005` | Complete — benchmark/measurement/pilot contract; no result or pilot approval | [`DGN_005_BENCHMARK_MEASUREMENT_AND_PILOT_CONTRACT.md`](DGN_005_BENCHMARK_MEASUREMENT_AND_PILOT_CONTRACT.md) |
 | `DGN-006` | Complete — exact domain/schema/event/migration contract; runtime deferred | [`DGN_006_DOMAIN_COMMAND_SCHEMA_EVENT_AND_MIGRATION_CONTRACT.md`](DGN_006_DOMAIN_COMMAND_SCHEMA_EVENT_AND_MIGRATION_CONTRACT.md) |
+| `DGN-007` | Implemented in source — additive case persistence and immutable history | [`DGN_007_009_CASE_CORE_IMPLEMENTATION.md`](DGN_007_009_CASE_CORE_IMPLEMENTATION.md) |
+| `DGN-008` | Implemented in source — governed case create/read and replay protection | [`DGN_007_009_CASE_CORE_IMPLEMENTATION.md`](DGN_007_009_CASE_CORE_IMPLEMENTATION.md) |
+| `DGN-009` | Implemented in source — assignment, lifecycle, waiting, escalation, abandonment, and reopen | [`DGN_007_009_CASE_CORE_IMPLEMENTATION.md`](DGN_007_009_CASE_CORE_IMPLEMENTATION.md) |
 
-[`DG-G0`](DG_G0_FOUNDATION_GATE_REVIEW.md) is **approved with holds**. Only `DGN-007` through `DGN-009` case-core implementation is authorized next; source ingestion, reasoning, publishing, pilot, and AI remain gated.
+[`DG-G0`](DG_G0_FOUNDATION_GATE_REVIEW.md) is **approved with holds** and its authorized DGN-007–009 case-core slice is implemented in source. `DG-G1` remains open pending DGN-010–012. Source ingestion, reasoning, publishing, pilot, and AI remain gated.

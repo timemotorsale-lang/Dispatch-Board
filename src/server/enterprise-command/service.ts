@@ -33,11 +33,15 @@ export async function executeEnterpriseVehicleCommand(actor: AuthenticatedUser |
 export const VEHICLE_OPERATIONS_FEATURES = ["VEHICLE_OPERATIONS_MASTER", "ENTERPRISE_COMMANDS", "VEHICLE_REGISTRY", "RETAIL_INVENTORY", "SHOP_OPERATIONS", "PARTS_OPERATIONS", "VEHICLE_360", "VEHICLE_DISCOVERY", "CUSTOMER_LIFECYCLE"] as const;
 export type VehicleOperationsFeatureCode = (typeof VEHICLE_OPERATIONS_FEATURES)[number];
 
-export function evaluateVehicleOperationsFeature(flags: VehicleFeatureFlagRecord[], code: VehicleOperationsFeatureCode, userId: string, locationId: string | null) {
+export const DIAGNOSTICS_FEATURES = ["DIAGNOSTICS_MASTER", "DIAGNOSTIC_CASES", "DIAGNOSTIC_EVIDENCE", "DIAGNOSTIC_REASONING", "DIAGNOSTIC_PUBLISHING", "DIAGNOSTIC_KNOWLEDGE", "DIAGNOSTIC_AI"] as const;
+export type DiagnosticsFeatureCode = (typeof DIAGNOSTICS_FEATURES)[number];
+const ENTERPRISE_FEATURES = [...VEHICLE_OPERATIONS_FEATURES, ...DIAGNOSTICS_FEATURES] as const;
+
+function evaluateRolloutFeature(flags: VehicleFeatureFlagRecord[], masterCode: string, code: string, userId: string, locationId: string | null) {
   const applicable = (candidate: VehicleFeatureFlagRecord) => candidate.code === code && (candidate.locationId === locationId || candidate.locationId === null);
   const flag = flags.filter(applicable).sort((a, b) => Number(Boolean(b.locationId)) - Number(Boolean(a.locationId)))[0];
-  const master = flags.filter((candidate) => candidate.code === "VEHICLE_OPERATIONS_MASTER" && (candidate.locationId === locationId || candidate.locationId === null)).sort((a, b) => Number(Boolean(b.locationId)) - Number(Boolean(a.locationId)))[0];
-  if (code !== "VEHICLE_OPERATIONS_MASTER" && (!master || master.mode === "OFF")) return { enabled: false, executable: false, reason: "MASTER_DISABLED" } as const;
+  const master = flags.filter((candidate) => candidate.code === masterCode && (candidate.locationId === locationId || candidate.locationId === null)).sort((a, b) => Number(Boolean(b.locationId)) - Number(Boolean(a.locationId)))[0];
+  if (code !== masterCode && (!master || master.mode === "OFF")) return { enabled: false, executable: false, reason: "MASTER_DISABLED" } as const;
   if (!flag || flag.mode === "OFF") return { enabled: false, executable: false, reason: "FEATURE_DISABLED" } as const;
   if (flag.mode === "SHADOW") return { enabled: true, executable: false, reason: "SHADOW_ONLY" } as const;
   if (flag.mode === "GENERAL") return { enabled: true, executable: true, reason: "GENERAL_RELEASE" } as const;
@@ -45,6 +49,14 @@ export function evaluateVehicleOperationsFeature(flags: VehicleFeatureFlagRecord
   const bucket = createHash("sha256").update(`${flag.code}:${userId}`).digest()[0] % 100;
   const executable = cohort.includes(userId) || bucket < flag.rolloutPercent;
   return { enabled: true, executable, reason: executable ? "PILOT_ELIGIBLE" : "OUTSIDE_PILOT" } as const;
+}
+
+export function evaluateVehicleOperationsFeature(flags: VehicleFeatureFlagRecord[], code: VehicleOperationsFeatureCode, userId: string, locationId: string | null) {
+  return evaluateRolloutFeature(flags, "VEHICLE_OPERATIONS_MASTER", code, userId, locationId);
+}
+
+export function evaluateDiagnosticsFeature(flags: VehicleFeatureFlagRecord[], code: DiagnosticsFeatureCode, userId: string, locationId: string | null) {
+  return evaluateRolloutFeature(flags, "DIAGNOSTICS_MASTER", code, userId, locationId);
 }
 
 export async function getVehicleOperationsFoundation(actor: AuthenticatedUser | null, input: Dependencies = {}) {
@@ -61,13 +73,13 @@ export async function updateVehicleOperationsFeature(actor: AuthenticatedUser | 
   const user = await authorize(actor, "VEHICLE_ROLLOUT_MANAGE", null, deps);
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Feature update must be an object.");
   const raw = value as Record<string, unknown>;
-  const code = String(raw.code ?? "") as VehicleOperationsFeatureCode;
+  const code = String(raw.code ?? "");
   const mode = String(raw.mode ?? "") as VehicleFeatureFlagRecord["mode"];
   const expectedVersion = Number(raw.expectedVersion);
   const rolloutPercent = Number(raw.rolloutPercent);
   const reason = String(raw.reason ?? "").trim();
   const locationId = typeof raw.locationId === "string" && raw.locationId.trim() ? raw.locationId.trim() : null;
-  if (!VEHICLE_OPERATIONS_FEATURES.includes(code)) throw new Error("Vehicle Operations feature code is invalid.");
+  if (!(ENTERPRISE_FEATURES as readonly string[]).includes(code)) throw new Error("Enterprise feature code is invalid.");
   if (!(["OFF", "SHADOW", "PILOT", "GENERAL"] as string[]).includes(mode)) throw new Error("Vehicle Operations rollout mode is invalid.");
   if (!Number.isInteger(expectedVersion) || expectedVersion < 1) throw new Error("Expected feature version is required.");
   if (!Number.isInteger(rolloutPercent) || rolloutPercent < 0 || rolloutPercent > 100) throw new Error("Rollout percent must be from 0 through 100.");
@@ -77,4 +89,4 @@ export async function updateVehicleOperationsFeature(actor: AuthenticatedUser | 
   return { ...flag, allowedUserIds: users(flag.allowedUserIds), updatedAt: flag.updatedAt.toISOString() };
 }
 
-export async function rollbackVehicleOperationsFeature(actor: AuthenticatedUser | null, value: unknown, input: Dependencies = {}) { const deps = dependencies(input), user = await authorize(actor, "VEHICLE_ROLLOUT_MANAGE", null, deps); if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Feature rollback must be an object."); const raw = value as Record<string, unknown>, code = String(raw.code ?? "") as VehicleOperationsFeatureCode, expectedVersion = Number(raw.expectedVersion), locationId = typeof raw.locationId === "string" && raw.locationId.trim() ? raw.locationId.trim() : null, reason = String(raw.reason ?? "").trim(); if (!VEHICLE_OPERATIONS_FEATURES.includes(code)) throw new Error("Vehicle Operations feature code is invalid."); if (!Number.isInteger(expectedVersion) || expectedVersion < 2) throw new Error("Exact current feature version is required for rollback."); if (reason.length < 10) throw new Error("Rollout rollback requires a reason of at least 10 characters."); if (!deps.repository.rollbackFeatureFlag) throw new Error("Feature rollback repository is unavailable."); const flag = await deps.repository.rollbackFeatureFlag({ actorUserId: user.id, code, correlationId: randomUUID(), expectedVersion, locationId, organizationId: deps.organizationId, reason }); return { ...flag, allowedUserIds: users(flag.allowedUserIds), updatedAt: flag.updatedAt.toISOString() }; }
+export async function rollbackVehicleOperationsFeature(actor: AuthenticatedUser | null, value: unknown, input: Dependencies = {}) { const deps = dependencies(input), user = await authorize(actor, "VEHICLE_ROLLOUT_MANAGE", null, deps); if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Feature rollback must be an object."); const raw = value as Record<string, unknown>, code = String(raw.code ?? ""), expectedVersion = Number(raw.expectedVersion), locationId = typeof raw.locationId === "string" && raw.locationId.trim() ? raw.locationId.trim() : null, reason = String(raw.reason ?? "").trim(); if (!(ENTERPRISE_FEATURES as readonly string[]).includes(code)) throw new Error("Enterprise feature code is invalid."); if (!Number.isInteger(expectedVersion) || expectedVersion < 2) throw new Error("Exact current feature version is required for rollback."); if (reason.length < 10) throw new Error("Rollout rollback requires a reason of at least 10 characters."); if (!deps.repository.rollbackFeatureFlag) throw new Error("Feature rollback repository is unavailable."); const flag = await deps.repository.rollbackFeatureFlag({ actorUserId: user.id, code, correlationId: randomUUID(), expectedVersion, locationId, organizationId: deps.organizationId, reason }); return { ...flag, allowedUserIds: users(flag.allowedUserIds), updatedAt: flag.updatedAt.toISOString() }; }
