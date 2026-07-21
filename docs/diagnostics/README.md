@@ -32,6 +32,11 @@ The console owns the evidence-driven diagnostic case and reasoning lifecycle. It
 14. [`DIAGNOSTICS_IMPLEMENTATION_MILESTONES.md`](DIAGNOSTICS_IMPLEMENTATION_MILESTONES.md) — reviewable vertical slices, dependencies, evidence, and exit gates.
 15. [`DIAGNOSTICS_IMPLEMENTATION_MASTER_PLAN.md`](DIAGNOSTICS_IMPLEMENTATION_MASTER_PLAN.md) — consolidated implementation architecture, delivery waves, critical path, and detailed scope/evidence for all 50 milestones.
 
+## Implementation Records
+
+- [`Implementation record index`](implementation/README.md)
+- [`DGN-001 — Domain Authority and Diagnosis Publishing Contract`](implementation/DGN_001_DOMAIN_AUTHORITY_AND_DIAGNOSIS_PUBLISHING_CONTRACT.md) — implemented architecture contract; runtime Diagnostics behavior remains unstarted and `DG-G0` remains open.
+
 ## Current Truth
 
 Dispatch Board already has substantial foundations that Diagnostics must reuse:
