@@ -33,6 +33,17 @@ describe("enterprise command foundation", () => {
     expect(evaluateVehicleCapability({ actor: manager, capability: "VEHICLE_COMMAND_EXECUTE", grants: [{ ...grant, effect: "DENY" }], locationId: "loc-1", now: new Date("2026-07-14") }).reason).toBe("EXPLICIT_DENY");
   });
 
+  it("lets mechanics read repair orders without granting repair-order management", () => {
+    const now = new Date("2026-07-14");
+    expect(evaluateVehicleCapability({ actor: staff, capability: "INVENTORY_UNIT_VIEW", grants: [], locationId: null, now })).toEqual({ allowed: true, reason: "ROLE_DEFAULT" });
+    expect(evaluateVehicleCapability({ actor: staff, capability: "INVENTORY_UNIT_MANAGE", grants: [], locationId: null, now }).allowed).toBe(false);
+    expect(evaluateVehicleCapability({ actor: staff, capability: "REPAIR_ORDER_VIEW", grants: [], locationId: null, now })).toEqual({ allowed: true, reason: "ROLE_DEFAULT" });
+    expect(evaluateVehicleCapability({ actor: staff, capability: "VEHICLE_IDENTITY_CREATE", grants: [], locationId: null, now })).toEqual({ allowed: true, reason: "ROLE_DEFAULT" });
+    expect(evaluateVehicleCapability({ actor: staff, capability: "VEHICLE_COMMAND_EXECUTE", grants: [], locationId: null, now }).allowed).toBe(false);
+    expect(evaluateVehicleCapability({ actor: staff, capability: "REPAIR_ORDER_MANAGE", grants: [], locationId: null, now }).allowed).toBe(false);
+    expect(evaluateVehicleCapability({ actor: staff, capability: "REPAIR_ORDER_VIEW", grants: [{ capability: "REPAIR_ORDER_VIEW", constraints: {}, effect: "DENY", locationId: null, validFrom: new Date("2026-01-01"), validTo: null }], locationId: null, now }).reason).toBe("EXPLICIT_DENY");
+  });
+
   it("enforces delegated ownership and amount constraints", () => {
     const grant = { capability: "VEHICLE_COMMAND_EXECUTE", constraints: { maxAmountCents: 50_000, ownResourcesOnly: true }, effect: "ALLOW" as const, locationId: "loc-1", validFrom: new Date("2026-01-01"), validTo: null };
     expect(evaluateVehicleCapability({ actor: staff, amountCents: 49_000, capability: "VEHICLE_COMMAND_EXECUTE", grants: [grant], locationId: "loc-1", now: new Date("2026-07-14"), resourceOwnerUserId: staff.id }).allowed).toBe(true);

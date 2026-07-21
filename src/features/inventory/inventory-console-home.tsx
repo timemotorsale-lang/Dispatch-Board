@@ -1,6 +1,7 @@
 import { AlertTriangle, ArrowRight, Boxes, CarFront, CheckCircle2, ChevronRight, CircleDollarSign, ClipboardList, Clock3, Database, Download, FileCheck2, Gift, Handshake, History, Play, Search, ShieldCheck, Tags, Truck, Wrench } from "lucide-react";
 import Link from "next/link";
 import { InventoryConsoleSavedViews } from "./inventory-console-saved-views";
+import { InventorySavedViewsMenu } from "./inventory-saved-views-menu";
 import type { InventoryConsoleSavedViewModel, InventoryConsoleWorkView } from "@/server/inventory-console-saved-views";
 import type { InventoryConsoleOperationalFacts } from "@/server/inventory-console-home";
 import type { InventoryPriorityWorkItem } from "@/server/inventory-console-home/priority-work";
@@ -39,7 +40,7 @@ export function InventoryConsoleHome({ data }: { data: InventoryHomeData }) {
     <section className="inventory-console-home">
       <header className="ich-hero">
         <div><p>Operations Home</p><h1>Inventory Console</h1><span>My operational view&nbsp; • &nbsp;{data.locationId ? "Selected location" : "All Locations"}</span></div>
-        <div className="ich-hero-actions"><Link className="ich-primary-action" href="/vehicles/workflows"><Play size={16} />Start Workflow</Link><details className="ich-saved-view-menu"><summary>Saved Views</summary><div><InventoryConsoleSavedViews activeId={data.activeSavedViewId} activeView={data.savedView} canShare={data.canShareSavedViews} locationId={data.locationId} savedViews={data.savedViews} /></div></details><Link href="/reports?scope=inventory"><Download size={16} />Reports &amp; Exports</Link></div>
+        <div className="ich-hero-actions"><Link className="ich-primary-action" href="/vehicles/workflows"><Play size={16} />Start Workflow</Link><InventorySavedViewsMenu><InventoryConsoleSavedViews activeId={data.activeSavedViewId} activeView={data.savedView} canShare={data.canShareSavedViews} locationId={data.locationId} savedViews={data.savedViews} /></InventorySavedViewsMenu><Link href="/reports?scope=inventory"><Download size={16} />Reports &amp; Exports</Link></div>
       </header>
 
       {data.freshness !== "LIVE" ? <div className={`ich-data-state ich-data-${data.freshness.toLowerCase()}`} role="status">
