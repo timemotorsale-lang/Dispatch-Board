@@ -32,7 +32,7 @@ describe("diagnostics case console", () => {
   });
 
   it("renders the five-stage technician workspace without inventing evidence", () => {
-    const model = { state: "COMPLETE", generatedAt: "2026-07-20T14:00:00.000Z", viewer: { id: "tech-1", name: "Walter Mechanic" }, rollout: { executable: true, reason: "GENERAL" }, evidenceRollout: { executable: true, reason: "GENERAL" }, permissions: { canAssign: false, canTransition: true, canRecordEvidence: true, canLinkEvidence: true, canPlanTests: true, canExecuteTests: true }, assignableUsers: [], evidenceCandidates: [], evidenceReview: { state: "COMPLETE", reconstructionComplete: false, timeline: [], measurementMatrix: [], comparisons: [], conflicts: [], sources: [], lineage: [] }, diagnosticCase } as unknown as DiagnosticCaseWorkspaceModel;
+    const model = { state: "COMPLETE", generatedAt: "2026-07-20T14:00:00.000Z", viewer: { id: "tech-1", name: "Walter Mechanic" }, rollout: { executable: true, reason: "GENERAL" }, evidenceRollout: { executable: true, reason: "GENERAL" }, permissions: { canAssign: false, canTransition: true, canRecordEvidence: true, canLinkEvidence: true, canPlanTests: true, canExecuteTests: true }, assignableUsers: [], evidenceCandidates: [], evidenceReview: { state: "COMPLETE", reconstructionComplete: false, timeline: [], measurementMatrix: [], comparisons: [], conflicts: [], sources: [], lineage: [] }, qualitySafetyGates: { state: "COMPLETE", policyVersion: "DGN-019/1.0.0", evaluatedAt: "2026-07-20T14:00:00.000Z", disposition: "ABSTAIN", readyForReasoning: false, abstentionRequired: true, reasonCodes: ["REASONING_INSUFFICIENT_EVIDENCE"], counts: { currentObservations: 0, currentMeasurements: 0, invalid: 0, suspect: 0, independentGroups: 0 } }, diagnosticCase } as unknown as DiagnosticCaseWorkspaceModel;
     const html = renderToStaticMarkup(<DiagnosticCaseWorkspace model={model} />);
     for (const stage of ["Concern", "Evidence", "Test", "Cause", "Verify"]) expect(html).toContain(stage);
     expect(html).toContain("No observations recorded.");
@@ -42,6 +42,8 @@ describe("diagnostics case console", () => {
     expect(html).toContain("Battery loaded voltage");
     expect(html).toContain("Start test");
     expect(html).toContain("Evidence review");
+    expect(html).toContain("Quality &amp; safety gates");
+    expect(html).toContain("DGN-019/1.0.0");
     expect(html).not.toMatch(/\b\d{1,3}%\b/);
   });
 });

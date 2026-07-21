@@ -14,6 +14,7 @@ import {
 } from "./domain";
 import { diagnosticFactId, normalizeDiagnosticEvidenceLink, normalizeDiagnosticMeasurement, normalizeDiagnosticObservation } from "./evidence-domain";
 import { buildDiagnosticEvidenceReview } from "./evidence-review";
+import { buildDiagnosticCaseQualitySummary, DIAGNOSTIC_GATE_POLICY_VERSION } from "./quality-safety-gates";
 import { diagnosticTestId, normalizeDiagnosticTestDefinition, normalizeDiagnosticTestLifecycle, normalizeDiagnosticTestPlan, type DiagnosticTestLifecycleAction } from "./test-execution-domain";
 import { createDiagnosticCaseRepository, type DiagnosticCaseDetailRecord, type DiagnosticCaseIdentityRecord, type DiagnosticCaseRepository } from "./repository";
 
@@ -476,7 +477,10 @@ export async function getDiagnosticCaseWorkspace(actor: AuthenticatedUser | null
     assignableUsers: canAssign ? assignableUsers : [],
     evidenceCandidates: evidenceCandidates.filter((item) => item.accessLevel !== "RESTRICTED" || restrictedEvidenceView).map((item) => ({ ...item, retentionUntil: item.retentionUntil.toISOString(), linkable: item.status === "AVAILABLE" && item.malwareStatus === "CLEAN" })),
     diagnosticCase,
-    evidenceReview: buildDiagnosticEvidenceReview({ permitted: evidenceView, now: generatedAt, observations: diagnosticCase.observations, measurements: diagnosticCase.measurements, evidenceLinks: diagnosticCase.evidenceLinks, testExecutions: diagnosticCase.testExecutions, testPlans: diagnosticCase.testPlans })
+    evidenceReview: buildDiagnosticEvidenceReview({ permitted: evidenceView, now: generatedAt, observations: diagnosticCase.observations, measurements: diagnosticCase.measurements, evidenceLinks: diagnosticCase.evidenceLinks, testExecutions: diagnosticCase.testExecutions, testPlans: diagnosticCase.testPlans }),
+    qualitySafetyGates: evidenceView
+      ? { state: "COMPLETE" as const, ...buildDiagnosticCaseQualitySummary({ now: generatedAt, observations: diagnosticCase.observations, measurements: diagnosticCase.measurements }) }
+      : { state: "RESTRICTED" as const, policyVersion: DIAGNOSTIC_GATE_POLICY_VERSION, evaluatedAt: generatedAt.toISOString(), disposition: "ABSTAIN" as const, readyForReasoning: false, abstentionRequired: true, reasonCodes: ["AUTH_EVIDENCE_VIEW_REQUIRED"], counts: { currentObservations: 0, currentMeasurements: 0, invalid: 0, suspect: 0, independentGroups: 0 } }
   };
 }
 
