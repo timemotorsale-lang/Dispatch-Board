@@ -60,8 +60,8 @@ For the expanded build scope, affected layers, critical path, day-one boundary, 
 
 | ID | Deliverable | Depends on | Exit evidence |
 | --- | --- | --- | --- |
-| `DGN-020` | Rule/knowledge version contracts, initial ontology/knowledge-graph slice, and controlled seed package for starting/charging/no-start. | 003–004, 015 | Qualified review, graph traversal, checksums, applicability, citations, and rollback predecessor. |
-| `DGN-021` | Unit-safe electrical calculation library for initial workflow. | 020 | Boundary, property, wrong-unit, precision, and reference-case tests. |
+| `DGN-020` | **Implemented in source.** Tenant-scoped immutable source/rule-set/citation versions, independent review and withdrawal/rollback lineage, controlled generic no-start graph, and four governed test definitions. See [`implementation/DGN_020_021_KNOWLEDGE_CALCULATIONS_IMPLEMENTATION.md`](implementation/DGN_020_021_KNOWLEDGE_CALCULATIONS_IMPLEMENTATION.md). | 003–004, 015 | Review separation, traversal, deterministic checksums, citations, holds, applicability, withdrawal/abstention, tenant lineage, and rollback contracts pass; no held OEM source is activated. |
+| `DGN-021` | **Implemented in source.** Unit-safe Ohm/power/energy, Kirchhoff, series/parallel, loaded voltage-drop, timing, tolerance, speed/ratio, and torque library. | 020 | Reference, boundary, reversible-property, wrong-dimension/unit, conversion, precision, and physically impossible cases pass. |
 | `DGN-022` | Hypothesis aggregate, assumption-based truth maintenance, support/contradiction evidence, minimal conflict sets, and bounded minimal-diagnosis generation. | 013–020 | Single, multiple, common-cause, intermittent, retraction, conflict, rejection, and bounded-search tests. |
 | `DGN-023` | Deterministic rule evaluator, applicability resolver, consistency/causal evaluator, and reason-code explanations. | 019–022 | Golden scenarios, formal model examples, causal-prediction checks, and deterministic replay equality. |
 | `DGN-024` | Next-test candidate generator and eligibility filter. | 015–023 | Prerequisite, resource, hazard, capability, configuration, and source-expiry exclusions. |
