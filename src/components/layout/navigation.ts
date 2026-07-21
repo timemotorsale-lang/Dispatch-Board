@@ -101,7 +101,17 @@ export const dispatchNavigationItems: NavigationItem[] = [
     title: "Diagnostics",
     description: "Technician case queue, concern triage, and diagnostic execution.",
     icon: Stethoscope,
-    parentHref: "/board"
+    parentHref: "/board",
+    activePaths: ["/diagnostics/cases"],
+    matchExact: true
+  },
+  {
+    href: "/diagnostics/labor-guide",
+    title: "Labor Guide",
+    description: "Enterprise labor intelligence, estimate draft preparation, overlap, rate, and GP safeguards.",
+    icon: BookOpen,
+    isNested: true,
+    parentHref: "/diagnostics"
   },
   {
     href: "/customers",

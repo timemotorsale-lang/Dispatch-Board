@@ -5,19 +5,31 @@
 **Branch:** `codex/diagnostics-dgn-038-039-labor-guide-ui-planning`  
 **Applies to:** Release 3, `DGN-038` selectable estimate strategy direction and `DGN-039` Enterprise Labor Guide Module.
 
-## Adopted Mockup
+**Backend context:** [`DIAGNOSTICS_ENTERPRISE_LABOR_GUIDE_UI_BACKEND_CONTEXT.md`](DIAGNOSTICS_ENTERPRISE_LABOR_GUIDE_UI_BACKEND_CONTEXT.md)
 
-![Enterprise Labor Guide landing page approved mockup](assets/enterprise-labor-guide-landing-approved-mockup.png)
+## Adopted Mockups
+
+### Primary Light Background Direction
+
+![Enterprise Labor Guide landing page light mockup](assets/enterprise-labor-guide-landing-light-mockup.png)
+
+### Original Dark Background Reference
+
+![Enterprise Labor Guide landing page approved dark mockup](assets/enterprise-labor-guide-landing-approved-mockup.png)
 
 ## Product Decision
 
-This image is adopted as the official early landing-page UI direction for the **Enterprise Labor Guide Intelligence Module** inside the Diagnostics Console.
+The light-background image is adopted as the preferred official landing-page UI direction for the **Enterprise Labor Guide Intelligence Module** inside the Diagnostics Console.
 
-It is a source-of-truth for product direction, information architecture, role separation, and enterprise visual tone. It is not yet a pixel-perfect production specification.
+The original dark-background mockup remains retained as a secondary style reference because it established the approved information architecture, role separation, and enterprise command-center tone.
+
+These images are a source of truth for product direction, information architecture, role separation, and enterprise visual tone. They are not yet pixel-perfect production specifications.
+
+Backend behavior, data ownership, DVI-to-estimate conversion, labor calculations, parts query boundaries, and audit requirements are governed by the companion backend context document linked above.
 
 ## Why This Direction Is Adopted
 
-The approved mockup captures the Labor Guide Module as a true labor intelligence console instead of a static labor lookup table.
+The approved light mockup captures the Labor Guide Module as a true labor intelligence console instead of a static labor lookup table.
 
 It correctly combines:
 
