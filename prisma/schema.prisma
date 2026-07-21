@@ -832,6 +832,20 @@ enum DiagnosticConclusionStatus {
   ESCALATED
 }
 
+enum DiagnosticRepairHandoffType {
+  PUBLISH_DIAGNOSIS
+  REPAIR_RECOMMENDATION
+  ESTIMATE_AUTHORIZATION
+  DISPATCH_REQUIREMENTS
+  PARTS_READINESS
+}
+
+enum DiagnosticRepairHandoffStatus {
+  READY_FOR_REVIEW
+  PUBLISHED
+  BLOCKED
+}
+
 enum PartDemandStatus {
   OPEN
   PARTIALLY_RESERVED
@@ -1566,6 +1580,7 @@ model User {
   diagnosticAdaptiveTestOverrides       DiagnosticAdaptiveTestOverride[]       @relation("DiagnosticAdaptiveTestOverrideActor")
   authoredDiagnosticConclusions         DiagnosticConclusionVersion[]          @relation("DiagnosticConclusionAuthor")
   reviewedDiagnosticConclusions         DiagnosticConclusionVersion[]          @relation("DiagnosticConclusionReviewer")
+  authoredDiagnosticRepairHandoffs      DiagnosticRepairHandoffVersion[]       @relation("DiagnosticRepairHandoffAuthor")
   authoredDiagnosticKnowledgeSources    DiagnosticKnowledgeSourceVersion[]     @relation("DiagnosticKnowledgeSourceAuthor")
   technicalReviewedKnowledgeSources     DiagnosticKnowledgeSourceVersion[]     @relation("DiagnosticKnowledgeSourceTechnicalReviewer")
   rightsReviewedKnowledgeSources        DiagnosticKnowledgeSourceVersion[]     @relation("DiagnosticKnowledgeSourceRightsReviewer")
@@ -1841,6 +1856,7 @@ model Organization {
   diagnosticAdaptiveTestEvaluations     DiagnosticAdaptiveTestEvaluation[]
   diagnosticAdaptiveTestOverrides       DiagnosticAdaptiveTestOverride[]
   diagnosticConclusionVersions          DiagnosticConclusionVersion[]
+  diagnosticRepairHandoffVersions       DiagnosticRepairHandoffVersion[]
 }
 
 model Location {
@@ -3103,6 +3119,7 @@ model RepairOrder {
   closureEvents                RepairOrderClosureEvent[]
   inventoryFrontlineWorkflows  InventoryFrontlineWorkflow[]
   diagnosticCases              DiagnosticCase[]
+  diagnosticRepairHandoffs     DiagnosticRepairHandoffVersion[]
 
   @@unique([organizationId, repairOrderNumber])
   @@unique([id, organizationId])
@@ -3152,6 +3169,7 @@ model DiagnosticCase {
   adaptiveTestEvaluations DiagnosticAdaptiveTestEvaluation[]
   adaptiveTestOverrides   DiagnosticAdaptiveTestOverride[]
   conclusionVersions      DiagnosticConclusionVersion[]
+  repairHandoffVersions   DiagnosticRepairHandoffVersion[]
 
   @@unique([id, organizationId])
   @@unique([repairOrderId, concernKey])
@@ -3182,6 +3200,7 @@ model DiagnosticConcernVersion {
   measurements         DiagnosticMeasurement[]
   reasoningEvaluations DiagnosticReasoningEvaluation[]
   conclusionVersions   DiagnosticConclusionVersion[]
+  repairHandoffVersions DiagnosticRepairHandoffVersion[]
 
   @@unique([diagnosticCaseId, version])
   @@unique([id, organizationId])
@@ -3763,6 +3782,7 @@ model DiagnosticConclusionVersion {
   reviewerUser             User?                         @relation("DiagnosticConclusionReviewer", fields: [reviewerUserId], references: [id], onDelete: Restrict)
   supersedes               DiagnosticConclusionVersion?  @relation("DiagnosticConclusionSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
   supersededBy             DiagnosticConclusionVersion?  @relation("DiagnosticConclusionSupersession")
+  repairHandoffVersions    DiagnosticRepairHandoffVersion[]
 
   @@unique([diagnosticCaseId, version])
   @@unique([id, organizationId])
@@ -3849,9 +3869,53 @@ model RepairDiagnosisVersion {
   supersedes         RepairDiagnosisVersion? @relation("DiagnosisSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
   supersededBy       RepairDiagnosisVersion? @relation("DiagnosisSupersession")
   repairJobs         RepairJob[]
+  diagnosticHandoffs DiagnosticRepairHandoffVersion[]
 
   @@unique([repairOrderId, version])
   @@index([organizationId, diagnosedAt])
+}
+
+model DiagnosticRepairHandoffVersion {
+  id                       String                         @id
+  organizationId           String
+  diagnosticCaseId         String
+  repairOrderId            String
+  concernVersionId         String
+  conclusionVersionId      String
+  repairDiagnosisVersionId String?
+  version                  Int
+  handoffType              DiagnosticRepairHandoffType
+  status                   DiagnosticRepairHandoffStatus
+  recommendation           String
+  proposedCorrection       String
+  operations               Json
+  estimateBoundary         Json
+  dispatchBoundary         Json
+  partsBoundary            Json
+  sourceVersions           Json
+  policyVersion            String
+  conclusionChecksum       String
+  handoffChecksum          String
+  controlDecisionChecksum  String
+  authorUserId             String
+  supersedesId             String?                        @unique
+  occurredAt               DateTime
+  createdAt                DateTime                       @default(now())
+  organization             Organization                   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  diagnosticCase           DiagnosticCase                 @relation(fields: [diagnosticCaseId], references: [id], onDelete: Restrict)
+  repairOrder              RepairOrder                    @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  concernVersion           DiagnosticConcernVersion       @relation(fields: [concernVersionId], references: [id], onDelete: Restrict)
+  conclusionVersion        DiagnosticConclusionVersion    @relation(fields: [conclusionVersionId], references: [id], onDelete: Restrict)
+  repairDiagnosisVersion   RepairDiagnosisVersion?        @relation(fields: [repairDiagnosisVersionId], references: [id], onDelete: Restrict)
+  authorUser               User                           @relation("DiagnosticRepairHandoffAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  supersedes               DiagnosticRepairHandoffVersion? @relation("DiagnosticRepairHandoffSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy             DiagnosticRepairHandoffVersion? @relation("DiagnosticRepairHandoffSupersession")
+
+  @@unique([diagnosticCaseId, version])
+  @@unique([id, organizationId])
+  @@index([organizationId, repairOrderId, occurredAt])
+  @@index([organizationId, handoffType, status, occurredAt])
+  @@index([repairDiagnosisVersionId])
 }
 
 model RepairEstimateVersion {

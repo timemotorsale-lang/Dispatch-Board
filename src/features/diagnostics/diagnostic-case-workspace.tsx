@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, AlertTriangle, ArrowLeft, Check, ClipboardList, Eye, Gauge, Link2, Plus, RefreshCw, Ruler, ShieldAlert, Stethoscope, UserRound } from "lucide-react";
+import { Activity, AlertTriangle, ArrowLeft, Check, ClipboardList, Eye, Gauge, Link2, PackageCheck, Plus, RefreshCw, Ruler, ShieldAlert, Stethoscope, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -41,11 +41,16 @@ export function DiagnosticCaseWorkspace({ model }: { model: DiagnosticCaseWorksp
   const [causeStatement, setCauseStatement] = useState("");
   const [conclusionReason, setConclusionReason] = useState("");
   const [conclusionReviewerId, setConclusionReviewerId] = useState("");
+  const [handoffType, setHandoffType] = useState<"PUBLISH_DIAGNOSIS" | "REPAIR_RECOMMENDATION" | "ESTIMATE_AUTHORIZATION" | "DISPATCH_REQUIREMENTS" | "PARTS_READINESS">("PUBLISH_DIAGNOSIS");
+  const [repairRecommendation, setRepairRecommendation] = useState("");
+  const [proposedCorrection, setProposedCorrection] = useState("");
   const action = useMemo(() => primaryTransition(model), [model]);
   const item = model.diagnosticCase;
   const latestReasoning = item.reasoningEvaluations?.[0] ?? null;
   const latestAdaptiveTests = item.adaptiveTestEvaluations?.[0] ?? null;
   const latestConclusion = item.conclusionVersions?.[0] ?? null;
+  const latestHandoff = item.repairHandoffVersions?.[0] ?? null;
+  const publishedDiagnosis = item.repairHandoffVersions?.find((entry) => entry.handoffType === "PUBLISH_DIAGNOSIS" && entry.repairDiagnosisVersionId) ?? null;
   const commandEnabled = model.rollout.executable;
 
   async function execute(url: string, body: Record<string, unknown>) {
@@ -119,6 +124,17 @@ export function DiagnosticCaseWorkspace({ model }: { model: DiagnosticCaseWorksp
             <label className={styles.wideField}><span>Technical rationale or limitation</span><textarea maxLength={500} onChange={(event) => setConclusionReason(event.target.value)} placeholder="Explain the decision, remaining limitation, or escalation question." required rows={2} value={conclusionReason} /></label>
             {["CONFIRM", "SUPERSEDE"].includes(conclusionAction) && item.riskTier === "R3" ? <label><span>Independent reviewer</span><select onChange={(event) => setConclusionReviewerId(event.target.value)} value={conclusionReviewerId}><option value="">Select a different qualified reviewer</option>{model.assignableUsers.filter((entry) => entry.id !== model.viewer.id).map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}</select></label> : null}
             <button disabled={busy || !model.reasoningRollout?.executable || !model.permissions.canProposeConclusion || conclusionReason.trim().length < 10 || (!["ABSTAIN", "ESCALATE", "REJECT"].includes(conclusionAction) && (!conclusionHypothesisId || causeStatement.trim().length < 10)) || (["CONFIRM", "SUPERSEDE"].includes(conclusionAction) && !model.permissions.canConfirmConclusion)} type="submit">Record governed decision</button>
+          </form>
+        </section>
+
+        <section className={styles.handoffPanel}><header><div><span className={styles.eyebrow}>DGN-028-032 · Repair handoff</span><h2>Controlled repair package</h2><p>Publish the confirmed diagnosis, then hand recommendation, estimate, dispatch, and parts requirements to their owning consoles.</p></div><span>{latestHandoff ? label(latestHandoff.status) : "Not handed off"}</span></header>
+          {latestHandoff ? <article className={styles.handoffRecord}><PackageCheck /><div><strong>{label(latestHandoff.handoffType)}</strong><p>{latestHandoff.recommendation}</p><small>Handoff v{latestHandoff.version} · checksum {latestHandoff.handoffChecksum.slice(0, 12)}…{latestHandoff.repairDiagnosisVersion ? ` · repair diagnosis v${latestHandoff.repairDiagnosisVersion}` : ""}</small></div></article> : null}
+          {!model.publishingRollout?.executable ? <div className={styles.hold}><ShieldAlert size={17} /><span><strong>Publishing commands are held.</strong> Review is available ({label(model.publishingRollout?.reason ?? "FEATURE_DISABLED")}).</span></div> : null}
+          <form className={styles.handoffForm} onSubmit={(event) => { event.preventDefault(); const operationKey = (latestConclusion?.hypothesisId ?? "confirmed-cause").replaceAll("_", "-").toLocaleLowerCase(); void execute(`/api/diagnostics/cases/${encodeURIComponent(item.id)}/repair-handoffs`, { handoffType, conclusionId: latestConclusion?.id ?? null, recommendation: repairRecommendation, proposedCorrection, operations: [{ key: operationKey, description: proposedCorrection, workTypeCode: "DIAGNOSTIC_REPAIR", minimumMinutes: 30, likelyMinutes: 60, maximumMinutes: 120, requiredSkills: ["DIAGNOSTIC_REPAIR"], requiredCertifications: [], bayRequirements: ["SERVICE_BAY"], toolRequirements: ["STANDARD_REPAIR_TOOLS"], parts: [], hazards: item.riskTier === "R3" ? ["HIGH_RISK_REVIEW"] : [], procedures: ["Follow approved service information and shop repair procedure."], qcChecks: ["Verify the original concern no longer reproduces after repair."] }], advisorReviewRequired: true, customerAuthorizationRequired: true, changedScopeReturnPath: "Return changed scope to Diagnostics for superseding conclusion or limitation.", resourceRequirementOnly: true, demandSignalOnly: true, purchaseMutationProhibited: true, sourceVersions: latestConclusion?.sourceVersions ?? [], supersedesId: latestHandoff?.id ?? null, reason: `Record ${label(handoffType)} handoff from confirmed diagnostic conclusion.` }); }}>
+            <label><span>Handoff</span><select onChange={(event) => setHandoffType(event.target.value as typeof handoffType)} value={handoffType}><option value="PUBLISH_DIAGNOSIS">Publish repair diagnosis</option><option value="REPAIR_RECOMMENDATION">Repair recommendation</option><option value="ESTIMATE_AUTHORIZATION">Estimate / authorization</option><option value="DISPATCH_REQUIREMENTS">Dispatch requirements</option><option value="PARTS_READINESS">Parts readiness</option></select></label>
+            <label className={styles.wideField}><span>Recommendation</span><textarea onChange={(event) => setRepairRecommendation(event.target.value)} placeholder="Summarize what repair path should be reviewed next." required rows={2} value={repairRecommendation} /></label>
+            <label className={styles.wideField}><span>Proposed correction</span><textarea onChange={(event) => setProposedCorrection(event.target.value)} placeholder="Describe the correction package without creating an estimate, job, or parts order." required rows={2} value={proposedCorrection} /></label>
+            <button disabled={busy || !model.publishingRollout?.executable || !model.permissions.canRepairHandoff || latestConclusion?.status !== "CONFIRMED" || repairRecommendation.trim().length < 10 || proposedCorrection.trim().length < 10 || (handoffType !== "PUBLISH_DIAGNOSIS" && !publishedDiagnosis)} type="submit">Record repair handoff</button>
           </form>
         </section>
 
