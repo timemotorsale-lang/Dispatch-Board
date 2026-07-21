@@ -1,6 +1,6 @@
 # Diagnostics Console Planning Package
 
-**Status:** Foundation approved; DGN-007–014 case console and evidence foundation implemented in source
+**Status:** Foundation approved; DGN-007–016 case, evidence, test-plan, and execution foundations implemented in source
 
 **Established:** 2026-07-20  
 **Parent product:** Time Motor Sales Dispatch Board  
@@ -47,6 +47,7 @@ The console owns the evidence-driven diagnostic case and reasoning lifecycle. It
 - [`DGN-007–009 — Diagnostic Case Core Implementation`](implementation/DGN_007_009_CASE_CORE_IMPLEMENTATION.md) — persistence, commands, lifecycle, authority, audit/events/outbox, APIs, and focused verification implemented in source.
 - [`DGN-010–012 — Diagnostic Case Console Implementation`](implementation/DGN_010_012_CASE_CONSOLE_IMPLEMENTATION.md) — independent queue, technician case workspace, and governed Repair Order bridge implemented in source.
 - [`DGN-013–014 — Diagnostic Evidence Foundation Implementation`](implementation/DGN_013_014_EVIDENCE_FOUNDATION_IMPLEMENTATION.md) — immutable observations, normalized measurements, correction lineage, and governed Vehicle Evidence linking implemented in source.
+- [`DGN-015–016 — Diagnostic Test Planning and Execution Implementation`](implementation/DGN_015_016_TEST_EXECUTION_IMPLEMENTATION.md) — immutable definitions, validated case-plan graphs, and append-only execution lifecycle implemented in source.
 
 ## Current Truth
 
@@ -59,7 +60,7 @@ Dispatch Board already has substantial foundations that Diagnostics must reuse:
 - enterprise task, appointment, activity, audit, command, idempotency, optimistic-concurrency, event, and outbox patterns;
 - shop-repair optimization and enterprise automation/AI governance packages.
 
-The diagnostic case model, backend lifecycle, independent console, technician workspace, Repair Order bridge, immutable observation/measurement foundation, dimensional normalization, plausibility marking, correction lineage, and governed Vehicle Evidence linking are implemented in source through DGN-014. The migrations are not deployed by these branches and rollout remains disabled. Test definitions/plans/execution, hypothesis reasoning, conclusion publishing, knowledge administration, and the initial no-start execution workflow are **not yet implemented**. Source ingestion, reasoning, publishing, pilot, and AI remain gated.
+The diagnostic case model, backend lifecycle, independent console, technician workspace, Repair Order bridge, immutable observation/measurement foundation, governed Vehicle Evidence linking, immutable test definitions, case-plan graphs, and append-only test execution lifecycle are implemented in source through DGN-016. The migrations are not deployed by these branches and rollout remains disabled. The DGN-017 lab UI, DGN-018 evidence comparison, DGN-019 complete readiness evaluator, hypothesis reasoning, conclusion publishing, knowledge administration, and initial no-start execution workflow are **not yet implemented**. Source ingestion, reasoning, publishing, pilot, and AI remain gated.
 
 ## Non-Negotiable Product Principles
 
