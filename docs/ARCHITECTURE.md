@@ -2,8 +2,8 @@
 
 **Document:** Architecture  
 **Version:** v0.2.0 living baseline
-**Last updated:** 2026-07-10
-**Status:** Dispatch Board implemented; Enterprise Appointment E1 in progress; Enterprise Tasks and Customers Module directions refined
+**Last updated:** 2026-07-20
+**Status:** Dispatch Board implemented; Enterprise Appointment E1 in progress; Enterprise Tasks, Customers, and Diagnostics Console directions refined
 **Source documents:** `docs/PRODUCT_SPEC.md`, `docs/MVP_SCOPE.md`, `docs/CURRENT_IMPLEMENTATION_STATUS.md`, `docs/ENTERPRISE_TASKS_MODULE.md`, `docs/SCHEDULER_VERIFICATION_CONTRACT.md`, `docs/appointments/`, `docs/customers/`, `docs/The Guide To Vibe Coding.md`
 
 **Tasks Console UI source of truth:** [`docs/TASKS_CONSOLE_UI_SOURCE_OF_TRUTH.md`](TASKS_CONSOLE_UI_SOURCE_OF_TRUTH.md)
@@ -25,6 +25,8 @@
 > **Customers Console planning package:** The customer-domain boundary, architecture decisions, rollout roadmap, and milestone IDs live in [`docs/customers/README.md`](customers/README.md). That package defines Customers as the customer intelligence and customer operations layer inside the Dispatch Board, not a separate CRM deployment or a copy of another product.
 
 > **Manager Review Command Center planning package:** The approved UI/UX source of truth, review-domain boundary, deterministic Manager Attention Engine, rollout roadmap, and implementation milestone IDs live in [`docs/manager-review/README.md`](manager-review/README.md). That package defines Manager Review as the decision, quality-control, and intervention layer inside the Dispatch Board, not a separate task system or employee performance-review product.
+
+> **Enterprise Diagnostics Console planning package:** The independent diagnostic-domain boundary, evidence/reasoning architecture, algorithm and consistency specifications, ontology/knowledge graph, integrated diagnostic lab suite, mastery/verification controls, phased roadmap, and implementation milestone IDs live in [`docs/diagnostics/README.md`](diagnostics/README.md). Diagnostics is a first-class console inside Dispatch Board, not part of Inventory, not a separate deployment, and not a parallel vehicle or repair-order system. This package is planned architecture and does not by itself activate diagnostic behavior.
 
 ---
 
