@@ -104,6 +104,7 @@ export function WorkflowLauncher({ model, orchestration = defaultOrchestration }
   const [collection, setCollection] = useState<Collection>("RECOMMENDED");
   const [favorites, setFavorites] = useState<string[]>([]);
   const [query, setQuery] = useState("");
+  const [queryDraft, setQueryDraft] = useState("");
   const [recent, setRecent] = useState<string[]>([]);
   const [view, setView] = useState<ViewMode>("CARDS");
 
@@ -128,6 +129,7 @@ export function WorkflowLauncher({ model, orchestration = defaultOrchestration }
   function chooseCollection(next: Collection) {
     setCollection(next);
     setQuery("");
+    setQueryDraft("");
   }
 
   function remember(cardId: string) {
@@ -150,16 +152,19 @@ export function WorkflowLauncher({ model, orchestration = defaultOrchestration }
       </header>
 
       <div className="ewl-controls">
-        <label className="ewl-search">
+        <form className="ewl-search-form" onSubmit={(event) => { event.preventDefault(); setQuery(queryDraft.trim()); }} role="search">
+          <label className="ewl-search">
           <Search size={20} />
           <span className="sr-only">Search workflows</span>
           <input
-            onChange={event => setQuery(event.target.value)}
+            onChange={(event) => { const value = event.target.value; setQueryDraft(value); if (!value) setQuery(""); }}
             placeholder="Search workflows, VIN, stock #, customer, or repair order…"
             type="search"
-            value={query}
+            value={queryDraft}
           />
-        </label>
+          </label>
+          <button className="ewl-search-submit" type="submit"><Search size={17} />Search</button>
+        </form>
         <div aria-label="Workflow scope" className="ewl-segmented">
           <button aria-pressed="true" type="button">This Console</button>
           <button aria-disabled="true" disabled title="All CCC becomes available after enterprise registry onboarding." type="button">All CCC</button>

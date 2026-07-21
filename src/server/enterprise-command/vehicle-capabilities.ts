@@ -3,6 +3,7 @@ import { isGeneralManager, isManager } from "@/server/policies/access";
 
 export const VEHICLE_CAPABILITIES = [
   "VEHICLE_OPERATIONS_VIEW",
+  "VEHICLE_IDENTITY_CREATE",
   "VEHICLE_COMMAND_EXECUTE",
   "VEHICLE_ROLLOUT_MANAGE",
   "VEHICLE_HEALTH_VIEW",
@@ -44,6 +45,10 @@ export type VehicleCapabilityGrantRecord = {
   validTo: Date | null;
 };
 
+const ROLE_DEFAULT_CAPABILITIES: Readonly<Record<string, readonly VehicleCapability[]>> = {
+  Mechanic: ["INVENTORY_UNIT_VIEW", "REPAIR_ORDER_VIEW", "VEHICLE_OPERATIONS_VIEW", "VEHICLE_IDENTITY_CREATE"]
+};
+
 export function evaluateVehicleCapability(input: {
   actor: AuthenticatedUser | null;
   capability: VehicleCapability;
@@ -77,6 +82,9 @@ export function evaluateVehicleCapability(input: {
       : { allowed: false, reason: "GENERAL_MANAGER_OR_GRANT_REQUIRED" } as const;
   }
   if (isManager(input.actor)) return { allowed: true, reason: "MANAGER_DEFAULT" } as const;
+  if (input.actor.roles.some((role) => ROLE_DEFAULT_CAPABILITIES[role]?.includes(input.capability))) {
+    return { allowed: true, reason: "ROLE_DEFAULT" } as const;
+  }
   return matching.some((grant) => grant.effect === "ALLOW")
     ? { allowed: true, reason: "EXPLICIT_GRANT" } as const
     : { allowed: false, reason: "CAPABILITY_REQUIRED" } as const;

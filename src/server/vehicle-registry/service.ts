@@ -56,7 +56,7 @@ export async function createRegistryVehicle(actor: AuthenticatedUser | null, val
   const context = deps(input); const raw = record(value, "Vehicle create request"); const id = randomUUID();
   const normalized = normalizeVehicleIdentity({ ...raw, vehicleNumber: typeof raw.vehicleNumber === "string" && raw.vehicleNumber.trim() ? raw.vehicleNumber : `VEH-${id.slice(0, 8).toUpperCase()}` });
   const { idempotencyKey, locationId, reason, ...identity } = normalized;
-  const user = await authorize(actor, "VEHICLE_COMMAND_EXECUTE", locationId, context, true);
+  const user = await authorize(actor, "VEHICLE_IDENTITY_CREATE", locationId, context, true);
   const workflowContext = raw.workflowContext && typeof raw.workflowContext === "object" && !Array.isArray(raw.workflowContext) ? raw.workflowContext as Record<string, unknown> : null;
   const payload = workflowContext ? { ...identity, workflowContext } : identity;
   return context.repository.createVehicle(command({ actorUserId: user.id, commandType: "CREATE_VEHICLE", expectedVersion: 0, idempotencyKey, locationId, organizationId: context.organizationId, payload, reason, subjectId: id }), identity);

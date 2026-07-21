@@ -85,4 +85,16 @@ describe("Inventory Console Workflow Launcher", () => {
     expect(markup).toContain("My Drafts");
     expect(markup).toContain("Get a recommendation");
   });
+
+  it("offers Add Vehicle and an explicit searchable command to mechanics", () => {
+    const actor: AuthenticatedUser = { id: "mechanic", name: "Walter Mechanic", email: "mechanic@example.com", isActive: true, roles: ["Mechanic"], duties: { direct: [], roleDefaults: [], all: [] } };
+    const model = getInventoryWorkflowLauncher(actor);
+    const markup = renderToStaticMarkup(<WorkflowLauncher model={model} />);
+    const addVehicle = model.cards.find((card) => card.id === "WL-01");
+
+    expect(addVehicle).toMatchObject({ enabled: true, href: "/vehicles/workflows/add-vehicle?returnTo=%2Fvehicles%2Fworkflows" });
+    expect(markup).toContain('role="search"');
+    expect(markup).toContain('class="ewl-search-submit"');
+    expect(markup).toContain("Add Vehicle");
+  });
 });
