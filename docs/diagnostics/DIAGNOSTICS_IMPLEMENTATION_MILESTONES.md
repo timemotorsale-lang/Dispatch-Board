@@ -20,7 +20,7 @@ For the expanded build scope, affected layers, critical path, day-one boundary, 
 
 | ID | Deliverable | Depends on | Exit evidence |
 | --- | --- | --- | --- |
-| `DGN-001` | Architecture decision record and source-authority map. Confirm owned/shared records and publish contract to `RepairDiagnosisVersion`. | None | Architecture review; no parallel-system conflicts. |
+| `DGN-001` | **Complete — contract only.** Architecture decision record and source-authority map. Confirm owned/shared records and publish contract to `RepairDiagnosisVersion`. See [`implementation/DGN_001_DOMAIN_AUTHORITY_AND_DIAGNOSIS_PUBLISHING_CONTRACT.md`](implementation/DGN_001_DOMAIN_AUTHORITY_AND_DIAGNOSIS_PUBLISHING_CONTRACT.md). | None | Architecture review complete; current whole-RO supersession limitation named for DGN-006/DGN-028; no runtime behavior claimed. |
 | `DGN-002` | Product charter, roles, capabilities, safety-risk tiers, separation-of-duties matrix, and escalation ownership. | 001 | Approved authority matrix and denied-command scenarios. |
 | `DGN-003` | Current-shop workflow map, diagnostic ontology/vocabulary, mastery/quality model, initial no-start scope, exclusions, and scenario catalog. | 001–002 | Qualified technical review, ontology traversal, balanced quality review, and gold-case acceptance. |
 | `DGN-004` | Knowledge-source/license register and first-workflow ingestion decision. | 001 | Rights, attribution, retention, withdrawal, and prohibited-use disposition for every source. |

@@ -487,6 +487,8 @@ An independent Enterprise Diagnostics Console has been approved as a first-class
 
 This is planning status only. The `/diagnostics` console, diagnostic-case persistence, reasoning engine, knowledge administration, hardware adapters, and initial starting/charging/no-start workflow are not implemented by this package.
 
+`DGN-001` is complete as an architecture-contract milestone on the Diagnostics implementation program. It establishes the source-of-truth matrix, independent Diagnostics aggregate boundary, canonical `RepairDiagnosisVersion` publishing authority, atomic publish/idempotency/concurrency contract, concern-specific supersession rule, event/audit requirements, and acceptance scenarios. It intentionally changes no runtime behavior. `DG-G0` remains open pending `DGN-002` through `DGN-006`.
+
 ## Current Execution Order
 
 1. Complete and accept Appointment architecture decisions.
