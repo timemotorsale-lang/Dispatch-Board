@@ -64,6 +64,13 @@ describe("DGN-038 estimate strategy engine", () => {
       type: "LABOR",
       sourceOperationKey: "alternator-replacement"
     });
+    expect(result.selectedOutput.laborGuideResultChecksum).toMatch(/^[0-9a-f]{64}$/);
+    expect(result.selectedOutput.laborGuideRecommendations[0]).toMatchObject({
+      matchedCatalogOperationKey: "MECH_ALTERNATOR_R_AND_R",
+      domain: "MECHANICAL",
+      complexityTier: "HIGH"
+    });
+    expect(result.laborGuideEvaluation.summary.sourceVersions).toContain("TMS_DIAGNOSTIC_LABOR_GUIDE@2026.07.21");
   });
 });
 

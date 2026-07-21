@@ -2,7 +2,7 @@
 
 This directory contains evidence-backed records for completed Diagnostics implementation milestones. A milestone record distinguishes contract completion from runtime behavior and names every remaining gate.
 
-> Release 3 update: `DGN-038` is now implemented in source. See [`DGN_038_ESTIMATE_STRATEGY_ENGINE_IMPLEMENTATION.md`](DGN_038_ESTIMATE_STRATEGY_ENGINE_IMPLEMENTATION.md). `DGN-039` through `DGN-044` remain planning-only until their implementation branches are completed.
+> Release 3 update: `DGN-038` and `DGN-039` are now implemented in source. See [`DGN_038_ESTIMATE_STRATEGY_ENGINE_IMPLEMENTATION.md`](DGN_038_ESTIMATE_STRATEGY_ENGINE_IMPLEMENTATION.md) and [`DGN_039_LABOR_GUIDE_FOUNDATION_IMPLEMENTATION.md`](DGN_039_LABOR_GUIDE_FOUNDATION_IMPLEMENTATION.md). `DGN-040` through `DGN-044` remain planning-only until their implementation branches are completed.
 >
 > DGN-039 autobody planning is adopted in [`DGN_039_AUTOBODY_ESTIMATE_CAPABILITY_PLANNING.md`](DGN_039_AUTOBODY_ESTIMATE_CAPABILITY_PLANNING.md), covering bodywork, paint/refinish, structural/frame, ADAS/calibration, supplements, insurance/customer-pay workflows, and productivity optimization.
 
