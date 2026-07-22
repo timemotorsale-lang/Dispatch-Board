@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 
 import { DiagnosticCaseWorkspace } from "@/features/diagnostics/diagnostic-case-workspace";
 import { DiagnosticAdvisorReviewConsole } from "@/features/diagnostics/advisor-review-console";
@@ -24,17 +24,30 @@ const diagnosticCase = {
 
 describe("diagnostics case console", () => {
   it("renders the permission-filtered command queue with operational signals", () => {
-    const model = { state: "COMPLETE", freshness: "CURRENT", restricted: false, generatedAt: "2026-07-20T14:00:00.000Z", viewer: { id: "tech-1", name: "Walter Mechanic" }, rollout: { executable: false, reason: "DIAGNOSTICS_MASTER_OFF" }, summary: { mine: 1, waiting: 0, escalated: 0, unassigned: 0 }, items: [diagnosticCase] } as unknown as DiagnosticsCommandCenterModel;
+    const model = {
+      state: "COMPLETE", freshness: "CURRENT", restricted: false, generatedAt: "2026-07-20T14:00:00.000Z",
+      viewer: { id: "tech-1", name: "Walter Mechanic" }, rollout: { executable: false, reason: "MASTER_DISABLED" },
+      permissions: { canAssign: false, canCreate: true },
+      operationalReadiness: {
+        vinAndOemData: { label: "Controlled", state: "PILOT" }, evidenceLedger: { label: "Controlled", state: "PILOT" },
+        laborIntelligence: { label: "Pilot", state: "PILOT" }, auditTrail: { label: "Active", state: "HEALTHY" }
+      },
+      summary: { active: 1, awaitingTest: 1, blocked: 0, readyForHandoff: 0, mine: 1, waiting: 0, escalated: 0, unassigned: 0, today: { opened: 1, diagnosed: 0, verified: 0 } },
+      items: [diagnosticCase]
+    } as unknown as DiagnosticsCommandCenterModel;
     const html = renderToStaticMarkup(<DiagnosticsCommandCenter model={model} />);
     expect(html).toContain("Diagnostics Command Center");
-    expect(html).toContain("Labor Guide");
-    expect(html).toContain("Advisor Review");
-    expect(html).toContain("Autobody Estimate");
-    expect(html).toContain("Pilot Gate");
+    expect(html).toContain("New Diagnostic Case");
+    expect(html).toContain('href="/diagnostics/intake"');
+    expect(html).toContain("Scan VIN");
+    expect(html).toContain("Priority Case Queue");
+    expect(html).toContain("Operational Readiness");
+    expect(html).toContain("Evidence Ledger");
+    expect(html).toContain("Bulk Actions");
     expect(html).toContain("Intermittent no-start after hot soak");
     expect(html).toContain("2020 Ford F-150");
-    expect(html).toContain("Read-only foundation");
-    expect(html).toContain("Confidence Not assessed");
+    expect(html).toContain("Live review is available");
+    expect(html).toContain("Not assessed");
   });
 
   it("renders the five-stage technician workspace without inventing evidence", () => {

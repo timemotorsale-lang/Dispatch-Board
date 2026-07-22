@@ -1,0 +1,523 @@
+.layout div:has(> label > textarea[maxlength="2000"]) {
+  grid-template-columns: minmax(0, 4fr) minmax(170px, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 800px) {
+  .layout div:has(> label > textarea[maxlength="2000"]) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.concernReport {
+  display: grid;
+  gap: 14px;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.liveDiagnosticReport {
+  order: -1;
+  overflow: hidden;
+  border: 2px solid #285ce5;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(32, 75, 173, .1);
+}
+
+.liveDiagnosticReport > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 20px;
+  border-bottom: 1px solid #dce5f2;
+  background: linear-gradient(135deg, #f7f9ff, #fff);
+}
+
+.liveDiagnosticReport header span,
+.liveReportGrid article > span {
+  color: #2859d9;
+  font-size: .69rem;
+  font-weight: 850;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.liveDiagnosticReport h2 {
+  margin: 4px 0;
+  font-size: 1.35rem;
+}
+
+.liveDiagnosticReport header p,
+.liveDiagnosticReport footer p {
+  margin: 0;
+  color: #64748b;
+}
+
+.liveDiagnosticReport header > b {
+  flex: none;
+  max-width: 230px;
+  border-radius: 999px;
+  padding: 7px 11px;
+  text-align: center;
+  font-size: .7rem;
+}
+
+.liveReportGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 0 20px;
+}
+
+.liveReportGrid article {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  min-width: 0;
+  padding: 15px 16px 15px 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.liveReportGrid article:nth-child(even) {
+  padding-right: 0;
+  padding-left: 16px;
+  border-left: 1px solid #e2e8f0;
+}
+
+.liveReportGrid article strong {
+  color: #172033;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.liveReportGrid article small {
+  color: #66758a;
+  line-height: 1.45;
+}
+
+.reportedProblem,
+.preliminaryAssessment,
+.reportNextAction {
+  grid-column: 1 / -1;
+  padding-right: 0 !important;
+  padding-left: 0 !important;
+  border-left: 0 !important;
+}
+
+.reportedProblem strong {
+  font-size: 1.05rem;
+}
+
+.preliminaryAssessment {
+  border-radius: 8px;
+  background: #fffaf0;
+  padding: 14px !important;
+}
+
+.reportNextAction {
+  border-bottom: 0 !important;
+}
+
+.liveDiagnosticReport > footer {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 20px;
+  border-top: 1px solid #dce5f2;
+  background: #f7f9ff;
+}
+
+.liveDiagnosticReport > footer button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  border: 1px solid #285ce5;
+  border-radius: 8px;
+  background: #285ce5;
+  padding: 10px 14px;
+  color: #fff;
+  font: inherit;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.liveDiagnosticReport > footer svg {
+  width: 17px;
+}
+
+.reportHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid #e0e7ef;
+  background: linear-gradient(135deg, #fff, #f4f7ff);
+}
+
+.reportHeader span,
+.conditionWorkbench header span,
+.handoffPreview header span,
+.concernSummary header span {
+  color: #2859d9;
+  font-size: .7rem;
+  font-weight: 850;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.reportHeader h2 {
+  margin: 5px 0;
+  font-size: 1.65rem;
+}
+
+.reportHeader p {
+  margin: 0;
+  color: #617087;
+}
+
+.reportHeader > strong {
+  flex: none;
+  border-radius: 999px;
+  padding: 7px 11px;
+  font-size: .72rem;
+  text-transform: uppercase;
+}
+
+.actionRequired {
+  border: 1px solid #edca79;
+  background: #fff7df;
+  color: #93600a;
+}
+
+.reportReady {
+  border: 1px solid #a9d4ba;
+  background: #eff9f3;
+  color: #247547;
+}
+
+.reportMetrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  padding: 0 24px;
+}
+
+.reportMetrics article {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 9px;
+  min-width: 0;
+  border: 1px solid #dce4ed;
+  border-radius: 10px;
+  background: #fbfcfe;
+  padding: 13px;
+}
+
+.reportMetrics svg {
+  grid-row: 1 / 4;
+  width: 21px;
+  color: #2b5de0;
+}
+
+.reportMetrics span {
+  color: #65748a;
+  font-size: .72rem;
+  font-weight: 750;
+}
+
+.reportMetrics strong {
+  font-size: 1.05rem;
+}
+
+.reportMetrics small {
+  overflow: hidden;
+  color: #718096;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reportSummaryGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.75fr) minmax(260px, .75fr);
+  gap: 12px;
+  padding: 0 24px;
+}
+
+.concernSummary,
+.nextActionPanel,
+.conditionWorkbench,
+.handoffPreview {
+  border: 1px solid #dce4ed;
+  border-radius: 11px;
+  background: #fff;
+}
+
+.concernSummary {
+  padding: 16px;
+}
+
+.concernSummary header,
+.conditionWorkbench header,
+.handoffPreview header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.concernSummary h3,
+.conditionWorkbench h3,
+.handoffPreview h3 {
+  margin: 4px 0 0;
+  font-size: 1.05rem;
+}
+
+.concernSummary header b,
+.conditionWorkbench header b,
+.handoffPreview header b {
+  border-radius: 6px;
+  background: #edf2ff;
+  padding: 5px 8px;
+  color: #2859d9;
+  font-size: .68rem;
+}
+
+.concernSummary label {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  margin-top: 13px;
+}
+
+.concernSummary label > span,
+.clarificationField > span {
+  color: #46556b;
+  font-size: .75rem;
+  font-weight: 800;
+}
+
+.concernSummary textarea,
+.clarificationField textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cbd6e2;
+  border-radius: 8px;
+  padding: 11px;
+  color: #172033;
+  font: inherit;
+  resize: vertical;
+}
+
+.concernSummary label small {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  color: #68778c;
+}
+
+.concernSummary p {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 10px 0 0;
+  color: #607087;
+  font-size: .75rem;
+}
+
+.concernSummary p svg {
+  width: 16px;
+  color: #2c60e4;
+}
+
+.nextActionPanel {
+  border-left: 4px solid #f0a51b;
+  padding: 16px;
+  background: #fffcf5;
+}
+
+.nextActionPanel > span {
+  color: #93600a;
+  font-size: .7rem;
+  font-weight: 850;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.nextActionPanel h3 {
+  margin: 7px 0;
+  font-size: 1.15rem;
+}
+
+.nextActionPanel p {
+  margin: 0 0 12px;
+  color: #647187;
+  line-height: 1.5;
+}
+
+.nextActionPanel > strong {
+  font-size: .75rem;
+}
+
+.nextActionPanel ul {
+  display: grid;
+  gap: 7px;
+  margin: 8px 0 13px;
+  padding: 0;
+  list-style: none;
+}
+
+.nextActionPanel li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #79530c;
+  font-size: .78rem;
+}
+
+.nextActionPanel li svg {
+  width: 15px;
+}
+
+.nextActionPanel button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  border: 1px solid #d4b467;
+  border-radius: 7px;
+  background: #fff;
+  padding: 9px 11px;
+  color: #74500d;
+  font: inherit;
+  font-weight: 800;
+}
+
+.nextActionPanel button svg {
+  width: 16px;
+}
+
+.readyCallout {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  border: 1px solid #a9d4ba;
+  border-radius: 8px;
+  background: #eff9f3;
+  padding: 10px;
+  color: #247547;
+  font-weight: 800;
+}
+
+.readyCallout svg {
+  width: 18px;
+}
+
+.conditionWorkbench,
+.handoffPreview {
+  margin: 0 24px;
+  padding: 16px;
+}
+
+.conditionWorkbench header,
+.handoffPreview header {
+  margin-bottom: 13px;
+}
+
+.clarificationField {
+  display: grid;
+  gap: 6px;
+  margin-top: 13px;
+}
+
+.handoffPreview {
+  margin-bottom: 22px;
+  background: #f9fbff;
+}
+
+.handoffPreview > div {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+
+.handoffPreview article {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  border-top: 1px solid #e1e7ef;
+  padding-top: 10px;
+}
+
+.handoffPreview article > svg {
+  flex: none;
+  width: 17px;
+  color: #2a9655;
+}
+
+.handoffPreview article span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.handoffPreview article small {
+  overflow: hidden;
+  color: #67758a;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1050px) {
+  .reportMetrics {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .reportSummaryGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .reportHeader,
+  .concernSummary header,
+  .conditionWorkbench header,
+  .handoffPreview header {
+    display: grid;
+  }
+
+  .reportMetrics,
+  .liveReportGrid,
+  .handoffPreview > div {
+    grid-template-columns: 1fr;
+  }
+
+  .liveDiagnosticReport > header,
+  .liveDiagnosticReport > footer {
+    display: grid;
+  }
+
+  .liveReportGrid article,
+  .liveReportGrid article:nth-child(even) {
+    grid-column: 1;
+    padding-right: 0;
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .reportMetrics,
+  .reportSummaryGrid {
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+
+  .conditionWorkbench,
+  .handoffPreview {
+    margin-right: 14px;
+    margin-left: 14px;
+  }
+}

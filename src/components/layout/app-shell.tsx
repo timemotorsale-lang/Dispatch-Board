@@ -33,6 +33,11 @@ function AppShellContent({ children, user }: AppShellProps) {
   const hasSidebar = commandCenterHome || Boolean(consoleNavigation);
   const tasksWorkspace = pathname.startsWith("/tasks");
   const sidebarCompact = commandCenterHome && tasksWorkspace && mode !== "standard";
+  const showTaskIntakeLauncher = dispatchConsole
+    && pathname !== "/board"
+    && !pathname.startsWith("/diagnostics")
+    && pathname !== "/tasks/intake"
+    && pathname !== "/prototype/task-intake";
 
   return (
     <div
@@ -54,7 +59,7 @@ function AppShellContent({ children, user }: AppShellProps) {
         <AppTopbar commandCenterHome={commandCenterHome} onMenuOpen={() => setNavigationOpen(true)} showNavigationMenu={hasSidebar} user={user} />
         {dispatchConsole ? <DispatchConsoleHeader user={user} /> : null}
         <main className="app-content">{children}</main>
-        {dispatchConsole && pathname !== "/board" && pathname !== "/tasks/intake" && pathname !== "/prototype/task-intake" ? (
+        {showTaskIntakeLauncher ? (
           <Link aria-label="Open Task Intake" className="global-task-intake-launcher" href={`/tasks/intake?returnTo=${encodeURIComponent(pathname)}`} title="Create work from this console">
             <ClipboardPlus size={18} /><span>Task Intake</span>
           </Link>

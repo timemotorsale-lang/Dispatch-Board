@@ -85,6 +85,19 @@ It must not directly:
 
 Those actions remain owned by their existing Dispatch Board authorities.
 
+## Live Diagnostic-System Navigation
+
+The System / Operation Navigator is an active, server-provided diagnostic catalog rather than a static mockup. It must:
+
+- cover the major mechanical, electrical, network, chassis, HVAC, ADAS, hybrid/EV, diesel, NVH, body/safety, maintenance, and collision/refinish systems;
+- expand each system into selectable diagnostic operations with common concerns, initial tests, skills, tools, and verification expectations;
+- search across system titles, descriptions, symptoms, aliases, and operations;
+- provide a governed custom-investigation fallback when no standard category matches instead of forcing an incorrect classification;
+- update labor, scope, complexity, requirements, draft, comparison, and history panels when an operation is selected;
+- load the active repair order from the authoritative repair-order service and link its RO number to the complete Repair Order Workbench;
+- route advisor-draft creation to Advisor Review with the selected operation and repair-order context;
+- remain advisory-only until the established estimate, authorization, parts, and dispatch authorities accept the handoff.
+
 ## Acceptance Notes
 
 Before production activation, this UI direction still requires:

@@ -636,9 +636,20 @@ export type DiagnosticsCommandCenterModel = Awaited<ReturnType<typeof getDiagnos
 export async function getDiagnosticsCommandCenter(actor: AuthenticatedUser | null, input: Dependencies = {}) {
   const read = await diagnosticsReadContext(actor, input);
   const now = read.context.now();
+  const health = await read.context.foundationRepository.readHealth(read.context.organizationId, now);
   const rollout = evaluateDiagnosticsFeature(read.flags, "DIAGNOSTIC_CASES", read.user.id, null);
+  const evidenceRollout = evaluateDiagnosticsFeature(read.flags, "DIAGNOSTIC_EVIDENCE", read.user.id, null);
+  const knowledgeRollout = evaluateDiagnosticsFeature(read.flags, "DIAGNOSTIC_KNOWLEDGE", read.user.id, null);
   const items = read.cases.map((item) => projectCase(item, now));
   const broadView = evaluateVehicleCapability({ actor: read.user, capability: "DIAGNOSTIC_CASE_VIEW", grants: read.grants, locationId: null, now });
+  const locations = [...new Set(read.cases.map((item) => item.locationId))];
+  const canAtAnyLocation = (capability: VehicleCapability) => {
+    const candidates = locations.length ? locations : [null];
+    return candidates.some((locationId) => evaluateVehicleCapability({ actor: read.user, capability, grants: read.grants, locationId, now }).allowed);
+  };
+  const active = items.filter((item) => !terminalStatuses.has(item.status));
+  const todayKey = now.toISOString().slice(0, 10);
+  const auditHealthy = health.deadLetters === 0 && health.projectionFailures === 0;
   return {
     state: "COMPLETE" as const,
     freshness: "CURRENT" as const,
@@ -646,11 +657,30 @@ export async function getDiagnosticsCommandCenter(actor: AuthenticatedUser | nul
     generatedAt: now.toISOString(),
     viewer: { id: read.user.id, name: read.user.name },
     rollout: { executable: rollout.executable, reason: rollout.reason },
+    permissions: {
+      canAssign: canAtAnyLocation("DIAGNOSTIC_CASE_ASSIGN"),
+      canCreate: canAtAnyLocation("DIAGNOSTIC_CASE_CREATE")
+    },
+    operationalReadiness: {
+      vinAndOemData: { label: knowledgeRollout.enabled ? (knowledgeRollout.executable ? "Online" : "Controlled") : "Not enabled", state: knowledgeRollout.executable ? "HEALTHY" as const : "PILOT" as const },
+      evidenceLedger: { label: evidenceRollout.enabled ? (evidenceRollout.executable ? "Healthy" : "Controlled") : "Not enabled", state: evidenceRollout.executable ? "HEALTHY" as const : "PILOT" as const },
+      laborIntelligence: { label: "Pilot", state: "PILOT" as const },
+      auditTrail: { label: auditHealthy ? "Active" : "Attention", state: auditHealthy ? "HEALTHY" as const : "ATTENTION" as const }
+    },
     summary: {
+      active: active.length,
+      awaitingTest: active.filter((item) => ["DRAFT", "TRIAGE", "TEST_PLAN_READY", "WAITING_FOR_TOOL"].includes(item.status)).length,
+      blocked: active.filter((item) => waitingStatuses.has(item.status) || item.status === "ESCALATED").length,
+      readyForHandoff: active.filter((item) => ["CONFIRMED", "REPAIR_PLANNING"].includes(item.status)).length,
       mine: items.filter((item) => item.assignedUser?.id === read.user.id && !terminalStatuses.has(item.status)).length,
       waiting: items.filter((item) => waitingStatuses.has(item.status)).length,
       escalated: items.filter((item) => item.status === "ESCALATED").length,
-      unassigned: items.filter((item) => !item.assignedUser && !terminalStatuses.has(item.status)).length
+      unassigned: items.filter((item) => !item.assignedUser && !terminalStatuses.has(item.status)).length,
+      today: {
+        opened: items.filter((item) => item.openedAt.startsWith(todayKey)).length,
+        diagnosed: items.filter((item) => item.updatedAt.startsWith(todayKey) && ["CONFIRMED", "REPAIR_PLANNING", "HANDED_OFF", "POST_REPAIR_VERIFICATION", "VERIFIED_CLOSED"].includes(item.status)).length,
+        verified: items.filter((item) => item.closedAt?.startsWith(todayKey) && item.status === "VERIFIED_CLOSED").length
+      }
     },
     items
   };
