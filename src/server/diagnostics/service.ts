@@ -656,7 +656,7 @@ export async function getDiagnosticsCommandCenter(actor: AuthenticatedUser | nul
     restricted: !broadView.allowed && items.length === 0,
     generatedAt: now.toISOString(),
     viewer: { id: read.user.id, name: read.user.name },
-    rollout: { executable: rollout.executable, reason: rollout.reason },
+    rollout: { executable: rollout.executable, reason: rollout.reason, targetAt: rollout.targetAt },
     permissions: {
       canAssign: canAtAnyLocation("DIAGNOSTIC_CASE_ASSIGN"),
       canCreate: canAtAnyLocation("DIAGNOSTIC_CASE_CREATE")

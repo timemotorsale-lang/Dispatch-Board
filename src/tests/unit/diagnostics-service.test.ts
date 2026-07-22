@@ -10,7 +10,7 @@ const technician: AuthenticatedUser = { id: "tech-1", name: "Technician", email:
 const limited: AuthenticatedUser = { id: "limited-1", name: "Limited", email: "limited@example.com", isActive: true, roles: ["Advisor"], duties: { all: [], direct: [], roleDefaults: [] } };
 
 function flag(code: string, mode: VehicleFeatureFlagRecord["mode"]): VehicleFeatureFlagRecord {
-  return { id: code, organizationId: "org-1", locationId: null, code, mode, rolloutPercent: mode === "GENERAL" ? 100 : 0, allowedUserIds: [], version: 1, updatedAt: new Date("2026-07-20T00:00:00Z") };
+  return { id: code, organizationId: "org-1", locationId: null, code, mode, rolloutPercent: mode === "GENERAL" ? 100 : 0, allowedUserIds: [], targetAt: null, version: 1, updatedAt: new Date("2026-07-20T00:00:00Z") };
 }
 
 function foundation(overrides: Partial<EnterpriseCommandRepository> = {}): EnterpriseCommandRepository {

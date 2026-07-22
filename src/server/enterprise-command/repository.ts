@@ -28,6 +28,7 @@ export type VehicleFeatureFlagRecord = {
   mode: "OFF" | "SHADOW" | "PILOT" | "GENERAL";
   rolloutPercent: number;
   allowedUserIds: Prisma.JsonValue;
+  targetAt: Date | null;
   version: number;
   updatedAt: Date;
 };
@@ -36,7 +37,7 @@ export type EnterpriseCommandRepository = {
   commit(input: EnterpriseCommandCommitInput): Promise<{ command: EnterpriseCommandRecord; duplicate: boolean; version: number }>;
   listCapabilityGrants(userId: string, organizationId: string): Promise<Array<{ capability: string; constraints: Prisma.JsonValue; effect: "ALLOW" | "DENY"; locationId: string | null; validFrom: Date; validTo: Date | null }>>;
   listFeatureFlags(organizationId: string): Promise<VehicleFeatureFlagRecord[]>;
-  updateFeatureFlag(input: { actorUserId: string; allowedUserIds: string[]; code: string; correlationId: string; expectedVersion: number; locationId: string | null; mode: VehicleFeatureFlagRecord["mode"]; organizationId: string; reason: string; rolloutPercent: number }): Promise<VehicleFeatureFlagRecord>;
+  updateFeatureFlag(input: { actorUserId: string; allowedUserIds: string[]; code: string; correlationId: string; expectedVersion: number; locationId: string | null; mode: VehicleFeatureFlagRecord["mode"]; organizationId: string; reason: string; rolloutPercent: number; targetAt: Date | null }): Promise<VehicleFeatureFlagRecord>;
   rollbackFeatureFlag?(input: { actorUserId: string; code: string; correlationId: string; expectedVersion: number; locationId: string | null; organizationId: string; reason: string }): Promise<VehicleFeatureFlagRecord>;
   readHealth(organizationId: string, now: Date): Promise<{ commands24h: number; failedCommands24h: number; pendingOutbox: number; deadLetters: number; oldestPendingAt: Date | null; projectionFailures: number; maxProjectionLagSeconds: number }>;
   claimReadyOutbox(now: Date, limit: number): Promise<Array<{ id: string; attemptCount: number; maxAttempts: number; payload: Prisma.JsonValue; topic: string }>>;
@@ -79,14 +80,14 @@ export function createEnterpriseCommandRepository(database: PrismaClient = prism
       return database.vehicleCapabilityGrant.findMany({ where: { userId, organizationId }, select: { capability: true, constraints: true, effect: true, locationId: true, validFrom: true, validTo: true } });
     },
     listFeatureFlags(organizationId) {
-      return database.vehicleOperationsFeatureFlag.findMany({ where: { organizationId }, orderBy: [{ code: "asc" }], select: { id: true, organizationId: true, locationId: true, code: true, mode: true, rolloutPercent: true, allowedUserIds: true, version: true, updatedAt: true } });
+      return database.vehicleOperationsFeatureFlag.findMany({ where: { organizationId }, orderBy: [{ code: "asc" }], select: { id: true, organizationId: true, locationId: true, code: true, mode: true, rolloutPercent: true, allowedUserIds: true, targetAt: true, version: true, updatedAt: true } });
     },
     updateFeatureFlag(input) {
       return database.$transaction(async (tx) => {
         const prior = await tx.vehicleOperationsFeatureFlag.findFirst({ where: { organizationId: input.organizationId, locationId: input.locationId, code: input.code } });
         if (!prior) throw new Error("Vehicle Operations feature flag was not found.");
         if (prior.version !== input.expectedVersion) throw new EnterpriseCommandConflictError(`Expected feature version ${input.expectedVersion}, but current version is ${prior.version}.`, "VERSION_CONFLICT");
-        const next = await tx.vehicleOperationsFeatureFlag.update({ where: { id: prior.id }, data: { mode: input.mode, rolloutPercent: input.rolloutPercent, allowedUserIds: input.allowedUserIds, version: { increment: 1 }, updatedByUserId: input.actorUserId }, select: { id: true, organizationId: true, locationId: true, code: true, mode: true, rolloutPercent: true, allowedUserIds: true, version: true, updatedAt: true } });
+        const next = await tx.vehicleOperationsFeatureFlag.update({ where: { id: prior.id }, data: { mode: input.mode, rolloutPercent: input.rolloutPercent, allowedUserIds: input.allowedUserIds, targetAt: input.targetAt, version: { increment: 1 }, updatedByUserId: input.actorUserId }, select: { id: true, organizationId: true, locationId: true, code: true, mode: true, rolloutPercent: true, allowedUserIds: true, targetAt: true, version: true, updatedAt: true } });
         await tx.vehicleOperationsRolloutEvent.create({ data: { organizationId: input.organizationId, actorUserId: input.actorUserId, action: "FEATURE_FLAG_UPDATED", reason: input.reason, priorState: json(prior), nextState: json(next), correlationId: input.correlationId } });
         return next;
       });
@@ -101,7 +102,8 @@ export function createEnterpriseCommandRepository(database: PrismaClient = prism
         const event = events.find(candidate => { const next = object(candidate.nextState); return next?.id === prior.id && Number(next.version) === prior.version; }), target = event ? object(event.priorState) : null, mode = target?.mode;
         if (!target || !["OFF", "SHADOW", "PILOT", "GENERAL"].includes(String(mode))) throw new Error("No prior rollout state is available for exact rollback.");
         const allowedUserIds = Array.isArray(target.allowedUserIds) ? target.allowedUserIds.filter((value): value is string => typeof value === "string") : [], rolloutPercent = Number(target.rolloutPercent ?? 0);
-        const next = await tx.vehicleOperationsFeatureFlag.update({ where: { id: prior.id }, data: { mode: mode as VehicleFeatureFlagRecord["mode"], rolloutPercent, allowedUserIds, version: { increment: 1 }, updatedByUserId: input.actorUserId }, select: { id: true, organizationId: true, locationId: true, code: true, mode: true, rolloutPercent: true, allowedUserIds: true, version: true, updatedAt: true } });
+        const targetAt = typeof target.targetAt === "string" || target.targetAt instanceof Date ? new Date(String(target.targetAt)) : null;
+        const next = await tx.vehicleOperationsFeatureFlag.update({ where: { id: prior.id }, data: { mode: mode as VehicleFeatureFlagRecord["mode"], rolloutPercent, allowedUserIds, targetAt: targetAt && !Number.isNaN(targetAt.getTime()) ? targetAt : null, version: { increment: 1 }, updatedByUserId: input.actorUserId }, select: { id: true, organizationId: true, locationId: true, code: true, mode: true, rolloutPercent: true, allowedUserIds: true, targetAt: true, version: true, updatedAt: true } });
         await tx.vehicleOperationsRolloutEvent.create({ data: { organizationId: input.organizationId, actorUserId: input.actorUserId, action: "FEATURE_FLAG_ROLLED_BACK", reason: input.reason, priorState: json(prior), nextState: json(next), correlationId: input.correlationId } });
         return next;
       });
