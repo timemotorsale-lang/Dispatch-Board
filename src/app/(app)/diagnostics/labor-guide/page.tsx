@@ -3,10 +3,14 @@ import { requireCurrentUser } from "@/server/auth/current-user";
 import { LABOR_GUIDE_DIAGNOSTIC_NAVIGATION } from "@/server/diagnostics/labor-guide-navigation";
 import { listRepairOrders } from "@/server/repair-order/service";
 
-export default async function DiagnosticsLaborGuidePage() {
+type PageProps = { searchParams?: Promise<{ repairOrderId?: string | string[] }> };
+
+export default async function DiagnosticsLaborGuidePage({ searchParams }: PageProps) {
   const user = await requireCurrentUser();
+  const params = searchParams ? await searchParams : {};
+  const requestedRepairOrderId = Array.isArray(params.repairOrderId) ? params.repairOrderId[0] : params.repairOrderId;
   const orders = await listRepairOrders(user, { page: 1, pageSize: 10, state: "ACTIVE" }).catch(() => ({ items: [] }));
-  const active = orders.items[0];
+  const active = orders.items.find((order) => order.id === requestedRepairOrderId) ?? orders.items[0];
   const activeRepairOrder = active ? {
     id: active.id,
     repairOrderNumber: active.repairOrderNumber,
@@ -19,6 +23,11 @@ export default async function DiagnosticsLaborGuidePage() {
     },
   } : null;
 
-  return <EnterpriseLaborGuideConsole activeRepairOrder={activeRepairOrder} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} />;
+  const repairOrders = orders.items.map((order) => ({
+    id: order.id,
+    label: `${order.repairOrderNumber} - ${[order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber}`,
+  }));
+
+  return <EnterpriseLaborGuideConsole activeRepairOrder={activeRepairOrder} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} repairOrders={repairOrders} />;
 }
 
