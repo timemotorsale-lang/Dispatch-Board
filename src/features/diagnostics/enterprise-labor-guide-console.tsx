@@ -71,8 +71,8 @@ function scoreOperation(query: string, item: LaborRepairOperation | ManualOperat
 
 export function EnterpriseLaborGuideConsole({ activeRepairOrder, catalog, laborAddOns, repairOrders = [], repairTaxonomy }: { activeRepairOrder: ActiveRepairOrder | null; catalog: LaborGuideNavigationCategory[]; laborAddOns: { id: string; label: string; hours: number }[]; repairOrders?: { id: string; label: string }[]; repairTaxonomy: LaborOperationSystem[] }) {
   const [mode, setMode] = useState<"manual" | "engine">("manual");
-  const [packageOperations, setPackageOperations] = useState<ManualOperation[]>(approvedManualPackage);
-  const [intelligencePrompt, setIntelligencePrompt] = useState("Replace front right lower control arm and both rear shocks");
+  const [packageOperations, setPackageOperations] = useState<ManualOperation[]>(activeRepairOrder ? approvedManualPackage : []);
+  const [intelligencePrompt, setIntelligencePrompt] = useState("");
   const [engineGenerated, setEngineGenerated] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [selectedAddOnIds, setSelectedAddOnIds] = useState<string[]>([]);
@@ -99,6 +99,9 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, catalog, laborA
   const laborAmount = totalHours * 120.13;
   const partsEstimate = packageOperations.length ? 412.35 : 0;
   const activeRoHref = activeRepairOrder ? `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(activeRepairOrder.id)}` : "/vehicles/repair-workbench?view=all";
+  const checkInHref = "/vehicles/repair-orders?intakeSource=WALK_IN&returnTo=%2Fdiagnostics%2Flabor-guide";
+  const addVehicleHref = checkInHref;
+  const customerHref = "/customers";
   const advisorHref = `/diagnostics/advisor-review?operation=${encodeURIComponent(packageOperations[0]?.id ?? "manual-labor-package")}${activeRepairOrder ? `&repairOrderId=${encodeURIComponent(activeRepairOrder.id)}` : ""}`;
 
   function navigateToRepairOrder(value: string) {
@@ -122,6 +125,11 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, catalog, laborA
   function activateIntelligenceEngine(prompt = intelligencePrompt) {
     setMode("engine");
     const normalized = prompt.toLocaleLowerCase();
+    if (!normalized.trim()) {
+      setPackageOperations([]);
+      setEngineGenerated(false);
+      return;
+    }
     const scored = [
       ...repairOperations.map((manual) => ({ manual, score: scoreOperation(normalized, manual) })),
       ...diagnosticOperations.map(({ category, operation, manual }) => ({ manual, score: scoreOperation(normalized, manual, category, operation) })),
@@ -170,11 +178,12 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, catalog, laborA
               </select>
               <ChevronDown />
             </label>
+            <a className={styles.contextLink} href={activeRepairOrder ? activeRoHref : checkInHref}>{activeRepairOrder ? "Open RO" : "Check in / create RO"}</a>
           </div>
         </div>
-        <div className={styles.vehicleContext}><CarFront /><div><span>Vehicle</span><strong>{activeRepairOrder?.vehicle.label ?? "No vehicle selected"}</strong></div></div>
-        <div className={styles.vinContext}><div><span>VIN</span><strong>{activeRepairOrder?.vehicle.vin ?? "VIN required"}</strong><small>Odometer: Not recorded</small></div><button aria-label="Copy VIN" disabled={!activeRepairOrder} onClick={() => activeRepairOrder ? navigator.clipboard.writeText(activeRepairOrder.vehicle.vin) : undefined} type="button"><Copy /></button></div>
-        <div className={styles.concernContext}><UserRound /><div><span>Customer / Concern</span><strong>{activeRepairOrder ? `Customer states: ${activeRepairOrder.concern}` : "Select an active RO to load the customer concern."}</strong></div></div>
+        <div className={styles.vehicleContext}><CarFront /><div><span>Vehicle</span><strong>{activeRepairOrder?.vehicle.label ?? "No vehicle selected"}</strong><a className={styles.contextLink} href={activeRepairOrder ? activeRoHref : addVehicleHref}>{activeRepairOrder ? "Open vehicle in RO" : "Add vehicle"}</a></div></div>
+        <div className={styles.vinContext}><div><span>VIN</span><strong>{activeRepairOrder?.vehicle.vin ?? "VIN required"}</strong><small>Odometer: Not recorded</small><a className={styles.contextLink} href={activeRepairOrder ? activeRoHref : addVehicleHref}>{activeRepairOrder ? "Verify VIN" : "Add VIN / vehicle"}</a></div><button aria-label="Copy VIN" disabled={!activeRepairOrder} onClick={() => activeRepairOrder ? navigator.clipboard.writeText(activeRepairOrder.vehicle.vin) : undefined} type="button"><Copy /></button></div>
+        <div className={styles.concernContext}><UserRound /><div><span>Customer / Concern</span><strong>{activeRepairOrder ? `Customer states: ${activeRepairOrder.concern}` : "Select or create an RO to load the customer concern."}</strong><a className={styles.contextLink} href={activeRepairOrder ? activeRoHref : customerHref}>{activeRepairOrder ? "Open concern in RO" : "Open customers"}</a></div></div>
       </section>
 
       <div className={styles.modeSwitch} role="tablist" aria-label="Labor guide mode">
@@ -251,9 +260,10 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, catalog, laborA
             <div><dt><Sparkles />Parts Demand (Est.)</dt><dd>{money(partsEstimate)}</dd></div>
             <div><dt><ShieldCheck />Gross Profit Safeguard</dt><dd className={styles.gpValue}>31.8%</dd></div>
           </dl>
+          {!activeRepairOrder ? <section className={styles.contextWarning}><ClipboardList /><div><strong>Vehicle and RO required</strong><span>Select or create the repair order before estimate draft, authorization, dispatch, or work-order conversion.</span></div></section> : null}
           <section className={styles.reviewWarning}><ShieldCheck /><div><strong>Advisor Review Required</strong><span>Draft only - no dispatch, no parts order, no authorization.</span></div></section>
           <section className={styles.authorityBoundary}><Lock /><div><strong>Authority Boundary</strong><span>Labor Guide prepares the draft. Customer authorization happens from the RO / estimate.</span></div><b>Draft Only</b></section>
-          <div className={styles.previewActions}><a className={styles.primaryAction} href={advisorHref}><FileText />Add to Estimate Draft</a><a href={advisorHref}><Send />Send to Advisor Review</a><a href={activeRoHref}><Copy />Convert to Work Order Lines</a><a href={activeRoHref}><ClipboardList />Open RO / Estimate for Customer Authorization</a></div>
+          <div className={styles.previewActions}><a className={styles.primaryAction} href={activeRepairOrder ? advisorHref : checkInHref}><FileText />{activeRepairOrder ? "Add to Estimate Draft" : "Create RO Before Estimate"}</a><a href={activeRepairOrder ? advisorHref : activeRoHref}><Send />{activeRepairOrder ? "Send to Advisor Review" : "Select Active RO"}</a><a href={activeRepairOrder ? activeRoHref : checkInHref}><Copy />{activeRepairOrder ? "Convert to Work Order Lines" : "Check In Vehicle"}</a><a href={activeRoHref}><ClipboardList />Open RO / Estimate for Customer Authorization</a></div>
         </aside>
       </div>
 
@@ -261,7 +271,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, catalog, laborA
         <header><h2>Labor Intelligence Engine (Preview) <span>Beta</span></h2><div><button disabled={!activeRepairOrder} onClick={useActiveConcern} type="button">Use Active RO Concern</button><button onClick={() => activateIntelligenceEngine()} type="button">Generate Work Package <span>-&gt;</span></button></div></header>
         <div className={styles.engineContent}>
           <div className={styles.engineExplanation}><Sparkles /><p>Describe the repair in your own words and our engine will parse it into structured operations.</p></div>
-          <label><span>Describe the repair or concern</span><textarea aria-label="Describe repair or concern" onChange={(event) => setIntelligencePrompt(event.target.value)} value={intelligencePrompt} /></label>
+          <label><span>Describe the repair or concern</span><textarea aria-label="Describe repair or concern" onChange={(event) => setIntelligencePrompt(event.target.value)} placeholder="Example: replace front right lower control arm and both rear shocks, or customer states clunking over bumps" value={intelligencePrompt} /></label>
           <div className={styles.parsedOutput}><strong>Parsed Output (Preview)</strong><div><span><b>System</b>{packageOperations[0]?.system ?? "Not selected"}</span><span><b>Operation</b>{packageOperations[0]?.operation ?? "Draft"}</span><span><b>Position</b>{packageOperations.map((item) => item.position).join("; ") || "Not selected"}</span><span><b>Quantity</b>{packageOperations.length}</span></div><p>{engineGenerated ? "Work package generated for advisor review." : "Enter a concern, then generate a governed work package."}</p></div>
         </div>
       </section>

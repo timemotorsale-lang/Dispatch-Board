@@ -19,7 +19,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export type ServiceIntakeOptions = {
   appointments: Array<{ appointmentNumber: string; id: string; locationId: string; startsAt: string | null; title: string; participants: Array<{ customer: null | { customerNumber?: string; displayName: string; email?: string | null; id: string; phoneNumber?: string | null } }>; vehicles: Array<{ vehicle: { color?: string | null; id: string; licensePlate?: string | null; make: string | null; model: string | null; vehicleNumber: string; vin?: string | null; year: number | null } }> }>;
@@ -75,6 +75,8 @@ const local = (date: Date) => new Date(date.getTime() - date.getTimezoneOffset()
 const vehicleLabel = (vehicle: ServiceIntakeOptions["vehicles"][number]) =>
   `${[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || "Vehicle"} · ${vehicle.vehicleNumber}`;
 
+const serviceIntakeDraftKey = "service-intake-active-draft-v1";
+
 function buildInitial(options: ServiceIntakeOptions): IntakeState {
   const now = new Date();
   return {
@@ -102,7 +104,17 @@ function buildInitial(options: ServiceIntakeOptions): IntakeState {
   };
 }
 
-export function ServiceIntakeWorkspace({ options }: { options: ServiceIntakeOptions }) {
+function appendRepairOrderContext(href: string, repairOrderId: string) {
+  const separator = href.includes("?") ? "&" : "?";
+  return `${href}${separator}repairOrderId=${encodeURIComponent(repairOrderId)}`;
+}
+
+function mergeById<T extends { id: string }>(current: T[], saved: T[] = []) {
+  return [...current, ...saved.filter((item) => !current.some((record) => record.id === item.id))];
+}
+
+export function ServiceIntakeWorkspace({ options, returnTo }: { options: ServiceIntakeOptions; returnTo?: string }) {
+  const concernRef = useRef<HTMLTextAreaElement>(null);
   const [form, setForm] = useState<IntakeState>(() => buildInitial(options));
   const [arrivalQuery, setArrivalQuery] = useState("");
   const [arrivalMode, setArrivalMode] = useState<"recent" | "search" | "today">("search");
@@ -148,6 +160,20 @@ export function ServiceIntakeWorkspace({ options }: { options: ServiceIntakeOpti
     { label: "Consent disposition", ready: form.consentStatus !== "DOCUMENTED" || Boolean(form.consentReference && form.consentedAt) },
   ];
   const ready = checklist.every((item) => item.ready);
+  const nextActionLabel = !form.customerId
+    ? "Add / Select Customer"
+    : !form.vehicleId
+      ? "Add / Select Vehicle"
+      : form.concernSummary.trim().length < 10
+        ? "Capture Customer Concern"
+        : !readiness
+          ? "Refresh Live Readiness"
+          : !form.ownerUserId || !form.targetAt
+            ? "Complete Owner & Target"
+            : form.consentStatus === "DOCUMENTED" && (!form.consentReference || !form.consentedAt)
+              ? "Complete Authorization"
+              : "Complete Check-In & Create Repair Order";
+  const noticeIsError = /could not|invalid|required|cannot|failed|unavailable|complete the required/i.test(notice);
 
   const evaluateReadiness = useCallback(async () => {
     if (!form.customerId || !form.vehicleId || !form.locationId || !form.arrivedAt) {
@@ -177,6 +203,42 @@ export function ServiceIntakeWorkspace({ options }: { options: ServiceIntakeOpti
     return () => window.clearTimeout(timer);
   }, [evaluateReadiness]);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const saved = window.localStorage.getItem(serviceIntakeDraftKey);
+      if (!saved) return;
+      try {
+        const draft = JSON.parse(saved) as Partial<{
+          customerRecords: ServiceIntakeOptions["customers"];
+          form: IntakeState;
+          vehicleRecords: ServiceIntakeOptions["vehicles"];
+        }>;
+        const draftForm = draft.form;
+        if (draft.customerRecords) setCustomerRecords((records) => mergeById(records, draft.customerRecords));
+        if (draft.vehicleRecords) setVehicleRecords((records) => mergeById(records, draft.vehicleRecords));
+        if (draftForm) {
+          setForm((current) => ({
+            ...current,
+            ...draftForm,
+            locationId: options.locations.some((location) => location.id === draftForm.locationId) ? draftForm.locationId : current.locationId,
+            ownerUserId: options.users.some((user) => user.id === draftForm.ownerUserId) ? draftForm.ownerUserId : current.ownerUserId,
+          }));
+        }
+        setNotice("Saved service-intake draft restored. Continue from the next required step.");
+      } catch {
+        window.localStorage.removeItem(serviceIntakeDraftKey);
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [options.locations, options.users]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      window.localStorage.setItem(serviceIntakeDraftKey, JSON.stringify({ customerRecords, form, returnTo, savedAt: new Date().toISOString(), vehicleRecords }));
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [customerRecords, form, returnTo, vehicleRecords]);
+
   function update<K extends keyof IntakeState>(key: K, value: IntakeState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
@@ -188,11 +250,13 @@ export function ServiceIntakeWorkspace({ options }: { options: ServiceIntakeOpti
   function chooseCustomer(customerId: string) {
     update("customerId", customerId);
     setArrivalQuery("");
+    setNotice(form.vehicleId ? "Customer selected. Capture the concern, then refresh live readiness." : "Customer selected. Add or select the vehicle next.");
   }
 
   function chooseVehicle(vehicleId: string) {
     update("vehicleId", vehicleId);
     setArrivalQuery("");
+    setNotice(form.customerId ? "Vehicle selected. Capture the concern, then refresh live readiness." : "Vehicle selected. Add or select the customer next.");
   }
 
   function chooseAppointment(appointment: ServiceIntakeOptions["appointments"][number]) {
@@ -202,6 +266,31 @@ export function ServiceIntakeWorkspace({ options }: { options: ServiceIntakeOpti
     if (vehicle && !vehicleRecords.some((record) => record.id === vehicle.id)) setVehicleRecords((records) => [...records, vehicle]);
     setForm((current) => ({ ...current, customerId: customer?.id ?? current.customerId, vehicleId: vehicle?.id ?? current.vehicleId, locationId: appointment.locationId || current.locationId }));
     setArrivalQuery("");
+    setNotice("Appointment context selected. Confirm the concern and live readiness before creating the repair order.");
+  }
+
+  function runNextRequiredAction() {
+    if (!form.customerId) {
+      setDrawer("customer");
+      setNotice("Add or select the canonical customer before the repair order can be created.");
+      return;
+    }
+    if (!form.vehicleId) {
+      setDrawer("vehicle");
+      setNotice("Add or select the canonical vehicle before the repair order can be created.");
+      return;
+    }
+    if (form.concernSummary.trim().length < 10) {
+      concernRef.current?.focus();
+      setNotice("Capture the customer concern before creating the repair order.");
+      return;
+    }
+    if (!readiness) {
+      void evaluateReadiness();
+      setNotice("Refreshing live readiness. The repair order can be created after appointment and capacity facts are available.");
+      return;
+    }
+    setNotice("Complete the remaining owner, target, or authorization fields before creating the repair order.");
   }
 
   async function createCustomer() {
@@ -236,7 +325,7 @@ export function ServiceIntakeWorkspace({ options }: { options: ServiceIntakeOpti
     setBusy(true);
     setNotice("");
     try {
-      const response = await fetch("/api/vehicles", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...newVehicle, year: newVehicle.year ? Number(newVehicle.year) : null, locationId: form.locationId, idempotencyKey: crypto.randomUUID(), reason: "Create a canonical customer vehicle during governed service intake." }) });
+      const response = await fetch("/api/service-intake/vehicles", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...newVehicle, year: newVehicle.year ? Number(newVehicle.year) : null, locationId: form.locationId, idempotencyKey: crypto.randomUUID(), reason: "Create a canonical customer vehicle during governed service intake." }) });
       const body = await response.json().catch(() => ({}));
       if (!response.ok || !body.result?.id) throw new Error(body.error ?? "Vehicle could not be created.");
       const vehicle = { ...newVehicle, id: String(body.result.id), year: newVehicle.year ? Number(newVehicle.year) : null, vehicleNumber: String(body.result.vehicleNumber), vin: normalizedVin } satisfies ServiceIntakeOptions["vehicles"][number];
@@ -280,7 +369,7 @@ export function ServiceIntakeWorkspace({ options }: { options: ServiceIntakeOpti
         const appointmentBody = await appointmentResponse.json().catch(() => ({}));
         if (!appointmentResponse.ok || !appointmentBody.accepted) throw new Error(appointmentBody.error ?? appointmentBody.execution?.rejectionReasons?.join(" ") ?? "The matched appointment could not be checked in.");
       }
-      const response = await fetch("/api/repair-orders", {
+      const response = await fetch("/api/service-intake/repair-orders", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -317,7 +406,9 @@ export function ServiceIntakeWorkspace({ options }: { options: ServiceIntakeOpti
       if (!response.ok) throw new Error(body.error ?? "Vehicle check-in failed.");
       const result = body.result as { id: string; repairOrderNumber: string };
       setCreated(result);
+      window.localStorage.removeItem(serviceIntakeDraftKey);
       setNotice(`${result.repairOrderNumber} was created and placed into Shop & Recon.`);
+      if (returnTo) window.location.assign(appendRepairOrderContext(returnTo, result.id));
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Vehicle check-in failed.");
     } finally {
@@ -326,19 +417,20 @@ export function ServiceIntakeWorkspace({ options }: { options: ServiceIntakeOpti
   }
 
   if (created) {
+    const returnHref = returnTo ? appendRepairOrderContext(returnTo, created.id) : "/vehicles/shop-recon";
     return <section className="service-intake-shell service-intake-complete">
       <div className="sic-success-icon"><CheckCircle2 /></div>
       <p>Check-in complete</p>
       <h1>{created.repairOrderNumber}</h1>
       <span>{selectedCustomer?.displayName} · {selectedVehicle ? vehicleLabel(selectedVehicle) : "Vehicle"}</span>
       <div className="sic-success-summary"><strong>Ready for intake review</strong><span>The governed repair order, customer concern, custody details, owner, target, and audit evidence are now available to Shop &amp; Recon.</span></div>
-      <div className="sic-success-actions"><Link className="primary" href={`/vehicles/repair-workbench?repairOrderId=${created.id}`}>Open repair workbench <ChevronRight /></Link><Link href="/vehicles/shop-recon">Return to Shop &amp; Recon</Link></div>
+      <div className="sic-success-actions"><Link className="primary" href={returnTo ? returnHref : `/vehicles/repair-workbench?repairOrderId=${created.id}`}>{returnTo ? "Return to Labor Guide" : "Open repair workbench"} <ChevronRight /></Link><Link href={`/vehicles/repair-workbench?repairOrderId=${created.id}`}>Open repair workbench</Link><Link href="/vehicles/shop-recon">Return to Shop &amp; Recon</Link></div>
     </section>;
   }
 
   return <form className="service-intake-shell sic-reference-v2" onSubmit={submit}>
     <header className="sic-header">
-      <div><Link className="sic-back-to-shop" href="/vehicles/shop-recon">← Back to Shop &amp; Recon</Link><span className="sic-advisor-label">Advisor Workspace</span><i /><h1>Check In Vehicle</h1><span className="sic-governed"><ShieldCheck />Governed intake</span></div>
+      <div><Link className="sic-back-to-shop" href={returnTo ?? "/vehicles/shop-recon"}>{returnTo ? "← Back to Labor Guide" : "← Back to Shop & Recon"}</Link><span className="sic-advisor-label">Advisor Workspace</span><i /><h1>Check In Vehicle</h1><span className="sic-governed"><ShieldCheck />Governed intake</span></div>
       <div className="sic-header-state"><ShieldCheck /><span><strong>Governed intake</strong>Canonical records, policy gates, and audit history are enforced.</span></div>
     </header>
 
@@ -346,7 +438,7 @@ export function ServiceIntakeWorkspace({ options }: { options: ServiceIntakeOpti
       <span className="active"><b>1</b><i>Find Arrival</i></span><em /><span><b>2</b><i>Appointment &amp; Capacity</i></span><em /><span><b>3</b><i>Customer Concern</i></span><em /><span><b>4</b><i>Authorization &amp; Handoff</i></span>
     </nav>
 
-    {notice ? <div className={ready ? "sic-notice" : "sic-notice error"} role="status"><ClipboardCheck />{notice}</div> : null}
+    {notice ? <div className={noticeIsError ? "sic-notice error" : "sic-notice"} role="status"><ClipboardCheck />{notice}</div> : null}
 
     <div className="sic-layout">
       <main className="sic-main">
@@ -383,7 +475,7 @@ export function ServiceIntakeWorkspace({ options }: { options: ServiceIntakeOpti
 
         <section className="sic-card sic-concern">
           <header><span>3</span><div><h2>Customer concern</h2><p>Record what the customer reports in their own words. This becomes the technician&apos;s starting context.</p></div><em>{form.concernSummary.length} / 2,000</em></header>
-          <label className="sic-concern-field"><span>What is the customer experiencing? <b>Required</b></span><textarea maxLength={2000} onChange={(event) => update("concernSummary", event.target.value)} placeholder="Example: Customer reports a grinding noise from the front passenger side when braking below 25 mph. It started three days ago and is getting louder. ABS warning light came on this morning…" rows={5} value={form.concernSummary} /><small><MessageSquareText />Be specific about the symptom, location, conditions, timing, and what changed.</small></label>
+          <label className="sic-concern-field"><span>What is the customer experiencing? <b>Required</b></span><textarea maxLength={2000} onChange={(event) => update("concernSummary", event.target.value)} placeholder="Example: Customer reports a grinding noise from the front passenger side when braking below 25 mph. It started three days ago and is getting louder. ABS warning light came on this morning…" ref={concernRef} rows={5} value={form.concernSummary} /><small><MessageSquareText />Be specific about the symptom, location, conditions, timing, and what changed.</small></label>
           <div className="sic-prompts"><span><Sparkles />Helpful prompts</span>{["Customer states…", "Occurs when…", "Started approximately…", "Warning light/message…", "Previous repair related to…"].map((prompt) => <button key={prompt} onClick={() => addPrompt(prompt)} type="button">+ {prompt}</button>)}</div>
           <details className="sic-more-context"><summary>Additional concern context &amp; advisor notes</summary><div className="sic-three-column"><label><span>When did it start?</span><input onChange={(event) => update("onset", event.target.value)} placeholder="Today, last week, after repair…" value={form.onset} /></label><label><span>Frequency / conditions</span><input onChange={(event) => update("frequency", event.target.value)} placeholder="Constant, cold start, highway…" value={form.frequency} /></label><label><span>Warning indicators</span><input onChange={(event) => update("warningIndicators", event.target.value)} placeholder="ABS, check engine, message…" value={form.warningIndicators} /></label></div><label className="sic-notes"><span>Advisor-only intake notes</span><textarea maxLength={2000} onChange={(event) => update("intakeNotes", event.target.value)} placeholder="Observations, prior conversations, access instructions, or context not stated by the customer." rows={3} value={form.intakeNotes} /></label></details>
         </section>
@@ -428,6 +520,6 @@ export function ServiceIntakeWorkspace({ options }: { options: ServiceIntakeOpti
       <footer><button onClick={() => setDrawer(null)} type="button">Cancel</button><button className="primary" disabled={busy || (drawer === "customer" ? !newCustomer.displayName || !newCustomer.phoneNumber && !newCustomer.email : newVehicle.vin.length !== 17)} onClick={() => void (drawer === "customer" ? createCustomer() : createVehicle())} type="button">{busy ? "Saving…" : drawer === "customer" ? "Create & Select Customer" : "Create & Select Vehicle"}</button></footer>
     </section></div> : null}
 
-    <footer className="sic-footer"><div><Link href="/vehicles/shop-recon">Cancel</Link><span><ShieldCheck />No repair authorization or estimate approval is implied by check-in.</span></div><button disabled={busy || !ready} type="submit">{busy ? "Creating repair order…" : "Complete Check-In & Create Repair Order"}<ChevronRight /></button></footer>
+    <footer className="sic-footer"><div><Link href={returnTo ?? "/vehicles/shop-recon"}>Cancel</Link><span><ShieldCheck />No repair authorization or estimate approval is implied by check-in.</span><span>Next: {nextActionLabel}</span></div><button disabled={busy || (!ready && readinessLoading)} onClick={ready ? undefined : runNextRequiredAction} type={ready ? "submit" : "button"}>{busy ? "Creating repair order…" : nextActionLabel}<ChevronRight /></button></footer>
   </form>;
 }

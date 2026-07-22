@@ -38,15 +38,27 @@ async function request(url: string, init?: RequestInit) {
   return body;
 }
 
-function existingHref(code: string, vehicleId: string, description: string) {
-  if (code === "CREATE_SERVICE_INTAKE") return `/vehicles/repair-orders?${new URLSearchParams({ concernSummary: description, intakeSource: "WALK_IN", vehicleId }).toString()}`;
+function appendReturnTo(href: string, returnTo?: string) {
+  if (!returnTo) return href;
+  const separator = href.includes("?") ? "&" : "?";
+  return `${href}${separator}returnTo=${encodeURIComponent(returnTo)}`;
+}
+
+function existingHref(code: string, vehicleId: string, description: string, returnTo?: string) {
+  if (code === "CREATE_SERVICE_INTAKE") return appendReturnTo(`/vehicles/repair-orders?${new URLSearchParams({ concernSummary: description, intakeSource: "WALK_IN", vehicleId }).toString()}`, returnTo);
   if (code === "SCHEDULE_APPOINTMENT") return `/appointments?${new URLSearchParams({ vehicleId }).toString()}`;
   if (code === "START_ACQUISITION_APPRAISAL") return `/vehicles/acquisition-appraisal?${new URLSearchParams({ vehicleId }).toString()}`;
   if (code === "REVIEW_INVENTORY_CONTROL") return `/vehicles/registry?${new URLSearchParams({ vehicleId }).toString()}`;
   return `/vehicles/360/${vehicleId}`;
 }
 
-export function AddVehicleWorkflow({ options }: { options: Options }) {
+function createLocalPreview(vin: string): Preview | null {
+  const normalizedVin = vin.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(normalizedVin)) return null;
+  return { identity: { validationSource: "LOCAL_VIN_FORMAT_CHECK_PENDING_SERVER_DUPLICATE_SEARCH", vin: normalizedVin, vinState: "VALID" }, potentialDuplicate: null };
+}
+
+export function AddVehicleWorkflow({ options, returnTo }: { options: Options; returnTo?: string }) {
   const router = useRouter(); const vinRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState<FormState>(() => empty(options)); const [preview, setPreview] = useState<Preview | null>(null);
   const [checking, setChecking] = useState(false); const [busy, setBusy] = useState(false); const [notice, setNotice] = useState(""); const [identityConfirmed, setIdentityConfirmed] = useState(false); const [idempotencyKey] = useState(() => typeof crypto === "undefined" ? "" : crypto.randomUUID());
@@ -78,7 +90,11 @@ export function AddVehicleWorkflow({ options }: { options: Options }) {
       const result = await request("/api/inventory-console/workflows/add-vehicle/preview", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ vin: form.vin }) }) as Preview;
       setPreview(result); setIdentityConfirmed(false);
       setNotice(result.potentialDuplicate ? "An existing vehicle matches this VIN. Use the existing canonical record or review the identity." : "VIN passed authoritative format and check-digit validation. No exact canonical match was found.");
-    } catch (error) { setPreview(null); setNotice(error instanceof Error ? error.message : "Vehicle identity could not be validated."); }
+    } catch (error) {
+      const localPreview = createLocalPreview(form.vin);
+      setPreview(localPreview);
+      setNotice(localPreview ? "VIN format was accepted locally. Server duplicate search is unavailable in the current rollout, so final save will recheck identity and authority." : error instanceof Error ? error.message : "Vehicle identity could not be validated.");
+    }
     finally { setChecking(false); }
   }
 
@@ -91,18 +107,18 @@ export function AddVehicleWorkflow({ options }: { options: Options }) {
       const result = await request("/api/inventory-console/workflows/add-vehicle", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...form, idempotencyKey: idempotencyKey || crypto.randomUUID() }) }) as { result: { duplicateReviewId?: string | null; id: string; vehicleNumber: string }; nextWorkflow: { href: string; title: string } };
       localStorage.removeItem(draftKey);
       if (result.result.duplicateReviewId) { setNotice("A concurrent identity match was found. The candidate was routed to duplicate review; no downstream workflow was launched."); return; }
-      router.push(result.nextWorkflow.href);
+      router.push(appendReturnTo(result.nextWorkflow.href, returnTo));
     } catch (error) { setNotice(error instanceof Error ? error.message : "Vehicle could not be added."); }
     finally { setBusy(false); }
   }
 
   return <form className="add-vehicle-workflow" onSubmit={submit}>
-    <header className="avw-header"><div><nav><Link href="/vehicles">Inventory Lifecycle</Link><span>›</span><Link href="/vehicles/workflows">Start Workflow</Link><span>›</span><strong>Add Vehicle</strong></nav><h1>Add Vehicle</h1><p>Scan or enter the VIN. We will search existing records before creating a vehicle.</p></div><span><strong>Quick workflow</strong> · approximately 20 seconds</span></header>
+    <header className="avw-header"><div><nav><Link href={returnTo ?? "/vehicles"}>{returnTo ? "Source Console" : "Inventory Lifecycle"}</Link><span>›</span><Link href="/vehicles/workflows">Start Workflow</Link><span>›</span><strong>Add Vehicle</strong></nav><h1>Add Vehicle</h1><p>Scan or enter the VIN. We will search existing records before creating a vehicle.</p></div><span><strong>Quick workflow</strong> · approximately 20 seconds</span></header>
     <ol className="avw-progress"><li className={preview || nonVin ? "complete" : "active"}><b>{preview || nonVin ? <Check size={14}/> : "1"}</b><span>Identify</span></li><li className={preview || nonVin ? "active" : ""}><b>2</b><span>Purpose</span></li><li><b>3</b><span>Review &amp; Continue</span></li></ol>
     {notice ? <div className={`avw-notice ${/could not|invalid|required|cannot|match was found/i.test(notice) ? "error" : "info"}`} role="status"><Info size={16}/><span>{notice}</span></div> : null}
     <div className="avw-layout"><main>
       <section className="avw-panel"><h2>1. Identify the Vehicle</h2><div className="avw-vin-row"><label><span>VIN</span><input ref={vinRef} autoCapitalize="characters" maxLength={24} onChange={event => update("vin", event.target.value.toUpperCase())} placeholder="Enter 17-character VIN" value={form.vin} /></label><button className="secondary" onClick={() => { vinRef.current?.focus(); setNotice("Connected barcode scanners can enter the VIN directly. Camera OCR is not configured in the current rollout."); }} type="button"><Camera size={16}/>Scan VIN</button><button disabled={checking || !form.vin.trim()} onClick={validateIdentity} type="button"><Search size={16}/>{checking ? "Checking..." : "Search"}</button></div>
-        {preview ? <div className={preview.potentialDuplicate ? "avw-identity duplicate" : "avw-identity"}>{preview.potentialDuplicate ? <AlertTriangle size={34}/> : <CarFront size={56}/>}<div><span className={preview.potentialDuplicate ? "amber" : "green"}>{preview.potentialDuplicate ? "Existing canonical vehicle found" : "Identity verified · No duplicate match"}</span><h3>{preview.potentialDuplicate?.vehicleNumber ?? ([form.year, form.make, form.model].filter(Boolean).join(" ") || "Confirm vehicle details")}</h3><p>VIN {preview.identity.vin}</p><small>{preview.identity.validationSource} · checked just now</small></div>{preview.potentialDuplicate ? <div className="avw-existing-actions"><Link href={`/vehicles/360/${preview.potentialDuplicate.id}`}>Open Vehicle 360</Link><button onClick={() => router.push(existingHref(recommendation.code, preview.potentialDuplicate!.id, form.description))} type="button">Use Existing Vehicle &amp; Continue<ArrowRight size={15}/></button></div> : <label className="avw-confirm"><input checked={identityConfirmed} onChange={event => setIdentityConfirmed(event.target.checked)} type="checkbox"/><span>Yes, this is the correct vehicle</span></label>}</div> : null}
+        {preview ? <div className={preview.potentialDuplicate ? "avw-identity duplicate" : "avw-identity"}>{preview.potentialDuplicate ? <AlertTriangle size={34}/> : <CarFront size={56}/>}<div><span className={preview.potentialDuplicate ? "amber" : "green"}>{preview.potentialDuplicate ? "Existing canonical vehicle found" : preview.identity.validationSource.startsWith("LOCAL_") ? "VIN format accepted · Server search pending" : "Identity verified · No duplicate match"}</span><h3>{preview.potentialDuplicate?.vehicleNumber ?? ([form.year, form.make, form.model].filter(Boolean).join(" ") || "Confirm vehicle details")}</h3><p>VIN {preview.identity.vin}</p><small>{preview.identity.validationSource} · checked just now</small></div>{preview.potentialDuplicate ? <div className="avw-existing-actions"><Link href={`/vehicles/360/${preview.potentialDuplicate.id}`}>Open Vehicle 360</Link><button onClick={() => router.push(existingHref(recommendation.code, preview.potentialDuplicate!.id, form.description, returnTo))} type="button">Use Existing Vehicle &amp; Continue<ArrowRight size={15}/></button></div> : <label className="avw-confirm"><input checked={identityConfirmed} onChange={event => setIdentityConfirmed(event.target.checked)} type="checkbox"/><span>Yes, this is the correct vehicle</span></label>}</div> : null}
         <div className="avw-details"><label><span>Year <em>Required</em></span><input inputMode="numeric" maxLength={4} onChange={event => update("year", event.target.value)} placeholder="Year" value={form.year}/></label><label><span>Make <em>Required</em></span><input onChange={event => update("make", event.target.value)} placeholder="Make" value={form.make}/></label><label><span>Model <em>Required</em></span><input onChange={event => update("model", event.target.value)} placeholder="Model" value={form.model}/></label><label><span>Color</span><input onChange={event => update("color", event.target.value)} placeholder="Optional" value={form.color}/></label></div>
         <p className="avw-source-note"><Info size={14}/>VIN decoding is not configured in the current rollout. Confirm year, make, and model from an authoritative observation.</p>
       </section>
@@ -118,6 +134,6 @@ export function AddVehicleWorkflow({ options }: { options: Options }) {
       <section className="avw-side-panel"><h2>What Will Happen</h2><ul className="avw-effects"><li>Create one canonical Vehicle and Vehicle 360.</li><li>Preserve identity source, purpose, and staff description.</li><li>Prepare {recommendation.title}.</li></ul><p className="avw-safeguard"><LockKeyhole size={17}/><strong>Does not create dealership inventory, a stock number, acquisition cost, repair order, or purchase commitment.</strong></p></section>
       <section className="avw-side-panel"><h2>Records Not Created Yet</h2><p>Inventory Unit · Repair Order · Purchase Commitment</p><small>Created only by an eligible next workflow and required authority.</small></section>
     </aside></div>
-    <footer className="avw-actions"><Link href="/vehicles/workflows">Cancel</Link><button className="secondary" onClick={saveDraft} type="button">Save Draft</button><span>Creates the vehicle, then opens the prepared next workflow.</span><button disabled={busy || !ready || Boolean(preview?.potentialDuplicate)} type="submit">{busy ? "Adding Vehicle..." : recommendation.commandLabel}<ArrowRight size={17}/></button></footer>
+    <footer className="avw-actions"><Link href={returnTo ?? "/vehicles/workflows"}>Cancel</Link><button className="secondary" onClick={saveDraft} type="button">Save Draft</button><span>Creates the vehicle, then opens the prepared next workflow.</span><button disabled={busy || !ready || Boolean(preview?.potentialDuplicate)} type="submit">{busy ? "Adding Vehicle..." : recommendation.commandLabel}<ArrowRight size={17}/></button></footer>
   </form>;
 }

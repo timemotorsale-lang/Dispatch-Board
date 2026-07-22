@@ -29,12 +29,31 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("Select active repair order");
     expect(markup).toContain("Active RO");
     expect(markup).toContain("#3411");
+    expect(markup).toContain("Open RO");
+    expect(markup).toContain("Open vehicle in RO");
+    expect(markup).toContain("Open concern in RO");
     expect(markup).toContain("/vehicles/repair-workbench?repairOrderId=ro-id-3411");
     expect(markup).toContain("Add to Estimate Draft");
     expect(markup).toContain("Send to Advisor Review");
     expect(markup).toContain("Convert to Work Order Lines");
     expect(markup).toContain("Open RO / Estimate for Customer Authorization");
     expect(markup).toContain("Generate Work Package");
+    expect(markup).toContain("placeholder=\"Example: replace front right lower control arm and both rear shocks");
+  });
+
+  it("routes missing vehicle and repair-order context to intake before estimate creation", () => {
+    const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={null} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={[]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
+
+    expect(markup).toContain("No vehicle selected");
+    expect(markup).toContain("Check in / create RO");
+    expect(markup).toContain("/vehicles/repair-orders?intakeSource=WALK_IN&amp;returnTo=%2Fdiagnostics%2Flabor-guide");
+    expect(markup).toContain("Add vehicle");
+    expect(markup).not.toContain("/vehicles/workflows/add-vehicle");
+    expect(markup).toContain("Open customers");
+    expect(markup).toContain("Vehicle and RO required");
+    expect(markup).toContain("Create RO Before Estimate");
+    expect(markup).toContain("Select Active RO");
+    expect(markup).toContain("0.0 hrs");
   });
 
   it("provides a deeper enterprise labor taxonomy across high-volume repair categories", () => {

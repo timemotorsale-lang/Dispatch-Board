@@ -23,8 +23,25 @@ function text(value: unknown, label: string, max: number, required = false) {
   return result || null;
 }
 
-function normalizePhone(value: string | null) {
-  return value?.replace(/[^\d+]/g, "") ?? null;
+export function normalizeServiceIntakePhoneNumber(value: string | null) {
+  const normalized = value?.trim() ?? "";
+  if (!normalized) return null;
+
+  const digits = normalized.replace(/\D/g, "");
+  const phoneNumber =
+    digits.length === 10
+      ? `+1${digits}`
+      : digits.length === 11 && digits.startsWith("1")
+        ? `+${digits}`
+        : normalized.startsWith("+")
+          ? `+${digits}`
+          : "";
+
+  if (!/^\+[1-9]\d{7,14}$/.test(phoneNumber)) {
+    throw new Error("Phone number must be a valid mobile number, such as 612 342 5656 or +16123425656.");
+  }
+
+  return phoneNumber;
 }
 
 export async function createServiceIntakeCustomer(actor: AuthenticatedUser | null, value: CustomerInput) {
@@ -41,7 +58,7 @@ export async function createServiceIntakeCustomer(actor: AuthenticatedUser | nul
   const grants = await createEnterpriseCommandRepository().listCapabilityGrants(user.id, organizationId);
   assertVehicleCapability({ actor: user, capability: "REPAIR_ORDER_MANAGE", grants, locationId, now: new Date() });
 
-  const normalizedPhone = normalizePhone(phoneNumber);
+  const normalizedPhone = normalizeServiceIntakePhoneNumber(phoneNumber);
   const duplicate = await prisma.customer.findFirst({
     where: {
       organizationId,
@@ -65,7 +82,7 @@ export async function createServiceIntakeCustomer(actor: AuthenticatedUser | nul
         organizationId,
         customerNumber: `CUS-${id.slice(0, 8).toUpperCase()}`,
         displayName,
-        phoneNumber,
+        phoneNumber: normalizedPhone,
         email,
         address,
         preferredContactMethod,
