@@ -8,7 +8,7 @@ import type { EnterpriseCommandRepository, VehicleFeatureFlagRecord } from "@/se
 const technician: AuthenticatedUser = { id: "tech-1", name: "Technician", email: "tech@example.com", isActive: true, roles: ["Mechanic"], duties: { all: [], direct: [], roleDefaults: [] } };
 
 function flag(code: string, mode: VehicleFeatureFlagRecord["mode"]): VehicleFeatureFlagRecord {
-  return { id: code, organizationId: "org-1", locationId: null, code, mode, rolloutPercent: mode === "GENERAL" ? 100 : 0, allowedUserIds: [], version: 1, updatedAt: new Date("2026-07-20T00:00:00Z") };
+  return { id: code, organizationId: "org-1", locationId: null, code, mode, rolloutPercent: mode === "GENERAL" ? 100 : 0, allowedUserIds: [], targetAt: null, version: 1, updatedAt: new Date("2026-07-20T00:00:00Z") };
 }
 
 function foundation(mode: VehicleFeatureFlagRecord["mode"] = "GENERAL", grants: Awaited<ReturnType<EnterpriseCommandRepository["listCapabilityGrants"]>> = []): EnterpriseCommandRepository {

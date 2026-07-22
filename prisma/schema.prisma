@@ -6668,6 +6668,7 @@ model VehicleOperationsFeatureFlag {
   mode            VehicleOperationsRolloutMode @default(OFF)
   rolloutPercent  Int                          @default(0)
   allowedUserIds  Json
+  targetAt        DateTime?
   version         Int                          @default(1)
   updatedByUserId String?
   createdAt       DateTime                     @default(now())

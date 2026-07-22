@@ -28,6 +28,7 @@ const terminalStatuses = new Set(["VERIFIED_CLOSED", "INCONCLUSIVE", "NO_FAULT_F
 const waitingStatuses = new Set(["WAITING_FOR_VEHICLE", "WAITING_FOR_AUTHORIZATION", "WAITING_FOR_TOOL", "WAITING_FOR_INFORMATION", "WAITING_FOR_PART"]);
 
 const label = (value: string) => value.replaceAll("_", " ").toLocaleLowerCase().replace(/^./, (letter) => letter.toUpperCase());
+const rolloutDate = (value: string | null) => value ? new Date(value).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" }) : "Not scheduled";
 
 function stageLabel(item: CaseItem) {
   const labels: Record<string, string> = {
@@ -170,7 +171,7 @@ export function DiagnosticsCommandCenter({ model }: { model: DiagnosticsCommandC
       </div>
     </header>
 
-    {!commandsEnabled ? <div className={styles.rolloutNotice} role="status"><ShieldAlert /><span><strong>Live review is available.</strong> Mutations remain controlled by the Diagnostics rollout policy ({label(model.rollout.reason)}).</span><Link href="/settings/vehicle-operations">Review rollout</Link></div> : null}
+    {!commandsEnabled ? <div className={styles.rolloutNotice} role="status"><ShieldAlert /><span><strong>Live review is available.</strong> Mutations remain controlled by the Diagnostics rollout policy ({label(model.rollout.reason)}). Target: {rolloutDate(model.rollout.targetAt)}.</span><Link href="/settings/vehicle-operations">Review rollout</Link></div> : <div className={styles.actionNotice} role="status"><CheckCircle2 /><span><strong>Diagnostic case creation is enabled.</strong> Rollout target: {rolloutDate(model.rollout.targetAt)}. Evidence, reasoning, publishing, and AI remain separately controlled.</span><Link href="/settings/vehicle-operations">Rollout controls</Link></div>}
     {notice ? <div className={styles.actionNotice} role="status"><span>{notice}</span><button onClick={() => setNotice(null)} type="button">Dismiss</button></div> : null}
 
     <section className={styles.commandMetrics} aria-label="Diagnostic case summary">

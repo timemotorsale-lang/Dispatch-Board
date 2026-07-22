@@ -8,14 +8,14 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 
 const manager: AuthenticatedUser = { id: "manager-1", name: "Manager", email: "manager@example.com", isActive: true, roles: ["General Manager"], duties: { all: [], direct: [], roleDefaults: [] } };
 const staff: AuthenticatedUser = { id: "staff-1", name: "Staff", email: "staff@example.com", isActive: true, roles: ["Mechanic"], duties: { all: [], direct: [], roleDefaults: [] } };
-const flag = (code: string, mode: VehicleFeatureFlagRecord["mode"]): VehicleFeatureFlagRecord => ({ id: code, organizationId: "org-1", locationId: null, code, mode, rolloutPercent: mode === "GENERAL" ? 100 : 0, allowedUserIds: [], version: 1, updatedAt: new Date("2026-07-14T00:00:00Z") });
+const flag = (code: string, mode: VehicleFeatureFlagRecord["mode"]): VehicleFeatureFlagRecord => ({ id: code, organizationId: "org-1", locationId: null, code, mode, rolloutPercent: mode === "GENERAL" ? 100 : 0, allowedUserIds: [], targetAt: null, version: 1, updatedAt: new Date("2026-07-14T00:00:00Z") });
 
 function repository(overrides: Partial<EnterpriseCommandRepository> = {}): EnterpriseCommandRepository {
   return {
     async commit(input) { return { command: { id: "cmd-1", organizationId: input.organizationId, domain: input.domain, commandType: input.commandType, idempotencyKey: input.idempotencyKey, requestHash: input.requestHash, correlationId: input.correlationId, resultingVersion: input.expectedVersion + 1, resultSnapshot: { version: input.expectedVersion + 1 } }, duplicate: false, version: input.expectedVersion + 1 }; },
     async listCapabilityGrants() { return []; },
     async listFeatureFlags() { return [flag("VEHICLE_OPERATIONS_MASTER", "GENERAL"), flag("ENTERPRISE_COMMANDS", "SHADOW")]; },
-    async updateFeatureFlag(input) { return { ...flag(input.code, input.mode), version: input.expectedVersion + 1, rolloutPercent: input.rolloutPercent, allowedUserIds: input.allowedUserIds }; },
+    async updateFeatureFlag(input) { return { ...flag(input.code, input.mode), version: input.expectedVersion + 1, rolloutPercent: input.rolloutPercent, allowedUserIds: input.allowedUserIds, targetAt: input.targetAt }; },
     async readHealth() { return { commands24h: 4, failedCommands24h: 0, pendingOutbox: 1, deadLetters: 0, oldestPendingAt: new Date("2026-07-13T23:59:50Z"), projectionFailures: 0, maxProjectionLagSeconds: 5 }; },
     async claimReadyOutbox() { return []; }, async markOutboxFailed() {}, async markOutboxPublished() {}, ...overrides
   };
@@ -58,7 +58,7 @@ describe("enterprise command foundation", () => {
 
   it("evaluates rollout modes without making shadow mode executable", () => {
     const flags = [flag("VEHICLE_OPERATIONS_MASTER", "GENERAL"), flag("ENTERPRISE_COMMANDS", "SHADOW")];
-    expect(evaluateVehicleOperationsFeature(flags, "ENTERPRISE_COMMANDS", "user", null)).toEqual({ enabled: true, executable: false, reason: "SHADOW_ONLY" });
+    expect(evaluateVehicleOperationsFeature(flags, "ENTERPRISE_COMMANDS", "user", null)).toEqual({ enabled: true, executable: false, reason: "SHADOW_ONLY", targetAt: null });
   });
 
   it("summarizes command, outbox, and projection health", async () => {
@@ -67,8 +67,8 @@ describe("enterprise command foundation", () => {
   });
 
   it("uses expected feature versions for rollout changes", async () => {
-    const result = await updateVehicleOperationsFeature(manager, { code: "ENTERPRISE_COMMANDS", mode: "GENERAL", rolloutPercent: 100, expectedVersion: 2, reason: "Approve general command rollout." }, { organizationId: "org-1", repository: repository() });
-    expect(result).toMatchObject({ mode: "GENERAL", rolloutPercent: 100, version: 3 });
+    const result = await updateVehicleOperationsFeature(manager, { code: "ENTERPRISE_COMMANDS", mode: "GENERAL", rolloutPercent: 100, expectedVersion: 2, reason: "Approve general command rollout.", targetAt: "2026-07-22T12:00:00.000Z" }, { organizationId: "org-1", repository: repository() });
+    expect(result).toMatchObject({ mode: "GENERAL", rolloutPercent: 100, targetAt: "2026-07-22T12:00:00.000Z", version: 3 });
   });
 
   it("exposes typed command conflicts", () => {

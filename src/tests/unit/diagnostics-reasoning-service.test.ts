@@ -6,7 +6,7 @@ import { evaluateDiagnosticCaseReasoning } from "@/server/diagnostics/service";
 import type { EnterpriseCommandRepository, VehicleFeatureFlagRecord } from "@/server/enterprise-command/repository";
 
 const technician: AuthenticatedUser = { id: "tech-1", name: "Technician", email: "tech@example.com", isActive: true, roles: ["Mechanic"], duties: { all: [], direct: [], roleDefaults: [] } };
-const flag = (code: string, mode: VehicleFeatureFlagRecord["mode"]): VehicleFeatureFlagRecord => ({ id: code, organizationId: "org-1", locationId: null, code, mode, rolloutPercent: mode === "GENERAL" ? 100 : 0, allowedUserIds: [], version: 1, updatedAt: new Date("2026-07-21T17:00:00Z") });
+const flag = (code: string, mode: VehicleFeatureFlagRecord["mode"]): VehicleFeatureFlagRecord => ({ id: code, organizationId: "org-1", locationId: null, code, mode, rolloutPercent: mode === "GENERAL" ? 100 : 0, allowedUserIds: [], targetAt: null, version: 1, updatedAt: new Date("2026-07-21T17:00:00Z") });
 function foundation(reasoning: VehicleFeatureFlagRecord["mode"] = "GENERAL"): EnterpriseCommandRepository { return { async commit() { throw new Error("unused"); }, async listCapabilityGrants() { return []; }, async listFeatureFlags() { return [flag("DIAGNOSTICS_MASTER", "GENERAL"), flag("DIAGNOSTIC_REASONING", reasoning)]; }, async updateFeatureFlag() { throw new Error("unused"); }, async readHealth() { return { commands24h: 0, deadLetters: 0, failedCommands24h: 0, maxProjectionLagSeconds: 0, oldestPendingAt: null, pendingOutbox: 0, projectionFailures: 0 }; }, async claimReadyOutbox() { return []; }, async markOutboxFailed() {}, async markOutboxPublished() {} }; }
 const detail = {
   id: "case-1", version: 3, assignedUserId: "tech-1", concernVersions: [{ id: "concern-1" }],

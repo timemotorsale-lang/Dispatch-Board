@@ -4,11 +4,12 @@ import { LABOR_GUIDE_DIAGNOSTIC_NAVIGATION } from "@/server/diagnostics/labor-gu
 import { LABOR_OPERATION_ADD_ONS, LABOR_OPERATION_TAXONOMY } from "@/server/diagnostics/labor-operation-taxonomy";
 import { listRepairOrders } from "@/server/repair-order/service";
 
-type PageProps = { searchParams?: Promise<{ repairOrderId?: string | string[] }> };
+type PageProps = { searchParams?: Promise<{ mode?: string | string[]; repairOrderId?: string | string[] }> };
 
 export default async function DiagnosticsLaborGuidePage({ searchParams }: PageProps) {
   const user = await requireCurrentUser();
   const params = searchParams ? await searchParams : {};
+  const requestedMode = Array.isArray(params.mode) ? params.mode[0] : params.mode;
   const requestedRepairOrderId = Array.isArray(params.repairOrderId) ? params.repairOrderId[0] : params.repairOrderId;
   const orders = await listRepairOrders(user, { page: 1, pageSize: 10, state: "ACTIVE" }).catch(() => ({ items: [] }));
   const active = orders.items.find((order) => order.id === requestedRepairOrderId) ?? orders.items[0];
@@ -19,6 +20,7 @@ export default async function DiagnosticsLaborGuidePage({ searchParams }: PagePr
     concern: active.serviceVisit.concernSummary,
     customer: active.customer?.displayName ?? active.inventoryUnit?.inventoryNumber ?? "Internal vehicle",
     vehicle: {
+      id: active.vehicle.id,
       label: [active.vehicle.year, active.vehicle.make, active.vehicle.model].filter(Boolean).join(" ") || active.vehicle.vehicleNumber,
       vin: active.vehicle.vin ?? active.vehicle.vehicleNumber,
     },
@@ -29,6 +31,6 @@ export default async function DiagnosticsLaborGuidePage({ searchParams }: PagePr
     label: `${order.repairOrderNumber} - ${[order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber}`,
   }));
 
-  return <EnterpriseLaborGuideConsole activeRepairOrder={activeRepairOrder} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={repairOrders} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />;
+  return <EnterpriseLaborGuideConsole activeRepairOrder={activeRepairOrder} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} initialMode={requestedMode === "engine" ? "engine" : "manual"} laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={repairOrders} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />;
 }
 
