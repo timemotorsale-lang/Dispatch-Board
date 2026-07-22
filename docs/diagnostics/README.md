@@ -1,5 +1,10 @@
 # Diagnostics Console Planning Package
 
+## Approved UI Source of Truth
+
+- [`DIAGNOSTICS_COMMAND_CENTER_UI_SOURCE_OF_TRUTH.md`](DIAGNOSTICS_COMMAND_CENTER_UI_SOURCE_OF_TRUTH.md) — approved Diagnostics landing-page visual, interaction, responsive, and backend contract.
+- [`DIAGNOSTICS_INTAKE_UI_SOURCE_OF_TRUTH.md`](DIAGNOSTICS_INTAKE_UI_SOURCE_OF_TRUTH.md) — approved diagnostic-case intake visual, canonical vehicle entry, prominent concern capture, readiness, and governed creation contract.
+
 **Status:** Foundation approved; DGN-007–034 case, evidence, testing, reasoning, adaptive next-test, conclusion, repair handoff, and verification closed-loop controls implemented in source
 
 **Established:** 2026-07-20  
@@ -33,9 +38,10 @@ The console owns the evidence-driven diagnostic case and reasoning lifecycle. It
 14. [`DIAGNOSTICS_IMPLEMENTATION_MILESTONES.md`](DIAGNOSTICS_IMPLEMENTATION_MILESTONES.md) — reviewable vertical slices, dependencies, evidence, and exit gates.
 15. [`DIAGNOSTICS_IMPLEMENTATION_MASTER_PLAN.md`](DIAGNOSTICS_IMPLEMENTATION_MASTER_PLAN.md) — consolidated implementation architecture, delivery waves, critical path, and detailed scope/evidence for all 50 milestones.
 16. [`DIAGNOSTICS_TECHNICIAN_WORKSPACE_UI_SOURCE_OF_TRUTH.md`](DIAGNOSTICS_TECHNICIAN_WORKSPACE_UI_SOURCE_OF_TRUTH.md) — provisionally approved technician-facing visual direction, role boundary, simplicity rules, and required usability validation.
-17. [`DIAGNOSTICS_ENTERPRISE_LABOR_GUIDE_UI_SOURCE_OF_TRUTH.md`](DIAGNOSTICS_ENTERPRISE_LABOR_GUIDE_UI_SOURCE_OF_TRUTH.md) — provisionally approved Enterprise Labor Guide landing-page mockup, advisor/technician/manager role boundaries, and implementation acceptance rules.
-18. [`DIAGNOSTICS_ENTERPRISE_LABOR_GUIDE_UI_BACKEND_CONTEXT.md`](DIAGNOSTICS_ENTERPRISE_LABOR_GUIDE_UI_BACKEND_CONTEXT.md) — adopted backend/product behavior context for the light Labor Guide mockup, DVI-to-estimate conversion, one-click draft creation, labor intelligence, parts query boundaries, and audit rules.
-19. [`DIAGNOSTICS_AUTOBODY_ESTIMATE_UI_SOURCE_OF_TRUTH.md`](DIAGNOSTICS_AUTOBODY_ESTIMATE_UI_SOURCE_OF_TRUTH.md) — provisionally approved Autobody Estimate Intelligence landing-page mockup, photo-to-estimate direction, insurance-quality draft boundaries, productivity signals, and authority rules.
+17. [`DIAGNOSTICS_INTAKE_UI_SOURCE_OF_TRUTH.md`](DIAGNOSTICS_INTAKE_UI_SOURCE_OF_TRUTH.md) — approved diagnostic-case intake workflow, canonical vehicle entry, prominent original-concern capture, readiness gates, and governed record creation.
+18. [`DIAGNOSTICS_ENTERPRISE_LABOR_GUIDE_UI_SOURCE_OF_TRUTH.md`](DIAGNOSTICS_ENTERPRISE_LABOR_GUIDE_UI_SOURCE_OF_TRUTH.md) — provisionally approved Enterprise Labor Guide landing-page mockup, advisor/technician/manager role boundaries, and implementation acceptance rules.
+19. [`DIAGNOSTICS_ENTERPRISE_LABOR_GUIDE_UI_BACKEND_CONTEXT.md`](DIAGNOSTICS_ENTERPRISE_LABOR_GUIDE_UI_BACKEND_CONTEXT.md) — adopted backend/product behavior context for the light Labor Guide mockup, DVI-to-estimate conversion, one-click draft creation, labor intelligence, parts query boundaries, and audit rules.
+20. [`DIAGNOSTICS_AUTOBODY_ESTIMATE_UI_SOURCE_OF_TRUTH.md`](DIAGNOSTICS_AUTOBODY_ESTIMATE_UI_SOURCE_OF_TRUTH.md) — provisionally approved Autobody Estimate Intelligence landing-page mockup, photo-to-estimate direction, insurance-quality draft boundaries, productivity signals, and authority rules.
 
 ## Implementation Records
 
