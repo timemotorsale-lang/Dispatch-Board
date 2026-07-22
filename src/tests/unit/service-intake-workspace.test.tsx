@@ -26,7 +26,8 @@ describe("enterprise service intake workspace", () => {
     expect(html).toContain("Helpful prompts");
     expect(html).toContain("Visit &amp; Custody");
     expect(html).toContain("Check-in requirements");
-    expect(html).toContain("Complete Check-In &amp; Create Repair Order");
+    expect(html).toContain("Next: Add / Select Customer");
+    expect(html).toContain("Add / Select Customer");
     expect(html).toContain("No repair authorization or estimate approval is implied");
   });
 
@@ -41,5 +42,12 @@ describe("enterprise service intake workspace", () => {
     expect(html).toContain("Select vehicle");
     expect(html).toContain("Minneapolis");
     expect(html).toContain("Alex Advisor");
+  });
+
+  it("preserves a labor-guide return path for repair-order creation", () => {
+    const html = renderToStaticMarkup(<ServiceIntakeWorkspace options={options} returnTo="/diagnostics/labor-guide" />);
+
+    expect(html).toContain("Back to Labor Guide");
+    expect(html).toContain("href=\"/diagnostics/labor-guide\"");
   });
 });

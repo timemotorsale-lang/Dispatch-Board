@@ -106,6 +106,9 @@ The Labor Guide Console uses active system and operation knowledge rather than a
 - search across system titles, descriptions, symptoms, aliases, and operations;
 - support specific repair operations such as "replace front right lower control arm" and "replace rear shock absorbers - both sides";
 - provide an "open all repair categories" manual path where systems expand into selectable operation-level choices;
+- use the Time Motor Sales labor-operation taxonomy as the shop-owned repair hierarchy, inspired by enterprise labor-guide patterns without copying proprietary vendor data;
+- model labor as system > operation group > component > operation type > position > estimated hours > required add-ons > overlap group;
+- include high-volume mechanical, maintenance, brake, steering/suspension, starting/charging, cooling, engine, transmission/drivetrain, HVAC, electrical/ADAS, exhaust/emissions, body/collision/refinish, and hybrid/EV operations;
 - provide a governed custom-repair or custom-investigation fallback when no standard category matches instead of forcing an incorrect classification;
 - update labor, scope, complexity, requirements, draft, comparison, and history panels when an operation is selected;
 - load the active repair order from the authoritative repair-order service and link its RO number to the complete Repair Order Workbench;

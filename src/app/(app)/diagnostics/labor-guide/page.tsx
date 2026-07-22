@@ -1,6 +1,7 @@
 import { EnterpriseLaborGuideConsole } from "@/features/diagnostics/enterprise-labor-guide-console";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { LABOR_GUIDE_DIAGNOSTIC_NAVIGATION } from "@/server/diagnostics/labor-guide-navigation";
+import { LABOR_OPERATION_ADD_ONS, LABOR_OPERATION_TAXONOMY } from "@/server/diagnostics/labor-operation-taxonomy";
 import { listRepairOrders } from "@/server/repair-order/service";
 
 type PageProps = { searchParams?: Promise<{ repairOrderId?: string | string[] }> };
@@ -28,6 +29,6 @@ export default async function DiagnosticsLaborGuidePage({ searchParams }: PagePr
     label: `${order.repairOrderNumber} - ${[order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber}`,
   }));
 
-  return <EnterpriseLaborGuideConsole activeRepairOrder={activeRepairOrder} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} repairOrders={repairOrders} />;
+  return <EnterpriseLaborGuideConsole activeRepairOrder={activeRepairOrder} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={repairOrders} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />;
 }
 

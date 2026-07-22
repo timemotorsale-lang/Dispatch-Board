@@ -1,7 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
+import { AddVehicleWorkflow } from "@/features/inventory/add-vehicle-workflow";
 import { recommendAddVehicleWorkflow } from "@/lib/add-vehicle-workflow";
 import { normalizeAddVehicleWorkflowInput } from "@/server/inventory-workflow-launcher/add-vehicle";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 const base = {
   description: "Customer requests diagnosis for a brake warning.",
@@ -40,5 +45,12 @@ describe("Add Vehicle workflow", () => {
     const result = normalizeAddVehicleWorkflowInput({ ...base, vin: "", nonVinReason: "Pre-1981 vehicle without a standard 17-character VIN." });
     expect(result.vin).toBe("");
     expect(result.nonVinReason).toContain("Pre-1981");
+  });
+
+  it("can be launched from another console with a safe return path", () => {
+    const html = renderToStaticMarkup(createElement(AddVehicleWorkflow, { options: { locations: [{ code: "MPLS", id: "loc-1", name: "Minneapolis" }] }, returnTo: "/diagnostics/labor-guide" }));
+
+    expect(html).toContain("Source Console");
+    expect(html).toContain("href=\"/diagnostics/labor-guide\"");
   });
 });
