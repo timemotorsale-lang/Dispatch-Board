@@ -7,53 +7,92 @@ import { flattenLaborOperationTaxonomy, LABOR_OPERATION_ADD_ONS, LABOR_OPERATION
 
 describe("enterprise labor guide console", () => {
   it("renders the approved dual-mode labor guide and a live repair-order workbench link", () => {
-    const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={{ concern: "Clunking noise in front end and rear feels bouncy over bumps", customer: "Jordan Ellis", id: "ro-id-3411", openedAt: "2026-07-21T14:00:00.000Z", repairOrderNumber: "RO-3411", vehicle: { label: "2018 Ford F-150", vin: "1FTFW1E84KFC12345" } }} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={[{ id: "ro-id-3411", label: "RO-3411 - 2018 Ford F-150" }]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
+    const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={{ concern: "Clunking noise in front end and rear feels bouncy over bumps", customer: "Jordan Ellis", id: "ro-id-3411", openedAt: "2026-07-21T14:00:00.000Z", repairOrderNumber: "RO-3411", vehicle: { id: "veh-id-1", label: "2018 Ford F-150", vin: "1FTFW1E84KFC12345" } }} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={[{ id: "ro-id-3411", label: "RO-3411 - 2018 Ford F-150" }]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
 
-    expect(markup).toContain("Labor Guide Console");
+    expect(markup).toContain("RO Creation Workspace");
+    expect(markup).toContain("Search customer, phone, VIN, plate, vehicle, or RO number");
+    expect(markup).toContain("Repeat customer");
+    expect(markup).toContain("Check in vehicle");
     expect(markup).toContain("Manual Labor Guide");
     expect(markup).toContain("Labor Intelligence Engine");
-    expect(markup).toContain("Manual Operation Builder");
-    expect(markup).toContain("All repair categories");
-    expect(markup).toContain("Hide Categories");
+    expect(markup).toContain("Complete Repair Catalog");
+    expect(markup).toContain("List");
+    expect(markup).toContain("Board");
     expect(markup).toContain("Steering &amp; Suspension");
     expect(markup).toContain("Maintenance &amp; Scheduled Service");
     expect(markup).toContain("Body, Glass, Collision &amp; Refinish");
     expect(markup).toContain("Hybrid, EV &amp; High Voltage");
-    expect(markup).toContain("Replace front right lower control arm");
-    expect(markup).toContain("Replace rear shock absorbers - both sides");
-    expect(markup).toContain("Replace front strut assemblies - both sides");
-    expect(markup).toContain("Alignment recommended");
-    expect(markup).toContain("A/C evac and recharge");
-    expect(markup).toContain("Estimate / Work Order Preview");
-    expect(markup).toContain("Draft only - no dispatch, no parts order, no authorization.");
-    expect(markup).toContain("Select active repair order");
+    expect(markup).toContain("aria-label=\"Repair category shortcuts\"");
+    expect(markup).not.toContain("<h3>Repair Categories</h3>");
+    expect(markup).toContain("Replace front brake pads and rotors");
+    expect(markup).toContain("Replace front brake caliper");
+    expect(markup).toContain("Pads, Rotors, Drums &amp; Calipers");
+    expect(markup).toContain("ABS, Stability &amp; Parking Brake");
+    expect(markup).toContain("4 fixes");
+    expect(markup).toContain("3 fixes");
+    expect(markup).toContain("aria-expanded=\"false\"");
+    expect(markup).not.toContain("Choose what needs to be fixed");
+    expect(markup).not.toContain("Select</button>");
+    expect(markup).toContain("Add manual part");
+    expect(markup).toContain("Auto from parts catalog");
+    expect(markup).toContain("Automatic Suggested Add-Ons");
+    expect(markup).toContain("Road test and brake noise verification");
+    expect(markup).toContain("Selected Work");
+    expect(markup).toContain("Evidence 0");
+    expect(markup).toContain("Edit Replace front brake pads and rotors");
+    expect(markup).toContain("Replace pads");
+    expect(markup).toContain("Customer / Vehicle");
+    expect(markup).toContain("Estimate / RO Preview");
     expect(markup).toContain("Active RO");
     expect(markup).toContain("#3411");
-    expect(markup).toContain("Open RO");
-    expect(markup).toContain("Open vehicle in RO");
-    expect(markup).toContain("Open concern in RO");
+    expect(markup).toContain("Repair history");
     expect(markup).toContain("/vehicles/repair-workbench?repairOrderId=ro-id-3411");
-    expect(markup).toContain("Add to Estimate Draft");
-    expect(markup).toContain("Send to Advisor Review");
-    expect(markup).toContain("Convert to Work Order Lines");
-    expect(markup).toContain("Open RO / Estimate for Customer Authorization");
-    expect(markup).toContain("Generate Work Package");
-    expect(markup).toContain("placeholder=\"Example: replace front right lower control arm and both rear shocks");
+    expect(markup).toContain("Present Estimate");
+    expect(markup).toContain("Sync parts demand");
+    expect(markup).toContain("Advisor review");
+    expect(markup).toContain("Previous RO");
   });
 
   it("routes missing vehicle and repair-order context to intake before estimate creation", () => {
     const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={null} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={[]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
 
-    expect(markup).toContain("No vehicle selected");
-    expect(markup).toContain("Check in / create RO");
+    expect(markup).toContain("2010 Mazda 3");
+    expect(markup).toContain("Leo James");
     expect(markup).toContain("/vehicles/repair-orders?intakeSource=WALK_IN&amp;returnTo=%2Fdiagnostics%2Flabor-guide");
-    expect(markup).toContain("Add vehicle");
+    expect(markup).toContain("Check in vehicle");
     expect(markup).not.toContain("/vehicles/workflows/add-vehicle");
-    expect(markup).toContain("Open customers");
-    expect(markup).toContain("Vehicle and RO required");
-    expect(markup).toContain("Create RO Before Estimate");
-    expect(markup).toContain("Select Active RO");
-    expect(markup).toContain("0.0 hrs");
+    expect(markup).toContain("Present Estimate");
+    expect(markup).toContain("Selected Work");
+    expect(markup).toContain("Parts");
+  });
+
+  it("renders a working labor intelligence description input", () => {
+    const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={null} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} initialMode="engine" laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={[]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
+
+    expect(markup).toContain("Describe the repair need, symptom, or advisor notes");
+    expect(markup).toContain("front passenger brake");
+    expect(markup).toContain("Analyze");
+    expect(markup).toContain("Press Enter to analyze");
+    expect(markup).toContain("Pads, Rotors, Drums &amp; Calipers");
+  });
+
+  it("does not show tax and supplies when no labor or parts are selected", () => {
+    const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={null} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} initialSelectedWork="empty" laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={[]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
+
+    expect(markup).toContain("Selected Work 0");
+    expect(markup).toContain("Parts 0");
+    expect(markup).toContain("<dt>Tax and supplies</dt><dd>$0.00</dd>");
+    expect(markup).toContain("<dt>Total</dt><dd>$0.00</dd>");
+  });
+
+  it("provides an evidence upload workspace for RO photos and documents", () => {
+    const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={{ concern: "Grinding brake noise", customer: "Leo James", id: "ro-id-1", openedAt: "2026-07-22T12:00:00.000Z", repairOrderNumber: "RO-1", vehicle: { id: "veh-id-1", label: "2010 Mazda 3", vin: "JM1BL1SF3A1257561" } }} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} initialWorkTab="evidence" laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={[]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
+
+    expect(markup).toContain("Repair evidence uploads");
+    expect(markup).toContain("Upload photos, videos, scan reports, or documents");
+    expect(markup).toContain("Attach to");
+    expect(markup).toContain("Customer-facing");
+    expect(markup).toContain("Ready to upload against checked-in vehicle evidence.");
   });
 
   it("provides a deeper enterprise labor taxonomy across high-volume repair categories", () => {
