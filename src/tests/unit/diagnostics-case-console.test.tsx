@@ -69,12 +69,16 @@ describe("diagnostics case console", () => {
   });
 
   it("renders the advisor review landing page with downstream authority blocks", () => {
-    const html = renderToStaticMarkup(<DiagnosticAdvisorReviewConsole />);
+    const html = renderToStaticMarkup(<DiagnosticAdvisorReviewConsole context={{ operation: { complexity: "HIGH", id: "no-start", likelyHours: 1.5, title: "Crank/no-start diagnosis", verification: ["Repeat starts verified"] }, repairOrder: { concern: "Cranks but will not start", id: "ro-1", repairOrderNumber: "RO-1042", vehicle: "2020 Ford F-150" } }} />);
     expect(html).toContain("Advisor Review Console");
     expect(html).toContain("DGN-044 downstream packets");
     expect(html).toContain("Parts authority required");
     expect(html).toContain("Customer presentation");
     expect(html).toContain("Parts order or reservation");
+    expect(html).toContain("Selected review context");
+    expect(html).toContain("Crank/no-start diagnosis");
+    expect(html).toContain("/vehicles/repair-workbench?repairOrderId=ro-1");
+    expect(html).toContain('href="/manager-review"');
   });
 
   it("renders the autobody estimate landing page as gated insurance-quality draft review", () => {

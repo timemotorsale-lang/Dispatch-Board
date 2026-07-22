@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, ClipboardCheck, FileText, PackageCheck, Send, ShieldAlert, UserCheck, Wrench } from "lucide-react";
-import Link from "next/link";
+import { useState } from "react";
 
 import styles from "./diagnostics.module.css";
 
@@ -13,7 +13,13 @@ const reviewPackets = [
   { label: "Quality control", state: "Verification planning", detail: "QC review packet without case closure authority." }
 ];
 
-export function DiagnosticAdvisorReviewConsole() {
+type AdvisorReviewContext = {
+  operation: { complexity: string; id: string; likelyHours: number; title: string; verification: string[] } | null;
+  repairOrder: { concern: string; id: string; repairOrderNumber: string; vehicle: string } | null;
+} | null;
+
+export function DiagnosticAdvisorReviewConsole({ context = null }: { context?: AdvisorReviewContext }) {
+  const [packageOpen, setPackageOpen] = useState(Boolean(context));
   return (
     <section className={styles.reviewConsole} aria-label="Diagnostic Advisor Review Console">
       <header className={styles.reviewHero}>
@@ -31,6 +37,11 @@ export function DiagnosticAdvisorReviewConsole() {
 
       <div className={styles.reviewGrid}>
         <main className={styles.reviewMain}>
+          {context ? <section className={styles.reviewContextPanel}>
+            <header><FileText /><div><h2>Selected review context</h2><p>Context received from the governed Labor Guide handoff.</p></div></header>
+            <dl><div><dt>Repair order</dt><dd>{context.repairOrder?.repairOrderNumber ?? "Not linked"}</dd></div><div><dt>Vehicle</dt><dd>{context.repairOrder?.vehicle ?? "Not linked"}</dd></div><div><dt>Customer concern</dt><dd>{context.repairOrder?.concern ?? "Use the diagnostic case concern"}</dd></div><div><dt>Labor operation</dt><dd>{context.operation?.title ?? "Not selected"}</dd></div><div><dt>Guide time</dt><dd>{context.operation ? `${context.operation.likelyHours.toFixed(1)} hours · ${context.operation.complexity}` : "Not evaluated"}</dd></div><div><dt>Authority</dt><dd>Advisor review only</dd></div></dl>
+          </section> : null}
+
           <section className={styles.reviewStagePanel}>
             <header><ClipboardCheck /><div><h2>Diagnosis-to-estimate review flow</h2><p>Simple path for the advisor: understand, verify, edit, then decide what can move forward.</p></div></header>
             <ol className={styles.reviewSteps}>
@@ -53,15 +64,20 @@ export function DiagnosticAdvisorReviewConsole() {
               ))}
             </div>
           </section>
+
+          {packageOpen ? <section className={styles.reviewPackageDetail} aria-label="Advisor draft package detail">
+            <header><ClipboardCheck /><div><h2>Draft package review</h2><p>Inspect the selected operation and verification requirements before choosing a downstream route.</p></div></header>
+            <div><article><strong>Operation</strong><span>{context?.operation?.title ?? "No Labor Guide operation was supplied."}</span></article><article><strong>Repair-order concern</strong><span>{context?.repairOrder?.concern ?? "No repair order was supplied."}</span></article><article><strong>Verification gate</strong><span>{context?.operation?.verification.join(" · ") || "Verification requirements must be established before presentation."}</span></article><article><strong>Next decision</strong><span>Clarify with the technician, route to manager review, or hold the package.</span></article></div>
+          </section> : null}
         </main>
 
         <aside className={styles.reviewRail}>
           <section>
             <h2><UserCheck /> Advisor actions</h2>
-            <button type="button">Review draft package</button>
-            <button type="button">Request technician clarification</button>
-            <button type="button">Route to manager review</button>
-            <small>Actions are staged for workflow integration; no customer estimate mutation is performed here.</small>
+            <button aria-expanded={packageOpen} onClick={() => setPackageOpen((current) => !current)} type="button">{packageOpen ? "Hide draft package" : "Review draft package"}</button>
+            <a href={context?.repairOrder ? `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(context.repairOrder.id)}` : "/diagnostics"}>Request technician clarification</a>
+            <a href="/manager-review">Route to manager review</a>
+            <small>These actions open the authoritative owning workflows; no customer estimate mutation is performed here.</small>
           </section>
           <section>
             <h2><AlertTriangle /> Blocked by design</h2>
@@ -72,7 +88,7 @@ export function DiagnosticAdvisorReviewConsole() {
               <li><PackageCheck /> Parts order or reservation</li>
             </ul>
           </section>
-          <Link href="/diagnostics">Back to Diagnostics Command Center</Link>
+          <a href="/diagnostics">Back to Diagnostics Command Center</a>
         </aside>
       </div>
     </section>

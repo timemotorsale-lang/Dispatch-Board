@@ -1,12 +1,11 @@
 "use client";
 
-import { AlertTriangle, BadgeCheck, BarChart3, CarFront, CheckCircle2, ChevronDown, ChevronRight, FileText, History, Info, Layers3, Search, Settings2, ShieldAlert, Wrench } from "lucide-react";
-import Link from "next/link";
-import { useMemo, useState } from "react";
+import { BookOpen, Brain, CarFront, CheckCircle2, ChevronDown, ChevronRight, CircleDollarSign, ClipboardList, Copy, FileText, Info, Lock, Plus, Search, Send, ShieldCheck, SlidersHorizontal, Sparkles, Trash2, UserRound, Wrench, X } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
 
 import type { LaborGuideNavigationCategory, LaborGuideNavigationOperation } from "@/server/diagnostics/labor-guide-navigation";
 
-import styles from "./diagnostics.module.css";
+import styles from "./enterprise-labor-guide-console.module.css";
 
 type ActiveRepairOrder = {
   concern: string;
@@ -17,127 +16,270 @@ type ActiveRepairOrder = {
   vehicle: { label: string; vin: string };
 };
 
-const fallbackOperation: LaborGuideNavigationOperation = {
-  id: "custom-diagnostic-area",
-  title: "Custom diagnostic investigation",
-  aliases: [],
-  concernExamples: ["Concern does not match the standard catalog"],
-  initialTests: ["Preserve the customer concern", "Perform safety screening", "Establish a symptom-led test plan"],
-  likelyHours: 1.5,
-  complexity: "HIGH",
-  skills: ["Master diagnostic technician"],
-  tools: ["Vehicle-appropriate scan and test equipment"],
-  verification: ["Root cause supported by retained evidence", "Repair verified under the original conditions"],
+type ManualOperation = {
+  component: string;
+  hours: number;
+  id: string;
+  operation: string;
+  position: string;
+  subsystem: string;
+  system: string;
+  title: string;
 };
+
+type SpecificRepairOperation = ManualOperation & {
+  aliases: string[];
+  concernExamples: string[];
+};
+
+const approvedManualPackage: ManualOperation[] = [
+  { id: "front-right-lower-control-arm", system: "Suspension & Steering", subsystem: "Front Suspension", component: "Lower Control Arm", operation: "Replace", position: "Front Right", title: "Replace front right lower control arm", hours: 2.4 },
+  { id: "rear-shock-absorbers-both-sides", system: "Suspension & Steering", subsystem: "Rear Suspension", component: "Shock Absorber", operation: "Replace", position: "Rear Both", title: "Replace rear shock absorbers - both sides", hours: 2.2 },
+];
+
+const specificRepairOperations: SpecificRepairOperation[] = [
+  { ...approvedManualPackage[0], aliases: ["control arm", "lower arm", "front end clunk"], concernExamples: ["Clunking noise over bumps", "Loose front wheel feel"] },
+  { ...approvedManualPackage[1], aliases: ["rear shock", "shock absorber", "bouncy rear", "rear suspension"], concernExamples: ["Rear feels bouncy over bumps", "Rear suspension noise"] },
+  { id: "front-strut-assembly", system: "Suspension & Steering", subsystem: "Front Suspension", component: "Strut Assembly", operation: "Replace", position: "Front Both", title: "Replace front strut assemblies - both sides", hours: 3.4, aliases: ["strut", "front struts", "front suspension bounce"], concernExamples: ["Front bounce", "Strut leaking"] },
+  { id: "front-brake-pads-rotors", system: "Brakes, ABS & Stability", subsystem: "Front Brakes", component: "Pads & Rotors", operation: "Replace", position: "Front Both", title: "Replace front brake pads and rotors", hours: 2.1, aliases: ["front brakes", "brake pads", "rotors", "grinding"], concernExamples: ["Grinding when braking", "Brake pulsation"] },
+  { id: "rear-brake-pads-rotors", system: "Brakes, ABS & Stability", subsystem: "Rear Brakes", component: "Pads & Rotors", operation: "Replace", position: "Rear Both", title: "Replace rear brake pads and rotors", hours: 2.0, aliases: ["rear brakes", "rear pads", "rear rotors"], concernExamples: ["Rear brake grinding", "Parking brake drag"] },
+  { id: "alternator-replacement", system: "Starting & Charging", subsystem: "Charging System", component: "Alternator", operation: "Replace", position: "Engine Bay", title: "Replace alternator assembly", hours: 2.1, aliases: ["alternator", "generator", "battery light"], concernExamples: ["Battery lamp on", "Repeated dead battery"] },
+  { id: "starter-replacement", system: "Starting & Charging", subsystem: "Starting System", component: "Starter Motor", operation: "Replace", position: "Engine Bay", title: "Replace starter motor", hours: 1.8, aliases: ["starter", "no crank", "click"], concernExamples: ["Click and no crank", "Intermittent no start"] },
+  { id: "water-pump-replacement", system: "Cooling System", subsystem: "Coolant Pumping", component: "Water Pump", operation: "Replace", position: "Engine Bay", title: "Replace water pump", hours: 3.2, aliases: ["water pump", "coolant leak", "overheat"], concernExamples: ["Coolant leak", "Overheating"] },
+  { id: "radiator-replacement", system: "Cooling System", subsystem: "Heat Exchanger", component: "Radiator", operation: "Replace", position: "Front", title: "Replace radiator assembly", hours: 2.6, aliases: ["radiator", "coolant leak", "overheat"], concernExamples: ["Radiator leaking", "Temperature warning"] },
+  { id: "ac-compressor-replacement", system: "HVAC & Climate Control", subsystem: "A/C Refrigerant", component: "Compressor", operation: "Replace", position: "Engine Bay", title: "Replace A/C compressor", hours: 2.8, aliases: ["ac compressor", "a/c not cold", "compressor"], concernExamples: ["A/C not cold", "Compressor noise"] },
+  { id: "wheel-bearing-front", system: "Wheels, Tires & TPMS", subsystem: "Wheel Bearing", component: "Hub Bearing", operation: "Replace", position: "Front", title: "Replace front wheel bearing / hub assembly", hours: 1.9, aliases: ["wheel bearing", "hub", "humming"], concernExamples: ["Humming noise at speed", "Wheel play"] },
+  { id: "oxygen-sensor-replacement", system: "Emissions & Exhaust", subsystem: "Oxygen Sensing", component: "Oxygen Sensor", operation: "Replace", position: "Bank / Sensor Specific", title: "Replace oxygen sensor", hours: 1.0, aliases: ["oxygen sensor", "o2 sensor", "p013"], concernExamples: ["Check engine light", "Fuel trim fault"] },
+];
+
+const addOns = [
+  { id: "alignment", label: "Alignment recommended", hours: 1.2 },
+  { id: "road-test", label: "Road test", hours: 0.3 },
+  { id: "torque-verification", label: "Torque verification", hours: 0.2 },
+];
 
 const money = (value: number) => `$${value.toFixed(2)}`;
 
-export function EnterpriseLaborGuideConsole({ activeRepairOrder, catalog }: { activeRepairOrder: ActiveRepairOrder | null; catalog: LaborGuideNavigationCategory[] }) {
-  const initialCategory = catalog.find((category) => category.id === "starting-charging") ?? catalog[0];
-  const initialOperation = initialCategory?.operations.find((operation) => operation.id === "charging") ?? initialCategory?.operations[0] ?? fallbackOperation;
-  const [openCategories, setOpenCategories] = useState(() => new Set(initialCategory ? [initialCategory.id] : []));
-  const [selectedOperationId, setSelectedOperationId] = useState(initialOperation.id);
-  const [query, setQuery] = useState("");
-  const [customArea, setCustomArea] = useState("");
-  const [showDiagram, setShowDiagram] = useState(false);
-  const [showComparison, setShowComparison] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
+function diagnosticToManualOperation(category: LaborGuideNavigationCategory, operation: LaborGuideNavigationOperation): ManualOperation {
+  return {
+    component: operation.title.replace(/\s+diagnosis$/i, ""),
+    hours: operation.likelyHours,
+    id: operation.id,
+    operation: operation.title.toLocaleLowerCase().includes("replace") ? "Replace" : "Diagnose",
+    position: "Vehicle",
+    subsystem: operation.complexity === "HIGH" ? "Advanced Diagnostic" : "General Diagnostic",
+    system: category.title,
+    title: operation.title,
+  };
+}
 
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-  const filteredCatalog = useMemo(() => catalog.map((category) => ({
-    ...category,
-    operations: category.operations.filter((operation) => !normalizedQuery || `${category.title} ${category.description} ${operation.title} ${operation.aliases.join(" ")} ${operation.concernExamples.join(" ")}`.toLocaleLowerCase().includes(normalizedQuery)),
-  })).filter((category) => !normalizedQuery || category.title.toLocaleLowerCase().includes(normalizedQuery) || category.operations.length), [catalog, normalizedQuery]);
+function unique(values: string[]) {
+  return Array.from(new Set(values.filter(Boolean)));
+}
 
-  const selectedOperation = customArea ? { ...fallbackOperation, title: `Custom investigation: ${customArea}` } : catalog.flatMap((category) => category.operations).find((operation) => operation.id === selectedOperationId) ?? initialOperation;
-  const likelyHours = selectedOperation.likelyHours;
-  const baseRate = 190;
-  const effectiveHours = Math.max(.5, likelyHours);
-  const laborAmount = effectiveHours * baseRate;
-  const openedAt = activeRepairOrder ? new Date(activeRepairOrder.openedAt).toLocaleString() : null;
+function scoreOperation(query: string, item: SpecificRepairOperation | ManualOperation, category?: LaborGuideNavigationCategory, diagnostic?: LaborGuideNavigationOperation) {
+  const haystack = [
+    item.title,
+    item.system,
+    item.subsystem,
+    item.component,
+    item.operation,
+    item.position,
+    category?.description,
+    ...(diagnostic?.aliases ?? []),
+    ...(diagnostic?.concernExamples ?? []),
+    ...("aliases" in item ? item.aliases : []),
+    ...("concernExamples" in item ? item.concernExamples : []),
+  ].join(" ").toLocaleLowerCase();
+  return query.split(/\s+/).filter((token) => token.length > 2 && haystack.includes(token)).length;
+}
 
-  function toggleCategory(categoryId: string) {
-    setOpenCategories((current) => {
-      const next = new Set(current);
-      if (next.has(categoryId)) next.delete(categoryId); else next.add(categoryId);
-      return next;
-    });
+export function EnterpriseLaborGuideConsole({ activeRepairOrder, catalog, repairOrders = [] }: { activeRepairOrder: ActiveRepairOrder | null; catalog: LaborGuideNavigationCategory[]; repairOrders?: { id: string; label: string }[] }) {
+  const [mode, setMode] = useState<"manual" | "engine">("manual");
+  const [packageOperations, setPackageOperations] = useState<ManualOperation[]>(approvedManualPackage);
+  const [intelligencePrompt, setIntelligencePrompt] = useState("Replace front right lower control arm and both rear shocks");
+  const [engineGenerated, setEngineGenerated] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const [selectedAddOnIds, setSelectedAddOnIds] = useState<string[]>([]);
+  const [categoriesOpen, setCategoriesOpen] = useState(true);
+  const [expandedCategoryIds, setExpandedCategoryIds] = useState<string[]>(["steering-suspension"]);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const diagnosticOperations = useMemo(() => catalog.flatMap((category) => category.operations.map((operation) => ({ category, operation, manual: diagnosticToManualOperation(category, operation) }))), [catalog]);
+  const repairSystems = unique([...specificRepairOperations.map((item) => item.system), ...catalog.map((item) => item.title)]);
+  const repairSubsystems = unique([...specificRepairOperations.map((item) => item.subsystem), "General Diagnostic", "Advanced Diagnostic"]);
+  const repairComponents = unique([...specificRepairOperations.map((item) => item.component), ...diagnosticOperations.map((item) => item.manual.component)]);
+  const repairPositions = unique([...specificRepairOperations.map((item) => item.position), "Vehicle", "Front", "Rear", "Both Sides", "Bank / Sensor Specific"]);
+  const searchQuery = searchText.trim().toLocaleLowerCase();
+  const searchMatches = useMemo(() => {
+    if (!searchQuery) return [];
+    const specific = specificRepairOperations.map((manual) => ({ category: null, manual, operation: null, score: scoreOperation(searchQuery, manual) }));
+    const diagnostic = diagnosticOperations.map(({ category, operation, manual }) => ({ category, manual, operation, score: scoreOperation(searchQuery, manual, category, operation) }));
+    return [...specific, ...diagnostic].filter((item) => item.score > 0).sort((a, b) => b.score - a.score).slice(0, 8);
+  }, [diagnosticOperations, searchQuery]);
+  const totalHours = useMemo(() => packageOperations.reduce((sum, item) => sum + item.hours, 0) + addOns.filter((item) => selectedAddOnIds.includes(item.id)).reduce((sum, item) => sum + item.hours, 0), [packageOperations, selectedAddOnIds]);
+  const laborAmount = totalHours * 120.13;
+  const partsEstimate = packageOperations.length ? 412.35 : 0;
+  const activeRoHref = activeRepairOrder ? `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(activeRepairOrder.id)}` : "/vehicles/repair-workbench?view=all";
+  const advisorHref = `/diagnostics/advisor-review?operation=${encodeURIComponent(packageOperations[0]?.id ?? "manual-labor-package")}${activeRepairOrder ? `&repairOrderId=${encodeURIComponent(activeRepairOrder.id)}` : ""}`;
+
+  function navigateToRepairOrder(value: string) {
+    window.location.assign(value ? `/diagnostics/labor-guide?repairOrderId=${encodeURIComponent(value)}` : "/vehicles/repair-workbench?view=all");
   }
 
-  function selectOperation(operation: LaborGuideNavigationOperation) {
-    setSelectedOperationId(operation.id);
-    setCustomArea("");
-    setShowComparison(false);
-    setShowHistory(false);
+  function updateOperation(id: string, key: keyof Pick<ManualOperation, "system" | "subsystem" | "component" | "operation" | "position">, value: string) {
+    setPackageOperations((current) => current.map((item) => item.id === id ? { ...item, [key]: value, title: `${value === item.operation ? value : item.operation} ${key === "component" ? value : item.component}`.trim() } : item));
+  }
+
+  function selectOperation(operation: ManualOperation, append = true) {
+    setPackageOperations((current) => append ? [...current.filter((item) => item.id !== operation.id), operation] : [operation]);
+    setEngineGenerated(false);
+  }
+
+  function addOperation() {
+    const template = approvedManualPackage[0];
+    setPackageOperations((current) => [...current, { ...template, id: `manual-operation-${current.length + 1}`, title: "New labor operation", hours: 0 }]);
+  }
+
+  function activateIntelligenceEngine(prompt = intelligencePrompt) {
+    setMode("engine");
+    const normalized = prompt.toLocaleLowerCase();
+    const scored = [
+      ...specificRepairOperations.map((manual) => ({ manual, score: scoreOperation(normalized, manual) })),
+      ...diagnosticOperations.map(({ category, operation, manual }) => ({ manual, score: scoreOperation(normalized, manual, category, operation) })),
+    ].filter((item) => item.score > 0).sort((a, b) => b.score - a.score);
+    const nextOperations = scored.length ? scored.slice(0, 3).map((item) => item.manual) : approvedManualPackage;
+    setPackageOperations(nextOperations);
+    setEngineGenerated(true);
+  }
+
+  function toggleAddOn(id: string) {
+    setSelectedAddOnIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  }
+
+  function toggleCategory(id: string) {
+    setExpandedCategoryIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  }
+
+  function focusManualBuilder() {
+    setMode("manual");
+    searchInputRef.current?.focus();
+  }
+
+  function useActiveConcern() {
+    if (!activeRepairOrder) return;
+    setIntelligencePrompt(activeRepairOrder.concern);
+    activateIntelligenceEngine(activeRepairOrder.concern);
   }
 
   return (
-    <section className={styles.laborGuideConsole} aria-label="Enterprise Labor Guide Intelligence Console">
-      <header className={styles.laborGuideTopbar}>
-        <div><span className={styles.eyebrow}>Enterprise Labor Guide Intelligence</span><h1>Labor Guide</h1><p>Search every major vehicle diagnostic system, select an operation, and review explainable labor and handoff intelligence before anything becomes customer-facing.</p></div>
-        <div className={styles.laborGuideStatus}><span><i aria-hidden="true" />System online</span><strong>Governed catalog live</strong></div>
-      </header>
-
-      <section className={styles.laborGuideContextBar} aria-label="Active vehicle and repair order context">
-        <label className={styles.laborGuideSearch}><Search size={17} /><span className="sr-only">VIN or vehicle search</span><input aria-label="VIN or vehicle search" defaultValue={activeRepairOrder?.vehicle.vin ?? ""} placeholder="VIN, year, make, model, or stock number" /></label>
-        <div className={styles.laborVehicleCard}><CarFront size={34} /><span><strong>{activeRepairOrder?.vehicle.label ?? "Select a repair order or vehicle"}</strong><small>{activeRepairOrder ? `Customer: ${activeRepairOrder.customer}` : "Vehicle-specific applicability requires an active context"}</small></span></div>
-        <Link className={styles.laborRoCard} href={activeRepairOrder ? `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(activeRepairOrder.id)}` : "/vehicles/repair-workbench?view=all"}>
-          <strong>{activeRepairOrder ? `Active ${activeRepairOrder.repairOrderNumber}` : "Open Repair Orders"}</strong><small>{activeRepairOrder ? `${activeRepairOrder.concern} · Opened ${openedAt}` : "Select an RO to load its complete workbench"}</small><ChevronRight aria-hidden="true" />
-        </Link>
+    <section className={styles.console} aria-label="Enterprise Labor Guide Console" data-catalog-systems={catalog.length}>
+      <section className={styles.contextBar} aria-label="Active repair order and vehicle context">
+        <div className={styles.roContext}>
+          <ClipboardList />
+          <div>
+            <strong>Active RO <a href={activeRoHref}>{activeRepairOrder ? `#${activeRepairOrder.repairOrderNumber.replace(/^RO-?/i, "")}` : ""}</a></strong>
+            <label>
+              <span>Status: <b>{activeRepairOrder ? "In Progress" : "Not selected"}</b></span>
+              <select aria-label="Select active repair order" onChange={(event) => navigateToRepairOrder(event.target.value)} value={activeRepairOrder?.id ?? ""}>
+                <option value="">Select active RO / vehicle</option>
+                {repairOrders.map((order) => <option key={order.id} value={order.id}>{order.label}</option>)}
+              </select>
+              <ChevronDown />
+            </label>
+          </div>
+        </div>
+        <div className={styles.vehicleContext}><CarFront /><div><span>Vehicle</span><strong>{activeRepairOrder?.vehicle.label ?? "No vehicle selected"}</strong></div></div>
+        <div className={styles.vinContext}><div><span>VIN</span><strong>{activeRepairOrder?.vehicle.vin ?? "VIN required"}</strong><small>Odometer: Not recorded</small></div><button aria-label="Copy VIN" disabled={!activeRepairOrder} onClick={() => activeRepairOrder ? navigator.clipboard.writeText(activeRepairOrder.vehicle.vin) : undefined} type="button"><Copy /></button></div>
+        <div className={styles.concernContext}><UserRound /><div><span>Customer / Concern</span><strong>{activeRepairOrder ? `Customer states: ${activeRepairOrder.concern}` : "Select an active RO to load the customer concern."}</strong></div></div>
       </section>
 
-      <div className={styles.laborGuideGrid}>
-        <aside className={styles.operationNavigator}>
-          <header><span>1</span><strong>Diagnostic System Navigator</strong></header>
-          <label className={styles.navigatorSearch}><Search size={15} /><input aria-label="Search diagnostic systems and repair areas" onChange={(event) => setQuery(event.target.value)} placeholder="Search symptom, system, component, or operation" value={query} /></label>
-          <div className={styles.catalogSummary}><strong>{catalog.length} vehicle systems</strong><span>{catalog.reduce((sum, category) => sum + category.operations.length, 0)} governed diagnostic areas</span></div>
-          <nav aria-label="Diagnostic system and operation hierarchy">
-            {filteredCatalog.map((category) => {
-              const open = openCategories.has(category.id) || Boolean(normalizedQuery);
-              return <section className={styles.navigatorCategory} key={category.id}>
-                <button aria-expanded={open} className={styles.categoryButton} onClick={() => toggleCategory(category.id)} type="button">{open ? <ChevronDown /> : <ChevronRight />}<span><strong>{category.title}</strong><small>{category.description}</small></span><b>{category.operations.length}</b></button>
-                {open ? <div className={styles.categoryOperations}>{category.operations.map((operation) => <button aria-current={!customArea && selectedOperation.id === operation.id ? "true" : undefined} className={!customArea && selectedOperation.id === operation.id ? styles.selectedOperation : ""} key={operation.id} onClick={() => selectOperation(operation)} type="button"><Wrench /><span><strong>{operation.title}</strong><small>{operation.concernExamples.slice(0, 2).join(" · ")}</small></span><em>{operation.complexity}</em></button>)}</div> : null}
-              </section>;
-            })}
-            {!filteredCatalog.length ? <div className={styles.catalogEmpty}><AlertTriangle /><strong>No standard repair area matched “{query}”</strong><p>Keep the concern intact and open a custom diagnostic investigation rather than forcing an incorrect category.</p><button onClick={() => { setCustomArea(query.trim()); setSelectedOperationId(fallbackOperation.id); }} type="button">Use “{query}” as a custom diagnostic area</button></div> : null}
-          </nav>
-          <div className={styles.vehicleDiagramCard}>{showDiagram ? <div className={styles.diagramDetail}><strong>{selectedOperation.title}</strong><span>Vehicle-specific diagrams require an authorized OEM or licensed source. The selected system and operation context is ready for that integration.</span></div> : <div className={styles.vehicleSketch}><Wrench aria-hidden="true" /></div>}<button aria-expanded={showDiagram} onClick={() => setShowDiagram((current) => !current)} type="button">{showDiagram ? "Hide diagram context" : "View diagram context"}</button></div>
-        </aside>
+      <div className={styles.modeSwitch} role="tablist" aria-label="Labor guide mode">
+        <button aria-selected={mode === "manual"} onClick={() => setMode("manual")} role="tab" type="button"><BookOpen />Manual Labor Guide</button>
+        <button aria-selected={mode === "engine"} onClick={() => setMode("engine")} role="tab" type="button"><Brain />Labor Intelligence Engine</button>
+      </div>
 
-        <main className={styles.laborEnginePanel}>
-          <header><span>2</span><div><strong>Labor Intelligence Engine</strong><small><Info size={13} /> governed catalog · explainable draft calculations</small></div></header>
-          <div className={styles.operationName}><strong>Selected Diagnostic Area:</strong> {selectedOperation.title} <span>{selectedOperation.complexity}</span></div>
+      <div className={styles.workspaceGrid}>
+        <section className={styles.panel} aria-label="Manual operation builder">
+          <header className={styles.panelHeader}><h2>Manual Operation Builder <Info /></h2><button onClick={() => setCategoriesOpen((current) => !current)} type="button"><SlidersHorizontal />{categoriesOpen ? "Hide Categories" : "Open All Categories"}</button></header>
+          <div className={styles.builderBody}>
+            <div className={styles.searchRow}>
+              <label><Search /><input aria-label="Search repair areas" onChange={(event) => setSearchText(event.target.value)} placeholder="Search any repair area, component, symptom, or operation" ref={searchInputRef} value={searchText} /></label>
+              <button aria-label="Open all repair categories" onClick={() => setCategoriesOpen(true)} type="button"><SlidersHorizontal /></button>
+            </div>
+            {searchMatches.length ? (
+              <div className={styles.searchMatches} aria-label="Search matches">
+                {searchMatches.map((match) => <button key={`${match.category?.id ?? "repair"}-${match.manual.id}`} onClick={() => selectOperation(match.manual)} type="button"><strong>{match.manual.title}</strong><span>{match.manual.system} / {match.manual.subsystem}</span></button>)}
+              </div>
+            ) : null}
+            {categoriesOpen ? (
+              <div className={styles.categoryBrowser} aria-label="All repair categories">
+                {catalog.map((category) => (
+                  <section key={category.id}>
+                    <button aria-expanded={expandedCategoryIds.includes(category.id)} onClick={() => toggleCategory(category.id)} type="button"><ChevronRight /><span><strong>{category.title}</strong><small>{category.description}</small></span><b>{category.operations.length}</b></button>
+                    {expandedCategoryIds.includes(category.id) ? (
+                      <div>
+                        {category.operations.map((operation) => {
+                          const manual = diagnosticToManualOperation(category, operation);
+                          return <button key={operation.id} onClick={() => selectOperation(manual)} type="button"><span>{manual.title}</span><small>{operation.complexity} / {manual.hours.toFixed(1)} hrs</small></button>;
+                        })}
+                      </div>
+                    ) : null}
+                  </section>
+                ))}
+              </div>
+            ) : null}
+            <div className={styles.columnLabels}><span>System</span><span>Subsystem</span><span>Component</span><span>Operation</span><span>Position</span></div>
+            <div className={styles.operationRows}>
+              {packageOperations.map((item, index) => (
+                <article key={item.id}>
+                  <b>{index + 1}</b>
+                  <select aria-label={`System for operation ${index + 1}`} onChange={(event) => updateOperation(item.id, "system", event.target.value)} value={item.system}>{repairSystems.map((option) => <option key={option}>{option}</option>)}</select>
+                  <select aria-label={`Subsystem for operation ${index + 1}`} onChange={(event) => updateOperation(item.id, "subsystem", event.target.value)} value={item.subsystem}>{repairSubsystems.map((option) => <option key={option}>{option}</option>)}</select>
+                  <select aria-label={`Component for operation ${index + 1}`} onChange={(event) => updateOperation(item.id, "component", event.target.value)} value={item.component}>{repairComponents.map((option) => <option key={option}>{option}</option>)}</select>
+                  <select aria-label={`Operation type ${index + 1}`} onChange={(event) => updateOperation(item.id, "operation", event.target.value)} value={item.operation}><option>Replace</option><option>Inspect</option><option>Diagnose</option><option>Adjust</option><option>Measure</option><option>Program / Calibrate</option></select>
+                  <select aria-label={`Position for operation ${index + 1}`} onChange={(event) => updateOperation(item.id, "position", event.target.value)} value={item.position}>{repairPositions.map((option) => <option key={option}>{option}</option>)}</select>
+                  <button aria-label={`Remove ${item.title}`} onClick={() => setPackageOperations((current) => current.filter((operation) => operation.id !== item.id))} type="button"><X /></button>
+                </article>
+              ))}
+            </div>
+            <button className={styles.addOperation} onClick={addOperation} type="button"><Plus />Add Operation</button>
+          </div>
+          <footer className={styles.builderFooter}><span>{packageOperations.length} operations selected</span><button onClick={() => setPackageOperations([])} type="button"><Trash2 />Clear All</button></footer>
+        </section>
 
-          <section className={styles.operationScope} aria-label="Selected diagnostic area scope">
-            <article><strong>Common concerns</strong><ul>{selectedOperation.concernExamples.map((item) => <li key={item}>{item}</li>)}</ul></article>
-            <article><strong>Initial diagnostic coverage</strong><ul>{selectedOperation.initialTests.map((item) => <li key={item}>{item}</li>)}</ul></article>
-            <article><strong>Required verification</strong><ul>{selectedOperation.verification.map((item) => <li key={item}>{item}</li>)}</ul></article>
-          </section>
+        <section className={`${styles.panel} ${styles.workPackage}`} aria-label="Selected work package">
+          <header className={styles.panelHeader}><h2>Selected Work Package</h2><button onClick={focusManualBuilder} type="button"><Wrench />Edit Package</button></header>
+          <div className={styles.packageBody}>
+            <section><h3>Primary Operations</h3>{packageOperations.map((item, index) => <article key={item.id}><b>{index + 1}</b><span>{item.title}</span><strong>{item.hours.toFixed(1)} hrs</strong></article>)}{!packageOperations.length ? <p>No labor operations selected yet.</p> : null}</section>
+            <section><h3>Suggested Add-Ons</h3>{addOns.map((item) => <article key={item.id}><button aria-pressed={selectedAddOnIds.includes(item.id)} onClick={() => toggleAddOn(item.id)} type="button">{selectedAddOnIds.includes(item.id) ? "Added" : "Add"}</button><span>{item.label}</span><strong>{item.hours.toFixed(1)} hrs</strong><Info /></article>)}</section>
+            <section className={styles.overlapLogic}><h3>Overlap / Combination Logic</h3><div><CheckCircle2 /><p><strong>No overlap conflicts detected</strong><span>Operations can be performed together.</span></p><b>High Confidence</b></div></section>
+            <footer className={styles.packageConfidence}><span>Package Confidence <Info /></span><strong>92% High</strong></footer>
+          </div>
+        </section>
 
-          <section className={styles.laborSourceGrid} aria-label="Labor source comparison">
-            <article><span>OEM Baseline</span><strong>{(likelyHours * .86).toFixed(1)}<small>hrs</small></strong><p>Reference basis pending licensed vehicle-specific activation</p><CheckCircle2 aria-hidden="true" /></article>
-            <article><span>Internal Guide</span><strong>{likelyHours.toFixed(1)}<small>hrs</small></strong><p>Governed internal diagnostic catalog</p><CheckCircle2 aria-hidden="true" /></article>
-            <article><span>Shop Historical</span><strong>{(likelyHours * .95).toFixed(1)}<small>hrs</small></strong><p>Historical learning remains controlled until representative data exists</p><CheckCircle2 aria-hidden="true" /></article>
-          </section>
-
-          <section className={styles.complexityBand}><h2>Three-Tier Complexity: <span>{selectedOperation.complexity}</span></h2><div><article className={selectedOperation.complexity === "LOW" ? styles.activeComplexity : ""}><Layers3 /><strong>Low</strong><span>{(likelyHours * .75).toFixed(1)} hrs</span><small>Ideal conditions</small></article><article className={selectedOperation.complexity === "MEDIUM" ? styles.activeComplexity : ""}><Settings2 /><strong>Medium</strong><span>{likelyHours.toFixed(1)} hrs</span><small>Typical conditions</small></article><article className={selectedOperation.complexity === "HIGH" ? styles.highComplexity : ""}><AlertTriangle /><strong>High</strong><span>{(likelyHours * 1.25).toFixed(1)} hrs</span><small>Advanced conditions</small></article></div></section>
-
-          <div className={styles.laborDetailGrid}><section><h2>Diagnostic Logic &amp; Boundaries <BadgeCheck size={18} /></h2><dl><div><dt>Evidence first</dt><dd>Do not replace parts from a symptom alone</dd></div><div><dt>Scope control</dt><dd>Additional testing requires documented reason</dd></div><div><dt>Verification</dt><dd>{selectedOperation.verification[0]}</dd></div></dl></section><section><h2>Required Skill / Tool / Bay</h2><table><tbody><tr><th>Skill</th><td>{selectedOperation.skills.join(", ")}</td><td><CheckCircle2 size={15} /></td></tr><tr><th>Tools</th><td>{selectedOperation.tools.join(", ")}</td><td><CheckCircle2 size={15} /></td></tr><tr><th>Bay</th><td>Vehicle-appropriate diagnostic bay</td><td><CheckCircle2 size={15} /></td></tr></tbody></table></section></div>
-          <div className={styles.laborFinancialGrid}><article><span>Dynamic Labor Rate</span><p>Base labor rate {money(175)}<br />Complexity adjustment visible</p><strong>{money(baseRate)}/hr</strong></article><article><span>Advisory Labor</span><p>{effectiveHours.toFixed(1)} diagnostic hours<br />Not customer-presented</p><strong>{money(laborAmount)}</strong></article></div>
-          {showComparison ? <section className={styles.inlineIntelligence}><strong>Model comparison</strong><p>OEM baseline {(likelyHours * .86).toFixed(1)} hrs · Internal guide {likelyHours.toFixed(1)} hrs · Controlled shop-history signal {(likelyHours * .95).toFixed(1)} hrs. No model silently overrides another.</p></section> : null}
-          {showHistory ? <section className={styles.inlineIntelligence}><strong>Operation history</strong><p>No representative completed-shop sample is active for this vehicle and operation. The engine abstains instead of fabricating historical confidence.</p></section> : null}
-        </main>
-
-        <aside className={styles.advisorDraftPanel}>
-          <header><span>3</span><strong>Advisor Estimate Draft</strong><b>Draft</b></header>
-          <div className={styles.authorityWarning}><ShieldAlert size={18} />Authority boundary: no parts order, no dispatch, no authorization</div>
-          <Link className={styles.createDraftButton} href={`/diagnostics/advisor-review?operation=${encodeURIComponent(selectedOperation.id)}${activeRepairOrder ? `&repairOrderId=${encodeURIComponent(activeRepairOrder.id)}` : ""}`}><FileText size={18} />Create Advisor Draft</Link>
-          <section className={styles.draftCard}><header><strong>Advisor Draft — Not Customer Presented</strong><small>Live preview</small></header><table><thead><tr><th>Labor Line</th><th>Time</th><th>Rate</th><th>Amount</th></tr></thead><tbody><tr><td>{selectedOperation.title}</td><td>{effectiveHours.toFixed(1)}</td><td>{money(baseRate)}</td><td>{money(laborAmount)}</td></tr></tbody><tfoot><tr><th>Total Labor</th><th>{effectiveHours.toFixed(1)}</th><th /><th>{money(laborAmount)}</th></tr></tfoot></table><p>{selectedOperation.initialTests.join("; ")}.</p></section>
-          <section className={styles.marginSafeguard}><h2>Margin Safeguard</h2><div><span>Estimated GP%</span><strong>Review</strong></div><div><span>GP Target</span><strong>70%</strong></div><div><span>Status</span><strong>Advisory</strong></div></section>
-          <section className={styles.managerReviewCard}><AlertTriangle /><div><strong>Advisor Review Required</strong><span>Confirm vehicle applicability, included tests, rate, and authority before presentation.</span></div></section>
-          <footer><button aria-pressed={showComparison} onClick={() => setShowComparison((current) => !current)} type="button"><BarChart3 size={17} />Compare Models</button><button aria-pressed={showHistory} onClick={() => setShowHistory((current) => !current)} type="button"><History size={17} />View History</button></footer>
+        <aside className={`${styles.panel} ${styles.estimatePreview}`} aria-label="Estimate and work order preview">
+          <header className={styles.panelHeader}><h2>Estimate / Work Order Preview</h2></header>
+          <dl>
+            <div><dt><Wrench />Total Labor Hours</dt><dd>{totalHours.toFixed(1)} hrs</dd></div>
+            <div><dt><CircleDollarSign />Total Labor Amount (Retail)</dt><dd>{money(laborAmount)}</dd></div>
+            <div><dt><Sparkles />Parts Demand (Est.)</dt><dd>{money(partsEstimate)}</dd></div>
+            <div><dt><ShieldCheck />Gross Profit Safeguard</dt><dd className={styles.gpValue}>31.8%</dd></div>
+          </dl>
+          <section className={styles.reviewWarning}><ShieldCheck /><div><strong>Advisor Review Required</strong><span>Draft only - no dispatch, no parts order, no authorization.</span></div></section>
+          <section className={styles.authorityBoundary}><Lock /><div><strong>Authority Boundary</strong><span>Labor Guide prepares the draft. Customer authorization happens from the RO / estimate.</span></div><b>Draft Only</b></section>
+          <div className={styles.previewActions}><a className={styles.primaryAction} href={advisorHref}><FileText />Add to Estimate Draft</a><a href={advisorHref}><Send />Send to Advisor Review</a><a href={activeRoHref}><Copy />Convert to Work Order Lines</a><a href={activeRoHref}><ClipboardList />Open RO / Estimate for Customer Authorization</a></div>
         </aside>
       </div>
+
+      <section className={styles.enginePreview} aria-label="Labor Intelligence Engine preview">
+        <header><h2>Labor Intelligence Engine (Preview) <span>Beta</span></h2><div><button disabled={!activeRepairOrder} onClick={useActiveConcern} type="button">Use Active RO Concern</button><button onClick={() => activateIntelligenceEngine()} type="button">Generate Work Package <span>-&gt;</span></button></div></header>
+        <div className={styles.engineContent}>
+          <div className={styles.engineExplanation}><Sparkles /><p>Describe the repair in your own words and our engine will parse it into structured operations.</p></div>
+          <label><span>Describe the repair or concern</span><textarea aria-label="Describe repair or concern" onChange={(event) => setIntelligencePrompt(event.target.value)} value={intelligencePrompt} /></label>
+          <div className={styles.parsedOutput}><strong>Parsed Output (Preview)</strong><div><span><b>System</b>{packageOperations[0]?.system ?? "Not selected"}</span><span><b>Operation</b>{packageOperations[0]?.operation ?? "Draft"}</span><span><b>Position</b>{packageOperations.map((item) => item.position).join("; ") || "Not selected"}</span><span><b>Quantity</b>{packageOperations.length}</span></div><p>{engineGenerated ? "Work package generated for advisor review." : "Enter a concern, then generate a governed work package."}</p></div>
+        </div>
+      </section>
     </section>
   );
 }
