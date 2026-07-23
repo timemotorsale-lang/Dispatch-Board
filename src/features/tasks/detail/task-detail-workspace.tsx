@@ -99,13 +99,14 @@ export function TaskDetailWorkspace({
   const planning = buildPlanningFields(task);
   const tags = buildTaskTags(task);
   const requiredUpdateFields = task.requiredUpdateFields ?? [];
+  const requiredCompletionFields = requiredUpdateFields.filter((field) => field.required);
   const updateFieldValues = task.updateFieldValues ?? {};
   const requiredUpdateProgress = {
-    missingFieldKeys: requiredUpdateFields
-      .filter((field) => field.required && !hasRequiredUpdateValue(updateFieldValues[field.key]))
+    missingFieldKeys: requiredCompletionFields
+      .filter((field) => !hasRequiredUpdateValue(updateFieldValues[field.key]))
       .map((field) => field.key),
-    readyCount: requiredUpdateFields.filter((field) => !field.required || hasRequiredUpdateValue(updateFieldValues[field.key])).length,
-    totalCount: requiredUpdateFields.length
+    readyCount: requiredCompletionFields.filter((field) => hasRequiredUpdateValue(updateFieldValues[field.key])).length,
+    totalCount: requiredCompletionFields.length
   };
   const recordNumber = concern?.concernNumber ?? formatTaskDisplayNumber(task.id);
   const recordTitle = concern?.title ?? task.title;

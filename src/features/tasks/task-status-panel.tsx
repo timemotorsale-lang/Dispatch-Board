@@ -11,6 +11,11 @@ import {
 import type { TaskReadModel } from "@/server/services/task-read";
 import type { TaskCompletionReadiness } from "@/server/services/task-execution-readiness";
 import { REQUIRED_UPDATE_PROGRESS_EVENT } from "@/features/tasks/detail/task-required-update-progress";
+import {
+  getTaskMomentumState,
+  normalizeTaskExecutionAssurance,
+  type TaskExecutionAssurance
+} from "@/lib/task-execution-assurance";
 
 type TaskStatusPanelProps = {
   actorIsManager: boolean;
@@ -25,6 +30,7 @@ type TaskStatusResponse =
         id: string;
         status: TaskStatus;
         blockerReason: string | null;
+        executionAssurance: TaskExecutionAssurance;
         updateFieldValues?: Record<string, string | boolean>;
       };
       error?: string;
@@ -35,14 +41,7 @@ function statusNeedsGuidedUpdateFields(status: TaskStatus) {
   return status === TaskStatus.READY_FOR_REVIEW || status === TaskStatus.COMPLETED;
 }
 
-function isGuidedUpdateFieldComplete(
-  field: TaskReadModel["requiredUpdateFields"][number],
-  value: string | boolean | undefined
-) {
-  if (!field.required) {
-    return true;
-  }
-
+function isGuidedUpdateFieldComplete(value: string | boolean | undefined) {
   if (typeof value === "boolean") {
     return true;
   }
@@ -50,11 +49,92 @@ function isGuidedUpdateFieldComplete(
   return typeof value === "string" && value.trim().length > 0;
 }
 
+function toDateTimeLocal(value: string | null | undefined) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
+function formatAssuranceTime(value: string | null | undefined) {
+  if (!value) return "Not scheduled";
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }).format(new Date(value));
+}
+
+function defaultBlockerTime(hoursFromNow: number) {
+  return toDateTimeLocal(new Date(Date.now() + hoursFromNow * 60 * 60 * 1000).toISOString());
+}
+
+const momentumLabels = {
+  NOT_STARTED: "Starts when work begins",
+  ON_TRACK: "On track",
+  CHECK_IN_DUE: "Check-in due soon",
+  STALLED: "Check-in overdue",
+  BLOCKED: "Blocked — recovery plan active",
+  WAITING: "Waiting — follow-up remains visible",
+  READY_FOR_REVIEW: "Ready for review",
+  COMPLETED: "Completed"
+} as const;
+
+function getGuidedUpdateFieldPresentation(
+  field: TaskReadModel["requiredUpdateFields"][number]
+) {
+  if (field.key === "focus_summary") {
+    return {
+      label: "Review summary",
+      helpText: "What did you review, and what did you find?",
+      placeholder: "Example: Reviewed overdue work and found two ownership gaps."
+    };
+  }
+
+  if (field.key === "top_priority") {
+    return {
+      label: "Highest-priority next action",
+      helpText: "What must happen next, who owns it, and when is it due?",
+      placeholder: "Example: Assign the overdue service task to Walter by 10:00 AM."
+    };
+  }
+
+  return {
+    label: field.label,
+    helpText: field.helpText,
+    placeholder: field.helpText
+  };
+}
+
 export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = null, task }: TaskStatusPanelProps) {
+  const initialAssurance = normalizeTaskExecutionAssurance(task.executionAssurance);
   const requiredUpdateFields = useMemo(() => task.requiredUpdateFields ?? [], [task.requiredUpdateFields]);
+  const requiredCompletionFields = useMemo(
+    () => requiredUpdateFields.filter((field) => field.required),
+    [requiredUpdateFields]
+  );
   const [status, setStatus] = useState(task.status as TaskStatus);
   const [savedStatus, setSavedStatus] = useState(task.status as TaskStatus);
   const [blockerReason, setBlockerReason] = useState(task.blockerReason ?? "");
+  const [assurance, setAssurance] = useState<TaskExecutionAssurance>(initialAssurance);
+  const [progressNote, setProgressNote] = useState("");
+  const [nextCheckpointAt, setNextCheckpointAt] = useState(
+    toDateTimeLocal(initialAssurance.nextCheckpointAt)
+  );
+  const [unblockAction, setUnblockAction] = useState(
+    initialAssurance.blockerPlan?.unblockAction ?? ""
+  );
+  const [blockerOwner, setBlockerOwner] = useState(
+    initialAssurance.blockerPlan?.owner ?? task.assignedUser.name
+  );
+  const [blockerReviewAt, setBlockerReviewAt] = useState(
+    toDateTimeLocal(initialAssurance.blockerPlan?.reviewAt) ||
+      (task.status === TaskStatus.BLOCKED ? defaultBlockerTime(2) : "")
+  );
+  const [blockerEscalationAt, setBlockerEscalationAt] = useState(
+    toDateTimeLocal(initialAssurance.blockerPlan?.escalationAt) ||
+      (task.status === TaskStatus.BLOCKED ? defaultBlockerTime(4) : "")
+  );
   const [updateFieldValues, setUpdateFieldValues] = useState<Record<string, string | boolean>>(
     task.updateFieldValues ?? {}
   );
@@ -82,15 +162,22 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = 
     : [];
   const needsBlockerReason = status === TaskStatus.BLOCKED;
   const trimmedBlockerReason = blockerReason.trim();
+  const blockerPlanComplete = Boolean(
+    unblockAction.trim() &&
+    blockerOwner.trim() &&
+    blockerReviewAt &&
+    blockerEscalationAt
+  );
+  const momentumState = getTaskMomentumState(savedStatus, assurance);
   const hasGuidedUpdateFields = requiredUpdateFields.length > 0;
   const missingRequiredUpdateFields = useMemo(
-    () => requiredUpdateFields.filter(
-      (field) => field.required && !isGuidedUpdateFieldComplete(field, updateFieldValues[field.key])
+    () => requiredCompletionFields.filter(
+      (field) => !isGuidedUpdateFieldComplete(updateFieldValues[field.key])
     ),
-    [requiredUpdateFields, updateFieldValues]
+    [requiredCompletionFields, updateFieldValues]
   );
-  const guidedUpdateFieldsCompleteCount = requiredUpdateFields.filter((field) =>
-    isGuidedUpdateFieldComplete(field, updateFieldValues[field.key])
+  const guidedUpdateFieldsCompleteCount = requiredCompletionFields.filter((field) =>
+    isGuidedUpdateFieldComplete(updateFieldValues[field.key])
   ).length;
   const shouldHighlightGuidedUpdates =
     hasGuidedUpdateFields && statusNeedsGuidedUpdateFields(status);
@@ -98,7 +185,7 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = 
     canUpdate &&
     !isSubmitting &&
     allowedStatuses.length > 0 &&
-    (!needsBlockerReason || Boolean(trimmedBlockerReason));
+    (!needsBlockerReason || Boolean(trimmedBlockerReason) && blockerPlanComplete);
 
   useEffect(() => {
     window.dispatchEvent(new CustomEvent(REQUIRED_UPDATE_PROGRESS_EVENT, {
@@ -106,10 +193,10 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = 
         taskId: task.id,
         missingFieldKeys: missingRequiredUpdateFields.map((field) => field.key),
         readyCount: guidedUpdateFieldsCompleteCount,
-        totalCount: requiredUpdateFields.length
+        totalCount: requiredCompletionFields.length
       }
     }));
-  }, [guidedUpdateFieldsCompleteCount, missingRequiredUpdateFields, requiredUpdateFields.length, task.id]);
+  }, [guidedUpdateFieldsCompleteCount, missingRequiredUpdateFields, requiredCompletionFields.length, task.id]);
 
   async function submit(nextStatus: TaskStatus) {
     setIsSubmitting(true);
@@ -136,7 +223,17 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = 
         },
         body: JSON.stringify({
           status: nextStatus,
-          ...(nextStatus === TaskStatus.BLOCKED ? { blockerReason: trimmedBlockerReason } : {}),
+          ...(progressNote.trim() ? { progressNote: progressNote.trim() } : {}),
+          ...(nextCheckpointAt ? { nextCheckpointAt: new Date(nextCheckpointAt).toISOString() } : {}),
+          ...(nextStatus === TaskStatus.BLOCKED ? {
+            blockerReason: trimmedBlockerReason,
+            blockerPlan: {
+              unblockAction: unblockAction.trim(),
+              owner: blockerOwner.trim(),
+              reviewAt: new Date(blockerReviewAt).toISOString(),
+              escalationAt: new Date(blockerEscalationAt).toISOString()
+            }
+          } : {}),
           ...(hasGuidedUpdateFields ? { updateFields: updateFieldValues } : {})
         })
       });
@@ -150,6 +247,9 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = 
       setStatus(result.task.status);
       setSavedStatus(result.task.status);
       setBlockerReason(result.task.blockerReason ?? "");
+      setAssurance(result.task.executionAssurance);
+      setNextCheckpointAt(toDateTimeLocal(result.task.executionAssurance.nextCheckpointAt));
+      setProgressNote("");
       setUpdateFieldValues(result.task.updateFieldValues ?? {});
       if (readiness && statusNeedsGuidedUpdateFields(result.task.status)) {
         setReadiness((current) => current ? { ...current, ready: true } : current);
@@ -205,6 +305,53 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = 
               <small>{task.requiresManagerApproval ? "Completion will move this task to Ready for Review." : "Completion can close this task directly."}</small>
             </section>
           ) : null}
+          {savedStatus !== TaskStatus.NOT_STARTED ? (
+            <section className={`task-momentum-card task-momentum-${momentumState.toLowerCase()}`} aria-label="Task momentum">
+              <div className="task-momentum-heading">
+                <div>
+                  <strong>Progress assurance</strong>
+                  <span>{momentumLabels[momentumState]}</span>
+                </div>
+                <small>Next check-in: {formatAssuranceTime(assurance.nextCheckpointAt)}</small>
+              </div>
+              {assurance.lastProgressNote ? (
+                <p><b>Latest progress:</b> {assurance.lastProgressNote}</p>
+              ) : (
+                <p>Add a brief outcome when meaningful progress is made. The next check-in will renew automatically.</p>
+              )}
+              {savedStatus === TaskStatus.IN_PROGRESS ? (
+                <div className="task-momentum-fields">
+                  <label className="field">
+                    <span>Progress made</span>
+                    <textarea
+                      disabled={isSubmitting}
+                      onChange={(event) => setProgressNote(event.target.value)}
+                      placeholder="What changed, what was completed, or what happens next?"
+                      rows={2}
+                      value={progressNote}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Next check-in</span>
+                    <input
+                      disabled={isSubmitting}
+                      onChange={(event) => setNextCheckpointAt(event.target.value)}
+                      type="datetime-local"
+                      value={nextCheckpointAt}
+                    />
+                  </label>
+                  <button
+                    className="pill pill-secondary"
+                    disabled={isSubmitting || !progressNote.trim()}
+                    onClick={() => void submit(savedStatus)}
+                    type="button"
+                  >
+                    Record progress
+                  </button>
+                </div>
+              ) : null}
+            </section>
+          ) : null}
           {hasGuidedUpdateFields ? (
             <section
               className={
@@ -220,37 +367,56 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = 
                 </div>
                 <div className="my-task-guided-update-progress">
                   <span>
-                    {guidedUpdateFieldsCompleteCount} of {requiredUpdateFields.length} ready
+                    {guidedUpdateFieldsCompleteCount} of {requiredCompletionFields.length} required fields complete
                   </span>
                   {shouldHighlightGuidedUpdates && missingRequiredUpdateFields.length > 0 ? (
                     <small>Needed for review or completion</small>
                   ) : (
-                    <small>Saved on this task as you update it</small>
+                    <small>Saved when you submit this update</small>
                   )}
                 </div>
               </div>
 
               {shouldHighlightGuidedUpdates && missingRequiredUpdateFields.length > 0 ? (
                 <div className="my-task-guided-update-warning" role="status">
-                  Missing: {missingRequiredUpdateFields.map((field) => field.label).join(", ")}
+                  Missing: {missingRequiredUpdateFields.map((field) => getGuidedUpdateFieldPresentation(field).label).join(", ")}
                 </div>
               ) : null}
 
               <div className="my-task-guided-update-fields">
                 {requiredUpdateFields.map((field) => {
                   const value = updateFieldValues[field.key];
-                  const isComplete = isGuidedUpdateFieldComplete(field, value);
+                  const isComplete = isGuidedUpdateFieldComplete(value);
+                  const fieldPresentation = getGuidedUpdateFieldPresentation(field);
+                  const fieldClassName = [
+                    "field",
+                    "my-task-guided-field",
+                    isComplete
+                      ? "my-task-guided-field-complete"
+                      : field.required
+                        ? "my-task-guided-field-required"
+                        : ""
+                  ].filter(Boolean).join(" ");
+                  const fieldHeading = (
+                    <span className="my-task-guided-field-heading">
+                      <span>{fieldPresentation.label}{field.required ? " *" : ""}</span>
+                      <small data-state={field.required ? (isComplete ? "complete" : "required") : "optional"}>
+                        {field.required ? (isComplete ? "✓ Complete" : "Required") : "Optional"}
+                      </small>
+                    </span>
+                  );
 
                   if (field.type === "boolean") {
                     return (
                       <label
-                        className={isComplete ? "field my-task-guided-field my-task-guided-field-complete" : "field my-task-guided-field"}
+                        className={fieldClassName}
                         key={field.key}
                       >
-                        <span>{field.label}{field.required ? " *" : ""}</span>
+                        {fieldHeading}
                         <select
                           id={`task-update-${field.key}`}
                           disabled={isSubmitting}
+                          aria-label={fieldPresentation.label}
                           value={typeof value === "boolean" ? String(value) : ""}
                           onChange={(event) => {
                             const nextValue = event.target.value;
@@ -265,7 +431,7 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = 
                           <option value="true">Yes</option>
                           <option value="false">No</option>
                         </select>
-                        {field.helpText ? <small className="field-hint">{field.helpText}</small> : null}
+                        {fieldPresentation.helpText ? <small className="field-hint">{fieldPresentation.helpText}</small> : null}
                       </label>
                     );
                   }
@@ -273,13 +439,14 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = 
                   if (field.type === "single_select") {
                     return (
                       <label
-                        className={isComplete ? "field my-task-guided-field my-task-guided-field-complete" : "field my-task-guided-field"}
+                        className={fieldClassName}
                         key={field.key}
                       >
-                        <span>{field.label}{field.required ? " *" : ""}</span>
+                        {fieldHeading}
                         <select
                           id={`task-update-${field.key}`}
                           disabled={isSubmitting}
+                          aria-label={fieldPresentation.label}
                           value={typeof value === "string" ? value : ""}
                           onChange={(event) => {
                             setUpdateFieldValues((current) => ({
@@ -296,7 +463,7 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = 
                             </option>
                           ))}
                         </select>
-                        {field.helpText ? <small className="field-hint">{field.helpText}</small> : null}
+                        {fieldPresentation.helpText ? <small className="field-hint">{fieldPresentation.helpText}</small> : null}
                       </label>
                     );
                   }
@@ -304,14 +471,15 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = 
                   if (field.type === "long_text") {
                     return (
                       <label
-                        className={isComplete ? "field my-task-guided-field my-task-guided-field-complete" : "field my-task-guided-field"}
+                        className={fieldClassName}
                         key={field.key}
                       >
-                        <span>{field.label}{field.required ? " *" : ""}</span>
+                        {fieldHeading}
                         <textarea
                           id={`task-update-${field.key}`}
                           disabled={isSubmitting}
-                          placeholder={field.helpText ?? undefined}
+                          aria-label={fieldPresentation.label}
+                          placeholder={fieldPresentation.placeholder ?? undefined}
                           rows={4}
                           value={typeof value === "string" ? value : ""}
                           onChange={(event) => {
@@ -322,21 +490,22 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = 
                             setErrorMessage(null);
                           }}
                         />
-                        {field.helpText ? <small className="field-hint">{field.helpText}</small> : null}
+                        {fieldPresentation.helpText ? <small className="field-hint">{fieldPresentation.helpText}</small> : null}
                       </label>
                     );
                   }
 
                   return (
                     <label
-                      className={isComplete ? "field my-task-guided-field my-task-guided-field-complete" : "field my-task-guided-field"}
+                      className={fieldClassName}
                       key={field.key}
                     >
-                      <span>{field.label}{field.required ? " *" : ""}</span>
+                      {fieldHeading}
                       <input
                         id={`task-update-${field.key}`}
                         disabled={isSubmitting}
-                        placeholder={field.helpText ?? undefined}
+                        aria-label={fieldPresentation.label}
+                        placeholder={fieldPresentation.placeholder ?? undefined}
                         value={typeof value === "string" ? value : ""}
                         onChange={(event) => {
                           setUpdateFieldValues((current) => ({
@@ -346,7 +515,7 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = 
                           setErrorMessage(null);
                         }}
                       />
-                      {field.helpText ? <small className="field-hint">{field.helpText}</small> : null}
+                      {fieldPresentation.helpText ? <small className="field-hint">{fieldPresentation.helpText}</small> : null}
                     </label>
                   );
                 })}
@@ -363,6 +532,10 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = 
                   key={statusOption.value}
                   onClick={() => {
                     setStatus(statusOption.value);
+                    if (statusOption.value === TaskStatus.BLOCKED) {
+                      if (!blockerReviewAt) setBlockerReviewAt(defaultBlockerTime(2));
+                      if (!blockerEscalationAt) setBlockerEscalationAt(defaultBlockerTime(4));
+                    }
                     if (statusOption.value !== TaskStatus.BLOCKED) {
                       void submit(statusOption.value);
                     }
@@ -385,7 +558,12 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = 
               disabled={isSubmitting || allowedStatuses.length === 0}
               value={status}
               onChange={(event) => {
-                setStatus(event.target.value as TaskStatus);
+                const nextStatus = event.target.value as TaskStatus;
+                setStatus(nextStatus);
+                if (nextStatus === TaskStatus.BLOCKED) {
+                  if (!blockerReviewAt) setBlockerReviewAt(defaultBlockerTime(2));
+                  if (!blockerEscalationAt) setBlockerEscalationAt(defaultBlockerTime(4));
+                }
                 setErrorMessage(null);
               }}
             >
@@ -398,19 +576,35 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = 
           </label>
 
           {needsBlockerReason ? (
-            <label className="field my-task-blocker-field">
-              <span>Blocker reason</span>
-              <input
-                disabled={isSubmitting}
-                placeholder="What is blocking this task?"
-                value={blockerReason}
-                onChange={(event) => {
-                  setBlockerReason(event.target.value);
-                  setErrorMessage(null);
-                }}
-              />
-              <small className="field-hint">A blocker reason is required before this update can be sent.</small>
-            </label>
+            <section className="task-blocker-contract" aria-label="Blocker recovery plan">
+              <div>
+                <strong>Blocker recovery plan</strong>
+                <p>Make the path back to progress visible and time-bound.</p>
+              </div>
+              <label className="field my-task-blocker-field">
+                <span>What is blocking the task?</span>
+                <input disabled={isSubmitting} onChange={(event) => setBlockerReason(event.target.value)} placeholder="Example: Waiting for lender paperwork" value={blockerReason} />
+              </label>
+              <label className="field">
+                <span>Action that will unblock it</span>
+                <input disabled={isSubmitting} onChange={(event) => setUnblockAction(event.target.value)} placeholder="Example: Call lender and request missing page" value={unblockAction} />
+              </label>
+              <label className="field">
+                <span>Responsible person</span>
+                <input disabled={isSubmitting} onChange={(event) => setBlockerOwner(event.target.value)} value={blockerOwner} />
+              </label>
+              <div className="task-blocker-contract-times">
+                <label className="field">
+                  <span>Review again</span>
+                  <input disabled={isSubmitting} onChange={(event) => setBlockerReviewAt(event.target.value)} type="datetime-local" value={blockerReviewAt} />
+                </label>
+                <label className="field">
+                  <span>Escalate if unresolved</span>
+                  <input disabled={isSubmitting} onChange={(event) => setBlockerEscalationAt(event.target.value)} type="datetime-local" value={blockerEscalationAt} />
+                </label>
+              </div>
+              <small className="field-hint">All five items are required so blocked work cannot disappear.</small>
+            </section>
           ) : null}
 
           <div className="my-task-actions">

@@ -11,6 +11,12 @@ import type {
   TaskTemplateCompletionCriteria,
   TaskTemplateRequiredUpdateField
 } from "@/server/validation/task-template";
+import {
+  getTaskMomentumState,
+  normalizeTaskExecutionAssurance,
+  type TaskExecutionAssurance,
+  type TaskMomentumState
+} from "@/lib/task-execution-assurance";
 
 type TaskReadUserSummary = {
   id: string;
@@ -134,6 +140,7 @@ export type TaskReadModel = {
   vehicleReference: string | null;
   customerReference: string | null;
   blockerReason: string | null;
+  executionAssurance: TaskExecutionAssurance & { state: TaskMomentumState };
   readyForReviewAt: string | null;
   completedAt: string | null;
   createdAt: string;
@@ -376,6 +383,10 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
     vehicleReference: normalizeOptionalText(task.vehicleReference),
     customerReference: normalizeOptionalText(task.customerReference),
     blockerReason: normalizeOptionalText(task.blockerReason),
+    executionAssurance: {
+      ...normalizeTaskExecutionAssurance(task.executionAssurance),
+      state: getTaskMomentumState(task.status, task.executionAssurance)
+    },
     readyForReviewAt: task.readyForReviewAt?.toISOString() ?? null,
     completedAt: task.completedAt?.toISOString() ?? null,
     createdAt: task.createdAt.toISOString(),

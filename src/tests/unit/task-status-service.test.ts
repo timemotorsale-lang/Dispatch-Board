@@ -2,8 +2,7 @@ import { Prisma, TaskStatus } from "@prisma/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  updateTaskStatus,
-  type TaskStatusUpdateResult
+  updateTaskStatus
 } from "@/server/services/task-status-service";
 import { createTestAuthStore } from "@/tests/support/auth-test-store";
 
@@ -13,7 +12,9 @@ type StoredTask = {
   assignedUserId: string;
   requiresManagerApproval: boolean;
   status: TaskStatus;
+  dueAt: Date;
   blockerReason: string | null;
+  executionAssurance: Prisma.JsonValue | null;
   templateSnapshot: Prisma.JsonValue | null;
   updateFieldValues: Prisma.JsonValue | null;
   readyForReviewAt: Date | null;
@@ -48,7 +49,9 @@ function createStoredTask(overrides: Partial<StoredTask> = {}): StoredTask {
     assignedUserId: "user-jordan.sales@local.test",
     requiresManagerApproval: false,
     status: TaskStatus.IN_PROGRESS,
+    dueAt: new Date("2026-06-18T18:00:00.000Z"),
     blockerReason: null,
+    executionAssurance: null,
     templateSnapshot: null,
     updateFieldValues: null,
     readyForReviewAt: null,
@@ -81,7 +84,8 @@ function createTaskStatusRepository(initialTasks: StoredTask[] = [createStoredTa
         taskId: string,
         data: {
           status: TaskStatus;
-          blockerReason?: string;
+          blockerReason?: string | null;
+          executionAssurance?: Prisma.InputJsonValue;
           updateFieldValues?: Prisma.InputJsonValue;
           readyForReviewAt?: Date | null;
           completedAt?: Date | null;
@@ -99,6 +103,10 @@ function createTaskStatusRepository(initialTasks: StoredTask[] = [createStoredTa
           status: data.status,
           blockerReason:
             data.blockerReason !== undefined ? data.blockerReason : tasks[taskIndex].blockerReason,
+          executionAssurance:
+            data.executionAssurance !== undefined
+              ? (data.executionAssurance as Prisma.JsonValue)
+              : tasks[taskIndex].executionAssurance,
           updateFieldValues:
             data.updateFieldValues !== undefined
               ? (data.updateFieldValues as Prisma.JsonValue)
@@ -165,12 +173,16 @@ describe("task status service", () => {
       }
     );
 
-    expect(result).toEqual<TaskStatusUpdateResult>({
+    expect(result).toMatchObject({
       id: "task-1",
       status: TaskStatus.BLOCKED,
       blockerReason: "Waiting on lender paperwork.",
       updateFieldValues: {},
       updatedAt: "2026-06-18T15:30:00.000Z"
+    });
+    expect(result.executionAssurance.blockerPlan).toMatchObject({
+      owner: "Baraka Sales",
+      reviewAt: "2026-06-18T17:30:00.000Z"
     });
     expect(readTask()).toMatchObject({
       status: TaskStatus.BLOCKED,
@@ -226,7 +238,7 @@ describe("task status service", () => {
     expect(readActivityEvents()).toHaveLength(0);
   });
 
-  it("does not require a blocker reason for non-blocked updates and preserves any existing reason", async () => {
+  it("clears the active blocker when blocked work returns to progress", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
     const { repository, readActivityEvents, readTask } = createTaskStatusRepository([
@@ -247,11 +259,12 @@ describe("task status service", () => {
 
     expect(result).toMatchObject({
       status: TaskStatus.IN_PROGRESS,
-      blockerReason: "Waiting on photos"
+      blockerReason: null
     });
     expect(readTask()).toMatchObject({
       status: TaskStatus.IN_PROGRESS,
-      blockerReason: "Waiting on photos",
+      blockerReason: null,
+      executionAssurance: expect.objectContaining({ blockerPlan: null }),
       completedAt: null,
       reviewedByUserId: null
     });
@@ -935,5 +948,49 @@ describe("task status service", () => {
     });
 
     expect(result.status).toBe(TaskStatus.COMPLETED);
+  });
+
+  it("starts progress assurance without adding pre-start requirements", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+    const { repository } = createTaskStatusRepository([
+      createStoredTask({ status: TaskStatus.NOT_STARTED })
+    ]);
+
+    const result = await updateTaskStatus(staffUser, "task-1", { status: "IN_PROGRESS" }, repository);
+
+    expect(result.executionAssurance).toMatchObject({
+      startedAt: "2026-06-18T15:30:00.000Z",
+      lastProgressAt: "2026-06-18T15:30:00.000Z",
+      nextCheckpointAt: "2026-06-18T17:30:00.000Z"
+    });
+  });
+
+  it("renews the progress checkpoint after a meaningful update", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+    const { repository } = createTaskStatusRepository([
+      createStoredTask({
+        executionAssurance: {
+          startedAt: "2026-06-18T13:00:00.000Z",
+          lastProgressAt: "2026-06-18T14:00:00.000Z",
+          nextCheckpointAt: "2026-06-18T15:00:00.000Z",
+          lastProgressNote: "Started outreach.",
+          blockerPlan: null
+        }
+      })
+    ]);
+
+    const result = await updateTaskStatus(staffUser, "task-1", {
+      status: "IN_PROGRESS",
+      progressNote: "Customer documents received; reviewing them now."
+    }, repository);
+
+    expect(result.executionAssurance).toMatchObject({
+      startedAt: "2026-06-18T13:00:00.000Z",
+      lastProgressAt: "2026-06-18T15:30:00.000Z",
+      nextCheckpointAt: "2026-06-18T17:30:00.000Z",
+      lastProgressNote: "Customer documents received; reviewing them now."
+    });
   });
 });

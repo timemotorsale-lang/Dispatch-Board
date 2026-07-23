@@ -1,6 +1,10 @@
 import { TaskStatus } from "@prisma/client";
 
 import { getStaffExecutionFlags, type StaffExecutionFlags } from "@/lib/staff-execution-flags";
+import {
+  getTaskMomentumState,
+  normalizeTaskExecutionAssurance
+} from "@/lib/task-execution-assurance";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { canUpdateAssignedWork, isManager } from "@/server/policies/access";
 import {
@@ -42,7 +46,7 @@ function requiredFieldLabels(task: TaskExecutionRecord) {
   });
 }
 
-export function evaluateTaskCompletionReadiness(task: TaskExecutionRecord) {
+export function evaluateTaskCompletionReadiness(task: TaskExecutionRecord, now = new Date()) {
   const requirements: Array<{ code: string; label: string; satisfied: boolean }> = [];
   for (const item of task.checklistItems.filter((entry) => entry.isRequired)) {
     requirements.push({ code: `checklist:${item.key ?? item.label}`, label: item.label, satisfied: item.completed });
@@ -68,6 +72,10 @@ export function evaluateTaskCompletionReadiness(task: TaskExecutionRecord) {
       reason: task.completionOverrideReason ?? "Manager override recorded."
     } : null,
     nextCompletionStatus: task.requiresManagerApproval ? TaskStatus.READY_FOR_REVIEW : TaskStatus.COMPLETED,
+    momentum: {
+      ...normalizeTaskExecutionAssurance(task.executionAssurance),
+      state: getTaskMomentumState(task.status, task.executionAssurance, now)
+    },
     ready: requirements.every((requirement) => requirement.satisfied),
     requirements,
     taskId: task.id

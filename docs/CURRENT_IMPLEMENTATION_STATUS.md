@@ -1,5 +1,9 @@
 # Current Implementation Status
 
+## 2026-07-23 — Task progress assurance foundation
+
+Tasks now receive an automatic two-hour progress checkpoint when they first move to In Progress; no new pre-start requirements are enforced. Meaningful status, guided-field, or progress-note updates renew the checkpoint, and the task workspace distinguishes on-track, check-in-due, and stalled work. Blocked work in the full workspace captures a recovery action, responsible person, review time, and escalation deadline, while older quick-update surfaces remain compatible through a server-generated recovery plan. Existing checklist, required-update, dependency, acceptance, manager-review, and completion-override gates remain the authority for closure. The assurance state is durable in the Task record and has focused service/UI coverage; this slice does not yet claim scheduled notifications or a manager-wide stalled-work queue.
+
 ## 2026-07-19 — Inventory Start Workflow approved launcher UI
 
 The `/vehicles/workflows` landing route now implements the approved Inventory Start Workflow launcher source of truth. It provides the compact enterprise header, universal Inventory workflow search, Cards/List presentation, Recommended, Recent, Favorites, All Workflows, My Drafts, and Needs Attention collections, role-and-availability context, six curated recommended workflows, progressive workflow details, and the secondary recommendation guide. The launcher continues to use the existing server-derived 13-workflow catalog, visibility policy, availability state, validation, confirmation, approval, recovery, and purpose-built intake destinations rather than duplicating those rules in the interface.

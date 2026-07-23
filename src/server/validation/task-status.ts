@@ -3,6 +3,9 @@ import { TaskStatus } from "@prisma/client";
 const taskStatusUpdateAllowedKeys = new Set([
   "status",
   "blockerReason",
+  "blockerPlan",
+  "progressNote",
+  "nextCheckpointAt",
   "updateFields",
   "appointmentAutomationTriggerCode",
   "appointmentAutomationReasonNotes"
@@ -12,6 +15,14 @@ const taskStatusValues = new Set(Object.values(TaskStatus));
 export type NormalizedTaskStatusUpdateInput = {
   status: TaskStatus;
   blockerReason?: string;
+  blockerPlan?: {
+    unblockAction: string;
+    owner: string;
+    reviewAt: string;
+    escalationAt: string;
+  };
+  progressNote?: string;
+  nextCheckpointAt?: string;
   updateFields?: Record<string, string | boolean>;
   appointmentAutomationTriggerCode?: string;
   appointmentAutomationReasonNotes?: string;
@@ -118,6 +129,43 @@ function normalizeOptionalText(value: unknown, fieldName: string) {
   return normalizedValue || undefined;
 }
 
+function normalizeOptionalDate(value: unknown, fieldName: string) {
+  const text = normalizeOptionalText(value, fieldName);
+  if (!text) return undefined;
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error(`Task status updates require ${fieldName} to be a valid date and time.`);
+  }
+  return date.toISOString();
+}
+
+function normalizeBlockerPlan(value: unknown) {
+  if (value === undefined || value === null) return undefined;
+  if (!isPlainObject(value)) {
+    throw new Error("Task status updates require blockerPlan to be an object when provided.");
+  }
+
+  const allowedKeys = new Set(["unblockAction", "owner", "reviewAt", "escalationAt"]);
+  for (const key of Object.keys(value)) {
+    if (!allowedKeys.has(key)) {
+      throw new Error(`Task blocker plans contain an unsupported field: "${key}".`);
+    }
+  }
+
+  const unblockAction = normalizeOptionalText(value.unblockAction, "blockerPlan.unblockAction");
+  const owner = normalizeOptionalText(value.owner, "blockerPlan.owner");
+  const reviewAt = normalizeOptionalDate(value.reviewAt, "blockerPlan.reviewAt");
+  const escalationAt = normalizeOptionalDate(value.escalationAt, "blockerPlan.escalationAt");
+  if (!unblockAction || !owner || !reviewAt || !escalationAt) {
+    throw new Error("Blocked tasks require an unblock action, responsible person, review time, and escalation deadline.");
+  }
+  if (new Date(escalationAt) < new Date(reviewAt)) {
+    throw new Error("The blocker escalation deadline must be at or after the review time.");
+  }
+
+  return { unblockAction, owner, reviewAt, escalationAt };
+}
+
 export function normalizeTaskStatusUpdateInput(value: unknown): NormalizedTaskStatusUpdateInput {
   const input = assertTaskStatusObject(value);
 
@@ -131,6 +179,21 @@ export function normalizeTaskStatusUpdateInput(value: unknown): NormalizedTaskSt
 
   if (blockerReason) {
     normalizedInput.blockerReason = blockerReason;
+  }
+
+  const blockerPlan = normalizeBlockerPlan(input.blockerPlan);
+  if (blockerPlan) {
+    normalizedInput.blockerPlan = blockerPlan;
+  }
+
+  const progressNote = normalizeOptionalText(input.progressNote, "progressNote");
+  if (progressNote) {
+    normalizedInput.progressNote = progressNote;
+  }
+
+  const nextCheckpointAt = normalizeOptionalDate(input.nextCheckpointAt, "nextCheckpointAt");
+  if (nextCheckpointAt) {
+    normalizedInput.nextCheckpointAt = nextCheckpointAt;
   }
 
   const updateFields = normalizeUpdateFields(input.updateFields);
