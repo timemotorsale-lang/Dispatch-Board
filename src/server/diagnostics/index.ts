@@ -4,6 +4,7 @@ export * from "./calculations";
 export * from "./knowledge-domain";
 export * from "./no-start-knowledge";
 export * from "./cooling-overheating-knowledge";
+export * from "./cooling-overheating-proof";
 export * from "./reasoning-core";
 export * from "./adaptive-testing";
 export * from "./conclusion-domain";
