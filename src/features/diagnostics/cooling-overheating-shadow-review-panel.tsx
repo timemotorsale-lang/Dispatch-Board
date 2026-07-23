@@ -27,6 +27,16 @@ type CoolingShadowReadiness = {
   };
 };
 
+type CoolingShadowAcknowledgement = {
+  decision: "REVIEWED" | "ESCALATION_REQUESTED" | "BLOCKER_ACKNOWLEDGED";
+  actorUserId: string;
+  acknowledgedAt: string;
+  selectedTestKey: string | null;
+  reason: string;
+  acknowledgementChecksum: string;
+  executionAuthorized: boolean;
+};
+
 const label = (value: string) => value.replaceAll("_", " ").toLocaleLowerCase().replace(/^./, (letter) => letter.toUpperCase());
 
 function statusCopy(readiness: CoolingShadowReadiness) {
@@ -36,7 +46,7 @@ function statusCopy(readiness: CoolingShadowReadiness) {
   return { icon: AlertTriangle, title: "Next test is blocked", detail: "One or more source, safety, capability, tool, qualification, or vehicle-state gates failed closed." };
 }
 
-export function CoolingOverheatingShadowReviewPanel({ readiness }: { readiness: CoolingShadowReadiness }) {
+export function CoolingOverheatingShadowReviewPanel({ acknowledgement, readiness }: { acknowledgement?: CoolingShadowAcknowledgement | null; readiness: CoolingShadowReadiness }) {
   const copy = statusCopy(readiness);
   const Icon = copy.icon;
   const recommended = readiness.adaptiveEvaluation?.eligibleTests.find((test) => test.testKey === readiness.recommendedTestKey) ?? null;
@@ -84,6 +94,16 @@ export function CoolingOverheatingShadowReviewPanel({ readiness }: { readiness: 
         <strong>{test.name ?? test.testKey}</strong>
         <span>{(test.reasonCodes ?? []).map(label).join(" · ") || "Excluded by readiness policy"}</span>
       </article>) : <p>No blocked cooling tests in this shadow result.</p>}
+    </section>
+
+    <section className={styles.coolingAcknowledgement}>
+      <h3>Technician acknowledgement</h3>
+      {acknowledgement ? <article>
+        <CheckCircle2 />
+        <span><strong>{label(acknowledgement.decision)}</strong><small>{acknowledgement.actorUserId} · {new Date(acknowledgement.acknowledgedAt).toLocaleString()} · {acknowledgement.selectedTestKey ?? "No selected test"}</small><p>{acknowledgement.reason}</p></span>
+        <em>{acknowledgement.executionAuthorized ? "Authority mismatch" : "Acknowledgement only"}</em>
+      </article> : <p>No technician acknowledgement has been recorded for this shadow result.</p>}
+      <small>Acknowledgement records review, blockers, or escalation intent. It is not test execution authority.</small>
     </section>
 
     <footer>

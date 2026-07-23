@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { CoolingOverheatingShadowReviewPanel } from "@/features/diagnostics/cooling-overheating-shadow-review-panel";
+import { createCoolingOverheatingShadowAcknowledgement } from "@/server/diagnostics/cooling-overheating-shadow-acknowledgement";
 import { evaluateCoolingOverheatingNextTestReadiness } from "@/server/diagnostics/cooling-overheating-next-test-readiness";
 import { COOLING_OVERHEATING_PROOF_CORPUS, evaluateCoolingOverheatingProofScenario } from "@/server/diagnostics/cooling-overheating-proof";
 
@@ -49,5 +50,24 @@ describe("DGN-060 cooling shadow review panel", () => {
     expect(html).toContain("Next test is blocked");
     expect(html).toContain("Test source not authorized");
     expect(html).toContain("Test hazard uncontrolled:hot pressurized coolant");
+  });
+
+  it("renders acknowledgement capture as review-only lineage", () => {
+    const ready = readiness("COOLANT_LEAK");
+    const acknowledgement = createCoolingOverheatingShadowAcknowledgement({
+      diagnosticCaseId: "case-cool-1",
+      readiness: ready,
+      actorUserId: "tech-1",
+      decision: "REVIEWED",
+      selectedTestKey: ready.recommendedTestKey,
+      reason: "Reviewed the cooling shadow recommendation and kept it in review-only status.",
+      acknowledgedAt: "2026-07-22T20:05:00.000Z"
+    });
+    const html = renderToStaticMarkup(<CoolingOverheatingShadowReviewPanel acknowledgement={acknowledgement} readiness={ready} />);
+
+    expect(html).toContain("Technician acknowledgement");
+    expect(html).toContain("Acknowledgement only");
+    expect(html).toContain("not test execution authority");
+    expect(html).not.toContain("Start test");
   });
 });
