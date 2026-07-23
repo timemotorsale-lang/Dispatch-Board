@@ -8,6 +8,7 @@ export * from "./cooling-overheating-proof";
 export * from "./cooling-overheating-next-test-readiness";
 export * from "./cooling-overheating-shadow-acknowledgement";
 export * from "./cooling-overheating-acknowledgement-history";
+export * from "./cooling-overheating-pilot-hardening";
 export * from "./reasoning-core";
 export * from "./adaptive-testing";
 export * from "./conclusion-domain";
