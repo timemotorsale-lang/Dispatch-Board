@@ -174,7 +174,10 @@ describe("task detail workspace", () => {
     expect(markup).toContain("Add a subtask...");
     expect(markup).not.toContain("Activity (Latest)");
     expect(markup).toContain("More task actions");
-    expect(markup).toContain("Insert Customer contacted note");
+    expect(markup).toContain("Open note templates");
+    expect(markup).toContain(">Comment</button>");
+    expect(markup).not.toContain(">Add Note</button>");
+    expect(markup).not.toContain('class="etw-note-actions"');
     expect(markup).not.toContain("Internal Notes (Manager Only)");
   });
 
@@ -191,15 +194,24 @@ describe("task detail workspace", () => {
           requiredUpdateFields: [
             { key: "focus_summary", label: "Focus summary", type: "long_text", required: true, helpText: null },
             { key: "top_priority", label: "Top priority", type: "short_text", required: true, helpText: null },
-            { key: "next_step", label: "Next step", type: "short_text", required: true, helpText: null }
+            { key: "staffing_risk", label: "Staffing risk", type: "boolean", required: false, helpText: null }
           ],
-          updateFieldValues: { next_step: "Review with the team" }
+          updateFieldValues: {}
         })}
       />
     );
 
     expect(markup).toContain("Finish required update");
-    expect(markup).toContain("1 of 3 ready");
+    expect(markup).toContain("0 of 2 required fields complete");
+    expect(markup).not.toContain("1 of 3 ready");
+    expect(markup.match(/data-state="required"/g)).toHaveLength(2);
+    expect(markup.match(/data-state="optional"/g)).toHaveLength(1);
+    expect(markup).toContain("Review summary");
+    expect(markup).toContain("What did you review, and what did you find?");
+    expect(markup).toContain("Example: Reviewed overdue work and found two ownership gaps.");
+    expect(markup).toContain("Highest-priority next action");
+    expect(markup).toContain("What must happen next, who owns it, and when is it due?");
+    expect(markup).toContain("Example: Assign the overdue service task to Walter by 10:00 AM.");
     expect(markup).toContain('id="required-task-update"');
     expect(markup).toContain('id="task-update-focus_summary"');
     expect(markup).toContain('id="task-update-top_priority"');

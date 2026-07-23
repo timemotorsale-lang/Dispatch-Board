@@ -87,7 +87,7 @@ export function TaskWorkbenchActionBar({
   return (
     <section className="etw-task-action-bar" aria-label="Task actions">
       <button className="primary" disabled={!canComplete || status === "COMPLETED"} onClick={reviewCompletion} type="button"><Check size={14} />{completionLabel}</button>
-      {requiredUpdateProgress.totalCount > 0 && status !== "COMPLETED" ? <span className="etw-completion-progress">{requiredUpdateProgress.readyCount} of {requiredUpdateProgress.totalCount} ready</span> : null}
+      {requiredUpdateProgress.totalCount > 0 && status !== "COMPLETED" ? <span className="etw-completion-progress">{requiredUpdateProgress.readyCount} of {requiredUpdateProgress.totalCount} required fields complete</span> : null}
       <a href="#task-collaborators"><UserPlus size={14} />Collaborators</a>
       <button onClick={() => copyTaskLink("Share link")} type="button"><Share2 size={14} />Share</button>
       <button aria-label="Copy task link" onClick={() => copyTaskLink("Task link")} type="button"><Link2 size={14} /></button>

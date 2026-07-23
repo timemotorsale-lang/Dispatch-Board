@@ -772,8 +772,12 @@ export const dayOneTaskTemplateDefinitions: readonly DayOneTaskTemplateDefinitio
     defaultDueTime: "09:00",
     requiresManagerApproval: false,
     requiredUpdateFields: [
-      createRequiredField("focus_summary", "Focus summary", "long_text"),
-      createRequiredField("top_priority", "Top priority", "short_text"),
+      createRequiredField("focus_summary", "Review summary", "long_text", {
+        helpText: "What did you review, and what did you find?"
+      }),
+      createRequiredField("top_priority", "Highest-priority next action", "short_text", {
+        helpText: "What must happen next, who owns it, and when is it due?"
+      }),
       createRequiredField("staffing_risk", "Staffing risk", "boolean", { required: false })
     ],
     checklistItems: [

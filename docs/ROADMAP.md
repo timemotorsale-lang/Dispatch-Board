@@ -299,7 +299,7 @@ Status markers in this section describe Enterprise Tasks Module evolution specif
 | DB-ETM-021 | [~] | Add queue and saved-view foundation | Build durable models for queue definitions, saved views, ownership, and system defaults. | Manager Attention, Team Tasks, Unassigned, and future custom views become data-driven. |
 | DB-ETM-022 | [x] | Keep checklist and subtask foundation durable | Preserve and extend the existing checklist/task-detail execution foundation. | Task detail continues to support checklist-driven execution with durable persistence. |
 | DB-ETM-023 | [~] | Add task assignment and status history | Add durable history models where activity feed alone is not enough for enterprise detail. | Users can inspect who changed assignment or status and when. |
-| DB-ETM-024 | [ ] | Add SLA and escalation foundation | Add models for due-soon, overdue, blocked-too-long, and waiting-too-long rules. | Manager Attention can be powered by durable rule data instead of UI-only logic. |
+| DB-ETM-024 | [~] | Add SLA and escalation foundation | Progress checkpoints, stalled-state calculation, and blocker review/escalation times are durable; manager-wide evaluation and notification rules remain. | Manager Attention can be powered by durable rule data instead of UI-only logic. |
 
 ### Phase 3 - Generation, routing, and attention engines
 
@@ -326,7 +326,7 @@ Status markers in this section describe Enterprise Tasks Module evolution specif
 | ID | Status | GitHub issue / task card | Codex-sized scope | Acceptance criteria |
 | --- | --- | --- | --- | --- |
 | DB-ETM-040 | [x] | Preserve centralized status transition rules | Keep status changes validated server-side as the task module grows. | Invalid transitions continue to be rejected centrally. |
-| DB-ETM-041 | [~] | Expand blocker and waiting validation | Preserve blocker validation and strengthen waiting-state, next-step, and ETA rules. | Waiting states collect enough context for reliable manager follow-up. |
+| DB-ETM-041 | [~] | Expand blocker and waiting validation | The full workspace captures blocker reason, unblock action, owner, review time, and escalation deadline; dedicated waiting-state contracts remain. | Waiting states collect enough context for reliable manager follow-up. |
 | DB-ETM-042 | [x] | Preserve manager review and approval engine | Keep review-required tasks moving through `Ready for Review` and manager approval rules. | Approval-required work cannot bypass the review path. |
 | DB-ETM-043 | [x] | Preserve event-backed task activity | Keep important task actions writing durable activity records. | Activity remains tied to real service operations instead of UI inference. |
 | DB-ETM-044 | [ ] | Add reporting snapshot foundation | Add daily summary, blocked, overdue, workload, and department snapshot foundations. | Reporting reads can use durable task-domain summary data. |

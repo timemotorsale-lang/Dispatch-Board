@@ -20,6 +20,7 @@ const taskReadSelect = {
   vehicleReference: true,
   customerReference: true,
   blockerReason: true,
+  executionAssurance: true,
   readyForReviewAt: true,
   completedAt: true,
   createdAt: true,

@@ -6180,6 +6180,7 @@ model Task {
   completionOverrideAt       DateTime?
   completionOverrideByUserId String?
   completionOverrideReason   String?
+  executionAssurance         Json?
   isClaimable                Boolean                   @default(false)
   carryoverSourceTaskId      String?
   carryoverReportId          String?

@@ -8,6 +8,7 @@ const executionSelect = {
   title: true,
   assignedUserId: true,
   status: true,
+  executionAssurance: true,
   blockerReason: true,
   requiresManagerApproval: true,
   acceptedAt: true,

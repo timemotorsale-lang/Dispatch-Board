@@ -153,6 +153,14 @@ describe("task read service", () => {
       status: "IN_PROGRESS",
       priority: "HIGH",
       dueAt: "2026-06-18T16:00:00.000Z",
+      executionAssurance: {
+        startedAt: null,
+        lastProgressAt: null,
+        nextCheckpointAt: null,
+        lastProgressNote: null,
+        blockerPlan: null,
+        state: "CHECK_IN_DUE"
+      },
       workflowArea: "SALES",
       sourceType: "MANAGER",
       requiresManagerApproval: true,

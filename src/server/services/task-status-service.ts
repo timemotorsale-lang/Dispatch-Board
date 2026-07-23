@@ -17,11 +17,16 @@ import type {
   TaskTemplateRequiredUpdateField
 } from "@/server/validation/task-template";
 import { getStaffExecutionFlags, type StaffExecutionFlags } from "@/lib/staff-execution-flags";
+import {
+  createDefaultCheckpoint,
+  normalizeTaskExecutionAssurance
+} from "@/lib/task-execution-assurance";
 
 export type TaskStatusUpdateResult = {
   id: string;
   status: TaskStatus;
   blockerReason: string | null;
+  executionAssurance: ReturnType<typeof normalizeTaskExecutionAssurance>;
   updateFieldValues?: Record<string, string | boolean>;
   updatedAt: string;
 };
@@ -340,6 +345,9 @@ function buildTaskStatusUpdateData(
   user: AuthenticatedUser,
   task: {
     status: TaskStatus;
+    dueAt?: Date;
+    blockerReason?: string | null;
+    executionAssurance?: unknown;
     requiresManagerApproval: boolean;
     templateSnapshot?: unknown;
     updateFieldValues?: unknown;
@@ -361,6 +369,46 @@ function buildTaskStatusUpdateData(
   const { mergedUpdateFieldValues } = skipEvidenceRequirements
     ? { mergedUpdateFieldValues: mergeUpdateFieldValues(task.updateFieldValues, input.updateFields) }
     : assertRequiredUpdateFieldsSatisfied(task, input);
+  const existingAssurance = normalizeTaskExecutionAssurance(task.executionAssurance);
+  const isProgressUpdate =
+    task.status !== input.status ||
+    Boolean(input.progressNote) ||
+    Boolean(input.updateFields && Object.keys(input.updateFields).length);
+  const startedAt =
+    existingAssurance.startedAt ??
+    (input.status === TaskStatus.IN_PROGRESS ? now.toISOString() : null);
+  const dueAt = task.dueAt ?? new Date(now.getTime() + 2 * 60 * 60 * 1000);
+  const shouldRenewCheckpoint =
+    input.status === TaskStatus.IN_PROGRESS &&
+    (task.status !== TaskStatus.IN_PROGRESS || isProgressUpdate || !existingAssurance.nextCheckpointAt);
+  const nextCheckpointAt =
+    input.status === TaskStatus.COMPLETED || input.status === TaskStatus.READY_FOR_REVIEW
+      ? null
+      : input.nextCheckpointAt ??
+        (shouldRenewCheckpoint ? createDefaultCheckpoint(now, dueAt) : existingAssurance.nextCheckpointAt);
+  let blockerPlan = existingAssurance.blockerPlan;
+  if (input.status === TaskStatus.BLOCKED) {
+    const reviewAt = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+    const escalationAt =
+      dueAt.getTime() >= reviewAt.getTime()
+        ? dueAt
+        : new Date(reviewAt.getTime() + 2 * 60 * 60 * 1000);
+    blockerPlan = input.blockerPlan ?? blockerPlan ?? {
+      unblockAction: `Follow up and remove this blocker: ${input.blockerReason ?? "Blocked work"}`,
+      owner: user.name,
+      reviewAt: reviewAt.toISOString(),
+      escalationAt: escalationAt.toISOString()
+    };
+  } else if (task.status === TaskStatus.BLOCKED) {
+    blockerPlan = null;
+  }
+  const executionAssurance = {
+    startedAt,
+    lastProgressAt: isProgressUpdate ? now.toISOString() : existingAssurance.lastProgressAt,
+    nextCheckpointAt,
+    lastProgressNote: input.progressNote ?? existingAssurance.lastProgressNote,
+    blockerPlan
+  };
 
   if (input.status === TaskStatus.BLOCKED) {
     if (!input.blockerReason) {
@@ -370,6 +418,7 @@ function buildTaskStatusUpdateData(
     return {
       status: input.status,
       blockerReason: input.blockerReason,
+      executionAssurance,
       updateFieldValues: mergedUpdateFieldValues,
       ...(task.status === TaskStatus.READY_FOR_REVIEW
         ? {
@@ -384,6 +433,8 @@ function buildTaskStatusUpdateData(
   if (input.status === TaskStatus.READY_FOR_REVIEW) {
     return {
       status: input.status,
+      blockerReason: task.status === TaskStatus.BLOCKED ? null : task.blockerReason ?? null,
+      executionAssurance,
       updateFieldValues: mergedUpdateFieldValues,
       readyForReviewAt: now,
       completedAt: null,
@@ -394,6 +445,8 @@ function buildTaskStatusUpdateData(
   if (input.status === TaskStatus.COMPLETED) {
     return {
       status: input.status,
+      blockerReason: task.status === TaskStatus.BLOCKED ? null : task.blockerReason ?? null,
+      executionAssurance,
       updateFieldValues: mergedUpdateFieldValues,
       completedAt: now,
       reviewedByUserId: managerReviewerId
@@ -402,6 +455,8 @@ function buildTaskStatusUpdateData(
 
   return {
     status: input.status,
+    blockerReason: task.status === TaskStatus.BLOCKED ? null : task.blockerReason ?? null,
+    executionAssurance,
     updateFieldValues: mergedUpdateFieldValues,
     ...(task.status === TaskStatus.READY_FOR_REVIEW
       ? {
@@ -487,6 +542,7 @@ function toTaskStatusUpdateResult(task: {
   id: string;
   status: TaskStatus;
   blockerReason: string | null;
+  executionAssurance?: unknown;
   updateFieldValues?: unknown;
   updatedAt: Date;
 }): TaskStatusUpdateResult {
@@ -494,6 +550,7 @@ function toTaskStatusUpdateResult(task: {
     id: task.id,
     status: task.status,
     blockerReason: task.blockerReason?.trim() ? task.blockerReason.trim() : null,
+    executionAssurance: normalizeTaskExecutionAssurance(task.executionAssurance),
     updateFieldValues: normalizeStoredUpdateFieldValues(task.updateFieldValues),
     updatedAt: task.updatedAt.toISOString()
   };

@@ -816,8 +816,10 @@ test("manager and staff can complete the daily dispatch workflow", async ({ page
   expect(generatedSalesTask).toBeTruthy();
 
   await page.goto(`/tasks/${generatedSalesTask!.id}#task-updates`);
+  await expect(page.getByRole("button", { name: "Comment", exact: true })).toBeDisabled();
   await page.getByLabel("Post a comment").fill(staffComment);
-  await page.getByRole("button", { name: "Add Note" }).click();
+  await expect(page.getByRole("button", { name: "Comment", exact: true })).toBeEnabled();
+  await page.getByRole("button", { name: "Comment", exact: true }).click();
   await expect(page.getByText(staffComment)).toBeVisible();
 
   await page.getByLabel("Next status").selectOption("BLOCKED");

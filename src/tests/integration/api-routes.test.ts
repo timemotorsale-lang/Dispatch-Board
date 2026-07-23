@@ -908,6 +908,13 @@ describe("API route integration", () => {
         id: task.id,
         status: "BLOCKED",
         blockerReason: "Waiting on lender paperwork.",
+        executionAssurance: {
+          startedAt: null,
+          lastProgressAt: null,
+          nextCheckpointAt: null,
+          lastProgressNote: null,
+          blockerPlan: null
+        },
         updateFieldValues: {},
         updatedAt: "2026-06-18T15:30:00.000Z"
       }
@@ -957,6 +964,13 @@ describe("API route integration", () => {
         id: task.id,
         status: "READY_FOR_REVIEW",
         blockerReason: null,
+        executionAssurance: {
+          startedAt: null,
+          lastProgressAt: null,
+          nextCheckpointAt: null,
+          lastProgressNote: null,
+          blockerPlan: null
+        },
         updateFieldValues: {},
         updatedAt: "2026-06-18T15:30:00.000Z"
       }
@@ -981,6 +995,13 @@ describe("API route integration", () => {
         id: task.id,
         status: "COMPLETED",
         blockerReason: null,
+        executionAssurance: {
+          startedAt: null,
+          lastProgressAt: null,
+          nextCheckpointAt: null,
+          lastProgressNote: null,
+          blockerPlan: null
+        },
         updateFieldValues: {},
         updatedAt: "2026-06-18T15:30:00.000Z"
       }
