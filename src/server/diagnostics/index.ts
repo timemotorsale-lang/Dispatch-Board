@@ -12,6 +12,8 @@ export * from "./phase-7-mechanical-acknowledgement-history";
 export * from "./phase-7-mechanical-pilot-hardening";
 export * from "./advanced-family-readiness-gate";
 export * from "./phase-8-electrical-waveform-intermittent-foundations";
+export * from "./phase-8-electrical-proof";
+export * from "./phase-8-electrical-next-test-readiness";
 export * from "./cooling-overheating-proof";
 export * from "./cooling-overheating-next-test-readiness";
 export * from "./cooling-overheating-shadow-acknowledgement";
