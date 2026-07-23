@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import type { DiagnosticExplanationPackage } from "@/server/diagnostics/capacity-explanation-domain";
 import { evaluateDiagnosticRelease4OperationalReadiness } from "@/server/diagnostics/release-4-operational-readiness-domain";
+import { buildDiagnosticPilotEvidenceSnapshot, createInMemoryDiagnosticPilotEvidenceRepository, getDiagnosticRelease4PilotReadiness } from "@/server/diagnostics/release-4-pilot-evidence-repository";
 import { evaluateDiagnosticRelease4PilotGate } from "@/server/diagnostics/release-4-pilot-gate-domain";
 import { evaluateDiagnosticRelease4PilotReplay } from "@/server/diagnostics/release-4-pilot-replay-domain";
 import { evaluateDiagnosticRelease4ReviewApproval } from "@/server/diagnostics/release-4-review-approval-domain";
 
 const checksum = "a".repeat(64);
 const occurredAt = "2026-07-22T18:00:00.000Z";
+const manager = { id: "manager-1", name: "Manager", email: "manager@example.com", isActive: true, roles: ["General Manager"], duties: { direct: [], roleDefaults: [], all: [] } };
+const staff = { id: "staff-1", name: "Staff", email: "staff@example.com", isActive: true, roles: ["Technician"], duties: { direct: [], roleDefaults: [], all: [] } };
 
 function operationalReadiness() {
   return evaluateDiagnosticRelease4OperationalReadiness({
@@ -166,5 +169,58 @@ describe("DGN-049-056 Release 4 pilot readiness", () => {
     expect(controlledPilot.authorityBoundary.productionPromotionProhibited).toBe(true);
     expect(production.gateDecision).toBe("PRODUCTION_PROHIBITED");
     expect(production.holdCodes).toContain("DGN056_PRODUCTION_PROMOTION_NOT_AUTHORIZED");
+  });
+
+  it("keeps the manager dashboard blocked when the pilot evidence repository is empty", async () => {
+    const model = await getDiagnosticRelease4PilotReadiness(manager, {
+      now: () => new Date(occurredAt),
+      repository: { getLatestEvidenceSnapshot: async () => null }
+    });
+
+    expect(model.evidenceRepositoryStatus).toBe("EMPTY");
+    expect(model.result.gateDecision).toBe("HELD");
+    expect(model.result.holdCodes).toContain("DGN055_OPERATIONAL_READINESS_BLOCKED");
+  });
+
+  it("builds a controlled-pilot gate result from repository evidence", async () => {
+    const snapshot = buildDiagnosticPilotEvidenceSnapshot({
+      evidenceSetId: "dg-g6-evidence-1",
+      organizationId: "org-1",
+      recordedAt: occurredAt,
+      recordedBy: manager.id,
+      requestedMode: "CONTROLLED_PILOT",
+      operationalReadiness: operationalReadiness(),
+      reviewApproval: reviewApproval(),
+      replay: replay(),
+      evidenceRecords: ["RUNTIME_WORKFLOW_ACCEPTANCE", "ROLE_TRAINING", "MONITORING_PLAN", "ROLLBACK_PLAN", "PAUSE_CONTROL"].map((key) => ({
+        key: key as "RUNTIME_WORKFLOW_ACCEPTANCE",
+        status: "ACCEPTED" as const,
+        evidenceReference: `${key.toLowerCase()}-evidence`,
+        reviewedBy: manager.id,
+        reviewedAt: occurredAt,
+        evidenceChecksum: checksum,
+        note: "Accepted with documented operational evidence."
+      })),
+      acceptanceSignedBy: ["SERVICE_MANAGER", "TECHNICIAN_LEAD"],
+      unresolvedRisks: [{ riskId: "risk-1", disposition: "MITIGATED", owner: "service-manager", note: "Fallback to the current manual workflow is verified." }]
+    });
+    const repository = createInMemoryDiagnosticPilotEvidenceRepository();
+    await repository.recordEvidenceSnapshot?.(snapshot);
+    const model = await getDiagnosticRelease4PilotReadiness(manager, {
+      now: () => new Date(occurredAt),
+      organizationId: "org-1",
+      repository
+    });
+
+    expect(model.evidenceRepositoryStatus).toBe("LOADED");
+    expect(model.evidenceRepositoryChecksum).toMatch(/^[0-9a-f]{64}$/);
+    expect(model.result.gateDecision).toBe("APPROVED_FOR_CONTROLLED_PILOT");
+    expect(model.result.authorityBoundary.productionPromotionProhibited).toBe(true);
+  });
+
+  it("requires manager access to read pilot evidence readiness", async () => {
+    await expect(getDiagnosticRelease4PilotReadiness(staff, {
+      repository: { getLatestEvidenceSnapshot: async () => null }
+    })).rejects.toThrow("Manager access is required");
   });
 });

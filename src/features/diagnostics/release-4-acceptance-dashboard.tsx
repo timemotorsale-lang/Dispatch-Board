@@ -6,7 +6,11 @@ import styles from "./diagnostics.module.css";
 
 const label = (value: string) => value.replaceAll("_", " ").toLocaleLowerCase().replace(/^./, (letter) => letter.toUpperCase());
 
-export function DiagnosticRelease4AcceptanceDashboard({ result }: { result: DiagnosticRelease4PilotGateResult }) {
+export function DiagnosticRelease4AcceptanceDashboard({ evidenceRepositoryChecksum, evidenceRepositoryStatus, result }: {
+  evidenceRepositoryChecksum?: string | null;
+  evidenceRepositoryStatus?: "EMPTY" | "LOADED";
+  result: DiagnosticRelease4PilotGateResult;
+}) {
   const readyCount = result.dashboard.filter((item) => item.status === "READY").length;
   return <section className={styles.acceptanceDashboard} aria-label="Diagnostics Release 4 acceptance dashboard">
     <header className={styles.acceptanceHero}>
@@ -52,6 +56,11 @@ export function DiagnosticRelease4AcceptanceDashboard({ result }: { result: Diag
       </main>
 
       <aside className={styles.acceptanceRail}>
+        {evidenceRepositoryStatus ? <section>
+          <h2><ShieldAlert /> Evidence store</h2>
+          <p>{evidenceRepositoryStatus === "LOADED" ? "Pilot evidence snapshot loaded for this gate review." : "No pilot evidence snapshot has been recorded yet."}</p>
+          {evidenceRepositoryChecksum ? <p>Checksum: {evidenceRepositoryChecksum.slice(0, 12)}...</p> : null}
+        </section> : null}
         <section>
           <h2><AlertTriangle /> Active holds</h2>
           {result.holdCodes.length ? <ul>{result.holdCodes.map((code) => <li key={code}>{label(code)}</li>)}</ul> : <p>No active holds are recorded.</p>}
