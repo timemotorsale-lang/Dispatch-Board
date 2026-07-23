@@ -1,5 +1,6 @@
 "use client";
 
+import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { RichTextComposer, RichTextContent } from "@/components/ui/rich-text-composer";
@@ -50,6 +51,7 @@ export function TaskUpdatesCommentsCard({
   const [draftBody, setDraftBody] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [quickNotesOpen, setQuickNotesOpen] = useState(false);
 
   useEffect(() => {
     if (refreshKey === 0) {
@@ -147,6 +149,7 @@ export function TaskUpdatesCommentsCard({
   function insertQuickNote(text: string) {
     setDraftBody((current) => `${current.trimEnd()}${current.trim() ? "\n" : ""}${text}`.slice(0, 2000));
     setErrorMessage(null);
+    setQuickNotesOpen(false);
   }
 
   if (compact) {
@@ -159,20 +162,58 @@ export function TaskUpdatesCommentsCard({
               ariaLabel="Post a comment"
               compact
               disabled={isSubmitting}
-              helperText="Select text before applying Bold or Link. Use a shortcut below to start a structured note."
+              helperText="Use formatting or + to start a structured note."
               onChange={(value) => {
                 setDraftBody(value);
                 setErrorMessage(null);
               }}
               placeholder="Add a note... use @ to mention"
-              rows={2}
+              rows={5}
+              toolbarLeadingContent={(
+                <div className="etw-note-quick-menu">
+                  <button
+                    aria-expanded={quickNotesOpen}
+                    aria-haspopup="menu"
+                    aria-label="Open note templates"
+                    disabled={isSubmitting}
+                    onClick={() => setQuickNotesOpen((current) => !current)}
+                    title="Insert a structured note"
+                    type="button"
+                  >
+                    <Plus size={17} />
+                  </button>
+                  {quickNotesOpen ? (
+                    <div aria-label="Note templates" className="etw-note-quick-menu-popover" role="menu">
+                      <strong>Start a structured note</strong>
+                      {TASK_NOTE_SHORTCUTS.map((shortcut) => (
+                        <button
+                          aria-label={`Insert ${shortcut.label} note`}
+                          key={shortcut.label}
+                          onClick={() => insertQuickNote(shortcut.text)}
+                          role="menuitem"
+                          type="button"
+                        >
+                          {shortcut.label}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              )}
+              toolbarTrailingContent={(
+                <button
+                  className="etw-note-submit"
+                  disabled={!canSubmitTaskComment(draftBody, isSubmitting)}
+                  type="submit"
+                >
+                  {isSubmitting ? "Adding..." : "Comment"}
+                </button>
+              )}
               toolbarVariant="task-note"
               value={draftBody}
             />
-            <button disabled={!canSubmitTaskComment(draftBody, isSubmitting)} type="submit">{isSubmitting ? "Adding..." : "Add Note"}</button>
           </form>
         ) : <p className="task-workspace-empty-copy">Only the assigned staff member or a manager can add notes.</p>}
-        {canComment ? <div aria-label="Note shortcuts" className="etw-note-actions">{TASK_NOTE_SHORTCUTS.map((shortcut) => <button aria-label={`Insert ${shortcut.label} note`} key={shortcut.label} onClick={() => insertQuickNote(shortcut.text)} type="button">{shortcut.label}</button>)}</div> : null}
         {errorMessage ? <div className="notice notice-danger my-task-inline-notice" role="alert"><p>{errorMessage}</p></div> : null}
       </section>
     );

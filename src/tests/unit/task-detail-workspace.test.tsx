@@ -174,7 +174,10 @@ describe("task detail workspace", () => {
     expect(markup).toContain("Add a subtask...");
     expect(markup).not.toContain("Activity (Latest)");
     expect(markup).toContain("More task actions");
-    expect(markup).toContain("Insert Customer contacted note");
+    expect(markup).toContain("Open note templates");
+    expect(markup).toContain(">Comment</button>");
+    expect(markup).not.toContain(">Add Note</button>");
+    expect(markup).not.toContain('class="etw-note-actions"');
     expect(markup).not.toContain("Internal Notes (Manager Only)");
   });
 

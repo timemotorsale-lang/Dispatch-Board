@@ -10691,6 +10691,12 @@ code {
   margin-left: auto;
 }
 
+.rich-text-toolbar-trailing {
+  display: inline-flex;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
 .rich-text-composer textarea {
   width: 100%;
   min-height: 82px;
@@ -10743,17 +10749,12 @@ code {
 .rich-text-composer-compact .rich-text-toolbar-task-note {
   gap: 4px;
   padding: 5px 7px;
+  overflow: visible;
 }
 
 .rich-text-composer-compact .rich-text-toolbar-task-note button {
-  display: inline-flex;
-  width: auto;
-  min-width: 0;
+  width: 26px;
   height: 26px;
-  gap: 4px;
-  padding: 0 7px;
-  font-size: 9px;
-  font-weight: 750;
 }
 
 .rich-text-composer-compact textarea,
@@ -11147,12 +11148,50 @@ code {
 .etw-note-tabs { display: flex; gap: 18px; min-height: 38px; padding: 0 12px; border-bottom: 1px solid var(--etw-line); }
 .etw-note-tabs button { padding: 0 2px; color: #45556d; background: transparent; border: 0; border-bottom: 2px solid transparent; font-size: 10.5px; font-weight: 800; }
 .etw-note-tabs button.active { color: #2d4ee0; border-color: #2d4ee0; }
-.etw-note-composer { display: grid; grid-template-columns: minmax(0, 1fr) 100px; gap: 10px; padding: 10px 12px; }
-.etw-note-composer > textarea { min-height: 48px; padding: 10px; border: 1px solid #d6dfeb; border-radius: 6px; resize: vertical; font: inherit; font-size: 11px; }
-.etw-note-composer > button { color: #fff; background: linear-gradient(135deg, #2859e6, #6539e9); border: 0; border-radius: 6px; font-size: 11px; font-weight: 800; }
-.etw-note-actions { display: flex; flex-wrap: wrap; gap: 7px; padding: 0 12px 10px; }
-.etw-note-actions button { min-height: 25px; padding: 0 9px; color: #45546a; background: #edf1f6; border: 0; border-radius: 5px; font-size: 9px; font-weight: 700; }
-.etw-note-actions button:hover,.etw-note-actions button:focus-visible { color:#174dc7; outline:none; background:#e3ebff; }
+.etw-note-composer { display: block; padding: 10px 12px 12px; }
+.etw-note-composer .rich-text-composer textarea { min-height: 126px; max-height: 260px; padding: 11px 12px; font-size: 12px; resize: none; }
+.etw-note-composer .rich-text-composer-footer { padding-right: 10px; }
+.etw-note-quick-menu { position: relative; display: inline-flex; flex: 0 0 auto; }
+.etw-note-quick-menu-popover {
+  position: absolute;
+  z-index: 40;
+  bottom: 34px;
+  left: 0;
+  display: grid;
+  width: 205px;
+  gap: 3px;
+  padding: 8px;
+  color: #24344e;
+  border: 1px solid #d5deea;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: 0 14px 32px rgb(15 35 65 / 18%);
+}
+.etw-note-quick-menu-popover strong { padding: 4px 7px 6px; font-size: 10px; }
+.rich-text-toolbar .etw-note-quick-menu-popover button {
+  display: flex;
+  justify-content: flex-start;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.rich-text-toolbar .etw-note-submit {
+  width: auto;
+  min-width: 72px;
+  height: 30px;
+  padding: 0 13px;
+  color: #fff;
+  border-radius: 6px;
+  background: #315be8;
+  font-size: 10px;
+  font-weight: 800;
+}
+.rich-text-toolbar .etw-note-submit:hover:not(:disabled),
+.rich-text-toolbar .etw-note-submit:focus-visible { color: #fff; background: #244bd0; }
+.rich-text-toolbar .etw-note-submit:disabled { color: #79869a; background: #e7ebf1; opacity: 1; }
 
 #required-task-update { scroll-margin:24px; }
 .my-task-guided-update-panel-attention { animation:task-required-update-attention 1.8s ease-out; }
@@ -11228,9 +11267,7 @@ code {
 .etw-command-rail .pill,
 .etw-context-rail .pill { font-size: 11.5px; font-weight: 800; }
 .etw-note-tabs button { font-size: 12px; }
-.etw-note-composer > textarea,
-.etw-note-composer > button { font-size: 12px; font-weight: 700; }
-.etw-note-actions button { font-size: 10.5px; }
+.rich-text-toolbar .etw-note-submit { font-size: 11px; }
 
 @media (max-width: 1300px) {
   .etw-layout { grid-template-columns: 270px minmax(480px, 1fr) 280px; }
