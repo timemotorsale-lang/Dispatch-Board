@@ -5,6 +5,8 @@ export * from "./knowledge-domain";
 export * from "./no-start-knowledge";
 export * from "./cooling-overheating-knowledge";
 export * from "./phase-7-mechanical-foundations";
+export * from "./phase-7-mechanical-proof";
+export * from "./phase-7-mechanical-next-test-readiness";
 export * from "./cooling-overheating-proof";
 export * from "./cooling-overheating-next-test-readiness";
 export * from "./cooling-overheating-shadow-acknowledgement";
