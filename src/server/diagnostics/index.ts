@@ -18,6 +18,7 @@ export * from "./phase-8-electrical-shadow-acknowledgement";
 export * from "./phase-8-electrical-acknowledgement-history";
 export * from "./phase-8-electrical-pilot-hardening";
 export * from "./phase-8-readiness-gate";
+export * from "./learning-ai-readiness";
 export * from "./cooling-overheating-proof";
 export * from "./cooling-overheating-next-test-readiness";
 export * from "./cooling-overheating-shadow-acknowledgement";

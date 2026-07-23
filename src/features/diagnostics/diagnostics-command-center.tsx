@@ -19,6 +19,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import type { DiagnosticsCommandCenterModel } from "@/server/diagnostics/service";
+import { LearningAiScaleReadinessPanel } from "./learning-ai-scale-readiness-panel";
 import styles from "./diagnostics.module.css";
 
 type CaseItem = DiagnosticsCommandCenterModel["items"][number];
@@ -202,6 +203,7 @@ export function DiagnosticsCommandCenter({ model }: { model: DiagnosticsCommandC
           ["Audit Trail", model.operationalReadiness.auditTrail]
         ].map(([name, readiness]) => <span key={String(name)}><i className={styles[`readiness${(readiness as { state: string }).state}`]} /><b>{String(name)}</b><small>{(readiness as { label: string }).label}</small></span>)}
       </div> : null}
+      {readinessOpen && model.learningAiScaleReadiness ? <LearningAiScaleReadinessPanel readiness={model.learningAiScaleReadiness} /> : null}
 
       <div className={styles.queueToolbar}>
         <div className={styles.queueChips}>
