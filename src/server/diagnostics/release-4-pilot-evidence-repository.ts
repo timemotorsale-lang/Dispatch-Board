@@ -1,5 +1,8 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
+import { Prisma, type PrismaClient } from "@prisma/client";
+import { randomUUID } from "node:crypto";
+import { prisma } from "@/server/db/client";
 import { hashEnterpriseCommand } from "@/server/enterprise-command/domain";
 import { assertAuthenticatedUser, canReviewWorkflows } from "@/server/policies/access";
 
@@ -64,11 +67,136 @@ const missingOperationalReadiness = { status: "BLOCKED" as const, resultChecksum
 const missingReviewApproval = { status: "BLOCKED" as const, resultChecksum: "" };
 const missingReplay = { status: "BLOCKED" as const, resultChecksum: "", caseCount: 0, metrics: zeroMetrics, warningCodes: ["DGG6_PILOT_EVIDENCE_REPOSITORY_EMPTY"] };
 const validChecksum = (value: string) => /^[0-9a-f]{64}$/.test(value);
+const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 
-export function createDiagnosticPilotEvidenceRepository(): DiagnosticPilotEvidenceRepository {
+type DiagnosticPilotEvidenceSnapshotRow = {
+  id: string;
+  organizationId: string;
+  evidenceSetId: string;
+  recordedAt: Date;
+  recordedBy: string;
+  requestedMode: DiagnosticPilotGateMode;
+  operationalReadiness: unknown;
+  reviewApproval: unknown;
+  replay: unknown;
+  evidenceRecords: unknown;
+  acceptanceSignedBy: unknown;
+  unresolvedRisks: unknown;
+  repositoryChecksum: string;
+};
+
+function snapshotFromRow(row: DiagnosticPilotEvidenceSnapshotRow): DiagnosticPilotEvidenceSnapshot {
+  return {
+    evidenceSetId: row.evidenceSetId,
+    organizationId: row.organizationId,
+    recordedAt: row.recordedAt.toISOString(),
+    recordedBy: row.recordedBy,
+    requestedMode: row.requestedMode,
+    operationalReadiness: row.operationalReadiness as DiagnosticPilotEvidenceSnapshot["operationalReadiness"],
+    reviewApproval: row.reviewApproval as DiagnosticPilotEvidenceSnapshot["reviewApproval"],
+    replay: row.replay as DiagnosticPilotEvidenceSnapshot["replay"],
+    evidenceRecords: Array.isArray(row.evidenceRecords) ? row.evidenceRecords as DiagnosticPilotEvidenceRecord[] : [],
+    acceptanceSignedBy: Array.isArray(row.acceptanceSignedBy) ? row.acceptanceSignedBy.map(String) : [],
+    unresolvedRisks: Array.isArray(row.unresolvedRisks) ? row.unresolvedRisks as DiagnosticPilotRiskDisposition[] : [],
+    repositoryChecksum: row.repositoryChecksum
+  };
+}
+
+export function createEmptyDiagnosticPilotEvidenceRepository(): DiagnosticPilotEvidenceRepository {
   return {
     async getLatestEvidenceSnapshot() {
       return null;
+    }
+  };
+}
+
+export function createDiagnosticPilotEvidenceRepository(database: PrismaClient = prisma): DiagnosticPilotEvidenceRepository {
+  return {
+    async getLatestEvidenceSnapshot(organizationId) {
+      const rows = await database.$queryRaw<DiagnosticPilotEvidenceSnapshotRow[]>`
+        SELECT
+          "id",
+          "organizationId",
+          "evidenceSetId",
+          "recordedAt",
+          "recordedBy",
+          "requestedMode",
+          "operationalReadiness",
+          "reviewApproval",
+          "replay",
+          "evidenceRecords",
+          "acceptanceSignedBy",
+          "unresolvedRisks",
+          "repositoryChecksum"
+        FROM "DiagnosticPilotEvidenceSnapshot"
+        WHERE "organizationId" = ${organizationId}
+        ORDER BY "recordedAt" DESC, "createdAt" DESC
+        LIMIT 1
+      `;
+      return rows[0] ? snapshotFromRow(rows[0]) : null;
+    },
+    async recordEvidenceSnapshot(snapshot) {
+      const existing = await database.$queryRaw<DiagnosticPilotEvidenceSnapshotRow[]>`
+        SELECT
+          "id",
+          "organizationId",
+          "evidenceSetId",
+          "recordedAt",
+          "recordedBy",
+          "requestedMode",
+          "operationalReadiness",
+          "reviewApproval",
+          "replay",
+          "evidenceRecords",
+          "acceptanceSignedBy",
+          "unresolvedRisks",
+          "repositoryChecksum"
+        FROM "DiagnosticPilotEvidenceSnapshot"
+        WHERE "organizationId" = ${snapshot.organizationId}
+          AND "evidenceSetId" = ${snapshot.evidenceSetId}
+        LIMIT 1
+      `;
+      if (existing[0]) {
+        if (existing[0].repositoryChecksum !== snapshot.repositoryChecksum) {
+          throw new Error("DG-G6 evidence set id was reused with a different checksum.");
+        }
+        return snapshotFromRow(existing[0]);
+      }
+      const id = randomUUID();
+      await database.$executeRaw`
+        INSERT INTO "DiagnosticPilotEvidenceSnapshot" (
+          "id",
+          "organizationId",
+          "evidenceSetId",
+          "recordedAt",
+          "recordedBy",
+          "requestedMode",
+          "operationalReadiness",
+          "reviewApproval",
+          "replay",
+          "evidenceRecords",
+          "acceptanceSignedBy",
+          "unresolvedRisks",
+          "repositoryChecksum",
+          "createdAt"
+        ) VALUES (
+          ${id},
+          ${snapshot.organizationId},
+          ${snapshot.evidenceSetId},
+          ${new Date(snapshot.recordedAt)},
+          ${snapshot.recordedBy},
+          ${snapshot.requestedMode},
+          ${snapshot.operationalReadiness === null ? null : json(snapshot.operationalReadiness)},
+          ${snapshot.reviewApproval === null ? null : json(snapshot.reviewApproval)},
+          ${snapshot.replay === null ? null : json(snapshot.replay)},
+          ${json(snapshot.evidenceRecords)},
+          ${json(snapshot.acceptanceSignedBy)},
+          ${json(snapshot.unresolvedRisks)},
+          ${snapshot.repositoryChecksum},
+          NOW()
+        )
+      `;
+      return snapshot;
     }
   };
 }
