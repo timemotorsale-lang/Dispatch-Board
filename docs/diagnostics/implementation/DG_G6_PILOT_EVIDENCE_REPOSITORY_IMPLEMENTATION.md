@@ -1,12 +1,14 @@
 # DG-G6 - Pilot Evidence Repository Implementation
 
-**Status:** Implemented in source; real operational evidence still must be recorded
-**Branch:** `codex/diagnostics-dg-g6-pilot-evidence-repository`
+**Status:** Implemented in source with durable storage; real operational evidence still must be recorded
+**Branch:** `codex/diagnostics-dg-g6-durable-pilot-evidence-storage`
 **Gate:** `DG-G6`
 
 ## Outcome
 
 The Release 4 acceptance dashboard now reads through an explicit pilot evidence repository contract instead of constructing a local blocked placeholder. The repository supports append-style snapshot recording, checksum binding, latest-snapshot reads, and carries the evidence needed by the existing controlled-pilot gate.
+
+This branch adds the durable `DiagnosticPilotEvidenceSnapshot` table and makes the default repository database-backed. The in-memory repository remains available for tests and local harnesses.
 
 This does not approve a pilot. An empty repository still produces a held gate result, and production remains permanently prohibited by the Release 4 gate.
 
@@ -16,6 +18,8 @@ This does not approve a pilot. An empty repository still produces a held gate re
 - `src/app/(app)/diagnostics/pilot-readiness/page.tsx`
 - `src/features/diagnostics/release-4-acceptance-dashboard.tsx`
 - `src/tests/unit/diagnostics-release-4-pilot-readiness-domain.test.ts`
+- `prisma/schema.prisma`
+- `prisma/migrations/20260722194500_diagnostics_dg_g6_pilot_evidence_storage/migration.sql`
 
 ## Evidence Contract
 
@@ -35,7 +39,7 @@ Each pilot evidence snapshot records:
 
 Every evidence record must include a reference, reviewer, timestamp, checksum, and substantive note before it can satisfy a `DG-G6` row.
 
-The default repository remains empty until a durable database-backed adapter is attached. Tests and local callers can use the in-memory repository harness to record and read snapshots through the same contract.
+The default repository now records and reads snapshots from durable storage. Tests and local callers can still use the in-memory repository harness to record and read snapshots through the same contract.
 
 ## Authority Boundary
 

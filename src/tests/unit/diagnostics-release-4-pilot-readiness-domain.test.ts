@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import type { PrismaClient } from "@prisma/client";
+import { describe, expect, it, vi } from "vitest";
 
 import type { DiagnosticExplanationPackage } from "@/server/diagnostics/capacity-explanation-domain";
 import { evaluateDiagnosticRelease4OperationalReadiness } from "@/server/diagnostics/release-4-operational-readiness-domain";
-import { buildDiagnosticPilotEvidenceSnapshot, createInMemoryDiagnosticPilotEvidenceRepository, getDiagnosticRelease4PilotReadiness } from "@/server/diagnostics/release-4-pilot-evidence-repository";
+import { buildDiagnosticPilotEvidenceSnapshot, createDiagnosticPilotEvidenceRepository, createInMemoryDiagnosticPilotEvidenceRepository, getDiagnosticRelease4PilotReadiness } from "@/server/diagnostics/release-4-pilot-evidence-repository";
 import { evaluateDiagnosticRelease4PilotGate } from "@/server/diagnostics/release-4-pilot-gate-domain";
 import { evaluateDiagnosticRelease4PilotReplay } from "@/server/diagnostics/release-4-pilot-replay-domain";
 import { evaluateDiagnosticRelease4ReviewApproval } from "@/server/diagnostics/release-4-review-approval-domain";
@@ -222,5 +223,37 @@ describe("DGN-049-056 Release 4 pilot readiness", () => {
     await expect(getDiagnosticRelease4PilotReadiness(staff, {
       repository: { getLatestEvidenceSnapshot: async () => null }
     })).rejects.toThrow("Manager access is required");
+  });
+
+  it("persists DG-G6 evidence snapshots through the database-backed repository", async () => {
+    const snapshot = buildDiagnosticPilotEvidenceSnapshot({
+      evidenceSetId: "dg-g6-evidence-db-1",
+      organizationId: "org-1",
+      recordedAt: occurredAt,
+      recordedBy: manager.id,
+      requestedMode: "SHADOW_ONLY",
+      operationalReadiness: operationalReadiness(),
+      reviewApproval: reviewApproval(),
+      replay: replay(),
+      evidenceRecords: [],
+      acceptanceSignedBy: [],
+      unresolvedRisks: []
+    });
+    const row = {
+      id: "row-1",
+      ...snapshot,
+      recordedAt: new Date(snapshot.recordedAt)
+    };
+    const database = {
+      $queryRaw: vi.fn()
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([row]),
+      $executeRaw: vi.fn().mockResolvedValue(1)
+    } as unknown as PrismaClient;
+    const repository = createDiagnosticPilotEvidenceRepository(database);
+
+    await expect(repository.recordEvidenceSnapshot?.(snapshot)).resolves.toMatchObject({ evidenceSetId: snapshot.evidenceSetId });
+    await expect(repository.getLatestEvidenceSnapshot("org-1")).resolves.toMatchObject({ evidenceSetId: snapshot.evidenceSetId, recordedAt: occurredAt });
+    expect(database.$executeRaw).toHaveBeenCalledTimes(1);
   });
 });

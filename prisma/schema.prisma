@@ -3378,6 +3378,28 @@ model DiagnosticEvidenceLink {
   @@index([subjectType, subjectId])
 }
 
+model DiagnosticPilotEvidenceSnapshot {
+  id                         String   @id
+  organizationId             String
+  evidenceSetId              String
+  recordedAt                 DateTime
+  recordedBy                 String
+  requestedMode              String
+  operationalReadiness       Json?
+  reviewApproval             Json?
+  replay                     Json?
+  evidenceRecords            Json
+  acceptanceSignedBy         Json
+  unresolvedRisks            Json
+  repositoryChecksum         String
+  createdAt                  DateTime @default(now())
+
+  @@unique([organizationId, evidenceSetId])
+  @@unique([organizationId, repositoryChecksum])
+  @@index([organizationId, recordedAt])
+  @@index([recordedBy, recordedAt])
+}
+
 model DiagnosticTestDefinitionVersion {
   id                   String                           @id
   organizationId       String
