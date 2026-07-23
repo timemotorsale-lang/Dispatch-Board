@@ -11,7 +11,8 @@ import {
   ScanLine,
   Search,
   ShieldAlert,
-  Stethoscope
+  Stethoscope,
+  BarChart3
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -166,6 +167,7 @@ export function DiagnosticsCommandCenter({ model }: { model: DiagnosticsCommandC
       </div>
       <div className={styles.commandActions}>
         <Link className={styles.primaryCommand} href="/diagnostics/intake" title={!commandsEnabled ? `Intake review is available; creation remains controlled by rollout: ${label(model.rollout.reason)}` : "Start a governed diagnostic intake"}><Plus />New Diagnostic Case</Link>
+        <Link className={styles.secondaryCommand} href="/diagnostics/pilot-readiness"><BarChart3 />Pilot Readiness</Link>
         <Link className={styles.secondaryCommand} href="/vehicles/discovery?intent=diagnostics"><ScanLine />Scan VIN</Link>
         <button className={styles.systemStatus} onClick={() => setReadinessOpen((current) => !current)} type="button"><span />Systems Operational<ChevronDown className={readinessOpen ? styles.chevronOpen : ""} /></button>
       </div>
