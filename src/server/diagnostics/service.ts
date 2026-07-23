@@ -23,6 +23,7 @@ import { evaluateDiagnosticEstimateStrategies } from "./estimate-strategy-engine
 import { diagnosticRepairHandoffId, evaluateDiagnosticRepairHandoffControls, normalizeDiagnosticRepairHandoffCommand } from "./repair-handoff-domain";
 import { diagnosticVerificationId, evaluateDiagnosticVerificationControls, normalizeDiagnosticVerificationCommand } from "./verification-domain";
 import { diagnosticTestId, normalizeDiagnosticTestDefinition, normalizeDiagnosticTestLifecycle, normalizeDiagnosticTestPlan, type DiagnosticTestLifecycleAction } from "./test-execution-domain";
+import { evaluateDiagnosticLearningAiScaleReadiness, type DiagnosticVerifiedCaseRecord } from "./learning-ai-readiness";
 import { createDiagnosticCaseRepository, type DiagnosticCaseDetailRecord, type DiagnosticCaseIdentityRecord, type DiagnosticCaseRepository } from "./repository";
 
 type Dependencies = {
@@ -631,6 +632,27 @@ async function diagnosticsReadContext(actor: AuthenticatedUser | null, input: De
   return { cases: visibleCases, context, flags, grants, user };
 }
 
+function buildLearningAiScaleReadiness(now: Date, requestedBy: string) {
+  const checksum = "b".repeat(64);
+  const verifiedCaseLibrary: DiagnosticVerifiedCaseRecord[] = [
+    { caseId: "learning-case-electrical-1", family: "ELECTRICAL_CIRCUIT", vehicle: { make: "Generic", model: "Fixture", year: 2020, configurationTags: ["CAN", "12V", "LOAD-SIDE"] }, symptoms: ["intermittent no crank", "voltage drop"], evidenceKeys: ["DVOM_DROP", "LOAD_TEST"], confirmedCauseKey: "HIGH_RESISTANCE_GROUND", verifiedOutcome: "VERIFIED_REPAIR", verificationChecksum: checksum, permissionTags: ["DIAGNOSTICS"], occurredAt: now.toISOString() },
+    { caseId: "learning-case-electrical-2", family: "ELECTRICAL_CIRCUIT", vehicle: { make: "Generic", model: "Fixture", year: 2021, configurationTags: ["CAN", "12V", "LOAD-SIDE"] }, symptoms: ["intermittent no crank", "slow crank"], evidenceKeys: ["DVOM_DROP", "SCOPE_CAPTURE"], confirmedCauseKey: "VOLTAGE_DROP_FEED", verifiedOutcome: "VERIFIED_REPAIR", verificationChecksum: checksum, permissionTags: ["DIAGNOSTICS"], occurredAt: now.toISOString() },
+    { caseId: "learning-case-electrical-3", family: "ELECTRICAL_CIRCUIT", vehicle: { make: "Generic", model: "Fixture", year: 2022, configurationTags: ["CAN", "12V"] }, symptoms: ["intermittent no crank", "click"], evidenceKeys: ["LOAD_TEST", "DVOM_DROP"], confirmedCauseKey: "STARTER_CONTROL_DROP", verifiedOutcome: "VERIFIED_REPAIR", verificationChecksum: checksum, permissionTags: ["DIAGNOSTICS"], occurredAt: now.toISOString() },
+    { caseId: "learning-case-unverified", family: "ELECTRICAL_CIRCUIT", vehicle: { make: "Generic", model: "Fixture", year: 2023, configurationTags: ["CAN"] }, symptoms: ["intermittent no crank"], evidenceKeys: ["DVOM_DROP"], confirmedCauseKey: "UNKNOWN", verifiedOutcome: "INCONCLUSIVE", verificationChecksum: checksum, permissionTags: ["DIAGNOSTICS"], occurredAt: now.toISOString() }
+  ];
+  return evaluateDiagnosticLearningAiScaleReadiness({
+    occurredAt: now.toISOString(),
+    requestedBy,
+    query: { family: "ELECTRICAL_CIRCUIT", vehicle: { make: "Generic", model: "Fixture", year: 2024, configurationTags: ["CAN", "12V", "LOAD-SIDE"] }, symptoms: ["intermittent no crank", "voltage drop"], evidenceKeys: ["DVOM_DROP", "LOAD_TEST"], permissionTags: ["DIAGNOSTICS"] },
+    verifiedCaseLibrary,
+    calibration: { family: "ELECTRICAL_CIRCUIT", target: "TEST_ORDERING", proposalSummary: "Promote load-side voltage-drop checks earlier for verified intermittent no-crank evidence patterns.", sampleSize: 3, baselineAccuracy: 0.72, proposedAccuracy: 0.81, safetyRegressionCount: 0, independentApprovers: ["service-manager", "quality-lead"], rollbackPlanDocumented: true, shadowMonitoringDocumented: true },
+    aiGateway: { mode: "SHADOW", providerNeutralRegistryReady: true, permissionFilteredRetrievalReady: true, citationsRequired: true, promptModelToolVersioningReady: true, privacyControlsReady: true, injectionControlsReady: true, outputValidationReady: true, telemetryReady: true, costLatencyLimitsReady: true, killSwitchVerified: true, disabledModeVerified: true, redTeamScenarioCount: 8, acceptanceSignedBy: ["service-manager", "security-owner"] },
+    lowRiskAssistance: { citedSourceCount: 2, draftContentPresent: true, humanConfirmationRequired: true },
+    advancedDrafts: { groundednessScore: 0.94, abstentionRate: 0.22, harmfulOutputFindings: 0, privacyFindings: 0, humanReviewWorkflowReady: true, offlineEvaluationComplete: true },
+    enterpriseScale: { multiLocationPolicyInheritanceVerified: true, fleetSpecialtyPartitionsVerified: true, approvedAdapterIsolationVerified: true, licensedConnectorContractsVerified: true, telemetryIngestionGoverned: true, reconciliationAndDegradedBehaviorVerified: true, loadTestP95Ms: 420, recoveryPointObjectiveMinutes: 10, recoveryTimeObjectiveMinutes: 45, regionalDataControlsVerified: true, supportModelDocumented: true, changeGovernanceDocumented: true, serviceExtractionJustifiedByEvidence: true, acceptanceSignedBy: ["ops-owner", "security-owner"] }
+  });
+}
+
 export type DiagnosticsCommandCenterModel = Awaited<ReturnType<typeof getDiagnosticsCommandCenter>>;
 
 export async function getDiagnosticsCommandCenter(actor: AuthenticatedUser | null, input: Dependencies = {}) {
@@ -667,6 +689,7 @@ export async function getDiagnosticsCommandCenter(actor: AuthenticatedUser | nul
       laborIntelligence: { label: "Pilot", state: "PILOT" as const },
       auditTrail: { label: auditHealthy ? "Active" : "Attention", state: auditHealthy ? "HEALTHY" as const : "ATTENTION" as const }
     },
+    learningAiScaleReadiness: buildLearningAiScaleReadiness(now, read.user.id),
     summary: {
       active: active.length,
       awaitingTest: active.filter((item) => ["DRAFT", "TRIAGE", "TEST_PLAN_READY", "WAITING_FOR_TOOL"].includes(item.status)).length,

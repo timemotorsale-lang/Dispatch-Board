@@ -6,6 +6,7 @@ export const DIAGNOSTIC_AI_GATEWAY_READINESS_VERSION = "DGN-048/PROVIDER-NEUTRAL
 export const DIAGNOSTIC_LOW_RISK_AI_ASSISTANCE_VERSION = "DGN-049/LOW-RISK-AI-ASSISTANCE/1.0.0";
 export const DIAGNOSTIC_ADVANCED_AI_DRAFT_GATE_VERSION = "DGN-050/ADVANCED-AI-DIAGNOSTIC-DRAFT-GATE/1.0.0";
 export const DIAGNOSTIC_ENTERPRISE_SCALE_READINESS_VERSION = "DG-G10/ENTERPRISE-SCALE-ECOSYSTEM-READINESS/1.0.0";
+export const DIAGNOSTIC_LEARNING_AI_SCALE_READINESS_VERSION = "DGN-046-050+DG-G10/LEARNING-AI-SCALE-READINESS/1.0.0";
 
 export type DiagnosticLearningFamily = "NO_START" | "COOLING_OVERHEATING" | "BRAKE" | "HVAC" | "MISFIRE_DRIVABILITY" | "ELECTRICAL_CIRCUIT" | "WAVEFORM_ANALYSIS" | "INTERMITTENT_FAULT";
 export type DiagnosticVerifiedOutcome = "VERIFIED_REPAIR" | "COMEBACK" | "NO_FAULT_FOUND" | "INCONCLUSIVE";
@@ -30,13 +31,7 @@ export type DiagnosticVerifiedCaseRecord = {
 export type DiagnosticSimilarCaseRetrievalInput = {
   occurredAt: string;
   requestedBy: string;
-  query: {
-    family: DiagnosticLearningFamily;
-    vehicle: DiagnosticVerifiedCaseRecord["vehicle"];
-    symptoms: string[];
-    evidenceKeys: string[];
-    permissionTags: string[];
-  };
+  query: { family: DiagnosticLearningFamily; vehicle: DiagnosticVerifiedCaseRecord["vehicle"]; symptoms: string[]; evidenceKeys: string[]; permissionTags: string[] };
   library: DiagnosticVerifiedCaseRecord[];
   minimumScore?: number;
 };
@@ -116,9 +111,44 @@ export type DiagnosticEnterpriseScaleReadinessInput = {
   acceptanceSignedBy: string[];
 };
 
-const checksumOk = (value: string) => /^[0-9a-f]{64}$/.test(value);
-const normalized = (value: string) => value.trim().toUpperCase();
-const unique = (values: string[]) => [...new Set(values.filter(Boolean))].sort((left, right) => left.localeCompare(right));
+export type DiagnosticLearningAiScaleReadinessInput = {
+  occurredAt: string;
+  requestedBy: string;
+  query: DiagnosticSimilarCaseRetrievalInput["query"];
+  verifiedCaseLibrary: DiagnosticVerifiedCaseRecord[];
+  calibration: {
+    family: DiagnosticLearningFamily;
+    target: DiagnosticCalibrationProposalInput["target"];
+    proposalSummary: string;
+    sampleSize: number;
+    baselineAccuracy: number;
+    proposedAccuracy: number;
+    safetyRegressionCount: number;
+    independentApprovers: string[];
+    rollbackPlanDocumented: boolean;
+    shadowMonitoringDocumented: boolean;
+  };
+  aiGateway: {
+    mode: DiagnosticAiAssistanceMode;
+    providerNeutralRegistryReady: boolean;
+    permissionFilteredRetrievalReady: boolean;
+    citationsRequired: boolean;
+    promptModelToolVersioningReady: boolean;
+    privacyControlsReady: boolean;
+    injectionControlsReady: boolean;
+    outputValidationReady: boolean;
+    telemetryReady: boolean;
+    costLatencyLimitsReady: boolean;
+    killSwitchVerified: boolean;
+    disabledModeVerified: boolean;
+    redTeamScenarioCount: number;
+    acceptanceSignedBy: string[];
+  };
+  lowRiskAssistance: { citedSourceCount: number; draftContentPresent: boolean; humanConfirmationRequired: boolean };
+  advancedDrafts: { groundednessScore: number; abstentionRate: number; harmfulOutputFindings: number; privacyFindings: number; humanReviewWorkflowReady: boolean; offlineEvaluationComplete: boolean };
+  enterpriseScale: Omit<DiagnosticEnterpriseScaleReadinessInput, "occurredAt" | "requestedBy">;
+};
+
 const authorityBoundary = {
   reviewOnly: true,
   productionLogicMutationAuthorized: false,
@@ -128,9 +158,14 @@ const authorityBoundary = {
   repairAuthorized: false,
   customerPresentationAuthorized: false,
   productionPromotionProhibited: true,
+  externalConnectorActivationAuthorized: false,
   humanReviewRequired: true,
   killSwitchRequired: true
 } as const;
+
+const checksumOk = (value: string) => /^[0-9a-f]{64}$/.test(value);
+const normalized = (value: string) => value.trim().toUpperCase();
+const unique = (values: string[]) => [...new Set(values.filter(Boolean))].sort((left, right) => left.localeCompare(right));
 
 function validDate(value: string, message: string) {
   const date = new Date(value);
@@ -149,10 +184,10 @@ export function findDiagnosticVerifiedSimilarCases(input: DiagnosticSimilarCaseR
   if (!requestedBy) throw new Error("DGN-046 similar-case retrieval requires a requester.");
   const minimumScore = input.minimumScore ?? 0.45;
   const excluded: Array<{ caseId: string; reasonCode: DiagnosticSimilarCaseExclusionReason }> = input.library.flatMap((item): Array<{ caseId: string; reasonCode: DiagnosticSimilarCaseExclusionReason }> => {
-    if (item.family !== input.query.family) return [{ caseId: item.caseId, reasonCode: "FAMILY_MISMATCH" as const }];
-    if (item.verifiedOutcome !== "VERIFIED_REPAIR") return [{ caseId: item.caseId, reasonCode: "UNVERIFIED_OUTCOME" as const }];
-    if (!checksumOk(item.verificationChecksum)) return [{ caseId: item.caseId, reasonCode: "CHECKSUM_INVALID" as const }];
-    if (!item.permissionTags.every((tag) => input.query.permissionTags.map(normalized).includes(normalized(tag)))) return [{ caseId: item.caseId, reasonCode: "PERMISSION_FILTERED" as const }];
+    if (item.family !== input.query.family) return [{ caseId: item.caseId, reasonCode: "FAMILY_MISMATCH" }];
+    if (item.verifiedOutcome !== "VERIFIED_REPAIR") return [{ caseId: item.caseId, reasonCode: "UNVERIFIED_OUTCOME" }];
+    if (!checksumOk(item.verificationChecksum)) return [{ caseId: item.caseId, reasonCode: "CHECKSUM_INVALID" }];
+    if (!item.permissionTags.every((tag) => input.query.permissionTags.map(normalized).includes(normalized(tag)))) return [{ caseId: item.caseId, reasonCode: "PERMISSION_FILTERED" }];
     return [];
   });
   const candidates = input.library.filter((item) => !excluded.some((excludedItem) => excludedItem.caseId === item.caseId)).map((item) => {
@@ -340,4 +375,78 @@ export function evaluateDiagnosticEnterpriseScaleReadiness(input: DiagnosticEnte
     authorityBoundary
   };
   return { ...result, gateChecksum: hashEnterpriseCommand({ input, result }) };
+}
+
+export function evaluateDiagnosticLearningAiScaleReadiness(input: DiagnosticLearningAiScaleReadinessInput) {
+  const similarCaseRetrieval = findDiagnosticVerifiedSimilarCases({ occurredAt: input.occurredAt, requestedBy: input.requestedBy, query: input.query, library: input.verifiedCaseLibrary });
+  const calibration = createDiagnosticControlledCalibrationProposal({
+    occurredAt: input.occurredAt,
+    proposedBy: input.requestedBy,
+    target: input.calibration.target,
+    family: input.calibration.family,
+    outcomeWindow: input.verifiedCaseLibrary,
+    proposalSummary: input.calibration.proposalSummary,
+    offlineEvaluation: { sampleSize: input.calibration.sampleSize, baselineAccuracy: input.calibration.baselineAccuracy, proposedAccuracy: input.calibration.proposedAccuracy, safetyRegressionCount: input.calibration.safetyRegressionCount, unnecessaryPartsDelta: 0 },
+    independentApprovers: input.calibration.independentApprovers,
+    rollbackPlanDocumented: input.calibration.rollbackPlanDocumented,
+    shadowMonitoringDocumented: input.calibration.shadowMonitoringDocumented
+  });
+  const gateway = evaluateDiagnosticAiGatewayReadiness({
+    occurredAt: input.occurredAt,
+    requestedBy: input.requestedBy,
+    mode: input.aiGateway.mode,
+    providerNeutralRegistryReady: input.aiGateway.providerNeutralRegistryReady,
+    permissionFilteredRetrievalReady: input.aiGateway.permissionFilteredRetrievalReady,
+    citationAndSourceVersionRequired: input.aiGateway.citationsRequired,
+    promptModelToolVersioningReady: input.aiGateway.promptModelToolVersioningReady,
+    privacyControlsReady: input.aiGateway.privacyControlsReady,
+    injectionControlsReady: input.aiGateway.injectionControlsReady,
+    deterministicOutputValidationReady: input.aiGateway.outputValidationReady,
+    telemetryReady: input.aiGateway.telemetryReady,
+    costLatencyLimitsReady: input.aiGateway.costLatencyLimitsReady,
+    killSwitchVerified: input.aiGateway.killSwitchVerified,
+    disabledModeVerified: input.aiGateway.disabledModeVerified,
+    redTeamScenarioCount: input.aiGateway.redTeamScenarioCount,
+    acceptanceSignedBy: input.aiGateway.acceptanceSignedBy
+  });
+  const advancedDraftGate = evaluateDiagnosticAdvancedAiDraftGate({ occurredAt: input.occurredAt, requestedBy: input.requestedBy, gateway, draftType: "TEST_PLAN_DRAFT", similarCaseRetrieval, groundednessScore: input.advancedDrafts.groundednessScore, abstentionRate: input.advancedDrafts.abstentionRate, harmfulOutputFindings: input.advancedDrafts.harmfulOutputFindings, privacyFindings: input.advancedDrafts.privacyFindings, humanReviewWorkflowReady: input.advancedDrafts.humanReviewWorkflowReady, offlineEvaluationComplete: input.advancedDrafts.offlineEvaluationComplete });
+  const enterpriseScale = evaluateDiagnosticEnterpriseScaleReadiness({ occurredAt: input.occurredAt, requestedBy: input.requestedBy, ...input.enterpriseScale });
+  const lowRiskReady = input.lowRiskAssistance.citedSourceCount > 0 && input.lowRiskAssistance.draftContentPresent && input.lowRiskAssistance.humanConfirmationRequired;
+  const holdCodes = unique([
+    similarCaseRetrieval.status === "MATCHES_AVAILABLE" ? "" : "DGN046_VERIFIED_SIMILAR_CASE_MATCH_REQUIRED",
+    ...calibration.holdCodes,
+    gateway.status === "READY_FOR_SUPERVISED_SHADOW" || gateway.status === "DISABLED_READY" ? "" : "DGN048_AI_GATEWAY_READINESS_REQUIRED",
+    input.lowRiskAssistance.citedSourceCount > 0 ? "" : "DGN049_CITED_SOURCES_REQUIRED",
+    input.lowRiskAssistance.draftContentPresent ? "" : "DGN049_DRAFT_CONTENT_REQUIRED",
+    input.lowRiskAssistance.humanConfirmationRequired ? "" : "DGN049_HUMAN_CONFIRMATION_REQUIRED",
+    ...advancedDraftGate.holdCodes,
+    enterpriseScale.status === "READY_FOR_ENTERPRISE_SCALE_REVIEW" ? "" : "DGG10_ENTERPRISE_SCALE_EVIDENCE_REQUIRED"
+  ]);
+  const result = {
+    version: DIAGNOSTIC_LEARNING_AI_SCALE_READINESS_VERSION,
+    occurredAt: validDate(input.occurredAt, "Learning, AI, and scale readiness requires a valid timestamp."),
+    requestedBy: input.requestedBy.trim(),
+    status: holdCodes.length ? "HELD" as const : "READY_FOR_GOVERNED_REVIEW" as const,
+    dashboard: [
+      { key: "SIMILAR_CASES", label: "Verified similar cases", status: similarCaseRetrieval.status === "MATCHES_AVAILABLE" ? "READY" as const : "HOLD" as const, detail: `${similarCaseRetrieval.matches.length} verified matches; ${similarCaseRetrieval.excludedCases.length} excluded.` },
+      { key: "CALIBRATION", label: "Controlled calibration", status: calibration.status === "READY_FOR_SHADOW_EVALUATION" ? "READY" as const : "HOLD" as const, detail: `${input.calibration.target}; improvement ${calibration.metrics.improvement}.` },
+      { key: "AI_GATEWAY", label: "AI gateway and low-risk drafts", status: (gateway.status === "READY_FOR_SUPERVISED_SHADOW" || gateway.status === "DISABLED_READY") && lowRiskReady ? "READY" as const : "HOLD" as const, detail: `${input.aiGateway.mode}; ${input.aiGateway.redTeamScenarioCount} red-team scenarios.` },
+      { key: "ADVANCED_DRAFTS", label: "Advanced AI draft gate", status: advancedDraftGate.status === "READY_FOR_SHADOW_DRAFT_REVIEW" ? "READY" as const : "HOLD" as const, detail: `Groundedness ${advancedDraftGate.metrics.groundednessScore}; abstention ${advancedDraftGate.metrics.abstentionRate}.` },
+      { key: "ENTERPRISE_SCALE", label: "Enterprise scale and ecosystem", status: enterpriseScale.status === "READY_FOR_ENTERPRISE_SCALE_REVIEW" ? "READY" as const : "HOLD" as const, detail: `P95 ${enterpriseScale.metrics.loadTestP95Ms}ms; RTO ${enterpriseScale.metrics.recoveryTimeObjectiveMinutes}m.` }
+    ],
+    holdCodes,
+    metrics: {
+      similarCaseMatches: similarCaseRetrieval.matches.length,
+      excludedCases: similarCaseRetrieval.excludedCases.length,
+      calibrationImprovement: calibration.metrics.improvement,
+      gatewayHoldCount: gateway.holdCodes.length,
+      redTeamScenarioCount: input.aiGateway.redTeamScenarioCount,
+      enterpriseLoadP95Ms: enterpriseScale.metrics.loadTestP95Ms,
+      enterpriseRecoveryTimeObjectiveMinutes: enterpriseScale.metrics.recoveryTimeObjectiveMinutes
+    },
+    matches: similarCaseRetrieval.matches,
+    warningCodes: ["LEARNING_AI_SCALE_READY_IS_NOT_AUTHORITY", "AI_REMAINS_OPTIONAL_SUPERVISED_AND_REVERSIBLE", "ENTERPRISE_CONNECTORS_REMAIN_ISOLATED"],
+    authorityBoundary
+  };
+  return { ...result, readinessChecksum: hashEnterpriseCommand({ input, result }) };
 }
