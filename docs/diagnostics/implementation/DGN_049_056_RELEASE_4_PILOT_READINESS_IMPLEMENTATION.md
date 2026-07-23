@@ -1,7 +1,7 @@
 # DGN-049–056 — Release 4 Pilot Readiness Implementation
 
 **Status:** Implemented in source; runtime evidence and controlled-pilot approval remain open  
-**Branch:** `codex/diagnostics-dgn-049-056-release-4-pilot-readiness`  
+**Branch:** `codex/diagnostics-dgn-045-056-release-4-pilot-readiness`
 **Gate:** `DG-G6`
 
 ## Outcome

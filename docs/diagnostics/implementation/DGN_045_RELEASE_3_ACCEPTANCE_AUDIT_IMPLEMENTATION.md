@@ -1,7 +1,7 @@
 # DGN-045 — Release 3 Acceptance Audit Implementation
 
 **Status:** Implemented in source  
-**Branch:** `codex/diagnostics-dgn-045-release-3-acceptance-audit`  
+**Branch:** originally implemented as `codex/diagnostics-dgn-045-release-3-acceptance-audit`; included in grouped Release 4 branch `codex/diagnostics-dgn-045-056-release-4-pilot-readiness`
 **Date:** 2026-07-21  
 **Scope:** Release 3 source-completion audit, rollout disposition, pilot-readiness checklist, production block, and authority boundary for the transition into Release 4.
 

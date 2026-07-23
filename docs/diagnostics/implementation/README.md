@@ -2,7 +2,7 @@
 
 This directory contains evidence-backed records for completed Diagnostics implementation milestones. A milestone record distinguishes contract completion from runtime behavior and names every remaining gate.
 
-> Release 4 source implementation is complete through `DGN-056`. See [`DGN_049_056_RELEASE_4_PILOT_READINESS_IMPLEMENTATION.md`](DGN_049_056_RELEASE_4_PILOT_READINESS_IMPLEMENTATION.md). Runtime acceptance, licensed-source activation, representative replay evidence, monitoring/rollback proof, controlled-pilot approval, production rollout, and AI remain gated.
+> Release 4 source implementation is complete through `DGN-056`. See [`DGN_045_056_RELEASE_4_PILOT_READINESS_IMPLEMENTATION.md`](DGN_045_056_RELEASE_4_PILOT_READINESS_IMPLEMENTATION.md) for the grouped branch record. Runtime acceptance, licensed-source activation, representative replay evidence, monitoring/rollback proof, controlled-pilot approval, production rollout, and AI remain gated.
 >
 > DGN-039 autobody planning is adopted in [`DGN_039_AUTOBODY_ESTIMATE_CAPABILITY_PLANNING.md`](DGN_039_AUTOBODY_ESTIMATE_CAPABILITY_PLANNING.md), covering bodywork, paint/refinish, structural/frame, ADAS/calibration, supplements, insurance/customer-pay workflows, and productivity optimization.
 
@@ -53,6 +53,7 @@ This directory contains evidence-backed records for completed Diagnostics implem
 | `DGN-045` | Implemented in source — Release 3 source-completion audit, rollout disposition, pilot-readiness checklist, and production block | [`DGN_045_RELEASE_3_ACCEPTANCE_AUDIT_IMPLEMENTATION.md`](DGN_045_RELEASE_3_ACCEPTANCE_AUDIT_IMPLEMENTATION.md) |
 | `DGN-046`–`DGN-048` | Implemented in source — Diagnostics Command Center landing, workflow navigation, Advisor Review landing page, and Autobody Estimate landing page | [`DGN_046_048_CONSOLE_WORKFLOW_INTEGRATION_IMPLEMENTATION.md`](DGN_046_048_CONSOLE_WORKFLOW_INTEGRATION_IMPLEMENTATION.md) |
 | `DGN-049`–`DGN-056` | Implemented in source — operational readiness, draft review/approval lineage, pilot replay, acceptance dashboard, and fail-closed controlled-pilot gate | [`DGN_049_056_RELEASE_4_PILOT_READINESS_IMPLEMENTATION.md`](DGN_049_056_RELEASE_4_PILOT_READINESS_IMPLEMENTATION.md) |
+| `DGN-045`–`DGN-056` | Implemented in source — grouped Release 4 acceptance bridge, workflow integration, pilot readiness, replay, dashboard, and gate | [`DGN_045_056_RELEASE_4_PILOT_READINESS_IMPLEMENTATION.md`](DGN_045_056_RELEASE_4_PILOT_READINESS_IMPLEMENTATION.md) |
 | Basic case rollout | Enabled — target date persisted and authorized case creation promoted to general use while downstream capabilities remain held | [`DIAGNOSTICS_BASIC_CASE_ROLLOUT_2026_07_22.md`](DIAGNOSTICS_BASIC_CASE_ROLLOUT_2026_07_22.md) |
 
 [`DG-G0`](DG_G0_FOUNDATION_GATE_REVIEW.md) is **approved with holds**. DGN-007–056 are implemented in source. Basic authorized case creation is enabled as of July 22, 2026, but `DG-G6` remains held until real runtime acceptance, licensed-source, representative replay, training, monitoring, rollback, pause-control, signature, and risk-disposition evidence is recorded. Controlled-pilot and production approval have not been granted.

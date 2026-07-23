@@ -1,7 +1,7 @@
 # DGN-046–048 — Console Workflow Integration Implementation
 
 **Status:** Implemented in source  
-**Branch:** `codex/diagnostics-dgn-046-048-console-workflow-integration`  
+**Branch:** originally implemented as `codex/diagnostics-dgn-046-048-console-workflow-integration`; included in grouped Release 4 branch `codex/diagnostics-dgn-045-056-release-4-pilot-readiness`
 **Date:** 2026-07-21  
 **Scope:** Diagnostic Console front-door integration, left-sidebar workflow navigation, advisor review landing page, autobody estimate landing page, and technician-to-advisor workflow visibility without production execution authority.
 
