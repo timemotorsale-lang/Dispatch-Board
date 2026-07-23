@@ -20,3 +20,4 @@ export * from "./release-4-operational-readiness-domain";
 export * from "./release-4-review-approval-domain";
 export * from "./release-4-pilot-replay-domain";
 export * from "./release-4-pilot-gate-domain";
+export * from "./release-4-pilot-evidence-repository";
