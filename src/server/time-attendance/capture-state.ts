@@ -9,6 +9,7 @@ export type TimeAttendanceCaptureAction = TimeAttendanceCaptureCommand["commandT
 
 export type TimeAttendanceCaptureState = {
   allowedActions: TimeAttendanceCaptureAction[];
+  unavailableReason?: string;
   expectedVersion: number;
   locationId: string;
   nextPrimaryAction: TimeAttendanceCaptureAction;
@@ -74,6 +75,26 @@ function statusLabelFor(state: AttendanceSessionState) {
   if (state === "ON_MEAL") return "On meal break";
   if (state === "CLOSED") return "Shift closed";
   return "Ready to clock in";
+}
+
+export function unavailableTimeAttendanceCaptureState(input: {
+  locationId: string;
+  reason: string;
+  staffUserId: string;
+  timezone: string;
+}): TimeAttendanceCaptureState {
+  return {
+    allowedActions: [],
+    expectedVersion: 0,
+    locationId: input.locationId,
+    nextPrimaryAction: "CLOCK_IN",
+    session: null,
+    staffUserId: input.staffUserId,
+    state: "NONE",
+    statusLabel: "Capture unavailable",
+    timezone: input.timezone,
+    unavailableReason: input.reason
+  };
 }
 
 export function createTimeAttendanceCaptureStateRepository(
@@ -153,4 +174,34 @@ export async function getTimeAttendanceCaptureState(
     staffUserId: user.id,
     timezone: input.timezone ?? INITIAL_MINNEAPOLIS_LOCATION.timezone
   });
+}
+
+export async function getSafeTimeAttendanceCaptureState(
+  actor: AuthenticatedUser | null,
+  input: {
+    locationId?: string;
+    organizationId?: string;
+    repository?: TimeAttendanceCaptureStateRepository;
+    timezone?: string;
+  } = {}
+) {
+  const user = assertAuthenticatedUser(actor);
+  const locationId = input.locationId ?? INITIAL_MINNEAPOLIS_LOCATION.id;
+  const timezone = input.timezone ?? INITIAL_MINNEAPOLIS_LOCATION.timezone;
+
+  try {
+    return await getTimeAttendanceCaptureState(user, {
+      ...input,
+      locationId,
+      timezone
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Time attendance capture state is unavailable.";
+    return unavailableTimeAttendanceCaptureState({
+      locationId,
+      reason: message,
+      staffUserId: user.id,
+      timezone
+    });
+  }
 }

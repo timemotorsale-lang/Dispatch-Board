@@ -75,6 +75,7 @@ export function TimeAttendanceCapturePanel({ initialState }: CapturePanelProps) 
       : state.allowedActions[0],
     [state.allowedActions, state.nextPrimaryAction]
   );
+  const unavailable = Boolean(state.unavailableReason);
 
   async function refreshState() {
     const next = await parseJsonResponse<TimeAttendanceCaptureState>(
@@ -157,6 +158,12 @@ export function TimeAttendanceCapturePanel({ initialState }: CapturePanelProps) 
         </button>
       </div>
 
+      {unavailable ? (
+        <p className={styles.captureError}>
+          <AlertTriangle size={16} aria-hidden="true" />
+          Capture is temporarily unavailable because the live Time & Attendance tables are not ready in this database. No time has been changed.
+        </p>
+      ) : null}
       {notice ? (
         <p className={styles.captureNotice}><CheckCircle2 size={16} aria-hidden="true" />{notice}</p>
       ) : null}

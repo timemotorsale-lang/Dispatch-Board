@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
 import { EnterpriseCommandConflictError } from "@/server/enterprise-command/domain";
-import { getTimeAttendanceCaptureState, submitTimeAttendanceCaptureCommand } from "@/server/time-attendance";
+import { getSafeTimeAttendanceCaptureState, submitTimeAttendanceCaptureCommand } from "@/server/time-attendance";
 
 export async function GET() {
   try {
-    return NextResponse.json(await getTimeAttendanceCaptureState(await getCurrentUser()));
+    return NextResponse.json(await getSafeTimeAttendanceCaptureState(await getCurrentUser()));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Time attendance state failed.";
     const status = message === "Authentication required." ? 401 : 400;

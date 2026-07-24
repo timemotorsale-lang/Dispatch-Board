@@ -31,7 +31,7 @@ describe("time attendance manager review queue", () => {
       organizationId: "org-1"
     })).resolves.toMatchObject({
       permitted: false,
-      totals: { all: 0, blocking: 0, corrections: 0, disputes: 0, exceptions: 0 },
+      totals: { all: 0, blocking: 0, corrections: 0, disputes: 0, exceptions: 0, timeOff: 0 },
       items: []
     });
   });
@@ -68,6 +68,20 @@ describe("time attendance manager review queue", () => {
           timeCardId: "card-1",
           timeCardVersion: 2
         }]
+      },
+      timeOffRequest: {
+        findMany: async () => [{
+          createdAt: new Date("2026-07-24T14:30:00.000Z"),
+          endsAt: new Date("2026-07-25T18:00:00.000Z"),
+          id: "time-off-1",
+          operationalNote: null,
+          protectedRouting: true,
+          requesterUser: { name: "Staff Four" },
+          requestedMinutes: 240,
+          requestType: "ESST",
+          startsAt: new Date("2026-07-25T14:00:00.000Z"),
+          status: "LEAVE_ADMIN_REVIEW"
+        }]
       }
     });
 
@@ -77,11 +91,12 @@ describe("time attendance manager review queue", () => {
       repository
     })).resolves.toMatchObject({
       permitted: true,
-      totals: { all: 3, blocking: 2, corrections: 1, disputes: 1, exceptions: 1 },
+      totals: { all: 4, blocking: 2, corrections: 1, disputes: 1, exceptions: 1, timeOff: 1 },
       items: [
         { category: "ATTESTATION_DISPUTE", severity: "danger", staffName: "Staff Three" },
         { category: "CARD_EXCEPTION", severity: "danger", staffName: "Staff Two" },
-        { category: "CORRECTION_REQUEST", severity: "warning", staffName: "Staff One" }
+        { category: "CORRECTION_REQUEST", severity: "warning", staffName: "Staff One" },
+        { category: "TIME_OFF_REQUEST", severity: "warning", staffName: "Staff Four" }
       ]
     });
   });

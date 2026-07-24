@@ -1,5 +1,21 @@
 # Current Implementation Status
 
+## 2026-07-24 — Time & Attendance TA-035 time-off request workflow started
+
+TA-035 now has its first vertical implementation slice. Staff can submit PTO, Minnesota ESST, and unpaid time-off requests from the CCC Time & Attendance console through `/api/time-attendance/time-off`. Requests are idempotent, source-attributed, balance-snapshotted when a balance record exists, and do not change payroll by themselves.
+
+Minnesota ESST requests use protected routing: the private reason is hashed/restricted, the ordinary manager queue receives a redacted operational card, and the request enters leave-admin review rather than exposing private reason details in the general manager review surface. The exception-first manager queue now includes submitted ordinary time-off requests and protected ESST leave-admin review items.
+
+Remaining TA-035 hardening before production release includes configured accrual/balance policy approval, leave-admin ownership, payroll code mapping, holiday/company-closure handling, production notification routing, and migrated-runtime acceptance evidence.
+
+## 2026-07-24 — Time & Attendance TA-034 manager correction decision workflow started
+
+TA-034 now has its first vertical implementation slice. Managers can record reasoned correction-request decisions through `/api/time-attendance/manager-corrections` and the CCC Time & Attendance manager review panel. Supported decisions are approve, return for more information, deny, and apply an already-approved correction. Decisions are manager-only, idempotency-aware, and captured into the correction request evidence history.
+
+Applying a correction in this MVP does not rewrite original punch events. The action marks the approved correction request as applied for review/payroll handling, preserves the original punch trail, and records that payroll recalculation/reprojection is required before payroll handoff.
+
+Remaining TA-034 hardening before production release includes persisted card drill-in, exact event-level correction application/reprojection, post-attestation reopen behavior, separation-of-duties policy, and payroll close approval gates.
+
 ## 2026-07-24 — Time & Attendance TA-033 manager exception queue started
 
 TA-033 now has its first vertical implementation slice. Managers can read a protected exception-first review queue through `/api/time-attendance/manager-review`, while non-managers receive a locked queue with no manager-sensitive details. The queue surfaces correction requests, open card exceptions, and disputed attestations, then orders them by severity and age.

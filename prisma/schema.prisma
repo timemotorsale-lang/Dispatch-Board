@@ -6890,15 +6890,18 @@ model TimeOffRequest {
   organizationId       String
   locationId           String
   requesterUserId      String
-  requestType          TimeOffRequestType
-  status               TimeOffRequestStatus @default(DRAFT)
-  startsAt             DateTime
-  endsAt               DateTime
-  requestedMinutes     Int
-  protectedRouting     Boolean              @default(false)
-  operationalNote      String?
-  restrictedReasonHash String?
-  balanceSnapshot      Json
+    requestType          TimeOffRequestType
+    status               TimeOffRequestStatus @default(DRAFT)
+    idempotencyKey       String
+    requestHash          String
+    startsAt             DateTime
+    endsAt               DateTime
+    requestedMinutes     Int
+    protectedRouting     Boolean              @default(false)
+    operationalNote      String?
+    restrictedReasonHash String?
+    balanceSnapshot      Json
+    evidence             Json
   decisionActorUserId  String?
   decidedAt            DateTime?
   decisionReason       String?
@@ -6909,9 +6912,10 @@ model TimeOffRequest {
   requesterUser        User                 @relation("TimeOffRequestRequester", fields: [requesterUserId], references: [id], onDelete: Restrict)
   decisionActorUser    User?                @relation("TimeOffRequestDecisionActor", fields: [decisionActorUserId], references: [id], onDelete: SetNull)
 
-  @@index([organizationId, locationId, status, startsAt])
-  @@index([requesterUserId, startsAt, endsAt])
-}
+    @@unique([organizationId, requesterUserId, idempotencyKey])
+    @@index([organizationId, locationId, status, startsAt])
+    @@index([requesterUserId, startsAt, endsAt])
+  }
 
 model TimeOffBalance {
   id                      String             @id @default(cuid())

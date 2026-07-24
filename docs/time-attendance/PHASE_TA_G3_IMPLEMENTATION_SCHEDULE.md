@@ -114,3 +114,32 @@ TA-033 now has the first repository implementation slice:
 - this slice is read-only and does not approve, deny, correct, waive, or alter payable time.
 
 Remaining TA-033 hardening before final phase completion includes persisted card drill-in views, richer filtering, SLA timers, and live manager browser acceptance evidence.
+
+### TA-034 checkpoint
+
+TA-034 now has the first repository implementation slice:
+
+- managers can record correction-request decisions through `/api/time-attendance/manager-corrections`;
+- the CCC Time & Attendance manager review panel exposes approve, return, deny, and apply-approved-correction actions for correction-request queue items;
+- manager decisions require a reason and manager authority;
+- duplicate-safe retry behavior is supported through manager decision idempotency evidence;
+- correction-request evidence keeps a manager decision history;
+- applying a correction preserves the original punch trail and records that payroll reprojection/recalculation is required.
+
+Remaining TA-034 hardening before production release includes persisted time-card drill-in, exact event-level correction application/reprojection, post-attestation reopen behavior, separation-of-duties rules, and payroll close approval gates.
+
+### TA-035 checkpoint
+
+TA-035 now has the first repository implementation slice:
+
+- staff can submit PTO, Minnesota ESST, and unpaid time-off requests through `/api/time-attendance/time-off`;
+- `/time-attendance` includes a staff-facing time-off request panel;
+- requests are idempotent, source-attributed, and balance-snapshotted when a balance record exists;
+- Minnesota ESST requests hash/restrict the private reason and show only redacted operational information in the ordinary manager queue;
+- the manager review queue includes submitted ordinary time-off requests and protected ESST leave-admin review cards.
+
+Remaining TA-035 hardening before production release includes configured balance/accrual policy approval, leave-admin ownership, payroll code mapping, holiday/company-closure handling, notification routing, and migrated-runtime acceptance evidence.
+
+### TA-G3 closeout checkpoint
+
+The branch has the first vertical implementation pass for TA-030 through TA-035. It remains a repository implementation checkpoint, not a production release. Known release gates still include legal/payroll configuration approval, unapplied local migrations, seed data/restore drill, capability rollout policy, and live migrated-runtime acceptance evidence.

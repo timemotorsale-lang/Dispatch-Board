@@ -19,6 +19,7 @@ import { TimeAttendanceCapturePanel } from "./time-attendance-capture-panel";
 import { TimeCardAttestationPanel } from "./time-card-attestation-panel";
 import { TimeCardCorrectionPanel } from "./time-card-correction-panel";
 import { TimeAttendanceManagerReviewPanel } from "./time-attendance-manager-review-panel";
+import { TimeOffRequestPanel } from "./time-off-request-panel";
 import styles from "./time-attendance-console.module.css";
 
 type TimeAttendanceConsoleProps = {
@@ -121,6 +122,8 @@ export function TimeAttendanceConsole({ captureState, managerReviewQueue, model 
           <TimeCardCorrectionPanel />
 
           <TimeCardAttestationPanel card={model.employeeCard} />
+
+          <TimeOffRequestPanel />
 
           <TimeAttendanceManagerReviewPanel queue={managerReviewQueue} />
 

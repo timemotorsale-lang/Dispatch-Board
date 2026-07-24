@@ -529,6 +529,40 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.timeOffForm {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.timeOffForm label {
+  display: grid;
+  gap: 6px;
+}
+
+.timeOffForm label span {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.timeOffForm input,
+.timeOffForm select,
+.timeOffForm textarea {
+  background: #f8fafc;
+  border: 1px solid #dbe4ef;
+  border-radius: 14px;
+  color: var(--ink);
+  font: inherit;
+  padding: 11px 12px;
+}
+
+.timeOffForm textarea {
+  resize: vertical;
+}
+
 .correctionForm label {
   display: grid;
   gap: 6px;
@@ -736,6 +770,12 @@
   text-decoration: none;
 }
 
+.managerReviewContent {
+  display: grid;
+  flex: 1;
+  gap: 4px;
+}
+
 .managerReviewItem strong,
 .managerReviewEmpty strong {
   display: block;
@@ -802,6 +842,63 @@
   text-align: center;
 }
 
+.managerDecisionForm {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(130px, 0.7fr) minmax(160px, 1fr) auto;
+  margin-top: 10px;
+}
+
+.managerDecisionForm input,
+.managerDecisionForm select {
+  background: white;
+  border: 1px solid #dbe4ef;
+  border-radius: 12px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 9px 10px;
+}
+
+.managerDecisionForm button {
+  background: #0f172a;
+  border: 0;
+  border-radius: 999px;
+  color: white;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 900;
+  padding: 9px 12px;
+  white-space: nowrap;
+}
+
+.managerDecisionForm button:disabled,
+.managerDecisionForm input:disabled,
+.managerDecisionForm select:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.inlineSuccess,
+.inlineError {
+  border-radius: 12px;
+  font-size: 0.82rem !important;
+  font-weight: 800;
+  margin-top: 8px !important;
+  padding: 9px 10px;
+}
+
+.inlineSuccess {
+  background: var(--success-soft);
+  color: var(--success) !important;
+}
+
+.inlineError {
+  background: var(--danger-soft);
+  color: var(--danger) !important;
+}
+
 .mvpNote {
   background: #eff6ff;
   border: 1px solid #bfdbfe;
@@ -851,7 +948,12 @@
     display: grid;
   }
 
-  .correctionForm {
+  .correctionForm,
+  .timeOffForm {
+    grid-template-columns: 1fr;
+  }
+
+  .managerDecisionForm {
     grid-template-columns: 1fr;
   }
 

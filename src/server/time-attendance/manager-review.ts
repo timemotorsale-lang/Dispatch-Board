@@ -6,7 +6,7 @@ import { prisma } from "@/server/db/client";
 export type TimeAttendanceManagerReviewItem = {
   id: string;
   ageLabel: string;
-  category: "CORRECTION_REQUEST" | "CARD_EXCEPTION" | "ATTESTATION_DISPUTE";
+  category: "CORRECTION_REQUEST" | "CARD_EXCEPTION" | "ATTESTATION_DISPUTE" | "TIME_OFF_REQUEST";
   detail: string;
   href: string;
   occurredAt: string;
@@ -19,15 +19,31 @@ export type TimeAttendanceManagerReviewItem = {
 export type TimeAttendanceManagerReviewQueue = {
   permitted: boolean;
   generatedAt: string;
+  unavailableReason?: string;
   totals: {
     all: number;
     blocking: number;
     corrections: number;
     disputes: number;
     exceptions: number;
+    timeOff: number;
   };
   items: TimeAttendanceManagerReviewItem[];
 };
+
+function emptyQueue(input: {
+  generatedAt: string;
+  permitted: boolean;
+  unavailableReason?: string;
+}): TimeAttendanceManagerReviewQueue {
+  return {
+    permitted: input.permitted,
+    generatedAt: input.generatedAt,
+    totals: { all: 0, blocking: 0, corrections: 0, disputes: 0, exceptions: 0, timeOff: 0 },
+    items: [],
+    ...(input.unavailableReason ? { unavailableReason: input.unavailableReason } : {})
+  };
+}
 
 type CorrectionRequestRecord = {
   id: string;
@@ -57,6 +73,19 @@ type AttestationRecord = {
   timeCardVersion: number;
 };
 
+type TimeOffRecord = {
+  createdAt: Date;
+  endsAt: Date;
+  id: string;
+  operationalNote: string | null;
+  protectedRouting: boolean;
+  requestType: string;
+  requestedMinutes: number;
+  requesterUser: { name: string };
+  startsAt: Date;
+  status: string;
+};
+
 type TimeAttendanceManagerReviewDatabase = {
   timeCardCorrectionRequest: {
     findMany(input: Record<string, unknown>): Promise<CorrectionRequestRecord[]>;
@@ -66,6 +95,9 @@ type TimeAttendanceManagerReviewDatabase = {
   };
   timeCardAttestation: {
     findMany(input: Record<string, unknown>): Promise<AttestationRecord[]>;
+  };
+  timeOffRequest: {
+    findMany(input: Record<string, unknown>): Promise<TimeOffRecord[]>;
   };
 };
 
@@ -101,12 +133,20 @@ function sortItems(items: TimeAttendanceManagerReviewItem[]) {
   });
 }
 
+function minutesLabel(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const remaining = minutes % 60;
+  if (hours === 0) return `${remaining}m`;
+  if (remaining === 0) return `${hours}h`;
+  return `${hours}h ${remaining}m`;
+}
+
 export function createTimeAttendanceManagerReviewRepository(
   database: TimeAttendanceManagerReviewDatabase = prisma as unknown as TimeAttendanceManagerReviewDatabase
 ): TimeAttendanceManagerReviewRepository {
   return {
     async list(input) {
-      const [corrections, exceptions, disputes] = await Promise.all([
+      const [corrections, exceptions, disputes, timeOffRequests] = await Promise.all([
         database.timeCardCorrectionRequest.findMany({
           where: {
             organizationId: input.organizationId,
@@ -133,6 +173,15 @@ export function createTimeAttendanceManagerReviewRepository(
           orderBy: { attestedAt: "asc" },
           take: 50,
           include: { timeCard: { include: { staffUser: { select: { name: true } } } } }
+        }),
+        database.timeOffRequest.findMany({
+          where: {
+            organizationId: input.organizationId,
+            status: { in: ["SUBMITTED", "LEAVE_ADMIN_REVIEW"] }
+          },
+          orderBy: { startsAt: "asc" },
+          take: 50,
+          include: { requesterUser: { select: { name: true } } }
         })
       ]);
 
@@ -172,6 +221,20 @@ export function createTimeAttendanceManagerReviewRepository(
           staffName: attestation.timeCard.staffUser.name,
           status: `Card v${attestation.timeCardVersion}`,
           title: "Employee disputed time card"
+        })),
+        ...timeOffRequests.map((request) => ({
+          id: request.id,
+          ageLabel: ageLabel(request.createdAt, input.now),
+          category: "TIME_OFF_REQUEST" as const,
+          detail: request.protectedRouting
+            ? `${minutesLabel(request.requestedMinutes)} requested. Private ESST reason is restricted from ordinary manager view.`
+            : request.operationalNote ?? `${minutesLabel(request.requestedMinutes)} requested.`,
+          href: `/time-attendance?timeOff=${encodeURIComponent(request.id)}`,
+          occurredAt: request.startsAt.toISOString(),
+          severity: request.protectedRouting ? "warning" as const : "info" as const,
+          staffName: request.requesterUser.name,
+          status: request.protectedRouting ? "Leave admin review" : label(request.status),
+          title: `${label(request.requestType)} time-off request`
         }))
       ]);
 
@@ -183,7 +246,8 @@ export function createTimeAttendanceManagerReviewRepository(
           blocking: items.filter((item) => item.severity === "danger").length,
           corrections: corrections.length,
           disputes: disputes.length,
-          exceptions: exceptions.length
+          exceptions: exceptions.length,
+          timeOff: timeOffRequests.length
         },
         items
       };
@@ -202,12 +266,7 @@ export async function getTimeAttendanceManagerReviewQueue(
   const user = assertAuthenticatedUser(actor);
   const now = input.now ?? new Date();
   if (!isManager(user)) {
-    return {
-      permitted: false,
-      generatedAt: now.toISOString(),
-      totals: { all: 0, blocking: 0, corrections: 0, disputes: 0, exceptions: 0 },
-      items: []
-    } satisfies TimeAttendanceManagerReviewQueue;
+    return emptyQueue({ generatedAt: now.toISOString(), permitted: false });
   }
 
   const repository = input.repository ?? createTimeAttendanceManagerReviewRepository();
@@ -215,4 +274,27 @@ export async function getTimeAttendanceManagerReviewQueue(
     organizationId: input.organizationId ?? INITIAL_ORGANIZATION.id,
     now
   });
+}
+
+export async function getSafeTimeAttendanceManagerReviewQueue(
+  actor: AuthenticatedUser | null,
+  input: {
+    now?: Date;
+    organizationId?: string;
+    repository?: TimeAttendanceManagerReviewRepository;
+  } = {}
+) {
+  const user = assertAuthenticatedUser(actor);
+  const now = input.now ?? new Date();
+
+  try {
+    return await getTimeAttendanceManagerReviewQueue(user, { ...input, now });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Time attendance manager review is unavailable.";
+    return emptyQueue({
+      generatedAt: now.toISOString(),
+      permitted: isManager(user),
+      unavailableReason: message
+    });
+  }
 }

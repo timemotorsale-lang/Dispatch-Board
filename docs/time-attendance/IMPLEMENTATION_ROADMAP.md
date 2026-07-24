@@ -46,11 +46,11 @@
 | ID | Status | Work | Exit criteria |
 | --- | --- | --- | --- |
 | TA-030 | [~] | Employee My Time/capture surface | Staff current-state read and live clock/meal buttons are wired through protected capture commands; richer offline/mobile states remain pending |
-| TA-031 | [~] | Employee card/review/correction | Employee card review includes a durable correction-request workflow; manager decision/application and full correction history remain pending |
+| TA-031 | [~] | Employee card/review/correction | Employee card review includes a durable correction-request workflow; full correction history display remains pending |
 | TA-032 | [~] | Employee attestation | Versioned attest/dispute command and UI are present; UI submission awaits persisted card versions replacing preview cards |
-| TA-033 | [~] | Exception-first manager console | Protected read-only manager queue surfaces correction requests, open exceptions, and disputed attestations; manager decisions remain pending |
-| TA-034 | [ ] | Manager correction/approval | Reasoned correction, return, approve and bulk-clean approval |
-| TA-035 | [ ] | Time-off request and manager queue | Ordinary PTO/ESST/unpaid requests, privacy routing and availability |
+| TA-033 | [~] | Exception-first manager console | Protected manager queue surfaces correction requests, open exceptions, disputed attestations, and time-off review items; drill-in/filtering remains pending |
+| TA-034 | [~] | Manager correction/approval | Reasoned approve/return/deny/apply correction decisions are wired; exact event-level reprojection and bulk-clean approval remain pending |
+| TA-035 | [~] | Time-off request and manager queue | Staff PTO/ESST/unpaid requests and privacy-aware manager queue routing are wired; balance approval, leave-admin ownership, and payroll mapping remain pending |
 
 ## TA-G4 — Close and payroll handoff
 
