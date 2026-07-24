@@ -1,5 +1,13 @@
 # Current Implementation Status
 
+## 2026-07-24 — Time & Attendance TA-G4 payroll handoff started
+
+TA-G4 now has its first vertical repository implementation slice across TA-040 through TA-044 on `codex/time-attendance-g4-payroll-handoff`. The CCC Time & Attendance console includes a payroll handoff panel that checks pay-period readiness, exposes lock/export/status/reproduction controls, and keeps payroll close separate from live punch capture.
+
+TA-040 readiness projection checks approved card state, open sessions, blocking exceptions, pending corrections, missing manager approvals, pending time-off/ESST review, and existing locked/exported batches. TA-041 can lock a ready pay period into a `LOCKED` export batch and mark source cards locked with reasoned manager authority; reopen voids the batch with reasoned evidence instead of silently changing prior history. TA-042 creates versioned export-preview lines for regular, overtime, and ESST minutes with control totals and checksums. TA-043 records payroll acknowledgment, rejection, or reconciliation decisions. TA-044 reproduces historical batches from stored export snapshots, lines, and checksums.
+
+This checkpoint does not apply migrations, activate a payroll provider, send payroll files, approve payroll-code mappings, complete separation-of-duties policy, or claim production release. Production readiness remains gated by TA-004 legal/payroll configuration approval, TA-015 migrated-runtime/seed/restore evidence, TA-016 capability rollout policy, payroll mapping approval, and pilot acceptance.
+
 ## 2026-07-24 — Time & Attendance TA-035 time-off request workflow started
 
 TA-035 now has its first vertical implementation slice. Staff can submit PTO, Minnesota ESST, and unpaid time-off requests from the CCC Time & Attendance console through `/api/time-attendance/time-off`. Requests are idempotent, source-attributed, balance-snapshotted when a balance record exists, and do not change payroll by themselves.

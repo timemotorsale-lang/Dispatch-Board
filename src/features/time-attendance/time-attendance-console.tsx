@@ -14,7 +14,9 @@ import Link from "next/link";
 import type { TimeAttendanceConsoleModel } from "@/server/time-attendance/console-read-model";
 import type { TimeAttendanceCaptureState } from "@/server/time-attendance/capture-state";
 import type { TimeAttendanceManagerReviewQueue } from "@/server/time-attendance/manager-review";
+import type { PayrollHandoffReadiness } from "@/server/time-attendance/payroll-handoff-service";
 
+import { PayrollHandoffPanel } from "./payroll-handoff-panel";
 import { TimeAttendanceCapturePanel } from "./time-attendance-capture-panel";
 import { TimeCardAttestationPanel } from "./time-card-attestation-panel";
 import { TimeCardCorrectionPanel } from "./time-card-correction-panel";
@@ -26,6 +28,7 @@ type TimeAttendanceConsoleProps = {
   captureState: TimeAttendanceCaptureState;
   managerReviewQueue: TimeAttendanceManagerReviewQueue;
   model: TimeAttendanceConsoleModel;
+  payrollReadiness: PayrollHandoffReadiness;
 };
 
 function minutesLabel(minutes: number) {
@@ -49,7 +52,7 @@ function dotClass(tone: "good" | "warning" | "neutral") {
   return styles.dotNeutral;
 }
 
-export function TimeAttendanceConsole({ captureState, managerReviewQueue, model }: TimeAttendanceConsoleProps) {
+export function TimeAttendanceConsole({ captureState, managerReviewQueue, model, payrollReadiness }: TimeAttendanceConsoleProps) {
   return (
     <section className={styles.console} aria-label="Time and Attendance CCC console">
       <header className={styles.hero}>
@@ -126,6 +129,8 @@ export function TimeAttendanceConsole({ captureState, managerReviewQueue, model 
           <TimeOffRequestPanel />
 
           <TimeAttendanceManagerReviewPanel queue={managerReviewQueue} />
+
+          <PayrollHandoffPanel initialReadiness={payrollReadiness} />
 
           <article className={styles.panel}>
             <div className={styles.panelHeader}>
