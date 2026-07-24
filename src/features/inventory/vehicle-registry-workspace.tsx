@@ -73,7 +73,7 @@ type Detail = VehicleListItem & {
   }>;
 };
 
-const emptyVehicle = {
+const emptyIdentity = {
   vehicleNumber: "",
   vin: "",
   nonVinReason: "",
@@ -84,6 +84,40 @@ const emptyVehicle = {
   color: "",
   licensePlate: ""
 };
+
+const emptyVehicle = {
+  ...emptyIdentity,
+  initialOdometerMiles: "",
+  initialCustodyPosition: ""
+};
+
+const identityFieldLabels: Record<keyof typeof emptyVehicle, string> = {
+  color: "Color",
+  initialCustodyPosition: "Initial location / bay",
+  initialOdometerMiles: "Mileage",
+  licensePlate: "License plate",
+  make: "Make",
+  model: "Model",
+  nonVinReason: "Non-VIN reason",
+  stockNumber: "Stock number",
+  vehicleNumber: "Vehicle number",
+  vin: "VIN",
+  year: "Year"
+};
+
+const createFieldOrder: Array<keyof typeof emptyVehicle> = [
+  "vehicleNumber",
+  "vin",
+  "stockNumber",
+  "year",
+  "make",
+  "model",
+  "color",
+  "licensePlate",
+  "initialOdometerMiles",
+  "initialCustodyPosition",
+  "nonVinReason"
+];
 
 function editableIdentity(vehicle: Detail | null) {
   return vehicle
@@ -98,7 +132,7 @@ function editableIdentity(vehicle: Detail | null) {
         color: vehicle.color ?? "",
         licensePlate: vehicle.licensePlate ?? ""
       }
-    : emptyVehicle;
+    : emptyIdentity;
 }
 
 function vehicleTitle(vehicle: Pick<VehicleListItem, "make" | "model" | "vehicleNumber" | "year">) {
@@ -123,8 +157,6 @@ export function VehicleRegistryWorkspace({
   const [selected, setSelected] = useState<Detail | null>(initialSelected);
   const [vehicle, setVehicle] = useState(emptyVehicle);
   const [correction, setCorrection] = useState(editableIdentity(initialSelected));
-  const [odometer, setOdometer] = useState(initialSelected?.odometerObservations[0] ? String(initialSelected.odometerObservations[0].reading) : "");
-  const [position, setPosition] = useState("");
   const [notice, setNotice] = useState("");
   const [registryLocked, setRegistryLocked] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -154,7 +186,6 @@ export function VehicleRegistryWorkspace({
       const detail = await request(`/api/vehicles/${id}`) as Detail;
       setSelected(detail);
       setCorrection(editableIdentity(detail));
-      setOdometer(detail.odometerObservations[0] ? String(detail.odometerObservations[0].reading) : "");
       setNotice("");
     } catch (error) {
       handleError(error, "Unable to load vehicle.");
@@ -185,20 +216,62 @@ export function VehicleRegistryWorkspace({
     setBusy(true);
     setNotice("");
     try {
+      const { initialCustodyPosition, initialOdometerMiles, ...identity } = vehicle;
       const body = await request("/api/vehicles", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          ...vehicle,
+          ...identity,
           year: vehicle.year || null,
           idempotencyKey: crypto.randomUUID(),
-          reason: "Create canonical vehicle registry identity."
+          reason: "Create canonical vehicle registry identity.",
+          workflowContext: {
+            initialCustodyPosition: initialCustodyPosition || null,
+            initialOdometerMiles: initialOdometerMiles || null,
+            source: "INVENTORY_CONSOLE_CREATE_IDENTITY"
+          }
         })
       });
-      setNotice(body.result?.duplicateReviewId ? "Vehicle candidate created and routed to duplicate review." : "Canonical vehicle created.");
+      const createdId = body.result?.id as string | undefined;
+      if (createdId && initialOdometerMiles) {
+        const detail = await request(`/api/vehicles/${createdId}`) as Detail;
+        await request(`/api/vehicles/${createdId}/commands`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            action: "RECORD_ODOMETER",
+            expectedVersion: detail.version,
+            idempotencyKey: crypto.randomUUID(),
+            observedAt: new Date().toISOString(),
+            reading: Number(initialOdometerMiles),
+            reason: "Record initial mileage during canonical identity creation.",
+            sourceCode: "MANAGER_UI",
+            unit: "MILES"
+          })
+        });
+      }
+      if (createdId && initialCustodyPosition) {
+        const detail = await request(`/api/vehicles/${createdId}`) as Detail;
+        await request(`/api/vehicles/${createdId}/commands`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            action: "RECORD_CUSTODY",
+            custodianType: "DEALERSHIP",
+            eventType: "CHECK_IN",
+            expectedVersion: detail.version,
+            idempotencyKey: crypto.randomUUID(),
+            occurredAt: new Date().toISOString(),
+            positionLabel: initialCustodyPosition,
+            reason: "Record initial vehicle location during canonical identity creation.",
+            sourceCode: "MANAGER_UI"
+          })
+        });
+      }
+      setNotice(body.result?.duplicateReviewId ? "Vehicle candidate created and routed to duplicate review." : "Canonical vehicle created with available intake observations.");
       setVehicle(emptyVehicle);
       await refresh();
-      if (body.result?.id) await load(body.result.id);
+      if (createdId) await load(createdId);
     } catch (error) {
       handleError(error, "Unable to create vehicle.");
     } finally {
@@ -347,9 +420,11 @@ export function VehicleRegistryWorkspace({
               <div className="form-actions">
                 <Link className="button button-primary" href={`/vehicles/360/${selected.id}`}>Open Vehicle 360</Link>
                 <Link className="button button-secondary" href={`/vehicles/${selected.id}/workbench`}>Open workspace</Link>
-                <button className="button button-secondary" disabled={busy || registryLocked} onClick={correctIdentity} type="button">Revalidate identity</button>
-                <button className="button button-secondary" disabled={busy || registryLocked} onClick={() => command("RECORD_ODOMETER", { reading: selected.odometerObservations[0]?.reading ?? 0, unit: "MILES", observedAt: new Date().toISOString(), sourceCode: "MANAGER_UI" })} type="button">Record odometer</button>
-                <button className="button button-secondary" disabled={busy || registryLocked} onClick={() => command("RECORD_CUSTODY", { eventType: "CHECK_IN", custodianType: "DEALERSHIP", occurredAt: new Date().toISOString(), sourceCode: "MANAGER_UI" })} type="button">Record check-in</button>
+                {registryLocked ? null : (
+                  <>
+                    <button className="button button-secondary" disabled={busy} onClick={correctIdentity} type="button">Revalidate identity</button>
+                  </>
+                )}
               </div>
               <div>
                 <h3>Relationships and external identities</h3>
@@ -382,12 +457,18 @@ export function VehicleRegistryWorkspace({
         <form className="panel-card page-stack" onSubmit={submitCreate}>
           <div className="page-copy">
             <h2>Create canonical identity</h2>
-            <p>{registryLocked ? "Registry updates are locked in this rollout. Use search and open the vehicle workspace instead." : "A valid VIN or documented non-VIN exception is required."}</p>
+            <p>{registryLocked ? "Registry updates are locked in this rollout. Use search and open the vehicle workspace instead." : "Enter the identity, mileage, and current lot/bay in one pass so staff do not have to hunt for a second form."}</p>
           </div>
-          {Object.entries(vehicle).map(([key, value]) => (
+          {createFieldOrder.map((key) => (
             <label className="form-field" key={key}>
-              <span>{key.replace(/([A-Z])/g, " $1")}</span>
-              <input disabled={registryLocked} onChange={(event) => setVehicle((current) => ({ ...current, [key]: event.target.value }))} value={value} />
+              <span>{identityFieldLabels[key]}</span>
+              <input
+                disabled={registryLocked}
+                inputMode={key === "initialOdometerMiles" || key === "year" ? "numeric" : undefined}
+                onChange={(event) => setVehicle((current) => ({ ...current, [key]: event.target.value }))}
+                placeholder={key === "initialCustodyPosition" ? "Lot, lane, or bay" : undefined}
+                value={vehicle[key]}
+              />
             </label>
           ))}
           <button className="button button-primary" disabled={busy || registryLocked} type="submit">Validate and create</button>
@@ -401,26 +482,36 @@ export function VehicleRegistryWorkspace({
         </section>
       </div>
 
-      {selected ? (
+      {selected && registryLocked ? (
         <section className="panel-card page-stack">
           <div className="page-copy">
-            <h2>Governed correction and observations</h2>
-            <p>{registryLocked ? "Correction commands are locked for this rollout. Vehicle 360 and the execution workspace remain available." : "Edit canonical fields, record an odometer observation, or add an attributable custody position."}</p>
+            <h2>Vehicle is available in view-only mode</h2>
+            <p>Registry correction, mileage, and custody commands are locked for this rollout, so this page keeps the vehicle readable and sends staff directly to the workspaces that are available.</p>
+          </div>
+          <div className="form-actions">
+            <Link className="button button-primary" href={`/vehicles/360/${selected.id}`}>Open Vehicle 360</Link>
+            <Link className="button button-secondary" href={`/vehicles/${selected.id}/workbench`}>Open workspace</Link>
+            <Link className="button button-secondary" href="/vehicles/inventory">Back to Inventory Lifecycle</Link>
+          </div>
+          <p className="notice notice-info">Mileage is now collected in Create canonical identity when registry writes are enabled.</p>
+        </section>
+      ) : selected ? (
+        <section className="panel-card page-stack">
+          <div className="page-copy">
+            <h2>Advanced identity correction</h2>
+            <p>Use this only when the canonical identity itself is wrong. Mileage and first location are captured during Create canonical identity, and ongoing observations live in Vehicle 360.</p>
           </div>
           <div className="settings-overview-grid">
             {Object.entries(correction).map(([key, value]) => (
               <label className="form-field" key={key}>
-                <span>{key.replace(/([A-Z])/g, " $1")}</span>
+                <span>{identityFieldLabels[key as keyof typeof identityFieldLabels]}</span>
                 <input disabled={registryLocked} onChange={(event) => setCorrection((current) => ({ ...current, [key]: event.target.value }))} value={value} />
               </label>
             ))}
           </div>
           <div className="form-actions">
             <button className="button button-secondary" disabled={busy || registryLocked} onClick={correctIdentity} type="button">Validate and save correction</button>
-            <label className="form-field"><span>Odometer miles</span><input disabled={registryLocked} inputMode="numeric" onChange={(event) => setOdometer(event.target.value)} value={odometer} /></label>
-            <button className="button button-secondary" disabled={busy || registryLocked || !odometer} onClick={() => command("RECORD_ODOMETER", { reading: Number(odometer), unit: "MILES", observedAt: new Date().toISOString(), sourceCode: "MANAGER_UI" })} type="button">Record observation</button>
-            <label className="form-field"><span>Custody position</span><input disabled={registryLocked} onChange={(event) => setPosition(event.target.value)} placeholder="Lot or bay" value={position} /></label>
-            <button className="button button-secondary" disabled={busy || registryLocked} onClick={() => command("RECORD_CUSTODY", { eventType: "CHECK_IN", custodianType: "DEALERSHIP", positionLabel: position || null, occurredAt: new Date().toISOString(), sourceCode: "MANAGER_UI" })} type="button">Record custody</button>
+            <Link className="button button-secondary" href={`/vehicles/360/${selected.id}`}>Open observations in Vehicle 360</Link>
           </div>
         </section>
       ) : null}
