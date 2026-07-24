@@ -33,6 +33,27 @@ Resolution must return one policy bundle or a blocking conflict. Policy priority
 6. Split intervals at location-local day and configured workweek boundaries.
 7. Retain each output segment's source event IDs.
 
+Implemented TA-021 outputs:
+
+- attendance intervals: exact clock-in through clock-out spans;
+- meal intervals: exact start-meal through end-meal spans with paid and completely-relieved evidence;
+- paid-work intervals: attendance spans minus only unpaid meals where the employee was completely relieved;
+- local date and workweek attribution for each derived interval;
+- source event IDs on every derived interval.
+
+If a staff member is planned for a 60-minute unpaid lunch but actually records only a 30-minute completely-relieved unpaid meal, the normalizer deducts 30 minutes, not the planned 60. The remaining 30 minutes is paid work if the employee returned to work.
+
+Initial normalization exception codes:
+
+- `DUPLICATE_EVENT_IGNORED`
+- `MISSING_CLOCK_IN`
+- `MISSING_CLOCK_OUT`
+- `OPEN_MEAL`
+- `MEAL_WITHOUT_ACTIVE_SESSION`
+- `CLOCK_OUT_DURING_OPEN_MEAL`
+- `OVERLAPPING_SESSION`
+- `IMPOSSIBLE_EVENT_ORDER`
+
 ## Overtime classification
 
 For an approved threshold `T` and eligible worked minutes `W` in one fixed workweek:

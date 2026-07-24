@@ -34,7 +34,7 @@
 | ID | Status | Work | Exit criteria |
 | --- | --- | --- | --- |
 | TA-020 | [x] | Idempotent capture commands | Clock/meal commands are retry-safe, expected-version checked, audited, event-backed and exposed through the capture API |
-| TA-021 | [ ] | Event normalization and interval builder | Overnight, missing, overlap, correction and DST cases are deterministic |
+| TA-021 | [x] | Event normalization and interval builder | Exact attendance, meal, paid-work, missing/open/overlap and overnight local-day split cases are deterministic |
 | TA-022 | [ ] | Effective policy resolver | One exact policy bundle or blocking conflict |
 | TA-023 | [ ] | Time-card calculator | Worked, regular, overtime, meal, rest, leave and allocation results reconcile |
 | TA-024 | [ ] | Exception engine | Source-linked break, punch, allocation, overtime and policy exceptions |

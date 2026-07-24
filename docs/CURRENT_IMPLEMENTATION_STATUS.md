@@ -517,7 +517,9 @@ TA-G1 persistence and command-boundary foundations are now implemented in source
 
 TA-020 idempotent capture is implemented in source. `/api/time-attendance/capture` accepts `CLOCK_IN`, `START_MEAL`, `END_MEAL`, and `CLOCK_OUT`; the service enforces self-or-manager capture authority; the repository commits the enterprise command ledger, aggregate version, attendance session, attendance event, meal interval evidence, audit, domain event, and outbox message in one transaction.
 
-This foundation does not include applied runtime migration evidence, seed data, a live `/time-attendance` console, interval normalization/card projection APIs, payroll-file generation, protected-leave case management, legal/payroll configuration approval, pilot evidence, or production release authority.
+TA-021 event normalization is implemented in source. The pure interval builder orders and deduplicates source events, pairs clock and meal events without inventing missing evidence, emits blocking normalization exceptions, splits derived intervals by location-local day and workweek attribution, and calculates attendance, meal, unpaid-meal, and paid-work minutes. Paid-work intervals deduct only actual unpaid completely-relieved meals, so planned lunch expectations do not silently remove worked time.
+
+This foundation does not include applied runtime migration evidence, seed data, a live `/time-attendance` console, time-card projection APIs, payroll-file generation, protected-leave case management, legal/payroll configuration approval, pilot evidence, or production release authority.
 
 ## Current Execution Order
 
