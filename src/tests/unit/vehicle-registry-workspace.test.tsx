@@ -33,7 +33,7 @@ describe("vehicle registry workspace", () => {
     });
   });
 
-  it("renders each vehicle result as a live route into registry detail and workspaces", () => {
+  it("renders each vehicle result as a direct route into the Vehicle Workbench", () => {
     const html = renderToStaticMarkup(
       <VehicleRegistryWorkspace
         initial={{
@@ -60,7 +60,7 @@ describe("vehicle registry workspace", () => {
     );
 
     expect(html).toContain("VEH-100");
-    expect(html).toContain("/vehicles/registry?vehicleId=veh-1");
+    expect(html).toContain("Click vehicle to open the Vehicle Workbench");
     expect(html).toContain("/vehicles/360/veh-1");
     expect(html).toContain("/vehicles/veh-1/workbench");
     expect(html).toContain("Preview here");

@@ -280,12 +280,14 @@ export function VehicleRegistryWorkspace({
     }
   }
 
-  async function refresh(search = query) {
+  async function refresh(search = query, openSingleMatch = false) {
     setBusy(true);
     try {
       const body = await request(`/api/vehicles?query=${encodeURIComponent(search)}`) as RegistryList;
       setList(body);
-      if (body.items.length === 1) {
+      if (openSingleMatch && body.items.length === 1) {
+        window.location.assign(vehicleWorkbenchHref(body.items[0].id));
+      } else if (body.items.length === 1) {
         await load(body.items[0].id);
       } else if (!body.items.some((item) => item.id === selected?.id)) {
         setSelected(null);
@@ -496,7 +498,7 @@ export function VehicleRegistryWorkspace({
       ) : null}
 
       <section className="panel-card">
-        <form className="form-actions" onSubmit={(event) => { event.preventDefault(); void refresh(); }}>
+        <form className="form-actions" onSubmit={(event) => { event.preventDefault(); void refresh(query, true); }}>
           <label className="form-field">
             <span>Search VIN, partial VIN, stock, plate, vehicle, customer, or external ID</span>
             <input onChange={(event) => setQuery(event.target.value)} value={query} />
@@ -515,10 +517,11 @@ export function VehicleRegistryWorkspace({
           <div className="page-stack">
             {list.items.length ? list.items.map((item) => (
               <article className="panel-card settings-callout-card inventory-vehicle-result-card" key={item.id}>
-                <Link className="inventory-vehicle-result-link" href={`/vehicles/registry?vehicleId=${encodeURIComponent(item.id)}`}>
+                <Link className="inventory-vehicle-result-link" href={vehicleWorkbenchHref(item.id)}>
                   <strong>{vehicleTitle(item)}</strong>
                   <span>{item.vehicleNumber} · VIN {item.vin ?? item.vinState} · Stock {stockNumberForDisplay(item)}</span>
                   {item._count.duplicateCasesAsCandidate + item._count.duplicateCasesAsPrimary ? <small>Duplicate review required</small> : null}
+                  <small>Click vehicle to open the Vehicle Workbench</small>
                 </Link>
                 <div className="form-actions">
                   <Link className="button button-primary" href={vehicleWorkbenchHref(item.id)}>Open Vehicle Workbench</Link>
