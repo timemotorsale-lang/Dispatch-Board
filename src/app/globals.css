@@ -1001,6 +1001,24 @@ textarea {
   color: #53657f;
 }
 
+.inventory-quick-create {
+  display: grid;
+  gap: 0.75rem;
+  border: 1px solid #cfe0f7;
+  border-radius: 1rem;
+  padding: 1rem;
+  background: linear-gradient(180deg, #f7fbff 0%, #eef5ff 100%);
+}
+
+.inventory-quick-create textarea {
+  resize: vertical;
+}
+
+.inventory-quick-create small {
+  align-self: center;
+  color: #53657f;
+}
+
 .ict-exact-primary-action,
 .ict-exact-secondary-action {
   display: inline-flex;

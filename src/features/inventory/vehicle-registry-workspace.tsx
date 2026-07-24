@@ -119,6 +119,68 @@ const createFieldOrder: Array<keyof typeof emptyVehicle> = [
   "nonVinReason"
 ];
 
+const vehicleColors = new Set([
+  "beige",
+  "black",
+  "blue",
+  "brown",
+  "gold",
+  "gray",
+  "green",
+  "grey",
+  "maroon",
+  "orange",
+  "purple",
+  "red",
+  "silver",
+  "tan",
+  "teal",
+  "white",
+  "yellow"
+]);
+
+function toTitleCase(value: string) {
+  return value
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+    .replace(/\b[a-z]/g, (match) => match.toUpperCase());
+}
+
+export function parseQuickVehicleIdentity(value: string): Partial<typeof emptyVehicle> {
+  const normalized = value.trim().replace(/\s+/g, " ");
+  if (!normalized) return {};
+
+  const result: Partial<typeof emptyVehicle> = {};
+  const yearMatch = normalized.match(/\b(19\d{2}|20\d{2})\b/);
+  const mileageMatch = normalized.match(/\b([\d,]{2,})\s*(?:mi|mile|miles|odometer)\b/i);
+  const locationMatch = normalized.match(/\b(?:located\s+at|location\s+at|at)\s+(.+)$/i);
+
+  if (yearMatch) result.year = yearMatch[1];
+  if (mileageMatch) result.initialOdometerMiles = mileageMatch[1].replaceAll(",", "");
+  if (locationMatch) {
+    result.initialCustodyPosition = toTitleCase(locationMatch[1].replace(/[.,;]+$/g, ""));
+  }
+
+  const identityText = normalized
+    .replace(/\bwith\s+[\d,]{2,}\s*(?:mi|mile|miles|odometer)\b/i, " ")
+    .replace(/\b[\d,]{2,}\s*(?:mi|mile|miles|odometer)\b/i, " ")
+    .replace(/\b(?:vehicle\s+)?(?:is\s+)?(?:located\s+at|location\s+at|at)\s+.+$/i, " ")
+    .replace(/[.,;]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const afterYear = yearMatch ? identityText.slice(identityText.indexOf(yearMatch[1]) + yearMatch[1].length).trim() : identityText;
+  const tokens = afterYear.split(" ").filter(Boolean);
+  const colorIndex = tokens.findLastIndex((token) => vehicleColors.has(token.toLowerCase()));
+  const identityTokens = colorIndex >= 0 ? tokens.slice(0, colorIndex) : tokens;
+
+  if (colorIndex >= 0) result.color = toTitleCase(tokens[colorIndex]);
+  if (identityTokens[0]) result.make = toTitleCase(identityTokens[0]);
+  if (identityTokens.length > 1) result.model = toTitleCase(identityTokens.slice(1).join(" "));
+
+  return result;
+}
+
 function editableIdentity(vehicle: Detail | null) {
   return vehicle
     ? {
@@ -155,6 +217,7 @@ export function VehicleRegistryWorkspace({
   const [list, setList] = useState(initial);
   const [query, setQuery] = useState(initialQuery);
   const [selected, setSelected] = useState<Detail | null>(initialSelected);
+  const [quickCreateText, setQuickCreateText] = useState("");
   const [vehicle, setVehicle] = useState(emptyVehicle);
   const [correction, setCorrection] = useState(editableIdentity(initialSelected));
   const [notice, setNotice] = useState("");
@@ -277,6 +340,16 @@ export function VehicleRegistryWorkspace({
     } finally {
       setBusy(false);
     }
+  }
+
+  function fillCreateFromQuickText() {
+    const parsed = parseQuickVehicleIdentity(quickCreateText);
+    if (!Object.keys(parsed).length) {
+      setNotice("Enter a quick vehicle description first, then fill the form.");
+      return;
+    }
+    setVehicle((current) => ({ ...current, ...parsed }));
+    setNotice("Quick intake filled the fields it could read. Review, add VIN/stock/plate if available, then validate and create.");
   }
 
   async function correctIdentity() {
@@ -465,6 +538,22 @@ export function VehicleRegistryWorkspace({
           <div className="page-copy">
             <h2>Create canonical identity</h2>
             <p>{registryLocked ? "Registry updates are locked in this rollout. Use search and open the vehicle workspace instead." : "Enter the identity, mileage, and current lot/bay in one pass so staff do not have to hunt for a second form."}</p>
+          </div>
+          <div className="inventory-quick-create">
+            <label className="form-field">
+              <span>Quick add from description</span>
+              <textarea
+                disabled={registryLocked}
+                onChange={(event) => setQuickCreateText(event.target.value)}
+                placeholder="Example: 2025 Mitsubishi Outlander Silver with 32145 miles, vehicle located at Time Motor Sales 1101 Lake Street"
+                rows={3}
+                value={quickCreateText}
+              />
+            </label>
+            <div className="form-actions">
+              <button className="button button-secondary" disabled={busy || registryLocked} onClick={fillCreateFromQuickText} type="button">Fill form from sentence</button>
+              <small>Review before saving. VIN, stock number, and plate still need to be entered when available.</small>
+            </div>
           </div>
           {createFieldOrder.map((key) => (
             <label className="form-field" key={key}>
