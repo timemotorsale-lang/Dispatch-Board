@@ -43,11 +43,16 @@ export function normalizeStockNumber(value: unknown) {
   return { raw: raw || null, normalized: normalized || null };
 }
 
+export function deriveStockNumberFromVin(vin: string | null) {
+  return vin && VIN_PATTERN.test(vin) ? vin.slice(-6) : null;
+}
+
 export function normalizeVehicleIdentity(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Vehicle identity must be an object.");
   const raw = value as Record<string, unknown>;
   const vin = normalizeCanonicalVin(raw);
-  const stock = normalizeStockNumber(raw.stockNumber);
+  const derivedStockNumber = deriveStockNumberFromVin(vin.normalized);
+  const stock = normalizeStockNumber(raw.stockNumber ?? derivedStockNumber);
   const year = raw.year == null || raw.year === "" ? null : Number(raw.year);
   if (year !== null && (!Number.isInteger(year) || year < 1886 || year > new Date().getFullYear() + 2)) throw new Error("Vehicle year is outside the supported range.");
   return {

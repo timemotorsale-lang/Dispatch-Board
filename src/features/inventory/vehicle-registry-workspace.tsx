@@ -147,16 +147,30 @@ function toTitleCase(value: string) {
     .replace(/\b[a-z]/g, (match) => match.toUpperCase());
 }
 
+function normalizeVinForStock(value: string) {
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+function deriveStockNumberFromVin(value: string | null | undefined) {
+  const vin = value ? normalizeVinForStock(value) : "";
+  return vin.length === 17 ? vin.slice(-6) : "";
+}
+
 export function parseQuickVehicleIdentity(value: string): Partial<typeof emptyVehicle> {
   const normalized = value.trim().replace(/\s+/g, " ");
   if (!normalized) return {};
 
   const result: Partial<typeof emptyVehicle> = {};
   const yearMatch = normalized.match(/\b(19\d{2}|20\d{2})\b/);
+  const vinMatch = normalized.match(/\b[A-HJ-NPR-Z0-9]{17}\b/i);
   const mileageMatch = normalized.match(/\b([\d,]{2,})\s*(?:mi|mile|miles|odometer)\b/i);
   const locationMatch = normalized.match(/\b(?:located\s+at|location\s+at|at)\s+(.+)$/i);
 
   if (yearMatch) result.year = yearMatch[1];
+  if (vinMatch) {
+    result.vin = normalizeVinForStock(vinMatch[0]);
+    result.stockNumber = deriveStockNumberFromVin(result.vin);
+  }
   if (mileageMatch) result.initialOdometerMiles = mileageMatch[1].replaceAll(",", "");
   if (locationMatch) {
     result.initialCustodyPosition = toTitleCase(locationMatch[1].replace(/[.,;]+$/g, ""));
@@ -165,6 +179,7 @@ export function parseQuickVehicleIdentity(value: string): Partial<typeof emptyVe
   const identityText = normalized
     .replace(/\bwith\s+[\d,]{2,}\s*(?:mi|mile|miles|odometer)\b/i, " ")
     .replace(/\b[\d,]{2,}\s*(?:mi|mile|miles|odometer)\b/i, " ")
+    .replace(/\b[A-HJ-NPR-Z0-9]{17}\b/i, " ")
     .replace(/\b(?:vehicle\s+)?(?:is\s+)?(?:located\s+at|location\s+at|at)\s+.+$/i, " ")
     .replace(/[.,;]+/g, " ")
     .replace(/\s+/g, " ")
@@ -181,13 +196,17 @@ export function parseQuickVehicleIdentity(value: string): Partial<typeof emptyVe
   return result;
 }
 
+function stockNumberForDisplay(vehicle: Pick<VehicleListItem, "stockNumber" | "vin">) {
+  return vehicle.stockNumber ?? (deriveStockNumberFromVin(vehicle.vin) || "—");
+}
+
 function editableIdentity(vehicle: Detail | null) {
   return vehicle
     ? {
         vehicleNumber: vehicle.vehicleNumber,
         vin: vehicle.vinRaw ?? vehicle.vin ?? "",
         nonVinReason: vehicle.nonVinReason ?? "",
-        stockNumber: vehicle.stockNumber ?? "",
+        stockNumber: vehicle.stockNumber ?? deriveStockNumberFromVin(vehicle.vin),
         year: vehicle.year ? String(vehicle.year) : "",
         make: vehicle.make ?? "",
         model: vehicle.model ?? "",
@@ -352,6 +371,30 @@ export function VehicleRegistryWorkspace({
     setNotice("Quick intake filled the fields it could read. Review, add VIN/stock/plate if available, then validate and create.");
   }
 
+  function updateCreateField(key: keyof typeof emptyVehicle, value: string) {
+    setVehicle((current) => {
+      if (key !== "vin") return { ...current, [key]: value };
+      const derivedStockNumber = deriveStockNumberFromVin(value);
+      return {
+        ...current,
+        vin: value,
+        stockNumber: current.stockNumber || !derivedStockNumber ? current.stockNumber : derivedStockNumber
+      };
+    });
+  }
+
+  function updateCorrectionField(key: keyof typeof emptyIdentity, value: string) {
+    setCorrection((current) => {
+      if (key !== "vin") return { ...current, [key]: value };
+      const derivedStockNumber = deriveStockNumberFromVin(value);
+      return {
+        ...current,
+        vin: value,
+        stockNumber: current.stockNumber || !derivedStockNumber ? current.stockNumber : derivedStockNumber
+      };
+    });
+  }
+
   async function correctIdentity() {
     if (!selected) return;
     setBusy(true);
@@ -469,7 +512,7 @@ export function VehicleRegistryWorkspace({
               <article className="panel-card settings-callout-card inventory-vehicle-result-card" key={item.id}>
                 <Link className="inventory-vehicle-result-link" href={`/vehicles/registry?vehicleId=${encodeURIComponent(item.id)}`}>
                   <strong>{vehicleTitle(item)}</strong>
-                  <span>{item.vehicleNumber} · VIN {item.vin ?? item.vinState} · Stock {item.stockNumber ?? "—"}</span>
+                  <span>{item.vehicleNumber} · VIN {item.vin ?? item.vinState} · Stock {stockNumberForDisplay(item)}</span>
                   {item._count.duplicateCasesAsCandidate + item._count.duplicateCasesAsPrimary ? <small>Duplicate review required</small> : null}
                 </Link>
                 <div className="form-actions">
@@ -492,7 +535,7 @@ export function VehicleRegistryWorkspace({
               </div>
               <dl className="etw-facts compact">
                 <div><dt>VIN</dt><dd>{selected.vin ?? selected.vinRaw ?? selected.nonVinReason ?? "Not recorded"}</dd></div>
-                <div><dt>Stock</dt><dd>{selected.stockNumber ?? "Not recorded"}</dd></div>
+                <div><dt>Stock</dt><dd>{selected.stockNumber ?? (deriveStockNumberFromVin(selected.vin) ? `${deriveStockNumberFromVin(selected.vin)} · derived from VIN` : "Not recorded")}</dd></div>
                 <div><dt>Plate</dt><dd>{selected.licensePlate ?? "Not recorded"}</dd></div>
                 <div><dt>Current custody</dt><dd>{selected.custodyEvents[0]?.location?.name ?? selected.custodyEvents[0]?.positionLabel ?? "No custody event"}</dd></div>
                 <div><dt>Latest odometer</dt><dd>{selected.odometerObservations[0] ? `${selected.odometerObservations[0].reading.toLocaleString()} ${selected.odometerObservations[0].unit}` : "No observation"}</dd></div>
@@ -561,8 +604,8 @@ export function VehicleRegistryWorkspace({
               <input
                 disabled={registryLocked}
                 inputMode={key === "initialOdometerMiles" || key === "year" ? "numeric" : undefined}
-                onChange={(event) => setVehicle((current) => ({ ...current, [key]: event.target.value }))}
-                placeholder={key === "initialCustodyPosition" ? "Lot, lane, or bay" : undefined}
+                onChange={(event) => updateCreateField(key, event.target.value)}
+                placeholder={key === "initialCustodyPosition" ? "Lot, lane, or bay" : key === "stockNumber" ? "Auto-fills from last 6 VIN digits" : undefined}
                 value={vehicle[key]}
               />
             </label>
@@ -598,12 +641,15 @@ export function VehicleRegistryWorkspace({
             <p>Use this only when the canonical identity itself is wrong. Mileage and first location are captured during Create canonical identity, and ongoing observations live in Vehicle 360.</p>
           </div>
           <div className="settings-overview-grid">
-            {Object.entries(correction).map(([key, value]) => (
+            {Object.entries(correction).map(([key, value]) => {
+              const field = key as keyof typeof emptyIdentity;
+              return (
               <label className="form-field" key={key}>
-                <span>{identityFieldLabels[key as keyof typeof identityFieldLabels]}</span>
-                <input disabled={registryLocked} onChange={(event) => setCorrection((current) => ({ ...current, [key]: event.target.value }))} value={value} />
+                <span>{identityFieldLabels[field]}</span>
+                <input disabled={registryLocked} onChange={(event) => updateCorrectionField(field, event.target.value)} value={value} />
               </label>
-            ))}
+              );
+            })}
           </div>
           <div className="form-actions">
             <button className="button button-secondary" disabled={busy || registryLocked} onClick={correctIdentity} type="button">Validate and save correction</button>

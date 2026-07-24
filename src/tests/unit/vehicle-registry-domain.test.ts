@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isValidVin, normalizeCanonicalVin, normalizeStockNumber, normalizeVehicleIdentity, odometerDisposition, previewVehicleImportRows } from "@/server/vehicle-registry/domain";
+import { deriveStockNumberFromVin, isValidVin, normalizeCanonicalVin, normalizeStockNumber, normalizeVehicleIdentity, odometerDisposition, previewVehicleImportRows } from "@/server/vehicle-registry/domain";
 
 describe("canonical vehicle registry domain", () => {
   it("normalizes and validates ISO VIN check digits", () => {
@@ -16,6 +16,12 @@ describe("canonical vehicle registry domain", () => {
   it("normalizes stock identity and validates vehicle fields", () => {
     expect(normalizeStockNumber(" tms-10 01 ")).toEqual({ raw: "tms-10 01", normalized: "TMS1001" });
     expect(normalizeVehicleIdentity({ vehicleNumber: "unit-1", vin: "1HGCM82633A004352", stockNumber: "A-1", year: 2003, reason: "Create a governed vehicle identity.", idempotencyKey: "one" })).toMatchObject({ vehicleNumber: "UNIT-1", stockNumberNormalized: "A1", vin: "1HGCM82633A004352" });
+  });
+
+  it("derives stock from the last six VIN characters when stock is blank", () => {
+    expect(deriveStockNumberFromVin("1HGCM82633A004352")).toBe("004352");
+    expect(deriveStockNumberFromVin("JA4J3VA87SZ029081")).toBe("029081");
+    expect(normalizeVehicleIdentity({ vehicleNumber: "unit-1", vin: "1HGCM82633A004352", year: 2003, reason: "Create a governed vehicle identity.", idempotencyKey: "one" })).toMatchObject({ stockNumber: "004352", stockNumberNormalized: "004352" });
   });
 
   it("flags decreasing and implausible odometer observations without overwriting history", () => {

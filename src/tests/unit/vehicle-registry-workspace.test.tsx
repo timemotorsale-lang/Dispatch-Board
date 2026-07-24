@@ -26,6 +26,13 @@ describe("vehicle registry workspace", () => {
     });
   });
 
+  it("derives quick-intake stock when the sentence includes a VIN", () => {
+    expect(parseQuickVehicleIdentity("2025 Mitsubishi Outlander Silver VIN JA4J3VA87SZ029081 with 32145 miles at Time Motor Sales")).toMatchObject({
+      stockNumber: "029081",
+      vin: "JA4J3VA87SZ029081",
+    });
+  });
+
   it("renders each vehicle result as a live route into registry detail and workspaces", () => {
     const html = renderToStaticMarkup(
       <VehicleRegistryWorkspace
