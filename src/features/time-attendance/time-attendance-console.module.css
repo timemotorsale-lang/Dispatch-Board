@@ -738,6 +738,61 @@
   margin-bottom: 14px;
 }
 
+.hardeningMetrics {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 14px;
+}
+
+.hardeningMetrics div {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.hardeningMetrics span {
+  color: var(--muted);
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.hardeningMetrics strong {
+  display: block;
+  font-size: 1.35rem;
+  margin-top: 5px;
+}
+
+.hardeningGateList {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.hardeningGate {
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 14px;
+}
+
+.hardeningGate p,
+.hardeningGate small {
+  color: var(--muted);
+  display: block;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  margin: 4px 0 0;
+}
+
 .payrollMetrics div {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
@@ -1034,8 +1089,13 @@
   .timeSummary,
     .managerReviewMetrics,
     .payrollMetrics,
-    .payrollControls {
+    .payrollControls,
+    .hardeningMetrics {
     grid-template-columns: 1fr;
+  }
+
+  .hardeningGate {
+    display: grid;
   }
 
   .panelHeader,

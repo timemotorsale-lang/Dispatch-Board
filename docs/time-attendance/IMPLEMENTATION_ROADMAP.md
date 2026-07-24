@@ -66,12 +66,12 @@
 
 | ID | Status | Work | Exit criteria |
 | --- | --- | --- | --- |
-| TA-050 | [ ] | Security/privacy review | Least privilege, protected fields, export scope, abuse cases and logging |
-| TA-051 | [ ] | Reliability/load/concurrency proof | Double punch, concurrent correction, retry, lag and dead-letter cases pass |
-| TA-052 | [ ] | Backup/restore/retention proof | Restore reconciles cards, events, policy versions, approvals and exports |
-| TA-053 | [ ] | Accessibility/responsive proof | Keyboard, screen reader, mobile capture and manager console pass |
-| TA-054 | [ ] | Parallel payroll pilot | At least one representative full pay period reconciles by employee/code |
-| TA-055 | [ ] | Training/support/rollback | Owner, runbook, support path, rollback drill and first-live checklist |
+| TA-050 | [~] | Security/privacy review | Manager-only evidence gate lists least-privilege, protected leave/export scope, logging, and abuse-case review evidence still required |
+| TA-051 | [~] | Reliability/load/concurrency proof | Gate captures idempotency/concurrency/load/retry evidence requirements; production-like load run remains pending |
+| TA-052 | [blocked] | Backup/restore/retention proof | Restore/retention gate is explicit and blocked until migrated-runtime restore drill reconciles events, cards, approvals, and exports |
+| TA-053 | [~] | Accessibility/responsive proof | Gate captures keyboard, screen-reader, mobile, and browser-state evidence requirements; formal audit remains pending |
+| TA-054 | [blocked] | Parallel payroll pilot | Parallel payroll pilot gate is explicit and blocked until one representative pay period reconciles by employee and earning code |
+| TA-055 | [~] | Training/support/rollback | Gate captures training, support owner, rollback drill, and first-live checklist evidence requirements |
 
 ## TA-G6 — Production
 

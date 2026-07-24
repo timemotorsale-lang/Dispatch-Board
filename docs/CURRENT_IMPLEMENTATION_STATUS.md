@@ -1,5 +1,13 @@
 # Current Implementation Status
 
+## 2026-07-24 — Time & Attendance TA-G5 hardening and pilot gate started
+
+TA-G5 now has its first vertical repository implementation slice on `codex/time-attendance-g5-hardening-pilot`. The CCC Time & Attendance console includes a manager-only hardening and pilot evidence panel. The server readiness contract is exposed through `/api/time-attendance/hardening-pilot` and evaluates TA-050 through TA-055 without claiming pilot or production eligibility.
+
+TA-050 security/privacy, TA-051 reliability/concurrency, TA-053 accessibility/responsive, and TA-055 training/support/rollback are represented as evidence-required gates. TA-052 backup/restore/retention and TA-054 parallel payroll pilot remain blocked because the migrated-runtime restore drill and representative parallel pay-period reconciliation have not occurred. The gate explicitly keeps production ineligible until legal/payroll approval, runtime migration evidence, capability rollout policy, payroll mapping, pilot evidence, training, and rollback proof are accepted.
+
+This checkpoint adds a source-controlled evidence gate, not an operational pilot approval. No production rollout, live migration application, payroll-provider activation, accessibility audit, restore drill, or parallel payroll pilot was performed.
+
 ## 2026-07-24 — Time & Attendance TA-G4 payroll handoff started
 
 TA-G4 now has its first vertical repository implementation slice across TA-040 through TA-044 on `codex/time-attendance-g4-payroll-handoff`. The CCC Time & Attendance console includes a payroll handoff panel that checks pay-period readiness, exposes lock/export/status/reproduction controls, and keeps payroll close separate from live punch capture.
