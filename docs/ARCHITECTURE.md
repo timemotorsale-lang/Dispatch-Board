@@ -14,6 +14,8 @@
 
 ---
 
+> **Time & Attendance Program:** The product boundary, modular-monolith architecture, official Minnesota/federal source register, exact-time rule baseline, deterministic calculations, workflows, permissions, testing, and gated implementation roadmap live in [`docs/time-attendance/README.md`](time-attendance/README.md). The executable foundation is source-linked and fail-closed; persistence, APIs, UI, payroll handoff, legal/payroll signoff, and production rollout remain later milestones.
+
 > **Enterprise optimization architecture:** The governing Constitution, common work model, algorithm specifications, validation rules, automation controls, and phased adoption path live in [`docs/enterprise-optimization/README.md`](enterprise-optimization/README.md). The [`Enterprise Optimization Constitution`](ENTERPRISE_OPTIMIZATION_CONSTITUTION.md) applies to optimization, recommendation, escalation, and automation across the Command Control Center and every operational console. Domain specifications may strengthen these rules but may not weaken their safety, compliance, authorization, evidence, explainability, or audit requirements. This package is an architecture baseline; it does not by itself activate application behavior.
 
 > **Projects Module planning package:** The dedicated Projects Module boundary, architecture shape, milestone plan, and Codex guidance live in [`docs/projects/PROJECTS_MODULE_GUIDE.md`](projects/PROJECTS_MODULE_GUIDE.md). That guide defines the Projects feature as a module inside the parent Dispatch Board, not a separate app rewrite.

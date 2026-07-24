@@ -1447,6 +1447,88 @@ enum EnterpriseIntegrationConflictStatus {
   CANCELLED
 }
 
+enum TimeAttendancePolicyProfileStatus {
+  DRAFT
+  ACTIVE
+  RETIRED
+}
+
+enum TimeAttendanceSessionState {
+  OPEN
+  ON_MEAL
+  CLOSED
+  EXCEPTION
+}
+
+enum TimeAttendanceEventType {
+  CLOCK_IN
+  START_MEAL
+  END_MEAL
+  CLOCK_OUT
+  MANAGER_CORRECTION
+  SYSTEM_DERIVATION
+}
+
+enum TimeAttendanceEventSource {
+  WEB
+  MANAGER
+  IMPORT
+  SYSTEM
+}
+
+enum TimeAttendanceBreakKind {
+  PAID_REST
+  MEAL
+}
+
+enum TimeCardStatus {
+  OPEN
+  EMPLOYEE_REVIEW
+  ATTESTED
+  MANAGER_REVIEW
+  APPROVED
+  LOCKED
+  EXPORTED
+  REOPENED
+  VOID
+}
+
+enum TimeCardExceptionStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+  WAIVED
+}
+
+enum TimeOffRequestType {
+  PTO
+  ESST
+  UNPAID
+  HOLIDAY
+  PROTECTED_REFERRAL
+}
+
+enum TimeOffRequestStatus {
+  DRAFT
+  SUBMITTED
+  MANAGER_APPROVED
+  LEAVE_ADMIN_REVIEW
+  APPROVED
+  DENIED
+  WITHDRAWN
+  CANCELLED
+}
+
+enum TimeAttendanceExportStatus {
+  DRAFT
+  LOCKED
+  EXPORTED
+  ACKNOWLEDGED
+  REJECTED
+  RECONCILED
+  VOID
+}
+
 enum CapabilityEffect {
   ALLOW
   DENY
@@ -1496,169 +1578,182 @@ model BootstrapMarker {
 }
 
 model User {
-  id                                    String                                 @id @default(cuid())
-  name                                  String
-  email                                 String                                 @unique
-  passwordHash                          String
-  isActive                              Boolean                                @default(true)
-  createdAt                             DateTime                               @default(now())
-  updatedAt                             DateTime                               @updatedAt
-  sessions                              Session[]
-  userRoles                             UserRole[]
-  userDuties                            UserDuty[]
-  generatedBoardDays                    BoardDay[]                             @relation("BoardDayGeneratedByUser")
-  assignedTasks                         Task[]                                 @relation("TaskAssignedUser")
-  recommendedTasks                      Task[]                                 @relation("TaskRecommendedUser")
-  createdTasks                          Task[]                                 @relation("TaskCreatedByUser")
-  reviewedTasks                         Task[]                                 @relation("TaskReviewedByUser")
-  acceptedTasks                         Task[]                                 @relation("TaskAcceptedByUser")
-  completionOverriddenTasks             Task[]                                 @relation("TaskCompletionOverrideByUser")
-  authoredTaskComments                  TaskComment[]                          @relation("TaskCommentAuthorUser")
-  activityEvents                        ActivityEvent[]
-  triggeredGenerationRuns               GenerationRun[]                        @relation("GenerationRunTriggeredByUser")
-  createdLocationClosures               LocationClosure[]                      @relation("LocationClosureCreatedByUser")
-  ownedAppointments                     Appointment[]                          @relation("AppointmentOwnerUser")
-  createdAppointments                   Appointment[]                          @relation("AppointmentCreatedByUser")
-  appointmentParticipants               AppointmentParticipant[]
-  appointmentLocationAccess             UserLocationAccess[]
-  createdAppointmentTaskLinks           AppointmentTaskLink[]                  @relation("AppointmentTaskLinkCreatedByUser")
-  appointmentHistoryEvents              AppointmentHistoryEvent[]              @relation("AppointmentHistoryEventActorUser")
-  appointmentCommandLedgerEntries       AppointmentCommandLedger[]             @relation("AppointmentCommandLedgerActorUser")
-  schedulableResources                  SchedulableResource[]                  @relation("SchedulableResourceUser")
-  createdResourceUnavailability         ResourceUnavailability[]               @relation("ResourceUnavailabilityCreatedByUser")
-  createdAppointmentCatalogVersions     AppointmentCatalogVersion[]            @relation("AppointmentCatalogVersionCreatedByUser")
-  activatedAppointmentCatalogVersions   AppointmentCatalogVersion[]            @relation("AppointmentCatalogVersionActivatedByUser")
-  appointmentCatalogChangeEvents        AppointmentCatalogChangeEvent[]        @relation("AppointmentCatalogChangeEventActorUser")
-  createdAppointmentAutomationRules     AppointmentAutomationRule[]            @relation("AppointmentAutomationRuleCreatedByUser")
-  activatedAppointmentAutomationRules   AppointmentAutomationRule[]            @relation("AppointmentAutomationRuleActivatedByUser")
-  appointmentAutomationRuleChangeEvents AppointmentAutomationRuleChangeEvent[] @relation("AppointmentAutomationRuleChangeEventActorUser")
-  appointmentAutomationExecutionEvents  AppointmentAutomationExecutionEvent[]  @relation("AppointmentAutomationExecutionEventActorUser")
-  createdTaskSavedViews                 TaskSavedView[]                        @relation("TaskSavedViewCreatedByUser")
-  createdInventoryConsoleSavedViews     InventoryConsoleSavedView[]            @relation("InventoryConsoleSavedViewCreatedByUser")
-  reportedConcerns                      ConcernCase[]                          @relation("ConcernReportedByUser")
-  ownedConcerns                         ConcernCase[]                          @relation("ConcernAssignedOwner")
-  closedConcerns                        ConcernCase[]                          @relation("ConcernClosedByUser")
-  ownedCustomerPromises                 CustomerPromise[]                      @relation("CustomerPromiseOwner")
-  fulfilledCustomerPromises             CustomerPromise[]                      @relation("CustomerPromiseFulfilledBy")
-  ownedCustomers                        Customer[]                             @relation("CustomerOwner")
-  authoredCustomerInteractions          CustomerInteraction[]                  @relation("CustomerInteractionActor")
-  authoredCustomerNotes                 CustomerNote[]                         @relation("CustomerNoteAuthor")
-  completedChecklistItems               TaskChecklistItem[]                    @relation("TaskChecklistCompletedByUser")
-  staffDays                             StaffDay[]
-  completedStaffDayDutyItems            StaffDayDutyItem[]                     @relation("StaffDayDutyCompletedByUser")
-  claimedWorkRecommendations            WorkRecommendation[]                   @relation("WorkRecommendationClaimedByUser")
-  requestedTaskAssignments              TaskAssignmentRequest[]                @relation("TaskAssignmentRequestRequester")
-  decidedTaskAssignmentRequests         TaskAssignmentRequest[]                @relation("TaskAssignmentRequestDecisionMaker")
-  submittedStaffDailyReports            StaffDailyReport[]                     @relation("StaffDailyReportSubmittedByUser")
-  taskCollaborations                    TaskCollaborator[]                     @relation("TaskCollaboratorUser")
-  addedTaskCollaborators                TaskCollaborator[]                     @relation("TaskCollaboratorAddedByUser")
-  crmDecisionOverrides                  CrmDecisionRecord[]                    @relation("CrmDecisionOverrideUser")
-  ownedCustomerLeads                    CustomerLead[]                         @relation("CustomerLeadOwner")
-  createdCustomerLeads                  CustomerLead[]                         @relation("CustomerLeadCreatedBy")
-  vehicleCapabilityGrants               VehicleCapabilityGrant[]
-  enterpriseCommandLedgerEntries        EnterpriseCommandLedger[]              @relation("EnterpriseCommandActor")
-  enterpriseAuditEvents                 EnterpriseAuditEvent[]                 @relation("EnterpriseAuditActor")
-  updatedVehicleOperationsFeatureFlags  VehicleOperationsFeatureFlag[]         @relation("VehicleOperationsFeatureFlagUpdater")
-  vehicleOperationsRolloutEvents        VehicleOperationsRolloutEvent[]        @relation("VehicleOperationsRolloutActor")
-  recordedVehicleOdometerObservations   VehicleOdometerObservation[]           @relation("VehicleOdometerRecorder")
-  recordedVehicleCustodyEvents          VehicleCustodyEvent[]                  @relation("VehicleCustodyRecorder")
-  resolvedVehicleDuplicateCases         VehicleDuplicateCase[]                 @relation("VehicleDuplicateResolver")
-  ownedInventoryUnits                   InventoryUnit[]                        @relation("InventoryUnitOwner")
-  ownedInventoryAcquisitionCases        InventoryAcquisitionCase[]             @relation("InventoryAcquisitionCaseOwner")
-  inventoryAcquisitionCaseEvents        InventoryAcquisitionCaseEvent[]        @relation("InventoryAcquisitionCaseEventActor")
-  ownedInventoryFrontlineWorkflows      InventoryFrontlineWorkflow[]           @relation("InventoryFrontlineWorkflowOwner")
-  inventoryFrontlineWorkflowEvents      InventoryFrontlineWorkflowEvent[]      @relation("InventoryFrontlineWorkflowEventActor")
-  ownedInventoryRetailCompletions       InventoryRetailCompletion[]            @relation("InventoryRetailCompletionOwner")
-  inventoryRetailCompletionEvents       InventoryRetailCompletionEvent[]       @relation("InventoryRetailCompletionEventActor")
-  ownedInventoryDispositionCases        InventoryDispositionCase[]             @relation("InventoryDispositionCaseOwner")
-  inventoryDispositionCaseEvents        InventoryDispositionCaseEvent[]        @relation("InventoryDispositionCaseEventActor")
-  inventoryUnitStateEvents              InventoryUnitStateEvent[]              @relation("InventoryUnitStateActor")
-  inventoryUnitStateOwnershipSnapshots  InventoryUnitStateEvent[]              @relation("InventoryUnitStateOwner")
-  ownedRepairOrders                     RepairOrder[]                          @relation("RepairOrderOwner")
-  evaluatedServiceIntakeReadiness       ServiceIntakeReadinessSnapshot[]       @relation("ServiceIntakeReadinessEvaluator")
-  createdServiceVisits                  ServiceVisit[]                         @relation("ServiceVisitCreatedBy")
-  repairOrderStateEvents                RepairOrderStateEvent[]                @relation("RepairOrderStateActor")
-  repairOrderStateOwnershipSnapshots    RepairOrderStateEvent[]                @relation("RepairOrderStateOwner")
-  partLedgerEntries                     PartStockLedgerEntry[]                 @relation("PartLedgerActor")
-  createdPartDemands                    RepairPartDemand[]                     @relation("PartDemandCreatedBy")
-  partReservations                      PartReservation[]                      @relation("PartReservationActor")
-  authoredInspections                   VehicleInspectionVersion[]             @relation("InspectionAuthor")
-  authoredDiagnoses                     RepairDiagnosisVersion[]               @relation("DiagnosisAuthor")
-  authoredEstimates                     RepairEstimateVersion[]                @relation("EstimateAuthor")
-  repairAuthorizations                  RepairAuthorization[]                  @relation("AuthorizationDecisionActor")
-  createdRepairJobs                     RepairJob[]                            @relation("RepairJobCreatedBy")
-  createdDiagnosticCases                DiagnosticCase[]                       @relation("DiagnosticCaseCreatedBy")
-  assignedDiagnosticCases               DiagnosticCase[]                       @relation("DiagnosticCaseAssignedTo")
-  authoredDiagnosticConcerns            DiagnosticConcernVersion[]             @relation("DiagnosticConcernAuthor")
-  diagnosticCaseStateEvents             DiagnosticCaseStateEvent[]             @relation("DiagnosticCaseStateActor")
-  authoredDiagnosticObservations        DiagnosticObservation[]                @relation("DiagnosticObservationAuthor")
-  authoredDiagnosticMeasurements        DiagnosticMeasurement[]                @relation("DiagnosticMeasurementAuthor")
-  createdDiagnosticEvidenceLinks        DiagnosticEvidenceLink[]               @relation("DiagnosticEvidenceLinkCreator")
-  authoredDiagnosticTestDefinitions     DiagnosticTestDefinitionVersion[]      @relation("DiagnosticTestDefinitionAuthor")
-  authoredDiagnosticTestPlans           DiagnosticTestPlanVersion[]            @relation("DiagnosticTestPlanAuthor")
-  diagnosticTestExecutionEvents         DiagnosticTestExecution[]              @relation("DiagnosticTestExecutionActor")
-  diagnosticReasoningEvaluations        DiagnosticReasoningEvaluation[]        @relation("DiagnosticReasoningEvaluator")
-  diagnosticAdaptiveTestEvaluations     DiagnosticAdaptiveTestEvaluation[]     @relation("DiagnosticAdaptiveTestEvaluator")
-  diagnosticAdaptiveTestOverrides       DiagnosticAdaptiveTestOverride[]       @relation("DiagnosticAdaptiveTestOverrideActor")
-  authoredDiagnosticConclusions         DiagnosticConclusionVersion[]          @relation("DiagnosticConclusionAuthor")
-  reviewedDiagnosticConclusions         DiagnosticConclusionVersion[]          @relation("DiagnosticConclusionReviewer")
-  authoredDiagnosticRepairHandoffs      DiagnosticRepairHandoffVersion[]       @relation("DiagnosticRepairHandoffAuthor")
-  authoredDiagnosticVerifications       DiagnosticVerificationVersion[]        @relation("DiagnosticVerificationAuthor")
-  reviewedDiagnosticVerifications       DiagnosticVerificationVersion[]        @relation("DiagnosticVerificationReviewer")
-  authoredDiagnosticEstimateDrafts      DiagnosticEstimateDraftVersion[]       @relation("DiagnosticEstimateDraftAuthor")
-  authoredDiagnosticKnowledgeSources    DiagnosticKnowledgeSourceVersion[]     @relation("DiagnosticKnowledgeSourceAuthor")
-  technicalReviewedKnowledgeSources     DiagnosticKnowledgeSourceVersion[]     @relation("DiagnosticKnowledgeSourceTechnicalReviewer")
-  rightsReviewedKnowledgeSources        DiagnosticKnowledgeSourceVersion[]     @relation("DiagnosticKnowledgeSourceRightsReviewer")
-  authoredDiagnosticRuleSets            DiagnosticRuleSetVersion[]             @relation("DiagnosticRuleSetAuthor")
-  reviewedDiagnosticRuleSets            DiagnosticRuleSetVersion[]             @relation("DiagnosticRuleSetReviewer")
-  createdWorkProcedures                 WorkProcedureVersion[]                 @relation("WorkProcedureCreatedBy")
-  technicianQualifications              TechnicianQualification[]              @relation("QualifiedTechnician")
-  verifiedTechnicianQualifications      TechnicianQualification[]              @relation("QualificationVerifier")
-  technicianDispatches                  RepairJobDispatch[]                    @relation("DispatchTechnician")
-  assignedRepairJobs                    RepairJobDispatch[]                    @relation("DispatchAssignedBy")
-  technicianLaborClocks                 RepairJobLaborClock[]                  @relation("LaborClockTechnician")
-  technicianLaborEvents                 RepairJobLaborEvent[]                  @relation("LaborEventTechnician")
-  authoredLaborEvents                   RepairJobLaborEvent[]                  @relation("LaborEventActor")
-  qualityInspections                    RepairQualityInspection[]              @relation("QualityInspector")
-  peerQualityVerifications              RepairQualityInspection[]              @relation("QualityPeerVerifier")
-  repairReleaseAuthorizations           RepairOrderReleaseAuthorization[]      @relation("RepairReleaseAuthorizer")
-  authoredAdvisorUpdates                RepairAdvisorUpdate[]                  @relation("AdvisorUpdateAuthor")
-  deliveryReadinessEvaluations          RepairDeliveryReadinessEvaluation[]    @relation("DeliveryReadinessEvaluator")
-  createdComebackCases                  RepairComebackCase[]                   @relation("ComebackCreatedBy")
-  resolvedComebackCases                 RepairComebackCase[]                   @relation("ComebackResolvedBy")
-  authoredComebackEvents                RepairComebackEvent[]                  @relation("ComebackEventActor")
-  technicianPresenceRecords             TechnicianPresenceRecord[]             @relation("PresenceTechnician")
-  authoredPresenceRecords               TechnicianPresenceRecord[]             @relation("PresenceRecordedBy")
-  shopProductionSnapshots               ShopProductionSnapshot[]               @relation("ProductionTechnician")
-  generatedProductionSnapshots          ShopProductionSnapshot[]               @relation("ProductionGeneratedBy")
-  createdInvoicePackages                ServiceInvoicePackage[]                @relation("InvoicePackageCreatedBy")
-  repairOrderClosureEvents              RepairOrderClosureEvent[]              @relation("RepairClosureActor")
-  createdPartVendors                    PartVendor[]                           @relation("PartVendorCreatedBy")
-  approvedInterchanges                  PartInterchange[]                      @relation("PartInterchangeApprovedBy")
-  createdPartRequisitions               PartRequisition[]                      @relation("PartRequisitionCreatedBy")
-  createdPurchaseOrders                 PartPurchaseOrder[]                    @relation("PartPurchaseOrderCreatedBy")
-  partReceipts                          PartReceipt[]                          @relation("PartReceiptReceivedBy")
-  resolvedPartDiscrepancies             PartReceivingDiscrepancy[]             @relation("PartDiscrepancyResolvedBy")
-  partCustodyEvents                     PartCustodyEvent[]                     @relation("PartCustodyActor")
-  createdPartTransfers                  PartTransfer[]                         @relation("PartTransferCreatedBy")
-  createdPartRecoveries                 PartRecoveryCase[]                     @relation("PartRecoveryCreatedBy")
-  assignedPartCycleCounts               PartCycleCount[]                       @relation("PartCycleCountAssignee")
-  createdPartCycleCounts                PartCycleCount[]                       @relation("PartCycleCountCreator")
-  countedPartCycleCountLines            PartCycleCountLine[]                   @relation("PartCycleCountCounter")
-  approvedPartCycleCountLines           PartCycleCountLine[]                   @relation("PartCycleCountApprover")
-  partCycleCountEvents                  PartCycleCountEvent[]                  @relation("PartCycleCountEventActor")
-  createdPartInventoryPolicies          PartInventoryPolicy[]                  @relation("PartInventoryPolicyCreator")
-  generatedPartRecommendationRuns       PartRecommendationRun[]                @relation("PartRecommendationRunGenerator")
-  decidedPartRecommendations            PartInventoryRecommendation[]          @relation("PartRecommendationDecisionActor")
-  createdPartBarcodeAliases             PartBarcodeAlias[]                     @relation("PartBarcodeAliasCreator")
-  uploadedVehicleEvidenceObjects        VehicleEvidenceObject[]                @relation("VehicleEvidenceUploader")
-  createdVehicleEvidenceLinks           VehicleEvidenceLink[]                  @relation("VehicleEvidenceLinkCreator")
-  vehicleEvidenceEvents                 VehicleEvidenceEvent[]                 @relation("VehicleEvidenceEventActor")
-  createdWorkKnowledgeLinks             WorkKnowledgeLink[]                    @relation("WorkKnowledgeCreator")
-  approvedWorkKnowledgeLinks            WorkKnowledgeLink[]                    @relation("WorkKnowledgeApprover")
-  workKnowledgeEvents                   WorkKnowledgeEvent[]                   @relation("WorkKnowledgeEventActor")
-  requestedVehicleOutputs               VehicleControlledOutput[]              @relation("VehicleOutputRequester")
-  vehicleOutputEvents                   VehicleControlledOutputEvent[]         @relation("VehicleOutputEventActor")
+  id                                      String                                 @id @default(cuid())
+  name                                    String
+  email                                   String                                 @unique
+  passwordHash                            String
+  isActive                                Boolean                                @default(true)
+  createdAt                               DateTime                               @default(now())
+  updatedAt                               DateTime                               @updatedAt
+  sessions                                Session[]
+  userRoles                               UserRole[]
+  userDuties                              UserDuty[]
+  generatedBoardDays                      BoardDay[]                             @relation("BoardDayGeneratedByUser")
+  assignedTasks                           Task[]                                 @relation("TaskAssignedUser")
+  recommendedTasks                        Task[]                                 @relation("TaskRecommendedUser")
+  createdTasks                            Task[]                                 @relation("TaskCreatedByUser")
+  reviewedTasks                           Task[]                                 @relation("TaskReviewedByUser")
+  acceptedTasks                           Task[]                                 @relation("TaskAcceptedByUser")
+  completionOverriddenTasks               Task[]                                 @relation("TaskCompletionOverrideByUser")
+  authoredTaskComments                    TaskComment[]                          @relation("TaskCommentAuthorUser")
+  activityEvents                          ActivityEvent[]
+  triggeredGenerationRuns                 GenerationRun[]                        @relation("GenerationRunTriggeredByUser")
+  createdLocationClosures                 LocationClosure[]                      @relation("LocationClosureCreatedByUser")
+  ownedAppointments                       Appointment[]                          @relation("AppointmentOwnerUser")
+  createdAppointments                     Appointment[]                          @relation("AppointmentCreatedByUser")
+  appointmentParticipants                 AppointmentParticipant[]
+  appointmentLocationAccess               UserLocationAccess[]
+  createdAppointmentTaskLinks             AppointmentTaskLink[]                  @relation("AppointmentTaskLinkCreatedByUser")
+  appointmentHistoryEvents                AppointmentHistoryEvent[]              @relation("AppointmentHistoryEventActorUser")
+  appointmentCommandLedgerEntries         AppointmentCommandLedger[]             @relation("AppointmentCommandLedgerActorUser")
+  schedulableResources                    SchedulableResource[]                  @relation("SchedulableResourceUser")
+  createdResourceUnavailability           ResourceUnavailability[]               @relation("ResourceUnavailabilityCreatedByUser")
+  createdAppointmentCatalogVersions       AppointmentCatalogVersion[]            @relation("AppointmentCatalogVersionCreatedByUser")
+  activatedAppointmentCatalogVersions     AppointmentCatalogVersion[]            @relation("AppointmentCatalogVersionActivatedByUser")
+  appointmentCatalogChangeEvents          AppointmentCatalogChangeEvent[]        @relation("AppointmentCatalogChangeEventActorUser")
+  createdAppointmentAutomationRules       AppointmentAutomationRule[]            @relation("AppointmentAutomationRuleCreatedByUser")
+  activatedAppointmentAutomationRules     AppointmentAutomationRule[]            @relation("AppointmentAutomationRuleActivatedByUser")
+  appointmentAutomationRuleChangeEvents   AppointmentAutomationRuleChangeEvent[] @relation("AppointmentAutomationRuleChangeEventActorUser")
+  appointmentAutomationExecutionEvents    AppointmentAutomationExecutionEvent[]  @relation("AppointmentAutomationExecutionEventActorUser")
+  createdTaskSavedViews                   TaskSavedView[]                        @relation("TaskSavedViewCreatedByUser")
+  createdInventoryConsoleSavedViews       InventoryConsoleSavedView[]            @relation("InventoryConsoleSavedViewCreatedByUser")
+  reportedConcerns                        ConcernCase[]                          @relation("ConcernReportedByUser")
+  ownedConcerns                           ConcernCase[]                          @relation("ConcernAssignedOwner")
+  closedConcerns                          ConcernCase[]                          @relation("ConcernClosedByUser")
+  ownedCustomerPromises                   CustomerPromise[]                      @relation("CustomerPromiseOwner")
+  fulfilledCustomerPromises               CustomerPromise[]                      @relation("CustomerPromiseFulfilledBy")
+  ownedCustomers                          Customer[]                             @relation("CustomerOwner")
+  authoredCustomerInteractions            CustomerInteraction[]                  @relation("CustomerInteractionActor")
+  authoredCustomerNotes                   CustomerNote[]                         @relation("CustomerNoteAuthor")
+  completedChecklistItems                 TaskChecklistItem[]                    @relation("TaskChecklistCompletedByUser")
+  staffDays                               StaffDay[]
+  completedStaffDayDutyItems              StaffDayDutyItem[]                     @relation("StaffDayDutyCompletedByUser")
+  claimedWorkRecommendations              WorkRecommendation[]                   @relation("WorkRecommendationClaimedByUser")
+  requestedTaskAssignments                TaskAssignmentRequest[]                @relation("TaskAssignmentRequestRequester")
+  decidedTaskAssignmentRequests           TaskAssignmentRequest[]                @relation("TaskAssignmentRequestDecisionMaker")
+  submittedStaffDailyReports              StaffDailyReport[]                     @relation("StaffDailyReportSubmittedByUser")
+  taskCollaborations                      TaskCollaborator[]                     @relation("TaskCollaboratorUser")
+  addedTaskCollaborators                  TaskCollaborator[]                     @relation("TaskCollaboratorAddedByUser")
+  crmDecisionOverrides                    CrmDecisionRecord[]                    @relation("CrmDecisionOverrideUser")
+  ownedCustomerLeads                      CustomerLead[]                         @relation("CustomerLeadOwner")
+  createdCustomerLeads                    CustomerLead[]                         @relation("CustomerLeadCreatedBy")
+  vehicleCapabilityGrants                 VehicleCapabilityGrant[]
+  enterpriseCommandLedgerEntries          EnterpriseCommandLedger[]              @relation("EnterpriseCommandActor")
+  enterpriseAuditEvents                   EnterpriseAuditEvent[]                 @relation("EnterpriseAuditActor")
+  updatedVehicleOperationsFeatureFlags    VehicleOperationsFeatureFlag[]         @relation("VehicleOperationsFeatureFlagUpdater")
+  vehicleOperationsRolloutEvents          VehicleOperationsRolloutEvent[]        @relation("VehicleOperationsRolloutActor")
+  recordedVehicleOdometerObservations     VehicleOdometerObservation[]           @relation("VehicleOdometerRecorder")
+  recordedVehicleCustodyEvents            VehicleCustodyEvent[]                  @relation("VehicleCustodyRecorder")
+  resolvedVehicleDuplicateCases           VehicleDuplicateCase[]                 @relation("VehicleDuplicateResolver")
+  ownedInventoryUnits                     InventoryUnit[]                        @relation("InventoryUnitOwner")
+  ownedInventoryAcquisitionCases          InventoryAcquisitionCase[]             @relation("InventoryAcquisitionCaseOwner")
+  inventoryAcquisitionCaseEvents          InventoryAcquisitionCaseEvent[]        @relation("InventoryAcquisitionCaseEventActor")
+  ownedInventoryFrontlineWorkflows        InventoryFrontlineWorkflow[]           @relation("InventoryFrontlineWorkflowOwner")
+  inventoryFrontlineWorkflowEvents        InventoryFrontlineWorkflowEvent[]      @relation("InventoryFrontlineWorkflowEventActor")
+  ownedInventoryRetailCompletions         InventoryRetailCompletion[]            @relation("InventoryRetailCompletionOwner")
+  inventoryRetailCompletionEvents         InventoryRetailCompletionEvent[]       @relation("InventoryRetailCompletionEventActor")
+  ownedInventoryDispositionCases          InventoryDispositionCase[]             @relation("InventoryDispositionCaseOwner")
+  inventoryDispositionCaseEvents          InventoryDispositionCaseEvent[]        @relation("InventoryDispositionCaseEventActor")
+  inventoryUnitStateEvents                InventoryUnitStateEvent[]              @relation("InventoryUnitStateActor")
+  inventoryUnitStateOwnershipSnapshots    InventoryUnitStateEvent[]              @relation("InventoryUnitStateOwner")
+  ownedRepairOrders                       RepairOrder[]                          @relation("RepairOrderOwner")
+  evaluatedServiceIntakeReadiness         ServiceIntakeReadinessSnapshot[]       @relation("ServiceIntakeReadinessEvaluator")
+  createdServiceVisits                    ServiceVisit[]                         @relation("ServiceVisitCreatedBy")
+  repairOrderStateEvents                  RepairOrderStateEvent[]                @relation("RepairOrderStateActor")
+  repairOrderStateOwnershipSnapshots      RepairOrderStateEvent[]                @relation("RepairOrderStateOwner")
+  partLedgerEntries                       PartStockLedgerEntry[]                 @relation("PartLedgerActor")
+  createdPartDemands                      RepairPartDemand[]                     @relation("PartDemandCreatedBy")
+  partReservations                        PartReservation[]                      @relation("PartReservationActor")
+  authoredInspections                     VehicleInspectionVersion[]             @relation("InspectionAuthor")
+  authoredDiagnoses                       RepairDiagnosisVersion[]               @relation("DiagnosisAuthor")
+  authoredEstimates                       RepairEstimateVersion[]                @relation("EstimateAuthor")
+  repairAuthorizations                    RepairAuthorization[]                  @relation("AuthorizationDecisionActor")
+  createdRepairJobs                       RepairJob[]                            @relation("RepairJobCreatedBy")
+  createdDiagnosticCases                  DiagnosticCase[]                       @relation("DiagnosticCaseCreatedBy")
+  assignedDiagnosticCases                 DiagnosticCase[]                       @relation("DiagnosticCaseAssignedTo")
+  authoredDiagnosticConcerns              DiagnosticConcernVersion[]             @relation("DiagnosticConcernAuthor")
+  diagnosticCaseStateEvents               DiagnosticCaseStateEvent[]             @relation("DiagnosticCaseStateActor")
+  authoredDiagnosticObservations          DiagnosticObservation[]                @relation("DiagnosticObservationAuthor")
+  authoredDiagnosticMeasurements          DiagnosticMeasurement[]                @relation("DiagnosticMeasurementAuthor")
+  createdDiagnosticEvidenceLinks          DiagnosticEvidenceLink[]               @relation("DiagnosticEvidenceLinkCreator")
+  authoredDiagnosticTestDefinitions       DiagnosticTestDefinitionVersion[]      @relation("DiagnosticTestDefinitionAuthor")
+  authoredDiagnosticTestPlans             DiagnosticTestPlanVersion[]            @relation("DiagnosticTestPlanAuthor")
+  diagnosticTestExecutionEvents           DiagnosticTestExecution[]              @relation("DiagnosticTestExecutionActor")
+  diagnosticReasoningEvaluations          DiagnosticReasoningEvaluation[]        @relation("DiagnosticReasoningEvaluator")
+  diagnosticAdaptiveTestEvaluations       DiagnosticAdaptiveTestEvaluation[]     @relation("DiagnosticAdaptiveTestEvaluator")
+  diagnosticAdaptiveTestOverrides         DiagnosticAdaptiveTestOverride[]       @relation("DiagnosticAdaptiveTestOverrideActor")
+  authoredDiagnosticConclusions           DiagnosticConclusionVersion[]          @relation("DiagnosticConclusionAuthor")
+  reviewedDiagnosticConclusions           DiagnosticConclusionVersion[]          @relation("DiagnosticConclusionReviewer")
+  authoredDiagnosticRepairHandoffs        DiagnosticRepairHandoffVersion[]       @relation("DiagnosticRepairHandoffAuthor")
+  authoredDiagnosticVerifications         DiagnosticVerificationVersion[]        @relation("DiagnosticVerificationAuthor")
+  reviewedDiagnosticVerifications         DiagnosticVerificationVersion[]        @relation("DiagnosticVerificationReviewer")
+  authoredDiagnosticEstimateDrafts        DiagnosticEstimateDraftVersion[]       @relation("DiagnosticEstimateDraftAuthor")
+  authoredDiagnosticKnowledgeSources      DiagnosticKnowledgeSourceVersion[]     @relation("DiagnosticKnowledgeSourceAuthor")
+  technicalReviewedKnowledgeSources       DiagnosticKnowledgeSourceVersion[]     @relation("DiagnosticKnowledgeSourceTechnicalReviewer")
+  rightsReviewedKnowledgeSources          DiagnosticKnowledgeSourceVersion[]     @relation("DiagnosticKnowledgeSourceRightsReviewer")
+  authoredDiagnosticRuleSets              DiagnosticRuleSetVersion[]             @relation("DiagnosticRuleSetAuthor")
+  reviewedDiagnosticRuleSets              DiagnosticRuleSetVersion[]             @relation("DiagnosticRuleSetReviewer")
+  createdWorkProcedures                   WorkProcedureVersion[]                 @relation("WorkProcedureCreatedBy")
+  technicianQualifications                TechnicianQualification[]              @relation("QualifiedTechnician")
+  verifiedTechnicianQualifications        TechnicianQualification[]              @relation("QualificationVerifier")
+  technicianDispatches                    RepairJobDispatch[]                    @relation("DispatchTechnician")
+  assignedRepairJobs                      RepairJobDispatch[]                    @relation("DispatchAssignedBy")
+  technicianLaborClocks                   RepairJobLaborClock[]                  @relation("LaborClockTechnician")
+  technicianLaborEvents                   RepairJobLaborEvent[]                  @relation("LaborEventTechnician")
+  authoredLaborEvents                     RepairJobLaborEvent[]                  @relation("LaborEventActor")
+  qualityInspections                      RepairQualityInspection[]              @relation("QualityInspector")
+  peerQualityVerifications                RepairQualityInspection[]              @relation("QualityPeerVerifier")
+  repairReleaseAuthorizations             RepairOrderReleaseAuthorization[]      @relation("RepairReleaseAuthorizer")
+  authoredAdvisorUpdates                  RepairAdvisorUpdate[]                  @relation("AdvisorUpdateAuthor")
+  deliveryReadinessEvaluations            RepairDeliveryReadinessEvaluation[]    @relation("DeliveryReadinessEvaluator")
+  createdComebackCases                    RepairComebackCase[]                   @relation("ComebackCreatedBy")
+  resolvedComebackCases                   RepairComebackCase[]                   @relation("ComebackResolvedBy")
+  authoredComebackEvents                  RepairComebackEvent[]                  @relation("ComebackEventActor")
+  technicianPresenceRecords               TechnicianPresenceRecord[]             @relation("PresenceTechnician")
+  authoredPresenceRecords                 TechnicianPresenceRecord[]             @relation("PresenceRecordedBy")
+  shopProductionSnapshots                 ShopProductionSnapshot[]               @relation("ProductionTechnician")
+  generatedProductionSnapshots            ShopProductionSnapshot[]               @relation("ProductionGeneratedBy")
+  createdInvoicePackages                  ServiceInvoicePackage[]                @relation("InvoicePackageCreatedBy")
+  repairOrderClosureEvents                RepairOrderClosureEvent[]              @relation("RepairClosureActor")
+  createdPartVendors                      PartVendor[]                           @relation("PartVendorCreatedBy")
+  approvedInterchanges                    PartInterchange[]                      @relation("PartInterchangeApprovedBy")
+  createdPartRequisitions                 PartRequisition[]                      @relation("PartRequisitionCreatedBy")
+  createdPurchaseOrders                   PartPurchaseOrder[]                    @relation("PartPurchaseOrderCreatedBy")
+  partReceipts                            PartReceipt[]                          @relation("PartReceiptReceivedBy")
+  resolvedPartDiscrepancies               PartReceivingDiscrepancy[]             @relation("PartDiscrepancyResolvedBy")
+  partCustodyEvents                       PartCustodyEvent[]                     @relation("PartCustodyActor")
+  createdPartTransfers                    PartTransfer[]                         @relation("PartTransferCreatedBy")
+  createdPartRecoveries                   PartRecoveryCase[]                     @relation("PartRecoveryCreatedBy")
+  assignedPartCycleCounts                 PartCycleCount[]                       @relation("PartCycleCountAssignee")
+  createdPartCycleCounts                  PartCycleCount[]                       @relation("PartCycleCountCreator")
+  countedPartCycleCountLines              PartCycleCountLine[]                   @relation("PartCycleCountCounter")
+  approvedPartCycleCountLines             PartCycleCountLine[]                   @relation("PartCycleCountApprover")
+  partCycleCountEvents                    PartCycleCountEvent[]                  @relation("PartCycleCountEventActor")
+  createdPartInventoryPolicies            PartInventoryPolicy[]                  @relation("PartInventoryPolicyCreator")
+  generatedPartRecommendationRuns         PartRecommendationRun[]                @relation("PartRecommendationRunGenerator")
+  decidedPartRecommendations              PartInventoryRecommendation[]          @relation("PartRecommendationDecisionActor")
+  createdPartBarcodeAliases               PartBarcodeAlias[]                     @relation("PartBarcodeAliasCreator")
+  uploadedVehicleEvidenceObjects          VehicleEvidenceObject[]                @relation("VehicleEvidenceUploader")
+  createdVehicleEvidenceLinks             VehicleEvidenceLink[]                  @relation("VehicleEvidenceLinkCreator")
+  vehicleEvidenceEvents                   VehicleEvidenceEvent[]                 @relation("VehicleEvidenceEventActor")
+  createdWorkKnowledgeLinks               WorkKnowledgeLink[]                    @relation("WorkKnowledgeCreator")
+  approvedWorkKnowledgeLinks              WorkKnowledgeLink[]                    @relation("WorkKnowledgeApprover")
+  workKnowledgeEvents                     WorkKnowledgeEvent[]                   @relation("WorkKnowledgeEventActor")
+  requestedVehicleOutputs                 VehicleControlledOutput[]              @relation("VehicleOutputRequester")
+  vehicleOutputEvents                     VehicleControlledOutputEvent[]         @relation("VehicleOutputEventActor")
+  timeAttendancePolicyAssignments         TimeAttendancePolicyAssignment[]       @relation("TimeAttendancePolicyAssignmentUser")
+  approvedTimeAttendancePolicyAssignments TimeAttendancePolicyAssignment[]       @relation("TimeAttendancePolicyAssignmentApprover")
+  timeAttendanceSessions                  TimeAttendanceSession[]                @relation("TimeAttendanceSessionStaff")
+  timeAttendanceEvents                    TimeAttendanceEvent[]                  @relation("TimeAttendanceEventStaff")
+  authoredTimeAttendanceEvents            TimeAttendanceEvent[]                  @relation("TimeAttendanceEventActor")
+  timeCards                               TimeCard[]                             @relation("TimeCardStaff")
+  resolvedTimeCardExceptions              TimeCardException[]                    @relation("TimeCardExceptionResolvedBy")
+  timeCardAttestations                    TimeCardAttestation[]                  @relation("TimeCardAttestationStaff")
+  timeCardApprovals                       TimeCardApproval[]                     @relation("TimeCardApprovalManager")
+  requestedTimeOffRequests                TimeOffRequest[]                       @relation("TimeOffRequestRequester")
+  decidedTimeOffRequests                  TimeOffRequest[]                       @relation("TimeOffRequestDecisionActor")
+  timeOffBalances                         TimeOffBalance[]                       @relation("TimeOffBalanceUser")
+  createdTimeAttendanceExportBatches      TimeAttendanceExportBatch[]            @relation("TimeAttendanceExportCreatedBy")
 
   @@index([isActive])
 }
@@ -1862,6 +1957,19 @@ model Organization {
   inventoryConsoleReadinessEvidence     InventoryConsoleReadinessEvidence[]
   inventoryConsoleSignoffs              InventoryConsoleSignoff[]
   inventoryConsoleSavedViews            InventoryConsoleSavedView[]
+  timeAttendancePolicyProfiles          TimeAttendancePolicyProfile[]
+  timeAttendancePolicyAssignments       TimeAttendancePolicyAssignment[]
+  timeAttendanceSessions                TimeAttendanceSession[]
+  timeAttendanceEvents                  TimeAttendanceEvent[]
+  timeAttendanceBreakIntervals          TimeAttendanceBreakInterval[]
+  timeCards                             TimeCard[]
+  timeCardExceptions                    TimeCardException[]
+  timeCardAttestations                  TimeCardAttestation[]
+  timeCardApprovals                     TimeCardApproval[]
+  timeOffRequests                       TimeOffRequest[]
+  timeOffBalances                       TimeOffBalance[]
+  timeAttendanceExportBatches           TimeAttendanceExportBatch[]
+  timeAttendanceExportLines             TimeAttendanceExportLine[]
   diagnosticCases                       DiagnosticCase[]
   diagnosticConcernVersions             DiagnosticConcernVersion[]
   diagnosticCaseStateEvents             DiagnosticCaseStateEvent[]
@@ -1935,6 +2043,14 @@ model Location {
   partPurchaseOrders              PartPurchaseOrder[]
   partTransfers                   PartTransfer[]
   partRecommendationRuns          PartRecommendationRun[]
+  timeAttendancePolicyProfiles    TimeAttendancePolicyProfile[]
+  timeAttendancePolicyAssignments TimeAttendancePolicyAssignment[]
+  timeAttendanceSessions          TimeAttendanceSession[]
+  timeAttendanceEvents            TimeAttendanceEvent[]
+  timeAttendanceBreakIntervals    TimeAttendanceBreakInterval[]
+  timeCards                       TimeCard[]
+  timeOffRequests                 TimeOffRequest[]
+  timeAttendanceExportBatches     TimeAttendanceExportBatch[]
   diagnosticCases                 DiagnosticCase[]
 
   @@unique([organizationId, code])
@@ -3211,26 +3327,26 @@ model DiagnosticCase {
 }
 
 model DiagnosticConcernVersion {
-  id                   String                          @id @default(cuid())
-  organizationId       String
-  diagnosticCaseId     String
-  version              Int
-  statement            String
-  operatingConditions  Json
-  source               String
-  sourceSnapshot       Json
-  authorUserId         String
-  supersedesId         String?                         @unique
-  createdAt            DateTime                        @default(now())
-  organization         Organization                    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  diagnosticCase       DiagnosticCase                  @relation(fields: [diagnosticCaseId], references: [id], onDelete: Restrict)
-  authorUser           User                            @relation("DiagnosticConcernAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
-  supersedes           DiagnosticConcernVersion?       @relation("DiagnosticConcernSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
-  supersededBy         DiagnosticConcernVersion?       @relation("DiagnosticConcernSupersession")
-  observations         DiagnosticObservation[]
-  measurements         DiagnosticMeasurement[]
-  reasoningEvaluations DiagnosticReasoningEvaluation[]
-  conclusionVersions   DiagnosticConclusionVersion[]
+  id                    String                           @id @default(cuid())
+  organizationId        String
+  diagnosticCaseId      String
+  version               Int
+  statement             String
+  operatingConditions   Json
+  source                String
+  sourceSnapshot        Json
+  authorUserId          String
+  supersedesId          String?                          @unique
+  createdAt             DateTime                         @default(now())
+  organization          Organization                     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  diagnosticCase        DiagnosticCase                   @relation(fields: [diagnosticCaseId], references: [id], onDelete: Restrict)
+  authorUser            User                             @relation("DiagnosticConcernAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  supersedes            DiagnosticConcernVersion?        @relation("DiagnosticConcernSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy          DiagnosticConcernVersion?        @relation("DiagnosticConcernSupersession")
+  observations          DiagnosticObservation[]
+  measurements          DiagnosticMeasurement[]
+  reasoningEvaluations  DiagnosticReasoningEvaluation[]
+  conclusionVersions    DiagnosticConclusionVersion[]
   repairHandoffVersions DiagnosticRepairHandoffVersion[]
   verificationVersions  DiagnosticVerificationVersion[]
   estimateDraftVersions DiagnosticEstimateDraftVersion[]
@@ -3379,20 +3495,20 @@ model DiagnosticEvidenceLink {
 }
 
 model DiagnosticPilotEvidenceSnapshot {
-  id                         String   @id
-  organizationId             String
-  evidenceSetId              String
-  recordedAt                 DateTime
-  recordedBy                 String
-  requestedMode              String
-  operationalReadiness       Json?
-  reviewApproval             Json?
-  replay                     Json?
-  evidenceRecords            Json
-  acceptanceSignedBy         Json
-  unresolvedRisks            Json
-  repositoryChecksum         String
-  createdAt                  DateTime @default(now())
+  id                   String   @id
+  organizationId       String
+  evidenceSetId        String
+  recordedAt           DateTime
+  recordedBy           String
+  requestedMode        String
+  operationalReadiness Json?
+  reviewApproval       Json?
+  replay               Json?
+  evidenceRecords      Json
+  acceptanceSignedBy   Json
+  unresolvedRisks      Json
+  repositoryChecksum   String
+  createdAt            DateTime @default(now())
 
   @@unique([organizationId, evidenceSetId])
   @@unique([organizationId, repositoryChecksum])
@@ -3802,7 +3918,7 @@ model DiagnosticAdaptiveTestOverride {
 }
 
 model DiagnosticConclusionVersion {
-  id                       String                        @id
+  id                       String                           @id
   organizationId           String
   diagnosticCaseId         String
   concernVersionId         String
@@ -3825,18 +3941,18 @@ model DiagnosticConclusionVersion {
   conclusionChecksum       String
   authorUserId             String
   reviewerUserId           String?
-  supersedesId             String?                       @unique
+  supersedesId             String?                          @unique
   occurredAt               DateTime
-  createdAt                DateTime                      @default(now())
-  organization             Organization                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  diagnosticCase           DiagnosticCase                @relation(fields: [diagnosticCaseId], references: [id], onDelete: Restrict)
-  concernVersion           DiagnosticConcernVersion      @relation(fields: [concernVersionId], references: [id], onDelete: Restrict)
-  reasoningEvaluation      DiagnosticReasoningEvaluation @relation(fields: [reasoningEvaluationId], references: [id], onDelete: Restrict)
-  hypothesis               DiagnosticHypothesis?         @relation(fields: [hypothesisId], references: [id], onDelete: Restrict)
-  authorUser               User                          @relation("DiagnosticConclusionAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
-  reviewerUser             User?                         @relation("DiagnosticConclusionReviewer", fields: [reviewerUserId], references: [id], onDelete: Restrict)
-  supersedes               DiagnosticConclusionVersion?  @relation("DiagnosticConclusionSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
-  supersededBy             DiagnosticConclusionVersion?  @relation("DiagnosticConclusionSupersession")
+  createdAt                DateTime                         @default(now())
+  organization             Organization                     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  diagnosticCase           DiagnosticCase                   @relation(fields: [diagnosticCaseId], references: [id], onDelete: Restrict)
+  concernVersion           DiagnosticConcernVersion         @relation(fields: [concernVersionId], references: [id], onDelete: Restrict)
+  reasoningEvaluation      DiagnosticReasoningEvaluation    @relation(fields: [reasoningEvaluationId], references: [id], onDelete: Restrict)
+  hypothesis               DiagnosticHypothesis?            @relation(fields: [hypothesisId], references: [id], onDelete: Restrict)
+  authorUser               User                             @relation("DiagnosticConclusionAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  reviewerUser             User?                            @relation("DiagnosticConclusionReviewer", fields: [reviewerUserId], references: [id], onDelete: Restrict)
+  supersedes               DiagnosticConclusionVersion?     @relation("DiagnosticConclusionSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy             DiagnosticConclusionVersion?     @relation("DiagnosticConclusionSupersession")
   repairHandoffVersions    DiagnosticRepairHandoffVersion[]
   verificationVersions     DiagnosticVerificationVersion[]
   estimateDraftVersions    DiagnosticEstimateDraftVersion[]
@@ -3904,29 +4020,29 @@ model VehicleInspectionVersion {
 }
 
 model RepairDiagnosisVersion {
-  id                 String                  @id @default(cuid())
-  organizationId     String
-  repairOrderId      String
-  version            Int
-  concern            String
-  symptoms           Json
-  tests              Json
-  evidence           Json
-  cause              String
-  uncertainty        DiagnosticUncertainty
-  recommendation     String
-  proposedCorrection String
-  technicianUserId   String
-  diagnosedAt        DateTime
-  supersedesId       String?                 @unique
-  createdAt          DateTime                @default(now())
-  organization       Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  repairOrder        RepairOrder             @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
-  technicianUser     User                    @relation("DiagnosisAuthor", fields: [technicianUserId], references: [id], onDelete: Restrict)
-  supersedes         RepairDiagnosisVersion? @relation("DiagnosisSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
-  supersededBy       RepairDiagnosisVersion? @relation("DiagnosisSupersession")
-  repairJobs         RepairJob[]
-  diagnosticHandoffs DiagnosticRepairHandoffVersion[]
+  id                       String                           @id @default(cuid())
+  organizationId           String
+  repairOrderId            String
+  version                  Int
+  concern                  String
+  symptoms                 Json
+  tests                    Json
+  evidence                 Json
+  cause                    String
+  uncertainty              DiagnosticUncertainty
+  recommendation           String
+  proposedCorrection       String
+  technicianUserId         String
+  diagnosedAt              DateTime
+  supersedesId             String?                          @unique
+  createdAt                DateTime                         @default(now())
+  organization             Organization                     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairOrder              RepairOrder                      @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  technicianUser           User                             @relation("DiagnosisAuthor", fields: [technicianUserId], references: [id], onDelete: Restrict)
+  supersedes               RepairDiagnosisVersion?          @relation("DiagnosisSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy             RepairDiagnosisVersion?          @relation("DiagnosisSupersession")
+  repairJobs               RepairJob[]
+  diagnosticHandoffs       DiagnosticRepairHandoffVersion[]
   diagnosticEstimateDrafts DiagnosticEstimateDraftVersion[]
 
   @@unique([repairOrderId, version])
@@ -3934,7 +4050,7 @@ model RepairDiagnosisVersion {
 }
 
 model DiagnosticRepairHandoffVersion {
-  id                       String                         @id
+  id                       String                           @id
   organizationId           String
   diagnosticCaseId         String
   repairOrderId            String
@@ -3956,18 +4072,18 @@ model DiagnosticRepairHandoffVersion {
   handoffChecksum          String
   controlDecisionChecksum  String
   authorUserId             String
-  supersedesId             String?                        @unique
+  supersedesId             String?                          @unique
   occurredAt               DateTime
-  createdAt                DateTime                       @default(now())
-  organization             Organization                   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  diagnosticCase           DiagnosticCase                 @relation(fields: [diagnosticCaseId], references: [id], onDelete: Restrict)
-  repairOrder              RepairOrder                    @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
-  concernVersion           DiagnosticConcernVersion       @relation(fields: [concernVersionId], references: [id], onDelete: Restrict)
-  conclusionVersion        DiagnosticConclusionVersion    @relation(fields: [conclusionVersionId], references: [id], onDelete: Restrict)
-  repairDiagnosisVersion   RepairDiagnosisVersion?        @relation(fields: [repairDiagnosisVersionId], references: [id], onDelete: Restrict)
-  authorUser               User                           @relation("DiagnosticRepairHandoffAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
-  supersedes               DiagnosticRepairHandoffVersion? @relation("DiagnosticRepairHandoffSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
-  supersededBy             DiagnosticRepairHandoffVersion? @relation("DiagnosticRepairHandoffSupersession")
+  createdAt                DateTime                         @default(now())
+  organization             Organization                     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  diagnosticCase           DiagnosticCase                   @relation(fields: [diagnosticCaseId], references: [id], onDelete: Restrict)
+  repairOrder              RepairOrder                      @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  concernVersion           DiagnosticConcernVersion         @relation(fields: [concernVersionId], references: [id], onDelete: Restrict)
+  conclusionVersion        DiagnosticConclusionVersion      @relation(fields: [conclusionVersionId], references: [id], onDelete: Restrict)
+  repairDiagnosisVersion   RepairDiagnosisVersion?          @relation(fields: [repairDiagnosisVersionId], references: [id], onDelete: Restrict)
+  authorUser               User                             @relation("DiagnosticRepairHandoffAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  supersedes               DiagnosticRepairHandoffVersion?  @relation("DiagnosticRepairHandoffSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy             DiagnosticRepairHandoffVersion?  @relation("DiagnosticRepairHandoffSupersession")
   verificationVersions     DiagnosticVerificationVersion[]
   estimateDraftVersions    DiagnosticEstimateDraftVersion[]
 
@@ -3979,7 +4095,7 @@ model DiagnosticRepairHandoffVersion {
 }
 
 model DiagnosticEstimateDraftVersion {
-  id                        String                         @id
+  id                        String                          @id
   organizationId            String
   diagnosticCaseId          String
   repairOrderId             String
@@ -4006,18 +4122,18 @@ model DiagnosticEstimateDraftVersion {
   draftChecksum             String
   controlDecisionChecksum   String
   authorUserId              String
-  supersedesId              String?                        @unique
+  supersedesId              String?                         @unique
   expiresAt                 DateTime
   occurredAt                DateTime
-  createdAt                 DateTime                       @default(now())
-  organization              Organization                   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  diagnosticCase            DiagnosticCase                 @relation(fields: [diagnosticCaseId], references: [id], onDelete: Restrict)
-  repairOrder               RepairOrder                    @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
-  concernVersion            DiagnosticConcernVersion       @relation(fields: [concernVersionId], references: [id], onDelete: Restrict)
-  conclusionVersion         DiagnosticConclusionVersion    @relation(fields: [conclusionVersionId], references: [id], onDelete: Restrict)
-  repairHandoffVersion      DiagnosticRepairHandoffVersion @relation(fields: [repairHandoffVersionId], references: [id], onDelete: Restrict)
-  repairDiagnosisVersion    RepairDiagnosisVersion         @relation(fields: [repairDiagnosisVersionId], references: [id], onDelete: Restrict)
-  authorUser                User                           @relation("DiagnosticEstimateDraftAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  createdAt                 DateTime                        @default(now())
+  organization              Organization                    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  diagnosticCase            DiagnosticCase                  @relation(fields: [diagnosticCaseId], references: [id], onDelete: Restrict)
+  repairOrder               RepairOrder                     @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  concernVersion            DiagnosticConcernVersion        @relation(fields: [concernVersionId], references: [id], onDelete: Restrict)
+  conclusionVersion         DiagnosticConclusionVersion     @relation(fields: [conclusionVersionId], references: [id], onDelete: Restrict)
+  repairHandoffVersion      DiagnosticRepairHandoffVersion  @relation(fields: [repairHandoffVersionId], references: [id], onDelete: Restrict)
+  repairDiagnosisVersion    RepairDiagnosisVersion          @relation(fields: [repairDiagnosisVersionId], references: [id], onDelete: Restrict)
+  authorUser                User                            @relation("DiagnosticEstimateDraftAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
   supersedes                DiagnosticEstimateDraftVersion? @relation("DiagnosticEstimateDraftSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
   supersededBy              DiagnosticEstimateDraftVersion? @relation("DiagnosticEstimateDraftSupersession")
 
@@ -4029,45 +4145,45 @@ model DiagnosticEstimateDraftVersion {
 }
 
 model DiagnosticVerificationVersion {
-  id                         String                         @id
-  organizationId             String
-  diagnosticCaseId           String
-  repairOrderId              String
-  concernVersionId           String
-  conclusionVersionId        String
-  repairHandoffVersionId     String
-  version                    Int
-  action                     DiagnosticVerificationAction
-  status                     DiagnosticVerificationStatus
-  originalConcern            String
-  repairSummary              String
-  planChecks                 Json
-  performedChecks            Json
-  regressionChecks           Json
-  limitations                Json
-  roadTestSafety             String
-  repairEvidenceSnapshot     Json
-  outcomeSummary             String?
-  policyVersion              String
-  conclusionChecksum         String
-  repairHandoffChecksum      String
-  verificationChecksum       String
-  controlDecisionChecksum    String
-  authorUserId               String
-  reviewerUserId             String?
-  supersedesId               String?                        @unique
-  occurredAt                 DateTime
-  createdAt                  DateTime                       @default(now())
-  organization               Organization                   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  diagnosticCase             DiagnosticCase                 @relation(fields: [diagnosticCaseId], references: [id], onDelete: Restrict)
-  repairOrder                RepairOrder                    @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
-  concernVersion             DiagnosticConcernVersion       @relation(fields: [concernVersionId], references: [id], onDelete: Restrict)
-  conclusionVersion          DiagnosticConclusionVersion    @relation(fields: [conclusionVersionId], references: [id], onDelete: Restrict)
-  repairHandoffVersion       DiagnosticRepairHandoffVersion @relation(fields: [repairHandoffVersionId], references: [id], onDelete: Restrict)
-  authorUser                 User                           @relation("DiagnosticVerificationAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
-  reviewerUser               User?                          @relation("DiagnosticVerificationReviewer", fields: [reviewerUserId], references: [id], onDelete: Restrict)
-  supersedes                 DiagnosticVerificationVersion? @relation("DiagnosticVerificationSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
-  supersededBy               DiagnosticVerificationVersion? @relation("DiagnosticVerificationSupersession")
+  id                      String                         @id
+  organizationId          String
+  diagnosticCaseId        String
+  repairOrderId           String
+  concernVersionId        String
+  conclusionVersionId     String
+  repairHandoffVersionId  String
+  version                 Int
+  action                  DiagnosticVerificationAction
+  status                  DiagnosticVerificationStatus
+  originalConcern         String
+  repairSummary           String
+  planChecks              Json
+  performedChecks         Json
+  regressionChecks        Json
+  limitations             Json
+  roadTestSafety          String
+  repairEvidenceSnapshot  Json
+  outcomeSummary          String?
+  policyVersion           String
+  conclusionChecksum      String
+  repairHandoffChecksum   String
+  verificationChecksum    String
+  controlDecisionChecksum String
+  authorUserId            String
+  reviewerUserId          String?
+  supersedesId            String?                        @unique
+  occurredAt              DateTime
+  createdAt               DateTime                       @default(now())
+  organization            Organization                   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  diagnosticCase          DiagnosticCase                 @relation(fields: [diagnosticCaseId], references: [id], onDelete: Restrict)
+  repairOrder             RepairOrder                    @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  concernVersion          DiagnosticConcernVersion       @relation(fields: [concernVersionId], references: [id], onDelete: Restrict)
+  conclusionVersion       DiagnosticConclusionVersion    @relation(fields: [conclusionVersionId], references: [id], onDelete: Restrict)
+  repairHandoffVersion    DiagnosticRepairHandoffVersion @relation(fields: [repairHandoffVersionId], references: [id], onDelete: Restrict)
+  authorUser              User                           @relation("DiagnosticVerificationAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  reviewerUser            User?                          @relation("DiagnosticVerificationReviewer", fields: [reviewerUserId], references: [id], onDelete: Restrict)
+  supersedes              DiagnosticVerificationVersion? @relation("DiagnosticVerificationSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy            DiagnosticVerificationVersion? @relation("DiagnosticVerificationSupersession")
 
   @@unique([diagnosticCaseId, version])
   @@unique([id, organizationId])
@@ -6483,6 +6599,331 @@ model AppointmentCommandLedger {
   @@index([status, nextRetryAt])
 }
 
+model TimeAttendancePolicyProfile {
+  id                    String                            @id @default(cuid())
+  organizationId        String
+  locationId            String?
+  code                  String
+  name                  String
+  version               Int
+  status                TimeAttendancePolicyProfileStatus @default(DRAFT)
+  effectiveFrom         DateTime
+  effectiveTo           DateTime?
+  jurisdiction          String                            @default("MINNESOTA")
+  timezone              String
+  workweekStartDay      BusinessDay
+  workweekStartMinute   Int                               @default(0)
+  payBasis              String
+  overtimeCoverage      String
+  roundingPolicy        String                            @default("EXACT_TIME")
+  scheduledMealPolicy   Json
+  breakPolicyVersionIds Json
+  esstPolicyVersionId   String?
+  payrollMapping        Json
+  sourceSnapshot        Json
+  createdAt             DateTime                          @default(now())
+  updatedAt             DateTime                          @updatedAt
+  organization          Organization                      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location              Location?                         @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  assignments           TimeAttendancePolicyAssignment[]
+  timeCards             TimeCard[]
+
+  @@unique([organizationId, code, version])
+  @@index([organizationId, locationId, status])
+  @@index([effectiveFrom, effectiveTo])
+}
+
+model TimeAttendancePolicyAssignment {
+  id               String                      @id @default(cuid())
+  organizationId   String
+  locationId       String?
+  staffUserId      String
+  policyProfileId  String
+  effectiveFrom    DateTime
+  effectiveTo      DateTime?
+  approvedByUserId String
+  approvalReason   String
+  createdAt        DateTime                    @default(now())
+  updatedAt        DateTime                    @updatedAt
+  organization     Organization                @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location         Location?                   @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  staffUser        User                        @relation("TimeAttendancePolicyAssignmentUser", fields: [staffUserId], references: [id], onDelete: Restrict)
+  policyProfile    TimeAttendancePolicyProfile @relation(fields: [policyProfileId], references: [id], onDelete: Restrict)
+  approvedByUser   User                        @relation("TimeAttendancePolicyAssignmentApprover", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, staffUserId, effectiveFrom, effectiveTo])
+  @@index([policyProfileId, effectiveFrom, effectiveTo])
+}
+
+model TimeAttendanceSession {
+  id             String                        @id @default(cuid())
+  organizationId String
+  locationId     String
+  staffUserId    String
+  workDate       DateTime                      @db.Date
+  timezone       String
+  state          TimeAttendanceSessionState    @default(OPEN)
+  openedAt       DateTime
+  closedAt       DateTime?
+  version        Int                           @default(0)
+  createdAt      DateTime                      @default(now())
+  updatedAt      DateTime                      @updatedAt
+  organization   Organization                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location       Location                      @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  staffUser      User                          @relation("TimeAttendanceSessionStaff", fields: [staffUserId], references: [id], onDelete: Restrict)
+  events         TimeAttendanceEvent[]
+  breaks         TimeAttendanceBreakInterval[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId, locationId, workDate])
+  @@index([staffUserId, openedAt])
+}
+
+model TimeAttendanceEvent {
+  id                  String                        @id @default(cuid())
+  organizationId      String
+  locationId          String
+  staffUserId         String
+  sessionId           String?
+  commandId           String?
+  actorUserId         String
+  eventType           TimeAttendanceEventType
+  source              TimeAttendanceEventSource     @default(WEB)
+  occurredAt          DateTime
+  timezone            String
+  recordedAt          DateTime                      @default(now())
+  reason              String?
+  evidence            Json
+  correctionOfEventId String?
+  correctedByEventId  String?
+  createdAt           DateTime                      @default(now())
+  organization        Organization                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location            Location                      @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  staffUser           User                          @relation("TimeAttendanceEventStaff", fields: [staffUserId], references: [id], onDelete: Restrict)
+  actorUser           User                          @relation("TimeAttendanceEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  session             TimeAttendanceSession?        @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  command             EnterpriseCommandLedger?      @relation("TimeAttendanceEventCommand", fields: [commandId], references: [id], onDelete: SetNull)
+  correctionOfEvent   TimeAttendanceEvent?          @relation("TimeAttendanceEventCorrection", fields: [correctionOfEventId], references: [id], onDelete: Restrict)
+  correctedByEvent    TimeAttendanceEvent?          @relation("TimeAttendanceEventCorrectedBy", fields: [correctedByEventId], references: [id], onDelete: SetNull)
+  correctingEvents    TimeAttendanceEvent[]         @relation("TimeAttendanceEventCorrection")
+  correctedEventLinks TimeAttendanceEvent[]         @relation("TimeAttendanceEventCorrectedBy")
+  breakStarts         TimeAttendanceBreakInterval[] @relation("TimeAttendanceBreakStart")
+  breakEnds           TimeAttendanceBreakInterval[] @relation("TimeAttendanceBreakEnd")
+
+  @@unique([organizationId, eventType, staffUserId, occurredAt, source])
+  @@index([organizationId, staffUserId, occurredAt])
+  @@index([sessionId, occurredAt])
+  @@index([commandId])
+  @@index([correctionOfEventId])
+}
+
+model TimeAttendanceBreakInterval {
+  id                 String                  @id @default(cuid())
+  organizationId     String
+  locationId         String
+  sessionId          String
+  staffUserId        String
+  kind               TimeAttendanceBreakKind
+  startEventId       String
+  endEventId         String?
+  startAt            DateTime
+  endAt              DateTime?
+  paid               Boolean
+  completelyRelieved Boolean                 @default(false)
+  evidence           Json
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  organization       Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location           Location                @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  session            TimeAttendanceSession   @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  startEvent         TimeAttendanceEvent     @relation("TimeAttendanceBreakStart", fields: [startEventId], references: [id], onDelete: Restrict)
+  endEvent           TimeAttendanceEvent?    @relation("TimeAttendanceBreakEnd", fields: [endEventId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, staffUserId, startAt])
+  @@index([sessionId, startAt])
+}
+
+model TimeCard {
+  id                  String                      @id @default(cuid())
+  organizationId      String
+  locationId          String
+  staffUserId         String
+  policyProfileId     String
+  periodStart         DateTime                    @db.Date
+  periodEnd           DateTime                    @db.Date
+  status              TimeCardStatus              @default(OPEN)
+  version             Int                         @default(0)
+  sourceEventChecksum String
+  calculationSnapshot Json
+  exceptionSnapshot   Json
+  payrollReady        Boolean                     @default(false)
+  lockedAt            DateTime?
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
+  organization        Organization                @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location            Location                    @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  staffUser           User                        @relation("TimeCardStaff", fields: [staffUserId], references: [id], onDelete: Restrict)
+  policyProfile       TimeAttendancePolicyProfile @relation(fields: [policyProfileId], references: [id], onDelete: Restrict)
+  exceptions          TimeCardException[]
+  attestations        TimeCardAttestation[]
+  approvals           TimeCardApproval[]
+  exportLines         TimeAttendanceExportLine[]
+
+  @@unique([organizationId, staffUserId, periodStart, periodEnd, version])
+  @@index([organizationId, locationId, status, periodStart])
+  @@index([staffUserId, periodStart, periodEnd])
+}
+
+model TimeCardException {
+  id               String                  @id @default(cuid())
+  organizationId   String
+  timeCardId       String
+  code             String
+  status           TimeCardExceptionStatus @default(OPEN)
+  blocking         Boolean                 @default(true)
+  message          String
+  evidence         Json
+  resolvedByUserId String?
+  resolvedAt       DateTime?
+  resolutionReason String?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  organization     Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  timeCard         TimeCard                @relation(fields: [timeCardId], references: [id], onDelete: Restrict)
+  resolvedByUser   User?                   @relation("TimeCardExceptionResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([timeCardId, status])
+  @@index([organizationId, code, status])
+}
+
+model TimeCardAttestation {
+  id              String       @id @default(cuid())
+  organizationId  String
+  timeCardId      String
+  staffUserId     String
+  timeCardVersion Int
+  attestedAt      DateTime     @default(now())
+  statement       String
+  cardChecksum    String
+  createdAt       DateTime     @default(now())
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  timeCard        TimeCard     @relation(fields: [timeCardId], references: [id], onDelete: Restrict)
+  staffUser       User         @relation("TimeCardAttestationStaff", fields: [staffUserId], references: [id], onDelete: Restrict)
+
+  @@unique([timeCardId, timeCardVersion, staffUserId])
+  @@index([organizationId, staffUserId, attestedAt])
+}
+
+model TimeCardApproval {
+  id              String       @id @default(cuid())
+  organizationId  String
+  timeCardId      String
+  managerUserId   String
+  timeCardVersion Int
+  approvedAt      DateTime     @default(now())
+  decision        String
+  reason          String
+  cardChecksum    String
+  createdAt       DateTime     @default(now())
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  timeCard        TimeCard     @relation(fields: [timeCardId], references: [id], onDelete: Restrict)
+  managerUser     User         @relation("TimeCardApprovalManager", fields: [managerUserId], references: [id], onDelete: Restrict)
+
+  @@unique([timeCardId, timeCardVersion, managerUserId])
+  @@index([organizationId, managerUserId, approvedAt])
+}
+
+model TimeOffRequest {
+  id                   String               @id @default(cuid())
+  organizationId       String
+  locationId           String
+  requesterUserId      String
+  requestType          TimeOffRequestType
+  status               TimeOffRequestStatus @default(DRAFT)
+  startsAt             DateTime
+  endsAt               DateTime
+  requestedMinutes     Int
+  protectedRouting     Boolean              @default(false)
+  operationalNote      String?
+  restrictedReasonHash String?
+  balanceSnapshot      Json
+  decisionActorUserId  String?
+  decidedAt            DateTime?
+  decisionReason       String?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  organization         Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location             Location             @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  requesterUser        User                 @relation("TimeOffRequestRequester", fields: [requesterUserId], references: [id], onDelete: Restrict)
+  decisionActorUser    User?                @relation("TimeOffRequestDecisionActor", fields: [decisionActorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, locationId, status, startsAt])
+  @@index([requesterUserId, startsAt, endsAt])
+}
+
+model TimeOffBalance {
+  id                      String             @id @default(cuid())
+  organizationId          String
+  userId                  String
+  balanceType             TimeOffRequestType
+  policyProfileId         String?
+  balanceYear             Int
+  accruedMinutes          Int                @default(0)
+  usedMinutes             Int                @default(0)
+  availableMinutes        Int                @default(0)
+  bankCapMinutes          Int?
+  annualAccrualCapMinutes Int?
+  sourceSnapshot          Json
+  updatedAt               DateTime           @updatedAt
+  organization            Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  user                    User               @relation("TimeOffBalanceUser", fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, userId, balanceType, balanceYear])
+}
+
+model TimeAttendanceExportBatch {
+  id              String                     @id @default(cuid())
+  organizationId  String
+  locationId      String?
+  batchNumber     String
+  periodStart     DateTime                   @db.Date
+  periodEnd       DateTime                   @db.Date
+  status          TimeAttendanceExportStatus @default(DRAFT)
+  fileChecksum    String?
+  exportSnapshot  Json
+  createdByUserId String
+  exportedAt      DateTime?
+  acknowledgedAt  DateTime?
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+  organization    Organization               @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location        Location?                  @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  createdByUser   User                       @relation("TimeAttendanceExportCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  lines           TimeAttendanceExportLine[]
+
+  @@unique([organizationId, batchNumber])
+  @@index([organizationId, locationId, status, periodStart])
+}
+
+model TimeAttendanceExportLine {
+  id              String                    @id @default(cuid())
+  organizationId  String
+  exportBatchId   String
+  timeCardId      String
+  timeCardVersion Int
+  earningCode     String
+  minutes         Int
+  amountCents     Int?
+  lineSnapshot    Json
+  createdAt       DateTime                  @default(now())
+  organization    Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  exportBatch     TimeAttendanceExportBatch @relation(fields: [exportBatchId], references: [id], onDelete: Restrict)
+  timeCard        TimeCard                  @relation(fields: [timeCardId], references: [id], onDelete: Restrict)
+
+  @@unique([exportBatchId, timeCardId, timeCardVersion, earningCode])
+  @@index([organizationId, timeCardId])
+}
+
 model TaskChecklistItem {
   id                String                @id @default(cuid())
   taskId            String
@@ -6555,31 +6996,32 @@ model EnterpriseAggregateVersion {
 }
 
 model EnterpriseCommandLedger {
-  id               String                  @id @default(cuid())
-  organizationId   String
-  locationId       String?
-  actorUserId      String
-  domain           String
-  subjectType      String
-  subjectId        String
-  commandType      String
-  status           EnterpriseCommandStatus
-  idempotencyKey   String
-  requestHash      String
-  correlationId    String
-  expectedVersion  Int
-  resultingVersion Int?
-  resultSnapshot   Json?
-  errorCode        String?
-  errorMessage     String?
-  completedAt      DateTime?
-  createdAt        DateTime                @default(now())
-  updatedAt        DateTime                @updatedAt
-  organization     Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  location         Location?               @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  actorUser        User                    @relation("EnterpriseCommandActor", fields: [actorUserId], references: [id], onDelete: Restrict)
-  domainEvents     EnterpriseDomainEvent[]
-  auditEvents      EnterpriseAuditEvent[]
+  id                   String                  @id @default(cuid())
+  organizationId       String
+  locationId           String?
+  actorUserId          String
+  domain               String
+  subjectType          String
+  subjectId            String
+  commandType          String
+  status               EnterpriseCommandStatus
+  idempotencyKey       String
+  requestHash          String
+  correlationId        String
+  expectedVersion      Int
+  resultingVersion     Int?
+  resultSnapshot       Json?
+  errorCode            String?
+  errorMessage         String?
+  completedAt          DateTime?
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+  organization         Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location             Location?               @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  actorUser            User                    @relation("EnterpriseCommandActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  domainEvents         EnterpriseDomainEvent[]
+  auditEvents          EnterpriseAuditEvent[]
+  timeAttendanceEvents TimeAttendanceEvent[]   @relation("TimeAttendanceEventCommand")
 
   @@unique([organizationId, domain, commandType, idempotencyKey])
   @@index([subjectType, subjectId, createdAt])
