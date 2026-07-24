@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { prisma } from "@/server/db/client";
 import { getVehicle360 } from "@/server/vehicle-360/service";
+import { buildVehicleWorkbenchOverview, withVehicleWorkbenchReturn } from "./workbench-algorithms";
 
 type Dependencies = { now?: () => Date; organizationId?: string; packetReader?: (vehicleId: string) => Promise<unknown> };
 type RecordItem = Record<string, unknown>;
@@ -34,24 +35,36 @@ export async function getVehicleExecutionWorkbench(actor: AuthenticatedUser | nu
   const packetSource = await (input.packetReader ?? defaultPacketReader)(vehicleId), packetRows = Array.isArray(packetSource) ? packetSource.map(record) : [], unavailable = !Array.isArray(packetSource) ? record(packetSource) : null;
   const current = packetRows.find(packet => packet.state === "CURRENT") ?? null, staged = packetRows.find(packet => packet.state === "STAGED") ?? null;
   const orders = view.tabs.service.repairOrders.map(record), demands = view.tabs.parts.demands.map(record), documents = view.tabs.documents.items.map(record);
+  const links = { vehicle360: `/vehicles/360/${vehicleId}`, evidence: `/vehicles/360/${vehicleId}?section=documents`, parts: `/vehicles/parts-operations?vehicleId=${vehicleId}`, tasks: `/tasks?vehicleId=${vehicleId}` };
+  const work = {
+    status: unavailable?.unavailable === true ? "UNAVAILABLE" as const : "CONNECTED" as const,
+    unavailableReason: unavailable ? text(unavailable.reason) : null,
+    current,
+    staged,
+    other: packetRows.filter(packet => packet !== current && packet !== staged)
+  };
+  const workOrders = { allowed: view.tabs.service.allowed, items: orders.map(order => ({ ...order, jobs: list(order.repairJobs) })) };
+  const parts = { allowed: view.tabs.parts.allowed, demands, custody: view.tabs.parts.custody.map(record) };
+  const evidence = { allowed: view.tabs.documents.allowed, items: documents };
+  const operation = { ...view.summary, vehicle: undefined };
   return {
     contractVersion: "inventory-eos-workbench/v1",
     generatedAt: (input.now ?? (() => new Date()))().toISOString(),
     identity: view.summary.vehicle,
-    operation: { ...view.summary, vehicle: undefined },
-    work: {
-      status: unavailable?.unavailable === true ? "UNAVAILABLE" as const : "CONNECTED" as const,
-      unavailableReason: unavailable ? text(unavailable.reason) : null,
-      current,
-      staged,
-      other: packetRows.filter(packet => packet !== current && packet !== staged)
-    },
-    workOrders: { allowed: view.tabs.service.allowed, items: orders.map(order => ({ ...order, jobs: list(order.repairJobs) })) },
-    parts: { allowed: view.tabs.parts.allowed, demands, custody: view.tabs.parts.custody.map(record) },
-    evidence: { allowed: view.tabs.documents.allowed, items: documents },
+    operation,
+    overview: buildVehicleWorkbenchOverview({ activity: view.timeline, evidence, identity: view.summary.vehicle, links, operation, parts, work, workOrders }),
+    work,
+    workOrders,
+    parts,
+    evidence,
     activity: view.timeline,
     audit: { allowed: view.tabs.audit.allowed, items: view.tabs.audit.items.map(record) },
-    links: { vehicle360: `/vehicles/360/${vehicleId}`, evidence: `/vehicles/360/${vehicleId}?section=documents`, parts: `/vehicles/parts-operations?vehicleId=${vehicleId}`, tasks: `/tasks?vehicleId=${vehicleId}` }
+    links: {
+      evidence: withVehicleWorkbenchReturn(links.evidence, vehicleId),
+      parts: withVehicleWorkbenchReturn(links.parts, vehicleId),
+      tasks: withVehicleWorkbenchReturn(links.tasks, vehicleId),
+      vehicle360: withVehicleWorkbenchReturn(links.vehicle360, vehicleId)
+    }
   };
 }
 

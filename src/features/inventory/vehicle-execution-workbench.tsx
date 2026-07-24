@@ -1,23 +1,32 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { AlertTriangle, Boxes, Camera, CarFront, CheckCircle2, ClipboardCheck, Clock3, FileText, Wrench } from "lucide-react";
+import type { ReactNode } from "react";
+import { AlertTriangle, Boxes, Camera, CarFront, CheckCircle2, ClipboardCheck, Clock3, FileText, ShieldCheck, UserRound, Wrench, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import type { VehicleExecutionWorkbenchProjection } from "@/server/inventory-execution/workbench-service";
 
-type Tab = "work" | "orders" | "parts" | "evidence" | "activity";
+type Tab = "overview" | "work" | "orders" | "parts" | "evidence" | "activity";
+type RoleLens = "Overview" | "Inventory Manager" | "Technician" | "Parts" | "Sales / Marketing" | "Service Advisor" | "General Manager";
 const label = (value: unknown) => String(value ?? "Unavailable").replaceAll("_", " ").toLowerCase().replace(/\b\w/g, letter => letter.toUpperCase());
-const date = (value: unknown) => typeof value === "string" || value instanceof Date ? new Date(value).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) : "Unavailable";
+const date = (value: unknown) => {
+  const parsed = typeof value === "string" || value instanceof Date ? new Date(value) : null;
+  return parsed && !Number.isNaN(parsed.getTime()) ? parsed.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) : "Unavailable";
+};
 const object = (value: unknown) => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const array = (value: unknown) => Array.isArray(value) ? value : [];
 
 export function VehicleExecutionWorkbench({ initial }: { initial: VehicleExecutionWorkbenchProjection }) {
-  const [active, setActive] = useState<Tab>("work"), vehicle = initial.identity, current = initial.work.current, staged = initial.work.staged, task = object(current?.task);
-  const tabs: Array<{ id: Tab; label: string; count?: number }> = [{ id: "work", label: "Current Work" }, { id: "orders", label: "Work Orders", count: initial.workOrders.items.length }, { id: "parts", label: "Parts", count: initial.parts.demands.length }, { id: "evidence", label: "Photos & Documents", count: initial.evidence.items.length }, { id: "activity", label: "Activity", count: initial.activity.length }];
-  return <section className="vehicle-workbench" aria-label={`Vehicle Execution Workbench for ${vehicle.vehicleNumber}`}>
-    <header className="vehicle-workbench-header"><Link href="/vehicles/control-tower">← Control Tower</Link><div className="vehicle-workbench-identity"><span><CarFront /></span><div><small>{vehicle.vehicleNumber}</small><h1>{[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || vehicle.vehicleNumber}</h1><p>{vehicle.vin ?? vehicle.vinState} · {vehicle.stockNumber ?? "No stock number"}</p></div></div><div className="vehicle-workbench-action"><small>Do This Now</small><strong>{text(current?.nextAction, initial.operation.nextAction ?? "No current action")}</strong><span>{current ? `Target ${date(current.targetAt)}` : "Open Current Work to prepare an eligible packet."}</span></div><Link className="button button-secondary" href={initial.links.vehicle360}>Open Vehicle 360</Link></header>
+  const [active, setActive] = useState<Tab>("overview"), vehicle = initial.identity, current = initial.work.current, overview = object(initial.overview), staged = initial.work.staged, task = object(current?.task);
+  const [roleLens, setRoleLens] = useState<RoleLens>("Overview");
+  const tabs: Array<{ id: Tab; label: string; count?: number }> = [{ id: "overview", label: "Overview" }, { id: "work", label: "Current Work" }, { id: "orders", label: "Work Orders", count: initial.workOrders.items.length }, { id: "parts", label: "Parts", count: initial.parts.demands.length }, { id: "evidence", label: "Photos & Documents", count: initial.evidence.items.length }, { id: "activity", label: "Activity", count: initial.activity.length }];
+  const roleLenses: RoleLens[] = ["Overview", "Inventory Manager", "Technician", "Parts", "Sales / Marketing", "Service Advisor", "General Manager"];
+  return <section className="vehicle-workbench" aria-label={`Vehicle Workbench for ${vehicle.vehicleNumber}`}>
+    <header className="vehicle-workbench-header"><Link href="/vehicles/control-tower">← Control Tower</Link><div className="vehicle-workbench-identity"><span><CarFront /></span><div><small>Vehicle Workbench</small><h1>{[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || vehicle.vehicleNumber}</h1><p>{vehicle.vin ?? vehicle.vinState} · Stock {vehicle.stockNumber ?? "No stock number"} · {mileage(initial.operation.latestOdometer)}</p></div></div><div className="vehicle-workbench-action"><small>Do This Now</small><strong>{text(object(overview.nextBestAction).action, text(current?.nextAction, initial.operation.nextAction ?? "No current action"))}</strong><span>{text(object(overview.nextBestAction).reason, current ? `Target ${date(current.targetAt)}` : "Overview first; open deeper work only when needed.")}</span></div><div className="vehicle-workbench-header-actions"><Link className="button button-secondary" href={initial.links.vehicle360}>Open Vehicle 360</Link><button className="button button-primary" onClick={() => setActive("overview")} type="button">Record update</button></div></header>
+    <div className="vehicle-workbench-role-lenses"><span>View as:</span>{roleLenses.map((lens) => <button aria-pressed={roleLens === lens} className={roleLens === lens ? "active" : ""} key={lens} onClick={() => setRoleLens(lens)} type="button">{lens}</button>)}<small>{roleLens === "Overview" ? "Neutral vehicle home." : "Role lens shell — deeper implementation follows approved role-view slices."}</small></div>
     <nav aria-label="Vehicle workbench sections">{tabs.map(tab => <button aria-current={active === tab.id ? "page" : undefined} className={active === tab.id ? "active" : ""} key={tab.id} onClick={() => setActive(tab.id)} type="button">{tab.label}{tab.count == null ? "" : ` (${tab.count})`}</button>)}</nav>
     <main>
+      {active === "overview" ? <OverviewPanel initial={initial} setActive={setActive} /> : null}
       {active === "work" ? <div className="vehicle-workbench-grid"><section className="vehicle-workbench-panel primary"><header><div><small>Current Work</small><h2>{text(task.title, text(current?.purpose, "No current work packet"))}</h2></div>{current ? <b>{label(current.state)}</b> : null}</header>{initial.work.status === "UNAVAILABLE" ? <Notice icon={AlertTriangle} title="Work packet unavailable" detail={initial.work.unavailableReason ?? "The authoritative work source is unavailable."} /> : current ? <><dl><Fact label="Owner" value={text(object(task.assignedUser).name)} /><Fact label="Stage" value={label(current.stageCode)} /><Fact label="Due" value={date(current.targetAt)} /><Fact label="Estimate" value={current.estimatedMinutes ? `${current.estimatedMinutes} minutes` : "Unavailable"} /></dl><article><h3>Purpose</h3><p>{text(current.purpose)}</p></article><article><h3>Definition of Done</h3><p>{text(current.definitionOfDone)}</p></article><article><h3>Readiness & Dependencies</h3><StructuredItems value={current.readinessSnapshot} /><StructuredItems value={current.dependencySnapshot} /></article><article><h3>Required Evidence</h3><StructuredItems value={current.evidenceRequirements} /></article><div className="vehicle-workbench-actions"><Link className="button button-primary" href={`${initial.links.tasks}&taskId=${task.id ?? ""}`}>Open Task</Link><button className="button button-secondary" disabled>Start Work</button><button className="button button-secondary" disabled>Block / Wait</button></div></> : <Notice icon={ClipboardCheck} title="No current work" detail="A manager can prepare one eligible current Inventory Work Packet from the workflow launcher." />}</section>
         <aside className="vehicle-workbench-side"><section><h2>Staged Next Work</h2>{staged ? <><strong>{text(object(staged.task).title, text(staged.nextAction))}</strong><p>{label(staged.readiness)} · Target {date(staged.targetAt)}</p></> : <p>No verified-ready staged work.</p>}</section><section><h2>Vehicle Context</h2><p><b>Stage:</b> {label(initial.operation.stage)}</p><p><b>State:</b> {label(initial.operation.operatingState)}</p><p><b>Location:</b> {initial.operation.location?.name ?? "Unavailable"}</p><p><b>Target:</b> {date(initial.operation.targetAt)}</p></section><section><h2>Execution Tools</h2><Link href={initial.links.evidence}><Camera /> Add photos or documents</Link><button onClick={() => setActive("orders")} type="button"><Wrench /> Open work orders</button><button onClick={() => setActive("parts")} type="button"><Boxes /> Review or order parts</button></section></aside></div> : null}
       {active === "work" && current ? <TechnicianExecutionPanel packet={current} /> : null}
@@ -30,7 +39,59 @@ export function VehicleExecutionWorkbench({ initial }: { initial: VehicleExecuti
   </section>;
 }
 
+function OverviewPanel({ initial, setActive }: { initial: VehicleExecutionWorkbenchProjection; setActive: (tab: Tab) => void }) {
+  const overview = object(initial.overview), currentSituation = object(overview.currentSituation), deepLinks = object(overview.deepLinks), counts = object(overview.workCounts), partsReadiness = object(overview.partsReadiness), evidenceCompleteness = object(overview.evidenceCompleteness), nextBestAction = object(overview.nextBestAction), recentActivity = array(overview.recentActivity).map(object);
+  return <div className="vehicle-workbench-overview">
+    <section className="vehicle-workbench-overview-main">
+      <OverviewCard icon={ClipboardCheck} title="Current situation">
+        <FactList items={[["Stage", label(currentSituation.stage)], ["Blocker", text(currentSituation.blocker)], ["Owner", text(currentSituation.owner)], ["Target", date(currentSituation.targetAt)], ["Next action", text(currentSituation.nextAction)]]} />
+      </OverviewCard>
+      <OverviewCard icon={ShieldCheck} title="Lifecycle Planning">
+        <p>Movement plan, approval gates, repair planning, QC, and frontline handoff stay connected from this vehicle home.</p>
+        <Link className="button button-secondary" href={text(deepLinks.lifecycle, "/vehicles/control-tower")}>Open planning</Link>
+      </OverviewCard>
+      <OverviewCard icon={Wrench} title="Repair & Shop">
+        <FactList items={[["Repair orders", String(counts.repairOrders ?? 0)], ["Current work", initial.work.current ? text(initial.work.current.nextAction, text(initial.work.current.purpose)) : "No current packet"], ["Staged next", initial.work.staged ? text(initial.work.staged.nextAction) : "None"]]} />
+        <button className="button button-secondary" onClick={() => setActive("work")} type="button">Open repair work</button>
+      </OverviewCard>
+      <OverviewCard icon={Boxes} title="Parts Readiness">
+        <FactList items={[["Status", label(partsReadiness.status)], ["Needed", String(partsReadiness.needed ?? 0)], ["Ready", String(partsReadiness.ready ?? 0)], ["Summary", text(partsReadiness.summary)]]} />
+        <Link className="button button-secondary" href={text(deepLinks.parts, initial.links.parts)}>Open parts tracker</Link>
+      </OverviewCard>
+      <OverviewCard icon={CheckCircle2} title="Approvals & Decisions">
+        <p>Approval decisions remain structured commands. Comments help explain context but do not authorize work by themselves.</p>
+        <Link className="button button-secondary" href={text(deepLinks.approvals, "/manager-review?scope=inventory&view=approvals")}>Review approvals</Link>
+      </OverviewCard>
+      <OverviewCard icon={CarFront} title="Sales / Frontline">
+        <p>Detail, photos, pricing, title, and listing readiness are summarized here and opened only when deeper work is needed.</p>
+        <Link className="button button-secondary" href={text(deepLinks.sales, "/vehicles/inventory-to-frontline")}>Open frontline checklist</Link>
+      </OverviewCard>
+      <OverviewCard icon={Camera} title="Evidence, files & comments">
+        <FactList items={[["Evidence", `${counts.evidence ?? 0} linked item${counts.evidence === 1 ? "" : "s"}`], ["Completeness", text(evidenceCompleteness.summary)], ["Status", label(evidenceCompleteness.status)]]} />
+        <div className="vehicle-workbench-actions compact"><Link className="button button-secondary" href={text(deepLinks.evidence, initial.links.evidence)}>Attach file</Link><button className="button button-secondary" onClick={() => setActive("activity")} type="button">View comments</button></div>
+      </OverviewCard>
+      <OverviewCard icon={UserRound} title="Customer / Ownership">
+        <FactList items={[["Relationship", label(initial.operation.owner ? "Assigned owner" : "Vehicle record")], ["Location", text(object(initial.operation.location).name)], ["Vehicle status", label(initial.identity.status)]]} />
+      </OverviewCard>
+    </section>
+    <aside className="vehicle-workbench-overview-rail">
+      <section><h2>Do this now</h2><strong>{text(nextBestAction.action)}</strong><p>{text(nextBestAction.reason)}</p><div className="vehicle-workbench-actions compact"><button className="button button-primary" onClick={() => setActive("work")} type="button">Open current work</button><Link className="button button-secondary" href={text(deepLinks.audit, initial.links.vehicle360)}>View audit</Link></div></section>
+      <section><h2>Recent activity</h2>{recentActivity.length ? recentActivity.map((item) => <p key={text(item.id)}><strong>{text(item.title)}</strong><span>{date(item.occurredAt)}</span></p>) : <p>No permitted recent activity is available.</p>}</section>
+      <section><h2>Return rule</h2><p>Every deep page opened from this Workbench carries a return link back to this vehicle home.</p></section>
+    </aside>
+  </div>;
+}
+
+function OverviewCard({ children, icon: Icon, title }: { children: ReactNode; icon: LucideIcon; title: string }) {
+  return <article className="vehicle-workbench-overview-card"><header><Icon /><h2>{title}</h2></header>{children}</article>;
+}
+
+function FactList({ items }: { items: Array<[string, string]> }) {
+  return <dl className="vehicle-workbench-overview-facts">{items.map(([term, value]) => <div key={term}><dt>{term}</dt><dd>{value}</dd></div>)}</dl>;
+}
+
 function text(value: unknown, fallback = "Unavailable") { return typeof value === "string" && value.trim() ? value.trim() : fallback; }
+function mileage(value: unknown) { const reading = object(value).reading; return typeof reading === "number" ? `${reading.toLocaleString()} mi` : "Mileage unavailable"; }
 function Fact({ label: term, value }: { label: string; value: string }) { return <div><dt>{term}</dt><dd>{value}</dd></div>; }
 function StructuredItems({ value }: { value: unknown }) { const items = array(object(value).items).map(object); return items.length ? <ul>{items.map((item, index) => <li key={text(item.code, String(index))}>{item.satisfied === true ? <CheckCircle2 /> : <AlertTriangle />}<span><strong>{text(item.label)}</strong><small>{text(item.source)}{item.detail ? ` · ${text(item.detail)}` : ""}</small></span></li>)}</ul> : <p>Structured requirements unavailable.</p>; }
 function Notice({ detail, icon: Icon, title }: { detail: string; icon: typeof AlertTriangle; title: string }) { return <div className="vehicle-workbench-notice"><Icon /><div><strong>{title}</strong><p>{detail}</p></div></div>; }
