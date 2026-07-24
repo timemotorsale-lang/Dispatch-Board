@@ -198,20 +198,19 @@ export const navigationGroups: NavigationGroup[] = [
         icon: Gauge,
         badge: "Live",
         matchExact: true
+      },
+      {
+        href: "/time-attendance",
+        title: "Time & Attendance",
+        description: "Time cards, corrections, review, and payroll handoff.",
+        icon: Clock3,
+        badge: "MVP"
       }
     ]
   },
   {
     label: "Planned",
     items: [
-      {
-        href: "/time-attendance",
-        title: "Time & Attendance",
-        description: "Time cards, corrections, review, and payroll handoff.",
-        icon: Clock3,
-        badge: "Planned",
-        disabled: true
-      },
       {
         href: "/people-hr",
         title: "People & HR",

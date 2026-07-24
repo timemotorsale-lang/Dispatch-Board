@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-07-24 — Time & Attendance CCC console first UI
+
+The approved Time & Attendance mockup is now adopted as the official UI source of truth in [`docs/time-attendance/UI_SOURCE_OF_TRUTH.md`](time-attendance/UI_SOURCE_OF_TRUTH.md). The console is placed on the CCC board as an active `/time-attendance` module, not inside the Dispatch console.
+
+The first page implements the approved enterprise MVP shell: hero, workspace tabs, KPI strip, employee time-card preview, exact punch timeline, staff-specific meal policy cards, manager review queue, team status, and exception review rail. Preview totals are wired through the existing time-card calculation foundation where practical, while the page explicitly labels live punch actions, database-backed team cards, and payroll export approvals as pending follow-up work.
+
 ## 2026-07-23 — Task progress assurance foundation
 
 Tasks now receive an automatic two-hour progress checkpoint when they first move to In Progress; no new pre-start requirements are enforced. Meaningful status, guided-field, or progress-note updates renew the checkpoint, and the task workspace distinguishes on-track, check-in-due, and stalled work. Blocked work in the full workspace captures a recovery action, responsible person, review time, and escalation deadline, while older quick-update surfaces remain compatible through a server-generated recovery plan. Existing checklist, required-update, dependency, acceptance, manager-review, and completion-override gates remain the authority for closure. The assurance state is durable in the Task record and has focused service/UI coverage; this slice does not yet claim scheduled notifications or a manager-wide stalled-work queue.

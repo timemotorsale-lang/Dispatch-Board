@@ -16,6 +16,7 @@
 | TA-002 | [x] | Executable policy source registry | Official sources, effective dates, rule IDs, and fail-closed profile types compile and have focused tests |
 | TA-003 | [x] | Golden calculation foundation | Exact tardiness, overtime, Minnesota break, ESST, and reconciliation algorithms have deterministic unit tests |
 | TA-004 | [blocked] | Legal/payroll configuration approval | Employee cohort, classifications, workweek, ESST method, local rules, payroll mapping, retention approved |
+| TA-005 | [x] | Approved CCC UI source of truth | Approved Time & Attendance mockup adopted as the binding CCC console first-page direction |
 
 ## TA-G1 — Persistence and command boundary
 
@@ -44,10 +45,10 @@
 
 | ID | Status | Work | Exit criteria |
 | --- | --- | --- | --- |
-| TA-030 | [ ] | Employee My Time/capture surface | Responsive current-state capture with honest offline/error states |
+| TA-030 | [~] | Employee My Time/capture surface | First CCC page shell and time-card preview exist; live capture commands and honest offline/error states remain pending |
 | TA-031 | [ ] | Employee card/review/correction | Timeline, totals, disputes, corrections and history |
 | TA-032 | [ ] | Employee attestation | Versioned statement, attest/dispute, no rights waiver |
-| TA-033 | [ ] | Exception-first manager console | Approved concept bound to live read models and protected commands |
+| TA-033 | [~] | Exception-first manager console | Approved CCC review rail exists with rule-backed preview data; live read models and protected manager commands remain pending |
 | TA-034 | [ ] | Manager correction/approval | Reasoned correction, return, approve and bulk-clean approval |
 | TA-035 | [ ] | Time-off request and manager queue | Ordinary PTO/ESST/unpaid requests, privacy routing and availability |
 
