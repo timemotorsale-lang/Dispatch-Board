@@ -509,6 +509,12 @@ Diagnosis publishing, knowledge administration, hardware adapters, authoritative
 
 The initial Diagnostics Technician Workspace mockup is provisionally approved as the official starting UI direction. [`docs/diagnostics/DIAGNOSTICS_TECHNICIAN_WORKSPACE_UI_SOURCE_OF_TRUTH.md`](diagnostics/DIAGNOSTICS_TECHNICIAN_WORKSPACE_UI_SOURCE_OF_TRUTH.md) defines its technician-only role, five-stage workflow, single-primary-action hierarchy, qualitative-confidence correction, advisor boundary, and required technician usability validation. This approval does not represent implemented UI or production usability evidence.
 
+## Time & Attendance Foundation — 2026-07-23
+
+The Time & Attendance CCC program foundation is implemented in source and documentation. [`docs/time-attendance/README.md`](time-attendance/README.md) indexes the product boundary, modular-monolith architecture, official Minnesota/federal policy-source register, exact-time/no-rounding decision, overtime/break/ESST algorithms, time-card and time-off workflows, permission matrix, implementation milestones, golden cases, release gates, and operational contract. The executable `src/server/time-attendance` foundation provides a source-linked policy registry, fail-closed overtime coverage resolution, exact tardiness calculation, Minnesota break evaluation, Minnesota standard ESST accrual, and attendance/allocation reconciliation with focused unit coverage.
+
+This foundation does not include persistence, migrations, APIs, a live `/time-attendance` console, production capture, payroll export, protected-leave case management, legal/payroll configuration approval, pilot evidence, or production release authority.
+
 ## Current Execution Order
 
 1. Complete and accept Appointment architecture decisions.
