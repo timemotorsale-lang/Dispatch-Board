@@ -23,6 +23,14 @@ employee + work instant + work location
 
 Resolution must return one policy bundle or a blocking conflict. Policy priority cannot weaken a controlling law.
 
+Implemented TA-022 fail-closed conditions:
+
+- no active assignment;
+- more than one active assignment;
+- missing assigned profile template;
+- missing or inactive referenced policy version;
+- unresolved overtime coverage.
+
 ## Event normalization
 
 1. Order by occurrence instant, then durable sequence.
@@ -168,6 +176,19 @@ A card is payroll-ready only when:
 - manager approval references the current card version;
 - the period is open for the action;
 - no later event invalidates the projection.
+
+Implemented TA-023 through TA-025 projection flow:
+
+```text
+source events + assignments + work instant
+  -> normalize events into intervals
+  -> resolve one policy bundle
+  -> calculate paid work, regular, overtime, break exceptions and ESST
+  -> project time-card exceptions
+  -> compute replay checksums
+```
+
+The current MVP calculator projects exact worked minutes, regular/overtime minutes, meal totals, unpaid meal totals, ESST accrual, and blocking/nonblocking exceptions. Payroll readiness remains false whenever a blocking normalization, policy, overtime, or break exception exists. Because paid rest capture is not yet in the capture UI/API, missing Minnesota paid-rest opportunities remain visible blocking exceptions rather than being assumed.
 
 ## Workflow reason codes
 

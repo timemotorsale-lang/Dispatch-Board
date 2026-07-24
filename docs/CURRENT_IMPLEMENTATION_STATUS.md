@@ -519,7 +519,9 @@ TA-020 idempotent capture is implemented in source. `/api/time-attendance/captur
 
 TA-021 event normalization is implemented in source. The pure interval builder orders and deduplicates source events, pairs clock and meal events without inventing missing evidence, emits blocking normalization exceptions, splits derived intervals by location-local day and workweek attribution, and calculates attendance, meal, unpaid-meal, and paid-work minutes. Paid-work intervals deduct only actual unpaid completely-relieved meals, so planned lunch expectations do not silently remove worked time.
 
-This foundation does not include applied runtime migration evidence, seed data, a live `/time-attendance` console, time-card projection APIs, payroll-file generation, protected-leave case management, legal/payroll configuration approval, pilot evidence, or production release authority.
+TA-022 through TA-025 are implemented in source. The effective policy resolver returns exactly one active assignment and policy bundle or a blocking conflict. The time-card calculator projects exact paid-work, regular, overtime, meal, unpaid-meal, Minnesota break, and ESST results from normalized events. The exception engine merges normalization, policy, break, overtime, and planned-meal exceptions with blocking semantics. The replay service returns stable input, projection, and combined checksums for reproducible historical calculations.
+
+This foundation does not include applied runtime migration evidence, seed data, a live `/time-attendance` console, persisted time-card projection APIs, payroll-file generation, protected-leave case management, legal/payroll configuration approval, pilot evidence, or production release authority.
 
 ## Current Execution Order
 

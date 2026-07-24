@@ -35,10 +35,10 @@
 | --- | --- | --- | --- |
 | TA-020 | [x] | Idempotent capture commands | Clock/meal commands are retry-safe, expected-version checked, audited, event-backed and exposed through the capture API |
 | TA-021 | [x] | Event normalization and interval builder | Exact attendance, meal, paid-work, missing/open/overlap and overnight local-day split cases are deterministic |
-| TA-022 | [ ] | Effective policy resolver | One exact policy bundle or blocking conflict |
-| TA-023 | [ ] | Time-card calculator | Worked, regular, overtime, meal, rest, leave and allocation results reconcile |
-| TA-024 | [ ] | Exception engine | Source-linked break, punch, allocation, overtime and policy exceptions |
-| TA-025 | [ ] | Replay and checksum service | Historical results reproduce from events and versions |
+| TA-022 | [x] | Effective policy resolver | One exact policy bundle or blocking conflict |
+| TA-023 | [x] | Time-card calculator | Worked, regular, overtime, meal, rest and ESST results project from exact events |
+| TA-024 | [x] | Exception engine | Source-linked break, punch, policy and planned-meal exceptions are projected |
+| TA-025 | [x] | Replay and checksum service | Historical results reproduce from events and versions with stable checksums |
 
 ## TA-G3 — Employee and manager workflows
 
