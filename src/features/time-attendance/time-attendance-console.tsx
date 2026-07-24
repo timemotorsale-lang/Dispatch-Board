@@ -222,8 +222,8 @@ export function TimeAttendanceConsole({ model }: TimeAttendanceConsoleProps) {
               <AlertTriangle aria-hidden="true" />
             </div>
             <div className={styles.exceptionList}>
-              {model.exceptions.length > 0 ? model.exceptions.map((exception) => (
-                <div className={styles.exceptionRow} key={exception.code}>
+              {model.exceptions.length > 0 ? model.exceptions.map((exception, index) => (
+                <div className={styles.exceptionRow} key={`${exception.code}-${index}`}>
                   <div>
                     <strong>{exception.code.replaceAll("_", " ")}</strong>
                     <p>{exception.message}</p>
