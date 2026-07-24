@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-07-24 — Time & Attendance TA-033 manager exception queue started
+
+TA-033 now has its first vertical implementation slice. Managers can read a protected exception-first review queue through `/api/time-attendance/manager-review`, while non-managers receive a locked queue with no manager-sensitive details. The queue surfaces correction requests, open card exceptions, and disputed attestations, then orders them by severity and age.
+
+The `/time-attendance` page now includes a manager review panel with queue metrics and read-only review items. This checkpoint intentionally does not approve, deny, correct, waive, or alter payable time; manager decision and correction authority remain TA-034.
+
 ## 2026-07-24 — Time & Attendance TA-032 employee attestation started
 
 TA-032 now has its first vertical implementation slice. A protected `/api/time-attendance/attestations` endpoint records employee attestations or disputes against a specific `TimeCard` version and checksum. Attestation evidence stores the decision, idempotency context, dispute explanation when present, request hash, and an explicit `rightsWaiver: false` marker.

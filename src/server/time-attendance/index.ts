@@ -6,6 +6,7 @@ export * from "./commands";
 export * from "./console-read-model";
 export * from "./correction-service";
 export * from "./exception-engine";
+export * from "./manager-review";
 export * from "./normalization";
 export * from "./policy-resolution";
 export * from "./policy-registry";

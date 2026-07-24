@@ -101,3 +101,16 @@ TA-032 now has the first repository implementation slice:
 - `/time-attendance` displays the attestation/dispute control but disables submission while the visible card is preview-only.
 
 Remaining TA-032 hardening before final phase completion includes live persisted card projection on the staff page, attestation history display, and automatic reopen behavior after post-attestation corrections.
+
+### TA-033 checkpoint
+
+TA-033 now has the first repository implementation slice:
+
+- managers can read an exception-first Time & Attendance review queue through `/api/time-attendance/manager-review`;
+- non-managers receive a protected empty/locked queue rather than manager-sensitive review details;
+- the queue surfaces submitted/returned correction requests, open/acknowledged time-card exceptions, and disputed attestations;
+- queue items are ordered by severity and age so payroll-blocking issues rise first;
+- `/time-attendance` includes a manager review panel with metrics and item links;
+- this slice is read-only and does not approve, deny, correct, waive, or alter payable time.
+
+Remaining TA-033 hardening before final phase completion includes persisted card drill-in views, richer filtering, SLA timers, and live manager browser acceptance evidence.
