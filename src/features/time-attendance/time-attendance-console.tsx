@@ -13,9 +13,11 @@ import Link from "next/link";
 
 import type { TimeAttendanceConsoleModel } from "@/server/time-attendance/console-read-model";
 import type { TimeAttendanceCaptureState } from "@/server/time-attendance/capture-state";
+import type { TimeAttendanceHardeningPilotReadiness } from "@/server/time-attendance/hardening-pilot-service";
 import type { TimeAttendanceManagerReviewQueue } from "@/server/time-attendance/manager-review";
 import type { PayrollHandoffReadiness } from "@/server/time-attendance/payroll-handoff-service";
 
+import { HardeningPilotPanel } from "./hardening-pilot-panel";
 import { PayrollHandoffPanel } from "./payroll-handoff-panel";
 import { TimeAttendanceCapturePanel } from "./time-attendance-capture-panel";
 import { TimeCardAttestationPanel } from "./time-card-attestation-panel";
@@ -29,6 +31,7 @@ type TimeAttendanceConsoleProps = {
   managerReviewQueue: TimeAttendanceManagerReviewQueue;
   model: TimeAttendanceConsoleModel;
   payrollReadiness: PayrollHandoffReadiness;
+  hardeningReadiness: TimeAttendanceHardeningPilotReadiness;
 };
 
 function minutesLabel(minutes: number) {
@@ -52,7 +55,7 @@ function dotClass(tone: "good" | "warning" | "neutral") {
   return styles.dotNeutral;
 }
 
-export function TimeAttendanceConsole({ captureState, managerReviewQueue, model, payrollReadiness }: TimeAttendanceConsoleProps) {
+export function TimeAttendanceConsole({ captureState, managerReviewQueue, model, payrollReadiness, hardeningReadiness }: TimeAttendanceConsoleProps) {
   return (
     <section className={styles.console} aria-label="Time and Attendance CCC console">
       <header className={styles.hero}>
@@ -131,6 +134,8 @@ export function TimeAttendanceConsole({ captureState, managerReviewQueue, model,
           <TimeAttendanceManagerReviewPanel queue={managerReviewQueue} />
 
           <PayrollHandoffPanel initialReadiness={payrollReadiness} />
+
+          <HardeningPilotPanel readiness={hardeningReadiness} />
 
           <article className={styles.panel}>
             <div className={styles.panelHeader}>
