@@ -78,6 +78,18 @@ The period owns close readiness and lock state. The export batch owns mapping ve
 - Calculation output retains source-event and policy-version checksums.
 - Locked/exported records use correction/reversal workflows, never direct mutation.
 
+## Implemented persistence foundation
+
+TA-G1 adds the initial authoritative tables:
+
+- `TimeAttendancePolicyProfile` and `TimeAttendancePolicyAssignment`;
+- `TimeAttendanceSession`, `TimeAttendanceEvent`, and `TimeAttendanceBreakInterval`;
+- `TimeCard`, `TimeCardException`, `TimeCardAttestation`, and `TimeCardApproval`;
+- `TimeOffRequest` and `TimeOffBalance`;
+- `TimeAttendanceExportBatch` and `TimeAttendanceExportLine`.
+
+`TimeAttendanceEvent` links to `EnterpriseCommandLedger` when a mutation originates from the command boundary. A PostgreSQL partial unique index allows historical closed sessions while enforcing one active `OPEN` or `ON_MEAL` session per staff member and organization.
+
 ## Calculation pipeline
 
 ```text
@@ -129,4 +141,3 @@ Command services write authoritative facts. Read models serve the exception-firs
 - Payroll rejection creates an owned reconciliation case.
 - Projection lag and dead-letter outbox messages appear in enterprise operations.
 - Historical replay uses the policy version effective for the original work, unless an authorized retroactive recalculation explicitly records a new basis.
-

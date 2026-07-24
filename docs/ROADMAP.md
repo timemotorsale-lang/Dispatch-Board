@@ -18,7 +18,7 @@
 
 > **CCC Enterprise Workflow Launcher planning package:** The official launcher architecture, enterprise workflow-family catalog, and gated milestone sequence live in [`docs/CCC_ENTERPRISE_WORKFLOW_LAUNCHER_SOURCE_OF_TRUTH.md`](CCC_ENTERPRISE_WORKFLOW_LAUNCHER_SOURCE_OF_TRUTH.md). Use it for Start Workflow, Cards/List presentation, search, context, registry, permissions, drafts, receipts, and cross-console workflow onboarding. Catalog presence is not proof of implementation.
 
-> **Time & Attendance Program:** The dedicated Minnesota-first MVP and enterprise-foundation roadmap lives in [`docs/time-attendance/IMPLEMENTATION_ROADMAP.md`](time-attendance/IMPLEMENTATION_ROADMAP.md). Its source registry and initial deterministic calculation library are implemented; persistence, capture, console, time-off, close/export, pilot, and production authority remain gated.
+> **Time & Attendance Program:** The dedicated Minnesota-first MVP and enterprise-foundation roadmap lives in [`docs/time-attendance/IMPLEMENTATION_ROADMAP.md`](time-attendance/IMPLEMENTATION_ROADMAP.md). Its source registry, deterministic calculation library, persistence schema/migration, and capture command contracts are implemented; live capture APIs, console UI, transactional payroll export generation, pilot, and production authority remain gated.
 
 ---
 

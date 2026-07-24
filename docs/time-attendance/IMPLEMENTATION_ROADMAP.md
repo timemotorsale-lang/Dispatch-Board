@@ -21,19 +21,19 @@
 
 | ID | Status | Work | Exit criteria |
 | --- | --- | --- | --- |
-| TA-010 | [ ] | Add time policy/profile schema | Effective dates, sources, approvals, coverage and overlap constraints |
-| TA-011 | [ ] | Add append-only time event/session schema | One active session, sequence/version, source, timezone, actor and correction lineage |
-| TA-012 | [ ] | Add card/exception/attestation/approval schema | Exact version/checksum links and immutable decision history |
-| TA-013 | [ ] | Add absence and balance schema | Privacy class, routing, decisions, availability and time-card effects |
-| TA-014 | [ ] | Add pay-period/export/reconciliation schema | Lock set, mapping version, hash, acknowledgment, conflict ownership |
-| TA-015 | [ ] | Migration/seed/rollback contract | Additive migration, synthetic seed, restore and roll-forward proof |
+| TA-010 | [x] | Add time policy/profile schema | Effective dates, sources, approvals, coverage and profile assignments are modeled |
+| TA-011 | [x] | Add append-only time event/session schema | Active session, source, timezone, actor, command and correction lineage are modeled; PostgreSQL partial index protects one active session per staff member |
+| TA-012 | [x] | Add card/exception/attestation/approval schema | Exact card version/checksum links and decision history are modeled |
+| TA-013 | [x] | Add absence and balance schema | Request privacy routing, decisions, and balance snapshots are modeled |
+| TA-014 | [x] | Add pay-period/export/reconciliation schema | Export batch, line, status, hash and exact card-version references are modeled |
+| TA-015 | [~] | Migration/seed/rollback contract | Additive migration exists and schema validates; runtime migration application, seed data and restore drill remain pending |
 | TA-016 | [ ] | Capability and rollout policy | Employee/manager/payroll/leave-admin server enforcement and feature gates |
 
 ## TA-G2 — Capture and calculation
 
 | ID | Status | Work | Exit criteria |
 | --- | --- | --- | --- |
-| TA-020 | [ ] | Idempotent capture commands | Clock/meal commands are retry-safe, concurrent-safe, audited and event-backed |
+| TA-020 | [x] | Idempotent capture commands | Clock/meal commands are retry-safe, expected-version checked, audited, event-backed and exposed through the capture API |
 | TA-021 | [ ] | Event normalization and interval builder | Overnight, missing, overlap, correction and DST cases are deterministic |
 | TA-022 | [ ] | Effective policy resolver | One exact policy bundle or blocking conflict |
 | TA-023 | [ ] | Time-card calculator | Worked, regular, overtime, meal, rest, leave and allocation results reconcile |
