@@ -12,10 +12,13 @@ import {
 import Link from "next/link";
 
 import type { TimeAttendanceConsoleModel } from "@/server/time-attendance/console-read-model";
+import type { TimeAttendanceCaptureState } from "@/server/time-attendance/capture-state";
 
+import { TimeAttendanceCapturePanel } from "./time-attendance-capture-panel";
 import styles from "./time-attendance-console.module.css";
 
 type TimeAttendanceConsoleProps = {
+  captureState: TimeAttendanceCaptureState;
   model: TimeAttendanceConsoleModel;
 };
 
@@ -40,7 +43,7 @@ function dotClass(tone: "good" | "warning" | "neutral") {
   return styles.dotNeutral;
 }
 
-export function TimeAttendanceConsole({ model }: TimeAttendanceConsoleProps) {
+export function TimeAttendanceConsole({ captureState, model }: TimeAttendanceConsoleProps) {
   return (
     <section className={styles.console} aria-label="Time and Attendance CCC console">
       <header className={styles.hero}>
@@ -90,6 +93,8 @@ export function TimeAttendanceConsole({ model }: TimeAttendanceConsoleProps) {
 
       <div className={styles.bodyGrid}>
         <div className={styles.mainStack}>
+          <TimeAttendanceCapturePanel initialState={captureState} />
+
           <article className={styles.panel}>
             <div className={styles.panelHeader}>
               <div>
@@ -245,8 +250,8 @@ export function TimeAttendanceConsole({ model }: TimeAttendanceConsoleProps) {
           </article>
 
           <p className={styles.mvpNote}>
-            MVP preview: this first CCC page is wired to the time-attendance rule foundation and sample read model.
-            Live punch actions, database-backed team cards, and payroll export approvals come next.
+            MVP preview: staff punch actions are wired through the protected capture command boundary.
+            Database-backed team cards, correction workflows, attestations, and payroll export approvals come next.
           </p>
         </aside>
       </div>

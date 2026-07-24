@@ -62,3 +62,17 @@ TA-G3 is complete when:
 - TA-016 capability and rollout policy must be completed before broader staff activation.
 
 These gates do not prevent repository implementation of TA-G3, but they do prevent claiming production readiness.
+
+## Implementation notes
+
+### TA-030 checkpoint
+
+TA-030 now has the first repository implementation slice:
+
+- current staff capture state is available through the Time & Attendance capture API;
+- `/time-attendance` shows staff-facing clock, meal, and refresh actions;
+- capture actions use expected version, idempotency, exact occurrence time, location, timezone, and reason;
+- the original punch trail remains append-only;
+- UI success/error feedback is present.
+
+Remaining TA-030 hardening before final phase completion includes richer mobile/offline states, production device policy, and broader live-browser acceptance evidence.

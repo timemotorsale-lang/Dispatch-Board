@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-07-24 — Time & Attendance TA-030 staff capture surface started
+
+TA-030 now has its first vertical implementation slice. The `/time-attendance` CCC console reads the authenticated staff member's current attendance state and presents valid clock/meal actions: clock in, start meal, end meal, and clock out. Actions call the existing protected capture command boundary with expected version, idempotency key, exact occurrence timestamp, location, timezone, and reason. The API now also exposes current capture state for staff refresh after each action.
+
+This checkpoint does not claim production rollout, kiosk/device policy, offline/mobile capture, correction workflow, attestation, payroll close, or legal/payroll release approval. Team cards and payroll readiness remain preview/read-model work until later slices.
+
 ## 2026-07-24 — Time & Attendance TA-G3 implementation branch opened
 
 The Time & Attendance workflow implementation branch is `codex/time-attendance-g3-workflows`. Its first scheduled phase is documented in [`docs/time-attendance/PHASE_TA_G3_IMPLEMENTATION_SCHEDULE.md`](time-attendance/PHASE_TA_G3_IMPLEMENTATION_SCHEDULE.md), covering TA-030 through TA-035 in order: employee capture, card review/correction, attestation, manager exception console, manager correction/approval, and time-off request workflow.
