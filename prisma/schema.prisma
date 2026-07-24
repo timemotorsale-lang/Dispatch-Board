@@ -6856,6 +6856,7 @@ model TimeCardAttestation {
   attestedAt      DateTime     @default(now())
   statement       String
   cardChecksum    String
+  evidence        Json
   createdAt       DateTime     @default(now())
   organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   timeCard        TimeCard     @relation(fields: [timeCardId], references: [id], onDelete: Restrict)

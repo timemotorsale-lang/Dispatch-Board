@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-07-24 — Time & Attendance TA-032 employee attestation started
+
+TA-032 now has its first vertical implementation slice. A protected `/api/time-attendance/attestations` endpoint records employee attestations or disputes against a specific `TimeCard` version and checksum. Attestation evidence stores the decision, idempotency context, dispute explanation when present, request hash, and an explicit `rightsWaiver: false` marker.
+
+The `/time-attendance` page now shows an employee attestation panel with confirm/dispute choices and no-rights-waiver language. Because the visible card is still preview/read-model-backed, the UI keeps attestation submission disabled until a persisted time-card version is available. Live persisted card projection, attestation history display, and post-attestation reopen behavior remain later work.
+
 ## 2026-07-24 — Time & Attendance TA-031 correction request workflow started
 
 TA-031 now has its first vertical implementation slice. Employees can submit a time-card correction request from `/time-attendance` without changing the original punch trail. The request is durable, idempotent, status-tracked, and includes requested date/time context, change type, employee explanation, and evidence that the source punches remain append-only.

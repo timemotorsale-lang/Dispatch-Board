@@ -7,6 +7,7 @@ import {
 } from "./policy-registry";
 import type { TimePolicyAssignmentCandidate } from "./policy-resolution";
 import type { TimeAttendanceSourceEvent } from "./normalization";
+import { hashTimeCardReplay } from "./replay";
 
 export type TimeAttendanceConsoleStaff = {
   id: string;
@@ -31,9 +32,12 @@ export type TimeAttendanceConsoleModel = {
     esstAccrued: string;
   };
   employeeCard: {
+    cardChecksum: string;
+    cardId: string;
     shiftLabel: string;
     policyLabel: string;
     statusLabel: string;
+    timeCardVersion: number;
     paidMinutes: number;
     attendanceMinutes: number;
     mealMinutes: number;
@@ -120,6 +124,13 @@ export function getTimeAttendanceConsoleModel(user: AuthenticatedUser): TimeAtte
     timeZone: "America/Chicago",
     workInstant: "2026-07-23T14:00:00.000Z"
   });
+  const cardChecksum = hashTimeCardReplay({
+    exceptions: projection.exceptions,
+    intervals: projection.intervals,
+    policyId: projection.policy?.profileTemplate.id ?? null,
+    staffUserId: projection.staffUserId,
+    totals: projection.totals
+  });
   const exceptionCount = projection.exceptions.length;
 
   return {
@@ -132,9 +143,12 @@ export function getTimeAttendanceConsoleModel(user: AuthenticatedUser): TimeAtte
       esstAccrued: `${projection.totals.esstNewlyAccruedMinutes} min`
     },
     employeeCard: {
+      cardChecksum,
+      cardId: "preview-time-card-current-user",
       shiftLabel: "9:00 AM – 6:00 PM",
       policyLabel: projection.policy?.profileTemplate.name ?? "Policy needs assignment",
       statusLabel: projection.payrollReady ? "Ready for payroll review" : "Needs manager review",
+      timeCardVersion: 1,
       paidMinutes: projection.totals.paidWorkMinutes,
       attendanceMinutes: projection.totals.attendanceMinutes,
       mealMinutes: projection.totals.mealMinutes,

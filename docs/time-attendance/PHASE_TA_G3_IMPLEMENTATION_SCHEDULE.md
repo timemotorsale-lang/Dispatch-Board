@@ -88,3 +88,16 @@ TA-031 now has the first repository implementation slice:
 - manager decision and application are intentionally deferred to TA-034.
 
 Remaining TA-031 hardening before final phase completion includes full correction history display, event-specific request linking in the UI, and richer card-version context.
+
+### TA-032 checkpoint
+
+TA-032 now has the first repository implementation slice:
+
+- employees can submit an attestation or dispute through a protected `/api/time-attendance/attestations` command when a persisted card version exists;
+- attestations bind to `timeCardId`, `timeCardVersion`, `cardChecksum`, staff user, statement, and evidence;
+- the attestation statement explicitly avoids wage, legal, correction, and payroll-review rights waiver language;
+- disputes require a meaningful explanation and route to review;
+- duplicate attestation attempts for the same card version return safely when identical and conflict when materially different;
+- `/time-attendance` displays the attestation/dispute control but disables submission while the visible card is preview-only.
+
+Remaining TA-032 hardening before final phase completion includes live persisted card projection on the staff page, attestation history display, and automatic reopen behavior after post-attestation corrections.

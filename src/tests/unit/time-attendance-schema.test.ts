@@ -44,6 +44,7 @@ describe("time attendance persistence foundation", () => {
     expect(migration).toContain("TimeAttendanceSession_one_active_per_staff_key");
     expect(migration).toContain("WHERE \"state\" IN ('OPEN', 'ON_MEAL')");
     expect(migration).toContain("\"roundingPolicy\" = 'EXACT_TIME'");
+    expect(schema).toMatch(/evidence\s+Json/);
   });
 
   it("defines durable employee correction requests", () => {
