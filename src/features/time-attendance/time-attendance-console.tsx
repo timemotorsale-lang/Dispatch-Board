@@ -15,6 +15,7 @@ import type { TimeAttendanceConsoleModel } from "@/server/time-attendance/consol
 import type { TimeAttendanceCaptureState } from "@/server/time-attendance/capture-state";
 
 import { TimeAttendanceCapturePanel } from "./time-attendance-capture-panel";
+import { TimeCardCorrectionPanel } from "./time-card-correction-panel";
 import styles from "./time-attendance-console.module.css";
 
 type TimeAttendanceConsoleProps = {
@@ -112,6 +113,8 @@ export function TimeAttendanceConsole({ captureState, model }: TimeAttendanceCon
               <div><span>Paid time</span><strong>{minutesLabel(model.employeeCard.paidMinutes)}</strong></div>
             </div>
           </article>
+
+          <TimeCardCorrectionPanel />
 
           <article className={styles.panel}>
             <div className={styles.panelHeader}>

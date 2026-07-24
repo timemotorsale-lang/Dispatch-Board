@@ -1500,6 +1500,15 @@ enum TimeCardExceptionStatus {
   WAIVED
 }
 
+enum TimeCardCorrectionRequestStatus {
+  SUBMITTED
+  RETURNED
+  APPROVED
+  DENIED
+  WITHDRAWN
+  APPLIED
+}
+
 enum TimeOffRequestType {
   PTO
   ESST
@@ -1748,6 +1757,8 @@ model User {
   authoredTimeAttendanceEvents            TimeAttendanceEvent[]                  @relation("TimeAttendanceEventActor")
   timeCards                               TimeCard[]                             @relation("TimeCardStaff")
   resolvedTimeCardExceptions              TimeCardException[]                    @relation("TimeCardExceptionResolvedBy")
+  requestedTimeCardCorrections            TimeCardCorrectionRequest[]            @relation("TimeCardCorrectionRequester")
+  decidedTimeCardCorrections              TimeCardCorrectionRequest[]            @relation("TimeCardCorrectionDecisionActor")
   timeCardAttestations                    TimeCardAttestation[]                  @relation("TimeCardAttestationStaff")
   timeCardApprovals                       TimeCardApproval[]                     @relation("TimeCardApprovalManager")
   requestedTimeOffRequests                TimeOffRequest[]                       @relation("TimeOffRequestRequester")
@@ -1964,6 +1975,7 @@ model Organization {
   timeAttendanceBreakIntervals          TimeAttendanceBreakInterval[]
   timeCards                             TimeCard[]
   timeCardExceptions                    TimeCardException[]
+  timeCardCorrectionRequests            TimeCardCorrectionRequest[]
   timeCardAttestations                  TimeCardAttestation[]
   timeCardApprovals                     TimeCardApproval[]
   timeOffRequests                       TimeOffRequest[]
@@ -2049,6 +2061,7 @@ model Location {
   timeAttendanceEvents            TimeAttendanceEvent[]
   timeAttendanceBreakIntervals    TimeAttendanceBreakInterval[]
   timeCards                       TimeCard[]
+  timeCardCorrectionRequests      TimeCardCorrectionRequest[]
   timeOffRequests                 TimeOffRequest[]
   timeAttendanceExportBatches     TimeAttendanceExportBatch[]
   diagnosticCases                 DiagnosticCase[]
@@ -6707,6 +6720,7 @@ model TimeAttendanceEvent {
   correctedByEvent    TimeAttendanceEvent?          @relation("TimeAttendanceEventCorrectedBy", fields: [correctedByEventId], references: [id], onDelete: SetNull)
   correctingEvents    TimeAttendanceEvent[]         @relation("TimeAttendanceEventCorrection")
   correctedEventLinks TimeAttendanceEvent[]         @relation("TimeAttendanceEventCorrectedBy")
+  correctionRequests  TimeCardCorrectionRequest[]
   breakStarts         TimeAttendanceBreakInterval[] @relation("TimeAttendanceBreakStart")
   breakEnds           TimeAttendanceBreakInterval[] @relation("TimeAttendanceBreakEnd")
 
@@ -6765,6 +6779,7 @@ model TimeCard {
   staffUser           User                        @relation("TimeCardStaff", fields: [staffUserId], references: [id], onDelete: Restrict)
   policyProfile       TimeAttendancePolicyProfile @relation(fields: [policyProfileId], references: [id], onDelete: Restrict)
   exceptions          TimeCardException[]
+  correctionRequests  TimeCardCorrectionRequest[]
   attestations        TimeCardAttestation[]
   approvals           TimeCardApproval[]
   exportLines         TimeAttendanceExportLine[]
@@ -6794,6 +6809,42 @@ model TimeCardException {
 
   @@index([timeCardId, status])
   @@index([organizationId, code, status])
+}
+
+model TimeCardCorrectionRequest {
+  id                  String                          @id @default(cuid())
+  organizationId      String
+  locationId          String
+  staffUserId         String
+  timeCardId          String?
+  relatedEventId      String?
+  status              TimeCardCorrectionRequestStatus @default(SUBMITTED)
+  idempotencyKey      String
+  requestedAt         DateTime                        @default(now())
+  requestedChangeType String
+  requestedDate       DateTime                        @db.Date
+  requestedStartAt    DateTime?
+  requestedEndAt      DateTime?
+  employeeExplanation String
+  managerUserId       String?
+  managerDecisionAt   DateTime?
+  managerDecision     String?
+  managerReason       String?
+  evidence            Json
+  createdAt           DateTime                        @default(now())
+  updatedAt           DateTime                        @updatedAt
+  organization        Organization                    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location            Location                        @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  staffUser           User                            @relation("TimeCardCorrectionRequester", fields: [staffUserId], references: [id], onDelete: Restrict)
+  timeCard            TimeCard?                       @relation(fields: [timeCardId], references: [id], onDelete: SetNull)
+  relatedEvent        TimeAttendanceEvent?            @relation(fields: [relatedEventId], references: [id], onDelete: SetNull)
+  managerUser         User?                           @relation("TimeCardCorrectionDecisionActor", fields: [managerUserId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, staffUserId, idempotencyKey])
+  @@index([organizationId, locationId, status, requestedAt])
+  @@index([staffUserId, requestedDate, status])
+  @@index([timeCardId, status])
+  @@index([relatedEventId])
 }
 
 model TimeCardAttestation {

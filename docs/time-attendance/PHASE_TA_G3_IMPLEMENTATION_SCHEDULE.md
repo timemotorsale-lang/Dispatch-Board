@@ -76,3 +76,15 @@ TA-030 now has the first repository implementation slice:
 - UI success/error feedback is present.
 
 Remaining TA-030 hardening before final phase completion includes richer mobile/offline states, production device policy, and broader live-browser acceptance evidence.
+
+### TA-031 checkpoint
+
+TA-031 now has the first repository implementation slice:
+
+- employees can submit a time-card correction request from `/time-attendance`;
+- correction requests are durable records with submitted status, idempotency, requested date/time context, explanation, and evidence that the original punch trail remains unchanged;
+- `/api/time-attendance/corrections` accepts protected employee correction submissions;
+- duplicate safe retries return the original request, while idempotency key reuse with different content is rejected;
+- manager decision and application are intentionally deferred to TA-034.
+
+Remaining TA-031 hardening before final phase completion includes full correction history display, event-specific request linking in the UI, and richer card-version context.

@@ -26,6 +26,7 @@ describe("time attendance persistence foundation", () => {
       "TimeAttendanceBreakInterval",
       "TimeCard",
       "TimeCardException",
+      "TimeCardCorrectionRequest",
       "TimeCardAttestation",
       "TimeCardApproval",
       "TimeOffRequest",
@@ -43,5 +44,24 @@ describe("time attendance persistence foundation", () => {
     expect(migration).toContain("TimeAttendanceSession_one_active_per_staff_key");
     expect(migration).toContain("WHERE \"state\" IN ('OPEN', 'ON_MEAL')");
     expect(migration).toContain("\"roundingPolicy\" = 'EXACT_TIME'");
+  });
+
+  it("defines durable employee correction requests", () => {
+    const correctionMigration = readFileSync(
+      join(
+        workspaceRoot,
+        "prisma",
+        "migrations",
+        "20260724090000_time_attendance_correction_requests",
+        "migration.sql"
+      ),
+      "utf8"
+    );
+
+    expect(schema).toContain("model TimeCardCorrectionRequest");
+    expect(schema).toContain("enum TimeCardCorrectionRequestStatus");
+    expect(schema).toContain("@@unique([organizationId, staffUserId, idempotencyKey])");
+    expect(correctionMigration).toContain("CREATE TABLE \"TimeCardCorrectionRequest\"");
+    expect(correctionMigration).toContain("TimeCardCorrectionRequest_org_staff_idempotency_key");
   });
 });

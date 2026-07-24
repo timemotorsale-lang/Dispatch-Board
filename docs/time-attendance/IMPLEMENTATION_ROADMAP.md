@@ -46,7 +46,7 @@
 | ID | Status | Work | Exit criteria |
 | --- | --- | --- | --- |
 | TA-030 | [~] | Employee My Time/capture surface | Staff current-state read and live clock/meal buttons are wired through protected capture commands; richer offline/mobile states remain pending |
-| TA-031 | [ ] | Employee card/review/correction | Timeline, totals, disputes, corrections and history |
+| TA-031 | [~] | Employee card/review/correction | Employee card review includes a durable correction-request workflow; manager decision/application and full correction history remain pending |
 | TA-032 | [ ] | Employee attestation | Versioned statement, attest/dispute, no rights waiver |
 | TA-033 | [~] | Exception-first manager console | Approved CCC review rail exists with rule-backed preview data; live read models and protected manager commands remain pending |
 | TA-034 | [ ] | Manager correction/approval | Reasoned correction, return, approve and bulk-clean approval |

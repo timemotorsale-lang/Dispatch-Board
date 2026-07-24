@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-07-24 — Time & Attendance TA-031 correction request workflow started
+
+TA-031 now has its first vertical implementation slice. Employees can submit a time-card correction request from `/time-attendance` without changing the original punch trail. The request is durable, idempotent, status-tracked, and includes requested date/time context, change type, employee explanation, and evidence that the source punches remain append-only.
+
+The new protected `/api/time-attendance/corrections` endpoint creates correction requests for the authenticated staff member and rejects reused idempotency keys when the submitted content differs. Manager decision, manager correction application, full correction history display, attestation reopening, and payroll impact are intentionally deferred to later TA-G3 slices.
+
 ## 2026-07-24 — Time & Attendance TA-030 staff capture surface started
 
 TA-030 now has its first vertical implementation slice. The `/time-attendance` CCC console reads the authenticated staff member's current attendance state and presents valid clock/meal actions: clock in, start meal, end meal, and clock out. Actions call the existing protected capture command boundary with expected version, idempotency key, exact occurrence timestamp, location, timezone, and reason. The API now also exposes current capture state for staff refresh after each action.

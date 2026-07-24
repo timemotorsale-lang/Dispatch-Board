@@ -3,6 +3,7 @@ export * from "./capture-state";
 export * from "./capture-service";
 export * from "./commands";
 export * from "./console-read-model";
+export * from "./correction-service";
 export * from "./exception-engine";
 export * from "./normalization";
 export * from "./policy-resolution";
