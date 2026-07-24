@@ -393,11 +393,18 @@ export function VehicleRegistryWorkspace({
           <div className="page-copy"><h2>Registry</h2></div>
           <div className="page-stack">
             {list.items.length ? list.items.map((item) => (
-              <button className="panel-card settings-callout-card" key={item.id} onClick={() => void load(item.id)} type="button">
-                <strong>{vehicleTitle(item)}</strong>
-                <span>{item.vehicleNumber} · VIN {item.vin ?? item.vinState} · Stock {item.stockNumber ?? "—"}</span>
-                {item._count.duplicateCasesAsCandidate + item._count.duplicateCasesAsPrimary ? <small>Duplicate review required</small> : null}
-              </button>
+              <article className="panel-card settings-callout-card inventory-vehicle-result-card" key={item.id}>
+                <Link className="inventory-vehicle-result-link" href={`/vehicles/registry?vehicleId=${encodeURIComponent(item.id)}`}>
+                  <strong>{vehicleTitle(item)}</strong>
+                  <span>{item.vehicleNumber} · VIN {item.vin ?? item.vinState} · Stock {item.stockNumber ?? "—"}</span>
+                  {item._count.duplicateCasesAsCandidate + item._count.duplicateCasesAsPrimary ? <small>Duplicate review required</small> : null}
+                </Link>
+                <div className="form-actions">
+                  <Link className="button button-primary" href={`/vehicles/360/${item.id}`}>Open Vehicle 360</Link>
+                  <Link className="button button-secondary" href={`/vehicles/${item.id}/workbench`}>Open workspace</Link>
+                  <button className="button button-secondary" disabled={busy} onClick={() => void load(item.id)} type="button">Preview here</button>
+                </div>
+              </article>
             )) : <p>No vehicles match this search.</p>}
           </div>
         </section>

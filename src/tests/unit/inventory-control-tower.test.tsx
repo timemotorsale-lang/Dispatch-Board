@@ -65,6 +65,9 @@ describe("R3 Inventory Lifecycle UI", () => {
   it("renders live control-tower facts and connected downstream workspaces", () => {
     const markup = renderToStaticMarkup(<InventoryControlTower projection={projection} backHref="/vehicles/inventory?view=attention" />);
     expect(markup).toContain("Inventory Lifecycle Control Tower");
+    expect(markup).toContain("Vehicle Intake");
+    expect(markup).toContain("Start Vehicle Intake");
+    expect(markup).toContain("/vehicles/workflows/add-vehicle?returnTo=%2Fvehicles%2Fcontrol-tower");
     expect(markup).toContain("Lifecycle Flow Map");
     expect(markup).toContain("INV-100");
     expect(markup).toContain("Resolve brake-parts constraint");
@@ -85,7 +88,7 @@ describe("R3 Inventory Lifecycle UI", () => {
     expect(markup).toContain("Parts Readiness");
     expect(markup).toContain("Financial Exposure");
     expect(markup).toContain("Linked Work");
-    expect(markup).toContain("1 Tasks · 1 Repair Orders · 1 Decisions");
-    expect(markup).toContain("Audit Trail");
+    expect(markup).toContain("1 Tasks · 1 Repair Orders · 1 Approvals");
+    expect(markup).toContain("Recent Activity");
   });
 });
