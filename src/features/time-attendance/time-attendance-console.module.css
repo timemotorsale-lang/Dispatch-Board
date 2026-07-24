@@ -731,6 +731,104 @@
   margin-bottom: 14px;
 }
 
+.payrollMetrics {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 14px;
+}
+
+.payrollMetrics div {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.payrollMetrics span,
+.payrollControls label span {
+  color: var(--muted);
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.payrollMetrics strong {
+  display: block;
+  font-size: 1.35rem;
+  margin-top: 5px;
+}
+
+.payrollControls {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.payrollControls label {
+  display: grid;
+  gap: 6px;
+}
+
+.payrollControls input {
+  background: #f8fafc;
+  border: 1px solid #dbe4ef;
+  border-radius: 14px;
+  color: var(--ink);
+  font: inherit;
+  padding: 11px 12px;
+}
+
+.payrollActions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.payrollActions button {
+  align-items: center;
+  background: #0f172a;
+  border: 0;
+  border-radius: 999px;
+  color: white;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 900;
+  gap: 7px;
+  padding: 9px 12px;
+}
+
+.payrollActions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.payrollBlockers {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.payrollBlockers div {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 16px;
+  padding: 12px;
+}
+
+.payrollBlockers p {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
+  margin: 4px 0 0;
+}
+
 .managerReviewMetrics div {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
@@ -934,7 +1032,9 @@
 
   .metricGrid,
   .timeSummary,
-  .managerReviewMetrics {
+    .managerReviewMetrics,
+    .payrollMetrics,
+    .payrollControls {
     grid-template-columns: 1fr;
   }
 

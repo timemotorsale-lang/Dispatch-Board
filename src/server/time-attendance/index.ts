@@ -9,6 +9,7 @@ export * from "./exception-engine";
 export * from "./manager-decision-service";
 export * from "./manager-review";
 export * from "./normalization";
+export * from "./payroll-handoff-service";
 export * from "./policy-resolution";
 export * from "./policy-registry";
 export * from "./replay";
