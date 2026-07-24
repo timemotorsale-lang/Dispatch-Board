@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-07-24 — Time & Attendance TA-G3 implementation branch opened
+
+The Time & Attendance workflow implementation branch is `codex/time-attendance-g3-workflows`. Its first scheduled phase is documented in [`docs/time-attendance/PHASE_TA_G3_IMPLEMENTATION_SCHEDULE.md`](time-attendance/PHASE_TA_G3_IMPLEMENTATION_SCHEDULE.md), covering TA-030 through TA-035 in order: employee capture, card review/correction, attestation, manager exception console, manager correction/approval, and time-off request workflow.
+
+This checkpoint schedules repository implementation only. It does not commit, push, merge, activate production rollout, apply live migrations, or claim legal/payroll release approval.
+
 ## 2026-07-24 — Time & Attendance CCC console first UI
 
 The approved Time & Attendance mockup is now adopted as the official UI source of truth in [`docs/time-attendance/UI_SOURCE_OF_TRUTH.md`](time-attendance/UI_SOURCE_OF_TRUTH.md). The console is placed on the CCC board as an active `/time-attendance` module, not inside the Dispatch console.
