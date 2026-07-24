@@ -1084,6 +1084,7 @@ This proposed architecture must remain consistent with:
 - [`INVENTORY_EXECUTION_OPERATING_SYSTEM.md`](INVENTORY_EXECUTION_OPERATING_SYSTEM.md);
 - [`INVENTORY_EXECUTION_OPERATING_SYSTEM_MVP_ADOPTION.md`](INVENTORY_EXECUTION_OPERATING_SYSTEM_MVP_ADOPTION.md);
 - [`INVENTORY_EXECUTION_OPERATING_SYSTEM_IMPLEMENTATION_ROADMAP.md`](INVENTORY_EXECUTION_OPERATING_SYSTEM_IMPLEMENTATION_ROADMAP.md);
+- [`VEHICLE_WORKBENCH_OVERVIEW_AND_ROLE_LENSES_SOURCE_OF_TRUTH.md`](VEHICLE_WORKBENCH_OVERVIEW_AND_ROLE_LENSES_SOURCE_OF_TRUTH.md);
 - [`VEHICLE_EVIDENCE_AND_360_IMPLEMENTATION.md`](VEHICLE_EVIDENCE_AND_360_IMPLEMENTATION.md);
 - [`INVENTORY_CONSOLE_UI_SOURCE_OF_TRUTH.md`](INVENTORY_CONSOLE_UI_SOURCE_OF_TRUTH.md);
 - [`INVENTORY_CONSOLE_LANDING_PAGES_UI_SOURCE_OF_TRUTH.md`](INVENTORY_CONSOLE_LANDING_PAGES_UI_SOURCE_OF_TRUTH.md);
@@ -1095,7 +1096,7 @@ This proposed architecture must remain consistent with:
 
 ## 26. Final-review status
 
-The Vehicle Lifecycle Card family described by this document was approved separately through [`INVENTORY_EXECUTION_VEHICLE_CARD_UI_SOURCE_OF_TRUTH.md`](INVENTORY_EXECUTION_VEHICLE_CARD_UI_SOURCE_OF_TRUTH.md). The remaining forms and Vehicle Workbench architecture is complete for product review but remains unofficial until explicit adoption.
+The Vehicle Lifecycle Card family described by this document was approved separately through [`INVENTORY_EXECUTION_VEHICLE_CARD_UI_SOURCE_OF_TRUTH.md`](INVENTORY_EXECUTION_VEHICLE_CARD_UI_SOURCE_OF_TRUTH.md). The neutral Vehicle Workbench overview, Inventory Manager role lens, return-to-workbench rule, role-lens model, and required Manager Notes & Decisions enhancement are approved through [`VEHICLE_WORKBENCH_OVERVIEW_AND_ROLE_LENSES_SOURCE_OF_TRUTH.md`](VEHICLE_WORKBENCH_OVERVIEW_AND_ROLE_LENSES_SOURCE_OF_TRUTH.md). Remaining form-specific field contracts and additional role-view mockups still require separate explicit adoption.
 
 Recommended next action:
 
