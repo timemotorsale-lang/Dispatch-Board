@@ -220,6 +220,10 @@ function vehicleTitle(vehicle: Pick<VehicleListItem, "make" | "model" | "vehicle
   return [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || vehicle.vehicleNumber;
 }
 
+function vehicleWorkbenchHref(vehicleId: string) {
+  return `/vehicles/${encodeURIComponent(vehicleId)}/workbench`;
+}
+
 function isMutationDisabled(message: string) {
   return message.includes("not enabled") || message.includes("MASTER_DISABLED");
 }
@@ -276,12 +280,14 @@ export function VehicleRegistryWorkspace({
     }
   }
 
-  async function refresh(search = query) {
+  async function refresh(search = query, openSingleMatch = false) {
     setBusy(true);
     try {
       const body = await request(`/api/vehicles?query=${encodeURIComponent(search)}`) as RegistryList;
       setList(body);
-      if (body.items.length === 1) {
+      if (openSingleMatch && body.items.length === 1) {
+        window.location.assign(vehicleWorkbenchHref(body.items[0].id));
+      } else if (body.items.length === 1) {
         await load(body.items[0].id);
       } else if (!body.items.some((item) => item.id === selected?.id)) {
         setSelected(null);
@@ -472,6 +478,7 @@ export function VehicleRegistryWorkspace({
         <h1>Find the vehicle and go straight to work</h1>
         <p>Search once, inspect the canonical identity, then open Vehicle 360 or the execution workspace without detouring through extra landing pages.</p>
         <div className="form-actions">
+          <Link className="pill pill-primary" href="/vehicles/registry">Find Vehicle / Open Workbench</Link>
           <Link className="pill pill-secondary" href="/vehicles/inventory">Inventory Lifecycle</Link>
           <Link className="pill pill-secondary" href="/vehicles/control-tower">Control Tower</Link>
           <Link className="pill pill-secondary" href="/settings/vehicle-operations">Rollout &amp; health</Link>
@@ -483,15 +490,15 @@ export function VehicleRegistryWorkspace({
           <p>{notice}</p>
           {mutationNotice && selected ? (
             <div className="form-actions">
-              <Link className="button button-primary" href={`/vehicles/360/${selected.id}`}>Open Vehicle 360</Link>
-              <Link className="button button-secondary" href={`/vehicles/${selected.id}/workbench`}>Open workspace</Link>
+              <Link className="button button-primary" href={vehicleWorkbenchHref(selected.id)}>Open Vehicle Workbench</Link>
+              <Link className="button button-secondary" href={`/vehicles/360/${selected.id}`}>Open Vehicle 360</Link>
             </div>
           ) : null}
         </div>
       ) : null}
 
       <section className="panel-card">
-        <form className="form-actions" onSubmit={(event) => { event.preventDefault(); void refresh(); }}>
+        <form className="form-actions" onSubmit={(event) => { event.preventDefault(); void refresh(query, true); }}>
           <label className="form-field">
             <span>Search VIN, partial VIN, stock, plate, vehicle, customer, or external ID</span>
             <input onChange={(event) => setQuery(event.target.value)} value={query} />
@@ -510,18 +517,19 @@ export function VehicleRegistryWorkspace({
           <div className="page-stack">
             {list.items.length ? list.items.map((item) => (
               <article className="panel-card settings-callout-card inventory-vehicle-result-card" key={item.id}>
-                <Link className="inventory-vehicle-result-link" href={`/vehicles/registry?vehicleId=${encodeURIComponent(item.id)}`}>
+                <Link className="inventory-vehicle-result-link" href={vehicleWorkbenchHref(item.id)}>
                   <strong>{vehicleTitle(item)}</strong>
                   <span>{item.vehicleNumber} · VIN {item.vin ?? item.vinState} · Stock {stockNumberForDisplay(item)}</span>
                   {item._count.duplicateCasesAsCandidate + item._count.duplicateCasesAsPrimary ? <small>Duplicate review required</small> : null}
+                  <small>Click vehicle to open the Vehicle Workbench</small>
                 </Link>
                 <div className="form-actions">
-                  <Link className="button button-primary" href={`/vehicles/360/${item.id}`}>Open Vehicle 360</Link>
-                  <Link className="button button-secondary" href={`/vehicles/${item.id}/workbench`}>Open workspace</Link>
+                  <Link className="button button-primary" href={vehicleWorkbenchHref(item.id)}>Open Vehicle Workbench</Link>
+                  <Link className="button button-secondary" href={`/vehicles/360/${item.id}`}>Open Vehicle 360</Link>
                   <button className="button button-secondary" disabled={busy} onClick={() => void load(item.id)} type="button">Preview here</button>
                 </div>
               </article>
-            )) : <p>No vehicles match this search.</p>}
+            )) : <div className="vehicle-map-empty"><h3>No vehicle found here yet</h3><p>If staff know the vehicle exists, search by VIN, stock number, plate, customer, or vehicle number. If it still does not appear, use Add Vehicle so the system can either find the existing canonical record or create one.</p><div className="form-actions"><Link className="button button-primary" href="/vehicles/workflows/add-vehicle">Add / Find Vehicle</Link><Link className="button button-secondary" href="/vehicles/inventory">Back to Inventory Lifecycle</Link></div></div>}
           </div>
         </section>
 
@@ -541,8 +549,8 @@ export function VehicleRegistryWorkspace({
                 <div><dt>Latest odometer</dt><dd>{selected.odometerObservations[0] ? `${selected.odometerObservations[0].reading.toLocaleString()} ${selected.odometerObservations[0].unit}` : "No observation"}</dd></div>
               </dl>
               <div className="form-actions">
-                <Link className="button button-primary" href={`/vehicles/360/${selected.id}`}>Open Vehicle 360</Link>
-                <Link className="button button-secondary" href={`/vehicles/${selected.id}/workbench`}>Open workspace</Link>
+                <Link className="button button-primary" href={vehicleWorkbenchHref(selected.id)}>Open Vehicle Workbench</Link>
+                <Link className="button button-secondary" href={`/vehicles/360/${selected.id}`}>Open Vehicle 360</Link>
                 {registryLocked ? null : (
                   <>
                     <button className="button button-secondary" disabled={busy} onClick={correctIdentity} type="button">Revalidate identity</button>
@@ -568,10 +576,10 @@ export function VehicleRegistryWorkspace({
               ) : null}
             </div>
           ) : (
-            <div className="page-copy">
-              <h2>Open the vehicle workspace faster</h2>
-              <p>Search by VIN, stock number, plate, customer, or external ID. If there is one match, it opens here automatically.</p>
-            </div>
+          <div className="page-copy">
+            <h2>Open the vehicle workspace faster</h2>
+            <p>Search by VIN, stock number, plate, customer, or external ID. If there is one match, it opens here automatically and gives staff a direct Vehicle Workbench button.</p>
+          </div>
           )}
         </section>
       </div>
@@ -628,8 +636,8 @@ export function VehicleRegistryWorkspace({
             <p>Registry correction, mileage, and custody commands are locked for this rollout, so this page keeps the vehicle readable and sends staff directly to the workspaces that are available.</p>
           </div>
           <div className="form-actions">
-            <Link className="button button-primary" href={`/vehicles/360/${selected.id}`}>Open Vehicle 360</Link>
-            <Link className="button button-secondary" href={`/vehicles/${selected.id}/workbench`}>Open workspace</Link>
+            <Link className="button button-primary" href={vehicleWorkbenchHref(selected.id)}>Open Vehicle Workbench</Link>
+            <Link className="button button-secondary" href={`/vehicles/360/${selected.id}`}>Open Vehicle 360</Link>
             <Link className="button button-secondary" href="/vehicles/inventory">Back to Inventory Lifecycle</Link>
           </div>
           <p className="notice notice-info">Mileage is now collected in Create canonical identity when registry writes are enabled.</p>
@@ -654,6 +662,7 @@ export function VehicleRegistryWorkspace({
           <div className="form-actions">
             <button className="button button-secondary" disabled={busy || registryLocked} onClick={correctIdentity} type="button">Validate and save correction</button>
             <Link className="button button-secondary" href={`/vehicles/360/${selected.id}`}>Open observations in Vehicle 360</Link>
+            <Link className="button button-primary" href={vehicleWorkbenchHref(selected.id)}>Open Vehicle Workbench</Link>
           </div>
         </section>
       ) : null}
