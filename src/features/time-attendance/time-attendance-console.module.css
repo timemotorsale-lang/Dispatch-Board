@@ -423,6 +423,482 @@
   font-size: 0.78rem;
 }
 
+.captureStatus {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 14px;
+}
+
+.captureStatus div {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.captureStatus span {
+  color: var(--muted);
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.captureStatus strong {
+  display: block;
+  font-size: 0.98rem;
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+}
+
+.captureActions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.capturePrimary,
+.captureSecondary,
+.captureRefresh {
+  align-items: center;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 900;
+  gap: 8px;
+  justify-content: center;
+  padding: 11px 15px;
+}
+
+.capturePrimary {
+  background: #0f172a;
+  color: white;
+}
+
+.captureSecondary,
+.captureRefresh {
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.captureRefresh {
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.capturePrimary:disabled,
+.captureSecondary:disabled,
+.captureRefresh:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.captureNotice,
+.captureError {
+  align-items: flex-start;
+  border-radius: 16px;
+  display: flex;
+  font-size: 0.88rem;
+  font-weight: 800;
+  gap: 9px;
+  line-height: 1.5;
+  margin: 14px 0 0;
+  padding: 12px;
+}
+
+.captureNotice {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.captureError {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.correctionForm {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.timeOffForm {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.timeOffForm label {
+  display: grid;
+  gap: 6px;
+}
+
+.timeOffForm label span {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.timeOffForm input,
+.timeOffForm select,
+.timeOffForm textarea {
+  background: #f8fafc;
+  border: 1px solid #dbe4ef;
+  border-radius: 14px;
+  color: var(--ink);
+  font: inherit;
+  padding: 11px 12px;
+}
+
+.timeOffForm textarea {
+  resize: vertical;
+}
+
+.correctionForm label {
+  display: grid;
+  gap: 6px;
+}
+
+.correctionForm label span {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.correctionForm input,
+.correctionForm select,
+.correctionForm textarea {
+  background: #f8fafc;
+  border: 1px solid #dbe4ef;
+  border-radius: 14px;
+  color: var(--ink);
+  font: inherit;
+  padding: 11px 12px;
+}
+
+.correctionForm textarea {
+  resize: vertical;
+}
+
+.correctionWide,
+.correctionFooter {
+  grid-column: 1 / -1;
+}
+
+.correctionFooter {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.correctionFooter p {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.correctionFooter button {
+  align-items: center;
+  background: #0f172a;
+  border: 0;
+  border-radius: 999px;
+  color: white;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 900;
+  gap: 8px;
+  justify-content: center;
+  padding: 11px 15px;
+  white-space: nowrap;
+}
+
+.correctionFooter button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.attestationCardFacts {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 14px;
+}
+
+.attestationCardFacts div {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.attestationCardFacts span {
+  color: var(--muted);
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.attestationCardFacts strong {
+  display: block;
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+}
+
+.attestationForm {
+  display: grid;
+  gap: 12px;
+}
+
+.attestationForm label {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #dbe4ef;
+  border-radius: 16px;
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+}
+
+.attestationForm label span,
+.attestationForm button {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+
+.attestationForm textarea {
+  background: #f8fafc;
+  border: 1px solid #dbe4ef;
+  border-radius: 14px;
+  color: var(--ink);
+  font: inherit;
+  padding: 11px 12px;
+  resize: vertical;
+}
+
+.attestationStatement {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 16px;
+  color: #1e3a8a;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  margin: 0;
+  padding: 12px;
+}
+
+.attestationForm button {
+  background: #0f172a;
+  border: 0;
+  border-radius: 999px;
+  color: white;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 900;
+  justify-content: center;
+  padding: 11px 15px;
+  width: fit-content;
+}
+
+.attestationForm button:disabled,
+.attestationForm input:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.managerReviewMetrics {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 14px;
+}
+
+.managerReviewMetrics div {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.managerReviewMetrics span {
+  color: var(--muted);
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.managerReviewMetrics strong {
+  display: block;
+  font-size: 1.35rem;
+  margin-top: 5px;
+}
+
+.managerReviewList {
+  display: grid;
+  gap: 10px;
+}
+
+.managerReviewItem {
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  color: inherit;
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  text-decoration: none;
+}
+
+.managerReviewContent {
+  display: grid;
+  flex: 1;
+  gap: 4px;
+}
+
+.managerReviewItem strong,
+.managerReviewEmpty strong {
+  display: block;
+}
+
+.managerReviewItem small {
+  color: var(--muted);
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 800;
+  margin-top: 3px;
+}
+
+.managerReviewItem p,
+.managerReviewEmpty p {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
+  margin: 5px 0 0;
+}
+
+.managerReviewIcon {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.managerReviewDanger {
+  border-color: #fecaca;
+}
+
+.managerReviewDanger .managerReviewIcon {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.managerReviewWarning {
+  border-color: #fed7aa;
+}
+
+.managerReviewWarning .managerReviewIcon {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.managerReviewInfo .managerReviewIcon {
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.managerReviewEmpty {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  display: grid;
+  gap: 5px;
+  justify-items: center;
+  padding: 22px;
+  text-align: center;
+}
+
+.managerDecisionForm {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(130px, 0.7fr) minmax(160px, 1fr) auto;
+  margin-top: 10px;
+}
+
+.managerDecisionForm input,
+.managerDecisionForm select {
+  background: white;
+  border: 1px solid #dbe4ef;
+  border-radius: 12px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 9px 10px;
+}
+
+.managerDecisionForm button {
+  background: #0f172a;
+  border: 0;
+  border-radius: 999px;
+  color: white;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 900;
+  padding: 9px 12px;
+  white-space: nowrap;
+}
+
+.managerDecisionForm button:disabled,
+.managerDecisionForm input:disabled,
+.managerDecisionForm select:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.inlineSuccess,
+.inlineError {
+  border-radius: 12px;
+  font-size: 0.82rem !important;
+  font-weight: 800;
+  margin-top: 8px !important;
+  padding: 9px 10px;
+}
+
+.inlineSuccess {
+  background: var(--success-soft);
+  color: var(--success) !important;
+}
+
+.inlineError {
+  background: var(--danger-soft);
+  color: var(--danger) !important;
+}
+
 .mvpNote {
   background: #eff6ff;
   border: 1px solid #bfdbfe;
@@ -444,7 +920,8 @@
   }
 
   .metricGrid,
-  .timeSummary {
+  .timeSummary,
+  .managerReviewMetrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -456,7 +933,8 @@
   }
 
   .metricGrid,
-  .timeSummary {
+  .timeSummary,
+  .managerReviewMetrics {
     grid-template-columns: 1fr;
   }
 
@@ -465,8 +943,18 @@
   .exceptionRow,
   .timelineItem,
   .queueItem,
-  .teamRow {
+  .teamRow,
+  .correctionFooter {
     display: grid;
+  }
+
+  .correctionForm,
+  .timeOffForm {
+    grid-template-columns: 1fr;
+  }
+
+  .managerDecisionForm {
+    grid-template-columns: 1fr;
   }
 
   .teamNumbers {

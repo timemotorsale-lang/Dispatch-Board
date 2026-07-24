@@ -45,12 +45,12 @@
 
 | ID | Status | Work | Exit criteria |
 | --- | --- | --- | --- |
-| TA-030 | [~] | Employee My Time/capture surface | First CCC page shell and time-card preview exist; live capture commands and honest offline/error states remain pending |
-| TA-031 | [ ] | Employee card/review/correction | Timeline, totals, disputes, corrections and history |
-| TA-032 | [ ] | Employee attestation | Versioned statement, attest/dispute, no rights waiver |
-| TA-033 | [~] | Exception-first manager console | Approved CCC review rail exists with rule-backed preview data; live read models and protected manager commands remain pending |
-| TA-034 | [ ] | Manager correction/approval | Reasoned correction, return, approve and bulk-clean approval |
-| TA-035 | [ ] | Time-off request and manager queue | Ordinary PTO/ESST/unpaid requests, privacy routing and availability |
+| TA-030 | [~] | Employee My Time/capture surface | Staff current-state read and live clock/meal buttons are wired through protected capture commands; richer offline/mobile states remain pending |
+| TA-031 | [~] | Employee card/review/correction | Employee card review includes a durable correction-request workflow; full correction history display remains pending |
+| TA-032 | [~] | Employee attestation | Versioned attest/dispute command and UI are present; UI submission awaits persisted card versions replacing preview cards |
+| TA-033 | [~] | Exception-first manager console | Protected manager queue surfaces correction requests, open exceptions, disputed attestations, and time-off review items; drill-in/filtering remains pending |
+| TA-034 | [~] | Manager correction/approval | Reasoned approve/return/deny/apply correction decisions are wired; exact event-level reprojection and bulk-clean approval remain pending |
+| TA-035 | [~] | Time-off request and manager queue | Staff PTO/ESST/unpaid requests and privacy-aware manager queue routing are wired; balance approval, leave-admin ownership, and payroll mapping remain pending |
 
 ## TA-G4 — Close and payroll handoff
 

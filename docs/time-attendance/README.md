@@ -5,7 +5,7 @@
 **Route:** `/time-attendance`  
 **Target:** Deployable Minnesota MVP with enterprise-safe foundations  
 **Foundation baseline:** 2026-07-23  
-**Implementation status:** Program documentation and executable policy foundation started; persistence, APIs, console UI, and production rollout are not yet implemented
+**Implementation status:** Program documentation, executable policy foundation, persistence schema, capture/calculation foundation, and first CCC console UI are started; live staff/manager workflows, payroll close, production rollout, and legal/payroll release approval are not yet complete
 
 ## Purpose
 
@@ -50,7 +50,9 @@ The MVP is usable when an approved Minnesota employee population can:
 | [RULES_AND_ALGORITHMS.md](RULES_AND_ALGORITHMS.md) | Deterministic calculations, reason codes, invariants, and fail-closed behavior |
 | [WORKFLOWS_AND_PERMISSIONS.md](WORKFLOWS_AND_PERMISSIONS.md) | Time card, correction, absence, approval, close, export, and recovery workflows |
 | [IMPLEMENTATION_ROADMAP.md](IMPLEMENTATION_ROADMAP.md) | Codex-sized milestones, dependencies, exit criteria, rollout, and deferred enterprise work |
+| [PHASE_TA_G3_IMPLEMENTATION_SCHEDULE.md](PHASE_TA_G3_IMPLEMENTATION_SCHEDULE.md) | First scheduled implementation phase, slice order, prompt contract, stop conditions, and exit criteria |
 | [TEST_RELEASE_AND_OPERATIONS.md](TEST_RELEASE_AND_OPERATIONS.md) | Golden cases, security/reliability verification, parallel payroll pilot, release gate, and operations |
+| [UI_SOURCE_OF_TRUTH.md](UI_SOURCE_OF_TRUTH.md) | Approved CCC console UI direction for the MVP first page |
 
 ## Source of truth order
 
@@ -105,5 +107,5 @@ This foundation does not yet claim:
 - protected-leave adjudication;
 - manager or employee notifications;
 - mobile offline capture;
-- a live `/time-attendance` page.
+- live staff/manager workflow actions behind the `/time-attendance` page.
 

@@ -1,5 +1,51 @@
 # Current Implementation Status
 
+## 2026-07-24 — Time & Attendance TA-035 time-off request workflow started
+
+TA-035 now has its first vertical implementation slice. Staff can submit PTO, Minnesota ESST, and unpaid time-off requests from the CCC Time & Attendance console through `/api/time-attendance/time-off`. Requests are idempotent, source-attributed, balance-snapshotted when a balance record exists, and do not change payroll by themselves.
+
+Minnesota ESST requests use protected routing: the private reason is hashed/restricted, the ordinary manager queue receives a redacted operational card, and the request enters leave-admin review rather than exposing private reason details in the general manager review surface. The exception-first manager queue now includes submitted ordinary time-off requests and protected ESST leave-admin review items.
+
+Remaining TA-035 hardening before production release includes configured accrual/balance policy approval, leave-admin ownership, payroll code mapping, holiday/company-closure handling, production notification routing, and migrated-runtime acceptance evidence.
+
+## 2026-07-24 — Time & Attendance TA-034 manager correction decision workflow started
+
+TA-034 now has its first vertical implementation slice. Managers can record reasoned correction-request decisions through `/api/time-attendance/manager-corrections` and the CCC Time & Attendance manager review panel. Supported decisions are approve, return for more information, deny, and apply an already-approved correction. Decisions are manager-only, idempotency-aware, and captured into the correction request evidence history.
+
+Applying a correction in this MVP does not rewrite original punch events. The action marks the approved correction request as applied for review/payroll handling, preserves the original punch trail, and records that payroll recalculation/reprojection is required before payroll handoff.
+
+Remaining TA-034 hardening before production release includes persisted card drill-in, exact event-level correction application/reprojection, post-attestation reopen behavior, separation-of-duties policy, and payroll close approval gates.
+
+## 2026-07-24 — Time & Attendance TA-033 manager exception queue started
+
+TA-033 now has its first vertical implementation slice. Managers can read a protected exception-first review queue through `/api/time-attendance/manager-review`, while non-managers receive a locked queue with no manager-sensitive details. The queue surfaces correction requests, open card exceptions, and disputed attestations, then orders them by severity and age.
+
+The `/time-attendance` page now includes a manager review panel with queue metrics and read-only review items. This checkpoint intentionally does not approve, deny, correct, waive, or alter payable time; manager decision and correction authority remain TA-034.
+
+## 2026-07-24 — Time & Attendance TA-032 employee attestation started
+
+TA-032 now has its first vertical implementation slice. A protected `/api/time-attendance/attestations` endpoint records employee attestations or disputes against a specific `TimeCard` version and checksum. Attestation evidence stores the decision, idempotency context, dispute explanation when present, request hash, and an explicit `rightsWaiver: false` marker.
+
+The `/time-attendance` page now shows an employee attestation panel with confirm/dispute choices and no-rights-waiver language. Because the visible card is still preview/read-model-backed, the UI keeps attestation submission disabled until a persisted time-card version is available. Live persisted card projection, attestation history display, and post-attestation reopen behavior remain later work.
+
+## 2026-07-24 — Time & Attendance TA-031 correction request workflow started
+
+TA-031 now has its first vertical implementation slice. Employees can submit a time-card correction request from `/time-attendance` without changing the original punch trail. The request is durable, idempotent, status-tracked, and includes requested date/time context, change type, employee explanation, and evidence that the source punches remain append-only.
+
+The new protected `/api/time-attendance/corrections` endpoint creates correction requests for the authenticated staff member and rejects reused idempotency keys when the submitted content differs. Manager decision, manager correction application, full correction history display, attestation reopening, and payroll impact are intentionally deferred to later TA-G3 slices.
+
+## 2026-07-24 — Time & Attendance TA-030 staff capture surface started
+
+TA-030 now has its first vertical implementation slice. The `/time-attendance` CCC console reads the authenticated staff member's current attendance state and presents valid clock/meal actions: clock in, start meal, end meal, and clock out. Actions call the existing protected capture command boundary with expected version, idempotency key, exact occurrence timestamp, location, timezone, and reason. The API now also exposes current capture state for staff refresh after each action.
+
+This checkpoint does not claim production rollout, kiosk/device policy, offline/mobile capture, correction workflow, attestation, payroll close, or legal/payroll release approval. Team cards and payroll readiness remain preview/read-model work until later slices.
+
+## 2026-07-24 — Time & Attendance TA-G3 implementation branch opened
+
+The Time & Attendance workflow implementation branch is `codex/time-attendance-g3-workflows`. Its first scheduled phase is documented in [`docs/time-attendance/PHASE_TA_G3_IMPLEMENTATION_SCHEDULE.md`](time-attendance/PHASE_TA_G3_IMPLEMENTATION_SCHEDULE.md), covering TA-030 through TA-035 in order: employee capture, card review/correction, attestation, manager exception console, manager correction/approval, and time-off request workflow.
+
+This checkpoint schedules repository implementation only. It does not commit, push, merge, activate production rollout, apply live migrations, or claim legal/payroll release approval.
+
 ## 2026-07-24 — Time & Attendance CCC console first UI
 
 The approved Time & Attendance mockup is now adopted as the official UI source of truth in [`docs/time-attendance/UI_SOURCE_OF_TRUTH.md`](time-attendance/UI_SOURCE_OF_TRUTH.md). The console is placed on the CCC board as an active `/time-attendance` module, not inside the Dispatch console.
