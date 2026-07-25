@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { KeyboardEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 
+import { evaluateEstimatePartsTaxPolicy, type EstimateRequiredPart } from "@/server/diagnostics/estimate-parts-tax-policy";
 import { analyzeLaborLanguage } from "@/server/diagnostics/labor-language-intelligence";
 import type { LaborOperationSystem, LaborRepairOperation } from "@/server/diagnostics/labor-operation-taxonomy";
 
@@ -19,7 +20,7 @@ type ActiveRepairOrder = {
   vehicle: { id?: string; label: string; vin: string };
 };
 
-type SelectedLabor = LaborRepairOperation & { rowId: string };
+type SelectedLabor = LaborRepairOperation & { rowId: string; source?: "SELECTED" | "POLICY_REQUIRED" };
 type LaborDraft = { hours: string; included: string; title: string };
 
 type SelectedPart = {
@@ -28,8 +29,11 @@ type SelectedPart = {
   laborRowId: string;
   name: string;
   number: string;
+  policyRequirementKey?: string;
+  pricingStatus?: "ESTIMATED" | "PRICE_PENDING";
   quantity: number;
-  source?: "AUTO_CATALOG" | "MANUAL";
+  source?: "AUTO_CATALOG" | "MANUAL" | "POLICY_REQUIRED";
+  taxable?: boolean;
   unitPrice: number;
 };
 
@@ -62,7 +66,7 @@ type PartsWorkspacePart = { description: string; id: string; partNumber: string;
 
 const laborRate = 129.02;
 const commonSuggestedAddOns = [
-  { id: "road-test", label: "Road test and brake noise verification", hours: 0.3 },
+  { id: "road-test", label: "Road test and repair verification", hours: 0.3 },
   { id: "torque-verification", label: "Torque verification", hours: 0.2 },
   { id: "brake-fluid-service", label: "Brake hydraulic bleed / fluid exchange", hours: 0.8 },
 ];
@@ -76,6 +80,21 @@ const defaultParts: SelectedPart[] = [
 const money = (value: number) => `$${value.toLocaleString("en-US", { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`;
 const displayLabel = (value: string) => value.replaceAll("_", " ").toLocaleLowerCase().replace(/^./, (letter) => letter.toLocaleUpperCase());
 const partsMarkup = 1.35;
+
+function requiredPartToSelectedPart(part: EstimateRequiredPart): SelectedPart {
+  return {
+    id: `${part.laborOperationId}-${part.key}`,
+    laborRowId: part.laborOperationId,
+    name: part.description,
+    number: part.partNumber,
+    policyRequirementKey: part.key,
+    pricingStatus: part.pricingStatus,
+    quantity: part.quantity,
+    source: "POLICY_REQUIRED",
+    taxable: part.taxable,
+    unitPrice: part.unitPriceCents / 100
+  };
+}
 
 function partSearchTerms(operation: LaborRepairOperation) {
   const title = operation.title.toLocaleLowerCase();
@@ -111,9 +130,10 @@ function matchesRepairText(operation: LaborRepairOperation, searchText: string) 
   return matchedWords.length >= Math.min(2, words.length);
 }
 
-export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "manual", initialSelectedWork = "starter", initialWorkTab = "selected", repairTaxonomy }: { activeRepairOrder: ActiveRepairOrder | null; catalog: unknown[]; initialMode?: "manual" | "engine"; initialSelectedWork?: "empty" | "starter"; initialWorkTab?: WorkTab; laborAddOns: unknown[]; repairOrders?: { id: string; label: string }[]; repairTaxonomy: LaborOperationSystem[] }) {
+export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "manual", initialSelectedWork = "starter", initialWorkTab = "selected", repairTaxonomy }: { activeRepairOrder: ActiveRepairOrder | null; catalog: unknown[]; initialMode?: "manual" | "engine"; initialSelectedWork?: "empty" | "starter" | "transmission"; initialWorkTab?: WorkTab; laborAddOns: unknown[]; repairOrders?: { id: string; label: string }[]; repairTaxonomy: LaborOperationSystem[] }) {
   const allOperations = useMemo(() => repairTaxonomy.flatMap((system) => system.groups.flatMap((group) => group.operations)), [repairTaxonomy]);
   const brakeStarter = allOperations.filter((operation) => ["front-brake-pads-rotors", "brake-caliper-front"].includes(operation.id));
+  const transmissionStarter = allOperations.filter((operation) => operation.id === "transmission-remove-install");
   const [mode, setMode] = useState<"manual" | "engine">(initialMode);
   const [activeSystemId, setActiveSystemId] = useState(repairTaxonomy.find((system) => system.id === "brakes")?.id ?? repairTaxonomy[0]?.id ?? "");
   const [query, setQuery] = useState("");
@@ -122,8 +142,8 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   const [view, setView] = useState<"list" | "board">("list");
   const [openGroupId, setOpenGroupId] = useState<string>("");
   const [workTab, setWorkTab] = useState<WorkTab>(initialWorkTab);
-  const [selectedLabor, setSelectedLabor] = useState<SelectedLabor[]>(initialSelectedWork === "empty" ? [] : brakeStarter.map((operation) => ({ ...operation, rowId: operation.id })));
-  const [selectedParts, setSelectedParts] = useState<SelectedPart[]>(initialSelectedWork === "empty" ? [] : defaultParts);
+  const [selectedLabor, setSelectedLabor] = useState<SelectedLabor[]>(initialSelectedWork === "empty" ? [] : (initialSelectedWork === "transmission" ? transmissionStarter : brakeStarter).map((operation) => ({ ...operation, rowId: operation.id })));
+  const [selectedParts, setSelectedParts] = useState<SelectedPart[]>(initialSelectedWork === "starter" ? defaultParts : []);
   const [evidenceDrafts, setEvidenceDrafts] = useState<EvidenceDraft[]>([]);
   const [evidenceNote, setEvidenceNote] = useState("");
   const [evidenceCategory, setEvidenceCategory] = useState<EvidenceDraft["category"]>("DIAGNOSTIC_PHOTO");
@@ -171,18 +191,27 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   }, [activeSystem, catalogOperations, normalizedQuery]);
   const visibleGroupId = openGroupId && groupedCatalog.some((group) => group.id === openGroupId) ? openGroupId : normalizedQuery ? groupedCatalog[0]?.id ?? "" : "";
 
-  const totalHours = selectedLabor.reduce((sum, item) => sum + item.hours, 0);
+  const estimatePolicy = useMemo(() => evaluateEstimatePartsTaxPolicy({ labor: selectedLabor, parts: selectedParts }), [selectedLabor, selectedParts]);
+  const estimateLabor = useMemo(() => [
+    ...selectedLabor,
+    ...allOperations
+      .filter((operation) => estimatePolicy.requiredAddOnIds.includes(operation.id) && !selectedLabor.some((item) => item.id === operation.id))
+      .map((operation) => ({ ...operation, rowId: operation.id, source: "POLICY_REQUIRED" as const }))
+  ], [allOperations, estimatePolicy.requiredAddOnIds, selectedLabor]);
+  const totalHours = estimateLabor.reduce((sum, item) => sum + item.hours, 0);
   const laborTotal = totalHours * laborRate;
-  const partsTotal = selectedParts.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+  const estimateParts = useMemo(() => [
+    ...selectedParts,
+    ...estimatePolicy.missingRequiredParts.map(requiredPartToSelectedPart)
+  ], [estimatePolicy.missingRequiredParts, selectedParts]);
+  const partsTotal = estimateParts.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
   const subtotal = laborTotal + partsTotal;
-  const taxAndSupplies = subtotal > 0 ? subtotal * 0.08 + 55.45 : 0;
+  const taxAndSupplies = estimatePolicy.tax.taxCents / 100;
   const total = subtotal + taxAndSupplies;
   const activeRoHref = selectedRepairOrder ? `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}` : "/vehicles/repair-workbench?view=all";
   const suggestedAddOns = useMemo(() => {
-    const requiredIds = new Set(selectedLabor.flatMap((item) => item.requiredAddOns));
-    const required = allOperations.filter((operation) => requiredIds.has(operation.id)).map((operation) => ({ id: operation.id, label: operation.title, hours: operation.hours }));
-    return [...required, ...commonSuggestedAddOns].filter((item, index, items) => items.findIndex((candidate) => candidate.id === item.id) === index && !acceptedAddOnIds.includes(item.id)).slice(0, 4);
-  }, [acceptedAddOnIds, allOperations, selectedLabor]);
+    return commonSuggestedAddOns.filter((item, index, items) => items.findIndex((candidate) => candidate.id === item.id) === index && !acceptedAddOnIds.includes(item.id) && !estimatePolicy.requiredAddOnIds.includes(item.id)).slice(0, 4);
+  }, [acceptedAddOnIds, estimatePolicy.requiredAddOnIds]);
 
   useEffect(() => {
     const query = lookupQuery.trim();
@@ -383,7 +412,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
 
   const lineKey = (prefix: string, id: string) => `${prefix}-${id.replace(/[^a-z0-9-]/gi, "-").toLocaleLowerCase()}`;
   const lineItems = useMemo(() => [
-    ...selectedLabor.map((item) => ({
+    ...estimateLabor.map((item) => ({
       description: item.title,
       key: lineKey("labor", item.rowId),
       laborGuideMinutes: Math.round(item.hours * 60),
@@ -394,18 +423,18 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
       unitPriceCents: Math.round(item.hours * laborRate * 100),
       workTypeCode: item.operation.toUpperCase().replaceAll(" ", "_").replaceAll("/", "_"),
     })),
-    ...selectedParts.map((part) => ({
+    ...estimateParts.map((part) => ({
       description: `${part.name} (${part.number})`,
       key: lineKey("part", part.id),
       laborGuideMinutes: 0,
       plannedCorrection: `Supply ${part.name}`,
       quantity: part.quantity,
-      taxable: true,
+      taxable: part.taxable !== false,
       type: "PART" as const,
       unitPriceCents: Math.round(part.unitPrice * 100),
       workTypeCode: "PART",
     })),
-  ], [selectedLabor, selectedParts]);
+  ], [estimateLabor, estimateParts]);
 
   async function presentEstimate() {
     if (!selectedRepairOrder) {
@@ -431,9 +460,9 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
           diagnosedAt: now.toISOString(),
           evidence: ["RO creation workspace selected labor package"],
           idempotencyKey: crypto.randomUUID(),
-          proposedCorrection: selectedLabor.map((item) => item.title).join("; ") || "Review selected repair operations.",
+          proposedCorrection: estimateLabor.map((item) => item.title).join("; ") || "Review selected repair operations.",
           reason: "Record diagnosis context from the RO creation workspace before presenting a governed estimate.",
-          recommendation: selectedLabor.map((item) => item.title).join("; ") || "Review selected repair operations.",
+          recommendation: estimateLabor.map((item) => item.title).join("; ") || "Review selected repair operations.",
           symptoms: [selectedRepairOrder.concern || "Repair concern"],
           technicianUserId: detail.ownerUser.id,
           tests: [{ name: "Advisor estimate workspace review", result: "Labor and parts package prepared for estimate presentation." }],
@@ -442,7 +471,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
       });
       const presentedAt = new Date();
       const expiresAt = new Date(presentedAt.getTime() + 7 * 86_400_000);
-      const taxCents = Math.round(partsTotal * 0.08 * 100);
+      const taxCents = estimatePolicy.tax.taxCents;
       const result = await request<{ result?: { estimateVersion?: number; totalCents?: number } }>(`/api/repair-orders/${encodeURIComponent(selectedRepairOrder.id)}/planning`, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -457,7 +486,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
           presentationChannel: "INTERNAL",
           presentedAt: presentedAt.toISOString(),
           reason: "Present governed estimate from RO creation workspace selected labor and parts.",
-          taxBoundary: "Tax is estimated in the workspace and remains subject to final advisor review.",
+          taxBoundary: estimatePolicy.tax.taxSummary,
           taxCents,
         }),
       });
@@ -477,7 +506,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
     setBusy(true);
     setNotice("");
     try {
-      for (const part of selectedParts) {
+      for (const part of estimateParts) {
         const partQuery = await request<{ parts?: PartsWorkspacePart[] }>(`/api/parts?query=${encodeURIComponent(part.number)}`);
         let partId = part.catalogPartId ?? partQuery.parts?.find((item) => item.partNumber.toLocaleUpperCase() === part.number.toLocaleUpperCase())?.id;
         if (!partId) {
@@ -505,7 +534,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
             partId,
             quantityRequired: part.quantity,
             reason: "Create repair part demand from RO creation workspace.",
-            repairJobReference: selectedLabor.find((item) => item.rowId === part.laborRowId)?.title ?? null,
+            repairJobReference: estimateLabor.find((item) => item.rowId === part.laborRowId)?.title ?? null,
             requiredAt: new Date(Date.now() + 24 * 3_600_000).toISOString(),
             substitutionAllowed: true,
           }),
@@ -517,6 +546,12 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
     } finally {
       setBusy(false);
     }
+  }
+
+  function partSourceLabel(part: SelectedPart) {
+    if (part.source === "POLICY_REQUIRED") return part.pricingStatus === "PRICE_PENDING" ? "Required - price pending" : "Required by repair policy";
+    if (part.source === "AUTO_CATALOG") return "Auto from parts catalog";
+    return "Manual";
   }
 
   return (
@@ -653,9 +688,9 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
           <section className={styles.workTray} aria-label="RO work tray">
             <nav>
               {[
-                ["selected", `Selected Work ${selectedLabor.length}`],
+                ["selected", `Selected Work ${estimateLabor.length}`],
                 ["labor", "Add Labor"],
-                ["parts", `Parts ${selectedParts.length}`],
+                ["parts", `Parts ${estimateParts.length}`],
                 ["evidence", `Evidence ${evidenceDrafts.length}`],
                 ["customer", "Customer / Vehicle"],
                 ["notes", "Notes"],
@@ -666,7 +701,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
               <section className={styles.evidencePanel} aria-label="Repair evidence uploads">
                 <div className={styles.evidenceUploader}>
                   <label><span>Evidence type</span><select onChange={(event) => setEvidenceCategory(event.target.value as EvidenceDraft["category"])} value={evidenceCategory}><option value="DIAGNOSTIC_PHOTO">Diagnostic photo</option><option value="REPAIR_PHOTO">Repair photo</option><option value="SCAN_REPORT">Scan report</option><option value="MEASUREMENT">Measurement / test note</option><option value="DOCUMENT">Document</option></select></label>
-                  <label><span>Attach to</span><select onChange={(event) => setEvidenceAttachedTo(event.target.value)} value={evidenceAttachedTo}><option value="RO">Entire RO</option>{selectedLabor.map((item) => <option key={item.rowId} value={item.rowId}>{item.title}</option>)}</select></label>
+                  <label><span>Attach to</span><select onChange={(event) => setEvidenceAttachedTo(event.target.value)} value={evidenceAttachedTo}><option value="RO">Entire RO</option>{estimateLabor.map((item) => <option key={item.rowId} value={item.rowId}>{item.title}</option>)}</select></label>
                   <label><span>Visibility</span><select onChange={(event) => setEvidenceAccessLevel(event.target.value as EvidenceDraft["accessLevel"])} value={evidenceAccessLevel}><option value="INTERNAL">Internal only</option><option value="CUSTOMER_VISIBLE">Customer-facing</option></select></label>
                   <label className={styles.evidenceNote}><span>Evidence note</span><textarea onChange={(event) => setEvidenceNote(event.target.value)} placeholder="Example: front right lower control arm bushing torn; photo taken before removal." value={evidenceNote} /></label>
                   <label className={styles.fileDrop}><Plus /><span>Upload photos, videos, scan reports, or documents</span><input multiple onChange={(event) => stageEvidenceFiles(event.target.files)} type="file" /></label>
@@ -682,7 +717,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
             <div className={styles.trayGrid}>
               <section>
                 <header><h3>Labor</h3><button onClick={() => setWorkTab("labor")} type="button"><Plus />Add labor</button></header>
-                <table><tbody>{selectedLabor.map((item, index) => editingLaborRowId === item.rowId ? (
+                <table><tbody>{estimateLabor.map((item, index) => editingLaborRowId === item.rowId ? (
                   <tr className={styles.editingLaborRow} key={item.rowId}>
                     <td>{index + 1}</td>
                     <td>
@@ -692,14 +727,23 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
                     <td><label>Hours<input inputMode="decimal" onChange={(event) => setLaborDraft((current) => ({ ...current, hours: event.target.value }))} value={laborDraft.hours} /></label></td>
                     <td><button onClick={() => saveLaborEdit(item.rowId)} type="button"><Check />Save</button><button onClick={cancelLaborEdit} type="button"><X />Cancel</button></td>
                   </tr>
-                ) : <tr key={item.rowId}><td>{index + 1}</td><td>{item.title}<small>{item.included.slice(0, 2).join(" · ")}</small></td><td>{item.hours.toFixed(1)} hrs</td><td><button aria-label={`Edit ${item.title}`} onClick={() => startLaborEdit(item)} type="button"><Edit3 /></button><button aria-label={`Delete ${item.title}`} onClick={() => deleteLabor(item.rowId)} type="button"><Trash2 /></button></td></tr>)}</tbody></table>
+                ) : <tr key={item.rowId}><td>{index + 1}</td><td>{item.title}<small>{item.included.slice(0, 2).join(" · ")}{item.source === "POLICY_REQUIRED" ? " · Required by repair policy" : ""}</small></td><td>{item.hours.toFixed(1)} hrs</td><td>{item.source === "POLICY_REQUIRED" ? <span className={styles.lockedPart}>Required</span> : <><button aria-label={`Edit ${item.title}`} onClick={() => startLaborEdit(item)} type="button"><Edit3 /></button><button aria-label={`Delete ${item.title}`} onClick={() => deleteLabor(item.rowId)} type="button"><Trash2 /></button></>}</td></tr>)}</tbody></table>
               </section>
               <section>
                 <header><h3>Parts</h3><button onClick={addManualPart} type="button"><Plus />Add manual part</button></header>
-                <table><tbody>{selectedParts.map((part) => <tr key={part.id}><td>{part.name}<small>{part.number} · {part.source === "AUTO_CATALOG" ? "Auto from parts catalog" : "Manual"}</small></td><td>{part.quantity}</td><td>{money(part.unitPrice)}</td><td>{money(part.quantity * part.unitPrice)}</td><td><button onClick={() => editPart(part.id)} type="button"><Edit3 /></button><button onClick={() => deletePart(part.id)} type="button"><Trash2 /></button></td></tr>)}</tbody></table>
+                <table><tbody>{estimateParts.map((part) => <tr key={part.id}><td>{part.name}<small>{part.number} · {partSourceLabel(part)}</small></td><td>{part.quantity}</td><td>{part.pricingStatus === "PRICE_PENDING" ? "Pending" : money(part.unitPrice)}</td><td>{money(part.quantity * part.unitPrice)}</td><td>{part.source === "POLICY_REQUIRED" ? <span className={styles.lockedPart}>Required</span> : <><button onClick={() => editPart(part.id)} type="button"><Edit3 /></button><button onClick={() => deletePart(part.id)} type="button"><Trash2 /></button></>}</td></tr>)}</tbody></table>
                 {partsCatalogBusy ? <p className={styles.partsCatalogStatus}>Matching labor to parts catalog...</p> : null}
               </section>
             </div>
+            {estimatePolicy.readinessCodes.length ? (
+              <section className={styles.estimatePolicyCard} aria-label="Estimate parts and tax policy">
+                <header><div><h3>Estimate Parts & Tax Policy</h3><p>{estimatePolicy.version}</p></div></header>
+                <div>
+                  {estimatePolicy.readinessCodes.map((code) => <span key={code}>{displayLabel(code)}</span>)}
+                </div>
+                <p>{estimatePolicy.tax.taxSummary}</p>
+              </section>
+            ) : null}
             <section className={styles.suggestedAddOns} aria-label="Automatic suggested add-ons">
               <header><div><h3>Automatic Suggested Add-Ons</h3><p>Based on selected labor lines and common verification steps.</p></div></header>
               <div>
@@ -722,7 +766,8 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
                 <div><dt>Labor retail</dt><dd>{money(laborTotal)}</dd></div>
                 <div><dt>Parts</dt><dd>{money(partsTotal)}</dd></div>
                 <div><dt>Subtotal</dt><dd>{money(subtotal)}</dd></div>
-                <div><dt>Tax and supplies</dt><dd>{money(taxAndSupplies)}</dd></div>
+                <div><dt>MN taxable parts</dt><dd>{money(estimatePolicy.tax.taxablePartsCents / 100)}</dd></div>
+                <div><dt>Tax</dt><dd>{money(taxAndSupplies)}</dd></div>
                 <div className={styles.total}><dt>Total</dt><dd>{money(total)}</dd></div>
                 <div><dt>Gross profit</dt><dd className={styles.good}>31.8%</dd></div>
               </dl>

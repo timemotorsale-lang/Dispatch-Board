@@ -36,7 +36,7 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("Add manual part");
     expect(markup).toContain("Auto from parts catalog");
     expect(markup).toContain("Automatic Suggested Add-Ons");
-    expect(markup).toContain("Road test and brake noise verification");
+    expect(markup).toContain("Road test and repair verification");
     expect(markup).toContain("Selected Work");
     expect(markup).toContain("Evidence 0");
     expect(markup).toContain("Edit Replace front brake pads and rotors");
@@ -81,8 +81,22 @@ describe("enterprise labor guide console", () => {
 
     expect(markup).toContain("Selected Work 0");
     expect(markup).toContain("Parts 0");
-    expect(markup).toContain("<dt>Tax and supplies</dt><dd>$0.00</dd>");
+    expect(markup).toContain("<dt>Tax</dt><dd>$0.00</dd>");
     expect(markup).toContain("<dt>Total</dt><dd>$0.00</dd>");
+  });
+
+  it("shows transmission replacement required parts, accessories, programming, and MN tax policy", () => {
+    const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={null} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} initialSelectedWork="transmission" laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={[]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
+
+    expect(markup).toContain("Remove and install transmission assembly");
+    expect(markup).toContain("Transmission assembly - VIN fitment and supplier price required");
+    expect(markup).toContain("Automatic transmission fluid - fill and level set allowance");
+    expect(markup).toContain("Transmission filter and pan gasket kit");
+    expect(markup).toContain("Axle/output shaft seal set");
+    expect(markup).toContain("Torque converter/front pump seal");
+    expect(markup).toContain("Transmission programming, configuration, and adaptive relearn");
+    expect(markup).toContain("MN taxable parts");
+    expect(markup).toContain("separately stated repair labor is not taxed");
   });
 
   it("provides an evidence upload workspace for RO photos and documents", () => {
