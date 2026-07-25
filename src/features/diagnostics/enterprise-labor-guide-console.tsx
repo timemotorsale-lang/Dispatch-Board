@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { KeyboardEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 
+import { analyzeLaborLanguage } from "@/server/diagnostics/labor-language-intelligence";
 import type { LaborOperationSystem, LaborRepairOperation } from "@/server/diagnostics/labor-operation-taxonomy";
 
 import styles from "./enterprise-labor-guide-console.module.css";
@@ -73,6 +74,7 @@ const defaultParts: SelectedPart[] = [
 ];
 
 const money = (value: number) => `$${value.toLocaleString("en-US", { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`;
+const displayLabel = (value: string) => value.replaceAll("_", " ").toLocaleLowerCase().replace(/^./, (letter) => letter.toLocaleUpperCase());
 const partsMarkup = 1.35;
 
 function partSearchTerms(operation: LaborRepairOperation) {
@@ -116,6 +118,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   const [activeSystemId, setActiveSystemId] = useState(repairTaxonomy.find((system) => system.id === "brakes")?.id ?? repairTaxonomy[0]?.id ?? "");
   const [query, setQuery] = useState("");
   const [enginePrompt, setEnginePrompt] = useState("");
+  const [analyzedEnginePrompt, setAnalyzedEnginePrompt] = useState("");
   const [view, setView] = useState<"list" | "board">("list");
   const [openGroupId, setOpenGroupId] = useState<string>("");
   const [workTab, setWorkTab] = useState<WorkTab>(initialWorkTab);
@@ -138,12 +141,21 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   const [partsCatalogBusy, setPartsCatalogBusy] = useState(false);
 
   const activeSystem = repairTaxonomy.find((system) => system.id === activeSystemId) ?? repairTaxonomy[0];
-  const normalizedQuery = (mode === "engine" ? enginePrompt : query).trim().toLocaleLowerCase();
+  const engineAnalysis = useMemo(
+    () => analyzeLaborLanguage(analyzedEnginePrompt, repairTaxonomy),
+    [analyzedEnginePrompt, repairTaxonomy]
+  );
+  const engineCandidatesById = useMemo(
+    () => new Map(engineAnalysis.candidates.map((candidate) => [candidate.operation.id, candidate])),
+    [engineAnalysis]
+  );
+  const normalizedQuery = (mode === "engine" ? analyzedEnginePrompt : query).trim().toLocaleLowerCase();
   const catalogOperations = useMemo(() => {
+    if (mode === "engine" && normalizedQuery) return engineAnalysis.candidates.map((candidate) => candidate.operation);
     const scoped = normalizedQuery ? allOperations : activeSystem?.groups.flatMap((group) => group.operations) ?? [];
     if (!normalizedQuery) return scoped;
     return scoped.filter((operation) => matchesRepairText(operation, normalizedQuery));
-  }, [activeSystem, allOperations, normalizedQuery]);
+  }, [activeSystem, allOperations, engineAnalysis, mode, normalizedQuery]);
   const groupedCatalog = useMemo(() => {
     const byGroup = new Map<string, { description: string; id: string; operations: LaborRepairOperation[]; title: string }>();
     if (normalizedQuery) {
@@ -211,11 +223,16 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
 
   function updateEnginePrompt(value: string) {
     setEnginePrompt(value);
+    setAnalyzedEnginePrompt("");
     setOpenGroupId("");
   }
 
   function analyzeEnginePrompt() {
-    setOpenGroupId(groupedCatalog[0]?.id ?? "");
+    const prompt = enginePrompt.trim();
+    const analysis = analyzeLaborLanguage(prompt, repairTaxonomy);
+    setAnalyzedEnginePrompt(prompt);
+    const first = analysis.candidates[0]?.operation;
+    setOpenGroupId(first ? `${first.system}:${first.subsystem}` : "");
   }
 
   function handleEnginePromptKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -226,6 +243,15 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
 
   function updateActiveSystem(systemId: string) {
     setActiveSystemId(systemId);
+    const system = repairTaxonomy.find((candidate) => candidate.id === systemId);
+    if (mode === "engine" && system) {
+      const analysis = analyzeLaborLanguage(system.title, repairTaxonomy);
+      const first = analysis.candidates[0]?.operation;
+      setEnginePrompt(system.title);
+      setAnalyzedEnginePrompt(system.title);
+      setOpenGroupId(first ? `${first.system}:${first.subsystem}` : "");
+      return;
+    }
     setOpenGroupId("");
   }
 
@@ -566,6 +592,19 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
             </div>
           )}
 
+          {mode === "engine" && analyzedEnginePrompt ? (
+            <section className={styles.languageAnalysis} aria-label="Language analysis">
+              <header>
+                <span>{displayLabel(engineAnalysis.intent)}</span>
+                <b data-confidence={engineAnalysis.confidence}>{displayLabel(engineAnalysis.confidence)}</b>
+                <small>{engineAnalysis.version}</small>
+              </header>
+              <p>{engineAnalysis.summary}</p>
+              {engineAnalysis.recognizedTerms.length ? <div>{engineAnalysis.recognizedTerms.map((term) => <span key={term}>{term}</span>)}</div> : null}
+              {engineAnalysis.clarification ? <strong>{engineAnalysis.clarification}</strong> : null}
+            </section>
+          ) : null}
+
           <div className={styles.categoryLinks} aria-label="Repair category shortcuts">
             {repairTaxonomy.map((system) => <button aria-current={system.id === activeSystemId} key={system.id} onClick={() => updateActiveSystem(system.id)} type="button">{system.title}</button>)}
           </div>
@@ -574,7 +613,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
             <section className={styles.operationGroups} aria-label={normalizedQuery ? "Matching repair groups" : `${activeSystem?.title ?? "Repair"} groups`}>
               {groupedCatalog.length === 0 ? (
                 <div className={styles.emptyCatalogResult}>
-                  <strong>No repair matches found</strong>
+                  <strong>{mode === "engine" ? "No reliable standard operation yet" : "No repair matches found"}</strong>
                   <span>{mode === "engine" ? "Try a little more detail, such as symptom, side, system, or component: “front brake grinding,” “battery not charging,” or “left control arm clunk.”" : "Try a component, symptom, category, or operation name like “battery,” “control arm,” “brake noise,” or “alignment.”"}</span>
                 </div>
               ) : null}
@@ -585,13 +624,22 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
                       <strong>{group.title}</strong>
                       <small>{group.description}</small>
                     </span>
-                    <b>{visibleGroupId === group.id ? "Hide" : `${group.operations.length} fixes`}</b>
+                    <b>{visibleGroupId === group.id ? "Hide" : `${group.operations.length} ${mode === "engine" ? "matches" : "fixes"}`}</b>
                   </button>
                   {visibleGroupId === group.id ? (
                     <div className={styles.operationResults}>
                       {group.operations.slice(0, view === "list" ? 12 : 8).map((operation) => (
                         <article key={operation.id} onDoubleClick={() => addLabor(operation)} role="group">
-                          <button className={styles.operationChoice} onClick={() => addLabor(operation)} type="button"><strong>{operation.title}</strong><small>{operation.included.slice(0, 3).join(", ")}</small></button>
+                          <button className={styles.operationChoice} onClick={() => addLabor(operation)} type="button">
+                            <strong>{operation.title}</strong>
+                            <small>{operation.included.slice(0, 3).join(", ")}</small>
+                            {mode === "engine" && engineCandidatesById.get(operation.id) ? (
+                              <small className={styles.matchExplanation}>
+                                <b>{displayLabel(engineCandidatesById.get(operation.id)!.confidence)}</b>
+                                {engineCandidatesById.get(operation.id)!.reasons.slice(0, 2).join(" · ")}
+                              </small>
+                            ) : null}
+                          </button>
                           <span>{operation.hours.toFixed(1)} hrs</span>
                         </article>
                       ))}
