@@ -4,9 +4,11 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 
 import { DiagnosticCaseWorkspace } from "@/features/diagnostics/diagnostic-case-workspace";
+import { TechnicianTroubleshootingConsole } from "@/features/diagnostics/technician-troubleshooting-console";
 import { DiagnosticAdvisorReviewConsole } from "@/features/diagnostics/advisor-review-console";
 import { DiagnosticAutobodyEstimateConsole } from "@/features/diagnostics/autobody-estimate-console";
 import { DiagnosticsCommandCenter } from "@/features/diagnostics/diagnostics-command-center";
+import { buildTechnicianTroubleshootingConsole } from "@/server/diagnostics/technician-troubleshooting-console";
 import type { DiagnosticCaseWorkspaceModel, DiagnosticsCommandCenterModel } from "@/server/diagnostics/service";
 
 const diagnosticCase = {
@@ -65,7 +67,25 @@ describe("diagnostics case console", () => {
     expect(html).toContain("Evidence review");
     expect(html).toContain("Quality &amp; safety gates");
     expect(html).toContain("DGN-019/1.0.0");
+    expect(html).toContain("Open troubleshooting console");
+    expect(html).toContain("/diagnostics/cases/dgc_case_1/troubleshooting");
     expect(html).not.toMatch(/\b\d{1,3}%\b/);
+  });
+
+  it("renders the technician troubleshooting console with the first four slices", () => {
+    const model = buildTechnicianTroubleshootingConsole({
+      generatedAt: "2026-07-25T12:00:00.000Z",
+      diagnosticCase: { ...diagnosticCase, concern: "transmission issues" },
+      qualitySafetyGates: { counts: { currentObservations: 0, currentMeasurements: 0, invalid: 0, suspect: 0, independentGroups: 0 }, readyForReasoning: false, reasonCodes: ["REASONING_INSUFFICIENT_EVIDENCE"] }
+    });
+    const html = renderToStaticMarkup(<TechnicianTroubleshootingConsole model={model} />);
+    expect(html).toContain("Technician Troubleshooting Console");
+    expect(html).toContain("Concern language interpretation");
+    expect(html).toContain("Vehicle intelligence check");
+    expect(html).toContain("Known issue library matches");
+    expect(html).toContain("Cause candidates without overclaiming");
+    expect(html).toContain("Low/contaminated fluid or leak path");
+    expect(html).toContain("AI assistant withheld");
   });
 
   it("renders the advisor review landing page with downstream authority blocks", () => {

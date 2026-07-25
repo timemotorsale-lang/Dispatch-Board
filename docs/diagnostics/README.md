@@ -42,6 +42,8 @@ The console owns the evidence-driven diagnostic case and reasoning lifecycle. It
 18. [`DIAGNOSTICS_ENTERPRISE_LABOR_GUIDE_UI_SOURCE_OF_TRUTH.md`](DIAGNOSTICS_ENTERPRISE_LABOR_GUIDE_UI_SOURCE_OF_TRUTH.md) — provisionally approved Enterprise Labor Guide landing-page mockup, advisor/technician/manager role boundaries, and implementation acceptance rules.
 19. [`DIAGNOSTICS_ENTERPRISE_LABOR_GUIDE_UI_BACKEND_CONTEXT.md`](DIAGNOSTICS_ENTERPRISE_LABOR_GUIDE_UI_BACKEND_CONTEXT.md) — adopted backend/product behavior context for the light Labor Guide mockup, DVI-to-estimate conversion, one-click draft creation, labor intelligence, parts query boundaries, and audit rules.
 20. [`DIAGNOSTICS_AUTOBODY_ESTIMATE_UI_SOURCE_OF_TRUTH.md`](DIAGNOSTICS_AUTOBODY_ESTIMATE_UI_SOURCE_OF_TRUTH.md) — provisionally approved Autobody Estimate Intelligence landing-page mockup, photo-to-estimate direction, insurance-quality draft boundaries, productivity signals, and authority rules.
+21. [`TECHNICIAN_TROUBLESHOOTING_CONSOLE_UI_SOURCE_OF_TRUTH.md`](TECHNICIAN_TROUBLESHOOTING_CONSOLE_UI_SOURCE_OF_TRUTH.md) — approved Technician Troubleshooting Console mockup, evidence-first workflow, vehicle intelligence check, common-cause libraries, advisor handoff boundary, and gated Master Technician assistant posture.
+22. [`troubleshooting-console/README.md`](troubleshooting-console/README.md) — planning package for the Technician Troubleshooting Console architecture, roadmap, milestones, algorithms, workflows, and enterprise diagnostic rulebook.
 
 ## Implementation Records
 
