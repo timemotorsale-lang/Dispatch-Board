@@ -54,6 +54,31 @@ describe("technician troubleshooting console intelligence", () => {
     expect(model.rulePackRegistry.active[0]?.id).toBe("TRANSMISSION_DRIVETRAIN");
     expect(model.testOverride.options).toContain("tool unavailable");
     expect(model.vehicleIntelligence.knownIssueMatches[0]?.issueId).toBe("known-trans-fluid-leak-shift-quality");
+    expect(model.licensedConnectorInterfaces.map((connector) => connector.id)).toContain("OEM_TSB");
+    expect(model.licensedConnectorInterfaces.find((connector) => connector.id === "OEM_PARTS_DIAGRAM")?.prohibitedUses.join(" ")).toContain("invent OEM part numbers");
+    expect(model.testExecutionBridge.state).toBe("READY_TO_CREATE_GOVERNED_TEST");
+    expect(model.aiContextPacket.enabled).toBe(false);
+    expect(model.aiContextPacket.contextChecksum.length).toBeGreaterThan(20);
+    expect(model.aiContextPacket.packet.forbiddenUses).toContain("authorize repair");
+    expect(model.featureGates.gates.find((gate) => gate.id === "aiAssistant")?.state).toBe("WITHHELD_SAFETY_GATE");
+    expect(model.pilotTelemetry.blockers.join(" ")).toContain("Recall/TSB/OEM connectors");
+  });
+
+  it("bridges a recommended troubleshooting test to an existing governed test-lab node when available", () => {
+    const model = buildTechnicianTroubleshootingConsole(buildInput("transmission issues", {
+      diagnosticCase: {
+        ...buildInput("transmission issues").diagnosticCase,
+        testPlans: [{
+          id: "plan-trans-1",
+          status: "ACTIVE",
+          version: 2,
+          nodes: [{ id: "node-trans-fluid", nodeKey: "TRANS_FLUID_CHECK", title: "Check transmission fluid level, condition, and leaks" }]
+        }]
+      }
+    }));
+    expect(model.testExecutionBridge.state).toBe("EXISTING_PLAN_NODE_AVAILABLE");
+    expect(model.testExecutionBridge.existingPlanNode?.nodeId).toBe("node-trans-fluid");
+    expect(model.testExecutionBridge.mutationAllowed).toBe(false);
   });
 
   it("keeps recall and service-bulletin sources visible as unavailable rather than silently pretending", () => {
@@ -61,6 +86,7 @@ describe("technician troubleshooting console intelligence", () => {
     expect(model.vehicleIntelligence.sources.find((source) => source.label === "Safety recall / campaign")?.state).toBe("NOT_CONNECTED");
     expect(model.vehicleIntelligence.sources.find((source) => source.label === "Service bulletin / warranty extension")?.state).toBe("NOT_CONNECTED");
     expect(model.vehicleIntelligence.acknowledgements.map((item) => item.id)).toContain("service_bulletin");
+    expect(model.licensedConnectorInterfaces.find((connector) => connector.id === "OEM_TSB")?.status).toBe("LICENSE_REQUIRED");
     expect(model.masterTechnicianGate.enabled).toBe(false);
   });
 

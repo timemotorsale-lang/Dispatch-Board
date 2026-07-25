@@ -34,6 +34,17 @@ export type TroubleshootingCaseInput = {
     riskTier: string;
     stage: string;
     status: string;
+    testPlans?: Array<{
+      id: string;
+      nodes: Array<{
+        id?: string;
+        nodeKey: string;
+        title: string;
+        definition?: { tools?: unknown };
+      }>;
+      status?: string;
+      version?: number;
+    }>;
     vehicle: { id: string; label: string; make: string | null; model: string | null; vin: string | null; year: number | null };
     version: number;
   };
@@ -574,6 +585,154 @@ function testOverrideReasons(recommended: (DomainRulePack["tests"][number] & { d
   };
 }
 
+function licensedConnectorInterfaces() {
+  return [
+    {
+      id: "PUBLIC_RECALL",
+      label: "Public recall / campaign lookup",
+      status: "NOT_CONNECTED" as const,
+      capability: "Check vehicle recall and campaign status from a lawful public or licensed source.",
+      requiredInputs: ["VIN", "vehicle year/make/model", "retrieved-at timestamp", "source URL or provider id"],
+      citationRules: ["Display source, retrieved time, and recall/campaign identifier.", "Never treat a recall match as the diagnostic cause without symptom and evidence fit."],
+      prohibitedUses: ["Do not imply completion or warranty coverage without source confirmation.", "Do not overwrite technician evidence."]
+    },
+    {
+      id: "OEM_TSB",
+      label: "OEM TSB / warranty extension connector",
+      status: "LICENSE_REQUIRED" as const,
+      capability: "Surface relevant service bulletins, warranty extensions, and known procedure references when a licensed provider is connected.",
+      requiredInputs: ["VIN or exact fitment", "mileage when available", "symptom/domain", "licensed provider citation"],
+      citationRules: ["Show only title-level metadata unless the license permits full content.", "Preserve provider, document id, effective date, and applicability note."],
+      prohibitedUses: ["Do not scrape proprietary repair information.", "Do not present bulletin existence as proof of failure."]
+    },
+    {
+      id: "OEM_SERVICE_INFORMATION",
+      label: "OEM service procedure connector",
+      status: "LICENSE_REQUIRED" as const,
+      capability: "Attach official procedure prerequisites, hazards, torque/programming/calibration references, and release checks.",
+      requiredInputs: ["VIN/trim/engine/transmission", "repair area", "licensed source", "procedure revision"],
+      citationRules: ["Display procedure identity and revision, not copied proprietary instructions unless licensed.", "Keep technician acknowledgement separate from automated recommendation."],
+      prohibitedUses: ["Do not generate executable OEM procedures from memory.", "Do not bypass qualification, tooling, or safety requirements."]
+    },
+    {
+      id: "OEM_PARTS_DIAGRAM",
+      label: "OEM parts diagram / fitment connector",
+      status: "LICENSE_REQUIRED" as const,
+      capability: "Resolve assembly diagrams, OEM part numbers, supersessions, fitment, seals, fluids, clips, fasteners, and one-time-use accessories.",
+      requiredInputs: ["VIN", "repair area", "selected assembly node", "provider part citation"],
+      citationRules: ["Show part number, description, fitment status, quantity basis, and source.", "Flag supersession and backorder data as provider-owned facts."],
+      prohibitedUses: ["Do not invent OEM part numbers.", "Do not auto-order parts without parts-authority approval."]
+    },
+    {
+      id: "OEM_CALIBRATION_PROCEDURE",
+      label: "Programming / calibration connector",
+      status: "LICENSE_REQUIRED" as const,
+      capability: "Identify programming, relearn, ADAS calibration, initialization, battery support, scan, and post-repair verification requirements.",
+      requiredInputs: ["VIN/equipment", "replaced component", "module/system", "licensed procedure reference"],
+      citationRules: ["Separate prerequisite, execution, and release evidence.", "Keep programming authorization and scan-result evidence auditable."],
+      prohibitedUses: ["Do not perform programming automatically.", "Do not release safety-critical systems without documented completion evidence."]
+    }
+  ];
+}
+
+function buildTestExecutionBridge(input: TroubleshootingCaseInput, recommended: (DomainRulePack["tests"][number] & { domainId: TroubleshootingDomainId; domainLabel: string }) | null) {
+  const existingNode = recommended
+    ? input.diagnosticCase.testPlans
+      ?.flatMap((plan) => plan.nodes.map((node) => ({ ...node, planId: plan.id, planStatus: plan.status ?? "UNKNOWN", planVersion: plan.version ?? 1 })))
+      .find((node) => node.nodeKey === recommended.key || normalizeText(node.title) === normalizeText(recommended.title))
+    : null;
+  return {
+    state: recommended ? existingNode ? "EXISTING_PLAN_NODE_AVAILABLE" as const : "READY_TO_CREATE_GOVERNED_TEST" as const : "NO_RECOMMENDED_TEST" as const,
+    recommendedTestKey: recommended?.key ?? null,
+    recommendedTitle: recommended?.title ?? null,
+    existingPlanNode: existingNode
+      ? {
+        nodeId: existingNode.id ?? null,
+        nodeKey: existingNode.nodeKey,
+        planId: existingNode.planId,
+        planStatus: existingNode.planStatus,
+        planVersion: existingNode.planVersion,
+        title: existingNode.title
+      }
+      : null,
+    route: `/diagnostics/cases/${encodeURIComponent(input.diagnosticCase.id)}#test-labs`,
+    mutationAllowed: false,
+    policy: "This slice links troubleshooting recommendations to the existing governed test-lab workflow. It does not auto-start tests, bypass authorization, or record execution results."
+  };
+}
+
+function buildAiContextPacket(input: TroubleshootingCaseInput, knownIssueMatches: Array<{ domainLabel: string; evidenceRequired: string[]; issueId: string; matchState: string; summary: string; source: string }>, tests: Array<DomainRulePack["tests"][number] & { domainId: TroubleshootingDomainId; domainLabel: string }>, commonCauses: Array<{ cause: string; domainLabel: string; evidenceNeeded: string[]; rankState: string }>) {
+  const packet = {
+    caseId: input.diagnosticCase.id,
+    concern: input.diagnosticCase.concern,
+    vehicle: input.diagnosticCase.vehicle,
+    evidenceSummary: {
+      observationCount: input.diagnosticCase.observations.length,
+      measurementCount: input.diagnosticCase.measurements.length,
+      readyForReasoning: input.qualitySafetyGates.readyForReasoning,
+      reasonCodes: input.qualitySafetyGates.reasonCodes
+    },
+    knownIssueSummaries: knownIssueMatches.map((match) => ({ issueId: match.issueId, summary: match.summary, source: match.source, matchState: match.matchState })),
+    causeCandidates: commonCauses.map((cause) => ({ cause: cause.cause, domainLabel: cause.domainLabel, rankState: cause.rankState, evidenceNeeded: cause.evidenceNeeded })),
+    nextTests: tests.map((test) => ({ key: test.key, title: test.title, domainLabel: test.domainLabel, expectedEvidence: test.expectedEvidence })),
+    sourceBoundaries: ["Internal seed libraries are not OEM service information.", "Recall, TSB, OEM procedure, parts diagram, and calibration content require licensed connectors.", "Technician evidence and service authority remain the source of truth."],
+    forbiddenUses: ["confirm root cause", "authorize repair", "quote parts/labor/tax", "replace technician judgement", "invent OEM procedures or part numbers"]
+  };
+  return {
+    enabled: false,
+    gated: true,
+    label: "AI-ready context packet prepared; Master Technician AI remains withheld",
+    reason: "The console can package governed context now, but model execution stays disabled until evidence, licensing, safety, evaluation, privacy, and authority controls are approved.",
+    packet,
+    contextChecksum: checksumTroubleshootingSession(packet)
+  };
+}
+
+function readinessScore(flags: boolean[]) {
+  if (!flags.length) return 0;
+  return Math.round(flags.filter(Boolean).length / flags.length * 100);
+}
+
+function buildPilotTelemetry(input: TroubleshootingCaseInput, gateState: TroubleshootingGateState, knownIssueMatches: Array<{ matchState: string }>, advisorHandoff: { readiness: string }, tests: Array<{ key: string }>) {
+  const evidenceCount = input.diagnosticCase.observations.length + input.diagnosticCase.measurements.length;
+  const metrics = {
+    intakeCompleteness: readinessScore([Boolean(input.diagnosticCase.concern.trim()), gateState !== "INTAKE_NEEDED"]),
+    vehicleIntelligenceAcknowledgement: readinessScore([Boolean(input.diagnosticCase.vehicle.vin), knownIssueMatches.length > 0, false, false]),
+    evidenceCompleteness: readinessScore([evidenceCount > 0, input.qualitySafetyGates.counts.independentGroups > 0, input.qualitySafetyGates.readyForReasoning]),
+    nextTestReadiness: readinessScore([tests.length > 0, gateState !== "INTAKE_NEEDED"]),
+    advisorHandoffReadiness: readinessScore([advisorHandoff.readiness !== "NEEDS_MORE_DIAGNOSIS", input.qualitySafetyGates.readyForReasoning]),
+    learningReadiness: readinessScore([input.diagnosticCase.status === "VERIFIED_CLOSED"])
+  };
+  const blockers = [
+    gateState === "INTAKE_NEEDED" ? "Focused intake questions still required." : null,
+    input.qualitySafetyGates.readyForReasoning ? null : "Evidence gate is not ready for stronger diagnostic reasoning.",
+    "Recall/TSB/OEM connectors are not connected yet.",
+    input.diagnosticCase.status === "VERIFIED_CLOSED" ? null : "Learning loop waits for verified outcome."
+  ].filter((item): item is string => Boolean(item));
+  return {
+    mode: "PILOT_TRIAL" as const,
+    metrics,
+    overallReadiness: Math.round(Object.values(metrics).reduce((sum, value) => sum + value, 0) / Object.values(metrics).length),
+    blockers,
+    eventContract: ["intake_refined", "vehicle_intelligence_acknowledged", "test_recommended", "test_bridge_opened", "session_snapshot_saved", "advisor_packet_reviewed", "learning_candidate_created"],
+    privacyBoundary: "Telemetry is operational readiness only; it should not record unnecessary customer narrative, proprietary source content, or uncontrolled AI prompts."
+  };
+}
+
+function buildFeatureGates() {
+  return {
+    console: "technician-troubleshooting-console",
+    policy: "Enable capability by capability. Diagnostic suggestions may be piloted before licensed content, AI execution, or automatic mutations are enabled.",
+    gates: [
+      { id: "troubleshootingSessionPersistence", label: "Session snapshots", state: "ENABLED_PILOT" as const, reason: "Snapshots are governed by case version and command checksum." },
+      { id: "licensedConnectors", label: "Licensed recall/TSB/OEM connectors", state: "WITHHELD_LICENSE_REQUIRED" as const, reason: "Interfaces are defined, but no live provider is connected in this branch." },
+      { id: "testExecutionBridge", label: "Test execution bridge", state: "READ_ONLY_LINK" as const, reason: "Technicians can open the governed test-lab area; test creation/execution remains under existing authority." },
+      { id: "aiAssistant", label: "Master Technician AI", state: "WITHHELD_SAFETY_GATE" as const, reason: "AI remains disabled until source, evidence, safety, privacy, and evaluation controls are approved." },
+      { id: "managerReview", label: "Manager review / learning promotion", state: "ENABLED_PILOT" as const, reason: "Learning proposals stay draft-only until reviewed and approved." }
+    ]
+  };
+}
+
 export function buildTechnicianTroubleshootingConsole(input: TroubleshootingCaseInput) {
   const text = normalizeText(input.diagnosticCase.concern);
   const matchedDomains = domainRulePacks
@@ -634,6 +793,10 @@ export function buildTechnicianTroubleshootingConsole(input: TroubleshootingCase
       source: issue.source
     }));
   }).slice(0, 6);
+  const aiContextPacket = buildAiContextPacket(input, knownIssueMatches, tests, commonCauses);
+  const testExecutionBridge = buildTestExecutionBridge(input, recommendedTest);
+  const pilotTelemetry = buildPilotTelemetry(input, gateState, knownIssueMatches, advisorHandoff, tests);
+  const featureGates = buildFeatureGates();
 
   return {
     version: TECHNICIAN_TROUBLESHOOTING_CONSOLE_VERSION,
@@ -677,6 +840,7 @@ export function buildTechnicianTroubleshootingConsole(input: TroubleshootingCase
       acknowledgements: vehicleAcknowledgements(input),
       knownIssueMatches
     },
+    licensedConnectorInterfaces: licensedConnectorInterfaces(),
     evidenceGate: {
       counts: input.qualitySafetyGates.counts,
       label: statusLabel(gateState),
@@ -697,6 +861,7 @@ export function buildTechnicianTroubleshootingConsole(input: TroubleshootingCase
         : null,
       selectionPolicy: "Recommend the safest highest-value discriminator from the selected domain rule packs. Technician may choose an eligible alternative with reason capture."
     },
+    testExecutionBridge,
     testOverride: testOverrideReasons(recommendedTest),
     nextTestPreview: tests,
     evidenceCapturePlan: buildEvidenceCapturePlan(input, tests, commonCauses),
@@ -713,6 +878,9 @@ export function buildTechnicianTroubleshootingConsole(input: TroubleshootingCase
       }
     },
     learningLoop: buildLearningLoop(input, selected),
+    aiContextPacket,
+    pilotTelemetry,
+    featureGates,
     masterTechnicianGate: {
       enabled: false,
       label: "AI assistant withheld",

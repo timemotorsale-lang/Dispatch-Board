@@ -128,6 +128,17 @@ export function TechnicianTroubleshootingConsole({ model }: { model: Model }) {
             <h3>Vehicle intelligence acknowledgement checklist</h3>
             {model.vehicleIntelligence.acknowledgements.map((item) => <article key={item.id}><div><strong>{item.label}</strong><p>{item.action}</p></div><span>{label(item.state)}</span><Link href={item.href}>Review</Link></article>)}
           </div>
+          <div className={styles.ttcConnectorReadiness}>
+            <h3><Lock /> Licensed connector readiness</h3>
+            {model.licensedConnectorInterfaces.map((connector) => <article key={connector.id}>
+              <div>
+                <strong>{connector.label}</strong>
+                <p>{connector.capability}</p>
+                <small>Required: {connector.requiredInputs.join(", ")}</small>
+              </div>
+              <span>{label(connector.status)}</span>
+            </article>)}
+          </div>
         </section>
 
         <section className={styles.ttcPanel}>
@@ -179,6 +190,32 @@ export function TechnicianTroubleshootingConsole({ model }: { model: Model }) {
             <p>{model.learningLoop.activationRule}</p>
           </div>
         </section>
+
+        <section className={styles.ttcPanel}>
+          <header><div><span className={styles.eyebrow}>Slices 22-23 Â· Pilot governance</span><h2>Pilot telemetry and feature gates</h2><p>These controls show what is ready for trial use and what remains intentionally withheld.</p></div><Gauge /></header>
+          <div className={styles.ttcTelemetry}>
+            <article>
+              <strong>{model.pilotTelemetry.overallReadiness}%</strong>
+              <span>Overall pilot readiness</span>
+              <p>{model.pilotTelemetry.privacyBoundary}</p>
+            </article>
+            <div>
+              {Object.entries(model.pilotTelemetry.metrics).map(([key, value]) => <section key={key}>
+                <span>{label(key)}</span>
+                <b>{value}%</b>
+              </section>)}
+            </div>
+            {model.pilotTelemetry.blockers.length ? <ul>{model.pilotTelemetry.blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}</ul> : null}
+          </div>
+          <div className={styles.ttcFeatureGates}>
+            <h3><ShieldAlert /> Feature gates</h3>
+            <p>{model.featureGates.policy}</p>
+            {model.featureGates.gates.map((gate) => <article key={gate.id}>
+              <div><strong>{gate.label}</strong><p>{gate.reason}</p></div>
+              <span>{label(gate.state)}</span>
+            </article>)}
+          </div>
+        </section>
       </main>
 
       <aside className={styles.ttcRail}>
@@ -213,6 +250,17 @@ export function TechnicianTroubleshootingConsole({ model }: { model: Model }) {
         </section>
 
         <section>
+          <h2><ClipboardCheck /> Test execution bridge</h2>
+          <strong>{label(model.testExecutionBridge.state)}</strong>
+          <p>{model.testExecutionBridge.policy}</p>
+          {model.testExecutionBridge.existingPlanNode ? <article className={styles.ttcRecommendedTest}>
+            <strong>{model.testExecutionBridge.existingPlanNode.title}</strong>
+            <small>Plan {model.testExecutionBridge.existingPlanNode.planVersion} Â· {model.testExecutionBridge.existingPlanNode.nodeKey}</small>
+          </article> : <small>{model.testExecutionBridge.recommendedTitle ?? "No recommended test to bridge yet."}</small>}
+          <Link href={model.testExecutionBridge.route}>Open technician labs</Link>
+        </section>
+
+        <section>
           <h2><ClipboardList /> Advisor draft packet</h2>
           <article className={styles.ttcAdvisorDraft}>
             <strong>{model.advisorHandoff.draftPacket.vehicleSummary}</strong>
@@ -227,6 +275,13 @@ export function TechnicianTroubleshootingConsole({ model }: { model: Model }) {
           <h2><Sparkles /> Ask Master Technician</h2>
           <strong>{model.masterTechnicianGate.label}</strong>
           <p>{model.masterTechnicianGate.reason}</p>
+          <div className={styles.ttcAiPacket}>
+            <h3>AI-ready context packet</h3>
+            <span>{model.aiContextPacket.label}</span>
+            <small>Checksum: {model.aiContextPacket.contextChecksum}</small>
+            <ul>{model.aiContextPacket.packet.sourceBoundaries.map((boundary) => <li key={boundary}>{boundary}</li>)}</ul>
+            <b>Forbidden: {model.aiContextPacket.packet.forbiddenUses.join(", ")}</b>
+          </div>
         </section>
       </aside>
     </div>

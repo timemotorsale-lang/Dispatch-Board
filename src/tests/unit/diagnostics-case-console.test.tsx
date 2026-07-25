@@ -98,6 +98,11 @@ describe("diagnostics case console", () => {
     expect(html).toContain("Save session snapshot");
     expect(html).toContain("Low/contaminated fluid or leak path");
     expect(html).toContain("AI assistant withheld");
+    expect(html).toContain("Licensed connector readiness");
+    expect(html).toContain("Test execution bridge");
+    expect(html).toContain("AI-ready context packet");
+    expect(html).toContain("Pilot telemetry");
+    expect(html).toContain("Feature gates");
   });
 
   it("renders the manager troubleshooting review shell", () => {
