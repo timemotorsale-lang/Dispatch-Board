@@ -39,6 +39,11 @@ describe("official Vehicle Execution Workbench", () => {
     expect(html).toContain("returnTo=%2Fvehicles%2Fvehicle-1%2Fworkbench");
   });
 
+  it("renders the approved technician role landing with stalled-work accountability guidance", () => {
+    const html = renderToStaticMarkup(<VehicleExecutionWorkbench initial={projection()} initialRoleLens="Technician" />);
+    for (const value of ["Technician View", "Current assignment", "Readiness before work", "Required evidence", "Stalled / incomplete work details", "The system measures work state and evidence, not personal blame", "Open incomplete update form", "Attach evidence"]) expect(html).toContain(value);
+  });
+
   it("shows a truthful unavailable state instead of inventing work", () => {
     const html = renderToStaticMarkup(<VehicleExecutionWorkbench initial={projection({ status: "UNAVAILABLE", unavailableReason: "Inventory Work Packet migration is not applied in this environment.", current: null, staged: null })} />);
     expect(html).toContain("Review unavailable work source");

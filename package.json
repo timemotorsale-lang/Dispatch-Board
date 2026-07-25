@@ -21,6 +21,7 @@
     "db:migrate:reset": "prisma migrate reset",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
+    "diagnostics:trial": "tsx scripts/configure-diagnostics-trial.ts",
     "db:validate": "prisma validate"
   },
   "prisma": {
