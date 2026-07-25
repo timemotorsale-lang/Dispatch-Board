@@ -13,6 +13,7 @@ import type { createDiagnosticTestOverride, evaluateAdaptiveDiagnosticTests } fr
 import type { evaluateDiagnosticConclusionControls, normalizeDiagnosticConclusionCommand } from "./conclusion-domain";
 import type { evaluateDiagnosticEstimateAdvisorControls, normalizeDiagnosticEstimateAdvisorCommand } from "./estimate-advisor-domain";
 import type { evaluateDiagnosticRepairHandoffControls, normalizeDiagnosticRepairHandoffCommand } from "./repair-handoff-domain";
+import type { normalizeDiagnosticTroubleshootingSessionCommand } from "./technician-troubleshooting-console";
 import type { evaluateDiagnosticVerificationControls, normalizeDiagnosticVerificationCommand } from "./verification-domain";
 
 type Tx = Prisma.TransactionClient;
@@ -61,6 +62,27 @@ const detailInclude = {
 export type DiagnosticCaseDetailRecord = Prisma.DiagnosticCaseGetPayload<{ include: typeof detailInclude }>;
 export type DiagnosticAssignableUserRecord = { id: string; name: string };
 export type DiagnosticTestDefinitionRecord = Prisma.DiagnosticTestDefinitionVersionGetPayload<{ include: { supersededBy: { select: { id: true } } } }>;
+export type DiagnosticTroubleshootingSessionRecord = {
+  advisorDraftPacket: unknown;
+  authorUserId: string;
+  consoleVersion: string;
+  createdAt: Date;
+  diagnosticCaseId: string;
+  id: string;
+  intakeRefinement: unknown;
+  knownIssueSnapshot: unknown;
+  learningProposal: unknown;
+  occurredAt: Date;
+  organizationId: string;
+  overrideReason: string | null;
+  rulePackSnapshot: unknown;
+  selectedTestKey: string | null;
+  sessionChecksum: string;
+  status: string;
+  supersedesId: string | null;
+  vehicleIntelligenceAcknowledgements: unknown;
+  version: number;
+};
 
 export type DiagnosticCaseRepository = {
   assign(command: EnterpriseCommandCommitInput, data: { assignedUserId: string; occurredAt: Date; reasonCode: string }): Promise<DiagnosticMutationResult>;
@@ -76,6 +98,8 @@ export type DiagnosticCaseRepository = {
   recordObservation?(command: EnterpriseCommandCommitInput, data: ReturnType<typeof normalizeDiagnosticObservation> & { id: string }): Promise<DiagnosticMutationResult>;
   recordMeasurement?(command: EnterpriseCommandCommitInput, data: ReturnType<typeof normalizeDiagnosticMeasurement> & { id: string }): Promise<DiagnosticMutationResult>;
   linkEvidence?(command: EnterpriseCommandCommitInput, data: ReturnType<typeof normalizeDiagnosticEvidenceLink> & { id: string }): Promise<DiagnosticMutationResult>;
+  listTroubleshootingSessions?(organizationId: string, caseId: string): Promise<DiagnosticTroubleshootingSessionRecord[]>;
+  recordTroubleshootingSession?(command: EnterpriseCommandCommitInput, data: ReturnType<typeof normalizeDiagnosticTroubleshootingSessionCommand> & { consoleVersion: string; id: string; occurredAt: Date; sessionChecksum: string; status: string }): Promise<DiagnosticMutationResult>;
   registerTestDefinition?(command: EnterpriseCommandCommitInput, data: ReturnType<typeof normalizeDiagnosticTestDefinition> & { id: string }): Promise<DiagnosticMutationResult>;
   createTestPlan?(command: EnterpriseCommandCommitInput, data: ReturnType<typeof normalizeDiagnosticTestPlan> & { id: string; nodeIds: string[] }): Promise<DiagnosticMutationResult>;
   executeTestLifecycle?(command: EnterpriseCommandCommitInput, data: ReturnType<typeof normalizeDiagnosticTestLifecycle> & { eventId: string; executionKey: string }): Promise<DiagnosticMutationResult>;
@@ -254,6 +278,21 @@ export function createDiagnosticCaseRepository(database: PrismaClient = prisma):
       });
     },
 
+    listTroubleshootingSessions(organizationId, caseId) {
+      return database.$queryRaw<DiagnosticTroubleshootingSessionRecord[]>`
+        SELECT
+          "id", "organizationId", "diagnosticCaseId", "version", "consoleVersion", "status",
+          "intakeRefinement", "vehicleIntelligenceAcknowledgements", "selectedTestKey",
+          "overrideReason", "advisorDraftPacket", "learningProposal", "knownIssueSnapshot",
+          "rulePackSnapshot", "sessionChecksum", "authorUserId", "supersedesId",
+          "occurredAt", "createdAt"
+        FROM "DiagnosticTroubleshootingSession"
+        WHERE "organizationId" = ${organizationId} AND "diagnosticCaseId" = ${caseId}
+        ORDER BY "version" DESC
+        LIMIT 20
+      `;
+    },
+
     listTestDefinitions(organizationId) {
       return database.diagnosticTestDefinitionVersion.findMany({ where: { organizationId }, orderBy: [{ definitionKey: "asc" }, { version: "desc" }], include: { supersededBy: { select: { id: true } } } });
     },
@@ -274,6 +313,41 @@ export function createDiagnosticCaseRepository(database: PrismaClient = prisma):
           estimatedMinutes: data.estimatedMinutes, estimatedCostDecimal: data.estimatedCostDecimal, riskTier: data.riskTier, checksum: data.checksum, effectiveAt: data.effectiveAt, expiresAt: data.expiresAt, authoredByUserId: command.actorUserId, supersedesId: data.supersedesId
         }, select: { id: true, definitionKey: true, version: true, checksum: true, effectiveAt: true, expiresAt: true } });
         return { result: { ...definition, aggregateVersion } };
+      });
+    },
+
+    recordTroubleshootingSession(command, data) {
+      return execute(database, command, "DiagnosticTroubleshootingSessionRecorded", `TROUBLESHOOTING_${data.status}`, async (tx, version) => {
+        const diagnosticCase = await tx.diagnosticCase.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId } });
+        if (!diagnosticCase) throw new Error("Diagnostic case was not found.");
+        if (diagnosticCase.version !== version - 1) throw new EnterpriseCommandConflictError(`Expected case version ${version - 1}, but current version is ${diagnosticCase.version}.`, "VERSION_CONFLICT");
+        if (isTerminalDiagnosticStatus(diagnosticCase.status as DiagnosticCaseStatus) && diagnosticCase.status !== "VERIFIED_CLOSED") throw new Error("Terminal diagnostic cases must be reopened before troubleshooting session updates.");
+        const prior = await tx.$queryRaw<Array<{ id: string; sessionChecksum: string; version: number }>>`
+          SELECT "id", "sessionChecksum", "version"
+          FROM "DiagnosticTroubleshootingSession"
+          WHERE "organizationId" = ${command.organizationId} AND "diagnosticCaseId" = ${diagnosticCase.id}
+          ORDER BY "version" DESC
+          LIMIT 1
+        `;
+        const latest = prior[0] ?? null;
+        if ((latest?.id ?? null) !== data.supersedesId) throw new Error("Troubleshooting session command must extend the latest session lineage.");
+        const sessionVersion = (latest?.version ?? 0) + 1;
+        await tx.$executeRaw`
+          INSERT INTO "DiagnosticTroubleshootingSession" (
+            "id", "organizationId", "diagnosticCaseId", "version", "consoleVersion", "status",
+            "intakeRefinement", "vehicleIntelligenceAcknowledgements", "selectedTestKey",
+            "overrideReason", "advisorDraftPacket", "learningProposal", "knownIssueSnapshot",
+            "rulePackSnapshot", "sessionChecksum", "authorUserId", "supersedesId", "occurredAt"
+          ) VALUES (
+            ${data.id}, ${command.organizationId}, ${diagnosticCase.id}, ${sessionVersion}, ${data.consoleVersion}, ${data.status},
+            CAST(${JSON.stringify(data.intakeRefinement)} AS JSONB), CAST(${JSON.stringify(data.vehicleIntelligenceAcknowledgements)} AS JSONB), ${data.selectedTestKey},
+            ${data.overrideReason}, CAST(${JSON.stringify(data.advisorDraftPacket)} AS JSONB), CAST(${JSON.stringify(data.learningProposal)} AS JSONB), CAST(${JSON.stringify(data.knownIssueSnapshot)} AS JSONB),
+            CAST(${JSON.stringify(data.rulePackSnapshot)} AS JSONB), ${data.sessionChecksum}, ${command.actorUserId}, ${data.supersedesId}, ${data.occurredAt}
+          )
+        `;
+        await tx.diagnosticCase.update({ where: { id: diagnosticCase.id }, data: { version } });
+        await tx.diagnosticCaseStateEvent.create({ data: { organizationId: command.organizationId, diagnosticCaseId: diagnosticCase.id, version, eventType: "STATUS_CHANGED", fromStatus: diagnosticCase.status, toStatus: diagnosticCase.status, fromAssignedUserId: diagnosticCase.assignedUserId, toAssignedUserId: diagnosticCase.assignedUserId, reasonCode: `TROUBLESHOOTING_${data.status}`, reason: command.reason, actorUserId: command.actorUserId, correlationId: command.correlationId, occurredAt: data.occurredAt } });
+        return { previous: latest ? { id: latest.id, sessionChecksum: latest.sessionChecksum } : undefined, result: { id: data.id, sessionVersion, status: data.status, sessionChecksum: data.sessionChecksum, version } };
       });
     },
 

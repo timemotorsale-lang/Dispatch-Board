@@ -1685,6 +1685,7 @@ model User {
   authoredDiagnosticObservations          DiagnosticObservation[]                @relation("DiagnosticObservationAuthor")
   authoredDiagnosticMeasurements          DiagnosticMeasurement[]                @relation("DiagnosticMeasurementAuthor")
   createdDiagnosticEvidenceLinks          DiagnosticEvidenceLink[]               @relation("DiagnosticEvidenceLinkCreator")
+  authoredDiagnosticTroubleshootingSessions DiagnosticTroubleshootingSession[]    @relation("DiagnosticTroubleshootingSessionAuthor")
   authoredDiagnosticTestDefinitions       DiagnosticTestDefinitionVersion[]      @relation("DiagnosticTestDefinitionAuthor")
   authoredDiagnosticTestPlans             DiagnosticTestPlanVersion[]            @relation("DiagnosticTestPlanAuthor")
   diagnosticTestExecutionEvents           DiagnosticTestExecution[]              @relation("DiagnosticTestExecutionActor")
@@ -1988,6 +1989,7 @@ model Organization {
   diagnosticObservations                DiagnosticObservation[]
   diagnosticMeasurements                DiagnosticMeasurement[]
   diagnosticEvidenceLinks               DiagnosticEvidenceLink[]
+  diagnosticTroubleshootingSessions      DiagnosticTroubleshootingSession[]
   diagnosticTestDefinitionVersions      DiagnosticTestDefinitionVersion[]
   diagnosticTestPlanVersions            DiagnosticTestPlanVersion[]
   diagnosticTestPlanNodes               DiagnosticTestPlanNode[]
@@ -3318,6 +3320,7 @@ model DiagnosticCase {
   observations            DiagnosticObservation[]
   measurements            DiagnosticMeasurement[]
   evidenceLinks           DiagnosticEvidenceLink[]
+  troubleshootingSessions DiagnosticTroubleshootingSession[]
   testPlanVersions        DiagnosticTestPlanVersion[]
   testPlanNodes           DiagnosticTestPlanNode[]
   testExecutions          DiagnosticTestExecution[]
@@ -3337,6 +3340,38 @@ model DiagnosticCase {
   @@index([organizationId, locationId, status, updatedAt])
   @@index([organizationId, assignedUserId, status, updatedAt])
   @@index([vehicleId, status])
+}
+
+model DiagnosticTroubleshootingSession {
+  id                             String         @id
+  organizationId                 String
+  diagnosticCaseId               String
+  version                        Int
+  consoleVersion                 String
+  status                         String
+  intakeRefinement               Json
+  vehicleIntelligenceAcknowledgements Json
+  selectedTestKey                String?
+  overrideReason                 String?
+  advisorDraftPacket             Json
+  learningProposal               Json
+  knownIssueSnapshot             Json
+  rulePackSnapshot               Json
+  sessionChecksum                String
+  authorUserId                   String
+  supersedesId                   String?        @unique
+  occurredAt                     DateTime
+  createdAt                      DateTime       @default(now())
+  organization                   Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  diagnosticCase                 DiagnosticCase @relation(fields: [diagnosticCaseId], references: [id], onDelete: Restrict)
+  authorUser                     User           @relation("DiagnosticTroubleshootingSessionAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  supersedes                     DiagnosticTroubleshootingSession? @relation("DiagnosticTroubleshootingSupersession", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy                   DiagnosticTroubleshootingSession? @relation("DiagnosticTroubleshootingSupersession")
+
+  @@unique([diagnosticCaseId, version])
+  @@unique([id, organizationId])
+  @@index([organizationId, diagnosticCaseId, occurredAt])
+  @@index([organizationId, status, occurredAt])
 }
 
 model DiagnosticConcernVersion {

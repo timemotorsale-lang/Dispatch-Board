@@ -2,11 +2,17 @@
 
 import { AlertTriangle, ArrowLeft, BookOpenCheck, Brain, Car, CheckCircle2, ClipboardCheck, ClipboardList, Database, Gauge, GraduationCap, History, Lightbulb, Link2, Lock, Ruler, SearchCheck, ShieldAlert, Sparkles, Stethoscope, Wrench } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 import type { buildTechnicianTroubleshootingConsole } from "@/server/diagnostics/technician-troubleshooting-console";
 import styles from "./diagnostics.module.css";
 
-type Model = ReturnType<typeof buildTechnicianTroubleshootingConsole>;
+type Model = ReturnType<typeof buildTechnicianTroubleshootingConsole> & {
+  caseVersion?: number;
+  permissions?: { canSaveSession: boolean };
+  savedSessions?: Array<{ authorUserId: string; id: string; occurredAt: string; overrideReason: string | null; selectedTestKey: string | null; sessionChecksum: string; status: string; supersedesId: string | null; version: number }>;
+};
 
 const label = (value: string) => value.replaceAll("_", " ").toLocaleLowerCase().replace(/^./, (letter) => letter.toUpperCase());
 
@@ -16,7 +22,46 @@ function SourceBadge({ state }: { state: string }) {
 }
 
 export function TechnicianTroubleshootingConsole({ model }: { model: Model }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("");
   const context = model.caseContext;
+  const latestSession = model.savedSessions?.[0] ?? null;
+
+  async function saveSession() {
+    if (!model.permissions?.canSaveSession || busy) return;
+    setBusy(true);
+    setNotice("");
+    try {
+      const response = await fetch(`/api/diagnostics/cases/${encodeURIComponent(context.id)}/troubleshooting/session`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          advisorDraftPacket: { ...model.advisorHandoff.draftPacket, readiness: model.advisorHandoff.readiness },
+          expectedVersion: model.caseVersion ?? context.version,
+          idempotencyKey: crypto.randomUUID(),
+          intakeRefinement: model.intakeRefinement,
+          knownIssueSnapshot: model.vehicleIntelligence.knownIssueMatches,
+          learningProposal: model.learningLoop,
+          overrideReason: "",
+          reason: "Record technician troubleshooting console session snapshot for trial workflow review.",
+          rulePackSnapshot: model.rulePackRegistry,
+          selectedTestKey: model.nextTestPlan.recommendation?.key ?? "",
+          supersedesId: latestSession?.id ?? "",
+          vehicleIntelligenceAcknowledgements: model.vehicleIntelligence.acknowledgements
+        })
+      });
+      const result = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "Troubleshooting session could not be saved.");
+      setNotice("Troubleshooting session snapshot saved.");
+      router.refresh();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Troubleshooting session could not be saved.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return <section className={styles.troubleshootingConsole} aria-label="Technician Troubleshooting Console">
     <header className={styles.ttcHero}>
       <div>
@@ -36,6 +81,10 @@ export function TechnicianTroubleshootingConsole({ model }: { model: Model }) {
       <article><Car /><span>Vehicle</span><strong>{context.vehicle.vin ?? context.vehicle.id}</strong></article>
       <article><ClipboardList /><span>Concern</span><strong>{context.concern}</strong></article>
       <article><Gauge /><span>Diagnostic state</span><strong>{label(context.stage)} · {context.ageHours}h open</strong></article>
+    </section>
+    <section className={styles.ttcSessionBar} aria-label="Troubleshooting session persistence">
+      <div><strong>Session persistence</strong><p>{latestSession ? `Latest v${latestSession.version} · ${label(latestSession.status)} · ${new Date(latestSession.occurredAt).toLocaleString()}` : "No troubleshooting session snapshot has been saved yet."}</p>{notice ? <small>{notice}</small> : null}</div>
+      <button disabled={busy || !model.permissions?.canSaveSession} onClick={() => void saveSession()} type="button">{busy ? "Saving..." : "Save session snapshot"}</button>
     </section>
 
     <div className={styles.ttcGrid}>

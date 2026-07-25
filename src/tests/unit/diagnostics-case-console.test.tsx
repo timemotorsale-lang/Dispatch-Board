@@ -8,6 +8,7 @@ import { TechnicianTroubleshootingConsole } from "@/features/diagnostics/technic
 import { DiagnosticAdvisorReviewConsole } from "@/features/diagnostics/advisor-review-console";
 import { DiagnosticAutobodyEstimateConsole } from "@/features/diagnostics/autobody-estimate-console";
 import { DiagnosticsCommandCenter } from "@/features/diagnostics/diagnostics-command-center";
+import { TroubleshootingReviewConsole } from "@/features/diagnostics/troubleshooting-review-console";
 import { buildTechnicianTroubleshootingConsole } from "@/server/diagnostics/technician-troubleshooting-console";
 import type { DiagnosticCaseWorkspaceModel, DiagnosticsCommandCenterModel } from "@/server/diagnostics/service";
 
@@ -41,6 +42,7 @@ describe("diagnostics case console", () => {
     expect(html).toContain("Diagnostics Command Center");
     expect(html).toContain("New Diagnostic Case");
     expect(html).toContain('href="/diagnostics/intake"');
+    expect(html).toContain("Troubleshooting Review");
     expect(html).toContain("Scan VIN");
     expect(html).toContain("Priority Case Queue");
     expect(html).toContain("Operational Readiness");
@@ -93,8 +95,28 @@ describe("diagnostics case console", () => {
     expect(html).toContain("Vehicle intelligence acknowledgement checklist");
     expect(html).toContain("Override reason capture");
     expect(html).toContain("Advisor draft packet");
+    expect(html).toContain("Save session snapshot");
     expect(html).toContain("Low/contaminated fluid or leak path");
     expect(html).toContain("AI assistant withheld");
+  });
+
+  it("renders the manager troubleshooting review shell", () => {
+    const model = {
+      state: "COMPLETE", freshness: "CURRENT", restricted: false, generatedAt: "2026-07-20T14:00:00.000Z",
+      viewer: { id: "manager-1", name: "Manager" }, rollout: { executable: true, reason: "GENERAL" },
+      permissions: { canAssign: true, canCreate: true },
+      operationalReadiness: {
+        vinAndOemData: { label: "Online", state: "HEALTHY" }, evidenceLedger: { label: "Healthy", state: "HEALTHY" },
+        laborIntelligence: { label: "Pilot", state: "PILOT" }, auditTrail: { label: "Active", state: "HEALTHY" }
+      },
+      summary: { active: 1, awaitingTest: 1, blocked: 0, readyForHandoff: 0, mine: 0, waiting: 0, escalated: 0, unassigned: 0, today: { opened: 1, diagnosed: 0, verified: 0 } },
+      items: [diagnosticCase]
+    } as unknown as DiagnosticsCommandCenterModel;
+    const html = renderToStaticMarkup(<TroubleshootingReviewConsole model={model} />);
+    expect(html).toContain("Troubleshooting Review Queue");
+    expect(html).toContain("Learning mode");
+    expect(html).toContain("Open review");
+    expect(html).toContain("AI authority");
   });
 
   it("renders the advisor review landing page with downstream authority blocks", () => {

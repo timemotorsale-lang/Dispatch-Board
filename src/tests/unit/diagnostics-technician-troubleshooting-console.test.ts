@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildTechnicianTroubleshootingConsole, TECHNICIAN_TROUBLESHOOTING_CONSOLE_VERSION } from "@/server/diagnostics/technician-troubleshooting-console";
+import { buildTechnicianTroubleshootingConsole, normalizeDiagnosticTroubleshootingSessionCommand, TECHNICIAN_TROUBLESHOOTING_CONSOLE_VERSION } from "@/server/diagnostics/technician-troubleshooting-console";
 
 function buildInput(concern: string, overrides: Partial<Parameters<typeof buildTechnicianTroubleshootingConsole>[0]> = {}) {
   return {
@@ -53,6 +53,7 @@ describe("technician troubleshooting console intelligence", () => {
     expect(model.evidenceCapturePlan.measurementsToCapture).toContain("fluid level");
     expect(model.rulePackRegistry.active[0]?.id).toBe("TRANSMISSION_DRIVETRAIN");
     expect(model.testOverride.options).toContain("tool unavailable");
+    expect(model.vehicleIntelligence.knownIssueMatches[0]?.issueId).toBe("known-trans-fluid-leak-shift-quality");
   });
 
   it("keeps recall and service-bulletin sources visible as unavailable rather than silently pretending", () => {
@@ -100,5 +101,26 @@ describe("technician troubleshooting console intelligence", () => {
     expect(model.advisorHandoff.draftPacket.warning).toContain("Do not present suspected causes");
     expect(model.learningLoop.state).toBe("OUTCOME_REVIEW_READY");
     expect(model.learningLoop.activationRule).toContain("reviewed");
+  });
+
+  it("normalizes troubleshooting session commands with governed override reasons", () => {
+    const model = buildTechnicianTroubleshootingConsole(buildInput("transmission issues"));
+    const command = normalizeDiagnosticTroubleshootingSessionCommand({
+      advisorDraftPacket: model.advisorHandoff.draftPacket,
+      expectedVersion: 3,
+      idempotencyKey: "ttc-session-1",
+      intakeRefinement: model.intakeRefinement,
+      knownIssueSnapshot: model.vehicleIntelligence.knownIssueMatches,
+      learningProposal: model.learningLoop,
+      overrideReason: "tool unavailable",
+      reason: "Record troubleshooting session from console review.",
+      rulePackSnapshot: model.rulePackRegistry,
+      selectedTestKey: model.nextTestPlan.recommendation?.key,
+      supersedesId: "",
+      vehicleIntelligenceAcknowledgements: model.vehicleIntelligence.acknowledgements
+    });
+    expect(command.expectedVersion).toBe(3);
+    expect(command.overrideReason).toBe("tool unavailable");
+    expect(command.knownIssueSnapshot).toHaveLength(1);
   });
 });

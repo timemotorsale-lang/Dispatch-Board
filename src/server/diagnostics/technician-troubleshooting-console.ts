@@ -1,3 +1,5 @@
+import { hashEnterpriseCommand } from "@/server/enterprise-command/domain";
+
 export const TECHNICIAN_TROUBLESHOOTING_CONSOLE_VERSION = "TTC/1.0.0";
 
 export type TroubleshootingDomainId =
@@ -53,6 +55,66 @@ type DomainRulePack = {
   symptomAliases: Record<string, string[]>;
   tests: Array<{ discriminates: string[]; expectedEvidence: string[]; key: string; prerequisites: string[]; reason: string; safety: string[]; title: string; tools: string[] }>;
 };
+
+type InternalKnownIssue = {
+  applicability: { makes: string[]; yearMax: number | null; yearMin: number };
+  domainId: TroubleshootingDomainId;
+  evidenceRequired: string[];
+  id: string;
+  source: string;
+  symptoms: string[];
+  title: string;
+};
+
+const allowedOverrideReasons = new Set([
+  "symptom currently present and another eligible test is more discriminating",
+  "tool unavailable",
+  "safer test first",
+  "customer authorization limit",
+  "already performed outside console",
+  "master technician direction",
+  "intermittent condition not reproducible",
+  "vehicle condition prevents this test"
+]);
+
+const internalKnownIssueLibrary: InternalKnownIssue[] = [
+  {
+    id: "known-trans-fluid-leak-shift-quality",
+    domainId: "TRANSMISSION_DRIVETRAIN" as const,
+    title: "Transmission fluid condition or leak may affect shift quality",
+    symptoms: ["slipping", "harsh shift", "leak"],
+    applicability: { makes: [], yearMin: 1996, yearMax: null },
+    evidenceRequired: ["fluid level", "fluid condition", "leak location", "scan data if electronically controlled"],
+    source: "Internal seed library; not OEM service information."
+  },
+  {
+    id: "known-engine-broad-scan-first",
+    domainId: "ENGINE_DRIVABILITY" as const,
+    title: "Broad engine complaints require scan/freeze-frame and symptom classification before repair direction",
+    symptoms: ["warning light", "misfire", "no start"],
+    applicability: { makes: [], yearMin: 1996, yearMax: null },
+    evidenceRequired: ["DTC list", "freeze-frame data", "primary symptom"],
+    source: "Internal seed library; not OEM service information."
+  },
+  {
+    id: "known-brake-grind-friction-inspection",
+    domainId: "BRAKE_ABS_STABILITY" as const,
+    title: "Grinding brake noise requires friction and rotor inspection before estimate finalization",
+    symptoms: ["noise"],
+    applicability: { makes: [], yearMin: 1980, yearMax: null },
+    evidenceRequired: ["pad thickness", "rotor condition", "hardware/caliper observation"],
+    source: "Internal seed library; not OEM service information."
+  },
+  {
+    id: "known-door-area-overlap",
+    domainId: "BODY_COLLISION" as const,
+    title: "Door concerns often cross body, trim, glass, latch, wiring, refinish, and calibration boundaries",
+    symptoms: ["door repair", "window concern", "water leak", "damage"],
+    applicability: { makes: [], yearMin: 1980, yearMax: null },
+    evidenceRequired: ["affected subcomponent list", "damage/fitment observation", "photo if abnormal"],
+    source: "Internal seed library; licensed diagrams and OEM part numbers not included."
+  }
+];
 
 const broadConcernWords = new Set(["issue", "issues", "problem", "problems", "bad", "wrong", "concern", "noise", "noisy", "not working", "acting up"]);
 
@@ -296,6 +358,59 @@ function sourceStatus(label: string, state: "INTERNAL_SEED" | "NOT_CONNECTED" | 
   return { detail, label, state };
 }
 
+function text(raw: unknown, label: string, maximum = 1000, minimum = 0) {
+  const value = typeof raw === "string" ? raw.trim() : "";
+  if (value.length < minimum) throw new Error(`${label} is required.`);
+  if (value.length > maximum) throw new Error(`${label} cannot exceed ${maximum} characters.`);
+  return value;
+}
+
+function list(raw: unknown, label: string, maximum = 20) {
+  if (!Array.isArray(raw)) throw new Error(`${label} must be a list.`);
+  if (raw.length > maximum) throw new Error(`${label} cannot contain more than ${maximum} entries.`);
+  return raw;
+}
+
+function positiveVersion(raw: unknown) {
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1) throw new Error("Expected diagnostic-case version must be a positive integer.");
+  return value;
+}
+
+function safeJsonObject(raw: unknown, label: string) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error(`${label} must be an object.`);
+  return raw as Record<string, unknown>;
+}
+
+export function diagnosticTroubleshootingSessionId(organizationId: string, caseId: string, idempotencyKey: string) {
+  return `dts_${hashEnterpriseCommand({ organizationId, caseId, idempotencyKey: idempotencyKey.trim() }).slice(0, 24)}`;
+}
+
+export function normalizeDiagnosticTroubleshootingSessionCommand(value: unknown) {
+  const raw = safeJsonObject(value, "Troubleshooting session command");
+  const selectedTestKey = text(raw.selectedTestKey, "Selected test key", 120);
+  const overrideReason = text(raw.overrideReason, "Override reason", 500);
+  if (overrideReason && !allowedOverrideReasons.has(overrideReason)) throw new Error("Override reason is not one of the governed troubleshooting options.");
+  return {
+    expectedVersion: positiveVersion(raw.expectedVersion),
+    idempotencyKey: text(raw.idempotencyKey, "Troubleshooting idempotency key", 200, 1),
+    reason: text(raw.reason, "Command reason", 500, 10),
+    intakeRefinement: safeJsonObject(raw.intakeRefinement, "Intake refinement"),
+    vehicleIntelligenceAcknowledgements: list(raw.vehicleIntelligenceAcknowledgements, "Vehicle intelligence acknowledgements", 12),
+    selectedTestKey: selectedTestKey || null,
+    overrideReason: overrideReason || null,
+    advisorDraftPacket: safeJsonObject(raw.advisorDraftPacket, "Advisor draft packet"),
+    learningProposal: safeJsonObject(raw.learningProposal, "Learning proposal"),
+    knownIssueSnapshot: list(raw.knownIssueSnapshot, "Known issue snapshot", 20),
+    rulePackSnapshot: safeJsonObject(raw.rulePackSnapshot, "Rule-pack snapshot"),
+    supersedesId: text(raw.supersedesId, "Superseded troubleshooting session", 200)
+  };
+}
+
+export function checksumTroubleshootingSession(value: unknown) {
+  return hashEnterpriseCommand(value).slice(0, 64);
+}
+
 function statusLabel(state: TroubleshootingGateState) {
   const labels: Record<TroubleshootingGateState, string> = {
     EVIDENCE_NEEDED: "Evidence needed",
@@ -492,13 +607,33 @@ export function buildTechnicianTroubleshootingConsole(input: TroubleshootingCase
   const tests = selected.flatMap((match) => match.pack.tests.map((test) => ({ ...test, domainId: match.pack.id, domainLabel: match.pack.label }))).slice(0, 4);
   const recommendedTest = tests[0] ?? null;
   const advisorHandoff = buildAdvisorHandoff(input, gateState, commonCauses);
-  const knownIssueMatches = selected.map((match) => ({
-    domainId: match.pack.id,
-    domainLabel: match.pack.label,
-    matchState: match.score >= 10 ? "REVIEW_RECOMMENDED" as const : "POSSIBLE" as const,
-    summary: `${match.pack.label} known-issue library should be checked for ${input.diagnosticCase.vehicle.label}.`,
-    source: "Internal seed library; licensed OEM/third-party data not connected."
-  }));
+  const knownIssueMatches = selected.flatMap((match) => {
+    const matches = internalKnownIssueLibrary.filter((issue) => {
+      const year = input.diagnosticCase.vehicle.year ?? 0;
+      const make = input.diagnosticCase.vehicle.make ?? "";
+      const yearApplies = year === 0 || year >= issue.applicability.yearMin && (issue.applicability.yearMax == null || year <= issue.applicability.yearMax);
+      const makeApplies = issue.applicability.makes.length === 0 || issue.applicability.makes.includes(make);
+      const symptomApplies = !match.symptoms.length || issue.symptoms.some((symptom) => match.symptoms.includes(symptom));
+      return issue.domainId === match.pack.id && yearApplies && makeApplies && symptomApplies;
+    });
+    return (matches.length ? matches : [{
+      id: `known-${match.pack.id.toLocaleLowerCase()}-review`,
+      domainId: match.pack.id,
+      title: `${match.pack.label} known-issue library should be checked`,
+      symptoms: match.symptoms,
+      applicability: { makes: [], yearMin: 1980, yearMax: null },
+      evidenceRequired: match.pack.commonCauses.flatMap((cause) => cause.evidenceNeeded).slice(0, 4),
+      source: "Internal seed library; licensed OEM/third-party data not connected."
+    }]).map((issue) => ({
+      domainId: match.pack.id,
+      domainLabel: match.pack.label,
+      evidenceRequired: issue.evidenceRequired,
+      issueId: issue.id,
+      matchState: match.score >= 10 ? "REVIEW_RECOMMENDED" as const : "POSSIBLE" as const,
+      summary: issue.title,
+      source: issue.source
+    }));
+  }).slice(0, 6);
 
   return {
     version: TECHNICIAN_TROUBLESHOOTING_CONSOLE_VERSION,
