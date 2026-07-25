@@ -43,7 +43,9 @@ export type TroubleshootingCaseInput = {
 };
 
 type DomainRulePack = {
+  authority: "INTERNAL_SEED";
   commonCauses: Array<{ cause: string; evidenceNeeded: string[]; symptoms: string[] }>;
+  domainFamily: "MECHANICAL" | "BODY" | "ELECTRICAL" | "ADAS";
   id: TroubleshootingDomainId;
   keywords: string[];
   label: string;
@@ -56,6 +58,8 @@ const broadConcernWords = new Set(["issue", "issues", "problem", "problems", "ba
 
 const domainRulePacks: DomainRulePack[] = [
   {
+    authority: "INTERNAL_SEED",
+    domainFamily: "MECHANICAL",
     id: "ENGINE_DRIVABILITY",
     label: "Engine & Drivability",
     keywords: ["engine", "motor", "misfire", "rough", "stall", "power", "idle", "smoke", "oil", "check engine", "cel"],
@@ -78,6 +82,8 @@ const domainRulePacks: DomainRulePack[] = [
     ]
   },
   {
+    authority: "INTERNAL_SEED",
+    domainFamily: "MECHANICAL",
     id: "TRANSMISSION_DRIVETRAIN",
     label: "Transmission & Drivetrain",
     keywords: ["transmission", "trans", "gear", "shift", "slip", "drivetrain", "axle", "converter", "differential"],
@@ -100,6 +106,8 @@ const domainRulePacks: DomainRulePack[] = [
     ]
   },
   {
+    authority: "INTERNAL_SEED",
+    domainFamily: "MECHANICAL",
     id: "BRAKE_ABS_STABILITY",
     label: "Brakes, ABS & Stability",
     keywords: ["brake", "brakes", "abs", "stability", "grind", "grinding", "squeal", "rotor", "caliper", "pedal"],
@@ -120,6 +128,8 @@ const domainRulePacks: DomainRulePack[] = [
     ]
   },
   {
+    authority: "INTERNAL_SEED",
+    domainFamily: "ELECTRICAL",
     id: "STARTING_CHARGING",
     label: "Starting & Charging",
     keywords: ["battery", "starter", "alternator", "charging", "no crank", "slow crank", "dead"],
@@ -140,6 +150,8 @@ const domainRulePacks: DomainRulePack[] = [
     ]
   },
   {
+    authority: "INTERNAL_SEED",
+    domainFamily: "MECHANICAL",
     id: "COOLING",
     label: "Cooling System",
     keywords: ["coolant", "cooling", "radiator", "thermostat", "water pump", "overheat", "overheating", "fan"],
@@ -158,6 +170,8 @@ const domainRulePacks: DomainRulePack[] = [
     ]
   },
   {
+    authority: "INTERNAL_SEED",
+    domainFamily: "MECHANICAL",
     id: "HVAC",
     label: "HVAC",
     keywords: ["ac", "a/c", "air conditioning", "heat", "heater", "hvac", "blower", "climate"],
@@ -176,6 +190,8 @@ const domainRulePacks: DomainRulePack[] = [
     ]
   },
   {
+    authority: "INTERNAL_SEED",
+    domainFamily: "ELECTRICAL",
     id: "ELECTRICAL_NETWORK",
     label: "Electrical & Network",
     keywords: ["electrical", "wiring", "module", "network", "can", "communication", "short", "open", "power", "ground"],
@@ -194,6 +210,8 @@ const domainRulePacks: DomainRulePack[] = [
     ]
   },
   {
+    authority: "INTERNAL_SEED",
+    domainFamily: "BODY",
     id: "BODY_COLLISION",
     label: "Body, Door & Collision",
     keywords: ["body", "door", "window", "glass", "latch", "lock", "handle", "dent", "paint", "bumper", "collision", "water leak"],
@@ -214,6 +232,8 @@ const domainRulePacks: DomainRulePack[] = [
     ]
   },
   {
+    authority: "INTERNAL_SEED",
+    domainFamily: "ADAS",
     id: "ADAS_CALIBRATION",
     label: "ADAS & Calibration",
     keywords: ["adas", "camera", "radar", "calibration", "lane", "blind spot", "sensor", "program", "programming"],
@@ -357,6 +377,88 @@ function buildLearningLoop(input: TroubleshootingCaseInput, selected: Array<{ pa
   };
 }
 
+function buildIntakeRefinement(selected: Array<{ pack: DomainRulePack; score: number; symptoms: string[] }>, broadOnly: boolean) {
+  const primary = selected[0]?.pack;
+  const symptomOptions = primary ? Object.keys(primary.symptomAliases) : [];
+  return {
+    mode: broadOnly ? "INTERACTIVE_REFINEMENT_REQUIRED" as const : "REVIEW_AND_CONFIRM" as const,
+    questions: [
+      {
+        id: "primary_symptom",
+        label: "Primary symptom",
+        options: symptomOptions.length ? symptomOptions : ["noise", "warning light", "leak", "intermittent", "not working"],
+        prompt: primary ? `Select the closest ${primary.label} symptom.` : "Select the closest symptom family.",
+        required: true
+      },
+      {
+        id: "when_happens",
+        label: "When it happens",
+        options: ["cold start", "hot soak", "idle", "acceleration", "cruise", "braking", "turning", "intermittent/random"],
+        prompt: "Capture the operating condition that reproduces the concern.",
+        required: true
+      },
+      {
+        id: "current_or_intermitent",
+        label: "Current or intermittent",
+        options: ["currently present", "intermittent", "cannot duplicate yet", "customer-requested repair only"],
+        prompt: "Record whether the concern is present now.",
+        required: true
+      }
+    ],
+    draftSymptomProfile: {
+      domains: selected.map((match) => match.pack.id),
+      symptoms: unique(selected.flatMap((match) => match.symptoms)),
+      confidence: broadOnly ? "NEEDS_TECHNICIAN_INPUT" as const : "SYSTEM_SUGGESTED" as const
+    },
+    persistence: "Draft-only in this slice; future persistence should store technician answers with case lineage."
+  };
+}
+
+function buildRulePackRegistry(selected: Array<{ pack: DomainRulePack; score: number; symptoms: string[] }>) {
+  return {
+    active: selected.map((match) => ({
+      authority: match.pack.authority,
+      commonCauseCount: match.pack.commonCauses.length,
+      domainFamily: match.pack.domainFamily,
+      id: match.pack.id,
+      label: match.pack.label,
+      score: match.score,
+      symptomCount: Object.keys(match.pack.symptomAliases).length,
+      testCount: match.pack.tests.length
+    })),
+    available: domainRulePacks.map((pack) => ({ authority: pack.authority, domainFamily: pack.domainFamily, id: pack.id, label: pack.label })),
+    contract: "assembly tree + labor rules + parts rules + fitment rules + calibration/refinish/accessory rules may attach to the same domain registry without changing the console engine."
+  };
+}
+
+function vehicleAcknowledgements(input: TroubleshootingCaseInput) {
+  const base = `/diagnostics/cases/${encodeURIComponent(input.diagnosticCase.id)}/troubleshooting`;
+  return [
+    { id: "repair_history", label: "Repair history reviewed", required: true, state: "NEEDS_REVIEW" as const, action: "Open RO / Vehicle 360 history", href: `/vehicles/360/${encodeURIComponent(input.diagnosticCase.vehicle.id)}` },
+    { id: "known_issue_library", label: "Known issue library reviewed", required: true, state: "NEEDS_REVIEW" as const, action: "Review internal pattern matches", href: base },
+    { id: "recall_campaign", label: "Recall / campaign status", required: true, state: "SOURCE_NOT_CONNECTED" as const, action: "Mark unavailable until connector is enabled", href: base },
+    { id: "service_bulletin", label: "Service bulletin / warranty extension status", required: true, state: "SOURCE_NOT_CONNECTED" as const, action: "Mark unavailable until licensed source is enabled", href: base },
+    { id: "licensed_oem_data", label: "Licensed OEM data boundary", required: true, state: "SOURCE_NOT_CONNECTED" as const, action: "Do not cite proprietary procedures or part numbers", href: base }
+  ];
+}
+
+function testOverrideReasons(recommended: (DomainRulePack["tests"][number] & { domainId: TroubleshootingDomainId; domainLabel: string }) | null) {
+  return {
+    recommendedTestKey: recommended?.key ?? null,
+    options: [
+      "symptom currently present and another eligible test is more discriminating",
+      "tool unavailable",
+      "safer test first",
+      "customer authorization limit",
+      "already performed outside console",
+      "master technician direction",
+      "intermittent condition not reproducible",
+      "vehicle condition prevents this test"
+    ],
+    policy: "Technician may select an eligible alternative, but the console should capture the reason and preserve the original recommendation."
+  };
+}
+
 export function buildTechnicianTroubleshootingConsole(input: TroubleshootingCaseInput) {
   const text = normalizeText(input.diagnosticCase.concern);
   const matchedDomains = domainRulePacks
@@ -389,6 +491,7 @@ export function buildTechnicianTroubleshootingConsole(input: TroubleshootingCase
   }).slice(0, 6);
   const tests = selected.flatMap((match) => match.pack.tests.map((test) => ({ ...test, domainId: match.pack.id, domainLabel: match.pack.label }))).slice(0, 4);
   const recommendedTest = tests[0] ?? null;
+  const advisorHandoff = buildAdvisorHandoff(input, gateState, commonCauses);
   const knownIssueMatches = selected.map((match) => ({
     domainId: match.pack.id,
     domainLabel: match.pack.label,
@@ -425,6 +528,8 @@ export function buildTechnicianTroubleshootingConsole(input: TroubleshootingCase
           ? "Concern language mapped to governed diagnostic domains without assuming a root cause."
           : "Concern needs more detail before the console can select a governed diagnostic path."
     },
+    intakeRefinement: buildIntakeRefinement(selected, broadOnly),
+    rulePackRegistry: buildRulePackRegistry(selected),
     vehicleIntelligence: {
       required: true,
       sources: [
@@ -434,6 +539,7 @@ export function buildTechnicianTroubleshootingConsole(input: TroubleshootingCase
         sourceStatus("Service bulletin / warranty extension", "NOT_CONNECTED", "Licensed OEM or service-information connector is required before showing real bulletins."),
         sourceStatus("Licensed diagrams / OEM procedures", "NOT_CONNECTED", "Do not display proprietary procedures, diagrams, part numbers, or labor data without a licensed source.")
       ],
+      acknowledgements: vehicleAcknowledgements(input),
       knownIssueMatches
     },
     evidenceGate: {
@@ -456,9 +562,21 @@ export function buildTechnicianTroubleshootingConsole(input: TroubleshootingCase
         : null,
       selectionPolicy: "Recommend the safest highest-value discriminator from the selected domain rule packs. Technician may choose an eligible alternative with reason capture."
     },
+    testOverride: testOverrideReasons(recommendedTest),
     nextTestPreview: tests,
     evidenceCapturePlan: buildEvidenceCapturePlan(input, tests, commonCauses),
-    advisorHandoff: buildAdvisorHandoff(input, gateState, commonCauses),
+    advisorHandoff: {
+      ...advisorHandoff,
+      draftPacket: {
+        concernSummary: input.diagnosticCase.concern,
+        customerSafeStatus: advisorHandoff.summary,
+        internalDiagnosticStatus: statusLabel(gateState),
+        notReadyReasons: advisorHandoff.requiredBeforeCustomer,
+        recommendedAdvisorAction: advisorHandoff.nextAction,
+        vehicleSummary: `${input.diagnosticCase.vehicle.label}${input.diagnosticCase.vehicle.vin ? ` · ${input.diagnosticCase.vehicle.vin}` : ""}`,
+        warning: "Do not present suspected causes as confirmed repairs. Estimate, taxes, parts, authorization, and dispatch remain owned by their existing authorities."
+      }
+    },
     learningLoop: buildLearningLoop(input, selected),
     masterTechnicianGate: {
       enabled: false,

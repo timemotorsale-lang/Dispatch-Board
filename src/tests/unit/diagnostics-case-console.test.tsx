@@ -88,6 +88,11 @@ describe("diagnostics case console", () => {
     expect(html).toContain("Evidence capture plan");
     expect(html).toContain("Advisor-safe status");
     expect(html).toContain("Controlled learning proposal");
+    expect(html).toContain("Interactive intake refinement");
+    expect(html).toContain("Domain rule-pack registry");
+    expect(html).toContain("Vehicle intelligence acknowledgement checklist");
+    expect(html).toContain("Override reason capture");
+    expect(html).toContain("Advisor draft packet");
     expect(html).toContain("Low/contaminated fluid or leak path");
     expect(html).toContain("AI assistant withheld");
   });

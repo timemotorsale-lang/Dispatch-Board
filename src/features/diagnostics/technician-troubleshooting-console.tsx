@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, BookOpenCheck, Brain, Car, CheckCircle2, ClipboardCheck, ClipboardList, Gauge, GraduationCap, History, Lightbulb, Link2, Lock, Ruler, SearchCheck, ShieldAlert, Sparkles, Stethoscope, Wrench } from "lucide-react";
+import { AlertTriangle, ArrowLeft, BookOpenCheck, Brain, Car, CheckCircle2, ClipboardCheck, ClipboardList, Database, Gauge, GraduationCap, History, Lightbulb, Link2, Lock, Ruler, SearchCheck, ShieldAlert, Sparkles, Stethoscope, Wrench } from "lucide-react";
 import Link from "next/link";
 
 import type { buildTechnicianTroubleshootingConsole } from "@/server/diagnostics/technician-troubleshooting-console";
@@ -51,6 +51,16 @@ export function TechnicianTroubleshootingConsole({ model }: { model: Model }) {
             <h3>Focused questions to ask next</h3>
             {model.intake.missingQuestions.map((question) => <p key={question}><SearchCheck />{question}</p>)}
           </div>
+          <div className={styles.ttcInteractiveIntake}>
+            <h3>Interactive intake refinement</h3>
+            <strong>{label(model.intakeRefinement.mode)}</strong>
+            {model.intakeRefinement.questions.map((question) => <article key={question.id}>
+              <span>{question.label}</span>
+              <p>{question.prompt}</p>
+              <div>{question.options.map((option) => <button disabled key={option} type="button">{option}</button>)}</div>
+            </article>)}
+            <small>{model.intakeRefinement.persistence}</small>
+          </div>
         </section>
 
         <section className={styles.ttcPanel}>
@@ -65,10 +75,19 @@ export function TechnicianTroubleshootingConsole({ model }: { model: Model }) {
             <h3><History /> Known issue library matches</h3>
             {model.vehicleIntelligence.knownIssueMatches.map((match) => <article key={match.domainId}><strong>{match.domainLabel}</strong><span>{label(match.matchState)}</span><p>{match.summary}</p><small>{match.source}</small></article>)}
           </div>
+          <div className={styles.ttcAcknowledgements}>
+            <h3>Vehicle intelligence acknowledgement checklist</h3>
+            {model.vehicleIntelligence.acknowledgements.map((item) => <article key={item.id}><div><strong>{item.label}</strong><p>{item.action}</p></div><span>{label(item.state)}</span><Link href={item.href}>Review</Link></article>)}
+          </div>
         </section>
 
         <section className={styles.ttcPanel}>
           <header><div><span className={styles.eyebrow}>Slice 4 · Common cause scaffolding</span><h2>Cause candidates without overclaiming</h2><p>Ranking is qualitative until evidence and validation justify stronger language.</p></div><Lightbulb /></header>
+          <div className={styles.ttcRegistry}>
+            <h3><Database /> Domain rule-pack registry</h3>
+            <div>{model.rulePackRegistry.active.map((pack) => <article key={pack.id}><strong>{pack.label}</strong><span>{pack.domainFamily}</span><small>{pack.authority} · {pack.symptomCount} symptoms · {pack.commonCauseCount} causes · {pack.testCount} tests</small></article>)}</div>
+            <p>{model.rulePackRegistry.contract}</p>
+          </div>
           <div className={styles.ttcCauseList}>
             {model.commonCauses.map((cause) => <article key={`${cause.domainId}-${cause.cause}`}>
               <span>{cause.domainLabel}</span>
@@ -136,7 +155,23 @@ export function TechnicianTroubleshootingConsole({ model }: { model: Model }) {
             <ul>{model.nextTestPlan.recommendation.expectedEvidence.map((item) => <li key={item}>{item}</li>)}</ul>
           </article> : <p>No eligible next test preview exists yet.</p>}
           {model.nextTestPlan.alternatives.length ? <div className={styles.ttcAlternatives}><h3><Wrench /> Alternatives</h3>{model.nextTestPlan.alternatives.map((test) => <article key={test.key}><strong>{test.title}</strong><small>{test.domainLabel} · {test.tools.join(", ")}</small></article>)}</div> : null}
+          <div className={styles.ttcOverrideReasons}>
+            <h3>Override reason capture</h3>
+            {model.testOverride.options.map((option) => <span key={option}>{option}</span>)}
+            <small>{model.testOverride.policy}</small>
+          </div>
           <p>{model.nextTestPlan.selectionPolicy}</p>
+        </section>
+
+        <section>
+          <h2><ClipboardList /> Advisor draft packet</h2>
+          <article className={styles.ttcAdvisorDraft}>
+            <strong>{model.advisorHandoff.draftPacket.vehicleSummary}</strong>
+            <p>{model.advisorHandoff.draftPacket.concernSummary}</p>
+            <span>{model.advisorHandoff.draftPacket.internalDiagnosticStatus}</span>
+            <small>{model.advisorHandoff.draftPacket.customerSafeStatus}</small>
+            <b>{model.advisorHandoff.draftPacket.warning}</b>
+          </article>
         </section>
 
         <section className={styles.ttcAiGate}>

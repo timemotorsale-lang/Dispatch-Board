@@ -38,6 +38,8 @@ describe("technician troubleshooting console intelligence", () => {
     expect(model.intake.missingQuestions.join(" ")).toContain("Which engine symptom");
     expect(model.commonCauses.length).toBeGreaterThan(0);
     expect(model.evidenceGate.state).toBe("INTAKE_NEEDED");
+    expect(model.intakeRefinement.mode).toBe("INTERACTIVE_REFINEMENT_REQUIRED");
+    expect(model.intakeRefinement.questions[0]?.options).toContain("misfire");
   });
 
   it("routes transmission issues to transmission/drivetrain common-cause scaffolding", () => {
@@ -49,12 +51,15 @@ describe("technician troubleshooting console intelligence", () => {
     expect(model.nextTestPlan.recommendation?.key).toBe("TRANS_FLUID_CHECK");
     expect(model.nextTestPlan.recommendation?.expectedEvidence).toContain("fluid level");
     expect(model.evidenceCapturePlan.measurementsToCapture).toContain("fluid level");
+    expect(model.rulePackRegistry.active[0]?.id).toBe("TRANSMISSION_DRIVETRAIN");
+    expect(model.testOverride.options).toContain("tool unavailable");
   });
 
   it("keeps recall and service-bulletin sources visible as unavailable rather than silently pretending", () => {
     const model = buildTechnicianTroubleshootingConsole(buildInput("grinding noise from front passenger side"));
     expect(model.vehicleIntelligence.sources.find((source) => source.label === "Safety recall / campaign")?.state).toBe("NOT_CONNECTED");
     expect(model.vehicleIntelligence.sources.find((source) => source.label === "Service bulletin / warranty extension")?.state).toBe("NOT_CONNECTED");
+    expect(model.vehicleIntelligence.acknowledgements.map((item) => item.id)).toContain("service_bulletin");
     expect(model.masterTechnicianGate.enabled).toBe(false);
   });
 
@@ -92,6 +97,7 @@ describe("technician troubleshooting console intelligence", () => {
       }
     }));
     expect(model.advisorHandoff.readiness).toBe("CONFIRMED_CAUSE_REPAIR_RECOMMENDED");
+    expect(model.advisorHandoff.draftPacket.warning).toContain("Do not present suspected causes");
     expect(model.learningLoop.state).toBe("OUTCOME_REVIEW_READY");
     expect(model.learningLoop.activationRule).toContain("reviewed");
   });
