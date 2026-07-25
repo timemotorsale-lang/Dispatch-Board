@@ -49,7 +49,7 @@ type DomainRulePack = {
   label: string;
   missingQuestions: string[];
   symptomAliases: Record<string, string[]>;
-  tests: Array<{ key: string; reason: string; title: string; tools: string[] }>;
+  tests: Array<{ discriminates: string[]; expectedEvidence: string[]; key: string; prerequisites: string[]; reason: string; safety: string[]; title: string; tools: string[] }>;
 };
 
 const broadConcernWords = new Set(["issue", "issues", "problem", "problems", "bad", "wrong", "concern", "noise", "noisy", "not working", "acting up"]);
@@ -73,8 +73,8 @@ const domainRulePacks: DomainRulePack[] = [
       { cause: "Sensor plausibility or control issue", symptoms: ["warning light", "stall", "power loss"], evidenceNeeded: ["DTCs", "freeze frame", "live data plausibility"] }
     ],
     tests: [
-      { key: "ENGINE_SCAN_HEALTH", title: "Scan engine module and freeze-frame data", tools: ["scan tool"], reason: "Broad engine concerns need DTC, freeze-frame, and live-data context before cause ranking." },
-      { key: "ENGINE_VISUAL_FLUID", title: "Visual and fluid condition inspection", tools: ["inspection light"], reason: "Leaks, overheating, and obvious damage should be ruled in or out early." }
+      { discriminates: ["sensor plausibility", "misfire", "control issue"], expectedEvidence: ["DTC list", "freeze-frame data", "live-data snapshot"], key: "ENGINE_SCAN_HEALTH", prerequisites: ["battery voltage stable", "vehicle communication available"], safety: ["follow road-test policy if symptom requires driving"], title: "Scan engine module and freeze-frame data", tools: ["scan tool"], reason: "Broad engine concerns need DTC, freeze-frame, and live-data context before cause ranking." },
+      { discriminates: ["leak", "overheating", "mechanical damage"], expectedEvidence: ["fluid level/condition", "visible leak/damage notes", "photo if abnormal"], key: "ENGINE_VISUAL_FLUID", prerequisites: ["engine safe to inspect", "hot surfaces controlled"], safety: ["do not open hot pressurized cooling system"], title: "Visual and fluid condition inspection", tools: ["inspection light"], reason: "Leaks, overheating, and obvious damage should be ruled in or out early." }
     ]
   },
   {
@@ -95,8 +95,8 @@ const domainRulePacks: DomainRulePack[] = [
       { cause: "Internal transmission failure", symptoms: ["no movement", "slipping", "noise"], evidenceNeeded: ["pressure test", "debris inspection", "road test", "DTC/live data"] }
     ],
     tests: [
-      { key: "TRANS_FLUID_CHECK", title: "Check transmission fluid level, condition, and leaks", tools: ["lift", "fluid temperature source"], reason: "Fluid condition and leak evidence are required before replacement assumptions." },
-      { key: "TRANS_SCAN_ADAPTATION", title: "Scan TCM and review adaptation/programming status", tools: ["scan tool"], reason: "Modern transmission replacement and drivability concerns may require programming or relearn review." }
+      { discriminates: ["fluid leak", "contaminated fluid", "internal failure"], expectedEvidence: ["fluid level", "fluid condition", "leak location", "temperature condition"], key: "TRANS_FLUID_CHECK", prerequisites: ["vehicle safely lifted or level per procedure", "fluid temperature method available"], safety: ["hot fluid and rotating component precautions"], title: "Check transmission fluid level, condition, and leaks", tools: ["lift", "fluid temperature source"], reason: "Fluid condition and leak evidence are required before replacement assumptions." },
+      { discriminates: ["control/module issue", "programming/adaptation need", "internal fault clue"], expectedEvidence: ["TCM DTCs", "adaptation values", "software/calibration status"], key: "TRANS_SCAN_ADAPTATION", prerequisites: ["scan communication available", "vehicle battery support if programming review continues"], safety: ["do not program without authorization and battery support"], title: "Scan TCM and review adaptation/programming status", tools: ["scan tool"], reason: "Modern transmission replacement and drivability concerns may require programming or relearn review." }
     ]
   },
   {
@@ -116,7 +116,7 @@ const domainRulePacks: DomainRulePack[] = [
       { cause: "Wheel speed/ABS control issue", symptoms: ["warning light"], evidenceNeeded: ["ABS codes", "wheel speed data", "sensor/circuit checks"] }
     ],
     tests: [
-      { key: "BRAKE_VISUAL_MEASURE", title: "Inspect and measure brake friction, rotor, and hardware", tools: ["lift", "micrometer"], reason: "Brake noise and pulsation require direct physical evidence." }
+      { discriminates: ["pad/rotor wear", "hardware contact", "caliper issue"], expectedEvidence: ["pad thickness", "rotor condition", "hardware/caliper observation"], key: "BRAKE_VISUAL_MEASURE", prerequisites: ["vehicle lifted safely", "wheel removal authorized if required"], safety: ["support vehicle before wheel/brake inspection"], title: "Inspect and measure brake friction, rotor, and hardware", tools: ["lift", "micrometer"], reason: "Brake noise and pulsation require direct physical evidence." }
     ]
   },
   {
@@ -136,7 +136,7 @@ const domainRulePacks: DomainRulePack[] = [
       { cause: "Starter control or starter motor fault", symptoms: ["no crank", "clicking"], evidenceNeeded: ["control signal", "starter current", "relay command"] }
     ],
     tests: [
-      { key: "STARTING_BATTERY_BASELINE", title: "Battery state-of-charge and loaded voltage baseline", tools: ["battery tester", "DVOM"], reason: "Starting diagnosis needs a known-good electrical baseline." }
+      { discriminates: ["battery capacity", "voltage supply", "starting circuit baseline"], expectedEvidence: ["state of charge", "loaded voltage", "terminal condition"], key: "STARTING_BATTERY_BASELINE", prerequisites: ["battery accessible", "meter/tester available"], safety: ["eye protection near battery"], title: "Battery state-of-charge and loaded voltage baseline", tools: ["battery tester", "DVOM"], reason: "Starting diagnosis needs a known-good electrical baseline." }
     ]
   },
   {
@@ -154,7 +154,7 @@ const domainRulePacks: DomainRulePack[] = [
       { cause: "Thermostat/fan/flow issue", symptoms: ["overheating"], evidenceNeeded: ["temperature delta", "fan command", "hose temperature", "flow check"] }
     ],
     tests: [
-      { key: "COOLING_PRESSURE_VISUAL", title: "Cooling system visual and pressure test", tools: ["pressure tester"], reason: "Leaks and pressure loss should be checked before deeper overheating diagnosis." }
+      { discriminates: ["external leak", "pressure loss", "coolant level issue"], expectedEvidence: ["pressure test result", "leak observation", "coolant level/condition"], key: "COOLING_PRESSURE_VISUAL", prerequisites: ["system cool enough for safe service", "pressure cap access"], safety: ["do not open hot pressurized system"], title: "Cooling system visual and pressure test", tools: ["pressure tester"], reason: "Leaks and pressure loss should be checked before deeper overheating diagnosis." }
     ]
   },
   {
@@ -172,7 +172,7 @@ const domainRulePacks: DomainRulePack[] = [
       { cause: "Blend/airflow control issue", symptoms: ["no heat", "no airflow"], evidenceNeeded: ["actuator command", "blower operation", "mode door behavior"] }
     ],
     tests: [
-      { key: "HVAC_TEMP_PRESSURE_BASELINE", title: "HVAC temperature and pressure baseline", tools: ["thermometer", "manifold or machine"], reason: "HVAC diagnosis needs temperature and pressure evidence." }
+      { discriminates: ["refrigerant pressure", "temperature delta", "airflow/control issue"], expectedEvidence: ["ambient temperature", "vent temperature", "pressure readings"], key: "HVAC_TEMP_PRESSURE_BASELINE", prerequisites: ["HVAC system allowed to run", "shop refrigerant policy followed"], safety: ["refrigerant handling requires approved equipment"], title: "HVAC temperature and pressure baseline", tools: ["thermometer", "manifold or machine"], reason: "HVAC diagnosis needs temperature and pressure evidence." }
     ]
   },
   {
@@ -190,7 +190,7 @@ const domainRulePacks: DomainRulePack[] = [
       { cause: "Network/module communication fault", symptoms: ["communication fault"], evidenceNeeded: ["network scan", "topology", "scope pattern", "module power/ground"] }
     ],
     tests: [
-      { key: "ELECTRICAL_POWER_GROUND_BASELINE", title: "Power, ground, and fuse-load baseline", tools: ["DVOM", "test light"], reason: "Electrical diagnosis must prove power and ground integrity before module replacement." }
+      { discriminates: ["power supply fault", "ground integrity fault", "module/network symptom"], expectedEvidence: ["voltage drop", "loaded power/ground reading", "fuse/circuit note"], key: "ELECTRICAL_POWER_GROUND_BASELINE", prerequisites: ["wiring access identified", "circuit protected from shorts"], safety: ["avoid piercing safety-critical harnesses without approval"], title: "Power, ground, and fuse-load baseline", tools: ["DVOM", "test light"], reason: "Electrical diagnosis must prove power and ground integrity before module replacement." }
     ]
   },
   {
@@ -210,7 +210,7 @@ const domainRulePacks: DomainRulePack[] = [
       { cause: "Collision/refinish scope issue", symptoms: ["damage"], evidenceNeeded: ["photo evidence", "damage map", "blend/refinish assessment"] }
     ],
     tests: [
-      { key: "BODY_AREA_TREE_REVIEW", title: "Open repair-area tree and inspect related parts", tools: ["visual inspection", "licensed diagram source when connected"], reason: "Body concerns often span hardware, trim, electrical, refinish, and calibration boundaries." }
+      { discriminates: ["hardware fitment", "trim/electrical overlap", "refinish/calibration scope"], expectedEvidence: ["damage/fitment observation", "affected subcomponent list", "photo if abnormal"], key: "BODY_AREA_TREE_REVIEW", prerequisites: ["affected area identified", "licensed diagram source marked if used"], safety: ["SRS/ADAS caution if trim, glass, or sensor area is involved"], title: "Open repair-area tree and inspect related parts", tools: ["visual inspection", "licensed diagram source when connected"], reason: "Body concerns often span hardware, trim, electrical, refinish, and calibration boundaries." }
     ]
   },
   {
@@ -227,7 +227,7 @@ const domainRulePacks: DomainRulePack[] = [
       { cause: "Sensor damage or aim issue", symptoms: ["sensor damage"], evidenceNeeded: ["visual damage", "mount inspection", "scan data", "calibration result"] }
     ],
     tests: [
-      { key: "ADAS_PREREQUISITE_REVIEW", title: "ADAS prerequisite and scan review", tools: ["scan tool", "calibration equipment"], reason: "ADAS work must satisfy prerequisites before calibration or release." }
+      { discriminates: ["sensor damage", "calibration prerequisite", "module/calibration status"], expectedEvidence: ["scan status", "sensor/mount observation", "prerequisite checklist"], key: "ADAS_PREREQUISITE_REVIEW", prerequisites: ["vehicle identity and equipment confirmed", "calibration area/tool availability known"], safety: ["do not release ADAS concern without prerequisite and calibration outcome review"], title: "ADAS prerequisite and scan review", tools: ["scan tool", "calibration equipment"], reason: "ADAS work must satisfy prerequisites before calibration or release." }
     ]
   }
 ];
@@ -287,6 +287,76 @@ function statusLabel(state: TroubleshootingGateState) {
   return labels[state];
 }
 
+function buildEvidenceCapturePlan(input: TroubleshootingCaseInput, tests: Array<DomainRulePack["tests"][number] & { domainId: TroubleshootingDomainId; domainLabel: string }>, commonCauses: Array<{ evidenceNeeded: string[] }>) {
+  const expectedEvidence = unique([...tests.flatMap((test) => test.expectedEvidence), ...commonCauses.flatMap((cause) => cause.evidenceNeeded)]).slice(0, 10);
+  const currentObservationCount = input.diagnosticCase.observations.length;
+  const currentMeasurementCount = input.diagnosticCase.measurements.length;
+  const measurementNeeds = expectedEvidence.filter((item) => /(voltage|pressure|temperature|level|condition|thickness|reading|value|delta|test result|state of charge)/i.test(item));
+  const observationNeeds = expectedEvidence.filter((item) => !measurementNeeds.includes(item));
+  return {
+    captureState: currentObservationCount + currentMeasurementCount === 0 ? "NO_EVIDENCE_RECORDED" as const : input.qualitySafetyGates.readyForReasoning ? "EVIDENCE_READY" as const : "MORE_EVIDENCE_NEEDED" as const,
+    current: {
+      measurements: currentMeasurementCount,
+      observations: currentObservationCount,
+      invalid: input.qualitySafetyGates.counts.invalid,
+      suspect: input.qualitySafetyGates.counts.suspect
+    },
+    observationsToCapture: observationNeeds.slice(0, 6),
+    measurementsToCapture: measurementNeeds.slice(0, 6),
+    attachmentPrompts: ["scan report", "photos/video of abnormal condition", "waveform or live-data capture when applicable"].filter((item) => expectedEvidence.some((evidence) => evidence.includes(item.split(" ")[0])) || item === "photos/video of abnormal condition"),
+    entryPoint: `/diagnostics/cases/${encodeURIComponent(input.diagnosticCase.id)}#evidence`
+  };
+}
+
+function buildAdvisorHandoff(input: TroubleshootingCaseInput, gateState: TroubleshootingGateState, commonCauses: Array<{ cause: string; rankState: string }>) {
+  const supported = commonCauses.find((cause) => cause.rankState === "SUPPORTED");
+  if (["CONFIRMED", "REPAIR_PLANNING", "HANDED_OFF", "POST_REPAIR_VERIFICATION", "VERIFIED_CLOSED"].includes(input.diagnosticCase.status)) {
+    return {
+      readiness: "CONFIRMED_CAUSE_REPAIR_RECOMMENDED" as const,
+      summary: "Diagnostic case has advanced to confirmed/repair planning status. Advisor may review the governed handoff package.",
+      nextAction: "Open advisor review and verify customer-facing wording, estimate boundaries, parts, tax, and authorization.",
+      requiredBeforeCustomer: ["advisor review", "estimate authority review", "customer authorization"]
+    };
+  }
+  if (supported) {
+    return {
+      readiness: "SUSPECTED_CAUSE_REVIEW" as const,
+      summary: `${supported.cause} is supported for technician review, but advisor language must remain suspected until qualified confirmation.`,
+      nextAction: "Technician should confirm or abstain before repair recommendation.",
+      requiredBeforeCustomer: ["qualified technician confirmation", "contradiction review", "advisor-safe summary"]
+    };
+  }
+  if (gateState === "INTAKE_NEEDED") {
+    return {
+      readiness: "NEEDS_MORE_DIAGNOSIS" as const,
+      summary: "The concern needs more detail before advisor repair language is safe.",
+      nextAction: "Ask focused symptom and condition questions, then collect first evidence.",
+      requiredBeforeCustomer: ["clarified symptom", "initial evidence", "vehicle intelligence acknowledgement"]
+    };
+  }
+  return {
+    readiness: "TEST_AUTHORIZATION_REQUIRED" as const,
+    summary: "The console has a diagnostic direction, but testing evidence is still needed before cause language is safe.",
+    nextAction: "Request or perform the next eligible diagnostic test.",
+    requiredBeforeCustomer: ["test result", "evidence review", "technician interpretation"]
+  };
+}
+
+function buildLearningLoop(input: TroubleshootingCaseInput, selected: Array<{ pack: DomainRulePack; score: number; symptoms: string[] }>) {
+  const caseClosed = input.diagnosticCase.status === "VERIFIED_CLOSED";
+  const domains = selected.map((match) => match.pack.label);
+  return {
+    state: caseClosed ? "OUTCOME_REVIEW_READY" as const : "WAITING_FOR_VERIFIED_OUTCOME" as const,
+    reviewQueue: ["symptom vocabulary review", "common-cause ranking review", "test sequencing review", "advisor handoff wording review"],
+    proposedSignals: [
+      domains.length ? `Review whether ${domains.join(", ")} matching was useful for this case.` : "Review whether fallback domain selection was appropriate.",
+      input.qualitySafetyGates.readyForReasoning ? "Confirmed evidence gate can be replayed for future ranking calibration." : "Missing evidence should inform future intake prompts.",
+      "No production rule should change until manager/master-tech review approves the learning proposal."
+    ],
+    activationRule: "Learning proposals are draft-only until reviewed, versioned, and approved."
+  };
+}
+
 export function buildTechnicianTroubleshootingConsole(input: TroubleshootingCaseInput) {
   const text = normalizeText(input.diagnosticCase.concern);
   const matchedDomains = domainRulePacks
@@ -318,6 +388,7 @@ export function buildTechnicianTroubleshootingConsole(input: TroubleshootingCase
       }));
   }).slice(0, 6);
   const tests = selected.flatMap((match) => match.pack.tests.map((test) => ({ ...test, domainId: match.pack.id, domainLabel: match.pack.label }))).slice(0, 4);
+  const recommendedTest = tests[0] ?? null;
   const knownIssueMatches = selected.map((match) => ({
     domainId: match.pack.id,
     domainLabel: match.pack.label,
@@ -373,7 +444,22 @@ export function buildTechnicianTroubleshootingConsole(input: TroubleshootingCase
       state: gateState
     },
     commonCauses,
+    nextTestPlan: {
+      alternatives: tests.slice(1),
+      recommendation: recommendedTest
+        ? {
+          ...recommendedTest,
+          blocked: gateState === "INTAKE_NEEDED",
+          blockedReason: gateState === "INTAKE_NEEDED" ? "Complete focused intake questions before selecting a diagnostic test." : null,
+          estimatedMinutes: recommendedTest.key.includes("SCAN") ? 15 : recommendedTest.key.includes("VISUAL") || recommendedTest.key.includes("REVIEW") ? 20 : 30
+        }
+        : null,
+      selectionPolicy: "Recommend the safest highest-value discriminator from the selected domain rule packs. Technician may choose an eligible alternative with reason capture."
+    },
     nextTestPreview: tests,
+    evidenceCapturePlan: buildEvidenceCapturePlan(input, tests, commonCauses),
+    advisorHandoff: buildAdvisorHandoff(input, gateState, commonCauses),
+    learningLoop: buildLearningLoop(input, selected),
     masterTechnicianGate: {
       enabled: false,
       label: "AI assistant withheld",

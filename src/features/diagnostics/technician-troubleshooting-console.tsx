@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, BookOpenCheck, Brain, Car, CheckCircle2, ClipboardList, Gauge, History, Lightbulb, Lock, SearchCheck, ShieldAlert, Sparkles, Stethoscope } from "lucide-react";
+import { AlertTriangle, ArrowLeft, BookOpenCheck, Brain, Car, CheckCircle2, ClipboardCheck, ClipboardList, Gauge, GraduationCap, History, Lightbulb, Link2, Lock, Ruler, SearchCheck, ShieldAlert, Sparkles, Stethoscope, Wrench } from "lucide-react";
 import Link from "next/link";
 
 import type { buildTechnicianTroubleshootingConsole } from "@/server/diagnostics/technician-troubleshooting-console";
@@ -79,6 +79,38 @@ export function TechnicianTroubleshootingConsole({ model }: { model: Model }) {
             </article>)}
           </div>
         </section>
+
+        <section className={styles.ttcPanel}>
+          <header><div><span className={styles.eyebrow}>Slice 6 · Evidence and measurement capture</span><h2>Evidence capture plan</h2><p>Record what proves or eliminates the leading paths. Evidence remains separate from conclusions.</p></div><ClipboardCheck /></header>
+          <div className={styles.ttcEvidencePlan}>
+            <article><strong>{label(model.evidenceCapturePlan.captureState)}</strong><p>{model.evidenceCapturePlan.current.observations} observations · {model.evidenceCapturePlan.current.measurements} measurements · {model.evidenceCapturePlan.current.invalid} invalid · {model.evidenceCapturePlan.current.suspect} suspect</p><Link href={model.evidenceCapturePlan.entryPoint}>Open evidence capture</Link></article>
+            <div>
+              <section><h3><SearchCheck /> Observations to capture</h3>{model.evidenceCapturePlan.observationsToCapture.length ? model.evidenceCapturePlan.observationsToCapture.map((item) => <p key={item}>{item}</p>) : <p>Observation needs will appear after the next test path is selected.</p>}</section>
+              <section><h3><Ruler /> Measurements to capture</h3>{model.evidenceCapturePlan.measurementsToCapture.length ? model.evidenceCapturePlan.measurementsToCapture.map((item) => <p key={item}>{item}</p>) : <p>Measurement needs will appear after the next test path is selected.</p>}</section>
+              <section><h3><Link2 /> Attachments</h3>{model.evidenceCapturePlan.attachmentPrompts.map((item) => <p key={item}>{item}</p>)}</section>
+            </div>
+          </div>
+        </section>
+
+        <section className={styles.ttcPanel}>
+          <header><div><span className={styles.eyebrow}>Slice 7 · Advisor handoff readiness</span><h2>Advisor-safe status</h2><p>The console translates diagnostic progress into safe service-advisor language without overstating certainty.</p></div><ClipboardList /></header>
+          <div className={styles.ttcHandoff}>
+            <strong>{label(model.advisorHandoff.readiness)}</strong>
+            <p>{model.advisorHandoff.summary}</p>
+            <span>Next: {model.advisorHandoff.nextAction}</span>
+            <ul>{model.advisorHandoff.requiredBeforeCustomer.map((item) => <li key={item}>{item}</li>)}</ul>
+          </div>
+        </section>
+
+        <section className={styles.ttcPanel}>
+          <header><div><span className={styles.eyebrow}>Slice 8 · Review and learning loop</span><h2>Controlled learning proposal</h2><p>Confirmed outcomes can improve the library later, but nothing teaches itself into production.</p></div><GraduationCap /></header>
+          <div className={styles.ttcLearning}>
+            <strong>{label(model.learningLoop.state)}</strong>
+            <div>{model.learningLoop.reviewQueue.map((item) => <span key={item}>{item}</span>)}</div>
+            <ul>{model.learningLoop.proposedSignals.map((item) => <li key={item}>{item}</li>)}</ul>
+            <p>{model.learningLoop.activationRule}</p>
+          </div>
+        </section>
       </main>
 
       <aside className={styles.ttcRail}>
@@ -95,12 +127,16 @@ export function TechnicianTroubleshootingConsole({ model }: { model: Model }) {
         </section>
 
         <section>
-          <h2><Stethoscope /> Next best test preview</h2>
-          {model.nextTestPreview.map((test) => <article key={test.key}>
-            <strong>{test.title}</strong>
-            <p>{test.reason}</p>
-            <small>{test.domainLabel} · Tools: {test.tools.join(", ")}</small>
-          </article>)}
+          <h2><Stethoscope /> Next best test</h2>
+          {model.nextTestPlan.recommendation ? <article className={styles.ttcRecommendedTest}>
+            <strong>{model.nextTestPlan.recommendation.title}</strong>
+            <p>{model.nextTestPlan.recommendation.reason}</p>
+            {model.nextTestPlan.recommendation.blocked ? <b>{model.nextTestPlan.recommendation.blockedReason}</b> : null}
+            <small>{model.nextTestPlan.recommendation.domainLabel} · {model.nextTestPlan.recommendation.estimatedMinutes} min · Tools: {model.nextTestPlan.recommendation.tools.join(", ")}</small>
+            <ul>{model.nextTestPlan.recommendation.expectedEvidence.map((item) => <li key={item}>{item}</li>)}</ul>
+          </article> : <p>No eligible next test preview exists yet.</p>}
+          {model.nextTestPlan.alternatives.length ? <div className={styles.ttcAlternatives}><h3><Wrench /> Alternatives</h3>{model.nextTestPlan.alternatives.map((test) => <article key={test.key}><strong>{test.title}</strong><small>{test.domainLabel} · {test.tools.join(", ")}</small></article>)}</div> : null}
+          <p>{model.nextTestPlan.selectionPolicy}</p>
         </section>
 
         <section className={styles.ttcAiGate}>

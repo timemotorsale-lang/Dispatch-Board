@@ -17,7 +17,6 @@ function buildInput(concern: string, overrides: Partial<Parameters<typeof buildT
       riskTier: "R2",
       stage: "CONCERN",
       status: "TRIAGE",
-      testPlans: [],
       vehicle: { id: "vehicle-1", label: "2010 Mazda 3", make: "Mazda", model: "3", vin: "JM1BL1SF3A1257561", year: 2010 },
       version: 3
     },
@@ -47,6 +46,9 @@ describe("technician troubleshooting console intelligence", () => {
     expect(model.intake.missingQuestions.join(" ")).toContain("slip");
     expect(model.commonCauses.map((cause) => cause.cause)).toContain("Low/contaminated fluid or leak path");
     expect(model.nextTestPreview.map((test) => test.key)).toContain("TRANS_FLUID_CHECK");
+    expect(model.nextTestPlan.recommendation?.key).toBe("TRANS_FLUID_CHECK");
+    expect(model.nextTestPlan.recommendation?.expectedEvidence).toContain("fluid level");
+    expect(model.evidenceCapturePlan.measurementsToCapture).toContain("fluid level");
   });
 
   it("keeps recall and service-bulletin sources visible as unavailable rather than silently pretending", () => {
@@ -71,5 +73,26 @@ describe("technician troubleshooting console intelligence", () => {
     }));
     expect(model.evidenceGate.state).toBe("SUSPECTED_CAUSE_REVIEW");
     expect(model.commonCauses[0]?.rankState).toBe("SUPPORTED");
+    expect(model.advisorHandoff.readiness).toBe("SUSPECTED_CAUSE_REVIEW");
+    expect(model.learningLoop.state).toBe("WAITING_FOR_VERIFIED_OUTCOME");
+  });
+
+  it("creates advisor handoff and learning readiness once a case is verified closed", () => {
+    const model = buildTechnicianTroubleshootingConsole(buildInput("brake grinding", {
+      diagnosticCase: {
+        ...buildInput("brake grinding").diagnosticCase,
+        status: "VERIFIED_CLOSED",
+        observations: [{ id: "obs-1", qualityStatus: "VALID", statement: "Front pads are metal-to-metal." }],
+        measurements: [{ id: "msr-1", plausibilityStatus: "PLAUSIBLE", qualityStatus: "VALID", quantity: "DISTANCE", unit: "mm", value: "0" }]
+      },
+      qualitySafetyGates: {
+        counts: { currentMeasurements: 1, currentObservations: 1, independentGroups: 2, invalid: 0, suspect: 0 },
+        readyForReasoning: true,
+        reasonCodes: []
+      }
+    }));
+    expect(model.advisorHandoff.readiness).toBe("CONFIRMED_CAUSE_REPAIR_RECOMMENDED");
+    expect(model.learningLoop.state).toBe("OUTCOME_REVIEW_READY");
+    expect(model.learningLoop.activationRule).toContain("reviewed");
   });
 });
