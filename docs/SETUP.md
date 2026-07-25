@@ -2,6 +2,11 @@
 
 This guide is for setting up the Time Motor Sales Dispatch Board locally for development, testing, and MVP verification.
 
+For a production-oriented Ubuntu Server deployment, use
+[DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md). The Docker stack keeps production
+configuration, migrations, TLS, scheduling, persistence, and backups separate
+from this local development flow.
+
 ## Prerequisites
 
 - Node.js 24 or newer

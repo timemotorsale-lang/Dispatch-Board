@@ -85,6 +85,12 @@ If Prisma regeneration fails on Windows with an `EPERM` rename error around `que
 
 For the full setup flow, environment details, troubleshooting, and testing notes, see [docs/SETUP.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/SETUP.md).
 
+For a production-oriented single-server Ubuntu deployment using Docker Compose,
+PostgreSQL, Caddy HTTPS, scheduled jobs, and automated database dumps, see
+[docs/DOCKER_DEPLOYMENT.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/DOCKER_DEPLOYMENT.md).
+For private VPN access with Tailscale Serve and no public web listener, see
+[docs/TAILSCALE_DEPLOYMENT.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/TAILSCALE_DEPLOYMENT.md).
+
 ## Quality commands
 
 Use the real repo scripts from `package.json`:
