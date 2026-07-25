@@ -509,6 +509,175 @@
   font-size: 9px;
 }
 
+.repairAreaIntelligence {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 12px;
+  border: 1px solid #cbd8e8;
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.repairAreaIntelligence header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.repairAreaIntelligence header div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.repairAreaIntelligence header span,
+.repairAreaIntelligence header small,
+.areaRuleGrid b,
+.areaChecks span {
+  width: max-content;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #eaf2ff;
+  color: #1d5bbd;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.repairAreaIntelligence h3,
+.repairAreaIntelligence h4,
+.repairAreaIntelligence p {
+  margin: 0;
+}
+
+.repairAreaIntelligence h3 {
+  color: #0f1a2f;
+  font-size: 16px;
+}
+
+.repairAreaIntelligence header p,
+.repairAreaIntelligence header small,
+.areaRuleGrid small,
+.assemblyMap small {
+  color: #5d6c80;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.assemblyMap {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  gap: 7px;
+}
+
+.assemblyMap article {
+  display: grid;
+  gap: 4px;
+  min-height: 78px;
+  padding: 9px;
+  border: 1px solid #d7e1ee;
+  border-left: 4px solid #58749c;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.assemblyMap article[data-zone="finish"],
+.assemblyMap article[data-zone="outer"] {
+  border-left-color: #b36b2c;
+}
+
+.assemblyMap article[data-zone="electrical"],
+.assemblyMap article[data-zone="safety"] {
+  border-left-color: #6d55b3;
+}
+
+.assemblyMap article[data-zone="hydraulic"],
+.assemblyMap article[data-zone="drivetrain"],
+.assemblyMap article[data-zone="brake"] {
+  border-left-color: #1f7a5c;
+}
+
+.assemblyMap strong,
+.areaRuleGrid span {
+  color: #15243a;
+  font-weight: 800;
+}
+
+.areaRuleGrid {
+  display: grid;
+  grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+  gap: 10px;
+}
+
+.areaRuleGrid section {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #d7e1ee;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.areaRuleGrid h4 {
+  color: #25344a;
+  font-size: 12px;
+}
+
+.areaRuleGrid p {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 6px 8px;
+  align-items: center;
+  padding-top: 7px;
+  border-top: 1px solid #edf1f5;
+}
+
+.areaRuleGrid p:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.areaRuleGrid small {
+  grid-column: 2 / -1;
+}
+
+.areaRuleGrid button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 27px;
+  padding: 0 8px;
+  border: 1px solid #c4d7f7;
+  border-radius: 5px;
+  background: #fff;
+  color: #075fd4;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.areaRuleGrid button svg {
+  width: 13px;
+}
+
+.areaChecks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.areaChecks span {
+  width: auto;
+  max-width: 100%;
+  background: #f4f7fb;
+  color: #43546b;
+  line-height: 1.35;
+}
+
 .categoryLinks {
   display: flex;
   align-items: center;

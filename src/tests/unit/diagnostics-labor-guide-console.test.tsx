@@ -37,6 +37,9 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("Auto from parts catalog");
     expect(markup).toContain("Automatic Suggested Add-Ons");
     expect(markup).toContain("Road test and repair verification");
+    expect(markup).toContain("Repair area intelligence");
+    expect(markup).toContain("Brake Assembly");
+    expect(markup).toContain("OEM-BRAKE-PADS-VIN-REVIEW");
     expect(markup).toContain("Selected Work");
     expect(markup).toContain("Evidence 0");
     expect(markup).toContain("Edit Replace front brake pads and rotors");
@@ -95,8 +98,22 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("Axle/output shaft seal set");
     expect(markup).toContain("Torque converter/front pump seal");
     expect(markup).toContain("Transmission programming, configuration, and adaptive relearn");
+    expect(markup).toContain("Transmission Assembly");
+    expect(markup).toContain("OEM-TRANS-ASSEMBLY-VIN-REVIEW");
+    expect(markup).toContain("Program/configure TCM when required.");
     expect(markup).toContain("MN taxable parts");
     expect(markup).toContain("separately stated repair labor is not taxed");
+  });
+
+  it("renders bodywork repair-area intelligence for door estimates", () => {
+    const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={null} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} initialQuery="door" initialSelectedWork="empty" laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={[]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
+
+    expect(markup).toContain("Door Assembly");
+    expect(markup).toContain("Door shell");
+    expect(markup).toContain("Glass and regulator");
+    expect(markup).toContain("OEM-DOOR-SHELL-VIN-REVIEW");
+    expect(markup).toContain("Door shell replacement needs refinish review");
+    expect(markup).toContain("Replace door shell");
   });
 
   it("provides an evidence upload workspace for RO photos and documents", () => {

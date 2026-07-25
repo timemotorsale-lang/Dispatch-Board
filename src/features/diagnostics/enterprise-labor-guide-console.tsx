@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { evaluateEstimatePartsTaxPolicy, type EstimateRequiredPart } from "@/server/diagnostics/estimate-parts-tax-policy";
 import { analyzeLaborLanguage } from "@/server/diagnostics/labor-language-intelligence";
 import type { LaborOperationSystem, LaborRepairOperation } from "@/server/diagnostics/labor-operation-taxonomy";
+import { evaluateRepairAreaIntelligence, type RepairAreaPartRule } from "@/server/diagnostics/repair-area-intelligence";
 
 import styles from "./enterprise-labor-guide-console.module.css";
 
@@ -130,13 +131,13 @@ function matchesRepairText(operation: LaborRepairOperation, searchText: string) 
   return matchedWords.length >= Math.min(2, words.length);
 }
 
-export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "manual", initialSelectedWork = "starter", initialWorkTab = "selected", repairTaxonomy }: { activeRepairOrder: ActiveRepairOrder | null; catalog: unknown[]; initialMode?: "manual" | "engine"; initialSelectedWork?: "empty" | "starter" | "transmission"; initialWorkTab?: WorkTab; laborAddOns: unknown[]; repairOrders?: { id: string; label: string }[]; repairTaxonomy: LaborOperationSystem[] }) {
+export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "manual", initialQuery = "", initialSelectedWork = "starter", initialWorkTab = "selected", repairTaxonomy }: { activeRepairOrder: ActiveRepairOrder | null; catalog: unknown[]; initialMode?: "manual" | "engine"; initialQuery?: string; initialSelectedWork?: "empty" | "starter" | "transmission"; initialWorkTab?: WorkTab; laborAddOns: unknown[]; repairOrders?: { id: string; label: string }[]; repairTaxonomy: LaborOperationSystem[] }) {
   const allOperations = useMemo(() => repairTaxonomy.flatMap((system) => system.groups.flatMap((group) => group.operations)), [repairTaxonomy]);
   const brakeStarter = allOperations.filter((operation) => ["front-brake-pads-rotors", "brake-caliper-front"].includes(operation.id));
   const transmissionStarter = allOperations.filter((operation) => operation.id === "transmission-remove-install");
   const [mode, setMode] = useState<"manual" | "engine">(initialMode);
   const [activeSystemId, setActiveSystemId] = useState(repairTaxonomy.find((system) => system.id === "brakes")?.id ?? repairTaxonomy[0]?.id ?? "");
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [enginePrompt, setEnginePrompt] = useState("");
   const [analyzedEnginePrompt, setAnalyzedEnginePrompt] = useState("");
   const [view, setView] = useState<"list" | "board">("list");
@@ -176,6 +177,12 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
     if (!normalizedQuery) return scoped;
     return scoped.filter((operation) => matchesRepairText(operation, normalizedQuery));
   }, [activeSystem, allOperations, engineAnalysis, mode, normalizedQuery]);
+  const repairAreaOperations = selectedLabor.length ? selectedLabor : catalogOperations.slice(0, 3);
+  const repairAreaQuery = selectedLabor.length ? selectedLabor.map((operation) => operation.title).join(" ") : normalizedQuery || enginePrompt || activeSystem?.title;
+  const repairAreaIntelligence = useMemo(
+    () => evaluateRepairAreaIntelligence({ query: repairAreaQuery, operations: repairAreaOperations }),
+    [repairAreaOperations, repairAreaQuery]
+  );
   const groupedCatalog = useMemo(() => {
     const byGroup = new Map<string, { description: string; id: string; operations: LaborRepairOperation[]; title: string }>();
     if (normalizedQuery) {
@@ -318,6 +325,25 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
 
   function addManualPart() {
     setSelectedParts((current) => [...current, { id: `manual-part-${current.length + 1}`, laborRowId: selectedLabor[0]?.rowId ?? "manual", name: "Manual part", number: "Enter part #", quantity: 1, source: "MANUAL", unitPrice: 0 }]);
+    setWorkTab("parts");
+  }
+
+  function addRepairAreaPart(part: RepairAreaPartRule) {
+    setSelectedParts((current) => {
+      const id = `area-${part.oemPartNumber.toLocaleLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+      if (current.some((item) => item.id === id || item.number === part.oemPartNumber)) return current;
+      return [...current, {
+        id,
+        laborRowId: selectedLabor[0]?.rowId ?? "repair-area",
+        name: part.description,
+        number: part.oemPartNumber,
+        pricingStatus: "PRICE_PENDING",
+        quantity: part.quantity,
+        source: "MANUAL",
+        taxable: true,
+        unitPrice: 0
+      }];
+    });
     setWorkTab("parts");
   }
 
@@ -637,6 +663,49 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
               <p>{engineAnalysis.summary}</p>
               {engineAnalysis.recognizedTerms.length ? <div>{engineAnalysis.recognizedTerms.map((term) => <span key={term}>{term}</span>)}</div> : null}
               {engineAnalysis.clarification ? <strong>{engineAnalysis.clarification}</strong> : null}
+            </section>
+          ) : null}
+
+          {repairAreaIntelligence.activeRulePack ? (
+            <section className={styles.repairAreaIntelligence} aria-label="Repair area intelligence">
+              <header>
+                <div>
+                  <span>{repairAreaIntelligence.activeRulePack.domain}</span>
+                  <h3>{repairAreaIntelligence.activeRulePack.title}</h3>
+                  <p>{repairAreaIntelligence.summary}</p>
+                </div>
+                <small>{repairAreaIntelligence.version} · {displayLabel(repairAreaIntelligence.confidence)}</small>
+              </header>
+              <div className={styles.assemblyMap} aria-label={`${repairAreaIntelligence.activeRulePack.title} assembly map`}>
+                {repairAreaIntelligence.activeRulePack.assembly.map((node) => (
+                  <article data-zone={node.zone} key={node.id}>
+                    <strong>{node.label}</strong>
+                    <small>{node.description}</small>
+                  </article>
+                ))}
+              </div>
+              <div className={styles.areaRuleGrid}>
+                <section>
+                  <h4>Estimate Labor Rules</h4>
+                  {repairAreaIntelligence.activeRulePack.laborRules.map((rule) => (
+                    <p key={`${rule.title}-${rule.requirement}`}><b>{rule.requirement}</b><span>{rule.title}</span><small>{rule.hours == null ? "Review time" : `${rule.hours.toFixed(1)} hrs`} · {rule.reason}</small></p>
+                  ))}
+                </section>
+                <section>
+                  <h4>OEM Parts Map</h4>
+                  {repairAreaIntelligence.activeRulePack.partRules.slice(0, 6).map((part) => (
+                    <p key={`${part.oemPartNumber}-${part.description}`}>
+                      <b>{part.requirement}</b>
+                      <span>{part.description}</span>
+                      <small>{part.oemPartNumber} · Qty {part.quantity} · {part.fitmentBasis}</small>
+                      <button onClick={() => addRepairAreaPart(part)} type="button"><Plus />Add</button>
+                    </p>
+                  ))}
+                </section>
+              </div>
+              <div className={styles.areaChecks}>
+                {[...repairAreaIntelligence.activeRulePack.fitmentRules, ...repairAreaIntelligence.activeRulePack.calibrationRules, ...repairAreaIntelligence.activeRulePack.refinishRules].slice(0, 6).map((rule) => <span key={rule}>{rule}</span>)}
+              </div>
             </section>
           ) : null}
 
