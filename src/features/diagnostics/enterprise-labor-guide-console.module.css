@@ -833,6 +833,69 @@
   font-size: 11px;
 }
 
+.lockedPart {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #2952a3;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.estimatePolicyCard {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #c8d8ef;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.estimatePolicyCard header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.estimatePolicyCard h3,
+.estimatePolicyCard p {
+  margin: 0;
+}
+
+.estimatePolicyCard h3 {
+  color: #15243a;
+  font-size: 13px;
+}
+
+.estimatePolicyCard header p,
+.estimatePolicyCard > p {
+  color: #5d6c80;
+  font-size: 11px;
+}
+
+.estimatePolicyCard > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.estimatePolicyCard span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid #bfd3f1;
+  border-radius: 999px;
+  background: #fff;
+  color: #254b85;
+  font-size: 10px;
+  font-weight: 800;
+}
+
 .evidencePanel {
   display: grid;
   grid-template-columns: minmax(280px, .95fr) minmax(320px, 1.05fr);
