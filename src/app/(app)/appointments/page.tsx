@@ -1,4 +1,5 @@
 import { AppointmentBoardLoader } from "@/features/appointments/appointment-board-loader";
+import { AppointmentConsoleNewAppointment, AppointmentConsoleTodayFlow } from "@/features/appointments/appointment-console-refinement";
 import { ServiceAdvisorHome } from "@/features/advisor/service-advisor-home";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { getPermittedWorkspaces, getWorkspaceKey } from "@/server/auth/navigation";
@@ -8,6 +9,8 @@ import { getAppointmentBoardSettings } from "@/server/services/appointment-admin
 type AppointmentsPageProps = {
   searchParams?: Promise<{
     appointment?: string;
+    action?: string;
+    section?: string;
     sourceTask?: string;
     view?: string;
     workspace?: string;
@@ -29,10 +32,18 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
     focusParams?.workspace !== "board" &&
     (workspaceKey === "ADVISOR" || focusParams?.workspace === "advisor");
   const showAdvisorReturn = workspaceKey === "ADVISOR" || focusParams?.workspace === "advisor";
+  const newAppointmentMode = focusParams?.action === "new";
+  const boardMode = focusParams?.view === "board" || focusParams?.workspace === "board";
 
   if (advisorMode) {
     const model = await getServiceAdvisorWorkspace(user);
     return <ServiceAdvisorHome model={JSON.parse(JSON.stringify(model))} />;
+  }
+  if (newAppointmentMode) {
+    return <AppointmentConsoleNewAppointment />;
+  }
+  if (!boardMode) {
+    return <AppointmentConsoleTodayFlow section={focusParams?.section ?? "today"} />;
   }
 
   return (

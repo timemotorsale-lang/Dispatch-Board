@@ -9,7 +9,7 @@ import {
 } from "@/server/auth/navigation";
 import { canManageSettings } from "@/server/policies/access";
 
-import { getDispatchNavigationItems, isDispatchConsolePath, type NavigationItem } from "./navigation";
+import { appointmentConsoleNavigationItems, getDispatchNavigationItems, isDispatchConsolePath, type NavigationItem } from "./navigation";
 
 export type ConsoleNavigationDefinition = {
   badge?: string;
@@ -103,11 +103,25 @@ export function isOperationsCoordinatorConsolePath(pathname: string) {
   return pathname === "/operations-coordinator" || pathname.startsWith("/operations-coordinator/");
 }
 
+export function isAppointmentConsolePath(pathname: string) {
+  return pathname === "/appointments" || pathname.startsWith("/appointments/");
+}
+
 export function getConsoleNavigation(
   pathname: string,
   user: AuthenticatedUser,
   preferredWorkspace?: WorkspaceKey | null
 ): ConsoleNavigationDefinition | null {
+  if (isAppointmentConsolePath(pathname)) {
+    return {
+      badge: "Ready",
+      homeHref: "/appointments",
+      items: appointmentConsoleNavigationItems,
+      subtitle: "Scheduling & Capacity",
+      title: "Appointment Console"
+    };
+  }
+
   if (isOperationsCoordinatorConsolePath(pathname)) {
     const canUseCoordinator = getPermittedWorkspaces(user).some((workspace) => workspace.key === "OPERATIONS_COORDINATOR");
     if (canUseCoordinator) {

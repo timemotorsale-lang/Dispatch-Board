@@ -39,6 +39,11 @@ vi.mock("@/features/appointments/appointment-board-loader", () => ({
   AppointmentBoardLoader: () => <section data-testid="appointment-board">Appointment Board</section>
 }));
 
+vi.mock("@/features/appointments/appointment-console-refinement", () => ({
+  AppointmentConsoleNewAppointment: () => <section data-testid="new-appointment">New Appointment Calendar</section>,
+  AppointmentConsoleTodayFlow: () => <section data-testid="appointment-console">Appointment Console Today Flow</section>
+}));
+
 describe("appointments page routing", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -60,5 +65,23 @@ describe("appointments page routing", () => {
 
     expect(html).toContain("Appointment Board");
     expect(html).not.toContain("Service Advisor Home");
+  });
+
+  it("opens the appointment console landing for operations coordinator default appointment route", async () => {
+    const html = renderToStaticMarkup(await AppointmentsPage({
+      searchParams: Promise.resolve({})
+    }));
+
+    expect(html).toContain("Appointment Console Today Flow");
+    expect(html).not.toContain("Appointment Board");
+  });
+
+  it("opens the calendar-first new appointment workspace from the appointment console action", async () => {
+    const html = renderToStaticMarkup(await AppointmentsPage({
+      searchParams: Promise.resolve({ action: "new" })
+    }));
+
+    expect(html).toContain("New Appointment Calendar");
+    expect(html).not.toContain("Appointment Board");
   });
 });

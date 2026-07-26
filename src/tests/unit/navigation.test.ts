@@ -238,13 +238,16 @@ describe("enterprise shell navigation", () => {
       "Reviews"
     ]);
     expect(getConsoleNavigation("/appointments", user({ roles: ["Service Advisor"] }))?.items.map((item) => item.title)).toEqual([
-      "Advisor Home",
-      "Check In Vehicle",
-      "Appointment Board",
-      "Customers",
-      "Repair Orders",
-      "Diagnostic Review",
-      "My Work"
+      "Today Flow",
+      "Calendar",
+      "Planning Hub",
+      "Operations",
+      "Follow-up",
+      "Intelligence",
+      "Exceptions",
+      "Reports",
+      "Automation",
+      "Templates & Rules"
     ]);
     expect(getConsoleNavigation("/vehicles/parts-operations", user({ roles: ["Parts"] }))?.items.map((item) => item.title)).toEqual([
       "Parts Home",
@@ -270,7 +273,7 @@ describe("enterprise shell navigation", () => {
       "My Work"
     ]);
     expect(getConsoleNavigation("/operations-coordinator", user({ roles: ["Operations Coordinator"] }))?.items.find((item) => item.title === "Service Advisor")?.href).toBe("/appointments?workspace=advisor");
-    expect(getConsoleNavigation("/operations-coordinator", user({ roles: ["Operations Coordinator"] }))?.items.find((item) => item.title === "Appointment Console")?.href).toBe("/appointments?view=board");
+    expect(getConsoleNavigation("/operations-coordinator", user({ roles: ["Operations Coordinator"] }))?.items.find((item) => item.title === "Appointment Console")?.href).toBe("/appointments");
     expect(getConsoleNavigation("/operations-coordinator", user({ roles: ["Office Manager", "Marketing/Advertisement Manager"] }))?.subtitle).toBe("Operations Coordinator");
     expect(getConsoleNavigation("/tasks", user({ roles: ["Salesperson"] }))?.items.map((item) => item.title)).toEqual([
       "My Work",
