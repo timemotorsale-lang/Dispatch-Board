@@ -4,7 +4,7 @@ import { cache } from "react";
 
 import { prisma } from "@/server/db/client";
 
-import { getLoginRouteRedirect } from "./navigation";
+import { getLoginRouteRedirect, isOperationsCoordinatorDefaultUser } from "./navigation";
 import { readAuthenticatedUser } from "./service";
 import { SESSION_COOKIE_NAME } from "./session";
 import { createPrismaAuthStore, type AuthenticatedUser } from "./store";
@@ -43,7 +43,10 @@ export async function redirectAuthenticatedUser() {
   const preferredWorkspace = user
     ? resolveWorkspacePreference(user, cookieStore.get(WORKSPACE_COOKIE_NAME)?.value)
     : null;
-  const redirectTarget = getLoginRouteRedirect(user, preferredWorkspace);
+  const redirectTarget = getLoginRouteRedirect(
+    user,
+    isOperationsCoordinatorDefaultUser(user) ? null : preferredWorkspace
+  );
 
   if (redirectTarget) {
     redirect(redirectTarget);

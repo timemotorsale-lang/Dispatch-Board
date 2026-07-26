@@ -73,6 +73,8 @@ const ROLE_DEFAULT_CAPABILITIES: Readonly<Record<string, readonly VehicleCapabil
   "Quality Control": ["VEHICLE_OPERATIONS_VIEW", "REPAIR_ORDER_VIEW", "REPAIR_ORDER_MANAGE", "VEHICLE_EVIDENCE_VIEW"],
   "Quality Inspector": ["VEHICLE_OPERATIONS_VIEW", "REPAIR_ORDER_VIEW", "REPAIR_ORDER_MANAGE", "VEHICLE_EVIDENCE_VIEW"],
   "Service Advisor": ["VEHICLE_OPERATIONS_VIEW", "VEHICLE_IDENTITY_CREATE", "REPAIR_ORDER_VIEW", "REPAIR_ORDER_MANAGE", "PARTS_VIEW", "VEHICLE_DISCOVERY_VIEW", "WORK_KNOWLEDGE_VIEW", "DIAGNOSTIC_CASE_VIEW", "DIAGNOSTIC_ESTIMATE_ADVISOR_REVIEW"],
+  "Operations Coordinator": ["VEHICLE_OPERATIONS_VIEW", "VEHICLE_IDENTITY_CREATE", "INVENTORY_UNIT_VIEW", "REPAIR_ORDER_VIEW", "PARTS_VIEW", "VEHICLE_EVIDENCE_VIEW", "VEHICLE_DISCOVERY_VIEW", "WORK_KNOWLEDGE_VIEW", "CUSTOMER_LIFECYCLE_VIEW"],
+  "Front Desk Operations Coordinator": ["VEHICLE_OPERATIONS_VIEW", "VEHICLE_IDENTITY_CREATE", "INVENTORY_UNIT_VIEW", "REPAIR_ORDER_VIEW", "PARTS_VIEW", "VEHICLE_EVIDENCE_VIEW", "VEHICLE_DISCOVERY_VIEW", "WORK_KNOWLEDGE_VIEW", "CUSTOMER_LIFECYCLE_VIEW"],
   "Vehicle Operations Lead": ["VEHICLE_OPERATIONS_VIEW", "VEHICLE_IDENTITY_CREATE", "INVENTORY_UNIT_VIEW", "REPAIR_ORDER_VIEW", "PARTS_VIEW", "VEHICLE_EVIDENCE_VIEW", "VEHICLE_DISCOVERY_VIEW", "WORK_KNOWLEDGE_VIEW"]
 };
 
@@ -81,6 +83,12 @@ const VEHICLE_OPERATIONS_LEAD_DEFAULT_CAPABILITIES = ROLE_DEFAULT_CAPABILITIES["
 function isEffectiveVehicleOperationsLead(actor: AuthenticatedUser) {
   return actor.roles.includes("Vehicle Operations Lead") ||
     (actor.roles.includes("Inventory Manager") && actor.roles.includes("Service Department Manager"));
+}
+
+function isEffectiveOperationsCoordinator(actor: AuthenticatedUser) {
+  return actor.roles.includes("Operations Coordinator") ||
+    actor.roles.includes("Front Desk Operations Coordinator") ||
+    (actor.roles.includes("Office Manager") && actor.roles.includes("Marketing/Advertisement Manager"));
 }
 
 export function evaluateVehicleCapability(input: {
@@ -125,6 +133,12 @@ export function evaluateVehicleCapability(input: {
     VEHICLE_OPERATIONS_LEAD_DEFAULT_CAPABILITIES.includes(input.capability)
   ) {
     return { allowed: true, reason: "VEHICLE_OPERATIONS_LEAD_DEFAULT" } as const;
+  }
+  if (
+    isEffectiveOperationsCoordinator(input.actor) &&
+    ROLE_DEFAULT_CAPABILITIES["Operations Coordinator"].includes(input.capability)
+  ) {
+    return { allowed: true, reason: "OPERATIONS_COORDINATOR_DEFAULT" } as const;
   }
   return matching.some((grant) => grant.effect === "ALLOW")
     ? { allowed: true, reason: "EXPLICIT_GRANT" } as const

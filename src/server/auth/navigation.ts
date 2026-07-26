@@ -11,6 +11,7 @@ export const WORKSPACE_KEYS = [
   "TECHNICIAN",
   "PARTS",
   "QUALITY",
+  "OPERATIONS_COORDINATOR",
   "SALES",
   "MARKETING",
   "OFFICE",
@@ -95,6 +96,14 @@ export const WORKSPACE_DEFINITIONS: readonly WorkspaceDefinition[] = [
     dutyTerms: ["quality control", "quality inspection", "vehicle release"]
   },
   {
+    key: "OPERATIONS_COORDINATOR",
+    label: "Operations Coordinator",
+    description: "Front-door operating loop for appointments, intake, paperwork, payments, documents, and safe routing.",
+    landingRoute: "/operations-coordinator",
+    roleNames: ["Operations Coordinator", "Front Desk Operations Coordinator"],
+    dutyTerms: ["front-desk operating loop", "operations coordinator", "office/front desk", "paperwork coordination"]
+  },
+  {
     key: "SALES",
     label: "Sales Workspace",
     description: "Lead follow-up, appointments, customers, and delivery work.",
@@ -140,6 +149,12 @@ const WORKSPACE_BY_KEY = Object.fromEntries(
   WORKSPACE_DEFINITIONS.map((definition) => [definition.key, definition])
 ) as Record<WorkspaceKey, WorkspaceDefinition>;
 
+function hasOperationsCoordinatorDefaultRoles(user: AuthenticatedUser) {
+  return user.roles.includes("Operations Coordinator") ||
+    user.roles.includes("Front Desk Operations Coordinator") ||
+    (user.roles.includes("Office Manager") && user.roles.includes("Marketing/Advertisement Manager"));
+}
+
 const ROUTE_WORKSPACES: Array<{ prefix: string; workspaces: WorkspaceKey[] }> = [
   { prefix: "/administration", workspaces: ["MANAGEMENT"] },
   { prefix: "/settings", workspaces: ["MANAGEMENT"] },
@@ -161,12 +176,13 @@ const ROUTE_WORKSPACES: Array<{ prefix: string; workspaces: WorkspaceKey[] }> = 
   { prefix: "/vehicles/repair-workbench", workspaces: ["VEHICLE_OPERATIONS_LEAD", "SERVICE", "ADVISOR", "QUALITY", "PARTS", "INVENTORY", "MANAGEMENT"] },
   { prefix: "/vehicles/repair-orders", workspaces: ["VEHICLE_OPERATIONS_LEAD", "SERVICE", "ADVISOR", "QUALITY", "PARTS", "INVENTORY", "MANAGEMENT"] },
   { prefix: "/vehicles/360", workspaces: ["VEHICLE_OPERATIONS_LEAD", "INVENTORY", "SERVICE", "ADVISOR", "TECHNICIAN", "PARTS", "QUALITY", "SALES", "MARKETING", "MANAGEMENT"] },
-  { prefix: "/vehicles", workspaces: ["VEHICLE_OPERATIONS_LEAD", "INVENTORY", "SERVICE", "ADVISOR", "PARTS", "QUALITY", "SALES", "MARKETING", "MANAGEMENT"] },
-  { prefix: "/appointments", workspaces: ["ADVISOR", "SERVICE", "SALES", "OFFICE", "MANAGEMENT"] },
-  { prefix: "/customers", workspaces: ["ADVISOR", "SALES", "OFFICE", "COLLECTIONS", "MANAGEMENT"] },
+  { prefix: "/vehicles", workspaces: ["VEHICLE_OPERATIONS_LEAD", "INVENTORY", "SERVICE", "ADVISOR", "PARTS", "QUALITY", "SALES", "MARKETING", "OPERATIONS_COORDINATOR", "MANAGEMENT"] },
+  { prefix: "/operations-coordinator", workspaces: ["OPERATIONS_COORDINATOR", "MANAGEMENT"] },
+  { prefix: "/appointments", workspaces: ["ADVISOR", "SERVICE", "SALES", "OPERATIONS_COORDINATOR", "OFFICE", "MANAGEMENT"] },
+  { prefix: "/customers", workspaces: ["ADVISOR", "SALES", "OPERATIONS_COORDINATOR", "OFFICE", "COLLECTIONS", "MANAGEMENT"] },
   { prefix: "/diagnostics", workspaces: ["TECHNICIAN", "ADVISOR", "SERVICE", "MANAGEMENT"] },
-  { prefix: "/projects", workspaces: ["MANAGEMENT", "VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "OFFICE"] },
-  { prefix: "/activity", workspaces: ["MANAGEMENT", "VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "ADVISOR", "OFFICE"] },
+  { prefix: "/projects", workspaces: ["MANAGEMENT", "VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "OPERATIONS_COORDINATOR", "OFFICE"] },
+  { prefix: "/activity", workspaces: ["MANAGEMENT", "VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "ADVISOR", "OPERATIONS_COORDINATOR", "OFFICE"] },
   { prefix: "/tasks", workspaces: [...WORKSPACE_KEYS] },
   { prefix: "/my-tasks", workspaces: [...WORKSPACE_KEYS] },
   { prefix: "/time-attendance", workspaces: [...WORKSPACE_KEYS] }
@@ -185,9 +201,22 @@ function hasRoutePrefix(pathname: string, prefix: string) {
 function matchesDefinition(user: AuthenticatedUser, definition: WorkspaceDefinition) {
   if (definition.key === "GENERAL_STAFF") return false;
   if (
+    definition.key === "ADVISOR" &&
+    hasOperationsCoordinatorDefaultRoles(user) &&
+    !user.roles.includes("Service Advisor")
+  ) {
+    return false;
+  }
+  if (
     definition.key === "VEHICLE_OPERATIONS_LEAD" &&
     user.roles.includes("Inventory Manager") &&
     user.roles.includes("Service Department Manager")
+  ) {
+    return true;
+  }
+  if (
+    definition.key === "OPERATIONS_COORDINATOR" &&
+    hasOperationsCoordinatorDefaultRoles(user)
   ) {
     return true;
   }
@@ -216,6 +245,10 @@ export function isTechnicianUser(user: AuthenticatedUser | null) {
 export function isTechnicianOnlyUser(user: AuthenticatedUser | null) {
   if (!user || !isTechnicianUser(user)) return false;
   return getPermittedWorkspaces(user).every((workspace) => workspace.key === "TECHNICIAN");
+}
+
+export function isOperationsCoordinatorDefaultUser(user: AuthenticatedUser | null) {
+  return user ? hasOperationsCoordinatorDefaultRoles(user) : false;
 }
 
 export function getWorkspaceKey(

@@ -101,7 +101,7 @@ describe("application top bar console switching", () => {
       </AppearanceProvider>
     );
 
-    expect(markup).toContain("Marketing Workspace");
+    expect(markup).toContain("Operations Coordinator");
     expect(markup).toContain('aria-haspopup="menu"');
   });
 
@@ -121,5 +121,39 @@ describe("application top bar console switching", () => {
 
     expect(markup).toContain("Active workspace: Office Workspace. Switch workspace");
     expect(markup).toContain("Office Workspace");
+  });
+
+  it("shows a persistent return to Ancilla's workspace when she leaves the coordinator home", () => {
+    currentPathname = "/appointments";
+    const markup = renderToStaticMarkup(
+      <AppearanceProvider>
+        <AppTopbar
+          commandCenterHome={false}
+          onMenuOpen={() => undefined}
+          showNavigationMenu
+          user={{ ...testUser, roles: ["Office Manager", "Marketing/Advertisement Manager"] }}
+        />
+      </AppearanceProvider>
+    );
+
+    expect(markup).toContain('aria-label="Return to Operations Coordinator workspace"');
+    expect(markup).toContain('href="/operations-coordinator"');
+    expect(markup).toContain("Back to My Workspace");
+  });
+
+  it("does not show the coordinator return link while already on the coordinator home", () => {
+    currentPathname = "/operations-coordinator";
+    const markup = renderToStaticMarkup(
+      <AppearanceProvider>
+        <AppTopbar
+          commandCenterHome={false}
+          onMenuOpen={() => undefined}
+          showNavigationMenu
+          user={{ ...testUser, roles: ["Office Manager", "Marketing/Advertisement Manager"] }}
+        />
+      </AppearanceProvider>
+    );
+
+    expect(markup).not.toContain('aria-label="Return to Operations Coordinator workspace"');
   });
 });

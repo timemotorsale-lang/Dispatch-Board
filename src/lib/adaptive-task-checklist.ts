@@ -2,6 +2,30 @@ export type AdaptiveChecklistItem = { key: string; label: string };
 
 const blueprints: Array<{ match: RegExp; items: string[]; code: string }> = [
   {
+    code: "sales_paperwork",
+    match: /sales paperwork|deal packet|buyer'?s order|finance packet|insurance proof|delivery paperwork|selling paperwork/i,
+    items: [
+      "Link the customer, vehicle, and sales packet before changing paperwork",
+      "Verify required buyer, insurance, finance, payment, and delivery documents",
+      "Identify missing signatures, proof, approvals, or customer information",
+      "Upload or attach the completed paperwork to the canonical sales record",
+      "Route financing, accounting, or manager-only decisions to the proper authority",
+      "Record what is complete, what is missing, the owner, and the next handoff"
+    ]
+  },
+  {
+    code: "front_desk",
+    match: /office|admin(?:\/|\s|-)?support|front.?desk|coordinator|support task|paperwork center|clerical/i,
+    items: [
+      "Identify the exact work lane: customer, vehicle, appointment, repair, parts, sales, payment, or document",
+      "Search and link the canonical record before creating or updating anything",
+      "Verify the missing document, signature, proof, payment, photo, or handoff requirement",
+      "Complete the safe coordinator step or prepare the workflow for the authorized owner",
+      "Attach the evidence or note to the canonical record, not a duplicate task trail",
+      "Record the blocker, responsible owner, due time, and next handoff"
+    ]
+  },
+  {
     code: "repair",
     match: /brake|vibrat|shake|repair|mechanic|diagnos|inspection|engine|transmission|tire|noise|service/i,
     items: [
@@ -75,7 +99,7 @@ const blueprints: Array<{ match: RegExp; items: string[]; code: string }> = [
   }
 ];
 
-const generalItems = [
+const legacyGenericItems = [
   "Clarify the required outcome and supporting context",
   "Confirm the responsible owner and due time",
   "Complete the primary operational action",
@@ -84,9 +108,23 @@ const generalItems = [
   "Confirm no required follow-up remains open"
 ];
 
+const generalItems = [
+  "Identify the customer, vehicle, account, document, or operational record involved",
+  "Confirm the specific missing requirement, blocker, or requested outcome",
+  "Check the canonical record for existing notes, status, attachments, and owner",
+  "Complete the safe next step or route protected work to the authorized role",
+  "Document the evidence, customer/staff update, or reason work cannot continue",
+  "Set the next owner, due time, and follow-up action before closing the task"
+];
+
 export function buildAdaptiveTaskChecklist(input: { description?: string | null; title: string; workflowArea?: string | null }): AdaptiveChecklistItem[] {
   const searchable = `${input.title} ${input.description ?? ""} ${input.workflowArea ?? ""}`;
   const blueprint = blueprints.find((candidate) => candidate.match.test(searchable));
   const code = blueprint?.code ?? "general";
   return (blueprint?.items ?? generalItems).map((label, index) => ({ key: `${code}_${index + 1}`, label }));
+}
+
+export function isLegacyGenericAdaptiveChecklist(labels: string[]) {
+  return labels.length === legacyGenericItems.length &&
+    labels.every((label, index) => label === legacyGenericItems[index]);
 }

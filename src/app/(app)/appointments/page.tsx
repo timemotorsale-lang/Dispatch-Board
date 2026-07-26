@@ -1,7 +1,7 @@
 import { AppointmentBoardLoader } from "@/features/appointments/appointment-board-loader";
 import { ServiceAdvisorHome } from "@/features/advisor/service-advisor-home";
 import { requireCurrentUser } from "@/server/auth/current-user";
-import { getWorkspaceKey } from "@/server/auth/navigation";
+import { getPermittedWorkspaces, getWorkspaceKey } from "@/server/auth/navigation";
 import { getServiceAdvisorWorkspace } from "@/server/advisor-workspace/service";
 import { getAppointmentBoardSettings } from "@/server/services/appointment-admin-settings";
 
@@ -21,10 +21,14 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
     searchParams
   ]);
 
-  const advisorMode = getWorkspaceKey(user) === "ADVISOR" &&
+  const workspaceKey = getWorkspaceKey(user);
+  const canOpenAdvisorWorkspace = workspaceKey === "ADVISOR" ||
+    getPermittedWorkspaces(user).some((workspace) => workspace.key === "OPERATIONS_COORDINATOR");
+  const advisorMode = canOpenAdvisorWorkspace &&
     focusParams?.view !== "board" &&
-    focusParams?.workspace !== "board";
-  const showAdvisorReturn = getWorkspaceKey(user) === "ADVISOR";
+    focusParams?.workspace !== "board" &&
+    (workspaceKey === "ADVISOR" || focusParams?.workspace === "advisor");
+  const showAdvisorReturn = workspaceKey === "ADVISOR" || focusParams?.workspace === "advisor";
 
   if (advisorMode) {
     const model = await getServiceAdvisorWorkspace(user);

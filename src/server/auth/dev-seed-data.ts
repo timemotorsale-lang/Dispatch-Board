@@ -335,6 +335,18 @@ export const dayOneRoleDefinitions = [
     ]
   },
   {
+    name: "Operations Coordinator",
+    description: "Runs the front-door operating loop with broad visibility, lightweight action, paperwork support, and safe routing to final authority.",
+    defaultDutyNames: [
+      "Review office/admin support tasks",
+      "Confirm appointments",
+      "Coordinate service advisor arrivals",
+      "Flag missing documentation when noticed",
+      "Support sales or inventory tasks when assigned",
+      "Support parts pickup and returns"
+    ]
+  },
+  {
     name: "Marketing/Advertisement Manager",
     description: "Owns merchandising, listings, and marketing communication work.",
     defaultDutyNames: [
@@ -419,7 +431,7 @@ export const developmentUserDefinitions = [
     email: "avery.ops@local.test",
     password: SHARED_DEVELOPMENT_PASSWORD,
     isActive: true,
-    roleNames: ["Office Manager", "Marketing/Advertisement Manager"],
+    roleNames: ["Operations Coordinator", "Office Manager", "Marketing/Advertisement Manager"],
     directDutyNames: []
   },
   {

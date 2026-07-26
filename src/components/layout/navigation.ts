@@ -280,6 +280,17 @@ const workspaceNavigationItems: Partial<Record<WorkspaceKey, NavigationItem[]>> 
     { href: "/tasks?department=ADVERTISING", title: "Advertising", description: "Vehicle listings and paid promotion.", icon: Megaphone, activeQuery: { department: "ADVERTISING" } },
     { href: "/vehicles", title: "Vehicles", description: "Permitted merchandising and listing context.", icon: CarFront }
   ],
+  OPERATIONS_COORDINATOR: [
+    { href: "/operations-coordinator", title: "Coordinator Home", description: "Front-door loop for arrivals, paperwork, routed work, and safe peeks.", icon: House, matchExact: true },
+    { href: "/appointments?workspace=advisor", title: "Service Advisor", description: "Coordinate arrivals, customer updates, appointments, and repair-order handoffs.", icon: ClipboardCheck },
+    { href: "/appointments?view=board", title: "Appointment Console", description: "Schedule, confirm, reschedule, and check capacity before accepting vehicles.", icon: CalendarDays },
+    { href: "/vehicles/repair-orders?intakeSource=WALK_IN", title: "Check In Vehicle", description: "Start governed service intake without duplicating customer or vehicle records.", icon: ClipboardCheck },
+    { href: "/vehicles/parts-receiving", title: "Receive Parts", description: "Record arrivals, exceptions, and accountable part placement.", icon: PackageCheck },
+    { href: "/customers", title: "Customers", description: "Find or prepare customer records and documentation context.", icon: ContactRound },
+    { href: "/operations-coordinator#paperwork-command-center", title: "Paperwork Center", description: "Prepare sales, finance, insurance, rental, payment, and document packets.", icon: SquareCheckBig },
+    { href: "/tasks?department=SALES", title: "Sales Paperwork", description: "Support sales, finance, insurance, rental, and delivery paperwork.", icon: BadgeDollarSign },
+    { href: "/my-tasks", title: "My Work", description: "Assigned coordination tasks and follow-up.", icon: UserRoundCheck }
+  ],
   OFFICE: [
     { href: "/my-tasks", title: "My Work", description: "Assigned office and documentation actions.", icon: UserRoundCheck },
     { href: "/appointments", title: "Appointments", description: "Permitted appointment support.", icon: CalendarDays },
