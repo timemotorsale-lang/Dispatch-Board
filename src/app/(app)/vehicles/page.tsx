@@ -1,5 +1,7 @@
 import { InventoryConsoleHome, type InventoryHomeData } from "@/features/inventory/inventory-console-home";
+import { redirect } from "next/navigation";
 import { requireCurrentUser } from "@/server/auth/current-user";
+import { isTechnicianOnlyUser } from "@/server/auth/navigation";
 import { getInventoryConsoleOperationalFacts } from "@/server/inventory-console-home";
 import { buildInventoryPriorityWork } from "@/server/inventory-console-home/priority-work";
 import { getInventoryConsoleSavedView, INVENTORY_CONSOLE_WORK_VIEWS, listInventoryConsoleSavedViews, type InventoryConsoleWorkView } from "@/server/inventory-console-saved-views";
@@ -14,6 +16,7 @@ export default async function VehiclesPage({ searchParams }: { searchParams: Pro
     requireCurrentUser(),
     searchParams
   ]);
+  if (isTechnicianOnlyUser(user)) redirect("/my-tasks");
   let savedViews: InventoryHomeData["savedViews"] = [];
   let selectedSavedView: InventoryHomeData["savedViews"][number] | null = null;
   try {

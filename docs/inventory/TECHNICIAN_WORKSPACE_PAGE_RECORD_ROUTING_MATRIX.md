@@ -3,20 +3,23 @@
 **Product:** Time Motor Sales Dispatch Board
 **Program:** Technician Experience Optimization
 **Version:** `1.0.0`
-**Status:** Draft for product-owner review
-**Date prepared:** July 25, 2026
+**Status:** Approved product and routing contract
+**Date approved:** July 25, 2026
 **Approved execution UI:** [`TECHNICIAN_REPAIR_WORKBENCH_UI_SOURCE_OF_TRUTH.md`](TECHNICIAN_REPAIR_WORKBENCH_UI_SOURCE_OF_TRUTH.md)
+**Role experience contract:** [`ROLE_EXPERIENCE_MATRIX.md`](ROLE_EXPERIENCE_MATRIX.md)
+**Resolver contract:** [`ROLE_LANDING_AND_RECORD_ROUTING_ALGORITHMS.md`](ROLE_LANDING_AND_RECORD_ROUTING_ALGORITHMS.md)
 **Implementation status rule:** A documented target route is not implemented merely because it appears in this matrix. Current and target states are identified separately.
 
 ---
 
-## 1. Proposed decision
+## 1. Approved decision
 
-The technician experience uses three screens:
+The technician experience uses three primary screens plus an attendance state gate:
 
-1. **My Work** — assigned-work landing and triage.
-2. **Available Work** — eligible claimable-work queue.
-3. **Technician Repair Workbench** — one repair job's execution surface.
+1. **Shift gate** — a conditional Clock In or End Meal step inside the technician shell; it is not a fourth destination.
+2. **My Work** — assigned-work landing and triage.
+3. **Available Work** — eligible claimable-work queue.
+4. **Technician Repair Workbench** — one repair job's execution surface.
 
 These are not three competing workbenches. The first two select and route work. The third performs repair work.
 
@@ -26,9 +29,10 @@ For a specialist diagnostic case, the Technician Repair Workbench opens the link
 
 | Page or surface | Primary roles | Canonical record or projection | Approved entry route | Approved next route | Prohibited duplication | Current repository state |
 | --- | --- | --- | --- | --- | --- | --- |
-| Technician My Work | Technician; manager may inspect by permission | Assignment projection from `Task`, `RepairJob`, current `RepairJobDispatch`, and waiting/review state | Role-aware sign-in landing; `/my-tasks`; Back to My Work | Active repair assignment → Technician Repair Workbench; general task → Generic Task Detail; no assignment → Available Work | Must not copy concern, work performed, repair outcome, parts ledger, diagnosis, or evidence | `/my-tasks` exists; role simplification and repair-aware routing require conformance work |
-| Available Work | Eligible technician; dispatcher/manager oversight | Read model of claimable `Task` and `RepairJob` candidates; claim remains an atomic assignment/dispatch action | My Work `Find Work`; no-current-work state; approved notification | Successful claim → authoritative destination, normally Technician Repair Workbench | Must not invent work, expose ineligible jobs, rank employees, or create a second task/job when claimed | Available-work architecture is approved; dedicated technician view and claimable engine remain planned/partial |
-| Technician Repair Workbench | Assigned or eligible claiming technician; manager/advisor read access as permitted | One `RepairJob` with parent `RepairOrder`, current dispatch/labor, linked Task, Parts, Evidence, QC, and optional diagnostic case | My Work; Available Work after claim; Shop Dispatch; Repair Order Workbench; authorized deep link | QC, advisor/manager review, Parts, Diagnostics, next job, or My Work according to outcome | Must not create a second repair order, vehicle record, parts ledger, diagnostic case copy, or generic completion record | Approved source of truth; dedicated canonical route is proposed and not yet claimed as complete |
+| Technician shift gate | Technician | Current `TimeAttendanceSession` and governed attendance command state | Role-aware sign-in landing inside `/my-tasks` | Clock In or End Meal → My Work | Must not start repair labor, create a second attendance record, or become another primary navigation page | Implemented with Clock In, End Meal, Clock Out, active-repair protection, and an attendance-unavailable fallback |
+| Technician My Work | Technician; manager may inspect by permission | Assignment projection from `Task`, `RepairJob`, current `RepairJobDispatch`, and waiting/review state | Role-aware sign-in landing; `/my-tasks`; Back to My Work | Active repair assignment → Technician Repair Workbench; general task → Generic Task Detail; no assignment → Available Work | Must not copy concern, work performed, repair outcome, parts ledger, diagnosis, or evidence | Technician-only shell, repair projection, specialist routing, Shop Pulse, empty state, and broad-console redirects are implemented |
+| Available Work | Eligible technician; dispatcher/manager oversight | Read model of claimable `Task` and repair-linked candidates; claim remains an atomic assignment/dispatch action | My Work `Find Work`; no-current-work state; approved notification | Successful claim → authoritative destination, normally Technician Repair Workbench | Must not invent work, expose ineligible jobs, rank employees, or create a second task/job when claimed | Dedicated technician route and atomic Task claim routing are implemented; direct unassigned RepairJob claiming remains a later extension |
+| Technician Repair Workbench | Assigned or eligible claiming technician; manager/advisor read access as permitted | One `RepairJob` with parent `RepairOrder`, current dispatch/labor, linked Task, Parts, Evidence, QC, and optional diagnostic case | My Work; Available Work after claim; Shop Dispatch; Repair Order Workbench; authorized deep link | QC, advisor/manager review, Parts, Diagnostics, next job, or My Work according to outcome | Must not create a second repair order, vehicle record, parts ledger, diagnostic case copy, or generic completion record | Initial canonical job-scoped vertical slice is implemented; deeper evidence upload and specialist integrations continue against this source of truth |
 | Repair Order Workbench | Service advisor; shop manager; dispatcher; permitted technician read-through | One `RepairOrder` and its `RepairJob` children, authorization, estimate, QC, release, and activity | Check-in completion; Repair Orders list; Shop & Recon; `/vehicles/repair-workbench?repairOrderId=:id` | Selected assigned job → Technician Repair Workbench; diagnostics, Parts, QC, release, or customer handoff | Must not become the technician's second repair-entry form or copy job closeout | Implemented route exists at `/vehicles/repair-workbench`; conformance continues under its approved source |
 | Vehicle Service Intake | Service advisor; permitted manager | `Customer`, `Vehicle`, optional `Appointment`, `ServiceVisit`, and new governed `RepairOrder` | Shop & Recon `Check In Vehicle`; `/vehicles/repair-orders?intakeSource=WALK_IN` | Successful check-in → Repair Order Workbench | Must not prescribe diagnosis, create repair-job checklists prematurely, or duplicate customer/vehicle/appointment/repair order | Approved and implemented foundation exists |
 | Shop Dispatch | Dispatcher; shop manager; limited technician visibility | Dispatch/capacity projection and `RepairJobDispatch` commands | Shop & Recon; Repair Order Workbench; `/vehicles/shop-dispatch` | Assignment accepted → Technician My Work and Technician Repair Workbench | Must not store separate repair scope, technician notes, or job status | Implemented route exists |
@@ -165,7 +169,7 @@ Every deep link must:
 
 Implementation is conforming only when:
 
-1. a technician signs in and lands on My Work;
+1. a technician signs in, resolves shift state, and reaches My Work without management navigation;
 2. the technician can reach an active job in one clear action;
 3. Available Work shows only eligible claimable work with an explanation;
 4. claiming is atomic and cannot double-assign a job;
@@ -177,6 +181,7 @@ Implementation is conforming only when:
 10. all consequential commands are server-authorized, idempotent, version-aware, audited, and recoverable;
 11. keyboard, responsive, loading, empty, unavailable, conflict, and permission states are verified;
 12. no prohibited duplication in Section 6 remains.
+13. attendance time and RepairJob labor time remain visibly and operationally separate.
 
 ## 10. Change control
 

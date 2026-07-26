@@ -3,8 +3,6 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { getSafePostLoginRedirect } from "@/server/auth/navigation";
-
 type LoginFormState = {
   email: string;
   password: string;
@@ -36,7 +34,7 @@ export function LoginForm({ returnTo, sessionExpired = false }: LoginFormProps) 
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(formState)
+        body: JSON.stringify({ ...formState, returnTo })
       });
 
       if (!response.ok) {
@@ -45,7 +43,8 @@ export function LoginForm({ returnTo, sessionExpired = false }: LoginFormProps) 
         return;
       }
 
-      router.replace(getSafePostLoginRedirect(returnTo));
+      const payload = (await response.json()) as { redirectTo?: string };
+      router.replace(payload.redirectTo ?? "/my-tasks");
       router.refresh();
     });
   }

@@ -135,4 +135,31 @@ describe("my tasks screen", () => {
     expect(markup).not.toContain("Today&#x27;s board has not been generated");
     expect(markup).not.toContain("No tasks are assigned to you right now");
   });
+
+  it("removes broad board controls in technician mode and routes specialist work", () => {
+    const markup = renderToStaticMarkup(
+      <MyTasksScreen
+        boardDate="2026-07-04"
+        boardExists
+        currentUserId="mechanic-1"
+        fullBoardHref="/board?date=2026-07-04"
+        generatedAt={null}
+        generationStatus="GENERATED"
+        initialTasks={[createTask("repair", { workflowArea: WorkflowArea.SHOP })]}
+        isManager={false}
+        nowIso="2026-07-04T14:00:00.000Z"
+        specialistHrefByTask={{
+          repair: "/vehicles/repair-jobs/job-1/workbench"
+        }}
+        technicianMode
+        userName="Walter Mechanic"
+      />
+    );
+
+    expect(markup).toContain("Assigned Tasks");
+    expect(markup).toContain("/my-tasks/available");
+    expect(markup).toContain("/vehicles/repair-jobs/job-1/workbench");
+    expect(markup).not.toContain("Open full board");
+    expect(markup).not.toContain("Task Intake");
+  });
 });

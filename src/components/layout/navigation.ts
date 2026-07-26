@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { isTechnicianOnlyUser } from "@/server/auth/navigation";
 import { canManageSettings, isManager } from "@/server/policies/access";
 
 export type NavigationItem = {
@@ -187,6 +188,30 @@ export const dispatchNavigationItems: NavigationItem[] = [
   }
 ];
 
+const technicianNavigationItems: NavigationItem[] = [
+  {
+    href: "/my-tasks",
+    title: "My Work",
+    description: "Current repairs, assigned work, and next actions.",
+    icon: UserRoundCheck,
+    activePaths: ["/vehicles/repair-jobs"],
+    matchExact: true
+  },
+  {
+    href: "/my-tasks/available",
+    title: "Available Work",
+    description: "Eligible work that is ready to claim.",
+    icon: BriefcaseBusiness
+  },
+  {
+    href: "/diagnostics",
+    title: "Diagnostics & Tools",
+    description: "Troubleshooting cases, guided tests, and technical tools.",
+    icon: Stethoscope,
+    activePaths: ["/diagnostics"]
+  }
+];
+
 export const navigationGroups: NavigationGroup[] = [
   {
     label: "Operations",
@@ -284,6 +309,7 @@ export function getNavigationGroups(user: AuthenticatedUser) {
 }
 
 export function getDispatchNavigationItems(user: AuthenticatedUser) {
+  if (isTechnicianOnlyUser(user)) return technicianNavigationItems;
   return dispatchNavigationItems.filter((item) => (item.isVisible ? item.isVisible(user) : true));
 }
 

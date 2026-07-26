@@ -6,6 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { isTechnicianOnlyUser } from "@/server/auth/navigation";
 import { isManager } from "@/server/policies/access";
 import { TimeMotorSalesLogo } from "@/components/brand/time-motor-sales-logo";
 
@@ -27,7 +28,14 @@ function formatBusinessDate() {
   }).format(new Date());
 }
 
-function getBreadcrumb(pathname: string, dispatchView: "overview" | "live") {
+function getBreadcrumb(pathname: string, dispatchView: "overview" | "live", technicianOnly: boolean) {
+  if (technicianOnly) {
+    if (pathname.startsWith("/my-tasks/available")) return ["Technician Workspace", "Available Work"];
+    if (pathname.startsWith("/vehicles/repair-jobs/")) return ["Technician Workspace", "My Work", "Repair Workbench"];
+    if (pathname.startsWith("/diagnostics/")) return ["Technician Workspace", "Diagnostics & Tools", "Case"];
+    if (pathname === "/diagnostics") return ["Technician Workspace", "Diagnostics & Tools"];
+    return ["Technician Workspace", "My Work"];
+  }
   if (pathname === "/command-center") return ["Command Control Center"];
   if (pathname === "/board") return ["Command Control Center", "Dispatch", dispatchView === "live" ? "Live Board" : "Overview"];
   if (pathname === "/activity") return ["Command Control Center", "Dispatch", "Activity"];
@@ -54,6 +62,7 @@ export function AppTopbar({ commandCenterHome, onMenuOpen, showNavigationMenu, u
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const dispatchView = searchParams.get("view") === "live" ? "live" : "overview";
+  const technicianOnly = isTechnicianOnlyUser(user);
   const inventoryConsole = isInventoryConsolePath(pathname);
   const dispatchConsole = isDispatchConsolePath(pathname) && !inventoryConsole;
   const actionsRef = useRef<HTMLDivElement | null>(null);
@@ -62,7 +71,7 @@ export function AppTopbar({ commandCenterHome, onMenuOpen, showNavigationMenu, u
     ...getNavigationGroups(user).flatMap((group) => group.items),
     ...getDispatchNavigationItems(user)
   ].filter((item) => !item.disabled);
-  const breadcrumb = getBreadcrumb(pathname, dispatchView);
+  const breadcrumb = getBreadcrumb(pathname, dispatchView, technicianOnly);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
@@ -72,7 +81,11 @@ export function AppTopbar({ commandCenterHome, onMenuOpen, showNavigationMenu, u
     if (!query) return uniqueItems.slice(0, 6);
     return uniqueItems.filter((entry) => `${entry.title} ${entry.description}`.toLowerCase().includes(query));
   }, [navigationItems, searchText]);
-  const notificationLinks = [
+  const notificationLinks = technicianOnly ? [
+    { href: "/my-tasks", label: "My Work", detail: "Return to assigned work and current repair." },
+    { href: "/my-tasks/available", label: "Available Work", detail: "Check for eligible work ready to claim." },
+    { href: "/diagnostics", label: "Diagnostics & Tools", detail: "Open guided troubleshooting and technical tools." }
+  ] : [
     { href: "/activity", label: "Activity", detail: "Review the latest Dispatch events." },
     ...(isManager(user)
       ? [{ href: "/manager-review", label: "Manager review", detail: "Open approvals and work waiting for review." }]
@@ -114,16 +127,16 @@ export function AppTopbar({ commandCenterHome, onMenuOpen, showNavigationMenu, u
           <Menu size={20} />
         </button>
       ) : null}
-      <Link aria-label="Time Motor Sales Command Control Center Home" className="ccc-topbar-brand" href="/command-center">
+      <Link aria-label={technicianOnly ? "Technician Workspace Home" : "Time Motor Sales Command Control Center Home"} className="ccc-topbar-brand" href={technicianOnly ? "/my-tasks" : "/command-center"}>
         <TimeMotorSalesLogo className="ccc-topbar-brand-horizontal" decorative priority variant="horizontal-reversed" />
         <TimeMotorSalesLogo className="ccc-topbar-brand-mark" decorative priority variant="mark" />
       </Link>
       {!commandCenterHome ? (
-        <Link aria-label="Command Center Home" className="ccc-home-link" href="/command-center">
-          <House size={15} /><span>CCC Home</span>
+        <Link aria-label={technicianOnly ? "My Work" : "Command Center Home"} className="ccc-home-link" href={technicianOnly ? "/my-tasks" : "/command-center"}>
+          <House size={15} /><span>{technicianOnly ? "My Work" : "CCC Home"}</span>
         </Link>
       ) : null}
-      {inventoryConsole ? (
+      {inventoryConsole && !technicianOnly ? (
         <Link aria-label="Open Dispatch Board console" className="ccc-home-link ccc-dispatch-link" href="/board">
           <Columns3 size={15} /><span>Dispatch</span>
         </Link>
@@ -132,7 +145,7 @@ export function AppTopbar({ commandCenterHome, onMenuOpen, showNavigationMenu, u
       <nav aria-label="Workspace breadcrumb" className="ccc-breadcrumb">
         {breadcrumb.map((part, index) => (
           <span className={index === breadcrumb.length - 1 ? "ccc-breadcrumb-current" : ""} key={part}>
-            {index === 0 && breadcrumb.length > 1 ? <Link href="/command-center">{part}</Link> : part}
+            {index === 0 && breadcrumb.length > 1 ? <Link href={technicianOnly ? "/my-tasks" : "/command-center"}>{part}</Link> : part}
             {index < breadcrumb.length - 1 ? <i aria-hidden="true">/</i> : null}
           </span>
         ))}

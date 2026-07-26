@@ -2,13 +2,14 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { loginWithPassword } from "@/server/auth/service";
+import { resolvePostLoginRoute } from "@/server/auth/navigation";
 import { buildSessionCookie } from "@/server/auth/session";
 import { createPrismaAuthStore } from "@/server/auth/store";
 import { prisma } from "@/server/db/client";
 
 const authStore = createPrismaAuthStore(prisma);
 
-function isLoginPayload(value: unknown): value is { email: string; password: string } {
+function isLoginPayload(value: unknown): value is { email: string; password: string; returnTo?: string } {
   if (!value || typeof value !== "object") {
     return false;
   }
@@ -62,6 +63,7 @@ export async function POST(request: Request) {
   cookieStore.set(sessionCookie.name, sessionCookie.value, sessionCookie.options);
 
   return NextResponse.json({
+    redirectTo: resolvePostLoginRoute(result.user, payload.returnTo),
     user: result.user
   });
 }

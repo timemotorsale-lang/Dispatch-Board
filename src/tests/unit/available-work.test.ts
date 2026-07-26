@@ -117,7 +117,16 @@ describe("available work recommendations", () => {
   });
 
   it("claims atomically through the repository and records an audit event", async () => {
-    const claimRecommendation = vi.fn(async () => ({ boardDayId: "board-1", recommendationId: "rec-1", taskId: "task-1", taskTitle: "Follow up with customer" }));
+    const claimRecommendation = vi.fn(async () => ({
+      boardDayId: "board-1",
+      recommendationId: "rec-1",
+      taskId: "task-1",
+      taskTitle: "Follow up with customer",
+      repairJobId: "repair-job-1",
+      repairOrderId: "repair-order-1",
+      vehicleId: "vehicle-1",
+      inventoryUnitId: null
+    }));
     const recordActivity = vi.fn(async () => undefined);
     const repository = {
       findStaffDay: vi.fn(), countActiveAssignedTasks: vi.fn(), listClaimableTasks: vi.fn(), replaceShownRecommendations: vi.fn(), dismissRecommendation: vi.fn(), claimRecommendation
@@ -126,6 +135,7 @@ describe("available work recommendations", () => {
     const result = await claimAvailableWork(staff, "rec-1", { flags, repository, recordActivity, now: () => new Date("2026-07-11T14:00:00.000Z") });
 
     expect(result.taskId).toBe("task-1");
+    expect(result.destination).toBe("/vehicles/repair-jobs/repair-job-1/workbench");
     expect(claimRecommendation).toHaveBeenCalledWith("rec-1", staff.id, new Date("2026-07-11T14:00:00.000Z"));
     expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ eventType: "work_recommendation.claimed", taskId: "task-1" }));
   });

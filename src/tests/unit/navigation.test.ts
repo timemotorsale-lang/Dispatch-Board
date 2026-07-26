@@ -32,14 +32,13 @@ describe("enterprise shell navigation", () => {
 
     expect(dispatch?.href).toBe("/board");
     expect(dispatch?.badge).toBe("Live");
-    expect(liveItems.map((item) => item.title)).toEqual(["Dispatch Board"]);
+    expect(liveItems.map((item) => item.title)).toEqual(["Dispatch Board", "Time & Attendance"]);
   });
 
   it("marks future Command Control Center modules as planned and unavailable", () => {
     const planned = linksFor(user()).filter((item) => item.disabled);
 
     expect(planned.map((item) => item.title)).toEqual([
-      "Time & Attendance",
       "People & HR",
       "Compliance",
       "Legal & Accounting",
@@ -123,6 +122,28 @@ describe("enterprise shell navigation", () => {
       "Manager Review",
       "Team",
       "Activity"
+    ]);
+  });
+
+  it("reduces a mechanic-only account to the three technician destinations", () => {
+    const mechanic = user({ roles: ["Mechanic"] });
+    const items = getDispatchNavigationItems(mechanic);
+    const repairWorkbench = getConsoleNavigation(
+      "/vehicles/repair-jobs/job-1/workbench",
+      mechanic
+    );
+
+    expect(items.map((item) => [item.title, item.href])).toEqual([
+      ["My Work", "/my-tasks"],
+      ["Available Work", "/my-tasks/available"],
+      ["Diagnostics & Tools", "/diagnostics"]
+    ]);
+    expect(repairWorkbench?.subtitle).toBe("Technician Workspace");
+    expect(repairWorkbench?.homeHref).toBe("/my-tasks");
+    expect(repairWorkbench?.items.map((item) => item.title)).toEqual([
+      "My Work",
+      "Available Work",
+      "Diagnostics & Tools"
     ]);
   });
 
