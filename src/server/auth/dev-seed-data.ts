@@ -297,6 +297,14 @@ export const dayOneRoleDefinitions = [
     ]
   },
   {
+    name: "Parts",
+    description: "Owns parts demand, sourcing, receiving, reservation, issue, returns, and repair readiness support.",
+    defaultDutyNames: [
+      "Check vehicles awaiting parts",
+      "Support parts pickup and returns"
+    ]
+  },
+  {
     name: "Salesperson",
     description: "Owns lead follow-up, appointments, and customer-facing sales tasks.",
     defaultDutyNames: [
@@ -372,6 +380,14 @@ export const developmentUserDefinitions = [
       "Mark waiting on parts or approval when applicable",
       "Move finished repair work to Ready for Review"
     ]
+  },
+  {
+    name: "Pat Parts",
+    email: "pat.parts@local.test",
+    password: SHARED_DEVELOPMENT_PASSWORD,
+    isActive: true,
+    roleNames: ["Parts"],
+    directDutyNames: []
   },
   {
     name: "Baraka Sales",

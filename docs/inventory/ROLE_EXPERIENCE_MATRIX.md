@@ -27,7 +27,7 @@ Role-aware presentation reduces navigation; it does not replace server-side perm
 | Service Department Manager | `/vehicles/shop-recon` | Shop & Recon, Shop Dispatch, Repair Orders, Parts Operations, QC, Reviews | Technician job, diagnostic case, Vehicle 360, evidence | Inventory Tower unless separately granted; enterprise administration |
 | Service Advisor | `/appointments` | Advisor Home, Check In Vehicle, Appointment Board, Customers, Repair Orders, Diagnostic Review, My Work | Appointment, Customer, Vehicle, Repair Order, advisor diagnosis/estimate review, authorization, customer handoff | Technician execution controls, Inventory Tower, shop-management controls, enterprise appointment intelligence unless separately granted |
 | Mechanic or Technician | `/my-tasks` | My Work, Available Work, Diagnostics & Tools | Assigned Work Order, scoped Vehicle 360, job Parts, Evidence, QC result | Shop & Recon dashboard, Inventory Tower, broad Repair Order administration, Customers, Reports, Approvals, Administration |
-| Parts staff | `/vehicles/parts-operations` | Parts Operations, Parts Counter, waiting demand, receiving, issue/return | Linked Repair Order, Repair Job, Vehicle 360 | Technician execution, customer intake, Inventory Tower, management reports |
+| Parts staff | `/vehicles/parts-operations` | Parts Home, Demand Queue, Parts Counter, My Work; action queues for unblocking repairs, duplicate risk, receiving, unknown location, returns/credits, and vendor cutoff risk | Linked Repair Order, Repair Job, Vehicle 360, Part Demand, Purchase Order, Receipt, Custody/Location Event, Return/Recovery | Technician execution, customer intake, Inventory Tower, management reports, and unlinked free-text parts tracking |
 | QC inspector | `/vehicles/quality-control` | QC Queue, assigned inspections, rework handoff | Repair Job, Repair Order, evidence, procedure | Technician labor controls, customer intake, inventory management |
 | Salesperson | `/tasks?department=SALES` | My Work, Sales Tasks, Appointments, Customers, Vehicles | Delivery-prep and permitted customer/vehicle context | Shop execution, inventory management, administration |
 | Office Manager | `/my-tasks` | My Work, office tasks, permitted appointments/customers/documents | Relevant authoritative business record | Shop execution, diagnostics, Inventory Tower unless separately granted |
@@ -76,7 +76,25 @@ The Technician Repair Workbench may link to a scoped work order, Vehicle 360, Pa
 
 My Work includes a compact, read-only **Shop Pulse** for useful situational awareness: the technician's bay and queue, aggregate active repair count, waiting-on-parts count, QC waiting count, promise pressure, and an honest constrained/ready state. It must not expose assignment controls, staffing management, other technicians' detailed work, financial metrics, or broad customer information. The full Shop & Recon page remains a service-management workspace rather than technician navigation.
 
-## 4A. Service Advisor experience contract
+## 4A. Parts staff experience contract
+
+Parts staff open a focused **Parts Home** that answers: “What needs action now to unblock repair work and stop waste?”
+
+The Parts Staff workspace contains:
+
+1. **Unblocking Now** - parts demands actively blocking repair orders or promise times.
+2. **Demand Queue** - requested and qualified parts needs attached to Repair Orders, Repair Jobs, or approved stock reasons.
+3. **Duplicate Risk** - possible repeated demand/order/receipt candidates that must be reviewed before purchase commitment.
+4. **Receiving Today** - expected arrivals, missed ETAs, receipt inspection, and binning tasks.
+5. **Unknown Location** - accepted parts without verified bin, counter, technician, vehicle, return, or vendor location.
+6. **Returns & Credits** - wrong, unused, core, warranty, or returnable parts that remain open until return/credit recovery is resolved.
+7. **Vendor Cutoff Risk** - demands that must be sourced or ordered before cutoff to protect repair promises.
+
+Parts work must be recorded on canonical parts records: Part Demand, Source/Requisition, Purchase Order, Receipt, Custody/Location Event, Reservation/Kit, and Return/Recovery. Technician notes, advisor comments, generic tasks, Shop & Recon cards, vendor invoices, and Inventory home cards may display or link to these records, but they must not become separate parts truth.
+
+The full Parts Operations console remains available when the user enters a deeper view, but routine Parts Staff work should begin from the focused Parts Home.
+
+## 4B. Service Advisor experience contract
 
 A Service Advisor opens a focused customer-arrival workspace, not the full enterprise appointment command center by default.
 
