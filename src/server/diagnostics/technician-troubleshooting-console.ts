@@ -53,6 +53,11 @@ export type TroubleshootingCaseInput = {
     readyForReasoning: boolean;
     reasonCodes: string[];
   };
+  workspaceLinkResolution?: {
+    repairOrderExactHref?: string | null;
+    vehicleExactHref?: string | null;
+    verifiedAt?: string | null;
+  };
 };
 
 type DomainRulePack = {
@@ -108,6 +113,23 @@ type VehicleKnownProblemCatalogEntry = {
   symptomPhrases: string[];
   title: string;
   warnings: string[];
+};
+
+type TroubleshootingWorkspaceLink = {
+  href: string;
+  label: string;
+  mode: "EXACT_RECORD" | "EXACT_RECORD_PENDING_BRIDGE" | "IN_CONSOLE" | "SEARCH_FALLBACK" | "WORKSPACE";
+  reason: string;
+};
+
+type TroubleshootingMvpActionDetail = {
+  actionAvailable: string;
+  body: string;
+  key: string;
+  nextStaffAction: string;
+  sourceBoundary: string;
+  sourceStatus: "BACKEND_LIMITED" | "CONNECTOR_REQUIRED" | "EXACT_VERIFIED" | "INTERNAL_SEED" | "NOT_CONNECTED" | "SEARCH_FALLBACK";
+  title: string;
 };
 
 const allowedOverrideReasons = new Set([
@@ -910,6 +932,134 @@ function buildFeatureGates() {
   };
 }
 
+function buildWorkspaceLinks(input: TroubleshootingCaseInput): Record<string, TroubleshootingWorkspaceLink> {
+  const consolePath = `/diagnostics/cases/${encodeURIComponent(input.diagnosticCase.id)}/troubleshooting`;
+  const returnQuery = `returnTo=${encodeURIComponent(consolePath)}`;
+  const vehicleSearch = input.diagnosticCase.vehicle.vin || input.diagnosticCase.vehicle.label;
+  const repairOrderSearch = input.diagnosticCase.repairOrder.repairOrderNumber || input.diagnosticCase.repairOrder.id;
+  const vehicleExactHref = input.workspaceLinkResolution?.vehicleExactHref?.trim();
+  const repairOrderExactHref = input.workspaceLinkResolution?.repairOrderExactHref?.trim();
+  return {
+    caseWorkspace: {
+      href: `/diagnostics/cases/${encodeURIComponent(input.diagnosticCase.id)}?${returnQuery}`,
+      label: "Full case",
+      mode: "WORKSPACE",
+      reason: "Diagnostic case workspace is the authoritative case record."
+    },
+    diagnostics: {
+      href: `/diagnostics?${returnQuery}`,
+      label: "Diagnostics",
+      mode: "WORKSPACE",
+      reason: "Return to the diagnostics command center with a troubleshooting return path."
+    },
+    home: {
+      href: `/command-center?${returnQuery}`,
+      label: "Home",
+      mode: "WORKSPACE",
+      reason: "Open command center without losing the return loop."
+    },
+    library: {
+      href: `/vehicles/discovery?intent=diagnostic-library&vehicleId=${encodeURIComponent(input.diagnosticCase.vehicle.id)}&${returnQuery}`,
+      label: "Library",
+      mode: "WORKSPACE",
+      reason: "Vehicle discovery is the approved destination for governed knowledge review."
+    },
+    messages: {
+      href: `/diagnostics/cases/${encodeURIComponent(input.diagnosticCase.id)}?${returnQuery}#advisor-handoff`,
+      label: "Messages",
+      mode: "WORKSPACE",
+      reason: "Advisor handoff remains case-governed until messaging integration is connected."
+    },
+    parts: {
+      href: `/vehicles/parts?${returnQuery}`,
+      label: "Parts",
+      mode: "WORKSPACE",
+      reason: "Open the parts workspace without passing diagnostic-only IDs that may not exist in the parts ledger."
+    },
+    repairOrder: {
+      href: repairOrderExactHref || `/vehicles/repair-workbench?view=all&query=${encodeURIComponent(repairOrderSearch)}&${returnQuery}`,
+      label: "Repair workbench",
+      mode: repairOrderExactHref ? "EXACT_RECORD" : "SEARCH_FALLBACK",
+      reason: repairOrderExactHref
+        ? `Verified repair-order destination${input.workspaceLinkResolution?.verifiedAt ? ` at ${input.workspaceLinkResolution.verifiedAt}` : ""}.`
+        : "Exact repair-order deep link is held until diagnostic-to-shop-planning bridge resolution can verify the target record."
+    },
+    reports: {
+      href: `/reports?domain=diagnostics&caseId=${encodeURIComponent(input.diagnosticCase.id)}&${returnQuery}`,
+      label: "Reports",
+      mode: "WORKSPACE",
+      reason: "Open diagnostic reporting with case context where supported."
+    },
+    settings: {
+      href: `/settings/vehicle-operations?${returnQuery}`,
+      label: "Settings",
+      mode: "WORKSPACE",
+      reason: "Feature flags, rollout, and vehicle operations controls live in settings."
+    },
+    vehicle: {
+      href: vehicleExactHref || `/vehicles/registry?query=${encodeURIComponent(vehicleSearch)}&${returnQuery}`,
+      label: "Vehicle",
+      mode: vehicleExactHref ? "EXACT_RECORD" : "SEARCH_FALLBACK",
+      reason: vehicleExactHref
+        ? `Verified Vehicle 360 destination${input.workspaceLinkResolution?.verifiedAt ? ` at ${input.workspaceLinkResolution.verifiedAt}` : ""}.`
+        : "Exact Vehicle 360 deep link is held until the canonical vehicle bridge verifies the destination record."
+    },
+    vehicleIntelligence: {
+      href: "#vehicle-intelligence",
+      label: "Vehicle intelligence",
+      mode: "IN_CONSOLE",
+      reason: "Trial intelligence details open inside the troubleshooting console until licensed/canonical source connectors are live."
+    }
+  };
+}
+
+function buildMvpReadiness(input: TroubleshootingCaseInput, links: Record<string, TroubleshootingWorkspaceLink>) {
+  const trial = input.diagnosticCase.id.startsWith("trial-");
+  return [
+    { key: "caseMode", label: "Case mode", state: trial ? "TRIAL" : "LIVE", detail: trial ? "Interactive preview; persistence is disabled." : "Connected to a governed diagnostic case." },
+    { key: "vehicleLink", label: "Vehicle link", state: links.vehicle.mode === "EXACT_RECORD" ? "EXACT" : "SEARCH_SAFE", detail: links.vehicle.reason },
+    { key: "repairOrderLink", label: "RO link", state: links.repairOrder.mode === "EXACT_RECORD" ? "EXACT" : "SEARCH_SAFE", detail: links.repairOrder.reason },
+    { key: "evidenceCapture", label: "Evidence", state: trial ? "DISABLED_TRIAL" : "ENABLED_GOVERNED", detail: trial ? "Open a real case to persist observations or measurements." : "Quick evidence records through governed diagnostic evidence commands." },
+    { key: "snapshotSave", label: "Snapshot", state: trial ? "DISABLED_TRIAL" : "PERMISSION_GATED", detail: trial ? "Snapshots are not saved from trial data." : "Enabled only when case transition/evidence permissions allow it." },
+    { key: "ai", label: "AI", state: "WITHHELD", detail: "Master Technician AI remains withheld for MVP." },
+    { key: "licensedSources", label: "Licensed sources", state: "NOT_CONNECTED", detail: "Recall, TSB, OEM procedure, OEM part-number, and licensed labor sources are intentionally not connected in MVP." }
+  ];
+}
+
+function buildMvpActionDetails(input: TroubleshootingCaseInput, tests: Array<{ discriminates: string[]; expectedEvidence: string[]; key: string; prerequisites: string[]; reason: string; safety: string[]; title: string; tools: string[] }>, advisorHandoff: ReturnType<typeof buildAdvisorHandoff>, knownIssueMatches: Array<{ summary: string; source: string }>): {
+  handoff: TroubleshootingMvpActionDetail[];
+  intelligence: TroubleshootingMvpActionDetail[];
+  tests: TroubleshootingMvpActionDetail[];
+} {
+  const hasRo = Boolean(input.diagnosticCase.repairOrder.id);
+  const hasKnownIssues = knownIssueMatches.length > 0;
+  return {
+    intelligence: [
+      { key: "recalls", title: "Recall / campaign check", sourceStatus: "NOT_CONNECTED", sourceBoundary: "Authoritative recall data requires a connected public or licensed recall source.", body: "MVP can require and track the recall check, but it must not invent recall status.", nextStaffAction: "Open the approved recall source outside this console and record the result as evidence or an acknowledgement.", actionAvailable: "In-console review only" },
+      { key: "bulletins", title: "TSB / service bulletin check", sourceStatus: "CONNECTOR_REQUIRED", sourceBoundary: "Licensed OEM/service-information source is required before showing bulletins.", body: "MVP can guide the technician to check symptom/VIN/build-date applicability without displaying proprietary bulletin content.", nextStaffAction: "Search the approved service-information tool, then record source and applicability outcome.", actionAvailable: "In-console review only" },
+      { key: "known-issues", title: "Known issue library matches", sourceStatus: hasKnownIssues ? "INTERNAL_SEED" : "BACKEND_LIMITED", sourceBoundary: "Internal seed knowledge is advisory and not an authoritative diagnosis.", body: hasKnownIssues ? knownIssueMatches.map((item) => `${item.summary} (${item.source})`).join(" ") : "No seed-library match is strong enough to show as a specific issue.", nextStaffAction: "Use matches to choose questions/tests; do not promote them to suspected cause until evidence supports them.", actionAvailable: "Open detail in-console" },
+      { key: "repair-history", title: "Prior RO history", sourceStatus: hasRo ? "SEARCH_FALLBACK" : "BACKEND_LIMITED", sourceBoundary: "Prior repair history belongs to the canonical repair-order/Vehicle 360 records.", body: "MVP opens safe RO/vehicle search when exact record linking has not been verified.", nextStaffAction: "Review prior complaint, correction, parts, mileage, and verification notes; record relevant facts.", actionAvailable: "Safe search fallback" },
+      { key: "comebacks", title: "Comeback history screen", sourceStatus: hasRo ? "SEARCH_FALLBACK" : "BACKEND_LIMITED", sourceBoundary: "Comeback determination must be based on linked repair history, not concern text alone.", body: "MVP helps staff compare this concern against prior visits without declaring comeback status automatically.", nextStaffAction: "Check repeat symptom, date/mileage gap, previous correction, and verification evidence.", actionAvailable: "Safe search fallback" }
+    ],
+    tests: tests.map((test) => ({
+      key: test.key,
+      title: test.title,
+      sourceStatus: "BACKEND_LIMITED",
+      sourceBoundary: "MVP shows governed test detail; automatic execution/branch mutation stays under the existing diagnostic test-lab authority.",
+      body: test.reason,
+      nextStaffAction: `Capture expected evidence: ${test.expectedEvidence.join(", ") || "technician result and supporting observation"}.`,
+      actionAvailable: `Tools: ${test.tools.join(", ") || "standard diagnostic tools"}; prerequisites: ${test.prerequisites.join(", ") || "none listed"}; safety: ${test.safety.join(", ") || "standard shop safety"}`
+    })),
+    handoff: [
+      { key: "cause-status", title: "Cause status", sourceStatus: "BACKEND_LIMITED", sourceBoundary: "Customer/advisor language must not state a suspected cause as confirmed.", body: advisorHandoff.summary, nextStaffAction: advisorHandoff.requiredBeforeCustomer.join(" ") || "Continue with governed diagnostic workflow.", actionAvailable: advisorHandoff.nextAction },
+      { key: "correction-readiness", title: "Correction readiness", sourceStatus: "BACKEND_LIMITED", sourceBoundary: "Correction is not ready until cause and repair path are supported by evidence.", body: "Repair path remains internal until the diagnostic case reaches the appropriate evidence/readiness state.", nextStaffAction: "Complete missing tests and attach supporting evidence before proposing correction.", actionAvailable: "In-console readiness review" },
+      { key: "parts-readiness", title: "Parts readiness", sourceStatus: "BACKEND_LIMITED", sourceBoundary: "Parts demand belongs to parts/estimate authority; this console does not invent required parts.", body: "MVP can identify that parts readiness is pending, but parts selection remains downstream.", nextStaffAction: "After confirmed correction, use parts workspace or labor/estimate authority to create demand.", actionAvailable: "In-console readiness review" },
+      { key: "labor-readiness", title: "Labor readiness", sourceStatus: "BACKEND_LIMITED", sourceBoundary: "Labor estimate belongs to the labor guide/estimate authority.", body: "Diagnostic test time and repair labor should not be merged without advisor estimate review.", nextStaffAction: "Send case to advisor review only after evidence and correction readiness are sufficient.", actionAvailable: "In-console readiness review" },
+      { key: "verification-plan", title: "Verification plan", sourceStatus: "BACKEND_LIMITED", sourceBoundary: "Verification plan must be tied to the confirmed correction and post-repair evidence.", body: "MVP tracks that verification planning is pending until the repair path is selected.", nextStaffAction: "Define post-repair test, road test, scan, or measurement required to prove correction.", actionAvailable: "In-console readiness review" }
+    ]
+  };
+}
+
 export function buildTechnicianTroubleshootingConsole(input: TroubleshootingCaseInput) {
   const text = normalizeText(input.diagnosticCase.concern);
   const matchedDomains = domainRulePacks
@@ -975,6 +1125,9 @@ export function buildTechnicianTroubleshootingConsole(input: TroubleshootingCase
   const testExecutionBridge = buildTestExecutionBridge(input, recommendedTest);
   const pilotTelemetry = buildPilotTelemetry(input, gateState, knownIssueMatches, advisorHandoff, tests);
   const featureGates = buildFeatureGates();
+  const workspaceLinks = buildWorkspaceLinks(input);
+  const mvpReadiness = buildMvpReadiness(input, workspaceLinks);
+  const mvpActionDetails = buildMvpActionDetails(input, tests, advisorHandoff, knownIssueMatches);
 
   return {
     version: TECHNICIAN_TROUBLESHOOTING_CONSOLE_VERSION,
@@ -1060,6 +1213,9 @@ export function buildTechnicianTroubleshootingConsole(input: TroubleshootingCase
     aiContextPacket,
     pilotTelemetry,
     featureGates,
+    workspaceLinks,
+    mvpReadiness,
+    mvpActionDetails,
     masterTechnicianGate: {
       enabled: false,
       label: "AI assistant withheld",

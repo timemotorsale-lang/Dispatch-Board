@@ -779,8 +779,19 @@ export async function getTechnicianTroubleshootingConsole(actor: AuthenticatedUs
   const workspace = await getDiagnosticCaseWorkspace(actor, caseId, input);
   const context = dependencies(input);
   const sessions = context.repository.listTroubleshootingSessions ? await context.repository.listTroubleshootingSessions(context.organizationId, caseId) : [];
+  const consolePath = `/diagnostics/cases/${encodeURIComponent(workspace.diagnosticCase.id)}/troubleshooting`;
+  const returnQuery = `returnTo=${encodeURIComponent(consolePath)}`;
   return {
-    ...buildTechnicianTroubleshootingConsole({ diagnosticCase: workspace.diagnosticCase, generatedAt: workspace.generatedAt, qualitySafetyGates: workspace.qualitySafetyGates }),
+    ...buildTechnicianTroubleshootingConsole({
+      diagnosticCase: workspace.diagnosticCase,
+      generatedAt: workspace.generatedAt,
+      qualitySafetyGates: workspace.qualitySafetyGates,
+      workspaceLinkResolution: {
+        repairOrderExactHref: `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(workspace.diagnosticCase.repairOrder.id)}&${returnQuery}`,
+        vehicleExactHref: `/vehicles/360/${encodeURIComponent(workspace.diagnosticCase.vehicle.id)}?${returnQuery}`,
+        verifiedAt: workspace.generatedAt
+      }
+    }),
     savedSessions: sessions.map((session) => ({
       id: session.id,
       version: session.version,

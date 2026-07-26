@@ -67,6 +67,32 @@ describe("technician troubleshooting console intelligence", () => {
     expect(model.knowledgeCatalog.commonCauseMatches.map((entry) => entry.id)).toContain("cc-trans-fluid-control-baseline");
     expect(model.knowledgeCatalog.vehicleKnownProblemMatches.map((entry) => entry.id)).toContain("vkp-mazda3-2010-trans-shift-fluid-control");
     expect(model.knowledgeCatalog.sourcePolicy.prohibited.join(" ")).toContain("inventing recalls");
+    expect(model.workspaceLinks.vehicle.mode).toBe("SEARCH_FALLBACK");
+    expect(model.workspaceLinks.vehicle.href).toContain("/vehicles/registry?query=JM1BL1SF3A1257561");
+    expect(model.workspaceLinks.repairOrder.mode).toBe("SEARCH_FALLBACK");
+    expect(model.workspaceLinks.repairOrder.href).toContain("/vehicles/repair-workbench?view=all");
+    expect(model.workspaceLinks.vehicleIntelligence.mode).toBe("IN_CONSOLE");
+    expect(model.mvpReadiness.map((item) => item.key)).toEqual(expect.arrayContaining(["caseMode", "vehicleLink", "repairOrderLink", "evidenceCapture", "snapshotSave", "ai", "licensedSources"]));
+    expect(model.mvpActionDetails.intelligence.find((item) => item.key === "recalls")?.sourceStatus).toBe("NOT_CONNECTED");
+    expect(model.mvpActionDetails.intelligence.find((item) => item.key === "bulletins")?.sourceStatus).toBe("CONNECTOR_REQUIRED");
+    expect(model.mvpActionDetails.tests[0]?.key).toBe("TRANS_FLUID_CHECK");
+    expect(model.mvpActionDetails.tests[0]?.sourceBoundary).toContain("test-lab authority");
+    expect(model.mvpActionDetails.handoff.find((item) => item.key === "cause-status")?.sourceBoundary).toContain("must not state");
+  });
+
+  it("uses exact workspace links only when the caller supplies verified destinations", () => {
+    const model = buildTechnicianTroubleshootingConsole(buildInput("transmission issues", {
+      workspaceLinkResolution: {
+        repairOrderExactHref: "/vehicles/repair-workbench?repairOrderId=ro-1&returnTo=%2Fdiagnostics",
+        vehicleExactHref: "/vehicles/360/vehicle-1?returnTo=%2Fdiagnostics",
+        verifiedAt: "2026-07-25T12:01:00.000Z"
+      }
+    }));
+    expect(model.workspaceLinks.vehicle.mode).toBe("EXACT_RECORD");
+    expect(model.workspaceLinks.vehicle.href).toBe("/vehicles/360/vehicle-1?returnTo=%2Fdiagnostics");
+    expect(model.workspaceLinks.vehicle.reason).toContain("Verified Vehicle 360 destination");
+    expect(model.workspaceLinks.repairOrder.mode).toBe("EXACT_RECORD");
+    expect(model.workspaceLinks.repairOrder.href).toContain("repairOrderId=ro-1");
   });
 
   it("bridges a recommended troubleshooting test to an existing governed test-lab node when available", () => {

@@ -94,6 +94,16 @@ describe("diagnostics case console", () => {
     expect(html).toContain("Open Recalls");
     expect(html).toContain("TSB / Service Bulletins");
     expect(html).toContain("Known Issue Library Matches");
+    expect(html).toContain("/vehicles/registry?query=VIN10");
+    expect(html).toContain("/vehicles/repair-workbench?view=all&amp;query=RO-1042");
+    expect(html).toContain("/vehicles/parts?returnTo=");
+    expect(html).toContain("Vehicle link: search safe");
+    expect(html).toContain("RO link: search safe");
+    expect(html).toContain("Case mode: live");
+    expect(html).toContain("Licensed sources: not connected");
+    expect(html).toContain("test-lab authority");
+    expect(html).toContain("Open details");
+    expect(html).not.toContain("/vehicles/360/vehicle-1?section=intelligence");
     expect(html).toContain("Upload Evidence");
     expect(html).toContain("AI assistant withheld until evidence gates are satisfied");
   });

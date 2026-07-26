@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 
 type RecordItem = Record<string, unknown>;
@@ -32,7 +33,24 @@ function GenericCards({ items, kind }: { items: RecordItem[]; kind: string }) {
   return <div className="settings-overview-grid">{items.map((item, index) => <article className="panel-card page-stack" key={String(item.id ?? index)}><span className="eyebrow">{kind}</span><h3>{label(item.repairOrderNumber ?? item.inventoryNumber ?? item.title ?? item.type ?? item.eventType ?? item.id)}</h3><dl className="etw-facts compact">{Object.entries(item).filter(([key, entry]) => !["id", "organizationId", "content", "metadata", "priorValue", "newValue"].includes(key) && ["string", "number", "boolean"].includes(typeof entry)).slice(0, 8).map(([key, entry]) => <div key={key}><dt>{label(key)}</dt><dd>{key.toLowerCase().includes("at") && typeof entry === "string" ? dateTime(entry) : label(entry)}</dd></div>)}</dl></article>)}</div>;
 }
 
+function VehicleDiagnosticIntelligence({ onOpenService, view }: { onOpenService: () => void; view: Vehicle360View }) {
+  const vehicle = view.summary.vehicle;
+  const serviceOrders = view.tabs.service.allowed ? view.tabs.service.repairOrders : [];
+  const discovery = (intent: string) => `/vehicles/discovery?intent=${intent}&vehicleId=${encodeURIComponent(vehicle.id)}`;
+  return <section className="panel-card page-stack" id="diagnostic-intelligence">
+    <div className="page-copy"><span className="eyebrow">Diagnostic intelligence landing</span><h2>{[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || vehicle.vehicleNumber} source checks</h2><p>Review recall, bulletin, known-problem, repair-history, and comeback signals before choosing the next diagnostic step.</p></div>
+    <div className="settings-overview-grid">
+      <article className="settings-callout-card" id="recalls"><div><span className="eyebrow">Safety recall / campaign</span><h3>Recall check required</h3><p>Connect an OEM/NHTSA recall source before treating recall status as authoritative.</p></div><Link href={discovery("recalls")}>Open source review</Link></article>
+      <article className="settings-callout-card" id="service-bulletins"><div><span className="eyebrow">TSB / service bulletin</span><h3>Bulletin check required</h3><p>Use licensed OEM or approved bulletin sources for symptom, VIN, production-date, and procedure applicability.</p></div><Link href={discovery("service-bulletins")}>Open bulletin search</Link></article>
+      <article className="settings-callout-card" id="known-issues"><div><span className="eyebrow">Known issue library</span><h3>Vehicle-known problem matches</h3><p>Seed common-cause libraries guide questions and tests; evidence is still required before cause ranking.</p></div><Link href={discovery("known-issues")}>Open known issues</Link></article>
+      <article className="settings-callout-card" id="repair-history"><div><span className="eyebrow">Prior RO history</span><h3>{serviceOrders.length} linked repair order{serviceOrders.length === 1 ? "" : "s"}</h3><p>{view.tabs.service.allowed ? "Review prior complaints, corrections, parts, and repeat symptoms for this vehicle." : "Your role does not include service-history access."}</p></div><button onClick={onOpenService} type="button">Open service tab</button></article>
+      <article className="settings-callout-card" id="comeback-history"><div><span className="eyebrow">Comeback history</span><h3>Repeat concern screen</h3><p>Compare the current concern against previous repairs, dates, mileage, technician notes, and verification.</p></div><button onClick={onOpenService} type="button">Review service events</button></article>
+    </div>
+  </section>;
+}
+
 export function Vehicle360Workspace({ initial }: { initial: Vehicle360View }) {
+  const searchParams = useSearchParams();
   const [view, setView] = useState(initial), [active, setActive] = useState<Tab>("overview"), [notice, setNotice] = useState(""), [busy, setBusy] = useState(false), [file, setFile] = useState<File | null>(null), [category, setCategory] = useState("PHOTO"), [accessLevel, setAccessLevel] = useState("INTERNAL"), [retention, setRetention] = useState(() => { const next = new Date(); next.setUTCFullYear(next.getUTCFullYear() + 3); return next.toISOString().slice(0, 10); });
   const vehicle = view.summary.vehicle, nodes = useMemo(() => new Map(view.graph.nodes.map((node) => [node.id, node])), [view.graph.nodes]);
   async function request(url: string, init?: RequestInit) { const response = await fetch(url, init); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error ?? "Vehicle 360 request failed."); return body; }
@@ -46,6 +64,7 @@ export function Vehicle360Workspace({ initial }: { initial: Vehicle360View }) {
   async function govern(item: EvidenceItem, changes: Record<string, unknown>, reason: string) { setBusy(true); try { await request(`/api/vehicle-evidence/${item.evidenceObjectId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ expectedVersion: item.evidenceObject.version, idempotencyKey: crypto.randomUUID(), reason, ...changes }) }); setNotice("Evidence governance updated with an audit record."); await refresh(); } catch (error) { setNotice(error instanceof Error ? error.message : "Evidence governance update failed."); } finally { setBusy(false); } }
   const tabAllowed = (tab: Tab) => tab === "inventory" ? view.tabs.inventory.allowed : tab === "service" ? view.tabs.service.allowed : tab === "parts" ? view.tabs.parts.allowed : tab === "documents" ? view.tabs.documents.allowed : tab === "warranty" ? view.tabs.warranty.allowed : tab === "communications" ? view.tabs.communications.allowed : tab === "costs" ? view.tabs.costs.allowed : tab === "decisions" ? view.tabs.decisions.allowed : tab === "audit" ? view.tabs.audit.allowed : true;
   return <section className="page-stack">
+    {searchParams.get("section") === "intelligence" ? <VehicleDiagnosticIntelligence onOpenService={() => setActive("service")} view={view} /> : null}
     <header className="page-copy"><span className="eyebrow">Vehicle Operations · Vehicle 360</span><h1>{[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || vehicle.vehicleNumber}</h1><p>A permission-aware operational record built from canonical inventory, service, parts, appointment, evidence, customer, task, decision, and audit sources.</p><div className="form-actions"><Link className="pill pill-secondary" href="/vehicles/registry">Canonical registry</Link><Link className="pill pill-secondary" href="/vehicles">Control Tower</Link></div></header>
     <div className="form-actions"><Link className="button button-secondary" href="/vehicles/discovery">Enterprise discovery, knowledge &amp; output</Link></div>
     {notice ? <div className={notice.toLowerCase().includes("failed") || notice.toLowerCase().includes("quarantine") || notice.toLowerCase().includes("required") ? "notice notice-warning" : "notice notice-success"}><p>{notice}</p></div> : null}
