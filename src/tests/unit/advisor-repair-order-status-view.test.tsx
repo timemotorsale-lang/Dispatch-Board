@@ -1,10 +1,14 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { AdvisorRepairOrderStatusView } from "@/features/advisor/advisor-repair-order-status-view";
 import type { getShopPlanningDetail } from "@/server/shop-planning/service";
 
 type Order = Awaited<ReturnType<typeof getShopPlanningDetail>>;
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() })
+}));
 
 function makeOrder(overrides: Partial<Order> = {}): Order {
   const order = {
@@ -36,7 +40,8 @@ function makeOrder(overrides: Partial<Order> = {}): Order {
     diagnosisVersions: [],
     estimateVersions: [],
     repairJobs: [],
-    partDemands: [{ quantityReserved: 0, quantityRequired: 1 }]
+    partDemands: [{ quantityReserved: 0, quantityRequired: 1 }],
+    advisorUpdates: []
   } as unknown as Order;
   return { ...order, ...overrides };
 }
@@ -49,6 +54,9 @@ describe("AdvisorRepairOrderStatusView", () => {
     expect(html).toContain("Advisor Repair Order Status");
     expect(html).toContain("RO-1001");
     expect(html).toContain("Customer-safe update");
+    expect(html).toContain("Advisor response");
+    expect(html).toContain("Save advisor response");
+    expect(html).toContain("Recent advisor history");
     expect(html).toContain("Confirm parts ETA before updating the customer.");
     expect(html).toContain("Customer promise needs review");
     expect(html).not.toContain("Technician Repair Workbench");

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+import { AdvisorResponsePanel } from "@/features/advisor/advisor-response-panel";
 import { BackToServiceAdvisorWorkspace } from "@/features/advisor/advisor-return-link";
 import type { getShopPlanningDetail } from "@/server/shop-planning/service";
 
@@ -128,6 +129,12 @@ export function AdvisorRepairOrderStatusView({ order }: { order: Order }) {
             <header><FileText /><div><strong>Customer-safe update</strong><span>Use this as the starting language before calling or texting.</span></div></header>
             <p>{customerSafeUpdate(order)}</p>
           </section>
+
+          <AdvisorResponsePanel
+            defaultSummary={customerSafeUpdate(order)}
+            latestUpdates={JSON.parse(JSON.stringify(order.advisorUpdates))}
+            repairOrderId={order.id}
+          />
 
           <section className="advisor-ro-card">
             <header><ClipboardCheck /><div><strong>Diagnosis / estimate status</strong><span>Advisor-readable repair context</span></div></header>
