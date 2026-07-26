@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { InventoryConsoleHome, type InventoryHomeData } from "@/features/inventory/inventory-console-home";
+import { VehicleOperationsLeadHome } from "@/features/inventory/vehicle-operations-lead-home";
 import { WorkflowLauncher } from "@/features/inventory/workflow-launcher";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { getInventoryWorkflowLauncher } from "@/server/inventory-workflow-launcher/service";
@@ -58,6 +59,26 @@ describe("Inventory Console R2 Home", () => {
     expect(markup).toContain("Unavailable");
     expect(markup).toContain("Projection offline");
     expect(markup).toContain("Your current role cannot view enterprise decision counts");
+  });
+});
+
+describe("Vehicle Operations Lead Home", () => {
+  it("renders the focused multi-hat landing without manager-console clutter", () => {
+    const markup = renderToStaticMarkup(<VehicleOperationsLeadHome data={data} />);
+
+    expect(markup).toContain("Vehicle Operations Lead");
+    expect(markup).toContain("Move the next vehicle forward");
+    expect(markup).toContain("My Vehicle Work");
+    expect(markup).toContain("Receive Vehicle");
+    expect(markup).toContain("Shop &amp; Recon");
+    expect(markup).toContain("Parts runner");
+    expect(markup).toContain("Handoff map");
+    expect(markup).toContain("Exceptions");
+    expect(markup).toContain('/vehicles?view=BLOCKED');
+    expect(markup).toContain('/vehicles/workflows/add-vehicle');
+    expect(markup).toContain('/vehicles/parts-operations');
+    expect(markup).not.toContain("Reports &amp; Exports");
+    expect(markup).not.toContain("Administration");
   });
 });
 

@@ -2,7 +2,7 @@
 
 **Product:** Time Motor Sales Dispatch Board
 **Program:** Role-Aware Workspace Optimization
-**Version:** `1.1.0`
+**Version:** `1.2.0`
 **Status:** Approved implementation contract
 **Date approved:** July 25, 2026
 **Shared resolver implementation:** July 26, 2026
@@ -48,16 +48,20 @@
 4. General Manager or delegated manager capability
    -> /board
 
-5. Service Department Manager
+5. Vehicle Operations Lead
+   -> /vehicles?workspace=vehicle-operations-lead
+   -> expose focused modes for inventory, shop, parts runner, lot support, and exceptions
+
+6. Service Department Manager
    -> /vehicles/shop-recon
 
-6. Inventory Manager
+7. Inventory Manager
    -> /vehicles
 
-7. Service Advisor
+8. Service Advisor
    -> /appointments
 
-8. Mechanic or Technician
+9. Mechanic or Technician
    -> /my-tasks
    -> resolve attendance inside the technician workspace:
       NONE/CLOSED -> Clock In gate
@@ -65,19 +69,19 @@
       OPEN        -> My Work
       unavailable -> non-blocking warning + My Work
 
-9. Parts role
+10. Parts role
    -> /vehicles/parts-operations
 
-10. QC role
+11. QC role
     -> /vehicles/quality-control
 
-11. Salesperson
+12. Salesperson
     -> /tasks?department=SALES
 
-12. Marketing/Advertisement Manager
+13. Marketing/Advertisement Manager
     -> /tasks?department=MARKETING
 
-13. Office Manager, Collections, or unknown authenticated staff
+14. Office Manager, Collections, or unknown authenticated staff
     -> /my-tasks
 ```
 
@@ -164,7 +168,31 @@ Ordering:
 
 Each row carries its authoritative destination from the record-routing resolver.
 
-## 5. Available Work eligibility and ranking
+## 5. Vehicle Operations Lead projection
+
+The Vehicle Operations Lead projection is a multi-hat operating mode, not a management console clone.
+
+Inputs:
+
+- assigned vehicle operations tasks;
+- inventory units needing movement, intake, recon, merchandising, or disposition action;
+- open repair orders and repair jobs that block inventory readiness;
+- parts demand, receiving, pickup, return, and waiting-on-parts state;
+- lot/custody state including keys, location, photos, cleanup, and movement;
+- governed exceptions and reviews inside the vehicle domain.
+
+Ordering:
+
+1. safety, custody, or identity exceptions;
+2. promised or at-risk customer/service work;
+3. inventory units blocked from frontline readiness;
+4. parts pickup, receiving, return, or waiting constraints;
+5. lot movement, keys, photos, cleanup, and merchandising readiness;
+6. daily intelligence and production update tasks.
+
+The Vehicle Operations Lead may open Shop & Recon, Parts Operations, Inventory Flow, Repair Workbench, and Receive Vehicle because those are part of the current composite assignment. If narrower roles are later staffed, their daily work routes to their own focused workspace while the Vehicle Operations Lead retains oversight, exception, and reassignment visibility.
+
+## 6. Available Work eligibility and ranking
 
 Eligibility is evaluated before ranking:
 
@@ -181,7 +209,7 @@ Eligible candidates are ranked deterministically by priority, due/promise risk, 
 
 Claiming is atomic. A successful claim writes the authoritative assignment or dispatch and returns the record-routing destination. A race returns `no longer available` without creating a duplicate assignment.
 
-## 6. Multi-role algorithm
+## 7. Multi-role algorithm
 
 ```text
 permittedWorkspaces = resolveWorkspaces(effectiveCapabilities)
@@ -200,7 +228,7 @@ The workspace switcher lists only `permittedWorkspaces`. Switching controls pres
 
 The implemented preference is stored as an HTTP-only, same-site cookie. A cookie value is never trusted by itself: it is parsed as a known workspace key and checked against the current authenticated user's roles and governed duties before it affects landing or navigation.
 
-## 7. Empty states
+## 8. Empty states
 
 | State | Required behavior |
 | --- | --- |
@@ -213,7 +241,7 @@ The implemented preference is stored as an HTTP-only, same-site cookie. A cookie
 | Diagnostic case has no linked repair work | Preserve diagnostic case and explain that repair authorization/handoff is pending |
 | No feature/capability configured | Show unavailable reason and safe return route; do not render fake data |
 
-## 8. Unavailable, forbidden, stale, and conflict states
+## 9. Unavailable, forbidden, stale, and conflict states
 
 - **Unavailable:** dependency, feature, or data source cannot serve the request. Preserve work and provide retry plus a safe return.
 - **Forbidden:** actor lacks scope or assignment. Do not reveal protected record details.
@@ -222,7 +250,7 @@ The implemented preference is stored as an HTTP-only, same-site cookie. A cookie
 - **Conflict:** assignment, claim, or command lost a race. Show current ownership/state and return to the originating queue.
 - **Completed:** route to read-only outcome/evidence or the next assigned work; never reopen implicitly.
 
-## 9. Redirect rules
+## 10. Redirect rules
 
 1. Preserve only relative, allowlisted application paths.
 2. Reject protocol-relative paths, backslashes, external origins, and unauthorized console roots.
@@ -233,7 +261,7 @@ The implemented preference is stored as an HTTP-only, same-site cookie. A cookie
 7. A contextual, permitted record link may open without exposing its parent console navigation.
 8. Redirect loops fail closed to the workspace landing page.
 
-## 10. Audit and observability
+## 11. Audit and observability
 
 Record:
 
@@ -247,7 +275,7 @@ Record:
 
 These events support troubleshooting and security review. They are not employee-performance measurements.
 
-## 11. Required tests
+## 12. Required tests
 
 - role-by-role landing resolution;
 - mechanic and manager multi-role preference;

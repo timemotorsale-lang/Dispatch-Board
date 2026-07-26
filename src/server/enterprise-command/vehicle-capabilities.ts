@@ -66,8 +66,16 @@ export type VehicleCapabilityGrantRecord = {
 };
 
 const ROLE_DEFAULT_CAPABILITIES: Readonly<Record<string, readonly VehicleCapability[]>> = {
-  Mechanic: ["INVENTORY_UNIT_VIEW", "REPAIR_ORDER_VIEW", "VEHICLE_OPERATIONS_VIEW", "VEHICLE_IDENTITY_CREATE", "VEHICLE_EVIDENCE_VIEW", "DIAGNOSTIC_CASE_VIEW", "DIAGNOSTIC_CASE_CREATE", "DIAGNOSTIC_CASE_TRANSITION", "DIAGNOSTIC_EVIDENCE_VIEW", "DIAGNOSTIC_EVIDENCE_RECORD", "DIAGNOSTIC_EVIDENCE_LINK", "DIAGNOSTIC_TEST_PLAN_MANAGE", "DIAGNOSTIC_TEST_EXECUTE", "DIAGNOSTIC_REASONING_EVALUATE", "DIAGNOSTIC_ADAPTIVE_TEST_EVALUATE", "DIAGNOSTIC_ADAPTIVE_TEST_OVERRIDE", "DIAGNOSTIC_CONCLUSION_PROPOSE", "DIAGNOSTIC_REPAIR_HANDOFF_MANAGE", "DIAGNOSTIC_ESTIMATE_ADVISOR_REVIEW", "DIAGNOSTIC_VERIFICATION_MANAGE"]
+  Mechanic: ["INVENTORY_UNIT_VIEW", "REPAIR_ORDER_VIEW", "VEHICLE_OPERATIONS_VIEW", "VEHICLE_IDENTITY_CREATE", "VEHICLE_EVIDENCE_VIEW", "DIAGNOSTIC_CASE_VIEW", "DIAGNOSTIC_CASE_CREATE", "DIAGNOSTIC_CASE_TRANSITION", "DIAGNOSTIC_EVIDENCE_VIEW", "DIAGNOSTIC_EVIDENCE_RECORD", "DIAGNOSTIC_EVIDENCE_LINK", "DIAGNOSTIC_TEST_PLAN_MANAGE", "DIAGNOSTIC_TEST_EXECUTE", "DIAGNOSTIC_REASONING_EVALUATE", "DIAGNOSTIC_ADAPTIVE_TEST_EVALUATE", "DIAGNOSTIC_ADAPTIVE_TEST_OVERRIDE", "DIAGNOSTIC_CONCLUSION_PROPOSE", "DIAGNOSTIC_REPAIR_HANDOFF_MANAGE", "DIAGNOSTIC_ESTIMATE_ADVISOR_REVIEW", "DIAGNOSTIC_VERIFICATION_MANAGE"],
+  "Vehicle Operations Lead": ["VEHICLE_OPERATIONS_VIEW", "VEHICLE_IDENTITY_CREATE", "INVENTORY_UNIT_VIEW", "REPAIR_ORDER_VIEW", "PARTS_VIEW", "VEHICLE_EVIDENCE_VIEW", "VEHICLE_DISCOVERY_VIEW", "WORK_KNOWLEDGE_VIEW"]
 };
+
+const VEHICLE_OPERATIONS_LEAD_DEFAULT_CAPABILITIES = ROLE_DEFAULT_CAPABILITIES["Vehicle Operations Lead"];
+
+function isEffectiveVehicleOperationsLead(actor: AuthenticatedUser) {
+  return actor.roles.includes("Vehicle Operations Lead") ||
+    (actor.roles.includes("Inventory Manager") && actor.roles.includes("Service Department Manager"));
+}
 
 export function evaluateVehicleCapability(input: {
   actor: AuthenticatedUser | null;
@@ -105,6 +113,12 @@ export function evaluateVehicleCapability(input: {
   if (isManager(input.actor)) return { allowed: true, reason: "MANAGER_DEFAULT" } as const;
   if (input.actor.roles.some((role) => ROLE_DEFAULT_CAPABILITIES[role]?.includes(input.capability))) {
     return { allowed: true, reason: "ROLE_DEFAULT" } as const;
+  }
+  if (
+    isEffectiveVehicleOperationsLead(input.actor) &&
+    VEHICLE_OPERATIONS_LEAD_DEFAULT_CAPABILITIES.includes(input.capability)
+  ) {
+    return { allowed: true, reason: "VEHICLE_OPERATIONS_LEAD_DEFAULT" } as const;
   }
   return matching.some((grant) => grant.effect === "ALLOW")
     ? { allowed: true, reason: "EXPLICIT_GRANT" } as const

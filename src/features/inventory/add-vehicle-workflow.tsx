@@ -7,6 +7,8 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { ADD_VEHICLE_ALLOWED_REASONS, recommendAddVehicleWorkflow, type AddVehicleReason, type AddVehicleRelationship } from "@/lib/add-vehicle-workflow";
 
+import { BackToVehicleOperationsWorkspace } from "./workspace-return-link";
+
 type Options = { locations: Array<{ code: string; id: string; name: string }> };
 type Duplicate = { id: string; stockNumber: string | null; vehicleNumber: string; vin: string | null; vinRaw: string | null };
 type Preview = { identity: { validationSource: string; vin: string | null; vinState: string }; potentialDuplicate: Duplicate | null };
@@ -58,7 +60,7 @@ function createLocalPreview(vin: string): Preview | null {
   return { identity: { validationSource: "LOCAL_VIN_FORMAT_CHECK_PENDING_SERVER_DUPLICATE_SEARCH", vin: normalizedVin, vinState: "VALID" }, potentialDuplicate: null };
 }
 
-export function AddVehicleWorkflow({ options, returnTo }: { options: Options; returnTo?: string }) {
+export function AddVehicleWorkflow({ options, returnTo, showWorkspaceReturn = false }: { options: Options; returnTo?: string; showWorkspaceReturn?: boolean }) {
   const router = useRouter(); const vinRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState<FormState>(() => empty(options)); const [preview, setPreview] = useState<Preview | null>(null);
   const [checking, setChecking] = useState(false); const [busy, setBusy] = useState(false); const [notice, setNotice] = useState(""); const [identityConfirmed, setIdentityConfirmed] = useState(false); const [idempotencyKey] = useState(() => typeof crypto === "undefined" ? "" : crypto.randomUUID());
@@ -113,7 +115,7 @@ export function AddVehicleWorkflow({ options, returnTo }: { options: Options; re
   }
 
   return <form className="add-vehicle-workflow" onSubmit={submit}>
-    <header className="avw-header"><div><nav><Link href={returnTo ?? "/vehicles"}>{returnTo ? "Source Console" : "Inventory Lifecycle"}</Link><span>›</span><Link href="/vehicles/workflows">Start Workflow</Link><span>›</span><strong>Add Vehicle</strong></nav><h1>Add Vehicle</h1><p>Scan or enter the VIN. We will search existing records before creating a vehicle.</p></div><span><strong>Quick workflow</strong> · approximately 20 seconds</span></header>
+    <header className="avw-header"><div>{showWorkspaceReturn ? <BackToVehicleOperationsWorkspace /> : null}<nav><Link href={returnTo ?? "/vehicles"}>{returnTo ? "Source Console" : "Inventory Lifecycle"}</Link><span>›</span><Link href="/vehicles/workflows">Start Workflow</Link><span>›</span><strong>Add Vehicle</strong></nav><h1>Add Vehicle</h1><p>Scan or enter the VIN. We will search existing records before creating a vehicle.</p></div><span><strong>Quick workflow</strong> · approximately 20 seconds</span></header>
     <ol className="avw-progress"><li className={preview || nonVin ? "complete" : "active"}><b>{preview || nonVin ? <Check size={14}/> : "1"}</b><span>Identify</span></li><li className={preview || nonVin ? "active" : ""}><b>2</b><span>Purpose</span></li><li><b>3</b><span>Review &amp; Continue</span></li></ol>
     {notice ? <div className={`avw-notice ${/could not|invalid|required|cannot|match was found/i.test(notice) ? "error" : "info"}`} role="status"><Info size={16}/><span>{notice}</span></div> : null}
     <div className="avw-layout"><main>

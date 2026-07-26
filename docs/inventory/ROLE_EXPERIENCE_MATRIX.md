@@ -2,7 +2,7 @@
 
 **Product:** Time Motor Sales Dispatch Board
 **Program:** Role-Aware Workspace Optimization
-**Version:** `1.1.0`
+**Version:** `1.2.0`
 **Status:** Approved implementation contract
 **Date approved:** July 25, 2026
 **Shared resolver implementation:** July 26, 2026
@@ -22,7 +22,8 @@ Role-aware presentation reduces navigation; it does not replace server-side perm
 | Role family | Default landing | Primary navigation | Contextual record links | Hidden by default |
 | --- | --- | --- | --- | --- |
 | General Manager | `/board` | Overview, Live Board, Tasks, Appointments, Vehicles, Customers, Manager Review, Reports, Administration | All permitted authoritative records | None within granted management scope |
-| Inventory Manager | `/vehicles` | Inventory Home, Inventory Lifecycle, Vehicle 360, Shop & Recon coordination, Parts status, Reviews | Repair Order, inventory workbench, evidence, Parts, QC | User administration and unrelated department consoles |
+| Vehicle Operations Lead | `/vehicles?workspace=vehicle-operations-lead` | Operations Home, My Vehicle Work, Inventory Flow, Shop & Recon, Parts Runner, Receive Vehicle, Exceptions | Inventory Unit, Vehicle 360, Repair Order, Repair Job, Parts demand, QC, lot/custody tasks | Enterprise administration, unrelated customer/sales/office consoles, broad staff management unless separately granted |
+| Inventory Manager | `/vehicles` | Inventory Home, Inventory Lifecycle, Vehicle 360, inventory readiness, disposition, Parts status, Reviews | Inventory Unit, inventory workbench, evidence, Parts, QC | User administration, unrelated department consoles, and daily shop/technician controls unless also assigned |
 | Service Department Manager | `/vehicles/shop-recon` | Shop & Recon, Shop Dispatch, Repair Orders, Parts Operations, QC, Reviews | Technician job, diagnostic case, Vehicle 360, evidence | Inventory Tower unless separately granted; enterprise administration |
 | Service Advisor | `/appointments` | Appointments, Vehicle Intake, Customers, Vehicles, Repair Orders | Repair job read-through, diagnostics advisor review, authorization, handoff | Technician execution controls, Inventory Tower, shop-management controls |
 | Mechanic or Technician | `/my-tasks` | My Work, Available Work, Diagnostics & Tools | Assigned Work Order, scoped Vehicle 360, job Parts, Evidence, QC result | Shop & Recon dashboard, Inventory Tower, broad Repair Order administration, Customers, Reports, Approvals, Administration |
@@ -35,7 +36,23 @@ Role-aware presentation reduces navigation; it does not replace server-side perm
 
 Role families not represented in current seed data remain capability-controlled targets. Their appearance must not be claimed as active until their role/capability setup exists.
 
-## 3. Mechanic experience contract
+## 3. Vehicle Operations Lead experience contract
+
+The Vehicle Operations Lead is a deliberate multi-hat role for the current operating reality where one person may coordinate inventory, shop production, parts running, lot readiness, and technician support.
+
+This role must not become an everything-page. It receives focused work modes:
+
+1. **Operations Home** - the combined vehicle operations picture, with inventory, shop, parts, lot, and exception signals.
+2. **My Vehicle Work** - assigned vehicle operations tasks and next actions.
+3. **Inventory Flow** - acquisition, intake, recon, merchandising, readiness, and disposition movement.
+4. **Shop & Recon** - production and bottleneck coordination, not technician labor execution by default.
+5. **Parts Runner** - parts demand, pickup, receiving, returns, and waiting-on-parts constraints.
+6. **Receive Vehicle** - vehicle intake, custody, keys, photos, location, and lot placement.
+7. **Exceptions** - stalled units, governed reviews, and manager-visible decisions inside the vehicle domain.
+
+When the dealership hires narrower staff such as a Lot Attendant, Inventory Specialist, Parts Specialist, or dedicated Shop Manager, their duties should be reassigned to those focused roles. The Vehicle Operations Lead then keeps oversight and exceptions instead of daily clutter.
+
+## 4. Mechanic experience contract
 
 A mechanic-only account sees three primary destinations:
 
@@ -59,7 +76,7 @@ The Technician Repair Workbench may link to a scoped work order, Vehicle 360, Pa
 
 My Work includes a compact, read-only **Shop Pulse** for useful situational awareness: the technician's bay and queue, aggregate active repair count, waiting-on-parts count, QC waiting count, promise pressure, and an honest constrained/ready state. It must not expose assignment controls, staffing management, other technicians' detailed work, financial metrics, or broad customer information. The full Shop & Recon page remains a service-management workspace rather than technician navigation.
 
-## 4. Capability rules
+## 5. Capability rules
 
 Navigation is derived from effective capabilities:
 
@@ -76,7 +93,7 @@ The server rechecks organization, location, assignment, record state, and action
 
 Role names provide a deterministic starting experience. They never grant repair, diagnostic, financial, customer, Parts, QC, or management authority by themselves when the owning domain requires an explicit capability.
 
-## 5. Multi-role presentation
+## 6. Multi-role presentation
 
 When one user has more than one legitimate workspace:
 
@@ -89,7 +106,7 @@ When one user has more than one legitimate workspace:
 
 An explicit safe `returnTo` for a permitted record takes precedence over the default landing. An unsafe or unauthorized return target is ignored.
 
-## 6. Navigation acceptance rules
+## 7. Navigation acceptance rules
 
 1. A mechanic reaches current repair work in one action from My Work.
 2. A mechanic reaches Available Work in one action.
@@ -100,7 +117,7 @@ An explicit safe `returnTo` for a permitted record takes precedence over the def
 7. Unknown roles receive the safe general My Work experience, not a management console.
 8. Technician shift state is resolved before execution without adding a fourth primary destination.
 
-## 7. Shared implementation status
+## 8. Shared implementation status
 
 The shared role-aware foundation is implemented:
 

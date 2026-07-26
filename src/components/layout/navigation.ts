@@ -220,6 +220,15 @@ const technicianNavigationItems: NavigationItem[] = [
 ];
 
 const workspaceNavigationItems: Partial<Record<WorkspaceKey, NavigationItem[]>> = {
+  VEHICLE_OPERATIONS_LEAD: [
+    { href: "/vehicles?workspace=vehicle-operations-lead", title: "Operations Home", description: "Inventory, shop, parts, and lot priorities in one vehicle-operations view.", icon: House, matchExact: true },
+    { href: "/my-tasks?workspace=vehicle-operations-lead", title: "My Vehicle Work", description: "Assigned vehicle operations work and next actions.", icon: UserRoundCheck },
+    { href: "/vehicles/inventory", title: "Inventory Flow", description: "Move units through acquisition, recon, merchandising, and readiness.", icon: RefreshCw },
+    { href: "/vehicles/shop-recon", title: "Shop & Recon", description: "Production, bottlenecks, repair status, and QC readiness.", icon: Wrench },
+    { href: "/vehicles/parts-operations", title: "Parts Runner", description: "Parts demand, pickup, receiving, returns, and constrained work.", icon: BriefcaseBusiness },
+    { href: "/vehicles/workflows/add-vehicle", title: "Receive Vehicle", description: "Start vehicle intake, custody, keys, photos, and lot placement.", icon: CarFront },
+    { href: "/manager-review?scope=inventory", title: "Exceptions", description: "Inventory and shop exceptions requiring lead review.", icon: ShieldCheck }
+  ],
   SERVICE: [
     { href: "/vehicles/shop-recon", title: "Shop & Recon", description: "Production, capacity, constraints, and completion risk.", icon: Wrench },
     { href: "/vehicles/repair-workbench", title: "Repair Orders", description: "Open and coordinate governed repair orders.", icon: ClipboardCheck },

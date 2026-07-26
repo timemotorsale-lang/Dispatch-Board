@@ -1,5 +1,6 @@
 import { AddVehicleWorkflow } from "@/features/inventory/add-vehicle-workflow";
 import { requireCurrentUser } from "@/server/auth/current-user";
+import { getPermittedWorkspaces } from "@/server/auth/navigation";
 import { getVehicleRegistryCreateOptions } from "@/server/vehicle-registry/service";
 
 function safeReturnTo(value?: string) {
@@ -10,5 +11,6 @@ export default async function AddVehicleWorkflowPage({ searchParams }: { searchP
   const user = await requireCurrentUser();
   const params = searchParams ? await searchParams : {};
   const options = await getVehicleRegistryCreateOptions(user);
-  return <AddVehicleWorkflow options={JSON.parse(JSON.stringify(options))} returnTo={safeReturnTo(params.returnTo)} />;
+  const showWorkspaceReturn = getPermittedWorkspaces(user).some((workspace) => workspace.key === "VEHICLE_OPERATIONS_LEAD");
+  return <AddVehicleWorkflow options={JSON.parse(JSON.stringify(options))} returnTo={safeReturnTo(params.returnTo)} showWorkspaceReturn={showWorkspaceReturn} />;
 }

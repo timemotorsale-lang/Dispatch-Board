@@ -24,6 +24,7 @@ import { useMemo, useState } from "react";
 import type { InventoryOrchestrationProjection } from "@/server/inventory-execution/orchestration-service";
 import type { getInventoryWorkflowLauncher } from "@/server/inventory-workflow-launcher/service";
 
+import { BackToVehicleOperationsWorkspace } from "./workspace-return-link";
 import { WorkflowDecisionGuide } from "./workflow-decision-guide";
 
 type Model = ReturnType<typeof getInventoryWorkflowLauncher>;
@@ -100,7 +101,7 @@ function emptyCopy(collection: Collection, query: string) {
   return { title: "No workflows in this view", detail: "Change the collection or clear the current search." };
 }
 
-export function WorkflowLauncher({ model, orchestration = defaultOrchestration }: { model: Model; orchestration?: InventoryOrchestrationProjection }) {
+export function WorkflowLauncher({ model, orchestration = defaultOrchestration, showWorkspaceReturn = false }: { model: Model; orchestration?: InventoryOrchestrationProjection; showWorkspaceReturn?: boolean }) {
   const [collection, setCollection] = useState<Collection>("RECOMMENDED");
   const [favorites, setFavorites] = useState<string[]>([]);
   const [query, setQuery] = useState("");
@@ -144,6 +145,7 @@ export function WorkflowLauncher({ model, orchestration = defaultOrchestration }
     <section className="enterprise-workflow-launcher">
       <header className="ewl-hero">
         <div>
+          {showWorkspaceReturn ? <BackToVehicleOperationsWorkspace /> : null}
           <p>Inventory Console</p>
           <h1>Start Workflow</h1>
           <span>Choose the right workflow and get work moving.</span>

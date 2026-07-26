@@ -64,7 +64,7 @@ If this document conflicts with older planning language, treat this document as 
 | Staff | Primary Role(s) | Backup / Support | Notes |
 | --- | --- | --- | --- |
 | Eli | Executive Dealership Manager / General Manager; Sales Oversight | Final approval, dispatch control | Owns management control and final approval decisions |
-| Brock | Inventory Manager; Service Department Manager | Shop/Parts support; Lot/Detail support | Should receive one combined inventory/service production log |
+| Brock | Vehicle Operations Lead; Inventory Manager; Service Department Manager | Regular mechanic support; shop/parts support; lot/detail support; parts runner/specialist | Current multi-hat vehicle-operations owner; should receive one focused vehicle operations workspace and one combined inventory/service production log |
 | Walter | Mechanic | None by default | Default experience should prioritize `My Repair Tasks` |
 | Baraka | Salesperson; Marketing & Advertisement Manager | Backup Lot/Detail; Documentation support | Primary for photos, video, social posting, and listings |
 | Ancilla | Office / Front Desk Manager | Sales support; Marketing support | Supports listing completeness, platform updates, and communication |
@@ -262,6 +262,37 @@ Role-specific log intent:
 - Check vehicles ready for photos/listing
 - Flag stalled inventory or recon bottlenecks
 - Submit inventory and service production update
+
+### Vehicle Operations Lead
+
+**Primary owner:** Brock
+
+**Mission:** Coordinate the current multi-hat vehicle operation without forcing the user through the full manager console.
+
+**Why this role exists now:** Brock is not only an Inventory Manager. He also supports mechanic work, shop management, parts pickup/returns, lot movement, and detail/readiness work. The app should expose those work modes intentionally while still keeping the experience direct to work.
+
+**Default work modes:**
+
+- Operations Home
+- My Vehicle Work
+- Inventory Flow
+- Shop & Recon
+- Parts Runner
+- Receive Vehicle
+- Exceptions
+
+**Default duties:**
+
+- Coordinate vehicle operations lead priorities
+- Review inventory status and priority vehicles
+- Review service production priorities
+- Check vehicles awaiting parts
+- Check vehicles awaiting QC
+- Support parts pickup and returns
+- Support lot readiness and vehicle movement
+- Submit inventory and service production update
+
+**Future staffing rule:** when a Lot Attendant, Inventory Specialist, Parts Specialist, or dedicated Shop Manager is hired, daily execution duties should move to that focused role. The Vehicle Operations Lead should retain oversight, exceptions, and reassignment visibility rather than daily clutter.
 
 ### Service Department Manager
 

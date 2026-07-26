@@ -28,6 +28,15 @@ describe("workspace preference", () => {
     expect(resolveWorkspacePreference(actor, "NOT_A_WORKSPACE")).toBeNull();
   });
 
+  it("allows the current vehicle operations lead to pick a narrower owned workspace", () => {
+    const actor = user(["Vehicle Operations Lead", "Inventory Manager", "Service Department Manager"]);
+
+    expect(resolveWorkspacePreference(actor, "VEHICLE_OPERATIONS_LEAD")).toBe("VEHICLE_OPERATIONS_LEAD");
+    expect(resolveWorkspacePreference(actor, "INVENTORY")).toBe("INVENTORY");
+    expect(resolveWorkspacePreference(actor, "SERVICE")).toBe("SERVICE");
+    expect(resolveWorkspacePreference(actor, "TECHNICIAN")).toBeNull();
+  });
+
   it("stores a non-authoritative, server-only preference cookie", () => {
     const cookie = buildWorkspacePreferenceCookie("OFFICE");
 

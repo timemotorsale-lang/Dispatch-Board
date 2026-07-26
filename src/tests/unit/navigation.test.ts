@@ -213,6 +213,15 @@ describe("enterprise shell navigation", () => {
   });
 
   it("gives each operating role a focused navigation shell", () => {
+    expect(getConsoleNavigation("/vehicles", user({ roles: ["Vehicle Operations Lead"] }))?.items.map((item) => item.title)).toEqual([
+      "Operations Home",
+      "My Vehicle Work",
+      "Inventory Flow",
+      "Shop & Recon",
+      "Parts Runner",
+      "Receive Vehicle",
+      "Exceptions"
+    ]);
     expect(getConsoleNavigation("/vehicles/shop-recon", user({ roles: ["Service Department Manager"] }))?.items.map((item) => item.title)).toEqual([
       "Shop & Recon",
       "Repair Orders",

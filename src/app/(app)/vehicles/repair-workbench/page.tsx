@@ -2,7 +2,9 @@ import { ClipboardList, Search, Wrench } from "lucide-react";
 import Link from "next/link";
 
 import { RepairOrderEnterpriseWorkbench } from "@/features/inventory/repair-order-enterprise-workbench";
+import { BackToVehicleOperationsWorkspace } from "@/features/inventory/workspace-return-link";
 import { requireCurrentUser } from "@/server/auth/current-user";
+import { getPermittedWorkspaces } from "@/server/auth/navigation";
 import { getRepairOrderDiagnosticsBridge } from "@/server/diagnostics/service";
 import { getRepairOrderCreateOptions, listRepairOrders } from "@/server/repair-order/service";
 import { getShopPlanningDetail } from "@/server/shop-planning/service";
@@ -25,6 +27,7 @@ async function diagnosticsBridge(user: Awaited<ReturnType<typeof requireCurrentU
 export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
   const user = await requireCurrentUser();
   const params = searchParams ? await searchParams : {};
+  const showWorkspaceReturn = getPermittedWorkspaces(user).some((workspace) => workspace.key === "VEHICLE_OPERATIONS_LEAD");
 
   if (params.repairOrderId) {
     const [order, options, diagnostics] = await Promise.all([
@@ -38,6 +41,7 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
         diagnostics={JSON.parse(JSON.stringify(diagnostics))}
         options={{ users: JSON.parse(JSON.stringify(options.users)) }}
         order={JSON.parse(JSON.stringify(order))}
+        showWorkspaceReturn={showWorkspaceReturn}
       />
     );
   }
@@ -57,6 +61,7 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
         diagnostics={JSON.parse(JSON.stringify(diagnostics))}
         options={{ users: JSON.parse(JSON.stringify(options.users)) }}
         order={JSON.parse(JSON.stringify(order))}
+        showWorkspaceReturn={showWorkspaceReturn}
       />
     );
   }
@@ -64,6 +69,7 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
   return (
     <section className={`page-stack ${styles.directory}`}>
       <header className="page-copy">
+        {showWorkspaceReturn ? <BackToVehicleOperationsWorkspace /> : null}
         <span className="eyebrow">Shop &amp; Recon</span>
         <h1>Repair Workbench</h1>
         <p>Find an open repair order, then enter its enterprise workbench for concern, diagnosis, estimate, jobs, quality, and timeline context.</p>
