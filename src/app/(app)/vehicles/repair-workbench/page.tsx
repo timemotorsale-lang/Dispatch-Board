@@ -1,6 +1,7 @@
 import { ClipboardList, Search, Wrench } from "lucide-react";
 import Link from "next/link";
 
+import { AdvisorRepairOrderStatusView } from "@/features/advisor/advisor-repair-order-status-view";
 import { RepairOrderEnterpriseWorkbench } from "@/features/inventory/repair-order-enterprise-workbench";
 import { BackToServiceAdvisorWorkspace } from "@/features/advisor/advisor-return-link";
 import { BackToVehicleOperationsWorkspace } from "@/features/inventory/workspace-return-link";
@@ -38,6 +39,10 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
       diagnosticsBridge(user, params.repairOrderId)
     ]);
 
+    if (showAdvisorReturn) {
+      return <AdvisorRepairOrderStatusView order={JSON.parse(JSON.stringify(order))} />;
+    }
+
     return (
       <RepairOrderEnterpriseWorkbench
         diagnostics={JSON.parse(JSON.stringify(diagnostics))}
@@ -58,6 +63,10 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
       getRepairOrderCreateOptions(user),
       diagnosticsBridge(user, orders.items[0].id)
     ]);
+
+    if (showAdvisorReturn) {
+      return <AdvisorRepairOrderStatusView order={JSON.parse(JSON.stringify(order))} />;
+    }
 
     return (
       <RepairOrderEnterpriseWorkbench
