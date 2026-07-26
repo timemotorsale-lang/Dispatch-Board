@@ -160,6 +160,16 @@ export function AppTopbar({ commandCenterHome, onMenuOpen, preferredWorkspace, s
           <House size={15} /><span>{roleWorkspace ? activeWorkspaceDefinition.label : "CCC Home"}</span>
         </Link>
       ) : null}
+      {!commandCenterHome && roleWorkspace ? (
+        <>
+          <Link aria-label="Open Command Control Center home" className="ccc-home-link ccc-global-exit-link" href="/command-center">
+            <House size={15} /><span>CCC Home</span>
+          </Link>
+          <Link aria-label="Open Dispatch Board console" className="ccc-home-link ccc-dispatch-link ccc-global-exit-link" href="/board">
+            <Columns3 size={15} /><span>Dispatch</span>
+          </Link>
+        </>
+      ) : null}
       <WorkspaceSwitcher preferredWorkspace={preferredWorkspace} user={user} />
       {inventoryConsole && activeWorkspace === "MANAGEMENT" ? (
         <Link aria-label="Open Dispatch Board console" className="ccc-home-link ccc-dispatch-link" href="/board">
