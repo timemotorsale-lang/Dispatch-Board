@@ -1,5 +1,6 @@
 import {
   Activity,
+  AlertTriangle,
   BadgeDollarSign,
   BarChart3,
   BookOpen,
@@ -52,6 +53,78 @@ export type NavigationItem = {
 };
 
 export type NavigationGroup = { label: string; items: NavigationItem[] };
+
+export const appointmentConsoleNavigationItems: NavigationItem[] = [
+  {
+    href: "/appointments",
+    title: "Today Flow",
+    description: "Arrivals, confirmations, follow-ups, and appointment work that needs action now.",
+    icon: Clock3,
+    matchExact: true,
+    activeQuery: { action: null, section: null, view: null, workspace: null }
+  },
+  {
+    href: "/appointments?action=new",
+    title: "Calendar",
+    description: "Calendar-first appointment creation with capacity context.",
+    icon: CalendarDays,
+    activeQuery: { action: "new" }
+  },
+  {
+    href: "/appointments?section=planning",
+    title: "Planning Hub",
+    description: "Shop capacity, staffing, bay availability, and promise confidence.",
+    icon: BarChart3,
+    activeQuery: { section: "planning" }
+  },
+  {
+    href: "/appointments?section=operations",
+    title: "Operations",
+    description: "Appointment operations, check-ins, no-shows, and day-of movement.",
+    icon: BriefcaseBusiness,
+    activeQuery: { section: "operations" }
+  },
+  {
+    href: "/appointments?section=follow-up",
+    title: "Follow-up",
+    description: "Confirmation calls, reminders, reschedules, and customer callbacks.",
+    icon: UserRoundCheck,
+    activeQuery: { section: "follow-up" }
+  },
+  {
+    href: "/appointments?section=intelligence",
+    title: "Intelligence",
+    description: "Appointment patterns, load signals, risk, and recommendation context.",
+    icon: Gauge,
+    activeQuery: { section: "intelligence" }
+  },
+  {
+    href: "/appointments?section=exceptions",
+    title: "Exceptions",
+    description: "Overbooking, conflicts, stale drafts, no-shows, and manager attention.",
+    icon: AlertTriangle,
+    badge: "2",
+    activeQuery: { section: "exceptions" }
+  },
+  {
+    href: "/appointments?view=board#reports",
+    title: "Reports",
+    description: "Appointment reporting and schedule performance.",
+    icon: BarChart3
+  },
+  {
+    href: "/appointments?view=board#automation",
+    title: "Automation",
+    description: "Reminder automation, routing, and appointment workflow controls.",
+    icon: Settings
+  },
+  {
+    href: "/settings/appointments/catalog",
+    title: "Templates & Rules",
+    description: "Appointment purposes, templates, scheduling rules, and policy setup.",
+    icon: CalendarDays
+  }
+];
 
 export const dispatchNavigationItems: NavigationItem[] = [
   {
@@ -283,7 +356,7 @@ const workspaceNavigationItems: Partial<Record<WorkspaceKey, NavigationItem[]>> 
   OPERATIONS_COORDINATOR: [
     { href: "/operations-coordinator", title: "Coordinator Home", description: "Front-door loop for arrivals, paperwork, routed work, and safe peeks.", icon: House, matchExact: true },
     { href: "/appointments?workspace=advisor", title: "Service Advisor", description: "Coordinate arrivals, customer updates, appointments, and repair-order handoffs.", icon: ClipboardCheck },
-    { href: "/appointments?view=board", title: "Appointment Console", description: "Schedule, confirm, reschedule, and check capacity before accepting vehicles.", icon: CalendarDays },
+    { href: "/appointments", title: "Appointment Console", description: "Today flow, calendar booking, capacity, follow-up, and appointment exceptions.", icon: CalendarDays, matchExact: true },
     { href: "/vehicles/repair-orders?intakeSource=WALK_IN", title: "Check In Vehicle", description: "Start governed service intake without duplicating customer or vehicle records.", icon: ClipboardCheck },
     { href: "/vehicles/parts-receiving", title: "Receive Parts", description: "Record arrivals, exceptions, and accountable part placement.", icon: PackageCheck },
     { href: "/customers", title: "Customers", description: "Find or prepare customer records and documentation context.", icon: ContactRound },
