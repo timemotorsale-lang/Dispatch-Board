@@ -107,6 +107,15 @@ describe("role landing and record routing", () => {
     expect(resolveWorkspaceForPath(advisorSales, "/tasks", "SALES")).toBe("SALES");
   });
 
+  it("treats explicit CCC Home and Dispatch exits as global routes for role users", () => {
+    const parts = user(["Parts"]);
+
+    expect(getDefaultLandingRoute(parts)).toBe("/vehicles/parts-operations");
+    expect(resolveWorkspaceForPath(parts, "/command-center")).toBe("MANAGEMENT");
+    expect(resolveWorkspaceForPath(parts, "/board")).toBe("MANAGEMENT");
+    expect(resolveWorkspaceForPath(parts, "/vehicles/parts-operations")).toBe("PARTS");
+  });
+
   it("routes specialist records before generic task detail", () => {
     expect(resolveWorkRecordRoute({ taskId: "task-1", repairJobId: "job-1" })).toBe(
       "/vehicles/repair-jobs/job-1/workbench"
