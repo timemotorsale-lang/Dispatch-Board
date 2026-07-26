@@ -8,6 +8,10 @@ import { getLoginRouteRedirect } from "./navigation";
 import { readAuthenticatedUser } from "./service";
 import { SESSION_COOKIE_NAME } from "./session";
 import { createPrismaAuthStore, type AuthenticatedUser } from "./store";
+import {
+  resolveWorkspacePreference,
+  WORKSPACE_COOKIE_NAME
+} from "./workspace-preference";
 
 const authStore = createPrismaAuthStore(prisma);
 
@@ -35,7 +39,11 @@ export async function requireCurrentUser(): Promise<AuthenticatedUser> {
 
 export async function redirectAuthenticatedUser() {
   const user = await getCurrentUser();
-  const redirectTarget = getLoginRouteRedirect(user);
+  const cookieStore = await cookies();
+  const preferredWorkspace = user
+    ? resolveWorkspacePreference(user, cookieStore.get(WORKSPACE_COOKIE_NAME)?.value)
+    : null;
+  const redirectTarget = getLoginRouteRedirect(user, preferredWorkspace);
 
   if (redirectTarget) {
     redirect(redirectTarget);

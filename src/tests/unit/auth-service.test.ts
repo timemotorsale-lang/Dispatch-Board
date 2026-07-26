@@ -117,7 +117,7 @@ describe("auth service", () => {
     const authenticatedUser = await readAuthenticatedUser(store, loginResult.sessionToken);
 
     expect(getProtectedRouteRedirect(authenticatedUser)).toBeNull();
-    expect(getLoginRouteRedirect(authenticatedUser)).toBe("/board");
+    expect(getLoginRouteRedirect(authenticatedUser)).toBe("/my-tasks");
   });
 
   it("supports users with multiple roles", async () => {

@@ -2,9 +2,10 @@
 
 **Product:** Time Motor Sales Dispatch Board
 **Program:** Role-Aware Workspace Optimization
-**Version:** `1.0.0`
+**Version:** `1.1.0`
 **Status:** Approved implementation contract
 **Date approved:** July 25, 2026
+**Shared resolver implementation:** July 26, 2026
 **Role experience:** [`ROLE_EXPERIENCE_MATRIX.md`](ROLE_EXPERIENCE_MATRIX.md)
 **Page and record routing:** [`TECHNICIAN_WORKSPACE_PAGE_RECORD_ROUTING_MATRIX.md`](TECHNICIAN_WORKSPACE_PAGE_RECORD_ROUTING_MATRIX.md)
 
@@ -197,6 +198,8 @@ otherwise:
 
 The workspace switcher lists only `permittedWorkspaces`. Switching controls presentation, not capability. Deep links are checked independently.
 
+The implemented preference is stored as an HTTP-only, same-site cookie. A cookie value is never trusted by itself: it is parsed as a known workspace key and checked against the current authenticated user's roles and governed duties before it affects landing or navigation.
+
 ## 7. Empty states
 
 | State | Required behavior |
@@ -261,3 +264,7 @@ These events support troubleshooting and security review. They are not employee-
 - no second canonical repair or task record created.
 - shift clock and repair labor clock remain separate;
 - off-clock, on-meal, active-shift, active-repair, and attendance-unavailable states.
+- every defined role landing and safe fallback;
+- unauthorized return target rejection for non-technician roles;
+- permitted and rejected multi-role workspace preference;
+- role-specific navigation projection.

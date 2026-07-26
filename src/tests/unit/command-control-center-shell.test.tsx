@@ -18,7 +18,7 @@ function user(manager = false): AuthenticatedUser {
 describe("Command Control Center shell", () => {
   it("presents only the current Dispatch workspace hierarchy", () => {
     const markup = renderToStaticMarkup(
-      <DispatchConsoleHeaderView boardDate={null} live={false} pathname="/board" user={user()} />
+      <DispatchConsoleHeaderView boardDate={null} live={false} pathname="/board" user={user(true)} />
     );
 
     expect(markup).toContain("Dispatch Overview");
@@ -54,24 +54,31 @@ describe("Command Control Center shell", () => {
     expect(markup).not.toContain('href="/tasks"');
   });
 
-  it("scopes My Tasks to its three-level console path", () => {
+  it("scopes general staff to the safe My Work workspace", () => {
     const markup = renderToStaticMarkup(
       <DispatchConsoleHeaderView boardDate="2026-07-19" live={false} pathname="/my-tasks" user={user()} />
     );
 
-    expect(markup).toContain('href="/command-center">CCC Home</a>');
-    expect(markup).toContain('href="/board?date=2026-07-19">Dispatch Board');
-    expect(markup).toContain('aria-current="page" class="active" href="/my-tasks?date=2026-07-19">My Tasks</a>');
+    expect(markup).toContain('href="/my-tasks">My Work</a>');
+    expect(markup).toContain('aria-current="page" class="active" href="/my-tasks">My Work</a>');
+    expect(markup).not.toContain('href="/command-center"');
+    expect(markup).not.toContain('href="/board');
     expect(markup).not.toContain('href="/projects"');
     expect(markup).not.toContain('href="/appointments"');
   });
 
   it("uses the Sales family as the active top workspace for department views", () => {
     const markup = renderToStaticMarkup(
-      <DispatchConsoleHeaderView boardDate="2026-07-19" department="MARKETING" live={false} pathname="/tasks" user={user()} />
+      <DispatchConsoleHeaderView
+        boardDate="2026-07-19"
+        department="MARKETING"
+        live={false}
+        pathname="/tasks"
+        user={{ ...user(), roles: ["Marketing/Advertisement Manager"] }}
+      />
     );
 
-    expect(markup).toContain("Marketing campaigns, content, and audience work.");
-    expect(markup).toContain('aria-current="page" class="active" href="/tasks?department=MARKETING&amp;date=2026-07-19">Marketing</a>');
+    expect(markup).toContain("Campaign, content, and audience work.");
+    expect(markup).toContain('aria-current="page" class="active" href="/tasks">Marketing</a>');
   });
 });

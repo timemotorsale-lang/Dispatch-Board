@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   getDefaultLandingRoute,
+  getPermittedWorkspaces,
   getWorkspaceKey,
+  isRoutePermittedForUser,
   isTechnicianOnlyUser,
   resolvePostLoginRoute,
+  resolveWorkspaceForPath,
   resolveWorkRecordRoute
 } from "@/server/auth/navigation";
 import type { AuthenticatedUser } from "@/server/auth/store";
@@ -27,7 +30,12 @@ describe("role landing and record routing", () => {
     expect(getDefaultLandingRoute(user(["Inventory Manager"]))).toBe("/vehicles");
     expect(getDefaultLandingRoute(user(["Service Advisor"]))).toBe("/appointments");
     expect(getDefaultLandingRoute(user(["Mechanic"]))).toBe("/my-tasks");
+    expect(getDefaultLandingRoute(user(["Parts"]))).toBe("/vehicles/parts-operations");
+    expect(getDefaultLandingRoute(user(["Quality Control"]))).toBe("/vehicles/quality-control");
     expect(getDefaultLandingRoute(user(["Salesperson"]))).toBe("/tasks?department=SALES");
+    expect(getDefaultLandingRoute(user(["Marketing/Advertisement Manager"]))).toBe("/tasks?department=MARKETING");
+    expect(getDefaultLandingRoute(user(["Office Manager"]))).toBe("/my-tasks");
+    expect(getDefaultLandingRoute(user(["Collections"]))).toBe("/my-tasks?workspace=collections");
     expect(getDefaultLandingRoute(user(["Unknown Staff"]))).toBe("/my-tasks");
   });
 
@@ -36,9 +44,21 @@ describe("role landing and record routing", () => {
     expect(getWorkspaceKey(multiRole)).toBe("MANAGEMENT");
     expect(isTechnicianOnlyUser(multiRole)).toBe(false);
     expect(getDefaultLandingRoute(multiRole)).toBe("/board");
+    expect(getDefaultLandingRoute(multiRole, "TECHNICIAN")).toBe("/my-tasks");
   });
 
-  it("rejects broad console return targets for mechanic-only login", () => {
+  it("permits an assigned workspace preference for a multi-role user", () => {
+    const multiRole = user(["Office Manager", "Marketing/Advertisement Manager"]);
+    expect(getPermittedWorkspaces(multiRole).map((workspace) => workspace.key)).toEqual([
+      "MARKETING",
+      "OFFICE"
+    ]);
+    expect(getWorkspaceKey(multiRole, "OFFICE")).toBe("OFFICE");
+    expect(getDefaultLandingRoute(multiRole, "OFFICE")).toBe("/my-tasks");
+    expect(getWorkspaceKey(multiRole, "SERVICE")).toBe("MARKETING");
+  });
+
+  it("rejects return targets outside every role's permitted experience", () => {
     const mechanic = user(["Mechanic"]);
     expect(resolvePostLoginRoute(mechanic, "/vehicles/control-tower")).toBe("/my-tasks");
     expect(resolvePostLoginRoute(mechanic, "/vehicles/shop-recon")).toBe("/my-tasks");
@@ -46,6 +66,24 @@ describe("role landing and record routing", () => {
       "/vehicles/repair-jobs/job-1/workbench"
     );
     expect(resolvePostLoginRoute(mechanic, "//outside.example")).toBe("/my-tasks");
+
+    const salesperson = user(["Salesperson"]);
+    expect(resolvePostLoginRoute(salesperson, "/administration")).toBe("/tasks?department=SALES");
+    expect(resolvePostLoginRoute(salesperson, "/appointments")).toBe("/appointments");
+
+    const parts = user(["Parts"]);
+    expect(isRoutePermittedForUser(parts, "/vehicles/parts-counter")).toBe(true);
+    expect(isRoutePermittedForUser(parts, "/customers")).toBe(false);
+  });
+
+  it("derives workspaces from governed duties and resolves contextual paths", () => {
+    const partsByDuty = user(["Staff"], ["Parts operations"]);
+    expect(getWorkspaceKey(partsByDuty)).toBe("PARTS");
+    expect(resolveWorkspaceForPath(partsByDuty, "/vehicles/parts-counter")).toBe("PARTS");
+
+    const advisorSales = user(["Service Advisor", "Salesperson"]);
+    expect(resolveWorkspaceForPath(advisorSales, "/appointments")).toBe("ADVISOR");
+    expect(resolveWorkspaceForPath(advisorSales, "/tasks", "SALES")).toBe("SALES");
   });
 
   it("routes specialist records before generic task detail", () => {

@@ -2,9 +2,10 @@
 
 **Product:** Time Motor Sales Dispatch Board
 **Program:** Role-Aware Workspace Optimization
-**Version:** `1.0.0`
+**Version:** `1.1.0`
 **Status:** Approved implementation contract
 **Date approved:** July 25, 2026
+**Shared resolver implementation:** July 26, 2026
 **Page and record routing:** [`TECHNICIAN_WORKSPACE_PAGE_RECORD_ROUTING_MATRIX.md`](TECHNICIAN_WORKSPACE_PAGE_RECORD_ROUTING_MATRIX.md)
 **Resolver contract:** [`ROLE_LANDING_AND_RECORD_ROUTING_ALGORITHMS.md`](ROLE_LANDING_AND_RECORD_ROUTING_ALGORITHMS.md)
 
@@ -98,3 +99,17 @@ An explicit safe `returnTo` for a permitted record takes precedence over the def
 6. Hiding navigation never substitutes for server authorization.
 7. Unknown roles receive the safe general My Work experience, not a management console.
 8. Technician shift state is resolved before execution without adding a fourth primary destination.
+
+## 7. Shared implementation status
+
+The shared role-aware foundation is implemented:
+
+- every defined role family resolves to a deterministic default landing;
+- direct duties may add an appropriate workspace presentation without granting domain mutations;
+- safe post-login return targets are checked against the user's permitted workspace set;
+- multi-role users receive a workspace switcher containing only assigned workspaces;
+- the selected workspace is retained in an HTTP-only preference cookie and revalidated on every use;
+- role-specific navigation shells are available for Service, Inventory, Advisor, Technician, Parts, Quality, Sales, Marketing, Office, Collections, and safe General Staff;
+- Command Control Center and the full Dispatch Board redirect non-management identities to their role landing.
+
+This foundation does not claim that every destination page has completed its own role-specific vertical slice. Each domain page continues to enforce its own server-side read and mutation policies.

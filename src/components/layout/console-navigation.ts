@@ -1,7 +1,11 @@
 import { BarChart3, BriefcaseBusiness, ClipboardList, House, MessageSquareText, Plug, RefreshCw, Settings, ShieldCheck, Wrench } from "lucide-react";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
-import { isTechnicianOnlyUser } from "@/server/auth/navigation";
+import {
+  getWorkspaceDefinition,
+  resolveWorkspaceForPath,
+  type WorkspaceKey
+} from "@/server/auth/navigation";
 import { canManageSettings } from "@/server/policies/access";
 
 import { getDispatchNavigationItems, isDispatchConsolePath, type NavigationItem } from "./navigation";
@@ -94,20 +98,26 @@ export function isInventoryConsolePath(pathname: string) {
   return pathname === "/inventory-manager" || pathname === "/vehicles" || pathname.startsWith("/vehicles/");
 }
 
-export function getConsoleNavigation(pathname: string, user: AuthenticatedUser): ConsoleNavigationDefinition | null {
-  if (
-    isTechnicianOnlyUser(user) &&
-    (pathname === "/my-tasks" ||
-      pathname.startsWith("/my-tasks/") ||
-      pathname === "/diagnostics" ||
-      pathname.startsWith("/diagnostics/") ||
-      pathname.startsWith("/vehicles/repair-jobs/"))
-  ) {
+export function getConsoleNavigation(
+  pathname: string,
+  user: AuthenticatedUser,
+  preferredWorkspace?: WorkspaceKey | null
+): ConsoleNavigationDefinition | null {
+  const workspace = resolveWorkspaceForPath(user, pathname, preferredWorkspace);
+  const definition = getWorkspaceDefinition(workspace);
+  const workspacePath =
+    isInventoryConsolePath(pathname) ||
+    isDispatchConsolePath(pathname) ||
+    pathname.startsWith("/diagnostics") ||
+    pathname.startsWith("/customers") ||
+    pathname.startsWith("/appointments");
+
+  if (workspacePath && workspace !== "MANAGEMENT") {
     return {
       badge: "Ready",
-      homeHref: "/my-tasks",
-      items: getDispatchNavigationItems(user),
-      subtitle: "Technician Workspace",
+      homeHref: definition.landingRoute,
+      items: getDispatchNavigationItems(user, workspace),
+      subtitle: definition.label,
       title: "Time Motor Sales"
     };
   }

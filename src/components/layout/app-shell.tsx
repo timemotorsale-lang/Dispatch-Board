@@ -5,6 +5,7 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
+import type { WorkspaceKey } from "@/server/auth/navigation";
 import { SessionHealthGuard } from "@/features/auth/session-health-guard";
 
 import { AppSidebar } from "./app-sidebar";
@@ -18,16 +19,17 @@ import { AppearanceProvider } from "./appearance";
 
 type AppShellProps = {
   children: ReactNode;
+  preferredWorkspace?: WorkspaceKey | null;
   user: AuthenticatedUser;
 };
 
-function AppShellContent({ children, user }: AppShellProps) {
+function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) {
   const [navigationOpen, setNavigationOpen] = useState(false);
   const pathname = usePathname();
   const { mode } = useWorkspaceMode();
   const commandCenterHome = pathname === "/command-center";
   const dispatchConsole = isDispatchConsolePath(pathname) && !isInventoryConsolePath(pathname);
-  const consoleNavigation = getConsoleNavigation(pathname, user);
+  const consoleNavigation = getConsoleNavigation(pathname, user, preferredWorkspace);
   const hasSidebar = commandCenterHome || Boolean(consoleNavigation);
   const tasksWorkspace = pathname.startsWith("/tasks");
   const sidebarCompact = commandCenterHome && tasksWorkspace && mode !== "standard";
@@ -49,8 +51,8 @@ function AppShellContent({ children, user }: AppShellProps) {
         <button className="sidebar-scrim" aria-label="Close navigation" onClick={() => setNavigationOpen(false)} />
       ) : null}
       <div className="app-workspace">
-        <AppTopbar commandCenterHome={commandCenterHome} onMenuOpen={() => setNavigationOpen(true)} showNavigationMenu={hasSidebar} user={user} />
-        {dispatchConsole ? <DispatchConsoleHeader user={user} /> : null}
+        <AppTopbar commandCenterHome={commandCenterHome} onMenuOpen={() => setNavigationOpen(true)} preferredWorkspace={preferredWorkspace} showNavigationMenu={hasSidebar} user={user} />
+        {dispatchConsole ? <DispatchConsoleHeader preferredWorkspace={preferredWorkspace} user={user} /> : null}
         <main className="app-content">{children}</main>
       </div>
     </div>
