@@ -76,7 +76,7 @@ describe("enterprise shell navigation", () => {
   });
 
   it("keeps Dispatch-local destinations inside the Dispatch hierarchy", () => {
-    const localItems = getDispatchNavigationItems(user());
+    const localItems = getDispatchNavigationItems(user({ roles: ["General Manager"] }));
 
     expect(localItems.map((item) => item.title)).toEqual([
       "Overview",
@@ -94,6 +94,7 @@ describe("enterprise shell navigation", () => {
       "Sales",
       "Marketing",
       "Advertising",
+      "Manager Review",
       "Team",
       "Activity"
     ]);
@@ -148,19 +149,17 @@ describe("enterprise shell navigation", () => {
   });
 
   it("nests working Marketing and Advertising views beneath Sales", () => {
-    const items = getDispatchNavigationItems(user());
-    const salesItems = items.filter((item) => item.title === "Sales" || item.parentHref === "/tasks?department=SALES");
+    const items = getDispatchNavigationItems(user({ roles: ["Marketing/Advertisement Manager"] }));
+    const salesItems = items.filter((item) => item.href.includes("department="));
 
     expect(salesItems.map((item) => [item.title, item.href])).toEqual([
-      ["Sales", "/tasks?department=SALES"],
       ["Marketing", "/tasks?department=MARKETING"],
       ["Advertising", "/tasks?department=ADVERTISING"]
     ]);
-    expect(salesItems.slice(1).every((item) => item.parentHref === "/tasks?department=SALES")).toBe(true);
   });
 
   it("nests diagnostic workflow pages beneath Diagnostics", () => {
-    const diagnosticItems = getDispatchNavigationItems(user()).filter((item) => item.title === "Diagnostics" || item.parentHref === "/diagnostics");
+    const diagnosticItems = getDispatchNavigationItems(user({ roles: ["General Manager"] })).filter((item) => item.title === "Diagnostics" || item.parentHref === "/diagnostics");
 
     expect(diagnosticItems.map((item) => [item.title, item.href])).toEqual([
       ["Diagnostics", "/diagnostics"],
@@ -181,30 +180,15 @@ describe("enterprise shell navigation", () => {
 
   it("assigns each implemented console its own sidebar navigation", () => {
     const staffDispatch = getConsoleNavigation("/tasks/task-1", user());
-    const inventoryConsole = getConsoleNavigation("/vehicles/parts-operations", user());
+    const inventoryConsole = getConsoleNavigation("/vehicles/parts-operations", user({ roles: ["General Manager"] }));
     const manager = user({ roles: ["General Manager"] });
     const managerAdministration = getConsoleNavigation("/settings/team", manager);
 
-    expect(staffDispatch?.subtitle).toBe("Dispatch Board");
-    expect(staffDispatch?.homeHref).toBe("/board");
+    expect(staffDispatch?.subtitle).toBe("My Work");
+    expect(staffDispatch?.homeHref).toBe("/my-tasks");
     expect(staffDispatch?.items.map((item) => item.title)).toEqual([
-      "Overview",
-      "Live Board",
-      "My Tasks",
+      "My Work",
       "Tasks",
-      "Projects",
-      "Appointments",
-      "Vehicles",
-      "Diagnostics",
-      "Labor Guide",
-      "Advisor Review",
-      "Autobody Estimate",
-      "Customers",
-      "Sales",
-      "Marketing",
-      "Advertising",
-      "Team",
-      "Activity"
     ]);
     expect(managerAdministration?.subtitle).toBe("Administration Console");
     expect(managerAdministration?.items.map((item) => item.title)).toEqual([
@@ -226,5 +210,66 @@ describe("enterprise shell navigation", () => {
     expect(inventoryConsole?.items.find((item) => item.title === "Shop & Recon")?.href).toBe("/vehicles/shop-recon");
     expect(inventoryConsole?.items.find((item) => item.title === "Repair Workbench")?.href).toBe("/vehicles/repair-workbench");
     expect(getConsoleNavigation("/command-center", manager)).toBeNull();
+  });
+
+  it("gives each operating role a focused navigation shell", () => {
+    expect(getConsoleNavigation("/vehicles/shop-recon", user({ roles: ["Service Department Manager"] }))?.items.map((item) => item.title)).toEqual([
+      "Shop & Recon",
+      "Repair Orders",
+      "Shop Dispatch",
+      "Parts Operations",
+      "Quality Control",
+      "Reviews"
+    ]);
+    expect(getConsoleNavigation("/vehicles", user({ roles: ["Inventory Manager"] }))?.items.map((item) => item.title)).toEqual([
+      "Inventory Home",
+      "Inventory Lifecycle",
+      "Shop & Recon",
+      "Parts Readiness",
+      "Reviews"
+    ]);
+    expect(getConsoleNavigation("/appointments", user({ roles: ["Service Advisor"] }))?.items.map((item) => item.title)).toEqual([
+      "Appointments",
+      "Check In Vehicle",
+      "Customers",
+      "Repair Orders",
+      "Diagnostic Review",
+      "My Work"
+    ]);
+    expect(getConsoleNavigation("/vehicles/parts-operations", user({ roles: ["Parts"] }))?.items.map((item) => item.title)).toEqual([
+      "Parts Operations",
+      "Parts Counter",
+      "Waiting Work",
+      "My Work"
+    ]);
+    expect(getConsoleNavigation("/vehicles/quality-control", user({ roles: ["Quality Control"] }))?.items.map((item) => item.title)).toEqual([
+      "QC Queue",
+      "My Work",
+      "Repair Orders"
+    ]);
+    expect(getConsoleNavigation("/tasks", user({ roles: ["Salesperson"] }))?.items.map((item) => item.title)).toEqual([
+      "My Work",
+      "Sales Tasks",
+      "Appointments",
+      "Customers",
+      "Vehicles"
+    ]);
+    expect(getConsoleNavigation("/tasks", user({ roles: ["Marketing/Advertisement Manager"] }))?.items.map((item) => item.title)).toEqual([
+      "My Work",
+      "Marketing",
+      "Advertising",
+      "Vehicles"
+    ]);
+    expect(getConsoleNavigation("/my-tasks", user({ roles: ["Office Manager"] }))?.items.map((item) => item.title)).toEqual([
+      "My Work",
+      "Appointments",
+      "Customers",
+      "Team Tasks"
+    ]);
+    expect(getConsoleNavigation("/my-tasks", user({ roles: ["Collections"] }))?.items.map((item) => item.title)).toEqual([
+      "My Collections",
+      "Collections Queue",
+      "Account Context"
+    ]);
   });
 });

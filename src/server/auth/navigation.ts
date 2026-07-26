@@ -2,17 +2,191 @@ import type { AuthenticatedUser } from "./store";
 
 const TECHNICIAN_ROLE_NAMES = new Set(["Mechanic", "Technician"]);
 
-export type WorkspaceKey =
-  | "MANAGEMENT"
-  | "INVENTORY"
-  | "SERVICE"
-  | "ADVISOR"
-  | "TECHNICIAN"
-  | "PARTS"
-  | "QUALITY"
-  | "SALES"
-  | "MARKETING"
-  | "GENERAL_STAFF";
+export const WORKSPACE_KEYS = [
+  "MANAGEMENT",
+  "SERVICE",
+  "INVENTORY",
+  "ADVISOR",
+  "TECHNICIAN",
+  "PARTS",
+  "QUALITY",
+  "SALES",
+  "MARKETING",
+  "OFFICE",
+  "COLLECTIONS",
+  "GENERAL_STAFF"
+] as const;
+
+export type WorkspaceKey = (typeof WORKSPACE_KEYS)[number];
+
+export type WorkspaceDefinition = {
+  description: string;
+  key: WorkspaceKey;
+  label: string;
+  landingRoute: string;
+  roleNames: string[];
+  dutyTerms: string[];
+};
+
+export const WORKSPACE_DEFINITIONS: readonly WorkspaceDefinition[] = [
+  {
+    key: "MANAGEMENT",
+    label: "Management",
+    description: "Company-wide operating command, decisions, and review.",
+    landingRoute: "/board",
+    roleNames: ["General Manager"],
+    dutyTerms: ["delegated manager capabilities"]
+  },
+  {
+    key: "SERVICE",
+    label: "Service Operations",
+    description: "Shop production, dispatch, repair orders, parts, and quality.",
+    landingRoute: "/vehicles/shop-recon",
+    roleNames: ["Service Department Manager"],
+    dutyTerms: ["service production", "shop management", "shop dispatch"]
+  },
+  {
+    key: "INVENTORY",
+    label: "Inventory Operations",
+    description: "Inventory lifecycle, readiness, recon, and disposition.",
+    landingRoute: "/vehicles",
+    roleNames: ["Inventory Manager"],
+    dutyTerms: ["inventory management", "inventory lifecycle", "vehicle readiness"]
+  },
+  {
+    key: "ADVISOR",
+    label: "Advisor Workspace",
+    description: "Appointments, check-in, customers, and repair-order coordination.",
+    landingRoute: "/appointments",
+    roleNames: ["Service Advisor"],
+    dutyTerms: ["service advisor", "vehicle intake", "customer intake"]
+  },
+  {
+    key: "TECHNICIAN",
+    label: "Technician Workspace",
+    description: "Assigned repairs, available work, and diagnostic tools.",
+    landingRoute: "/my-tasks",
+    roleNames: ["Mechanic", "Technician"],
+    dutyTerms: ["mechanic", "repair execution", "diagnostic execution"]
+  },
+  {
+    key: "PARTS",
+    label: "Parts Workspace",
+    description: "Parts demand, receiving, issue, return, and repair readiness.",
+    landingRoute: "/vehicles/parts-operations",
+    roleNames: ["Parts", "Parts Manager", "Parts Specialist"],
+    dutyTerms: ["parts operations", "parts counter", "parts readiness"]
+  },
+  {
+    key: "QUALITY",
+    label: "Quality Workspace",
+    description: "Quality inspections, rework, evidence, and release readiness.",
+    landingRoute: "/vehicles/quality-control",
+    roleNames: ["Quality Control", "Quality Inspector"],
+    dutyTerms: ["quality control", "quality inspection", "vehicle release"]
+  },
+  {
+    key: "SALES",
+    label: "Sales Workspace",
+    description: "Lead follow-up, appointments, customers, and delivery work.",
+    landingRoute: "/tasks?department=SALES",
+    roleNames: ["Salesperson", "Sales Manager"],
+    dutyTerms: ["sales", "lead follow-up", "sold vehicle prep"]
+  },
+  {
+    key: "MARKETING",
+    label: "Marketing Workspace",
+    description: "Marketing, advertising, listings, photos, and campaigns.",
+    landingRoute: "/tasks?department=MARKETING",
+    roleNames: ["Marketing/Advertisement Manager", "Marketing", "Advertising"],
+    dutyTerms: ["marketing", "advertising", "vehicle listings", "vehicle photos"]
+  },
+  {
+    key: "OFFICE",
+    label: "Office Workspace",
+    description: "Office support, documentation, customers, and assigned work.",
+    landingRoute: "/my-tasks",
+    roleNames: ["Office Manager", "Office Staff"],
+    dutyTerms: ["office", "documentation", "administrative support"]
+  },
+  {
+    key: "COLLECTIONS",
+    label: "Collections Workspace",
+    description: "Assigned collections work and minimum authorized account context.",
+    landingRoute: "/my-tasks?workspace=collections",
+    roleNames: ["Collections", "Collections Manager"],
+    dutyTerms: ["collections", "payment follow-up", "payment received"]
+  },
+  {
+    key: "GENERAL_STAFF",
+    label: "My Work",
+    description: "Assigned work and next actions.",
+    landingRoute: "/my-tasks",
+    roleNames: [],
+    dutyTerms: []
+  }
+] as const;
+
+const WORKSPACE_BY_KEY = Object.fromEntries(
+  WORKSPACE_DEFINITIONS.map((definition) => [definition.key, definition])
+) as Record<WorkspaceKey, WorkspaceDefinition>;
+
+const ROUTE_WORKSPACES: Array<{ prefix: string; workspaces: WorkspaceKey[] }> = [
+  { prefix: "/administration", workspaces: ["MANAGEMENT"] },
+  { prefix: "/settings", workspaces: ["MANAGEMENT"] },
+  { prefix: "/integrations", workspaces: ["MANAGEMENT"] },
+  { prefix: "/reports", workspaces: ["MANAGEMENT", "INVENTORY", "SERVICE"] },
+  { prefix: "/manager-review", workspaces: ["MANAGEMENT", "INVENTORY", "SERVICE"] },
+  { prefix: "/staff", workspaces: ["MANAGEMENT", "SERVICE"] },
+  { prefix: "/board", workspaces: ["MANAGEMENT"] },
+  { prefix: "/command-center", workspaces: ["MANAGEMENT"] },
+  { prefix: "/vehicles/parts", workspaces: ["PARTS", "SERVICE", "INVENTORY", "MANAGEMENT"] },
+  { prefix: "/vehicles/quality-control", workspaces: ["QUALITY", "SERVICE", "INVENTORY", "MANAGEMENT"] },
+  { prefix: "/vehicles/shop", workspaces: ["SERVICE", "INVENTORY", "MANAGEMENT"] },
+  { prefix: "/vehicles/repair-jobs", workspaces: ["TECHNICIAN", "SERVICE", "ADVISOR", "QUALITY", "PARTS", "MANAGEMENT"] },
+  { prefix: "/vehicles/repair-workbench", workspaces: ["SERVICE", "ADVISOR", "QUALITY", "PARTS", "INVENTORY", "MANAGEMENT"] },
+  { prefix: "/vehicles/repair-orders", workspaces: ["SERVICE", "ADVISOR", "QUALITY", "PARTS", "INVENTORY", "MANAGEMENT"] },
+  { prefix: "/vehicles/360", workspaces: ["INVENTORY", "SERVICE", "ADVISOR", "TECHNICIAN", "PARTS", "QUALITY", "SALES", "MARKETING", "MANAGEMENT"] },
+  { prefix: "/vehicles", workspaces: ["INVENTORY", "SERVICE", "ADVISOR", "PARTS", "QUALITY", "SALES", "MARKETING", "MANAGEMENT"] },
+  { prefix: "/appointments", workspaces: ["ADVISOR", "SERVICE", "SALES", "OFFICE", "MANAGEMENT"] },
+  { prefix: "/customers", workspaces: ["ADVISOR", "SALES", "OFFICE", "COLLECTIONS", "MANAGEMENT"] },
+  { prefix: "/diagnostics", workspaces: ["TECHNICIAN", "ADVISOR", "SERVICE", "MANAGEMENT"] },
+  { prefix: "/projects", workspaces: ["MANAGEMENT", "SERVICE", "INVENTORY", "OFFICE"] },
+  { prefix: "/activity", workspaces: ["MANAGEMENT", "SERVICE", "INVENTORY", "ADVISOR", "OFFICE"] },
+  { prefix: "/tasks", workspaces: [...WORKSPACE_KEYS] },
+  { prefix: "/my-tasks", workspaces: [...WORKSPACE_KEYS] },
+  { prefix: "/time-attendance", workspaces: [...WORKSPACE_KEYS] }
+];
+
+function normalizedPath(value: string) {
+  return value.split(/[?#]/, 1)[0] || "/";
+}
+
+function hasRoutePrefix(pathname: string, prefix: string) {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`) || (
+    prefix.endsWith("s") && pathname.startsWith(prefix)
+  );
+}
+
+function matchesDefinition(user: AuthenticatedUser, definition: WorkspaceDefinition) {
+  if (definition.key === "GENERAL_STAFF") return false;
+  const normalizedDuties = user.duties.all.map((duty) => duty.toLowerCase());
+  return definition.roleNames.some((role) => user.roles.includes(role)) ||
+    definition.dutyTerms.some((term) => normalizedDuties.some((duty) => duty.includes(term)));
+}
+
+export function isWorkspaceKey(value: unknown): value is WorkspaceKey {
+  return typeof value === "string" && WORKSPACE_KEYS.includes(value as WorkspaceKey);
+}
+
+export function getWorkspaceDefinition(key: WorkspaceKey) {
+  return WORKSPACE_BY_KEY[key];
+}
+
+export function getPermittedWorkspaces(user: AuthenticatedUser): WorkspaceDefinition[] {
+  const matched = WORKSPACE_DEFINITIONS.filter((definition) => matchesDefinition(user, definition));
+  return matched.length ? matched : [WORKSPACE_BY_KEY.GENERAL_STAFF];
+}
 
 export function isTechnicianUser(user: AuthenticatedUser | null) {
   return Boolean(user?.roles.some((role) => TECHNICIAN_ROLE_NAMES.has(role)));
@@ -20,63 +194,63 @@ export function isTechnicianUser(user: AuthenticatedUser | null) {
 
 export function isTechnicianOnlyUser(user: AuthenticatedUser | null) {
   if (!user || !isTechnicianUser(user)) return false;
-  return !user.roles.some((role) =>
-    [
-      "General Manager",
-      "Inventory Manager",
-      "Service Department Manager",
-      "Service Advisor",
-      "Parts",
-      "Parts Manager",
-      "Quality Control"
-    ].includes(role)
-  );
+  return getPermittedWorkspaces(user).every((workspace) => workspace.key === "TECHNICIAN");
 }
 
-export function getWorkspaceKey(user: AuthenticatedUser): WorkspaceKey {
-  if (user.roles.includes("General Manager") || user.duties.all.includes("Delegated manager capabilities")) return "MANAGEMENT";
-  if (user.roles.includes("Service Department Manager")) return "SERVICE";
-  if (user.roles.includes("Inventory Manager")) return "INVENTORY";
-  if (user.roles.includes("Service Advisor")) return "ADVISOR";
-  if (isTechnicianUser(user)) return "TECHNICIAN";
-  if (user.roles.some((role) => ["Parts", "Parts Manager"].includes(role))) return "PARTS";
-  if (user.roles.includes("Quality Control")) return "QUALITY";
-  if (user.roles.includes("Salesperson")) return "SALES";
-  if (user.roles.includes("Marketing/Advertisement Manager")) return "MARKETING";
-  return "GENERAL_STAFF";
-}
-
-export function getDefaultLandingRoute(user: AuthenticatedUser) {
-  switch (getWorkspaceKey(user)) {
-    case "MANAGEMENT":
-      return "/board";
-    case "SERVICE":
-      return "/vehicles/shop-recon";
-    case "INVENTORY":
-      return "/vehicles";
-    case "ADVISOR":
-      return "/appointments";
-    case "TECHNICIAN":
-      return "/my-tasks";
-    case "PARTS":
-      return "/vehicles/parts-operations";
-    case "QUALITY":
-      return "/vehicles/quality-control";
-    case "SALES":
-      return "/tasks?department=SALES";
-    case "MARKETING":
-      return "/tasks?department=MARKETING";
-    default:
-      return "/my-tasks";
+export function getWorkspaceKey(
+  user: AuthenticatedUser,
+  preferredWorkspace?: WorkspaceKey | null
+): WorkspaceKey {
+  const permitted = getPermittedWorkspaces(user);
+  if (preferredWorkspace && permitted.some((workspace) => workspace.key === preferredWorkspace)) {
+    return preferredWorkspace;
   }
+  return permitted[0]?.key ?? "GENERAL_STAFF";
+}
+
+export function getDefaultLandingRoute(
+  user: AuthenticatedUser,
+  preferredWorkspace?: WorkspaceKey | null
+) {
+  return getWorkspaceDefinition(getWorkspaceKey(user, preferredWorkspace)).landingRoute;
+}
+
+export function resolveWorkspaceForPath(
+  user: AuthenticatedUser,
+  path: string,
+  preferredWorkspace?: WorkspaceKey | null
+) {
+  const permitted = getPermittedWorkspaces(user);
+  const pathname = normalizedPath(path);
+  const matchingContract = ROUTE_WORKSPACES.find((contract) => hasRoutePrefix(pathname, contract.prefix));
+  if (preferredWorkspace &&
+      permitted.some((workspace) => workspace.key === preferredWorkspace) &&
+      matchingContract?.workspaces.includes(preferredWorkspace)) {
+    return preferredWorkspace;
+  }
+  return permitted.find((workspace) => matchingContract?.workspaces.includes(workspace.key))?.key ??
+    getWorkspaceKey(user, preferredWorkspace);
+}
+
+export function isRoutePermittedForUser(user: AuthenticatedUser, route: string) {
+  const safe = getSafePostLoginRedirect(route, "");
+  if (!safe) return false;
+  const pathname = normalizedPath(safe);
+  const contract = ROUTE_WORKSPACES.find((candidate) => hasRoutePrefix(pathname, candidate.prefix));
+  if (!contract) return false;
+  const permittedKeys = new Set(getPermittedWorkspaces(user).map((workspace) => workspace.key));
+  return contract.workspaces.some((workspace) => permittedKeys.has(workspace));
 }
 
 export function getProtectedRouteRedirect(user: AuthenticatedUser | null) {
   return user ? null : "/login";
 }
 
-export function getLoginRouteRedirect(user: AuthenticatedUser | null) {
-  return user ? getDefaultLandingRoute(user) : null;
+export function getLoginRouteRedirect(
+  user: AuthenticatedUser | null,
+  preferredWorkspace?: WorkspaceKey | null
+) {
+  return user ? getDefaultLandingRoute(user, preferredWorkspace) : null;
 }
 
 export function getSafePostLoginRedirect(
@@ -91,29 +265,17 @@ export function getSafePostLoginRedirect(
   ) {
     return fallback;
   }
-
   return returnTo;
 }
 
 export function resolvePostLoginRoute(
   user: AuthenticatedUser,
-  returnTo: string | null | undefined
+  returnTo: string | null | undefined,
+  preferredWorkspace?: WorkspaceKey | null
 ) {
-  const fallback = getDefaultLandingRoute(user);
+  const fallback = getDefaultLandingRoute(user, preferredWorkspace);
   const safe = getSafePostLoginRedirect(returnTo, fallback);
-
-  if (!isTechnicianOnlyUser(user) || safe === fallback) return safe;
-
-  const technicianAllowed =
-    safe === "/my-tasks" ||
-    safe.startsWith("/my-tasks/") ||
-    safe === "/diagnostics" ||
-    safe.startsWith("/diagnostics/") ||
-    /^\/tasks\/[^/]+/.test(safe) ||
-    /^\/vehicles\/repair-jobs\/[^/]+\/workbench/.test(safe) ||
-    /^\/vehicles\/360\/[^/]+/.test(safe);
-
-  return technicianAllowed ? safe : fallback;
+  return safe !== fallback && isRoutePermittedForUser(user, safe) ? safe : fallback;
 }
 
 export function resolveWorkRecordRoute(input: {

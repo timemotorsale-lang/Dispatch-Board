@@ -3,18 +3,30 @@
 import { Bell, Building2, CalendarDays, Columns3, House, Menu, Moon, Search, Sun } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
-import { isTechnicianOnlyUser } from "@/server/auth/navigation";
+import {
+  getWorkspaceDefinition,
+  isTechnicianOnlyUser,
+  resolveWorkspaceForPath,
+  type WorkspaceKey
+} from "@/server/auth/navigation";
 import { isManager } from "@/server/policies/access";
+import { WorkspaceSwitcher } from "./workspace-switcher";
 import { TimeMotorSalesLogo } from "@/components/brand/time-motor-sales-logo";
 
-import { getDispatchNavigationItems, getNavigationGroups, isDispatchConsolePath } from "./navigation";
+import { getNavigationGroups, getNavigationItemsForPath, isDispatchConsolePath } from "./navigation";
 import { isInventoryConsolePath } from "./console-navigation";
 import { useAppearance } from "./appearance";
 
-type AppTopbarProps = { commandCenterHome: boolean; onMenuOpen(): void; showNavigationMenu: boolean; user: AuthenticatedUser };
+type AppTopbarProps = {
+  commandCenterHome: boolean;
+  onMenuOpen(): void;
+  preferredWorkspace?: WorkspaceKey | null;
+  showNavigationMenu: boolean;
+  user: AuthenticatedUser;
+};
 
 function initials(name: string) {
   return name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
@@ -57,35 +69,47 @@ function getBreadcrumb(pathname: string, dispatchView: "overview" | "live", tech
   return ["Command Control Center", "Dispatch", "Workspace"];
 }
 
-export function AppTopbar({ commandCenterHome, onMenuOpen, showNavigationMenu, user }: AppTopbarProps) {
+export function AppTopbar({ commandCenterHome, onMenuOpen, preferredWorkspace, showNavigationMenu, user }: AppTopbarProps) {
   const { appearance, setAppearance } = useAppearance();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const dispatchView = searchParams.get("view") === "live" ? "live" : "overview";
   const technicianOnly = isTechnicianOnlyUser(user);
+  const activeWorkspace = resolveWorkspaceForPath(user, pathname, preferredWorkspace);
+  const activeWorkspaceDefinition = getWorkspaceDefinition(activeWorkspace);
+  const roleWorkspace = activeWorkspace !== "MANAGEMENT";
+  const workspaceHome = activeWorkspaceDefinition.landingRoute;
   const inventoryConsole = isInventoryConsolePath(pathname);
   const dispatchConsole = isDispatchConsolePath(pathname) && !inventoryConsole;
   const actionsRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const roleNavigationItems = getNavigationItemsForPath(user, pathname, preferredWorkspace);
   const navigationItems = [
     ...getNavigationGroups(user).flatMap((group) => group.items),
-    ...getDispatchNavigationItems(user)
+    ...roleNavigationItems
   ].filter((item) => !item.disabled);
-  const breadcrumb = getBreadcrumb(pathname, dispatchView, technicianOnly);
+  const activeNavigationItem = roleNavigationItems.find((item) => {
+    const baseHref = item.href.split(/[?#]/, 1)[0];
+    return pathname === baseHref || pathname.startsWith(`${baseHref}/`);
+  });
+  const breadcrumb = roleWorkspace && !technicianOnly
+    ? [activeWorkspaceDefinition.label, activeNavigationItem?.title ?? "Workspace"]
+    : getBreadcrumb(pathname, dispatchView, technicianOnly);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
-  const quickResults = useMemo(() => {
-    const query = searchText.trim().toLowerCase();
-    const uniqueItems = navigationItems.filter((entry, index, items) => items.findIndex((item) => item.href === entry.href) === index);
-    if (!query) return uniqueItems.slice(0, 6);
-    return uniqueItems.filter((entry) => `${entry.title} ${entry.description}`.toLowerCase().includes(query));
-  }, [navigationItems, searchText]);
-  const notificationLinks = technicianOnly ? [
-    { href: "/my-tasks", label: "My Work", detail: "Return to assigned work and current repair." },
-    { href: "/my-tasks/available", label: "Available Work", detail: "Check for eligible work ready to claim." },
-    { href: "/diagnostics", label: "Diagnostics & Tools", detail: "Open guided troubleshooting and technical tools." }
-  ] : [
+  const query = searchText.trim().toLowerCase();
+  const uniqueNavigationItems = navigationItems.filter(
+    (entry, index, items) => items.findIndex((item) => item.href === entry.href) === index
+  );
+  const quickResults = query
+    ? uniqueNavigationItems.filter((entry) => `${entry.title} ${entry.description}`.toLowerCase().includes(query))
+    : uniqueNavigationItems.slice(0, 6);
+  const notificationLinks = roleWorkspace ? roleNavigationItems.slice(0, 3).map((item) => ({
+    href: item.href,
+    label: item.title,
+    detail: item.description
+  })) : [
     { href: "/activity", label: "Activity", detail: "Review the latest Dispatch events." },
     ...(isManager(user)
       ? [{ href: "/manager-review", label: "Manager review", detail: "Open approvals and work waiting for review." }]
@@ -127,16 +151,17 @@ export function AppTopbar({ commandCenterHome, onMenuOpen, showNavigationMenu, u
           <Menu size={20} />
         </button>
       ) : null}
-      <Link aria-label={technicianOnly ? "Technician Workspace Home" : "Time Motor Sales Command Control Center Home"} className="ccc-topbar-brand" href={technicianOnly ? "/my-tasks" : "/command-center"}>
+      <Link aria-label={roleWorkspace ? `${activeWorkspaceDefinition.label} Home` : "Time Motor Sales Command Control Center Home"} className="ccc-topbar-brand" href={roleWorkspace ? workspaceHome : "/command-center"}>
         <TimeMotorSalesLogo className="ccc-topbar-brand-horizontal" decorative priority variant="horizontal-reversed" />
         <TimeMotorSalesLogo className="ccc-topbar-brand-mark" decorative priority variant="mark" />
       </Link>
       {!commandCenterHome ? (
-        <Link aria-label={technicianOnly ? "My Work" : "Command Center Home"} className="ccc-home-link" href={technicianOnly ? "/my-tasks" : "/command-center"}>
-          <House size={15} /><span>{technicianOnly ? "My Work" : "CCC Home"}</span>
+        <Link aria-label={roleWorkspace ? activeWorkspaceDefinition.label : "Command Center Home"} className="ccc-home-link" href={roleWorkspace ? workspaceHome : "/command-center"}>
+          <House size={15} /><span>{roleWorkspace ? activeWorkspaceDefinition.label : "CCC Home"}</span>
         </Link>
       ) : null}
-      {inventoryConsole && !technicianOnly ? (
+      <WorkspaceSwitcher preferredWorkspace={preferredWorkspace} user={user} />
+      {inventoryConsole && activeWorkspace === "MANAGEMENT" ? (
         <Link aria-label="Open Dispatch Board console" className="ccc-home-link ccc-dispatch-link" href="/board">
           <Columns3 size={15} /><span>Dispatch</span>
         </Link>
@@ -145,7 +170,7 @@ export function AppTopbar({ commandCenterHome, onMenuOpen, showNavigationMenu, u
       <nav aria-label="Workspace breadcrumb" className="ccc-breadcrumb">
         {breadcrumb.map((part, index) => (
           <span className={index === breadcrumb.length - 1 ? "ccc-breadcrumb-current" : ""} key={part}>
-            {index === 0 && breadcrumb.length > 1 ? <Link href={technicianOnly ? "/my-tasks" : "/command-center"}>{part}</Link> : part}
+            {index === 0 && breadcrumb.length > 1 ? <Link href={roleWorkspace ? workspaceHome : "/command-center"}>{part}</Link> : part}
             {index < breadcrumb.length - 1 ? <i aria-hidden="true">/</i> : null}
           </span>
         ))}

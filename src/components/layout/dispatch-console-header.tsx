@@ -4,11 +4,16 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
-import { isTechnicianOnlyUser } from "@/server/auth/navigation";
+import {
+  getWorkspaceDefinition,
+  resolveWorkspaceForPath,
+  type WorkspaceKey
+} from "@/server/auth/navigation";
 
-import { getDispatchNavigationItems } from "./navigation";
+import { getNavigationItemsForPath } from "./navigation";
 
 type DispatchConsoleHeaderProps = {
+  preferredWorkspace?: WorkspaceKey | null;
   user: AuthenticatedUser;
 };
 
@@ -46,14 +51,14 @@ function isActiveDestination(pathname: string, live: boolean, href: string) {
   return pathname === baseHref || pathname.startsWith(`${baseHref}/`);
 }
 
-export function DispatchConsoleHeader({ user }: DispatchConsoleHeaderProps) {
+export function DispatchConsoleHeader({ preferredWorkspace, user }: DispatchConsoleHeaderProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const live = pathname === "/board" && searchParams.get("view") === "live";
   const boardDate = searchParams.get("date");
   const department = searchParams.get("department");
 
-  return <DispatchConsoleHeaderView boardDate={boardDate} department={department} live={live} pathname={pathname} user={user} />;
+  return <DispatchConsoleHeaderView boardDate={boardDate} department={department} live={live} pathname={pathname} preferredWorkspace={preferredWorkspace} user={user} />;
 }
 
 export function DispatchConsoleHeaderView({
@@ -61,6 +66,7 @@ export function DispatchConsoleHeaderView({
   department = null,
   live,
   pathname,
+  preferredWorkspace,
   user
 }: DispatchConsoleHeaderProps & {
   boardDate: string | null;
@@ -69,7 +75,7 @@ export function DispatchConsoleHeaderView({
   pathname: string;
 }) {
   const dateQuery = boardDate ? `date=${encodeURIComponent(boardDate)}` : "";
-  const items = getDispatchNavigationItems(user);
+  const items = getNavigationItemsForPath(user, pathname, preferredWorkspace);
   const dispatchHref = dateQuery ? `/board?${dateQuery}` : "/board";
   const activeItem = items.find((item) => {
     if (!isActiveDestination(pathname, live, item.href)) return false;
@@ -80,12 +86,18 @@ export function DispatchConsoleHeaderView({
   const copy = workspaceItem && ["Sales", "Marketing", "Advertising"].includes(workspaceItem.title)
     ? { title: workspaceItem.title, description: workspaceItem.description }
     : getConsoleCopy(pathname, live);
-  const technicianOnly = isTechnicianOnlyUser(user);
-  const technicianCopy = pathname === "/my-tasks/available"
+  const workspace = resolveWorkspaceForPath(user, pathname, preferredWorkspace);
+  const workspaceDefinition = getWorkspaceDefinition(workspace);
+  const roleWorkspace = workspace !== "MANAGEMENT";
+  const roleCopy = workspace === "TECHNICIAN" && pathname === "/my-tasks/available"
     ? { title: "Available Work", description: "Eligible work ready for you to claim" }
-    : pathname.startsWith("/diagnostics")
+    : workspace === "TECHNICIAN" && pathname.startsWith("/diagnostics")
       ? { title: "Diagnostics & Tools", description: "Guided diagnostic support for assigned work" }
-      : { title: "My Work", description: "Your assigned repairs and next actions" };
+      : workspace === "TECHNICIAN"
+        ? { title: "My Work", description: "Your assigned repairs and next actions" }
+        : activeItem
+          ? { title: activeItem.title, description: activeItem.description }
+          : { title: workspaceDefinition.label, description: workspaceDefinition.description };
 
   const getWorkspaceHref = (href: string) => {
     if (href.startsWith("/board?view=live")) return `/board?${["view=live", dateQuery].filter(Boolean).join("&")}`;
@@ -96,15 +108,15 @@ export function DispatchConsoleHeaderView({
   return (
     <header className="dispatch-console-header">
       <div className="dispatch-console-title">
-        <h1>{technicianOnly ? technicianCopy.title : copy.title}</h1>
-        <p>{technicianOnly ? technicianCopy.description : copy.description}</p>
+        <h1>{roleWorkspace ? roleCopy.title : copy.title}</h1>
+        <p>{roleWorkspace ? roleCopy.description : copy.description}</p>
       </div>
-      {technicianOnly ? (
-        <nav aria-label="Technician workspace" className="dispatch-console-tabs">
-          <Link href="/my-tasks">Technician Workspace</Link>
+      {roleWorkspace ? (
+        <nav aria-label={`${workspaceDefinition.label} navigation`} className="dispatch-console-tabs">
+          <Link href={workspaceDefinition.landingRoute}>{workspaceDefinition.label}</Link>
           <span aria-hidden="true" className="dispatch-console-tab-separator">/</span>
           <Link aria-current="page" className="active" href={pathname}>
-            {technicianCopy.title}
+            {roleCopy.title}
           </Link>
         </nav>
       ) : (

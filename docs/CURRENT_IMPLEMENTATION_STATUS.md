@@ -1,5 +1,13 @@
 # Current Implementation Status
 
+## 2026-07-26 — Shared role-aware landing and workspace resolver
+
+The shared role-aware landing foundation is implemented on `codex/role-aware-landing-completion`. Authenticated users now resolve deterministically into Management, Service, Inventory, Advisor, Technician, Parts, Quality, Sales, Marketing, Office, Collections, or safe General Staff workspaces using current roles and governed duties. Login honors only local return targets that belong to one of the user's permitted workspaces.
+
+Multi-role users receive an explicit workspace switcher. The selected workspace is retained in an HTTP-only same-site preference cookie, revalidated against the current identity on every server render, and carried through shared routes such as `/my-tasks`. Role-specific console navigation is implemented for every defined workspace family. Non-management users who open Command Control Center or the full Dispatch Board are returned to their role landing.
+
+This is shared routing and presentation authority, not a claim that every destination page has completed a role-specific vertical slice. Domain services and pages remain responsible for server-side record and mutation authorization. See [`docs/inventory/ROLE_EXPERIENCE_MATRIX.md`](inventory/ROLE_EXPERIENCE_MATRIX.md) and [`docs/inventory/ROLE_LANDING_AND_RECORD_ROUTING_ALGORITHMS.md`](inventory/ROLE_LANDING_AND_RECORD_ROUTING_ALGORITHMS.md).
+
 ## 2026-07-24 — Time & Attendance TA-G5 hardening and pilot gate started
 
 TA-G5 now has its first vertical repository implementation slice on `codex/time-attendance-g5-hardening-pilot`. The CCC Time & Attendance console includes a manager-only hardening and pilot evidence panel. The server readiness contract is exposed through `/api/time-attendance/hardening-pilot` and evaluates TA-050 through TA-055 without claiming pilot or production eligibility.

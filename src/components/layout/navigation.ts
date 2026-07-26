@@ -12,20 +12,27 @@ import {
   ContactRound,
   FolderKanban,
   Gauge,
+  House,
   Landmark,
   ListChecks,
   Megaphone,
+  RefreshCw,
   Settings,
   ShieldCheck,
   SquareCheckBig,
   Stethoscope,
   UserRoundCheck,
   Users,
+  Wrench,
   type LucideIcon
 } from "lucide-react";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
-import { isTechnicianOnlyUser } from "@/server/auth/navigation";
+import {
+  getWorkspaceKey,
+  resolveWorkspaceForPath,
+  type WorkspaceKey
+} from "@/server/auth/navigation";
 import { canManageSettings, isManager } from "@/server/policies/access";
 
 export type NavigationItem = {
@@ -212,6 +219,72 @@ const technicianNavigationItems: NavigationItem[] = [
   }
 ];
 
+const workspaceNavigationItems: Partial<Record<WorkspaceKey, NavigationItem[]>> = {
+  SERVICE: [
+    { href: "/vehicles/shop-recon", title: "Shop & Recon", description: "Production, capacity, constraints, and completion risk.", icon: Wrench },
+    { href: "/vehicles/repair-workbench", title: "Repair Orders", description: "Open and coordinate governed repair orders.", icon: ClipboardCheck },
+    { href: "/vehicles/shop-dispatch", title: "Shop Dispatch", description: "Assign authorized repair work and manage bays.", icon: ListChecks },
+    { href: "/vehicles/parts-operations", title: "Parts Operations", description: "Review parts readiness and constrained work.", icon: BriefcaseBusiness },
+    { href: "/vehicles/quality-control", title: "Quality Control", description: "Review completion, rework, and release readiness.", icon: ShieldCheck },
+    { href: "/manager-review?scope=inventory", title: "Reviews", description: "Open service exceptions and governed decisions.", icon: SquareCheckBig }
+  ],
+  INVENTORY: [
+    { href: "/vehicles", title: "Inventory Home", description: "Inventory operating picture and priority work.", icon: House, matchExact: true },
+    { href: "/vehicles/inventory", title: "Inventory Lifecycle", description: "Acquisition through sale, transfer, or disposition.", icon: RefreshCw },
+    { href: "/vehicles/shop-recon", title: "Shop & Recon", description: "Inventory recon status and readiness constraints.", icon: Wrench },
+    { href: "/vehicles/parts-operations", title: "Parts Readiness", description: "Parts demand affecting inventory completion.", icon: BriefcaseBusiness },
+    { href: "/manager-review?scope=inventory", title: "Reviews", description: "Inventory work awaiting review or approval.", icon: ShieldCheck }
+  ],
+  ADVISOR: [
+    { href: "/appointments", title: "Appointments", description: "Customer commitments and service arrivals.", icon: CalendarDays },
+    { href: "/vehicles/repair-orders?intakeSource=WALK_IN", title: "Check In Vehicle", description: "Receive a vehicle and create governed shop work.", icon: ClipboardCheck },
+    { href: "/customers", title: "Customers", description: "Customer records and connected service work.", icon: ContactRound },
+    { href: "/vehicles/repair-workbench", title: "Repair Orders", description: "Open estimates, authorizations, and customer handoffs.", icon: Wrench },
+    { href: "/diagnostics/advisor-review", title: "Diagnostic Review", description: "Review findings and estimate handoffs.", icon: FileText },
+    { href: "/my-tasks", title: "My Work", description: "Advisor follow-up and assigned actions.", icon: UserRoundCheck }
+  ],
+  TECHNICIAN: technicianNavigationItems,
+  PARTS: [
+    { href: "/vehicles/parts-operations", title: "Parts Operations", description: "Demand, readiness, receiving, issue, and return.", icon: BriefcaseBusiness },
+    { href: "/vehicles/parts-counter", title: "Parts Counter", description: "Find and process authorized part activity.", icon: ListChecks },
+    { href: "/vehicles/shop-recon", title: "Waiting Work", description: "Read-only shop work constrained by parts.", icon: Wrench },
+    { href: "/my-tasks", title: "My Work", description: "Assigned parts actions and follow-up.", icon: UserRoundCheck }
+  ],
+  QUALITY: [
+    { href: "/vehicles/quality-control", title: "QC Queue", description: "Assigned inspections and release decisions.", icon: ShieldCheck },
+    { href: "/my-tasks", title: "My Work", description: "Assigned quality and rework actions.", icon: UserRoundCheck },
+    { href: "/vehicles/repair-workbench", title: "Repair Orders", description: "Read repair scope and completion evidence.", icon: ClipboardCheck }
+  ],
+  SALES: [
+    { href: "/my-tasks", title: "My Work", description: "Assigned follow-up and delivery actions.", icon: UserRoundCheck },
+    { href: "/tasks?department=SALES", title: "Sales Tasks", description: "Lead, negotiation, and delivery work.", icon: BadgeDollarSign, activeQuery: { department: "SALES" } },
+    { href: "/appointments", title: "Appointments", description: "Customer appointments and commitments.", icon: CalendarDays },
+    { href: "/customers", title: "Customers", description: "Permitted customer and lead context.", icon: ContactRound },
+    { href: "/vehicles", title: "Vehicles", description: "Permitted inventory and delivery context.", icon: CarFront }
+  ],
+  MARKETING: [
+    { href: "/my-tasks", title: "My Work", description: "Assigned marketing and advertising actions.", icon: UserRoundCheck },
+    { href: "/tasks?department=MARKETING", title: "Marketing", description: "Campaign, content, and audience work.", icon: Megaphone, activeQuery: { department: "MARKETING" } },
+    { href: "/tasks?department=ADVERTISING", title: "Advertising", description: "Vehicle listings and paid promotion.", icon: Megaphone, activeQuery: { department: "ADVERTISING" } },
+    { href: "/vehicles", title: "Vehicles", description: "Permitted merchandising and listing context.", icon: CarFront }
+  ],
+  OFFICE: [
+    { href: "/my-tasks", title: "My Work", description: "Assigned office and documentation actions.", icon: UserRoundCheck },
+    { href: "/appointments", title: "Appointments", description: "Permitted appointment support.", icon: CalendarDays },
+    { href: "/customers", title: "Customers", description: "Permitted customer and documentation context.", icon: ContactRound },
+    { href: "/tasks", title: "Team Tasks", description: "Authorized operational task search.", icon: SquareCheckBig }
+  ],
+  COLLECTIONS: [
+    { href: "/my-tasks?workspace=collections", title: "My Collections", description: "Assigned payment follow-up and account actions.", icon: UserRoundCheck },
+    { href: "/tasks?department=COLLECTIONS", title: "Collections Queue", description: "Authorized collections work.", icon: BadgeDollarSign },
+    { href: "/customers?view=collections", title: "Account Context", description: "Minimum permitted customer and account context.", icon: ContactRound }
+  ],
+  GENERAL_STAFF: [
+    { href: "/my-tasks", title: "My Work", description: "Assigned work and next actions.", icon: UserRoundCheck },
+    { href: "/tasks", title: "Tasks", description: "Authorized task search and organization.", icon: SquareCheckBig }
+  ]
+};
+
 export const navigationGroups: NavigationGroup[] = [
   {
     label: "Operations",
@@ -308,9 +381,24 @@ export function getNavigationGroups(user: AuthenticatedUser) {
     .filter((group) => group.items.length > 0);
 }
 
-export function getDispatchNavigationItems(user: AuthenticatedUser) {
-  if (isTechnicianOnlyUser(user)) return technicianNavigationItems;
+export function getDispatchNavigationItems(
+  user: AuthenticatedUser,
+  workspace: WorkspaceKey = getWorkspaceKey(user)
+) {
+  const roleItems = workspaceNavigationItems[workspace];
+  if (roleItems) return roleItems.filter((item) => (item.isVisible ? item.isVisible(user) : true));
   return dispatchNavigationItems.filter((item) => (item.isVisible ? item.isVisible(user) : true));
+}
+
+export function getNavigationItemsForPath(
+  user: AuthenticatedUser,
+  pathname: string,
+  preferredWorkspace?: WorkspaceKey | null
+) {
+  return getDispatchNavigationItems(
+    user,
+    resolveWorkspaceForPath(user, pathname, preferredWorkspace)
+  );
 }
 
 export function isDispatchConsolePath(pathname: string) {

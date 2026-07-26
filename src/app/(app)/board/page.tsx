@@ -1,7 +1,7 @@
 import { BoardScreen } from "@/features/board/board-screen";
 import { redirect } from "next/navigation";
 import { requireCurrentUser } from "@/server/auth/current-user";
-import { isTechnicianOnlyUser } from "@/server/auth/navigation";
+import { getDefaultLandingRoute, getWorkspaceKey } from "@/server/auth/navigation";
 import { isManager } from "@/server/policies/access";
 import { getGenerationSettings } from "@/server/services/app-settings-service";
 import { listActiveUserSummaries } from "@/server/services/user-summary";
@@ -45,7 +45,7 @@ export default async function BoardPage({ searchParams }: BoardPageProps) {
     getGenerationSettings()
   ]);
   const manager = isManager(user);
-  if (isTechnicianOnlyUser(user)) redirect("/my-tasks");
+  if (getWorkspaceKey(user) !== "MANAGEMENT") redirect(getDefaultLandingRoute(user));
   const requestedBoardDate = Array.isArray(resolvedSearchParams?.date)
     ? resolvedSearchParams?.date[0]
     : resolvedSearchParams?.date;

@@ -17403,6 +17403,114 @@ code {
   color: #a33131 !important;
 }
 
+.workspace-switcher {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.workspace-switcher-trigger {
+  min-height: 36px;
+  max-width: 210px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgb(139 163 203 / 38%);
+  border-radius: 9px;
+  color: #e8f1ff;
+  background: rgb(23 49 86 / 72%);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.workspace-switcher-trigger span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-switcher-menu {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 10px);
+  left: 0;
+  width: min(360px, calc(100vw - 32px));
+  padding: 9px;
+  display: grid;
+  gap: 5px;
+  border: 1px solid #ccd8e8;
+  border-radius: 14px;
+  color: #172a46;
+  background: #fff;
+  box-shadow: 0 22px 55px rgb(8 25 49 / 24%);
+}
+
+.workspace-switcher-menu header {
+  padding: 8px 9px 10px;
+  display: grid;
+  gap: 3px;
+  border-bottom: 1px solid #e1e7f0;
+}
+
+.workspace-switcher-menu header strong {
+  font-size: 0.92rem;
+}
+
+.workspace-switcher-menu header span {
+  color: #677890;
+  font-size: 0.75rem;
+}
+
+.workspace-switcher-menu > button {
+  width: 100%;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.workspace-switcher-menu > button:hover,
+.workspace-switcher-menu > button.active {
+  border-color: #cbd9ef;
+  background: #f2f6fd;
+}
+
+.workspace-switcher-menu > button > span {
+  flex: 1;
+  display: grid;
+  gap: 3px;
+}
+
+.workspace-switcher-menu > button strong {
+  font-size: 0.82rem;
+}
+
+.workspace-switcher-menu > button small {
+  color: #687992;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.workspace-switcher-menu > p {
+  margin: 4px 8px;
+  color: #a13434;
+  font-size: 0.75rem;
+}
+
+@media (max-width: 1100px) {
+  .workspace-switcher-trigger span {
+    display: none;
+  }
+}
+
 .technician-assignment-panel,
 .technician-available-work-page,
 .technician-repair-workbench {

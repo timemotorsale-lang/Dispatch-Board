@@ -5,6 +5,10 @@ import { loginWithPassword } from "@/server/auth/service";
 import { resolvePostLoginRoute } from "@/server/auth/navigation";
 import { buildSessionCookie } from "@/server/auth/session";
 import { createPrismaAuthStore } from "@/server/auth/store";
+import {
+  resolveWorkspacePreference,
+  WORKSPACE_COOKIE_NAME
+} from "@/server/auth/workspace-preference";
 import { prisma } from "@/server/db/client";
 
 const authStore = createPrismaAuthStore(prisma);
@@ -59,11 +63,15 @@ export async function POST(request: Request) {
 
   const sessionCookie = buildSessionCookie(result.sessionToken, result.expiresAt);
   const cookieStore = await cookies();
+  const preferredWorkspace = resolveWorkspacePreference(
+    result.user,
+    cookieStore.get(WORKSPACE_COOKIE_NAME)?.value
+  );
 
   cookieStore.set(sessionCookie.name, sessionCookie.value, sessionCookie.options);
 
   return NextResponse.json({
-    redirectTo: resolvePostLoginRoute(result.user, payload.returnTo),
+    redirectTo: resolvePostLoginRoute(result.user, payload.returnTo, preferredWorkspace),
     user: result.user
   });
 }
