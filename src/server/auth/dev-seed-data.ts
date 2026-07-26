@@ -390,6 +390,14 @@ export const developmentUserDefinitions = [
     directDutyNames: []
   },
   {
+    name: "Quincy QC",
+    email: "quincy.qc@local.test",
+    password: SHARED_DEVELOPMENT_PASSWORD,
+    isActive: true,
+    roleNames: ["Quality Control"],
+    directDutyNames: []
+  },
+  {
     name: "Baraka Sales",
     email: "jordan.sales@local.test",
     password: SHARED_DEVELOPMENT_PASSWORD,
