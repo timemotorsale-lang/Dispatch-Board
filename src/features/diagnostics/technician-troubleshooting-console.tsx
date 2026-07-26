@@ -15,6 +15,13 @@ type Model = ReturnType<typeof buildTechnicianTroubleshootingConsole> & {
 };
 
 const label = (value: string) => value.replaceAll("_", " ").toLocaleLowerCase().replace(/^./, (letter) => letter.toUpperCase());
+const clientDomainHints = [
+  { id: "TRANSMISSION_DRIVETRAIN", label: "Transmission & Drivetrain", terms: ["transmission", "trans", "shift", "slip", "gear", "drivetrain"] },
+  { id: "ENGINE_DRIVABILITY", label: "Engine & Drivability", terms: ["engine", "motor", "misfire", "rough", "stall", "check engine"] },
+  { id: "BRAKE_ABS_STABILITY", label: "Brakes, ABS & Stability", terms: ["brake", "abs", "grind", "rotor", "caliper", "pedal"] },
+  { id: "BODY_COLLISION", label: "Body, Door & Collision", terms: ["door", "body", "glass", "window", "paint", "bumper"] },
+  { id: "ADAS_CALIBRATION", label: "ADAS & Calibration", terms: ["adas", "camera", "radar", "calibration", "programming"] }
+];
 
 function SourceBadge({ state }: { state: string }) {
   const icon = state === "NOT_CONNECTED" ? <Lock /> : state === "REVIEW_REQUIRED" ? <AlertTriangle /> : <CheckCircle2 />;
@@ -27,6 +34,41 @@ export function TechnicianTroubleshootingConsole({ model }: { model: Model }) {
   const [notice, setNotice] = useState("");
   const context = model.caseContext;
   const latestSession = model.savedSessions?.[0] ?? null;
+  const [concernDraft, setConcernDraft] = useState(context.concern);
+  const [activeConcern, setActiveConcern] = useState(context.concern);
+  const [intakeAnswers, setIntakeAnswers] = useState<Record<string, string>>({});
+  const [acknowledged, setAcknowledged] = useState<string[]>([]);
+  const [selectedTestKey, setSelectedTestKey] = useState(model.nextTestPlan.recommendation?.key ?? "");
+  const [overrideReason, setOverrideReason] = useState("");
+  const [trialObservation, setTrialObservation] = useState(false);
+  const [trialMeasurement, setTrialMeasurement] = useState(false);
+
+  const activeConcernText = activeConcern.trim().toLocaleLowerCase();
+  const clientDomain = clientDomainHints.find((domain) => domain.terms.some((term) => activeConcernText.includes(term))) ?? null;
+  const selectedTest = [model.nextTestPlan.recommendation, ...model.nextTestPlan.alternatives].filter(Boolean).find((test) => test?.key === selectedTestKey) ?? model.nextTestPlan.recommendation;
+  const answeredCount = Object.keys(intakeAnswers).length;
+  const acknowledgementCount = acknowledged.length;
+  const trialEvidenceCount = Number(trialObservation) + Number(trialMeasurement);
+  const interactiveReadiness = Math.round(([
+    Boolean(activeConcern.trim()),
+    answeredCount >= model.intakeRefinement.questions.length,
+    acknowledgementCount >= Math.min(2, model.vehicleIntelligence.acknowledgements.length),
+    Boolean(selectedTestKey),
+    trialEvidenceCount > 0
+  ].filter(Boolean).length / 5) * 100);
+
+  function analyzeConcern() {
+    setActiveConcern(concernDraft);
+    setNotice("Pilot concern analysis refreshed on screen. No real case record was changed.");
+  }
+
+  function chooseAnswer(questionId: string, option: string) {
+    setIntakeAnswers((current) => ({ ...current, [questionId]: option }));
+  }
+
+  function toggleAcknowledgement(id: string) {
+    setAcknowledged((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  }
 
   async function saveSession() {
     if (!model.permissions?.canSaveSession || busy) return;
@@ -87,6 +129,22 @@ export function TechnicianTroubleshootingConsole({ model }: { model: Model }) {
       <button disabled={busy || !model.permissions?.canSaveSession} onClick={() => void saveSession()} type="button">{busy ? "Saving..." : "Save session snapshot"}</button>
     </section>
 
+    <section className={styles.ttcPilotControls} aria-label="Interactive troubleshooting pilot controls">
+      <header>
+        <div><span className={styles.eyebrow}>Slices 24-28 Â· Interactive pilot</span><h2>Try the troubleshooting flow</h2><p>Edit the concern, answer intake prompts, acknowledge source checks, choose a test, and watch the pilot snapshot change.</p></div>
+        <strong>{interactiveReadiness}% ready</strong>
+      </header>
+      <div>
+        <label><span>Concern to analyze</span><textarea onChange={(event) => setConcernDraft(event.target.value)} value={concernDraft} /></label>
+        <button onClick={analyzeConcern} type="button"><Brain />Analyze concern</button>
+      </div>
+      <article>
+        <strong>Live pilot result</strong>
+        <p>{clientDomain ? `${clientDomain.label} detected from edited concern language.` : "No strong pilot domain detected yet. Add a system word like engine, brake, transmission, door, or calibration."}</p>
+        <small>Active concern: {activeConcern || "No concern entered"}</small>
+      </article>
+    </section>
+
     <div className={styles.ttcGrid}>
       <main className={styles.ttcMain}>
         <section className={styles.ttcPanel}>
@@ -106,9 +164,9 @@ export function TechnicianTroubleshootingConsole({ model }: { model: Model }) {
             {model.intakeRefinement.questions.map((question) => <article key={question.id}>
               <span>{question.label}</span>
               <p>{question.prompt}</p>
-              <div>{question.options.map((option) => <button disabled key={option} type="button">{option}</button>)}</div>
+              <div>{question.options.map((option) => <button aria-pressed={intakeAnswers[question.id] === option} key={option} onClick={() => chooseAnswer(question.id, option)} type="button">{option}</button>)}</div>
             </article>)}
-            <small>{model.intakeRefinement.persistence}</small>
+            <small>{answeredCount} of {model.intakeRefinement.questions.length} intake prompts answered in this pilot session. {model.intakeRefinement.persistence}</small>
           </div>
         </section>
 
@@ -126,7 +184,10 @@ export function TechnicianTroubleshootingConsole({ model }: { model: Model }) {
           </div>
           <div className={styles.ttcAcknowledgements}>
             <h3>Vehicle intelligence acknowledgement checklist</h3>
-            {model.vehicleIntelligence.acknowledgements.map((item) => <article key={item.id}><div><strong>{item.label}</strong><p>{item.action}</p></div><span>{label(item.state)}</span><Link href={item.href}>Review</Link></article>)}
+            {model.vehicleIntelligence.acknowledgements.map((item) => {
+              const checked = acknowledged.includes(item.id);
+              return <article key={item.id}><div><strong>{item.label}</strong><p>{item.action}</p></div><span>{checked ? "Acknowledged" : label(item.state)}</span><button aria-pressed={checked} onClick={() => toggleAcknowledgement(item.id)} type="button">{checked ? "Undo" : "Acknowledge"}</button><Link href={item.href}>Review</Link></article>;
+            })}
           </div>
           <div className={styles.ttcConnectorReadiness}>
             <h3><Lock /> Licensed connector readiness</h3>
@@ -168,6 +229,11 @@ export function TechnicianTroubleshootingConsole({ model }: { model: Model }) {
               <section><h3><Ruler /> Measurements to capture</h3>{model.evidenceCapturePlan.measurementsToCapture.length ? model.evidenceCapturePlan.measurementsToCapture.map((item) => <p key={item}>{item}</p>) : <p>Measurement needs will appear after the next test path is selected.</p>}</section>
               <section><h3><Link2 /> Attachments</h3>{model.evidenceCapturePlan.attachmentPrompts.map((item) => <p key={item}>{item}</p>)}</section>
             </div>
+            <footer className={styles.ttcEvidenceToggles}>
+              <button aria-pressed={trialObservation} onClick={() => setTrialObservation((current) => !current)} type="button">Mark sample observation captured</button>
+              <button aria-pressed={trialMeasurement} onClick={() => setTrialMeasurement((current) => !current)} type="button">Mark sample measurement captured</button>
+              <small>{trialEvidenceCount} sample evidence item(s) marked in this browser only.</small>
+            </footer>
           </div>
         </section>
 
@@ -246,7 +312,32 @@ export function TechnicianTroubleshootingConsole({ model }: { model: Model }) {
             {model.testOverride.options.map((option) => <span key={option}>{option}</span>)}
             <small>{model.testOverride.policy}</small>
           </div>
+          <div className={styles.ttcTestSelector}>
+            <h3><Wrench /> Select pilot test path</h3>
+            {[model.nextTestPlan.recommendation, ...model.nextTestPlan.alternatives].filter(Boolean).map((test) => <button aria-pressed={selectedTestKey === test?.key} key={test?.key} onClick={() => setSelectedTestKey(test?.key ?? "")} type="button">{test?.title}</button>)}
+          </div>
+          <div className={styles.ttcTestSelector}>
+            <h3>Selected override reason</h3>
+            {model.testOverride.options.map((option) => <button aria-pressed={overrideReason === option} key={option} onClick={() => setOverrideReason((current) => current === option ? "" : option)} type="button">{option}</button>)}
+          </div>
           <p>{model.nextTestPlan.selectionPolicy}</p>
+        </section>
+
+        <section>
+          <h2><ClipboardCheck /> Pilot working snapshot</h2>
+          <strong>{interactiveReadiness}% workflow readiness</strong>
+          <p>This is the technician’s temporary working state. It helps evaluate the console flow before we connect every action to real case commands.</p>
+          <dl>
+            <div><dt>Intake answers</dt><dd>{answeredCount}</dd></div>
+            <div><dt>Source checks</dt><dd>{acknowledgementCount}</dd></div>
+            <div><dt>Sample evidence</dt><dd>{trialEvidenceCount}</dd></div>
+          </dl>
+          <article className={styles.ttcAdvisorDraft}>
+            <strong>{selectedTest?.title ?? "No selected test"}</strong>
+            <span>{overrideReason ? `Override: ${overrideReason}` : "Recommended path"}</span>
+            <small>{clientDomain?.label ?? model.intake.detectedDomains[0]?.label ?? "Domain still needs refinement"}</small>
+            <b>{interactiveReadiness >= 80 ? "Pilot workflow is ready for manager review." : "Continue intake, source review, test selection, and evidence capture before handoff."}</b>
+          </article>
         </section>
 
         <section>

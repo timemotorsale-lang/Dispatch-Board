@@ -43,6 +43,8 @@ describe("diagnostics case console", () => {
     expect(html).toContain("New Diagnostic Case");
     expect(html).toContain('href="/diagnostics/intake"');
     expect(html).toContain("Troubleshooting Review");
+    expect(html).toContain("Trial Console");
+    expect(html).toContain('href="/diagnostics/troubleshooting-console"');
     expect(html).toContain("Scan VIN");
     expect(html).toContain("Priority Case Queue");
     expect(html).toContain("Operational Readiness");
@@ -103,6 +105,11 @@ describe("diagnostics case console", () => {
     expect(html).toContain("AI-ready context packet");
     expect(html).toContain("Pilot telemetry");
     expect(html).toContain("Feature gates");
+    expect(html).toContain("Try the troubleshooting flow");
+    expect(html).toContain("Analyze concern");
+    expect(html).toContain("Select pilot test path");
+    expect(html).toContain("Pilot working snapshot");
+    expect(html).toContain("Mark sample observation captured");
   });
 
   it("renders the manager troubleshooting review shell", () => {
