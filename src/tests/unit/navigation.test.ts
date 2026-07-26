@@ -238,8 +238,9 @@ describe("enterprise shell navigation", () => {
       "Reviews"
     ]);
     expect(getConsoleNavigation("/appointments", user({ roles: ["Service Advisor"] }))?.items.map((item) => item.title)).toEqual([
-      "Appointments",
+      "Advisor Home",
       "Check In Vehicle",
+      "Appointment Board",
       "Customers",
       "Repair Orders",
       "Diagnostic Review",

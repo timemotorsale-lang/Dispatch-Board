@@ -98,6 +98,21 @@ export const dayOneDutyDefinitions = [
     description: "Submit the combined end-of-day inventory and service production update."
   },
   {
+    name: "Coordinate service advisor arrivals",
+    workflowArea: "Service",
+    description: "Coordinate appointment arrivals, walk-ins, customer check-in, and repair-order intake handoffs."
+  },
+  {
+    name: "Document customer concern and authorization",
+    workflowArea: "Service",
+    description: "Record the customer's concern in their own words and preserve consent, custody, and promise context."
+  },
+  {
+    name: "Manage customer repair-order updates",
+    workflowArea: "Service",
+    description: "Keep customers updated on repair-order status, approval needs, promise changes, and handoff readiness."
+  },
+  {
     name: "Coordinate vehicle operations lead priorities",
     workflowArea: "Inventory",
     description: "Coordinate the vehicle operations priorities across inventory, shop, parts, and lot support."
@@ -262,6 +277,16 @@ export const dayOneRoleDefinitions = [
     ]
   },
   {
+    name: "Service Advisor",
+    description: "Owns customer arrivals, check-in, concern capture, repair-order intake, approvals, and customer handoffs.",
+    defaultDutyNames: [
+      "Coordinate service advisor arrivals",
+      "Confirm appointments",
+      "Document customer concern and authorization",
+      "Manage customer repair-order updates"
+    ]
+  },
+  {
     name: "Mechanic",
     description: "Handles repair, diagnosis, and shop workflow updates.",
     defaultDutyNames: [
@@ -325,6 +350,14 @@ export const developmentUserDefinitions = [
     password: SHARED_DEVELOPMENT_PASSWORD,
     isActive: true,
     roleNames: ["Vehicle Operations Lead", "Inventory Manager", "Service Department Manager"],
+    directDutyNames: []
+  },
+  {
+    name: "Alex Carter",
+    email: "alex.advisor@local.test",
+    password: SHARED_DEVELOPMENT_PASSWORD,
+    isActive: true,
+    roleNames: ["Service Advisor"],
     directDutyNames: []
   },
   {
