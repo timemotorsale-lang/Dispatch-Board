@@ -35,6 +35,7 @@ describe("role landing and record routing", () => {
     expect(getDefaultLandingRoute(user(["Quality Control"]))).toBe("/vehicles/quality-control");
     expect(getDefaultLandingRoute(user(["Salesperson"]))).toBe("/tasks?department=SALES");
     expect(getDefaultLandingRoute(user(["Marketing/Advertisement Manager"]))).toBe("/tasks?department=MARKETING");
+    expect(getDefaultLandingRoute(user(["Operations Coordinator"]))).toBe("/operations-coordinator");
     expect(getDefaultLandingRoute(user(["Office Manager"]))).toBe("/my-tasks");
     expect(getDefaultLandingRoute(user(["Collections"]))).toBe("/my-tasks?workspace=collections");
     expect(getDefaultLandingRoute(user(["Unknown Staff"]))).toBe("/my-tasks");
@@ -91,6 +92,11 @@ describe("role landing and record routing", () => {
     const parts = user(["Parts"]);
     expect(isRoutePermittedForUser(parts, "/vehicles/parts-counter")).toBe(true);
     expect(isRoutePermittedForUser(parts, "/customers")).toBe(false);
+
+    const coordinator = user(["Operations Coordinator"]);
+    expect(isRoutePermittedForUser(coordinator, "/operations-coordinator")).toBe(true);
+    expect(isRoutePermittedForUser(coordinator, "/customers")).toBe(true);
+    expect(isRoutePermittedForUser(coordinator, "/administration")).toBe(false);
 
     const inventoryOnly = user(["Inventory Manager"]);
     expect(isRoutePermittedForUser(inventoryOnly, "/vehicles/shop-recon")).toBe(true);

@@ -258,6 +258,15 @@ describe("enterprise shell navigation", () => {
       "My Work",
       "Repair Orders"
     ]);
+    expect(getConsoleNavigation("/operations-coordinator", user({ roles: ["Operations Coordinator"] }))?.items.map((item) => item.title)).toEqual([
+      "Coordinator Home",
+      "Appointments",
+      "Check In Vehicle",
+      "Receive Parts",
+      "Customers",
+      "Sales Paperwork",
+      "My Work"
+    ]);
     expect(getConsoleNavigation("/tasks", user({ roles: ["Salesperson"] }))?.items.map((item) => item.title)).toEqual([
       "My Work",
       "Sales Tasks",

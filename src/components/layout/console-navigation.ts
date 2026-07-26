@@ -108,6 +108,7 @@ export function getConsoleNavigation(
   const workspacePath =
     isInventoryConsolePath(pathname) ||
     isDispatchConsolePath(pathname) ||
+    pathname.startsWith("/operations-coordinator") ||
     pathname.startsWith("/diagnostics") ||
     pathname.startsWith("/customers") ||
     pathname.startsWith("/appointments");
