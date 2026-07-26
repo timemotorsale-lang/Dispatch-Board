@@ -23,6 +23,7 @@ export type PartsControlSnapshot = {
     openPurchaseOrders: number;
     recoveryRiskCents: number;
     unreservedDemand: number;
+    unverifiedPartReview: number;
     unknownLocation: number;
   };
   leakageQueues: {
@@ -30,6 +31,7 @@ export type PartsControlSnapshot = {
     lateOrderRisk: PartsControlQueueItem[];
     receivingExceptions: PartsControlQueueItem[];
     recoveryRisk: PartsControlQueueItem[];
+    unverifiedPartReview: PartsControlQueueItem[];
     unknownLocation: PartsControlQueueItem[];
   };
 };
@@ -94,6 +96,28 @@ function vendorName(value: unknown) {
   return value && typeof value === "object" && "vendor" in value && value.vendor && typeof value.vendor === "object" && "name" in value.vendor && typeof value.vendor.name === "string"
     ? value.vendor.name
     : "Vendor";
+}
+
+function nestedRecord(value: unknown, key: string) {
+  return value && typeof value === "object" && key in value && value[key as keyof typeof value] && typeof value[key as keyof typeof value] === "object"
+    ? value[key as keyof typeof value] as Record<string, unknown>
+    : {};
+}
+
+function receiptRepairOrderNumber(receipt: Model["service"]["receipts"][number]) {
+  return objectId(nestedRecord(nestedRecord(nestedRecord(receipt.purchaseOrder, "requisition"), "demand"), "repairOrder"), "repairOrderNumber") ?? "RO pending";
+}
+
+function receiptStockLocationLabel(receipt: Model["service"]["receipts"][number]) {
+  const location = nestedRecord(receipt, "stockLocation");
+  const code = objectId(location, "code");
+  const name = objectId(location, "name");
+  return [code, name].filter(Boolean).join(" - ") || "Exact bin not recorded";
+}
+
+function receiptPlacementLabel(receipt: Model["service"]["receipts"][number]) {
+  const repairOrderNumber = receiptRepairOrderNumber(receipt);
+  return repairOrderNumber === "RO pending" ? receiptStockLocationLabel(receipt) : `${repairOrderNumber} bin / ${receiptStockLocationLabel(receipt)}`;
 }
 
 function isPast(value: string | Date, now: Date) {
@@ -250,7 +274,7 @@ export function buildPartsControlSnapshot(model: Model, now = new Date()): Parts
       .map((event) => `${event.sourceType}:${event.sourceId}`),
   );
 
-  const unknownLocation = model.service.receipts
+  const unverifiedPartReview = model.service.receipts
     .flatMap((receipt) => {
       const lines = Array.isArray(receipt.lines) ? receipt.lines : [];
       return lines.flatMap((line, index) => {
@@ -258,17 +282,18 @@ export function buildPartsControlSnapshot(model: Model, now = new Date()): Parts
         const sourceId = `${receipt.id}:${index}`;
         const issuedOrInstalled = issuedOrInstalledReceiptLines.has(`PART_RECEIPT_LINE:${sourceId}`);
         return issuedOrInstalled ? [] : [{
-          action: "Verify bin or issue location",
+          action: "Review unverified received part",
           detail: `${receipt.purchaseOrder.purchaseOrderNumber} receipt line ${index + 1}`,
           href: partsOperationsHref("receiving"),
-          id: `unknown-location-${sourceId}`,
-          label: "Received but not issued",
-          meta: `Received ${dateLabel(receipt.receivedAt)} - location/custody follow-up required`,
+          id: `unverified-part-${sourceId}`,
+          label: receiptRepairOrderNumber(receipt),
+          meta: `Label: ${receiptPlacementLabel(receipt)} - received ${dateLabel(receipt.receivedAt)}`,
           severity: "warning" as const,
         }];
       });
     })
     .slice(0, 6);
+  const unknownLocation = unverifiedPartReview;
 
   const receivingExceptions = openDiscrepancies.map((item) => ({
     action: "Resolve receiving exception",
@@ -316,6 +341,7 @@ export function buildPartsControlSnapshot(model: Model, now = new Date()): Parts
       openPurchaseOrders: openPurchaseOrders.length,
       recoveryRiskCents: openRecoveries.reduce((sum, item) => sum + Math.max(0, item.expectedCreditCents - (item.actualCreditCents ?? 0)), 0),
       unreservedDemand: unreservedDemands.length,
+      unverifiedPartReview: unverifiedPartReview.length,
       unknownLocation: unknownLocation.length,
     },
     leakageQueues: {
@@ -323,6 +349,7 @@ export function buildPartsControlSnapshot(model: Model, now = new Date()): Parts
       lateOrderRisk,
       receivingExceptions,
       recoveryRisk,
+      unverifiedPartReview,
       unknownLocation,
     },
   };

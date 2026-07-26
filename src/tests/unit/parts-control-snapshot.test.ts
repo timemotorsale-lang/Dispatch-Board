@@ -69,7 +69,8 @@ function model(): Model {
         {
           id: "receipt_1",
           lines: [{ partId: "part_pad", quantity: 1, unitCostCents: 5000 }],
-          purchaseOrder: { purchaseOrderNumber: "PO-1001" },
+          purchaseOrder: { purchaseOrderNumber: "PO-1001", requisition: { demand: { repairOrder: { repairOrderNumber: "RO-1001" } } } },
+          stockLocation: { code: "RO-BIN", name: "RO Bin Shelf", type: "BIN" },
           receivedAt: "2026-07-20T13:00:00.000Z"
         }
       ],
@@ -137,7 +138,8 @@ describe("buildPartsControlSnapshot", () => {
     expect(snapshot.counts.recoveryRiskCents).toBe(5000);
     expect(snapshot.leakageQueues.receivingExceptions[0]?.action).toBe("Resolve receiving exception");
     expect(snapshot.actionQueue.map((item) => item.action)).toContain("Review possible duplicate demand");
-    expect(snapshot.actionQueue.map((item) => item.action)).toContain("Verify bin or issue location");
+    expect(snapshot.actionQueue.map((item) => item.action)).toContain("Review unverified received part");
+    expect(snapshot.leakageQueues.unverifiedPartReview[0]?.meta).toContain("RO-1001 bin");
     expect(snapshot.actionQueue.map((item) => item.action)).toContain("Escalate overdue credit");
   });
 

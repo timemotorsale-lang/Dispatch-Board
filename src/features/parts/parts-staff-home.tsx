@@ -36,7 +36,7 @@ export function PartsStaffHome({ model }: { model: Model }) {
     { icon: AlertTriangle, label: "Duplicate Risk", value: control.counts.duplicateRisk, detail: "Review before buying" },
     { icon: PackageCheck, label: "Readiness", value: `${readiness}%`, detail: "Repair orders ready" },
     { icon: ShoppingCart, label: "Late Risk", value: control.counts.lateOrderRisk, detail: "Vendor cutoff risk" },
-    { icon: Truck, label: "Unknown Location", value: control.counts.unknownLocation, detail: "Received follow-up" },
+    { icon: Truck, label: "Unverified Parts", value: control.counts.unverifiedPartReview, detail: "Bin/issue review" },
     { icon: RotateCcw, label: "Recovery Risk", value: money(control.counts.recoveryRiskCents), detail: "Expected credit" }
   ];
 
@@ -44,7 +44,7 @@ export function PartsStaffHome({ model }: { model: Model }) {
     { href: partsOperationsHref("demand"), label: "Duplicate risk", value: control.counts.duplicateRisk, detail: "Possible repeated demand/order before purchase" },
     { href: partsOperationsHref("demand"), label: "Late-order risk", value: control.counts.lateOrderRisk, detail: "Vendor ETA, cutoff, or target risk" },
     { href: "/vehicles/parts-receiving", label: "Receiving exceptions", value: control.leakageQueues.receivingExceptions.length, detail: "Wrong, damaged, short, over, or cost variance" },
-    { href: "/vehicles/parts-receiving", label: "Unknown location", value: control.counts.unknownLocation, detail: "Received parts needing bin/issue verification" },
+    { href: "/vehicles/parts-receiving", label: "Unverified parts", value: control.counts.unverifiedPartReview, detail: "Received parts needing bin/issue verification" },
     { href: partsOperationsHref("returns-recovery"), label: "Returns & credits", value: control.leakageQueues.recoveryRisk.length, detail: "Open recovery cases until credit/disposition" }
   ];
 
@@ -112,6 +112,26 @@ export function PartsStaffHome({ model }: { model: Model }) {
         </section>
 
         <aside className="parts-staff-panel parts-staff-rules">
+          <header>
+            <div>
+              <strong>Returns & credits recovery</strong>
+              <span>Recover money before deadlines are missed.</span>
+            </div>
+            <Link href={partsOperationsHref("returns-recovery")}>Open</Link>
+          </header>
+          {control.leakageQueues.recoveryRisk.length ? control.leakageQueues.recoveryRisk.slice(0, 3).map((item) => (
+            <p key={item.id}><strong>{item.action}</strong><span>{item.detail} · {item.meta}</span></p>
+          )) : <p><strong>No open recovery risk</strong><span>Core, warranty, and unused-part credit cases are currently clear.</span></p>}
+          <header>
+            <div>
+              <strong>Unverified part review</strong>
+              <span>Received parts must have a bin, issue, return, or quarantine outcome.</span>
+            </div>
+            <Link href="/vehicles/parts-receiving">Review</Link>
+          </header>
+          {control.leakageQueues.unverifiedPartReview.length ? control.leakageQueues.unverifiedPartReview.slice(0, 3).map((item) => (
+            <p key={item.id}><strong>{item.label}</strong><span>{item.meta}</span></p>
+          )) : <p><strong>No unverified received parts</strong><span>Everything received has a clean location/custody trail.</span></p>}
           <header>
             <div>
               <strong>Parts rules</strong>

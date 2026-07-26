@@ -54,7 +54,9 @@ describe("PartsReceivingWorkspace", () => {
     expect(html).toContain("Find the delivery");
     expect(html).toContain("purchase order number from the packing slip");
     expect(html).toContain("Confirm what arrived");
-    expect(html).toContain("Where did you put it?");
+    expect(html).toContain("Print or apply the RO bin/location label");
+    expect(html).toContain("Label preview");
+    expect(html).toContain("Location label");
     expect(html).toContain("Complete Receiving");
     expect(html).toContain("PO-1001");
     expect(html).toContain("Back to My Workspace");

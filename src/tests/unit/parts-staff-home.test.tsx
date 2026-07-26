@@ -62,7 +62,9 @@ describe("PartsStaffHome", () => {
     expect(html).toContain("Stop parts leakage before it delays work.");
     expect(html).toContain("Duplicate risk");
     expect(html).toContain("Late-order risk");
-    expect(html).toContain("Unknown location");
+    expect(html).toContain("Unverified Parts");
+    expect(html).toContain("Unverified part review");
+    expect(html).toContain("Returns &amp; credits recovery");
     expect(html).toContain("Parts action queue");
     expect(html).toContain("Source / reserve part");
     expect(html).toContain("PAD-100");

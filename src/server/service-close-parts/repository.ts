@@ -74,7 +74,28 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
           },
         }),
         database.partPurchaseOrder.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" }, take: 200, include: { vendor: { select: { name: true } }, location: { select: { name: true } } } }),
-        database.partReceipt.findMany({ where: { organizationId }, orderBy: { receivedAt: "desc" }, take: 200, include: { purchaseOrder: { select: { purchaseOrderNumber: true } } } }),
+        database.partReceipt.findMany({
+          where: { organizationId },
+          orderBy: { receivedAt: "desc" },
+          take: 200,
+          include: {
+            purchaseOrder: {
+              select: {
+                purchaseOrderNumber: true,
+                requisition: {
+                  select: {
+                    demand: {
+                      select: {
+                        repairOrder: { select: { repairOrderNumber: true } },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            stockLocation: { select: { code: true, name: true, type: true } },
+          },
+        }),
         database.partReceivingDiscrepancy.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" }, take: 200, include: { receipt: { select: { purchaseOrder: { select: { locationId: true } } } } } }),
         database.partCustodyEvent.findMany({ where: { organizationId }, orderBy: { occurredAt: "desc" }, take: 250, include: { part: { select: { partNumber: true } }, repairJob: { select: { jobNumber: true } } } }),
         database.partTransfer.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" }, take: 200 }),

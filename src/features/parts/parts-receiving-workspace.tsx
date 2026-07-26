@@ -91,6 +91,7 @@ export function PartsReceivingWorkspace({ initial }: { initial: Model }) {
   const selectedStockLocation = model.waveOne.stockLocations.find((item) => item.id === stockLocationId);
   const discrepancyCount = lines.filter((line) => line.condition !== "GOOD" || Number(line.damagedQuantity) > 0).length;
   const receivedCount = lines.reduce((sum, line) => sum + Math.max(0, Number(line.quantity) || 0), 0);
+  const placementLabel = `${placement.replaceAll("_", " ")} / ${selectedStockLocation ? `${selectedStockLocation.code} - ${selectedStockLocation.name}` : "Choose exact bin"}`;
 
   async function refresh() {
     setModel(await request("/api/parts-operations"));
@@ -203,7 +204,7 @@ export function PartsReceivingWorkspace({ initial }: { initial: Model }) {
           </article>
 
           <article className="parts-receiving-step">
-            <header><b>3</b><div><strong>Where did you put it?</strong><span>This is the control that prevents parts from disappearing after delivery.</span></div></header>
+            <header><b>3</b><div><strong>Print or apply the RO bin/location label</strong><span>This is the control that prevents parts from disappearing after delivery.</span></div></header>
             <div className="parts-receiving-placement">
               {[
                 ["RO_BIN", "RO bin"],
@@ -216,6 +217,7 @@ export function PartsReceivingWorkspace({ initial }: { initial: Model }) {
               ))}
             </div>
             <label className="parts-receiving-field"><span>Exact stock location / RO bin</span><select value={stockLocationId} onChange={(event) => setStockLocationId(event.target.value)}>{model.waveOne.stockLocations.map((item) => <option key={item.id} value={item.id}>{item.code} - {item.name}</option>)}</select></label>
+            <p className="parts-receiving-help">Label preview: {placementLabel}</p>
           </article>
 
           <article className="parts-receiving-step">
@@ -236,6 +238,7 @@ export function PartsReceivingWorkspace({ initial }: { initial: Model }) {
             <div><dt>Order number</dt><dd>{selectedOrder?.purchaseOrderNumber ?? "Select order"}</dd></div>
             <div><dt>Vendor</dt><dd>{selectedOrder?.vendor.name ?? "-"}</dd></div>
             <div><dt>Placed at</dt><dd>{selectedStockLocation ? `${selectedStockLocation.code} - ${selectedStockLocation.name}` : "Required"}</dd></div>
+            <div><dt>Location label</dt><dd>{placementLabel}</dd></div>
             <div><dt>Received count</dt><dd>{receivedCount}</dd></div>
             <div><dt>Issue count</dt><dd>{discrepancyCount}</dd></div>
           </dl>
