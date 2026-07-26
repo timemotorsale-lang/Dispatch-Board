@@ -32,6 +32,7 @@ const model = {
       qualityInspections: [],
       dispatches: [{ technicianUser: { name: "Walter Mechanic" } }],
       laborClocks: [],
+      comebackCases: [{ id: "cb_1", status: "OPEN", reasonCategory: "WORKMANSHIP_REVIEW", reportedConcern: "Brake noise returned after delivery." }],
       partDemands: [{
         id: "demand_1",
         quantityRequired: 2,
@@ -58,9 +59,18 @@ describe("QualityControlWorkspace", () => {
     expect(html).toContain("Brake road test and wheel torque verified");
     expect(html).toContain("Unused parts/core returns accounted for");
     expect(html).toContain("Advisor-safe status");
+    expect(html).toContain("Safety escalation applies");
     expect(html).toContain("Parts Blocks");
     expect(html).toContain("Record QC decision");
     expect(html).toContain("Failed-QC route");
+    expect(html).toContain("Customer-ready completion summary");
+    expect(html).toContain("QC photo / evidence staging");
+    expect(html).toContain("Comeback feedback loop");
+    expect(html).toContain("Brake noise returned after delivery.");
+    expect(html).toContain("QC operating scorecard");
+    expect(html).toContain("Pattern visibility for coaching and process improvement");
+    expect(html).toContain("PASS");
+    expect(html).toContain("NOT_APPLICABLE");
     expect(html).toContain("Final release authorization");
     expect(html).toContain("/vehicles/repair-workbench?repairOrderId=ro_1");
     expect(html).toContain("/vehicles/repair-jobs/job_1/workbench");

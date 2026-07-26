@@ -9,6 +9,7 @@ import {
   ClipboardCheck,
   FileText,
   Gauge,
+  ImagePlus,
   PackageCheck,
   RotateCcw,
   ShieldCheck,
@@ -47,6 +48,7 @@ type Job = {
   qualityInspections: Inspection[];
   dispatches: Array<{ technicianUser: { name: string } }>;
   laborClocks: Array<{ state: string; accumulatedMinutes: number }>;
+  comebackCases?: Array<{ id: string; status: string; reasonCategory?: string | null; reportedConcern?: string | null }>;
   partDemands?: Array<{
     id: string;
     quantityRequired: number;
@@ -84,6 +86,7 @@ const hasPartsBlock = (job: Job) => (job.partDemands ?? []).some((demand) => dem
 const hasPartsActivity = (job: Job) => Boolean(job.partDemands?.length);
 const needsRoadTest = (job: Job, order: Order) => /brake|noise|steer|suspension|drive|vibration|alignment|engine|transmission/i.test(`${job.description} ${job.plannedCorrection} ${order.serviceVisit.concernSummary}`);
 const needsPeer = (job: Job) => job.lane === "DIAGNOSTIC_HEAVY" || /airbag|brake|steer|safety|engine|transmission|electrical/i.test(`${job.description} ${job.plannedCorrection}`);
+const isSafetyCritical = (job: Job, order: Order) => /airbag|srs|brake|steer|suspension|wheel|tire|seatbelt|safety|engine|transmission|abs/i.test(`${job.description} ${job.plannedCorrection} ${order.serviceVisit.concernSummary}`);
 
 function generatedChecklist(order: Order, job: Job) {
   const text = `${job.description} ${job.plannedCorrection} ${order.serviceVisit.concernSummary}`;
@@ -134,6 +137,27 @@ function advisorSafeStatus(order: Order, job: Job) {
   return "The repair is not yet ready for final quality verification.";
 }
 
+function customerReadySummary(order: Order, job: Job) {
+  if (order.releaseAuthorization) return `Final quality control passed for ${vehicleName(order)}. The repair order has been authorized for handoff.`;
+  if (job.status === "QC_PASSED") return `${job.description} passed final quality inspection. The vehicle is waiting for remaining repair-order release checks.`;
+  if (isFailed(job)) return `QC found an item needing correction on ${job.description}. We are routing it back for rework before delivery.`;
+  if (job.status === "READY_FOR_QC") return `${job.description} is complete and waiting for final quality verification.`;
+  return `${job.description} is still in repair workflow and is not ready for final QC yet.`;
+}
+
+function scorecardRows(jobs: Array<{ order: Order; job: Job }>) {
+  const byTech = new Map<string, { failed: number; passed: number; total: number }>();
+  for (const { job } of jobs) {
+    const tech = job.dispatches[0]?.technicianUser.name ?? "Unassigned";
+    const row = byTech.get(tech) ?? { failed: 0, passed: 0, total: 0 };
+    row.total += 1;
+    if (job.status === "QC_PASSED") row.passed += 1;
+    if (isFailed(job)) row.failed += 1;
+    byTech.set(tech, row);
+  }
+  return [...byTech.entries()].map(([name, row]) => ({ name, ...row }));
+}
+
 export function QualityControlWorkspace({ initial, initialRepairOrderId }: { initial: Model; initialRepairOrderId?: string }) {
   const initialOrder = initial.repairOrders.find((order) => order.id === initialRepairOrderId) ?? initial.repairOrders[0];
   const [model, setModel] = useState(initial);
@@ -156,6 +180,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId }: { ini
     reworkInstructions: ""
   });
   const [release, setRelease] = useState({ keysVerified: false, releaseEvidence: "", openExceptions: "" });
+  const [checkResults, setCheckResults] = useState<Record<string, "PASS" | "FAIL" | "NOT_APPLICABLE">>({});
 
   const jobs = useMemo(() => model.repairOrders.flatMap((order) => order.repairJobs.map((job) => ({ order, job }))), [model]);
   const readyJobs = jobs.filter(({ job }) => job.status === "READY_FOR_QC");
@@ -173,6 +198,9 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId }: { ini
   const checklist = order && job ? generatedChecklist(order, job) : [];
   const gates = order && job ? gateRows(order, job) : [];
   const locks = order ? releaseLocks(order) : [];
+  const technicianScorecard = scorecardRows(jobs);
+  const safetyEscalation = Boolean(order && job && isSafetyCritical(job, order));
+  const comebackCount = job?.comebackCases?.filter((item) => item.status !== "CLOSED").length ?? 0;
 
   async function request(url: string, init?: RequestInit) {
     const response = await fetch(url, init);
@@ -209,6 +237,10 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId }: { ini
   function chooseJob(nextOrder: Order, nextJob: Job) {
     setOrderId(nextOrder.id);
     setJobId(nextJob.id);
+  }
+
+  function resultFor(label: string) {
+    return checkResults[label] ?? "PASS";
   }
 
   return (
@@ -268,7 +300,12 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId }: { ini
                 </button>
               );
             }) : (
-              <p className="qc-empty"><CheckCircle2 /> No repair work is waiting for QC right now.</p>
+              <div className="qc-empty-state">
+                <CheckCircle2 />
+                <strong>No vehicles ready for QC right now.</strong>
+                <span>{evidenceBlocked.length} evidence-blocked · {partsBlocked.length} parts-blocked · {failedJobs.length} recheck item(s)</span>
+                <Link href="/vehicles/shop-recon">Review shop flow</Link>
+              </div>
             )}
           </div>
         </section>
@@ -288,6 +325,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId }: { ini
               <p><Wrench /><span><strong>{job.description}</strong><small>{job.plannedCorrection || "No planned correction"}</small></span></p>
               <p><ShieldCheck /><span><strong>{latestInspection?.disposition ?? "No QC result yet"}</strong><small>Promise: {dateTime(order.serviceVisit.promisedAt ?? order.targetAt)}</small></span></p>
               <p><BadgeCheck /><span><strong>Advisor-safe status</strong><small>{advisorSafeStatus(order, job)}</small></span></p>
+              <p><AlertTriangle /><span><strong>{safetyEscalation ? "Safety escalation applies" : "Standard QC"}</strong><small>{safetyEscalation ? "Peer/road-test attention is expected before release." : "No automatic safety escalation detected."}</small></span></p>
             </div>
           ) : (
             <p className="qc-empty"><ShieldCheck /> Select a repair job to inspect.</p>
@@ -354,9 +392,34 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId }: { ini
                 <p key={`${item.label}-${index}`}>
                   <CheckCircle2 />
                   <span><strong>{item.label}</strong><small>{item.detail}</small></span>
+                  <select aria-label={`${item.label} result`} value={resultFor(item.label)} onChange={(event) => setCheckResults((value) => ({ ...value, [item.label]: event.target.value as "PASS" | "FAIL" | "NOT_APPLICABLE" }))}>
+                    <option>PASS</option>
+                    <option>FAIL</option>
+                    <option>NOT_APPLICABLE</option>
+                  </select>
                 </p>
               ))}
             </div>
+          </section>
+
+          <section className="qc-panel qc-summary-panel">
+            <header>
+              <div>
+                <strong>Customer-ready completion summary</strong>
+                <span>Advisor-safe language after QC state changes.</span>
+              </div>
+            </header>
+            <p>{customerReadySummary(order, job)}</p>
+          </section>
+
+          <section className="qc-panel qc-upload-panel">
+            <header>
+              <div>
+                <strong>QC photo / evidence staging</strong>
+                <span>Attach references now; direct upload storage can plug into the same canonical evidence trail later.</span>
+              </div>
+            </header>
+            <p><ImagePlus /> Use the evidence field below for photo, video, scan, torque, road-test, or measurement references. These references become immutable QC evidence when the inspection is recorded.</p>
           </section>
 
           <form
@@ -370,14 +433,14 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId }: { ini
                 checks: [
                   { category: "COMPLETION", code: "CORRECTION_COMPLETE", label: "Approved correction completed", result: qc.completionResult, evidence: list(qc.completionEvidence) },
                   { category: "SAFETY", code: "SAFETY_CONTROLS", label: "Applicable safety checks passed", result: qc.safetyResult, evidence: list(qc.completionEvidence) },
-                  ...checklist.map((item) => ({ category: "OTHER", code: code(item.label), label: item.label, result: "PASS", evidence: list(qc.completionEvidence) }))
+                  ...checklist.map((item) => ({ category: isSafetyCritical(job, order) && /safety|brake|steer|suspension|road test|wheel/i.test(item.label) ? "SAFETY" : "OTHER", code: code(item.label), label: item.label, result: resultFor(item.label), evidence: list(qc.completionEvidence) }))
                 ],
                 completionEvidence: list(qc.completionEvidence),
                 roadTestRequired: qc.roadTestRequired,
                 roadTestOutcome: qc.roadTestRequired ? qc.roadTestOutcome : "NOT_REQUIRED",
                 roadTestEvidence: list(qc.roadTestEvidence),
-                peerVerificationPassed: heavy ? qc.peerVerificationPassed : false,
-                peerVerifierUserId: heavy ? qc.peerVerifierUserId : null,
+                peerVerificationPassed: heavy || safetyEscalation ? qc.peerVerificationPassed : false,
+                peerVerifierUserId: heavy || safetyEscalation ? qc.peerVerifierUserId : null,
                 reworkInstructions: qc.reworkInstructions ? `Route ${qc.reworkRoute}: ${qc.reworkInstructions}` : null,
                 inspectedAt: new Date().toISOString(),
                 reason: "Record attributable quality inspection and enforce release gates."
@@ -404,7 +467,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId }: { ini
                   <label><span>Road-test evidence</span><input value={qc.roadTestEvidence} onChange={(event) => setQc((value) => ({ ...value, roadTestEvidence: event.target.value }))} /></label>
                 </>
               ) : null}
-              {job.lane === "DIAGNOSTIC_HEAVY" ? (
+              {job.lane === "DIAGNOSTIC_HEAVY" || safetyEscalation ? (
                 <>
                   <label className="qc-checkbox"><input checked={qc.peerVerificationPassed} type="checkbox" onChange={(event) => setQc((value) => ({ ...value, peerVerificationPassed: event.target.checked }))} /> Peer verification passed</label>
                   <label><span>Peer verifier</span><select value={qc.peerVerifierUserId} onChange={(event) => setQc((value) => ({ ...value, peerVerifierUserId: event.target.value }))}>{model.users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label>
@@ -432,6 +495,37 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId }: { ini
             )) : (
               <p className="qc-empty"><ShieldCheck /> No QC inspection recorded yet.</p>
             )}
+          </section>
+
+          <section className="qc-panel qc-comeback-panel">
+            <header>
+              <div>
+                <strong>Comeback feedback loop</strong>
+                <span>Links QC back to post-release repeat concerns without punitive automation.</span>
+              </div>
+              <Link href="/vehicles/comebacks">Open comebacks</Link>
+            </header>
+            {comebackCount ? (
+              job.comebackCases?.filter((item) => item.status !== "CLOSED").map((item) => (
+                <p key={item.id}><AlertTriangle /> <span><strong>{item.status}</strong><small>{item.reportedConcern ?? item.reasonCategory ?? "Open comeback review"}</small></span></p>
+              ))
+            ) : (
+              <p><CheckCircle2 /> <span><strong>No open comeback linked</strong><small>QC history remains available if a future comeback is opened.</small></span></p>
+            )}
+          </section>
+
+          <section className="qc-panel qc-scorecard">
+            <header>
+              <div>
+                <strong>QC operating scorecard</strong>
+                <span>Pattern visibility for coaching and process improvement, not automatic discipline.</span>
+              </div>
+            </header>
+            <div>
+              {technicianScorecard.map((row) => (
+                <p key={row.name}><span>{row.name}</span><strong>{row.passed}/{row.total} passed</strong><small>{row.failed} rework item(s)</small></p>
+              ))}
+            </div>
           </section>
 
           <section className="qc-panel qc-release">
