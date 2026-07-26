@@ -6216,6 +6216,8 @@ code {
 .ccc-breadcrumb a { color: inherit; }
 .ccc-home-link { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; margin-right: 12px; padding: 0 9px; color: #dce7f4; background: #0b2139; border: 1px solid #29415d; border-radius: 6px; font-size: 9px; font-weight: 800; white-space: nowrap; }
 .ccc-home-link:hover { color: #fff; background: #102b48; border-color: #3a5c80; }
+.appointment-topbar-return{border-color:#3869a9;color:#eff6ff;background:#123c68}
+.appointment-topbar-return:hover{border-color:#7db4ef;color:#fff;background:#174f87}
 .oc-topbar-return{border-color:#315f9f;color:#eff6ff;background:#123a66}.oc-topbar-return:hover{border-color:#72a8e8;background:#174b82}
 .ccc-dispatch-link { margin-left: -6px; color: #dce8ff; border-color: #36587e; }
 .ccc-dispatch-status { display: inline-flex; align-items: center; gap: 7px; min-height: 30px; margin-left: 20px; padding: 0 10px; color: #6ff59a; background: #07361f; border: 1px solid #125933; border-radius: 5px; font-size: 8px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
@@ -18916,6 +18918,9 @@ html[data-app-theme="dark"] .rowb-shell{--rowb-ink:var(--ink);--rowb-muted:var(-
 .appointment-console-hero nav{display:flex;gap:10px}
 .appointment-console-hero a,.appointment-new-header a,.appointment-console-tabs a,.appointment-panel header a,.appointment-panel .panel-action{display:inline-flex;align-items:center;justify-content:center;min-height:38px;border:1px solid #bfd0e5;border-radius:7px;padding:0 14px;color:#075ed8;background:#fff;text-decoration:none;font-size:13px;font-weight:900}
 .appointment-console-hero a.primary{border-color:#075ed8;color:#fff;background:#075ed8;box-shadow:0 8px 18px rgb(7 94 216 / 16%)}
+.appointment-return-home-link{display:inline-flex;align-items:center;width:max-content;min-height:30px;margin:0 0 7px;border:1px solid #bfd0e5;border-radius:999px;padding:0 11px;color:#1d4f95!important;background:#f8fbff;text-decoration:none!important;font-size:12px;font-weight:900;box-shadow:0 8px 18px rgb(31 82 138 / 8%)}
+.appointment-return-home-link:hover{border-color:#075ed8;color:#075ed8!important;background:#fff}
+.appointment-board-return-home{margin-bottom:6px}
 .appointment-console-tabs{display:flex;gap:20px;border:1px solid #d7e1ee;border-radius:8px;background:#fff;padding:0 16px}
 .appointment-console-tabs a{min-height:42px;border:0;border-radius:0;padding:0;color:#495a72;background:transparent}
 .appointment-console-tabs a.active{color:#075ed8;box-shadow:inset 0 -3px 0 #075ed8}
