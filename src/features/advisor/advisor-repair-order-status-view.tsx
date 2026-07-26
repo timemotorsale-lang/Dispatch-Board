@@ -41,11 +41,68 @@ function customerSafeUpdate(order: Order) {
   return `The estimate is ${format(estimate.status)}. Review authorization status before telling the customer work is approved.`;
 }
 
+function advisorActionPlan(order: Order) {
+  const diagnosis = order.diagnosisVersions[0] ?? null;
+  const estimate = order.estimateVersions[0] ?? null;
+  const authorization = estimate?.authorizations.find((item) => ["ACCEPTED", "PARTIAL"].includes(item.disposition)) ?? null;
+  const waitingParts = order.partDemands.some((part) => part.quantityReserved < part.quantityRequired);
+
+  if (waitingParts) {
+    return {
+      defaultContactOutcome: "Parts ETA or promise update needed",
+      defaultExceptionCodes: ["WAITING_PARTS", "PROMISE_RISK"],
+      defaultStatusCode: "WAITING_PARTS",
+      href: "#advisor-response",
+      label: "Record ETA / promise update",
+      text: "Confirm parts ETA, then record the customer-safe promise update here."
+    };
+  }
+  if (!diagnosis) {
+    return {
+      defaultContactOutcome: "Technician clarification requested before customer update",
+      defaultExceptionCodes: ["TECHNICIAN_CLARIFICATION"],
+      defaultStatusCode: "WAITING_TECHNICIAN_CLARIFICATION",
+      href: "#advisor-response",
+      label: "Request technician clarification",
+      text: "Use the advisor response panel to document what clarification is needed before calling the customer."
+    };
+  }
+  if (!estimate) {
+    return {
+      defaultContactOutcome: "Estimate preparation or advisor review needed",
+      defaultExceptionCodes: [],
+      defaultStatusCode: "IN_PROGRESS",
+      href: `/diagnostics/advisor-review?repairOrderId=${encodeURIComponent(order.id)}`,
+      label: "Prepare advisor estimate review",
+      text: "Diagnosis is available. Prepare customer-safe estimate language or route the estimate for advisor review."
+    };
+  }
+  if (!authorization) {
+    return {
+      defaultContactOutcome: "Customer authorization requested",
+      defaultExceptionCodes: ["CUSTOMER_ACTION"],
+      defaultStatusCode: "WAITING_APPROVAL",
+      href: `/diagnostics/advisor-review?repairOrderId=${encodeURIComponent(order.id)}`,
+      label: "Record customer decision",
+      text: "Contact the customer and record the authorization outcome against the presented estimate."
+    };
+  }
+  return {
+    defaultContactOutcome: "Customer updated on repair progress",
+    defaultExceptionCodes: [],
+    defaultStatusCode: "CUSTOMER_UPDATED",
+    href: "#advisor-response",
+    label: "Record customer update",
+    text: "Monitor repair/QC status and record the next customer-safe update or handoff note."
+  };
+}
+
 export function AdvisorRepairOrderStatusView({ order }: { order: Order }) {
   const diagnosis = order.diagnosisVersions[0] ?? null;
   const estimate = order.estimateVersions[0] ?? null;
   const authorization = estimate?.authorizations.find((item) => ["ACCEPTED", "PARTIAL"].includes(item.disposition)) ?? null;
   const waitingParts = order.partDemands.some((part) => part.quantityReserved < part.quantityRequired);
+  const nextAdvisorAction = advisorActionPlan(order);
   const vehicle = vehicleLabel(order);
   const timeline = [
     { label: "Intake", done: true },
@@ -56,15 +113,6 @@ export function AdvisorRepairOrderStatusView({ order }: { order: Order }) {
     { label: "Quality", done: order.stage === "QUALITY_CONTROL" || order.stage === "HANDOFF" },
     { label: "Handoff", done: order.stage === "HANDOFF" }
   ];
-  const nextAdvisorAction = waitingParts
-    ? "Confirm parts ETA before updating the customer."
-    : !diagnosis
-      ? "Wait for diagnosis or request technician clarification if the customer needs an update."
-      : !estimate
-        ? "Prepare customer-safe estimate language or route to advisor review."
-        : !authorization
-          ? "Contact customer for estimate authorization."
-          : "Monitor repair/QC status and prepare handoff update.";
 
   return (
     <section className="advisor-ro-status">
@@ -131,6 +179,9 @@ export function AdvisorRepairOrderStatusView({ order }: { order: Order }) {
           </section>
 
           <AdvisorResponsePanel
+            defaultContactOutcome={nextAdvisorAction.defaultContactOutcome}
+            defaultExceptionCodes={nextAdvisorAction.defaultExceptionCodes}
+            defaultStatusCode={nextAdvisorAction.defaultStatusCode}
             defaultSummary={customerSafeUpdate(order)}
             latestUpdates={JSON.parse(JSON.stringify(order.advisorUpdates))}
             repairOrderId={order.id}
@@ -150,8 +201,8 @@ export function AdvisorRepairOrderStatusView({ order }: { order: Order }) {
         <aside>
           <section className="advisor-ro-card next">
             <header><Wrench /><div><strong>Next advisor action</strong><span>What Alex should do next</span></div></header>
-            <strong>{nextAdvisorAction}</strong>
-            <Link href={`/diagnostics/advisor-review?repairOrderId=${encodeURIComponent(order.id)}`}>Open advisor review</Link>
+            <strong>{nextAdvisorAction.text}</strong>
+            <Link href={nextAdvisorAction.href}>{nextAdvisorAction.label}</Link>
           </section>
           <section className="advisor-ro-card">
             <header><KeyRound /><div><strong>Custody and intake</strong><span>Useful before customer update</span></div></header>

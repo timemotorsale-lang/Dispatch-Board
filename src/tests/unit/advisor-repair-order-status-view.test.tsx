@@ -57,7 +57,9 @@ describe("AdvisorRepairOrderStatusView", () => {
     expect(html).toContain("Advisor response");
     expect(html).toContain("Save advisor response");
     expect(html).toContain("Recent advisor history");
-    expect(html).toContain("Confirm parts ETA before updating the customer.");
+    expect(html).toContain("Record ETA / promise update");
+    expect(html).toContain("Parts ETA or promise update needed");
+    expect(html).not.toContain("Open advisor review");
     expect(html).toContain("Customer promise needs review");
     expect(html).not.toContain("Technician Repair Workbench");
   });

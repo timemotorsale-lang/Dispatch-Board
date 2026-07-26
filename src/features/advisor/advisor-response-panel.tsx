@@ -48,24 +48,30 @@ function codes(value: unknown) {
 
 export function AdvisorResponsePanel({
   defaultSummary,
+  defaultContactOutcome = "Technician clarification requested",
+  defaultExceptionCodes = ["TECHNICIAN_CLARIFICATION"],
+  defaultStatusCode = "WAITING_TECHNICIAN_CLARIFICATION",
   latestUpdates,
   repairOrderId
 }: {
+  defaultContactOutcome?: string;
+  defaultExceptionCodes?: string[];
   defaultSummary: string;
+  defaultStatusCode?: string;
   latestUpdates: AdvisorUpdate[];
   repairOrderId: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [statusCode, setStatusCode] = useState("WAITING_TECHNICIAN_CLARIFICATION");
+  const [statusCode, setStatusCode] = useState(defaultStatusCode);
   const [contactChannel, setContactChannel] = useState("INTERNAL");
   const [contactDirection, setContactDirection] = useState("INTERNAL");
-  const [contactOutcome, setContactOutcome] = useState("Technician clarification requested");
+  const [contactOutcome, setContactOutcome] = useState(defaultContactOutcome);
   const [customerVisibleSummary, setCustomerVisibleSummary] = useState(defaultSummary);
   const [internalNotes, setInternalNotes] = useState("");
   const [promiseAt, setPromiseAt] = useState("");
   const [nextContactAt, setNextContactAt] = useState("");
-  const [selectedCodes, setSelectedCodes] = useState<string[]>(["TECHNICIAN_CLARIFICATION"]);
+  const [selectedCodes, setSelectedCodes] = useState<string[]>(defaultExceptionCodes);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const canSubmit = contactOutcome.trim().length > 0 && customerVisibleSummary.trim().length > 0 && !isPending;
@@ -110,7 +116,7 @@ export function AdvisorResponsePanel({
   }
 
   return (
-    <section className="advisor-ro-card advisor-response-workbench">
+    <section className="advisor-ro-card advisor-response-workbench" id="advisor-response">
       <header>
         <MessageSquarePlus />
         <div>

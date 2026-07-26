@@ -35,6 +35,8 @@ function actionTone(kind: ServiceAdvisorWorkspaceModel["actionQueue"][number]["a
   if (kind === "PROMISE_RISK") return "risk";
   if (kind === "PARTS_DELAY") return "parts";
   if (kind === "HANDOFF") return "handoff";
+  if (kind === "FOLLOW_UP_SCHEDULED") return "scheduled";
+  if (kind === "TECHNICIAN_CLARIFICATION") return "tech";
   return "update";
 }
 
@@ -99,6 +101,7 @@ export function ServiceAdvisorHome({ model }: { model: ServiceAdvisorWorkspaceMo
                 <strong>{item.repairOrderNumber}{" • "}{item.customerName}</strong>
                 <small>{item.vehicleLabel}{" • "}{stageLabel(item.stage)}{" • "}{stageLabel(item.operatingState)}</small>
                 <small>{item.actionReason}</small>
+                {item.latestAdvisorUpdate ? <small>Last advisor note: {item.latestAdvisorUpdate.summary}</small> : null}
               </span>
               <em>{item.overdue ? "Overdue" : dateLabel(item.targetAt)}</em>
               <b><Send /> Review</b>

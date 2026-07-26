@@ -22,6 +22,12 @@ const model = {
       actionLabel: "Authorization needed",
       actionReason: "Customer decision may be required before work can continue.",
       customerName: "Jordan Customer",
+      latestAdvisorUpdate: {
+        authorName: "Alex Carter",
+        occurredAt: "2026-07-20T13:45:00.000Z",
+        statusCode: "WAITING_APPROVAL",
+        summary: "Customer requested a callback before approval."
+      },
       nextAction: "Contact customer for authorization.",
       operatingState: "WAITING",
       overdue: false,
@@ -53,6 +59,7 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Advisor action queue");
     expect(html).toContain("Authorization needed");
     expect(html).toContain("Customer decision may be required before work can continue.");
+    expect(html).toContain("Last advisor note: Customer requested a callback before approval.");
     expect(html).toContain("/vehicles/repair-workbench?repairOrderId=ro_1");
     expect(html).toContain("Check In Vehicle");
   });
