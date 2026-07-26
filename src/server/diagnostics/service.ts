@@ -23,6 +23,7 @@ import { evaluateDiagnosticEstimateStrategies } from "./estimate-strategy-engine
 import { diagnosticRepairHandoffId, evaluateDiagnosticRepairHandoffControls, normalizeDiagnosticRepairHandoffCommand } from "./repair-handoff-domain";
 import { diagnosticVerificationId, evaluateDiagnosticVerificationControls, normalizeDiagnosticVerificationCommand } from "./verification-domain";
 import { diagnosticTestId, normalizeDiagnosticTestDefinition, normalizeDiagnosticTestLifecycle, normalizeDiagnosticTestPlan, type DiagnosticTestLifecycleAction } from "./test-execution-domain";
+import { checksumTroubleshootingSession, diagnosticTroubleshootingSessionId, normalizeDiagnosticTroubleshootingSessionCommand, TECHNICIAN_TROUBLESHOOTING_CONSOLE_VERSION, buildTechnicianTroubleshootingConsole } from "./technician-troubleshooting-console";
 import { evaluateDiagnosticLearningAiScaleReadiness, type DiagnosticVerifiedCaseRecord } from "./learning-ai-readiness";
 import { createDiagnosticCaseRepository, type DiagnosticCaseDetailRecord, type DiagnosticCaseIdentityRecord, type DiagnosticCaseRepository } from "./repository";
 
@@ -711,6 +712,13 @@ export async function getDiagnosticsCommandCenter(actor: AuthenticatedUser | nul
 
 export type DiagnosticCaseWorkspaceModel = Awaited<ReturnType<typeof getDiagnosticCaseWorkspace>>;
 
+function troubleshootingStatus(data: ReturnType<typeof normalizeDiagnosticTroubleshootingSessionCommand>) {
+  if (data.learningProposal && data.learningProposal.state === "OUTCOME_REVIEW_READY") return "REVIEW_READY";
+  if (data.advisorDraftPacket && typeof data.advisorDraftPacket.readiness === "string" && data.advisorDraftPacket.readiness.includes("CONFIRMED")) return "HANDOFF_READY";
+  if (data.selectedTestKey) return "TEST_SELECTED";
+  return "DRAFT";
+}
+
 export async function getDiagnosticCaseWorkspace(actor: AuthenticatedUser | null, caseId: string, input: Dependencies = {}) {
   const context = dependencies(input);
   const user = assertAuthenticatedUser(actor);
@@ -765,6 +773,77 @@ export async function getDiagnosticCaseWorkspace(actor: AuthenticatedUser | null
       ? { state: "COMPLETE" as const, ...buildDiagnosticCaseQualitySummary({ now: generatedAt, observations: diagnosticCase.observations, measurements: diagnosticCase.measurements }) }
       : { state: "RESTRICTED" as const, policyVersion: DIAGNOSTIC_GATE_POLICY_VERSION, evaluatedAt: generatedAt.toISOString(), disposition: "ABSTAIN" as const, readyForReasoning: false, abstentionRequired: true, reasonCodes: ["AUTH_EVIDENCE_VIEW_REQUIRED"], counts: { currentObservations: 0, currentMeasurements: 0, invalid: 0, suspect: 0, independentGroups: 0 } }
   };
+}
+
+export async function getTechnicianTroubleshootingConsole(actor: AuthenticatedUser | null, caseId: string, input: Dependencies = {}) {
+  const workspace = await getDiagnosticCaseWorkspace(actor, caseId, input);
+  const context = dependencies(input);
+  const sessions = context.repository.listTroubleshootingSessions ? await context.repository.listTroubleshootingSessions(context.organizationId, caseId) : [];
+  const consolePath = `/diagnostics/cases/${encodeURIComponent(workspace.diagnosticCase.id)}/troubleshooting`;
+  const returnQuery = `returnTo=${encodeURIComponent(consolePath)}`;
+  return {
+    ...buildTechnicianTroubleshootingConsole({
+      diagnosticCase: workspace.diagnosticCase,
+      generatedAt: workspace.generatedAt,
+      qualitySafetyGates: workspace.qualitySafetyGates,
+      workspaceLinkResolution: {
+        repairOrderExactHref: `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(workspace.diagnosticCase.repairOrder.id)}&${returnQuery}`,
+        vehicleExactHref: `/vehicles/360/${encodeURIComponent(workspace.diagnosticCase.vehicle.id)}?${returnQuery}`,
+        verifiedAt: workspace.generatedAt
+      }
+    }),
+    savedSessions: sessions.map((session) => ({
+      id: session.id,
+      version: session.version,
+      status: session.status,
+      selectedTestKey: session.selectedTestKey,
+      overrideReason: session.overrideReason,
+      sessionChecksum: session.sessionChecksum,
+      occurredAt: session.occurredAt.toISOString(),
+      authorUserId: session.authorUserId,
+      supersedesId: session.supersedesId
+    })),
+    permissions: { canSaveSession: workspace.permissions.canTransition || workspace.permissions.canRecordEvidence },
+    caseVersion: workspace.diagnosticCase.version
+  };
+}
+
+export async function recordTechnicianTroubleshootingSession(actor: AuthenticatedUser | null, caseId: string, value: unknown, input: Dependencies = {}) {
+  const context = dependencies(input);
+  const data = normalizeDiagnosticTroubleshootingSessionCommand(value);
+  const diagnosticCase = await loadCaseIdentity(caseId, context);
+  const { user } = await authorize(actor, "DIAGNOSTIC_CASE_TRANSITION", diagnosticCase.locationId, context, diagnosticCase.assignedUserId, true);
+  assertOwnerTransition(user, diagnosticCase);
+  if (!context.repository.recordTroubleshootingSession) throw new Error("Diagnostic troubleshooting persistence is unavailable.");
+  const sessionPayload = {
+    advisorDraftPacket: data.advisorDraftPacket,
+    intakeRefinement: data.intakeRefinement,
+    knownIssueSnapshot: data.knownIssueSnapshot,
+    learningProposal: data.learningProposal,
+    overrideReason: data.overrideReason,
+    rulePackSnapshot: data.rulePackSnapshot,
+    selectedTestKey: data.selectedTestKey,
+    vehicleIntelligenceAcknowledgements: data.vehicleIntelligenceAcknowledgements
+  };
+  const sessionChecksum = checksumTroubleshootingSession({ caseId, consoleVersion: TECHNICIAN_TROUBLESHOOTING_CONSOLE_VERSION, sessionPayload });
+  return context.repository.recordTroubleshootingSession(command({
+    actorUserId: user.id,
+    commandType: "RECORD_DIAGNOSTIC_TROUBLESHOOTING_SESSION",
+    expectedVersion: data.expectedVersion,
+    idempotencyKey: data.idempotencyKey,
+    locationId: diagnosticCase.locationId,
+    organizationId: context.organizationId,
+    payload: payload({ sessionChecksum, status: troubleshootingStatus(data), supersedesId: data.supersedesId }),
+    reason: data.reason,
+    subjectId: caseId
+  }), {
+    ...data,
+    consoleVersion: TECHNICIAN_TROUBLESHOOTING_CONSOLE_VERSION,
+    id: diagnosticTroubleshootingSessionId(context.organizationId, caseId, data.idempotencyKey),
+    occurredAt: context.now(),
+    sessionChecksum,
+    status: troubleshootingStatus(data)
+  });
 }
 
 export async function getRepairOrderDiagnosticsBridge(actor: AuthenticatedUser | null, repairOrderId: string, input: Dependencies = {}) {

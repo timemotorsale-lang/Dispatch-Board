@@ -4,9 +4,12 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 
 import { DiagnosticCaseWorkspace } from "@/features/diagnostics/diagnostic-case-workspace";
+import { TechnicianTroubleshootingConsole } from "@/features/diagnostics/technician-troubleshooting-console";
 import { DiagnosticAdvisorReviewConsole } from "@/features/diagnostics/advisor-review-console";
 import { DiagnosticAutobodyEstimateConsole } from "@/features/diagnostics/autobody-estimate-console";
 import { DiagnosticsCommandCenter } from "@/features/diagnostics/diagnostics-command-center";
+import { TroubleshootingReviewConsole } from "@/features/diagnostics/troubleshooting-review-console";
+import { buildTechnicianTroubleshootingConsole } from "@/server/diagnostics/technician-troubleshooting-console";
 import type { DiagnosticCaseWorkspaceModel, DiagnosticsCommandCenterModel } from "@/server/diagnostics/service";
 
 const diagnosticCase = {
@@ -39,6 +42,9 @@ describe("diagnostics case console", () => {
     expect(html).toContain("Diagnostics Command Center");
     expect(html).toContain("New Diagnostic Case");
     expect(html).toContain('href="/diagnostics/intake"');
+    expect(html).toContain("Troubleshooting Review");
+    expect(html).toContain("Trial Console");
+    expect(html).toContain('href="/diagnostics/troubleshooting-console"');
     expect(html).toContain("Scan VIN");
     expect(html).toContain("Priority Case Queue");
     expect(html).toContain("Operational Readiness");
@@ -65,7 +71,60 @@ describe("diagnostics case console", () => {
     expect(html).toContain("Evidence review");
     expect(html).toContain("Quality &amp; safety gates");
     expect(html).toContain("DGN-019/1.0.0");
+    expect(html).toContain("Open troubleshooting console");
+    expect(html).toContain("/diagnostics/cases/dgc_case_1/troubleshooting");
     expect(html).not.toMatch(/\b\d{1,3}%\b/);
+  });
+
+  it("renders the technician troubleshooting console with the first four slices", () => {
+    const model = buildTechnicianTroubleshootingConsole({
+      generatedAt: "2026-07-25T12:00:00.000Z",
+      diagnosticCase: { ...diagnosticCase, concern: "transmission issues" },
+      qualitySafetyGates: { counts: { currentObservations: 0, currentMeasurements: 0, invalid: 0, suspect: 0, independentGroups: 0 }, readyForReasoning: false, reasonCodes: ["REASONING_INSUFFICIENT_EVIDENCE"] }
+    });
+    const html = renderToStaticMarkup(<TechnicianTroubleshootingConsole model={model} />);
+    expect(html).toContain("Technician Troubleshooting Console");
+    expect(html).toContain("Diagnostic Intake");
+    expect(html).toContain("Vehicle Intelligence Check");
+    expect(html).toContain("Next Best Test Plan");
+    expect(html).toContain("Evidence &amp; Measurements");
+    expect(html).toContain("Common Causes &amp; Ranking");
+    expect(html).toContain("Advisor Handoff Readiness");
+    expect(html).toContain("Ask Master Technician");
+    expect(html).toContain("Open Recalls");
+    expect(html).toContain("TSB / Service Bulletins");
+    expect(html).toContain("Known Issue Library Matches");
+    expect(html).toContain("/vehicles/registry?query=VIN10");
+    expect(html).toContain("/vehicles/repair-workbench?view=all&amp;query=RO-1042");
+    expect(html).toContain("/vehicles/parts?returnTo=");
+    expect(html).toContain("Vehicle link: search safe");
+    expect(html).toContain("RO link: search safe");
+    expect(html).toContain("Case mode: live");
+    expect(html).toContain("Licensed sources: not connected");
+    expect(html).toContain("test-lab authority");
+    expect(html).toContain("Open details");
+    expect(html).not.toContain("/vehicles/360/vehicle-1?section=intelligence");
+    expect(html).toContain("Upload Evidence");
+    expect(html).toContain("AI assistant withheld until evidence gates are satisfied");
+  });
+
+  it("renders the manager troubleshooting review shell", () => {
+    const model = {
+      state: "COMPLETE", freshness: "CURRENT", restricted: false, generatedAt: "2026-07-20T14:00:00.000Z",
+      viewer: { id: "manager-1", name: "Manager" }, rollout: { executable: true, reason: "GENERAL" },
+      permissions: { canAssign: true, canCreate: true },
+      operationalReadiness: {
+        vinAndOemData: { label: "Online", state: "HEALTHY" }, evidenceLedger: { label: "Healthy", state: "HEALTHY" },
+        laborIntelligence: { label: "Pilot", state: "PILOT" }, auditTrail: { label: "Active", state: "HEALTHY" }
+      },
+      summary: { active: 1, awaitingTest: 1, blocked: 0, readyForHandoff: 0, mine: 0, waiting: 0, escalated: 0, unassigned: 0, today: { opened: 1, diagnosed: 0, verified: 0 } },
+      items: [diagnosticCase]
+    } as unknown as DiagnosticsCommandCenterModel;
+    const html = renderToStaticMarkup(<TroubleshootingReviewConsole model={model} />);
+    expect(html).toContain("Troubleshooting Review Queue");
+    expect(html).toContain("Learning mode");
+    expect(html).toContain("Open review");
+    expect(html).toContain("AI authority");
   });
 
   it("renders the advisor review landing page with downstream authority blocks", () => {

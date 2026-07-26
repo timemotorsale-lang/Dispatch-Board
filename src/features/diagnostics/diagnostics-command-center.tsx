@@ -168,7 +168,9 @@ export function DiagnosticsCommandCenter({ model }: { model: DiagnosticsCommandC
       </div>
       <div className={styles.commandActions}>
         <Link className={styles.primaryCommand} href="/diagnostics/intake" title={!commandsEnabled ? `Intake review is available; creation remains controlled by rollout: ${label(model.rollout.reason)}` : "Start a governed diagnostic intake"}><Plus />New Diagnostic Case</Link>
+        <Link className={styles.secondaryCommand} href="/diagnostics/troubleshooting-console"><Stethoscope />Trial Console</Link>
         <Link className={styles.secondaryCommand} href="/diagnostics/pilot-readiness"><BarChart3 />Pilot Readiness</Link>
+        <Link className={styles.secondaryCommand} href="/diagnostics/troubleshooting-review"><Stethoscope />Troubleshooting Review</Link>
         <Link className={styles.secondaryCommand} href="/vehicles/discovery?intent=diagnostics"><ScanLine />Scan VIN</Link>
         <button className={styles.systemStatus} onClick={() => setReadinessOpen((current) => !current)} type="button"><span />Systems Operational<ChevronDown className={readinessOpen ? styles.chevronOpen : ""} /></button>
       </div>
@@ -242,7 +244,7 @@ export function DiagnosticsCommandCenter({ model }: { model: DiagnosticsCommandC
                 <td>{assignedAction ? <button className={styles.rowAction} disabled={busy} onClick={() => void assignToMe([item])} type="button">Assign to Me<ChevronDown /></button> : <Link className={styles.rowAction} href={`/diagnostics/cases/${encodeURIComponent(item.id)}`}>{actionLabel(item)}<ChevronDown /></Link>}</td>
               </tr>;
             })}
-            {!items.length ? <tr><td className={styles.queueEmpty} colSpan={9}><Stethoscope /><strong>No diagnostic cases match this view</strong><span>Adjust the view or filters, or begin a governed diagnostic intake.</span><Link href="/diagnostics/intake">New Diagnostic Case</Link></td></tr> : null}
+            {!items.length ? <tr><td className={styles.queueEmpty} colSpan={9}><Stethoscope /><strong>No diagnostic cases match this view</strong><span>Adjust the view or filters, begin a governed diagnostic intake, or open the trial console with sample data.</span><Link href="/diagnostics/intake">New Diagnostic Case</Link><Link href="/diagnostics/troubleshooting-console">Open Trial Console</Link></td></tr> : null}
           </tbody>
         </table>
       </div>

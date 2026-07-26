@@ -76,7 +76,7 @@ export function DiagnosticCaseWorkspace({ model }: { model: DiagnosticCaseWorksp
 
   return <section className={styles.workspace} aria-label="Diagnostic case workspace">
     <header className={styles.caseHeader}>
-      <div><Link href="/diagnostics"><ArrowLeft size={15} /> Case queue</Link><span className={styles.eyebrow}>Technician diagnostic workspace</span><h1>{item.vehicle.label}</h1><p>{item.repairOrder.repairOrderNumber} · Case {item.id.slice(-8)} · Concern v{item.concernVersion}</p></div>
+      <div><Link href="/diagnostics"><ArrowLeft size={15} /> Case queue</Link><span className={styles.eyebrow}>Technician diagnostic workspace</span><h1>{item.vehicle.label}</h1><p>{item.repairOrder.repairOrderNumber} · Case {item.id.slice(-8)} · Concern v{item.concernVersion}</p><Link className={styles.troubleshootingLink} href={`/diagnostics/cases/${encodeURIComponent(item.id)}/troubleshooting`}>Open troubleshooting console</Link></div>
       <dl><div><dt>Status</dt><dd>{label(item.status)}</dd></div><div><dt>Risk</dt><dd>{item.riskTier}</dd></div><div><dt>Owner</dt><dd>{item.assignedUser?.name ?? "Unassigned"}</dd></div><div><dt>Record</dt><dd>Version {item.version}</dd></div></dl>
     </header>
 
