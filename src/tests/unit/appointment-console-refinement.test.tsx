@@ -27,8 +27,10 @@ describe("Appointment Console refinement", () => {
     expect(markup).toContain("New Appointment");
     expect(markup).toContain("Back to Appointment Console");
     expect(markup).toContain("Appointment Setup");
-    expect(markup).toContain("Customer");
-    expect(markup).toContain("Vehicle");
+    expect(markup).toContain("Customer search");
+    expect(markup).toContain("Vehicle search");
+    expect(markup).toContain("Search name, phone, email, or customer #");
+    expect(markup).toContain("VIN, stock #, plate, or vehicle");
     expect(markup).toContain("Purpose");
     expect(markup).toContain("Customer Issue / Resolution");
     expect(markup).toContain("Title / Documentation Issue");

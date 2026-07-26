@@ -40,6 +40,31 @@ type AppointmentApiResponse = {
   location: { id: string; name: string; timezone: string };
 };
 
+type AppointmentIdentityCustomer = {
+  customerNumber?: string;
+  displayName: string;
+  email?: string | null;
+  id: string;
+  phoneNumber?: string | null;
+};
+
+type AppointmentIdentityVehicle = {
+  color?: string | null;
+  id: string;
+  licensePlate?: string | null;
+  make: string | null;
+  model: string | null;
+  stockNumber?: string | null;
+  vehicleNumber: string;
+  vin?: string | null;
+  year: number | null;
+};
+
+type AppointmentIdentitySearchResponse = {
+  customers: AppointmentIdentityCustomer[];
+  vehicles: AppointmentIdentityVehicle[];
+};
+
 const defaultOrganizationId = "org-time-motor-sales";
 const defaultLocationId = "loc-time-motor-sales-minneapolis";
 const defaultTimezone = "America/Chicago";
@@ -128,6 +153,10 @@ function vehicleLabel(appointment: LiveAppointment) {
   const vehicle = appointment.vehicles[0];
   if (!vehicle) return "No vehicle";
   return [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || vehicle.vehicleNumber || "Vehicle";
+}
+
+function identityVehicleLabel(vehicle: AppointmentIdentityVehicle) {
+  return [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || vehicle.vehicleNumber;
 }
 
 function needsConfirmation(appointment: LiveAppointment) {
@@ -711,6 +740,12 @@ export function AppointmentConsoleNewAppointment() {
   const [notice, setNotice] = useState("Ready to create an audited appointment draft.");
   const [isSaving, setIsSaving] = useState(false);
   const [createdAppointmentNumber, setCreatedAppointmentNumber] = useState<string | null>(null);
+  const [customerQuery, setCustomerQuery] = useState("");
+  const [vehicleQuery, setVehicleQuery] = useState("");
+  const [identityResults, setIdentityResults] = useState<AppointmentIdentitySearchResponse>({ customers: [], vehicles: [] });
+  const [identityStatus, setIdentityStatus] = useState<"idle" | "loading" | "ready" | "unavailable">("idle");
+  const [selectedCustomer, setSelectedCustomer] = useState<AppointmentIdentityCustomer | null>(null);
+  const [selectedVehicle, setSelectedVehicle] = useState<AppointmentIdentityVehicle | null>(null);
   const appointmentWindow = useAppointmentWindow(form.localDate, calendarView);
   const startsAtIso = useMemo(() => localDateTimeToIso(form.localDate, form.startTime), [form.localDate, form.startTime]);
   const endsAtIso = useMemo(() => addMinutesToIso(startsAtIso, form.durationMinutes), [startsAtIso, form.durationMinutes]);
@@ -735,6 +770,64 @@ export function AppointmentConsoleNewAppointment() {
 
   function updateField(field: keyof typeof form, value: string | number) {
     setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  useEffect(() => {
+    const query = (customerQuery || vehicleQuery).trim();
+
+    if (query.length < 2) {
+      setIdentityResults({ customers: [], vehicles: [] });
+      setIdentityStatus("idle");
+      return;
+    }
+
+    let cancelled = false;
+    const timeout = window.setTimeout(() => {
+      async function searchIdentities() {
+        setIdentityStatus("loading");
+
+        try {
+          const response = await fetch(`/api/appointments/identity-search?query=${encodeURIComponent(query)}`);
+          const result = await response.json().catch(() => null) as AppointmentIdentitySearchResponse | { error?: string } | null;
+
+          if (!response.ok || !result || !("customers" in result)) {
+            throw new Error("Identity search unavailable.");
+          }
+
+          if (!cancelled) {
+            setIdentityResults(result);
+            setIdentityStatus("ready");
+          }
+        } catch {
+          if (!cancelled) {
+            setIdentityResults({ customers: [], vehicles: [] });
+            setIdentityStatus("unavailable");
+          }
+        }
+      }
+
+      void searchIdentities();
+    }, 220);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [customerQuery, vehicleQuery]);
+
+  function chooseCustomer(customer: AppointmentIdentityCustomer) {
+    setSelectedCustomer(customer);
+    setCustomerQuery(customer.displayName);
+    updateField("customer", customer.displayName);
+    setNotice(`Selected canonical customer ${customer.displayName}.`);
+  }
+
+  function chooseVehicle(vehicle: AppointmentIdentityVehicle) {
+    const label = identityVehicleLabel(vehicle);
+    setSelectedVehicle(vehicle);
+    setVehicleQuery(label);
+    updateField("vehicle", label);
+    setNotice(`Selected canonical vehicle ${label}.`);
   }
 
   function changePurpose(value: string) {
@@ -791,11 +884,23 @@ export function AppointmentConsoleNewAppointment() {
               reason: form.reason.trim(),
               transportation: form.transportation
             },
-            customerSnapshot: form.customer.trim() ? { displayName: form.customer.trim() } : null,
+            customerSnapshot: form.customer.trim()
+              ? {
+                  customerId: selectedCustomer?.id ?? null,
+                  customerNumber: selectedCustomer?.customerNumber ?? null,
+                  displayName: form.customer.trim(),
+                  email: selectedCustomer?.email ?? null,
+                  phoneNumber: selectedCustomer?.phoneNumber ?? null
+                }
+              : null,
             vehicleSnapshot: form.vehicle.trim()
               ? {
+                  vehicleId: selectedVehicle?.id ?? null,
                   displayName: form.vehicle.trim(),
-                  vehicleNumber: form.vehicle.trim()
+                  vehicleNumber: selectedVehicle?.vehicleNumber ?? form.vehicle.trim(),
+                  vin: selectedVehicle?.vin ?? null,
+                  stockNumber: selectedVehicle?.stockNumber ?? null,
+                  licensePlate: selectedVehicle?.licensePlate ?? null
                 }
               : null
           }
@@ -841,13 +946,33 @@ export function AppointmentConsoleNewAppointment() {
             <section className="appointment-setup">
               <h2>Appointment Setup</h2>
               <label>
-                <span>Customer</span>
-                <input onChange={(event) => updateField("customer", event.target.value)} placeholder="Search or type customer name" value={form.customer} />
+                <span>Customer search</span>
+                <input onChange={(event) => { setSelectedCustomer(null); setCustomerQuery(event.target.value); updateField("customer", event.target.value); }} placeholder="Search name, phone, email, or customer #" value={customerQuery} />
               </label>
+              {customerQuery.trim().length >= 2 ? (
+                <div className="appointment-identity-results">
+                  {identityResults.customers.length > 0 ? identityResults.customers.map((customer) => (
+                    <button className={selectedCustomer?.id === customer.id ? "selected" : ""} key={customer.id} onClick={() => chooseCustomer(customer)} type="button">
+                      <UserRound />
+                      <span><strong>{customer.displayName}</strong><small>{customer.phoneNumber ?? customer.email ?? customer.customerNumber ?? "Canonical customer"}</small></span>
+                    </button>
+                  )) : <p>{identityStatus === "loading" ? "Searching customers..." : "No matching customer found. Typed customer name will be preserved as draft context."}</p>}
+                </div>
+              ) : null}
               <label>
-                <span>Vehicle</span>
-                <input onChange={(event) => updateField("vehicle", event.target.value)} placeholder="VIN, stock #, plate, or vehicle" value={form.vehicle} />
+                <span>Vehicle search</span>
+                <input onChange={(event) => { setSelectedVehicle(null); setVehicleQuery(event.target.value); updateField("vehicle", event.target.value); }} placeholder="VIN, stock #, plate, or vehicle" value={vehicleQuery} />
               </label>
+              {vehicleQuery.trim().length >= 2 ? (
+                <div className="appointment-identity-results">
+                  {identityResults.vehicles.length > 0 ? identityResults.vehicles.map((vehicle) => (
+                    <button className={selectedVehicle?.id === vehicle.id ? "selected" : ""} key={vehicle.id} onClick={() => chooseVehicle(vehicle)} type="button">
+                      <CalendarDays />
+                      <span><strong>{identityVehicleLabel(vehicle)}</strong><small>{vehicle.vin ?? vehicle.licensePlate ?? vehicle.stockNumber ?? vehicle.vehicleNumber}</small></span>
+                    </button>
+                  )) : <p>{identityStatus === "loading" ? "Searching vehicles..." : "No matching vehicle found. Typed vehicle details will be preserved as draft context."}</p>}
+                </div>
+              ) : null}
               <label>
                 <span>Purpose</span>
                 <select onChange={(event) => changePurpose(event.target.value)} value={selectedPurposeCode}>
