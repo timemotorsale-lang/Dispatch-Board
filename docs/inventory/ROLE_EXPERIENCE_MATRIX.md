@@ -25,7 +25,7 @@ Role-aware presentation reduces navigation; it does not replace server-side perm
 | Vehicle Operations Lead | `/vehicles?workspace=vehicle-operations-lead` | Operations Home, My Vehicle Work, Inventory Flow, Shop & Recon, Parts Runner, Receive Vehicle, Exceptions | Inventory Unit, Vehicle 360, Repair Order, Repair Job, Parts demand, QC, lot/custody tasks | Enterprise administration, unrelated customer/sales/office consoles, broad staff management unless separately granted |
 | Inventory Manager | `/vehicles` | Inventory Home, Inventory Lifecycle, Vehicle 360, inventory readiness, disposition, Parts status, Reviews | Inventory Unit, inventory workbench, evidence, Parts, QC | User administration, unrelated department consoles, and daily shop/technician controls unless also assigned |
 | Service Department Manager | `/vehicles/shop-recon` | Shop & Recon, Shop Dispatch, Repair Orders, Parts Operations, QC, Reviews | Technician job, diagnostic case, Vehicle 360, evidence | Inventory Tower unless separately granted; enterprise administration |
-| Service Advisor | `/appointments` | Appointments, Vehicle Intake, Customers, Vehicles, Repair Orders | Repair job read-through, diagnostics advisor review, authorization, handoff | Technician execution controls, Inventory Tower, shop-management controls |
+| Service Advisor | `/appointments` | Advisor Home, Check In Vehicle, Appointment Board, Customers, Repair Orders, Diagnostic Review, My Work | Appointment, Customer, Vehicle, Repair Order, advisor diagnosis/estimate review, authorization, customer handoff | Technician execution controls, Inventory Tower, shop-management controls, enterprise appointment intelligence unless separately granted |
 | Mechanic or Technician | `/my-tasks` | My Work, Available Work, Diagnostics & Tools | Assigned Work Order, scoped Vehicle 360, job Parts, Evidence, QC result | Shop & Recon dashboard, Inventory Tower, broad Repair Order administration, Customers, Reports, Approvals, Administration |
 | Parts staff | `/vehicles/parts-operations` | Parts Operations, Parts Counter, waiting demand, receiving, issue/return | Linked Repair Order, Repair Job, Vehicle 360 | Technician execution, customer intake, Inventory Tower, management reports |
 | QC inspector | `/vehicles/quality-control` | QC Queue, assigned inspections, rework handoff | Repair Job, Repair Order, evidence, procedure | Technician labor controls, customer intake, inventory management |
@@ -75,6 +75,23 @@ The attendance shift clock and the repair labor clock are separate governed reco
 The Technician Repair Workbench may link to a scoped work order, Vehicle 360, Parts, evidence, manager direction, diagnostics, and QC status. Those are contextual links to the same canonical records, not broad console navigation.
 
 My Work includes a compact, read-only **Shop Pulse** for useful situational awareness: the technician's bay and queue, aggregate active repair count, waiting-on-parts count, QC waiting count, promise pressure, and an honest constrained/ready state. It must not expose assignment controls, staffing management, other technicians' detailed work, financial metrics, or broad customer information. The full Shop & Recon page remains a service-management workspace rather than technician navigation.
+
+## 4A. Service Advisor experience contract
+
+A Service Advisor opens a focused customer-arrival workspace, not the full enterprise appointment command center by default.
+
+The advisor workspace contains:
+
+1. **Arrival queue** - appointment and walk-in candidates ready for customer/vehicle confirmation.
+2. **Check In Vehicle** - governed intake that captures customer concern, custody, consent, transportation, and promise context.
+3. **Repair-order handoffs** - customer-facing open ROs needing approval, promise updates, or handoff review.
+4. **Customer lookup** - permitted customer context needed to avoid duplicate customer/vehicle records.
+5. **Diagnostic Review** - advisor-facing review of technician findings and estimate/customer language.
+6. **My Work** - assigned advisor follow-up tasks.
+
+The full appointment board remains available as a secondary link for schedule review, but the advisor default experience is intentionally work-first.
+
+Advisor comments, customer-contact notes, technician-clarification responses, promise updates, and handoff explanations must live as immutable **Advisor Updates** on the authoritative Repair Order. They are not free-floating task comments and must not create a duplicate communication record outside the Repair Order timeline.
 
 ## 5. Capability rules
 

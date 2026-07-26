@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { RepairOrderCoreWorkspace } from "@/features/inventory/repair-order-core-workspace";
 import { ServiceIntakeWorkspace } from "@/features/inventory/service-intake-workspace";
 import { requireCurrentUser } from "@/server/auth/current-user";
+import { getWorkspaceKey } from "@/server/auth/navigation";
 import { getRepairOrderCreateOptions, listRepairOrders } from "@/server/repair-order/service";
 
 function safeReturnTo(value?: string) {
@@ -19,8 +20,9 @@ export default async function RepairOrderCorePage({ searchParams }: { searchPara
     listRepairOrders(user, { page: 1, pageSize: 25, query: "" }),
     getRepairOrderCreateOptions(user),
   ]);
+  const showAdvisorReturn = getWorkspaceKey(user) === "ADVISOR";
   const serializedOptions = JSON.parse(JSON.stringify(options));
-  if (params.intakeSource === "WALK_IN" && !params.vehicleId) return <ServiceIntakeWorkspace options={serializedOptions} returnTo={safeReturnTo(params.returnTo)} />;
+  if (params.intakeSource === "WALK_IN" && !params.vehicleId) return <ServiceIntakeWorkspace options={serializedOptions} returnTo={safeReturnTo(params.returnTo)} showAdvisorReturn={showAdvisorReturn} />;
   const intakeSource = params.intakeSource === "WALK_IN" || params.intakeSource === "INVENTORY_RECON" ? params.intakeSource : "";
   return <RepairOrderCoreWorkspace initial={JSON.parse(JSON.stringify(initial))} initialDraft={{ concernSummary: params.concernSummary?.slice(0, 500) ?? "", intakeSource, vehicleId: params.vehicleId ?? "" }} options={serializedOptions} />;
 }

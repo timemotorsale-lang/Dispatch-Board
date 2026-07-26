@@ -21,6 +21,8 @@ import {
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { BackToServiceAdvisorWorkspace } from "@/features/advisor/advisor-return-link";
+
 export type ServiceIntakeOptions = {
   appointments: Array<{ appointmentNumber: string; id: string; locationId: string; startsAt: string | null; title: string; participants: Array<{ customer: null | { customerNumber?: string; displayName: string; email?: string | null; id: string; phoneNumber?: string | null } }>; vehicles: Array<{ vehicle: { color?: string | null; id: string; licensePlate?: string | null; make: string | null; model: string | null; vehicleNumber: string; vin?: string | null; year: number | null } }> }>;
   customers: Array<{ customerNumber?: string; displayName: string; email?: string | null; id: string; phoneNumber?: string | null }>;
@@ -113,7 +115,7 @@ function mergeById<T extends { id: string }>(current: T[], saved: T[] = []) {
   return [...current, ...saved.filter((item) => !current.some((record) => record.id === item.id))];
 }
 
-export function ServiceIntakeWorkspace({ options, returnTo }: { options: ServiceIntakeOptions; returnTo?: string }) {
+export function ServiceIntakeWorkspace({ options, returnTo, showAdvisorReturn = false }: { options: ServiceIntakeOptions; returnTo?: string; showAdvisorReturn?: boolean }) {
   const concernRef = useRef<HTMLTextAreaElement>(null);
   const [form, setForm] = useState<IntakeState>(() => buildInitial(options));
   const [arrivalQuery, setArrivalQuery] = useState("");
@@ -430,7 +432,7 @@ export function ServiceIntakeWorkspace({ options, returnTo }: { options: Service
 
   return <form className="service-intake-shell sic-reference-v2" onSubmit={submit}>
     <header className="sic-header">
-      <div><Link className="sic-back-to-shop" href={returnTo ?? "/vehicles/shop-recon"}>{returnTo ? "← Back to Labor Guide" : "← Back to Shop & Recon"}</Link><span className="sic-advisor-label">Advisor Workspace</span><i /><h1>Check In Vehicle</h1><span className="sic-governed"><ShieldCheck />Governed intake</span></div>
+      <div>{showAdvisorReturn ? <BackToServiceAdvisorWorkspace className="advisor-return-link sic-advisor-return" /> : <Link className="sic-back-to-shop" href={returnTo ?? "/vehicles/shop-recon"}>{returnTo ? "← Back to Labor Guide" : "← Back to Shop & Recon"}</Link>}<span className="sic-advisor-label">Advisor Workspace</span><i /><h1>Check In Vehicle</h1><span className="sic-governed"><ShieldCheck />Governed intake</span></div>
       <div className="sic-header-state"><ShieldCheck /><span><strong>Governed intake</strong>Canonical records, policy gates, and audit history are enforced.</span></div>
     </header>
 

@@ -60,6 +60,8 @@
 
 8. Service Advisor
    -> /appointments
+   -> render focused Advisor Home by default
+   -> allow full appointment board with explicit board view
 
 9. Mechanic or Technician
    -> /my-tasks
@@ -191,6 +193,32 @@ Ordering:
 6. daily intelligence and production update tasks.
 
 The Vehicle Operations Lead may open Shop & Recon, Parts Operations, Inventory Flow, Repair Workbench, and Receive Vehicle because those are part of the current composite assignment. If narrower roles are later staffed, their daily work routes to their own focused workspace while the Vehicle Operations Lead retains oversight, exception, and reassignment visibility.
+
+## 5A. Service Advisor projection
+
+The Service Advisor projection is customer-arrival and repair-order handoff focused.
+
+Inputs:
+
+- eligible appointments with a primary customer and vehicle;
+- walk-in/check-in entry route;
+- open repair orders with customer-facing next actions;
+- customer and vehicle lookup routes;
+- advisor diagnostic/estimate review links;
+- assigned advisor follow-up tasks.
+
+Ordering:
+
+1. arrivals due now or today;
+2. walk-ins and tow-ins requiring intake;
+3. repair orders needing customer approval, promise review, or handoff;
+4. diagnostic/estimate review work;
+5. assigned advisor follow-up tasks;
+6. schedule board and broader appointment review as secondary context.
+
+The Service Advisor may create and manage repair-order intake records, but diagnostic decomposition, technician execution, parts purchasing, QC release, and shop dispatch stay in their authoritative workspaces.
+
+Advisor comments are recorded as immutable Advisor Updates on the authoritative Repair Order. This includes customer communication notes, technician-clarification responses, promise updates, callback commitments, customer-visible summaries, internal advisor notes, and handoff explanations. Advisor workflow surfaces may display and filter these updates, but must not duplicate them as separate task comments or detached communication records.
 
 ## 6. Available Work eligibility and ranking
 

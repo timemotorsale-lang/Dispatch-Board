@@ -1,5 +1,6 @@
 import { DiagnosticAdvisorReviewConsole } from "@/features/diagnostics/advisor-review-console";
 import { requireCurrentUser } from "@/server/auth/current-user";
+import { getWorkspaceKey } from "@/server/auth/navigation";
 import { LABOR_GUIDE_DIAGNOSTIC_NAVIGATION } from "@/server/diagnostics/labor-guide-navigation";
 import { flattenLaborOperationTaxonomy } from "@/server/diagnostics/labor-operation-taxonomy";
 import { getRepairOrderDetail } from "@/server/repair-order/service";
@@ -20,5 +21,5 @@ export default async function DiagnosticsAdvisorReviewPage({ searchParams }: Pag
     repairOrder: order ? { concern: order.serviceVisit.concernSummary, id: order.id, repairOrderNumber: order.repairOrderNumber, vehicle: [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber } : null,
   } : null;
 
-  return <DiagnosticAdvisorReviewConsole context={context} />;
+  return <DiagnosticAdvisorReviewConsole context={context} showAdvisorReturn={getWorkspaceKey(user) === "ADVISOR"} />;
 }
