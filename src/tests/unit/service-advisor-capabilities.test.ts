@@ -19,6 +19,7 @@ describe("service advisor capability defaults", () => {
       "VEHICLE_IDENTITY_CREATE",
       "REPAIR_ORDER_VIEW",
       "REPAIR_ORDER_MANAGE",
+      "PARTS_VIEW",
       "VEHICLE_DISCOVERY_VIEW",
       "DIAGNOSTIC_ESTIMATE_ADVISOR_REVIEW"
     ] as const) {
@@ -29,6 +30,13 @@ describe("service advisor capability defaults", () => {
         locationId: null
       })).toMatchObject({ allowed: true, reason: "ROLE_DEFAULT" });
     }
+
+    expect(evaluateVehicleCapability({
+      actor: advisor,
+      capability: "PARTS_MANAGE",
+      grants: [],
+      locationId: null
+    })).toMatchObject({ allowed: false, reason: "CAPABILITY_REQUIRED" });
 
     expect(evaluateVehicleCapability({
       actor: advisor,

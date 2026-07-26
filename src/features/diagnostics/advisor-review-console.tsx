@@ -3,6 +3,7 @@
 import { AlertTriangle, ClipboardCheck, FileText, PackageCheck, Send, ShieldAlert, UserCheck, Wrench } from "lucide-react";
 import { useState } from "react";
 
+import { BackToServiceAdvisorWorkspace } from "@/features/advisor/advisor-return-link";
 import styles from "./diagnostics.module.css";
 
 const reviewPackets = [
@@ -18,12 +19,13 @@ type AdvisorReviewContext = {
   repairOrder: { concern: string; id: string; repairOrderNumber: string; vehicle: string } | null;
 } | null;
 
-export function DiagnosticAdvisorReviewConsole({ context = null }: { context?: AdvisorReviewContext }) {
+export function DiagnosticAdvisorReviewConsole({ context = null, showAdvisorReturn = false }: { context?: AdvisorReviewContext; showAdvisorReturn?: boolean }) {
   const [packageOpen, setPackageOpen] = useState(Boolean(context));
   return (
     <section className={styles.reviewConsole} aria-label="Diagnostic Advisor Review Console">
       <header className={styles.reviewHero}>
         <div>
+          {showAdvisorReturn ? <BackToServiceAdvisorWorkspace /> : null}
           <span className={styles.eyebrow}>Advisor review workflow · DGN-047</span>
           <h1>Advisor Review Console</h1>
           <p>Review confirmed-diagnosis estimate intelligence before anything becomes customer-facing, insurance-facing, dispatched, authorized, or ordered.</p>

@@ -47,6 +47,7 @@ export function ServiceAdvisorHome({ model }: { model: ServiceAdvisorWorkspaceMo
         </div>
         <nav aria-label="Advisor primary actions">
           <Link className="primary" href="/vehicles/repair-orders?intakeSource=WALK_IN"><ClipboardCheck /> Check In Vehicle</Link>
+          <Link href="/vehicles/repair-workbench"><Wrench /> Repair Workbench</Link>
           <Link href="/appointments?view=board"><CalendarClock /> Appointment Board</Link>
           <Link href="/customers"><UserRound /> Find Customer</Link>
         </nav>

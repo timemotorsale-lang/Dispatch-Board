@@ -24,6 +24,7 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
   const advisorMode = getWorkspaceKey(user) === "ADVISOR" &&
     focusParams?.view !== "board" &&
     focusParams?.workspace !== "board";
+  const showAdvisorReturn = getWorkspaceKey(user) === "ADVISOR";
 
   if (advisorMode) {
     const model = await getServiceAdvisorWorkspace(user);
@@ -37,6 +38,7 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
         appointmentNumber: focusParams?.appointment ?? null,
         sourceTaskId: focusParams?.sourceTask ?? null
       }}
+      showAdvisorReturn={showAdvisorReturn}
     />
   );
 }

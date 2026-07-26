@@ -21,6 +21,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import { useAppearance } from "@/components/layout/appearance";
+import { BackToServiceAdvisorWorkspace } from "@/features/advisor/advisor-return-link";
 import type { CustomerDashboardReadModel } from "@/server/services/customer-console-read-service";
 
 const dashboardMetricIcons = {
@@ -31,7 +32,7 @@ const dashboardMetricIcons = {
   "Sales This Month": CircleDollarSign
 };
 
-export function CustomerConsoleHome() {
+export function CustomerConsoleHome({ showAdvisorReturn = false }: { showAdvisorReturn?: boolean }) {
   const { appearance: theme, setAppearance } = useAppearance();
   const [readModel, setReadModel] = useState<CustomerDashboardReadModel | null>(null);
   const [readError, setReadError] = useState("");
@@ -66,6 +67,7 @@ export function CustomerConsoleHome() {
   return (
     <section className="customer-console customer-home" data-theme={theme} aria-label="Customer Command Center">
       <header className="customer-console-toolbar customer-home-toolbar">
+        {showAdvisorReturn ? <BackToServiceAdvisorWorkspace className="advisor-return-link customer-advisor-return" /> : null}
         <label className="customer-console-search">
           <Search size={17} aria-hidden="true" />
           <input aria-label="Search customer command center" placeholder="Search customers, leads, vehicles, deals..." type="search" />

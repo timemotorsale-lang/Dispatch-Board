@@ -35,6 +35,7 @@ import {
   buildAppointmentReportingFreshnessSummary,
   buildAppointmentReportingSnapshotEntries
 } from "@/features/appointments/appointment-reporting-snapshots";
+import { BackToServiceAdvisorWorkspace } from "@/features/advisor/advisor-return-link";
 
 type AppointmentCategory =
   | "sales"
@@ -1108,6 +1109,7 @@ export type AppointmentBoardShellProps = {
     appointmentNumber?: string | null;
     sourceTaskId?: string | null;
   };
+  showAdvisorReturn?: boolean;
 };
 
 const businessDate = "Monday, July 6, 2026";
@@ -5549,7 +5551,7 @@ function buildResourceReasonNote(context: string, userReason: string) {
   return `${context} Reason documented by user: ${userReason.trim()}`;
 }
 
-export function AppointmentBoardShell({ boardSettings, initialFocus }: AppointmentBoardShellProps = {}) {
+export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisorReturn = false }: AppointmentBoardShellProps = {}) {
   const boardOrganizationId = boardSettings?.organizationId ?? defaultOrganizationId;
   const boardLocationId = boardSettings?.locationId ?? defaultLocationId;
   const boardTimezone = boardSettings?.timezone ?? defaultTimezone;
@@ -10947,6 +10949,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus }: Appointme
       className={`appointment-board-page appointment-mockup-aligned appointment-workspace-tab-${activeWorkspaceTab}${isWorkspaceOpen ? " appointment-workspace-open" : ""}${isModuleRailExpanded ? " appointment-module-rail-expanded" : ""}`}
       aria-labelledby="appointment-board-title"
     >
+      {showAdvisorReturn ? <BackToServiceAdvisorWorkspace className="advisor-return-link appointment-advisor-return" /> : null}
       <aside className="appointment-module-rail" aria-label="Appointment module navigation">
         <strong className="appointment-module-rail-brand">
           <CalendarDays size={17} aria-hidden="true" />
