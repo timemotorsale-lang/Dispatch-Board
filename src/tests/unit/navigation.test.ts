@@ -249,6 +249,7 @@ describe("enterprise shell navigation", () => {
     expect(getConsoleNavigation("/vehicles/parts-operations", user({ roles: ["Parts"] }))?.items.map((item) => item.title)).toEqual([
       "Parts Home",
       "Demand Queue",
+      "Receive Parts",
       "Parts Counter",
       "My Work"
     ]);

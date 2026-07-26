@@ -43,8 +43,8 @@ export function PartsStaffHome({ model }: { model: Model }) {
   const leakageCards = [
     { href: partsOperationsHref("demand"), label: "Duplicate risk", value: control.counts.duplicateRisk, detail: "Possible repeated demand/order before purchase" },
     { href: partsOperationsHref("demand"), label: "Late-order risk", value: control.counts.lateOrderRisk, detail: "Required parts close to or past target" },
-    { href: partsOperationsHref("receiving"), label: "Receiving exceptions", value: control.leakageQueues.receivingExceptions.length, detail: "Wrong, damaged, short, over, or cost variance" },
-    { href: partsOperationsHref("receiving"), label: "Unknown location", value: control.counts.unknownLocation, detail: "Received parts needing bin/issue verification" },
+    { href: "/vehicles/parts-receiving", label: "Receiving exceptions", value: control.leakageQueues.receivingExceptions.length, detail: "Wrong, damaged, short, over, or cost variance" },
+    { href: "/vehicles/parts-receiving", label: "Unknown location", value: control.counts.unknownLocation, detail: "Received parts needing bin/issue verification" },
     { href: partsOperationsHref("returns-recovery"), label: "Returns & credits", value: control.leakageQueues.recoveryRisk.length, detail: "Open recovery cases until credit/disposition" }
   ];
 
@@ -58,7 +58,7 @@ export function PartsStaffHome({ model }: { model: Model }) {
         </div>
         <nav aria-label="Parts staff primary actions">
           <Link className="primary" href={partsOperationsHref("demand")}><Boxes /> Demand Queue</Link>
-          <Link href={partsOperationsHref("receiving")}><Truck /> Receiving</Link>
+          <Link href="/vehicles/parts-receiving"><Truck /> Receive Parts</Link>
           <Link href="/vehicles/parts-counter"><ScanBarcode /> Parts Counter</Link>
           <Link href="/my-tasks"><ClipboardList /> My Work</Link>
         </nav>
