@@ -4,6 +4,7 @@ import {
   getDefaultLandingRoute,
   getPermittedWorkspaces,
   getWorkspaceKey,
+  isOperationsCoordinatorDefaultUser,
   isRoutePermittedForUser,
   isTechnicianOnlyUser,
   resolvePostLoginRoute,
@@ -52,12 +53,16 @@ describe("role landing and record routing", () => {
   it("permits an assigned workspace preference for a multi-role user", () => {
     const multiRole = user(["Office Manager", "Marketing/Advertisement Manager"]);
     expect(getPermittedWorkspaces(multiRole).map((workspace) => workspace.key)).toEqual([
+      "OPERATIONS_COORDINATOR",
       "MARKETING",
       "OFFICE"
     ]);
+    expect(getWorkspaceKey(multiRole)).toBe("OPERATIONS_COORDINATOR");
+    expect(getDefaultLandingRoute(multiRole)).toBe("/operations-coordinator");
+    expect(isOperationsCoordinatorDefaultUser(multiRole)).toBe(true);
     expect(getWorkspaceKey(multiRole, "OFFICE")).toBe("OFFICE");
     expect(getDefaultLandingRoute(multiRole, "OFFICE")).toBe("/my-tasks");
-    expect(getWorkspaceKey(multiRole, "SERVICE")).toBe("MARKETING");
+    expect(getWorkspaceKey(multiRole, "SERVICE")).toBe("OPERATIONS_COORDINATOR");
   });
 
   it("uses vehicle operations lead precedence for the current multi-hat operator", () => {

@@ -149,6 +149,12 @@ const WORKSPACE_BY_KEY = Object.fromEntries(
   WORKSPACE_DEFINITIONS.map((definition) => [definition.key, definition])
 ) as Record<WorkspaceKey, WorkspaceDefinition>;
 
+function hasOperationsCoordinatorDefaultRoles(user: AuthenticatedUser) {
+  return user.roles.includes("Operations Coordinator") ||
+    user.roles.includes("Front Desk Operations Coordinator") ||
+    (user.roles.includes("Office Manager") && user.roles.includes("Marketing/Advertisement Manager"));
+}
+
 const ROUTE_WORKSPACES: Array<{ prefix: string; workspaces: WorkspaceKey[] }> = [
   { prefix: "/administration", workspaces: ["MANAGEMENT"] },
   { prefix: "/settings", workspaces: ["MANAGEMENT"] },
@@ -195,9 +201,22 @@ function hasRoutePrefix(pathname: string, prefix: string) {
 function matchesDefinition(user: AuthenticatedUser, definition: WorkspaceDefinition) {
   if (definition.key === "GENERAL_STAFF") return false;
   if (
+    definition.key === "ADVISOR" &&
+    hasOperationsCoordinatorDefaultRoles(user) &&
+    !user.roles.includes("Service Advisor")
+  ) {
+    return false;
+  }
+  if (
     definition.key === "VEHICLE_OPERATIONS_LEAD" &&
     user.roles.includes("Inventory Manager") &&
     user.roles.includes("Service Department Manager")
+  ) {
+    return true;
+  }
+  if (
+    definition.key === "OPERATIONS_COORDINATOR" &&
+    hasOperationsCoordinatorDefaultRoles(user)
   ) {
     return true;
   }
@@ -226,6 +245,10 @@ export function isTechnicianUser(user: AuthenticatedUser | null) {
 export function isTechnicianOnlyUser(user: AuthenticatedUser | null) {
   if (!user || !isTechnicianUser(user)) return false;
   return getPermittedWorkspaces(user).every((workspace) => workspace.key === "TECHNICIAN");
+}
+
+export function isOperationsCoordinatorDefaultUser(user: AuthenticatedUser | null) {
+  return user ? hasOperationsCoordinatorDefaultRoles(user) : false;
 }
 
 export function getWorkspaceKey(

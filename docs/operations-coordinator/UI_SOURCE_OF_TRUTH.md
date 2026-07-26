@@ -146,6 +146,24 @@ Each section should show:
 - Needs review
 - Blocked
 
+## Service Advisor Support
+
+This is the named lane for front-desk service-advisor support. It is not full Service Advisor authority.
+
+Actions:
+
+- Check in arrival / walk-in
+- Appointment and capacity check
+- Find customer / vehicle
+- Repair-order status peek
+- Prepare customer update
+- Route technician clarification
+
+Authority rule:
+
+- The coordinator may prepare intake, collect facts, peek at advisor-safe repair order status, and route customer/technician questions.
+- The coordinator may not approve estimates, authorize repairs, override QC, close repair orders, or make manager-only promises.
+
 ## Department Peek Panels
 
 Panels are summary-first, not full management screens.

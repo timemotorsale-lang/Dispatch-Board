@@ -111,6 +111,7 @@ Allowed:
 - Capture customer concern in their own words.
 - Start service intake.
 - Route to service advisor.
+- Act in the Service Advisor Support lane to prepare check-in, appointment context, advisor-safe customer update language, and technician clarification routing.
 
 Blocked:
 
@@ -118,6 +119,7 @@ Blocked:
 - Estimate approval.
 - Close repair order.
 - Override QC or technician workflow.
+- Assume full Service Advisor authority unless the user is explicitly assigned that role.
 
 ## Paperwork rules
 

@@ -104,6 +104,28 @@ export function OperationsCoordinatorWorkspace({ model }: { model: OperationsCoo
         ))}
       </section>
 
+      <section className="oc-panel oc-advisor-support" id="service-advisor-support">
+        <header>
+          <div>
+            <strong>Service Advisor Support</strong>
+            <span>Daily advisor-facing work Ancilla can prepare or route without taking protected advisor authority.</span>
+          </div>
+          <Link href="/appointments">Open schedule</Link>
+        </header>
+        <div>
+          {model.advisorSupport.map((item) => (
+            <Link href={item.href} key={item.label}>
+              <ClipboardCheck />
+              <span>
+                <strong>{item.label}</strong>
+                <small>{item.detail}</small>
+              </span>
+              <em>{resolverLabel(item.mode)}</em>
+            </Link>
+          ))}
+        </div>
+      </section>
+
       <div className="oc-main-grid">
         <section className="oc-panel oc-queue">
           <header>
@@ -131,7 +153,7 @@ export function OperationsCoordinatorWorkspace({ model }: { model: OperationsCoo
           </div>
         </section>
 
-        <aside className="oc-panel oc-paperwork">
+        <aside className="oc-panel oc-paperwork" id="paperwork-command-center">
           <header>
             <div>
               <strong>Paperwork command center</strong>

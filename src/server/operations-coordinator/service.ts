@@ -210,6 +210,44 @@ export async function getOperationsCoordinatorWorkspace(actor: AuthenticatedUser
       ]
     },
     quickActions,
+    advisorSupport: [
+      {
+        label: "Check in arrival / walk-in",
+        detail: "Confirm customer, vehicle, concern, custody, keys, and promised target before repair work is created.",
+        href: "/vehicles/repair-orders?intakeSource=WALK_IN",
+        mode: "PREPARE_CANONICAL_WORKFLOW" as ActionResolverOutcome
+      },
+      {
+        label: "Appointment and capacity check",
+        detail: "Review schedule context before accepting or promising the vehicle.",
+        href: "/appointments?view=board",
+        mode: "READ_ONLY_PEEK" as ActionResolverOutcome
+      },
+      {
+        label: "Find customer / vehicle",
+        detail: "Search canonical records first and prepare missing customer or vehicle information if needed.",
+        href: "/customers",
+        mode: "PREPARE_CANONICAL_WORKFLOW" as ActionResolverOutcome
+      },
+      {
+        label: "Repair-order status peek",
+        detail: "See current repair status, parts/QC blockers, and next advisor-safe customer update.",
+        href: "/vehicles/repair-workbench",
+        mode: "READ_ONLY_PEEK" as ActionResolverOutcome
+      },
+      {
+        label: "Prepare customer update",
+        detail: "Draft or route the update; repair authorization and estimate approval remain protected.",
+        href: "/vehicles/repair-workbench?view=advisor-support",
+        mode: "ROUTE_TO_AUTHORITY" as ActionResolverOutcome
+      },
+      {
+        label: "Route technician clarification",
+        detail: "Capture what the customer needs and route the question to technician/advisor authority.",
+        href: "/tasks?department=SERVICE&action=technician-clarification",
+        mode: "ROUTE_TO_AUTHORITY" as ActionResolverOutcome
+      }
+    ],
     actionQueue: rankCoordinatorActions(actionInputs, now).slice(0, 10),
     paperworkCenter: [
       { label: "Sales packet", status: "Placeholder", detail: "Prepare packet; final deal approval stays protected.", href: "/tasks?department=SALES" },

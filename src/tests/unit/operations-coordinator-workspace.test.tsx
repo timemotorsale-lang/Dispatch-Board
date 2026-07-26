@@ -38,6 +38,26 @@ const model = {
     ]
   },
   quickActions: [],
+  advisorSupport: [
+    {
+      label: "Check in arrival / walk-in",
+      detail: "Confirm customer, vehicle, concern, custody, keys, and promised target before repair work is created.",
+      href: "/vehicles/repair-orders?intakeSource=WALK_IN",
+      mode: "PREPARE_CANONICAL_WORKFLOW"
+    },
+    {
+      label: "Repair-order status peek",
+      detail: "See current repair status, parts/QC blockers, and next advisor-safe customer update.",
+      href: "/vehicles/repair-workbench",
+      mode: "READ_ONLY_PEEK"
+    },
+    {
+      label: "Prepare customer update",
+      detail: "Draft or route the update; repair authorization and estimate approval remain protected.",
+      href: "/vehicles/repair-workbench?view=advisor-support",
+      mode: "ROUTE_TO_AUTHORITY"
+    }
+  ],
   actionQueue: [
     {
       id: "arrival-1",
@@ -87,6 +107,10 @@ describe("OperationsCoordinatorWorkspace", () => {
     expect(html).toContain("Keep the front door moving.");
     expect(html).toContain("Universal search first");
     expect(html).toContain("Add customer");
+    expect(html).toContain("Service Advisor Support");
+    expect(html).toContain("Check in arrival / walk-in");
+    expect(html).toContain("Repair-order status peek");
+    expect(html).toContain("repair authorization and estimate approval remain protected");
     expect(html).toContain("My coordination queue");
     expect(html).toContain("Prepare");
     expect(html).toContain("Paperwork command center");

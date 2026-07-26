@@ -2,6 +2,7 @@ import { BarChart3, BriefcaseBusiness, ClipboardList, House, MessageSquareText, 
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import {
+  getPermittedWorkspaces,
   getWorkspaceDefinition,
   resolveWorkspaceForPath,
   type WorkspaceKey
@@ -98,17 +99,35 @@ export function isInventoryConsolePath(pathname: string) {
   return pathname === "/inventory-manager" || pathname === "/vehicles" || pathname.startsWith("/vehicles/");
 }
 
+export function isOperationsCoordinatorConsolePath(pathname: string) {
+  return pathname === "/operations-coordinator" || pathname.startsWith("/operations-coordinator/");
+}
+
 export function getConsoleNavigation(
   pathname: string,
   user: AuthenticatedUser,
   preferredWorkspace?: WorkspaceKey | null
 ): ConsoleNavigationDefinition | null {
+  if (isOperationsCoordinatorConsolePath(pathname)) {
+    const canUseCoordinator = getPermittedWorkspaces(user).some((workspace) => workspace.key === "OPERATIONS_COORDINATOR");
+    if (canUseCoordinator) {
+      const definition = getWorkspaceDefinition("OPERATIONS_COORDINATOR");
+      return {
+        badge: "Ready",
+        homeHref: definition.landingRoute,
+        items: getDispatchNavigationItems(user, "OPERATIONS_COORDINATOR"),
+        subtitle: definition.label,
+        title: "Time Motor Sales"
+      };
+    }
+  }
+
   const workspace = resolveWorkspaceForPath(user, pathname, preferredWorkspace);
   const definition = getWorkspaceDefinition(workspace);
   const workspacePath =
     isInventoryConsolePath(pathname) ||
     isDispatchConsolePath(pathname) ||
-    pathname.startsWith("/operations-coordinator") ||
+    isOperationsCoordinatorConsolePath(pathname) ||
     pathname.startsWith("/diagnostics") ||
     pathname.startsWith("/customers") ||
     pathname.startsWith("/appointments");

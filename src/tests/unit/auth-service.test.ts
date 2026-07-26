@@ -4,6 +4,7 @@ import { developmentUserDefinitions, SHARED_DEVELOPMENT_PASSWORD } from "@/serve
 import {
   getLoginRouteRedirect,
   getProtectedRouteRedirect,
+  isOperationsCoordinatorDefaultUser,
   getSafePostLoginRedirect
 } from "@/server/auth/navigation";
 import {
@@ -142,6 +143,8 @@ describe("auth service", () => {
     expect(result.user.roles).toEqual(
       expect.arrayContaining(["Marketing/Advertisement Manager", "Office Manager"])
     );
+    expect(isOperationsCoordinatorDefaultUser(result.user)).toBe(true);
+    expect(getLoginRouteRedirect(result.user)).toBe("/operations-coordinator");
   });
 
   it("supports direct user duties in the authenticated summary", async () => {
