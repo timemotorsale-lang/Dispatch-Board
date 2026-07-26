@@ -136,7 +136,7 @@ export function normalizeOfferSelection(value: unknown) {
 
 export function normalizePurchaseOrder(value: unknown) {
   const raw = object(value), purchaseLines = lines(raw.lines, "Purchase order");
-  return { ...base(raw), lines: purchaseLines, locationId: required(raw.locationId, "Location ID", 100), purchaseOrderNumber: required(raw.purchaseOrderNumber, "Purchase order number", 100).toUpperCase(), requisitionId: optional(raw.requisitionId, 100), vendorId: required(raw.vendorId, "Vendor ID", 100) };
+  return { ...base(raw), duplicateOverrideReason: optional(raw.duplicateOverrideReason, 500), lines: purchaseLines, locationId: required(raw.locationId, "Location ID", 100), purchaseOrderNumber: required(raw.purchaseOrderNumber, "Purchase order number", 100).toUpperCase(), requisitionId: optional(raw.requisitionId, 100), vendorId: required(raw.vendorId, "Vendor ID", 100) };
 }
 
 export function normalizePurchaseTransition(value: unknown, currentStatus: string) {
