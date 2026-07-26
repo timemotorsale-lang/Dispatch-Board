@@ -64,7 +64,7 @@ export function OperationsCoordinatorWorkspace({ model }: { model: OperationsCoo
         <nav aria-label="Operations coordinator exits and primary routes">
           <Link href="/command-center">CCC Home</Link>
           <Link href="/board">Dispatch</Link>
-          <Link className="primary" href="/appointments">Appointments</Link>
+          <Link className="primary" href="/appointments?workspace=advisor">Service Advisor</Link>
           <Link href="/my-tasks">My Work</Link>
         </nav>
       </header>
@@ -107,10 +107,10 @@ export function OperationsCoordinatorWorkspace({ model }: { model: OperationsCoo
       <section className="oc-panel oc-advisor-support" id="service-advisor-support">
         <header>
           <div>
-            <strong>Service Advisor Support</strong>
-            <span>Daily advisor-facing work Ancilla can prepare or route without taking protected advisor authority.</span>
-          </div>
-          <Link href="/appointments">Open schedule</Link>
+          <strong>Service Advisor</strong>
+          <span>Daily customer-facing repair coordination: appointments, arrivals, status questions, check-ins, and routed decisions.</span>
+        </div>
+          <Link href="/appointments?workspace=advisor">Open advisor workspace</Link>
         </header>
         <div>
           {model.advisorSupport.map((item) => (

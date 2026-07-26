@@ -12,6 +12,12 @@ const coordinator: AuthenticatedUser = {
   duties: { all: [], direct: [], roleDefaults: [] }
 };
 
+const legacyCoordinator: AuthenticatedUser = {
+  ...coordinator,
+  id: "legacy-coordinator",
+  roles: ["Office Manager", "Marketing/Advertisement Manager"]
+};
+
 describe("operations coordinator capability defaults", () => {
   it("allows broad view and lightweight preparation without manager authority", () => {
     for (const capability of [
@@ -50,5 +56,30 @@ describe("operations coordinator capability defaults", () => {
         locationId: null
       }).allowed).toBe(false);
     }
+  });
+
+  it("treats the existing Ancilla role combination as coordinator view access", () => {
+    for (const capability of [
+      "VEHICLE_OPERATIONS_VIEW",
+      "INVENTORY_UNIT_VIEW",
+      "REPAIR_ORDER_VIEW",
+      "PARTS_VIEW",
+      "VEHICLE_DISCOVERY_VIEW",
+      "CUSTOMER_LIFECYCLE_VIEW"
+    ] as const) {
+      expect(evaluateVehicleCapability({
+        actor: legacyCoordinator,
+        capability,
+        grants: [],
+        locationId: null
+      })).toMatchObject({ allowed: true, reason: "OPERATIONS_COORDINATOR_DEFAULT" });
+    }
+
+    expect(evaluateVehicleCapability({
+      actor: legacyCoordinator,
+      capability: "PARTS_MANAGE",
+      grants: [],
+      locationId: null
+    }).allowed).toBe(false);
   });
 });

@@ -38,10 +38,21 @@ function dependencies(input: Dependencies) {
   return { enforceRollout: input.enforceRollout ?? true, foundationRepository: input.foundationRepository ?? createEnterpriseCommandRepository(), now: input.now ?? (() => new Date()), organizationId: input.organizationId ?? INITIAL_ORGANIZATION.id, repository: input.repository ?? createServiceClosePartsRepository() };
 }
 
-async function authorize(actor: AuthenticatedUser | null, domain: Domain, manage: boolean, locationId: string | null, context: ReturnType<typeof dependencies>) {
+function isOperationsCoordinatorReceivingUser(user: AuthenticatedUser) {
+  return user.roles.includes("Operations Coordinator") ||
+    user.roles.includes("Front Desk Operations Coordinator") ||
+    (user.roles.includes("Office Manager") && user.roles.includes("Marketing/Advertisement Manager"));
+}
+
+async function authorize(actor: AuthenticatedUser | null, domain: Domain, manage: boolean, locationId: string | null, context: ReturnType<typeof dependencies>, options: { allowCoordinatorReceiving?: boolean } = {}) {
   const user = assertAuthenticatedUser(actor), capability = domain === "SHOP_OPERATIONS" ? (manage ? "REPAIR_ORDER_MANAGE" : "REPAIR_ORDER_VIEW") : (manage ? "PARTS_MANAGE" : "PARTS_VIEW");
   const grants = await context.foundationRepository.listCapabilityGrants(user.id, context.organizationId);
-  assertVehicleCapability({ actor: user, capability, grants, locationId, now: context.now() });
+  try {
+    assertVehicleCapability({ actor: user, capability, grants, locationId, now: context.now() });
+  } catch (error) {
+    if (!options.allowCoordinatorReceiving || domain !== "PARTS_OPERATIONS" || !manage || !isOperationsCoordinatorReceivingUser(user)) throw error;
+    assertVehicleCapability({ actor: user, capability: "PARTS_VIEW", grants, locationId, now: context.now() });
+  }
   if (manage && context.enforceRollout) {
     const flags = await context.foundationRepository.listFeatureFlags(context.organizationId), decision = evaluateVehicleOperationsFeature(flags, domain, user.id, locationId);
     if (!decision.executable) throw new Error(`${domain === "SHOP_OPERATIONS" ? "Shop" : "Parts"} Operations mutations are not enabled (${decision.reason}).`);
@@ -88,7 +99,8 @@ export async function executeServiceClosePartsCommand(actor: AuthenticatedUser |
   const shop = ["GENERATE_INVOICE_PACKAGE", "TRANSITION_INVOICE_HANDOFF", "CLOSE_REPAIR_ORDER", "REOPEN_REPAIR_ORDER"].includes(action);
   const subjectId = typeof raw.subjectId === "string" ? raw.subjectId.trim() : "";
   const order = shop ? view.repairOrders.find((item) => item.id === (action === "TRANSITION_INVOICE_HANDOFF" ? itemInvoiceOrder(view.repairOrders, subjectId) : subjectId)) : null;
-  const user = await authorize(actor, shop ? "SHOP_OPERATIONS" : "PARTS_OPERATIONS", true, order?.locationId ?? null, context);
+  const receivePurchaseOrder = action === "RECEIVE_PURCHASE_ORDER" ? view.purchaseOrders.find((item) => item.id === subjectId) ?? null : null;
+  const user = await authorize(actor, shop ? "SHOP_OPERATIONS" : "PARTS_OPERATIONS", true, receivePurchaseOrder?.locationId ?? order?.locationId ?? null, context, { allowCoordinatorReceiving: action === "RECEIVE_PURCHASE_ORDER" });
 
   if (action === "GENERATE_INVOICE_PACKAGE") {
     const data = normalizeInvoicePackage(raw);
@@ -139,7 +151,7 @@ export async function executeServiceClosePartsCommand(actor: AuthenticatedUser |
     return context.repository.revisePurchaseOrder(command({ actorUserId: user.id, commandType: action, domain: "PARTS_OPERATIONS", expectedVersion: version, idempotencyKey: data.idempotencyKey, locationId: record.locationId, organizationId: context.organizationId, payload: payload(data), reason: data.reason, subjectId: record.id, subjectType: "PART_PURCHASE_ORDER" }), record.id, data);
   }
   if (action === "RECEIVE_PURCHASE_ORDER") {
-    const record = view.purchaseOrders.find((item) => item.id === subjectId); if (!record) throw new Error("Purchase order was not found."); const data = normalizeReceipt(raw), version = await context.repository.aggregateVersion(context.organizationId, "PARTS_OPERATIONS", "PART_PURCHASE_ORDER", record.id);
+    const record = receivePurchaseOrder; if (!record) throw new Error("Purchase order was not found."); const data = normalizeReceipt(raw), version = await context.repository.aggregateVersion(context.organizationId, "PARTS_OPERATIONS", "PART_PURCHASE_ORDER", record.id);
     return context.repository.receivePurchaseOrder(command({ actorUserId: user.id, commandType: action, domain: "PARTS_OPERATIONS", expectedVersion: version, idempotencyKey: data.idempotencyKey, locationId: record.locationId, organizationId: context.organizationId, payload: payload(data), reason: data.reason, subjectId: record.id, subjectType: "PART_PURCHASE_ORDER" }), record.id, { ...data, receivedByUserId: user.id });
   }
   if (action === "RESOLVE_RECEIVING_DISCREPANCY") {

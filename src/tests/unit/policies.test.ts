@@ -270,6 +270,41 @@ describe("permission policies", () => {
     ).toBe(false);
   });
 
+  it("allows operations coordinator appointment work without manager-only powers", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const coordinator = usersByEmail.get("avery.ops@local.test") ?? null;
+    const advisor = usersByEmail.get("alex.advisor@local.test") ?? null;
+
+    expect(coordinator).not.toBeNull();
+
+    const coordinatorAccess = {
+      canViewSchedule: true,
+      canParticipate: true,
+      canOwnAppointments: true,
+      canManageAppointments: true,
+      canViewLimitedData: true
+    };
+
+    expect(
+      canCreateAppointment({
+        actor: coordinator,
+        ownerUserId: advisor?.id ?? "advisor-user",
+        locationAccess: coordinatorAccess
+      })
+    ).toBe(true);
+    expect(
+      canMutateAppointment({
+        actor: coordinator,
+        ownerUserId: advisor?.id ?? "advisor-user",
+        locationAccess: coordinatorAccess
+      })
+    ).toBe(true);
+    expect(canViewAppointmentSchedule({ actor: coordinator, locationAccess: coordinatorAccess })).toBe(true);
+    expect(canApproveAppointment({ actor: coordinator, locationAccess: coordinatorAccess })).toBe(false);
+    expect(canOverrideAppointmentWarning({ actor: coordinator, locationAccess: coordinatorAccess })).toBe(false);
+    expect(canTransferAppointmentOwnership({ actor: coordinator, locationAccess: coordinatorAccess })).toBe(false);
+  });
+
   it("keeps approval, ownership transfer, and warning override manager-only", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const manager = usersByEmail.get("morgan.manager@local.test") ?? null;

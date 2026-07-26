@@ -107,7 +107,8 @@ describe("OperationsCoordinatorWorkspace", () => {
     expect(html).toContain("Keep the front door moving.");
     expect(html).toContain("Universal search first");
     expect(html).toContain("Add customer");
-    expect(html).toContain("Service Advisor Support");
+    expect(html).toContain("Service Advisor");
+    expect(html).toContain("Open advisor workspace");
     expect(html).toContain("Check in arrival / walk-in");
     expect(html).toContain("Repair-order status peek");
     expect(html).toContain("repair authorization and estimate approval remain protected");

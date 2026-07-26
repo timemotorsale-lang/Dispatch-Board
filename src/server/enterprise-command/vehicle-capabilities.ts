@@ -85,6 +85,12 @@ function isEffectiveVehicleOperationsLead(actor: AuthenticatedUser) {
     (actor.roles.includes("Inventory Manager") && actor.roles.includes("Service Department Manager"));
 }
 
+function isEffectiveOperationsCoordinator(actor: AuthenticatedUser) {
+  return actor.roles.includes("Operations Coordinator") ||
+    actor.roles.includes("Front Desk Operations Coordinator") ||
+    (actor.roles.includes("Office Manager") && actor.roles.includes("Marketing/Advertisement Manager"));
+}
+
 export function evaluateVehicleCapability(input: {
   actor: AuthenticatedUser | null;
   capability: VehicleCapability;
@@ -127,6 +133,12 @@ export function evaluateVehicleCapability(input: {
     VEHICLE_OPERATIONS_LEAD_DEFAULT_CAPABILITIES.includes(input.capability)
   ) {
     return { allowed: true, reason: "VEHICLE_OPERATIONS_LEAD_DEFAULT" } as const;
+  }
+  if (
+    isEffectiveOperationsCoordinator(input.actor) &&
+    ROLE_DEFAULT_CAPABILITIES["Operations Coordinator"].includes(input.capability)
+  ) {
+    return { allowed: true, reason: "OPERATIONS_COORDINATOR_DEFAULT" } as const;
   }
   return matching.some((grant) => grant.effect === "ALLOW")
     ? { allowed: true, reason: "EXPLICIT_GRANT" } as const

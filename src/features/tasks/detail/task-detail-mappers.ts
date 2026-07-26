@@ -1,7 +1,7 @@
 import { TaskStatus, WorkflowArea } from "@prisma/client";
 
 import { TASK_CHECKLIST_ITEM_KIND } from "@/lib/task-checklist-kind";
-import { buildAdaptiveTaskChecklist } from "@/lib/adaptive-task-checklist";
+import { buildAdaptiveTaskChecklist, isLegacyGenericAdaptiveChecklist } from "@/lib/adaptive-task-checklist";
 import type { ActivityFeedEvent } from "@/server/services/activity-feed";
 import type { TaskReadModel } from "@/server/services/task-read";
 
@@ -76,6 +76,17 @@ export function buildDefinitionOfDone(task: TaskReadModel): TaskDetailChecklistI
     }));
 
   if (persistedItems.length > 0) {
+    if (
+      persistedItems.every((item) => !item.completed) &&
+      isLegacyGenericAdaptiveChecklist(persistedItems.map((item) => item.label))
+    ) {
+      return buildAdaptiveTaskChecklist(task).map((item) => ({
+        id: `${task.id}-adaptive-${item.key}`,
+        label: item.label,
+        completed: false
+      }));
+    }
+
     return persistedItems;
   }
 
