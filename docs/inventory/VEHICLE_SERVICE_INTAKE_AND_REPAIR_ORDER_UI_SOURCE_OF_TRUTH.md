@@ -5,6 +5,8 @@
 **Product area:** Inventory Console / Shop & Recon  
 **Routes:** `/vehicles/repair-orders?intakeSource=WALK_IN`, `/vehicles/repair-workbench`, `/vehicles/repair-workbench?repairOrderId=:id`  
 **Legacy detail alias:** `/vehicles/repair-orders?repairOrderId=:id` redirects to the canonical workbench route.
+**Technician execution:** [`TECHNICIAN_REPAIR_WORKBENCH_UI_SOURCE_OF_TRUTH.md`](TECHNICIAN_REPAIR_WORKBENCH_UI_SOURCE_OF_TRUTH.md)
+**Page and record routing:** [`TECHNICIAN_WORKSPACE_PAGE_RECORD_ROUTING_MATRIX.md`](TECHNICIAN_WORKSPACE_PAGE_RECORD_ROUTING_MATRIX.md)
 
 ## Approved references
 
@@ -52,3 +54,5 @@ The navigation tab opens the most recently updated open repair order directly. `
 ## Implementation boundary
 
 The approved UI must reuse the canonical `Customer`, `Vehicle`, `Appointment`, `ServiceVisit`, `RepairOrder`, readiness, inspection, diagnosis, estimate, authorization, job, quality, release, activity, and audit foundations. It must not create parallel customer, vehicle, appointment, repair, or task systems.
+
+Repair-job execution routes to the approved Technician Repair Workbench. The Repair Order Workbench remains the advisor/manager home for the overall order and must not become a second technician completion form.
