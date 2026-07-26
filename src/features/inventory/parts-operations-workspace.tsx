@@ -22,6 +22,8 @@ import {
 import Link from "next/link";
 import { useState } from "react";
 
+import { BackToVehicleOperationsWorkspace } from "./workspace-return-link";
+
 type Balance = {
   allocatedQuantity: number;
   availableQuantity: number;
@@ -196,7 +198,7 @@ function partsHref(view: PartsView, repairOrderId?: string) {
   return query ? `/vehicles/parts-operations?${query}` : "/vehicles/parts-operations";
 }
 
-export function PartsOperationsWorkspace({ initial, initialRepairOrderId, initialView }: { initial: Model; initialRepairOrderId?: string; initialView?: string }) {
+export function PartsOperationsWorkspace({ initial, initialRepairOrderId, initialView, showWorkspaceReturn = false }: { initial: Model; initialRepairOrderId?: string; initialView?: string; showWorkspaceReturn?: boolean }) {
   const currentView: PartsView = validViews.has(initialView as PartsView) ? initialView as PartsView : "overview";
   const [renderedAt] = useState(() => Date.now());
   const [locationId, setLocationId] = useState("ALL");
@@ -401,6 +403,7 @@ export function PartsOperationsWorkspace({ initial, initialRepairOrderId, initia
     <section aria-label={`Parts Operations; Vendor adapters: ${initial.capability.vendorAdapters}; barcode: ${initial.capability.barcodeHardware}; recommendations: ${initial.capability.recommendations}`} className="parts-operations-page">
       <header className="parts-operations-header">
         <div>
+          {showWorkspaceReturn ? <BackToVehicleOperationsWorkspace /> : null}
           <p><Link href="/vehicles/shop-recon">Shop &amp; Recon</Link><span>/</span>Parts Operations</p>
           <h1>Parts Operations</h1>
           <small>Demand, sourcing, custody, availability, and recovery control</small>

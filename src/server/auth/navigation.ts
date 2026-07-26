@@ -4,6 +4,7 @@ const TECHNICIAN_ROLE_NAMES = new Set(["Mechanic", "Technician"]);
 
 export const WORKSPACE_KEYS = [
   "MANAGEMENT",
+  "VEHICLE_OPERATIONS_LEAD",
   "SERVICE",
   "INVENTORY",
   "ADVISOR",
@@ -36,6 +37,14 @@ export const WORKSPACE_DEFINITIONS: readonly WorkspaceDefinition[] = [
     landingRoute: "/board",
     roleNames: ["General Manager"],
     dutyTerms: ["delegated manager capabilities"]
+  },
+  {
+    key: "VEHICLE_OPERATIONS_LEAD",
+    label: "Vehicle Operations Lead",
+    description: "Multi-hat vehicle operations workspace for inventory, shop, parts runner, and lot support.",
+    landingRoute: "/vehicles?workspace=vehicle-operations-lead",
+    roleNames: ["Vehicle Operations Lead"],
+    dutyTerms: ["vehicle operations lead", "shop/parts support", "lot/detail support"]
   },
   {
     key: "SERVICE",
@@ -135,24 +144,29 @@ const ROUTE_WORKSPACES: Array<{ prefix: string; workspaces: WorkspaceKey[] }> = 
   { prefix: "/administration", workspaces: ["MANAGEMENT"] },
   { prefix: "/settings", workspaces: ["MANAGEMENT"] },
   { prefix: "/integrations", workspaces: ["MANAGEMENT"] },
-  { prefix: "/reports", workspaces: ["MANAGEMENT", "INVENTORY", "SERVICE"] },
-  { prefix: "/manager-review", workspaces: ["MANAGEMENT", "INVENTORY", "SERVICE"] },
-  { prefix: "/staff", workspaces: ["MANAGEMENT", "SERVICE"] },
+  { prefix: "/reports", workspaces: ["MANAGEMENT", "VEHICLE_OPERATIONS_LEAD", "INVENTORY", "SERVICE"] },
+  { prefix: "/manager-review", workspaces: ["MANAGEMENT", "VEHICLE_OPERATIONS_LEAD", "INVENTORY", "SERVICE"] },
+  { prefix: "/staff", workspaces: ["MANAGEMENT", "VEHICLE_OPERATIONS_LEAD", "SERVICE"] },
   { prefix: "/board", workspaces: ["MANAGEMENT"] },
   { prefix: "/command-center", workspaces: ["MANAGEMENT"] },
-  { prefix: "/vehicles/parts", workspaces: ["PARTS", "SERVICE", "INVENTORY", "MANAGEMENT"] },
-  { prefix: "/vehicles/quality-control", workspaces: ["QUALITY", "SERVICE", "INVENTORY", "MANAGEMENT"] },
-  { prefix: "/vehicles/shop", workspaces: ["SERVICE", "INVENTORY", "MANAGEMENT"] },
+  { prefix: "/vehicles/parts", workspaces: ["PARTS", "VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "MANAGEMENT"] },
+  { prefix: "/vehicles/quality-control", workspaces: ["QUALITY", "VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "MANAGEMENT"] },
+  { prefix: "/vehicles/shop-recon", workspaces: ["VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "MANAGEMENT"] },
+  { prefix: "/vehicles/shop-planning", workspaces: ["VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "MANAGEMENT"] },
+  { prefix: "/vehicles/shop-dispatch", workspaces: ["VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "MANAGEMENT"] },
+  { prefix: "/vehicles/shop-production", workspaces: ["VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "MANAGEMENT"] },
+  { prefix: "/vehicles/shop-metrics", workspaces: ["VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "MANAGEMENT"] },
+  { prefix: "/vehicles/shop", workspaces: ["VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "MANAGEMENT"] },
   { prefix: "/vehicles/repair-jobs", workspaces: ["TECHNICIAN", "SERVICE", "ADVISOR", "QUALITY", "PARTS", "MANAGEMENT"] },
-  { prefix: "/vehicles/repair-workbench", workspaces: ["SERVICE", "ADVISOR", "QUALITY", "PARTS", "INVENTORY", "MANAGEMENT"] },
-  { prefix: "/vehicles/repair-orders", workspaces: ["SERVICE", "ADVISOR", "QUALITY", "PARTS", "INVENTORY", "MANAGEMENT"] },
-  { prefix: "/vehicles/360", workspaces: ["INVENTORY", "SERVICE", "ADVISOR", "TECHNICIAN", "PARTS", "QUALITY", "SALES", "MARKETING", "MANAGEMENT"] },
-  { prefix: "/vehicles", workspaces: ["INVENTORY", "SERVICE", "ADVISOR", "PARTS", "QUALITY", "SALES", "MARKETING", "MANAGEMENT"] },
+  { prefix: "/vehicles/repair-workbench", workspaces: ["VEHICLE_OPERATIONS_LEAD", "SERVICE", "ADVISOR", "QUALITY", "PARTS", "INVENTORY", "MANAGEMENT"] },
+  { prefix: "/vehicles/repair-orders", workspaces: ["VEHICLE_OPERATIONS_LEAD", "SERVICE", "ADVISOR", "QUALITY", "PARTS", "INVENTORY", "MANAGEMENT"] },
+  { prefix: "/vehicles/360", workspaces: ["VEHICLE_OPERATIONS_LEAD", "INVENTORY", "SERVICE", "ADVISOR", "TECHNICIAN", "PARTS", "QUALITY", "SALES", "MARKETING", "MANAGEMENT"] },
+  { prefix: "/vehicles", workspaces: ["VEHICLE_OPERATIONS_LEAD", "INVENTORY", "SERVICE", "ADVISOR", "PARTS", "QUALITY", "SALES", "MARKETING", "MANAGEMENT"] },
   { prefix: "/appointments", workspaces: ["ADVISOR", "SERVICE", "SALES", "OFFICE", "MANAGEMENT"] },
   { prefix: "/customers", workspaces: ["ADVISOR", "SALES", "OFFICE", "COLLECTIONS", "MANAGEMENT"] },
   { prefix: "/diagnostics", workspaces: ["TECHNICIAN", "ADVISOR", "SERVICE", "MANAGEMENT"] },
-  { prefix: "/projects", workspaces: ["MANAGEMENT", "SERVICE", "INVENTORY", "OFFICE"] },
-  { prefix: "/activity", workspaces: ["MANAGEMENT", "SERVICE", "INVENTORY", "ADVISOR", "OFFICE"] },
+  { prefix: "/projects", workspaces: ["MANAGEMENT", "VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "OFFICE"] },
+  { prefix: "/activity", workspaces: ["MANAGEMENT", "VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "ADVISOR", "OFFICE"] },
   { prefix: "/tasks", workspaces: [...WORKSPACE_KEYS] },
   { prefix: "/my-tasks", workspaces: [...WORKSPACE_KEYS] },
   { prefix: "/time-attendance", workspaces: [...WORKSPACE_KEYS] }
@@ -170,6 +184,13 @@ function hasRoutePrefix(pathname: string, prefix: string) {
 
 function matchesDefinition(user: AuthenticatedUser, definition: WorkspaceDefinition) {
   if (definition.key === "GENERAL_STAFF") return false;
+  if (
+    definition.key === "VEHICLE_OPERATIONS_LEAD" &&
+    user.roles.includes("Inventory Manager") &&
+    user.roles.includes("Service Department Manager")
+  ) {
+    return true;
+  }
   const normalizedDuties = user.duties.all.map((duty) => duty.toLowerCase());
   return definition.roleNames.some((role) => user.roles.includes(role)) ||
     definition.dutyTerms.some((term) => normalizedDuties.some((duty) => duty.includes(term)));

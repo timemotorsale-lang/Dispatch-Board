@@ -98,6 +98,21 @@ export const dayOneDutyDefinitions = [
     description: "Submit the combined end-of-day inventory and service production update."
   },
   {
+    name: "Coordinate vehicle operations lead priorities",
+    workflowArea: "Inventory",
+    description: "Coordinate the vehicle operations priorities across inventory, shop, parts, and lot support."
+  },
+  {
+    name: "Support parts pickup and returns",
+    workflowArea: "Service",
+    description: "Support parts pickup, receiving, return, and constrained repair movement when assigned."
+  },
+  {
+    name: "Support lot readiness and vehicle movement",
+    workflowArea: "Inventory",
+    description: "Support vehicle movement, keys, lot placement, cleanup, and readiness handoffs when assigned."
+  },
+  {
     name: "Review assigned repair and diagnostic tasks",
     workflowArea: "Mechanic",
     description: "Review assigned repair and diagnostic work before starting today's repairs."
@@ -208,6 +223,20 @@ export const dayOneRoleDefinitions = [
     ]
   },
   {
+    name: "Vehicle Operations Lead",
+    description: "Coordinates the current multi-hat vehicle operations workload across inventory, shop, parts runner, and lot support.",
+    defaultDutyNames: [
+      "Coordinate vehicle operations lead priorities",
+      "Review inventory status and priority vehicles",
+      "Review service production priorities",
+      "Check vehicles awaiting parts",
+      "Check vehicles awaiting QC",
+      "Support parts pickup and returns",
+      "Support lot readiness and vehicle movement",
+      "Submit inventory and service production update"
+    ]
+  },
+  {
     name: "Inventory Manager",
     description: "Coordinates inventory movement from intake through sale readiness.",
     defaultDutyNames: [
@@ -295,7 +324,7 @@ export const developmentUserDefinitions = [
     email: "riley.inventory@local.test",
     password: SHARED_DEVELOPMENT_PASSWORD,
     isActive: true,
-    roleNames: ["Inventory Manager", "Service Department Manager"],
+    roleNames: ["Vehicle Operations Lead", "Inventory Manager", "Service Department Manager"],
     directDutyNames: []
   },
   {

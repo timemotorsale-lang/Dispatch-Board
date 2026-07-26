@@ -1,7 +1,8 @@
 import { InventoryConsoleHome, type InventoryHomeData } from "@/features/inventory/inventory-console-home";
+import { VehicleOperationsLeadHome } from "@/features/inventory/vehicle-operations-lead-home";
 import { redirect } from "next/navigation";
 import { requireCurrentUser } from "@/server/auth/current-user";
-import { isTechnicianOnlyUser } from "@/server/auth/navigation";
+import { getPermittedWorkspaces, getWorkspaceKey, isTechnicianOnlyUser } from "@/server/auth/navigation";
 import { getInventoryConsoleOperationalFacts } from "@/server/inventory-console-home";
 import { buildInventoryPriorityWork } from "@/server/inventory-console-home/priority-work";
 import { getInventoryConsoleSavedView, INVENTORY_CONSOLE_WORK_VIEWS, listInventoryConsoleSavedViews, type InventoryConsoleWorkView } from "@/server/inventory-console-saved-views";
@@ -11,8 +12,8 @@ import { isManager } from "@/server/policies/access";
 
 const stageLabels: Record<string, string> = { PURCHASED_OR_TRADE_IN: "Acquired", TRANSPORTATION: "Transport", RECEIVED: "Received", INSPECTION: "Inspection", RECONDITIONING: "Recon", TITLE_DOCUMENT_READINESS: "Title", PHOTOGRAPHY_MERCHANDISING: "Merchandising", FRONTLINE_READY: "Frontline", RESERVED_DEAL_PENDING: "Deal pending", SOLD: "Sold", DELIVERED: "Delivered", WHOLESALED_OR_OTHER_DISPOSITION: "Disposition" };
 
-export default async function VehiclesPage({ searchParams }: { searchParams: Promise<{ locationId?: string; savedViewId?: string; view?: string }> }) {
-  const [user, { locationId: requestedLocationId, savedViewId, view: requestedView }] = await Promise.all([
+export default async function VehiclesPage({ searchParams }: { searchParams: Promise<{ locationId?: string; savedViewId?: string; view?: string; workspace?: string }> }) {
+  const [user, { locationId: requestedLocationId, savedViewId, view: requestedView, workspace }] = await Promise.all([
     requireCurrentUser(),
     searchParams
   ]);
@@ -60,5 +61,12 @@ export default async function VehiclesPage({ searchParams }: { searchParams: Pro
   } catch (error) {
     data = { activeSavedViewId: selectedSavedView?.id ?? null, byLocation: [], byStage: [], canShareSavedViews: isManager(user), error: error instanceof Error ? error.message : "Inventory Home is unavailable.", freshness: "UNAVAILABLE", generatedAt: null, locationId: locationId ?? null, operational: null, savedViews, savedView, savedViewNotice, priorityWork: [], reviews: { approvals: 0, reviews: 0, available: false, items: [] }, totals: { active: 0, agedExposureCents: 0, blocked: 0, exposureCents: 0, overdue: 0, waiting: 0 } };
   }
-  return <InventoryConsoleHome data={data} />;
+  const hasVehicleOperationsLeadWorkspace = getPermittedWorkspaces(user).some((item) => item.key === "VEHICLE_OPERATIONS_LEAD");
+  const vehicleOperationsLeadMode = hasVehicleOperationsLeadWorkspace && (
+    workspace === "vehicle-operations-lead" || getWorkspaceKey(user) === "VEHICLE_OPERATIONS_LEAD"
+  );
+
+  return vehicleOperationsLeadMode
+    ? <VehicleOperationsLeadHome data={data} />
+    : <InventoryConsoleHome data={data} />;
 }

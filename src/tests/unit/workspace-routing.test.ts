@@ -26,6 +26,7 @@ function user(roles: string[], duties: string[] = []): AuthenticatedUser {
 describe("role landing and record routing", () => {
   it("routes each primary role to its approved landing", () => {
     expect(getDefaultLandingRoute(user(["General Manager"]))).toBe("/board");
+    expect(getDefaultLandingRoute(user(["Vehicle Operations Lead"]))).toBe("/vehicles?workspace=vehicle-operations-lead");
     expect(getDefaultLandingRoute(user(["Service Department Manager"]))).toBe("/vehicles/shop-recon");
     expect(getDefaultLandingRoute(user(["Inventory Manager"]))).toBe("/vehicles");
     expect(getDefaultLandingRoute(user(["Service Advisor"]))).toBe("/appointments");
@@ -58,6 +59,22 @@ describe("role landing and record routing", () => {
     expect(getWorkspaceKey(multiRole, "SERVICE")).toBe("MARKETING");
   });
 
+  it("uses vehicle operations lead precedence for the current multi-hat operator", () => {
+    const brock = user(["Inventory Manager", "Service Department Manager"]);
+
+    expect(getPermittedWorkspaces(brock).map((workspace) => workspace.key)).toEqual([
+      "VEHICLE_OPERATIONS_LEAD",
+      "SERVICE",
+      "INVENTORY"
+    ]);
+    expect(getWorkspaceKey(brock)).toBe("VEHICLE_OPERATIONS_LEAD");
+    expect(getDefaultLandingRoute(brock)).toBe("/vehicles?workspace=vehicle-operations-lead");
+    expect(resolveWorkspaceForPath(brock, "/vehicles/shop-recon")).toBe("VEHICLE_OPERATIONS_LEAD");
+    expect(resolveWorkspaceForPath(brock, "/vehicles/parts-operations")).toBe("VEHICLE_OPERATIONS_LEAD");
+    expect(getWorkspaceKey(brock, "INVENTORY")).toBe("INVENTORY");
+    expect(getDefaultLandingRoute(brock, "INVENTORY")).toBe("/vehicles");
+  });
+
   it("rejects return targets outside every role's permitted experience", () => {
     const mechanic = user(["Mechanic"]);
     expect(resolvePostLoginRoute(mechanic, "/vehicles/control-tower")).toBe("/my-tasks");
@@ -74,6 +91,10 @@ describe("role landing and record routing", () => {
     const parts = user(["Parts"]);
     expect(isRoutePermittedForUser(parts, "/vehicles/parts-counter")).toBe(true);
     expect(isRoutePermittedForUser(parts, "/customers")).toBe(false);
+
+    const inventoryOnly = user(["Inventory Manager"]);
+    expect(isRoutePermittedForUser(inventoryOnly, "/vehicles/shop-recon")).toBe(true);
+    expect(isRoutePermittedForUser(inventoryOnly, "/staff")).toBe(false);
   });
 
   it("derives workspaces from governed duties and resolves contextual paths", () => {
