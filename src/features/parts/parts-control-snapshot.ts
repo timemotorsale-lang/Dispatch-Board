@@ -38,6 +38,8 @@ const ACTIVE_DEMAND_STATUSES = new Set(["REQUESTED", "OPEN", "PARTIALLY_RESERVED
 const CLOSED_RECOVERY_STATUSES = new Set(["CREDITED", "WRITTEN_OFF"]);
 const OPEN_PURCHASE_ORDER_STATUSES = new Set(["DRAFT", "PENDING_APPROVAL", "APPROVED", "ISSUED", "ACKNOWLEDGED", "PARTIALLY_RECEIVED"]);
 const ISSUE_OR_INSTALL_CUSTODY_TYPES = new Set(["ISSUE", "INSTALL"]);
+const VENDOR_CUTOFF_REVIEW_HOURS = 24;
+const VENDOR_ETA_BUFFER_HOURS = 2;
 
 function partsOperationsHref(view: string) {
   return `/vehicles/parts-operations?view=${encodeURIComponent(view)}`;
@@ -67,12 +69,127 @@ function linePartIds(value: unknown) {
   });
 }
 
+function objectId(value: unknown, key: string) {
+  return value && typeof value === "object" && key in value && typeof value[key as keyof typeof value] === "string"
+    ? value[key as keyof typeof value] as string
+    : null;
+}
+
+function objectDate(value: unknown, key: string) {
+  const raw = value && typeof value === "object" ? value[key as keyof typeof value] : null;
+  if (!raw) return null;
+  const date = new Date(raw as string | Date);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function demandPartId(demand: Model["service"]["demands"][number]) {
+  return objectId(demand, "partId") ?? normalizeKey(demand.part.partNumber);
+}
+
+function offerPartId(offer: unknown) {
+  return objectId(offer, "partId") ?? (offer && typeof offer === "object" && "part" in offer && offer.part && typeof offer.part === "object" ? normalizeKey(objectId(offer.part, "partNumber")) : null);
+}
+
+function vendorName(value: unknown) {
+  return value && typeof value === "object" && "vendor" in value && value.vendor && typeof value.vendor === "object" && "name" in value.vendor && typeof value.vendor.name === "string"
+    ? value.vendor.name
+    : "Vendor";
+}
+
 function isPast(value: string | Date, now: Date) {
   return new Date(value).getTime() < now.getTime();
 }
 
 function hoursUntil(value: string | Date, now: Date) {
   return (new Date(value).getTime() - now.getTime()) / 3_600_000;
+}
+
+function earliestOfferForDemand(model: Model, demand: Model["service"]["demands"][number]) {
+  const partId = demandPartId(demand);
+  const selectedOffers = model.service.requisitions.flatMap((requisition) => {
+    const requisitionDemandId = requisition && typeof requisition === "object" && "demand" in requisition && requisition.demand && typeof requisition.demand === "object" ? objectId(requisition.demand, "id") : null;
+    const selectedOffer = requisition && typeof requisition === "object" && "selectedOffer" in requisition ? requisition.selectedOffer : null;
+    return requisitionDemandId === demand.id && selectedOffer ? [selectedOffer] : [];
+  });
+  const eligibleOffers = model.service.offers.filter((offer) => offerPartId(offer) === partId);
+  return [...selectedOffers, ...eligibleOffers]
+    .map((offer) => ({ estimatedArrivalAt: objectDate(offer, "estimatedArrivalAt"), vendor: vendorName(offer) }))
+    .filter((offer): offer is { estimatedArrivalAt: Date; vendor: string } => Boolean(offer.estimatedArrivalAt))
+    .sort((a, b) => a.estimatedArrivalAt.getTime() - b.estimatedArrivalAt.getTime())[0] ?? null;
+}
+
+function evaluateLateOrderRisk(model: Model, demand: Model["service"]["demands"][number], now: Date, openPurchaseOrderPartIds: Set<string>): PartsControlQueueItem | null {
+  const requiredAt = new Date(demand.requiredAt);
+  if (Number.isNaN(requiredAt.getTime())) return null;
+  const partId = demandPartId(demand);
+  const hoursToRequired = hoursUntil(requiredAt, now);
+  const bestOffer = earliestOfferForDemand(model, demand);
+  const ordered = openPurchaseOrderPartIds.has(partId);
+  const detail = `${demand.part.partNumber} - ${demand.part.description}`;
+  const label = demand.repairOrder.repairOrderNumber;
+  const reservation = `${demand.quantityReserved}/${demand.quantityRequired} reserved`;
+
+  if (requiredAt.getTime() < now.getTime()) {
+    return {
+      action: "Escalate missed parts target",
+      detail,
+      href: partsOperationsHref("demand"),
+      id: `late-${demand.id}`,
+      label,
+      meta: `${reservation} - required ${dateLabel(requiredAt)}`,
+      severity: "danger",
+    };
+  }
+
+  if (bestOffer && bestOffer.estimatedArrivalAt.getTime() > requiredAt.getTime()) {
+    return {
+      action: "Escalate vendor ETA past repair target",
+      detail,
+      href: partsOperationsHref("demand"),
+      id: `vendor-eta-${demand.id}`,
+      label,
+      meta: `${bestOffer.vendor} ETA ${dateLabel(bestOffer.estimatedArrivalAt)} - required ${dateLabel(requiredAt)}`,
+      severity: "danger",
+    };
+  }
+
+  if (bestOffer && hoursUntil(requiredAt, bestOffer.estimatedArrivalAt) <= VENDOR_ETA_BUFFER_HOURS) {
+    return {
+      action: "Confirm vendor cutoff before repair promise",
+      detail,
+      href: partsOperationsHref("demand"),
+      id: `vendor-cutoff-${demand.id}`,
+      label,
+      meta: `${bestOffer.vendor} ETA ${dateLabel(bestOffer.estimatedArrivalAt)} leaves less than ${VENDOR_ETA_BUFFER_HOURS}h buffer`,
+      severity: "warning",
+    };
+  }
+
+  if (!ordered && !bestOffer && hoursToRequired <= VENDOR_CUTOFF_REVIEW_HOURS) {
+    return {
+      action: "Confirm vendor cutoff before ordering",
+      detail,
+      href: partsOperationsHref("demand"),
+      id: `vendor-cutoff-${demand.id}`,
+      label,
+      meta: `${reservation} - no vendor ETA recorded - required ${dateLabel(requiredAt)}`,
+      severity: "warning",
+    };
+  }
+
+  if (hoursToRequired <= 4) {
+    return {
+      action: ordered ? "Confirm ordered part will arrive in time" : "Order before promise risk",
+      detail,
+      href: partsOperationsHref("demand"),
+      id: `late-${demand.id}`,
+      label,
+      meta: `${reservation} - required ${dateLabel(requiredAt)}`,
+      severity: "warning",
+    };
+  }
+
+  return null;
 }
 
 function activeDemand(demand: Model["service"]["demands"][number]) {
@@ -124,16 +241,7 @@ export function buildPartsControlSnapshot(model: Model, now = new Date()): Parts
   ].slice(0, 6);
 
   const lateOrderRisk = unreservedDemands
-    .filter((demand) => isPast(demand.requiredAt, now) || hoursUntil(demand.requiredAt, now) <= 4)
-    .map((demand) => ({
-      action: isPast(demand.requiredAt, now) ? "Escalate missed parts target" : "Order before promise risk",
-      detail: `${demand.part.partNumber} - ${demand.part.description}`,
-      href: partsOperationsHref("demand"),
-      id: `late-${demand.id}`,
-      label: demand.repairOrder.repairOrderNumber,
-      meta: `${demand.quantityReserved}/${demand.quantityRequired} reserved - required ${dateLabel(demand.requiredAt)}`,
-      severity: isPast(demand.requiredAt, now) ? "danger" as const : "warning" as const,
-    }))
+    .flatMap((demand) => evaluateLateOrderRisk(model, demand, now, openPurchaseOrderPartIds) ?? [])
     .slice(0, 6);
 
   const issuedOrInstalledReceiptLines = new Set(

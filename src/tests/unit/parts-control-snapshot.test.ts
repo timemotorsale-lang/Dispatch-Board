@@ -99,6 +99,34 @@ function model(): Model {
   } as unknown as Model;
 }
 
+function lateRiskModel(overrides: Partial<Model["service"]> = {}): Model {
+  const base = model();
+  return {
+    ...base,
+    service: {
+      ...base.service,
+      custodyEvents: [],
+      demands: [{
+        id: "demand_late",
+        partId: "part_rotor",
+        part: { description: "Front rotor", partNumber: "ROTOR-200" },
+        quantityRequired: 1,
+        quantityReserved: 0,
+        repairOrder: { locationId: "loc_1", repairOrderNumber: "RO-2002" },
+        requiredAt: "2026-07-21T14:00:00.000Z",
+        status: "OPEN"
+      }],
+      discrepancies: [],
+      offers: [],
+      purchaseOrders: [],
+      receipts: [],
+      recoveries: [],
+      requisitions: [],
+      ...overrides
+    }
+  } as unknown as Model;
+}
+
 describe("buildPartsControlSnapshot", () => {
   it("surfaces duplicate, late, receiving, unknown-location, and recovery leakage", () => {
     const snapshot = buildPartsControlSnapshot(model(), now);
@@ -111,5 +139,46 @@ describe("buildPartsControlSnapshot", () => {
     expect(snapshot.actionQueue.map((item) => item.action)).toContain("Review possible duplicate demand");
     expect(snapshot.actionQueue.map((item) => item.action)).toContain("Verify bin or issue location");
     expect(snapshot.actionQueue.map((item) => item.action)).toContain("Escalate overdue credit");
+  });
+
+  it("escalates vendor ETA when the best available offer arrives after the repair target", () => {
+    const snapshot = buildPartsControlSnapshot(lateRiskModel({
+      offers: [{
+        estimatedArrivalAt: "2026-07-21T16:30:00.000Z",
+        id: "offer_late",
+        partId: "part_rotor",
+        vendor: { name: "NAPA" }
+      }]
+    } as Partial<Model["service"]>), now);
+
+    expect(snapshot.counts.lateOrderRisk).toBe(1);
+    expect(snapshot.leakageQueues.lateOrderRisk[0]).toMatchObject({
+      action: "Escalate vendor ETA past repair target",
+      severity: "danger"
+    });
+    expect(snapshot.leakageQueues.lateOrderRisk[0]?.meta).toContain("NAPA ETA");
+  });
+
+  it("flags vendor cutoff review when urgent demand has no ETA recorded", () => {
+    const snapshot = buildPartsControlSnapshot(lateRiskModel(), now);
+
+    expect(snapshot.leakageQueues.lateOrderRisk[0]).toMatchObject({
+      action: "Confirm vendor cutoff before ordering",
+      severity: "warning"
+    });
+    expect(snapshot.leakageQueues.lateOrderRisk[0]?.meta).toContain("no vendor ETA recorded");
+  });
+
+  it("does not flag late-order risk when vendor ETA leaves enough operating buffer", () => {
+    const snapshot = buildPartsControlSnapshot(lateRiskModel({
+      offers: [{
+        estimatedArrivalAt: "2026-07-21T10:00:00.000Z",
+        id: "offer_safe",
+        partId: "part_rotor",
+        vendor: { name: "NAPA" }
+      }]
+    } as Partial<Model["service"]>), now);
+
+    expect(snapshot.counts.lateOrderRisk).toBe(0);
   });
 });

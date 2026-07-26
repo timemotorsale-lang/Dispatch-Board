@@ -35,14 +35,14 @@ export function PartsStaffHome({ model }: { model: Model }) {
     { icon: Boxes, label: "Open Demand", value: control.counts.openDemand, detail: "Repair-linked demand" },
     { icon: AlertTriangle, label: "Duplicate Risk", value: control.counts.duplicateRisk, detail: "Review before buying" },
     { icon: PackageCheck, label: "Readiness", value: `${readiness}%`, detail: "Repair orders ready" },
-    { icon: ShoppingCart, label: "Late Risk", value: control.counts.lateOrderRisk, detail: "Order timing risk" },
+    { icon: ShoppingCart, label: "Late Risk", value: control.counts.lateOrderRisk, detail: "Vendor cutoff risk" },
     { icon: Truck, label: "Unknown Location", value: control.counts.unknownLocation, detail: "Received follow-up" },
     { icon: RotateCcw, label: "Recovery Risk", value: money(control.counts.recoveryRiskCents), detail: "Expected credit" }
   ];
 
   const leakageCards = [
     { href: partsOperationsHref("demand"), label: "Duplicate risk", value: control.counts.duplicateRisk, detail: "Possible repeated demand/order before purchase" },
-    { href: partsOperationsHref("demand"), label: "Late-order risk", value: control.counts.lateOrderRisk, detail: "Required parts close to or past target" },
+    { href: partsOperationsHref("demand"), label: "Late-order risk", value: control.counts.lateOrderRisk, detail: "Vendor ETA, cutoff, or target risk" },
     { href: "/vehicles/parts-receiving", label: "Receiving exceptions", value: control.leakageQueues.receivingExceptions.length, detail: "Wrong, damaged, short, over, or cost variance" },
     { href: "/vehicles/parts-receiving", label: "Unknown location", value: control.counts.unknownLocation, detail: "Received parts needing bin/issue verification" },
     { href: partsOperationsHref("returns-recovery"), label: "Returns & credits", value: control.leakageQueues.recoveryRisk.length, detail: "Open recovery cases until credit/disposition" }
