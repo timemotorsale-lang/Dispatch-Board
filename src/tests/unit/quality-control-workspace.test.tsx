@@ -31,7 +31,14 @@ const model = {
       procedureVersion: { title: "Brake repair final QC", version: 2, qcRules: ["Road test if noise related", "Verify wheel torque"] },
       qualityInspections: [],
       dispatches: [{ technicianUser: { name: "Walter Mechanic" } }],
-      laborClocks: []
+      laborClocks: [],
+      partDemands: [{
+        id: "demand_1",
+        quantityRequired: 2,
+        quantityReserved: 2,
+        status: "RESERVED",
+        part: { partNumber: "PAD-100", description: "Front brake pads" }
+      }]
     }]
   }]
 };
@@ -46,7 +53,14 @@ describe("QualityControlWorkspace", () => {
     expect(html).toContain("Inspector queue");
     expect(html).toContain("Selected repair");
     expect(html).toContain("Technician handoff evidence");
+    expect(html).toContain("Enterprise release gates");
+    expect(html).toContain("Generated QC checklist");
+    expect(html).toContain("Brake road test and wheel torque verified");
+    expect(html).toContain("Unused parts/core returns accounted for");
+    expect(html).toContain("Advisor-safe status");
+    expect(html).toContain("Parts Blocks");
     expect(html).toContain("Record QC decision");
+    expect(html).toContain("Failed-QC route");
     expect(html).toContain("Final release authorization");
     expect(html).toContain("/vehicles/repair-workbench?repairOrderId=ro_1");
     expect(html).toContain("/vehicles/repair-jobs/job_1/workbench");

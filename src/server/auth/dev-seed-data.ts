@@ -305,6 +305,15 @@ export const dayOneRoleDefinitions = [
     ]
   },
   {
+    name: "Quality Control",
+    description: "Owns final repair inspection, failed-QC rechecks, completion evidence, and release readiness.",
+    defaultDutyNames: [
+      "Check vehicles awaiting QC",
+      "Review ready-for-review tasks",
+      "Flag stalled inventory or recon bottlenecks"
+    ]
+  },
+  {
     name: "Salesperson",
     description: "Owns lead follow-up, appointments, and customer-facing sales tasks.",
     defaultDutyNames: [
