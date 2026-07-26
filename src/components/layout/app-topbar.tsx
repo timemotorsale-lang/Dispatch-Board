@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Building2, CalendarDays, Columns3, House, Menu, Moon, Search, Sun } from "lucide-react";
+import { ArrowLeft, Bell, Building2, CalendarDays, Columns3, House, Menu, Moon, Search, Sun } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -78,6 +78,7 @@ export function AppTopbar({ commandCenterHome, onMenuOpen, preferredWorkspace, s
   const activeWorkspace = resolveWorkspaceForPath(user, pathname, preferredWorkspace);
   const activeWorkspaceDefinition = getWorkspaceDefinition(activeWorkspace);
   const roleWorkspace = activeWorkspace !== "MANAGEMENT";
+  const operationsCoordinatorAwayFromHome = activeWorkspace === "OPERATIONS_COORDINATOR" && pathname !== "/operations-coordinator";
   const workspaceHome = activeWorkspaceDefinition.landingRoute;
   const inventoryConsole = isInventoryConsolePath(pathname);
   const dispatchConsole = isDispatchConsolePath(pathname) && !inventoryConsole;
@@ -169,6 +170,11 @@ export function AppTopbar({ commandCenterHome, onMenuOpen, preferredWorkspace, s
             <Columns3 size={15} /><span>Dispatch</span>
           </Link>
         </>
+      ) : null}
+      {operationsCoordinatorAwayFromHome ? (
+        <Link aria-label="Return to Operations Coordinator workspace" className="ccc-home-link oc-topbar-return" href="/operations-coordinator">
+          <ArrowLeft size={15} /><span>Back to My Workspace</span>
+        </Link>
       ) : null}
       <WorkspaceSwitcher preferredWorkspace={preferredWorkspace} user={user} />
       {inventoryConsole && activeWorkspace === "MANAGEMENT" ? (
