@@ -39,6 +39,7 @@ const model = {
     locations: [{ id: "loc_1", name: "Time Motor Sales — Minneapolis" }],
     offers: [{ estimatedArrivalAt: "2026-07-20T19:00:00.000Z", id: "offer_1", vendor: { name: "NAPA" } }],
     purchaseOrders: [],
+    receipts: [],
     recoveries: [],
     requisitions: [],
     transfers: []
@@ -58,7 +59,10 @@ describe("PartsStaffHome", () => {
     const html = renderToStaticMarkup(<PartsStaffHome model={model} />);
 
     expect(html).toContain("Parts Workspace");
-    expect(html).toContain("Start with parts that unblock work.");
+    expect(html).toContain("Stop parts leakage before it delays work.");
+    expect(html).toContain("Duplicate risk");
+    expect(html).toContain("Late-order risk");
+    expect(html).toContain("Unknown location");
     expect(html).toContain("Parts action queue");
     expect(html).toContain("Source / reserve part");
     expect(html).toContain("PAD-100");
