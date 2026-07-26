@@ -305,6 +305,15 @@ export const dayOneRoleDefinitions = [
     ]
   },
   {
+    name: "Quality Control",
+    description: "Owns final repair inspection, failed-QC rechecks, completion evidence, and release readiness.",
+    defaultDutyNames: [
+      "Check vehicles awaiting QC",
+      "Review ready-for-review tasks",
+      "Flag stalled inventory or recon bottlenecks"
+    ]
+  },
+  {
     name: "Salesperson",
     description: "Owns lead follow-up, appointments, and customer-facing sales tasks.",
     defaultDutyNames: [
@@ -387,6 +396,14 @@ export const developmentUserDefinitions = [
     password: SHARED_DEVELOPMENT_PASSWORD,
     isActive: true,
     roleNames: ["Parts"],
+    directDutyNames: []
+  },
+  {
+    name: "Quincy QC",
+    email: "quincy.qc@local.test",
+    password: SHARED_DEVELOPMENT_PASSWORD,
+    isActive: true,
+    roleNames: ["Quality Control"],
     directDutyNames: []
   },
   {
