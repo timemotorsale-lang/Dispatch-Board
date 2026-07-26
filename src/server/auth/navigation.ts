@@ -243,6 +243,9 @@ export function resolveWorkspaceForPath(
 ) {
   const permitted = getPermittedWorkspaces(user);
   const pathname = normalizedPath(path);
+  if (pathname === "/command-center" || pathname === "/board") {
+    return "MANAGEMENT";
+  }
   const matchingContract = ROUTE_WORKSPACES.find((contract) => hasRoutePrefix(pathname, contract.prefix));
   if (preferredWorkspace &&
       permitted.some((workspace) => workspace.key === preferredWorkspace) &&

@@ -4,6 +4,7 @@ import { executeAggregateMutation, toJson, type AggregateTx } from "@/server/ent
 import type { EnterpriseCommandCommitInput } from "@/server/enterprise-command/repository";
 import { assertPartStockLocationWritable } from "@/server/parts-ledger/count-freeze";
 import { assertIndependentPartsApproval, type PurchaseLine, type ReceiptLine, type TransferLine } from "./domain";
+import { assertPurchaseOrderDuplicateGate, type PurchaseOrderDuplicateGateFact } from "./purchase-order-control";
 
 type StockMovement = {
   actorUserId: string;
@@ -73,7 +74,28 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
           },
         }),
         database.partPurchaseOrder.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" }, take: 200, include: { vendor: { select: { name: true } }, location: { select: { name: true } } } }),
-        database.partReceipt.findMany({ where: { organizationId }, orderBy: { receivedAt: "desc" }, take: 200, include: { purchaseOrder: { select: { purchaseOrderNumber: true } } } }),
+        database.partReceipt.findMany({
+          where: { organizationId },
+          orderBy: { receivedAt: "desc" },
+          take: 200,
+          include: {
+            purchaseOrder: {
+              select: {
+                purchaseOrderNumber: true,
+                requisition: {
+                  select: {
+                    demand: {
+                      select: {
+                        repairOrder: { select: { repairOrderNumber: true } },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            stockLocation: { select: { code: true, name: true, type: true } },
+          },
+        }),
         database.partReceivingDiscrepancy.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" }, take: 200, include: { receipt: { select: { purchaseOrder: { select: { locationId: true } } } } } }),
         database.partCustodyEvent.findMany({ where: { organizationId }, orderBy: { occurredAt: "desc" }, take: 250, include: { part: { select: { partNumber: true } }, repairJob: { select: { jobNumber: true } } } }),
         database.partTransfer.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" }, take: 200 }),
@@ -189,16 +211,46 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
       });
     },
 
-    createPurchaseOrder(command: EnterpriseCommandCommitInput, data: { createdByUserId: string; lines: PurchaseLine[]; locationId: string; purchaseOrderNumber: string; reason: string; requisitionId: string | null; vendorId: string }) {
+    createPurchaseOrder(command: EnterpriseCommandCommitInput, data: { createdByUserId: string; duplicateOverrideReason: string | null; lines: PurchaseLine[]; locationId: string; purchaseOrderNumber: string; reason: string; requisitionId: string | null; vendorId: string }) {
       return executeAggregateMutation(database, command, "vehicle-operations.parts", async (tx) => {
         const [vendor, location] = await Promise.all([tx.partVendor.findFirst({ where: { id: data.vendorId, organizationId: command.organizationId, status: "ACTIVE" } }), tx.location.findFirst({ where: { id: data.locationId, organizationId: command.organizationId } })]);
         if (!vendor || !location) throw new Error("Active vendor and operating location are required.");
+        const linePartIds = [...new Set(data.lines.map((line) => line.partId))];
+        let allowedDemandIds: string[] = [];
+        if (data.requisitionId) {
+          const requisition = await tx.partRequisition.findFirst({ where: { id: data.requisitionId, organizationId: command.organizationId, status: "SELECTED", selectedOffer: { vendorId: data.vendorId } } });
+          if (!requisition) throw new Error("Selected requisition does not match this vendor.");
+          allowedDemandIds = [requisition.demandId];
+        }
+        const [activeDemands, openPurchaseOrders, receipts, custodyEvents, recoveries] = await Promise.all([
+          tx.repairPartDemand.findMany({ where: { organizationId: command.organizationId, partId: { in: linePartIds }, status: { in: ["OPEN", "PARTIALLY_RESERVED"] } }, select: { id: true, partId: true, repairOrder: { select: { repairOrderNumber: true } } } }),
+          tx.partPurchaseOrder.findMany({ where: { organizationId: command.organizationId, status: { in: ["DRAFT", "APPROVED", "ISSUED", "ACKNOWLEDGED", "PARTIALLY_RECEIVED"] } }, select: { id: true, lines: true, purchaseOrderNumber: true, status: true } }),
+          tx.partReceipt.findMany({ where: { organizationId: command.organizationId }, orderBy: { receivedAt: "desc" }, take: 250, select: { id: true, lines: true, purchaseOrder: { select: { purchaseOrderNumber: true } } } }),
+          tx.partCustodyEvent.findMany({ where: { organizationId: command.organizationId, sourceType: "PART_RECEIPT_LINE", type: { in: ["ISSUE", "INSTALL"] } }, select: { sourceId: true, sourceType: true } }),
+          tx.partRecoveryCase.findMany({ where: { organizationId: command.organizationId, partId: { in: linePartIds }, status: { notIn: ["CREDITED", "WRITTEN_OFF"] } }, select: { id: true, partId: true, sourceReference: true, status: true, type: true } }),
+        ]);
+        const issuedReceiptLines = new Set(custodyEvents.map((event) => `${event.sourceType}:${event.sourceId}`));
+        const facts: PurchaseOrderDuplicateGateFact[] = [
+          ...activeDemands.map((demand) => ({ id: demand.id, label: `${demand.repairOrder.repairOrderNumber}`, partId: demand.partId, type: "ACTIVE_DEMAND" as const })),
+          ...openPurchaseOrders.flatMap((order) => (Array.isArray(order.lines) ? order.lines : []).flatMap((line) => {
+            const partId = line && typeof line === "object" && "partId" in line && typeof line.partId === "string" ? line.partId : "";
+            return linePartIds.includes(partId) ? [{ id: order.id, label: `${order.purchaseOrderNumber} (${order.status})`, partId, type: "OPEN_PURCHASE_ORDER" as const }] : [];
+          })),
+          ...receipts.flatMap((receipt) => (Array.isArray(receipt.lines) ? receipt.lines : []).flatMap((line, index) => {
+            const partId = line && typeof line === "object" && "partId" in line && typeof line.partId === "string" ? line.partId : "";
+            const sourceId = `${receipt.id}:${index}`;
+            return linePartIds.includes(partId) && !issuedReceiptLines.has(`PART_RECEIPT_LINE:${sourceId}`) ? [{ id: sourceId, label: `${receipt.purchaseOrder.purchaseOrderNumber} receipt line ${index + 1}`, partId, type: "RECEIVED_UNISSUED" as const }] : [];
+          })),
+          ...recoveries.map((recovery) => ({ id: recovery.id, label: `${recovery.type} ${recovery.sourceReference} (${recovery.status})`, partId: recovery.partId, type: "RECOVERY_OPEN" as const })),
+        ];
+        assertPurchaseOrderDuplicateGate({ allowedDemandIds, duplicateOverrideReason: data.duplicateOverrideReason, facts, lines: data.lines });
         if (data.requisitionId) {
           const requisition = await tx.partRequisition.findFirst({ where: { id: data.requisitionId, organizationId: command.organizationId, status: "SELECTED", selectedOffer: { vendorId: data.vendorId } } });
           if (!requisition) throw new Error("Selected requisition does not match this vendor.");
           await tx.partRequisition.update({ where: { id: requisition.id }, data: { status: "ORDERED", version: { increment: 1 } } });
         }
-        const record = await tx.partPurchaseOrder.create({ data: { createdByUserId: data.createdByUserId, id: command.subjectId, lines: toJson(data.lines), locationId: data.locationId, orderedTotalCents: total(data.lines), organizationId: command.organizationId, purchaseOrderNumber: data.purchaseOrderNumber, reason: data.reason, requisitionId: data.requisitionId, vendorId: data.vendorId } });
+        const reason = data.duplicateOverrideReason ? `${data.reason} Duplicate-control override: ${data.duplicateOverrideReason}` : data.reason;
+        const record = await tx.partPurchaseOrder.create({ data: { createdByUserId: data.createdByUserId, id: command.subjectId, lines: toJson(data.lines), locationId: data.locationId, orderedTotalCents: total(data.lines), organizationId: command.organizationId, purchaseOrderNumber: data.purchaseOrderNumber, reason, requisitionId: data.requisitionId, vendorId: data.vendorId } });
         return { result: { id: record.id, orderedTotalCents: record.orderedTotalCents, purchaseOrderNumber: record.purchaseOrderNumber, status: record.status } };
       });
     },

@@ -16,6 +16,7 @@ import {
   Landmark,
   ListChecks,
   Megaphone,
+  PackageCheck,
   RefreshCw,
   Settings,
   ShieldCheck,
@@ -255,9 +256,10 @@ const workspaceNavigationItems: Partial<Record<WorkspaceKey, NavigationItem[]>> 
   ],
   TECHNICIAN: technicianNavigationItems,
   PARTS: [
-    { href: "/vehicles/parts-operations", title: "Parts Operations", description: "Demand, readiness, receiving, issue, and return.", icon: BriefcaseBusiness },
+    { href: "/vehicles/parts-operations", title: "Parts Home", description: "Direct parts work, demand, receiving, returns, and readiness.", icon: House, matchExact: true },
+    { href: "/vehicles/parts-operations?view=demand", title: "Demand Queue", description: "Repair-linked demand that needs sourcing, reservation, or issue.", icon: BriefcaseBusiness },
+    { href: "/vehicles/parts-receiving", title: "Receive Parts", description: "Front-desk-friendly receiving, inspection, and placement.", icon: PackageCheck },
     { href: "/vehicles/parts-counter", title: "Parts Counter", description: "Find and process authorized part activity.", icon: ListChecks },
-    { href: "/vehicles/shop-recon", title: "Waiting Work", description: "Read-only shop work constrained by parts.", icon: Wrench },
     { href: "/my-tasks", title: "My Work", description: "Assigned parts actions and follow-up.", icon: UserRoundCheck }
   ],
   QUALITY: [

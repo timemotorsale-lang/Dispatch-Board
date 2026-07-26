@@ -67,6 +67,27 @@ describe("application top bar console switching", () => {
     expect(markup).not.toContain('aria-label="Open Dispatch Board console"');
   });
 
+  it("keeps CCC Home and Dispatch exits visible inside role workspaces", () => {
+    currentPathname = "/vehicles/parts-operations";
+
+    const markup = renderToStaticMarkup(
+      <AppearanceProvider>
+        <AppTopbar
+          commandCenterHome={false}
+          onMenuOpen={() => undefined}
+          showNavigationMenu
+          user={{ ...testUser, roles: ["Parts"] }}
+        />
+      </AppearanceProvider>
+    );
+
+    expect(markup).toContain('aria-label="Parts Workspace"');
+    expect(markup).toContain('aria-label="Open Command Control Center home"');
+    expect(markup).toContain('href="/command-center"');
+    expect(markup).toContain('aria-label="Open Dispatch Board console"');
+    expect(markup).toContain('href="/board"');
+  });
+
   it("offers a workspace switcher only to a multi-role user", () => {
     currentPathname = "/tasks";
     const markup = renderToStaticMarkup(

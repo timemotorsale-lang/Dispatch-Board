@@ -11,7 +11,7 @@ function projection(overrides: Partial<VehicleExecutionWorkbenchProjection["work
     operation: { owner: null, location: { id: "loc-1", name: "Main Shop" }, stage: "RECONDITIONING", operatingState: "ACTIVE", nextAction: "Replace brake pads", targetAt: "2026-07-20T18:00:00Z", latestOdometer: null, risks: [] },
     work: { status: "CONNECTED", unavailableReason: null, current: { id: "packet-1", state: "CURRENT", stageCode: "RECONDITIONING", purpose: "Complete approved brake repair", nextAction: "Replace brake pads", definitionOfDone: "Repair verified and evidence attached", readiness: "READY", targetAt: "2026-07-20T18:00:00Z", estimatedMinutes: 45, readinessSnapshot: { items: [{ code: "PARTS", label: "Parts ready", source: "Parts ledger", satisfied: true }] }, dependencySnapshot: { items: [] }, evidenceRequirements: { items: [{ code: "PHOTO", label: "Completion photo", source: "Evidence policy", satisfied: false }] }, task: { id: "task-1", title: "Brake repair", assignedUser: { id: "tech-1", name: "Technician" } } }, staged: { id: "packet-2", state: "STAGED", readiness: "READY", targetAt: "2026-07-20T20:00:00Z", nextAction: "Perform QC", task: { id: "task-2", title: "Quality control" } }, other: [], ...overrides },
     workOrders: { allowed: true, items: [{ id: "ro-1", repairOrderNumber: "RO-101", stage: "REPAIR", operatingState: "ACTIVE", jobs: [] }] },
-    parts: { allowed: true, demands: [{ id: "demand-1", description: "Brake pads", status: "RESERVED", requiredAt: "2026-07-19T19:00:00Z" }], custody: [] },
+    parts: { allowed: true, demands: [{ id: "demand-1", partId: "part-1", part: { id: "part-1", partNumber: "PAD-100", description: "Brake pads" }, repairOrderNumber: "RO-101", quantityRequired: 2, quantityReserved: 1, status: "RESERVED", requiredAt: "2026-07-19T19:00:00Z" }], custody: [{ id: "custody-1", partId: "part-1", type: "ISSUE" }] },
     evidence: { allowed: true, items: [{ id: "evidence-link-1", category: "REPAIR", evidenceObject: { fileName: "brake.jpg", status: "AVAILABLE", uploadedByUser: { name: "Technician" } } }] },
     activity: [{ id: "event-1", occurredAt: new Date("2026-07-19T17:00:00Z"), source: "TASK", type: "STARTED", title: "Brake repair started", detail: "Technician accepted work.", subjectType: "TASK", subjectId: "task-1" }],
     audit: { allowed: true, items: [] },
@@ -42,6 +42,18 @@ describe("official Vehicle Execution Workbench", () => {
   it("renders the approved technician role landing with stalled-work accountability guidance", () => {
     const html = renderToStaticMarkup(<VehicleExecutionWorkbench initial={projection()} initialRoleLens="Technician" />);
     for (const value of ["Technician View", "Current assignment", "Readiness before work", "Required evidence", "Stalled / incomplete work details", "The system measures work state and evidence, not personal blame", "Open incomplete update form", "Attach evidence"]) expect(html).toContain(value);
+  });
+
+  it("shows the Parts lens as the same canonical work-order parts records", () => {
+    const html = renderToStaticMarkup(<VehicleExecutionWorkbench initial={projection()} initialRoleLens="Parts" />);
+
+    expect(html).toContain("Parts lens shows canonical work-order parts records.");
+    expect(html).toContain("Canonical Parts Records");
+    expect(html).toContain("Same demand records shown in Parts Workspace");
+    expect(html).toContain("PAD-100");
+    expect(html).toContain("1/2 reserved");
+    expect(html).toContain("RO-101");
+    expect(html).toContain("1 custody event(s)");
   });
 
   it("shows a truthful unavailable state instead of inventing work", () => {
