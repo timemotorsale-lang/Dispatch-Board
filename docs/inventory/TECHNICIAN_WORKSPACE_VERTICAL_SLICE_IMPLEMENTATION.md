@@ -1,8 +1,11 @@
 # Technician Workspace Vertical Slice — Implementation Record
 
-**Product:** Time Motor Sales Dispatch Board  
-**Branch:** `codex/technician-workspace-routing`  
-**Implemented:** July 25, 2026  
+**Product:** Time Motor Sales Dispatch Board
+
+**Branch:** `codex/technician-workspace-routing`
+
+**Implemented:** July 25, 2026
+
 **Status:** Initial vertical slice implemented and verified
 
 ## Delivered route
