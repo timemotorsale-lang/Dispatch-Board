@@ -218,6 +218,8 @@ Ordering:
 
 The Service Advisor may create and manage repair-order intake records, but diagnostic decomposition, technician execution, parts purchasing, QC release, and shop dispatch stay in their authoritative workspaces.
 
+Advisor comments are recorded as immutable Advisor Updates on the authoritative Repair Order. This includes customer communication notes, technician-clarification responses, promise updates, callback commitments, customer-visible summaries, internal advisor notes, and handoff explanations. Advisor workflow surfaces may display and filter these updates, but must not duplicate them as separate task comments or detached communication records.
+
 ## 6. Available Work eligibility and ranking
 
 Eligibility is evaluated before ranking:

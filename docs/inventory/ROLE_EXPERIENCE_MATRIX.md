@@ -91,6 +91,8 @@ The advisor workspace contains:
 
 The full appointment board remains available as a secondary link for schedule review, but the advisor default experience is intentionally work-first.
 
+Advisor comments, customer-contact notes, technician-clarification responses, promise updates, and handoff explanations must live as immutable **Advisor Updates** on the authoritative Repair Order. They are not free-floating task comments and must not create a duplicate communication record outside the Repair Order timeline.
+
 ## 5. Capability rules
 
 Navigation is derived from effective capabilities:
