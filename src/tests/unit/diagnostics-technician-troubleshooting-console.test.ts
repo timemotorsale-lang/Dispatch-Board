@@ -62,6 +62,11 @@ describe("technician troubleshooting console intelligence", () => {
     expect(model.aiContextPacket.packet.forbiddenUses).toContain("authorize repair");
     expect(model.featureGates.gates.find((gate) => gate.id === "aiAssistant")?.state).toBe("WITHHELD_SAFETY_GATE");
     expect(model.pilotTelemetry.blockers.join(" ")).toContain("Recall/TSB/OEM connectors");
+    expect(model.knowledgeCatalog.coverage.completeness).toBe("SEED_CATALOG_NOT_EXHAUSTIVE");
+    expect(model.knowledgeCatalog.categories.map((category) => category.id)).toContain("automatic-transmission");
+    expect(model.knowledgeCatalog.commonCauseMatches.map((entry) => entry.id)).toContain("cc-trans-fluid-control-baseline");
+    expect(model.knowledgeCatalog.vehicleKnownProblemMatches.map((entry) => entry.id)).toContain("vkp-mazda3-2010-trans-shift-fluid-control");
+    expect(model.knowledgeCatalog.sourcePolicy.prohibited.join(" ")).toContain("inventing recalls");
   });
 
   it("bridges a recommended troubleshooting test to an existing governed test-lab node when available", () => {

@@ -110,6 +110,10 @@ describe("diagnostics case console", () => {
     expect(html).toContain("Select pilot test path");
     expect(html).toContain("Pilot working snapshot");
     expect(html).toContain("Mark sample observation captured");
+    expect(html).toContain("Troubleshooting Knowledge Catalog");
+    expect(html).toContain("SEED CATALOG NOT EXHAUSTIVE");
+    expect(html).toContain("Common-cause catalog matches");
+    expect(html).toContain("Vehicle known-problem matches");
   });
 
   it("renders the manager troubleshooting review shell", () => {

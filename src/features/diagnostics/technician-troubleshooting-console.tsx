@@ -182,6 +182,26 @@ export function TechnicianTroubleshootingConsole({ model }: { model: Model }) {
             <h3><History /> Known issue library matches</h3>
             {model.vehicleIntelligence.knownIssueMatches.map((match) => <article key={match.domainId}><strong>{match.domainLabel}</strong><span>{label(match.matchState)}</span><p>{match.summary}</p><small>{match.source}</small></article>)}
           </div>
+          <div className={styles.ttcKnowledgeCatalog}>
+            <h3><Database /> Troubleshooting Knowledge Catalog</h3>
+            <article>
+              <strong>{model.knowledgeCatalog.coverage.completeness.replaceAll("_", " ")}</strong>
+              <p>{model.knowledgeCatalog.coverage.statement}</p>
+              <small>{model.knowledgeCatalog.coverage.categoryCount} categories Â· {model.knowledgeCatalog.coverage.commonCauseSeedCount} common-cause seeds Â· {model.knowledgeCatalog.coverage.vehicleKnownProblemSeedCount} known-problem seeds</small>
+            </article>
+            <section>
+              <h4>Matched diagnostic categories</h4>
+              <div>{model.knowledgeCatalog.categories.map((category) => <span key={category.id}>{category.label}<b>{label(category.rulePackStatus)}</b></span>)}</div>
+            </section>
+            <section>
+              <h4>Common-cause catalog matches</h4>
+              {model.knowledgeCatalog.commonCauseMatches.map((entry) => <article key={entry.id}><strong>{entry.failureMode}</strong><p>Evidence: {entry.evidenceRequired.join(", ")}</p><small>{entry.sourceBoundary.replaceAll("_", " ")}</small></article>)}
+            </section>
+            <section>
+              <h4>Vehicle known-problem matches</h4>
+              {model.knowledgeCatalog.vehicleKnownProblemMatches.length ? model.knowledgeCatalog.vehicleKnownProblemMatches.map((entry) => <article key={entry.id}><strong>{entry.title}</strong><p>Evidence: {entry.evidenceRequired.join(", ")}</p><small>{entry.sourceBoundary.replaceAll("_", " ")} Â· {entry.confidence.replaceAll("_", " ")}</small><b>{entry.warnings.join(" ")}</b></article>) : <p>No vehicle-specific seed match yet. Licensed connectors or shop-approved catalog entries can expand coverage.</p>}
+            </section>
+          </div>
           <div className={styles.ttcAcknowledgements}>
             <h3>Vehicle intelligence acknowledgement checklist</h3>
             {model.vehicleIntelligence.acknowledgements.map((item) => {

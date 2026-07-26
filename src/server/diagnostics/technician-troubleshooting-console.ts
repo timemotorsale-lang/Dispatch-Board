@@ -77,6 +77,39 @@ type InternalKnownIssue = {
   title: string;
 };
 
+type KnowledgeCatalogCategory = {
+  domainId: TroubleshootingDomainId;
+  examples: string[];
+  id: string;
+  label: string;
+  rulePackStatus: "ACTIVE_SEED" | "PLANNED";
+  scope: "COMMON_CAUSE" | "KNOWN_PROBLEM" | "OEM_CONNECTOR_REQUIRED";
+};
+
+type CommonCauseCatalogEntry = {
+  categoryId: string;
+  domainId: TroubleshootingDomainId;
+  evidenceRequired: string[];
+  failureMode: string;
+  id: string;
+  sourceBoundary: "ENGINEERING_SEED";
+  symptoms: string[];
+  testKeys: string[];
+};
+
+type VehicleKnownProblemCatalogEntry = {
+  applicability: { engine?: string[]; makes: string[]; models: string[]; transmission?: string[]; yearMax: number | null; yearMin: number };
+  categoryId: string;
+  confidence: "SHOP_REVIEW_SEED" | "CONNECTOR_REQUIRED";
+  domainId: TroubleshootingDomainId;
+  evidenceRequired: string[];
+  id: string;
+  sourceBoundary: "SHOP_CURATED_SEED" | "LICENSED_CONNECTOR_PLACEHOLDER";
+  symptomPhrases: string[];
+  title: string;
+  warnings: string[];
+};
+
 const allowedOverrideReasons = new Set([
   "symptom currently present and another eligible test is more discriminating",
   "tool unavailable",
@@ -87,6 +120,87 @@ const allowedOverrideReasons = new Set([
   "intermittent condition not reproducible",
   "vehicle condition prevents this test"
 ]);
+
+const knowledgeCatalogCategories: KnowledgeCatalogCategory[] = [
+  { id: "engine-mechanical", domainId: "ENGINE_DRIVABILITY", label: "Engine mechanical", scope: "COMMON_CAUSE", rulePackStatus: "ACTIVE_SEED", examples: ["compression", "timing", "oil pressure", "internal noise"] },
+  { id: "engine-management", domainId: "ENGINE_DRIVABILITY", label: "Engine management / drivability", scope: "COMMON_CAUSE", rulePackStatus: "ACTIVE_SEED", examples: ["misfire", "fuel trim", "sensor plausibility", "stall"] },
+  { id: "fuel-ignition-emissions", domainId: "ENGINE_DRIVABILITY", label: "Fuel, ignition & emissions", scope: "COMMON_CAUSE", rulePackStatus: "ACTIVE_SEED", examples: ["fuel pressure", "coil", "injector", "EVAP", "EGR", "catalyst"] },
+  { id: "cooling-lubrication", domainId: "COOLING", label: "Cooling & lubrication", scope: "COMMON_CAUSE", rulePackStatus: "ACTIVE_SEED", examples: ["overheat", "coolant leak", "oil leak", "thermostat", "water pump"] },
+  { id: "automatic-transmission", domainId: "TRANSMISSION_DRIVETRAIN", label: "Automatic transmission", scope: "COMMON_CAUSE", rulePackStatus: "ACTIVE_SEED", examples: ["slipping", "harsh shift", "no movement", "converter", "TCM adaptation"] },
+  { id: "manual-driveline", domainId: "TRANSMISSION_DRIVETRAIN", label: "Manual transmission, clutch & driveline", scope: "COMMON_CAUSE", rulePackStatus: "ACTIVE_SEED", examples: ["clutch slip", "axle noise", "differential", "transfer case", "4WD"] },
+  { id: "brake-hydraulic-abs", domainId: "BRAKE_ABS_STABILITY", label: "Brakes, hydraulic, ABS & stability", scope: "COMMON_CAUSE", rulePackStatus: "ACTIVE_SEED", examples: ["grinding", "pull", "pulsation", "ABS light", "caliper"] },
+  { id: "steering-suspension-nvh", domainId: "TRANSMISSION_DRIVETRAIN", label: "Steering, suspension & NVH", scope: "COMMON_CAUSE", rulePackStatus: "PLANNED", examples: ["clunk", "vibration", "wheel bearing", "alignment", "tire wear"] },
+  { id: "starting-charging-power", domainId: "STARTING_CHARGING", label: "Starting, charging & power supply", scope: "COMMON_CAUSE", rulePackStatus: "ACTIVE_SEED", examples: ["battery", "starter", "alternator", "parasitic draw", "voltage drop"] },
+  { id: "electrical-network", domainId: "ELECTRICAL_NETWORK", label: "Electrical, network & modules", scope: "COMMON_CAUSE", rulePackStatus: "ACTIVE_SEED", examples: ["CAN", "module offline", "short", "open", "power/ground"] },
+  { id: "hvac-climate", domainId: "HVAC", label: "HVAC & climate control", scope: "COMMON_CAUSE", rulePackStatus: "ACTIVE_SEED", examples: ["no cooling", "no heat", "blower", "blend door", "refrigerant"] },
+  { id: "body-closures-glass", domainId: "BODY_COLLISION", label: "Body, closures, glass & water leaks", scope: "COMMON_CAUSE", rulePackStatus: "ACTIVE_SEED", examples: ["door", "window", "latch", "weatherstrip", "water leak"] },
+  { id: "srs-restraints", domainId: "ELECTRICAL_NETWORK", label: "SRS & restraints", scope: "OEM_CONNECTOR_REQUIRED", rulePackStatus: "PLANNED", examples: ["airbag light", "seat belt", "occupant sensor", "crash sensor"] },
+  { id: "adas-calibration", domainId: "ADAS_CALIBRATION", label: "ADAS, calibration & programming", scope: "OEM_CONNECTOR_REQUIRED", rulePackStatus: "ACTIVE_SEED", examples: ["camera", "radar", "programming", "relearn", "initialization"] },
+  { id: "hybrid-ev", domainId: "ELECTRICAL_NETWORK", label: "Hybrid / EV high-voltage", scope: "OEM_CONNECTOR_REQUIRED", rulePackStatus: "PLANNED", examples: ["HV isolation", "inverter", "battery cooling", "charge fault"] }
+];
+
+const commonCauseCatalog: CommonCauseCatalogEntry[] = [
+  { id: "cc-engine-misfire-baseline", categoryId: "engine-management", domainId: "ENGINE_DRIVABILITY", failureMode: "Misfire / rough running baseline", symptoms: ["misfire", "rough", "shaking"], evidenceRequired: ["DTCs", "freeze-frame data", "misfire counters", "fuel trim", "spark/fuel/compression checks"], testKeys: ["ENGINE_SCAN_HEALTH"], sourceBoundary: "ENGINEERING_SEED" },
+  { id: "cc-engine-overheat-baseline", categoryId: "cooling-lubrication", domainId: "COOLING", failureMode: "Cooling system pressure, flow, or fan concern", symptoms: ["overheating", "runs hot", "coolant leak"], evidenceRequired: ["coolant level", "pressure test", "fan command", "temperature delta"], testKeys: ["COOLING_PRESSURE_VISUAL"], sourceBoundary: "ENGINEERING_SEED" },
+  { id: "cc-trans-fluid-control-baseline", categoryId: "automatic-transmission", domainId: "TRANSMISSION_DRIVETRAIN", failureMode: "Fluid condition, leak, or control/adaptation issue", symptoms: ["slipping", "harsh shift", "leak", "no movement"], evidenceRequired: ["fluid level", "fluid condition", "leak location", "TCM DTCs", "adaptation values"], testKeys: ["TRANS_FLUID_CHECK", "TRANS_SCAN_ADAPTATION"], sourceBoundary: "ENGINEERING_SEED" },
+  { id: "cc-brake-friction-hydraulic-baseline", categoryId: "brake-hydraulic-abs", domainId: "BRAKE_ABS_STABILITY", failureMode: "Friction, rotor, hydraulic, or ABS concern", symptoms: ["grinding", "pulsation", "pull", "ABS light"], evidenceRequired: ["pad thickness", "rotor condition", "hardware/caliper observation", "ABS codes"], testKeys: ["BRAKE_VISUAL_MEASURE"], sourceBoundary: "ENGINEERING_SEED" },
+  { id: "cc-start-charge-voltage-baseline", categoryId: "starting-charging-power", domainId: "STARTING_CHARGING", failureMode: "Battery, starter, alternator, or voltage-drop concern", symptoms: ["no crank", "slow crank", "dead battery", "charging light"], evidenceRequired: ["state of charge", "loaded voltage", "terminal condition", "voltage drop"], testKeys: ["STARTING_BATTERY_BASELINE"], sourceBoundary: "ENGINEERING_SEED" },
+  { id: "cc-electrical-network-baseline", categoryId: "electrical-network", domainId: "ELECTRICAL_NETWORK", failureMode: "Power/ground or network communication concern", symptoms: ["intermittent", "module offline", "no communication", "short"], evidenceRequired: ["network scan", "voltage drop", "loaded power/ground reading", "module communication status"], testKeys: ["ELECTRICAL_POWER_GROUND_BASELINE"], sourceBoundary: "ENGINEERING_SEED" },
+  { id: "cc-hvac-temp-pressure-baseline", categoryId: "hvac-climate", domainId: "HVAC", failureMode: "HVAC temperature, pressure, airflow, or blend control concern", symptoms: ["no cooling", "no heat", "no airflow"], evidenceRequired: ["ambient temperature", "vent temperature", "pressure readings", "actuator command"], testKeys: ["HVAC_TEMP_PRESSURE_BASELINE"], sourceBoundary: "ENGINEERING_SEED" },
+  { id: "cc-body-closure-water-baseline", categoryId: "body-closures-glass", domainId: "BODY_COLLISION", failureMode: "Door, window, latch, trim, refinish, or water leak overlap", symptoms: ["door repair", "window concern", "water leak", "damage"], evidenceRequired: ["affected subcomponent list", "fitment observation", "photo evidence", "weatherstrip condition"], testKeys: ["BODY_AREA_TREE_REVIEW"], sourceBoundary: "ENGINEERING_SEED" },
+  { id: "cc-adas-prereq-baseline", categoryId: "adas-calibration", domainId: "ADAS_CALIBRATION", failureMode: "Calibration prerequisite, programming, or sensor aim concern", symptoms: ["calibration", "programming", "camera", "radar"], evidenceRequired: ["scan status", "sensor/mount observation", "prerequisite checklist", "calibration result"], testKeys: ["ADAS_PREREQUISITE_REVIEW"], sourceBoundary: "ENGINEERING_SEED" }
+];
+
+const vehicleKnownProblemCatalog: VehicleKnownProblemCatalogEntry[] = [
+  {
+    id: "vkp-mazda3-2010-trans-shift-fluid-control",
+    categoryId: "automatic-transmission",
+    domainId: "TRANSMISSION_DRIVETRAIN",
+    title: "Mazda 3 transmission shift complaint requires fluid/control baseline before replacement language",
+    applicability: { makes: ["Mazda"], models: ["3"], yearMin: 2010, yearMax: 2010 },
+    symptomPhrases: ["transmission", "shift", "slip", "harsh", "replacement"],
+    evidenceRequired: ["fluid level", "fluid condition", "leak location", "TCM DTCs", "adaptation/programming status"],
+    confidence: "SHOP_REVIEW_SEED",
+    sourceBoundary: "SHOP_CURATED_SEED",
+    warnings: ["Not an OEM bulletin.", "Do not recommend transmission replacement until evidence supports internal failure or replacement authorization scope."]
+  },
+  {
+    id: "vkp-ford-f150-2015-2020-no-start-baseline",
+    categoryId: "starting-charging-power",
+    domainId: "STARTING_CHARGING",
+    title: "Ford F-150 no-start complaints should separate battery/state, starter control, and network authorization",
+    applicability: { makes: ["Ford"], models: ["F-150"], yearMin: 2015, yearMax: 2020 },
+    symptomPhrases: ["no start", "no crank", "click", "dead battery"],
+    evidenceRequired: ["battery state of charge", "loaded voltage", "starter command", "network scan if immobilizer/module symptoms appear"],
+    confidence: "SHOP_REVIEW_SEED",
+    sourceBoundary: "SHOP_CURATED_SEED",
+    warnings: ["Not a recall or TSB result.", "Immobilizer/security or module programming references require licensed service information."]
+  },
+  {
+    id: "vkp-generic-door-water-window-overlap",
+    categoryId: "body-closures-glass",
+    domainId: "BODY_COLLISION",
+    title: "Door/window/water leak concerns often require closure, glass, trim, wiring, and weatherstrip scope review",
+    applicability: { makes: [], models: [], yearMin: 1980, yearMax: null },
+    symptomPhrases: ["door", "window", "water leak", "latch", "glass"],
+    evidenceRequired: ["affected subcomponent list", "water test or fitment observation", "photo evidence", "licensed diagram if part numbers are needed"],
+    confidence: "SHOP_REVIEW_SEED",
+    sourceBoundary: "SHOP_CURATED_SEED",
+    warnings: ["OEM part numbers and diagrams require a licensed connector.", "Do not infer refinish, blend, or calibration operations without repair-area review."]
+  },
+  {
+    id: "vkp-generic-adas-calibration-after-body-glass",
+    categoryId: "adas-calibration",
+    domainId: "ADAS_CALIBRATION",
+    title: "ADAS/camera/radar concerns after glass, bumper, alignment, or structural work require prerequisite review",
+    applicability: { makes: [], models: [], yearMin: 2012, yearMax: null },
+    symptomPhrases: ["adas", "camera", "radar", "calibration", "programming", "lane"],
+    evidenceRequired: ["scan status", "sensor/mount observation", "equipment fitment", "licensed calibration procedure reference"],
+    confidence: "CONNECTOR_REQUIRED",
+    sourceBoundary: "LICENSED_CONNECTOR_PLACEHOLDER",
+    warnings: ["Calibration procedure and release criteria must come from licensed/OEM service information.", "Do not release safety-critical systems from seed-library guidance alone."]
+  }
+];
 
 const internalKnownIssueLibrary: InternalKnownIssue[] = [
   {
@@ -367,6 +481,69 @@ function classifyGate(input: TroubleshootingCaseInput, missingQuestions: string[
 
 function sourceStatus(label: string, state: "INTERNAL_SEED" | "NOT_CONNECTED" | "REVIEW_REQUIRED", detail: string) {
   return { detail, label, state };
+}
+
+function vehicleFieldMatches(allowed: string[], actual: string | null) {
+  return allowed.length === 0 || allowed.some((item) => normalizeText(item) === normalizeText(actual ?? ""));
+}
+
+function catalogSymptomMatch(text: string, symptoms: string[]) {
+  return symptoms.filter((symptom) => includesPhrase(text, symptom));
+}
+
+function buildTroubleshootingKnowledgeCatalog(input: TroubleshootingCaseInput, selected: Array<{ pack: DomainRulePack; score: number; symptoms: string[] }>) {
+  const text = normalizeText(input.diagnosticCase.concern);
+  const selectedDomainIds = new Set(selected.map((match) => match.pack.id));
+  const categoryMatches = knowledgeCatalogCategories
+    .filter((category) => selectedDomainIds.has(category.domainId) || category.examples.some((example) => includesPhrase(text, example)))
+    .map((category) => ({
+      ...category,
+      matchState: selectedDomainIds.has(category.domainId) ? "DOMAIN_SELECTED" as const : "KEYWORD_RELATED" as const
+    }))
+    .slice(0, 8);
+  const commonCauseMatches = commonCauseCatalog
+    .map((entry) => ({ ...entry, matchedSymptoms: catalogSymptomMatch(text, entry.symptoms) }))
+    .filter((entry) => selectedDomainIds.has(entry.domainId) || entry.matchedSymptoms.length > 0)
+    .slice(0, 8);
+  const vehicleKnownProblemMatches = vehicleKnownProblemCatalog
+    .map((entry) => {
+      const year = input.diagnosticCase.vehicle.year ?? 0;
+      const yearApplies = year === 0 || year >= entry.applicability.yearMin && (entry.applicability.yearMax == null || year <= entry.applicability.yearMax);
+      const makeApplies = vehicleFieldMatches(entry.applicability.makes, input.diagnosticCase.vehicle.make);
+      const modelApplies = vehicleFieldMatches(entry.applicability.models, input.diagnosticCase.vehicle.model);
+      const matchedSymptoms = catalogSymptomMatch(text, entry.symptomPhrases);
+      return {
+        ...entry,
+        matchReasons: [
+          yearApplies ? "year applies" : null,
+          makeApplies ? "make applies" : null,
+          modelApplies ? "model applies" : null,
+          matchedSymptoms.length ? `symptom language: ${matchedSymptoms.join(", ")}` : null
+        ].filter((item): item is string => Boolean(item)),
+        matchedSymptoms
+      };
+    })
+    .filter((entry) => entry.matchReasons.length >= 3 || (entry.applicability.makes.length === 0 && entry.matchedSymptoms.length > 0 && selectedDomainIds.has(entry.domainId)))
+    .slice(0, 8);
+
+  return {
+    version: "TTC-KNOWLEDGE-CATALOG/1.0.0",
+    coverage: {
+      categoryCount: knowledgeCatalogCategories.length,
+      commonCauseSeedCount: commonCauseCatalog.length,
+      vehicleKnownProblemSeedCount: vehicleKnownProblemCatalog.length,
+      completeness: "SEED_CATALOG_NOT_EXHAUSTIVE" as const,
+      statement: "This catalog provides governed seed coverage and matching contracts. It is not an exhaustive make/model/year failure database until licensed connectors or shop-approved catalog imports are added."
+    },
+    categories: categoryMatches,
+    commonCauseMatches,
+    vehicleKnownProblemMatches,
+    sourcePolicy: {
+      allowed: ["shop-curated seed entries", "generic engineering common-cause logic", "licensed/public connector facts when connected"],
+      prohibited: ["inventing recalls, TSBs, OEM procedures, OEM part numbers, or complete known-failure coverage claims"],
+      connectorRequiredFor: ["OEM bulletins", "recall/campaign status", "OEM part diagrams and part numbers", "programming/calibration procedure details", "high-voltage and SRS procedure details"]
+    }
+  };
 }
 
 function text(raw: unknown, label: string, maximum = 1000, minimum = 0) {
@@ -793,6 +970,7 @@ export function buildTechnicianTroubleshootingConsole(input: TroubleshootingCase
       source: issue.source
     }));
   }).slice(0, 6);
+  const knowledgeCatalog = buildTroubleshootingKnowledgeCatalog(input, selected);
   const aiContextPacket = buildAiContextPacket(input, knownIssueMatches, tests, commonCauses);
   const testExecutionBridge = buildTestExecutionBridge(input, recommendedTest);
   const pilotTelemetry = buildPilotTelemetry(input, gateState, knownIssueMatches, advisorHandoff, tests);
@@ -827,6 +1005,7 @@ export function buildTechnicianTroubleshootingConsole(input: TroubleshootingCase
           : "Concern needs more detail before the console can select a governed diagnostic path."
     },
     intakeRefinement: buildIntakeRefinement(selected, broadOnly),
+    knowledgeCatalog,
     rulePackRegistry: buildRulePackRegistry(selected),
     vehicleIntelligence: {
       required: true,
