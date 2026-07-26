@@ -17,7 +17,7 @@ import { WorkspaceSwitcher } from "./workspace-switcher";
 import { TimeMotorSalesLogo } from "@/components/brand/time-motor-sales-logo";
 
 import { getNavigationGroups, getNavigationItemsForPath, isDispatchConsolePath } from "./navigation";
-import { isInventoryConsolePath } from "./console-navigation";
+import { isAppointmentConsolePath, isInventoryConsolePath } from "./console-navigation";
 import { useAppearance } from "./appearance";
 
 type AppTopbarProps = {
@@ -79,6 +79,10 @@ export function AppTopbar({ commandCenterHome, onMenuOpen, preferredWorkspace, s
   const activeWorkspaceDefinition = getWorkspaceDefinition(activeWorkspace);
   const roleWorkspace = activeWorkspace !== "MANAGEMENT";
   const operationsCoordinatorAwayFromHome = activeWorkspace === "OPERATIONS_COORDINATOR" && pathname !== "/operations-coordinator";
+  const appointmentConsoleAwayFromHome =
+    (isAppointmentConsolePath(pathname) && (pathname !== "/appointments" || searchParams.toString() !== "")) ||
+    pathname.startsWith("/settings/appointments") ||
+    (pathname.startsWith("/manager-review") && searchParams.get("scope") === "appointments");
   const workspaceHome = activeWorkspaceDefinition.landingRoute;
   const inventoryConsole = isInventoryConsolePath(pathname);
   const dispatchConsole = isDispatchConsolePath(pathname) && !inventoryConsole;
@@ -174,6 +178,11 @@ export function AppTopbar({ commandCenterHome, onMenuOpen, preferredWorkspace, s
       {operationsCoordinatorAwayFromHome ? (
         <Link aria-label="Return to Operations Coordinator workspace" className="ccc-home-link oc-topbar-return" href="/operations-coordinator">
           <ArrowLeft size={15} /><span>Back to My Workspace</span>
+        </Link>
+      ) : null}
+      {appointmentConsoleAwayFromHome ? (
+        <Link aria-label="Return to Appointment Console home" className="ccc-home-link appointment-topbar-return" href="/appointments">
+          <ArrowLeft size={15} /><span>Back to Appointment Home</span>
         </Link>
       ) : null}
       <WorkspaceSwitcher preferredWorkspace={preferredWorkspace} user={user} />

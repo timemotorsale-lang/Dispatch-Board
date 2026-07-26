@@ -11815,6 +11815,9 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
         <div className="appointment-enterprise-main">
       <div className="appointment-board-toolbar">
         <div>
+          <Link className="appointment-return-home-link appointment-board-return-home" href="/appointments">
+            ← Back to Appointment Home
+          </Link>
           <p className="section-kicker">Enterprise appointment operations</p>
           <h1 id="appointment-board-title">Appointment Board</h1>
           <p>{boardAddress} · {boardPhone} · {boardBusinessHours}</p>

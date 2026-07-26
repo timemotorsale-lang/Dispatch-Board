@@ -508,6 +508,9 @@ export function AppointmentConsoleTodayFlow({ section = "today" }: { section?: s
       <main className="appointment-console-home">
         <header className="appointment-console-hero">
           <div>
+            {normalizedSection !== "today" ? (
+              <Link className="appointment-return-home-link" href="/appointments">← Back to Appointment Home</Link>
+            ) : null}
             <h1>Appointment Console</h1>
             <p>Know who is coming, whether we can take them, and what needs action next.</p>
           </div>
