@@ -1,4 +1,5 @@
 import {
+  AlertTriangle,
   ArrowRight,
   CalendarClock,
   CarFront,
@@ -8,6 +9,7 @@ import {
   MessageSquareText,
   Phone,
   Search,
+  Send,
   ShieldCheck,
   UserRound,
   Wrench
@@ -26,6 +28,14 @@ function dateLabel(value: string) {
 
 function stageLabel(value: string) {
   return value.replaceAll("_", " ").toLocaleLowerCase().replace(/^./, (letter) => letter.toUpperCase());
+}
+
+function actionTone(kind: ServiceAdvisorWorkspaceModel["actionQueue"][number]["actionKind"]) {
+  if (kind === "AUTHORIZATION") return "urgent";
+  if (kind === "PROMISE_RISK") return "risk";
+  if (kind === "PARTS_DELAY") return "parts";
+  if (kind === "HANDOFF") return "handoff";
+  return "update";
 }
 
 export function ServiceAdvisorHome({ model }: { model: ServiceAdvisorWorkspaceModel }) {
@@ -73,6 +83,32 @@ export function ServiceAdvisorHome({ model }: { model: ServiceAdvisorWorkspaceMo
         ))}
       </section>
 
+      <section className="advisor-panel advisor-action-queue">
+        <header>
+          <div>
+            <strong>Advisor action queue</strong>
+            <span>The work Alex should handle first: approvals, promise risk, parts delays, customer updates, and handoff.</span>
+          </div>
+          <Link href="/vehicles/repair-workbench">Open all repair orders</Link>
+        </header>
+        <div>
+          {model.actionQueue.length ? model.actionQueue.map((item) => (
+            <Link className={`advisor-action-card ${actionTone(item.actionKind)}`} href={`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.id)}`} key={`${item.actionKind}-${item.id}`}>
+              <span className="advisor-action-type">{item.overdue ? <AlertTriangle /> : <MessageSquareText />}{item.actionLabel}</span>
+              <span>
+                <strong>{item.repairOrderNumber}{" • "}{item.customerName}</strong>
+                <small>{item.vehicleLabel}{" • "}{stageLabel(item.stage)}{" • "}{stageLabel(item.operatingState)}</small>
+                <small>{item.actionReason}</small>
+              </span>
+              <em>{item.overdue ? "Overdue" : dateLabel(item.targetAt)}</em>
+              <b><Send /> Review</b>
+            </Link>
+          )) : (
+            <p className="advisor-empty"><CheckCircle2 /> No advisor actions need attention right now.</p>
+          )}
+        </div>
+      </section>
+
       <div className="advisor-layout">
         <section className="advisor-panel advisor-arrivals">
           <header>
@@ -88,7 +124,7 @@ export function ServiceAdvisorHome({ model }: { model: ServiceAdvisorWorkspaceMo
                 <time>{timeLabel(appointment.startsAt)}</time>
                 <span>
                   <strong>{appointment.customerName}</strong>
-                  <small>{appointment.vehicleLabel} · {appointment.appointmentNumber}</small>
+                  <small>{appointment.vehicleLabel}{" • "}{appointment.appointmentNumber}</small>
                   <small>{appointment.phoneNumber ?? appointment.email ?? appointment.title}</small>
                 </span>
                 <Link href={`/vehicles/repair-orders?intakeSource=APPOINTMENT&appointmentId=${encodeURIComponent(appointment.id)}`}>Check in</Link>
@@ -112,8 +148,8 @@ export function ServiceAdvisorHome({ model }: { model: ServiceAdvisorWorkspaceMo
               <Link href={`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(order.id)}`} key={order.id}>
                 <ClipboardCheck />
                 <span>
-                  <strong>{order.repairOrderNumber} · {order.customerName}</strong>
-                  <small>{order.vehicleLabel} · {stageLabel(order.stage)}</small>
+                  <strong>{order.repairOrderNumber}{" • "}{order.customerName}</strong>
+                  <small>{order.vehicleLabel}{" • "}{stageLabel(order.stage)}</small>
                   <small>{order.nextAction}</small>
                 </span>
                 <em>{order.age.overdue ? "Overdue" : dateLabel(order.targetAt)}</em>
