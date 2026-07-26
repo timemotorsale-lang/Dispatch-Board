@@ -11,6 +11,8 @@
 **Official vehicle cards:** [`INVENTORY_EXECUTION_VEHICLE_CARD_UI_SOURCE_OF_TRUTH.md`](INVENTORY_EXECUTION_VEHICLE_CARD_UI_SOURCE_OF_TRUTH.md)  
 **Architecture context:** [`INVENTORY_EXECUTION_FORMS_AND_VEHICLE_WORKBENCH_ARCHITECTURE.md`](INVENTORY_EXECUTION_FORMS_AND_VEHICLE_WORKBENCH_ARCHITECTURE.md)  
 **Implementation claim:** None. This document approves the Workbench product contract; it does not claim application implementation, integration, migration, pilot, or production activation.
+**Customer-repair technician execution:** [`TECHNICIAN_REPAIR_WORKBENCH_UI_SOURCE_OF_TRUTH.md`](TECHNICIAN_REPAIR_WORKBENCH_UI_SOURCE_OF_TRUTH.md)
+**Page and record routing:** [`TECHNICIAN_WORKSPACE_PAGE_RECORD_ROUTING_MATRIX.md`](TECHNICIAN_WORKSPACE_PAGE_RECORD_ROUTING_MATRIX.md)
 
 ---
 
@@ -34,6 +36,8 @@ The Workbench is not:
 - a catalog of generic forms;
 - a dashboard or tab wall;
 - a place where free-text comments silently replace structured workflow decisions.
+
+This Vehicle Execution Workbench governs vehicle-centered inventory and recon execution. A customer-repair `RepairJob` is executed in the separately approved Technician Repair Workbench. The two surfaces may share visual language and linked records, but they are not interchangeable and may not duplicate each other's canonical work.
 
 Vehicle 360 remains the canonical permission-aware vehicle context. Work orders, parts records, purchase orders, evidence, tasks, approvals, and technician updates remain authoritative linked domain records.
 

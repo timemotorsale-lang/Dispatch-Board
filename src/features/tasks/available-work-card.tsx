@@ -33,11 +33,15 @@ export function AvailableWorkCard({ boardDate }: { boardDate: string }) {
     startTransition(async () => {
       setMessage(null);
       const response = await fetch(`/api/my-day/available-work/${encodeURIComponent(recommendation.id)}`, { method: "POST" });
-      const result = await response.json().catch(() => null) as { error?: string } | null;
+      const result = await response.json().catch(() => null) as { claim?: { destination?: string }; error?: string } | null;
       if (!response.ok) return setMessage(result?.error ?? "This work is no longer available.");
       setRecommendations((current) => current.filter((item) => item.id !== recommendation.id));
       setMessage(`${recommendation.task.title} is now assigned to you.`);
-      router.refresh();
+      if (result?.claim?.destination) {
+        router.push(result.claim.destination);
+      } else {
+        router.refresh();
+      }
     });
   }
 

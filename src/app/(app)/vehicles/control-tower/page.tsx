@@ -1,5 +1,7 @@
 import { InventoryControlTower } from "@/features/inventory/inventory-control-tower";
+import { redirect } from "next/navigation";
 import { requireCurrentUser } from "@/server/auth/current-user";
+import { isTechnicianOnlyUser } from "@/server/auth/navigation";
 import { getInventoryControlTowerProjection } from "@/server/inventory-control-tower/service";
 
 type PageProps = { searchParams?: Promise<{ stage?: string; locationId?: string; inventoryUnitId?: string; returnTo?: string }> };
@@ -13,6 +15,7 @@ function permittedReturnPath(value?: string) {
 export default async function InventoryControlTowerPage({ searchParams }: PageProps) {
   const query = searchParams ? await searchParams : {};
   const user = await requireCurrentUser();
+  if (isTechnicianOnlyUser(user)) redirect("/my-tasks");
   const projection = await getInventoryControlTowerProjection(user, query);
   return <InventoryControlTower projection={JSON.parse(JSON.stringify(projection))} backHref={permittedReturnPath(query.returnTo)} />;
 }

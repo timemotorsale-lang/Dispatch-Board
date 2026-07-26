@@ -54,6 +54,10 @@ export type AvailableWorkRepository = {
     recommendationId: string;
     taskId: string;
     taskTitle: string;
+    repairJobId: string | null;
+    repairOrderId: string | null;
+    vehicleId: string | null;
+    inventoryUnitId: string | null;
   }>;
   dismissRecommendation(recommendationId: string, userId: string, reasonCode: string): Promise<{
     boardDayId: string;
@@ -115,7 +119,7 @@ export function createAvailableWorkRepository(database: PrismaClient = prisma): 
       return database.$transaction(async (transaction) => {
         const recommendation = await transaction.workRecommendation.findUnique({
           where: { id: recommendationId },
-          include: { staffDay: true, task: true }
+          include: { staffDay: true, task: { include: { inventoryWorkPacket: true } } }
         });
         if (!recommendation || recommendation.staffDay.userId !== userId) throw new Error("Work recommendation not found.");
         if (recommendation.status !== WorkRecommendationStatus.SHOWN) throw new Error("This work recommendation is no longer available.");
@@ -141,7 +145,16 @@ export function createAvailableWorkRepository(database: PrismaClient = prisma): 
           where: { id: recommendation.staffDayId },
           data: { status: "ACTIVE", availabilityDeclaredAt: null, availabilityReasonCode: null }
         });
-        return { boardDayId: recommendation.staffDay.boardDayId, recommendationId: recommendation.id, taskId: recommendation.taskId, taskTitle: recommendation.task.title };
+        return {
+          boardDayId: recommendation.staffDay.boardDayId,
+          recommendationId: recommendation.id,
+          taskId: recommendation.taskId,
+          taskTitle: recommendation.task.title,
+          repairJobId: recommendation.task.inventoryWorkPacket?.repairJobId ?? null,
+          repairOrderId: recommendation.task.inventoryWorkPacket?.repairOrderId ?? null,
+          vehicleId: recommendation.task.inventoryWorkPacket?.vehicleId ?? null,
+          inventoryUnitId: recommendation.task.inventoryWorkPacket?.inventoryUnitId ?? null
+        };
       });
     },
     async dismissRecommendation(recommendationId, userId, reasonCode) {

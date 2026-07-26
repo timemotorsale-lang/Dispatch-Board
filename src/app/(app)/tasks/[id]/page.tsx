@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { TaskDetailWorkspace } from "@/features/tasks/detail/task-detail-workspace";
 import { requireCurrentUser } from "@/server/auth/current-user";
@@ -8,6 +8,7 @@ import { getTaskReadModelById } from "@/server/services/task-read";
 import { listActiveUserSummaries } from "@/server/services/user-summary";
 import { getStaffExecutionFlags } from "@/lib/staff-execution-flags";
 import { getTaskCompletionReadiness } from "@/server/services/task-execution-readiness";
+import { getTaskSpecialistRoutes } from "@/server/technician-workspace/service";
 
 type TaskDetailPageProps = {
   params: Promise<{
@@ -25,6 +26,11 @@ export default async function TaskDetailPage({ params, searchParams }: TaskDetai
 
   if (!task) {
     notFound();
+  }
+
+  const specialistRoute = (await getTaskSpecialistRoutes([task.id]))[task.id];
+  if (specialistRoute) {
+    redirect(specialistRoute);
   }
 
   const canComment = canUpdateAssignedWork({

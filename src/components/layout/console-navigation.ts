@@ -1,6 +1,7 @@
 import { BarChart3, BriefcaseBusiness, ClipboardList, House, MessageSquareText, Plug, RefreshCw, Settings, ShieldCheck, Wrench } from "lucide-react";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { isTechnicianOnlyUser } from "@/server/auth/navigation";
 import { canManageSettings } from "@/server/policies/access";
 
 import { getDispatchNavigationItems, isDispatchConsolePath, type NavigationItem } from "./navigation";
@@ -94,6 +95,23 @@ export function isInventoryConsolePath(pathname: string) {
 }
 
 export function getConsoleNavigation(pathname: string, user: AuthenticatedUser): ConsoleNavigationDefinition | null {
+  if (
+    isTechnicianOnlyUser(user) &&
+    (pathname === "/my-tasks" ||
+      pathname.startsWith("/my-tasks/") ||
+      pathname === "/diagnostics" ||
+      pathname.startsWith("/diagnostics/") ||
+      pathname.startsWith("/vehicles/repair-jobs/"))
+  ) {
+    return {
+      badge: "Ready",
+      homeHref: "/my-tasks",
+      items: getDispatchNavigationItems(user),
+      subtitle: "Technician Workspace",
+      title: "Time Motor Sales"
+    };
+  }
+
   if (isInventoryConsolePath(pathname)) {
     return {
       badge: "Live",

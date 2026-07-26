@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { isTechnicianOnlyUser } from "@/server/auth/navigation";
 
 import { getDispatchNavigationItems } from "./navigation";
 
@@ -79,6 +80,12 @@ export function DispatchConsoleHeaderView({
   const copy = workspaceItem && ["Sales", "Marketing", "Advertising"].includes(workspaceItem.title)
     ? { title: workspaceItem.title, description: workspaceItem.description }
     : getConsoleCopy(pathname, live);
+  const technicianOnly = isTechnicianOnlyUser(user);
+  const technicianCopy = pathname === "/my-tasks/available"
+    ? { title: "Available Work", description: "Eligible work ready for you to claim" }
+    : pathname.startsWith("/diagnostics")
+      ? { title: "Diagnostics & Tools", description: "Guided diagnostic support for assigned work" }
+      : { title: "My Work", description: "Your assigned repairs and next actions" };
 
   const getWorkspaceHref = (href: string) => {
     if (href.startsWith("/board?view=live")) return `/board?${["view=live", dateQuery].filter(Boolean).join("&")}`;
@@ -89,28 +96,38 @@ export function DispatchConsoleHeaderView({
   return (
     <header className="dispatch-console-header">
       <div className="dispatch-console-title">
-        <h1>{copy.title}</h1>
-        <p>{copy.description}</p>
+        <h1>{technicianOnly ? technicianCopy.title : copy.title}</h1>
+        <p>{technicianOnly ? technicianCopy.description : copy.description}</p>
       </div>
-      <nav aria-label="Dispatch console" className="dispatch-console-tabs">
-        <Link href="/command-center">CCC Home</Link>
-        <span aria-hidden="true" className="dispatch-console-tab-separator">/</span>
-        <Link
-          aria-current={!workspaceItem ? "page" : undefined}
-          className={!workspaceItem ? "active dispatch-console-root" : "dispatch-console-root"}
-          href={dispatchHref}
-        >
-          Dispatch Board <small>Live</small>
-        </Link>
-        {workspaceItem ? (
-          <>
-            <span aria-hidden="true" className="dispatch-console-tab-separator">/</span>
-            <Link aria-current="page" className="active" href={getWorkspaceHref(workspaceItem.href)}>
-              {workspaceItem.title}
-            </Link>
-          </>
-        ) : null}
-      </nav>
+      {technicianOnly ? (
+        <nav aria-label="Technician workspace" className="dispatch-console-tabs">
+          <Link href="/my-tasks">Technician Workspace</Link>
+          <span aria-hidden="true" className="dispatch-console-tab-separator">/</span>
+          <Link aria-current="page" className="active" href={pathname}>
+            {technicianCopy.title}
+          </Link>
+        </nav>
+      ) : (
+        <nav aria-label="Dispatch console" className="dispatch-console-tabs">
+          <Link href="/command-center">CCC Home</Link>
+          <span aria-hidden="true" className="dispatch-console-tab-separator">/</span>
+          <Link
+            aria-current={!workspaceItem ? "page" : undefined}
+            className={!workspaceItem ? "active dispatch-console-root" : "dispatch-console-root"}
+            href={dispatchHref}
+          >
+            Dispatch Board <small>Live</small>
+          </Link>
+          {workspaceItem ? (
+            <>
+              <span aria-hidden="true" className="dispatch-console-tab-separator">/</span>
+              <Link aria-current="page" className="active" href={getWorkspaceHref(workspaceItem.href)}>
+                {workspaceItem.title}
+              </Link>
+            </>
+          ) : null}
+        </nav>
+      )}
     </header>
   );
 }
