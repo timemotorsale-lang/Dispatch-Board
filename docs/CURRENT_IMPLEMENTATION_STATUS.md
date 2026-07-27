@@ -1,5 +1,13 @@
 # Current Implementation Status
 
+## 2026-07-27 — Enterprise Sales Console planning baseline
+
+The documentation-only Enterprise Sales Console planning package is established under [`docs/sales-console/README.md`](sales-console/README.md). It defines Sales as the commercial decision and execution layer over authoritative Customers, Inventory, Appointments, Tasks, and Documents records. The package includes the target modular-monolith architecture, sales-owned domain boundaries, dealership selling operating model, 18 lead-to-delivery and exception workflows, 15 deterministic decision algorithms, a 12-phase roadmap, 27 gated vertical milestones, and an outcome-to-proof traceability matrix.
+
+The design requires one owner and dated next action for every active opportunity, evidence-backed stages, immutable presented scenario and quote versions, explicit pricing authority, explainable and overridable recommendations, distinguishable seller/manager/system forecasts, customer promise tracking, integration reconciliation, feature controls, and deterministic operation when optional AI is unavailable.
+
+This checkpoint adds no application route, schema, API, workflow behavior, integration, customer communication, automated ranking, pricing decision, finance decision, production configuration, or rollout approval. Algorithm weights, SLA thresholds, lifecycle policy, pricing authority, source ownership, consent/contact policy, acceptance scenarios, pilot cohort, and rollback criteria remain dealership decisions under SAL-000. The first possible implementation slice remains gated on that authority package.
+
 ## 2026-07-26 — Shared role-aware landing and workspace resolver
 
 The shared role-aware landing foundation is implemented on `codex/role-aware-landing-completion`. Authenticated users now resolve deterministically into Management, Service, Inventory, Advisor, Technician, Parts, Quality, Sales, Marketing, Office, Collections, or safe General Staff workspaces using current roles and governed duties. Login honors only local return targets that belong to one of the user's permitted workspaces.
