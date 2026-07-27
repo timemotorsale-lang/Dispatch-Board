@@ -23,6 +23,7 @@ import {
   ShieldCheck,
   SquareCheckBig,
   Stethoscope,
+  Sparkles,
   UserRoundCheck,
   Users,
   Wrench,
@@ -127,6 +128,14 @@ export const appointmentConsoleNavigationItems: NavigationItem[] = [
 ];
 
 export const dispatchNavigationItems: NavigationItem[] = [
+  {
+    href: "/today",
+    title: "Today",
+    description: "Mobile-first action center for urgent work, due-next tasks, and quick actions.",
+    icon: Sparkles,
+    parentHref: "/board",
+    matchExact: true
+  },
   {
     href: "/board",
     title: "Overview",

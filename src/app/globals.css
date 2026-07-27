@@ -19659,6 +19659,434 @@ html[data-app-theme="dark"] .rowb-shell{--rowb-ink:var(--ink);--rowb-muted:var(-
   }
 }
 
+/* Today / Action Center */
+.app-content:has(.today-action-center) {
+  padding: 0;
+  background: #f4f7fb;
+}
+
+.today-action-center {
+  display: grid;
+  gap: 14px;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 18px;
+  color: #13243b;
+}
+
+.today-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  border: 1px solid #d8e2ee;
+  border-radius: 22px;
+  padding: 22px;
+  background:
+    radial-gradient(circle at 92% 12%, rgb(45 111 222 / 18%), transparent 30%),
+    linear-gradient(135deg, #ffffff 0%, #f8fbff 58%, #edf5ff 100%);
+  box-shadow: 0 18px 42px rgb(18 35 60 / 9%);
+}
+
+.today-hero p {
+  margin: 0 0 6px;
+  color: #075ed8;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.today-hero h1 {
+  margin: 0;
+  font-size: clamp(30px, 4vw, 48px);
+  line-height: 1.02;
+  letter-spacing: -.045em;
+}
+
+.today-hero span {
+  display: block;
+  margin-top: 8px;
+  color: #5e7088;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.today-start-button {
+  display: inline-flex;
+  min-width: 190px;
+  min-height: 52px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 1px solid #075ed8;
+  border-radius: 16px;
+  padding: 0 18px;
+  color: #fff;
+  background: #075ed8;
+  font-size: 15px;
+  font-weight: 900;
+  text-decoration: none;
+  box-shadow: 0 16px 30px rgb(7 94 216 / 22%);
+}
+
+.today-start-button-calm {
+  border-color: #c9d7e8;
+  color: #1d3554;
+  background: #fff;
+  box-shadow: 0 10px 24px rgb(18 35 60 / 9%);
+}
+
+.today-kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.today-kpi-strip article {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 98px;
+  border: 1px solid #d8e2ee;
+  border-radius: 18px;
+  padding: 14px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgb(18 35 60 / 6%);
+}
+
+.today-kpi-strip article.attention {
+  border-color: #f1c7a3;
+  background: #fff8f1;
+}
+
+.today-kpi-strip svg {
+  grid-row: 1 / 4;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  padding: 10px;
+  color: #075ed8;
+  background: #eaf3ff;
+}
+
+.today-kpi-strip article.attention svg {
+  color: #b45309;
+  background: #fff0db;
+}
+
+.today-kpi-strip span {
+  color: #61728a;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.today-kpi-strip strong {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.today-kpi-strip small {
+  color: #718198;
+  font-size: 12px;
+}
+
+.today-primary-grid,
+.today-work-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, .8fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.today-work-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.today-panel-wide {
+  grid-column: 1 / -1;
+}
+
+.today-panel {
+  overflow: hidden;
+  border: 1px solid #d8e2ee;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgb(18 35 60 / 7%);
+}
+
+.today-panel > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #e6edf5;
+  padding: 14px 16px;
+}
+
+.today-panel > header span {
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.today-panel > header a {
+  color: #075ed8;
+  font-size: 13px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.today-card-list {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.today-card-list-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.today-task-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18px;
+  gap: 4px 10px;
+  border: 1px solid #dde7f2;
+  border-left: 5px solid #7d8da4;
+  border-radius: 16px;
+  padding: 13px 12px;
+  color: #14243c;
+  background: #fbfdff;
+  text-decoration: none;
+}
+
+.today-task-card-danger {
+  border-left-color: #dc2626;
+  background: #fff8f8;
+}
+
+.today-task-card-warning {
+  border-left-color: #d97706;
+  background: #fffaf0;
+}
+
+.today-task-card-review {
+  border-left-color: #7c3aed;
+  background: #fbf8ff;
+}
+
+.today-task-card-ready {
+  border-left-color: #0f766e;
+  background: #f6fffd;
+}
+
+.today-task-card span {
+  grid-column: 1;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.today-task-card strong {
+  grid-column: 1;
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+}
+
+.today-task-card small {
+  grid-column: 1;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.today-task-card svg {
+  grid-column: 2;
+  grid-row: 1 / 4;
+  align-self: center;
+  color: #7d8da4;
+}
+
+.today-next-card .today-task-card {
+  min-height: 142px;
+  align-content: center;
+  margin: 12px;
+}
+
+.today-next-card .today-task-card strong {
+  font-size: 20px;
+}
+
+.today-quick-actions > div {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 12px;
+}
+
+.today-quick-actions a {
+  display: grid;
+  min-height: 92px;
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+  border: 1px solid #dce6f2;
+  border-radius: 16px;
+  color: #18304f;
+  background: #f8fbff;
+  font-size: 14px;
+  font-weight: 900;
+  text-align: center;
+  text-decoration: none;
+}
+
+.today-quick-actions a:first-child {
+  color: #fff;
+  border-color: #075ed8;
+  background: #075ed8;
+}
+
+.today-empty-card {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  margin: 12px;
+  border: 1px dashed #cbd8e8;
+  border-radius: 16px;
+  padding: 18px;
+  color: #52647c;
+  background: #f8fbff;
+}
+
+.today-empty-card strong {
+  color: #18304f;
+  font-size: 16px;
+}
+
+.today-empty-card span {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.today-empty-card-compact {
+  margin: 0;
+}
+
+@media (max-width: 960px) {
+  .today-kpi-strip {
+    display: flex;
+    margin-inline: -8px;
+    overflow-x: auto;
+    padding-inline: 8px;
+    scroll-snap-type: x mandatory;
+  }
+
+  .today-kpi-strip article {
+    flex: 0 0 min(78vw, 280px);
+    scroll-snap-align: start;
+  }
+
+  .today-primary-grid,
+  .today-work-grid,
+  .today-card-list-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-content:has(.today-action-center) {
+    padding-bottom: calc(86px + env(safe-area-inset-bottom));
+  }
+
+  .today-action-center {
+    gap: 12px;
+    padding: 10px 8px 18px;
+    overflow-x: clip;
+  }
+
+  .today-hero {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+    border-radius: 18px;
+    padding: 18px 16px;
+  }
+
+  .today-hero h1 {
+    font-size: clamp(29px, 8vw, 36px);
+  }
+
+  .today-hero p,
+  .today-task-card span,
+  .today-kpi-strip span {
+    font-size: 12px !important;
+  }
+
+  .today-hero span,
+  .today-empty-card span,
+  .today-task-card small {
+    font-size: 14px !important;
+  }
+
+  .today-start-button {
+    position: sticky;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    z-index: 40;
+    width: 100%;
+    min-height: 52px;
+    border-radius: 16px;
+  }
+
+  .today-panel {
+    border-radius: 18px;
+  }
+
+  .today-panel > header {
+    padding: 13px 14px;
+  }
+
+  .today-panel > header span {
+    font-size: 16px !important;
+  }
+
+  .today-panel > header a,
+  .today-quick-actions a {
+    font-size: 14px !important;
+  }
+
+  .today-next-card .today-task-card {
+    min-height: 128px;
+  }
+
+  .today-next-card .today-task-card strong,
+  .today-task-card strong {
+    font-size: 17px !important;
+  }
+
+  .today-quick-actions > div {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .today-quick-actions a {
+    min-height: 88px;
+  }
+}
+
+@media (max-width: 430px) {
+  .today-quick-actions > div {
+    grid-template-columns: 1fr;
+  }
+
+  .today-kpi-strip article {
+    flex-basis: min(84vw, 300px);
+  }
+}
+
 @media (max-width: 430px) {
   .app-content {
     padding: 8px;
@@ -19693,5 +20121,662 @@ html[data-app-theme="dark"] .rowb-shell{--rowb-ink:var(--ink);--rowb-muted:var(-
   .customer-home-metrics article,
   .oc-command-strip article {
     flex-basis: min(86vw, 270px);
+  }
+}
+
+/* Mobile-first interaction design pass: prioritize the next action over desktop density. */
+@media (max-width: 760px) {
+  .app-content:has(.board-screen),
+  .app-content:has(.appointment-console-home),
+  .app-content:has(.inventory-console-home),
+  .app-content:has(.customer-console-home),
+  .app-content:has(.operations-coordinator-home),
+  .app-content:has(.my-tasks-live-shell) {
+    padding-bottom: calc(86px + env(safe-area-inset-bottom));
+  }
+
+  .board-screen,
+  .appointment-console-home,
+  .inventory-console-home,
+  .customer-console-home,
+  .operations-coordinator-home {
+    display: flex;
+    flex-direction: column;
+    overflow-x: clip;
+  }
+
+  .board-screen > *,
+  .board-hero,
+  .board-and-rail,
+  .board-primary-column,
+  .metric-strip,
+  .operations-strip {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .metric-strip,
+  .operations-strip {
+    contain: inline-size;
+  }
+
+  .board-hero,
+  .appointment-console-hero,
+  .ich-hero,
+  .customer-home-welcome,
+  .oc-hero {
+    gap: 12px;
+  }
+
+  .board-hero .board-toolbar-actions,
+  .appointment-console-hero nav,
+  .ich-hero-actions,
+  .customer-home-quick-actions,
+  .oc-hero nav {
+    position: sticky;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    z-index: 35;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    width: 100%;
+    margin-top: 6px;
+    border: 1px solid rgb(202 213 228 / 90%);
+    border-radius: 16px;
+    padding: 8px;
+    background: rgb(255 255 255 / 94%);
+    box-shadow: 0 18px 42px rgb(18 35 60 / 18%);
+    backdrop-filter: blur(16px);
+  }
+
+  .board-hero .board-toolbar,
+  .board-hero .board-toolbar-row,
+  .board-hero .board-toolbar-actions {
+    width: 100%;
+  }
+
+  .board-hero-actions {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    width: 100%;
+  }
+
+  .board-hero .board-toolbar {
+    justify-self: stretch;
+  }
+
+  .board-hero .board-toolbar-actions > *,
+  .appointment-console-hero nav > *,
+  .ich-hero-actions > *,
+  .customer-home-quick-actions > button,
+  .oc-hero nav > * {
+    min-height: 48px !important;
+    justify-content: center;
+    border-radius: 12px !important;
+    font-size: 14px !important;
+    line-height: 1.2;
+  }
+
+  .customer-home-quick-actions > strong {
+    grid-column: 1 / -1;
+    margin: 0;
+    color: #526174;
+    font-size: 12px;
+    letter-spacing: .02em;
+  }
+
+  .board-and-rail {
+    display: flex !important;
+    flex-direction: column;
+  }
+
+  .operations-rail {
+    order: -1;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px;
+  }
+
+  .operations-rail .rail-card:nth-child(n+3) {
+    display: none;
+  }
+
+  .rail-card,
+  .board-controls,
+  .mobile-task-card,
+  .appointment-panel,
+  .ich-panel,
+  .ich-route-card,
+  .oc-panel,
+  .customer-home-card {
+    box-shadow: 0 10px 26px rgb(18 35 60 / 8%);
+  }
+
+  .mobile-task-list {
+    gap: 16px;
+    padding-inline: 0;
+    background: transparent;
+  }
+
+  .mobile-task-list > section {
+    border: 1px solid #dce5f0;
+    border-radius: 16px;
+    padding: 12px;
+    background: #f7faff;
+  }
+
+  .mobile-task-list h3 {
+    position: sticky;
+    top: 8px;
+    z-index: 8;
+    margin-inline: -2px;
+    border: 1px solid #dce5f0;
+    border-radius: 999px;
+    padding: 8px 10px;
+    background: rgb(255 255 255 / 92%);
+    box-shadow: 0 10px 22px rgb(18 35 60 / 8%);
+    backdrop-filter: blur(12px);
+  }
+
+  .mobile-task-card {
+    border-radius: 16px;
+    padding: 16px;
+  }
+
+  .mobile-task-card header {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .mobile-task-card header > span {
+    justify-self: start;
+  }
+
+  .mobile-task-card .row-action {
+    width: 100%;
+    min-height: 48px;
+    justify-content: center;
+    border-radius: 12px;
+    font-size: 15px;
+  }
+
+  .appointment-console-grid {
+    display: flex !important;
+    flex-direction: column;
+  }
+
+  .appointment-capacity-confidence {
+    order: -1;
+  }
+
+  .appointment-flow-group table,
+  .appointment-flow-group tbody,
+  .appointment-flow-group tr,
+  .appointment-flow-group td {
+    display: block;
+  }
+
+  .appointment-flow-group thead {
+    display: none;
+  }
+
+  .appointment-flow-group tr {
+    margin-bottom: 10px;
+    border: 1px solid #dfe7f1;
+    border-radius: 14px;
+    padding: 10px;
+    background: #fff;
+  }
+
+  .appointment-flow-group td {
+    border: 0;
+    padding: 4px 0;
+    font-size: 14px;
+  }
+
+  .appointment-flow-group td:first-child {
+    font-size: 15px;
+  }
+
+  .appointment-flow-group td:last-child {
+    padding-top: 10px;
+  }
+
+  .appointment-flow-group td a {
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  .inventory-console-home .ich-kpis {
+    order: 1;
+  }
+
+  .inventory-console-home .ich-work-grid {
+    order: 2;
+  }
+
+  .inventory-console-home .ich-route-grid {
+    order: 3;
+  }
+
+  .inventory-console-home .ich-health-grid {
+    order: 4;
+  }
+
+  .inventory-console-home .ich-footer {
+    order: 5;
+  }
+
+  .inventory-console-home .ich-route-card footer,
+  .inventory-console-home .ich-decisions > div,
+  .inventory-console-home .ich-priority-list li {
+    display: grid;
+    grid-template-columns: 1fr !important;
+  }
+
+  .inventory-console-home .ich-route-card footer a,
+  .inventory-console-home .ich-priority-list li > a,
+  .inventory-console-home .ich-decisions ol li > a {
+    min-height: 44px;
+    justify-content: center;
+    border-radius: 12px;
+    font-size: 13px;
+  }
+
+  .customer-home-layout,
+  .customer-home-tables,
+  .customer-home-analytics {
+    display: flex !important;
+    flex-direction: column;
+  }
+
+  .customer-home-rail,
+  .customer-sources-card {
+    order: 3;
+  }
+
+  .customer-home-table-card table,
+  .customer-home-table-card tbody,
+  .customer-home-table-card tr,
+  .customer-home-table-card td {
+    display: block;
+  }
+
+  .customer-home-table-card thead {
+    display: none;
+  }
+
+  .customer-home-table-card tr {
+    margin-bottom: 10px;
+    border: 1px solid #dfe7f1;
+    border-radius: 14px;
+    padding: 10px;
+    background: #fff;
+  }
+
+  .customer-home-table-card td {
+    border: 0;
+    padding: 4px 0;
+    font-size: 14px;
+  }
+
+  .operations-coordinator-home .oc-search {
+    order: 1;
+  }
+
+  .operations-coordinator-home .oc-command-strip {
+    order: 2;
+  }
+
+  .operations-coordinator-home .oc-dock {
+    order: 3;
+  }
+
+  .operations-coordinator-home .oc-main-grid {
+    order: 4;
+  }
+
+  .operations-coordinator-home .oc-escalation {
+    order: 5;
+  }
+
+  .operations-coordinator-home .oc-advisor-support,
+  .operations-coordinator-home .oc-departments {
+    order: 6;
+  }
+
+  .oc-command-strip,
+  .oc-dock,
+  .oc-escalation > div {
+    display: flex !important;
+    gap: 10px;
+    margin-inline: -4px;
+    overflow-x: auto;
+    padding: 2px 4px 8px;
+    scroll-snap-type: x mandatory;
+  }
+
+  .oc-command-strip article,
+  .oc-dock a,
+  .oc-escalation a {
+    min-width: min(82vw, 310px);
+    scroll-snap-align: start;
+  }
+
+  .oc-action-row {
+    grid-template-columns: 34px minmax(0, 1fr) !important;
+    border-radius: 14px;
+    margin: 8px;
+    border: 1px solid #dbe5f1;
+    border-left: 5px solid #1268d9;
+    padding: 12px;
+  }
+
+  .oc-action-row small {
+    white-space: normal;
+  }
+
+  .my-tasks-live-shell {
+    display: flex !important;
+    flex-direction: column;
+  }
+
+  .my-tasks-optimized-stage,
+  .enterprise-inspector {
+    order: -1;
+  }
+
+  .my-tasks-info-card {
+    display: none;
+  }
+
+  .my-tasks-overview-grid {
+    display: grid;
+    grid-template-columns: 1fr !important;
+  }
+
+  .my-tasks-overview-card-wide {
+    display: none;
+  }
+
+  .my-tasks-optimized-tabs .enterprise-tab:nth-child(n+4) {
+    display: none;
+  }
+
+  .my-tasks-optimized-actions,
+  .my-task-quick-actions,
+  .my-tasks-command-center {
+    position: sticky;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    z-index: 30;
+    border: 1px solid rgb(202 213 228 / 90%);
+    border-radius: 16px;
+    padding: 8px;
+    background: rgb(255 255 255 / 94%);
+    box-shadow: 0 18px 42px rgb(18 35 60 / 18%);
+    backdrop-filter: blur(16px);
+  }
+}
+
+@media (max-width: 430px) {
+  .board-hero .board-toolbar-actions,
+  .appointment-console-hero nav,
+  .ich-hero-actions,
+  .customer-home-quick-actions,
+  .oc-hero nav {
+    grid-template-columns: 1fr !important;
+  }
+
+  .appointment-console-hero nav > *:nth-child(n+3),
+  .ich-hero-actions > *:nth-child(n+3),
+  .customer-home-quick-actions > button:nth-of-type(n+4),
+  .oc-hero nav > *:nth-child(n+3) {
+    display: none;
+  }
+
+  .metric-strip,
+  .appointment-console-kpis,
+  .ich-kpis,
+  .customer-home-metrics,
+  .oc-command-strip {
+    margin-inline: -8px;
+    padding-inline: 8px;
+  }
+}
+
+/* Mobile readability pass: remove tiny desktop text from phone screens. */
+@media (max-width: 760px) {
+  .app-frame,
+  .app-content,
+  .board-screen,
+  .appointment-console-home,
+  .appointment-new-calendar,
+  .inventory-console-home,
+  .inventory-workflow-launcher,
+  .customer-console-home,
+  .customer-home,
+  .customer-console,
+  .operations-coordinator-home,
+  .enterprise-shell,
+  .my-tasks-live-shell {
+    font-size: 14px;
+  }
+
+  .console-sidebar a,
+  .console-sidebar button,
+  .console-sidebar small,
+  .console-sidebar span,
+  .app-topbar a,
+  .app-topbar button,
+  .app-topbar span,
+  .app-topbar small {
+    font-size: 12px !important;
+    line-height: 1.3;
+  }
+
+  .board-screen :where(p, small, span, dt, dd, label, input, select, textarea),
+  .appointment-console-home :where(p, small, span, dt, dd, label, input, select, textarea, td),
+  .inventory-console-home :where(p, small, span, dt, dd, label, input, select, textarea),
+  .inventory-workflow-launcher :where(p, small, span, dt, dd, label, input, select, textarea),
+  .customer-console-home :where(p, small, span, dt, dd, label, input, select, textarea, td),
+  .operations-coordinator-home :where(p, small, span, dt, dd, label, input, select, textarea),
+  .my-tasks-live-shell :where(p, small, span, dt, dd, label, input, select, textarea) {
+    font-size: max(12px, 1em);
+    line-height: 1.35;
+  }
+
+  .board-screen :where(button, a, .pill, .row-action),
+  .appointment-console-home :where(button, a),
+  .inventory-console-home :where(button, a, summary),
+  .inventory-workflow-launcher :where(button, a),
+  .customer-console-home :where(button, a),
+  .operations-coordinator-home :where(button, a),
+  .my-tasks-live-shell :where(button, a, .pill) {
+    font-size: max(13px, 1em);
+    line-height: 1.25;
+  }
+
+  .board-screen :where(input, select, textarea),
+  .appointment-console-home :where(input, select, textarea),
+  .inventory-console-home :where(input, select, textarea),
+  .inventory-workflow-launcher :where(input, select, textarea),
+  .customer-console-home :where(input, select, textarea),
+  .operations-coordinator-home :where(input, select, textarea),
+  .my-tasks-live-shell :where(input, select, textarea) {
+    font-size: 16px !important;
+  }
+
+  .metric-card :where(span, small),
+  .appointment-console-kpis :where(span, small),
+  .ich-kpis :where(span, small),
+  .customer-home-metrics :where(span, small, p),
+  .oc-command-strip :where(span, small),
+  .status-pill,
+  .board-manager-panel-status,
+  .capacity-pill,
+  .enterprise-filter-chip,
+  .enterprise-card-facts,
+  .customer-record-tabs a,
+  .customer-record-tabs button,
+  .appointment-console-tabs a,
+  .ich-stage-strip a span,
+  .ich-stage-strip a small,
+  .ich-route-card footer a,
+  .ich-priority-list small,
+  .ich-decisions small,
+  .oc-action-row small,
+  .oc-action-row em,
+  .oc-dock span,
+  .oc-escalation small,
+  .oc-escalation em,
+  .customer-home-table-card small,
+  .customer-home-quick-actions strong,
+  .mobile-task-card dt,
+  .mobile-task-card dd,
+  .blocker-inline,
+  .my-task-action-chip,
+  .my-tasks-optimized-summary,
+  .my-task-command-note p {
+    font-size: 12px !important;
+    line-height: 1.35 !important;
+  }
+
+  .metric-card strong,
+  .appointment-console-kpis strong,
+  .ich-kpis strong,
+  .customer-home-metrics strong,
+  .oc-command-strip strong {
+    font-size: clamp(24px, 7vw, 30px) !important;
+    line-height: 1.05;
+  }
+
+  .board-hero p,
+  .appointment-console-hero p,
+  .ich-hero span,
+  .customer-home-welcome p,
+  .oc-hero span,
+  .enterprise-task-copy p,
+  .enterprise-list-row-copy p,
+  .enterprise-overview-card p {
+    font-size: 15px !important;
+  }
+
+  .mobile-task-card header strong,
+  .enterprise-task-copy h3,
+  .enterprise-list-row-copy h3,
+  .appointment-flow-group td:first-child,
+  .ich-panel > header strong,
+  .oc-panel > header strong,
+  .customer-home-card strong {
+    font-size: 16px !important;
+    line-height: 1.25;
+  }
+}
+
+@media (max-width: 430px) {
+  .console-sidebar a,
+  .console-sidebar button,
+  .console-sidebar small,
+  .console-sidebar span {
+    font-size: 13px !important;
+  }
+
+  .customer-record-tabs a,
+  .customer-record-tabs button,
+  .appointment-console-tabs a,
+  .ich-stage-strip a span,
+  .ich-stage-strip a small {
+    font-size: 13px !important;
+  }
+}
+
+/* Final mobile readability enforcement for older highly-specific console rules. */
+@media (max-width: 760px) {
+  .app-frame :where(small, label, dt, dd, kbd, em),
+  .app-content :where(small, label, dt, dd, kbd, em) {
+    font-size: 12px !important;
+    line-height: 1.35 !important;
+  }
+
+  .app-frame :where(p),
+  .app-content :where(p) {
+    font-size: 14px !important;
+    line-height: 1.42 !important;
+  }
+
+  .app-frame :where(a, button, summary),
+  .app-content :where(a, button, summary) {
+    font-size: 13px !important;
+    line-height: 1.28 !important;
+  }
+
+  .app-frame :where(input, select, textarea),
+  .app-content :where(input, select, textarea) {
+    font-size: 16px !important;
+  }
+
+  .app-frame :where(span),
+  .app-content :where(span) {
+    font-size: 12px !important;
+    line-height: 1.35 !important;
+  }
+
+  .board-hero :where(p, span),
+  .appointment-console-hero :where(p, span),
+  .ich-hero :where(span),
+  .customer-home-welcome :where(p, span),
+  .oc-hero :where(p, span),
+  .enterprise-task-copy p,
+  .enterprise-list-row-copy p,
+  .enterprise-overview-card p {
+    font-size: 15px !important;
+    line-height: 1.42 !important;
+  }
+
+  .metric-card strong,
+  .appointment-console-kpis strong,
+  .ich-kpis strong,
+  .customer-home-metrics strong,
+  .oc-command-strip strong {
+    font-size: clamp(24px, 7vw, 30px) !important;
+  }
+
+  .board-hero h1,
+  .appointment-console-hero h1,
+  .ich-hero h1,
+  .customer-home-welcome h1,
+  .oc-hero h1 {
+    font-size: clamp(25px, 7vw, 31px) !important;
+  }
+
+  .enterprise-list-row-meta,
+  .enterprise-list-row-meta *,
+  .inventory-console-home :where(.ich-priority-head, .ich-decision-head),
+  .inventory-console-home :where(.ich-priority-list li, .ich-priority-list li *, .ich-decisions ol li, .ich-decisions ol li *),
+  .customer-live-status,
+  .customer-home-card footer,
+  .customer-chart-legend,
+  .customer-chart-legend *,
+  .customer-home-card :where(b, i) {
+    font-size: 12px !important;
+    line-height: 1.35 !important;
+  }
+
+  .board-screen time,
+  .inventory-console-home :where(.ich-footer, .ich-footer *, .ich-health-grid strong),
+  .customer-console-home :where(time, li),
+  .customer-home :where(time, li),
+  .customer-home-analytics div,
+  .customer-home-card :where(div, footer, b, time) {
+    font-size: 12px !important;
+    line-height: 1.35 !important;
+  }
+
+  .app-frame time,
+  .app-content time {
+    font-size: 12px !important;
+    line-height: 1.35 !important;
   }
 }
