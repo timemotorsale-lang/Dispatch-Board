@@ -19026,3 +19026,672 @@ html[data-app-theme="dark"] .rowb-shell{--rowb-ink:var(--ink);--rowb-muted:var(-
 .appointment-summary footer{gap:7px;margin:11px 13px 0}
 .appointment-summary button{height:36px}
 .advanced-links{gap:6px;padding:10px 13px}
+
+/* Mobile UX optimization pass */
+@media (max-width: 760px) {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  body {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .app-frame,
+  .app-frame-console,
+  .app-frame-console-sidebar,
+  .app-frame-operations-coordinator {
+    display: block;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-content {
+    width: 100%;
+    min-width: 0;
+    padding: 10px;
+  }
+
+  .app-sidebar,
+  .console-sidebar {
+    width: min(86vw, 318px);
+    max-width: 318px;
+  }
+
+  .app-sidebar:not(.app-sidebar-open),
+  .console-sidebar:not(.app-sidebar-open) {
+    display: none;
+  }
+
+  .app-sidebar.app-sidebar-open,
+  .console-sidebar.app-sidebar-open {
+    display: flex;
+  }
+
+  .sidebar-brand,
+  .sidebar-link,
+  .console-sidebar-navigation .sidebar-link {
+    min-height: 44px;
+    font-size: 14px;
+  }
+
+  .sidebar-link-child {
+    min-height: 42px;
+    font-size: 13px;
+  }
+
+  .sidebar-brand small,
+  .console-sidebar-status span,
+  .console-sidebar-status small,
+  .sidebar-badge {
+    font-size: 11px;
+  }
+
+  .sidebar-close,
+  .topbar-menu,
+  .topbar-icon,
+  .ccc-search-trigger,
+  .app-appearance-switch button,
+  .workspace-switcher-button,
+  .ccc-home-link {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .ccc-topbar {
+    min-height: 58px;
+    gap: 7px;
+    padding-inline: 8px;
+  }
+
+  .ccc-topbar-brand {
+    width: 42px;
+    height: 42px;
+    margin-right: 2px;
+  }
+
+  .ccc-breadcrumb,
+  .ccc-home-link,
+  .ccc-search-trigger,
+  .app-appearance-switch button {
+    font-size: 13px;
+  }
+
+  .ccc-breadcrumb {
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+
+  .ccc-breadcrumb-current {
+    overflow: hidden;
+    max-width: 104px;
+    text-overflow: ellipsis;
+  }
+
+  .topbar-actions {
+    flex: 0 0 auto;
+    gap: 4px;
+  }
+
+  .app-appearance-switch button span,
+  .topbar-profile,
+  .ccc-business-date,
+  .ccc-store-context {
+    display: none;
+  }
+
+  .topbar-popover {
+    position: fixed;
+    top: 64px;
+    right: 10px;
+    left: 10px;
+    width: auto;
+  }
+
+  .topbar-search-field input,
+  input,
+  select,
+  textarea,
+  button,
+  a {
+    font-size: max(14px, 1em);
+  }
+
+  .pill,
+  .button,
+  .panel-action,
+  .row-action,
+  .board-toolbar button,
+  .board-toolbar a,
+  .board-toolbar input,
+  .board-toolbar select {
+    min-height: 44px;
+  }
+
+  .dispatch-board-page,
+  .my-tasks-page,
+  .task-detail-page,
+  .appointment-console-home,
+  .appointment-new-calendar,
+  .inventory-console-home,
+  .inventory-workflow-launcher,
+  .customer-home,
+  .customer-console,
+  .operations-coordinator-home {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .board-hero,
+  .appointment-console-hero,
+  .appointment-new-header,
+  .ich-hero,
+  .inventory-workflow-launcher > header,
+  .customer-home-welcome,
+  .oc-hero {
+    align-items: stretch;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .board-hero h1,
+  .appointment-console-hero h1,
+  .appointment-new-header h1,
+  .ich-hero h1,
+  .inventory-workflow-launcher > header h1,
+  .customer-home-welcome h1,
+  .oc-hero h1 {
+    font-size: clamp(25px, 7vw, 31px);
+    line-height: 1.08;
+  }
+
+  .board-hero p,
+  .board-generation-summary,
+  .appointment-console-hero p,
+  .appointment-new-header p,
+  .ich-hero span,
+  .inventory-workflow-launcher > header span,
+  .customer-home-welcome p,
+  .oc-hero span {
+    font-size: 15px !important;
+    line-height: 1.45;
+  }
+
+  .metric-strip,
+  .appointment-console-kpis,
+  .ich-kpis,
+  .customer-home-metrics,
+  .oc-command-strip {
+    display: flex;
+    gap: 10px;
+    margin-inline: -10px;
+    overflow-x: auto;
+    padding-inline: 10px;
+    scroll-padding-inline: 10px;
+    scroll-snap-type: x mandatory;
+  }
+
+  .metric-card,
+  .appointment-console-kpis article,
+  .ich-kpis article,
+  .customer-home-metrics article,
+  .oc-command-strip article {
+    flex: 0 0 min(78vw, 250px);
+    min-width: 0;
+    min-height: 104px;
+    scroll-snap-align: start;
+  }
+
+  .metric-card span,
+  .metric-card small,
+  .appointment-console-kpis span,
+  .appointment-console-kpis small,
+  .ich-kpis span,
+  .ich-kpis small,
+  .customer-home-metrics small,
+  .customer-home-metrics p,
+  .oc-command-strip span,
+  .oc-command-strip small {
+    font-size: 13px;
+    line-height: 1.35;
+  }
+
+  .metric-card strong,
+  .appointment-console-kpis strong,
+  .ich-kpis strong,
+  .customer-home-metrics strong,
+  .oc-command-strip strong {
+    font-size: 27px;
+  }
+
+  .appointment-console-hero nav,
+  .ich-hero-actions,
+  .oc-hero nav,
+  .customer-home-welcome-actions,
+  .appointment-console-tabs,
+  .customer-record-tabs,
+  .operations-strip,
+  .flow-list,
+  .team-load,
+  .ich-stage-strip,
+  .ich-route-card footer {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 8px;
+    margin-inline: -10px;
+    overflow-x: auto;
+    padding-inline: 10px;
+    scrollbar-width: none;
+  }
+
+  .appointment-console-tabs::-webkit-scrollbar,
+  .customer-record-tabs::-webkit-scrollbar,
+  .ich-stage-strip::-webkit-scrollbar,
+  .flow-list::-webkit-scrollbar,
+  .team-load::-webkit-scrollbar {
+    display: none;
+  }
+
+  .appointment-console-hero nav > *,
+  .ich-hero-actions > *,
+  .oc-hero nav > *,
+  .appointment-console-tabs a,
+  .customer-record-tabs button,
+  .ich-stage-strip a,
+  .ich-route-card footer a {
+    flex: 0 0 auto;
+    min-height: 44px;
+    font-size: 14px;
+  }
+
+  .board-and-rail,
+  .operations-rail,
+  .appointment-console-grid,
+  .appointment-console-lower,
+  .appointment-new-layout,
+  .appointment-week-view,
+  .appointment-month-view,
+  .ich-route-grid,
+  .ich-work-grid,
+  .ich-health-grid,
+  .ich-operational-summary,
+  .iwl-grid,
+  .customer-console-layout,
+  .customer-home-layout,
+  .customer-home-analytics,
+  .customer-home-tables,
+  .customer-performance-card footer,
+  .customer-profile-card,
+  .customer-profile-facts,
+  .customer-overview-grid,
+  .customer-insight-grid,
+  .customer-command-rail,
+  .oc-main-grid,
+  .oc-advisor-support > div,
+  .oc-departments > div,
+  .oc-escalation > div {
+    grid-template-columns: 1fr !important;
+  }
+
+  .appointment-console-grid,
+  .appointment-console-lower,
+  .ich-route-grid,
+  .ich-work-grid,
+  .customer-home-analytics,
+  .customer-home-tables,
+  .oc-main-grid {
+    gap: 10px;
+  }
+
+  .appointment-panel,
+  .ich-panel,
+  .ich-route-card,
+  .customer-home-card,
+  .customer-panel,
+  .customer-rail-card,
+  .oc-panel {
+    overflow: hidden;
+  }
+
+  .appointment-panel > header,
+  .ich-panel > header,
+  .customer-home-card > header,
+  .customer-panel header,
+  .oc-panel > header {
+    align-items: flex-start;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+  }
+
+  .appointment-panel > header strong,
+  .ich-panel > header strong,
+  .customer-home-card > header strong,
+  .customer-panel header strong,
+  .oc-panel > header strong {
+    font-size: 18px;
+  }
+
+  .appointment-flow-group table,
+  .customer-data-table,
+  .ich-priority-list,
+  .parts-table-scroll,
+  .ict-table-scroll {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .appointment-flow-group table {
+    min-width: 520px;
+  }
+
+  .appointment-flow-group td,
+  .appointment-flow-group th,
+  .appointment-live-section-list strong,
+  .appointment-live-section-list small,
+  .ich-priority-list li,
+  .customer-table-head,
+  .customer-table-row,
+  .customer-home-card p,
+  .customer-home-card span,
+  .customer-home-card small,
+  .oc-action-row small,
+  .oc-paperwork small,
+  .oc-departments small,
+  .oc-escalation small {
+    font-size: 13px;
+    line-height: 1.35;
+  }
+
+  .appointment-live-section-list article,
+  .customer-open-items > button,
+  .customer-360-live-workspace article,
+  .oc-action-row {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .appointment-live-section-list a,
+  .customer-panel-footer,
+  .customer-quick-action,
+  .customer-next-action > button,
+  .customer-risk-card > button,
+  .customer-rail-link-button,
+  .oc-search a,
+  .oc-dock a,
+  .oc-advisor-support a,
+  .oc-departments a,
+  .oc-escalation a {
+    min-height: 44px;
+    font-size: 14px !important;
+  }
+
+  .appointment-new-layout {
+    min-width: 0;
+  }
+
+  .appointment-calendar-surface,
+  .calendar-stage,
+  .appointment-week-view,
+  .appointment-month-view {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .appointment-week-view,
+  .appointment-month-view {
+    grid-template-columns: repeat(7, minmax(118px, 1fr)) !important;
+  }
+
+  .calendar-stage {
+    min-width: 520px;
+  }
+
+  .mini-calendar header button,
+  .days button,
+  .appointment-calendar-surface button,
+  .appointment-summary button,
+  .appointment-summary footer a,
+  .appointment-setup input,
+  .appointment-setup select,
+  .appointment-identity-results button {
+    min-height: 44px;
+    font-size: 14px;
+  }
+
+  .appointment-setup textarea {
+    font-size: 14px;
+  }
+
+  .ich-scope-bar,
+  .ich-save-form,
+  .ich-data-state {
+    align-items: stretch;
+    display: grid;
+    grid-template-columns: 1fr !important;
+  }
+
+  .ich-scope-bar select,
+  .ich-scope-bar button,
+  .ich-scope-bar > a,
+  .ich-save-form input,
+  .ich-save-form select,
+  .ich-save-form button {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    font-size: 14px;
+  }
+
+  .ich-priority-list li {
+    grid-template-columns: 1fr !important;
+    gap: 6px;
+  }
+
+  .ich-priority-list li > *,
+  .ich-priority-list li > div:nth-of-type(2),
+  .ich-priority-list li > a {
+    grid-column: auto;
+  }
+
+  .ich-stage-strip a {
+    min-width: 130px;
+  }
+
+  .enterprise-shell,
+  .enterprise-shell-mockup,
+  .my-tasks-live-shell,
+  .my-tasks-optimized-content {
+    grid-template-columns: 1fr !important;
+  }
+
+  .my-tasks-live-shell > .enterprise-task-list-panel-mockup,
+  .my-tasks-optimized-stage,
+  .enterprise-inspector,
+  .enterprise-task-list-panel {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .enterprise-task-card,
+  .enterprise-list-row,
+  .enterprise-overview-card,
+  .enterprise-detail-card,
+  .my-tasks-command-card {
+    border-radius: 10px;
+  }
+
+  .enterprise-task-card-hit,
+  .enterprise-list-row-hit {
+    min-height: 96px;
+  }
+
+  .enterprise-task-copy h3,
+  .enterprise-list-row-copy h3,
+  .enterprise-title-row h2 {
+    font-size: 17px !important;
+    line-height: 1.2;
+  }
+
+  .enterprise-task-copy p,
+  .enterprise-list-row-copy p,
+  .enterprise-card-facts,
+  .enterprise-overview-card p,
+  .enterprise-overview-card li,
+  .enterprise-information-list,
+  .my-tasks-optimized-summary,
+  .my-task-command-note p {
+    font-size: 14px !important;
+    line-height: 1.4;
+  }
+
+  .enterprise-tab-row,
+  .enterprise-tab-row-mockup,
+  .my-tasks-optimized-tabs {
+    overflow-x: auto;
+    padding-inline: 8px;
+  }
+
+  .enterprise-tab,
+  .enterprise-tab-row-mockup .enterprise-tab,
+  .my-task-action-chip {
+    min-height: 44px;
+    font-size: 14px !important;
+  }
+
+  .my-tasks-optimized-actions,
+  .my-task-quick-actions,
+  .my-tasks-command-center,
+  .enterprise-guided-update-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .my-tasks-optimized-actions {
+    display: grid;
+    gap: 8px;
+  }
+
+  .my-tasks-optimized-actions > *,
+  .my-task-quick-actions > *,
+  .my-tasks-command-card select,
+  .my-tasks-command-card input,
+  .my-tasks-command-card textarea {
+    width: 100%;
+    min-height: 44px;
+    font-size: 14px;
+  }
+
+  .customer-console-toolbar,
+  .customer-home-toolbar {
+    align-items: stretch;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .customer-console-search,
+  .customer-home-welcome-actions input {
+    width: 100%;
+    min-height: 44px;
+    font-size: 14px;
+  }
+
+  .customer-action-grid,
+  .customer-profile-facts,
+  .customer-360-live-workspace > div,
+  .customer-snapshot dl div {
+    grid-template-columns: 1fr !important;
+  }
+
+  .customer-profile-identity p,
+  .customer-profile-identity small,
+  .customer-preferred,
+  .customer-profile-facts dt,
+  .customer-profile-facts dd,
+  .customer-timeline strong,
+  .customer-timeline small,
+  .customer-timeline time,
+  .customer-open-items strong,
+  .customer-open-items small,
+  .customer-open-items time,
+  .customer-snapshot dt,
+  .customer-snapshot dd,
+  .customer-360-live-workspace article strong,
+  .customer-360-live-workspace article small,
+  .customer-360-live-workspace article time,
+  .customer-360-live-workspace article b {
+    font-size: 13px;
+    line-height: 1.35;
+  }
+
+  .oc-search {
+    grid-template-columns: 1fr;
+  }
+
+  .oc-search > svg {
+    display: none;
+  }
+
+  .oc-dock,
+  .oc-advisor-support > div,
+  .oc-departments > div,
+  .oc-escalation > div {
+    display: grid;
+  }
+
+  .oc-dock a,
+  .oc-advisor-support a,
+  .oc-departments a,
+  .oc-escalation a {
+    min-height: 64px;
+  }
+}
+
+@media (max-width: 430px) {
+  .app-content {
+    padding: 8px;
+  }
+
+  .app-appearance-switch {
+    display: none;
+  }
+
+  .ccc-breadcrumb {
+    display: none;
+  }
+
+  .appointment-console-home,
+  .appointment-new-calendar,
+  .inventory-console-home,
+  .inventory-workflow-launcher,
+  .operations-coordinator-home {
+    padding-inline: 8px;
+  }
+
+  .board-hero .board-toolbar-actions,
+  .appointment-summary footer,
+  .customer-home-quick-actions,
+  .review-queue-actions {
+    grid-template-columns: 1fr !important;
+  }
+
+  .metric-card,
+  .appointment-console-kpis article,
+  .ich-kpis article,
+  .customer-home-metrics article,
+  .oc-command-strip article {
+    flex-basis: min(86vw, 270px);
+  }
+}
