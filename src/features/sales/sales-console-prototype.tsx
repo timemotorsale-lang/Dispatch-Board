@@ -57,6 +57,14 @@ import {
   m10OperationalSurfacesHaveRoleOwners,
   salesConsoleM10AdminOperationalSeparation
 } from "./sales-console-m10-admin-operational-separation";
+import {
+  m10FallbackReviewPlaceholdersBlockSubmission,
+  m10ManagerReviewExtendsM9ApprovalFoundation,
+  m10ManagerReviewRequestsRemainDisabled,
+  m10ManagerReviewRequiresSourceRecordsAuditAndReason,
+  m10ManagerReviewRolesAreScopedToManagersAndAdmins,
+  salesConsoleM10ManagerReviewRequestFoundation
+} from "./sales-console-m10-manager-review-request";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -558,6 +566,45 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {m10OperationalSurfacesHaveRoleOwners() ? "Operational surfaces have role owners" : "Operational ownership gap"}</span>
               <span><ShieldCheck size={13} /> {m10FinanceIsOperationalVisibilityOnly() ? "Finance remains visibility-only" : "Finance decision risk"}</span>
               {salesConsoleM10AdminOperationalSeparation.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Manager review request foundation">
+            <div className={styles.railHeader}><h2>Manager Review Request Foundation</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM10ManagerReviewRequestFoundation.boundary}</p>
+            <div className={styles.managerReviewRequestList}>
+              {salesConsoleM10ManagerReviewRequestFoundation.contracts.map((contract) => (
+                <article key={contract.requestType}>
+                  <div>
+                    <strong>{contract.requestType}</strong>
+                    <span>Review: {contract.allowedReviewRoles.join(", ")}</span>
+                  </div>
+                  <span className={styles.statusDanger}>{contract.statusLabel}</span>
+                  <small>Evidence: {contract.evidenceRequired.join(", ")}</small>
+                  <small>Request enabled: {String(contract.requestEnabled)}. Decision enabled: {String(contract.decisionEnabled)}. Source write: {String(contract.sourceWriteEnabled)}.</small>
+                </article>
+              ))}
+              {salesConsoleM10ManagerReviewRequestFoundation.queuePlaceholders.map((placeholder) => (
+                <article key={`${placeholder.requestContract}-${placeholder.blockerLabel}`}>
+                  <div>
+                    <strong>{placeholder.requestContract}</strong>
+                    <span>{placeholder.customerLabel} · {placeholder.dealLabel}</span>
+                  </div>
+                  <span className={freshnessClass(placeholder.blockerLabel === "blocked" ? "stale" : placeholder.blockerLabel)}>{placeholder.blockerLabel}</span>
+                  <small>{placeholder.managerReviewReason}</small>
+                  <em>{placeholder.sourceLinkLabel}</em>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {m10ManagerReviewRequestsRemainDisabled() ? "Review requests remain disabled" : "Request activation risk"}</span>
+              <span><ShieldCheck size={13} /> {m10ManagerReviewRequiresSourceRecordsAuditAndReason() ? "Source records, audit, and reason required" : "Review gate gap"}</span>
+              <span><ShieldCheck size={13} /> {m10ManagerReviewRolesAreScopedToManagersAndAdmins() ? "Manager/Admin review roles scoped" : "Review role gap"}</span>
+              <span><ShieldCheck size={13} /> {m10ManagerReviewExtendsM9ApprovalFoundation() ? "Extends M9 approval foundation" : "M9 approval linkage gap"}</span>
+              <span><ShieldCheck size={13} /> {m10FallbackReviewPlaceholdersBlockSubmission() ? "Fallback placeholders block submission" : "Fallback submission risk"}</span>
+              {salesConsoleM10ManagerReviewRequestFoundation.guardrails.map((guardrail) => (
                 <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
               ))}
             </div>
