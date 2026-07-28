@@ -30,6 +30,7 @@ import { salesConsoleMvpDefinition } from "./sales-console-mvp-definition";
 import { salesConsoleMvpExecution } from "./sales-console-mvp-execution";
 import { salesConsoleMvpLiveDataContract } from "./sales-console-mvp-live-data-contract";
 import { salesConsolePilotReadiness } from "./sales-console-mvp-pilot-readiness";
+import { salesConsoleProductionReadiness } from "./sales-console-mvp-production-readiness";
 import { salesConsoleReadAdapterPreview } from "./sales-console-mvp-read-adapters";
 import { salesConsoleMvpRealDataWiring } from "./sales-console-mvp-real-data-wiring";
 import { salesConsoleRoleViews } from "./sales-console-mvp-role-views";
@@ -152,7 +153,7 @@ function barStyle(width: string) {
 
 export function SalesConsolePrototype() {
   return (
-    <section className={styles.console} aria-label="Enterprise Sales Console prototype">
+    <section className={styles.console} aria-label="Enterprise Sales Console">
       <header className={styles.topbar}>
         <div className={styles.titleBlock}>
           <span>Time Motor Sales</span>
@@ -165,17 +166,19 @@ export function SalesConsolePrototype() {
         </label>
         <div className={styles.topbarActions}>
           <button type="button"><Bell size={16} /> Alerts <b>12</b></button>
-          <button type="button"><MessageSquareText size={16} /> Messages <b>5</b></button>
+          <button aria-disabled="true" disabled title="Messaging automation is planned, not active in the read-only production MVP." type="button">
+            <MessageSquareText size={16} /> Messages <b>planned</b>
+          </button>
           <button type="button"><CalendarDays size={16} /> Calendar</button>
           <button type="button"><HelpCircle size={16} /> Help</button>
           <button type="button">All Stores <ChevronDown size={14} /></button>
         </div>
       </header>
 
-      <section className={styles.executionFoundation} aria-label="Sales Console MVP execution foundation">
+      <section className={styles.executionFoundation} aria-label="Sales Console production MVP foundation">
         <div>
-          <span className={styles.eyebrow}>Execution foundation</span>
-          <h2>Read-only MVP pilot shell</h2>
+          <span className={styles.eyebrow}>Production foundation</span>
+          <h2>Read-only production MVP shell</h2>
           <p>{salesConsoleMvpDefinition.recommendedMvpBoundary.releaseLine}</p>
         </div>
         <div className={styles.shellCheckGrid}>
@@ -330,9 +333,58 @@ export function SalesConsolePrototype() {
 
         <aside className={styles.commandRail} id="command-center" aria-label="Manager Command Center">
           <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Production MVP</h2><ShieldCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Stable read-only operating console. Planning and configuration evidence is separated into admin review panels.
+            </p>
+            <div className={styles.productionReadinessList}>
+              {salesConsoleProductionReadiness.productionChecks.map((check) => (
+                <article key={check.check}>
+                  <strong>{check.check}</strong>
+                  <span className={pilotStatusClass(check.status)}>{check.status}</span>
+                  <small>{check.evidence} Owner: {check.owner}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Production Surface Boundary</h2><Gauge size={18} /></div>
+            <div className={styles.surfaceBoundaryList}>
+              {salesConsoleProductionReadiness.operationalSurfaces.map((surface) => (
+                <article key={surface.surface}>
+                  <strong>{surface.surface}</strong>
+                  <span className={styles.statusGood}>{surface.audience}</span>
+                  <small>{surface.reason}</small>
+                </article>
+              ))}
+              {salesConsoleProductionReadiness.adminReviewSurfaces.map((surface) => (
+                <article key={surface.surface}>
+                  <strong>{surface.surface}</strong>
+                  <span className={styles.statusWarning}>{surface.audience}</span>
+                  <small>{surface.reason}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Production Empty States</h2><HelpCircle size={18} /></div>
+            <div className={styles.emptyStateList}>
+              {salesConsoleProductionReadiness.emptyStates.map((state) => (
+                <article key={state.surface}>
+                  <strong>{state.surface}</strong>
+                  <span>{state.userMessage}</span>
+                  <small>{state.verification}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
             <div className={styles.railHeader}><h2>Role-Based Console</h2><UserRoundCheck size={18} /></div>
             <p className={styles.guardrailCopy}>
-              Active pilot role: {activeRoleView?.label}. Source records stay as the system of record; this console only changes visibility.
+              Active production MVP role: {activeRoleView?.label}. Source records stay as the system of record; this console only changes visibility.
             </p>
             <div className={styles.roleViewList}>
               {salesConsoleRoleViews.map((role) => (
@@ -360,10 +412,10 @@ export function SalesConsolePrototype() {
             </div>
           </section>
 
-          <section className={styles.panel}>
+          <section className={styles.panel} aria-label="Admin review pilot readiness">
             <div className={styles.railHeader}><h2>Pilot-Ready MVP</h2><ClipboardCheck size={18} /></div>
             <p className={styles.guardrailCopy}>
-              Limited pilot mode is read-only. A manager should understand the day&apos;s priorities within 30 seconds.
+              Admin review evidence from the limited pilot phase. A manager should understand the day&apos;s priorities within 30 seconds.
             </p>
             <div className={styles.priorityBriefList}>
               {salesConsolePilotReadiness.priorityBrief.length > 0 ? (

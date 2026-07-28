@@ -8,23 +8,24 @@ import { salesConsoleMvpDefinition } from "@/features/sales/sales-console-mvp-de
 import { salesConsoleMvpExecution } from "@/features/sales/sales-console-mvp-execution";
 import { salesConsoleMvpLiveDataContract } from "@/features/sales/sales-console-mvp-live-data-contract";
 import { salesConsolePilotReadiness } from "@/features/sales/sales-console-mvp-pilot-readiness";
+import { salesConsoleProductionReadiness } from "@/features/sales/sales-console-mvp-production-readiness";
 import { salesConsoleReadAdapterPreview } from "@/features/sales/sales-console-mvp-read-adapters";
 import { salesConsoleMvpRealDataWiring } from "@/features/sales/sales-console-mvp-real-data-wiring";
 import { salesConsoleRoleViews } from "@/features/sales/sales-console-mvp-role-views";
 import { SalesConsolePrototype } from "@/features/sales/sales-console-prototype";
 
-describe("Sales Console prototype", () => {
+describe("Sales Console", () => {
   it("renders the /sales route shell for the MVP execution foundation", () => {
     const markup = renderToStaticMarkup(<SalesPage />);
 
-    expect(markup).toContain("Enterprise Sales Console prototype");
-    expect(markup).toContain("Read-only MVP pilot shell");
+    expect(markup).toContain("Enterprise Sales Console");
+    expect(markup).toContain("Read-only production MVP shell");
   });
 
   it("renders the first sales console slice with the required operating surfaces", () => {
     const markup = renderToStaticMarkup(<SalesConsolePrototype />);
 
-    expect(markup).toContain("Enterprise Sales Console prototype");
+    expect(markup).toContain("Enterprise Sales Console");
     expect(markup).toContain("Salesperson Today");
     expect(markup).toContain("Deal Desk");
     expect(markup).toContain("Inventory Intelligence");
@@ -32,7 +33,7 @@ describe("Sales Console prototype", () => {
     expect(markup).toContain("Lead Operations");
   });
 
-  it("keeps the first slice non-destructive and prototype-scoped", () => {
+  it("keeps the first slice non-destructive and production-MVP scoped", () => {
     const markup = renderToStaticMarkup(<SalesConsolePrototype />);
 
     expect(markup).toContain("MVP Definition");
@@ -94,8 +95,8 @@ describe("Sales Console prototype", () => {
   it("renders the MVP execution shell health and role placeholders", () => {
     const markup = renderToStaticMarkup(<SalesConsolePrototype />);
 
-    expect(markup).toContain("Sales Console MVP execution foundation");
-    expect(markup).toContain("Read-only MVP pilot shell");
+    expect(markup).toContain("Sales Console production MVP foundation");
+    expect(markup).toContain("Read-only production MVP shell");
     expect(salesConsoleMvpExecution.shellChecks).toHaveLength(4);
     for (const check of salesConsoleMvpExecution.shellChecks) {
       expect(markup).toContain(check.check);
@@ -111,7 +112,7 @@ describe("Sales Console prototype", () => {
     const markup = renderToStaticMarkup(<SalesConsolePrototype />);
 
     expect(markup).toContain("Role-Based Console");
-    expect(markup).toContain("Active pilot role: Sales Manager");
+    expect(markup).toContain("Active production MVP role: Sales Manager");
     expect(markup).toContain("Source records stay as the system of record");
     for (const role of salesConsoleRoleViews) {
       expect(markup).toContain(role.label);
@@ -122,6 +123,33 @@ describe("Sales Console prototype", () => {
     }
     expect(markup).toContain("Restricted: Manager Command Center");
     expect(markup).toContain("Restricted: None in read-only pilot");
+  });
+
+  it("renders production MVP readiness and separates admin review panels from operations", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Production MVP");
+    expect(markup).toContain("Stable read-only operating console");
+    expect(markup).toContain("Production Surface Boundary");
+    expect(markup).toContain("Production Empty States");
+    expect(markup).toContain("Messages");
+    expect(markup).toContain("planned");
+    for (const check of salesConsoleProductionReadiness.productionChecks) {
+      expect(markup).toContain(check.check);
+      expect(markup).toContain(check.evidence);
+    }
+    for (const surface of salesConsoleProductionReadiness.operationalSurfaces) {
+      expect(markup).toContain(surface.surface);
+      expect(markup).toContain(surface.reason);
+    }
+    for (const surface of salesConsoleProductionReadiness.adminReviewSurfaces) {
+      expect(markup).toContain(surface.surface);
+      expect(markup).toContain(surface.reason);
+    }
+    for (const state of salesConsoleProductionReadiness.emptyStates) {
+      expect(markup).toContain(state.userMessage);
+      expect(markup).toContain(state.verification);
+    }
   });
 
   it("renders read-only guardrails for every excluded risky MVP action", () => {

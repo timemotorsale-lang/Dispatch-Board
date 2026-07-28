@@ -221,6 +221,18 @@
   padding: 8px 9px;
 }
 
+.topbarActions button:disabled,
+.headerActions button:disabled {
+  background: var(--surface-soft);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.topbarActions button:disabled b {
+  background: var(--surface-muted);
+  color: var(--muted);
+}
+
 .topbarActions b {
   background: var(--danger);
   border-radius: 999px;
@@ -654,6 +666,8 @@
 .rolePermissionList,
 .roleViewList,
 .priorityBriefList,
+.productionReadinessList,
+.surfaceBoundaryList,
 .stateVerificationList,
 .emptyStateList,
 .dataSourceList,
@@ -674,6 +688,8 @@
 .rolePermissionList article,
 .roleViewList article,
 .priorityBriefList article,
+.productionReadinessList article,
+.surfaceBoundaryList article,
 .stateVerificationList article,
 .emptyStateList article,
 .dataSourceList article,
@@ -692,6 +708,8 @@
 
 .rolePermissionList strong,
 .roleViewList strong,
+.productionReadinessList strong,
+.surfaceBoundaryList strong,
 .stateVerificationList strong,
 .emptyStateList strong,
 .dataSourceList strong,
@@ -736,8 +754,14 @@
 .roleViewList small,
 .roleViewList em,
 .priorityBriefList span,
+.productionReadinessList span,
+.productionReadinessList small,
+.surfaceBoundaryList span,
+.surfaceBoundaryList small,
 .stateVerificationList span,
 .stateVerificationList small,
+.productionReadinessList small,
+.surfaceBoundaryList small,
 .emptyStateList span,
 .emptyStateList small,
 .dataSourceList span,
@@ -853,12 +877,16 @@
 }
 
 .stateVerificationList article,
+.productionReadinessList article,
+.surfaceBoundaryList article,
 .emptyStateList article {
   align-items: start;
   grid-template-columns: 1fr auto;
 }
 
 .stateVerificationList small,
+.productionReadinessList small,
+.surfaceBoundaryList small,
 .emptyStateList small {
   grid-column: 1 / -1;
 }

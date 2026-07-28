@@ -343,7 +343,7 @@ export const salesConsoleMvpDefinition = {
       gate: "Gate 3: Data trust",
       question: "Are the source fields clear, fresh enough, and labeled honestly when missing or stale?",
       passSignal: "Users can tell which records are trusted, stale, blocked, or placeholder-only.",
-      ifNotPassed: "Keep the console in prototype mode and fix the data contract."
+      ifNotPassed: "Keep the console in admin review mode and fix the data contract."
     },
     {
       gate: "Gate 4: Safety and permissions",
