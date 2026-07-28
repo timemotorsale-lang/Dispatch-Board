@@ -15,6 +15,7 @@ import { salesConsoleEnterprisePermissionReadModel } from "@/features/sales/sale
 import { salesConsoleFinanceHandoffReadModel } from "@/features/sales/sales-console-m9-finance-handoff";
 import { salesConsoleManagerApprovalReadModel } from "@/features/sales/sales-console-m9-manager-approvals";
 import { salesConsoleQuoteScenarioReadModel } from "@/features/sales/sales-console-m9-quote-scenario-builder";
+import { salesConsoleVehicleHoldReadModel } from "@/features/sales/sales-console-m9-vehicle-holds";
 import { salesConsolePilotReadiness } from "@/features/sales/sales-console-mvp-pilot-readiness";
 import { salesConsoleProductionReadiness } from "@/features/sales/sales-console-mvp-production-readiness";
 import { salesConsoleReadAdapterPreview } from "@/features/sales/sales-console-mvp-read-adapters";
@@ -304,6 +305,25 @@ describe("Sales Console", () => {
     }
     for (const template of salesConsoleCustomerMessagingReadModel.templates) {
       expect(markup).toContain(template.templateId);
+    }
+  });
+
+  it("renders vehicle holds foundation without creating reservations", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Vehicle Holds Foundation");
+    expect(markup).toContain("Vehicle holds disabled");
+    expect(markup).toContain("Manager approval, expiry, and verification required");
+    expect(markup).toContain("Verify-first inventory blocks holds");
+    for (const hold of salesConsoleVehicleHoldReadModel.requests) {
+      expect(markup).toContain(hold.holdId);
+      expect(markup).toContain(hold.stockNumber);
+      expect(hold.enabled).toBe(false);
+      expect(hold.sourceWrite).toBe(false);
+    }
+    for (const limit of salesConsoleVehicleHoldReadModel.limits) {
+      expect(markup).toContain(`${limit.scope} hold limit`);
+      expect(markup).toContain(limit.reason);
     }
   });
 
