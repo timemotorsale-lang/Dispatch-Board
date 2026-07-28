@@ -24,6 +24,7 @@ import { salesConsoleM12RoleEmptyPlannedStates } from "@/features/sales/sales-co
 import { salesConsoleM12RoleStartCards } from "@/features/sales/sales-console-m12-role-start-cards";
 import { salesConsoleM13DogfoodReadiness } from "@/features/sales/sales-console-m13-dogfood-readiness";
 import { salesConsoleM13FeedbackCategories } from "@/features/sales/sales-console-m13-feedback-categories";
+import { salesConsoleM13ReleaseObservability } from "@/features/sales/sales-console-m13-release-observability";
 import { salesConsoleM13StaffPilotGuide } from "@/features/sales/sales-console-m13-staff-pilot-guide";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
@@ -366,6 +367,18 @@ describe("Sales Console", () => {
     for (const item of salesConsoleM13FeedbackCategories) {
       expect(markup).toContain(item.category);
       expect(markup).toContain(item.example);
+    }
+  });
+
+  it("renders M13 release observability signals", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M13 Release Observability");
+    expect(markup).toContain("Core health signals present");
+    expect(markup).toContain("Fallback/unavailable counts visible");
+    expect(markup).toContain("Disabled action coverage visible");
+    for (const signal of salesConsoleM13ReleaseObservability.healthSignals) {
+      expect(markup).toContain(signal.label);
     }
   });
 

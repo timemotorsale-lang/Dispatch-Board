@@ -143,6 +143,12 @@ import {
   salesConsoleM13FeedbackCategories,
   salesConsoleM13FeedbackCategoriesCoverDogfoodRisks
 } from "./sales-console-m13-feedback-categories";
+import {
+  salesConsoleM13ObservabilityConfirmsDisabledActionCoverage,
+  salesConsoleM13ObservabilityCountsFallbacksAndUnavailableSources,
+  salesConsoleM13ObservabilityHasCoreHealthSignals,
+  salesConsoleM13ReleaseObservability
+} from "./sales-console-m13-release-observability";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -853,6 +859,34 @@ export function SalesConsolePrototype() {
             <div className={styles.boundaryList}>
               <span><ShieldCheck size={13} /> {salesConsoleM13FeedbackCategoriesCoverDogfoodRisks() ? "Feedback categories cover dogfood risks" : "Feedback category gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM13FeedbackCaptureRemainsReadOnly() ? "Feedback capture remains read-only" : "Feedback write risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M13 release observability">
+            <div className={styles.railHeader}><h2>M13 Release Observability</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Dogfood health indicators keep release review honest before staff depend on the console.
+            </p>
+            <div className={styles.releaseObservabilityList}>
+              {salesConsoleM13ReleaseObservability.healthSignals.map((signal) => (
+                <article key={signal.label}>
+                  <strong>{signal.label}</strong>
+                  <span className={signal.status === "ready" ? styles.statusGood : styles.statusWarning}>{signal.status}</span>
+                </article>
+              ))}
+              <article>
+                <strong>Source fallback count</strong>
+                <span>{salesConsoleM13ReleaseObservability.sourceFallbackCount}</span>
+                <small>Unavailable: {salesConsoleM13ReleaseObservability.unavailableSourceCount}</small>
+              </article>
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM13ObservabilityHasCoreHealthSignals() ? "Core health signals present" : "Observability signal gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM13ObservabilityCountsFallbacksAndUnavailableSources() ? "Fallback/unavailable counts visible" : "Source count gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM13ObservabilityConfirmsDisabledActionCoverage() ? "Disabled action coverage visible" : "Disabled action coverage gap"}</span>
+              {salesConsoleM13ReleaseObservability.knownBlockers.map((blocker) => (
+                <span key={blocker}><ShieldCheck size={13} /> {blocker}</span>
+              ))}
             </div>
           </section>
 
