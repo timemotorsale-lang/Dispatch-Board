@@ -17,6 +17,7 @@ import { salesConsoleM11ReadOnlyFeatureFlags } from "@/features/sales/sales-cons
 import { salesConsoleM11RoleFeatureAccess } from "@/features/sales/sales-console-m11-role-feature-access";
 import { salesConsoleM11RoleVerificationSummary } from "@/features/sales/sales-console-m11-role-verification";
 import { salesConsoleM11StaffRoleModel } from "@/features/sales/sales-console-m11-staff-role-model";
+import { salesConsoleM12DefaultRoleLandingHeader } from "@/features/sales/sales-console-m12-role-landing-header";
 import { salesConsoleM12RoleLandingExperiences } from "@/features/sales/sales-console-m12-role-landing-model";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
@@ -275,6 +276,17 @@ describe("Sales Console", () => {
       expect(markup).toContain(landing.role);
       expect(markup).toContain(landing.startHereLabel);
     }
+  });
+
+  it("renders the M12 role-aware landing header with an internal target", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain(salesConsoleM12DefaultRoleLandingHeader.eyebrow);
+    expect(markup).toContain(salesConsoleM12DefaultRoleLandingHeader.headline);
+    expect(markup).toContain(salesConsoleM12DefaultRoleLandingHeader.readOnlyReminder);
+    expect(markup).toContain("Go to default section");
+    expect(markup).toContain("Landing header remains read-only");
+    expect(markup).toContain("Headers target internal sections");
   });
 
   it("renders real auth access mapping with blocked and mapped route states", () => {
