@@ -673,6 +673,7 @@
 .enterpriseDealWorkflowList,
 .enterpriseApprovalList,
 .enterpriseScenarioList,
+.enterpriseFinanceList,
 .priorityBriefList,
 .productionReadinessList,
 .surfaceBoundaryList,
@@ -703,6 +704,7 @@
 .enterpriseDealWorkflowList article,
 .enterpriseApprovalList article,
 .enterpriseScenarioList article,
+.enterpriseFinanceList article,
 .priorityBriefList article,
 .productionReadinessList article,
 .surfaceBoundaryList article,
@@ -732,6 +734,7 @@
 .enterpriseDealWorkflowList strong,
 .enterpriseApprovalList strong,
 .enterpriseScenarioList strong,
+.enterpriseFinanceList strong,
 .productionReadinessList strong,
 .surfaceBoundaryList strong,
 .stateVerificationList strong,
@@ -796,6 +799,8 @@
 .enterpriseApprovalList small,
 .enterpriseScenarioList span,
 .enterpriseScenarioList small,
+.enterpriseFinanceList span,
+.enterpriseFinanceList small,
 .priorityBriefList span,
 .productionReadinessList span,
 .productionReadinessList small,
@@ -888,7 +893,8 @@
 .enterpriseIntegrationList article,
 .enterpriseDealWorkflowList article,
 .enterpriseApprovalList article,
-.enterpriseScenarioList article {
+.enterpriseScenarioList article,
+.enterpriseFinanceList article {
   align-items: start;
   gap: 7px;
   grid-template-columns: 1fr auto;
@@ -902,7 +908,8 @@
 .enterpriseIntegrationList em,
 .enterpriseDealWorkflowList small,
 .enterpriseApprovalList small,
-.enterpriseScenarioList small {
+.enterpriseScenarioList small,
+.enterpriseFinanceList small {
   grid-column: 1 / -1;
 }
 
