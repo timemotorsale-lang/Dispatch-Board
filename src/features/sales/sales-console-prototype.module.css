@@ -416,6 +416,117 @@
   line-height: 1;
 }
 
+.salespersonTodayDepth {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 10px 0;
+}
+
+.salespersonTodayDepth article {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 9px;
+}
+
+.salespersonTodayDepth strong {
+  color: var(--ink);
+  font-size: 0.74rem;
+}
+
+.salespersonTodayDepth span {
+  color: var(--brand-strong);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.salespersonTodayDepth small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.leadOperationsDepth {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.leadOperationsDepth article {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 9px;
+}
+
+.leadOperationsDepth strong {
+  color: var(--ink);
+  font-size: 0.74rem;
+}
+
+.leadOperationsDepth span {
+  color: var(--brand-strong);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.leadOperationsDepth small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.dealInventoryDepth {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.dealInventoryDepth article {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 9px;
+}
+
+.dealInventoryDepth strong,
+.dealInventoryDepth span,
+.dealInventoryDepth small,
+.dealInventoryDepth em {
+  display: block;
+}
+
+.dealInventoryDepth strong {
+  color: var(--ink);
+  font-size: 0.74rem;
+}
+
+.dealInventoryDepth span {
+  color: var(--brand-strong);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.dealInventoryDepth small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.dealInventoryDepth em {
+  color: var(--warning);
+  font-size: 0.66rem;
+  font-style: normal;
+  font-weight: 900;
+}
+
 .toneDanger {
   color: var(--danger);
 }
@@ -792,6 +903,8 @@
 .feedbackCategoryList,
 .releaseObservabilityList,
 .dogfoodGateList,
+.operationalTabAuditList,
+.placeholderDemotionList,
 .productionRoleViewList,
 .authAccessList,
 .m10SourceWiringList,
@@ -847,6 +960,8 @@
 .feedbackCategoryList article,
 .releaseObservabilityList article,
 .dogfoodGateList article,
+.operationalTabAuditList article,
+.placeholderDemotionList article,
 .productionRoleViewList article,
 .authAccessList article,
 .m10SourceWiringList article,
@@ -901,6 +1016,8 @@
 .feedbackCategoryList strong,
 .releaseObservabilityList strong,
 .dogfoodGateList strong,
+.operationalTabAuditList strong,
+.placeholderDemotionList strong,
 .productionRoleViewList strong,
 .authAccessList strong,
 .m10SourceWiringList strong,
@@ -996,6 +1113,12 @@
 .releaseObservabilityList small,
 .dogfoodGateList span,
 .dogfoodGateList small,
+.operationalTabAuditList span,
+.operationalTabAuditList small,
+.operationalTabAuditList em,
+.placeholderDemotionList span,
+.placeholderDemotionList small,
+.placeholderDemotionList em,
 .productionRoleViewList span,
 .productionRoleViewList small,
 .productionRoleViewList em,

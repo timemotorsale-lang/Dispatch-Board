@@ -155,6 +155,36 @@ import {
   salesConsoleM13DogfoodGatesRequireEvidence,
   salesConsoleM13ProductionPilotStillWaits
 } from "./sales-console-m13-dogfood-gates";
+import {
+  salesConsoleM14AuditDemotesPlanningPanels,
+  salesConsoleM14AuditIdentifiesPlaceholderHeavySurfaces,
+  salesConsoleM14AuditKeepsWritesPlanned,
+  salesConsoleM14OperationalTabAudit
+} from "./sales-console-m14-operational-tab-audit";
+import {
+  salesConsoleM14SalespersonTodayDepth,
+  salesConsoleM14SalespersonTodayExplainsBlockersAndFreshness,
+  salesConsoleM14SalespersonTodayHasOperatingGroups,
+  salesConsoleM14SalespersonTodayRemainsReadOnly
+} from "./sales-console-m14-salesperson-today-depth";
+import {
+  salesConsoleM14LeadOperationsDepth,
+  salesConsoleM14LeadOperationsExplainsSlaAndAssignment,
+  salesConsoleM14LeadOperationsHasOperatingGroups,
+  salesConsoleM14LeadOperationsRemainsReadOnly
+} from "./sales-console-m14-lead-operations-depth";
+import {
+  salesConsoleM14DealDeskHasOperatingRows,
+  salesConsoleM14DealInventoryDepth,
+  salesConsoleM14DealInventoryRemainReadOnly,
+  salesConsoleM14InventoryHasReadinessRows
+} from "./sales-console-m14-deal-inventory-depth";
+import {
+  salesConsoleM14PlaceholderDemotion,
+  salesConsoleM14PlaceholderDemotionKeepsAdminReview,
+  salesConsoleM14PlaceholderDemotionKeepsWritesDisabled,
+  salesConsoleM14PlaceholderDemotionReducesStaffNoise
+} from "./sales-console-m14-placeholder-demotion";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -427,6 +457,7 @@ export function SalesConsolePrototype() {
           <h2>{salesConsoleM12DefaultRoleLandingHeader.headline}</h2>
           <p>{salesConsoleM12DefaultRoleLandingHeader.activeLanding.landingCopy}</p>
           <small>{salesConsoleM12DefaultRoleLandingHeader.readOnlyReminder}</small>
+          <small>{salesConsoleM14PlaceholderDemotion.staffStartMessage}</small>
         </div>
         <a href={salesConsoleM12DefaultRoleLandingHeader.sectionHref}>
           Go to default section <ChevronRight size={14} />
@@ -484,6 +515,16 @@ export function SalesConsolePrototype() {
               ))}
             </div>
 
+            <div className={styles.salespersonTodayDepth} aria-label="Salesperson Today operating depth">
+              {salesConsoleM14SalespersonTodayDepth.groups.map((group) => (
+                <article key={group.group}>
+                  <strong>{group.group}</strong>
+                  <span>{group.count} items</span>
+                  <small>{group.manualAction}</small>
+                </article>
+              ))}
+            </div>
+
             <div className={styles.tableShell}>
               <table className={styles.workTable}>
                 <thead>
@@ -532,6 +573,16 @@ export function SalesConsolePrototype() {
                 </div>
                 <span className={styles.statusDanger}>7 approvals</span>
               </div>
+              <div className={styles.dealInventoryDepth}>
+                {salesConsoleM14DealInventoryDepth.dealOperatingRows.map((deal) => (
+                  <article key={deal.dealId}>
+                    <strong>{deal.dealId} · {deal.customer}</strong>
+                    <span>{deal.managerReviewNeed}</span>
+                    <small>{deal.sourcePrompt}</small>
+                    <em>{deal.readOnlyAction}</em>
+                  </article>
+                ))}
+              </div>
               <table className={styles.compactTable}>
                 <thead>
                   <tr>
@@ -566,6 +617,16 @@ export function SalesConsolePrototype() {
                   <h2>Vehicle Match</h2>
                 </div>
                 <span className={styles.statusDanger}>6 alerts</span>
+              </div>
+              <div className={styles.dealInventoryDepth}>
+                {salesConsoleM14DealInventoryDepth.inventoryOperatingRows.map((vehicle) => (
+                  <article key={vehicle.stock}>
+                    <strong>{vehicle.stock} · {vehicle.vehicle}</strong>
+                    <span>{vehicle.readiness} for {vehicle.matchedCustomer}</span>
+                    <small>{vehicle.sourcePrompt}</small>
+                    <em>{vehicle.readOnlyAction}</em>
+                  </article>
+                ))}
               </div>
               <div className={styles.vehicleList}>
                 {vehicleMatches.map((vehicle) => (
@@ -915,6 +976,59 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM13DogfoodGatesCoverReleasePath() ? "Dogfood gates cover release path" : "Dogfood gate coverage gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM13DogfoodGatesRequireEvidence() ? "Each gate requires evidence" : "Gate evidence gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM13ProductionPilotStillWaits() ? "Production pilot still waits" : "Production pilot risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M14 operational tab audit">
+            <div className={styles.railHeader}><h2>M14 Operational Tab Audit</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Dogfooding showed placeholder fatigue. This audit classifies each major surface before we deepen the read-only operating views.
+            </p>
+            <div className={styles.operationalTabAuditList}>
+              {salesConsoleM14OperationalTabAudit.map((item) => (
+                <article key={item.surface}>
+                  <strong>{item.surface}</strong>
+                  <span className={item.status === "live-read-only" ? styles.statusGood : item.status === "planned" ? styles.statusNeutral : styles.statusWarning}>{item.status}</span>
+                  <small>{item.reason}</small>
+                  <em>{item.action}</em>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM14AuditIdentifiesPlaceholderHeavySurfaces() ? "Placeholder-heavy surfaces identified" : "Placeholder audit gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14AuditDemotesPlanningPanels() ? "Planning panels marked for demotion" : "Planning panel noise risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14AuditKeepsWritesPlanned() ? "Future write actions remain planned" : "Write action risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14SalespersonTodayHasOperatingGroups() ? "Salesperson Today has operating groups" : "Salesperson Today depth gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14SalespersonTodayRemainsReadOnly() ? "Salesperson Today remains read-only" : "Salesperson Today write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14SalespersonTodayExplainsBlockersAndFreshness() ? "Blockers/freshness explained" : "Blocker explanation gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14LeadOperationsHasOperatingGroups() ? "Lead Operations has operating groups" : "Lead Operations depth gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14LeadOperationsRemainsReadOnly() ? "Lead Operations remains read-only" : "Lead Operations write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14LeadOperationsExplainsSlaAndAssignment() ? "SLA and assignment explained" : "Lead explanation gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14DealDeskHasOperatingRows() ? "Deal Desk has operating rows" : "Deal Desk depth gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14InventoryHasReadinessRows() ? "Inventory has readiness rows" : "Inventory depth gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14DealInventoryRemainReadOnly() ? "Deal and inventory remain read-only" : "Deal/inventory write risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M14 placeholder demotion">
+            <div className={styles.railHeader}><h2>M14 Placeholder Demotion</h2><ShieldCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Placeholder-heavy planning remains available for Admin / Owner review, while daily staff use starts with the real read-only operating views.
+            </p>
+            <div className={styles.placeholderDemotionList}>
+              {salesConsoleM14PlaceholderDemotion.items.map((item) => (
+                <article key={item.surface}>
+                  <strong>{item.surface}</strong>
+                  <span className={item.handling === "operational-first" ? styles.statusGood : item.handling === "admin-review-only" ? styles.statusWarning : styles.statusNeutral}>{item.handling}</span>
+                  <small>{item.reason}</small>
+                  <em>{item.audience}</em>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM14PlaceholderDemotionReducesStaffNoise() ? "Staff starts with operating views" : "Staff placeholder noise risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14PlaceholderDemotionKeepsAdminReview() ? "Admin review panels preserved" : "Admin review evidence gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14PlaceholderDemotionKeepsWritesDisabled() ? "Placeholder writes remain disabled" : "Placeholder write risk"}</span>
             </div>
           </section>
 
@@ -1670,13 +1784,22 @@ export function SalesConsolePrototype() {
             </div>
           </section>
 
-          <section className={styles.panel} id="leads">
+          <section className={styles.panel} id="lead-operations">
             <div className={styles.railHeader}><h2>Lead Operations</h2><UsersRound size={18} /></div>
             <div className={styles.leadHealth}>
               {leadHealthSignals.map((signal) => {
                 const Icon = signal.icon;
                 return <span key={signal.label}><Icon size={14} /> {signal.label}</span>;
               })}
+            </div>
+            <div className={styles.leadOperationsDepth}>
+              {salesConsoleM14LeadOperationsDepth.groups.map((group) => (
+                <article key={group.group}>
+                  <strong>{group.group}</strong>
+                  <span>{group.count} leads</span>
+                  <small>{group.verifyPrompt}</small>
+                </article>
+              ))}
             </div>
           </section>
 

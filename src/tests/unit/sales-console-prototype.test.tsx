@@ -27,6 +27,11 @@ import { salesConsoleM13FeedbackCategories } from "@/features/sales/sales-consol
 import { salesConsoleM13DogfoodGates } from "@/features/sales/sales-console-m13-dogfood-gates";
 import { salesConsoleM13ReleaseObservability } from "@/features/sales/sales-console-m13-release-observability";
 import { salesConsoleM13StaffPilotGuide } from "@/features/sales/sales-console-m13-staff-pilot-guide";
+import { salesConsoleM14DealInventoryDepth } from "@/features/sales/sales-console-m14-deal-inventory-depth";
+import { salesConsoleM14LeadOperationsDepth } from "@/features/sales/sales-console-m14-lead-operations-depth";
+import { salesConsoleM14OperationalTabAudit } from "@/features/sales/sales-console-m14-operational-tab-audit";
+import { salesConsoleM14PlaceholderDemotion } from "@/features/sales/sales-console-m14-placeholder-demotion";
+import { salesConsoleM14SalespersonTodayDepth } from "@/features/sales/sales-console-m14-salesperson-today-depth";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
@@ -393,6 +398,73 @@ describe("Sales Console", () => {
     for (const gate of salesConsoleM13DogfoodGates) {
       expect(markup).toContain(gate.gate);
       expect(markup).toContain(gate.mergeGate);
+    }
+  });
+
+  it("renders the M14 operational tab audit", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M14 Operational Tab Audit");
+    expect(markup).toContain("Placeholder-heavy surfaces identified");
+    expect(markup).toContain("Planning panels marked for demotion");
+    expect(markup).toContain("Future write actions remain planned");
+    for (const item of salesConsoleM14OperationalTabAudit) {
+      expect(markup).toContain(item.surface);
+      expect(markup).toContain(item.action);
+    }
+  });
+
+  it("renders M14 Salesperson Today operating depth", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Salesperson Today has operating groups");
+    expect(markup).toContain("Salesperson Today remains read-only");
+    expect(markup).toContain("Blockers/freshness explained");
+    for (const group of salesConsoleM14SalespersonTodayDepth.groups) {
+      expect(markup).toContain(group.group);
+      expect(markup).toContain(group.manualAction);
+    }
+  });
+
+  it("renders M14 Lead Operations operating depth", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Lead Operations has operating groups");
+    expect(markup).toContain("Lead Operations remains read-only");
+    expect(markup).toContain("SLA and assignment explained");
+    for (const group of salesConsoleM14LeadOperationsDepth.groups) {
+      expect(markup).toContain(group.group);
+      expect(markup).toContain(group.verifyPrompt);
+    }
+  });
+
+  it("renders M14 Deal Desk and Inventory operating depth", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Deal Desk has operating rows");
+    expect(markup).toContain("Inventory has readiness rows");
+    expect(markup).toContain("Deal and inventory remain read-only");
+    for (const deal of salesConsoleM14DealInventoryDepth.dealOperatingRows) {
+      expect(markup).toContain(deal.managerReviewNeed);
+      expect(markup).toContain(deal.sourcePrompt);
+    }
+    for (const vehicle of salesConsoleM14DealInventoryDepth.inventoryOperatingRows) {
+      expect(markup).toContain(vehicle.readiness);
+      expect(markup).toContain(vehicle.sourcePrompt);
+    }
+  });
+
+  it("renders M14 placeholder demotion for staff-facing operating focus", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M14 Placeholder Demotion");
+    expect(markup).toContain("Staff starts with operating views");
+    expect(markup).toContain("Admin review panels preserved");
+    expect(markup).toContain("Placeholder writes remain disabled");
+    expect(markup).toContain(salesConsoleM14PlaceholderDemotion.staffStartMessage);
+    for (const item of salesConsoleM14PlaceholderDemotion.items) {
+      expect(markup).toContain(item.surface);
+      expect(markup).toContain(item.handling);
     }
   });
 
