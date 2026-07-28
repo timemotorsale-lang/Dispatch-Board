@@ -13,6 +13,7 @@ import { salesConsoleCustomerMessagingReadModel } from "@/features/sales/sales-c
 import { salesConsoleDealWorkflowReadModel } from "@/features/sales/sales-console-m9-deal-workflow";
 import { salesConsoleEnterprisePermissionReadModel } from "@/features/sales/sales-console-m9-enterprise-permissions";
 import { salesConsoleFinanceHandoffReadModel } from "@/features/sales/sales-console-m9-finance-handoff";
+import { salesConsoleForecastReadModel } from "@/features/sales/sales-console-m9-forecasting";
 import { salesConsoleManagerApprovalReadModel } from "@/features/sales/sales-console-m9-manager-approvals";
 import { salesConsoleQuoteScenarioReadModel } from "@/features/sales/sales-console-m9-quote-scenario-builder";
 import { salesConsoleVehicleHoldReadModel } from "@/features/sales/sales-console-m9-vehicle-holds";
@@ -324,6 +325,21 @@ describe("Sales Console", () => {
     for (const limit of salesConsoleVehicleHoldReadModel.limits) {
       expect(markup).toContain(`${limit.scope} hold limit`);
       expect(markup).toContain(limit.reason);
+    }
+  });
+
+  it("renders enterprise forecasting foundation with confidence and role-limited restricted metrics", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Enterprise Forecasting Foundation");
+    expect(markup).toContain("Confidence and freshness visible");
+    expect(markup).toContain("Restricted metrics role-limited");
+    expect(markup).toContain("Stale inputs lower confidence");
+    for (const row of salesConsoleForecastReadModel.forecastRows) {
+      expect(markup).toContain(row.metric);
+      expect(markup).toContain(row.value);
+      expect(markup).toContain(row.inputSummary);
+      if (row.restricted) expect(row.visibleTo).not.toContain("salesperson");
     }
   });
 

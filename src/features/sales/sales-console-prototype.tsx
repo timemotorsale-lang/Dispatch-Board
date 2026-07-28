@@ -56,6 +56,12 @@ import {
   salespersonCannotSeeRestrictedFinanceFields
 } from "./sales-console-m9-finance-handoff";
 import {
+  forecastRowsHaveConfidenceAndFreshness,
+  restrictedForecastMetricsAreRoleLimited,
+  salesConsoleForecastReadModel,
+  staleForecastInputsLowerConfidence
+} from "./sales-console-m9-forecasting";
+import {
   managerApprovalFoundationIsDisabled,
   managerApprovalsRequireAuditThresholdAndReason,
   onlyManagersAndAdminsCanDecideApprovals,
@@ -695,6 +701,34 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {staleOrVerifyFirstInventoryBlocksHold() ? "Verify-first inventory blocks holds" : "Inventory hold risk"}</span>
               <span><ShieldCheck size={13} /> {vehicleHoldsHaveAuditAndPermissionCoverage() ? "Audit and permission coverage present" : "Hold coverage incomplete"}</span>
               {salesConsoleVehicleHoldReadModel.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Admin review enterprise forecasting foundation">
+            <div className={styles.railHeader}><h2>Enterprise Forecasting Foundation</h2><LineChart size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Forecasting is read-only. Rows include confidence, freshness, source input summary, and role-limited visibility for restricted gross/finance metrics.
+            </p>
+            <div className={styles.enterpriseForecastList}>
+              {salesConsoleForecastReadModel.forecastRows.map((row) => (
+                <article key={row.metric}>
+                  <div>
+                    <strong>{row.metric}</strong>
+                    <span>{row.value} · confidence {row.confidence}</span>
+                  </div>
+                  <span className={freshnessClass(row.freshness)}>{row.freshness}</span>
+                  <small>Visible to: {row.visibleTo.join(", ")}. Restricted: {String(row.restricted)}.</small>
+                  <small>{row.inputSummary}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {forecastRowsHaveConfidenceAndFreshness() ? "Confidence and freshness visible" : "Forecast labels incomplete"}</span>
+              <span><ShieldCheck size={13} /> {restrictedForecastMetricsAreRoleLimited() ? "Restricted metrics role-limited" : "Forecast visibility risk"}</span>
+              <span><ShieldCheck size={13} /> {staleForecastInputsLowerConfidence() ? "Stale inputs lower confidence" : "Forecast confidence risk"}</span>
+              {salesConsoleForecastReadModel.guardrails.map((guardrail) => (
                 <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
               ))}
             </div>
