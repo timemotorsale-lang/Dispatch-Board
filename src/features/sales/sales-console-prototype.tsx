@@ -179,6 +179,12 @@ import {
   salesConsoleM14DealInventoryRemainReadOnly,
   salesConsoleM14InventoryHasReadinessRows
 } from "./sales-console-m14-deal-inventory-depth";
+import {
+  salesConsoleM14PlaceholderDemotion,
+  salesConsoleM14PlaceholderDemotionKeepsAdminReview,
+  salesConsoleM14PlaceholderDemotionKeepsWritesDisabled,
+  salesConsoleM14PlaceholderDemotionReducesStaffNoise
+} from "./sales-console-m14-placeholder-demotion";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -451,6 +457,7 @@ export function SalesConsolePrototype() {
           <h2>{salesConsoleM12DefaultRoleLandingHeader.headline}</h2>
           <p>{salesConsoleM12DefaultRoleLandingHeader.activeLanding.landingCopy}</p>
           <small>{salesConsoleM12DefaultRoleLandingHeader.readOnlyReminder}</small>
+          <small>{salesConsoleM14PlaceholderDemotion.staffStartMessage}</small>
         </div>
         <a href={salesConsoleM12DefaultRoleLandingHeader.sectionHref}>
           Go to default section <ChevronRight size={14} />
@@ -1000,6 +1007,28 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM14DealDeskHasOperatingRows() ? "Deal Desk has operating rows" : "Deal Desk depth gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM14InventoryHasReadinessRows() ? "Inventory has readiness rows" : "Inventory depth gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM14DealInventoryRemainReadOnly() ? "Deal and inventory remain read-only" : "Deal/inventory write risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M14 placeholder demotion">
+            <div className={styles.railHeader}><h2>M14 Placeholder Demotion</h2><ShieldCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Placeholder-heavy planning remains available for Admin / Owner review, while daily staff use starts with the real read-only operating views.
+            </p>
+            <div className={styles.placeholderDemotionList}>
+              {salesConsoleM14PlaceholderDemotion.items.map((item) => (
+                <article key={item.surface}>
+                  <strong>{item.surface}</strong>
+                  <span className={item.handling === "operational-first" ? styles.statusGood : item.handling === "admin-review-only" ? styles.statusWarning : styles.statusNeutral}>{item.handling}</span>
+                  <small>{item.reason}</small>
+                  <em>{item.audience}</em>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM14PlaceholderDemotionReducesStaffNoise() ? "Staff starts with operating views" : "Staff placeholder noise risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14PlaceholderDemotionKeepsAdminReview() ? "Admin review panels preserved" : "Admin review evidence gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14PlaceholderDemotionKeepsWritesDisabled() ? "Placeholder writes remain disabled" : "Placeholder write risk"}</span>
             </div>
           </section>
 

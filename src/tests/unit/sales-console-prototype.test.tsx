@@ -30,6 +30,7 @@ import { salesConsoleM13StaffPilotGuide } from "@/features/sales/sales-console-m
 import { salesConsoleM14DealInventoryDepth } from "@/features/sales/sales-console-m14-deal-inventory-depth";
 import { salesConsoleM14LeadOperationsDepth } from "@/features/sales/sales-console-m14-lead-operations-depth";
 import { salesConsoleM14OperationalTabAudit } from "@/features/sales/sales-console-m14-operational-tab-audit";
+import { salesConsoleM14PlaceholderDemotion } from "@/features/sales/sales-console-m14-placeholder-demotion";
 import { salesConsoleM14SalespersonTodayDepth } from "@/features/sales/sales-console-m14-salesperson-today-depth";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
@@ -450,6 +451,20 @@ describe("Sales Console", () => {
     for (const vehicle of salesConsoleM14DealInventoryDepth.inventoryOperatingRows) {
       expect(markup).toContain(vehicle.readiness);
       expect(markup).toContain(vehicle.sourcePrompt);
+    }
+  });
+
+  it("renders M14 placeholder demotion for staff-facing operating focus", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M14 Placeholder Demotion");
+    expect(markup).toContain("Staff starts with operating views");
+    expect(markup).toContain("Admin review panels preserved");
+    expect(markup).toContain("Placeholder writes remain disabled");
+    expect(markup).toContain(salesConsoleM14PlaceholderDemotion.staffStartMessage);
+    for (const item of salesConsoleM14PlaceholderDemotion.items) {
+      expect(markup).toContain(item.surface);
+      expect(markup).toContain(item.handling);
     }
   });
 
