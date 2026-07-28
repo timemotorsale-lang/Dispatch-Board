@@ -112,6 +112,11 @@ import {
   salesConsoleM12EveryLandingHeaderTargetsInternalSection,
   salesConsoleM12LandingHeaderStaysReadOnly
 } from "./sales-console-m12-role-landing-header";
+import {
+  salesConsoleM12RoleStartCards,
+  salesConsoleM12StartCardsCoverEveryLanding,
+  salesConsoleM12StartCardsRemainReadOnly
+} from "./sales-console-m12-role-start-cards";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -388,6 +393,18 @@ export function SalesConsolePrototype() {
         <a href={salesConsoleM12DefaultRoleLandingHeader.sectionHref}>
           Go to default section <ChevronRight size={14} />
         </a>
+      </section>
+
+      <section className={styles.roleStartCardStrip} aria-label="Role start cards">
+        {salesConsoleM12RoleStartCards.map((card) => (
+          <article key={card.role}>
+            <strong>{card.title}</strong>
+            <span>{card.role}</span>
+            <small>{card.primaryCheck}</small>
+            <em>{card.caution}</em>
+            <a href={card.href}>Open start section <ChevronRight size={13} /></a>
+          </article>
+        ))}
       </section>
 
       <div className={styles.bodyGrid}>
@@ -689,6 +706,8 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM12RoleLandingsHaveStartGuidance() ? "Start guidance is present" : "Start guidance gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM12LandingHeaderStaysReadOnly() ? "Landing header remains read-only" : "Landing header write risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM12EveryLandingHeaderTargetsInternalSection() ? "Headers target internal sections" : "Header target risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM12StartCardsCoverEveryLanding() ? "Start cards cover every landing" : "Start card coverage gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM12StartCardsRemainReadOnly() ? "Start cards remain read-only" : "Start card write risk"}</span>
             </div>
           </section>
 

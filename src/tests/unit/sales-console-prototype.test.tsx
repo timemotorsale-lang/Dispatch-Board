@@ -19,6 +19,7 @@ import { salesConsoleM11RoleVerificationSummary } from "@/features/sales/sales-c
 import { salesConsoleM11StaffRoleModel } from "@/features/sales/sales-console-m11-staff-role-model";
 import { salesConsoleM12DefaultRoleLandingHeader } from "@/features/sales/sales-console-m12-role-landing-header";
 import { salesConsoleM12RoleLandingExperiences } from "@/features/sales/sales-console-m12-role-landing-model";
+import { salesConsoleM12RoleStartCards } from "@/features/sales/sales-console-m12-role-start-cards";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
@@ -287,6 +288,18 @@ describe("Sales Console", () => {
     expect(markup).toContain("Go to default section");
     expect(markup).toContain("Landing header remains read-only");
     expect(markup).toContain("Headers target internal sections");
+  });
+
+  it("renders M12 role start cards as internal read-only orientation cards", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Role start cards");
+    expect(markup).toContain("Start cards cover every landing");
+    expect(markup).toContain("Start cards remain read-only");
+    for (const card of salesConsoleM12RoleStartCards) {
+      expect(markup).toContain(card.title);
+      expect(markup).toContain(card.caution);
+    }
   });
 
   it("renders real auth access mapping with blocked and mapped route states", () => {
