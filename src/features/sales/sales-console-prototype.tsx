@@ -75,6 +75,13 @@ import {
   salesConsoleManagerApprovalReadModel
 } from "./sales-console-m9-manager-approvals";
 import {
+  multiStoreReportingIsReadOnly,
+  reportingExportsRemainDisabled,
+  reportingRowsHaveAggregationAndFreshness,
+  salesConsoleMultiStoreReportingReadModel,
+  unauthorizedStoreVisibilityIsBlocked
+} from "./sales-console-m9-multi-store-reporting";
+import {
   quoteScenarioBuilderIsEstimateOnly,
   quoteScenarioHasAuditAndPermissionCoverage,
   quoteScenarioRequiresReviewAndFinanceVerification,
@@ -801,6 +808,35 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {coachingVisibilityIsRoleLimited() ? "Coaching visibility role-limited" : "Coaching visibility risk"}</span>
               <span><ShieldCheck size={13} /> {staleCoachingDataIsVerifyFirst() ? "Stale coaching data is verify-first" : "Coaching freshness risk"}</span>
               {salesConsoleSalesCoachingReadModel.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Admin review multi-store reporting foundation">
+            <div className={styles.railHeader}><h2>Multi-Store Reporting Foundation</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Multi-store reporting is read-only and export-disabled. Store visibility is role-limited and every row carries aggregation and freshness rules.
+            </p>
+            <div className={styles.enterpriseReportingList}>
+              {salesConsoleMultiStoreReportingReadModel.rows.map((row) => (
+                <article key={`${row.storeId}-${row.metric}`}>
+                  <div>
+                    <strong>{row.metric}</strong>
+                    <span>{row.storeId} · {row.value}</span>
+                  </div>
+                  <span className={freshnessClass(row.freshness)}>{row.freshness}</span>
+                  <small>Visible to: {row.visibleTo.join(", ")}. Restricted: {String(row.restricted)}.</small>
+                  <small>{row.aggregationRule}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {multiStoreReportingIsReadOnly() ? "Reporting is read-only" : "Reporting write risk"}</span>
+              <span><ShieldCheck size={13} /> {reportingRowsHaveAggregationAndFreshness() ? "Aggregation and freshness visible" : "Reporting labels incomplete"}</span>
+              <span><ShieldCheck size={13} /> {unauthorizedStoreVisibilityIsBlocked() ? "Unauthorized store visibility blocked" : "Store visibility risk"}</span>
+              <span><ShieldCheck size={13} /> {reportingExportsRemainDisabled() ? "Exports disabled" : "Export risk"}</span>
+              {salesConsoleMultiStoreReportingReadModel.guardrails.map((guardrail) => (
                 <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
               ))}
             </div>

@@ -16,6 +16,7 @@ import { salesConsoleEnterprisePermissionReadModel } from "@/features/sales/sale
 import { salesConsoleFinanceHandoffReadModel } from "@/features/sales/sales-console-m9-finance-handoff";
 import { salesConsoleForecastReadModel } from "@/features/sales/sales-console-m9-forecasting";
 import { salesConsoleManagerApprovalReadModel } from "@/features/sales/sales-console-m9-manager-approvals";
+import { salesConsoleMultiStoreReportingReadModel } from "@/features/sales/sales-console-m9-multi-store-reporting";
 import { salesConsoleQuoteScenarioReadModel } from "@/features/sales/sales-console-m9-quote-scenario-builder";
 import { salesConsoleSalesCoachingReadModel } from "@/features/sales/sales-console-m9-sales-coaching";
 import { salesConsoleVehicleHoldReadModel } from "@/features/sales/sales-console-m9-vehicle-holds";
@@ -374,6 +375,22 @@ describe("Sales Console", () => {
       expect(insight.hiddenScore).toBe(false);
       expect(insight.punitiveAutomation).toBe(false);
     }
+  });
+
+  it("renders multi-store reporting foundation with exports disabled", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Multi-Store Reporting Foundation");
+    expect(markup).toContain("Reporting is read-only");
+    expect(markup).toContain("Aggregation and freshness visible");
+    expect(markup).toContain("Unauthorized store visibility blocked");
+    expect(markup).toContain("Exports disabled");
+    for (const row of salesConsoleMultiStoreReportingReadModel.rows) {
+      expect(markup).toContain(row.metric);
+      expect(markup).toContain(row.storeId);
+      expect(markup).toContain(row.aggregationRule);
+    }
+    expect(salesConsoleMultiStoreReportingReadModel.exportEnabled).toBe(false);
   });
 
   it("renders read-only guardrails for every excluded risky MVP action", () => {

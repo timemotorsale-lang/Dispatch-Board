@@ -679,6 +679,7 @@
 .enterpriseForecastList,
 .enterpriseAiList,
 .enterpriseCoachingList,
+.enterpriseReportingList,
 .priorityBriefList,
 .productionReadinessList,
 .surfaceBoundaryList,
@@ -715,6 +716,7 @@
 .enterpriseForecastList article,
 .enterpriseAiList article,
 .enterpriseCoachingList article,
+.enterpriseReportingList article,
 .priorityBriefList article,
 .productionReadinessList article,
 .surfaceBoundaryList article,
@@ -750,6 +752,7 @@
 .enterpriseForecastList strong,
 .enterpriseAiList strong,
 .enterpriseCoachingList strong,
+.enterpriseReportingList strong,
 .productionReadinessList strong,
 .surfaceBoundaryList strong,
 .stateVerificationList strong,
@@ -826,6 +829,8 @@
 .enterpriseAiList small,
 .enterpriseCoachingList span,
 .enterpriseCoachingList small,
+.enterpriseReportingList span,
+.enterpriseReportingList small,
 .priorityBriefList span,
 .productionReadinessList span,
 .productionReadinessList small,
@@ -924,7 +929,8 @@
 .enterpriseHoldList article,
 .enterpriseForecastList article,
 .enterpriseAiList article,
-.enterpriseCoachingList article {
+.enterpriseCoachingList article,
+.enterpriseReportingList article {
   align-items: start;
   gap: 7px;
   grid-template-columns: 1fr auto;
@@ -944,7 +950,8 @@
 .enterpriseHoldList small,
 .enterpriseForecastList small,
 .enterpriseAiList small,
-.enterpriseCoachingList small {
+.enterpriseCoachingList small,
+.enterpriseReportingList small {
   grid-column: 1 / -1;
 }
 
