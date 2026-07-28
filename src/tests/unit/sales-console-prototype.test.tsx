@@ -12,6 +12,7 @@ import { salesConsoleM10AdminOperationalSeparation } from "@/features/sales/sale
 import { salesConsoleM10ManagerReviewRequestFoundation } from "@/features/sales/sales-console-m10-manager-review-request";
 import { salesConsoleM10ReadOnlySourceWiring } from "@/features/sales/sales-console-m10-read-only-source-wiring";
 import { salesConsoleRoleProductionViews } from "@/features/sales/sales-console-m10-production-views";
+import { salesConsoleM11StaffRoleModel } from "@/features/sales/sales-console-m11-staff-role-model";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
@@ -181,6 +182,19 @@ describe("Sales Console", () => {
       expect(markup).toContain(view.label);
       expect(markup).toContain(`Primary: ${view.primarySurface}`);
       expect(markup).toContain(view.emptyState);
+    }
+  });
+
+  it("renders the M11 staff role model for read-only dogfooding", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M11 Staff Role Model");
+    expect(markup).toContain("Required staff roles covered");
+    expect(markup).toContain("Role model remains read-only");
+    expect(markup).toContain("Planned roles do not create admin access");
+    for (const role of salesConsoleM11StaffRoleModel) {
+      expect(markup).toContain(role.label);
+      expect(markup).toContain(role.readOnlyBoundary);
     }
   });
 
