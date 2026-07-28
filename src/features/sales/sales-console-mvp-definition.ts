@@ -91,6 +91,120 @@ export const salesConsoleMvpDefinition = {
       outcome: "The MVP is safe enough for pilot use and expandable without reworking the foundation."
     }
   ],
+  excludedFromMvp: [
+    {
+      capability: "Customer messaging automation",
+      reason: "Messaging creates compliance, consent, timing, and reputation risk before the sales console has proven its data quality.",
+      futurePath: "Add after the console has trusted customer context, opt-in status, templates, audit history, and manager controls."
+    },
+    {
+      capability: "Quote submission",
+      reason: "Quote submission is a financial action, not just a display feature; it needs deal rules, lender logic, approvals, and audit trails.",
+      futurePath: "Add after read-only Deal Desk visibility, scenario versioning, and manager approval workflows are stable."
+    },
+    {
+      capability: "Vehicle holds or reservations",
+      reason: "Holding inventory affects real store operations and can create customer conflict if availability data is not perfectly trusted.",
+      futurePath: "Add after inventory readiness, availability, conflict rules, expiration policies, and permissions are validated."
+    },
+    {
+      capability: "Finance decisions",
+      reason: "Finance decisions require lender integrations, compliance review, identity controls, and strict auditability.",
+      futurePath: "Keep finance as visibility-only first, then add controlled handoff workflows before any decision automation."
+    },
+    {
+      capability: "Discount approvals",
+      reason: "Discount approval changes gross profit and requires manager authority, pricing policy, exception rules, and traceable approval history.",
+      futurePath: "Add after approval queues, role permissions, desk-manager workflows, and gross-impact reporting are proven."
+    },
+    {
+      capability: "Full CRM replacement",
+      reason: "The MVP should not become a second system of record or duplicate customer data before source-record links are reliable.",
+      futurePath: "Expand only where the Sales Console improves daily workflow while still respecting the source systems."
+    }
+  ],
+  buildOrder: [
+    {
+      step: "01",
+      name: "Lock MVP scope and visual source of truth",
+      deliverable: "Approved shell, included/excluded list, mockup reference, and pilot user assumptions.",
+      dependency: "No dependency; this is the starting gate."
+    },
+    {
+      step: "02",
+      name: "Stabilize the /sales workspace",
+      deliverable: "Protected route, navigation entry, loading/error states, responsive enterprise layout.",
+      dependency: "Scope approval."
+    },
+    {
+      step: "03",
+      name: "Create the read-only data contract",
+      deliverable: "Field map for seller queue, leads, deals, inventory, manager rail, and source-record links.",
+      dependency: "Stable shell so data fields have a visible destination."
+    },
+    {
+      step: "04",
+      name: "Build Salesperson Today",
+      deliverable: "Ranked daily work queue with priority, freshness, blocker, and next-action logic.",
+      dependency: "Data contract for tasks, customers, leads, appointments, and vehicle context."
+    },
+    {
+      step: "05",
+      name: "Build Lead Operations and Manager Command Center",
+      deliverable: "Lead health, SLA risk, risk queues, approvals placeholders, forecast placeholders, and top opportunities.",
+      dependency: "Salesperson queue logic plus lead and activity signals."
+    },
+    {
+      step: "06",
+      name: "Build Inventory Intelligence and Deal Desk visibility",
+      deliverable: "Vehicle-fit cards, readiness blockers, read-only deal rows, payment labels, approval states.",
+      dependency: "Vehicle availability fields and deal/status placeholders."
+    },
+    {
+      step: "07",
+      name: "Pilot, measure, and stabilize",
+      deliverable: "Smoke tests, pilot checklist, feedback fixes, and go/no-go review for daily read-only use.",
+      dependency: "All MVP surfaces render correctly with realistic data and safe permissions."
+    }
+  ],
+  decisionGates: [
+    {
+      gate: "Gate 1: Scope approval",
+      question: "Do the included and excluded MVP boundaries match Time Motor Sales' first usable version?",
+      passSignal: "Stakeholders approve the MVP scope without adding risky writes.",
+      ifNotPassed: "Revise scope before implementation continues."
+    },
+    {
+      gate: "Gate 2: Visual approval",
+      question: "Does the built console match the approved enterprise mockup closely enough for daily review?",
+      passSignal: "Navigation, density, command rail, deal desk, and inventory sections feel enterprise-grade.",
+      ifNotPassed: "Pause feature expansion and correct the UI foundation first."
+    },
+    {
+      gate: "Gate 3: Data trust",
+      question: "Are the source fields clear, fresh enough, and labeled honestly when missing or stale?",
+      passSignal: "Users can tell which records are trusted, stale, blocked, or placeholder-only.",
+      ifNotPassed: "Keep the console in prototype mode and fix the data contract."
+    },
+    {
+      gate: "Gate 4: Safety and permissions",
+      question: "Can users see useful work without being able to trigger high-risk sales actions?",
+      passSignal: "Sensitive actions are hidden, disabled, or clearly marked as future workflow.",
+      ifNotPassed: "Block pilot release until role and action guardrails are corrected."
+    },
+    {
+      gate: "Gate 5: Daily usefulness",
+      question: "Can a salesperson or manager understand their priorities within 30 seconds?",
+      passSignal: "Pilot users can identify top work, blockers, and next steps without coaching.",
+      ifNotPassed: "Simplify ranking, labels, and layout before adding more features."
+    },
+    {
+      gate: "Gate 6: Expansion readiness",
+      question: "Can the MVP expand into workflows later without replacing the foundation?",
+      passSignal: "Current sections map cleanly to future approvals, messaging, finance handoff, and reporting.",
+      ifNotPassed: "Refactor the foundation before merging into the main sales console path."
+    }
+  ],
   principles: [
     {
       name: "Narrow scope",

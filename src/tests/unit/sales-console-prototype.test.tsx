@@ -65,6 +65,42 @@ describe("Sales Console prototype", () => {
     expect(markup).toContain("Enterprise guardrails");
   });
 
+  it("renders MVP exclusions so the pilot scope stays controlled", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("What Is Excluded From The MVP");
+    expect(salesConsoleMvpDefinition.excludedFromMvp).toHaveLength(6);
+    for (const item of salesConsoleMvpDefinition.excludedFromMvp) {
+      expect(markup).toContain(item.capability);
+      expect(markup).toContain(item.reason);
+    }
+    expect(markup).toContain("Full CRM replacement");
+  });
+
+  it("renders the MVP build order for implementation sequencing", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("MVP Build Order");
+    expect(salesConsoleMvpDefinition.buildOrder).toHaveLength(7);
+    for (const item of salesConsoleMvpDefinition.buildOrder) {
+      expect(markup).toContain(item.step);
+      expect(markup).toContain(item.name);
+    }
+    expect(markup).toContain("Pilot, measure, and stabilize");
+  });
+
+  it("renders MVP decision gates for review checkpoints", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("MVP Decision Gates");
+    expect(salesConsoleMvpDefinition.decisionGates).toHaveLength(6);
+    for (const item of salesConsoleMvpDefinition.decisionGates) {
+      expect(markup).toContain(item.gate);
+      expect(markup).toContain(item.passSignal);
+    }
+    expect(markup).toContain("Gate 6: Expansion readiness");
+  });
+
   it("uses sales-specific loading and error states for protected route failures", () => {
     const loadingMarkup = renderToStaticMarkup(<SalesConsoleLoading />);
     const errorMarkup = renderToStaticMarkup(

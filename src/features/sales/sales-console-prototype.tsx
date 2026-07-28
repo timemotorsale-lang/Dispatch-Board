@@ -460,6 +460,49 @@ export function SalesConsolePrototype() {
           </section>
 
           <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>What Is Excluded From The MVP</h2><AlertTriangle size={18} /></div>
+            <div className={styles.scopeReviewList}>
+              {salesConsoleMvpDefinition.excludedFromMvp.map((item) => (
+                <article key={item.capability}>
+                  <strong>{item.capability}</strong>
+                  <span>{item.reason}</span>
+                  <small>Future path: {item.futurePath}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>MVP Build Order</h2><Clock3 size={18} /></div>
+            <div className={styles.buildOrderList}>
+              {salesConsoleMvpDefinition.buildOrder.map((item) => (
+                <article key={item.step}>
+                  <span>{item.step}</span>
+                  <div>
+                    <strong>{item.name}</strong>
+                    <small>{item.deliverable}</small>
+                    <em>{item.dependency}</em>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>MVP Decision Gates</h2><ShieldCheck size={18} /></div>
+            <div className={styles.decisionGateList}>
+              {salesConsoleMvpDefinition.decisionGates.map((item) => (
+                <article key={item.gate}>
+                  <strong>{item.gate}</strong>
+                  <span>{item.question}</span>
+                  <small>Pass: {item.passSignal}</small>
+                  <em>If not passed: {item.ifNotPassed}</em>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
             <div className={styles.railHeader}><h2>MVP Principles</h2><ShieldCheck size={18} /></div>
             <div className={styles.principleList}>
               {salesConsoleMvpDefinition.principles.map((principle) => (
