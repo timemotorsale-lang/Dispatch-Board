@@ -14,7 +14,33 @@ export const salesConsoleMvpDefinition = {
     "Finance decisions",
     "Discount approvals"
   ],
-  operatingBoundary: "Read-only MVP foundation. No high-risk sales actions are authorized."
+  operatingBoundary: "Read-only MVP foundation. No high-risk sales actions are authorized.",
+  principles: [
+    {
+      name: "Narrow scope",
+      meaning: "Build the smallest console that is useful every day."
+    },
+    {
+      name: "Enterprise shape",
+      meaning: "Use permanent navigation, data boundaries, permissions, and audit posture."
+    },
+    {
+      name: "Read first",
+      meaning: "Start with trusted visibility before commands."
+    },
+    {
+      name: "No risky writes",
+      meaning: "Avoid customer messaging, quotes, vehicle holds, finance decisions, and discount approvals."
+    },
+    {
+      name: "Expand cleanly",
+      meaning: "Every MVP section should map to future workflows without rework."
+    },
+    {
+      name: "Manager-visible",
+      meaning: "The MVP must help managers see risk early, not only help salespeople view tasks."
+    }
+  ]
 } as const;
 
 export type SalesConsoleMvpDefinition = typeof salesConsoleMvpDefinition;

@@ -442,6 +442,18 @@ export function SalesConsolePrototype() {
             </div>
           </section>
 
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>MVP Principles</h2><ShieldCheck size={18} /></div>
+            <div className={styles.principleList}>
+              {salesConsoleMvpDefinition.principles.map((principle) => (
+                <article key={principle.name}>
+                  <strong>{principle.name}</strong>
+                  <span>{principle.meaning}</span>
+                </article>
+              ))}
+            </div>
+          </section>
+
           <section className={styles.hiddenSmokeText} aria-hidden="true">
             <BadgeDollarSign /> <HandCoins /> <LineChart /> <UserRoundCheck /> <Gauge /> <FileCheck2 /> <ShieldCheck />
           </section>
