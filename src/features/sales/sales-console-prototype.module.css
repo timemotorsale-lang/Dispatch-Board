@@ -449,6 +449,38 @@
   line-height: 1.35;
 }
 
+.leadOperationsDepth {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.leadOperationsDepth article {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 9px;
+}
+
+.leadOperationsDepth strong {
+  color: var(--ink);
+  font-size: 0.74rem;
+}
+
+.leadOperationsDepth span {
+  color: var(--brand-strong);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.leadOperationsDepth small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
 .toneDanger {
   color: var(--danger);
 }

@@ -167,6 +167,12 @@ import {
   salesConsoleM14SalespersonTodayHasOperatingGroups,
   salesConsoleM14SalespersonTodayRemainsReadOnly
 } from "./sales-console-m14-salesperson-today-depth";
+import {
+  salesConsoleM14LeadOperationsDepth,
+  salesConsoleM14LeadOperationsExplainsSlaAndAssignment,
+  salesConsoleM14LeadOperationsHasOperatingGroups,
+  salesConsoleM14LeadOperationsRemainsReadOnly
+} from "./sales-console-m14-lead-operations-depth";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -962,6 +968,9 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM14SalespersonTodayHasOperatingGroups() ? "Salesperson Today has operating groups" : "Salesperson Today depth gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM14SalespersonTodayRemainsReadOnly() ? "Salesperson Today remains read-only" : "Salesperson Today write risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM14SalespersonTodayExplainsBlockersAndFreshness() ? "Blockers/freshness explained" : "Blocker explanation gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14LeadOperationsHasOperatingGroups() ? "Lead Operations has operating groups" : "Lead Operations depth gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14LeadOperationsRemainsReadOnly() ? "Lead Operations remains read-only" : "Lead Operations write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14LeadOperationsExplainsSlaAndAssignment() ? "SLA and assignment explained" : "Lead explanation gap"}</span>
             </div>
           </section>
 
@@ -1717,13 +1726,22 @@ export function SalesConsolePrototype() {
             </div>
           </section>
 
-          <section className={styles.panel} id="leads">
+          <section className={styles.panel} id="lead-operations">
             <div className={styles.railHeader}><h2>Lead Operations</h2><UsersRound size={18} /></div>
             <div className={styles.leadHealth}>
               {leadHealthSignals.map((signal) => {
                 const Icon = signal.icon;
                 return <span key={signal.label}><Icon size={14} /> {signal.label}</span>;
               })}
+            </div>
+            <div className={styles.leadOperationsDepth}>
+              {salesConsoleM14LeadOperationsDepth.groups.map((group) => (
+                <article key={group.group}>
+                  <strong>{group.group}</strong>
+                  <span>{group.count} leads</span>
+                  <small>{group.verifyPrompt}</small>
+                </article>
+              ))}
             </div>
           </section>
 

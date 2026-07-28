@@ -27,6 +27,7 @@ import { salesConsoleM13FeedbackCategories } from "@/features/sales/sales-consol
 import { salesConsoleM13DogfoodGates } from "@/features/sales/sales-console-m13-dogfood-gates";
 import { salesConsoleM13ReleaseObservability } from "@/features/sales/sales-console-m13-release-observability";
 import { salesConsoleM13StaffPilotGuide } from "@/features/sales/sales-console-m13-staff-pilot-guide";
+import { salesConsoleM14LeadOperationsDepth } from "@/features/sales/sales-console-m14-lead-operations-depth";
 import { salesConsoleM14OperationalTabAudit } from "@/features/sales/sales-console-m14-operational-tab-audit";
 import { salesConsoleM14SalespersonTodayDepth } from "@/features/sales/sales-console-m14-salesperson-today-depth";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
@@ -420,6 +421,18 @@ describe("Sales Console", () => {
     for (const group of salesConsoleM14SalespersonTodayDepth.groups) {
       expect(markup).toContain(group.group);
       expect(markup).toContain(group.manualAction);
+    }
+  });
+
+  it("renders M14 Lead Operations operating depth", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Lead Operations has operating groups");
+    expect(markup).toContain("Lead Operations remains read-only");
+    expect(markup).toContain("SLA and assignment explained");
+    for (const group of salesConsoleM14LeadOperationsDepth.groups) {
+      expect(markup).toContain(group.group);
+      expect(markup).toContain(group.verifyPrompt);
     }
   });
 
