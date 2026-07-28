@@ -192,6 +192,34 @@ describe("Sales Console prototype", () => {
     expect(markup).toContain(`${salesConsoleReadAdapterPreview.managerRisks.length} aggregated risks`);
   });
 
+  it("uses the read adapter model for the visible operating UI", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain(`Showing ${salesConsoleReadAdapterPreview.sellerQueue.length} adapter-ranked work items`);
+    expect(markup).toContain("Quote scenarios are visibility-only from the adapter.");
+    expect(markup).toContain("Adapter Deals");
+    expect(markup).toContain("Seller Items");
+    expect(markup).toContain("Lead Risks");
+    expect(markup).toContain("Verify Vehicles");
+    for (const item of salesConsoleReadAdapterPreview.sellerQueue) {
+      expect(markup).toContain(item.customer);
+      expect(markup).toContain(item.nextAction);
+      expect(markup).toContain(item.freshness);
+      expect(markup).toContain(item.sourceLinks[0]?.unavailableLabel);
+    }
+    for (const deal of salesConsoleReadAdapterPreview.deals) {
+      expect(markup).toContain(deal.dealId);
+      expect(markup).toContain(deal.scenario);
+    }
+    for (const vehicle of salesConsoleReadAdapterPreview.inventoryMatches) {
+      expect(markup).toContain(vehicle.vehicle);
+      expect(markup).toContain(vehicle.status);
+    }
+    expect(markup).toContain("Adapter Source Links");
+    expect(markup).toContain("Blocked:");
+    expect(markup).toContain("Verify First");
+  });
+
   it("renders pilot readiness smoke checks for safe review", () => {
     const markup = renderToStaticMarkup(<SalesConsolePrototype />);
 
