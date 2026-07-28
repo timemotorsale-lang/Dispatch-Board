@@ -122,6 +122,11 @@ import {
   salesConsoleM12PlannedStatesKeepRiskyActionsDisabled,
   salesConsoleM12RoleEmptyPlannedStates
 } from "./sales-console-m12-role-empty-planned-states";
+import {
+  salesConsoleM12AdminDogfoodLandingSummary,
+  salesConsoleM12AdminLandingSummaryPasses,
+  salesConsoleM12SeparateRoutesRemainDeferred
+} from "./sales-console-m12-admin-dogfood-landing-summary";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -738,6 +743,28 @@ export function SalesConsolePrototype() {
             <div className={styles.boundaryList}>
               <span><ShieldCheck size={13} /> {salesConsoleM12EveryRoleHasEmptyAndPlannedState() ? "Every role has empty/planned guidance" : "Empty/planned guidance gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM12PlannedStatesKeepRiskyActionsDisabled() ? "Planned states keep risky actions disabled" : "Planned-state action risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M12 admin dogfood landing readiness summary">
+            <div className={styles.railHeader}><h2>M12 Admin Dogfood Landing Summary</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM12AdminDogfoodLandingSummary.recommendation}</p>
+            <div className={styles.adminDogfoodLandingSummary}>
+              <article>
+                <strong>{salesConsoleM12AdminDogfoodLandingSummary.gate}</strong>
+                <span>{salesConsoleM12AdminDogfoodLandingSummary.dogfoodReadinessEstimate}% role landing readiness</span>
+                <small>Summary pass: {String(salesConsoleM12AdminLandingSummaryPasses())}</small>
+              </article>
+              {salesConsoleM12AdminDogfoodLandingSummary.remainingBeforeDogfood.map((item) => (
+                <article key={item}>
+                  <strong>Before dogfood</strong>
+                  <small>{item}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM12AdminLandingSummaryPasses() ? "Role landing summary passes" : "Role landing summary gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM12SeparateRoutesRemainDeferred() ? "Separate role routes remain deferred" : "Route deferral risk"}</span>
             </div>
           </section>
 
