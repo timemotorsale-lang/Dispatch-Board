@@ -31,9 +31,12 @@ import { salesConsoleMvpExecution } from "./sales-console-mvp-execution";
 import { salesConsoleMvpLiveDataContract } from "./sales-console-mvp-live-data-contract";
 import { salesConsoleReadAdapterPreview } from "./sales-console-mvp-read-adapters";
 import { salesConsoleMvpRealDataWiring } from "./sales-console-mvp-real-data-wiring";
+import { salesConsoleRoleViews } from "./sales-console-mvp-role-views";
 import styles from "./sales-console-prototype.module.css";
 
 const salesConsoleReadModel = salesConsoleReadAdapterPreview;
+
+const activeRoleView = salesConsoleRoleViews.find((role) => role.role === salesConsoleMvpExecution.defaultRole) ?? salesConsoleRoleViews[0];
 
 const headlineMetrics = [
   { label: "Must Do Now", value: String(salesConsoleReadModel.sellerQueue.filter((item) => item.tone === "danger").length), delta: "Adapter ranked", tone: "danger" },
@@ -180,11 +183,12 @@ export function SalesConsolePrototype() {
       </section>
 
       <section className={styles.roleRail} aria-label="Sales Console MVP role placeholders">
-        {salesConsoleMvpExecution.roleViews.map((role) => (
+        {salesConsoleRoleViews.map((role) => (
           <article className={role.role === salesConsoleMvpExecution.defaultRole ? styles.activeRoleCard : undefined} key={role.role}>
             <strong>{role.label}</strong>
-            <span>{role.primarySurface}</span>
-            <small>{role.visibility}</small>
+            <span>{role.defaultSurface}</span>
+            <small>{role.sensitiveDataBoundary}</small>
+            <em>{role.readOnly ? "Read-only role view" : "Write-enabled"}</em>
           </article>
         ))}
       </section>
@@ -318,6 +322,37 @@ export function SalesConsolePrototype() {
         </main>
 
         <aside className={styles.commandRail} id="command-center" aria-label="Manager Command Center">
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Role-Based Console</h2><UserRoundCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Active pilot role: {activeRoleView?.label}. Source records stay as the system of record; this console only changes visibility.
+            </p>
+            <div className={styles.roleViewList}>
+              {salesConsoleRoleViews.map((role) => (
+                <article key={role.role}>
+                  <div>
+                    <strong>{role.label}</strong>
+                    <span>Default: {role.defaultSurface}</span>
+                  </div>
+                  <span className={role.role === salesConsoleMvpExecution.defaultRole ? styles.statusGood : styles.statusNeutral}>
+                    {role.role === salesConsoleMvpExecution.defaultRole ? "pilot default" : "available"}
+                  </span>
+                  <small>Visible: {role.visibleSurfaces.join(", ")}</small>
+                  <small>Restricted: {role.restrictedSurfaces.length > 0 ? role.restrictedSurfaces.join(", ") : "None in read-only pilot"}</small>
+                  <em>{role.placeholderBehavior}</em>
+                  <div className={styles.roleViewMetrics}>
+                    <span>{role.sellerQueueVisible} seller items</span>
+                    <span>{role.leadSignalsVisible} lead signals</span>
+                    <span>{role.managerRisksVisible} manager risks</span>
+                    <span>{role.dealsVisible} deals</span>
+                    <span>{role.inventoryMatchesVisible} vehicles</span>
+                    <span>{role.blockedActionCount} actions disabled/planned</span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+
           <section className={styles.panel}>
             <div className={styles.railHeader}>
               <div>

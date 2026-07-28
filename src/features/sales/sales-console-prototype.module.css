@@ -98,7 +98,8 @@
 
 .roleRail strong,
 .roleRail span,
-.roleRail small {
+.roleRail small,
+.roleRail em {
   display: block;
 }
 
@@ -117,6 +118,14 @@
   color: var(--muted);
   font-size: 0.68rem;
   line-height: 1.35;
+}
+
+.roleRail em {
+  color: var(--success);
+  font-size: 0.66rem;
+  font-style: normal;
+  font-weight: 900;
+  text-transform: uppercase;
 }
 
 .activeRoleCard {
@@ -643,6 +652,7 @@
 }
 
 .rolePermissionList,
+.roleViewList,
 .dataSourceList,
 .acceptanceList,
 .actionGuardrailList,
@@ -659,6 +669,7 @@
 }
 
 .rolePermissionList article,
+.roleViewList article,
 .dataSourceList article,
 .actionGuardrailList article,
 .pilotReadinessList article,
@@ -674,6 +685,7 @@
 }
 
 .rolePermissionList strong,
+.roleViewList strong,
 .dataSourceList strong,
 .acceptanceList strong,
 .actionGuardrailList strong,
@@ -712,6 +724,9 @@
 
 .rolePermissionList span,
 .rolePermissionList small,
+.roleViewList span,
+.roleViewList small,
+.roleViewList em,
 .dataSourceList span,
 .dataSourceList small,
 .dataSourceList em,
@@ -736,6 +751,7 @@
 }
 
 .rolePermissionList span,
+.roleViewList small,
 .dataSourceList span,
 .dataSourceList small,
 .acceptanceList span,
@@ -753,6 +769,7 @@
 }
 
 .rolePermissionList small,
+.roleViewList em,
 .dataSourceList em,
 .acceptanceList small,
 .executionDataList em,
@@ -766,10 +783,39 @@
 
 .dataSourceList em,
 .executionDataList em,
+.roleViewList em,
 .liveSourceList em,
 .readModelList em {
   display: block;
   font-style: normal;
+}
+
+.roleViewList article {
+  align-items: start;
+  gap: 7px;
+  grid-template-columns: 1fr auto;
+}
+
+.roleViewList small,
+.roleViewList em,
+.roleViewMetrics {
+  grid-column: 1 / -1;
+}
+
+.roleViewMetrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.roleViewMetrics span {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 0.66rem;
+  font-weight: 900;
+  padding: 4px 7px;
 }
 
 .actionGuardrailList article,

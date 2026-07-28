@@ -9,6 +9,7 @@ import { salesConsoleMvpExecution } from "@/features/sales/sales-console-mvp-exe
 import { salesConsoleMvpLiveDataContract } from "@/features/sales/sales-console-mvp-live-data-contract";
 import { salesConsoleReadAdapterPreview } from "@/features/sales/sales-console-mvp-read-adapters";
 import { salesConsoleMvpRealDataWiring } from "@/features/sales/sales-console-mvp-real-data-wiring";
+import { salesConsoleRoleViews } from "@/features/sales/sales-console-mvp-role-views";
 import { SalesConsolePrototype } from "@/features/sales/sales-console-prototype";
 
 describe("Sales Console prototype", () => {
@@ -99,10 +100,27 @@ describe("Sales Console prototype", () => {
       expect(markup).toContain(check.check);
       expect(markup).toContain(check.proof);
     }
-    for (const role of salesConsoleMvpExecution.roleViews) {
+    for (const role of salesConsoleRoleViews) {
       expect(markup).toContain(role.label);
-      expect(markup).toContain(role.primarySurface);
+      expect(markup).toContain(role.defaultSurface);
     }
+  });
+
+  it("renders role-based console visibility without enabling excluded actions", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Role-Based Console");
+    expect(markup).toContain("Active pilot role: Sales Manager");
+    expect(markup).toContain("Source records stay as the system of record");
+    for (const role of salesConsoleRoleViews) {
+      expect(markup).toContain(role.label);
+      expect(markup).toContain(`Default: ${role.defaultSurface}`);
+      expect(markup).toContain(role.placeholderBehavior);
+      expect(markup).toContain(`${role.blockedActionCount} actions disabled/planned`);
+      expect(role.futureActions.every((action) => action.enabled === false)).toBe(true);
+    }
+    expect(markup).toContain("Restricted: Manager Command Center");
+    expect(markup).toContain("Restricted: None in read-only pilot");
   });
 
   it("renders read-only guardrails for every excluded risky MVP action", () => {
