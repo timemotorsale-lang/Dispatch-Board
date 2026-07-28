@@ -30,6 +30,11 @@ import { salesConsoleMvpDefinition } from "./sales-console-mvp-definition";
 import { salesConsoleMvpExecution } from "./sales-console-mvp-execution";
 import { salesConsoleMvpLiveDataContract } from "./sales-console-mvp-live-data-contract";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
+import {
+  enterprisePermissionGatesDenyByDefault,
+  salesConsoleEnterprisePermissionReadModel,
+  sensitiveWorkflowsHavePermissionAndAuditCoverage
+} from "./sales-console-m9-enterprise-permissions";
 import { salesConsolePilotReadiness } from "./sales-console-mvp-pilot-readiness";
 import { salesConsoleProductionReadiness } from "./sales-console-mvp-production-readiness";
 import { salesConsoleReadAdapterPreview } from "./sales-console-mvp-read-adapters";
@@ -364,6 +369,43 @@ export function SalesConsolePrototype() {
             <div className={styles.boundaryList}>
               <span><ShieldCheck size={13} /> {sensitiveActionsHaveAuditCoverage() ? "Sensitive actions require audit coverage" : "Audit coverage incomplete"}</span>
               {salesConsoleAuditReadModel.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Admin review enterprise permissions">
+            <div className={styles.railHeader}><h2>Enterprise Permissions</h2><UserRoundCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Deny-by-default action gates are defined for enterprise expansion. No gated workflow is enabled yet.
+            </p>
+            <div className={styles.enterprisePermissionList}>
+              {salesConsoleEnterprisePermissionReadModel.gates.map((gate) => (
+                <article key={gate.capability}>
+                  <div>
+                    <strong>{gate.capability}</strong>
+                    <span>Roles: {gate.allowedRoles.join(", ")}</span>
+                  </div>
+                  <span className={styles.statusDanger}>{gate.defaultDecision}</span>
+                  <small>Scope: {gate.requiredScope}. Audit required: {String(gate.auditRequired)}. Source record required: {String(gate.sourceRecordRequired)}.</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.enterpriseScopeList}>
+              {salesConsoleEnterprisePermissionReadModel.roleScopes.map((scope) => (
+                <article key={scope.role}>
+                  <strong>{scope.label}</strong>
+                  <span>{scope.defaultScope}</span>
+                  <small>{scope.storePlaceholder}</small>
+                  <small>{scope.teamPlaceholder}</small>
+                  <em>{scope.ownershipPlaceholder}</em>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {enterprisePermissionGatesDenyByDefault() ? "Permission gates deny by default" : "Permission gate risk"}</span>
+              <span><ShieldCheck size={13} /> {sensitiveWorkflowsHavePermissionAndAuditCoverage() ? "Sensitive workflows have audit and permission coverage" : "Coverage incomplete"}</span>
+              {salesConsoleEnterprisePermissionReadModel.guardrails.map((guardrail) => (
                 <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
               ))}
             </div>
