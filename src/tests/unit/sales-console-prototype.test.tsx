@@ -30,6 +30,16 @@ describe("Sales Console prototype", () => {
     expect(markup).toContain("Discount approvals");
   });
 
+  it("renders the MVP principles that guide future expansion", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("MVP Principles");
+    for (const principle of salesConsoleMvpDefinition.principles) {
+      expect(markup).toContain(principle.name);
+      expect(markup).toContain(principle.meaning);
+    }
+  });
+
   it("uses sales-specific loading and error states for protected route failures", () => {
     const loadingMarkup = renderToStaticMarkup(<SalesConsoleLoading />);
     const errorMarkup = renderToStaticMarkup(

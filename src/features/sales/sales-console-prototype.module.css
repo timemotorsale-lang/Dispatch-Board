@@ -482,6 +482,31 @@
   padding-left: 18px;
 }
 
+.principleList {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.principleList article {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 3px;
+  padding: 9px;
+}
+
+.principleList strong {
+  font-size: 0.78rem;
+}
+
+.principleList span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
 .hiddenSmokeText {
   display: none;
 }
