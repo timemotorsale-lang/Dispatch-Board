@@ -8,6 +8,7 @@ import { salesConsoleMvpDefinition } from "@/features/sales/sales-console-mvp-de
 import { salesConsoleMvpExecution } from "@/features/sales/sales-console-mvp-execution";
 import { salesConsoleMvpLiveDataContract } from "@/features/sales/sales-console-mvp-live-data-contract";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
+import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
 import { salesConsoleCustomerMessagingReadModel } from "@/features/sales/sales-console-m9-customer-messaging";
 import { salesConsoleDealWorkflowReadModel } from "@/features/sales/sales-console-m9-deal-workflow";
@@ -340,6 +341,21 @@ describe("Sales Console", () => {
       expect(markup).toContain(row.value);
       expect(markup).toContain(row.inputSummary);
       if (row.restricted) expect(row.visibleTo).not.toContain("salesperson");
+    }
+  });
+
+  it("renders AI next-best-action foundation without automatic execution", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("AI Next-Best-Action Foundation");
+    expect(markup).toContain("AI is advisory only");
+    expect(markup).toContain("Evidence, reason, and confidence required");
+    expect(markup).toContain("AI cannot execute risky actions");
+    for (const recommendation of salesConsoleAiNextBestActionReadModel.recommendations) {
+      expect(markup).toContain(recommendation.recommendationId);
+      expect(markup).toContain(recommendation.reason);
+      expect(recommendation.autoExecute).toBe(false);
+      expect(recommendation.humanConfirmationRequired).toBe(true);
     }
   });
 
