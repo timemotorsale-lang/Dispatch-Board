@@ -651,7 +651,8 @@
 .liveSourceList,
 .readModelList,
 .sourceLinkList,
-.adapterRuleList {
+.adapterRuleList,
+.adapterPreviewGrid {
   display: grid;
   gap: 8px;
   margin-top: 10px;
@@ -662,7 +663,8 @@
 .actionGuardrailList article,
 .pilotReadinessList article,
 .readModelList article,
-.adapterRuleList article {
+.adapterRuleList article,
+.adapterPreviewGrid article {
   background: var(--surface-soft);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -683,6 +685,29 @@
 .adapterRuleList strong {
   color: var(--ink);
   font-size: 0.78rem;
+}
+
+.adapterPreviewGrid strong,
+.adapterPreviewGrid span,
+.adapterPreviewGrid small {
+  display: block;
+}
+
+.adapterPreviewGrid strong {
+  color: var(--ink);
+  font-size: 0.78rem;
+}
+
+.adapterPreviewGrid span {
+  color: var(--brand-strong);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.adapterPreviewGrid small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.4;
 }
 
 .rolePermissionList span,
