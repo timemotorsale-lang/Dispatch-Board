@@ -22,6 +22,7 @@ import { salesConsoleM12DefaultRoleLandingHeader } from "@/features/sales/sales-
 import { salesConsoleM12RoleLandingExperiences } from "@/features/sales/sales-console-m12-role-landing-model";
 import { salesConsoleM12RoleEmptyPlannedStates } from "@/features/sales/sales-console-m12-role-empty-planned-states";
 import { salesConsoleM12RoleStartCards } from "@/features/sales/sales-console-m12-role-start-cards";
+import { salesConsoleM13DogfoodReadiness } from "@/features/sales/sales-console-m13-dogfood-readiness";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
@@ -325,6 +326,19 @@ describe("Sales Console", () => {
     expect(markup).toContain(`${salesConsoleM12AdminDogfoodLandingSummary.dogfoodReadinessEstimate}% role landing readiness`);
     for (const item of salesConsoleM12AdminDogfoodLandingSummary.remainingBeforeDogfood) {
       expect(markup).toContain(item);
+    }
+  });
+
+  it("renders M13 dogfood readiness controls before staff trial", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M13 Dogfood Readiness");
+    expect(markup).toContain("Owner review required before dogfood");
+    expect(markup).toContain("Dogfood audience is controlled");
+    expect(markup).toContain("Write workflows remain disabled");
+    for (const audience of salesConsoleM13DogfoodReadiness.audience) {
+      expect(markup).toContain(audience.label);
+      expect(markup).toContain(audience.reason);
     }
   });
 
