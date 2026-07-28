@@ -28,6 +28,7 @@ import { salesConsoleM13DogfoodGates } from "@/features/sales/sales-console-m13-
 import { salesConsoleM13ReleaseObservability } from "@/features/sales/sales-console-m13-release-observability";
 import { salesConsoleM13StaffPilotGuide } from "@/features/sales/sales-console-m13-staff-pilot-guide";
 import { salesConsoleM14OperationalTabAudit } from "@/features/sales/sales-console-m14-operational-tab-audit";
+import { salesConsoleM14SalespersonTodayDepth } from "@/features/sales/sales-console-m14-salesperson-today-depth";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
@@ -407,6 +408,18 @@ describe("Sales Console", () => {
     for (const item of salesConsoleM14OperationalTabAudit) {
       expect(markup).toContain(item.surface);
       expect(markup).toContain(item.action);
+    }
+  });
+
+  it("renders M14 Salesperson Today operating depth", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Salesperson Today has operating groups");
+    expect(markup).toContain("Salesperson Today remains read-only");
+    expect(markup).toContain("Blockers/freshness explained");
+    for (const group of salesConsoleM14SalespersonTodayDepth.groups) {
+      expect(markup).toContain(group.group);
+      expect(markup).toContain(group.manualAction);
     }
   });
 

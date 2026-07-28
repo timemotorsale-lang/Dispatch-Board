@@ -161,6 +161,12 @@ import {
   salesConsoleM14AuditKeepsWritesPlanned,
   salesConsoleM14OperationalTabAudit
 } from "./sales-console-m14-operational-tab-audit";
+import {
+  salesConsoleM14SalespersonTodayDepth,
+  salesConsoleM14SalespersonTodayExplainsBlockersAndFreshness,
+  salesConsoleM14SalespersonTodayHasOperatingGroups,
+  salesConsoleM14SalespersonTodayRemainsReadOnly
+} from "./sales-console-m14-salesperson-today-depth";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -486,6 +492,16 @@ export function SalesConsolePrototype() {
                   <span>{metric.label}</span>
                   <strong className={toneClass(metric.tone)}>{metric.value}</strong>
                   <small>{metric.delta}</small>
+                </article>
+              ))}
+            </div>
+
+            <div className={styles.salespersonTodayDepth} aria-label="Salesperson Today operating depth">
+              {salesConsoleM14SalespersonTodayDepth.groups.map((group) => (
+                <article key={group.group}>
+                  <strong>{group.group}</strong>
+                  <span>{group.count} items</span>
+                  <small>{group.manualAction}</small>
                 </article>
               ))}
             </div>
@@ -943,6 +959,9 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM14AuditIdentifiesPlaceholderHeavySurfaces() ? "Placeholder-heavy surfaces identified" : "Placeholder audit gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM14AuditDemotesPlanningPanels() ? "Planning panels marked for demotion" : "Planning panel noise risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM14AuditKeepsWritesPlanned() ? "Future write actions remain planned" : "Write action risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14SalespersonTodayHasOperatingGroups() ? "Salesperson Today has operating groups" : "Salesperson Today depth gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14SalespersonTodayRemainsReadOnly() ? "Salesperson Today remains read-only" : "Salesperson Today write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14SalespersonTodayExplainsBlockersAndFreshness() ? "Blockers/freshness explained" : "Blocker explanation gap"}</span>
             </div>
           </section>
 

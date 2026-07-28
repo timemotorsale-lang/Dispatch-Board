@@ -416,6 +416,39 @@
   line-height: 1;
 }
 
+.salespersonTodayDepth {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 10px 0;
+}
+
+.salespersonTodayDepth article {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 9px;
+}
+
+.salespersonTodayDepth strong {
+  color: var(--ink);
+  font-size: 0.74rem;
+}
+
+.salespersonTodayDepth span {
+  color: var(--brand-strong);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.salespersonTodayDepth small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
 .toneDanger {
   color: var(--danger);
 }
