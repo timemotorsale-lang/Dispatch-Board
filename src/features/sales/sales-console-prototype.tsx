@@ -42,6 +42,14 @@ import {
   unauthenticatedUsersAreBlocked,
   unknownRolesAreDeniedByDefault
 } from "./sales-console-m10-auth-access";
+import {
+  m10ReadOnlySourcesHaveHonestFallbackLabels,
+  m10ReadOnlySourcesPreserveSystemOfRecord,
+  m10SourceWiringExtendsMvpRealDataSources,
+  m10UnavailableSourcesRemainBlocked,
+  m10WiredSourcesUseNamedReadServices,
+  salesConsoleM10ReadOnlySourceWiring
+} from "./sales-console-m10-read-only-source-wiring";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -228,6 +236,13 @@ function liveSourceStatusClass(status: "contract-ready" | "needs-mapping" | "pla
 function realDataStatusClass(status: "fallback" | "hybrid-fallback" | "wired") {
   if (status === "wired") return styles.statusGood;
   if (status === "hybrid-fallback") return styles.statusWarning;
+  return styles.statusNeutral;
+}
+
+function m10SourceStatusClass(status: "fallback" | "unavailable" | "verify-first" | "wired") {
+  if (status === "wired") return styles.statusGood;
+  if (status === "verify-first") return styles.statusWarning;
+  if (status === "unavailable") return styles.statusDanger;
   return styles.statusNeutral;
 }
 
@@ -474,6 +489,34 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {unknownRolesAreDeniedByDefault() ? "Unknown roles deny by default" : "Unknown role access risk"}</span>
               <span><ShieldCheck size={13} /> {mappedRolesResolveProductionViews() ? "Mapped roles resolve production views" : "Role mapping gap"}</span>
               <span><ShieldCheck size={13} /> {adminReviewRequiresAdminOwnerAccess() ? "Admin Review requires Admin / Owner" : "Admin Review exposure risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Real read-only source wiring foundation">
+            <div className={styles.railHeader}><h2>Real Read-Only Source Wiring</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Production wiring keeps source systems authoritative: real safe readers are labeled, fallbacks are honest, and unavailable sources stay blocked.
+            </p>
+            <div className={styles.m10SourceWiringList}>
+              {salesConsoleM10ReadOnlySourceWiring.map((wire) => (
+                <article key={wire.sourceSystem}>
+                  <div>
+                    <strong>{wire.sourceSystem}</strong>
+                    <span>{wire.sourceOwner} · {wire.reader}</span>
+                  </div>
+                  <span className={m10SourceStatusClass(wire.status)}>{wire.status}</span>
+                  <small>Surfaces: {wire.adapterSurfaces.join(", ")}</small>
+                  <small>Freshness: {wire.freshnessLabel}. Write enabled: {String(wire.writeEnabled)}.</small>
+                  <em>{wire.guardrail}</em>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {m10SourceWiringExtendsMvpRealDataSources() ? "MVP real data sources covered" : "MVP source coverage gap"}</span>
+              <span><ShieldCheck size={13} /> {m10ReadOnlySourcesPreserveSystemOfRecord() ? "Sources remain systems of record" : "Source ownership risk"}</span>
+              <span><ShieldCheck size={13} /> {m10ReadOnlySourcesHaveHonestFallbackLabels() ? "Fallback labels are honest" : "Fallback label gap"}</span>
+              <span><ShieldCheck size={13} /> {m10WiredSourcesUseNamedReadServices() ? "Wired sources use named read services" : "Reader mapping gap"}</span>
+              <span><ShieldCheck size={13} /> {m10UnavailableSourcesRemainBlocked() ? "Unavailable sources remain blocked" : "Unavailable source risk"}</span>
             </div>
           </section>
 
