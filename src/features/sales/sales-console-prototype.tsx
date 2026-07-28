@@ -454,6 +454,24 @@ export function SalesConsolePrototype() {
             </div>
           </section>
 
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>MVP Milestone Roadmap</h2><Gauge size={18} /></div>
+            <div className={styles.milestoneList}>
+              {salesConsoleMvpDefinition.milestoneRoadmap.map((item) => (
+                <article key={item.id}>
+                  <span>{item.id}</span>
+                  <div>
+                    <strong>{item.milestone}</strong>
+                    <small>{item.exitProof}</small>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <p className={styles.guardrailCopy}>
+              Roadmap continues through {salesConsoleMvpDefinition.milestoneRoadmap.at(-1)?.id}: pilot review and stabilization.
+            </p>
+          </section>
+
           <section className={styles.hiddenSmokeText} aria-hidden="true">
             <BadgeDollarSign /> <HandCoins /> <LineChart /> <UserRoundCheck /> <Gauge /> <FileCheck2 /> <ShieldCheck />
           </section>

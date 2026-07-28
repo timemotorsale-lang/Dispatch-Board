@@ -488,23 +488,59 @@
   margin-top: 10px;
 }
 
-.principleList article {
+.principleList article,
+.milestoneList article {
   background: var(--surface-soft);
   border: 1px solid var(--line);
   border-radius: 8px;
-  display: grid;
   gap: 3px;
   padding: 9px;
+}
+
+.principleList article {
+  display: grid;
 }
 
 .principleList strong {
   font-size: 0.78rem;
 }
 
-.principleList span {
+.principleList span,
+.milestoneList small {
   color: var(--muted);
   font-size: 0.74rem;
   line-height: 1.45;
+}
+
+.milestoneList {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.milestoneList article {
+  align-items: start;
+  display: grid;
+  grid-template-columns: auto 1fr;
+}
+
+.milestoneList article > span {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--brand-strong);
+  font-size: 0.68rem;
+  font-weight: 900;
+  padding: 5px 6px;
+}
+
+.milestoneList strong,
+.milestoneList small {
+  display: block;
+}
+
+.milestoneList strong {
+  font-size: 0.76rem;
 }
 
 .hiddenSmokeText {
