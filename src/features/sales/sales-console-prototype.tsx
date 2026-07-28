@@ -44,6 +44,12 @@ import {
   salespersonCannotApproveOrFinance
 } from "./sales-console-m9-deal-workflow";
 import {
+  managerApprovalFoundationIsDisabled,
+  managerApprovalsRequireAuditThresholdAndReason,
+  onlyManagersAndAdminsCanDecideApprovals,
+  salesConsoleManagerApprovalReadModel
+} from "./sales-console-m9-manager-approvals";
+import {
   enterprisePermissionGatesDenyByDefault,
   salesConsoleEnterprisePermissionReadModel,
   sensitiveWorkflowsHavePermissionAndAuditCoverage
@@ -487,6 +493,43 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {dealWorkflowRequiresAuditAndPermission() ? "Audit and permission gates required" : "Gate coverage incomplete"}</span>
               <span><ShieldCheck size={13} /> {salespersonCannotApproveOrFinance() ? "Salesperson cannot approve or finance" : "Salesperson authority risk"}</span>
               {salesConsoleDealWorkflowReadModel.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Admin review manager approvals foundation">
+            <div className={styles.railHeader}><h2>Manager Approval Foundation</h2><ShieldCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Approval queues are contract-only. Thresholds, reasons, manager/admin role gates, and audit events are required before any decision can execute.
+            </p>
+            <div className={styles.enterpriseApprovalList}>
+              {salesConsoleManagerApprovalReadModel.requestContracts.map((approval) => (
+                <article key={approval.approvalType}>
+                  <div>
+                    <strong>{approval.approvalType}</strong>
+                    <span>Request role: {approval.requestRole}</span>
+                  </div>
+                  <span className={styles.statusDanger}>disabled</span>
+                  <small>Fields: {approval.requiredFields.join(", ")}. Reason: {String(approval.reasonRequired)}. Threshold: {String(approval.thresholdRequired)}.</small>
+                </article>
+              ))}
+              {salesConsoleManagerApprovalReadModel.decisionGates.map((gate) => (
+                <article key={`${gate.approvalType}-decision`}>
+                  <div>
+                    <strong>{gate.approvalType} decision</strong>
+                    <span>Roles: {gate.allowedDecisionRoles.join(", ")}</span>
+                  </div>
+                  <span className={styles.statusWarning}>{gate.auditEventType}</span>
+                  <small>Decision enabled: {String(gate.decisionEnabled)}. Deny by default: {String(gate.denyByDefault)}.</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {managerApprovalFoundationIsDisabled() ? "Approval execution disabled" : "Approval execution risk"}</span>
+              <span><ShieldCheck size={13} /> {managerApprovalsRequireAuditThresholdAndReason() ? "Audit, threshold, and reason required" : "Approval gate incomplete"}</span>
+              <span><ShieldCheck size={13} /> {onlyManagersAndAdminsCanDecideApprovals() ? "Only managers/admins can decide later" : "Decision role risk"}</span>
+              {salesConsoleManagerApprovalReadModel.guardrails.map((guardrail) => (
                 <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
               ))}
             </div>

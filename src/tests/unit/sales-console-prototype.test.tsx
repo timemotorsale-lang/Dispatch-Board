@@ -11,6 +11,7 @@ import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-au
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
 import { salesConsoleDealWorkflowReadModel } from "@/features/sales/sales-console-m9-deal-workflow";
 import { salesConsoleEnterprisePermissionReadModel } from "@/features/sales/sales-console-m9-enterprise-permissions";
+import { salesConsoleManagerApprovalReadModel } from "@/features/sales/sales-console-m9-manager-approvals";
 import { salesConsolePilotReadiness } from "@/features/sales/sales-console-mvp-pilot-readiness";
 import { salesConsoleProductionReadiness } from "@/features/sales/sales-console-mvp-production-readiness";
 import { salesConsoleReadAdapterPreview } from "@/features/sales/sales-console-mvp-read-adapters";
@@ -229,6 +230,26 @@ describe("Sales Console", () => {
       expect(markup).toContain(review.dealId);
       expect(markup).toContain(review.auditEventType);
       expect(review.enabled).toBe(false);
+    }
+  });
+
+  it("renders manager approval foundation without enabling approval decisions", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Manager Approval Foundation");
+    expect(markup).toContain("Approval execution disabled");
+    expect(markup).toContain("Audit, threshold, and reason required");
+    expect(markup).toContain("Only managers/admins can decide later");
+    for (const approval of salesConsoleManagerApprovalReadModel.requestContracts) {
+      expect(markup).toContain(approval.approvalType);
+      expect(markup).toContain(`Request role: ${approval.requestRole}`);
+      expect(approval.enabled).toBe(false);
+      expect(approval.managerDecisionEnabled).toBe(false);
+    }
+    for (const gate of salesConsoleManagerApprovalReadModel.decisionGates) {
+      expect(markup).toContain(`${gate.approvalType} decision`);
+      expect(gate.decisionEnabled).toBe(false);
+      expect(gate.denyByDefault).toBe(true);
     }
   });
 
