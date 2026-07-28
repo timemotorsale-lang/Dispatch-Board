@@ -17,6 +17,7 @@ import { salesConsoleM11ReadOnlyFeatureFlags } from "@/features/sales/sales-cons
 import { salesConsoleM11RoleFeatureAccess } from "@/features/sales/sales-console-m11-role-feature-access";
 import { salesConsoleM11RoleVerificationSummary } from "@/features/sales/sales-console-m11-role-verification";
 import { salesConsoleM11StaffRoleModel } from "@/features/sales/sales-console-m11-staff-role-model";
+import { salesConsoleM12RoleLandingExperiences } from "@/features/sales/sales-console-m12-role-landing-model";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
@@ -261,6 +262,18 @@ describe("Sales Console", () => {
     expect(markup).toContain(`${salesConsoleM11RoleVerificationSummary.dogfoodReadinessEstimate}% dogfood readiness estimate`);
     for (const guardrail of salesConsoleM11RoleVerificationSummary.guardrails) {
       expect(markup).toContain(guardrail);
+    }
+  });
+
+  it("renders the M12 role landing model inside the sales console", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M12 Role Landing Model");
+    expect(markup).toContain("Every role has a landing experience");
+    expect(markup).toContain("Landings stay inside /sales");
+    for (const landing of salesConsoleM12RoleLandingExperiences) {
+      expect(markup).toContain(landing.role);
+      expect(markup).toContain(landing.startHereLabel);
     }
   });
 

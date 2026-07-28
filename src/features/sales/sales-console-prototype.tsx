@@ -101,6 +101,12 @@ import {
   salesConsoleM11SourceSystemsRemainReadOnly,
   salesConsoleM11UnknownAuthFixtureIsRestricted
 } from "./sales-console-m11-role-verification";
+import {
+  salesConsoleM12EveryRoleHasLandingExperience,
+  salesConsoleM12RoleLandingsHaveStartGuidance,
+  salesConsoleM12RoleLandingsStayInsideSales,
+  salesConsoleM12RoleLandingExperiences
+} from "./sales-console-m12-role-landing-model";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -639,6 +645,31 @@ export function SalesConsolePrototype() {
               {salesConsoleM11RoleVerificationSummary.guardrails.map((guardrail) => (
                 <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
               ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M12 role landing model">
+            <div className={styles.railHeader}><h2>M12 Role Landing Model</h2><UserRoundCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Role landing experiences stay inside /sales for now, so we do not overbuild separate pages before CRM, advertising, and marketing consoles mature.
+            </p>
+            <div className={styles.roleLandingModelList}>
+              {salesConsoleM12RoleLandingExperiences.map((landing) => (
+                <article key={landing.role}>
+                  <div>
+                    <strong>{landing.role}</strong>
+                    <span>{landing.defaultFeature} · #{landing.defaultSectionId}</span>
+                  </div>
+                  <span className={styles.statusGood}>{landing.mode}</span>
+                  <small>{landing.startHereLabel}</small>
+                  <em>{landing.landingCopy}</em>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM12EveryRoleHasLandingExperience() ? "Every role has a landing experience" : "Role landing gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM12RoleLandingsStayInsideSales() ? "Landings stay inside /sales" : "Route sprawl risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM12RoleLandingsHaveStartGuidance() ? "Start guidance is present" : "Start guidance gap"}</span>
             </div>
           </section>
 
