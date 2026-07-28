@@ -22,6 +22,108 @@
   padding: 10px 12px;
 }
 
+.executionFoundation {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 64, 175, 0.92));
+  border: 1px solid rgba(191, 219, 254, 0.24);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+  color: white;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.2fr);
+  padding: 14px;
+}
+
+.executionFoundation h2 {
+  font-size: 1.02rem;
+  margin: 2px 0 0;
+}
+
+.executionFoundation p,
+.executionFoundation .eyebrow {
+  color: rgba(226, 232, 240, 0.78);
+}
+
+.executionFoundation p {
+  font-size: 0.78rem;
+  line-height: 1.5;
+  margin: 7px 0 0;
+}
+
+.shellCheckGrid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.shellCheckGrid article {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  padding: 9px;
+}
+
+.shellCheckGrid strong,
+.shellCheckGrid small {
+  display: block;
+}
+
+.shellCheckGrid strong {
+  font-size: 0.74rem;
+}
+
+.shellCheckGrid small {
+  color: rgba(226, 232, 240, 0.72);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.roleRail {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.roleRail article {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+}
+
+.roleRail strong,
+.roleRail span,
+.roleRail small {
+  display: block;
+}
+
+.roleRail strong {
+  color: var(--ink);
+  font-size: 0.78rem;
+}
+
+.roleRail span {
+  color: var(--brand-strong);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.roleRail small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.activeRoleCard {
+  border-color: rgba(37, 99, 235, 0.42) !important;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1), var(--shadow-md) !important;
+}
+
 .titleBlock span,
 .eyebrow,
 .metric span,
@@ -542,14 +644,19 @@
 
 .rolePermissionList,
 .dataSourceList,
-.acceptanceList {
+.acceptanceList,
+.actionGuardrailList,
+.executionDataList,
+.pilotReadinessList {
   display: grid;
   gap: 8px;
   margin-top: 10px;
 }
 
 .rolePermissionList article,
-.dataSourceList article {
+.dataSourceList article,
+.actionGuardrailList article,
+.pilotReadinessList article {
   background: var(--surface-soft);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -560,7 +667,10 @@
 
 .rolePermissionList strong,
 .dataSourceList strong,
-.acceptanceList strong {
+.acceptanceList strong,
+.actionGuardrailList strong,
+.executionDataList strong,
+.pilotReadinessList strong {
   color: var(--ink);
   font-size: 0.78rem;
 }
@@ -571,7 +681,12 @@
 .dataSourceList small,
 .dataSourceList em,
 .acceptanceList span,
-.acceptanceList small {
+.acceptanceList small,
+.actionGuardrailList small,
+.executionDataList span,
+.executionDataList small,
+.executionDataList em,
+.pilotReadinessList small {
   font-size: 0.72rem;
   line-height: 1.4;
 }
@@ -579,22 +694,54 @@
 .rolePermissionList span,
 .dataSourceList span,
 .dataSourceList small,
-.acceptanceList span {
+.acceptanceList span,
+.actionGuardrailList small,
+.executionDataList span,
+.executionDataList small,
+.pilotReadinessList small {
   color: var(--muted);
 }
 
 .rolePermissionList small,
 .dataSourceList em,
-.acceptanceList small {
+.acceptanceList small,
+.executionDataList em {
   border-top: 1px solid var(--line);
   color: var(--brand-strong);
   font-weight: 800;
   padding-top: 6px;
 }
 
-.dataSourceList em {
+.dataSourceList em,
+.executionDataList em {
   display: block;
   font-style: normal;
+}
+
+.actionGuardrailList article,
+.pilotReadinessList article {
+  grid-template-columns: 1fr auto;
+}
+
+.actionGuardrailList small,
+.pilotReadinessList small {
+  grid-column: 1 / -1;
+}
+
+.executionDataList article {
+  align-items: start;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 7px;
+  grid-template-columns: 1fr auto;
+  padding: 10px;
+}
+
+.executionDataList small,
+.executionDataList em {
+  grid-column: 1 / -1;
 }
 
 .acceptanceList article {
@@ -793,9 +940,15 @@
 
 @media (max-width: 1220px) {
   .topbar,
+  .executionFoundation,
   .bodyGrid,
   .lowerGrid {
     grid-template-columns: 1fr;
+  }
+
+  .shellCheckGrid,
+  .roleRail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .topbarActions {
@@ -810,7 +963,9 @@
 @media (max-width: 760px) {
   .metricStrip,
   .commandRail,
-  .glanceGrid {
+  .glanceGrid,
+  .shellCheckGrid,
+  .roleRail {
     grid-template-columns: 1fr;
   }
 

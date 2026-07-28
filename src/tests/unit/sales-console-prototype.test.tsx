@@ -3,10 +3,19 @@ import { describe, expect, it } from "vitest";
 
 import SalesConsoleError from "@/app/(app)/sales/error";
 import SalesConsoleLoading from "@/app/(app)/sales/loading";
+import SalesPage from "@/app/(app)/sales/page";
 import { salesConsoleMvpDefinition } from "@/features/sales/sales-console-mvp-definition";
+import { salesConsoleMvpExecution } from "@/features/sales/sales-console-mvp-execution";
 import { SalesConsolePrototype } from "@/features/sales/sales-console-prototype";
 
 describe("Sales Console prototype", () => {
+  it("renders the /sales route shell for the MVP execution foundation", () => {
+    const markup = renderToStaticMarkup(<SalesPage />);
+
+    expect(markup).toContain("Enterprise Sales Console prototype");
+    expect(markup).toContain("Read-only MVP pilot shell");
+  });
+
   it("renders the first sales console slice with the required operating surfaces", () => {
     const markup = renderToStaticMarkup(<SalesConsolePrototype />);
 
@@ -75,6 +84,60 @@ describe("Sales Console prototype", () => {
     for (const item of salesConsoleMvpDefinition.recommendedMvpBoundary.nonNegotiables) {
       expect(markup).toContain(item);
     }
+  });
+
+  it("renders the MVP execution shell health and role placeholders", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Sales Console MVP execution foundation");
+    expect(markup).toContain("Read-only MVP pilot shell");
+    expect(salesConsoleMvpExecution.shellChecks).toHaveLength(4);
+    for (const check of salesConsoleMvpExecution.shellChecks) {
+      expect(markup).toContain(check.check);
+      expect(markup).toContain(check.proof);
+    }
+    for (const role of salesConsoleMvpExecution.roleViews) {
+      expect(markup).toContain(role.label);
+      expect(markup).toContain(role.primarySurface);
+    }
+  });
+
+  it("renders read-only guardrails for every excluded risky MVP action", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Read-Only Action Guardrails");
+    expect(salesConsoleMvpExecution.readOnlyGuardrails).toHaveLength(5);
+    for (const guardrail of salesConsoleMvpExecution.readOnlyGuardrails) {
+      expect(markup).toContain(guardrail.action);
+      expect(markup).toContain(guardrail.reason);
+    }
+    expect(salesConsoleMvpExecution.readOnlyGuardrails.every((guardrail) => guardrail.status !== "ready")).toBe(true);
+  });
+
+  it("renders typed data-contract placeholders with freshness labels", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Execution Data Contract");
+    expect(salesConsoleMvpExecution.dataContractFields).toHaveLength(6);
+    for (const field of salesConsoleMvpExecution.dataContractFields) {
+      expect(markup).toContain(field.field);
+      expect(markup).toContain(field.fallbackLabel);
+    }
+    expect(markup).toContain("verify-first");
+    expect(markup).toContain("placeholder");
+    expect(markup).toContain("stale");
+  });
+
+  it("renders pilot readiness smoke checks for safe review", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Pilot Readiness Smoke");
+    expect(salesConsoleMvpExecution.pilotReadinessChecks).toHaveLength(4);
+    for (const check of salesConsoleMvpExecution.pilotReadinessChecks) {
+      expect(markup).toContain(check.check);
+      expect(markup).toContain(check.evidence);
+    }
+    expect(markup).toContain("Read-only guardrails");
   });
 
   it("renders MVP roles and permissions for pilot access review", () => {
