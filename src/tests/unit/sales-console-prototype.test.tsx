@@ -15,6 +15,7 @@ import { salesConsoleRoleProductionViews } from "@/features/sales/sales-console-
 import { salesConsoleM11AuthRoleSeedingPlan } from "@/features/sales/sales-console-m11-auth-role-seeding";
 import { salesConsoleM11ReadOnlyFeatureFlags } from "@/features/sales/sales-console-m11-read-only-feature-flags";
 import { salesConsoleM11RoleFeatureAccess } from "@/features/sales/sales-console-m11-role-feature-access";
+import { salesConsoleM11RoleVerificationSummary } from "@/features/sales/sales-console-m11-role-verification";
 import { salesConsoleM11StaffRoleModel } from "@/features/sales/sales-console-m11-staff-role-model";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
@@ -235,6 +236,18 @@ describe("Sales Console", () => {
     for (const flag of salesConsoleM11ReadOnlyFeatureFlags) {
       expect(markup).toContain(flag.flag);
       expect(markup).toContain(flag.status);
+    }
+  });
+
+  it("renders the M11 role verification summary before dogfooding", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M11 Role Verification Summary");
+    expect(markup).toContain("Pre-dogfood role verification passes");
+    expect(markup).toContain("Source systems remain read-only");
+    expect(markup).toContain(`${salesConsoleM11RoleVerificationSummary.dogfoodReadinessEstimate}% dogfood readiness estimate`);
+    for (const guardrail of salesConsoleM11RoleVerificationSummary.guardrails) {
+      expect(markup).toContain(guardrail);
     }
   });
 
