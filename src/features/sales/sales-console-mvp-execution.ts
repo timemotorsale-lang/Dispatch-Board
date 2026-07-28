@@ -44,7 +44,7 @@ export const salesConsoleMvpExecution = {
     {
       check: "/sales route shell",
       status: "ready",
-      proof: "Route renders the enterprise Sales Console prototype without write actions."
+      proof: "Route renders the enterprise Sales Console without write actions."
     },
     {
       check: "Sales loading state",
