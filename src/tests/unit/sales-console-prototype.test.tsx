@@ -7,6 +7,7 @@ import SalesPage from "@/app/(app)/sales/page";
 import { salesConsoleMvpDefinition } from "@/features/sales/sales-console-mvp-definition";
 import { salesConsoleMvpExecution } from "@/features/sales/sales-console-mvp-execution";
 import { salesConsoleMvpLiveDataContract } from "@/features/sales/sales-console-mvp-live-data-contract";
+import { salesConsoleAuthAccessExamples } from "@/features/sales/sales-console-m10-auth-access";
 import { salesConsoleRoleProductionViews } from "@/features/sales/sales-console-m10-production-views";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
@@ -177,6 +178,18 @@ describe("Sales Console", () => {
       expect(markup).toContain(view.label);
       expect(markup).toContain(`Primary: ${view.primarySurface}`);
       expect(markup).toContain(view.emptyState);
+    }
+  });
+
+  it("renders real auth access mapping with blocked and mapped route states", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Auth Access Mapping");
+    expect(markup).toContain("Unauthenticated users are blocked");
+    expect(markup).toContain("Unknown roles deny by default");
+    expect(markup).toContain("Admin Review requires Admin / Owner");
+    for (const decision of salesConsoleAuthAccessExamples) {
+      expect(markup).toContain(decision.reason);
     }
   });
 

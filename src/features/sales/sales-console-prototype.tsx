@@ -35,6 +35,13 @@ import {
   ordinaryRolesDoNotSeeAdminReviewSurface,
   salesConsoleRoleProductionViews
 } from "./sales-console-m10-production-views";
+import {
+  adminReviewRequiresAdminOwnerAccess,
+  mappedRolesResolveProductionViews,
+  salesConsoleAuthAccessExamples,
+  unauthenticatedUsersAreBlocked,
+  unknownRolesAreDeniedByDefault
+} from "./sales-console-m10-auth-access";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -438,6 +445,35 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {adminPanelsAreRestrictedForOperatingRoles() ? "Admin panels restricted from operating roles" : "Admin panel exposure risk"}</span>
               <span><ShieldCheck size={13} /> {ordinaryRolesDoNotSeeAdminReviewSurface() ? "Ordinary roles do not see Admin Review" : "Admin Review visibility risk"}</span>
               <span><ShieldCheck size={13} /> {eachRoleHasProductionEmptyState() ? "Role-specific empty states present" : "Empty state gap"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Real auth access mapping foundation">
+            <div className={styles.railHeader}><h2>Auth Access Mapping</h2><ShieldCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Real app session roles are mapped into read-only Sales Console views. Missing sessions and unmapped roles fail safe.
+            </p>
+            <div className={styles.authAccessList}>
+              {salesConsoleAuthAccessExamples.map((decision) => (
+                <article key={`${decision.status}-${decision.resolvedRole ?? decision.sourceAuth}`}>
+                  <div>
+                    <strong>{decision.resolvedRole ?? "Blocked user"}</strong>
+                    <span>{decision.sourceAuth} · {decision.protectedRouteState}</span>
+                  </div>
+                  <span className={decision.canAccessSalesConsole ? styles.statusGood : styles.statusDanger}>
+                    {decision.canAccessSalesConsole ? "read-only access" : "blocked"}
+                  </span>
+                  <small>Visible: {decision.visibleSurfaces.length > 0 ? decision.visibleSurfaces.join(", ") : "None"}</small>
+                  <small>Scope: {decision.scope.store} / {decision.scope.team}</small>
+                  <em>{decision.reason}</em>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {unauthenticatedUsersAreBlocked() ? "Unauthenticated users are blocked" : "Protected-route risk"}</span>
+              <span><ShieldCheck size={13} /> {unknownRolesAreDeniedByDefault() ? "Unknown roles deny by default" : "Unknown role access risk"}</span>
+              <span><ShieldCheck size={13} /> {mappedRolesResolveProductionViews() ? "Mapped roles resolve production views" : "Role mapping gap"}</span>
+              <span><ShieldCheck size={13} /> {adminReviewRequiresAdminOwnerAccess() ? "Admin Review requires Admin / Owner" : "Admin Review exposure risk"}</span>
             </div>
           </section>
 
