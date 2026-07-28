@@ -173,6 +173,12 @@ import {
   salesConsoleM14LeadOperationsHasOperatingGroups,
   salesConsoleM14LeadOperationsRemainsReadOnly
 } from "./sales-console-m14-lead-operations-depth";
+import {
+  salesConsoleM14DealDeskHasOperatingRows,
+  salesConsoleM14DealInventoryDepth,
+  salesConsoleM14DealInventoryRemainReadOnly,
+  salesConsoleM14InventoryHasReadinessRows
+} from "./sales-console-m14-deal-inventory-depth";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -560,6 +566,16 @@ export function SalesConsolePrototype() {
                 </div>
                 <span className={styles.statusDanger}>7 approvals</span>
               </div>
+              <div className={styles.dealInventoryDepth}>
+                {salesConsoleM14DealInventoryDepth.dealOperatingRows.map((deal) => (
+                  <article key={deal.dealId}>
+                    <strong>{deal.dealId} · {deal.customer}</strong>
+                    <span>{deal.managerReviewNeed}</span>
+                    <small>{deal.sourcePrompt}</small>
+                    <em>{deal.readOnlyAction}</em>
+                  </article>
+                ))}
+              </div>
               <table className={styles.compactTable}>
                 <thead>
                   <tr>
@@ -594,6 +610,16 @@ export function SalesConsolePrototype() {
                   <h2>Vehicle Match</h2>
                 </div>
                 <span className={styles.statusDanger}>6 alerts</span>
+              </div>
+              <div className={styles.dealInventoryDepth}>
+                {salesConsoleM14DealInventoryDepth.inventoryOperatingRows.map((vehicle) => (
+                  <article key={vehicle.stock}>
+                    <strong>{vehicle.stock} · {vehicle.vehicle}</strong>
+                    <span>{vehicle.readiness} for {vehicle.matchedCustomer}</span>
+                    <small>{vehicle.sourcePrompt}</small>
+                    <em>{vehicle.readOnlyAction}</em>
+                  </article>
+                ))}
               </div>
               <div className={styles.vehicleList}>
                 {vehicleMatches.map((vehicle) => (
@@ -971,6 +997,9 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM14LeadOperationsHasOperatingGroups() ? "Lead Operations has operating groups" : "Lead Operations depth gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM14LeadOperationsRemainsReadOnly() ? "Lead Operations remains read-only" : "Lead Operations write risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM14LeadOperationsExplainsSlaAndAssignment() ? "SLA and assignment explained" : "Lead explanation gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14DealDeskHasOperatingRows() ? "Deal Desk has operating rows" : "Deal Desk depth gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14InventoryHasReadinessRows() ? "Inventory has readiness rows" : "Inventory depth gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14DealInventoryRemainReadOnly() ? "Deal and inventory remain read-only" : "Deal/inventory write risk"}</span>
             </div>
           </section>
 

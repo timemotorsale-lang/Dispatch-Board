@@ -481,6 +481,52 @@
   line-height: 1.35;
 }
 
+.dealInventoryDepth {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.dealInventoryDepth article {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 9px;
+}
+
+.dealInventoryDepth strong,
+.dealInventoryDepth span,
+.dealInventoryDepth small,
+.dealInventoryDepth em {
+  display: block;
+}
+
+.dealInventoryDepth strong {
+  color: var(--ink);
+  font-size: 0.74rem;
+}
+
+.dealInventoryDepth span {
+  color: var(--brand-strong);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.dealInventoryDepth small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.dealInventoryDepth em {
+  color: var(--warning);
+  font-size: 0.66rem;
+  font-style: normal;
+  font-weight: 900;
+}
+
 .toneDanger {
   color: var(--danger);
 }

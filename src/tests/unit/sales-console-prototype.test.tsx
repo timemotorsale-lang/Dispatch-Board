@@ -27,6 +27,7 @@ import { salesConsoleM13FeedbackCategories } from "@/features/sales/sales-consol
 import { salesConsoleM13DogfoodGates } from "@/features/sales/sales-console-m13-dogfood-gates";
 import { salesConsoleM13ReleaseObservability } from "@/features/sales/sales-console-m13-release-observability";
 import { salesConsoleM13StaffPilotGuide } from "@/features/sales/sales-console-m13-staff-pilot-guide";
+import { salesConsoleM14DealInventoryDepth } from "@/features/sales/sales-console-m14-deal-inventory-depth";
 import { salesConsoleM14LeadOperationsDepth } from "@/features/sales/sales-console-m14-lead-operations-depth";
 import { salesConsoleM14OperationalTabAudit } from "@/features/sales/sales-console-m14-operational-tab-audit";
 import { salesConsoleM14SalespersonTodayDepth } from "@/features/sales/sales-console-m14-salesperson-today-depth";
@@ -433,6 +434,22 @@ describe("Sales Console", () => {
     for (const group of salesConsoleM14LeadOperationsDepth.groups) {
       expect(markup).toContain(group.group);
       expect(markup).toContain(group.verifyPrompt);
+    }
+  });
+
+  it("renders M14 Deal Desk and Inventory operating depth", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Deal Desk has operating rows");
+    expect(markup).toContain("Inventory has readiness rows");
+    expect(markup).toContain("Deal and inventory remain read-only");
+    for (const deal of salesConsoleM14DealInventoryDepth.dealOperatingRows) {
+      expect(markup).toContain(deal.managerReviewNeed);
+      expect(markup).toContain(deal.sourcePrompt);
+    }
+    for (const vehicle of salesConsoleM14DealInventoryDepth.inventoryOperatingRows) {
+      expect(markup).toContain(vehicle.readiness);
+      expect(markup).toContain(vehicle.sourcePrompt);
     }
   });
 
