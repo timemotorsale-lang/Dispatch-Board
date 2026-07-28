@@ -56,6 +56,19 @@ describe("Sales Console", () => {
     expect(markup).toContain("Lead Operations");
   });
 
+  it("labels inactive dogfood controls as planned or read-only", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Search planned for dogfood");
+    expect(markup).toContain("Alerts");
+    expect(markup).toContain("read-only");
+    expect(markup).toContain("Messages");
+    expect(markup).toContain("planned");
+    expect(markup).toContain("Dogfood UX cleanup: controls marked planned/read-only are intentionally inactive");
+    expect(markup).toContain("Pipeline filters are planned");
+    expect(markup).toContain("More actions are intentionally unavailable");
+  });
+
   it("keeps the first slice non-destructive and production-MVP scoped", () => {
     const markup = renderToStaticMarkup(<SalesConsolePrototype />);
 
