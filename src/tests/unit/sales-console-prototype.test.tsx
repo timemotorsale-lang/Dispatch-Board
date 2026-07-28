@@ -8,6 +8,7 @@ import { salesConsoleMvpDefinition } from "@/features/sales/sales-console-mvp-de
 import { salesConsoleMvpExecution } from "@/features/sales/sales-console-mvp-execution";
 import { salesConsoleMvpLiveDataContract } from "@/features/sales/sales-console-mvp-live-data-contract";
 import { salesConsoleAuthAccessExamples } from "@/features/sales/sales-console-m10-auth-access";
+import { salesConsoleM10ReadOnlySourceWiring } from "@/features/sales/sales-console-m10-read-only-source-wiring";
 import { salesConsoleRoleProductionViews } from "@/features/sales/sales-console-m10-production-views";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
@@ -190,6 +191,19 @@ describe("Sales Console", () => {
     expect(markup).toContain("Admin Review requires Admin / Owner");
     for (const decision of salesConsoleAuthAccessExamples) {
       expect(markup).toContain(decision.reason);
+    }
+  });
+
+  it("renders real read-only source wiring without enabling unavailable sources", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Real Read-Only Source Wiring");
+    expect(markup).toContain("MVP real data sources covered");
+    expect(markup).toContain("Unavailable sources remain blocked");
+    for (const wire of salesConsoleM10ReadOnlySourceWiring) {
+      expect(markup).toContain(wire.sourceSystem);
+      expect(markup).toContain(wire.guardrail);
+      expect(wire.writeEnabled).toBe(false);
     }
   });
 
