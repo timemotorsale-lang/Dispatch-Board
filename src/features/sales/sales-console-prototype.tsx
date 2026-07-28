@@ -138,6 +138,11 @@ import {
   salesConsoleM13PilotGuideExplainsWhatItIsAndIsNot,
   salesConsoleM13StaffPilotGuide
 } from "./sales-console-m13-staff-pilot-guide";
+import {
+  salesConsoleM13FeedbackCaptureRemainsReadOnly,
+  salesConsoleM13FeedbackCategories,
+  salesConsoleM13FeedbackCategoriesCoverDogfoodRisks
+} from "./sales-console-m13-feedback-categories";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -827,6 +832,27 @@ export function SalesConsolePrototype() {
             <div className={styles.boundaryList}>
               <span><ShieldCheck size={13} /> {salesConsoleM13PilotGuideExplainsWhatItIsAndIsNot() ? "Guide explains what it is/is not" : "Guide clarity gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM13PilotGuideCoversStaffAndManagers() ? "Guide covers staff and managers" : "Guide role coverage gap"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M13 feedback categories">
+            <div className={styles.railHeader}><h2>M13 Feedback Categories</h2><MessageSquareText size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Feedback is structured for dogfood review only. No external sending or database capture is enabled in this slice.
+            </p>
+            <div className={styles.feedbackCategoryList}>
+              {salesConsoleM13FeedbackCategories.map((item) => (
+                <article key={item.category}>
+                  <strong>{item.category}</strong>
+                  <span>{item.routingOwner}</span>
+                  <small>{item.example}</small>
+                  <small>Write enabled: {String(item.writeEnabled)}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM13FeedbackCategoriesCoverDogfoodRisks() ? "Feedback categories cover dogfood risks" : "Feedback category gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM13FeedbackCaptureRemainsReadOnly() ? "Feedback capture remains read-only" : "Feedback write risk"}</span>
             </div>
           </section>
 
