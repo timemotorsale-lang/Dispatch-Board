@@ -72,6 +72,13 @@ import {
   salesConsoleM11RoleModelRemainsReadOnly,
   salesConsoleM11StaffRoleModel
 } from "./sales-console-m11-staff-role-model";
+import {
+  salesConsoleM11EveryRoleHasFeatureAccess,
+  salesConsoleM11FeatureAccessRemainsReadOnly,
+  salesConsoleM11FinanceVisibilityCannotDecideFinance,
+  salesConsoleM11OnlyAdminOwnerSeesAdminReviewPanels,
+  salesConsoleM11RoleFeatureAccess
+} from "./sales-console-m11-role-feature-access";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -483,6 +490,33 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM11RoleModelRemainsReadOnly() ? "Role model remains read-only" : "Role model write risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM11ActiveDogfoodRolesAreLimited() ? "Active dogfood roles are limited" : "Dogfood scope risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM11PlannedRolesDoNotCreateAdminAccess() ? "Planned roles do not create admin access" : "Planned role admin risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Staff role to feature access">
+            <div className={styles.railHeader}><h2>M11 Role-to-Feature Access</h2><UserRoundCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Each dogfood role gets only the read-only surfaces needed to try the console safely.
+            </p>
+            <div className={styles.roleFeatureAccessList}>
+              {salesConsoleM11RoleFeatureAccess.map((access) => (
+                <article key={access.role}>
+                  <div>
+                    <strong>{access.role}</strong>
+                    <span>{access.readOnly ? "read-only" : "write-enabled"} · {access.visibleFeatures.length} visible</span>
+                  </div>
+                  <span className={access.role === "admin-owner" ? styles.statusGood : styles.statusNeutral}>feature access</span>
+                  <small>Visible: {access.visibleFeatures.join(", ")}</small>
+                  <small>Hidden: {access.hiddenFeatures.length > 0 ? access.hiddenFeatures.join(", ") : "None"}</small>
+                  <em>{access.emptyStateGuidance}</em>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM11EveryRoleHasFeatureAccess() ? "Every role has feature access" : "Feature access gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11FeatureAccessRemainsReadOnly() ? "Feature access remains read-only" : "Feature access write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11OnlyAdminOwnerSeesAdminReviewPanels() ? "Only Admin / Owner sees Admin Review Panels" : "Admin panel exposure risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11FinanceVisibilityCannotDecideFinance() ? "Finance visibility cannot decide finance" : "Finance decision risk"}</span>
             </div>
           </section>
 
