@@ -19,6 +19,7 @@ import { salesConsoleM11RoleVerificationSummary } from "@/features/sales/sales-c
 import { salesConsoleM11StaffRoleModel } from "@/features/sales/sales-console-m11-staff-role-model";
 import { salesConsoleM12DefaultRoleLandingHeader } from "@/features/sales/sales-console-m12-role-landing-header";
 import { salesConsoleM12RoleLandingExperiences } from "@/features/sales/sales-console-m12-role-landing-model";
+import { salesConsoleM12RoleEmptyPlannedStates } from "@/features/sales/sales-console-m12-role-empty-planned-states";
 import { salesConsoleM12RoleStartCards } from "@/features/sales/sales-console-m12-role-start-cards";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
@@ -299,6 +300,18 @@ describe("Sales Console", () => {
     for (const card of salesConsoleM12RoleStartCards) {
       expect(markup).toContain(card.title);
       expect(markup).toContain(card.caution);
+    }
+  });
+
+  it("renders M12 role empty and planned-state guidance", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M12 Role Empty / Planned States");
+    expect(markup).toContain("Every role has empty/planned guidance");
+    expect(markup).toContain("Planned states keep risky actions disabled");
+    for (const state of salesConsoleM12RoleEmptyPlannedStates) {
+      expect(markup).toContain(state.emptyState);
+      expect(markup).toContain(state.plannedNext);
     }
   });
 

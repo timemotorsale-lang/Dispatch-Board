@@ -117,6 +117,11 @@ import {
   salesConsoleM12StartCardsCoverEveryLanding,
   salesConsoleM12StartCardsRemainReadOnly
 } from "./sales-console-m12-role-start-cards";
+import {
+  salesConsoleM12EveryRoleHasEmptyAndPlannedState,
+  salesConsoleM12PlannedStatesKeepRiskyActionsDisabled,
+  salesConsoleM12RoleEmptyPlannedStates
+} from "./sales-console-m12-role-empty-planned-states";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -708,6 +713,31 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM12EveryLandingHeaderTargetsInternalSection() ? "Headers target internal sections" : "Header target risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM12StartCardsCoverEveryLanding() ? "Start cards cover every landing" : "Start card coverage gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM12StartCardsRemainReadOnly() ? "Start cards remain read-only" : "Start card write risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M12 role empty and planned states">
+            <div className={styles.railHeader}><h2>M12 Role Empty / Planned States</h2><AlertTriangle size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Each role gets explicit empty-state, verify-first, and planned/disabled guidance so inactive controls do not feel broken.
+            </p>
+            <div className={styles.roleEmptyPlannedList}>
+              {salesConsoleM12RoleEmptyPlannedStates.map((state) => (
+                <article key={state.role}>
+                  <div>
+                    <strong>{state.role}</strong>
+                    <span>empty · verify-first · planned</span>
+                  </div>
+                  <span className={styles.statusWarning}>read-only guidance</span>
+                  <small>{state.emptyState}</small>
+                  <small>{state.disabledExplanation}</small>
+                  <em>{state.plannedNext}</em>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM12EveryRoleHasEmptyAndPlannedState() ? "Every role has empty/planned guidance" : "Empty/planned guidance gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM12PlannedStatesKeepRiskyActionsDisabled() ? "Planned states keep risky actions disabled" : "Planned-state action risk"}</span>
             </div>
           </section>
 
