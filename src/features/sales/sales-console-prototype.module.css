@@ -488,6 +488,47 @@
   margin-top: 10px;
 }
 
+.includedMvpList {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.includedMvpList article {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+}
+
+.includedMvpList strong {
+  color: var(--ink);
+  font-size: 0.78rem;
+}
+
+.includedMvpList ul {
+  color: var(--muted);
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding-left: 17px;
+}
+
+.includedMvpList li,
+.includedMvpList small {
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.includedMvpList small {
+  border-top: 1px solid var(--line);
+  color: var(--brand-strong);
+  font-weight: 800;
+  padding-top: 6px;
+}
+
 .principleList article,
 .milestoneList article {
   background: var(--surface-soft);

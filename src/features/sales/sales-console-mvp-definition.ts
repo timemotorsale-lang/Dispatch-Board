@@ -15,6 +15,82 @@ export const salesConsoleMvpDefinition = {
     "Discount approvals"
   ],
   operatingBoundary: "Read-only MVP foundation. No high-risk sales actions are authorized.",
+  includedInMvp: [
+    {
+      area: "Console shell and navigation",
+      includes: [
+        "Permanent /sales workspace entry",
+        "Enterprise-style top navigation, search, alerts, and store context",
+        "Sales-specific loading, unavailable, and protected-route states"
+      ],
+      outcome: "Users can reliably open the Sales Console and understand where sales work lives."
+    },
+    {
+      area: "Salesperson Today",
+      includes: [
+        "Ranked seller queue",
+        "Customer, vehicle, stage, next action, freshness, blocker, and reason fields",
+        "Simple priority logic that surfaces must-do-now work first"
+      ],
+      outcome: "A salesperson can see the highest-priority work for the day without hunting across screens."
+    },
+    {
+      area: "Lead Operations",
+      includes: [
+        "New lead visibility",
+        "SLA-risk indicators",
+        "Unassigned, stale, duplicate-review, and appointment health signals"
+      ],
+      outcome: "Managers and BDC users can spot lead leakage before it becomes lost opportunity."
+    },
+    {
+      area: "Manager Command Center",
+      includes: [
+        "Risk queues",
+        "Approvals-needed placeholders",
+        "Delivery and activity blockers",
+        "Forecast and top-opportunity summary cards"
+      ],
+      outcome: "Managers can see where attention is needed without waiting for end-of-day reporting."
+    },
+    {
+      area: "Inventory Intelligence",
+      includes: [
+        "Vehicle-to-customer fit cards",
+        "Readiness and availability status",
+        "Visible blocker labels before a vehicle is recommended"
+      ],
+      outcome: "Sales teams can recommend inventory with confidence while avoiding blocked units."
+    },
+    {
+      area: "Deal Desk visibility",
+      includes: [
+        "Read-only deal table",
+        "Scenario and version labels",
+        "Estimated payment display",
+        "Approval and blocker status"
+      ],
+      outcome: "Teams can understand deal status without enabling quote submission or finance automation."
+    },
+    {
+      area: "Customer and source-record links",
+      includes: [
+        "Links to customer context",
+        "Links to appointments, vehicle records, and task records where available",
+        "No duplicate-entry workflow in the MVP"
+      ],
+      outcome: "The console becomes a launchpad into trusted source records, not a second system of record."
+    },
+    {
+      area: "Enterprise guardrails",
+      includes: [
+        "Role-aware visibility",
+        "Disabled or planned states for sensitive future actions",
+        "Smoke tests for render, route, and protected-state behavior"
+      ],
+      outcome: "The MVP is safe enough for pilot use and expandable without reworking the foundation."
+    }
+  ],
   principles: [
     {
       name: "Narrow scope",

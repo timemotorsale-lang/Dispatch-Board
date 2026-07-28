@@ -443,6 +443,23 @@ export function SalesConsolePrototype() {
           </section>
 
           <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>What Is Included In The MVP</h2><FileCheck2 size={18} /></div>
+            <div className={styles.includedMvpList}>
+              {salesConsoleMvpDefinition.includedInMvp.map((item) => (
+                <article key={item.area}>
+                  <strong>{item.area}</strong>
+                  <ul>
+                    {item.includes.map((detail) => (
+                      <li key={detail}>{detail}</li>
+                    ))}
+                  </ul>
+                  <small>{item.outcome}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
             <div className={styles.railHeader}><h2>MVP Principles</h2><ShieldCheck size={18} /></div>
             <div className={styles.principleList}>
               {salesConsoleMvpDefinition.principles.map((principle) => (

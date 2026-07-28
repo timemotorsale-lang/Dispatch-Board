@@ -52,6 +52,19 @@ describe("Sales Console prototype", () => {
     expect(markup).toContain("Pilot review and stabilize");
   });
 
+  it("renders what is included in the MVP for scope review", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("What Is Included In The MVP");
+    expect(salesConsoleMvpDefinition.includedInMvp).toHaveLength(8);
+    for (const item of salesConsoleMvpDefinition.includedInMvp) {
+      expect(markup).toContain(item.area);
+      expect(markup).toContain(item.outcome);
+    }
+    expect(markup).toContain("Console shell and navigation");
+    expect(markup).toContain("Enterprise guardrails");
+  });
+
   it("uses sales-specific loading and error states for protected route failures", () => {
     const loadingMarkup = renderToStaticMarkup(<SalesConsoleLoading />);
     const errorMarkup = renderToStaticMarkup(
