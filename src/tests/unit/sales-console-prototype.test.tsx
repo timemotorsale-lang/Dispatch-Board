@@ -7,6 +7,7 @@ import SalesPage from "@/app/(app)/sales/page";
 import { salesConsoleMvpDefinition } from "@/features/sales/sales-console-mvp-definition";
 import { salesConsoleMvpExecution } from "@/features/sales/sales-console-mvp-execution";
 import { salesConsoleMvpLiveDataContract } from "@/features/sales/sales-console-mvp-live-data-contract";
+import { salesConsolePilotReadiness } from "@/features/sales/sales-console-mvp-pilot-readiness";
 import { salesConsoleReadAdapterPreview } from "@/features/sales/sales-console-mvp-read-adapters";
 import { salesConsoleMvpRealDataWiring } from "@/features/sales/sales-console-mvp-real-data-wiring";
 import { salesConsoleRoleViews } from "@/features/sales/sales-console-mvp-role-views";
@@ -264,6 +265,28 @@ describe("Sales Console prototype", () => {
       expect(markup).toContain(check.evidence);
     }
     expect(markup).toContain("Read-only guardrails");
+  });
+
+  it("renders pilot-ready MVP checks, priority brief, state verification, and fallback states", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Pilot-Ready MVP");
+    expect(markup).toContain("30 seconds");
+    expect(markup).toContain("Pilot State Verification");
+    expect(markup).toContain("Pilot Acceptance Tracking");
+    expect(markup).toContain("Pilot Empty &amp; Fallback States");
+    for (const priority of salesConsolePilotReadiness.priorityBrief) {
+      expect(markup).toContain(priority);
+    }
+    for (const state of salesConsolePilotReadiness.stateVerification) {
+      expect(markup).toContain(state.label);
+      expect(markup).toContain(state.meaning);
+    }
+    for (const fallback of salesConsolePilotReadiness.fallbackStates) {
+      expect(markup).toContain(fallback.emptyLabel);
+      expect(markup).toContain(fallback.fallbackAction);
+    }
+    expect(salesConsolePilotReadiness.pilotBlockers).toHaveLength(0);
   });
 
   it("renders MVP roles and permissions for pilot access review", () => {

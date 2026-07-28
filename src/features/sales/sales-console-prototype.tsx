@@ -29,6 +29,7 @@ import type { CSSProperties } from "react";
 import { salesConsoleMvpDefinition } from "./sales-console-mvp-definition";
 import { salesConsoleMvpExecution } from "./sales-console-mvp-execution";
 import { salesConsoleMvpLiveDataContract } from "./sales-console-mvp-live-data-contract";
+import { salesConsolePilotReadiness } from "./sales-console-mvp-pilot-readiness";
 import { salesConsoleReadAdapterPreview } from "./sales-console-mvp-read-adapters";
 import { salesConsoleMvpRealDataWiring } from "./sales-console-mvp-real-data-wiring";
 import { salesConsoleRoleViews } from "./sales-console-mvp-role-views";
@@ -137,6 +138,12 @@ function realDataStatusClass(status: "fallback" | "hybrid-fallback" | "wired") {
   if (status === "wired") return styles.statusGood;
   if (status === "hybrid-fallback") return styles.statusWarning;
   return styles.statusNeutral;
+}
+
+function pilotStatusClass(status: "blocked" | "ready" | "review") {
+  if (status === "ready") return styles.statusGood;
+  if (status === "blocked") return styles.statusDanger;
+  return styles.statusWarning;
 }
 
 function barStyle(width: string) {
@@ -348,6 +355,44 @@ export function SalesConsolePrototype() {
                     <span>{role.inventoryMatchesVisible} vehicles</span>
                     <span>{role.blockedActionCount} actions disabled/planned</span>
                   </div>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Pilot-Ready MVP</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Limited pilot mode is read-only. A manager should understand the day&apos;s priorities within 30 seconds.
+            </p>
+            <div className={styles.priorityBriefList}>
+              {salesConsolePilotReadiness.priorityBrief.length > 0 ? (
+                salesConsolePilotReadiness.priorityBrief.map((priority) => (
+                  <article key={priority}><AlertTriangle size={14} /><span>{priority}</span></article>
+                ))
+              ) : (
+                <article><HelpCircle size={14} /><span>No priority work is available. Check source systems before using the console.</span></article>
+              )}
+            </div>
+            <div className={styles.pilotReadinessList}>
+              {salesConsolePilotReadiness.readinessChecks.map((check) => (
+                <article key={check.check}>
+                  <strong>{check.check}</strong>
+                  <span className={pilotStatusClass(check.status)}>{check.status}</span>
+                  <small>{check.evidence} Owner: {check.owner}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Pilot State Verification</h2><ShieldCheck size={18} /></div>
+            <div className={styles.stateVerificationList}>
+              {salesConsolePilotReadiness.stateVerification.map((state) => (
+                <article key={state.label}>
+                  <strong>{state.label}</strong>
+                  <span className={pilotStatusClass(state.status)}>{state.count}</span>
+                  <small>{state.meaning}</small>
                 </article>
               ))}
             </div>
@@ -601,6 +646,32 @@ export function SalesConsolePrototype() {
                   <strong>{check.check}</strong>
                   <span className={executionStatusClass(check.status)}>{check.status}</span>
                   <small>{check.evidence}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Pilot Acceptance Tracking</h2><ClipboardCheck size={18} /></div>
+            <div className={styles.pilotReadinessList}>
+              {salesConsolePilotReadiness.acceptanceTracker.map((check) => (
+                <article key={check.item}>
+                  <strong>{check.item}</strong>
+                  <span className={pilotStatusClass(check.status)}>{check.status}</span>
+                  <small>{check.proof} Owner: {check.owner}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Pilot Empty &amp; Fallback States</h2><HelpCircle size={18} /></div>
+            <div className={styles.emptyStateList}>
+              {salesConsolePilotReadiness.fallbackStates.map((state) => (
+                <article key={state.surface}>
+                  <strong>{state.surface}</strong>
+                  <span>{state.emptyLabel}</span>
+                  <small>{state.fallbackAction}</small>
                 </article>
               ))}
             </div>
