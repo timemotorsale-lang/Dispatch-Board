@@ -25,6 +25,12 @@ Read in this order:
 6. [SALES_IMPLEMENTATION_MILESTONES.md](SALES_IMPLEMENTATION_MILESTONES.md) — vertical slices, dependencies, evidence, and exit criteria.
 7. [TRACEABILITY_MATRIX.md](TRACEABILITY_MATRIX.md) — mapping from operating outcomes to workflows, algorithms, services, milestones, and proof.
 
+Build-ready additions for the next implementation pass:
+
+- [SALES_CONSOLE_PRODUCT_REQUIREMENTS.md](SALES_CONSOLE_PRODUCT_REQUIREMENTS.md) - role-based modules, screen requirements, acceptance criteria, permissions, reporting, and release gates.
+- [SALES_DATA_MODEL.md](SALES_DATA_MODEL.md) - sales-owned entities, reference objects, event backbone, derived read models, and data-quality rules.
+- [SALES_UI_IMPLEMENTATION_PLAN.md](SALES_UI_IMPLEMENTATION_PLAN.md) - navigation, dashboard views, deal desk, inventory intelligence, manager command center, components, and first UI tickets.
+
 ## Product boundaries
 
 | Domain | Authoritative responsibility | Sales Console use |
@@ -60,4 +66,3 @@ This package establishes a target architecture and implementation sequence. It d
 - claim an external CRM, DMS, lender, messaging, or market-data integration exists.
 
 Policy-sensitive values remain configuration candidates until dealership leadership assigns an owner, approves the value, records the effective date, and validates it in a controlled pilot.
-

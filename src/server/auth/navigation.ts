@@ -106,8 +106,8 @@ export const WORKSPACE_DEFINITIONS: readonly WorkspaceDefinition[] = [
   {
     key: "SALES",
     label: "Sales Workspace",
-    description: "Lead follow-up, appointments, customers, and delivery work.",
-    landingRoute: "/tasks?department=SALES",
+    description: "Lead follow-up, deal desk, vehicle match, appointments, customers, and delivery work.",
+    landingRoute: "/sales",
     roleNames: ["Salesperson", "Sales Manager"],
     dutyTerms: ["sales", "lead follow-up", "sold vehicle prep"]
   },
@@ -179,6 +179,7 @@ const ROUTE_WORKSPACES: Array<{ prefix: string; workspaces: WorkspaceKey[] }> = 
   { prefix: "/vehicles/360", workspaces: ["VEHICLE_OPERATIONS_LEAD", "INVENTORY", "SERVICE", "ADVISOR", "TECHNICIAN", "PARTS", "QUALITY", "SALES", "MARKETING", "MANAGEMENT"] },
   { prefix: "/vehicles", workspaces: ["VEHICLE_OPERATIONS_LEAD", "INVENTORY", "SERVICE", "ADVISOR", "PARTS", "QUALITY", "SALES", "MARKETING", "OPERATIONS_COORDINATOR", "MANAGEMENT"] },
   { prefix: "/operations-coordinator", workspaces: ["OPERATIONS_COORDINATOR", "MANAGEMENT"] },
+  { prefix: "/sales", workspaces: ["SALES", "MANAGEMENT"] },
   { prefix: "/appointments", workspaces: ["ADVISOR", "SERVICE", "SALES", "OPERATIONS_COORDINATOR", "OFFICE", "MANAGEMENT"] },
   { prefix: "/customers", workspaces: ["ADVISOR", "SALES", "OPERATIONS_COORDINATOR", "OFFICE", "COLLECTIONS", "MANAGEMENT"] },
   { prefix: "/diagnostics", workspaces: ["TECHNICIAN", "ADVISOR", "SERVICE", "MANAGEMENT"] },

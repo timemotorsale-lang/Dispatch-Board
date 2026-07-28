@@ -1,0 +1,459 @@
+.console {
+  color: var(--ink);
+  display: grid;
+  gap: 16px;
+  margin: 0 auto;
+  max-width: 1480px;
+}
+
+.toolbar,
+.moduleTabs,
+.workSurface,
+.panel,
+.commandCard,
+.queuePanel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+}
+
+.toolbar {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 12px;
+}
+
+.search {
+  align-items: center;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  display: flex;
+  flex: 1;
+  gap: 10px;
+  min-width: 220px;
+  padding: 10px 12px;
+}
+
+.search input {
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  flex: 1;
+  font: inherit;
+  min-width: 0;
+  outline: 0;
+}
+
+.toolbarActions,
+.moduleTabs,
+.sectionHeader,
+.panelHeader,
+.queueHeader,
+.vehicleHeader,
+.reasonChips,
+.leadHealth {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.toolbarActions button,
+.quoteBox button,
+.workRow button {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: default;
+  display: inline-flex;
+  font: inherit;
+  font-weight: 800;
+  gap: 8px;
+  justify-content: center;
+  padding: 10px 12px;
+}
+
+.toolbarActions button:first-child {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.toolbarActions button:last-child,
+.quoteBox button {
+  background: var(--brand);
+  color: white;
+}
+
+.moduleTabs {
+  flex-wrap: wrap;
+  padding: 6px;
+}
+
+.tab,
+.tabActive {
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+  padding: 9px 12px;
+  text-decoration: none;
+}
+
+.tabActive {
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+}
+
+.grid {
+  align-items: start;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) 360px;
+}
+
+.mainStack,
+.commandRail {
+  display: grid;
+  gap: 16px;
+}
+
+.workSurface,
+.panel,
+.commandCard,
+.queuePanel {
+  padding: 16px;
+}
+
+.sectionHeader,
+.panelHeader,
+.queueHeader,
+.vehicleHeader {
+  justify-content: space-between;
+}
+
+.sectionHeader {
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.eyebrow {
+  color: var(--muted);
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sectionHeader h1,
+.panelHeader h2 {
+  margin: 5px 0 0;
+}
+
+.sectionHeader h1 {
+  font-size: clamp(1.75rem, 3vw, 3rem);
+  line-height: 1.04;
+  max-width: 760px;
+}
+
+.sectionHeader p,
+.guardrailCopy,
+.vehicleCard p {
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 8px 0 0;
+}
+
+.modePill,
+.badgeDanger,
+.badgeWarning,
+.badgeNeutral {
+  align-items: center;
+  border-radius: 8px;
+  display: inline-flex;
+  font-size: 0.76rem;
+  font-weight: 900;
+  gap: 6px;
+  padding: 7px 9px;
+  white-space: nowrap;
+}
+
+.modePill,
+.badgeNeutral {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.badgeDanger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.badgeWarning {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.metricGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+.metric {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 14px;
+}
+
+.metric span,
+.metric small,
+.workRow small,
+.quoteBox small,
+.stageTile span,
+.vehicleHeader span {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.metric strong {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.metricDanger {
+  background: var(--danger-soft);
+}
+
+.metricGood {
+  background: var(--success-soft);
+}
+
+.metricWarning {
+  background: var(--warning-soft);
+}
+
+.metricNeutral {
+  background: var(--surface-soft);
+}
+
+.queuePanel {
+  margin-top: 16px;
+}
+
+.queueHeader span {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.workRows {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.workRow {
+  align-items: center;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1.2fr 0.75fr 1fr auto 1.3fr auto;
+  padding: 12px;
+}
+
+.customerBlock,
+.reasonBlock,
+.quoteBox > div {
+  display: grid;
+  gap: 4px;
+}
+
+.customerBlock span,
+.reasonBlock span,
+.reasonBlock em,
+.quoteBox span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-style: normal;
+}
+
+.reasonBlock em {
+  color: var(--warning);
+  font-weight: 800;
+}
+
+.workRow button {
+  background: white;
+  color: var(--brand-strong);
+  padding: 8px;
+}
+
+.twoColumn {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1.2fr 0.8fr;
+}
+
+.dealGrid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 14px;
+}
+
+.stageTile {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+}
+
+.quoteBox {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding: 12px;
+}
+
+.pipelineBars {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.pipelineBars span {
+  background: linear-gradient(90deg, var(--brand-soft) var(--bar-size), var(--surface-soft) var(--bar-size));
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 0.86rem;
+  font-weight: 900;
+  padding: 11px;
+}
+
+.vehicleGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 14px;
+}
+
+.vehicleCard {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 13px;
+}
+
+.vehicleHeader b {
+  align-items: center;
+  background: var(--brand);
+  border-radius: 8px;
+  color: white;
+  display: inline-flex;
+  height: 42px;
+  justify-content: center;
+  width: 42px;
+}
+
+.reasonChips,
+.leadHealth {
+  flex-wrap: wrap;
+}
+
+.reasonChips span,
+.leadHealth span {
+  align-items: center;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 0.76rem;
+  font-weight: 800;
+  gap: 6px;
+  padding: 7px 8px;
+}
+
+.commandCard {
+  display: grid;
+  gap: 14px;
+}
+
+.commandList {
+  display: grid;
+  gap: 8px;
+}
+
+.commandList article {
+  align-items: center;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto 1fr auto;
+  padding: 11px;
+}
+
+.commandList span {
+  color: var(--muted);
+  display: block;
+  font-size: 0.8rem;
+  margin-top: 2px;
+}
+
+.commandList b {
+  color: var(--brand-strong);
+  font-size: 1.35rem;
+}
+
+@media (max-width: 1180px) {
+  .grid,
+  .twoColumn {
+    grid-template-columns: 1fr;
+  }
+
+  .commandRail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .toolbar,
+  .sectionHeader,
+  .quoteBox {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .metricGrid,
+  .vehicleGrid,
+  .commandRail {
+    grid-template-columns: 1fr;
+  }
+
+  .workRow {
+    align-items: start;
+    grid-template-columns: 1fr;
+  }
+}
