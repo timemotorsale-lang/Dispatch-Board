@@ -653,6 +653,9 @@
 
 .rolePermissionList,
 .roleViewList,
+.priorityBriefList,
+.stateVerificationList,
+.emptyStateList,
 .dataSourceList,
 .acceptanceList,
 .actionGuardrailList,
@@ -670,6 +673,9 @@
 
 .rolePermissionList article,
 .roleViewList article,
+.priorityBriefList article,
+.stateVerificationList article,
+.emptyStateList article,
 .dataSourceList article,
 .actionGuardrailList article,
 .pilotReadinessList article,
@@ -686,6 +692,8 @@
 
 .rolePermissionList strong,
 .roleViewList strong,
+.stateVerificationList strong,
+.emptyStateList strong,
 .dataSourceList strong,
 .acceptanceList strong,
 .actionGuardrailList strong,
@@ -727,6 +735,11 @@
 .roleViewList span,
 .roleViewList small,
 .roleViewList em,
+.priorityBriefList span,
+.stateVerificationList span,
+.stateVerificationList small,
+.emptyStateList span,
+.emptyStateList small,
 .dataSourceList span,
 .dataSourceList small,
 .dataSourceList em,
@@ -752,6 +765,9 @@
 
 .rolePermissionList span,
 .roleViewList small,
+.stateVerificationList small,
+.emptyStateList span,
+.emptyStateList small,
 .dataSourceList span,
 .dataSourceList small,
 .acceptanceList span,
@@ -816,6 +832,40 @@
   font-size: 0.66rem;
   font-weight: 900;
   padding: 4px 7px;
+}
+
+.priorityBriefList article {
+  align-items: center;
+  background: var(--warning-soft);
+  border-color: rgba(180, 83, 9, 0.24);
+  display: flex;
+  gap: 8px;
+}
+
+.priorityBriefList svg {
+  color: var(--warning);
+  flex: 0 0 auto;
+}
+
+.priorityBriefList span {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.stateVerificationList article,
+.emptyStateList article {
+  align-items: start;
+  grid-template-columns: 1fr auto;
+}
+
+.stateVerificationList small,
+.emptyStateList small {
+  grid-column: 1 / -1;
+}
+
+.emptyStateList span {
+  color: var(--brand-strong);
+  font-weight: 900;
 }
 
 .actionGuardrailList article,
