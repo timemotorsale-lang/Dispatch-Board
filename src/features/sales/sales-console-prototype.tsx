@@ -31,6 +31,13 @@ import { salesConsoleMvpExecution } from "./sales-console-mvp-execution";
 import { salesConsoleMvpLiveDataContract } from "./sales-console-mvp-live-data-contract";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
+  enterpriseSourceContractsBlockWritesWhenMissing,
+  enterpriseSourceContractsCoverRequiredRecords,
+  enterpriseSourceContractsHaveHonestLabels,
+  enterpriseSourcesRemainSystemsOfRecord,
+  salesConsoleEnterpriseIntegrationReadModel
+} from "./sales-console-m9-crm-dms-integration-contracts";
+import {
   enterprisePermissionGatesDenyByDefault,
   salesConsoleEnterprisePermissionReadModel,
   sensitiveWorkflowsHavePermissionAndAuditCoverage
@@ -406,6 +413,35 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {enterprisePermissionGatesDenyByDefault() ? "Permission gates deny by default" : "Permission gate risk"}</span>
               <span><ShieldCheck size={13} /> {sensitiveWorkflowsHavePermissionAndAuditCoverage() ? "Sensitive workflows have audit and permission coverage" : "Coverage incomplete"}</span>
               {salesConsoleEnterprisePermissionReadModel.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Admin review CRM DMS integration contracts">
+            <div className={styles.railHeader}><h2>CRM/DMS Integration Contracts</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Enterprise source contracts define ownership, freshness, fallback labels, and source links without replacing CRM, DMS, finance, inventory, lead, task, or appointment systems.
+            </p>
+            <div className={styles.enterpriseIntegrationList}>
+              {salesConsoleEnterpriseIntegrationReadModel.contracts.map((contract) => (
+                <article key={contract.recordType}>
+                  <div>
+                    <strong>{contract.recordType}</strong>
+                    <span>{contract.owner} · {contract.mode}</span>
+                  </div>
+                  <span className={liveSourceStatusClass(contract.status)}>{contract.status}</span>
+                  <small>IDs: {contract.requiredIds.join(", ")}. Link: {contract.sourceLinkPattern}</small>
+                  <em>{contract.fallbackLabel} {contract.freshnessRule}</em>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {enterpriseSourcesRemainSystemsOfRecord() ? "Sources remain systems of record" : "Source ownership risk"}</span>
+              <span><ShieldCheck size={13} /> {enterpriseSourceContractsCoverRequiredRecords() ? "Required record types covered" : "Record coverage incomplete"}</span>
+              <span><ShieldCheck size={13} /> {enterpriseSourceContractsHaveHonestLabels() ? "Freshness and fallback labels present" : "Labels incomplete"}</span>
+              <span><ShieldCheck size={13} /> {enterpriseSourceContractsBlockWritesWhenMissing() ? "Missing sources block writes" : "Write-blocking incomplete"}</span>
+              {salesConsoleEnterpriseIntegrationReadModel.guardrails.map((guardrail) => (
                 <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
               ))}
             </div>

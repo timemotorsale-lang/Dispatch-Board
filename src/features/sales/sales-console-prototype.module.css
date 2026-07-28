@@ -669,6 +669,7 @@
 .auditEventList,
 .enterprisePermissionList,
 .enterpriseScopeList,
+.enterpriseIntegrationList,
 .priorityBriefList,
 .productionReadinessList,
 .surfaceBoundaryList,
@@ -695,6 +696,7 @@
 .auditEventList article,
 .enterprisePermissionList article,
 .enterpriseScopeList article,
+.enterpriseIntegrationList article,
 .priorityBriefList article,
 .productionReadinessList article,
 .surfaceBoundaryList article,
@@ -720,6 +722,7 @@
 .auditEventList strong,
 .enterprisePermissionList strong,
 .enterpriseScopeList strong,
+.enterpriseIntegrationList strong,
 .productionReadinessList strong,
 .surfaceBoundaryList strong,
 .stateVerificationList strong,
@@ -775,6 +778,9 @@
 .enterpriseScopeList span,
 .enterpriseScopeList small,
 .enterpriseScopeList em,
+.enterpriseIntegrationList span,
+.enterpriseIntegrationList small,
+.enterpriseIntegrationList em,
 .priorityBriefList span,
 .productionReadinessList span,
 .productionReadinessList small,
@@ -846,6 +852,7 @@
 .dataSourceList em,
 .auditEventList em,
 .enterpriseScopeList em,
+.enterpriseIntegrationList em,
 .executionDataList em,
 .roleViewList em,
 .liveSourceList em,
@@ -862,7 +869,8 @@
 
 .auditCoverageList article,
 .enterprisePermissionList article,
-.enterpriseScopeList article {
+.enterpriseScopeList article,
+.enterpriseIntegrationList article {
   align-items: start;
   gap: 7px;
   grid-template-columns: 1fr auto;
@@ -871,11 +879,14 @@
 .auditCoverageList small,
 .enterprisePermissionList small,
 .enterpriseScopeList small,
-.enterpriseScopeList em {
+.enterpriseScopeList em,
+.enterpriseIntegrationList small,
+.enterpriseIntegrationList em {
   grid-column: 1 / -1;
 }
 
-.enterpriseScopeList em {
+.enterpriseScopeList em,
+.enterpriseIntegrationList em {
   border-top: 1px solid var(--line);
   color: var(--brand-strong);
   display: block;

@@ -8,6 +8,7 @@ import { salesConsoleMvpDefinition } from "@/features/sales/sales-console-mvp-de
 import { salesConsoleMvpExecution } from "@/features/sales/sales-console-mvp-execution";
 import { salesConsoleMvpLiveDataContract } from "@/features/sales/sales-console-mvp-live-data-contract";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
+import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
 import { salesConsoleEnterprisePermissionReadModel } from "@/features/sales/sales-console-m9-enterprise-permissions";
 import { salesConsolePilotReadiness } from "@/features/sales/sales-console-mvp-pilot-readiness";
 import { salesConsoleProductionReadiness } from "@/features/sales/sales-console-mvp-production-readiness";
@@ -192,6 +193,21 @@ describe("Sales Console", () => {
       expect(markup).toContain(scope.storePlaceholder);
       expect(markup).toContain(scope.teamPlaceholder);
       expect(markup).toContain(scope.ownershipPlaceholder);
+    }
+  });
+
+  it("renders CRM/DMS integration contracts while preserving source systems", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("CRM/DMS Integration Contracts");
+    expect(markup).toContain("Sources remain systems of record");
+    expect(markup).toContain("Missing sources block writes");
+    for (const contract of salesConsoleEnterpriseIntegrationReadModel.contracts) {
+      expect(markup).toContain(contract.recordType);
+      expect(markup).toContain(contract.owner);
+      expect(markup).toContain(contract.fallbackLabel);
+      expect(markup).toContain(contract.freshnessRule);
+      expect(markup).toContain(contract.sourceLinkPattern);
     }
   });
 
