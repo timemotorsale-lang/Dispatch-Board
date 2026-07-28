@@ -9,6 +9,7 @@ import { salesConsoleMvpExecution } from "@/features/sales/sales-console-mvp-exe
 import { salesConsoleMvpLiveDataContract } from "@/features/sales/sales-console-mvp-live-data-contract";
 import { salesConsoleAuthAccessExamples } from "@/features/sales/sales-console-m10-auth-access";
 import { salesConsoleM10AdminOperationalSeparation } from "@/features/sales/sales-console-m10-admin-operational-separation";
+import { salesConsoleM10ManagerReviewRequestFoundation } from "@/features/sales/sales-console-m10-manager-review-request";
 import { salesConsoleM10ReadOnlySourceWiring } from "@/features/sales/sales-console-m10-read-only-source-wiring";
 import { salesConsoleRoleProductionViews } from "@/features/sales/sales-console-m10-production-views";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
@@ -217,6 +218,20 @@ describe("Sales Console", () => {
     expect(markup).toContain("Finance remains visibility-only");
     for (const guardrail of salesConsoleM10AdminOperationalSeparation.guardrails) {
       expect(markup).toContain(guardrail);
+    }
+  });
+
+  it("renders manager review request foundation without enabling submissions", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Manager Review Request Foundation");
+    expect(markup).toContain("Review requests remain disabled");
+    expect(markup).toContain("Fallback placeholders block submission");
+    for (const contract of salesConsoleM10ManagerReviewRequestFoundation.contracts) {
+      expect(markup).toContain(contract.requestType);
+      expect(contract.requestEnabled).toBe(false);
+      expect(contract.decisionEnabled).toBe(false);
+      expect(contract.sourceWriteEnabled).toBe(false);
     }
   });
 
