@@ -12,6 +12,7 @@ import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sal
 import { salesConsoleDealWorkflowReadModel } from "@/features/sales/sales-console-m9-deal-workflow";
 import { salesConsoleEnterprisePermissionReadModel } from "@/features/sales/sales-console-m9-enterprise-permissions";
 import { salesConsoleManagerApprovalReadModel } from "@/features/sales/sales-console-m9-manager-approvals";
+import { salesConsoleQuoteScenarioReadModel } from "@/features/sales/sales-console-m9-quote-scenario-builder";
 import { salesConsolePilotReadiness } from "@/features/sales/sales-console-mvp-pilot-readiness";
 import { salesConsoleProductionReadiness } from "@/features/sales/sales-console-mvp-production-readiness";
 import { salesConsoleReadAdapterPreview } from "@/features/sales/sales-console-mvp-read-adapters";
@@ -251,6 +252,22 @@ describe("Sales Console", () => {
       expect(gate.decisionEnabled).toBe(false);
       expect(gate.denyByDefault).toBe(true);
     }
+  });
+
+  it("renders quote scenario builder foundation as estimate-only", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Quote Scenario Builder Foundation");
+    expect(markup).toContain("Estimate-only scenarios");
+    expect(markup).toContain("Review and finance verification required");
+    expect(markup).toContain("Audit and permission coverage present");
+    for (const scenario of salesConsoleQuoteScenarioReadModel.scenarios) {
+      expect(markup).toContain(scenario.scenarioId);
+      expect(markup).toContain(scenario.version);
+      expect(scenario.enabled).toBe(false);
+      expect(scenario.estimateOnly).toBe(true);
+    }
+    expect(salesConsoleQuoteScenarioReadModel.submissionEnabled).toBe(false);
   });
 
   it("renders read-only guardrails for every excluded risky MVP action", () => {
