@@ -50,6 +50,13 @@ import {
   m10WiredSourcesUseNamedReadServices,
   salesConsoleM10ReadOnlySourceWiring
 } from "./sales-console-m10-read-only-source-wiring";
+import {
+  m10AdminReviewPanelsRequireAdminOwner,
+  m10FinanceIsOperationalVisibilityOnly,
+  m10OperatingRolesDoNotSeeAdminReview,
+  m10OperationalSurfacesHaveRoleOwners,
+  salesConsoleM10AdminOperationalSeparation
+} from "./sales-console-m10-admin-operational-separation";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -517,6 +524,42 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {m10ReadOnlySourcesHaveHonestFallbackLabels() ? "Fallback labels are honest" : "Fallback label gap"}</span>
               <span><ShieldCheck size={13} /> {m10WiredSourcesUseNamedReadServices() ? "Wired sources use named read services" : "Reader mapping gap"}</span>
               <span><ShieldCheck size={13} /> {m10UnavailableSourcesRemainBlocked() ? "Unavailable sources remain blocked" : "Unavailable source risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Admin operational separation foundation">
+            <div className={styles.railHeader}><h2>Admin / Operational Separation</h2><UsersRound size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM10AdminOperationalSeparation.boundary}</p>
+            <div className={styles.adminOperationalList}>
+              {salesConsoleM10AdminOperationalSeparation.operationalSurfaces.map((surface) => (
+                <article key={`${surface.mode}-${surface.surface}`}>
+                  <div>
+                    <strong>{surface.surface}</strong>
+                    <span>{surface.mode} · {surface.allowedRoles.join(", ")}</span>
+                  </div>
+                  <span className={styles.statusGood}>production view</span>
+                  <small>{surface.reason}</small>
+                </article>
+              ))}
+              {salesConsoleM10AdminOperationalSeparation.adminReviewSurfaces.map((surface) => (
+                <article key={`${surface.mode}-${surface.panel}`}>
+                  <div>
+                    <strong>{surface.panel}</strong>
+                    <span>{surface.mode} · {surface.allowedRoles.join(", ")}</span>
+                  </div>
+                  <span className={styles.statusWarning}>admin review</span>
+                  <small>{surface.reason}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {m10OperatingRolesDoNotSeeAdminReview() ? "Operating roles do not see Admin Review" : "Admin Review exposure risk"}</span>
+              <span><ShieldCheck size={13} /> {m10AdminReviewPanelsRequireAdminOwner() ? "Admin panels require Admin / Owner" : "Admin panel role gap"}</span>
+              <span><ShieldCheck size={13} /> {m10OperationalSurfacesHaveRoleOwners() ? "Operational surfaces have role owners" : "Operational ownership gap"}</span>
+              <span><ShieldCheck size={13} /> {m10FinanceIsOperationalVisibilityOnly() ? "Finance remains visibility-only" : "Finance decision risk"}</span>
+              {salesConsoleM10AdminOperationalSeparation.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
             </div>
           </section>
 
