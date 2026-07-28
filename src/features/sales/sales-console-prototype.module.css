@@ -1,29 +1,54 @@
 .console {
   color: var(--ink);
   display: grid;
-  gap: 16px;
+  gap: 12px;
   margin: 0 auto;
-  max-width: 1480px;
+  max-width: 1520px;
 }
 
-.toolbar,
-.moduleTabs,
-.workSurface,
-.panel,
-.commandCard,
-.queuePanel {
+.topbar,
+.panel {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
   box-shadow: var(--shadow-md);
 }
 
-.toolbar {
+.topbar {
   align-items: center;
-  display: flex;
+  display: grid;
   gap: 12px;
-  justify-content: space-between;
-  padding: 12px;
+  grid-template-columns: auto minmax(260px, 1fr) auto;
+  padding: 10px 12px;
+}
+
+.titleBlock span,
+.eyebrow,
+.metric span,
+.metric small,
+.workTable th,
+.workTable small,
+.compactTable th,
+.vehicleCopy span,
+.glanceGrid span,
+.glanceGrid small,
+.forecastList small,
+.guardrailCopy {
+  color: var(--muted);
+}
+
+.titleBlock h1 {
+  font-size: 1.25rem;
+  margin: 2px 0 0;
+}
+
+.titleBlock span,
+.eyebrow {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .search {
@@ -33,10 +58,9 @@
   border-radius: 8px;
   color: var(--muted);
   display: flex;
-  flex: 1;
-  gap: 10px;
-  min-width: 220px;
-  padding: 10px 12px;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
 }
 
 .search input {
@@ -49,388 +73,402 @@
   outline: 0;
 }
 
-.toolbarActions,
-.moduleTabs,
-.sectionHeader,
+.search kbd {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.topbarActions,
 .panelHeader,
-.queueHeader,
-.vehicleHeader,
-.reasonChips,
-.leadHealth {
+.headerActions,
+.railHeader,
+.customerCell,
+.leadHealth,
+.panelFooter {
   align-items: center;
   display: flex;
-  gap: 10px;
+  gap: 8px;
 }
 
-.toolbarActions button,
-.quoteBox button,
-.workRow button {
+.topbarActions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.topbarActions button,
+.headerActions button {
   align-items: center;
+  background: white;
   border: 1px solid var(--line);
   border-radius: 8px;
-  cursor: default;
+  color: var(--ink);
   display: inline-flex;
   font: inherit;
+  font-size: 0.78rem;
   font-weight: 800;
-  gap: 8px;
-  justify-content: center;
-  padding: 10px 12px;
+  gap: 6px;
+  padding: 8px 9px;
 }
 
-.toolbarActions button:first-child {
-  background: var(--warning-soft);
+.topbarActions b {
+  background: var(--danger);
+  border-radius: 999px;
+  color: white;
+  font-size: 0.68rem;
+  padding: 1px 5px;
+}
+
+.bodyGrid {
+  align-items: start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) 374px;
+}
+
+.mainColumn,
+.commandRail {
+  display: grid;
+  gap: 12px;
+}
+
+.panel {
+  min-width: 0;
+  padding: 12px;
+}
+
+.panelHeader,
+.railHeader,
+.panelFooter {
+  justify-content: space-between;
+}
+
+.panelHeader h2,
+.railHeader h2 {
+  font-size: 1rem;
+  margin: 2px 0 0;
+}
+
+.headerActions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.metricStrip {
+  border-bottom: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin: 12px -12px 0;
+}
+
+.metric {
+  border-right: 1px solid var(--line);
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 13px 14px;
+  text-align: center;
+}
+
+.metric:last-child {
+  border-right: 0;
+}
+
+.metric strong {
+  font-size: 1.7rem;
+  line-height: 1;
+}
+
+.toneDanger {
+  color: var(--danger);
+}
+
+.toneGood {
+  color: var(--success);
+}
+
+.toneWarning {
   color: var(--warning);
 }
 
-.toolbarActions button:last-child,
-.quoteBox button {
-  background: var(--brand);
-  color: white;
-}
-
-.moduleTabs {
-  flex-wrap: wrap;
-  padding: 6px;
-}
-
-.tab,
-.tabActive {
-  border-radius: 8px;
+.toneNeutral,
+.mutedText {
   color: var(--muted);
-  font-size: 0.86rem;
-  font-weight: 800;
-  padding: 9px 12px;
-  text-decoration: none;
 }
 
-.tabActive {
+.tableShell {
+  overflow-x: auto;
+}
+
+.workTable,
+.compactTable {
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  width: 100%;
+}
+
+.workTable th,
+.workTable td,
+.compactTable th,
+.compactTable td {
+  border-bottom: 1px solid var(--line);
+  padding: 9px 8px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.workTable th,
+.compactTable th {
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.workTable td strong,
+.workTable td small,
+.compactTable td strong,
+.compactTable td small,
+.vehicleCopy strong,
+.vehicleCopy span {
+  display: block;
+}
+
+.customerCell strong,
+.compactTable a {
+  color: var(--brand-strong);
+}
+
+.stagePill,
+.statusDanger,
+.statusGood,
+.statusWarning,
+.statusNeutral {
+  border-radius: 6px;
+  display: inline-flex;
+  font-size: 0.68rem;
+  font-weight: 900;
+  padding: 5px 7px;
+  white-space: nowrap;
+}
+
+.stagePill,
+.statusNeutral {
   background: var(--brand-soft);
   color: var(--brand-strong);
 }
 
-.grid {
-  align-items: start;
-  display: grid;
-  gap: 16px;
-  grid-template-columns: minmax(0, 1fr) 360px;
-}
-
-.mainStack,
-.commandRail {
-  display: grid;
-  gap: 16px;
-}
-
-.workSurface,
-.panel,
-.commandCard,
-.queuePanel {
-  padding: 16px;
-}
-
-.sectionHeader,
-.panelHeader,
-.queueHeader,
-.vehicleHeader {
-  justify-content: space-between;
-}
-
-.sectionHeader {
-  align-items: flex-start;
-  gap: 18px;
-}
-
-.eyebrow {
-  color: var(--muted);
-  display: block;
-  font-size: 0.72rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.sectionHeader h1,
-.panelHeader h2 {
-  margin: 5px 0 0;
-}
-
-.sectionHeader h1 {
-  font-size: clamp(1.75rem, 3vw, 3rem);
-  line-height: 1.04;
-  max-width: 760px;
-}
-
-.sectionHeader p,
-.guardrailCopy,
-.vehicleCard p {
-  color: var(--muted);
-  line-height: 1.6;
-  margin: 8px 0 0;
-}
-
-.modePill,
-.badgeDanger,
-.badgeWarning,
-.badgeNeutral {
-  align-items: center;
-  border-radius: 8px;
-  display: inline-flex;
-  font-size: 0.76rem;
-  font-weight: 900;
-  gap: 6px;
-  padding: 7px 9px;
-  white-space: nowrap;
-}
-
-.modePill,
-.badgeNeutral {
-  background: var(--surface-soft);
-  border: 1px solid var(--line);
-  color: var(--muted);
-}
-
-.badgeDanger {
+.statusDanger {
   background: var(--danger-soft);
   color: var(--danger);
 }
 
-.badgeWarning {
+.statusGood {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.statusWarning {
   background: var(--warning-soft);
   color: var(--warning);
 }
 
-.metricGrid {
-  display: grid;
-  gap: 10px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin-top: 16px;
+.dueText {
+  color: var(--danger) !important;
 }
 
-.metric {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  display: grid;
-  gap: 5px;
-  padding: 14px;
-}
-
-.metric span,
-.metric small,
-.workRow small,
-.quoteBox small,
-.stageTile span,
-.vehicleHeader span {
+.panelFooter {
   color: var(--muted);
-  font-size: 0.75rem;
-  font-weight: 800;
+  font-size: 0.78rem;
+  padding-top: 10px;
 }
 
-.metric strong {
-  font-size: 2rem;
-  line-height: 1;
+.panelFooter a,
+.railHeader a {
+  align-items: center;
+  color: var(--brand-strong);
+  display: inline-flex;
+  font-weight: 900;
+  gap: 4px;
+  text-decoration: none;
 }
 
-.metricDanger {
-  background: var(--danger-soft);
+.lowerGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 0.98fr) minmax(0, 1.02fr);
 }
 
-.metricGood {
-  background: var(--success-soft);
+.compactTable {
+  margin-top: 10px;
 }
 
-.metricWarning {
-  background: var(--warning-soft);
-}
-
-.metricNeutral {
-  background: var(--surface-soft);
-}
-
-.queuePanel {
-  margin-top: 16px;
-}
-
-.queueHeader span {
-  color: var(--muted);
-  font-size: 0.86rem;
-}
-
-.workRows {
+.vehicleList {
   display: grid;
   gap: 8px;
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
-.workRow {
+.vehicleRow {
   align-items: center;
   background: var(--surface-soft);
   border: 1px solid var(--line);
   border-radius: 8px;
   display: grid;
-  gap: 12px;
-  grid-template-columns: 1.2fr 0.75fr 1fr auto 1.3fr auto;
-  padding: 12px;
-}
-
-.customerBlock,
-.reasonBlock,
-.quoteBox > div {
-  display: grid;
-  gap: 4px;
-}
-
-.customerBlock span,
-.reasonBlock span,
-.reasonBlock em,
-.quoteBox span {
-  color: var(--muted);
-  font-size: 0.84rem;
-  font-style: normal;
-}
-
-.reasonBlock em {
-  color: var(--warning);
-  font-weight: 800;
-}
-
-.workRow button {
-  background: white;
-  color: var(--brand-strong);
+  gap: 9px;
+  grid-template-columns: 54px minmax(0, 1fr) auto minmax(98px, auto) auto;
   padding: 8px;
 }
 
-.twoColumn {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: 1.2fr 0.8fr;
-}
-
-.dealGrid {
-  display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: 14px;
-}
-
-.stageTile {
-  background: var(--surface-soft);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  display: grid;
-  gap: 4px;
-  padding: 12px;
-}
-
-.quoteBox {
-  align-items: center;
-  background: #f8fafc;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  display: flex;
-  gap: 14px;
-  justify-content: space-between;
-  margin-top: 12px;
-  padding: 12px;
-}
-
-.pipelineBars {
-  display: grid;
-  gap: 10px;
-  margin-top: 16px;
-}
-
-.pipelineBars span {
-  background: linear-gradient(90deg, var(--brand-soft) var(--bar-size), var(--surface-soft) var(--bar-size));
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  font-size: 0.86rem;
-  font-weight: 900;
-  padding: 11px;
-}
-
-.vehicleGrid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: 14px;
-}
-
-.vehicleCard {
-  background: var(--surface-soft);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  display: grid;
-  gap: 10px;
-  padding: 13px;
-}
-
-.vehicleHeader b {
-  align-items: center;
-  background: var(--brand);
-  border-radius: 8px;
-  color: white;
-  display: inline-flex;
-  height: 42px;
-  justify-content: center;
-  width: 42px;
-}
-
-.reasonChips,
-.leadHealth {
-  flex-wrap: wrap;
-}
-
-.reasonChips span,
-.leadHealth span {
+.vehicleThumb {
   align-items: center;
   background: white;
   border: 1px solid var(--line);
   border-radius: 8px;
-  color: var(--muted);
-  display: inline-flex;
-  font-size: 0.76rem;
-  font-weight: 800;
-  gap: 6px;
-  padding: 7px 8px;
+  color: var(--brand-strong);
+  display: flex;
+  height: 42px;
+  justify-content: center;
 }
 
-.commandCard {
+.scoreRing {
+  align-items: center;
+  border: 2px solid var(--success);
+  border-radius: 999px;
+  color: var(--success);
   display: grid;
-  gap: 14px;
+  font-weight: 900;
+  height: 44px;
+  justify-items: center;
+  line-height: 1;
+  width: 44px;
 }
 
-.commandList {
+.scoreRing small {
+  color: var(--muted);
+  font-size: 0.58rem;
+}
+
+.commandRail .panel {
+  padding: 12px;
+}
+
+.glanceGrid {
+  display: grid;
+  gap: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 8px;
+}
+
+.glanceGrid div {
+  border-bottom: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  display: grid;
+  gap: 3px;
+  padding: 9px;
+}
+
+.glanceGrid div:nth-child(even) {
+  border-right: 0;
+}
+
+.glanceGrid strong {
+  color: var(--brand-strong);
+  font-size: 1.2rem;
+}
+
+.railList,
+.forecastList,
+.opportunityList {
   display: grid;
   gap: 8px;
+  margin-top: 8px;
 }
 
-.commandList article {
+.railList div {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 7px 0;
+}
+
+.railList strong {
+  color: var(--danger);
+}
+
+.forecastList div {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr auto auto 70px;
+}
+
+.forecastList i {
+  background: linear-gradient(90deg, var(--brand-strong) var(--bar-size), var(--line) var(--bar-size));
+  border-radius: 999px;
+  height: 5px;
+}
+
+.leadHealth {
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.leadHealth span {
   align-items: center;
   background: var(--surface-soft);
   border: 1px solid var(--line);
   border-radius: 8px;
-  display: grid;
-  gap: 10px;
-  grid-template-columns: auto 1fr auto;
-  padding: 11px;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 0.74rem;
+  font-weight: 800;
+  gap: 5px;
+  padding: 7px;
 }
 
-.commandList span {
+.opportunityList article {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  padding: 8px 0;
+}
+
+.opportunityList span {
   color: var(--muted);
   display: block;
-  font-size: 0.8rem;
-  margin-top: 2px;
+  font-size: 0.74rem;
 }
 
-.commandList b {
-  color: var(--brand-strong);
-  font-size: 1.35rem;
+.opportunityList small {
+  background: var(--success-soft);
+  border-radius: 6px;
+  color: var(--success);
+  font-weight: 900;
+  padding: 5px 7px;
 }
 
-@media (max-width: 1180px) {
-  .grid,
-  .twoColumn {
+.guardrailCopy {
+  font-size: 0.78rem;
+  line-height: 1.55;
+  margin: 8px 0 0;
+}
+
+.hiddenSmokeText {
+  display: none;
+}
+
+@media (max-width: 1220px) {
+  .topbar,
+  .bodyGrid,
+  .lowerGrid {
     grid-template-columns: 1fr;
+  }
+
+  .topbarActions {
+    justify-content: flex-start;
   }
 
   .commandRail {
@@ -438,22 +476,21 @@
   }
 }
 
-@media (max-width: 860px) {
-  .toolbar,
-  .sectionHeader,
-  .quoteBox {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .metricGrid,
-  .vehicleGrid,
-  .commandRail {
+@media (max-width: 760px) {
+  .metricStrip,
+  .commandRail,
+  .glanceGrid {
     grid-template-columns: 1fr;
   }
 
-  .workRow {
-    align-items: start;
+  .metric,
+  .glanceGrid div {
+    border-right: 0;
+  }
+
+  .vehicleRow,
+  .forecastList div,
+  .opportunityList article {
     grid-template-columns: 1fr;
   }
 }

@@ -31,6 +31,10 @@ Build-ready additions for the next implementation pass:
 - [SALES_DATA_MODEL.md](SALES_DATA_MODEL.md) - sales-owned entities, reference objects, event backbone, derived read models, and data-quality rules.
 - [SALES_UI_IMPLEMENTATION_PLAN.md](SALES_UI_IMPLEMENTATION_PLAN.md) - navigation, dashboard views, deal desk, inventory intelligence, manager command center, components, and first UI tickets.
 
+Visual approval reference:
+
+- [assets/enterprise-sales-console-review-mockup-v1.png](assets/enterprise-sales-console-review-mockup-v1.png) - enterprise Sales Console mockup used as the visual source of truth for the `/sales` prototype.
+
 ## Product boundaries
 
 | Domain | Authoritative responsibility | Sales Console use |

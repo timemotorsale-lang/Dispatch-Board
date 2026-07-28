@@ -3,6 +3,7 @@
 **Status:** Build-ready planning baseline; documentation only  
 **Product area:** `/sales`  
 **Companion docs:** `SALES_CONSOLE_PRODUCT_REQUIREMENTS.md`, `SALES_DATA_MODEL.md`, `SALES_WORKFLOW_CATALOG.md`
+**Approval reference:** `assets/enterprise-sales-console-review-mockup-v1.png`
 
 ## 1. UI intent
 
@@ -15,6 +16,8 @@ The Sales Console UI should be a dense, fast operating surface for repeated deal
 - What changed since I last looked?
 
 The UI should borrow the best patterns from enterprise systems: Salesforce-style record depth and pipeline discipline, ServiceNow-style queues and workflow state, vAuto-style inventory intelligence and market awareness, and dealership-specific deal desk control.
+
+The first coded `/sales` prototype should use `assets/enterprise-sales-console-review-mockup-v1.png` as the visual source of truth: dense navigation, compact top toolbar, KPI strip, ranked work table, right-side Manager Command Center, Deal Desk, and Inventory Intelligence in one reviewable operating surface.
 
 ## 2. Information architecture
 
