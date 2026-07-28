@@ -8,6 +8,7 @@ import { salesConsoleMvpDefinition } from "@/features/sales/sales-console-mvp-de
 import { salesConsoleMvpExecution } from "@/features/sales/sales-console-mvp-execution";
 import { salesConsoleMvpLiveDataContract } from "@/features/sales/sales-console-mvp-live-data-contract";
 import { salesConsoleAuthAccessExamples } from "@/features/sales/sales-console-m10-auth-access";
+import { salesConsoleM10AdminOperationalSeparation } from "@/features/sales/sales-console-m10-admin-operational-separation";
 import { salesConsoleM10ReadOnlySourceWiring } from "@/features/sales/sales-console-m10-read-only-source-wiring";
 import { salesConsoleRoleProductionViews } from "@/features/sales/sales-console-m10-production-views";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
@@ -204,6 +205,18 @@ describe("Sales Console", () => {
       expect(markup).toContain(wire.sourceSystem);
       expect(markup).toContain(wire.guardrail);
       expect(wire.writeEnabled).toBe(false);
+    }
+  });
+
+  it("renders admin operational separation for production review", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Admin / Operational Separation");
+    expect(markup).toContain("Operating roles do not see Admin Review");
+    expect(markup).toContain("Admin panels require Admin / Owner");
+    expect(markup).toContain("Finance remains visibility-only");
+    for (const guardrail of salesConsoleM10AdminOperationalSeparation.guardrails) {
+      expect(markup).toContain(guardrail);
     }
   });
 
