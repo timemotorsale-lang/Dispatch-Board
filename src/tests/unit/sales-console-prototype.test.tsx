@@ -9,6 +9,7 @@ import { salesConsoleMvpExecution } from "@/features/sales/sales-console-mvp-exe
 import { salesConsoleMvpLiveDataContract } from "@/features/sales/sales-console-mvp-live-data-contract";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
+import { salesConsoleDealWorkflowReadModel } from "@/features/sales/sales-console-m9-deal-workflow";
 import { salesConsoleEnterprisePermissionReadModel } from "@/features/sales/sales-console-m9-enterprise-permissions";
 import { salesConsolePilotReadiness } from "@/features/sales/sales-console-mvp-pilot-readiness";
 import { salesConsoleProductionReadiness } from "@/features/sales/sales-console-mvp-production-readiness";
@@ -208,6 +209,26 @@ describe("Sales Console", () => {
       expect(markup).toContain(contract.fallbackLabel);
       expect(markup).toContain(contract.freshnessRule);
       expect(markup).toContain(contract.sourceLinkPattern);
+    }
+  });
+
+  it("renders deal workflow foundation without enabling approvals or source writes", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Deal Workflow Foundation");
+    expect(markup).toContain("Deal workflow remains read-only");
+    expect(markup).toContain("Salesperson cannot approve or finance");
+    for (const transition of salesConsoleDealWorkflowReadModel.transitions) {
+      expect(markup).toContain(transition.label);
+      expect(markup).toContain(transition.from);
+      expect(markup).toContain(transition.to);
+      expect(transition.enabled).toBe(false);
+      expect(transition.sourceWrite).toBe(false);
+    }
+    for (const review of salesConsoleDealWorkflowReadModel.managerReviewPlaceholders) {
+      expect(markup).toContain(review.dealId);
+      expect(markup).toContain(review.auditEventType);
+      expect(review.enabled).toBe(false);
     }
   });
 
