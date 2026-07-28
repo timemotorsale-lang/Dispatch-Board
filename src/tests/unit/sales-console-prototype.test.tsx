@@ -7,6 +7,7 @@ import SalesPage from "@/app/(app)/sales/page";
 import { salesConsoleMvpDefinition } from "@/features/sales/sales-console-mvp-definition";
 import { salesConsoleMvpExecution } from "@/features/sales/sales-console-mvp-execution";
 import { salesConsoleMvpLiveDataContract } from "@/features/sales/sales-console-mvp-live-data-contract";
+import { salesConsoleRoleProductionViews } from "@/features/sales/sales-console-m10-production-views";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
@@ -162,6 +163,20 @@ describe("Sales Console", () => {
     for (const state of salesConsoleProductionReadiness.emptyStates) {
       expect(markup).toContain(state.userMessage);
       expect(markup).toContain(state.verification);
+    }
+  });
+
+  it("renders role-specific production views with admin review restricted from ordinary roles", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Role-Specific Production Views");
+    expect(markup).toContain("Admin panels restricted from operating roles");
+    expect(markup).toContain("Ordinary roles do not see Admin Review");
+    expect(markup).toContain("Role-specific empty states present");
+    for (const view of salesConsoleRoleProductionViews) {
+      expect(markup).toContain(view.label);
+      expect(markup).toContain(`Primary: ${view.primarySurface}`);
+      expect(markup).toContain(view.emptyState);
     }
   });
 
