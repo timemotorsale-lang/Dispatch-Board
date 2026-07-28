@@ -65,6 +65,56 @@ describe("Sales Console prototype", () => {
     expect(markup).toContain("Enterprise guardrails");
   });
 
+  it("renders the recommended MVP boundary for release control", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Recommended MVP Boundary");
+    expect(markup).toContain(salesConsoleMvpDefinition.recommendedMvpBoundary.recommendation);
+    expect(markup).toContain(salesConsoleMvpDefinition.recommendedMvpBoundary.releaseLine);
+    expect(salesConsoleMvpDefinition.recommendedMvpBoundary.nonNegotiables).toHaveLength(6);
+    for (const item of salesConsoleMvpDefinition.recommendedMvpBoundary.nonNegotiables) {
+      expect(markup).toContain(item);
+    }
+  });
+
+  it("renders MVP roles and permissions for pilot access review", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("MVP Roles &amp; Permissions");
+    expect(salesConsoleMvpDefinition.rolesAndPermissions).toHaveLength(4);
+    for (const role of salesConsoleMvpDefinition.rolesAndPermissions) {
+      expect(markup).toContain(role.role);
+      expect(markup).toContain(role.mvpControl);
+    }
+    expect(markup).toContain("Sales Manager");
+    expect(markup).toContain("BDC / Lead Coordinator");
+  });
+
+  it("renders the MVP data source map for data-trust review", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("MVP Data Source Map");
+    expect(salesConsoleMvpDefinition.dataSourceMap).toHaveLength(6);
+    for (const source of salesConsoleMvpDefinition.dataSourceMap) {
+      expect(markup).toContain(source.surface);
+      expect(markup).toContain(source.fallback);
+    }
+    expect(markup).toContain("Inventory Intelligence");
+    expect(markup).toContain("Customer and source links");
+  });
+
+  it("renders the MVP pilot acceptance checklist for release readiness", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("MVP Pilot Acceptance Checklist");
+    expect(salesConsoleMvpDefinition.pilotAcceptanceChecklist).toHaveLength(7);
+    for (const check of salesConsoleMvpDefinition.pilotAcceptanceChecklist) {
+      expect(markup).toContain(check.item);
+      expect(markup).toContain(check.owner);
+    }
+    expect(markup).toContain("No risky write actions are active");
+  });
+
   it("renders MVP exclusions so the pilot scope stays controlled", () => {
     const markup = renderToStaticMarkup(<SalesConsolePrototype />);
 

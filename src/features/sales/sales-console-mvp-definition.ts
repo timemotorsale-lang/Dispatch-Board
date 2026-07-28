@@ -15,6 +15,165 @@ export const salesConsoleMvpDefinition = {
     "Discount approvals"
   ],
   operatingBoundary: "Read-only MVP foundation. No high-risk sales actions are authorized.",
+  recommendedMvpBoundary: {
+    recommendation: "Launch the Sales Console MVP as a read-only command surface, not a transaction system.",
+    releaseLine: "The MVP should help users see, prioritize, and investigate sales work; it should not yet send messages, submit quotes, reserve inventory, approve discounts, or make finance decisions.",
+    pilotMode: "Limited pilot with selected salespeople, managers, and admin users using realistic data and disabled future-action controls.",
+    successStandard: "A pilot user can open /sales, understand the most important sales work within 30 seconds, identify blockers, and move to the correct source record without duplicate entry.",
+    expansionTrigger: "Only expand into write actions after data trust, role permissions, audit posture, and manager review workflows pass the decision gates.",
+    nonNegotiables: [
+      "Read-only first",
+      "No high-risk sales actions",
+      "Source records remain the system of record",
+      "Blocked, stale, or placeholder data must be labeled",
+      "Managers must see risk before sellers are asked to act",
+      "Every MVP surface must have a future workflow path"
+    ]
+  },
+  rolesAndPermissions: [
+    {
+      role: "Salesperson",
+      canSee: [
+        "Own daily work queue",
+        "Assigned leads and customer context",
+        "Matched inventory with readiness labels",
+        "Own read-only deal status"
+      ],
+      cannotDo: [
+        "Approve discounts",
+        "Submit quotes",
+        "Reserve vehicles",
+        "Trigger automated customer messaging"
+      ],
+      mvpControl: "Default pilot role focused on visibility, prioritization, and source-record navigation."
+    },
+    {
+      role: "Sales Manager",
+      canSee: [
+        "Team risk queues",
+        "Approval placeholders",
+        "Lead SLA health",
+        "Deal desk visibility",
+        "Forecast and top opportunities"
+      ],
+      cannotDo: [
+        "Finalize discount approvals inside MVP",
+        "Override finance outcomes",
+        "Bypass data-quality warnings"
+      ],
+      mvpControl: "Manager role reviews risk and blockers first; write approvals remain future workflow."
+    },
+    {
+      role: "BDC / Lead Coordinator",
+      canSee: [
+        "Lead intake health",
+        "New, stale, unassigned, and duplicate-review leads",
+        "Appointment signals",
+        "Customer follow-up context"
+      ],
+      cannotDo: [
+        "Change deal structure",
+        "Reserve inventory",
+        "Automate outbound messaging from the console"
+      ],
+      mvpControl: "Lead-operations visibility role for preventing leakage without creating new sales actions."
+    },
+    {
+      role: "Admin / Owner",
+      canSee: [
+        "All MVP planning panels",
+        "All pilot readiness indicators",
+        "Role and data-source configuration status",
+        "Future action placeholders"
+      ],
+      cannotDo: [
+        "Turn on risky writes without a future release gate",
+        "Treat placeholder data as production truth"
+      ],
+      mvpControl: "Administrative visibility for setup, review, and controlled expansion decisions."
+    }
+  ],
+  dataSourceMap: [
+    {
+      surface: "Salesperson Today",
+      source: "Existing task, lead, customer, appointment, and vehicle records",
+      fields: "Customer, phone, vehicle, stage, next action, freshness, due state, blocker, reason",
+      freshness: "Near-real-time or clearly timestamped",
+      fallback: "Show placeholder, stale, or missing-data label instead of hiding risk."
+    },
+    {
+      surface: "Lead Operations",
+      source: "Lead intake, assignment, activity, duplicate-review, and appointment records",
+      fields: "New leads, contacted count, SLA risk, unassigned leads, dedupe review, appointment count",
+      freshness: "Same-day operational freshness",
+      fallback: "Display lead-health unavailable state with source-owner note."
+    },
+    {
+      surface: "Manager Command Center",
+      source: "Aggregated sales queue, lead health, deal status, activity, and forecast placeholders",
+      fields: "Risk queues, approvals-needed placeholders, delivery blockers, forecast, top opportunities",
+      freshness: "Dashboard values must show last refreshed context when connected",
+      fallback: "Keep cards visible with planned/placeholder labeling."
+    },
+    {
+      surface: "Inventory Intelligence",
+      source: "Vehicle inventory, readiness, availability, pricing, and customer-fit signals",
+      fields: "Vehicle, stock number, match customer, fit score, status, blocker detail, price",
+      freshness: "Availability and blocker fields must be current enough for showroom use",
+      fallback: "Do not recommend as clean; show blocked, stale, or verify-first status."
+    },
+    {
+      surface: "Deal Desk",
+      source: "Deal records, scenario placeholders, payment labels, and approval status",
+      fields: "Deal ID, customer, vehicle, scenario/version, estimated payment, approval state",
+      freshness: "Read-only deal status should reflect latest trusted source state",
+      fallback: "Show visibility-only placeholder; do not permit submission."
+    },
+    {
+      surface: "Customer and source links",
+      source: "Customer 360, appointment, task, vehicle, and deal source records",
+      fields: "Stable IDs, source links, ownership, and context labels",
+      freshness: "Links should resolve to current source records",
+      fallback: "Disable broken links and label missing source context."
+    }
+  ],
+  pilotAcceptanceChecklist: [
+    {
+      item: "Sales Console opens reliably",
+      proof: "/sales route loads for authorized pilot users with clear loading and unavailable states.",
+      owner: "Admin / technical owner"
+    },
+    {
+      item: "Roles expose the right visibility",
+      proof: "Salesperson, manager, BDC, and admin views show only appropriate MVP information.",
+      owner: "Sales manager and admin"
+    },
+    {
+      item: "Data is understandable and honest",
+      proof: "Missing, stale, blocked, or placeholder records are labeled clearly instead of implied as trusted.",
+      owner: "Sales operations"
+    },
+    {
+      item: "Daily priorities are obvious",
+      proof: "Pilot users can identify must-do-now work, blockers, and next source record within 30 seconds.",
+      owner: "Pilot sales users"
+    },
+    {
+      item: "No risky write actions are active",
+      proof: "Messaging, quote submission, vehicle holds, finance decisions, and discount approvals remain disabled or planned.",
+      owner: "Manager / owner"
+    },
+    {
+      item: "Manager risk view is useful",
+      proof: "Managers can see lead leakage, stale deals, approval placeholders, blockers, and top opportunities.",
+      owner: "Sales manager"
+    },
+    {
+      item: "Pilot feedback is captured",
+      proof: "Review notes identify usability issues, missing fields, data concerns, and next release candidates.",
+      owner: "Product / implementation owner"
+    }
+  ],
   includedInMvp: [
     {
       area: "Console shell and navigation",

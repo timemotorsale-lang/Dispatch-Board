@@ -443,6 +443,67 @@ export function SalesConsolePrototype() {
           </section>
 
           <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Recommended MVP Boundary</h2><CheckCircle2 size={18} /></div>
+            <div className={styles.boundaryCard}>
+              <strong>{salesConsoleMvpDefinition.recommendedMvpBoundary.recommendation}</strong>
+              <span>{salesConsoleMvpDefinition.recommendedMvpBoundary.releaseLine}</span>
+              <small>Pilot mode: {salesConsoleMvpDefinition.recommendedMvpBoundary.pilotMode}</small>
+              <small>Success standard: {salesConsoleMvpDefinition.recommendedMvpBoundary.successStandard}</small>
+              <em>Expansion trigger: {salesConsoleMvpDefinition.recommendedMvpBoundary.expansionTrigger}</em>
+            </div>
+            <div className={styles.boundaryList}>
+              {salesConsoleMvpDefinition.recommendedMvpBoundary.nonNegotiables.map((item) => (
+                <span key={item}><ShieldCheck size={13} /> {item}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>MVP Roles &amp; Permissions</h2><UserRoundCheck size={18} /></div>
+            <div className={styles.rolePermissionList}>
+              {salesConsoleMvpDefinition.rolesAndPermissions.map((role) => (
+                <article key={role.role}>
+                  <strong>{role.role}</strong>
+                  <span>Can see: {role.canSee.join("; ")}</span>
+                  <span>Cannot do: {role.cannotDo.join("; ")}</span>
+                  <small>{role.mvpControl}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>MVP Data Source Map</h2><Gauge size={18} /></div>
+            <div className={styles.dataSourceList}>
+              {salesConsoleMvpDefinition.dataSourceMap.map((source) => (
+                <article key={source.surface}>
+                  <strong>{source.surface}</strong>
+                  <span>{source.source}</span>
+                  <small>Fields: {source.fields}</small>
+                  <small>Freshness: {source.freshness}</small>
+                  <em>Fallback: {source.fallback}</em>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>MVP Pilot Acceptance Checklist</h2><ClipboardCheck size={18} /></div>
+            <div className={styles.acceptanceList}>
+              {salesConsoleMvpDefinition.pilotAcceptanceChecklist.map((check) => (
+                <article key={check.item}>
+                  <CheckCircle2 size={14} />
+                  <div>
+                    <strong>{check.item}</strong>
+                    <span>{check.proof}</span>
+                    <small>Owner: {check.owner}</small>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
             <div className={styles.railHeader}><h2>What Is Included In The MVP</h2><FileCheck2 size={18} /></div>
             <div className={styles.includedMvpList}>
               {salesConsoleMvpDefinition.includedInMvp.map((item) => (
