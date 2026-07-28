@@ -38,6 +38,12 @@ import {
   salesConsoleEnterpriseIntegrationReadModel
 } from "./sales-console-m9-crm-dms-integration-contracts";
 import {
+  dealWorkflowIsReadOnly,
+  dealWorkflowRequiresAuditAndPermission,
+  salesConsoleDealWorkflowReadModel,
+  salespersonCannotApproveOrFinance
+} from "./sales-console-m9-deal-workflow";
+import {
   enterprisePermissionGatesDenyByDefault,
   salesConsoleEnterprisePermissionReadModel,
   sensitiveWorkflowsHavePermissionAndAuditCoverage
@@ -442,6 +448,45 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {enterpriseSourceContractsHaveHonestLabels() ? "Freshness and fallback labels present" : "Labels incomplete"}</span>
               <span><ShieldCheck size={13} /> {enterpriseSourceContractsBlockWritesWhenMissing() ? "Missing sources block writes" : "Write-blocking incomplete"}</span>
               {salesConsoleEnterpriseIntegrationReadModel.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Admin review deal workflow foundation">
+            <div className={styles.railHeader}><h2>Deal Workflow Foundation</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Deal workflow is planned as audited stage movement only. Source-system writes, discount approvals, and finance decisions remain disabled.
+            </p>
+            <div className={styles.enterpriseDealWorkflowList}>
+              {salesConsoleDealWorkflowReadModel.transitions.map((transition) => (
+                <article key={`${transition.from}-${transition.to}`}>
+                  <div>
+                    <strong>{transition.label}</strong>
+                    <span>{transition.from} → {transition.to}</span>
+                  </div>
+                  <span className={styles.statusWarning}>{transition.requiredRole}</span>
+                  <small>Audit required: {String(transition.auditRequired)}. Source write: {String(transition.sourceWrite)}. Enabled: {String(transition.enabled)}.</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.enterpriseDealWorkflowList}>
+              {salesConsoleDealWorkflowReadModel.managerReviewPlaceholders.map((review) => (
+                <article key={review.dealId}>
+                  <div>
+                    <strong>{review.dealId}</strong>
+                    <span>{review.auditEventType} · {review.managerAction}</span>
+                  </div>
+                  <span className={styles.statusNeutral}>{review.status}</span>
+                  <small>Reason required: {String(review.reasonRequired)}. Source record required: {String(review.sourceRecordRequired)}. Enabled: {String(review.enabled)}.</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {dealWorkflowIsReadOnly() ? "Deal workflow remains read-only" : "Deal workflow write risk"}</span>
+              <span><ShieldCheck size={13} /> {dealWorkflowRequiresAuditAndPermission() ? "Audit and permission gates required" : "Gate coverage incomplete"}</span>
+              <span><ShieldCheck size={13} /> {salespersonCannotApproveOrFinance() ? "Salesperson cannot approve or finance" : "Salesperson authority risk"}</span>
+              {salesConsoleDealWorkflowReadModel.guardrails.map((guardrail) => (
                 <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
               ))}
             </div>
