@@ -17,6 +17,7 @@ import { salesConsoleM11ReadOnlyFeatureFlags } from "@/features/sales/sales-cons
 import { salesConsoleM11RoleFeatureAccess } from "@/features/sales/sales-console-m11-role-feature-access";
 import { salesConsoleM11RoleVerificationSummary } from "@/features/sales/sales-console-m11-role-verification";
 import { salesConsoleM11StaffRoleModel } from "@/features/sales/sales-console-m11-staff-role-model";
+import { salesConsoleM12AdminDogfoodLandingSummary } from "@/features/sales/sales-console-m12-admin-dogfood-landing-summary";
 import { salesConsoleM12DefaultRoleLandingHeader } from "@/features/sales/sales-console-m12-role-landing-header";
 import { salesConsoleM12RoleLandingExperiences } from "@/features/sales/sales-console-m12-role-landing-model";
 import { salesConsoleM12RoleEmptyPlannedStates } from "@/features/sales/sales-console-m12-role-empty-planned-states";
@@ -312,6 +313,18 @@ describe("Sales Console", () => {
     for (const state of salesConsoleM12RoleEmptyPlannedStates) {
       expect(markup).toContain(state.emptyState);
       expect(markup).toContain(state.plannedNext);
+    }
+  });
+
+  it("renders the M12 admin dogfood landing readiness summary", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M12 Admin Dogfood Landing Summary");
+    expect(markup).toContain("Role landing summary passes");
+    expect(markup).toContain("Separate role routes remain deferred");
+    expect(markup).toContain(`${salesConsoleM12AdminDogfoodLandingSummary.dogfoodReadinessEstimate}% role landing readiness`);
+    for (const item of salesConsoleM12AdminDogfoodLandingSummary.remainingBeforeDogfood) {
+      expect(markup).toContain(item);
     }
   });
 
