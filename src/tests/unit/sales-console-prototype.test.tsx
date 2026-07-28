@@ -27,6 +27,7 @@ import { salesConsoleM13FeedbackCategories } from "@/features/sales/sales-consol
 import { salesConsoleM13DogfoodGates } from "@/features/sales/sales-console-m13-dogfood-gates";
 import { salesConsoleM13ReleaseObservability } from "@/features/sales/sales-console-m13-release-observability";
 import { salesConsoleM13StaffPilotGuide } from "@/features/sales/sales-console-m13-staff-pilot-guide";
+import { salesConsoleM14OperationalTabAudit } from "@/features/sales/sales-console-m14-operational-tab-audit";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
@@ -393,6 +394,19 @@ describe("Sales Console", () => {
     for (const gate of salesConsoleM13DogfoodGates) {
       expect(markup).toContain(gate.gate);
       expect(markup).toContain(gate.mergeGate);
+    }
+  });
+
+  it("renders the M14 operational tab audit", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M14 Operational Tab Audit");
+    expect(markup).toContain("Placeholder-heavy surfaces identified");
+    expect(markup).toContain("Planning panels marked for demotion");
+    expect(markup).toContain("Future write actions remain planned");
+    for (const item of salesConsoleM14OperationalTabAudit) {
+      expect(markup).toContain(item.surface);
+      expect(markup).toContain(item.action);
     }
   });
 

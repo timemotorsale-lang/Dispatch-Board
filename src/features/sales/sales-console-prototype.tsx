@@ -155,6 +155,12 @@ import {
   salesConsoleM13DogfoodGatesRequireEvidence,
   salesConsoleM13ProductionPilotStillWaits
 } from "./sales-console-m13-dogfood-gates";
+import {
+  salesConsoleM14AuditDemotesPlanningPanels,
+  salesConsoleM14AuditIdentifiesPlaceholderHeavySurfaces,
+  salesConsoleM14AuditKeepsWritesPlanned,
+  salesConsoleM14OperationalTabAudit
+} from "./sales-console-m14-operational-tab-audit";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -915,6 +921,28 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM13DogfoodGatesCoverReleasePath() ? "Dogfood gates cover release path" : "Dogfood gate coverage gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM13DogfoodGatesRequireEvidence() ? "Each gate requires evidence" : "Gate evidence gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM13ProductionPilotStillWaits() ? "Production pilot still waits" : "Production pilot risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M14 operational tab audit">
+            <div className={styles.railHeader}><h2>M14 Operational Tab Audit</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Dogfooding showed placeholder fatigue. This audit classifies each major surface before we deepen the read-only operating views.
+            </p>
+            <div className={styles.operationalTabAuditList}>
+              {salesConsoleM14OperationalTabAudit.map((item) => (
+                <article key={item.surface}>
+                  <strong>{item.surface}</strong>
+                  <span className={item.status === "live-read-only" ? styles.statusGood : item.status === "planned" ? styles.statusNeutral : styles.statusWarning}>{item.status}</span>
+                  <small>{item.reason}</small>
+                  <em>{item.action}</em>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM14AuditIdentifiesPlaceholderHeavySurfaces() ? "Placeholder-heavy surfaces identified" : "Placeholder audit gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14AuditDemotesPlanningPanels() ? "Planning panels marked for demotion" : "Planning panel noise risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM14AuditKeepsWritesPlanned() ? "Future write actions remain planned" : "Write action risk"}</span>
             </div>
           </section>
 
