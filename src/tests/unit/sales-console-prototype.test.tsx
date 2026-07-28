@@ -23,6 +23,7 @@ import { salesConsoleM12RoleLandingExperiences } from "@/features/sales/sales-co
 import { salesConsoleM12RoleEmptyPlannedStates } from "@/features/sales/sales-console-m12-role-empty-planned-states";
 import { salesConsoleM12RoleStartCards } from "@/features/sales/sales-console-m12-role-start-cards";
 import { salesConsoleM13DogfoodReadiness } from "@/features/sales/sales-console-m13-dogfood-readiness";
+import { salesConsoleM13StaffPilotGuide } from "@/features/sales/sales-console-m13-staff-pilot-guide";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
@@ -339,6 +340,19 @@ describe("Sales Console", () => {
     for (const audience of salesConsoleM13DogfoodReadiness.audience) {
       expect(markup).toContain(audience.label);
       expect(markup).toContain(audience.reason);
+    }
+  });
+
+  it("renders the M13 staff pilot guide", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M13 Staff Pilot Guide");
+    expect(markup).toContain("Guide explains what it is/is not");
+    expect(markup).toContain("Guide covers staff and managers");
+    expect(markup).toContain(salesConsoleM13StaffPilotGuide.whatItIsNot);
+    for (const item of salesConsoleM13StaffPilotGuide.guideItems) {
+      expect(markup).toContain(item.title);
+      expect(markup).toContain(item.instruction);
     }
   });
 

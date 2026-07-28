@@ -133,6 +133,11 @@ import {
   salesConsoleM13DogfoodReadinessKeepsWritesDisabled,
   salesConsoleM13DogfoodRequiresOwnerReview
 } from "./sales-console-m13-dogfood-readiness";
+import {
+  salesConsoleM13PilotGuideCoversStaffAndManagers,
+  salesConsoleM13PilotGuideExplainsWhatItIsAndIsNot,
+  salesConsoleM13StaffPilotGuide
+} from "./sales-console-m13-staff-pilot-guide";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -800,6 +805,28 @@ export function SalesConsolePrototype() {
               {salesConsoleM13DogfoodReadiness.stillDisabled.map((item) => (
                 <span key={item}><ShieldCheck size={13} /> {item}</span>
               ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M13 staff pilot guide">
+            <div className={styles.railHeader}><h2>M13 Staff Pilot Guide</h2><HelpCircle size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM13StaffPilotGuide.whatItIs}</p>
+            <div className={styles.staffPilotGuideList}>
+              <article>
+                <strong>What it is not</strong>
+                <small>{salesConsoleM13StaffPilotGuide.whatItIsNot}</small>
+              </article>
+              {salesConsoleM13StaffPilotGuide.guideItems.map((item) => (
+                <article key={item.title}>
+                  <strong>{item.title}</strong>
+                  <span>{item.role}</span>
+                  <small>{item.instruction}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM13PilotGuideExplainsWhatItIsAndIsNot() ? "Guide explains what it is/is not" : "Guide clarity gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM13PilotGuideCoversStaffAndManagers() ? "Guide covers staff and managers" : "Guide role coverage gap"}</span>
             </div>
           </section>
 
