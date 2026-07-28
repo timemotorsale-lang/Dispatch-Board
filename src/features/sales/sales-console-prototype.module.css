@@ -86,6 +86,47 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.roleLandingHero {
+  align-items: center;
+  background: linear-gradient(135deg, rgba(239, 246, 255, 0.96), rgba(255, 255, 255, 0.98));
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  padding: 14px;
+}
+
+.roleLandingHero h2 {
+  color: var(--ink);
+  font-size: 1rem;
+  margin: 2px 0 0;
+}
+
+.roleLandingHero p,
+.roleLandingHero small {
+  color: var(--muted);
+  display: block;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  margin: 6px 0 0;
+}
+
+.roleLandingHero a {
+  align-items: center;
+  background: var(--brand);
+  border-radius: 8px;
+  color: white;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  font-weight: 900;
+  gap: 6px;
+  padding: 9px 11px;
+  text-decoration: none;
+}
+
 .roleRail article {
   background: var(--surface);
   border: 1px solid var(--line);

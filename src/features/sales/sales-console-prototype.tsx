@@ -107,6 +107,11 @@ import {
   salesConsoleM12RoleLandingsStayInsideSales,
   salesConsoleM12RoleLandingExperiences
 } from "./sales-console-m12-role-landing-model";
+import {
+  salesConsoleM12DefaultRoleLandingHeader,
+  salesConsoleM12EveryLandingHeaderTargetsInternalSection,
+  salesConsoleM12LandingHeaderStaysReadOnly
+} from "./sales-console-m12-role-landing-header";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -371,6 +376,18 @@ export function SalesConsolePrototype() {
             <em>{role.readOnly ? "Read-only role view" : "Write-enabled"}</em>
           </article>
         ))}
+      </section>
+
+      <section className={styles.roleLandingHero} aria-label="Role-aware sales console landing">
+        <div>
+          <span className={styles.eyebrow}>{salesConsoleM12DefaultRoleLandingHeader.eyebrow}</span>
+          <h2>{salesConsoleM12DefaultRoleLandingHeader.headline}</h2>
+          <p>{salesConsoleM12DefaultRoleLandingHeader.activeLanding.landingCopy}</p>
+          <small>{salesConsoleM12DefaultRoleLandingHeader.readOnlyReminder}</small>
+        </div>
+        <a href={salesConsoleM12DefaultRoleLandingHeader.sectionHref}>
+          Go to default section <ChevronRight size={14} />
+        </a>
       </section>
 
       <div className={styles.bodyGrid}>
@@ -670,6 +687,8 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM12EveryRoleHasLandingExperience() ? "Every role has a landing experience" : "Role landing gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM12RoleLandingsStayInsideSales() ? "Landings stay inside /sales" : "Route sprawl risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM12RoleLandingsHaveStartGuidance() ? "Start guidance is present" : "Start guidance gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM12LandingHeaderStaysReadOnly() ? "Landing header remains read-only" : "Landing header write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM12EveryLandingHeaderTargetsInternalSection() ? "Headers target internal sections" : "Header target risk"}</span>
             </div>
           </section>
 
