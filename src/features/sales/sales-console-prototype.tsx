@@ -50,6 +50,12 @@ import {
   salesConsoleManagerApprovalReadModel
 } from "./sales-console-m9-manager-approvals";
 import {
+  quoteScenarioBuilderIsEstimateOnly,
+  quoteScenarioHasAuditAndPermissionCoverage,
+  quoteScenarioRequiresReviewAndFinanceVerification,
+  salesConsoleQuoteScenarioReadModel
+} from "./sales-console-m9-quote-scenario-builder";
+import {
   enterprisePermissionGatesDenyByDefault,
   salesConsoleEnterprisePermissionReadModel,
   sensitiveWorkflowsHavePermissionAndAuditCoverage
@@ -530,6 +536,34 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {managerApprovalsRequireAuditThresholdAndReason() ? "Audit, threshold, and reason required" : "Approval gate incomplete"}</span>
               <span><ShieldCheck size={13} /> {onlyManagersAndAdminsCanDecideApprovals() ? "Only managers/admins can decide later" : "Decision role risk"}</span>
               {salesConsoleManagerApprovalReadModel.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Admin review quote scenario builder foundation">
+            <div className={styles.railHeader}><h2>Quote Scenario Builder Foundation</h2><BadgeDollarSign size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Scenario builder is estimate-only. Final quote submission stays disabled until disclaimers, manager review, finance verification, audit, and source-system gates are approved.
+            </p>
+            <div className={styles.enterpriseScenarioList}>
+              {salesConsoleQuoteScenarioReadModel.scenarios.map((scenario) => (
+                <article key={scenario.scenarioId}>
+                  <div>
+                    <strong>{scenario.scenarioId}</strong>
+                    <span>{scenario.version} · estimate-only</span>
+                  </div>
+                  <span className={styles.statusDanger}>submission disabled</span>
+                  <small>Inputs: {scenario.requiredInputs.join(", ")}</small>
+                  <small>Disclaimer: {String(scenario.disclaimerRequired)}. Manager review: {String(scenario.managerReviewRequired)}. Finance verification: {String(scenario.financeVerificationRequired)}.</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {quoteScenarioBuilderIsEstimateOnly() ? "Estimate-only scenarios" : "Quote submission risk"}</span>
+              <span><ShieldCheck size={13} /> {quoteScenarioRequiresReviewAndFinanceVerification() ? "Review and finance verification required" : "Review gate incomplete"}</span>
+              <span><ShieldCheck size={13} /> {quoteScenarioHasAuditAndPermissionCoverage() ? "Audit and permission coverage present" : "Quote coverage incomplete"}</span>
+              {salesConsoleQuoteScenarioReadModel.guardrails.map((guardrail) => (
                 <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
               ))}
             </div>
