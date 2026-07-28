@@ -29,6 +29,12 @@ import type { CSSProperties } from "react";
 import { salesConsoleMvpDefinition } from "./sales-console-mvp-definition";
 import { salesConsoleMvpExecution } from "./sales-console-mvp-execution";
 import { salesConsoleMvpLiveDataContract } from "./sales-console-mvp-live-data-contract";
+import {
+  adminPanelsAreRestrictedForOperatingRoles,
+  eachRoleHasProductionEmptyState,
+  ordinaryRolesDoNotSeeAdminReviewSurface,
+  salesConsoleRoleProductionViews
+} from "./sales-console-m10-production-views";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -409,6 +415,32 @@ export function SalesConsolePrototype() {
         </main>
 
         <aside className={styles.commandRail} id="command-center" aria-label="Manager Command Center">
+          <section className={styles.panel} aria-label="Role-specific production views">
+            <div className={styles.railHeader}><h2>Role-Specific Production Views</h2><UserRoundCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Production roles now separate everyday operating views from Admin / Owner enterprise review panels.
+            </p>
+            <div className={styles.productionRoleViewList}>
+              {salesConsoleRoleProductionViews.map((view) => (
+                <article key={view.role}>
+                  <div>
+                    <strong>{view.label}</strong>
+                    <span>Primary: {view.primarySurface}</span>
+                  </div>
+                  <span className={view.role === "admin-owner" ? styles.statusGood : styles.statusNeutral}>{view.role}</span>
+                  <small>Visible: {view.visibleSurfaces.join(", ")}</small>
+                  <small>Restricted: {view.restrictedSurfaces.length > 0 ? view.restrictedSurfaces.join(", ") : "None"}</small>
+                  <em>{view.emptyState}</em>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {adminPanelsAreRestrictedForOperatingRoles() ? "Admin panels restricted from operating roles" : "Admin panel exposure risk"}</span>
+              <span><ShieldCheck size={13} /> {ordinaryRolesDoNotSeeAdminReviewSurface() ? "Ordinary roles do not see Admin Review" : "Admin Review visibility risk"}</span>
+              <span><ShieldCheck size={13} /> {eachRoleHasProductionEmptyState() ? "Role-specific empty states present" : "Empty state gap"}</span>
+            </div>
+          </section>
+
           <section className={styles.panel} aria-label="Admin review audit trail foundation">
             <div className={styles.railHeader}><h2>Audit Trail Foundation</h2><FileCheck2 size={18} /></div>
             <p className={styles.guardrailCopy}>
