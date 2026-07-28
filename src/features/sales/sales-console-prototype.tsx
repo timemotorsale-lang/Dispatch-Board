@@ -28,6 +28,7 @@ import type { CSSProperties } from "react";
 
 import { salesConsoleMvpDefinition } from "./sales-console-mvp-definition";
 import { salesConsoleMvpExecution } from "./sales-console-mvp-execution";
+import { salesConsoleMvpLiveDataContract } from "./sales-console-mvp-live-data-contract";
 import styles from "./sales-console-prototype.module.css";
 
 const headlineMetrics = [
@@ -211,6 +212,12 @@ function freshnessClass(freshness: "current" | "placeholder" | "stale" | "verify
   if (freshness === "current") return styles.statusGood;
   if (freshness === "stale") return styles.statusDanger;
   if (freshness === "verify-first") return styles.statusWarning;
+  return styles.statusNeutral;
+}
+
+function liveSourceStatusClass(status: "contract-ready" | "needs-mapping" | "placeholder-only") {
+  if (status === "contract-ready") return styles.statusGood;
+  if (status === "needs-mapping") return styles.statusWarning;
   return styles.statusNeutral;
 }
 
@@ -509,6 +516,64 @@ export function SalesConsolePrototype() {
                   <span className={freshnessClass(field.freshness)}>{field.freshness}</span>
                   <small>{field.source}</small>
                   <em>{field.fallbackLabel}</em>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Live Data Contract</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleMvpLiveDataContract.boundary}</p>
+            <div className={styles.liveSourceList}>
+              {salesConsoleMvpLiveDataContract.liveSources.map((source) => (
+                <article key={source.id}>
+                  <div>
+                    <strong>{source.name}</strong>
+                    <span>{source.owner}</span>
+                  </div>
+                  <span className={liveSourceStatusClass(source.status)}>{source.status}</span>
+                  <small>Feeds: {source.feeds.join(", ")}</small>
+                  <em>{source.fallback}</em>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Read Model Contracts</h2><FileCheck2 size={18} /></div>
+            <div className={styles.readModelList}>
+              {salesConsoleMvpLiveDataContract.readModels.map((model) => (
+                <article key={model.surface}>
+                  <strong>{model.surface}</strong>
+                  <span>Key: {model.recordKey}</span>
+                  <small>Required: {model.requiredFields.join(", ")}</small>
+                  <em>{model.placeholderRule}</em>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Source Link Contracts</h2><ChevronRight size={18} /></div>
+            <div className={styles.sourceLinkList}>
+              {salesConsoleMvpLiveDataContract.sourceLinks.map((link) => (
+                <article key={link.label}>
+                  <strong>{link.label}</strong>
+                  <code>{link.routePattern}</code>
+                  <span className={freshnessClass(link.freshness)}>{link.freshness}</span>
+                  <small>{link.unavailableLabel}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Adapter Safety Rules</h2><ShieldCheck size={18} /></div>
+            <div className={styles.adapterRuleList}>
+              {salesConsoleMvpLiveDataContract.adapterRules.map((rule) => (
+                <article key={rule.rule}>
+                  <strong>{rule.rule}</strong>
+                  <span>{rule.enforcement}</span>
                 </article>
               ))}
             </div>

@@ -647,7 +647,11 @@
 .acceptanceList,
 .actionGuardrailList,
 .executionDataList,
-.pilotReadinessList {
+.pilotReadinessList,
+.liveSourceList,
+.readModelList,
+.sourceLinkList,
+.adapterRuleList {
   display: grid;
   gap: 8px;
   margin-top: 10px;
@@ -656,7 +660,9 @@
 .rolePermissionList article,
 .dataSourceList article,
 .actionGuardrailList article,
-.pilotReadinessList article {
+.pilotReadinessList article,
+.readModelList article,
+.adapterRuleList article {
   background: var(--surface-soft);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -670,7 +676,11 @@
 .acceptanceList strong,
 .actionGuardrailList strong,
 .executionDataList strong,
-.pilotReadinessList strong {
+.pilotReadinessList strong,
+.liveSourceList strong,
+.readModelList strong,
+.sourceLinkList strong,
+.adapterRuleList strong {
   color: var(--ink);
   font-size: 0.78rem;
 }
@@ -686,7 +696,16 @@
 .executionDataList span,
 .executionDataList small,
 .executionDataList em,
-.pilotReadinessList small {
+.pilotReadinessList small,
+.liveSourceList span,
+.liveSourceList small,
+.liveSourceList em,
+.readModelList span,
+.readModelList small,
+.readModelList em,
+.sourceLinkList code,
+.sourceLinkList small,
+.adapterRuleList span {
   font-size: 0.72rem;
   line-height: 1.4;
 }
@@ -698,14 +717,22 @@
 .actionGuardrailList small,
 .executionDataList span,
 .executionDataList small,
-.pilotReadinessList small {
+.pilotReadinessList small,
+.liveSourceList span,
+.liveSourceList small,
+.readModelList span,
+.readModelList small,
+.sourceLinkList small,
+.adapterRuleList span {
   color: var(--muted);
 }
 
 .rolePermissionList small,
 .dataSourceList em,
 .acceptanceList small,
-.executionDataList em {
+.executionDataList em,
+.liveSourceList em,
+.readModelList em {
   border-top: 1px solid var(--line);
   color: var(--brand-strong);
   font-weight: 800;
@@ -713,7 +740,9 @@
 }
 
 .dataSourceList em,
-.executionDataList em {
+.executionDataList em,
+.liveSourceList em,
+.readModelList em {
   display: block;
   font-style: normal;
 }
@@ -742,6 +771,62 @@
 .executionDataList small,
 .executionDataList em {
   grid-column: 1 / -1;
+}
+
+.liveSourceList article {
+  align-items: start;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 7px;
+  grid-template-columns: 1fr auto;
+  padding: 10px;
+}
+
+.liveSourceList small,
+.liveSourceList em {
+  grid-column: 1 / -1;
+}
+
+.liveSourceList strong,
+.liveSourceList span,
+.readModelList strong,
+.readModelList span,
+.readModelList small,
+.readModelList em,
+.sourceLinkList strong,
+.sourceLinkList code,
+.sourceLinkList small,
+.adapterRuleList strong,
+.adapterRuleList span {
+  display: block;
+}
+
+.sourceLinkList article {
+  align-items: start;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 1fr auto;
+  padding: 10px;
+}
+
+.sourceLinkList code,
+.sourceLinkList small {
+  grid-column: 1 / -1;
+}
+
+.sourceLinkList code {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--brand-strong);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  padding: 5px 6px;
+  word-break: break-word;
 }
 
 .acceptanceList article {
