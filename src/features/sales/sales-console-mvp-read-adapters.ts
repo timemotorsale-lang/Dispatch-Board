@@ -12,6 +12,7 @@ export type SalesConsoleSourceTaskRecord = {
   phone: string;
   reason?: string;
   stage?: string;
+  stockNumber?: string;
   taskId: string;
   vehicleId?: string;
   vehicleName?: string;
@@ -191,7 +192,7 @@ export function adaptSellerQueue(records: SalesConsoleSourceTaskRecord[]): Sales
       const tone: SalesConsoleMvpTone = hasBlocker ? "danger" : freshnessToTone(freshnessState);
 
       return {
-        blocker: record.blocker ?? "-",
+        blocker: record.blocker ? `Blocked: ${record.blocker}` : "-",
         customer: record.customerName,
         due: record.dueLabel,
         freshness: minutesLabel(record.activityAgeMinutes),
@@ -202,7 +203,7 @@ export function adaptSellerQueue(records: SalesConsoleSourceTaskRecord[]): Sales
         reason: record.reason ?? (freshnessState === "placeholder" ? "Source data missing" : "-"),
         sourceLinks: [customerLink(record.customerId), taskLink(record.taskId), vehicleLink(record.vehicleId)],
         stage: record.stage ?? "Stage pending",
-        stock: record.vehicleId ?? "Vehicle pending",
+        stock: record.stockNumber ?? record.vehicleId ?? "Vehicle pending",
         taskId: record.taskId,
         tone,
         vehicle: record.vehicleName ?? "Vehicle match pending"
@@ -258,7 +259,7 @@ export function adaptDealDesk(records: SalesConsoleSourceDealRecord[]): SalesCon
     const blocked = Boolean(record.blockerState) || record.approvalState?.includes("Pending");
     return {
       approval: record.approvalState ?? "Approval visibility only",
-      blockerState: record.blockerState ?? (placeholder ? "Scenario visibility only" : "-"),
+      blockerState: record.blockerState ? `Blocked: ${record.blockerState}` : placeholder ? "Scenario visibility only" : "-",
       customer: record.customerName,
       dealId: record.dealId,
       freshnessState: placeholder ? "placeholder" : "current",
@@ -357,6 +358,7 @@ export const salesConsoleMockSourceBundle = {
       phone: "(555) 123-4567",
       reason: "Rate / terms",
       stage: "Manager Review",
+      stockNumber: "T241245",
       taskId: "task-101",
       vehicleId: "veh-101",
       vehicleName: "2024 Toyota RAV4 XLE"
@@ -378,6 +380,7 @@ export const salesConsoleMockSourceBundle = {
       phone: "(555) 345-6789",
       reason: "No activity",
       stage: "Structure Deal",
+      stockNumber: "F241512",
       taskId: "task-103",
       vehicleId: "veh-103",
       vehicleName: "2024 Ford F-150 XLT"

@@ -19,7 +19,9 @@ describe("Sales Console MVP read adapters", () => {
     expect(queue.some((item) => item.freshnessState === "stale")).toBe(true);
     expect(queue.some((item) => item.freshnessState === "placeholder")).toBe(true);
     expect(queue.some((item) => item.nextAction === "Next action pending")).toBe(true);
+    expect(queue.some((item) => item.blocker.startsWith("Blocked:"))).toBe(true);
     expect(queue.every((item) => item.sourceLinks.length === 3)).toBe(true);
+    expect(queue.flatMap((item) => item.sourceLinks).some((link) => link.unavailableLabel.includes("unavailable"))).toBe(true);
   });
 
   it("keeps lead leakage visible without mutating lead records", () => {
@@ -47,6 +49,7 @@ describe("Sales Console MVP read adapters", () => {
     expect(deals.some((deal) => deal.freshnessState === "placeholder")).toBe(true);
     expect(deals.some((deal) => deal.scenario === "Scenario visibility only")).toBe(true);
     expect(deals.some((deal) => deal.payment === "Payment visibility only")).toBe(true);
+    expect(deals.some((deal) => deal.blockerState.startsWith("Blocked:"))).toBe(true);
   });
 
   it("builds a read-only aggregate view model for the Sales Console", () => {
