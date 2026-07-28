@@ -81,6 +81,13 @@ import {
   salesConsoleQuoteScenarioReadModel
 } from "./sales-console-m9-quote-scenario-builder";
 import {
+  coachingHasNoHiddenScoringOrPunitiveAutomation,
+  coachingInsightsAreExplainable,
+  coachingVisibilityIsRoleLimited,
+  salesConsoleSalesCoachingReadModel,
+  staleCoachingDataIsVerifyFirst
+} from "./sales-console-m9-sales-coaching";
+import {
   salesConsoleVehicleHoldReadModel,
   staleOrVerifyFirstInventoryBlocksHold,
   vehicleHoldFoundationIsDisabled,
@@ -765,6 +772,35 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {aiCannotExecuteRiskyActions() ? "AI cannot execute risky actions" : "AI action risk"}</span>
               <span><ShieldCheck size={13} /> {aiActionsRequireFutureAuditAndPermissionCoverage() ? "Future action requires audit and permission gates" : "AI gate coverage incomplete"}</span>
               {salesConsoleAiNextBestActionReadModel.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Admin review sales coaching foundation">
+            <div className={styles.railHeader}><h2>Sales Coaching Foundation</h2><UsersRound size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Coaching insights are explainable and role-limited. They do not create hidden scores, discipline workflows, or punitive automation.
+            </p>
+            <div className={styles.enterpriseCoachingList}>
+              {salesConsoleSalesCoachingReadModel.insights.map((insight) => (
+                <article key={insight.insightId}>
+                  <div>
+                    <strong>{insight.signal}</strong>
+                    <span>{insight.insightId} · {insight.staleDataHandling}</span>
+                  </div>
+                  <span className={styles.statusGood}>coaching-only</span>
+                  <small>{insight.evidence}</small>
+                  <small>Topic: {insight.suggestedTopic}. Visible to: {insight.visibleTo.join(", ")}.</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {coachingInsightsAreExplainable() ? "Coaching insights are explainable" : "Coaching explanation incomplete"}</span>
+              <span><ShieldCheck size={13} /> {coachingHasNoHiddenScoringOrPunitiveAutomation() ? "No hidden scoring or punitive automation" : "Coaching automation risk"}</span>
+              <span><ShieldCheck size={13} /> {coachingVisibilityIsRoleLimited() ? "Coaching visibility role-limited" : "Coaching visibility risk"}</span>
+              <span><ShieldCheck size={13} /> {staleCoachingDataIsVerifyFirst() ? "Stale coaching data is verify-first" : "Coaching freshness risk"}</span>
+              {salesConsoleSalesCoachingReadModel.guardrails.map((guardrail) => (
                 <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
               ))}
             </div>
