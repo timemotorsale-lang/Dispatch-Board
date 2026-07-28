@@ -665,6 +665,8 @@
 
 .rolePermissionList,
 .roleViewList,
+.auditCoverageList,
+.auditEventList,
 .priorityBriefList,
 .productionReadinessList,
 .surfaceBoundaryList,
@@ -687,6 +689,8 @@
 
 .rolePermissionList article,
 .roleViewList article,
+.auditCoverageList article,
+.auditEventList article,
 .priorityBriefList article,
 .productionReadinessList article,
 .surfaceBoundaryList article,
@@ -708,6 +712,8 @@
 
 .rolePermissionList strong,
 .roleViewList strong,
+.auditCoverageList strong,
+.auditEventList strong,
 .productionReadinessList strong,
 .surfaceBoundaryList strong,
 .stateVerificationList strong,
@@ -753,6 +759,11 @@
 .roleViewList span,
 .roleViewList small,
 .roleViewList em,
+.auditCoverageList span,
+.auditCoverageList small,
+.auditEventList span,
+.auditEventList small,
+.auditEventList em,
 .priorityBriefList span,
 .productionReadinessList span,
 .productionReadinessList small,
@@ -822,6 +833,7 @@
 }
 
 .dataSourceList em,
+.auditEventList em,
 .executionDataList em,
 .roleViewList em,
 .liveSourceList em,
@@ -834,6 +846,34 @@
   align-items: start;
   gap: 7px;
   grid-template-columns: 1fr auto;
+}
+
+.auditCoverageList article {
+  align-items: start;
+  gap: 7px;
+  grid-template-columns: 1fr auto;
+}
+
+.auditCoverageList small {
+  grid-column: 1 / -1;
+}
+
+.auditEventList article {
+  border-left: 3px solid rgba(37, 99, 235, 0.34);
+}
+
+.auditEventList span,
+.auditEventList small,
+.auditEventList em {
+  display: block;
+}
+
+.auditEventList em {
+  border-top: 1px solid var(--line);
+  color: var(--brand-strong);
+  font-style: normal;
+  font-weight: 800;
+  padding-top: 6px;
 }
 
 .roleViewList small,

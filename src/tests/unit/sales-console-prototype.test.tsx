@@ -7,6 +7,7 @@ import SalesPage from "@/app/(app)/sales/page";
 import { salesConsoleMvpDefinition } from "@/features/sales/sales-console-mvp-definition";
 import { salesConsoleMvpExecution } from "@/features/sales/sales-console-mvp-execution";
 import { salesConsoleMvpLiveDataContract } from "@/features/sales/sales-console-mvp-live-data-contract";
+import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsolePilotReadiness } from "@/features/sales/sales-console-mvp-pilot-readiness";
 import { salesConsoleProductionReadiness } from "@/features/sales/sales-console-mvp-production-readiness";
 import { salesConsoleReadAdapterPreview } from "@/features/sales/sales-console-mvp-read-adapters";
@@ -149,6 +150,26 @@ describe("Sales Console", () => {
     for (const state of salesConsoleProductionReadiness.emptyStates) {
       expect(markup).toContain(state.userMessage);
       expect(markup).toContain(state.verification);
+    }
+  });
+
+  it("renders enterprise audit trail foundation without enabling sensitive actions", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Audit Trail Foundation");
+    expect(markup).toContain("Sensitive actions require audit coverage");
+    expect(markup).toContain("Enterprise actions stay disabled");
+    for (const coverage of salesConsoleAuditReadModel.futureActionCoverage) {
+      expect(markup).toContain(coverage.action);
+      expect(markup).toContain(coverage.auditEventType);
+      expect(markup).toContain(coverage.coverage);
+      expect(coverage.enabled).toBe(false);
+    }
+    for (const event of salesConsoleAuditReadModel.events) {
+      expect(markup).toContain(event.auditId);
+      expect(markup).toContain(event.reason);
+      expect(markup).toContain(event.beforeSummary);
+      expect(markup).toContain(event.afterSummary);
     }
   });
 
