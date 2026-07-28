@@ -30,6 +30,8 @@ Build-ready additions for the next implementation pass:
 - [SALES_CONSOLE_PRODUCT_REQUIREMENTS.md](SALES_CONSOLE_PRODUCT_REQUIREMENTS.md) - role-based modules, screen requirements, acceptance criteria, permissions, reporting, and release gates.
 - [SALES_DATA_MODEL.md](SALES_DATA_MODEL.md) - sales-owned entities, reference objects, event backbone, derived read models, and data-quality rules.
 - [SALES_UI_IMPLEMENTATION_PLAN.md](SALES_UI_IMPLEMENTATION_PLAN.md) - navigation, dashboard views, deal desk, inventory intelligence, manager command center, components, and first UI tickets.
+- [SALES_CONSOLE_IMPLEMENTATION_PLANNING_MILESTONES.md](SALES_CONSOLE_IMPLEMENTATION_PLANNING_MILESTONES.md) - no-code implementation waves, milestone gates, release candidate scope, and pilot acceptance planning.
+- [SALES_CONSOLE_MVP_MILESTONES_FOR_REVIEW.md](SALES_CONSOLE_MVP_MILESTONES_FOR_REVIEW.md) - MVP-only milestones for review before implementation begins.
 
 Visual approval reference:
 
