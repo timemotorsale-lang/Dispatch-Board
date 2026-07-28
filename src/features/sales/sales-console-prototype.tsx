@@ -38,6 +38,12 @@ import {
   salesConsoleEnterpriseIntegrationReadModel
 } from "./sales-console-m9-crm-dms-integration-contracts";
 import {
+  messagingFoundationIsDisabled,
+  messagingHasAuditAndPermissionCoverage,
+  messagingRequiresConsentPreviewAndOptOut,
+  salesConsoleCustomerMessagingReadModel
+} from "./sales-console-m9-customer-messaging";
+import {
   dealWorkflowIsReadOnly,
   dealWorkflowRequiresAuditAndPermission,
   salesConsoleDealWorkflowReadModel,
@@ -607,6 +613,43 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salespersonCannotSeeRestrictedFinanceFields() ? "Salespeople cannot see restricted finance fields" : "Finance privacy risk"}</span>
               <span><ShieldCheck size={13} /> {financeHandoffHasAuditAndPermissionCoverage() ? "Audit and permission coverage present" : "Finance coverage incomplete"}</span>
               {salesConsoleFinanceHandoffReadModel.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Admin review customer messaging foundation">
+            <div className={styles.railHeader}><h2>Customer Messaging Foundation</h2><MessageSquareText size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Messaging is consent-gated and disabled. No automation or send workflow is active in the Sales Console.
+            </p>
+            <div className={styles.enterpriseMessagingList}>
+              {salesConsoleCustomerMessagingReadModel.drafts.map((draft) => (
+                <article key={draft.draftId}>
+                  <div>
+                    <strong>{draft.draftId}</strong>
+                    <span>{draft.customerId} · {draft.templateId}</span>
+                  </div>
+                  <span className={styles.statusDanger}>send disabled</span>
+                  <small>Enabled: {String(draft.enabled)}. Send: {String(draft.sendEnabled)}. Automation: {String(draft.automationEnabled)}.</small>
+                </article>
+              ))}
+              {salesConsoleCustomerMessagingReadModel.templates.map((template) => (
+                <article key={template.templateId}>
+                  <div>
+                    <strong>{template.templateId}</strong>
+                    <span>{template.channel} · {template.useCase}</span>
+                  </div>
+                  <span className={template.approved ? styles.statusGood : styles.statusWarning}>{template.approved ? "approved template" : "template review"}</span>
+                  <small>Consent required: {String(salesConsoleCustomerMessagingReadModel.consentRule.consentRequired)}. Opt-out check: {String(salesConsoleCustomerMessagingReadModel.consentRule.optOutCheckRequired)}.</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {messagingFoundationIsDisabled() ? "Messaging send and automation disabled" : "Messaging activation risk"}</span>
+              <span><ShieldCheck size={13} /> {messagingRequiresConsentPreviewAndOptOut() ? "Consent, preview, opt-out, and rate limit required" : "Messaging consent gate incomplete"}</span>
+              <span><ShieldCheck size={13} /> {messagingHasAuditAndPermissionCoverage() ? "Audit and permission coverage present" : "Messaging coverage incomplete"}</span>
+              {salesConsoleCustomerMessagingReadModel.guardrails.map((guardrail) => (
                 <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
               ))}
             </div>

@@ -9,6 +9,7 @@ import { salesConsoleMvpExecution } from "@/features/sales/sales-console-mvp-exe
 import { salesConsoleMvpLiveDataContract } from "@/features/sales/sales-console-mvp-live-data-contract";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
+import { salesConsoleCustomerMessagingReadModel } from "@/features/sales/sales-console-m9-customer-messaging";
 import { salesConsoleDealWorkflowReadModel } from "@/features/sales/sales-console-m9-deal-workflow";
 import { salesConsoleEnterprisePermissionReadModel } from "@/features/sales/sales-console-m9-enterprise-permissions";
 import { salesConsoleFinanceHandoffReadModel } from "@/features/sales/sales-console-m9-finance-handoff";
@@ -286,6 +287,23 @@ describe("Sales Console", () => {
     for (const rule of salesConsoleFinanceHandoffReadModel.visibilityRules) {
       expect(markup).toContain(rule.field);
       if (rule.restricted) expect(rule.visibleTo).not.toContain("salesperson");
+    }
+  });
+
+  it("renders customer messaging foundation without enabling sends or automation", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Customer Messaging Foundation");
+    expect(markup).toContain("Messaging send and automation disabled");
+    expect(markup).toContain("Consent, preview, opt-out, and rate limit required");
+    expect(markup).toContain("Audit and permission coverage present");
+    for (const draft of salesConsoleCustomerMessagingReadModel.drafts) {
+      expect(markup).toContain(draft.draftId);
+      expect(draft.sendEnabled).toBe(false);
+      expect(draft.automationEnabled).toBe(false);
+    }
+    for (const template of salesConsoleCustomerMessagingReadModel.templates) {
+      expect(markup).toContain(template.templateId);
     }
   });
 
