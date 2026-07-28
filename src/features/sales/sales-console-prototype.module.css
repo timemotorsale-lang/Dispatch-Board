@@ -677,6 +677,7 @@
 .enterpriseFinanceList,
 .enterpriseHoldList,
 .enterpriseForecastList,
+.enterpriseAiList,
 .priorityBriefList,
 .productionReadinessList,
 .surfaceBoundaryList,
@@ -711,6 +712,7 @@
 .enterpriseFinanceList article,
 .enterpriseHoldList article,
 .enterpriseForecastList article,
+.enterpriseAiList article,
 .priorityBriefList article,
 .productionReadinessList article,
 .surfaceBoundaryList article,
@@ -744,6 +746,7 @@
 .enterpriseFinanceList strong,
 .enterpriseHoldList strong,
 .enterpriseForecastList strong,
+.enterpriseAiList strong,
 .productionReadinessList strong,
 .surfaceBoundaryList strong,
 .stateVerificationList strong,
@@ -816,6 +819,8 @@
 .enterpriseHoldList small,
 .enterpriseForecastList span,
 .enterpriseForecastList small,
+.enterpriseAiList span,
+.enterpriseAiList small,
 .priorityBriefList span,
 .productionReadinessList span,
 .productionReadinessList small,
@@ -912,7 +917,8 @@
 .enterpriseScenarioList article,
 .enterpriseFinanceList article,
 .enterpriseHoldList article,
-.enterpriseForecastList article {
+.enterpriseForecastList article,
+.enterpriseAiList article {
   align-items: start;
   gap: 7px;
   grid-template-columns: 1fr auto;
@@ -930,7 +936,8 @@
 .enterpriseScenarioList small,
 .enterpriseFinanceList small,
 .enterpriseHoldList small,
-.enterpriseForecastList small {
+.enterpriseForecastList small,
+.enterpriseAiList small {
   grid-column: 1 / -1;
 }
 

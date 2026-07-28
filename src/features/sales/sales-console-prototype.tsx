@@ -31,6 +31,13 @@ import { salesConsoleMvpExecution } from "./sales-console-mvp-execution";
 import { salesConsoleMvpLiveDataContract } from "./sales-console-mvp-live-data-contract";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
+  aiActionsRequireFutureAuditAndPermissionCoverage,
+  aiCannotExecuteRiskyActions,
+  aiRecommendationsAreAdvisoryOnly,
+  aiRecommendationsHaveEvidenceReasonAndConfidence,
+  salesConsoleAiNextBestActionReadModel
+} from "./sales-console-m9-ai-next-best-action";
+import {
   enterpriseSourceContractsBlockWritesWhenMissing,
   enterpriseSourceContractsCoverRequiredRecords,
   enterpriseSourceContractsHaveHonestLabels,
@@ -729,6 +736,35 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {restrictedForecastMetricsAreRoleLimited() ? "Restricted metrics role-limited" : "Forecast visibility risk"}</span>
               <span><ShieldCheck size={13} /> {staleForecastInputsLowerConfidence() ? "Stale inputs lower confidence" : "Forecast confidence risk"}</span>
               {salesConsoleForecastReadModel.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Admin review AI next best action foundation">
+            <div className={styles.railHeader}><h2>AI Next-Best-Action Foundation</h2><Star size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              AI is recommendation-only. It can explain priorities, but cannot message, quote, hold, approve, make finance decisions, or mutate CRM/DMS records.
+            </p>
+            <div className={styles.enterpriseAiList}>
+              {salesConsoleAiNextBestActionReadModel.recommendations.map((recommendation) => (
+                <article key={recommendation.recommendationId}>
+                  <div>
+                    <strong>{recommendation.actionType}</strong>
+                    <span>{recommendation.recommendationId} · confidence {recommendation.confidence}</span>
+                  </div>
+                  <span className={styles.statusWarning}>human confirmation</span>
+                  <small>{recommendation.reason}</small>
+                  <small>Evidence: {recommendation.evidenceLinks.join(", ")}. Blocked: {recommendation.blockedActions.join(", ")}.</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {aiRecommendationsAreAdvisoryOnly() ? "AI is advisory only" : "AI automation risk"}</span>
+              <span><ShieldCheck size={13} /> {aiRecommendationsHaveEvidenceReasonAndConfidence() ? "Evidence, reason, and confidence required" : "AI evidence incomplete"}</span>
+              <span><ShieldCheck size={13} /> {aiCannotExecuteRiskyActions() ? "AI cannot execute risky actions" : "AI action risk"}</span>
+              <span><ShieldCheck size={13} /> {aiActionsRequireFutureAuditAndPermissionCoverage() ? "Future action requires audit and permission gates" : "AI gate coverage incomplete"}</span>
+              {salesConsoleAiNextBestActionReadModel.guardrails.map((guardrail) => (
                 <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
               ))}
             </div>
