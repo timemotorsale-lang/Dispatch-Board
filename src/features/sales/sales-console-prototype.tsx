@@ -44,6 +44,12 @@ import {
   salespersonCannotApproveOrFinance
 } from "./sales-console-m9-deal-workflow";
 import {
+  financeHandoffHasAuditAndPermissionCoverage,
+  financeHandoffRemainsReadOnly,
+  salesConsoleFinanceHandoffReadModel,
+  salespersonCannotSeeRestrictedFinanceFields
+} from "./sales-console-m9-finance-handoff";
+import {
   managerApprovalFoundationIsDisabled,
   managerApprovalsRequireAuditThresholdAndReason,
   onlyManagersAndAdminsCanDecideApprovals,
@@ -564,6 +570,43 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {quoteScenarioRequiresReviewAndFinanceVerification() ? "Review and finance verification required" : "Review gate incomplete"}</span>
               <span><ShieldCheck size={13} /> {quoteScenarioHasAuditAndPermissionCoverage() ? "Audit and permission coverage present" : "Quote coverage incomplete"}</span>
               {salesConsoleQuoteScenarioReadModel.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Admin review finance handoff foundation">
+            <div className={styles.railHeader}><h2>Finance Handoff Foundation</h2><HandCoins size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Finance handoff is package/status visibility only. Restricted finance fields stay role-limited, and finance decisions remain outside the Sales Console.
+            </p>
+            <div className={styles.enterpriseFinanceList}>
+              {salesConsoleFinanceHandoffReadModel.packages.map((handoff) => (
+                <article key={handoff.handoffId}>
+                  <div>
+                    <strong>{handoff.handoffId}</strong>
+                    <span>{handoff.status} · review-only</span>
+                  </div>
+                  <span className={styles.statusDanger}>decision disabled</span>
+                  <small>Fields: {handoff.requiredFields.join(", ")}</small>
+                </article>
+              ))}
+              {salesConsoleFinanceHandoffReadModel.visibilityRules.map((rule) => (
+                <article key={rule.field}>
+                  <div>
+                    <strong>{rule.field}</strong>
+                    <span>Visible to: {rule.visibleTo.join(", ")}</span>
+                  </div>
+                  <span className={rule.restricted ? styles.statusWarning : styles.statusGood}>{rule.restricted ? "restricted" : "limited"}</span>
+                  <small>Restricted finance field: {String(rule.restricted)}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {financeHandoffRemainsReadOnly() ? "Finance handoff remains read-only" : "Finance handoff write risk"}</span>
+              <span><ShieldCheck size={13} /> {salespersonCannotSeeRestrictedFinanceFields() ? "Salespeople cannot see restricted finance fields" : "Finance privacy risk"}</span>
+              <span><ShieldCheck size={13} /> {financeHandoffHasAuditAndPermissionCoverage() ? "Audit and permission coverage present" : "Finance coverage incomplete"}</span>
+              {salesConsoleFinanceHandoffReadModel.guardrails.map((guardrail) => (
                 <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
               ))}
             </div>

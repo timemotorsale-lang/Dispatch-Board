@@ -11,6 +11,7 @@ import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-au
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
 import { salesConsoleDealWorkflowReadModel } from "@/features/sales/sales-console-m9-deal-workflow";
 import { salesConsoleEnterprisePermissionReadModel } from "@/features/sales/sales-console-m9-enterprise-permissions";
+import { salesConsoleFinanceHandoffReadModel } from "@/features/sales/sales-console-m9-finance-handoff";
 import { salesConsoleManagerApprovalReadModel } from "@/features/sales/sales-console-m9-manager-approvals";
 import { salesConsoleQuoteScenarioReadModel } from "@/features/sales/sales-console-m9-quote-scenario-builder";
 import { salesConsolePilotReadiness } from "@/features/sales/sales-console-mvp-pilot-readiness";
@@ -268,6 +269,24 @@ describe("Sales Console", () => {
       expect(scenario.estimateOnly).toBe(true);
     }
     expect(salesConsoleQuoteScenarioReadModel.submissionEnabled).toBe(false);
+  });
+
+  it("renders finance handoff foundation without exposing restricted finance decisions", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Finance Handoff Foundation");
+    expect(markup).toContain("Finance handoff remains read-only");
+    expect(markup).toContain("Salespeople cannot see restricted finance fields");
+    expect(markup).toContain("Audit and permission coverage present");
+    for (const handoff of salesConsoleFinanceHandoffReadModel.packages) {
+      expect(markup).toContain(handoff.handoffId);
+      expect(handoff.decisionEnabled).toBe(false);
+      expect(handoff.enabled).toBe(false);
+    }
+    for (const rule of salesConsoleFinanceHandoffReadModel.visibilityRules) {
+      expect(markup).toContain(rule.field);
+      if (rule.restricted) expect(rule.visibleTo).not.toContain("salesperson");
+    }
   });
 
   it("renders read-only guardrails for every excluded risky MVP action", () => {
