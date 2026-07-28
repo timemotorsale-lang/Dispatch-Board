@@ -450,10 +450,36 @@
   padding: 5px 7px;
 }
 
-.guardrailCopy {
+.guardrailCopy,
+.mvpDefinition li {
   font-size: 0.78rem;
   line-height: 1.55;
+}
+
+.guardrailCopy {
   margin: 8px 0 0;
+}
+
+.mvpDefinition {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 7px;
+  margin-top: 10px;
+  padding: 10px;
+}
+
+.mvpDefinition strong {
+  font-size: 0.75rem;
+}
+
+.mvpDefinition ul {
+  color: var(--muted);
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
 }
 
 .hiddenSmokeText {
