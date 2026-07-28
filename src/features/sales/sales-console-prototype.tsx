@@ -93,6 +93,14 @@ import {
   salesConsoleM11OptionalFlagsRemainPlannedDisabled,
   salesConsoleM11ReadOnlyFeatureFlags
 } from "./sales-console-m11-read-only-feature-flags";
+import {
+  salesConsoleM11ExcludedActionsRemainDisabled,
+  salesConsoleM11PreDogfoodRoleVerificationPasses,
+  salesConsoleM11ProductionViewsStillRestrictAdminReview,
+  salesConsoleM11RoleVerificationSummary,
+  salesConsoleM11SourceSystemsRemainReadOnly,
+  salesConsoleM11UnknownAuthFixtureIsRestricted
+} from "./sales-console-m11-role-verification";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -586,6 +594,30 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM11FeatureFlagsNeverEnableExcludedActions() ? "Excluded actions remain blocked" : "Excluded action activation risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM11CoreDogfoodFlagsEnabledReadOnly() ? "Core dogfood flags enabled read-only" : "Core flag gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM11OptionalFlagsRemainPlannedDisabled() ? "Optional flags remain planned/disabled" : "Optional flag risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M11 role verification summary">
+            <div className={styles.railHeader}><h2>M11 Role Verification Summary</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              {salesConsoleM11RoleVerificationSummary.recommendation}
+            </p>
+            <div className={styles.roleVerificationSummary}>
+              <article>
+                <strong>{salesConsoleM11RoleVerificationSummary.gate}</strong>
+                <span>{salesConsoleM11RoleVerificationSummary.dogfoodReadinessEstimate}% dogfood readiness estimate</span>
+                <small>Verification pass: {String(salesConsoleM11PreDogfoodRoleVerificationPasses())}</small>
+              </article>
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM11PreDogfoodRoleVerificationPasses() ? "Pre-dogfood role verification passes" : "Role verification gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11SourceSystemsRemainReadOnly() ? "Source systems remain read-only" : "Source write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11ExcludedActionsRemainDisabled() ? "Excluded actions remain disabled" : "Excluded action risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11UnknownAuthFixtureIsRestricted() ? "Unknown auth fixture is restricted" : "Unknown fixture risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11ProductionViewsStillRestrictAdminReview() ? "Production views restrict Admin Review" : "Production admin exposure risk"}</span>
+              {salesConsoleM11RoleVerificationSummary.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
             </div>
           </section>
 
