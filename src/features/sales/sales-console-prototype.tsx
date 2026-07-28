@@ -86,6 +86,13 @@ import {
   salesConsoleM11OptionalVisibilityRolesAreFixtureOnly,
   salesConsoleM11UnknownRolesRemainRestricted
 } from "./sales-console-m11-auth-role-seeding";
+import {
+  salesConsoleM11CoreDogfoodFlagsEnabledReadOnly,
+  salesConsoleM11FeatureFlagsAreVisibilityOnly,
+  salesConsoleM11FeatureFlagsNeverEnableExcludedActions,
+  salesConsoleM11OptionalFlagsRemainPlannedDisabled,
+  salesConsoleM11ReadOnlyFeatureFlags
+} from "./sales-console-m11-read-only-feature-flags";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -553,6 +560,32 @@ export function SalesConsolePrototype() {
               {salesConsoleM11AuthRoleSeedingPlan.guardrails.map((guardrail) => (
                 <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
               ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Read-only dogfood feature flags">
+            <div className={styles.railHeader}><h2>M11 Read-Only Feature Flags</h2><Settings size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Dogfood activation controls enable visibility only. Write workflows remain blocked and require future owner approval.
+            </p>
+            <div className={styles.readOnlyFeatureFlagList}>
+              {salesConsoleM11ReadOnlyFeatureFlags.map((flag) => (
+                <article key={flag.flag}>
+                  <div>
+                    <strong>{flag.role}</strong>
+                    <span>{flag.flag}</span>
+                  </div>
+                  <span className={flag.status === "enabled-read-only" ? styles.statusGood : styles.statusWarning}>{flag.status}</span>
+                  <small>Visibility only: {String(flag.visibilityOnly)}. Safe state: {flag.defaultSafeState}.</small>
+                  <small>Blocked: {flag.blockedWriteWorkflows.join(", ")}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM11FeatureFlagsAreVisibilityOnly() ? "Feature flags are visibility-only" : "Feature flag write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11FeatureFlagsNeverEnableExcludedActions() ? "Excluded actions remain blocked" : "Excluded action activation risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11CoreDogfoodFlagsEnabledReadOnly() ? "Core dogfood flags enabled read-only" : "Core flag gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11OptionalFlagsRemainPlannedDisabled() ? "Optional flags remain planned/disabled" : "Optional flag risk"}</span>
             </div>
           </section>
 

@@ -13,6 +13,7 @@ import { salesConsoleM10ManagerReviewRequestFoundation } from "@/features/sales/
 import { salesConsoleM10ReadOnlySourceWiring } from "@/features/sales/sales-console-m10-read-only-source-wiring";
 import { salesConsoleRoleProductionViews } from "@/features/sales/sales-console-m10-production-views";
 import { salesConsoleM11AuthRoleSeedingPlan } from "@/features/sales/sales-console-m11-auth-role-seeding";
+import { salesConsoleM11ReadOnlyFeatureFlags } from "@/features/sales/sales-console-m11-read-only-feature-flags";
 import { salesConsoleM11RoleFeatureAccess } from "@/features/sales/sales-console-m11-role-feature-access";
 import { salesConsoleM11StaffRoleModel } from "@/features/sales/sales-console-m11-staff-role-model";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
@@ -222,6 +223,18 @@ describe("Sales Console", () => {
     for (const fixture of salesConsoleM11AuthRoleSeedingPlan.fixtures) {
       expect(markup).toContain(fixture.label);
       expect(markup).toContain(fixture.userId);
+    }
+  });
+
+  it("renders M11 read-only feature flags without enabling excluded actions", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M11 Read-Only Feature Flags");
+    expect(markup).toContain("Feature flags are visibility-only");
+    expect(markup).toContain("Excluded actions remain blocked");
+    for (const flag of salesConsoleM11ReadOnlyFeatureFlags) {
+      expect(markup).toContain(flag.flag);
+      expect(markup).toContain(flag.status);
     }
   });
 
