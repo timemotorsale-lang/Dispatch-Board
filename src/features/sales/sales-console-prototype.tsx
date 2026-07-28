@@ -317,17 +317,25 @@ export function SalesConsolePrototype() {
         </div>
         <label className={styles.search}>
           <Search size={16} aria-hidden="true" />
-          <input aria-label="Search sales console" placeholder="Search leads, customers, deals, inventory..." type="search" />
-          <kbd>Ctrl K</kbd>
+          <input aria-label="Search sales console" disabled placeholder="Search planned for dogfood" type="search" />
+          <kbd>Planned</kbd>
         </label>
         <div className={styles.topbarActions}>
-          <button type="button"><Bell size={16} /> Alerts <b>12</b></button>
+          <button aria-disabled="true" disabled title="Alerts are read-only indicators until dogfood observability is connected." type="button">
+            <Bell size={16} /> Alerts <b>read-only</b>
+          </button>
           <button aria-disabled="true" disabled title="Messaging automation is planned, not active in the read-only production MVP." type="button">
             <MessageSquareText size={16} /> Messages <b>planned</b>
           </button>
-          <button type="button"><CalendarDays size={16} /> Calendar</button>
-          <button type="button"><HelpCircle size={16} /> Help</button>
-          <button type="button">All Stores <ChevronDown size={14} /></button>
+          <button aria-disabled="true" disabled title="Calendar actions are planned for a later read-only/source-linked phase." type="button">
+            <CalendarDays size={16} /> Calendar <b>planned</b>
+          </button>
+          <button aria-disabled="true" disabled title="Staff help content will be added before dogfooding." type="button">
+            <HelpCircle size={16} /> Help <b>planned</b>
+          </button>
+          <button aria-disabled="true" disabled title="Store switching is planned. Current dogfood scope uses the assigned/default store." type="button">
+            All Stores <ChevronDown size={14} /> <b>planned</b>
+          </button>
         </div>
       </header>
 
@@ -368,11 +376,24 @@ export function SalesConsolePrototype() {
                 <h2 id="sales-today-title">Salesperson Today</h2>
               </div>
               <div className={styles.headerActions}>
-                <button type="button">My Pipeline <ChevronDown size={13} /></button>
-                <button aria-label="Refresh sales queue" type="button"><RefreshCw size={15} /></button>
-                <button type="button"><Settings size={15} /> Customize</button>
-                <button aria-label="More sales actions" type="button"><MoreVertical size={15} /></button>
+                <button aria-disabled="true" disabled title="Pipeline filters are planned; this dogfood view uses adapter-ranked read-only data." type="button">
+                  My Pipeline <ChevronDown size={13} /> <b>planned</b>
+                </button>
+                <button aria-disabled="true" aria-label="Refresh sales queue planned" disabled title="Manual refresh is planned. Data freshness is currently label-driven." type="button">
+                  <RefreshCw size={15} /> <b>planned</b>
+                </button>
+                <button aria-disabled="true" disabled title="Customization is planned after staff dogfood feedback." type="button">
+                  <Settings size={15} /> Customize <b>planned</b>
+                </button>
+                <button aria-disabled="true" aria-label="More sales actions planned" disabled title="More actions are intentionally unavailable in the read-only dogfood phase." type="button">
+                  <MoreVertical size={15} /> <b>planned</b>
+                </button>
               </div>
+            </div>
+
+            <div className={styles.readOnlyUxNotice} role="note">
+              <ShieldCheck size={15} />
+              <span>Dogfood UX cleanup: controls marked planned/read-only are intentionally inactive until release gates approve live workflows.</span>
             </div>
 
             <div className={styles.metricStrip}>
