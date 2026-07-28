@@ -482,10 +482,254 @@
   padding-left: 18px;
 }
 
+.boundaryCard {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.09), rgba(15, 23, 42, 0.04));
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  border-radius: 10px;
+  display: grid;
+  gap: 7px;
+  margin-top: 10px;
+  padding: 11px;
+}
+
+.boundaryCard strong,
+.boundaryCard span,
+.boundaryCard small,
+.boundaryCard em {
+  display: block;
+  line-height: 1.45;
+}
+
+.boundaryCard strong {
+  color: var(--ink);
+  font-size: 0.8rem;
+}
+
+.boundaryCard span,
+.boundaryCard small {
+  color: var(--muted);
+  font-size: 0.73rem;
+}
+
+.boundaryCard em {
+  border-top: 1px solid rgba(37, 99, 235, 0.16);
+  color: var(--brand-strong);
+  font-size: 0.73rem;
+  font-style: normal;
+  font-weight: 900;
+  padding-top: 7px;
+}
+
+.boundaryList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.boundaryList span {
+  align-items: center;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  display: inline-flex;
+  font-size: 0.68rem;
+  font-weight: 800;
+  gap: 4px;
+  padding: 5px 7px;
+}
+
+.rolePermissionList,
+.dataSourceList,
+.acceptanceList {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.rolePermissionList article,
+.dataSourceList article {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+}
+
+.rolePermissionList strong,
+.dataSourceList strong,
+.acceptanceList strong {
+  color: var(--ink);
+  font-size: 0.78rem;
+}
+
+.rolePermissionList span,
+.rolePermissionList small,
+.dataSourceList span,
+.dataSourceList small,
+.dataSourceList em,
+.acceptanceList span,
+.acceptanceList small {
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.rolePermissionList span,
+.dataSourceList span,
+.dataSourceList small,
+.acceptanceList span {
+  color: var(--muted);
+}
+
+.rolePermissionList small,
+.dataSourceList em,
+.acceptanceList small {
+  border-top: 1px solid var(--line);
+  color: var(--brand-strong);
+  font-weight: 800;
+  padding-top: 6px;
+}
+
+.dataSourceList em {
+  display: block;
+  font-style: normal;
+}
+
+.acceptanceList article {
+  align-items: start;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto 1fr;
+  padding: 10px;
+}
+
+.acceptanceList article > svg {
+  color: var(--success);
+  margin-top: 1px;
+}
+
+.acceptanceList strong,
+.acceptanceList span,
+.acceptanceList small {
+  display: block;
+}
+
 .principleList {
   display: grid;
   gap: 8px;
   margin-top: 10px;
+}
+
+.includedMvpList {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.scopeReviewList,
+.buildOrderList,
+.decisionGateList {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.includedMvpList article,
+.scopeReviewList article,
+.decisionGateList article {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+}
+
+.includedMvpList strong,
+.scopeReviewList strong,
+.buildOrderList strong,
+.decisionGateList strong {
+  color: var(--ink);
+  font-size: 0.78rem;
+}
+
+.includedMvpList ul {
+  color: var(--muted);
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding-left: 17px;
+}
+
+.includedMvpList li,
+.includedMvpList small,
+.scopeReviewList span,
+.scopeReviewList small,
+.buildOrderList small,
+.buildOrderList em,
+.decisionGateList span,
+.decisionGateList small,
+.decisionGateList em {
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.includedMvpList small,
+.scopeReviewList small,
+.decisionGateList small {
+  border-top: 1px solid var(--line);
+  color: var(--brand-strong);
+  font-weight: 800;
+  padding-top: 6px;
+}
+
+.scopeReviewList span,
+.buildOrderList small,
+.decisionGateList span {
+  color: var(--muted);
+}
+
+.buildOrderList article {
+  align-items: start;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto 1fr;
+  padding: 10px;
+}
+
+.buildOrderList article > span {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--brand-strong);
+  font-size: 0.7rem;
+  font-weight: 900;
+  padding: 5px 7px;
+}
+
+.buildOrderList strong,
+.buildOrderList small,
+.buildOrderList em,
+.decisionGateList strong,
+.decisionGateList span,
+.decisionGateList small,
+.decisionGateList em {
+  display: block;
+}
+
+.buildOrderList em,
+.decisionGateList em {
+  color: var(--warning);
+  font-style: normal;
+  font-weight: 800;
 }
 
 .principleList article,
