@@ -27,6 +27,7 @@ import {
 import type { CSSProperties } from "react";
 
 import { salesConsoleMvpDefinition } from "./sales-console-mvp-definition";
+import { salesConsoleMvpExecution } from "./sales-console-mvp-execution";
 import styles from "./sales-console-prototype.module.css";
 
 const headlineMetrics = [
@@ -199,6 +200,20 @@ function statusClass(tone: "danger" | "good" | "neutral" | "warning") {
   return styles.statusNeutral;
 }
 
+function executionStatusClass(status: "disabled" | "planned" | "ready" | "review") {
+  if (status === "ready") return styles.statusGood;
+  if (status === "review") return styles.statusWarning;
+  if (status === "disabled") return styles.statusDanger;
+  return styles.statusNeutral;
+}
+
+function freshnessClass(freshness: "current" | "placeholder" | "stale" | "verify-first") {
+  if (freshness === "current") return styles.statusGood;
+  if (freshness === "stale") return styles.statusDanger;
+  if (freshness === "verify-first") return styles.statusWarning;
+  return styles.statusNeutral;
+}
+
 function barStyle(width: string) {
   return { "--bar-size": width } as CSSProperties;
 }
@@ -224,6 +239,33 @@ export function SalesConsolePrototype() {
           <button type="button">All Stores <ChevronDown size={14} /></button>
         </div>
       </header>
+
+      <section className={styles.executionFoundation} aria-label="Sales Console MVP execution foundation">
+        <div>
+          <span className={styles.eyebrow}>Execution foundation</span>
+          <h2>Read-only MVP pilot shell</h2>
+          <p>{salesConsoleMvpDefinition.recommendedMvpBoundary.releaseLine}</p>
+        </div>
+        <div className={styles.shellCheckGrid}>
+          {salesConsoleMvpExecution.shellChecks.map((check) => (
+            <article key={check.check}>
+              <strong>{check.check}</strong>
+              <span className={executionStatusClass(check.status)}>{check.status}</span>
+              <small>{check.proof}</small>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className={styles.roleRail} aria-label="Sales Console MVP role placeholders">
+        {salesConsoleMvpExecution.roleViews.map((role) => (
+          <article className={role.role === salesConsoleMvpExecution.defaultRole ? styles.activeRoleCard : undefined} key={role.role}>
+            <strong>{role.label}</strong>
+            <span>{role.primarySurface}</span>
+            <small>{role.visibility}</small>
+          </article>
+        ))}
+      </section>
 
       <div className={styles.bodyGrid}>
         <main className={styles.mainColumn}>
@@ -439,6 +481,49 @@ export function SalesConsolePrototype() {
                   <li key={capability}>{capability}</li>
                 ))}
               </ul>
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Read-Only Action Guardrails</h2><ShieldCheck size={18} /></div>
+            <div className={styles.actionGuardrailList}>
+              {salesConsoleMvpExecution.readOnlyGuardrails.map((guardrail) => (
+                <article key={guardrail.action}>
+                  <strong>{guardrail.action}</strong>
+                  <span className={executionStatusClass(guardrail.status)}>{guardrail.status}</span>
+                  <small>{guardrail.reason}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Execution Data Contract</h2><Gauge size={18} /></div>
+            <div className={styles.executionDataList}>
+              {salesConsoleMvpExecution.dataContractFields.map((field) => (
+                <article key={field.field}>
+                  <div>
+                    <strong>{field.field}</strong>
+                    <span>{field.surface}</span>
+                  </div>
+                  <span className={freshnessClass(field.freshness)}>{field.freshness}</span>
+                  <small>{field.source}</small>
+                  <em>{field.fallbackLabel}</em>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Pilot Readiness Smoke</h2><CheckCircle2 size={18} /></div>
+            <div className={styles.pilotReadinessList}>
+              {salesConsoleMvpExecution.pilotReadinessChecks.map((check) => (
+                <article key={check.check}>
+                  <strong>{check.check}</strong>
+                  <span className={executionStatusClass(check.status)}>{check.status}</span>
+                  <small>{check.evidence}</small>
+                </article>
+              ))}
             </div>
           </section>
 
