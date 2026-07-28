@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import SalesConsoleError from "@/app/(app)/sales/error";
 import SalesConsoleLoading from "@/app/(app)/sales/loading";
+import { salesConsoleMvpDefinition } from "@/features/sales/sales-console-mvp-definition";
 import { SalesConsolePrototype } from "@/features/sales/sales-console-prototype";
 
 describe("Sales Console prototype", () => {
@@ -20,11 +21,13 @@ describe("Sales Console prototype", () => {
   it("keeps the first slice non-destructive and prototype-scoped", () => {
     const markup = renderToStaticMarkup(<SalesConsolePrototype />);
 
-    expect(markup).toContain("Prototype only");
-    expect(markup).toContain("does not send customer messages");
-    expect(markup).toContain("reserve vehicles");
-    expect(markup).toContain("approve discounts");
-    expect(markup).toContain("write production records");
+    expect(markup).toContain("MVP Definition");
+    expect(markup).toContain(salesConsoleMvpDefinition.operatingBoundary);
+    expect(markup).toContain("Customer messaging automation");
+    expect(markup).toContain("Quote submission");
+    expect(markup).toContain("Vehicle holds or reservations");
+    expect(markup).toContain("Finance decisions");
+    expect(markup).toContain("Discount approvals");
   });
 
   it("uses sales-specific loading and error states for protected route failures", () => {

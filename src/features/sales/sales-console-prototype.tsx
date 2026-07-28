@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import type { CSSProperties } from "react";
 
+import { salesConsoleMvpDefinition } from "./sales-console-mvp-definition";
 import styles from "./sales-console-prototype.module.css";
 
 const headlineMetrics = [
@@ -421,11 +422,24 @@ export function SalesConsolePrototype() {
           </section>
 
           <section className={styles.panel}>
-            <div className={styles.railHeader}><h2>Prototype only</h2><ClipboardCheck size={18} /></div>
+            <div className={styles.railHeader}><h2>MVP Definition</h2><ClipboardCheck size={18} /></div>
             <p className={styles.guardrailCopy}>
-              This first slice renders static sales-console read models only. It does not send customer messages,
-              reserve vehicles, approve discounts, change finance state, or write production records.
+              {salesConsoleMvpDefinition.operatingBoundary}
             </p>
+            <div className={styles.mvpDefinition}>
+              <strong>Included</strong>
+              <ul>
+                {salesConsoleMvpDefinition.includedCapabilities.slice(0, 3).map((capability) => (
+                  <li key={capability}>{capability}</li>
+                ))}
+              </ul>
+              <strong>Excluded</strong>
+              <ul>
+                {salesConsoleMvpDefinition.excludedCapabilities.map((capability) => (
+                  <li key={capability}>{capability}</li>
+                ))}
+              </ul>
+            </div>
           </section>
 
           <section className={styles.hiddenSmokeText} aria-hidden="true">
