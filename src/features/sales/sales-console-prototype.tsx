@@ -29,6 +29,7 @@ import type { CSSProperties } from "react";
 import { salesConsoleMvpDefinition } from "./sales-console-mvp-definition";
 import { salesConsoleMvpExecution } from "./sales-console-mvp-execution";
 import { salesConsoleMvpLiveDataContract } from "./sales-console-mvp-live-data-contract";
+import { salesConsoleReadAdapterPreview } from "./sales-console-mvp-read-adapters";
 import styles from "./sales-console-prototype.module.css";
 
 const headlineMetrics = [
@@ -564,6 +565,35 @@ export function SalesConsolePrototype() {
                   <small>{link.unavailableLabel}</small>
                 </article>
               ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Read Adapter Preview</h2><FileCheck2 size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Read-only adapter output from mock source-shaped records. No source records are changed.
+            </p>
+            <div className={styles.adapterPreviewGrid}>
+              <article>
+                <strong>Seller queue</strong>
+                <span>{salesConsoleReadAdapterPreview.sellerQueue.length} normalized items</span>
+                <small>{salesConsoleReadAdapterPreview.sellerQueue[0]?.customer}: {salesConsoleReadAdapterPreview.sellerQueue[0]?.blocker}</small>
+              </article>
+              <article>
+                <strong>Lead operations</strong>
+                <span>{salesConsoleReadAdapterPreview.leadOperations.length} lead signals</span>
+                <small>{salesConsoleReadAdapterPreview.leadOperations[1]?.label}: {salesConsoleReadAdapterPreview.leadOperations[1]?.slaLabel}</small>
+              </article>
+              <article>
+                <strong>Inventory intelligence</strong>
+                <span>{salesConsoleReadAdapterPreview.inventoryMatches.length} vehicle matches</span>
+                <small>{salesConsoleReadAdapterPreview.inventoryMatches[1]?.status}: {salesConsoleReadAdapterPreview.inventoryMatches[1]?.blockerDetail}</small>
+              </article>
+              <article>
+                <strong>Manager risks</strong>
+                <span>{salesConsoleReadAdapterPreview.managerRisks.length} aggregated risks</span>
+                <small>{salesConsoleReadAdapterPreview.managerRisks.map((risk) => `${risk.label} ${risk.count}`).join(" · ")}</small>
+              </article>
             </div>
           </section>
 

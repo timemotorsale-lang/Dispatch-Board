@@ -7,6 +7,7 @@ import SalesPage from "@/app/(app)/sales/page";
 import { salesConsoleMvpDefinition } from "@/features/sales/sales-console-mvp-definition";
 import { salesConsoleMvpExecution } from "@/features/sales/sales-console-mvp-execution";
 import { salesConsoleMvpLiveDataContract } from "@/features/sales/sales-console-mvp-live-data-contract";
+import { salesConsoleReadAdapterPreview } from "@/features/sales/sales-console-mvp-read-adapters";
 import { SalesConsolePrototype } from "@/features/sales/sales-console-prototype";
 
 describe("Sales Console prototype", () => {
@@ -177,6 +178,18 @@ describe("Sales Console prototype", () => {
       expect(markup).toContain(rule.enforcement);
     }
     expect(markup).toContain("Data presence cannot enable messaging, quote submission, vehicle holds, finance decisions, or discount approvals in MVP.");
+  });
+
+  it("renders read adapter preview output without changing source records", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Read Adapter Preview");
+    expect(markup).toContain("Read-only adapter output from mock source-shaped records.");
+    expect(salesConsoleReadAdapterPreview.readOnly).toBe(true);
+    expect(markup).toContain(`${salesConsoleReadAdapterPreview.sellerQueue.length} normalized items`);
+    expect(markup).toContain(`${salesConsoleReadAdapterPreview.leadOperations.length} lead signals`);
+    expect(markup).toContain(`${salesConsoleReadAdapterPreview.inventoryMatches.length} vehicle matches`);
+    expect(markup).toContain(`${salesConsoleReadAdapterPreview.managerRisks.length} aggregated risks`);
   });
 
   it("renders pilot readiness smoke checks for safe review", () => {
