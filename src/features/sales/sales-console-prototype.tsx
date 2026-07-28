@@ -68,6 +68,13 @@ import {
   salesConsoleQuoteScenarioReadModel
 } from "./sales-console-m9-quote-scenario-builder";
 import {
+  salesConsoleVehicleHoldReadModel,
+  staleOrVerifyFirstInventoryBlocksHold,
+  vehicleHoldFoundationIsDisabled,
+  vehicleHoldsHaveAuditAndPermissionCoverage,
+  vehicleHoldsRequireManagerApprovalExpiryAndVerification
+} from "./sales-console-m9-vehicle-holds";
+import {
   enterprisePermissionGatesDenyByDefault,
   salesConsoleEnterprisePermissionReadModel,
   sensitiveWorkflowsHavePermissionAndAuditCoverage
@@ -650,6 +657,44 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {messagingRequiresConsentPreviewAndOptOut() ? "Consent, preview, opt-out, and rate limit required" : "Messaging consent gate incomplete"}</span>
               <span><ShieldCheck size={13} /> {messagingHasAuditAndPermissionCoverage() ? "Audit and permission coverage present" : "Messaging coverage incomplete"}</span>
               {salesConsoleCustomerMessagingReadModel.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Admin review vehicle holds foundation">
+            <div className={styles.railHeader}><h2>Vehicle Holds Foundation</h2><CarFront size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Vehicle holds are request-contract only. Manager approval, expiration, inventory verification, audit, and source-system gates are required before activation.
+            </p>
+            <div className={styles.enterpriseHoldList}>
+              {salesConsoleVehicleHoldReadModel.requests.map((hold) => (
+                <article key={hold.holdId}>
+                  <div>
+                    <strong>{hold.holdId}</strong>
+                    <span>{hold.stockNumber} · {hold.customerId}</span>
+                  </div>
+                  <span className={freshnessClass(hold.status === "verify-first" ? "verify-first" : "placeholder")}>{hold.status}</span>
+                  <small>Manager approval: {String(hold.managerApprovalRequired)}. Expiration: {String(hold.expirationRequired)}. Source write: {String(hold.sourceWrite)}. Enabled: {String(hold.enabled)}.</small>
+                </article>
+              ))}
+              {salesConsoleVehicleHoldReadModel.limits.map((limit) => (
+                <article key={limit.scope}>
+                  <div>
+                    <strong>{limit.scope} hold limit</strong>
+                    <span>{limit.limit}</span>
+                  </div>
+                  <span className={styles.statusWarning}>planned limit</span>
+                  <small>{limit.reason}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {vehicleHoldFoundationIsDisabled() ? "Vehicle holds disabled" : "Vehicle hold activation risk"}</span>
+              <span><ShieldCheck size={13} /> {vehicleHoldsRequireManagerApprovalExpiryAndVerification() ? "Manager approval, expiry, and verification required" : "Hold gate incomplete"}</span>
+              <span><ShieldCheck size={13} /> {staleOrVerifyFirstInventoryBlocksHold() ? "Verify-first inventory blocks holds" : "Inventory hold risk"}</span>
+              <span><ShieldCheck size={13} /> {vehicleHoldsHaveAuditAndPermissionCoverage() ? "Audit and permission coverage present" : "Hold coverage incomplete"}</span>
+              {salesConsoleVehicleHoldReadModel.guardrails.map((guardrail) => (
                 <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
               ))}
             </div>
