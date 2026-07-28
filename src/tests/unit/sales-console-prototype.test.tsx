@@ -23,6 +23,7 @@ import { salesConsoleM12RoleLandingExperiences } from "@/features/sales/sales-co
 import { salesConsoleM12RoleEmptyPlannedStates } from "@/features/sales/sales-console-m12-role-empty-planned-states";
 import { salesConsoleM12RoleStartCards } from "@/features/sales/sales-console-m12-role-start-cards";
 import { salesConsoleM13DogfoodReadiness } from "@/features/sales/sales-console-m13-dogfood-readiness";
+import { salesConsoleM13FeedbackCategories } from "@/features/sales/sales-console-m13-feedback-categories";
 import { salesConsoleM13StaffPilotGuide } from "@/features/sales/sales-console-m13-staff-pilot-guide";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
@@ -353,6 +354,18 @@ describe("Sales Console", () => {
     for (const item of salesConsoleM13StaffPilotGuide.guideItems) {
       expect(markup).toContain(item.title);
       expect(markup).toContain(item.instruction);
+    }
+  });
+
+  it("renders M13 feedback categories without enabling capture writes", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M13 Feedback Categories");
+    expect(markup).toContain("Feedback categories cover dogfood risks");
+    expect(markup).toContain("Feedback capture remains read-only");
+    for (const item of salesConsoleM13FeedbackCategories) {
+      expect(markup).toContain(item.category);
+      expect(markup).toContain(item.example);
     }
   });
 
