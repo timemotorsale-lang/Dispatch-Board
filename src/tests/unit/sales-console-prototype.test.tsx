@@ -17,6 +17,7 @@ import { salesConsoleFinanceHandoffReadModel } from "@/features/sales/sales-cons
 import { salesConsoleForecastReadModel } from "@/features/sales/sales-console-m9-forecasting";
 import { salesConsoleManagerApprovalReadModel } from "@/features/sales/sales-console-m9-manager-approvals";
 import { salesConsoleQuoteScenarioReadModel } from "@/features/sales/sales-console-m9-quote-scenario-builder";
+import { salesConsoleSalesCoachingReadModel } from "@/features/sales/sales-console-m9-sales-coaching";
 import { salesConsoleVehicleHoldReadModel } from "@/features/sales/sales-console-m9-vehicle-holds";
 import { salesConsolePilotReadiness } from "@/features/sales/sales-console-mvp-pilot-readiness";
 import { salesConsoleProductionReadiness } from "@/features/sales/sales-console-mvp-production-readiness";
@@ -356,6 +357,22 @@ describe("Sales Console", () => {
       expect(markup).toContain(recommendation.reason);
       expect(recommendation.autoExecute).toBe(false);
       expect(recommendation.humanConfirmationRequired).toBe(true);
+    }
+  });
+
+  it("renders sales coaching foundation without hidden scoring or punitive automation", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Sales Coaching Foundation");
+    expect(markup).toContain("Coaching insights are explainable");
+    expect(markup).toContain("No hidden scoring or punitive automation");
+    expect(markup).toContain("Coaching visibility role-limited");
+    for (const insight of salesConsoleSalesCoachingReadModel.insights) {
+      expect(markup).toContain(insight.insightId);
+      expect(markup).toContain(insight.evidence);
+      expect(markup).toContain(insight.suggestedTopic);
+      expect(insight.hiddenScore).toBe(false);
+      expect(insight.punitiveAutomation).toBe(false);
     }
   });
 
