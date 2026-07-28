@@ -6,6 +6,7 @@ import SalesConsoleLoading from "@/app/(app)/sales/loading";
 import SalesPage from "@/app/(app)/sales/page";
 import { salesConsoleMvpDefinition } from "@/features/sales/sales-console-mvp-definition";
 import { salesConsoleMvpExecution } from "@/features/sales/sales-console-mvp-execution";
+import { salesConsoleMvpLiveDataContract } from "@/features/sales/sales-console-mvp-live-data-contract";
 import { SalesConsolePrototype } from "@/features/sales/sales-console-prototype";
 
 describe("Sales Console prototype", () => {
@@ -126,6 +127,56 @@ describe("Sales Console prototype", () => {
     expect(markup).toContain("verify-first");
     expect(markup).toContain("placeholder");
     expect(markup).toContain("stale");
+  });
+
+  it("renders the live data contract without enabling writes", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Live Data Contract");
+    expect(markup).toContain(salesConsoleMvpLiveDataContract.boundary);
+    expect(salesConsoleMvpLiveDataContract.liveSources).toHaveLength(6);
+    for (const source of salesConsoleMvpLiveDataContract.liveSources) {
+      expect(source.mode).toBe("read-only");
+      expect(markup).toContain(source.name);
+      expect(markup).toContain(source.fallback);
+    }
+  });
+
+  it("renders read model contracts for every MVP operating surface", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Read Model Contracts");
+    expect(salesConsoleMvpLiveDataContract.readModels).toHaveLength(6);
+    for (const model of salesConsoleMvpLiveDataContract.readModels) {
+      expect(markup).toContain(model.surface);
+      expect(markup).toContain(model.recordKey);
+      expect(model.requiredFields.length).toBeGreaterThan(4);
+    }
+    expect(markup).toContain("No quote submission is allowed from placeholder deal data.");
+  });
+
+  it("renders source link contracts with freshness and unavailable labels", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Source Link Contracts");
+    expect(salesConsoleMvpLiveDataContract.sourceLinks).toHaveLength(5);
+    for (const link of salesConsoleMvpLiveDataContract.sourceLinks) {
+      expect(markup).toContain(link.label);
+      expect(markup).toContain(link.routePattern);
+      expect(markup).toContain(link.unavailableLabel);
+    }
+  });
+
+  it("keeps adapter safety rules read-only and non-escalating", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Adapter Safety Rules");
+    expect(salesConsoleMvpLiveDataContract.adapterRules).toHaveLength(4);
+    for (const rule of salesConsoleMvpLiveDataContract.adapterRules) {
+      expect(markup).toContain(rule.rule);
+      expect(markup).toContain(rule.enforcement);
+    }
+    expect(markup).toContain("Data presence cannot enable messaging, quote submission, vehicle holds, finance decisions, or discount approvals in MVP.");
   });
 
   it("renders pilot readiness smoke checks for safe review", () => {
