@@ -110,6 +110,7 @@ npm run build
 - Scheduler verification contract: [docs/SCHEDULER_VERIFICATION_CONTRACT.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/SCHEDULER_VERIFICATION_CONTRACT.md)
 - Production scheduler task prompts: [docs/PRODUCTION_SCHEDULER_TASK_PROMPTS.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/PRODUCTION_SCHEDULER_TASK_PROMPTS.md)
 - Enterprise Appointment program: [docs/appointments/README.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/appointments/README.md)
+- Enterprise Sales Console planning package: [docs/sales-console/README.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/sales-console/README.md)
 - MVP scope: [docs/MVP_SCOPE.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/MVP_SCOPE.md)
 - Release checklist: [docs/RELEASE_CHECKLIST.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/RELEASE_CHECKLIST.md)
 - Enterprise workspace UI source of truth: [docs/ENTERPRISE_WORKSPACE_UI_SOURCE_OF_TRUTH.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/ENTERPRISE_WORKSPACE_UI_SOURCE_OF_TRUTH.md)

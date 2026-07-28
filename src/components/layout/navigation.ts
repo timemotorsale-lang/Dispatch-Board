@@ -229,12 +229,12 @@ export const dispatchNavigationItems: NavigationItem[] = [
     parentHref: "/board"
   },
   {
-    href: "/tasks?department=SALES",
+    href: "/sales",
     title: "Sales",
-    description: "Sales leads, follow-up, appointments, negotiations, and delivery work.",
+    description: "Enterprise sales console for leads, deal desk, inventory intelligence, and manager command.",
     icon: BadgeDollarSign,
     parentHref: "/board",
-    activeQuery: { department: "SALES" }
+    activePaths: ["/sales"]
   },
   {
     href: "/tasks?department=MARKETING",
@@ -350,8 +350,9 @@ const workspaceNavigationItems: Partial<Record<WorkspaceKey, NavigationItem[]>> 
     { href: "/vehicles/repair-workbench", title: "Repair Orders", description: "Read repair scope and completion evidence.", icon: ClipboardCheck }
   ],
   SALES: [
+    { href: "/sales", title: "Sales Console", description: "Lead, deal, vehicle match, and manager command center.", icon: BadgeDollarSign, matchExact: true },
     { href: "/my-tasks", title: "My Work", description: "Assigned follow-up and delivery actions.", icon: UserRoundCheck },
-    { href: "/tasks?department=SALES", title: "Sales Tasks", description: "Lead, negotiation, and delivery work.", icon: BadgeDollarSign, activeQuery: { department: "SALES" } },
+    { href: "/tasks?department=SALES", title: "Sales Tasks", description: "Task-level lead, negotiation, and delivery work.", icon: BadgeDollarSign, activeQuery: { department: "SALES" } },
     { href: "/appointments", title: "Appointments", description: "Customer appointments and commitments.", icon: CalendarDays },
     { href: "/customers", title: "Customers", description: "Permitted customer and lead context.", icon: ContactRound },
     { href: "/vehicles", title: "Vehicles", description: "Permitted inventory and delivery context.", icon: CarFront }

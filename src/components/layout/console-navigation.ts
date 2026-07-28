@@ -1,4 +1,4 @@
-import { BarChart3, BriefcaseBusiness, ClipboardList, House, MessageSquareText, Plug, RefreshCw, Settings, ShieldCheck, Wrench } from "lucide-react";
+import { BadgeDollarSign, BarChart3, BriefcaseBusiness, CalendarDays, CarFront, ClipboardList, ContactRound, Gauge, HandCoins, House, MessageSquareText, Plug, RefreshCw, Settings, ShieldCheck, UserRoundCheck, Wrench } from "lucide-react";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import {
@@ -95,6 +95,64 @@ const inventoryItems: NavigationItem[] = [
   }
 ];
 
+const salesItems: NavigationItem[] = [
+  {
+    href: "/sales",
+    title: "Today",
+    description: "Ranked sales work, next actions, and seller priorities.",
+    icon: House,
+    matchExact: true
+  },
+  {
+    href: "/sales#leads",
+    title: "Leads",
+    description: "Lead intake health, SLA risk, dedupe, and assignment.",
+    icon: UserRoundCheck
+  },
+  {
+    href: "/sales#pipeline",
+    title: "Pipeline",
+    description: "Opportunity stage, closeability, freshness, and forecast health.",
+    icon: BarChart3
+  },
+  {
+    href: "/sales#deal-desk",
+    title: "Deal Desk",
+    description: "Quote scenarios, approvals, finance blockers, and delivery readiness.",
+    icon: HandCoins
+  },
+  {
+    href: "/sales#inventory-intelligence",
+    title: "Inventory Intelligence",
+    description: "Vehicle matches, alternatives, readiness blockers, and market pressure.",
+    icon: CarFront
+  },
+  {
+    href: "/sales#command-center",
+    title: "Command Center",
+    description: "Manager risk queues, approvals, delivery blockers, and coaching.",
+    icon: Gauge
+  },
+  {
+    href: "/appointments",
+    title: "Appointments",
+    description: "Customer appointments and confirmation work.",
+    icon: CalendarDays
+  },
+  {
+    href: "/customers",
+    title: "Customers",
+    description: "Customer 360 and permitted relationship context.",
+    icon: ContactRound
+  },
+  {
+    href: "/tasks?department=SALES",
+    title: "Sales Tasks",
+    description: "Task-level lead, negotiation, and delivery actions.",
+    icon: BadgeDollarSign
+  }
+];
+
 export function isInventoryConsolePath(pathname: string) {
   return pathname === "/inventory-manager" || pathname === "/vehicles" || pathname.startsWith("/vehicles/");
 }
@@ -105,6 +163,10 @@ export function isOperationsCoordinatorConsolePath(pathname: string) {
 
 export function isAppointmentConsolePath(pathname: string) {
   return pathname === "/appointments" || pathname.startsWith("/appointments/");
+}
+
+export function isSalesConsolePath(pathname: string) {
+  return pathname === "/sales" || pathname.startsWith("/sales/");
 }
 
 export function getConsoleNavigation(
@@ -119,6 +181,16 @@ export function getConsoleNavigation(
       items: appointmentConsoleNavigationItems,
       subtitle: "Scheduling & Capacity",
       title: "Appointment Console"
+    };
+  }
+
+  if (isSalesConsolePath(pathname)) {
+    return {
+      badge: "Prototype",
+      homeHref: "/sales",
+      items: salesItems,
+      subtitle: "Enterprise Sales",
+      title: "Sales Console"
     };
   }
 
@@ -144,6 +216,7 @@ export function getConsoleNavigation(
     isOperationsCoordinatorConsolePath(pathname) ||
     pathname.startsWith("/diagnostics") ||
     pathname.startsWith("/customers") ||
+    pathname.startsWith("/sales") ||
     pathname.startsWith("/appointments");
 
   if (workspacePath && workspace !== "MANAGEMENT") {

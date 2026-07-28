@@ -1,0 +1,496 @@
+.console {
+  color: var(--ink);
+  display: grid;
+  gap: 12px;
+  margin: 0 auto;
+  max-width: 1520px;
+}
+
+.topbar,
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+}
+
+.topbar {
+  align-items: center;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto minmax(260px, 1fr) auto;
+  padding: 10px 12px;
+}
+
+.titleBlock span,
+.eyebrow,
+.metric span,
+.metric small,
+.workTable th,
+.workTable small,
+.compactTable th,
+.vehicleCopy span,
+.glanceGrid span,
+.glanceGrid small,
+.forecastList small,
+.guardrailCopy {
+  color: var(--muted);
+}
+
+.titleBlock h1 {
+  font-size: 1.25rem;
+  margin: 2px 0 0;
+}
+
+.titleBlock span,
+.eyebrow {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.search {
+  align-items: center;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+}
+
+.search input {
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  flex: 1;
+  font: inherit;
+  min-width: 0;
+  outline: 0;
+}
+
+.search kbd {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.topbarActions,
+.panelHeader,
+.headerActions,
+.railHeader,
+.customerCell,
+.leadHealth,
+.panelFooter {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.topbarActions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.topbarActions button,
+.headerActions button {
+  align-items: center;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  display: inline-flex;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  gap: 6px;
+  padding: 8px 9px;
+}
+
+.topbarActions b {
+  background: var(--danger);
+  border-radius: 999px;
+  color: white;
+  font-size: 0.68rem;
+  padding: 1px 5px;
+}
+
+.bodyGrid {
+  align-items: start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) 374px;
+}
+
+.mainColumn,
+.commandRail {
+  display: grid;
+  gap: 12px;
+}
+
+.panel {
+  min-width: 0;
+  padding: 12px;
+}
+
+.panelHeader,
+.railHeader,
+.panelFooter {
+  justify-content: space-between;
+}
+
+.panelHeader h2,
+.railHeader h2 {
+  font-size: 1rem;
+  margin: 2px 0 0;
+}
+
+.headerActions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.metricStrip {
+  border-bottom: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin: 12px -12px 0;
+}
+
+.metric {
+  border-right: 1px solid var(--line);
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 13px 14px;
+  text-align: center;
+}
+
+.metric:last-child {
+  border-right: 0;
+}
+
+.metric strong {
+  font-size: 1.7rem;
+  line-height: 1;
+}
+
+.toneDanger {
+  color: var(--danger);
+}
+
+.toneGood {
+  color: var(--success);
+}
+
+.toneWarning {
+  color: var(--warning);
+}
+
+.toneNeutral,
+.mutedText {
+  color: var(--muted);
+}
+
+.tableShell {
+  overflow-x: auto;
+}
+
+.workTable,
+.compactTable {
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  width: 100%;
+}
+
+.workTable th,
+.workTable td,
+.compactTable th,
+.compactTable td {
+  border-bottom: 1px solid var(--line);
+  padding: 9px 8px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.workTable th,
+.compactTable th {
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.workTable td strong,
+.workTable td small,
+.compactTable td strong,
+.compactTable td small,
+.vehicleCopy strong,
+.vehicleCopy span {
+  display: block;
+}
+
+.customerCell strong,
+.compactTable a {
+  color: var(--brand-strong);
+}
+
+.stagePill,
+.statusDanger,
+.statusGood,
+.statusWarning,
+.statusNeutral {
+  border-radius: 6px;
+  display: inline-flex;
+  font-size: 0.68rem;
+  font-weight: 900;
+  padding: 5px 7px;
+  white-space: nowrap;
+}
+
+.stagePill,
+.statusNeutral {
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+}
+
+.statusDanger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.statusGood {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.statusWarning {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.dueText {
+  color: var(--danger) !important;
+}
+
+.panelFooter {
+  color: var(--muted);
+  font-size: 0.78rem;
+  padding-top: 10px;
+}
+
+.panelFooter a,
+.railHeader a {
+  align-items: center;
+  color: var(--brand-strong);
+  display: inline-flex;
+  font-weight: 900;
+  gap: 4px;
+  text-decoration: none;
+}
+
+.lowerGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 0.98fr) minmax(0, 1.02fr);
+}
+
+.compactTable {
+  margin-top: 10px;
+}
+
+.vehicleList {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.vehicleRow {
+  align-items: center;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 9px;
+  grid-template-columns: 54px minmax(0, 1fr) auto minmax(98px, auto) auto;
+  padding: 8px;
+}
+
+.vehicleThumb {
+  align-items: center;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--brand-strong);
+  display: flex;
+  height: 42px;
+  justify-content: center;
+}
+
+.scoreRing {
+  align-items: center;
+  border: 2px solid var(--success);
+  border-radius: 999px;
+  color: var(--success);
+  display: grid;
+  font-weight: 900;
+  height: 44px;
+  justify-items: center;
+  line-height: 1;
+  width: 44px;
+}
+
+.scoreRing small {
+  color: var(--muted);
+  font-size: 0.58rem;
+}
+
+.commandRail .panel {
+  padding: 12px;
+}
+
+.glanceGrid {
+  display: grid;
+  gap: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 8px;
+}
+
+.glanceGrid div {
+  border-bottom: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  display: grid;
+  gap: 3px;
+  padding: 9px;
+}
+
+.glanceGrid div:nth-child(even) {
+  border-right: 0;
+}
+
+.glanceGrid strong {
+  color: var(--brand-strong);
+  font-size: 1.2rem;
+}
+
+.railList,
+.forecastList,
+.opportunityList {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.railList div {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 7px 0;
+}
+
+.railList strong {
+  color: var(--danger);
+}
+
+.forecastList div {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr auto auto 70px;
+}
+
+.forecastList i {
+  background: linear-gradient(90deg, var(--brand-strong) var(--bar-size), var(--line) var(--bar-size));
+  border-radius: 999px;
+  height: 5px;
+}
+
+.leadHealth {
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.leadHealth span {
+  align-items: center;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 0.74rem;
+  font-weight: 800;
+  gap: 5px;
+  padding: 7px;
+}
+
+.opportunityList article {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  padding: 8px 0;
+}
+
+.opportunityList span {
+  color: var(--muted);
+  display: block;
+  font-size: 0.74rem;
+}
+
+.opportunityList small {
+  background: var(--success-soft);
+  border-radius: 6px;
+  color: var(--success);
+  font-weight: 900;
+  padding: 5px 7px;
+}
+
+.guardrailCopy {
+  font-size: 0.78rem;
+  line-height: 1.55;
+  margin: 8px 0 0;
+}
+
+.hiddenSmokeText {
+  display: none;
+}
+
+@media (max-width: 1220px) {
+  .topbar,
+  .bodyGrid,
+  .lowerGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .topbarActions {
+    justify-content: flex-start;
+  }
+
+  .commandRail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .metricStrip,
+  .commandRail,
+  .glanceGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .metric,
+  .glanceGrid div {
+    border-right: 0;
+  }
+
+  .vehicleRow,
+  .forecastList div,
+  .opportunityList article {
+    grid-template-columns: 1fr;
+  }
+}
