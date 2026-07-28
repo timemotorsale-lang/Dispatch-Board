@@ -665,6 +665,7 @@
 
 .rolePermissionList,
 .roleViewList,
+.staffRoleModelList,
 .productionRoleViewList,
 .authAccessList,
 .m10SourceWiringList,
@@ -707,6 +708,7 @@
 
 .rolePermissionList article,
 .roleViewList article,
+.staffRoleModelList article,
 .productionRoleViewList article,
 .authAccessList article,
 .m10SourceWiringList article,
@@ -748,6 +750,7 @@
 
 .rolePermissionList strong,
 .roleViewList strong,
+.staffRoleModelList strong,
 .productionRoleViewList strong,
 .authAccessList strong,
 .m10SourceWiringList strong,
@@ -813,6 +816,9 @@
 .roleViewList span,
 .roleViewList small,
 .roleViewList em,
+.staffRoleModelList span,
+.staffRoleModelList small,
+.staffRoleModelList em,
 .productionRoleViewList span,
 .productionRoleViewList small,
 .productionRoleViewList em,

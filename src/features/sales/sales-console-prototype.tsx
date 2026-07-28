@@ -65,6 +65,13 @@ import {
   m10ManagerReviewRolesAreScopedToManagersAndAdmins,
   salesConsoleM10ManagerReviewRequestFoundation
 } from "./sales-console-m10-manager-review-request";
+import {
+  salesConsoleM11ActiveDogfoodRolesAreLimited,
+  salesConsoleM11PlannedRolesDoNotCreateAdminAccess,
+  salesConsoleM11RoleModelIncludesRequiredStaffRoles,
+  salesConsoleM11RoleModelRemainsReadOnly,
+  salesConsoleM11StaffRoleModel
+} from "./sales-console-m11-staff-role-model";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -452,6 +459,33 @@ export function SalesConsolePrototype() {
         </main>
 
         <aside className={styles.commandRail} id="command-center" aria-label="Manager Command Center">
+          <section className={styles.panel} aria-label="Staff role model for read-only dogfooding">
+            <div className={styles.railHeader}><h2>M11 Staff Role Model</h2><UsersRound size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Official read-only dogfood roles define who can safely try the console before staff deployment.
+            </p>
+            <div className={styles.staffRoleModelList}>
+              {salesConsoleM11StaffRoleModel.map((role) => (
+                <article key={role.role}>
+                  <div>
+                    <strong>{role.label}</strong>
+                    <span>{role.dogfoodStatus} · default: {role.defaultSurface}</span>
+                  </div>
+                  <span className={role.dogfoodStatus === "active-dogfood" ? styles.statusGood : styles.statusWarning}>{role.role}</span>
+                  <small>App roles: {role.appRoleNames.join(", ")}</small>
+                  <small>{role.staffIntent}</small>
+                  <em>{role.readOnlyBoundary}</em>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM11RoleModelIncludesRequiredStaffRoles() ? "Required staff roles covered" : "Staff role coverage gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11RoleModelRemainsReadOnly() ? "Role model remains read-only" : "Role model write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11ActiveDogfoodRolesAreLimited() ? "Active dogfood roles are limited" : "Dogfood scope risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11PlannedRolesDoNotCreateAdminAccess() ? "Planned roles do not create admin access" : "Planned role admin risk"}</span>
+            </div>
+          </section>
+
           <section className={styles.panel} aria-label="Role-specific production views">
             <div className={styles.railHeader}><h2>Role-Specific Production Views</h2><UserRoundCheck size={18} /></div>
             <p className={styles.guardrailCopy}>
