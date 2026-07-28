@@ -149,6 +149,12 @@ import {
   salesConsoleM13ObservabilityHasCoreHealthSignals,
   salesConsoleM13ReleaseObservability
 } from "./sales-console-m13-release-observability";
+import {
+  salesConsoleM13DogfoodGates,
+  salesConsoleM13DogfoodGatesCoverReleasePath,
+  salesConsoleM13DogfoodGatesRequireEvidence,
+  salesConsoleM13ProductionPilotStillWaits
+} from "./sales-console-m13-dogfood-gates";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -887,6 +893,28 @@ export function SalesConsolePrototype() {
               {salesConsoleM13ReleaseObservability.knownBlockers.map((blocker) => (
                 <span key={blocker}><ShieldCheck size={13} /> {blocker}</span>
               ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M13 dogfood go no-go gates">
+            <div className={styles.railHeader}><h2>M13 Dogfood Go/No-Go Gates</h2><ShieldCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Dogfooding advances only when each gate has clear evidence. Production pilot remains a later decision.
+            </p>
+            <div className={styles.dogfoodGateList}>
+              {salesConsoleM13DogfoodGates.map((gate) => (
+                <article key={gate.gate}>
+                  <strong>{gate.gate}</strong>
+                  <span className={gate.status === "ready" ? styles.statusGood : styles.statusWarning}>{gate.status}</span>
+                  <small>{gate.mergeGate}</small>
+                  <small>Evidence: {gate.requiredEvidence.join(", ")}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM13DogfoodGatesCoverReleasePath() ? "Dogfood gates cover release path" : "Dogfood gate coverage gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM13DogfoodGatesRequireEvidence() ? "Each gate requires evidence" : "Gate evidence gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM13ProductionPilotStillWaits() ? "Production pilot still waits" : "Production pilot risk"}</span>
             </div>
           </section>
 

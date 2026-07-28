@@ -24,6 +24,7 @@ import { salesConsoleM12RoleEmptyPlannedStates } from "@/features/sales/sales-co
 import { salesConsoleM12RoleStartCards } from "@/features/sales/sales-console-m12-role-start-cards";
 import { salesConsoleM13DogfoodReadiness } from "@/features/sales/sales-console-m13-dogfood-readiness";
 import { salesConsoleM13FeedbackCategories } from "@/features/sales/sales-console-m13-feedback-categories";
+import { salesConsoleM13DogfoodGates } from "@/features/sales/sales-console-m13-dogfood-gates";
 import { salesConsoleM13ReleaseObservability } from "@/features/sales/sales-console-m13-release-observability";
 import { salesConsoleM13StaffPilotGuide } from "@/features/sales/sales-console-m13-staff-pilot-guide";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
@@ -379,6 +380,19 @@ describe("Sales Console", () => {
     expect(markup).toContain("Disabled action coverage visible");
     for (const signal of salesConsoleM13ReleaseObservability.healthSignals) {
       expect(markup).toContain(signal.label);
+    }
+  });
+
+  it("renders M13 dogfood go/no-go gates", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M13 Dogfood Go/No-Go Gates");
+    expect(markup).toContain("Dogfood gates cover release path");
+    expect(markup).toContain("Each gate requires evidence");
+    expect(markup).toContain("Production pilot still waits");
+    for (const gate of salesConsoleM13DogfoodGates) {
+      expect(markup).toContain(gate.gate);
+      expect(markup).toContain(gate.mergeGate);
     }
   });
 
