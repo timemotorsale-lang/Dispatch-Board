@@ -8,6 +8,7 @@ import { salesConsoleMvpDefinition } from "@/features/sales/sales-console-mvp-de
 import { salesConsoleMvpExecution } from "@/features/sales/sales-console-mvp-execution";
 import { salesConsoleMvpLiveDataContract } from "@/features/sales/sales-console-mvp-live-data-contract";
 import { salesConsoleReadAdapterPreview } from "@/features/sales/sales-console-mvp-read-adapters";
+import { salesConsoleMvpRealDataWiring } from "@/features/sales/sales-console-mvp-real-data-wiring";
 import { SalesConsolePrototype } from "@/features/sales/sales-console-prototype";
 
 describe("Sales Console prototype", () => {
@@ -141,6 +142,21 @@ describe("Sales Console prototype", () => {
       expect(markup).toContain(source.name);
       expect(markup).toContain(source.fallback);
     }
+  });
+
+  it("renders real data wiring evidence with safe fallback labels", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Real Data Wiring");
+    expect(markup).toContain(salesConsoleMvpRealDataWiring.boundary);
+    for (const source of salesConsoleMvpRealDataWiring.connectedSources) {
+      expect(markup).toContain(source.source);
+      expect(markup).toContain(source.fallback);
+    }
+    expect(markup).toContain("Board/task read model");
+    expect(markup).toContain("Customer lead read model");
+    expect(markup).toContain("Vehicle registry read model");
+    expect(markup).toContain("Appointment context remains fallback");
   });
 
   it("renders read model contracts for every MVP operating surface", () => {

@@ -30,6 +30,7 @@ import { salesConsoleMvpDefinition } from "./sales-console-mvp-definition";
 import { salesConsoleMvpExecution } from "./sales-console-mvp-execution";
 import { salesConsoleMvpLiveDataContract } from "./sales-console-mvp-live-data-contract";
 import { salesConsoleReadAdapterPreview } from "./sales-console-mvp-read-adapters";
+import { salesConsoleMvpRealDataWiring } from "./sales-console-mvp-real-data-wiring";
 import styles from "./sales-console-prototype.module.css";
 
 const salesConsoleReadModel = salesConsoleReadAdapterPreview;
@@ -126,6 +127,12 @@ function freshnessClass(freshness: "current" | "placeholder" | "stale" | "verify
 function liveSourceStatusClass(status: "contract-ready" | "needs-mapping" | "placeholder-only") {
   if (status === "contract-ready") return styles.statusGood;
   if (status === "needs-mapping") return styles.statusWarning;
+  return styles.statusNeutral;
+}
+
+function realDataStatusClass(status: "fallback" | "hybrid-fallback" | "wired") {
+  if (status === "wired") return styles.statusGood;
+  if (status === "hybrid-fallback") return styles.statusWarning;
   return styles.statusNeutral;
 }
 
@@ -442,6 +449,28 @@ export function SalesConsolePrototype() {
                   <small>Feeds: {source.feeds.join(", ")}</small>
                   <em>{source.fallback}</em>
                 </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.railHeader}><h2>Real Data Wiring</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleMvpRealDataWiring.boundary}</p>
+            <div className={styles.liveSourceList}>
+              {salesConsoleMvpRealDataWiring.connectedSources.map((source) => (
+                <article key={source.source}>
+                  <div>
+                    <strong>{source.source}</strong>
+                    <span>Feeds: {source.surfaces.join(", ")}</span>
+                  </div>
+                  <span className={realDataStatusClass(source.status)}>{source.status}</span>
+                  <small>{source.fallback}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              {salesConsoleMvpRealDataWiring.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
               ))}
             </div>
           </section>
