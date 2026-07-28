@@ -127,6 +127,50 @@
   text-decoration: none;
 }
 
+.roleStartCardStrip {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.roleStartCardStrip article {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+}
+
+.roleStartCardStrip strong {
+  color: var(--ink);
+  font-size: 0.76rem;
+}
+
+.roleStartCardStrip span,
+.roleStartCardStrip small,
+.roleStartCardStrip em {
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.roleStartCardStrip em {
+  color: var(--brand-strong);
+  font-style: normal;
+  font-weight: 900;
+}
+
+.roleStartCardStrip a {
+  color: var(--brand-strong);
+  display: inline-flex;
+  font-size: 0.68rem;
+  font-weight: 900;
+  gap: 4px;
+  text-decoration: none;
+}
+
 .roleRail article {
   background: var(--surface);
   border: 1px solid var(--line);
