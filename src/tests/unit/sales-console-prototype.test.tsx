@@ -12,6 +12,7 @@ import { salesConsoleM10AdminOperationalSeparation } from "@/features/sales/sale
 import { salesConsoleM10ManagerReviewRequestFoundation } from "@/features/sales/sales-console-m10-manager-review-request";
 import { salesConsoleM10ReadOnlySourceWiring } from "@/features/sales/sales-console-m10-read-only-source-wiring";
 import { salesConsoleRoleProductionViews } from "@/features/sales/sales-console-m10-production-views";
+import { salesConsoleM11RoleFeatureAccess } from "@/features/sales/sales-console-m11-role-feature-access";
 import { salesConsoleM11StaffRoleModel } from "@/features/sales/sales-console-m11-staff-role-model";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
@@ -195,6 +196,19 @@ describe("Sales Console", () => {
     for (const role of salesConsoleM11StaffRoleModel) {
       expect(markup).toContain(role.label);
       expect(markup).toContain(role.readOnlyBoundary);
+    }
+  });
+
+  it("renders M11 role-to-feature access for safe read-only dogfooding", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M11 Role-to-Feature Access");
+    expect(markup).toContain("Feature access remains read-only");
+    expect(markup).toContain("Only Admin / Owner sees Admin Review Panels");
+    expect(markup).toContain("Finance visibility cannot decide finance");
+    for (const access of salesConsoleM11RoleFeatureAccess) {
+      expect(markup).toContain(access.role);
+      expect(markup).toContain(access.emptyStateGuidance);
     }
   });
 
