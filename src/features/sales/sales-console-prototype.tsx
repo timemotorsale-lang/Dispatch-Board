@@ -29,6 +29,7 @@ import type { CSSProperties } from "react";
 import { salesConsoleMvpDefinition } from "./sales-console-mvp-definition";
 import { salesConsoleMvpExecution } from "./sales-console-mvp-execution";
 import { salesConsoleMvpLiveDataContract } from "./sales-console-mvp-live-data-contract";
+import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import { salesConsolePilotReadiness } from "./sales-console-mvp-pilot-readiness";
 import { salesConsoleProductionReadiness } from "./sales-console-mvp-production-readiness";
 import { salesConsoleReadAdapterPreview } from "./sales-console-mvp-read-adapters";
@@ -332,6 +333,42 @@ export function SalesConsolePrototype() {
         </main>
 
         <aside className={styles.commandRail} id="command-center" aria-label="Manager Command Center">
+          <section className={styles.panel} aria-label="Admin review audit trail foundation">
+            <div className={styles.railHeader}><h2>Audit Trail Foundation</h2><FileCheck2 size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Enterprise actions stay disabled until actor, role, source record, timestamp, reason, and before/after summaries are audit-ready.
+            </p>
+            <div className={styles.auditCoverageList}>
+              {salesConsoleAuditReadModel.futureActionCoverage.map((coverage) => (
+                <article key={coverage.action}>
+                  <div>
+                    <strong>{coverage.action}</strong>
+                    <span>{coverage.auditEventType} · {coverage.sourceRecordType}</span>
+                  </div>
+                  <span className={styles.statusWarning}>{coverage.coverage}</span>
+                  <small>{coverage.requiredFields.join(", ")}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.auditEventList}>
+              {salesConsoleAuditReadModel.events.map((event) => (
+                <article key={event.auditId}>
+                  <strong>{event.eventType}</strong>
+                  <span>{event.auditId} · {event.actor.displayName} · {event.actor.role} · {event.sourceRecord.sourceSystem}</span>
+                  <small>Source: {event.sourceRecord.type} {event.sourceRecord.recordId}</small>
+                  <small>{event.reason}</small>
+                  <em>{event.beforeSummary} → {event.afterSummary}</em>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {sensitiveActionsHaveAuditCoverage() ? "Sensitive actions require audit coverage" : "Audit coverage incomplete"}</span>
+              {salesConsoleAuditReadModel.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
+            </div>
+          </section>
+
           <section className={styles.panel}>
             <div className={styles.railHeader}><h2>Production MVP</h2><ShieldCheck size={18} /></div>
             <p className={styles.guardrailCopy}>
