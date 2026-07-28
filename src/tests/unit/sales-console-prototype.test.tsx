@@ -8,6 +8,7 @@ import { salesConsoleMvpDefinition } from "@/features/sales/sales-console-mvp-de
 import { salesConsoleMvpExecution } from "@/features/sales/sales-console-mvp-execution";
 import { salesConsoleMvpLiveDataContract } from "@/features/sales/sales-console-mvp-live-data-contract";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
+import { salesConsoleEnterprisePermissionReadModel } from "@/features/sales/sales-console-m9-enterprise-permissions";
 import { salesConsolePilotReadiness } from "@/features/sales/sales-console-mvp-pilot-readiness";
 import { salesConsoleProductionReadiness } from "@/features/sales/sales-console-mvp-production-readiness";
 import { salesConsoleReadAdapterPreview } from "@/features/sales/sales-console-mvp-read-adapters";
@@ -170,6 +171,27 @@ describe("Sales Console", () => {
       expect(markup).toContain(event.reason);
       expect(markup).toContain(event.beforeSummary);
       expect(markup).toContain(event.afterSummary);
+    }
+  });
+
+  it("renders enterprise permission gates and role scopes without enabling actions", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Enterprise Permissions");
+    expect(markup).toContain("Deny-by-default action gates");
+    expect(markup).toContain("Permission gates deny by default");
+    expect(markup).toContain("Sensitive workflows have audit and permission coverage");
+    for (const gate of salesConsoleEnterprisePermissionReadModel.gates) {
+      expect(markup).toContain(gate.capability);
+      expect(markup).toContain(gate.defaultDecision);
+      expect(markup).toContain(gate.requiredScope);
+      expect(gate.enabled).toBe(false);
+    }
+    for (const scope of salesConsoleEnterprisePermissionReadModel.roleScopes) {
+      expect(markup).toContain(scope.label);
+      expect(markup).toContain(scope.storePlaceholder);
+      expect(markup).toContain(scope.teamPlaceholder);
+      expect(markup).toContain(scope.ownershipPlaceholder);
     }
   });
 

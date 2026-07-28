@@ -667,6 +667,8 @@
 .roleViewList,
 .auditCoverageList,
 .auditEventList,
+.enterprisePermissionList,
+.enterpriseScopeList,
 .priorityBriefList,
 .productionReadinessList,
 .surfaceBoundaryList,
@@ -691,6 +693,8 @@
 .roleViewList article,
 .auditCoverageList article,
 .auditEventList article,
+.enterprisePermissionList article,
+.enterpriseScopeList article,
 .priorityBriefList article,
 .productionReadinessList article,
 .surfaceBoundaryList article,
@@ -714,6 +718,8 @@
 .roleViewList strong,
 .auditCoverageList strong,
 .auditEventList strong,
+.enterprisePermissionList strong,
+.enterpriseScopeList strong,
 .productionReadinessList strong,
 .surfaceBoundaryList strong,
 .stateVerificationList strong,
@@ -764,6 +770,11 @@
 .auditEventList span,
 .auditEventList small,
 .auditEventList em,
+.enterprisePermissionList span,
+.enterprisePermissionList small,
+.enterpriseScopeList span,
+.enterpriseScopeList small,
+.enterpriseScopeList em,
 .priorityBriefList span,
 .productionReadinessList span,
 .productionReadinessList small,
@@ -834,6 +845,7 @@
 
 .dataSourceList em,
 .auditEventList em,
+.enterpriseScopeList em,
 .executionDataList em,
 .roleViewList em,
 .liveSourceList em,
@@ -848,14 +860,28 @@
   grid-template-columns: 1fr auto;
 }
 
-.auditCoverageList article {
+.auditCoverageList article,
+.enterprisePermissionList article,
+.enterpriseScopeList article {
   align-items: start;
   gap: 7px;
   grid-template-columns: 1fr auto;
 }
 
-.auditCoverageList small {
+.auditCoverageList small,
+.enterprisePermissionList small,
+.enterpriseScopeList small,
+.enterpriseScopeList em {
   grid-column: 1 / -1;
+}
+
+.enterpriseScopeList em {
+  border-top: 1px solid var(--line);
+  color: var(--brand-strong);
+  display: block;
+  font-style: normal;
+  font-weight: 800;
+  padding-top: 6px;
 }
 
 .auditEventList article {
