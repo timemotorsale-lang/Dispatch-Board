@@ -127,6 +127,12 @@ import {
   salesConsoleM12AdminLandingSummaryPasses,
   salesConsoleM12SeparateRoutesRemainDeferred
 } from "./sales-console-m12-admin-dogfood-landing-summary";
+import {
+  salesConsoleM13DogfoodAudienceIsControlled,
+  salesConsoleM13DogfoodReadiness,
+  salesConsoleM13DogfoodReadinessKeepsWritesDisabled,
+  salesConsoleM13DogfoodRequiresOwnerReview
+} from "./sales-console-m13-dogfood-readiness";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -765,6 +771,35 @@ export function SalesConsolePrototype() {
             <div className={styles.boundaryList}>
               <span><ShieldCheck size={13} /> {salesConsoleM12AdminLandingSummaryPasses() ? "Role landing summary passes" : "Role landing summary gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM12SeparateRoutesRemainDeferred() ? "Separate role routes remain deferred" : "Route deferral risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M13 dogfood readiness panel">
+            <div className={styles.railHeader}><h2>M13 Dogfood Readiness</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Controlled staff dogfooding is ready for owner review, but the console remains read-only and can be paused if staff hit confusion.
+            </p>
+            <div className={styles.dogfoodReadinessList}>
+              <article>
+                <strong>{salesConsoleM13DogfoodReadiness.dogfoodStatus}</strong>
+                <span>{salesConsoleM13DogfoodReadiness.approvalStatus}</span>
+                <small>{salesConsoleM13DogfoodReadiness.rollbackNote}</small>
+              </article>
+              {salesConsoleM13DogfoodReadiness.audience.map((item) => (
+                <article key={item.label}>
+                  <strong>{item.label}</strong>
+                  <span className={item.participation === "include" ? styles.statusGood : styles.statusWarning}>{item.participation}</span>
+                  <small>{item.reason}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM13DogfoodRequiresOwnerReview() ? "Owner review required before dogfood" : "Owner review gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM13DogfoodAudienceIsControlled() ? "Dogfood audience is controlled" : "Audience scope risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM13DogfoodReadinessKeepsWritesDisabled() ? "Write workflows remain disabled" : "Write workflow risk"}</span>
+              {salesConsoleM13DogfoodReadiness.stillDisabled.map((item) => (
+                <span key={item}><ShieldCheck size={13} /> {item}</span>
+              ))}
             </div>
           </section>
 
