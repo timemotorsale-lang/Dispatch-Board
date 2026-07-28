@@ -40,6 +40,18 @@ describe("Sales Console prototype", () => {
     }
   });
 
+  it("renders the MVP milestone roadmap for implementation planning", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("MVP Milestone Roadmap");
+    expect(salesConsoleMvpDefinition.milestoneRoadmap).toHaveLength(13);
+    for (const milestone of salesConsoleMvpDefinition.milestoneRoadmap) {
+      expect(markup).toContain(milestone.id);
+    }
+    expect(markup).toContain("Approval and scope lock");
+    expect(markup).toContain("Pilot review and stabilize");
+  });
+
   it("uses sales-specific loading and error states for protected route failures", () => {
     const loadingMarkup = renderToStaticMarkup(<SalesConsoleLoading />);
     const errorMarkup = renderToStaticMarkup(
