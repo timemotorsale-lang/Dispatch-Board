@@ -79,6 +79,13 @@ import {
   salesConsoleM11OnlyAdminOwnerSeesAdminReviewPanels,
   salesConsoleM11RoleFeatureAccess
 } from "./sales-console-m11-role-feature-access";
+import {
+  salesConsoleM11AuthRoleSeedingPlan,
+  salesConsoleM11CoreDogfoodRolesResolve,
+  salesConsoleM11DogfoodFixturesAreNonDestructive,
+  salesConsoleM11OptionalVisibilityRolesAreFixtureOnly,
+  salesConsoleM11UnknownRolesRemainRestricted
+} from "./sales-console-m11-auth-role-seeding";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -517,6 +524,35 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM11FeatureAccessRemainsReadOnly() ? "Feature access remains read-only" : "Feature access write risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM11OnlyAdminOwnerSeesAdminReviewPanels() ? "Only Admin / Owner sees Admin Review Panels" : "Admin panel exposure risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM11FinanceVisibilityCannotDecideFinance() ? "Finance visibility cannot decide finance" : "Finance decision risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Dogfood auth role seeding evidence">
+            <div className={styles.railHeader}><h2>M11 Auth Role Seeding Evidence</h2><ShieldCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM11AuthRoleSeedingPlan.boundary}</p>
+            <div className={styles.authRoleSeedingList}>
+              {salesConsoleM11AuthRoleSeedingPlan.fixtures.map((fixture) => (
+                <article key={fixture.userId}>
+                  <div>
+                    <strong>{fixture.label}</strong>
+                    <span>{fixture.seedAction} · {fixture.expectedAccess}</span>
+                  </div>
+                  <span className={fixture.expectedAccess === "allowed" ? styles.statusGood : styles.statusWarning}>
+                    {fixture.expectedStaffRole ?? "unmapped"}
+                  </span>
+                  <small>App roles: {fixture.appRoleNames.join(", ")}</small>
+                  <small>Fixture only: {String(fixture.fixtureOnly)}. User fixture: {fixture.userId}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              <span><ShieldCheck size={13} /> {salesConsoleM11DogfoodFixturesAreNonDestructive() ? "Dogfood fixtures are non-destructive" : "Fixture mutation risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11CoreDogfoodRolesResolve() ? "Core dogfood roles resolve" : "Core role mapping gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11UnknownRolesRemainRestricted() ? "Unknown roles remain restricted" : "Unknown role access risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM11OptionalVisibilityRolesAreFixtureOnly() ? "Optional visibility roles are fixture-only" : "Optional role seed risk"}</span>
+              {salesConsoleM11AuthRoleSeedingPlan.guardrails.map((guardrail) => (
+                <span key={guardrail}><ShieldCheck size={13} /> {guardrail}</span>
+              ))}
             </div>
           </section>
 

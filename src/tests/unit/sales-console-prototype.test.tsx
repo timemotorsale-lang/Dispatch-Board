@@ -12,6 +12,7 @@ import { salesConsoleM10AdminOperationalSeparation } from "@/features/sales/sale
 import { salesConsoleM10ManagerReviewRequestFoundation } from "@/features/sales/sales-console-m10-manager-review-request";
 import { salesConsoleM10ReadOnlySourceWiring } from "@/features/sales/sales-console-m10-read-only-source-wiring";
 import { salesConsoleRoleProductionViews } from "@/features/sales/sales-console-m10-production-views";
+import { salesConsoleM11AuthRoleSeedingPlan } from "@/features/sales/sales-console-m11-auth-role-seeding";
 import { salesConsoleM11RoleFeatureAccess } from "@/features/sales/sales-console-m11-role-feature-access";
 import { salesConsoleM11StaffRoleModel } from "@/features/sales/sales-console-m11-staff-role-model";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
@@ -209,6 +210,18 @@ describe("Sales Console", () => {
     for (const access of salesConsoleM11RoleFeatureAccess) {
       expect(markup).toContain(access.role);
       expect(markup).toContain(access.emptyStateGuidance);
+    }
+  });
+
+  it("renders M11 auth role seeding evidence without mutating real staff", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M11 Auth Role Seeding Evidence");
+    expect(markup).toContain("Dogfood fixtures are non-destructive");
+    expect(markup).toContain("Unknown roles remain restricted");
+    for (const fixture of salesConsoleM11AuthRoleSeedingPlan.fixtures) {
+      expect(markup).toContain(fixture.label);
+      expect(markup).toContain(fixture.userId);
     }
   });
 
