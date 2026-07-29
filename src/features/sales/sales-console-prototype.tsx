@@ -246,6 +246,36 @@ import {
   salesConsoleM16ActivationGateKeepsWorkflowDisabled,
   salesConsoleM16ActivationGateReadyForM17Planning
 } from "./sales-console-m16-activation-decision-gate";
+import {
+  salesConsoleM17RequestStateModel,
+  salesConsoleM17StateModelBlocksSubmitWithoutBackend,
+  salesConsoleM17StateModelDefinesStatuses,
+  salesConsoleM17StateModelKeepsWorkflowInternal
+} from "./sales-console-m17-request-state-model";
+import {
+  salesConsoleM17RequestFormControlsDisabled,
+  salesConsoleM17RequestFormExplainsWhyDisabled,
+  salesConsoleM17RequestFormHasRequiredFields,
+  salesConsoleM17RequestFormShell
+} from "./sales-console-m17-request-form-shell";
+import {
+  salesConsoleM17PermissionsAllowManagerReviewOnly,
+  salesConsoleM17PermissionsAllowSalespersonRequestOnly,
+  salesConsoleM17ValidationBlocksSubmitUntilBackendReady,
+  salesConsoleM17ValidationPermissions
+} from "./sales-console-m17-validation-permissions";
+import {
+  salesConsoleM17AuditSafeSubmitPlaceholder,
+  salesConsoleM17SubmitPlaceholderBlocksWrites,
+  salesConsoleM17SubmitPlaceholderIncludesAuditFields,
+  salesConsoleM17SubmitPlaceholderNamesMissingBackend
+} from "./sales-console-m17-audit-safe-submit-placeholder";
+import {
+  salesConsoleM17ReleaseGate,
+  salesConsoleM17ReleaseGateBlocksLiveSubmit,
+  salesConsoleM17ReleaseGateNamesNextBackendStep,
+  salesConsoleM17ReleaseGateShellReady
+} from "./sales-console-m17-release-gate";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -690,6 +720,19 @@ export function SalesConsolePrototype() {
                   <small>{salesConsoleM16ManagerReviewDisabledPreview.sourcePrompt}</small>
                 </div>
                 <button aria-disabled="true" disabled type="button">{salesConsoleM16ManagerReviewDisabledPreview.ctaLabel} <b>disabled</b></button>
+              </div>
+              <div className={styles.managerReviewFormShell} aria-label="M17 disabled manager review request form shell">
+                <strong>Manager Review Request Form</strong>
+                <small>{salesConsoleM17RequestFormShell.helperText}</small>
+                <div>
+                  {salesConsoleM17RequestFormShell.fields.map((field) => (
+                    <label key={field.label}>
+                      <span>{field.label}{field.required ? " *" : ""}</span>
+                      <input disabled value={field.value} readOnly />
+                    </label>
+                  ))}
+                </div>
+                <button aria-disabled="true" disabled type="button">{salesConsoleM17RequestFormShell.submitLabel} <b>disabled</b></button>
               </div>
               <table className={styles.compactTable}>
                 <thead>
@@ -1146,6 +1189,86 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM16ActivationGateCoversCoreConcerns() ? "M16 activation gate covers core concerns" : "M16 activation gate coverage gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM16ActivationGateReadyForM17Planning() ? "M16 ready for M17 planning" : "M16 M17 planning risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM16ActivationGateKeepsWorkflowDisabled() ? "M16 keeps workflow disabled" : "M16 live workflow risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17StateModelDefinesStatuses() ? "M17 request state model defines statuses" : "M17 state model gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17StateModelBlocksSubmitWithoutBackend() ? "M17 submit blocks without backend" : "M17 submit safety gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17StateModelKeepsWorkflowInternal() ? "M17 state model stays internal" : "M17 workflow boundary risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17RequestFormHasRequiredFields() ? "M17 request form has required fields" : "M17 request form field gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17RequestFormControlsDisabled() ? "M17 request form controls disabled" : "M17 request form activation risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17RequestFormExplainsWhyDisabled() ? "M17 request form explains disabled state" : "M17 request form explanation gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17PermissionsAllowSalespersonRequestOnly() ? "M17 salesperson request permission scoped" : "M17 request permission risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17PermissionsAllowManagerReviewOnly() ? "M17 manager review permission scoped" : "M17 review permission risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17ValidationBlocksSubmitUntilBackendReady() ? "M17 validation blocks submit until backend" : "M17 validation submit risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17SubmitPlaceholderBlocksWrites() ? "M17 submit placeholder blocks writes" : "M17 submit placeholder write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17SubmitPlaceholderNamesMissingBackend() ? "M17 submit placeholder names missing backend" : "M17 submit backend gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17SubmitPlaceholderIncludesAuditFields() ? "M17 submit placeholder includes audit fields" : "M17 submit audit gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17ReleaseGateShellReady() ? "M17 activation shell ready" : "M17 shell readiness gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17ReleaseGateBlocksLiveSubmit() ? "M17 release gate blocks live submit" : "M17 live submit risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17ReleaseGateNamesNextBackendStep() ? "M17 names backend endpoint next" : "M17 backend next-step gap"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M17 release gate">
+            <div className={styles.railHeader}><h2>M17 Release Gate</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM17ReleaseGate.releaseRecommendation}</p>
+            <div className={styles.m17ReleaseGateList}>
+              {salesConsoleM17ReleaseGate.gates.map((gate) => (
+                <article key={gate.gate}>
+                  <strong>{gate.gate}</strong>
+                  <span className={gate.status === "ready" ? styles.statusGood : styles.statusDanger}>{gate.status}</span>
+                  <small>{gate.evidence}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M17 audit safe submit placeholder">
+            <div className={styles.railHeader}><h2>M17 Audit-Safe Submit Placeholder</h2><ShieldCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              {salesConsoleM17AuditSafeSubmitPlaceholder.placeholderResult} Backend: {salesConsoleM17AuditSafeSubmitPlaceholder.backendDestination}.
+            </p>
+            <div className={styles.m17SubmitPlaceholderList}>
+              {salesConsoleM17AuditSafeSubmitPlaceholder.submitBlockers.map((blocker) => (
+                <article key={blocker}>
+                  <strong>{blocker}</strong>
+                  <span className={styles.statusDanger}>submit blocked</span>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M17 validation and permissions">
+            <div className={styles.railHeader}><h2>M17 Validation &amp; Permissions</h2><UserRoundCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Submit enabled: {salesConsoleM17ValidationPermissions.submitEnabled ? "yes" : "no"}. Dedicated backend endpoint remains required before activation.
+            </p>
+            <div className={styles.m17PermissionList}>
+              {salesConsoleM17ValidationPermissions.decisions.map((decision) => (
+                <article key={decision.role}>
+                  <strong>{decision.role}</strong>
+                  <span>{decision.canRequest ? "can request later" : decision.canReview ? "can review later" : "visibility/block only"}</span>
+                  <small>{decision.reason}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              {salesConsoleM17ValidationPermissions.validationGates.map((gate) => (
+                <span key={gate}><ShieldCheck size={13} /> {gate}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M17 request state model">
+            <div className={styles.railHeader}><h2>M17 Request State Model</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Current Manager Review Request state: {salesConsoleM17RequestStateModel.currentStatus}. Workflow live: {salesConsoleM17RequestStateModel.workflowLive ? "yes" : "no"}.
+            </p>
+            <div className={styles.m17StateModelList}>
+              {salesConsoleM17RequestStateModel.allowedTransitions.map((transition) => (
+                <article key={`${transition.from}-${transition.to}`}>
+                  <strong>{transition.from} → {transition.to}</strong>
+                  <span>{transition.reason}</span>
+                </article>
+              ))}
             </div>
           </section>
 

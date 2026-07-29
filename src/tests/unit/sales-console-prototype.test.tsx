@@ -42,6 +42,11 @@ import { salesConsoleM16AuditGuardrails } from "@/features/sales/sales-console-m
 import { salesConsoleM16ManagerReviewContract } from "@/features/sales/sales-console-m16-manager-review-contract";
 import { salesConsoleM16ManagerReviewDisabledPreview } from "@/features/sales/sales-console-m16-manager-review-disabled-preview";
 import { salesConsoleM16WorkflowSelection } from "@/features/sales/sales-console-m16-workflow-selection";
+import { salesConsoleM17AuditSafeSubmitPlaceholder } from "@/features/sales/sales-console-m17-audit-safe-submit-placeholder";
+import { salesConsoleM17ReleaseGate } from "@/features/sales/sales-console-m17-release-gate";
+import { salesConsoleM17RequestFormShell } from "@/features/sales/sales-console-m17-request-form-shell";
+import { salesConsoleM17RequestStateModel } from "@/features/sales/sales-console-m17-request-state-model";
+import { salesConsoleM17ValidationPermissions } from "@/features/sales/sales-console-m17-validation-permissions";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
@@ -605,6 +610,73 @@ describe("Sales Console", () => {
     expect(markup).toContain("M16 keeps workflow disabled");
     expect(markup).toContain(salesConsoleM16ActivationDecisionGate.m17Recommendation);
     for (const gate of salesConsoleM16ActivationDecisionGate.gates) {
+      expect(markup).toContain(gate.gate);
+      expect(markup).toContain(gate.evidence);
+    }
+  });
+
+  it("renders M17 request state model", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M17 Request State Model");
+    expect(markup).toContain("M17 request state model defines statuses");
+    expect(markup).toContain("M17 submit blocks without backend");
+    expect(markup).toContain("M17 state model stays internal");
+    expect(markup).toContain(salesConsoleM17RequestStateModel.currentStatus);
+    for (const transition of salesConsoleM17RequestStateModel.allowedTransitions) {
+      expect(markup).toContain(transition.reason);
+    }
+  });
+
+  it("renders M17 disabled request form shell", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Manager Review Request Form");
+    expect(markup).toContain("M17 request form has required fields");
+    expect(markup).toContain("M17 request form controls disabled");
+    expect(markup).toContain("M17 request form explains disabled state");
+    expect(markup).toContain(salesConsoleM17RequestFormShell.helperText);
+    expect(markup).toContain(salesConsoleM17RequestFormShell.submitLabel);
+    for (const field of salesConsoleM17RequestFormShell.fields) {
+      expect(markup).toContain(field.label);
+    }
+  });
+
+  it("renders M17 validation and permissions", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M17 Validation &amp; Permissions");
+    expect(markup).toContain("M17 salesperson request permission scoped");
+    expect(markup).toContain("M17 manager review permission scoped");
+    expect(markup).toContain("M17 validation blocks submit until backend");
+    for (const decision of salesConsoleM17ValidationPermissions.decisions) {
+      expect(markup).toContain(decision.role);
+      expect(markup).toContain(decision.reason);
+    }
+  });
+
+  it("renders M17 audit-safe submit placeholder", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M17 Audit-Safe Submit Placeholder");
+    expect(markup).toContain("M17 submit placeholder blocks writes");
+    expect(markup).toContain("M17 submit placeholder names missing backend");
+    expect(markup).toContain("M17 submit placeholder includes audit fields");
+    expect(markup).toContain(salesConsoleM17AuditSafeSubmitPlaceholder.placeholderResult);
+    for (const blocker of salesConsoleM17AuditSafeSubmitPlaceholder.submitBlockers) {
+      expect(markup).toContain(blocker);
+    }
+  });
+
+  it("renders M17 release gate", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M17 Release Gate");
+    expect(markup).toContain("M17 activation shell ready");
+    expect(markup).toContain("M17 release gate blocks live submit");
+    expect(markup).toContain("M17 names backend endpoint next");
+    expect(markup).toContain(salesConsoleM17ReleaseGate.releaseRecommendation);
+    for (const gate of salesConsoleM17ReleaseGate.gates) {
       expect(markup).toContain(gate.gate);
       expect(markup).toContain(gate.evidence);
     }
