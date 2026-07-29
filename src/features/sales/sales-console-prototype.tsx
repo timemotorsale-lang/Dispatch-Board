@@ -209,6 +209,12 @@ import {
   salesConsoleM15ManagerCommandPolish,
   salesConsoleM15ManagerCommandRemainsReadOnly
 } from "./sales-console-m15-manager-command-polish";
+import {
+  salesConsoleM15StaffReviewCoversReleaseConcerns,
+  salesConsoleM15StaffReviewGatesAreReady,
+  salesConsoleM15StaffReviewKeepsReadOnlyBoundary,
+  salesConsoleM15StaffReviewReadiness
+} from "./sales-console-m15-staff-review-readiness";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1082,6 +1088,25 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM15ManagerCommandHasDailyPriorities() ? "M15 manager command has daily priorities" : "M15 manager command gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM15ManagerCommandExplainsManagerAction() ? "M15 manager command explains action" : "M15 manager action gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM15ManagerCommandRemainsReadOnly() ? "M15 manager command remains read-only" : "M15 manager command write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15StaffReviewCoversReleaseConcerns() ? "M15 staff review covers release concerns" : "M15 review coverage gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15StaffReviewGatesAreReady() ? "M15 staff review gates ready" : "M15 review gate risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15StaffReviewKeepsReadOnlyBoundary() ? "M15 staff review remains read-only" : "M15 review write risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M15 staff review readiness">
+            <div className={styles.railHeader}><h2>M15 Staff Review Readiness</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              {salesConsoleM15StaffReviewReadiness.reviewRecommendation}
+            </p>
+            <div className={styles.staffReviewReadinessList}>
+              {salesConsoleM15StaffReviewReadiness.gates.map((gate) => (
+                <article key={gate.gate}>
+                  <strong>{gate.gate}</strong>
+                  <span className={gate.status === "ready" ? styles.statusGood : styles.statusWarning}>{gate.status}</span>
+                  <small>{gate.evidence}</small>
+                </article>
+              ))}
             </div>
           </section>
 

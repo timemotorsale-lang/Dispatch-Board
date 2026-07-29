@@ -36,6 +36,7 @@ import { salesConsoleM15EmptyStateClarity } from "@/features/sales/sales-console
 import { salesConsoleM15ManagerCommandPolish } from "@/features/sales/sales-console-m15-manager-command-polish";
 import { salesConsoleM15OperatingSectionPolish } from "@/features/sales/sales-console-m15-operating-section-polish";
 import { salesConsoleM15RoleFirstNavigation } from "@/features/sales/sales-console-m15-role-first-navigation";
+import { salesConsoleM15StaffReviewReadiness } from "@/features/sales/sales-console-m15-staff-review-readiness";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
@@ -520,6 +521,20 @@ describe("Sales Console", () => {
       expect(markup).toContain(priority.priority);
       expect(markup).toContain(priority.managerMeaning);
       expect(markup).toContain(priority.readOnlyBoundary);
+    }
+  });
+
+  it("renders M15 staff review readiness", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M15 Staff Review Readiness");
+    expect(markup).toContain("M15 staff review covers release concerns");
+    expect(markup).toContain("M15 staff review gates ready");
+    expect(markup).toContain("M15 staff review remains read-only");
+    expect(markup).toContain(salesConsoleM15StaffReviewReadiness.reviewRecommendation);
+    for (const gate of salesConsoleM15StaffReviewReadiness.gates) {
+      expect(markup).toContain(gate.gate);
+      expect(markup).toContain(gate.evidence);
     }
   });
 
