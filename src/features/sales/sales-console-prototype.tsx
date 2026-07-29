@@ -221,6 +221,13 @@ import {
   salesConsoleM16WorkflowSelection,
   salesConsoleM16WorkflowSelectionRemainsPlanningOnly
 } from "./sales-console-m16-workflow-selection";
+import {
+  salesConsoleM16ManagerReviewContract,
+  salesConsoleM16ManagerReviewContractHasAuditShape,
+  salesConsoleM16ManagerReviewContractHasPermissions,
+  salesConsoleM16ManagerReviewContractHasRequiredFields,
+  salesConsoleM16ManagerReviewContractRemainsDisabled
+} from "./sales-console-m16-manager-review-contract";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1100,6 +1107,33 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM16SelectsManagerReviewFirst() ? "M16 selects Manager Review first" : "M16 workflow selection gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM16RiskyWorkflowsRemainNotSelected() ? "M16 risky workflows remain not selected" : "M16 risky workflow risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM16WorkflowSelectionRemainsPlanningOnly() ? "M16 workflow selection remains planning-only" : "M16 activation risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ManagerReviewContractHasRequiredFields() ? "M16 manager review contract has required fields" : "M16 manager review field gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ManagerReviewContractHasPermissions() ? "M16 manager review permissions defined" : "M16 manager review permission gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ManagerReviewContractHasAuditShape() ? "M16 manager review audit shape defined" : "M16 manager review audit gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ManagerReviewContractRemainsDisabled() ? "M16 manager review remains disabled" : "M16 manager review activation risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M16 manager review contract">
+            <div className={styles.railHeader}><h2>M16 Manager Review Contract</h2><FileCheck2 size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Contract for a future Manager Review Request. The write workflow remains {salesConsoleM16ManagerReviewContract.writeActivation}.
+            </p>
+            <div className={styles.managerReviewContractList}>
+              {salesConsoleM16ManagerReviewContract.fields.map((field) => (
+                <article key={field.field}>
+                  <strong>{field.field}</strong>
+                  <span className={field.requirement === "required" ? styles.statusWarning : styles.statusNeutral}>{field.requirement}</span>
+                  <small>{field.source}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              {salesConsoleM16ManagerReviewContract.permissions.map((permission) => (
+                <span key={`${permission.role}-${permission.access}`}><ShieldCheck size={13} /> {permission.role}: {permission.access}</span>
+              ))}
+              <span><ShieldCheck size={13} /> Audit fields: {salesConsoleM16ManagerReviewContract.auditShape.length}</span>
+              <span><ShieldCheck size={13} /> Unavailable states: {salesConsoleM16ManagerReviewContract.unavailableStates.length}</span>
             </div>
           </section>
 

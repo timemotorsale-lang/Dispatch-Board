@@ -37,6 +37,7 @@ import { salesConsoleM15ManagerCommandPolish } from "@/features/sales/sales-cons
 import { salesConsoleM15OperatingSectionPolish } from "@/features/sales/sales-console-m15-operating-section-polish";
 import { salesConsoleM15RoleFirstNavigation } from "@/features/sales/sales-console-m15-role-first-navigation";
 import { salesConsoleM15StaffReviewReadiness } from "@/features/sales/sales-console-m15-staff-review-readiness";
+import { salesConsoleM16ManagerReviewContract } from "@/features/sales/sales-console-m16-manager-review-contract";
 import { salesConsoleM16WorkflowSelection } from "@/features/sales/sales-console-m16-workflow-selection";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
@@ -550,6 +551,21 @@ describe("Sales Console", () => {
     for (const candidate of salesConsoleM16WorkflowSelection.candidates) {
       expect(markup).toContain(candidate.candidate);
       expect(markup).toContain(candidate.activationPosture);
+    }
+  });
+
+  it("renders M16 Manager Review Request contract", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M16 Manager Review Contract");
+    expect(markup).toContain("M16 manager review contract has required fields");
+    expect(markup).toContain("M16 manager review permissions defined");
+    expect(markup).toContain("M16 manager review audit shape defined");
+    expect(markup).toContain("M16 manager review remains disabled");
+    expect(markup).toContain(salesConsoleM16ManagerReviewContract.writeActivation);
+    for (const field of salesConsoleM16ManagerReviewContract.fields) {
+      expect(markup).toContain(field.field);
+      expect(markup).toContain(field.source);
     }
   });
 
