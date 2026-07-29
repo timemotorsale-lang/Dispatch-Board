@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import {
-  salesManagerReviewRequestServiceBlocksWrites,
-  salesManagerReviewRequestServiceReturnsFoundationOnlyStatus,
+  salesManagerReviewRequestServiceLimitsWritesToManagerReview,
+  salesManagerReviewRequestServiceReturnsCreatedOrDuplicateStatus,
   submitSalesManagerReviewRequest
 } from "@/server/sales/manager-review-request-service";
 
@@ -36,24 +36,111 @@ const validRequest = {
 };
 
 describe("Sales manager review request service", () => {
-  it("requires an authenticated user", () => {
-    expect(() => submitSalesManagerReviewRequest(null, validRequest)).toThrow("Authentication required.");
+  it("requires an authenticated user", async () => {
+    await expect(submitSalesManagerReviewRequest(null, validRequest)).rejects.toThrow("Authentication required.");
   });
 
-  it("returns a blocked backend-foundation-only result for valid requests", () => {
-    const result = submitSalesManagerReviewRequest(managerUser, validRequest);
+  it("returns a created result from the audited repository", async () => {
+    const repository = {
+      persist: vi.fn().mockResolvedValue({
+        auditEventId: "audit-1",
+        commandId: "command-1",
+        correlationId: "corr-1",
+        duplicate: false,
+        idempotencyKey: "review-request-1",
+        task: {
+          assignedUser: {
+            email: "manager@local.test",
+            id: "manager-1",
+            name: "Manager User"
+          },
+          id: "task-1",
+          priority: "MEDIUM",
+          status: "NOT_STARTED",
+          title: "Manager review requested for deal deal-1"
+        }
+      })
+    };
+    const result = await submitSalesManagerReviewRequest(managerUser, validRequest, {
+      boardDate: "2026-07-28",
+      now: () => new Date("2026-07-28T12:00:00.000Z"),
+      organizationId: "org-1",
+      repository
+    });
 
     expect(result).toMatchObject({
-      blocked: true,
-      reason: "Dedicated audited manager-review persistence is not enabled yet.",
-      status: "backend-foundation-only",
-      workflowLive: false
+      auditEventId: "audit-1",
+      commandId: "command-1",
+      status: "created",
+      workflowLive: true
     });
-    expect(result.guardrails).toContain("No task creation");
+    expect(result.guardrails).toContain("Only audited Manager Review task creation");
+    expect(repository.persist).toHaveBeenCalledOnce();
   });
 
-  it("keeps writes blocked even when validation succeeds", () => {
-    expect(salesManagerReviewRequestServiceBlocksWrites()).toBe(true);
-    expect(salesManagerReviewRequestServiceReturnsFoundationOnlyStatus(managerUser, validRequest)).toBe(true);
+  it("returns duplicate status for idempotent retries", async () => {
+    const repository = {
+      persist: vi.fn().mockResolvedValue({
+        auditEventId: "audit-1",
+        commandId: "command-1",
+        correlationId: "corr-1",
+        duplicate: true,
+        idempotencyKey: "review-request-1",
+        task: {
+          assignedUser: {
+            email: "manager@local.test",
+            id: "manager-1",
+            name: "Manager User"
+          },
+          id: "task-1",
+          priority: "MEDIUM",
+          status: "NOT_STARTED",
+          title: "Manager review requested for deal deal-1"
+        }
+      })
+    };
+
+    await expect(
+      submitSalesManagerReviewRequest(managerUser, validRequest, {
+        boardDate: "2026-07-28",
+        organizationId: "org-1",
+        repository
+      })
+    ).resolves.toMatchObject({
+      duplicate: true,
+      status: "duplicate"
+    });
+  });
+
+  it("limits writes to audited manager-review task creation", async () => {
+    const repository = {
+      persist: vi.fn().mockResolvedValue({
+        auditEventId: "audit-1",
+        commandId: "command-1",
+        correlationId: "corr-1",
+        duplicate: false,
+        idempotencyKey: "review-request-1",
+        task: {
+          assignedUser: {
+            email: "manager@local.test",
+            id: "manager-1",
+            name: "Manager User"
+          },
+          id: "task-1",
+          priority: "MEDIUM",
+          status: "NOT_STARTED",
+          title: "Manager review requested for deal deal-1"
+        }
+      })
+    };
+
+    expect(salesManagerReviewRequestServiceLimitsWritesToManagerReview()).toBe(true);
+    await expect(
+      salesManagerReviewRequestServiceReturnsCreatedOrDuplicateStatus(managerUser, validRequest, {
+        boardDate: "2026-07-28",
+        organizationId: "org-1",
+        repository
+      })
+    ).resolves.toBe(true);
   });
 });

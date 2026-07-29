@@ -318,6 +318,12 @@ import {
   salesConsoleM19RepositoryLimitsWriteBoundary,
   salesConsoleM19RepositoryTransaction
 } from "./sales-console-m19-repository-transaction";
+import {
+  salesConsoleM19ServiceActivation,
+  salesConsoleM19ServiceKeepsOtherWorkflowsBlocked,
+  salesConsoleM19ServiceRequiresAuthentication,
+  salesConsoleM19ServiceReturnsCreatedOrDuplicate
+} from "./sales-console-m19-service-activation";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1267,6 +1273,9 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM19RepositoryChecksIdempotencyFirst() ? "M19 repository checks idempotency first" : "M19 idempotency order risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM19RepositoryCreatesAuditTrail() ? "M19 repository creates audit trail" : "M19 audit transaction gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM19RepositoryLimitsWriteBoundary() ? "M19 repository limits write boundary" : "M19 repository write-boundary risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19ServiceRequiresAuthentication() ? "M19 service requires authentication" : "M19 service auth gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19ServiceReturnsCreatedOrDuplicate() ? "M19 service returns created or duplicate" : "M19 service status gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19ServiceKeepsOtherWorkflowsBlocked() ? "M19 service keeps other workflows blocked" : "M19 service boundary risk"}</span>
             </div>
           </section>
 
@@ -1378,6 +1387,22 @@ export function SalesConsolePrototype() {
                   <strong>{step}</strong>
                   <span className={styles.statusGood}>{salesConsoleM19RepositoryTransaction.transactionState}</span>
                   <small>Duplicate behavior: {salesConsoleM19RepositoryTransaction.duplicateBehavior}.</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M19 service activation">
+            <div className={styles.railHeader}><h2>M19 Service Activation</h2><ShieldCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Service state: {salesConsoleM19ServiceActivation.serviceState}. Live workflow: {salesConsoleM19ServiceActivation.liveWorkflow}.
+            </p>
+            <div className={styles.m19ServiceActivationList}>
+              {salesConsoleM19ServiceActivation.guardrails.map((guardrail) => (
+                <article key={guardrail}>
+                  <strong>{guardrail}</strong>
+                  <span className={styles.statusGood}>{salesConsoleM19ServiceActivation.serviceState}</span>
+                  <small>Allowed statuses: {salesConsoleM19ServiceActivation.activeStatuses.join(", ")}.</small>
                 </article>
               ))}
             </div>
