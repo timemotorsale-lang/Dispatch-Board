@@ -264,6 +264,12 @@ import {
   salesConsoleM17ValidationBlocksSubmitUntilBackendReady,
   salesConsoleM17ValidationPermissions
 } from "./sales-console-m17-validation-permissions";
+import {
+  salesConsoleM17AuditSafeSubmitPlaceholder,
+  salesConsoleM17SubmitPlaceholderBlocksWrites,
+  salesConsoleM17SubmitPlaceholderIncludesAuditFields,
+  salesConsoleM17SubmitPlaceholderNamesMissingBackend
+} from "./sales-console-m17-audit-safe-submit-placeholder";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1186,6 +1192,24 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM17PermissionsAllowSalespersonRequestOnly() ? "M17 salesperson request permission scoped" : "M17 request permission risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM17PermissionsAllowManagerReviewOnly() ? "M17 manager review permission scoped" : "M17 review permission risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM17ValidationBlocksSubmitUntilBackendReady() ? "M17 validation blocks submit until backend" : "M17 validation submit risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17SubmitPlaceholderBlocksWrites() ? "M17 submit placeholder blocks writes" : "M17 submit placeholder write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17SubmitPlaceholderNamesMissingBackend() ? "M17 submit placeholder names missing backend" : "M17 submit backend gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17SubmitPlaceholderIncludesAuditFields() ? "M17 submit placeholder includes audit fields" : "M17 submit audit gap"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M17 audit safe submit placeholder">
+            <div className={styles.railHeader}><h2>M17 Audit-Safe Submit Placeholder</h2><ShieldCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              {salesConsoleM17AuditSafeSubmitPlaceholder.placeholderResult} Backend: {salesConsoleM17AuditSafeSubmitPlaceholder.backendDestination}.
+            </p>
+            <div className={styles.m17SubmitPlaceholderList}>
+              {salesConsoleM17AuditSafeSubmitPlaceholder.submitBlockers.map((blocker) => (
+                <article key={blocker}>
+                  <strong>{blocker}</strong>
+                  <span className={styles.statusDanger}>submit blocked</span>
+                </article>
+              ))}
             </div>
           </section>
 

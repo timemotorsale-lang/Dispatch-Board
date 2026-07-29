@@ -42,6 +42,7 @@ import { salesConsoleM16AuditGuardrails } from "@/features/sales/sales-console-m
 import { salesConsoleM16ManagerReviewContract } from "@/features/sales/sales-console-m16-manager-review-contract";
 import { salesConsoleM16ManagerReviewDisabledPreview } from "@/features/sales/sales-console-m16-manager-review-disabled-preview";
 import { salesConsoleM16WorkflowSelection } from "@/features/sales/sales-console-m16-workflow-selection";
+import { salesConsoleM17AuditSafeSubmitPlaceholder } from "@/features/sales/sales-console-m17-audit-safe-submit-placeholder";
 import { salesConsoleM17RequestFormShell } from "@/features/sales/sales-console-m17-request-form-shell";
 import { salesConsoleM17RequestStateModel } from "@/features/sales/sales-console-m17-request-state-model";
 import { salesConsoleM17ValidationPermissions } from "@/features/sales/sales-console-m17-validation-permissions";
@@ -650,6 +651,19 @@ describe("Sales Console", () => {
     for (const decision of salesConsoleM17ValidationPermissions.decisions) {
       expect(markup).toContain(decision.role);
       expect(markup).toContain(decision.reason);
+    }
+  });
+
+  it("renders M17 audit-safe submit placeholder", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M17 Audit-Safe Submit Placeholder");
+    expect(markup).toContain("M17 submit placeholder blocks writes");
+    expect(markup).toContain("M17 submit placeholder names missing backend");
+    expect(markup).toContain("M17 submit placeholder includes audit fields");
+    expect(markup).toContain(salesConsoleM17AuditSafeSubmitPlaceholder.placeholderResult);
+    for (const blocker of salesConsoleM17AuditSafeSubmitPlaceholder.submitBlockers) {
+      expect(markup).toContain(blocker);
     }
   });
 
