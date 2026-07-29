@@ -426,6 +426,13 @@ import {
   salesConsoleM33RolloutCadenceStartsSmall,
   salesConsoleM33StaffRolloutPackage
 } from "./sales-console-m33-staff-rollout-package";
+import {
+  salesConsoleM34BlocksReleaseOnKnownNoGoRisks,
+  salesConsoleM34DefinesFinalGoDecision,
+  salesConsoleM34MvpGoNoGoRelease,
+  salesConsoleM34ProvidesImmediateLaunchSequence,
+  salesConsoleM34RequiresAllCriticalVerification
+} from "./sales-console-m34-mvp-go-no-go-release";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1486,6 +1493,10 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM33DefinesIssueReportingFields() ? "M33 issue reporting defined" : "M33 issue reporting gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM33ExplainsReturnToSourceSystems() ? "M33 source-system fallback clear" : "M33 fallback guidance gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM33RolloutCadenceStartsSmall() ? "M33 rollout starts small" : "M33 rollout cadence risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM34DefinesFinalGoDecision() ? "M34 final go decision defined" : "M34 decision gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM34RequiresAllCriticalVerification() ? "M34 critical gates required" : "M34 gate coverage gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM34BlocksReleaseOnKnownNoGoRisks() ? "M34 no-go blockers defined" : "M34 blocker gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM34ProvidesImmediateLaunchSequence() ? "M34 immediate launch sequence ready" : "M34 launch sequence gap"}</span>
             </div>
           </section>
 
@@ -1961,6 +1972,27 @@ export function SalesConsolePrototype() {
                   <strong>{rule}</strong>
                   <span className={styles.statusWarning}>use source system</span>
                   <small>Prevents staff from treating the MVP console as the final system of record.</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M34 MVP go no-go release decision">
+            <div className={styles.railHeader}><h2>M34 MVP Go/No-Go Release Decision</h2><CheckCircle2 size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM34MvpGoNoGoRelease.decisionSummary}</p>
+            <div className={styles.m26DeploymentPolishList}>
+              {salesConsoleM34MvpGoNoGoRelease.goGates.map((gate) => (
+                <article key={gate.gate}>
+                  <strong>{gate.gate}</strong>
+                  <span className={styles.statusWarning}>{gate.decision}</span>
+                  <small>{gate.proofRequired}</small>
+                </article>
+              ))}
+              {salesConsoleM34MvpGoNoGoRelease.immediateLaunchSteps.map((step) => (
+                <article key={step}>
+                  <strong>{step}</strong>
+                  <span className={styles.statusGood}>launch step</span>
+                  <small>Complete in order for controlled internal MVP deployment.</small>
                 </article>
               ))}
             </div>
