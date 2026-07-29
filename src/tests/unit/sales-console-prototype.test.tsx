@@ -59,6 +59,7 @@ import { salesConsoleM19ServiceActivation } from "@/features/sales/sales-console
 import { salesConsoleM20ManagerReviewWorkbenchUi } from "@/features/sales/sales-console-m20-manager-review-workbench-ui";
 import { salesConsoleM21ManagerReviewResolutionPlanning } from "@/features/sales/sales-console-m21-manager-review-resolution-planning";
 import { salesConsoleM22PilotProductionHardening } from "@/features/sales/sales-console-m22-pilot-production-hardening";
+import { salesConsoleM23StaffDeploymentReadiness } from "@/features/sales/sales-console-m23-staff-deployment-readiness";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
@@ -875,6 +876,21 @@ describe("Sales Console", () => {
     for (const indicator of salesConsoleM22PilotProductionHardening.healthIndicators) {
       expect(markup).toContain(indicator.indicator);
       expect(markup).toContain(indicator.status);
+    }
+  });
+
+  it("renders M23 staff deployment readiness", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M23 Staff Deployment Readiness");
+    expect(markup).toContain("M23 staff checklist ready");
+    expect(markup).toContain("M23 core staff roles covered");
+    expect(markup).toContain("M23 excluded actions communicated");
+    expect(markup).toContain(salesConsoleM23StaffDeploymentReadiness.rolloutState);
+    for (const role of salesConsoleM23StaffDeploymentReadiness.roleReadiness) {
+      expect(markup).toContain(role.role);
+      expect(markup).toContain(role.startHere);
+      expect(markup).toContain(role.cannotDo);
     }
   });
 

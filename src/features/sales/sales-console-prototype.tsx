@@ -353,6 +353,12 @@ import {
   salesConsoleM22PilotProductionHardening,
   salesConsoleM22UsesInternalPilotLanguage
 } from "./sales-console-m22-pilot-production-hardening";
+import {
+  salesConsoleM23ChecklistReady,
+  salesConsoleM23CommunicatesExcludedActions,
+  salesConsoleM23CoversCoreStaffRoles,
+  salesConsoleM23StaffDeploymentReadiness
+} from "./sales-console-m23-staff-deployment-readiness";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1332,6 +1338,9 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM22CoversPilotStates() ? "M22 pilot states covered" : "M22 pilot state gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM22HealthIndicatorsReady() ? "M22 health indicators ready" : "M22 health indicator risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM22UsesInternalPilotLanguage() ? "M22 uses internal pilot language" : "M22 deployment language risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM23ChecklistReady() ? "M23 staff checklist ready" : "M23 staff checklist gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM23CoversCoreStaffRoles() ? "M23 core staff roles covered" : "M23 role coverage gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM23CommunicatesExcludedActions() ? "M23 excluded actions communicated" : "M23 excluded-action communication gap"}</span>
             </div>
           </section>
 
@@ -1565,6 +1574,29 @@ export function SalesConsolePrototype() {
                   <strong>{indicator.indicator}</strong>
                   <span className={styles.statusGood}>{indicator.status}</span>
                   <small>State coverage: {salesConsoleM22PilotProductionHardening.stateCoverage.join(", ")}.</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M23 staff deployment readiness">
+            <div className={styles.railHeader}><h2>M23 Staff Deployment Readiness</h2><UsersRound size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Rollout state: {salesConsoleM23StaffDeploymentReadiness.rolloutState}. Pilot support owner: {salesConsoleM23StaffDeploymentReadiness.pilotSupportOwner}.
+            </p>
+            <div className={styles.m23StaffReadinessList}>
+              {salesConsoleM23StaffDeploymentReadiness.checklist.map((item) => (
+                <article key={item.item}>
+                  <strong>{item.item}</strong>
+                  <span className={styles.statusGood}>{item.status}</span>
+                  <small>Required before controlled staff rollout.</small>
+                </article>
+              ))}
+              {salesConsoleM23StaffDeploymentReadiness.roleReadiness.map((role) => (
+                <article key={role.role}>
+                  <strong>{role.role}</strong>
+                  <span className={styles.statusGood}>{role.startHere}</span>
+                  <small>{role.canDo} {role.cannotDo}</small>
                 </article>
               ))}
             </div>
