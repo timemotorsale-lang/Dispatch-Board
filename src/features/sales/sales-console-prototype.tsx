@@ -419,6 +419,13 @@ import {
   salesConsoleM32RequiresAuditReferenceEvidence,
   salesConsoleM32VerifiesDuplicateAndValidationBehavior
 } from "./sales-console-m32-manager-review-e2e-test";
+import {
+  salesConsoleM33CoversAllRolloutAudiences,
+  salesConsoleM33DefinesIssueReportingFields,
+  salesConsoleM33ExplainsReturnToSourceSystems,
+  salesConsoleM33RolloutCadenceStartsSmall,
+  salesConsoleM33StaffRolloutPackage
+} from "./sales-console-m33-staff-rollout-package";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1475,6 +1482,10 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM32RequiresAuditReferenceEvidence() ? "M32 audit references required" : "M32 audit evidence gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM32VerifiesDuplicateAndValidationBehavior() ? "M32 duplicate and validation covered" : "M32 duplicate/validation gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM32KeepsExcludedActionsBlocked() ? "M32 excluded actions blocked" : "M32 excluded action risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM33CoversAllRolloutAudiences() ? "M33 rollout audiences covered" : "M33 audience gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM33DefinesIssueReportingFields() ? "M33 issue reporting defined" : "M33 issue reporting gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM33ExplainsReturnToSourceSystems() ? "M33 source-system fallback clear" : "M33 fallback guidance gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM33RolloutCadenceStartsSmall() ? "M33 rollout starts small" : "M33 rollout cadence risk"}</span>
             </div>
           </section>
 
@@ -1929,6 +1940,27 @@ export function SalesConsolePrototype() {
                   <strong>{action}</strong>
                   <span className={styles.statusDanger}>blocked</span>
                   <small>Not part of the approved Manager Review Request MVP workflow.</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M33 staff rollout package">
+            <div className={styles.railHeader}><h2>M33 Staff Rollout Package</h2><FileCheck2 size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM33StaffRolloutPackage.openingMessage}</p>
+            <div className={styles.m26DeploymentPolishList}>
+              {salesConsoleM33StaffRolloutPackage.rolloutAudiences.map((audience) => (
+                <article key={audience.audience}>
+                  <strong>{audience.audience}</strong>
+                  <span className={styles.statusGood}>brief-ready</span>
+                  <small>{audience.todayUse} {audience.notYet} {audience.supportInstruction}</small>
+                </article>
+              ))}
+              {salesConsoleM33StaffRolloutPackage.returnToSourceSystemRules.map((rule) => (
+                <article key={rule}>
+                  <strong>{rule}</strong>
+                  <span className={styles.statusWarning}>use source system</span>
+                  <small>Prevents staff from treating the MVP console as the final system of record.</small>
                 </article>
               ))}
             </div>
