@@ -405,6 +405,13 @@ import {
   salesConsoleM30HasRollbackBehaviorForFailedSmoke,
   salesConsoleM30KeepsRiskyWorkflowsBlocked
 } from "./sales-console-m30-deployment-environment-smoke";
+import {
+  salesConsoleM31BlocksRoleLeakageRisks,
+  salesConsoleM31CoversEveryDeploymentRole,
+  salesConsoleM31DefinesUnauthorizedBehavior,
+  salesConsoleM31RealRoleAccessVerification,
+  salesConsoleM31RequiresOneUserPerRole
+} from "./sales-console-m31-real-role-access-verification";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1453,6 +1460,10 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM30CoversDeploymentSmokeBasics() ? "M30 deployment smoke ready" : "M30 smoke coverage gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM30KeepsRiskyWorkflowsBlocked() ? "M30 risky workflows blocked" : "M30 blocked workflow risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM30HasRollbackBehaviorForFailedSmoke() ? "M30 failed-smoke fallback ready" : "M30 rollback gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM31CoversEveryDeploymentRole() ? "M31 deployment roles covered" : "M31 role coverage gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM31RequiresOneUserPerRole() ? "M31 one-user-per-role smoke ready" : "M31 user smoke gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM31DefinesUnauthorizedBehavior() ? "M31 unauthorized behavior defined" : "M31 auth behavior gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM31BlocksRoleLeakageRisks() ? "M31 role leakage blocked" : "M31 role leakage risk"}</span>
             </div>
           </section>
 
@@ -1865,6 +1876,27 @@ export function SalesConsolePrototype() {
                   <strong>{action}</strong>
                   <span className={styles.statusDanger}>if smoke fails</span>
                   <small>Pause broader rollout until the deployed environment passes.</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M31 real role access verification">
+            <div className={styles.railHeader}><h2>M31 Real Role Access Verification</h2><UsersRound size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM31RealRoleAccessVerification.accessSummary}</p>
+            <div className={styles.m26DeploymentPolishList}>
+              {salesConsoleM31RealRoleAccessVerification.roleChecks.map((role) => (
+                <article key={role.role}>
+                  <strong>{role.role}</strong>
+                  <span className={styles.statusWarning}>{role.verificationStatus}</span>
+                  <small>{role.expectedLanding} {role.allowedManagerReviewAccess}</small>
+                </article>
+              ))}
+              {salesConsoleM31RealRoleAccessVerification.roleLeakageNoGo.map((risk) => (
+                <article key={risk}>
+                  <strong>{risk}</strong>
+                  <span className={styles.statusDanger}>no-go</span>
+                  <small>{salesConsoleM31RealRoleAccessVerification.unauthorizedBehavior}</small>
                 </article>
               ))}
             </div>
