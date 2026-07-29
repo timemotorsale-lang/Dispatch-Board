@@ -48,6 +48,7 @@ import { salesConsoleM17RequestFormShell } from "@/features/sales/sales-console-
 import { salesConsoleM17RequestStateModel } from "@/features/sales/sales-console-m17-request-state-model";
 import { salesConsoleM17ValidationPermissions } from "@/features/sales/sales-console-m17-validation-permissions";
 import { salesConsoleM18ApiRouteGuarded } from "@/features/sales/sales-console-m18-api-route-guarded";
+import { salesConsoleM18AuditIdempotencyReadiness } from "@/features/sales/sales-console-m18-audit-idempotency-readiness";
 import { salesConsoleM18BackendContract } from "@/features/sales/sales-console-m18-backend-contract";
 import { salesConsoleM18ServerValidation } from "@/features/sales/sales-console-m18-server-validation";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
@@ -723,6 +724,20 @@ describe("Sales Console", () => {
     expect(markup).toContain(salesConsoleM18ApiRouteGuarded.endpoint);
     for (const proof of salesConsoleM18ApiRouteGuarded.proof) {
       expect(markup).toContain(proof);
+    }
+  });
+
+  it("renders M18 audit and idempotency readiness", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M18 Audit &amp; Idempotency Readiness");
+    expect(markup).toContain("M18 audit readiness requires event");
+    expect(markup).toContain("M18 idempotency readiness required");
+    expect(markup).toContain("M18 audit readiness blocks persistence");
+    expect(markup).toContain(salesConsoleM18AuditIdempotencyReadiness.mergeGate);
+    for (const requirement of salesConsoleM18AuditIdempotencyReadiness.requirements) {
+      expect(markup).toContain(requirement.requirement);
+      expect(markup).toContain(requirement.reason);
     }
   });
 
