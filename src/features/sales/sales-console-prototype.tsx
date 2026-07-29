@@ -240,6 +240,12 @@ import {
   salesConsoleM16AuditReadinessCoversRequestShape,
   salesConsoleM16ExcludedActionsRemainBlocked
 } from "./sales-console-m16-audit-guardrails";
+import {
+  salesConsoleM16ActivationDecisionGate,
+  salesConsoleM16ActivationGateCoversCoreConcerns,
+  salesConsoleM16ActivationGateKeepsWorkflowDisabled,
+  salesConsoleM16ActivationGateReadyForM17Planning
+} from "./sales-console-m16-activation-decision-gate";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1137,6 +1143,25 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM16AuditReadinessCoversRequestShape() ? "M16 audit readiness covers request shape" : "M16 audit readiness gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM16ExcludedActionsRemainBlocked() ? "M16 excluded actions remain blocked" : "M16 excluded action risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM16AuditGuardrailsRemainPlanningOnly() ? "M16 audit guardrails remain planning-only" : "M16 audit guardrail activation risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ActivationGateCoversCoreConcerns() ? "M16 activation gate covers core concerns" : "M16 activation gate coverage gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ActivationGateReadyForM17Planning() ? "M16 ready for M17 planning" : "M16 M17 planning risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ActivationGateKeepsWorkflowDisabled() ? "M16 keeps workflow disabled" : "M16 live workflow risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M16 activation decision gate">
+            <div className={styles.railHeader}><h2>M16 Activation Decision Gate</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              {salesConsoleM16ActivationDecisionGate.m17Recommendation}
+            </p>
+            <div className={styles.activationGateList}>
+              {salesConsoleM16ActivationDecisionGate.gates.map((gate) => (
+                <article key={gate.gate}>
+                  <strong>{gate.gate}</strong>
+                  <span className={gate.status === "ready-for-m17-planning" ? styles.statusGood : styles.statusDanger}>{gate.status}</span>
+                  <small>{gate.evidence}</small>
+                </article>
+              ))}
             </div>
           </section>
 

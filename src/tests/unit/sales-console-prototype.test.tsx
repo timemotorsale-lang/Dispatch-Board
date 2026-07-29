@@ -37,6 +37,7 @@ import { salesConsoleM15ManagerCommandPolish } from "@/features/sales/sales-cons
 import { salesConsoleM15OperatingSectionPolish } from "@/features/sales/sales-console-m15-operating-section-polish";
 import { salesConsoleM15RoleFirstNavigation } from "@/features/sales/sales-console-m15-role-first-navigation";
 import { salesConsoleM15StaffReviewReadiness } from "@/features/sales/sales-console-m15-staff-review-readiness";
+import { salesConsoleM16ActivationDecisionGate } from "@/features/sales/sales-console-m16-activation-decision-gate";
 import { salesConsoleM16AuditGuardrails } from "@/features/sales/sales-console-m16-audit-guardrails";
 import { salesConsoleM16ManagerReviewContract } from "@/features/sales/sales-console-m16-manager-review-contract";
 import { salesConsoleM16ManagerReviewDisabledPreview } from "@/features/sales/sales-console-m16-manager-review-disabled-preview";
@@ -592,6 +593,20 @@ describe("Sales Console", () => {
     for (const guardrail of salesConsoleM16AuditGuardrails.excludedActionGuardrails) {
       expect(markup).toContain(guardrail.guardrail);
       expect(markup).toContain(guardrail.evidence);
+    }
+  });
+
+  it("renders M16 activation decision gate", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M16 Activation Decision Gate");
+    expect(markup).toContain("M16 activation gate covers core concerns");
+    expect(markup).toContain("M16 ready for M17 planning");
+    expect(markup).toContain("M16 keeps workflow disabled");
+    expect(markup).toContain(salesConsoleM16ActivationDecisionGate.m17Recommendation);
+    for (const gate of salesConsoleM16ActivationDecisionGate.gates) {
+      expect(markup).toContain(gate.gate);
+      expect(markup).toContain(gate.evidence);
     }
   });
 
