@@ -300,6 +300,12 @@ import {
   salesConsoleM18AuditReadinessRequiresAuditEvent,
   salesConsoleM18AuditReadinessRequiresIdempotency
 } from "./sales-console-m18-audit-idempotency-readiness";
+import {
+  salesConsoleM18ReleaseGate,
+  salesConsoleM18ReleaseGateBlocksRiskyActions,
+  salesConsoleM18ReleaseGateHasBackendFoundation,
+  salesConsoleM18ReleaseGateRecommendsM19
+} from "./sales-console-m18-release-gate";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1240,6 +1246,9 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM18AuditReadinessRequiresAuditEvent() ? "M18 audit readiness requires event" : "M18 audit event gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM18AuditReadinessRequiresIdempotency() ? "M18 idempotency readiness required" : "M18 idempotency gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM18AuditReadinessBlocksPersistence() ? "M18 audit readiness blocks persistence" : "M18 persistence risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18ReleaseGateHasBackendFoundation() ? "M18 release gate has backend foundation" : "M18 release foundation gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18ReleaseGateBlocksRiskyActions() ? "M18 release gate blocks risky actions" : "M18 release risky-action gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18ReleaseGateRecommendsM19() ? "M18 release gate names M19 next" : "M18 next milestone gap"}</span>
             </div>
           </section>
 
@@ -1302,6 +1311,27 @@ export function SalesConsolePrototype() {
                   <strong>{item.requirement}</strong>
                   <span className={styles.statusWarning}>{salesConsoleM18AuditIdempotencyReadiness.activationState}</span>
                   <small>{item.reason}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M18 release gate">
+            <div className={styles.railHeader}><h2>M18 Release Gate</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM18ReleaseGate.recommendation}</p>
+            <div className={styles.m18ReleaseGateList}>
+              {salesConsoleM18ReleaseGate.readyChecks.map((check) => (
+                <article key={check.check}>
+                  <strong>{check.check}</strong>
+                  <span className={styles.statusGood}>ready</span>
+                  <small>{check.evidence}</small>
+                </article>
+              ))}
+              {salesConsoleM18ReleaseGate.blockedBeforeActivation.map((blocker) => (
+                <article key={blocker}>
+                  <strong>{blocker}</strong>
+                  <span className={styles.statusDanger}>blocked before activation</span>
+                  <small>{salesConsoleM18ReleaseGate.nextRecommendedMilestone}</small>
                 </article>
               ))}
             </div>
