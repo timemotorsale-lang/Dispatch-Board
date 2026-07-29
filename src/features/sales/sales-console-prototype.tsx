@@ -197,6 +197,12 @@ import {
   salesConsoleM15OperatingPolishRemainsReadOnly,
   salesConsoleM15OperatingSectionPolish
 } from "./sales-console-m15-operating-section-polish";
+import {
+  salesConsoleM15EmptyStateClarity,
+  salesConsoleM15EmptyStatesCoverOperatingSections,
+  salesConsoleM15EmptyStatesExplainFallbacks,
+  salesConsoleM15EmptyStatesRemainReadOnly
+} from "./sales-console-m15-empty-state-clarity";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -374,6 +380,12 @@ function freshnessClass(freshness: "current" | "placeholder" | "stale" | "verify
   return styles.statusNeutral;
 }
 
+function fallbackClarityClass(label: "empty" | "stale" | "unavailable" | "verify-first") {
+  if (label === "stale" || label === "unavailable") return styles.statusDanger;
+  if (label === "verify-first") return styles.statusWarning;
+  return styles.statusNeutral;
+}
+
 function liveSourceStatusClass(status: "contract-ready" | "needs-mapping" | "placeholder-only") {
   if (status === "contract-ready") return styles.statusGood;
   if (status === "needs-mapping") return styles.statusWarning;
@@ -506,6 +518,17 @@ export function SalesConsolePrototype() {
             <span>{item.dailyUse}</span>
             <small>Scan: {item.scanTarget}</small>
             <em>{item.verificationRule}</em>
+          </article>
+        ))}
+      </section>
+
+      <section className={styles.emptyStateClarityStrip} aria-label="M15 empty and fallback clarity">
+        {salesConsoleM15EmptyStateClarity.items.map((item) => (
+          <article key={item.section}>
+            <strong>{item.section}</strong>
+            <span className={fallbackClarityClass(item.fallbackLabel)}>{item.fallbackLabel}</span>
+            <small>{item.staffMessage}</small>
+            <em>{item.verificationStep}</em>
           </article>
         ))}
       </section>
@@ -1047,6 +1070,9 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM15OperatingPolishCoversDailySections() ? "M15 operating polish covers daily sections" : "M15 operating section gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM15OperatingPolishExplainsStaffUse() ? "M15 operating polish explains staff use" : "M15 staff-use explanation gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM15OperatingPolishRemainsReadOnly() ? "M15 operating polish remains read-only" : "M15 operating polish write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15EmptyStatesCoverOperatingSections() ? "M15 empty states cover operating sections" : "M15 empty state coverage gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15EmptyStatesExplainFallbacks() ? "M15 fallback labels explain next verification" : "M15 fallback explanation gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15EmptyStatesRemainReadOnly() ? "M15 empty states remain read-only" : "M15 empty state write risk"}</span>
             </div>
           </section>
 

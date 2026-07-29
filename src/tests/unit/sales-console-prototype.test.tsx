@@ -32,6 +32,7 @@ import { salesConsoleM14LeadOperationsDepth } from "@/features/sales/sales-conso
 import { salesConsoleM14OperationalTabAudit } from "@/features/sales/sales-console-m14-operational-tab-audit";
 import { salesConsoleM14PlaceholderDemotion } from "@/features/sales/sales-console-m14-placeholder-demotion";
 import { salesConsoleM14SalespersonTodayDepth } from "@/features/sales/sales-console-m14-salesperson-today-depth";
+import { salesConsoleM15EmptyStateClarity } from "@/features/sales/sales-console-m15-empty-state-clarity";
 import { salesConsoleM15OperatingSectionPolish } from "@/features/sales/sales-console-m15-operating-section-polish";
 import { salesConsoleM15RoleFirstNavigation } from "@/features/sales/sales-console-m15-role-first-navigation";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
@@ -492,6 +493,18 @@ describe("Sales Console", () => {
       expect(markup).toContain(item.dailyUse);
       expect(markup).toContain(item.scanTarget);
       expect(markup).toContain(item.verificationRule);
+    }
+  });
+
+  it("renders M15 empty and fallback clarity", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M15 empty states cover operating sections");
+    expect(markup).toContain("M15 fallback labels explain next verification");
+    expect(markup).toContain("M15 empty states remain read-only");
+    for (const item of salesConsoleM15EmptyStateClarity.items) {
+      expect(markup).toContain(item.staffMessage);
+      expect(markup).toContain(item.verificationStep);
     }
   });
 

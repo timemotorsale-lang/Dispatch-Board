@@ -269,6 +269,53 @@
   line-height: 1.35;
 }
 
+.emptyStateClarityStrip {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.emptyStateClarityStrip article {
+  background: var(--surface-soft);
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+}
+
+.emptyStateClarityStrip strong,
+.emptyStateClarityStrip span,
+.emptyStateClarityStrip small,
+.emptyStateClarityStrip em {
+  display: block;
+}
+
+.emptyStateClarityStrip strong {
+  color: var(--ink);
+  font-size: 0.74rem;
+}
+
+.emptyStateClarityStrip span {
+  font-size: 0.66rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.emptyStateClarityStrip small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.emptyStateClarityStrip em {
+  color: var(--brand-strong);
+  font-size: 0.66rem;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
 .roleRail article {
   background: var(--surface);
   border: 1px solid var(--line);
