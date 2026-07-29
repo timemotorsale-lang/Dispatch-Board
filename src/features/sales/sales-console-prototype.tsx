@@ -215,6 +215,12 @@ import {
   salesConsoleM15StaffReviewKeepsReadOnlyBoundary,
   salesConsoleM15StaffReviewReadiness
 } from "./sales-console-m15-staff-review-readiness";
+import {
+  salesConsoleM16RiskyWorkflowsRemainNotSelected,
+  salesConsoleM16SelectsManagerReviewFirst,
+  salesConsoleM16WorkflowSelection,
+  salesConsoleM16WorkflowSelectionRemainsPlanningOnly
+} from "./sales-console-m16-workflow-selection";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1091,6 +1097,26 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM15StaffReviewCoversReleaseConcerns() ? "M15 staff review covers release concerns" : "M15 review coverage gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM15StaffReviewGatesAreReady() ? "M15 staff review gates ready" : "M15 review gate risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM15StaffReviewKeepsReadOnlyBoundary() ? "M15 staff review remains read-only" : "M15 review write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16SelectsManagerReviewFirst() ? "M16 selects Manager Review first" : "M16 workflow selection gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16RiskyWorkflowsRemainNotSelected() ? "M16 risky workflows remain not selected" : "M16 risky workflow risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16WorkflowSelectionRemainsPlanningOnly() ? "M16 workflow selection remains planning-only" : "M16 activation risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M16 workflow selection">
+            <div className={styles.railHeader}><h2>M16 Workflow Selection</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              First controlled activation candidate: {salesConsoleM16WorkflowSelection.selectedWorkflow}. It remains disabled/planning-only until later activation gates pass.
+            </p>
+            <div className={styles.workflowSelectionList}>
+              {salesConsoleM16WorkflowSelection.candidates.map((candidate) => (
+                <article key={candidate.candidate}>
+                  <strong>{candidate.candidate}</strong>
+                  <span className={candidate.activationPosture === "disabled-planning" ? styles.statusWarning : styles.statusNeutral}>{candidate.activationPosture}</span>
+                  <small>{candidate.rationale}</small>
+                  <em>Risk: {candidate.risk}</em>
+                </article>
+              ))}
             </div>
           </section>
 

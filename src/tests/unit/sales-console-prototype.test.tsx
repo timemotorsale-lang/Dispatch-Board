@@ -37,6 +37,7 @@ import { salesConsoleM15ManagerCommandPolish } from "@/features/sales/sales-cons
 import { salesConsoleM15OperatingSectionPolish } from "@/features/sales/sales-console-m15-operating-section-polish";
 import { salesConsoleM15RoleFirstNavigation } from "@/features/sales/sales-console-m15-role-first-navigation";
 import { salesConsoleM15StaffReviewReadiness } from "@/features/sales/sales-console-m15-staff-review-readiness";
+import { salesConsoleM16WorkflowSelection } from "@/features/sales/sales-console-m16-workflow-selection";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
@@ -535,6 +536,20 @@ describe("Sales Console", () => {
     for (const gate of salesConsoleM15StaffReviewReadiness.gates) {
       expect(markup).toContain(gate.gate);
       expect(markup).toContain(gate.evidence);
+    }
+  });
+
+  it("renders M16 controlled workflow selection", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M16 Workflow Selection");
+    expect(markup).toContain("M16 selects Manager Review first");
+    expect(markup).toContain("M16 risky workflows remain not selected");
+    expect(markup).toContain("M16 workflow selection remains planning-only");
+    expect(markup).toContain(salesConsoleM16WorkflowSelection.selectedWorkflow);
+    for (const candidate of salesConsoleM16WorkflowSelection.candidates) {
+      expect(markup).toContain(candidate.candidate);
+      expect(markup).toContain(candidate.activationPosture);
     }
   });
 
