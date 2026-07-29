@@ -324,6 +324,12 @@ import {
   salesConsoleM19ServiceRequiresAuthentication,
   salesConsoleM19ServiceReturnsCreatedOrDuplicate
 } from "./sales-console-m19-service-activation";
+import {
+  salesConsoleM19ApiActivation,
+  salesConsoleM19ApiBlocksIdempotencyConflict,
+  salesConsoleM19ApiReturnsCreatedForNewRequest,
+  salesConsoleM19ApiReturnsDuplicateForRetry
+} from "./sales-console-m19-api-activation";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1276,6 +1282,9 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM19ServiceRequiresAuthentication() ? "M19 service requires authentication" : "M19 service auth gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM19ServiceReturnsCreatedOrDuplicate() ? "M19 service returns created or duplicate" : "M19 service status gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM19ServiceKeepsOtherWorkflowsBlocked() ? "M19 service keeps other workflows blocked" : "M19 service boundary risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19ApiReturnsCreatedForNewRequest() ? "M19 API returns created" : "M19 API created response gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19ApiReturnsDuplicateForRetry() ? "M19 API returns duplicate" : "M19 API duplicate response gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19ApiBlocksIdempotencyConflict() ? "M19 API blocks idempotency conflict" : "M19 API conflict gap"}</span>
             </div>
           </section>
 
@@ -1403,6 +1412,22 @@ export function SalesConsolePrototype() {
                   <strong>{guardrail}</strong>
                   <span className={styles.statusGood}>{salesConsoleM19ServiceActivation.serviceState}</span>
                   <small>Allowed statuses: {salesConsoleM19ServiceActivation.activeStatuses.join(", ")}.</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M19 API activation">
+            <div className={styles.railHeader}><h2>M19 API Activation</h2><FileCheck2 size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              {salesConsoleM19ApiActivation.method} {salesConsoleM19ApiActivation.endpoint}: {salesConsoleM19ApiActivation.guardrail}
+            </p>
+            <div className={styles.m19ApiActivationList}>
+              {[...salesConsoleM19ApiActivation.successResponses, ...salesConsoleM19ApiActivation.blockedResponses].map((response) => (
+                <article key={`${response.status}-${response.meaning}`}>
+                  <strong>{response.status}</strong>
+                  <span className={response.status < 300 ? styles.statusGood : styles.statusWarning}>{salesConsoleM19ApiActivation.routeState}</span>
+                  <small>{response.meaning}</small>
                 </article>
               ))}
             </div>

@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
+import { EnterpriseCommandConflictError } from "@/server/enterprise-command/domain";
 import { submitSalesManagerReviewRequest } from "@/server/sales/manager-review-request-service";
 
-function getManagerReviewRequestErrorStatus(message: string) {
+function getManagerReviewRequestErrorStatus(error: unknown, message: string) {
+  if (error instanceof EnterpriseCommandConflictError) {
+    return 409;
+  }
+
   if (message === "Authentication required.") {
     return 401;
   }
@@ -25,9 +30,9 @@ export async function POST(request: Request) {
 
   try {
     const payload = await request.json();
-    const result = submitSalesManagerReviewRequest(user, payload);
+    const result = await submitSalesManagerReviewRequest(user, payload);
 
-    return NextResponse.json(result, { status: 501 });
+    return NextResponse.json(result, { status: result.duplicate ? 200 : 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to process manager review request.";
 
@@ -36,7 +41,7 @@ export async function POST(request: Request) {
         error: message
       },
       {
-        status: getManagerReviewRequestErrorStatus(message)
+        status: getManagerReviewRequestErrorStatus(error, message)
       }
     );
   }
