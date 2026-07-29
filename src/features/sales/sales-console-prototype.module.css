@@ -672,6 +672,48 @@
   font-weight: 900;
 }
 
+.managerReviewDisabledPreview {
+  align-items: center;
+  background: rgba(250, 204, 21, 0.08);
+  border: 1px dashed rgba(217, 119, 6, 0.34);
+  border-radius: 8px;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  padding: 10px;
+}
+
+.managerReviewDisabledPreview strong,
+.managerReviewDisabledPreview span,
+.managerReviewDisabledPreview small {
+  display: block;
+}
+
+.managerReviewDisabledPreview strong {
+  color: var(--ink);
+  font-size: 0.76rem;
+}
+
+.managerReviewDisabledPreview span,
+.managerReviewDisabledPreview small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.managerReviewDisabledPreview button {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: not-allowed;
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  font-weight: 900;
+  padding: 8px 10px;
+}
+
 .toneDanger {
   color: var(--danger);
 }
@@ -1102,6 +1144,10 @@
 .operationalTabAuditList,
 .placeholderDemotionList,
 .staffReviewReadinessList,
+.workflowSelectionList,
+.managerReviewContractList,
+.auditGuardrailList,
+.activationGateList,
 .productionRoleViewList,
 .authAccessList,
 .m10SourceWiringList,
@@ -1160,6 +1206,10 @@
 .operationalTabAuditList article,
 .placeholderDemotionList article,
 .staffReviewReadinessList article,
+.workflowSelectionList article,
+.managerReviewContractList article,
+.auditGuardrailList article,
+.activationGateList article,
 .productionRoleViewList article,
 .authAccessList article,
 .m10SourceWiringList article,
@@ -1217,6 +1267,10 @@
 .operationalTabAuditList strong,
 .placeholderDemotionList strong,
 .staffReviewReadinessList strong,
+.workflowSelectionList strong,
+.managerReviewContractList strong,
+.auditGuardrailList strong,
+.activationGateList strong,
 .productionRoleViewList strong,
 .authAccessList strong,
 .m10SourceWiringList strong,
@@ -1320,6 +1374,15 @@
 .placeholderDemotionList em,
 .staffReviewReadinessList span,
 .staffReviewReadinessList small,
+.workflowSelectionList span,
+.workflowSelectionList small,
+.workflowSelectionList em,
+.managerReviewContractList span,
+.managerReviewContractList small,
+.auditGuardrailList span,
+.auditGuardrailList small,
+.activationGateList span,
+.activationGateList small,
 .productionRoleViewList span,
 .productionRoleViewList small,
 .productionRoleViewList em,

@@ -37,6 +37,11 @@ import { salesConsoleM15ManagerCommandPolish } from "@/features/sales/sales-cons
 import { salesConsoleM15OperatingSectionPolish } from "@/features/sales/sales-console-m15-operating-section-polish";
 import { salesConsoleM15RoleFirstNavigation } from "@/features/sales/sales-console-m15-role-first-navigation";
 import { salesConsoleM15StaffReviewReadiness } from "@/features/sales/sales-console-m15-staff-review-readiness";
+import { salesConsoleM16ActivationDecisionGate } from "@/features/sales/sales-console-m16-activation-decision-gate";
+import { salesConsoleM16AuditGuardrails } from "@/features/sales/sales-console-m16-audit-guardrails";
+import { salesConsoleM16ManagerReviewContract } from "@/features/sales/sales-console-m16-manager-review-contract";
+import { salesConsoleM16ManagerReviewDisabledPreview } from "@/features/sales/sales-console-m16-manager-review-disabled-preview";
+import { salesConsoleM16WorkflowSelection } from "@/features/sales/sales-console-m16-workflow-selection";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
@@ -533,6 +538,73 @@ describe("Sales Console", () => {
     expect(markup).toContain("M15 staff review remains read-only");
     expect(markup).toContain(salesConsoleM15StaffReviewReadiness.reviewRecommendation);
     for (const gate of salesConsoleM15StaffReviewReadiness.gates) {
+      expect(markup).toContain(gate.gate);
+      expect(markup).toContain(gate.evidence);
+    }
+  });
+
+  it("renders M16 controlled workflow selection", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M16 Workflow Selection");
+    expect(markup).toContain("M16 selects Manager Review first");
+    expect(markup).toContain("M16 risky workflows remain not selected");
+    expect(markup).toContain("M16 workflow selection remains planning-only");
+    expect(markup).toContain(salesConsoleM16WorkflowSelection.selectedWorkflow);
+    for (const candidate of salesConsoleM16WorkflowSelection.candidates) {
+      expect(markup).toContain(candidate.candidate);
+      expect(markup).toContain(candidate.activationPosture);
+    }
+  });
+
+  it("renders M16 Manager Review Request contract", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M16 Manager Review Contract");
+    expect(markup).toContain("M16 manager review contract has required fields");
+    expect(markup).toContain("M16 manager review permissions defined");
+    expect(markup).toContain("M16 manager review audit shape defined");
+    expect(markup).toContain("M16 manager review remains disabled");
+    expect(markup).toContain(salesConsoleM16ManagerReviewContract.writeActivation);
+    for (const field of salesConsoleM16ManagerReviewContract.fields) {
+      expect(markup).toContain(field.field);
+      expect(markup).toContain(field.source);
+    }
+  });
+
+  it("renders M16 disabled Manager Review Request preview", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M16 manager review preview is disabled");
+    expect(markup).toContain("M16 manager review shows unavailable states");
+    expect(markup).toContain("M16 manager review preview lives in Deal Desk");
+    expect(markup).toContain(salesConsoleM16ManagerReviewDisabledPreview.ctaLabel);
+    expect(markup).toContain(salesConsoleM16ManagerReviewDisabledPreview.disabledReason);
+    expect(markup).toContain("disabled");
+  });
+
+  it("renders M16 audit readiness and excluded-action guardrails", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M16 Audit &amp; Guardrails");
+    expect(markup).toContain("M16 audit readiness covers request shape");
+    expect(markup).toContain("M16 excluded actions remain blocked");
+    expect(markup).toContain("M16 audit guardrails remain planning-only");
+    for (const guardrail of salesConsoleM16AuditGuardrails.excludedActionGuardrails) {
+      expect(markup).toContain(guardrail.guardrail);
+      expect(markup).toContain(guardrail.evidence);
+    }
+  });
+
+  it("renders M16 activation decision gate", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M16 Activation Decision Gate");
+    expect(markup).toContain("M16 activation gate covers core concerns");
+    expect(markup).toContain("M16 ready for M17 planning");
+    expect(markup).toContain("M16 keeps workflow disabled");
+    expect(markup).toContain(salesConsoleM16ActivationDecisionGate.m17Recommendation);
+    for (const gate of salesConsoleM16ActivationDecisionGate.gates) {
       expect(markup).toContain(gate.gate);
       expect(markup).toContain(gate.evidence);
     }

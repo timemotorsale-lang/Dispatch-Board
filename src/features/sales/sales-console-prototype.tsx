@@ -215,6 +215,37 @@ import {
   salesConsoleM15StaffReviewKeepsReadOnlyBoundary,
   salesConsoleM15StaffReviewReadiness
 } from "./sales-console-m15-staff-review-readiness";
+import {
+  salesConsoleM16RiskyWorkflowsRemainNotSelected,
+  salesConsoleM16SelectsManagerReviewFirst,
+  salesConsoleM16WorkflowSelection,
+  salesConsoleM16WorkflowSelectionRemainsPlanningOnly
+} from "./sales-console-m16-workflow-selection";
+import {
+  salesConsoleM16ManagerReviewContract,
+  salesConsoleM16ManagerReviewContractHasAuditShape,
+  salesConsoleM16ManagerReviewContractHasPermissions,
+  salesConsoleM16ManagerReviewContractHasRequiredFields,
+  salesConsoleM16ManagerReviewContractRemainsDisabled
+} from "./sales-console-m16-manager-review-contract";
+import {
+  salesConsoleM16ManagerReviewDisabledPreview,
+  salesConsoleM16ManagerReviewPreviewIsDisabled,
+  salesConsoleM16ManagerReviewPreviewLivesInDealDesk,
+  salesConsoleM16ManagerReviewPreviewShowsUnavailableStates
+} from "./sales-console-m16-manager-review-disabled-preview";
+import {
+  salesConsoleM16AuditGuardrails,
+  salesConsoleM16AuditGuardrailsRemainPlanningOnly,
+  salesConsoleM16AuditReadinessCoversRequestShape,
+  salesConsoleM16ExcludedActionsRemainBlocked
+} from "./sales-console-m16-audit-guardrails";
+import {
+  salesConsoleM16ActivationDecisionGate,
+  salesConsoleM16ActivationGateCoversCoreConcerns,
+  salesConsoleM16ActivationGateKeepsWorkflowDisabled,
+  salesConsoleM16ActivationGateReadyForM17Planning
+} from "./sales-console-m16-activation-decision-gate";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -651,6 +682,14 @@ export function SalesConsolePrototype() {
                     <em>{deal.readOnlyAction}</em>
                   </article>
                 ))}
+              </div>
+              <div className={styles.managerReviewDisabledPreview} aria-label="M16 disabled manager review request preview">
+                <div>
+                  <strong>{salesConsoleM16ManagerReviewDisabledPreview.ctaLabel}</strong>
+                  <span>{salesConsoleM16ManagerReviewDisabledPreview.disabledReason}</span>
+                  <small>{salesConsoleM16ManagerReviewDisabledPreview.sourcePrompt}</small>
+                </div>
+                <button aria-disabled="true" disabled type="button">{salesConsoleM16ManagerReviewDisabledPreview.ctaLabel} <b>disabled</b></button>
               </div>
               <table className={styles.compactTable}>
                 <thead>
@@ -1091,6 +1130,99 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM15StaffReviewCoversReleaseConcerns() ? "M15 staff review covers release concerns" : "M15 review coverage gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM15StaffReviewGatesAreReady() ? "M15 staff review gates ready" : "M15 review gate risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM15StaffReviewKeepsReadOnlyBoundary() ? "M15 staff review remains read-only" : "M15 review write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16SelectsManagerReviewFirst() ? "M16 selects Manager Review first" : "M16 workflow selection gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16RiskyWorkflowsRemainNotSelected() ? "M16 risky workflows remain not selected" : "M16 risky workflow risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16WorkflowSelectionRemainsPlanningOnly() ? "M16 workflow selection remains planning-only" : "M16 activation risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ManagerReviewContractHasRequiredFields() ? "M16 manager review contract has required fields" : "M16 manager review field gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ManagerReviewContractHasPermissions() ? "M16 manager review permissions defined" : "M16 manager review permission gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ManagerReviewContractHasAuditShape() ? "M16 manager review audit shape defined" : "M16 manager review audit gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ManagerReviewContractRemainsDisabled() ? "M16 manager review remains disabled" : "M16 manager review activation risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ManagerReviewPreviewIsDisabled() ? "M16 manager review preview is disabled" : "M16 preview activation risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ManagerReviewPreviewShowsUnavailableStates() ? "M16 manager review shows unavailable states" : "M16 unavailable-state gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ManagerReviewPreviewLivesInDealDesk() ? "M16 manager review preview lives in Deal Desk" : "M16 preview placement gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16AuditReadinessCoversRequestShape() ? "M16 audit readiness covers request shape" : "M16 audit readiness gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ExcludedActionsRemainBlocked() ? "M16 excluded actions remain blocked" : "M16 excluded action risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16AuditGuardrailsRemainPlanningOnly() ? "M16 audit guardrails remain planning-only" : "M16 audit guardrail activation risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ActivationGateCoversCoreConcerns() ? "M16 activation gate covers core concerns" : "M16 activation gate coverage gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ActivationGateReadyForM17Planning() ? "M16 ready for M17 planning" : "M16 M17 planning risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ActivationGateKeepsWorkflowDisabled() ? "M16 keeps workflow disabled" : "M16 live workflow risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M16 activation decision gate">
+            <div className={styles.railHeader}><h2>M16 Activation Decision Gate</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              {salesConsoleM16ActivationDecisionGate.m17Recommendation}
+            </p>
+            <div className={styles.activationGateList}>
+              {salesConsoleM16ActivationDecisionGate.gates.map((gate) => (
+                <article key={gate.gate}>
+                  <strong>{gate.gate}</strong>
+                  <span className={gate.status === "ready-for-m17-planning" ? styles.statusGood : styles.statusDanger}>{gate.status}</span>
+                  <small>{gate.evidence}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M16 audit and guardrails">
+            <div className={styles.railHeader}><h2>M16 Audit &amp; Guardrails</h2><ShieldCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Manager Review Request planning requires audit readiness and explicitly blocks risky workflows until separate approval milestones.
+            </p>
+            <div className={styles.auditGuardrailList}>
+              {salesConsoleM16AuditGuardrails.excludedActionGuardrails.map((guardrail) => (
+                <article key={guardrail.guardrail}>
+                  <strong>{guardrail.guardrail}</strong>
+                  <span className={styles.statusDanger}>{guardrail.status}</span>
+                  <small>{guardrail.evidence}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              {salesConsoleM16AuditGuardrails.auditReadiness.map((item) => (
+                <span key={item}><ShieldCheck size={13} /> {item}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M16 manager review contract">
+            <div className={styles.railHeader}><h2>M16 Manager Review Contract</h2><FileCheck2 size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Contract for a future Manager Review Request. The write workflow remains {salesConsoleM16ManagerReviewContract.writeActivation}.
+            </p>
+            <div className={styles.managerReviewContractList}>
+              {salesConsoleM16ManagerReviewContract.fields.map((field) => (
+                <article key={field.field}>
+                  <strong>{field.field}</strong>
+                  <span className={field.requirement === "required" ? styles.statusWarning : styles.statusNeutral}>{field.requirement}</span>
+                  <small>{field.source}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              {salesConsoleM16ManagerReviewContract.permissions.map((permission) => (
+                <span key={`${permission.role}-${permission.access}`}><ShieldCheck size={13} /> {permission.role}: {permission.access}</span>
+              ))}
+              <span><ShieldCheck size={13} /> Audit fields: {salesConsoleM16ManagerReviewContract.auditShape.length}</span>
+              <span><ShieldCheck size={13} /> Unavailable states: {salesConsoleM16ManagerReviewContract.unavailableStates.length}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M16 workflow selection">
+            <div className={styles.railHeader}><h2>M16 Workflow Selection</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              First controlled activation candidate: {salesConsoleM16WorkflowSelection.selectedWorkflow}. It remains disabled/planning-only until later activation gates pass.
+            </p>
+            <div className={styles.workflowSelectionList}>
+              {salesConsoleM16WorkflowSelection.candidates.map((candidate) => (
+                <article key={candidate.candidate}>
+                  <strong>{candidate.candidate}</strong>
+                  <span className={candidate.activationPosture === "disabled-planning" ? styles.statusWarning : styles.statusNeutral}>{candidate.activationPosture}</span>
+                  <small>{candidate.rationale}</small>
+                  <em>Risk: {candidate.risk}</em>
+                </article>
+              ))}
             </div>
           </section>
 
