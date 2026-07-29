@@ -330,6 +330,12 @@ import {
   salesConsoleM19ApiReturnsCreatedForNewRequest,
   salesConsoleM19ApiReturnsDuplicateForRetry
 } from "./sales-console-m19-api-activation";
+import {
+  salesConsoleM19ReleaseGate,
+  salesConsoleM19ReleaseGateActivatesOnlyManagerReview,
+  salesConsoleM19ReleaseGateKeepsRiskyActionsBlocked,
+  salesConsoleM19ReleaseGateRecommendsM20
+} from "./sales-console-m19-release-gate";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1285,6 +1291,9 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM19ApiReturnsCreatedForNewRequest() ? "M19 API returns created" : "M19 API created response gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM19ApiReturnsDuplicateForRetry() ? "M19 API returns duplicate" : "M19 API duplicate response gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM19ApiBlocksIdempotencyConflict() ? "M19 API blocks idempotency conflict" : "M19 API conflict gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19ReleaseGateActivatesOnlyManagerReview() ? "M19 release activates only manager review" : "M19 release scope risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19ReleaseGateKeepsRiskyActionsBlocked() ? "M19 release keeps risky actions blocked" : "M19 risky-action release gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19ReleaseGateRecommendsM20() ? "M19 release gate names M20 next" : "M19 next milestone gap"}</span>
             </div>
           </section>
 
@@ -1428,6 +1437,29 @@ export function SalesConsolePrototype() {
                   <strong>{response.status}</strong>
                   <span className={response.status < 300 ? styles.statusGood : styles.statusWarning}>{salesConsoleM19ApiActivation.routeState}</span>
                   <small>{response.meaning}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M19 release gate">
+            <div className={styles.railHeader}><h2>M19 Release Gate</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              {salesConsoleM19ReleaseGate.recommendation} {salesConsoleM19ReleaseGate.activatedWorkflow}
+            </p>
+            <div className={styles.m19ReleaseGateList}>
+              {salesConsoleM19ReleaseGate.readyChecks.map((check) => (
+                <article key={check.check}>
+                  <strong>{check.check}</strong>
+                  <span className={styles.statusGood}>ready</span>
+                  <small>{check.evidence}</small>
+                </article>
+              ))}
+              {salesConsoleM19ReleaseGate.stillBlocked.map((blocker) => (
+                <article key={blocker}>
+                  <strong>{blocker}</strong>
+                  <span className={styles.statusDanger}>still blocked</span>
+                  <small>{salesConsoleM19ReleaseGate.nextRecommendedMilestone}</small>
                 </article>
               ))}
             </div>
