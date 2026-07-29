@@ -412,6 +412,13 @@ import {
   salesConsoleM31RealRoleAccessVerification,
   salesConsoleM31RequiresOneUserPerRole
 } from "./sales-console-m31-real-role-access-verification";
+import {
+  salesConsoleM32CoversManagerReviewE2EPath,
+  salesConsoleM32KeepsExcludedActionsBlocked,
+  salesConsoleM32ManagerReviewE2ETest,
+  salesConsoleM32RequiresAuditReferenceEvidence,
+  salesConsoleM32VerifiesDuplicateAndValidationBehavior
+} from "./sales-console-m32-manager-review-e2e-test";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1464,6 +1471,10 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM31RequiresOneUserPerRole() ? "M31 one-user-per-role smoke ready" : "M31 user smoke gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM31DefinesUnauthorizedBehavior() ? "M31 unauthorized behavior defined" : "M31 auth behavior gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM31BlocksRoleLeakageRisks() ? "M31 role leakage blocked" : "M31 role leakage risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM32CoversManagerReviewE2EPath() ? "M32 manager review E2E covered" : "M32 manager review path gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM32RequiresAuditReferenceEvidence() ? "M32 audit references required" : "M32 audit evidence gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM32VerifiesDuplicateAndValidationBehavior() ? "M32 duplicate and validation covered" : "M32 duplicate/validation gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM32KeepsExcludedActionsBlocked() ? "M32 excluded actions blocked" : "M32 excluded action risk"}</span>
             </div>
           </section>
 
@@ -1897,6 +1908,27 @@ export function SalesConsolePrototype() {
                   <strong>{risk}</strong>
                   <span className={styles.statusDanger}>no-go</span>
                   <small>{salesConsoleM31RealRoleAccessVerification.unauthorizedBehavior}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M32 manager review request end-to-end test">
+            <div className={styles.railHeader}><h2>M32 Manager Review Request End-to-End Test</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM32ManagerReviewE2ETest.e2eSummary}</p>
+            <div className={styles.m26DeploymentPolishList}>
+              {salesConsoleM32ManagerReviewE2ETest.steps.map((step) => (
+                <article key={step.step}>
+                  <strong>{step.step}</strong>
+                  <span className={styles.statusWarning}>{step.actor}</span>
+                  <small>{step.expectedResult} Evidence: {step.requiredEvidence.join(", ")}.</small>
+                </article>
+              ))}
+              {salesConsoleM32ManagerReviewE2ETest.excludedActionsStillBlocked.map((action) => (
+                <article key={action}>
+                  <strong>{action}</strong>
+                  <span className={styles.statusDanger}>blocked</span>
+                  <small>Not part of the approved Manager Review Request MVP workflow.</small>
                 </article>
               ))}
             </div>
