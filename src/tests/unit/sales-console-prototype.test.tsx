@@ -105,7 +105,7 @@ describe("Sales Console", () => {
   it("uses staff-facing deployment language for inactive controls", () => {
     const markup = renderToStaticMarkup(<SalesConsolePrototype />);
 
-    expect(markup).toContain("Search available after rollout");
+    expect(markup).toContain("Search customer, stock #, vehicle, deal...");
     expect(markup).toContain("Alerts");
     expect(markup).toContain("MVP view");
     expect(markup).toContain("Messages");
@@ -113,6 +113,20 @@ describe("Sales Console", () => {
     expect(markup).toContain("MVP control guide");
     expect(markup).toContain("source cadence");
     expect(markup).toContain("release gated");
+  });
+
+  it("renders the M35 operational interaction layer", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Every primary tab is now clickable");
+    expect(markup).toContain("Active operating view");
+    expect(markup).toContain("Salesperson Today: Ranked seller work queue");
+    expect(markup).toContain("Manager Review");
+    expect(markup).toContain("Pilot / Rollout Readiness");
+    expect(markup).toContain("M35 every primary tab selectable");
+    expect(markup).toContain("M35 role cards change context");
+    expect(markup).toContain("M35 help and scope panels respond");
+    expect(markup).toContain("M35 only manager review submit live");
   });
 
   it("keeps the first slice non-destructive and production-MVP scoped", () => {
@@ -915,7 +929,7 @@ describe("Sales Console", () => {
     const markup = renderToStaticMarkup(<SalesConsolePrototype />);
 
     expect(markup).toContain("M25 Responsive Operating Views");
-    expect(markup).toContain("Every primary tab is responsive and usable");
+    expect(markup).toContain("Every primary tab is now clickable");
     expect(markup).toContain("M25 every primary tab operating");
     expect(markup).toContain("M25 every tab has safe action");
     expect(markup).toContain("M25 only manager review submit live");

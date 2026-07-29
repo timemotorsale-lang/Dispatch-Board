@@ -306,24 +306,40 @@
 .operatingTabDock nav {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-.operatingTabDock a {
+.operatingTabDock button {
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 10px;
   color: inherit;
+  cursor: pointer;
   display: grid;
+  font: inherit;
   gap: 5px;
+  text-align: left;
   min-width: 0;
   padding: 10px;
   text-decoration: none;
 }
 
-.operatingTabDock a:hover {
+.operatingTabDock button:hover {
   border-color: rgba(37, 99, 235, 0.4);
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.activeOperatingTab {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.98), rgba(79, 70, 229, 0.94)) !important;
+  border-color: rgba(37, 99, 235, 0.72) !important;
+  color: white !important;
+  box-shadow: 0 14px 28px rgba(37, 99, 235, 0.24) !important;
+}
+
+.activeOperatingTab strong,
+.activeOperatingTab span,
+.activeOperatingTab small {
+  color: white !important;
 }
 
 .operatingTabDock strong {
@@ -342,6 +358,94 @@
   font-size: 0.62rem;
   font-weight: 900;
   text-transform: uppercase;
+}
+
+.operationalDrawer,
+.activeOperatingView {
+  background: linear-gradient(135deg, #ffffff, #eef4ff);
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.operationalDrawer {
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.operationalDrawer h2,
+.activeOperatingView h2 {
+  color: var(--ink);
+  margin: 2px 0 4px;
+}
+
+.operationalDrawer p,
+.activeOperatingView p {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.operationalDrawer button {
+  background: var(--brand);
+  border: 0;
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 900;
+  padding: 9px 11px;
+}
+
+.activeOperatingHeader {
+  align-items: start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.activeOperatingGrid,
+.activeOperatingResults {
+  display: grid;
+  gap: 8px;
+}
+
+.activeOperatingGrid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.activeOperatingResults {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.activeOperatingGrid article,
+.activeOperatingResults article {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow-soft);
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+}
+
+.activeOperatingGrid strong,
+.activeOperatingResults strong {
+  color: var(--ink);
+  font-size: 0.78rem;
+}
+
+.activeOperatingGrid span,
+.activeOperatingResults span,
+.activeOperatingResults small {
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.35;
 }
 
 .operatingPolishMap {
@@ -440,14 +544,17 @@
   line-height: 1.35;
 }
 
-.roleRail article {
+.roleRail button {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
   box-shadow: var(--shadow-md);
+  cursor: pointer;
   display: grid;
+  font: inherit;
   gap: 4px;
   padding: 10px;
+  text-align: left;
 }
 
 .roleRail strong,
@@ -483,6 +590,7 @@
 }
 
 .activeRoleCard {
+  background: linear-gradient(180deg, #ffffff, #eef4ff) !important;
   border-color: rgba(37, 99, 235, 0.42) !important;
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1), var(--shadow-md) !important;
 }
@@ -2265,12 +2373,15 @@
   .topbar,
   .executionFoundation,
   .bodyGrid,
-  .lowerGrid {
+  .lowerGrid,
+  .activeOperatingGrid,
+  .activeOperatingResults {
     grid-template-columns: 1fr;
   }
 
   .shellCheckGrid,
-  .roleRail {
+  .roleRail,
+  .operatingTabDock nav {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -2288,7 +2399,9 @@
   .commandRail,
   .glanceGrid,
   .shellCheckGrid,
-  .roleRail {
+  .roleRail,
+  .operatingTabDock nav,
+  .operationalDrawer {
     grid-template-columns: 1fr;
   }
 
