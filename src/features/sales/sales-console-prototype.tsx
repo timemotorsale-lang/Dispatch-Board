@@ -252,6 +252,12 @@ import {
   salesConsoleM17StateModelDefinesStatuses,
   salesConsoleM17StateModelKeepsWorkflowInternal
 } from "./sales-console-m17-request-state-model";
+import {
+  salesConsoleM17RequestFormControlsDisabled,
+  salesConsoleM17RequestFormExplainsWhyDisabled,
+  salesConsoleM17RequestFormHasRequiredFields,
+  salesConsoleM17RequestFormShell
+} from "./sales-console-m17-request-form-shell";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -696,6 +702,19 @@ export function SalesConsolePrototype() {
                   <small>{salesConsoleM16ManagerReviewDisabledPreview.sourcePrompt}</small>
                 </div>
                 <button aria-disabled="true" disabled type="button">{salesConsoleM16ManagerReviewDisabledPreview.ctaLabel} <b>disabled</b></button>
+              </div>
+              <div className={styles.managerReviewFormShell} aria-label="M17 disabled manager review request form shell">
+                <strong>Manager Review Request Form</strong>
+                <small>{salesConsoleM17RequestFormShell.helperText}</small>
+                <div>
+                  {salesConsoleM17RequestFormShell.fields.map((field) => (
+                    <label key={field.label}>
+                      <span>{field.label}{field.required ? " *" : ""}</span>
+                      <input disabled value={field.value} readOnly />
+                    </label>
+                  ))}
+                </div>
+                <button aria-disabled="true" disabled type="button">{salesConsoleM17RequestFormShell.submitLabel} <b>disabled</b></button>
               </div>
               <table className={styles.compactTable}>
                 <thead>
@@ -1155,6 +1174,9 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM17StateModelDefinesStatuses() ? "M17 request state model defines statuses" : "M17 state model gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM17StateModelBlocksSubmitWithoutBackend() ? "M17 submit blocks without backend" : "M17 submit safety gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM17StateModelKeepsWorkflowInternal() ? "M17 state model stays internal" : "M17 workflow boundary risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17RequestFormHasRequiredFields() ? "M17 request form has required fields" : "M17 request form field gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17RequestFormControlsDisabled() ? "M17 request form controls disabled" : "M17 request form activation risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17RequestFormExplainsWhyDisabled() ? "M17 request form explains disabled state" : "M17 request form explanation gap"}</span>
             </div>
           </section>
 

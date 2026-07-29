@@ -42,6 +42,7 @@ import { salesConsoleM16AuditGuardrails } from "@/features/sales/sales-console-m
 import { salesConsoleM16ManagerReviewContract } from "@/features/sales/sales-console-m16-manager-review-contract";
 import { salesConsoleM16ManagerReviewDisabledPreview } from "@/features/sales/sales-console-m16-manager-review-disabled-preview";
 import { salesConsoleM16WorkflowSelection } from "@/features/sales/sales-console-m16-workflow-selection";
+import { salesConsoleM17RequestFormShell } from "@/features/sales/sales-console-m17-request-form-shell";
 import { salesConsoleM17RequestStateModel } from "@/features/sales/sales-console-m17-request-state-model";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
@@ -621,6 +622,20 @@ describe("Sales Console", () => {
     expect(markup).toContain(salesConsoleM17RequestStateModel.currentStatus);
     for (const transition of salesConsoleM17RequestStateModel.allowedTransitions) {
       expect(markup).toContain(transition.reason);
+    }
+  });
+
+  it("renders M17 disabled request form shell", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("Manager Review Request Form");
+    expect(markup).toContain("M17 request form has required fields");
+    expect(markup).toContain("M17 request form controls disabled");
+    expect(markup).toContain("M17 request form explains disabled state");
+    expect(markup).toContain(salesConsoleM17RequestFormShell.helperText);
+    expect(markup).toContain(salesConsoleM17RequestFormShell.submitLabel);
+    for (const field of salesConsoleM17RequestFormShell.fields) {
+      expect(markup).toContain(field.label);
     }
   });
 
