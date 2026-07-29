@@ -50,6 +50,7 @@ import { salesConsoleM17ValidationPermissions } from "@/features/sales/sales-con
 import { salesConsoleM18ApiRouteGuarded } from "@/features/sales/sales-console-m18-api-route-guarded";
 import { salesConsoleM18AuditIdempotencyReadiness } from "@/features/sales/sales-console-m18-audit-idempotency-readiness";
 import { salesConsoleM18BackendContract } from "@/features/sales/sales-console-m18-backend-contract";
+import { salesConsoleM18ReleaseGate } from "@/features/sales/sales-console-m18-release-gate";
 import { salesConsoleM18ServerValidation } from "@/features/sales/sales-console-m18-server-validation";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
@@ -738,6 +739,21 @@ describe("Sales Console", () => {
     for (const requirement of salesConsoleM18AuditIdempotencyReadiness.requirements) {
       expect(markup).toContain(requirement.requirement);
       expect(markup).toContain(requirement.reason);
+    }
+  });
+
+  it("renders M18 release gate", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M18 Release Gate");
+    expect(markup).toContain("M18 release gate has backend foundation");
+    expect(markup).toContain("M18 release gate blocks risky actions");
+    expect(markup).toContain("M18 release gate names M19 next");
+    expect(markup).toContain(salesConsoleM18ReleaseGate.recommendation);
+    expect(markup).toContain(salesConsoleM18ReleaseGate.nextRecommendedMilestone);
+    for (const check of salesConsoleM18ReleaseGate.readyChecks) {
+      expect(markup).toContain(check.check);
+      expect(markup).toContain(check.evidence);
     }
   });
 
