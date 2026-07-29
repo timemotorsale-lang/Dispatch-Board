@@ -65,20 +65,20 @@
   display: none;
 }
 
-:global(section[aria-label="Staff role model for read-only dogfooding"]),
-:global(section[aria-label="Dogfood auth role seeding evidence"]),
-:global(section[aria-label="Read-only dogfood feature flags"]),
-:global(section[aria-label="M12 role empty and planned states"]),
-:global(section[aria-label="M12 admin dogfood landing readiness summary"]),
-:global(section[aria-label="M13 dogfood readiness panel"]),
-:global(section[aria-label="M13 feedback categories"]),
-:global(section[aria-label="M13 dogfood go no-go gates"]),
-:global(section[aria-label="M14 operational tab audit"]),
-:global(section[aria-label="M14 placeholder demotion"]),
-:global(section[aria-label="M16 activation decision gate"]),
-:global(section[aria-label="M16 audit and guardrails"]),
-:global(section[aria-label="M16 manager review contract"]),
-:global(section[aria-label="M16 workflow selection"]) {
+.console :global(section[aria-label="Staff role model for read-only dogfooding"]),
+.console :global(section[aria-label="Dogfood auth role seeding evidence"]),
+.console :global(section[aria-label="Read-only dogfood feature flags"]),
+.console :global(section[aria-label="M12 role empty and planned states"]),
+.console :global(section[aria-label="M12 admin dogfood landing readiness summary"]),
+.console :global(section[aria-label="M13 dogfood readiness panel"]),
+.console :global(section[aria-label="M13 feedback categories"]),
+.console :global(section[aria-label="M13 dogfood go no-go gates"]),
+.console :global(section[aria-label="M14 operational tab audit"]),
+.console :global(section[aria-label="M14 placeholder demotion"]),
+.console :global(section[aria-label="M16 activation decision gate"]),
+.console :global(section[aria-label="M16 audit and guardrails"]),
+.console :global(section[aria-label="M16 manager review contract"]),
+.console :global(section[aria-label="M16 workflow selection"]) {
   display: none;
 }
 
