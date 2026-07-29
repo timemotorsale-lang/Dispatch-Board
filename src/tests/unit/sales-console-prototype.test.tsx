@@ -48,6 +48,7 @@ import { salesConsoleM17RequestFormShell } from "@/features/sales/sales-console-
 import { salesConsoleM17RequestStateModel } from "@/features/sales/sales-console-m17-request-state-model";
 import { salesConsoleM17ValidationPermissions } from "@/features/sales/sales-console-m17-validation-permissions";
 import { salesConsoleM18BackendContract } from "@/features/sales/sales-console-m18-backend-contract";
+import { salesConsoleM18ServerValidation } from "@/features/sales/sales-console-m18-server-validation";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
@@ -694,6 +695,20 @@ describe("Sales Console", () => {
     for (const field of salesConsoleM18BackendContract.requestFields) {
       expect(markup).toContain(field.field);
       expect(markup).toContain(field.source);
+    }
+  });
+
+  it("renders M18 server validation", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M18 Server Validation");
+    expect(markup).toContain("M18 server validation covers payload");
+    expect(markup).toContain("M18 server validation requires source snapshot");
+    expect(markup).toContain("M18 server validation keeps submit blocked");
+    expect(markup).toContain(salesConsoleM18ServerValidation.headline);
+    for (const rule of salesConsoleM18ServerValidation.validationRules) {
+      expect(markup).toContain(rule.rule);
+      expect(markup).toContain(rule.evidence);
     }
   });
 

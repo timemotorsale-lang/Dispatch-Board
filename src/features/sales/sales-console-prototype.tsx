@@ -282,6 +282,12 @@ import {
   salesConsoleM18BackendContractDefinesEndpoint,
   salesConsoleM18BackendContractRequiresAuditFields
 } from "./sales-console-m18-backend-contract";
+import {
+  salesConsoleM18ServerValidation,
+  salesConsoleM18ServerValidationCoversRequiredPayload,
+  salesConsoleM18ServerValidationKeepsSubmitBlocked,
+  salesConsoleM18ServerValidationRequiresSourceSnapshot
+} from "./sales-console-m18-server-validation";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1213,6 +1219,9 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM18BackendContractDefinesEndpoint() ? "M18 backend contract defines endpoint" : "M18 endpoint contract gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM18BackendContractRequiresAuditFields() ? "M18 backend contract requires audit fields" : "M18 audit field gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM18BackendContractBlocksWrites() ? "M18 backend contract blocks writes" : "M18 backend write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18ServerValidationCoversRequiredPayload() ? "M18 server validation covers payload" : "M18 validation payload gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18ServerValidationRequiresSourceSnapshot() ? "M18 server validation requires source snapshot" : "M18 source snapshot validation gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18ServerValidationKeepsSubmitBlocked() ? "M18 server validation keeps submit blocked" : "M18 validation submit risk"}</span>
             </div>
           </section>
 
@@ -1227,6 +1236,22 @@ export function SalesConsolePrototype() {
                   <strong>{field.field}</strong>
                   <span className={field.required ? styles.statusWarning : styles.statusNeutral}>{field.required ? "required" : "optional"}</span>
                   <small>{field.source}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M18 server validation">
+            <div className={styles.railHeader}><h2>M18 Server Validation</h2><ShieldCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              {salesConsoleM18ServerValidation.headline}. Submit enabled: {salesConsoleM18ServerValidation.submitEnabled ? "yes" : "no"}.
+            </p>
+            <div className={styles.m18ServerValidationList}>
+              {salesConsoleM18ServerValidation.validationRules.map((rule) => (
+                <article key={rule.rule}>
+                  <strong>{rule.rule}</strong>
+                  <span className={styles.statusWarning}>server guard</span>
+                  <small>{rule.evidence}</small>
                 </article>
               ))}
             </div>
