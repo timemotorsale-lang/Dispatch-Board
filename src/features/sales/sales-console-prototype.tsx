@@ -276,6 +276,12 @@ import {
   salesConsoleM17ReleaseGateNamesNextBackendStep,
   salesConsoleM17ReleaseGateShellReady
 } from "./sales-console-m17-release-gate";
+import {
+  salesConsoleM18BackendContract,
+  salesConsoleM18BackendContractBlocksWrites,
+  salesConsoleM18BackendContractDefinesEndpoint,
+  salesConsoleM18BackendContractRequiresAuditFields
+} from "./sales-console-m18-backend-contract";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1204,6 +1210,25 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM17ReleaseGateShellReady() ? "M17 activation shell ready" : "M17 shell readiness gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM17ReleaseGateBlocksLiveSubmit() ? "M17 release gate blocks live submit" : "M17 live submit risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM17ReleaseGateNamesNextBackendStep() ? "M17 names backend endpoint next" : "M17 backend next-step gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18BackendContractDefinesEndpoint() ? "M18 backend contract defines endpoint" : "M18 endpoint contract gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18BackendContractRequiresAuditFields() ? "M18 backend contract requires audit fields" : "M18 audit field gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18BackendContractBlocksWrites() ? "M18 backend contract blocks writes" : "M18 backend write risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M18 backend contract">
+            <div className={styles.railHeader}><h2>M18 Backend Contract</h2><FileCheck2 size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Dedicated endpoint contract: {salesConsoleM18BackendContract.method} {salesConsoleM18BackendContract.endpoint}. {salesConsoleM18BackendContract.writePolicy}
+            </p>
+            <div className={styles.m18BackendContractList}>
+              {salesConsoleM18BackendContract.requestFields.map((field) => (
+                <article key={field.field}>
+                  <strong>{field.field}</strong>
+                  <span className={field.required ? styles.statusWarning : styles.statusNeutral}>{field.required ? "required" : "optional"}</span>
+                  <small>{field.source}</small>
+                </article>
+              ))}
             </div>
           </section>
 

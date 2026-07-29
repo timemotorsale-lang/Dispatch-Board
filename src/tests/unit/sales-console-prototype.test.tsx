@@ -47,6 +47,7 @@ import { salesConsoleM17ReleaseGate } from "@/features/sales/sales-console-m17-r
 import { salesConsoleM17RequestFormShell } from "@/features/sales/sales-console-m17-request-form-shell";
 import { salesConsoleM17RequestStateModel } from "@/features/sales/sales-console-m17-request-state-model";
 import { salesConsoleM17ValidationPermissions } from "@/features/sales/sales-console-m17-validation-permissions";
+import { salesConsoleM18BackendContract } from "@/features/sales/sales-console-m18-backend-contract";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
@@ -679,6 +680,20 @@ describe("Sales Console", () => {
     for (const gate of salesConsoleM17ReleaseGate.gates) {
       expect(markup).toContain(gate.gate);
       expect(markup).toContain(gate.evidence);
+    }
+  });
+
+  it("renders M18 backend contract", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M18 Backend Contract");
+    expect(markup).toContain("M18 backend contract defines endpoint");
+    expect(markup).toContain("M18 backend contract requires audit fields");
+    expect(markup).toContain("M18 backend contract blocks writes");
+    expect(markup).toContain(salesConsoleM18BackendContract.endpoint);
+    for (const field of salesConsoleM18BackendContract.requestFields) {
+      expect(markup).toContain(field.field);
+      expect(markup).toContain(field.source);
     }
   });
 
