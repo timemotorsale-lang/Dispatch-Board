@@ -312,6 +312,12 @@ import {
   salesConsoleM19PersistenceContractKeepsOtherWorkflowsBlocked,
   salesConsoleM19PersistenceContractRequiresIdempotency
 } from "./sales-console-m19-persistence-contract";
+import {
+  salesConsoleM19RepositoryChecksIdempotencyFirst,
+  salesConsoleM19RepositoryCreatesAuditTrail,
+  salesConsoleM19RepositoryLimitsWriteBoundary,
+  salesConsoleM19RepositoryTransaction
+} from "./sales-console-m19-repository-transaction";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1258,6 +1264,9 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM19PersistenceContractDefinesTargets() ? "M19 persistence contract defines targets" : "M19 target contract gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM19PersistenceContractRequiresIdempotency() ? "M19 persistence requires idempotency" : "M19 idempotency contract gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM19PersistenceContractKeepsOtherWorkflowsBlocked() ? "M19 keeps other workflows blocked" : "M19 workflow boundary risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19RepositoryChecksIdempotencyFirst() ? "M19 repository checks idempotency first" : "M19 idempotency order risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19RepositoryCreatesAuditTrail() ? "M19 repository creates audit trail" : "M19 audit transaction gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19RepositoryLimitsWriteBoundary() ? "M19 repository limits write boundary" : "M19 repository write-boundary risk"}</span>
             </div>
           </section>
 
@@ -1355,6 +1364,20 @@ export function SalesConsolePrototype() {
                   <strong>{target.target}</strong>
                   <span className={styles.statusWarning}>{salesConsoleM19PersistenceContract.workflow}</span>
                   <small>{target.purpose}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M19 repository transaction">
+            <div className={styles.railHeader}><h2>M19 Repository Transaction</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM19RepositoryTransaction.writeBoundary}</p>
+            <div className={styles.m19RepositoryTransactionList}>
+              {salesConsoleM19RepositoryTransaction.steps.map((step) => (
+                <article key={step}>
+                  <strong>{step}</strong>
+                  <span className={styles.statusGood}>{salesConsoleM19RepositoryTransaction.transactionState}</span>
+                  <small>Duplicate behavior: {salesConsoleM19RepositoryTransaction.duplicateBehavior}.</small>
                 </article>
               ))}
             </div>
