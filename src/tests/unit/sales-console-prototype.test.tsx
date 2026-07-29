@@ -60,6 +60,7 @@ import { salesConsoleM20ManagerReviewWorkbenchUi } from "@/features/sales/sales-
 import { salesConsoleM21ManagerReviewResolutionPlanning } from "@/features/sales/sales-console-m21-manager-review-resolution-planning";
 import { salesConsoleM22PilotProductionHardening } from "@/features/sales/sales-console-m22-pilot-production-hardening";
 import { salesConsoleM23StaffDeploymentReadiness } from "@/features/sales/sales-console-m23-staff-deployment-readiness";
+import { salesConsoleM24OfficialReleaseGate } from "@/features/sales/sales-console-m24-official-release-gate";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
@@ -891,6 +892,20 @@ describe("Sales Console", () => {
       expect(markup).toContain(role.role);
       expect(markup).toContain(role.startHere);
       expect(markup).toContain(role.cannotDo);
+    }
+  });
+
+  it("renders M24 official production release gate", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M24 Official Production Release Gate");
+    expect(markup).toContain("M24 release decision conditional");
+    expect(markup).toContain("M24 only manager review live");
+    expect(markup).toContain("M24 rollback support monitoring ready");
+    expect(markup).toContain(salesConsoleM24OfficialReleaseGate.recommendation);
+    for (const item of salesConsoleM24OfficialReleaseGate.goNoGoCriteria) {
+      expect(markup).toContain(item.criterion);
+      expect(markup).toContain(item.status);
     }
   });
 
