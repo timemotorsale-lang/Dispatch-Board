@@ -54,6 +54,7 @@ import { salesConsoleM18ReleaseGate } from "@/features/sales/sales-console-m18-r
 import { salesConsoleM18ServerValidation } from "@/features/sales/sales-console-m18-server-validation";
 import { salesConsoleM19PersistenceContract } from "@/features/sales/sales-console-m19-persistence-contract";
 import { salesConsoleM19RepositoryTransaction } from "@/features/sales/sales-console-m19-repository-transaction";
+import { salesConsoleM19ServiceActivation } from "@/features/sales/sales-console-m19-service-activation";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
@@ -783,6 +784,19 @@ describe("Sales Console", () => {
     expect(markup).toContain(salesConsoleM19RepositoryTransaction.writeBoundary);
     for (const step of salesConsoleM19RepositoryTransaction.steps) {
       expect(markup).toContain(step);
+    }
+  });
+
+  it("renders M19 service activation", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M19 Service Activation");
+    expect(markup).toContain("M19 service requires authentication");
+    expect(markup).toContain("M19 service returns created or duplicate");
+    expect(markup).toContain("M19 service keeps other workflows blocked");
+    expect(markup).toContain(salesConsoleM19ServiceActivation.serviceState);
+    for (const guardrail of salesConsoleM19ServiceActivation.guardrails) {
+      expect(markup).toContain(guardrail);
     }
   });
 
