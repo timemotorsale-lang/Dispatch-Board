@@ -399,6 +399,12 @@ import {
   salesConsoleM29ReadinessChecklistCoversDeploymentBasics,
   salesConsoleM29RequiresEnvironmentVerificationBeforeBroadRollout
 } from "./sales-console-m29-deployment-package-rollout-readiness";
+import {
+  salesConsoleM30CoversDeploymentSmokeBasics,
+  salesConsoleM30DeploymentEnvironmentSmoke,
+  salesConsoleM30HasRollbackBehaviorForFailedSmoke,
+  salesConsoleM30KeepsRiskyWorkflowsBlocked
+} from "./sales-console-m30-deployment-environment-smoke";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1444,6 +1450,9 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM29DefinesGoNoGoCriteria() ? "M29 go/no-go criteria ready" : "M29 rollout gate gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM29CommunicatesWhatIsAndIsNotActive() ? "M29 active scope clear" : "M29 scope language gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM29RequiresEnvironmentVerificationBeforeBroadRollout() ? "M29 environment verification required" : "M29 rollout verification gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM30CoversDeploymentSmokeBasics() ? "M30 deployment smoke ready" : "M30 smoke coverage gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM30KeepsRiskyWorkflowsBlocked() ? "M30 risky workflows blocked" : "M30 blocked workflow risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM30HasRollbackBehaviorForFailedSmoke() ? "M30 failed-smoke fallback ready" : "M30 rollback gap"}</span>
             </div>
           </section>
 
@@ -1835,6 +1844,27 @@ export function SalesConsolePrototype() {
                   <strong>{recommendation}</strong>
                   <span className={styles.statusNeutral}>next phase</span>
                   <small>{salesConsoleM29DeploymentPackageRolloutReadiness.issueReportingPath}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M30 deployment environment smoke test">
+            <div className={styles.railHeader}><h2>M30 Deployment Environment Smoke Test</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM30DeploymentEnvironmentSmoke.smokeSummary}</p>
+            <div className={styles.m26DeploymentPolishList}>
+              {salesConsoleM30DeploymentEnvironmentSmoke.checks.map((check) => (
+                <article key={check.check}>
+                  <strong>{check.check}</strong>
+                  <span className={check.status === "ready-to-smoke" ? styles.statusGood : styles.statusWarning}>{check.status}</span>
+                  <small>{check.owner}: {check.evidence}</small>
+                </article>
+              ))}
+              {salesConsoleM30DeploymentEnvironmentSmoke.failActions.map((action) => (
+                <article key={action}>
+                  <strong>{action}</strong>
+                  <span className={styles.statusDanger}>if smoke fails</span>
+                  <small>Pause broader rollout until the deployed environment passes.</small>
                 </article>
               ))}
             </div>
