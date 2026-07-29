@@ -392,6 +392,13 @@ import {
   salesConsoleM28KeepsOnlyManagerReviewSubmitLive,
   salesConsoleM28ReleaseValidationRegression
 } from "./sales-console-m28-release-validation-regression";
+import {
+  salesConsoleM29CommunicatesWhatIsAndIsNotActive,
+  salesConsoleM29DefinesGoNoGoCriteria,
+  salesConsoleM29DeploymentPackageRolloutReadiness,
+  salesConsoleM29ReadinessChecklistCoversDeploymentBasics,
+  salesConsoleM29RequiresEnvironmentVerificationBeforeBroadRollout
+} from "./sales-console-m29-deployment-package-rollout-readiness";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1433,6 +1440,10 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM28KeepsOnlyManagerReviewSubmitLive() ? "M28 only Manager Review submits" : "M28 submit scope risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM28DefinesReleaseGoNoGo() ? "M28 go/no-go defined" : "M28 release gate gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM28FlagsProtectedRouteAsEnvironmentSmoke() ? "M28 protected route smoke flagged" : "M28 auth smoke gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM29ReadinessChecklistCoversDeploymentBasics() ? "M29 deployment checklist complete" : "M29 checklist gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM29DefinesGoNoGoCriteria() ? "M29 go/no-go criteria ready" : "M29 rollout gate gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM29CommunicatesWhatIsAndIsNotActive() ? "M29 active scope clear" : "M29 scope language gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM29RequiresEnvironmentVerificationBeforeBroadRollout() ? "M29 environment verification required" : "M29 rollout verification gap"}</span>
             </div>
           </section>
 
@@ -1802,6 +1813,28 @@ export function SalesConsolePrototype() {
                   <strong>{item}</strong>
                   <span className={styles.statusDanger}>no-go</span>
                   <small>Blocks official internal MVP deployment until corrected.</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M29 deployment package rollout readiness">
+            <div className={styles.railHeader}><h2>M29 Deployment Package & Rollout Readiness</h2><FileCheck2 size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM29DeploymentPackageRolloutReadiness.staffSummary}</p>
+            <p className={styles.guardrailCopy}>{salesConsoleM29DeploymentPackageRolloutReadiness.notActiveSummary}</p>
+            <div className={styles.m26DeploymentPolishList}>
+              {salesConsoleM29DeploymentPackageRolloutReadiness.readinessChecklist.map((entry) => (
+                <article key={entry.item}>
+                  <strong>{entry.item}</strong>
+                  <span className={entry.status === "ready" ? styles.statusGood : styles.statusWarning}>{entry.status}</span>
+                  <small>{entry.owner}: {entry.proof}</small>
+                </article>
+              ))}
+              {salesConsoleM29DeploymentPackageRolloutReadiness.nextPhaseRecommendations.map((recommendation) => (
+                <article key={recommendation}>
+                  <strong>{recommendation}</strong>
+                  <span className={styles.statusNeutral}>next phase</span>
+                  <small>{salesConsoleM29DeploymentPackageRolloutReadiness.issueReportingPath}</small>
                 </article>
               ))}
             </div>
