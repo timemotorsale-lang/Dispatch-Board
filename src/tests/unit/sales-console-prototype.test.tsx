@@ -43,6 +43,7 @@ import { salesConsoleM16ManagerReviewContract } from "@/features/sales/sales-con
 import { salesConsoleM16ManagerReviewDisabledPreview } from "@/features/sales/sales-console-m16-manager-review-disabled-preview";
 import { salesConsoleM16WorkflowSelection } from "@/features/sales/sales-console-m16-workflow-selection";
 import { salesConsoleM17AuditSafeSubmitPlaceholder } from "@/features/sales/sales-console-m17-audit-safe-submit-placeholder";
+import { salesConsoleM17ReleaseGate } from "@/features/sales/sales-console-m17-release-gate";
 import { salesConsoleM17RequestFormShell } from "@/features/sales/sales-console-m17-request-form-shell";
 import { salesConsoleM17RequestStateModel } from "@/features/sales/sales-console-m17-request-state-model";
 import { salesConsoleM17ValidationPermissions } from "@/features/sales/sales-console-m17-validation-permissions";
@@ -664,6 +665,20 @@ describe("Sales Console", () => {
     expect(markup).toContain(salesConsoleM17AuditSafeSubmitPlaceholder.placeholderResult);
     for (const blocker of salesConsoleM17AuditSafeSubmitPlaceholder.submitBlockers) {
       expect(markup).toContain(blocker);
+    }
+  });
+
+  it("renders M17 release gate", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M17 Release Gate");
+    expect(markup).toContain("M17 activation shell ready");
+    expect(markup).toContain("M17 release gate blocks live submit");
+    expect(markup).toContain("M17 names backend endpoint next");
+    expect(markup).toContain(salesConsoleM17ReleaseGate.releaseRecommendation);
+    for (const gate of salesConsoleM17ReleaseGate.gates) {
+      expect(markup).toContain(gate.gate);
+      expect(markup).toContain(gate.evidence);
     }
   });
 

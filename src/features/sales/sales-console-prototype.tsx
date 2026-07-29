@@ -270,6 +270,12 @@ import {
   salesConsoleM17SubmitPlaceholderIncludesAuditFields,
   salesConsoleM17SubmitPlaceholderNamesMissingBackend
 } from "./sales-console-m17-audit-safe-submit-placeholder";
+import {
+  salesConsoleM17ReleaseGate,
+  salesConsoleM17ReleaseGateBlocksLiveSubmit,
+  salesConsoleM17ReleaseGateNamesNextBackendStep,
+  salesConsoleM17ReleaseGateShellReady
+} from "./sales-console-m17-release-gate";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1195,6 +1201,23 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM17SubmitPlaceholderBlocksWrites() ? "M17 submit placeholder blocks writes" : "M17 submit placeholder write risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM17SubmitPlaceholderNamesMissingBackend() ? "M17 submit placeholder names missing backend" : "M17 submit backend gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM17SubmitPlaceholderIncludesAuditFields() ? "M17 submit placeholder includes audit fields" : "M17 submit audit gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17ReleaseGateShellReady() ? "M17 activation shell ready" : "M17 shell readiness gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17ReleaseGateBlocksLiveSubmit() ? "M17 release gate blocks live submit" : "M17 live submit risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17ReleaseGateNamesNextBackendStep() ? "M17 names backend endpoint next" : "M17 backend next-step gap"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M17 release gate">
+            <div className={styles.railHeader}><h2>M17 Release Gate</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM17ReleaseGate.releaseRecommendation}</p>
+            <div className={styles.m17ReleaseGateList}>
+              {salesConsoleM17ReleaseGate.gates.map((gate) => (
+                <article key={gate.gate}>
+                  <strong>{gate.gate}</strong>
+                  <span className={gate.status === "ready" ? styles.statusGood : styles.statusDanger}>{gate.status}</span>
+                  <small>{gate.evidence}</small>
+                </article>
+              ))}
             </div>
           </section>
 
