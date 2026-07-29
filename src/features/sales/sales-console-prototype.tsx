@@ -378,6 +378,13 @@ import {
   salesConsoleM26NamesOnlyLiveSubmitWorkflow,
   salesConsoleM26StaffPostureIsDeployableMvp
 } from "./sales-console-m26-deployment-language-polish";
+import {
+  salesConsoleM27CoversCoreRoleUx,
+  salesConsoleM27EveryRoleHasFirstThirtySecondGuidance,
+  salesConsoleM27KeepsRiskyWorkflowsBlocked,
+  salesConsoleM27SourceStatesAreStaffReadable,
+  salesConsoleM27StaffDeploymentUxFinalization
+} from "./sales-console-m27-staff-deployment-ux-finalization";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -714,6 +721,17 @@ export function SalesConsolePrototype() {
             </a>
           ))}
         </nav>
+      </section>
+
+      <section className={styles.roleFirstNavigation} aria-label="M27 staff deployment UX finalization">
+        {salesConsoleM27StaffDeploymentUxFinalization.roleUx.map((role) => (
+          <article key={role.role}>
+            <strong>{role.role}</strong>
+            <span>{role.landingFocus}</span>
+            <small>{role.firstThirtySeconds}</small>
+            <em>{role.blockedActionCopy}</em>
+          </article>
+        ))}
       </section>
 
       <section className={styles.operatingPolishMap} aria-label="M15 operating section polish">
@@ -1400,6 +1418,10 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM26StaffPostureIsDeployableMvp() ? "M26 staff posture deployable MVP" : "M26 deployment posture gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM26ArchivesPlanningEvidence() ? "M26 planning evidence archived" : "M26 planning archive gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM26NamesOnlyLiveSubmitWorkflow() ? "M26 names only live submit workflow" : "M26 live workflow language gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM27CoversCoreRoleUx() ? "M27 core role UX covered" : "M27 role UX gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM27EveryRoleHasFirstThirtySecondGuidance() ? "M27 first 30 seconds clear" : "M27 daily guidance gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM27KeepsRiskyWorkflowsBlocked() ? "M27 risky workflows blocked" : "M27 workflow scope risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM27SourceStatesAreStaffReadable() ? "M27 source states readable" : "M27 source-state label gap"}</span>
             </div>
           </section>
 
@@ -1727,6 +1749,27 @@ export function SalesConsolePrototype() {
                   <strong>{copy}</strong>
                   <span className={styles.statusGood}>staff-ready</span>
                   <small>Shown as MVP rollout guidance, not planning-era language.</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M27 staff deployment UX finalization review">
+            <div className={styles.railHeader}><h2>M27 Staff Deployment UX Finalization</h2><UserRoundCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM27StaffDeploymentUxFinalization.operatingSummary}</p>
+            <div className={styles.m26DeploymentPolishList}>
+              {salesConsoleM27StaffDeploymentUxFinalization.roleUx.map((role) => (
+                <article key={role.role}>
+                  <strong>{role.role}</strong>
+                  <span className={styles.statusGood}>{role.managerReviewEntry}</span>
+                  <small>{role.emptyState} {role.unavailableState}</small>
+                </article>
+              ))}
+              {salesConsoleM27StaffDeploymentUxFinalization.stillBlockedWorkflows.map((workflow) => (
+                <article key={workflow}>
+                  <strong>{workflow}</strong>
+                  <span className={styles.statusDanger}>source-system only</span>
+                  <small>Not activated in the Sales Console MVP.</small>
                 </article>
               ))}
             </div>
