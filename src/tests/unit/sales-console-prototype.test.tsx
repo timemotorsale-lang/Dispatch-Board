@@ -55,6 +55,7 @@ import { salesConsoleM18ServerValidation } from "@/features/sales/sales-console-
 import { salesConsoleM19PersistenceContract } from "@/features/sales/sales-console-m19-persistence-contract";
 import { salesConsoleM19RepositoryTransaction } from "@/features/sales/sales-console-m19-repository-transaction";
 import { salesConsoleM19ApiActivation } from "@/features/sales/sales-console-m19-api-activation";
+import { salesConsoleM19ReleaseGate } from "@/features/sales/sales-console-m19-release-gate";
 import { salesConsoleM19ServiceActivation } from "@/features/sales/sales-console-m19-service-activation";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
@@ -812,6 +813,21 @@ describe("Sales Console", () => {
     for (const response of salesConsoleM19ApiActivation.successResponses) {
       expect(markup).toContain(String(response.status));
       expect(markup).toContain(response.meaning);
+    }
+  });
+
+  it("renders M19 release gate", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M19 Release Gate");
+    expect(markup).toContain("M19 release activates only manager review");
+    expect(markup).toContain("M19 release keeps risky actions blocked");
+    expect(markup).toContain("M19 release gate names M20 next");
+    expect(markup).toContain(salesConsoleM19ReleaseGate.recommendation);
+    expect(markup).toContain(salesConsoleM19ReleaseGate.activatedWorkflow);
+    for (const check of salesConsoleM19ReleaseGate.readyChecks) {
+      expect(markup).toContain(check.check);
+      expect(markup).toContain(check.evidence);
     }
   });
 
