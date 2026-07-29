@@ -53,6 +53,7 @@ import { salesConsoleM18BackendContract } from "@/features/sales/sales-console-m
 import { salesConsoleM18ReleaseGate } from "@/features/sales/sales-console-m18-release-gate";
 import { salesConsoleM18ServerValidation } from "@/features/sales/sales-console-m18-server-validation";
 import { salesConsoleM19PersistenceContract } from "@/features/sales/sales-console-m19-persistence-contract";
+import { salesConsoleM19RepositoryTransaction } from "@/features/sales/sales-console-m19-repository-transaction";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
@@ -769,6 +770,19 @@ describe("Sales Console", () => {
     for (const target of salesConsoleM19PersistenceContract.persistenceTargets) {
       expect(markup).toContain(target.target);
       expect(markup).toContain(target.purpose);
+    }
+  });
+
+  it("renders M19 repository transaction", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M19 Repository Transaction");
+    expect(markup).toContain("M19 repository checks idempotency first");
+    expect(markup).toContain("M19 repository creates audit trail");
+    expect(markup).toContain("M19 repository limits write boundary");
+    expect(markup).toContain(salesConsoleM19RepositoryTransaction.writeBoundary);
+    for (const step of salesConsoleM19RepositoryTransaction.steps) {
+      expect(markup).toContain(step);
     }
   });
 
