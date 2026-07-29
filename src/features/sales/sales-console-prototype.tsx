@@ -306,6 +306,12 @@ import {
   salesConsoleM18ReleaseGateHasBackendFoundation,
   salesConsoleM18ReleaseGateRecommendsM19
 } from "./sales-console-m18-release-gate";
+import {
+  salesConsoleM19PersistenceContract,
+  salesConsoleM19PersistenceContractDefinesTargets,
+  salesConsoleM19PersistenceContractKeepsOtherWorkflowsBlocked,
+  salesConsoleM19PersistenceContractRequiresIdempotency
+} from "./sales-console-m19-persistence-contract";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1249,6 +1255,9 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM18ReleaseGateHasBackendFoundation() ? "M18 release gate has backend foundation" : "M18 release foundation gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM18ReleaseGateBlocksRiskyActions() ? "M18 release gate blocks risky actions" : "M18 release risky-action gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM18ReleaseGateRecommendsM19() ? "M18 release gate names M19 next" : "M18 next milestone gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19PersistenceContractDefinesTargets() ? "M19 persistence contract defines targets" : "M19 target contract gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19PersistenceContractRequiresIdempotency() ? "M19 persistence requires idempotency" : "M19 idempotency contract gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM19PersistenceContractKeepsOtherWorkflowsBlocked() ? "M19 keeps other workflows blocked" : "M19 workflow boundary risk"}</span>
             </div>
           </section>
 
@@ -1332,6 +1341,20 @@ export function SalesConsolePrototype() {
                   <strong>{blocker}</strong>
                   <span className={styles.statusDanger}>blocked before activation</span>
                   <small>{salesConsoleM18ReleaseGate.nextRecommendedMilestone}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M19 persistence contract">
+            <div className={styles.railHeader}><h2>M19 Persistence Contract</h2><FileCheck2 size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM19PersistenceContract.activationBoundary}</p>
+            <div className={styles.m19PersistenceContractList}>
+              {salesConsoleM19PersistenceContract.persistenceTargets.map((target) => (
+                <article key={target.target}>
+                  <strong>{target.target}</strong>
+                  <span className={styles.statusWarning}>{salesConsoleM19PersistenceContract.workflow}</span>
+                  <small>{target.purpose}</small>
                 </article>
               ))}
             </div>
