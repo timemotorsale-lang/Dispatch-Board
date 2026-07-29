@@ -1,3 +1,5 @@
+"use client";
+
 import {
   AlertTriangle,
   BadgeDollarSign,
@@ -24,6 +26,7 @@ import {
   UserRoundCheck,
   UsersRound
 } from "lucide-react";
+import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 
 import { salesConsoleMvpDefinition } from "./sales-console-mvp-definition";
@@ -433,6 +436,19 @@ import {
   salesConsoleM34ProvidesImmediateLaunchSequence,
   salesConsoleM34RequiresAllCriticalVerification
 } from "./sales-console-m34-mvp-go-no-go-release";
+import {
+  salesConsoleM35DefaultTabForRole,
+  salesConsoleM35EveryPrimaryTabIsSelectable,
+  salesConsoleM35EveryRoleChangesContext,
+  salesConsoleM35HelpPanel,
+  salesConsoleM35OnlyManagerReviewIsLiveSubmit,
+  salesConsoleM35OperationalTabs,
+  salesConsoleM35PanelsRespond,
+  salesConsoleM35RoleById,
+  salesConsoleM35ScopePanel,
+  salesConsoleM35TabById
+} from "./sales-console-m35-operational-tab-interactions";
+import type { SalesConsoleM35PanelId, SalesConsoleM35RoleId, SalesConsoleM35TabId } from "./sales-console-m35-operational-tab-interactions";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -646,6 +662,63 @@ function barStyle(width: string) {
 }
 
 export function SalesConsolePrototype() {
+  const [activeTabId, setActiveTabId] = useState<SalesConsoleM35TabId>("salesperson-today");
+  const [activeRoleId, setActiveRoleId] = useState<SalesConsoleM35RoleId>("salesperson");
+  const [activePanel, setActivePanel] = useState<SalesConsoleM35PanelId>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const activeTab = salesConsoleM35TabById(activeTabId);
+  const activeRole = salesConsoleM35RoleById(activeRoleId);
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const filteredWorkQueue = useMemo(() => {
+    if (!normalizedSearch) return workQueue;
+    return workQueue.filter((item) =>
+      [item.customer, item.vehicle, item.stock, item.stage, item.nextAction, item.blocker]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedSearch)
+    );
+  }, [normalizedSearch]);
+  const filteredDealRows = useMemo(() => {
+    if (!normalizedSearch) return dealRows;
+    return dealRows.filter((deal) =>
+      [deal.dealId, deal.customer, deal.vehicle, deal.scenario, deal.approval]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedSearch)
+    );
+  }, [normalizedSearch]);
+  const filteredVehicleMatches = useMemo(() => {
+    if (!normalizedSearch) return vehicleMatches;
+    return vehicleMatches.filter((vehicle) =>
+      [vehicle.stock, vehicle.vehicle, vehicle.matchCustomer, vehicle.status]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedSearch)
+    );
+  }, [normalizedSearch]);
+  const filteredLeadOperations = useMemo(() => {
+    if (!normalizedSearch) return salesConsoleReadModel.leadOperations;
+    return salesConsoleReadModel.leadOperations.filter((lead) =>
+      [lead.label, lead.slaLabel, lead.assignmentState, lead.freshnessState]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedSearch)
+    );
+  }, [normalizedSearch]);
+  const filteredRiskQueues = useMemo(() => {
+    if (!normalizedSearch) return riskQueues;
+    return riskQueues.filter((risk) =>
+      [risk.label, risk.value, risk.tone]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedSearch)
+    );
+  }, [normalizedSearch]);
+  const handleRoleSelect = (roleId: SalesConsoleM35RoleId) => {
+    setActiveRoleId(roleId);
+    setActiveTabId(salesConsoleM35DefaultTabForRole(roleId));
+  };
+
   return (
     <section className={styles.console} aria-label="Enterprise Sales Console">
       <header className={styles.topbar}>
@@ -655,7 +728,13 @@ export function SalesConsolePrototype() {
         </div>
         <label className={styles.search}>
           <Search size={16} aria-hidden="true" />
-          <input aria-label="Search sales console" disabled placeholder="Search available after rollout" type="search" />
+          <input
+            aria-label="Search sales console"
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Search customer, stock #, vehicle, deal..."
+            type="search"
+            value={searchQuery}
+          />
           <kbd>MVP</kbd>
         </label>
         <div className={styles.topbarActions}>
@@ -668,14 +747,41 @@ export function SalesConsolePrototype() {
           <button aria-disabled="true" disabled title="Calendar work stays in the appointment/source system for this MVP." type="button">
             <CalendarDays size={16} /> Calendar <b>source system</b>
           </button>
-          <button aria-disabled="true" disabled title="Staff help is available through the rollout owner during MVP launch." type="button">
-            <HelpCircle size={16} /> Help <b>rollout</b>
+          <button
+            aria-expanded={activePanel === "help"}
+            aria-controls="sales-console-help-panel"
+            onClick={() => setActivePanel(activePanel === "help" ? null : "help")}
+            title="Open Sales Console MVP help."
+            type="button"
+          >
+            <HelpCircle size={16} /> Help <b>{activePanel === "help" ? "open" : "rollout"}</b>
           </button>
-          <button aria-disabled="true" disabled title="Store context uses the assigned/default store for this MVP." type="button">
-            All Stores <ChevronDown size={14} /> <b>MVP scope</b>
+          <button
+            aria-expanded={activePanel === "scope"}
+            aria-controls="sales-console-scope-panel"
+            onClick={() => setActivePanel(activePanel === "scope" ? null : "scope")}
+            title="Open MVP scope and store context."
+            type="button"
+          >
+            All Stores <ChevronDown size={14} /> <b>{activePanel === "scope" ? "open" : "MVP scope"}</b>
           </button>
         </div>
       </header>
+
+      {activePanel ? (
+        <section
+          className={styles.operationalDrawer}
+          id={activePanel === "help" ? "sales-console-help-panel" : "sales-console-scope-panel"}
+          aria-label={activePanel === "help" ? "Sales Console help panel" : "Sales Console MVP scope panel"}
+        >
+          <div>
+            <span className={styles.eyebrow}>{activePanel === "help" ? "Help" : "MVP scope"}</span>
+            <h2>{activePanel === "help" ? salesConsoleM35HelpPanel.title : salesConsoleM35ScopePanel.title}</h2>
+            <p>{activePanel === "help" ? salesConsoleM35HelpPanel.body : salesConsoleM35ScopePanel.body}</p>
+          </div>
+          <button onClick={() => setActivePanel(null)} type="button">Close panel</button>
+        </section>
+      ) : null}
 
       <section className={styles.staffDeploymentPolish} aria-label="M26 staff-facing deployment polish">
         <div>
@@ -709,12 +815,18 @@ export function SalesConsolePrototype() {
 
       <section className={styles.roleRail} aria-label="Sales Console MVP role views">
         {salesConsoleRoleViews.map((role) => (
-          <article className={role.role === salesConsoleMvpExecution.defaultRole ? styles.activeRoleCard : undefined} key={role.role}>
+          <button
+            aria-pressed={role.role === activeRoleId}
+            className={role.role === activeRoleId ? styles.activeRoleCard : undefined}
+            key={role.role}
+            onClick={() => handleRoleSelect(role.role as SalesConsoleM35RoleId)}
+            type="button"
+          >
             <strong>{role.label}</strong>
             <span>{role.defaultSurface}</span>
             <small>{role.sensitiveDataBoundary}</small>
             <em>{role.readOnly ? "Operational MVP role view" : "Write-enabled"}</em>
-          </article>
+          </button>
         ))}
       </section>
 
@@ -757,18 +869,105 @@ export function SalesConsolePrototype() {
       <section className={styles.operatingTabDock} aria-label="M25 responsive operating tab dock">
         <div>
           <span className={styles.eyebrow}>Operating tabs</span>
-          <h2>Every primary tab is responsive and usable</h2>
-          <p>{salesConsoleM25ResponsiveOperatingViews.operatingPosture}</p>
+          <h2>Every primary tab is now clickable</h2>
+          <p>Selected role: {activeRole.label}. {activeRole.contextSummary}</p>
         </div>
         <nav aria-label="Sales Console operating views">
-          {salesConsoleM25ResponsiveOperatingViews.tabs.map((tab) => (
-            <a href={tab.href} key={tab.tab}>
-              <strong>{tab.tab}</strong>
-              <span>{tab.primaryAction}</span>
-              <small>{tab.state}</small>
-            </a>
+          {salesConsoleM35OperationalTabs.map((tab) => (
+            <button
+              aria-controls="sales-console-active-operating-view"
+              aria-pressed={tab.id === activeTabId}
+              className={tab.id === activeTabId ? styles.activeOperatingTab : undefined}
+              key={tab.id}
+              onClick={() => setActiveTabId(tab.id)}
+              type="button"
+            >
+              <strong>{tab.label}</strong>
+              <span>{tab.safeAction}</span>
+              <small>{tab.id === activeTabId ? "active view" : "open view"}</small>
+            </button>
           ))}
         </nav>
+      </section>
+
+      <section className={styles.activeOperatingView} id="sales-console-active-operating-view" aria-live="polite" aria-label="Active Sales Console operating view">
+        <div className={styles.activeOperatingHeader}>
+          <div>
+            <span className={styles.eyebrow}>Active operating view</span>
+            <h2>{activeTab.label}: {activeTab.headline}</h2>
+            <p>{activeTab.operatingContent}</p>
+          </div>
+          <span className={styles.statusGood}>responding</span>
+        </div>
+        <div className={styles.activeOperatingGrid}>
+          <article>
+            <strong>Safe action</strong>
+            <span>{activeTab.safeAction}</span>
+          </article>
+          <article>
+            <strong>Still blocked</strong>
+            <span>{activeTab.blockedAction}</span>
+          </article>
+          <article>
+            <strong>Source behavior</strong>
+            <span>{activeTab.sourceBehavior}</span>
+          </article>
+          <article>
+            <strong>Search scope</strong>
+            <span>{normalizedSearch ? `Filtering visible records by "${searchQuery}"` : "Showing all source-shaped MVP records"}</span>
+          </article>
+        </div>
+        <div className={styles.activeOperatingResults}>
+          {activeTabId === "lead-operations" ? (
+            filteredLeadOperations.map((lead) => (
+              <article key={`${lead.label}-${lead.slaLabel}`}>
+                <strong>{lead.label}</strong>
+                <span>{lead.slaLabel} · {lead.assignmentState}</span>
+                <small>{lead.freshnessState}. CRM/source verification remains required.</small>
+              </article>
+            ))
+          ) : activeTabId === "manager-command-center" ? (
+            filteredRiskQueues.map((risk) => (
+              <article key={risk.label}>
+                <strong>{risk.label}</strong>
+                <span>{risk.value} items · {risk.tone}</span>
+                <small>Manager command view is read-only; coaching and source verification happen outside risky write workflows.</small>
+              </article>
+            ))
+          ) : activeTabId === "deal-desk" || activeTabId === "manager-review" ? (
+            filteredDealRows.map((deal) => (
+              <article key={deal.dealId}>
+                <strong>{deal.dealId} · {deal.customer}</strong>
+                <span>{deal.vehicle} · {deal.scenario}</span>
+                <small>{deal.approval}. {activeTabId === "manager-review" ? "Manager Review Request is the only live submit path." : "Deal review is visibility-first."}</small>
+              </article>
+            ))
+          ) : activeTabId === "inventory-intelligence" ? (
+            filteredVehicleMatches.map((vehicle) => (
+              <article key={vehicle.stock}>
+                <strong>{vehicle.stock} · {vehicle.vehicle}</strong>
+                <span>{vehicle.status} · matched to {vehicle.matchCustomer}</span>
+                <small>{vehicle.blockerDetail}</small>
+              </article>
+            ))
+          ) : activeTabId === "pilot-rollout-readiness" || activeTabId === "admin-owner" ? (
+            salesConsoleM34MvpGoNoGoRelease.goGates.map((gate) => (
+              <article key={gate.gate}>
+                <strong>{gate.gate}</strong>
+                <span>{gate.decision}</span>
+                <small>{gate.proofRequired}</small>
+              </article>
+            ))
+          ) : (
+            filteredWorkQueue.map((item) => (
+              <article key={`${item.customer}-${item.stock}`}>
+                <strong>{item.customer} · {item.vehicle}</strong>
+                <span>{item.stage} · {item.nextAction}</span>
+                <small>{item.freshness}. Blocker: {item.blocker}.</small>
+              </article>
+            ))
+          )}
+        </div>
       </section>
 
       <section className={styles.roleFirstNavigation} aria-label="M27 staff deployment UX finalization">
@@ -1497,6 +1696,10 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM34RequiresAllCriticalVerification() ? "M34 critical gates required" : "M34 gate coverage gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM34BlocksReleaseOnKnownNoGoRisks() ? "M34 no-go blockers defined" : "M34 blocker gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM34ProvidesImmediateLaunchSequence() ? "M34 immediate launch sequence ready" : "M34 launch sequence gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM35EveryPrimaryTabIsSelectable() ? "M35 every primary tab selectable" : "M35 tab wiring gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM35EveryRoleChangesContext() ? "M35 role cards change context" : "M35 role context gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM35PanelsRespond() ? "M35 help and scope panels respond" : "M35 panel response gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM35OnlyManagerReviewIsLiveSubmit() ? "M35 only manager review submit live" : "M35 submit scope risk"}</span>
             </div>
           </section>
 
