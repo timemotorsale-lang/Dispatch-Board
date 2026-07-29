@@ -44,6 +44,7 @@ import { salesConsoleM16ManagerReviewDisabledPreview } from "@/features/sales/sa
 import { salesConsoleM16WorkflowSelection } from "@/features/sales/sales-console-m16-workflow-selection";
 import { salesConsoleM17RequestFormShell } from "@/features/sales/sales-console-m17-request-form-shell";
 import { salesConsoleM17RequestStateModel } from "@/features/sales/sales-console-m17-request-state-model";
+import { salesConsoleM17ValidationPermissions } from "@/features/sales/sales-console-m17-validation-permissions";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
@@ -636,6 +637,19 @@ describe("Sales Console", () => {
     expect(markup).toContain(salesConsoleM17RequestFormShell.submitLabel);
     for (const field of salesConsoleM17RequestFormShell.fields) {
       expect(markup).toContain(field.label);
+    }
+  });
+
+  it("renders M17 validation and permissions", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M17 Validation &amp; Permissions");
+    expect(markup).toContain("M17 salesperson request permission scoped");
+    expect(markup).toContain("M17 manager review permission scoped");
+    expect(markup).toContain("M17 validation blocks submit until backend");
+    for (const decision of salesConsoleM17ValidationPermissions.decisions) {
+      expect(markup).toContain(decision.role);
+      expect(markup).toContain(decision.reason);
     }
   });
 

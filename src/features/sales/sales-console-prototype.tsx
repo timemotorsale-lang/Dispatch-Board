@@ -258,6 +258,12 @@ import {
   salesConsoleM17RequestFormHasRequiredFields,
   salesConsoleM17RequestFormShell
 } from "./sales-console-m17-request-form-shell";
+import {
+  salesConsoleM17PermissionsAllowManagerReviewOnly,
+  salesConsoleM17PermissionsAllowSalespersonRequestOnly,
+  salesConsoleM17ValidationBlocksSubmitUntilBackendReady,
+  salesConsoleM17ValidationPermissions
+} from "./sales-console-m17-validation-permissions";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1177,6 +1183,30 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM17RequestFormHasRequiredFields() ? "M17 request form has required fields" : "M17 request form field gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM17RequestFormControlsDisabled() ? "M17 request form controls disabled" : "M17 request form activation risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM17RequestFormExplainsWhyDisabled() ? "M17 request form explains disabled state" : "M17 request form explanation gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17PermissionsAllowSalespersonRequestOnly() ? "M17 salesperson request permission scoped" : "M17 request permission risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17PermissionsAllowManagerReviewOnly() ? "M17 manager review permission scoped" : "M17 review permission risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17ValidationBlocksSubmitUntilBackendReady() ? "M17 validation blocks submit until backend" : "M17 validation submit risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M17 validation and permissions">
+            <div className={styles.railHeader}><h2>M17 Validation &amp; Permissions</h2><UserRoundCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Submit enabled: {salesConsoleM17ValidationPermissions.submitEnabled ? "yes" : "no"}. Dedicated backend endpoint remains required before activation.
+            </p>
+            <div className={styles.m17PermissionList}>
+              {salesConsoleM17ValidationPermissions.decisions.map((decision) => (
+                <article key={decision.role}>
+                  <strong>{decision.role}</strong>
+                  <span>{decision.canRequest ? "can request later" : decision.canReview ? "can review later" : "visibility/block only"}</span>
+                  <small>{decision.reason}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              {salesConsoleM17ValidationPermissions.validationGates.map((gate) => (
+                <span key={gate}><ShieldCheck size={13} /> {gate}</span>
+              ))}
             </div>
           </section>
 
