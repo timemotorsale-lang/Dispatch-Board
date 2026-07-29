@@ -294,6 +294,12 @@ import {
   salesConsoleM18ApiRouteKeepsExcludedWorkflowsBlocked,
   salesConsoleM18ApiRouteRequiresAuthentication
 } from "./sales-console-m18-api-route-guarded";
+import {
+  salesConsoleM18AuditIdempotencyReadiness,
+  salesConsoleM18AuditReadinessBlocksPersistence,
+  salesConsoleM18AuditReadinessRequiresAuditEvent,
+  salesConsoleM18AuditReadinessRequiresIdempotency
+} from "./sales-console-m18-audit-idempotency-readiness";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1231,6 +1237,9 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM18ApiRouteRequiresAuthentication() ? "M18 guarded route requires auth" : "M18 route auth gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM18ApiRouteBlocksLiveWorkflow() ? "M18 guarded route blocks live workflow" : "M18 route live-workflow risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM18ApiRouteKeepsExcludedWorkflowsBlocked() ? "M18 guarded route blocks excluded workflows" : "M18 route excluded-workflow risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18AuditReadinessRequiresAuditEvent() ? "M18 audit readiness requires event" : "M18 audit event gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18AuditReadinessRequiresIdempotency() ? "M18 idempotency readiness required" : "M18 idempotency gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18AuditReadinessBlocksPersistence() ? "M18 audit readiness blocks persistence" : "M18 persistence risk"}</span>
             </div>
           </section>
 
@@ -1277,6 +1286,22 @@ export function SalesConsolePrototype() {
                   <strong>{proof}</strong>
                   <span className={styles.statusDanger}>{salesConsoleM18ApiRouteGuarded.routeStatus}</span>
                   <small>Safe backend doorway is present, but persistence remains intentionally inactive.</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M18 audit and idempotency readiness">
+            <div className={styles.railHeader}><h2>M18 Audit &amp; Idempotency Readiness</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              {salesConsoleM18AuditIdempotencyReadiness.mergeGate}
+            </p>
+            <div className={styles.m18AuditIdempotencyList}>
+              {salesConsoleM18AuditIdempotencyReadiness.requirements.map((item) => (
+                <article key={item.requirement}>
+                  <strong>{item.requirement}</strong>
+                  <span className={styles.statusWarning}>{salesConsoleM18AuditIdempotencyReadiness.activationState}</span>
+                  <small>{item.reason}</small>
                 </article>
               ))}
             </div>
