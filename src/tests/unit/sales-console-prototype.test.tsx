@@ -32,6 +32,11 @@ import { salesConsoleM14LeadOperationsDepth } from "@/features/sales/sales-conso
 import { salesConsoleM14OperationalTabAudit } from "@/features/sales/sales-console-m14-operational-tab-audit";
 import { salesConsoleM14PlaceholderDemotion } from "@/features/sales/sales-console-m14-placeholder-demotion";
 import { salesConsoleM14SalespersonTodayDepth } from "@/features/sales/sales-console-m14-salesperson-today-depth";
+import { salesConsoleM15EmptyStateClarity } from "@/features/sales/sales-console-m15-empty-state-clarity";
+import { salesConsoleM15ManagerCommandPolish } from "@/features/sales/sales-console-m15-manager-command-polish";
+import { salesConsoleM15OperatingSectionPolish } from "@/features/sales/sales-console-m15-operating-section-polish";
+import { salesConsoleM15RoleFirstNavigation } from "@/features/sales/sales-console-m15-role-first-navigation";
+import { salesConsoleM15StaffReviewReadiness } from "@/features/sales/sales-console-m15-staff-review-readiness";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
@@ -465,6 +470,71 @@ describe("Sales Console", () => {
     for (const item of salesConsoleM14PlaceholderDemotion.items) {
       expect(markup).toContain(item.surface);
       expect(markup).toContain(item.handling);
+    }
+  });
+
+  it("renders M15 role-first daily navigation", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M15 role-first navigation covers core roles");
+    expect(markup).toContain("M15 navigation uses internal sections");
+    expect(markup).toContain("M15 role navigation remains read-only");
+    for (const item of salesConsoleM15RoleFirstNavigation.items) {
+      expect(markup).toContain(item.staffCue);
+      expect(markup).toContain(item.guardrail);
+    }
+  });
+
+  it("renders M15 operating section polish", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M15 operating polish covers daily sections");
+    expect(markup).toContain("M15 operating polish explains staff use");
+    expect(markup).toContain("M15 operating polish remains read-only");
+    for (const item of salesConsoleM15OperatingSectionPolish.items) {
+      expect(markup).toContain(item.dailyUse);
+      expect(markup).toContain(item.scanTarget);
+      expect(markup).toContain(item.verificationRule);
+    }
+  });
+
+  it("renders M15 empty and fallback clarity", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M15 empty states cover operating sections");
+    expect(markup).toContain("M15 fallback labels explain next verification");
+    expect(markup).toContain("M15 empty states remain read-only");
+    for (const item of salesConsoleM15EmptyStateClarity.items) {
+      expect(markup).toContain(item.staffMessage);
+      expect(markup).toContain(item.verificationStep);
+    }
+  });
+
+  it("renders M15 manager daily command polish", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M15 Manager Daily Command");
+    expect(markup).toContain("M15 manager command has daily priorities");
+    expect(markup).toContain("M15 manager command explains action");
+    expect(markup).toContain("M15 manager command remains read-only");
+    for (const priority of salesConsoleM15ManagerCommandPolish.priorities) {
+      expect(markup).toContain(priority.priority);
+      expect(markup).toContain(priority.managerMeaning);
+      expect(markup).toContain(priority.readOnlyBoundary);
+    }
+  });
+
+  it("renders M15 staff review readiness", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M15 Staff Review Readiness");
+    expect(markup).toContain("M15 staff review covers release concerns");
+    expect(markup).toContain("M15 staff review gates ready");
+    expect(markup).toContain("M15 staff review remains read-only");
+    expect(markup).toContain(salesConsoleM15StaffReviewReadiness.reviewRecommendation);
+    for (const gate of salesConsoleM15StaffReviewReadiness.gates) {
+      expect(markup).toContain(gate.gate);
+      expect(markup).toContain(gate.evidence);
     }
   });
 

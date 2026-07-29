@@ -185,6 +185,36 @@ import {
   salesConsoleM14PlaceholderDemotionKeepsWritesDisabled,
   salesConsoleM14PlaceholderDemotionReducesStaffNoise
 } from "./sales-console-m14-placeholder-demotion";
+import {
+  salesConsoleM15RoleFirstNavigation,
+  salesConsoleM15RoleNavigationCoversCoreRoles,
+  salesConsoleM15RoleNavigationRemainsReadOnly,
+  salesConsoleM15RoleNavigationUsesInternalSections
+} from "./sales-console-m15-role-first-navigation";
+import {
+  salesConsoleM15OperatingPolishCoversDailySections,
+  salesConsoleM15OperatingPolishExplainsStaffUse,
+  salesConsoleM15OperatingPolishRemainsReadOnly,
+  salesConsoleM15OperatingSectionPolish
+} from "./sales-console-m15-operating-section-polish";
+import {
+  salesConsoleM15EmptyStateClarity,
+  salesConsoleM15EmptyStatesCoverOperatingSections,
+  salesConsoleM15EmptyStatesExplainFallbacks,
+  salesConsoleM15EmptyStatesRemainReadOnly
+} from "./sales-console-m15-empty-state-clarity";
+import {
+  salesConsoleM15ManagerCommandExplainsManagerAction,
+  salesConsoleM15ManagerCommandHasDailyPriorities,
+  salesConsoleM15ManagerCommandPolish,
+  salesConsoleM15ManagerCommandRemainsReadOnly
+} from "./sales-console-m15-manager-command-polish";
+import {
+  salesConsoleM15StaffReviewCoversReleaseConcerns,
+  salesConsoleM15StaffReviewGatesAreReady,
+  salesConsoleM15StaffReviewKeepsReadOnlyBoundary,
+  salesConsoleM15StaffReviewReadiness
+} from "./sales-console-m15-staff-review-readiness";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -362,6 +392,12 @@ function freshnessClass(freshness: "current" | "placeholder" | "stale" | "verify
   return styles.statusNeutral;
 }
 
+function fallbackClarityClass(label: "empty" | "stale" | "unavailable" | "verify-first") {
+  if (label === "stale" || label === "unavailable") return styles.statusDanger;
+  if (label === "verify-first") return styles.statusWarning;
+  return styles.statusNeutral;
+}
+
 function liveSourceStatusClass(status: "contract-ready" | "needs-mapping" | "placeholder-only") {
   if (status === "contract-ready") return styles.statusGood;
   if (status === "needs-mapping") return styles.statusWarning;
@@ -464,6 +500,17 @@ export function SalesConsolePrototype() {
         </a>
       </section>
 
+      <section className={styles.roleFirstNavigation} aria-label="M15 role-first daily navigation">
+        {salesConsoleM15RoleFirstNavigation.items.map((item) => (
+          <article key={item.role}>
+            <strong>{item.staffCue}</strong>
+            <span>{item.role}</span>
+            <small>Start: {item.primarySection} · Next: {item.nextSection}</small>
+            <em>{item.guardrail}</em>
+          </article>
+        ))}
+      </section>
+
       <section className={styles.roleStartCardStrip} aria-label="Role start cards">
         {salesConsoleM12RoleStartCards.map((card) => (
           <article key={card.role}>
@@ -472,6 +519,28 @@ export function SalesConsolePrototype() {
             <small>{card.primaryCheck}</small>
             <em>{card.caution}</em>
             <a href={card.href}>Open start section <ChevronRight size={13} /></a>
+          </article>
+        ))}
+      </section>
+
+      <section className={styles.operatingPolishMap} aria-label="M15 operating section polish">
+        {salesConsoleM15OperatingSectionPolish.items.map((item) => (
+          <article key={item.section}>
+            <strong>{item.section}</strong>
+            <span>{item.dailyUse}</span>
+            <small>Scan: {item.scanTarget}</small>
+            <em>{item.verificationRule}</em>
+          </article>
+        ))}
+      </section>
+
+      <section className={styles.emptyStateClarityStrip} aria-label="M15 empty and fallback clarity">
+        {salesConsoleM15EmptyStateClarity.items.map((item) => (
+          <article key={item.section}>
+            <strong>{item.section}</strong>
+            <span className={fallbackClarityClass(item.fallbackLabel)}>{item.fallbackLabel}</span>
+            <small>{item.staffMessage}</small>
+            <em>{item.verificationStep}</em>
           </article>
         ))}
       </section>
@@ -1007,6 +1076,37 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM14DealDeskHasOperatingRows() ? "Deal Desk has operating rows" : "Deal Desk depth gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM14InventoryHasReadinessRows() ? "Inventory has readiness rows" : "Inventory depth gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM14DealInventoryRemainReadOnly() ? "Deal and inventory remain read-only" : "Deal/inventory write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15RoleNavigationCoversCoreRoles() ? "M15 role-first navigation covers core roles" : "M15 role navigation gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15RoleNavigationUsesInternalSections() ? "M15 navigation uses internal sections" : "M15 navigation link risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15RoleNavigationRemainsReadOnly() ? "M15 role navigation remains read-only" : "M15 navigation write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15OperatingPolishCoversDailySections() ? "M15 operating polish covers daily sections" : "M15 operating section gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15OperatingPolishExplainsStaffUse() ? "M15 operating polish explains staff use" : "M15 staff-use explanation gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15OperatingPolishRemainsReadOnly() ? "M15 operating polish remains read-only" : "M15 operating polish write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15EmptyStatesCoverOperatingSections() ? "M15 empty states cover operating sections" : "M15 empty state coverage gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15EmptyStatesExplainFallbacks() ? "M15 fallback labels explain next verification" : "M15 fallback explanation gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15EmptyStatesRemainReadOnly() ? "M15 empty states remain read-only" : "M15 empty state write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15ManagerCommandHasDailyPriorities() ? "M15 manager command has daily priorities" : "M15 manager command gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15ManagerCommandExplainsManagerAction() ? "M15 manager command explains action" : "M15 manager action gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15ManagerCommandRemainsReadOnly() ? "M15 manager command remains read-only" : "M15 manager command write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15StaffReviewCoversReleaseConcerns() ? "M15 staff review covers release concerns" : "M15 review coverage gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15StaffReviewGatesAreReady() ? "M15 staff review gates ready" : "M15 review gate risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15StaffReviewKeepsReadOnlyBoundary() ? "M15 staff review remains read-only" : "M15 review write risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M15 staff review readiness">
+            <div className={styles.railHeader}><h2>M15 Staff Review Readiness</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              {salesConsoleM15StaffReviewReadiness.reviewRecommendation}
+            </p>
+            <div className={styles.staffReviewReadinessList}>
+              {salesConsoleM15StaffReviewReadiness.gates.map((gate) => (
+                <article key={gate.gate}>
+                  <strong>{gate.gate}</strong>
+                  <span className={gate.status === "ready" ? styles.statusGood : styles.statusWarning}>{gate.status}</span>
+                  <small>{gate.evidence}</small>
+                </article>
+              ))}
             </div>
           </section>
 
@@ -1752,6 +1852,23 @@ export function SalesConsolePrototype() {
             <div className={styles.glanceGrid}>
               {glanceMetrics.map((metric) => (
                 <div key={metric.label}><span>{metric.label}</span><strong>{metric.value}</strong><small>{metric.delta}</small></div>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M15 manager daily command brief">
+            <div className={styles.railHeader}><h2>M15 Manager Daily Command</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Manager view now highlights today&apos;s read-only priorities before approvals, discounts, holds, or finance actions are considered in source workflows.
+            </p>
+            <div className={styles.managerCommandBriefList}>
+              {salesConsoleM15ManagerCommandPolish.priorities.map((priority) => (
+                <article key={priority.priority}>
+                  <strong>{priority.priority}</strong>
+                  <span>{priority.count}</span>
+                  <small>{priority.managerMeaning}</small>
+                  <em>{priority.readOnlyBoundary}</em>
+                </article>
               ))}
             </div>
           </section>
