@@ -234,6 +234,12 @@ import {
   salesConsoleM16ManagerReviewPreviewLivesInDealDesk,
   salesConsoleM16ManagerReviewPreviewShowsUnavailableStates
 } from "./sales-console-m16-manager-review-disabled-preview";
+import {
+  salesConsoleM16AuditGuardrails,
+  salesConsoleM16AuditGuardrailsRemainPlanningOnly,
+  salesConsoleM16AuditReadinessCoversRequestShape,
+  salesConsoleM16ExcludedActionsRemainBlocked
+} from "./sales-console-m16-audit-guardrails";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1128,6 +1134,30 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM16ManagerReviewPreviewIsDisabled() ? "M16 manager review preview is disabled" : "M16 preview activation risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM16ManagerReviewPreviewShowsUnavailableStates() ? "M16 manager review shows unavailable states" : "M16 unavailable-state gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM16ManagerReviewPreviewLivesInDealDesk() ? "M16 manager review preview lives in Deal Desk" : "M16 preview placement gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16AuditReadinessCoversRequestShape() ? "M16 audit readiness covers request shape" : "M16 audit readiness gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ExcludedActionsRemainBlocked() ? "M16 excluded actions remain blocked" : "M16 excluded action risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16AuditGuardrailsRemainPlanningOnly() ? "M16 audit guardrails remain planning-only" : "M16 audit guardrail activation risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M16 audit and guardrails">
+            <div className={styles.railHeader}><h2>M16 Audit &amp; Guardrails</h2><ShieldCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Manager Review Request planning requires audit readiness and explicitly blocks risky workflows until separate approval milestones.
+            </p>
+            <div className={styles.auditGuardrailList}>
+              {salesConsoleM16AuditGuardrails.excludedActionGuardrails.map((guardrail) => (
+                <article key={guardrail.guardrail}>
+                  <strong>{guardrail.guardrail}</strong>
+                  <span className={styles.statusDanger}>{guardrail.status}</span>
+                  <small>{guardrail.evidence}</small>
+                </article>
+              ))}
+            </div>
+            <div className={styles.boundaryList}>
+              {salesConsoleM16AuditGuardrails.auditReadiness.map((item) => (
+                <span key={item}><ShieldCheck size={13} /> {item}</span>
+              ))}
             </div>
           </section>
 

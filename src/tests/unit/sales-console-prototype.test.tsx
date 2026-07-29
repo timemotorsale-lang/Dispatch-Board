@@ -37,6 +37,7 @@ import { salesConsoleM15ManagerCommandPolish } from "@/features/sales/sales-cons
 import { salesConsoleM15OperatingSectionPolish } from "@/features/sales/sales-console-m15-operating-section-polish";
 import { salesConsoleM15RoleFirstNavigation } from "@/features/sales/sales-console-m15-role-first-navigation";
 import { salesConsoleM15StaffReviewReadiness } from "@/features/sales/sales-console-m15-staff-review-readiness";
+import { salesConsoleM16AuditGuardrails } from "@/features/sales/sales-console-m16-audit-guardrails";
 import { salesConsoleM16ManagerReviewContract } from "@/features/sales/sales-console-m16-manager-review-contract";
 import { salesConsoleM16ManagerReviewDisabledPreview } from "@/features/sales/sales-console-m16-manager-review-disabled-preview";
 import { salesConsoleM16WorkflowSelection } from "@/features/sales/sales-console-m16-workflow-selection";
@@ -579,6 +580,19 @@ describe("Sales Console", () => {
     expect(markup).toContain(salesConsoleM16ManagerReviewDisabledPreview.ctaLabel);
     expect(markup).toContain(salesConsoleM16ManagerReviewDisabledPreview.disabledReason);
     expect(markup).toContain("disabled");
+  });
+
+  it("renders M16 audit readiness and excluded-action guardrails", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M16 Audit &amp; Guardrails");
+    expect(markup).toContain("M16 audit readiness covers request shape");
+    expect(markup).toContain("M16 excluded actions remain blocked");
+    expect(markup).toContain("M16 audit guardrails remain planning-only");
+    for (const guardrail of salesConsoleM16AuditGuardrails.excludedActionGuardrails) {
+      expect(markup).toContain(guardrail.guardrail);
+      expect(markup).toContain(guardrail.evidence);
+    }
   });
 
   it("renders real auth access mapping with blocked and mapped route states", () => {
