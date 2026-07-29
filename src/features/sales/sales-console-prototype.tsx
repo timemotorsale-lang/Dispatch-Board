@@ -359,6 +359,12 @@ import {
   salesConsoleM23CoversCoreStaffRoles,
   salesConsoleM23StaffDeploymentReadiness
 } from "./sales-console-m23-staff-deployment-readiness";
+import {
+  salesConsoleM24HasRollbackSupportAndMonitoring,
+  salesConsoleM24KeepsOnlyManagerReviewLive,
+  salesConsoleM24OfficialReleaseGate,
+  salesConsoleM24ReleaseIsConditional
+} from "./sales-console-m24-official-release-gate";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1341,6 +1347,9 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM23ChecklistReady() ? "M23 staff checklist ready" : "M23 staff checklist gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM23CoversCoreStaffRoles() ? "M23 core staff roles covered" : "M23 role coverage gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM23CommunicatesExcludedActions() ? "M23 excluded actions communicated" : "M23 excluded-action communication gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM24ReleaseIsConditional() ? "M24 release decision conditional" : "M24 release decision gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM24KeepsOnlyManagerReviewLive() ? "M24 only manager review live" : "M24 live workflow scope risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM24HasRollbackSupportAndMonitoring() ? "M24 rollback support monitoring ready" : "M24 release operations gap"}</span>
             </div>
           </section>
 
@@ -1597,6 +1606,34 @@ export function SalesConsolePrototype() {
                   <strong>{role.role}</strong>
                   <span className={styles.statusGood}>{role.startHere}</span>
                   <small>{role.canDo} {role.cannotDo}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M24 official production release gate">
+            <div className={styles.railHeader}><h2>M24 Official Production Release Gate</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM24OfficialReleaseGate.recommendation}</p>
+            <div className={styles.m24OfficialReleaseGateList}>
+              {salesConsoleM24OfficialReleaseGate.goNoGoCriteria.map((item) => (
+                <article key={item.criterion}>
+                  <strong>{item.criterion}</strong>
+                  <span className={item.status === "go" ? styles.statusGood : styles.statusWarning}>{item.status}</span>
+                  <small>Release decision: {salesConsoleM24OfficialReleaseGate.releaseDecision}.</small>
+                </article>
+              ))}
+              {salesConsoleM24OfficialReleaseGate.knownLimitations.map((limitation) => (
+                <article key={limitation}>
+                  <strong>{limitation}</strong>
+                  <span className={styles.statusWarning}>known limitation</span>
+                  <small>Review before official release approval.</small>
+                </article>
+              ))}
+              {salesConsoleM24OfficialReleaseGate.rollbackPlan.map((step) => (
+                <article key={step}>
+                  <strong>{step}</strong>
+                  <span className={styles.statusDanger}>rollback plan</span>
+                  <small>Support/monitoring/training are defined for controlled deployment.</small>
                 </article>
               ))}
             </div>
