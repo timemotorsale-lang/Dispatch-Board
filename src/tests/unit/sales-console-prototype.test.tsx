@@ -57,6 +57,7 @@ import { salesConsoleM19ApiActivation } from "@/features/sales/sales-console-m19
 import { salesConsoleM19ReleaseGate } from "@/features/sales/sales-console-m19-release-gate";
 import { salesConsoleM19ServiceActivation } from "@/features/sales/sales-console-m19-service-activation";
 import { salesConsoleM20ManagerReviewWorkbenchUi } from "@/features/sales/sales-console-m20-manager-review-workbench-ui";
+import { salesConsoleM21ManagerReviewResolutionPlanning } from "@/features/sales/sales-console-m21-manager-review-resolution-planning";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
@@ -845,6 +846,20 @@ describe("Sales Console", () => {
       expect(markup).toContain(row.commandId);
       expect(markup).toContain(row.correlationId);
       expect(markup).toContain(row.idempotencyKey);
+    }
+  });
+
+  it("renders M21 manager review resolution planning", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M21 Manager Review Resolution Planning");
+    expect(markup).toContain("M21 resolution states defined");
+    expect(markup).toContain("M21 resolution controls disabled");
+    expect(markup).toContain("M21 risky approvals remain blocked");
+    expect(markup).toContain(salesConsoleM21ManagerReviewResolutionPlanning.guardrailCopy);
+    for (const control of salesConsoleM21ManagerReviewResolutionPlanning.plannedControls) {
+      expect(markup).toContain(control.control);
+      expect(markup).toContain(control.risk);
     }
   });
 

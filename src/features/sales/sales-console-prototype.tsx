@@ -341,6 +341,12 @@ import {
   salesConsoleM20SubmitIsActiveOnlyForManagerReview,
   salesConsoleM20WorkbenchShowsAuditIdentifiers
 } from "./sales-console-m20-manager-review-workbench-ui";
+import {
+  salesConsoleM21DefinesResolutionStates,
+  salesConsoleM21KeepsRiskyApprovalsBlocked,
+  salesConsoleM21ManagerReviewResolutionPlanning,
+  salesConsoleM21ResolutionControlsRemainDisabled
+} from "./sales-console-m21-manager-review-resolution-planning";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1314,6 +1320,9 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM20SubmitIsActiveOnlyForManagerReview() ? "M20 submit active only for manager review" : "M20 submit scope risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM20WorkbenchShowsAuditIdentifiers() ? "M20 workbench shows audit identifiers" : "M20 audit identifier gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM20KeepsNonManagerActionsPlanned() ? "M20 non-manager actions remain planned" : "M20 non-manager action risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM21DefinesResolutionStates() ? "M21 resolution states defined" : "M21 resolution state gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM21ResolutionControlsRemainDisabled() ? "M21 resolution controls disabled" : "M21 resolution control risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM21KeepsRiskyApprovalsBlocked() ? "M21 risky approvals remain blocked" : "M21 approval risk"}</span>
             </div>
           </section>
 
@@ -1503,6 +1512,27 @@ export function SalesConsolePrototype() {
                   <strong>{action}</strong>
                   <span className={styles.statusDanger}>disabled</span>
                   <small>Outside the approved Manager Review Request workflow.</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M21 manager review resolution planning">
+            <div className={styles.railHeader}><h2>M21 Manager Review Resolution Planning</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM21ManagerReviewResolutionPlanning.guardrailCopy}</p>
+            <div className={styles.m21ResolutionPlanningList}>
+              {salesConsoleM21ManagerReviewResolutionPlanning.resolutionStates.map((state) => (
+                <article key={state}>
+                  <strong>{state}</strong>
+                  <span className={styles.statusWarning}>{salesConsoleM21ManagerReviewResolutionPlanning.activationState}</span>
+                  <small>Resolution state is modeled for planning; no resolution command is active yet.</small>
+                </article>
+              ))}
+              {salesConsoleM21ManagerReviewResolutionPlanning.plannedControls.map((control) => (
+                <article key={control.control}>
+                  <strong>{control.control}</strong>
+                  <span className={styles.statusDanger}>disabled/planned</span>
+                  <small>{control.risk}</small>
                 </article>
               ))}
             </div>
