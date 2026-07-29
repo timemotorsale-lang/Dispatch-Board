@@ -768,15 +768,50 @@
 }
 
 .managerReviewFormShell button {
-  background: var(--surface);
-  border: 1px solid var(--line);
+  background: var(--brand);
+  border: 1px solid var(--brand);
   border-radius: 8px;
-  color: var(--muted);
-  cursor: not-allowed;
+  color: white;
+  cursor: pointer;
   font-size: 0.72rem;
   font-weight: 900;
   justify-self: start;
   padding: 8px 10px;
+}
+
+.managerReviewWorkbench {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 10px;
+}
+
+.managerReviewWorkbench > strong {
+  color: var(--ink);
+  font-size: 0.78rem;
+}
+
+.managerReviewWorkbench article {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+}
+
+.managerReviewWorkbench span {
+  color: var(--brand-strong);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.managerReviewWorkbench small {
+  color: var(--muted);
+  font-size: 0.67rem;
 }
 
 .toneDanger {
@@ -1227,6 +1262,7 @@
 .m19ServiceActivationList,
 .m19ApiActivationList,
 .m19ReleaseGateList,
+.m20WorkbenchUiList,
 .productionRoleViewList,
 .authAccessList,
 .m10SourceWiringList,
@@ -1303,6 +1339,7 @@
 .m19ServiceActivationList article,
 .m19ApiActivationList article,
 .m19ReleaseGateList article,
+.m20WorkbenchUiList article,
 .productionRoleViewList article,
 .authAccessList article,
 .m10SourceWiringList article,
@@ -1378,6 +1415,7 @@
 .m19ServiceActivationList strong,
 .m19ApiActivationList strong,
 .m19ReleaseGateList strong,
+.m20WorkbenchUiList strong,
 .productionRoleViewList strong,
 .authAccessList strong,
 .m10SourceWiringList strong,
@@ -1516,6 +1554,8 @@
 .m19ApiActivationList small,
 .m19ReleaseGateList span,
 .m19ReleaseGateList small,
+.m20WorkbenchUiList span,
+.m20WorkbenchUiList small,
 .productionRoleViewList span,
 .productionRoleViewList small,
 .productionRoleViewList em,
