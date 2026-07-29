@@ -44,7 +44,6 @@ import { salesConsoleM16ManagerReviewDisabledPreview } from "@/features/sales/sa
 import { salesConsoleM16WorkflowSelection } from "@/features/sales/sales-console-m16-workflow-selection";
 import { salesConsoleM17AuditSafeSubmitPlaceholder } from "@/features/sales/sales-console-m17-audit-safe-submit-placeholder";
 import { salesConsoleM17ReleaseGate } from "@/features/sales/sales-console-m17-release-gate";
-import { salesConsoleM17RequestFormShell } from "@/features/sales/sales-console-m17-request-form-shell";
 import { salesConsoleM17RequestStateModel } from "@/features/sales/sales-console-m17-request-state-model";
 import { salesConsoleM17ValidationPermissions } from "@/features/sales/sales-console-m17-validation-permissions";
 import { salesConsoleM18ApiRouteGuarded } from "@/features/sales/sales-console-m18-api-route-guarded";
@@ -57,6 +56,7 @@ import { salesConsoleM19RepositoryTransaction } from "@/features/sales/sales-con
 import { salesConsoleM19ApiActivation } from "@/features/sales/sales-console-m19-api-activation";
 import { salesConsoleM19ReleaseGate } from "@/features/sales/sales-console-m19-release-gate";
 import { salesConsoleM19ServiceActivation } from "@/features/sales/sales-console-m19-service-activation";
+import { salesConsoleM20ManagerReviewWorkbenchUi } from "@/features/sales/sales-console-m20-manager-review-workbench-ui";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
@@ -638,18 +638,15 @@ describe("Sales Console", () => {
     }
   });
 
-  it("renders M17 disabled request form shell", () => {
+  it("preserves M17 request form planning proof after M20 activation", () => {
     const markup = renderToStaticMarkup(<SalesConsolePrototype />);
 
     expect(markup).toContain("Manager Review Request Form");
     expect(markup).toContain("M17 request form has required fields");
     expect(markup).toContain("M17 request form controls disabled");
     expect(markup).toContain("M17 request form explains disabled state");
-    expect(markup).toContain(salesConsoleM17RequestFormShell.helperText);
-    expect(markup).toContain(salesConsoleM17RequestFormShell.submitLabel);
-    for (const field of salesConsoleM17RequestFormShell.fields) {
-      expect(markup).toContain(field.label);
-    }
+    expect(markup).toContain("M20 live manager review request submit shell");
+    expect(markup).toContain("Submit Manager Review Request");
   });
 
   it("renders M17 validation and permissions", () => {
@@ -828,6 +825,26 @@ describe("Sales Console", () => {
     for (const check of salesConsoleM19ReleaseGate.readyChecks) {
       expect(markup).toContain(check.check);
       expect(markup).toContain(check.evidence);
+    }
+  });
+
+  it("renders M20 live manager review submit and workbench UI", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M20 live manager review request submit shell");
+    expect(markup).toContain("Submit Manager Review Request");
+    expect(markup).toContain("live");
+    expect(markup).toContain("Manager Review Workbench");
+    expect(markup).toContain("M20 submit active only for manager review");
+    expect(markup).toContain("M20 workbench shows audit identifiers");
+    expect(markup).toContain("M20 non-manager actions remain planned");
+    expect(markup).toContain(salesConsoleM20ManagerReviewWorkbenchUi.submitEndpoint);
+    for (const row of salesConsoleM20ManagerReviewWorkbenchUi.workbenchRows) {
+      expect(markup).toContain(row.taskId);
+      expect(markup).toContain(row.auditEventId);
+      expect(markup).toContain(row.commandId);
+      expect(markup).toContain(row.correlationId);
+      expect(markup).toContain(row.idempotencyKey);
     }
   });
 

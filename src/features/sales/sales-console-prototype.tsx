@@ -255,8 +255,7 @@ import {
 import {
   salesConsoleM17RequestFormControlsDisabled,
   salesConsoleM17RequestFormExplainsWhyDisabled,
-  salesConsoleM17RequestFormHasRequiredFields,
-  salesConsoleM17RequestFormShell
+  salesConsoleM17RequestFormHasRequiredFields
 } from "./sales-console-m17-request-form-shell";
 import {
   salesConsoleM17PermissionsAllowManagerReviewOnly,
@@ -336,6 +335,12 @@ import {
   salesConsoleM19ReleaseGateKeepsRiskyActionsBlocked,
   salesConsoleM19ReleaseGateRecommendsM20
 } from "./sales-console-m19-release-gate";
+import {
+  salesConsoleM20KeepsNonManagerActionsPlanned,
+  salesConsoleM20ManagerReviewWorkbenchUi,
+  salesConsoleM20SubmitIsActiveOnlyForManagerReview,
+  salesConsoleM20WorkbenchShowsAuditIdentifiers
+} from "./sales-console-m20-manager-review-workbench-ui";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -781,18 +786,30 @@ export function SalesConsolePrototype() {
                 </div>
                 <button aria-disabled="true" disabled type="button">{salesConsoleM16ManagerReviewDisabledPreview.ctaLabel} <b>disabled</b></button>
               </div>
-              <div className={styles.managerReviewFormShell} aria-label="M17 disabled manager review request form shell">
+              <div className={styles.managerReviewFormShell} aria-label="M20 live manager review request submit shell">
                 <strong>Manager Review Request Form</strong>
-                <small>{salesConsoleM17RequestFormShell.helperText}</small>
+                <small>Live for {salesConsoleM20ManagerReviewWorkbenchUi.activeWorkflow}. Endpoint: {salesConsoleM20ManagerReviewWorkbenchUi.submitEndpoint}.</small>
                 <div>
-                  {salesConsoleM17RequestFormShell.fields.map((field) => (
-                    <label key={field.label}>
+                  {salesConsoleM20ManagerReviewWorkbenchUi.submitFields.map((field) => (
+                    <label key={field.field}>
                       <span>{field.label}{field.required ? " *" : ""}</span>
-                      <input disabled value={field.value} readOnly />
+                      <input value={field.value} readOnly />
                     </label>
                   ))}
                 </div>
-                <button aria-disabled="true" disabled type="button">{salesConsoleM17RequestFormShell.submitLabel} <b>disabled</b></button>
+                <button data-endpoint={salesConsoleM20ManagerReviewWorkbenchUi.submitEndpoint} type="button">
+                  Submit Manager Review Request <b>live</b>
+                </button>
+              </div>
+              <div className={styles.managerReviewWorkbench} aria-label="M20 manager review workbench">
+                <strong>Manager Review Workbench</strong>
+                {salesConsoleM20ManagerReviewWorkbenchUi.workbenchRows.map((row) => (
+                  <article key={row.taskId}>
+                    <span>{row.taskId} · {row.status}</span>
+                    <small>Audit {row.auditEventId} · Command {row.commandId}</small>
+                    <small>Correlation {row.correlationId} · Idempotency {row.idempotencyKey}</small>
+                  </article>
+                ))}
               </div>
               <table className={styles.compactTable}>
                 <thead>
@@ -1294,6 +1311,9 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM19ReleaseGateActivatesOnlyManagerReview() ? "M19 release activates only manager review" : "M19 release scope risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM19ReleaseGateKeepsRiskyActionsBlocked() ? "M19 release keeps risky actions blocked" : "M19 risky-action release gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM19ReleaseGateRecommendsM20() ? "M19 release gate names M20 next" : "M19 next milestone gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM20SubmitIsActiveOnlyForManagerReview() ? "M20 submit active only for manager review" : "M20 submit scope risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM20WorkbenchShowsAuditIdentifiers() ? "M20 workbench shows audit identifiers" : "M20 audit identifier gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM20KeepsNonManagerActionsPlanned() ? "M20 non-manager actions remain planned" : "M20 non-manager action risk"}</span>
             </div>
           </section>
 
@@ -1460,6 +1480,29 @@ export function SalesConsolePrototype() {
                   <strong>{blocker}</strong>
                   <span className={styles.statusDanger}>still blocked</span>
                   <small>{salesConsoleM19ReleaseGate.nextRecommendedMilestone}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M20 manager review workbench UI">
+            <div className={styles.railHeader}><h2>M20 Manager Review Workbench UI</h2><UserRoundCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Submit roles: {salesConsoleM20ManagerReviewWorkbenchUi.submitEnabledForRoles.join(", ")}. Workbench roles: {salesConsoleM20ManagerReviewWorkbenchUi.workbenchVisibleForRoles.join(", ")}.
+            </p>
+            <div className={styles.m20WorkbenchUiList}>
+              {salesConsoleM20ManagerReviewWorkbenchUi.responseStates.map((state) => (
+                <article key={state.state}>
+                  <strong>{state.label}</strong>
+                  <span className={state.state === "success" || state.state === "duplicate" ? styles.statusGood : styles.statusWarning}>{state.state}</span>
+                  <small>{state.meaning}</small>
+                </article>
+              ))}
+              {salesConsoleM20ManagerReviewWorkbenchUi.nonManagerReviewActions.map((action) => (
+                <article key={action}>
+                  <strong>{action}</strong>
+                  <span className={styles.statusDanger}>disabled</span>
+                  <small>Outside the approved Manager Review Request workflow.</small>
                 </article>
               ))}
             </div>
