@@ -62,6 +62,7 @@ import { salesConsoleM22PilotProductionHardening } from "@/features/sales/sales-
 import { salesConsoleM23StaffDeploymentReadiness } from "@/features/sales/sales-console-m23-staff-deployment-readiness";
 import { salesConsoleM24OfficialReleaseGate } from "@/features/sales/sales-console-m24-official-release-gate";
 import { salesConsoleM25ResponsiveOperatingViews } from "@/features/sales/sales-console-m25-responsive-operating-views";
+import { salesConsoleM26DeploymentLanguagePolish } from "@/features/sales/sales-console-m26-deployment-language-polish";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
@@ -101,17 +102,17 @@ describe("Sales Console", () => {
     expect(markup).toContain("Lead Operations");
   });
 
-  it("labels inactive dogfood controls as planned or read-only", () => {
+  it("uses staff-facing deployment language for inactive controls", () => {
     const markup = renderToStaticMarkup(<SalesConsolePrototype />);
 
-    expect(markup).toContain("Search planned for dogfood");
+    expect(markup).toContain("Search available after rollout");
     expect(markup).toContain("Alerts");
-    expect(markup).toContain("read-only");
+    expect(markup).toContain("MVP view");
     expect(markup).toContain("Messages");
-    expect(markup).toContain("planned");
-    expect(markup).toContain("Dogfood UX cleanup: controls marked planned/read-only are intentionally inactive");
-    expect(markup).toContain("Pipeline filters are planned");
-    expect(markup).toContain("More actions are intentionally unavailable");
+    expect(markup).toContain("source system");
+    expect(markup).toContain("MVP control guide");
+    expect(markup).toContain("source cadence");
+    expect(markup).toContain("release gated");
   });
 
   it("keeps the first slice non-destructive and production-MVP scoped", () => {
@@ -925,6 +926,19 @@ describe("Sales Console", () => {
       expect(markup).toContain(tab.primaryAction);
       expect(markup).toContain(tab.safeAction);
       expect(markup).toContain(tab.blockedAction);
+    }
+  });
+
+  it("renders M26 deployment language polish", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M26 Deployment Language Polish");
+    expect(markup).toContain("M26 staff posture deployable MVP");
+    expect(markup).toContain("M26 planning evidence archived");
+    expect(markup).toContain("M26 names only live submit workflow");
+    expect(markup).toContain(salesConsoleM26DeploymentLanguagePolish.staffPosture);
+    for (const copy of salesConsoleM26DeploymentLanguagePolish.staffFacingCopy) {
+      expect(markup).toContain(copy);
     }
   });
 

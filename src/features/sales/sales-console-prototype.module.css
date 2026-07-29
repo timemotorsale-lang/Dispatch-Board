@@ -22,6 +22,66 @@
   padding: 10px 12px;
 }
 
+.staffDeploymentPolish {
+  align-items: center;
+  background: linear-gradient(135deg, #0f172a, #1d4ed8);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  color: #fff;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(260px, 1fr) minmax(280px, 1.2fr);
+  padding: 16px;
+}
+
+.staffDeploymentPolish h2 {
+  font-size: 1.05rem;
+  margin: 2px 0 4px;
+}
+
+.staffDeploymentPolish p,
+.staffDeploymentPolish ul {
+  margin: 0;
+}
+
+.staffDeploymentPolish p,
+.staffDeploymentPolish li {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.staffDeploymentPolish ul {
+  display: grid;
+  gap: 5px;
+  padding-left: 18px;
+}
+
+.staffDeploymentPolish .eyebrow {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.releaseEvidenceArchive {
+  display: none;
+}
+
+:global(section[aria-label="Staff role model for read-only dogfooding"]),
+:global(section[aria-label="Dogfood auth role seeding evidence"]),
+:global(section[aria-label="Read-only dogfood feature flags"]),
+:global(section[aria-label="M12 role empty and planned states"]),
+:global(section[aria-label="M12 admin dogfood landing readiness summary"]),
+:global(section[aria-label="M13 dogfood readiness panel"]),
+:global(section[aria-label="M13 feedback categories"]),
+:global(section[aria-label="M13 dogfood go no-go gates"]),
+:global(section[aria-label="M14 operational tab audit"]),
+:global(section[aria-label="M14 placeholder demotion"]),
+:global(section[aria-label="M16 activation decision gate"]),
+:global(section[aria-label="M16 audit and guardrails"]),
+:global(section[aria-label="M16 manager review contract"]),
+:global(section[aria-label="M16 workflow selection"]) {
+  display: none;
+}
+
 .executionFoundation {
   background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 64, 175, 0.92));
   border: 1px solid rgba(191, 219, 254, 0.24);
@@ -1332,6 +1392,7 @@
 .m23StaffReadinessList,
 .m24OfficialReleaseGateList,
 .m25ResponsiveOperatingList,
+.m26DeploymentPolishList,
 .productionRoleViewList,
 .authAccessList,
 .m10SourceWiringList,
@@ -1414,6 +1475,7 @@
 .m23StaffReadinessList article,
 .m24OfficialReleaseGateList article,
 .m25ResponsiveOperatingList article,
+.m26DeploymentPolishList article,
 .productionRoleViewList article,
 .authAccessList article,
 .m10SourceWiringList article,
@@ -1495,6 +1557,7 @@
 .m23StaffReadinessList strong,
 .m24OfficialReleaseGateList strong,
 .m25ResponsiveOperatingList strong,
+.m26DeploymentPolishList strong,
 .productionRoleViewList strong,
 .authAccessList strong,
 .m10SourceWiringList strong,
@@ -1645,6 +1708,8 @@
 .m24OfficialReleaseGateList small,
 .m25ResponsiveOperatingList span,
 .m25ResponsiveOperatingList small,
+.m26DeploymentPolishList span,
+.m26DeploymentPolishList small,
 .productionRoleViewList span,
 .productionRoleViewList small,
 .productionRoleViewList em,

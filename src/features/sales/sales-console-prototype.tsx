@@ -372,6 +372,12 @@ import {
   salesConsoleM25OnlyManagerReviewSubmitIsLive,
   salesConsoleM25ResponsiveOperatingViews
 } from "./sales-console-m25-responsive-operating-views";
+import {
+  salesConsoleM26ArchivesPlanningEvidence,
+  salesConsoleM26DeploymentLanguagePolish,
+  salesConsoleM26NamesOnlyLiveSubmitWorkflow,
+  salesConsoleM26StaffPostureIsDeployableMvp
+} from "./sales-console-m26-deployment-language-polish";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -594,27 +600,40 @@ export function SalesConsolePrototype() {
         </div>
         <label className={styles.search}>
           <Search size={16} aria-hidden="true" />
-          <input aria-label="Search sales console" disabled placeholder="Search planned for dogfood" type="search" />
-          <kbd>Planned</kbd>
+          <input aria-label="Search sales console" disabled placeholder="Search available after rollout" type="search" />
+          <kbd>MVP</kbd>
         </label>
         <div className={styles.topbarActions}>
-          <button aria-disabled="true" disabled title="Alerts are read-only indicators until dogfood observability is connected." type="button">
-            <Bell size={16} /> Alerts <b>read-only</b>
+          <button aria-disabled="true" disabled title="Alerts show source-system status in this MVP; live alert configuration is handled by Admin / Owner." type="button">
+            <Bell size={16} /> Alerts <b>MVP view</b>
           </button>
-          <button aria-disabled="true" disabled title="Messaging automation is planned, not active in the read-only production MVP." type="button">
-            <MessageSquareText size={16} /> Messages <b>planned</b>
+          <button aria-disabled="true" disabled title="Customer messaging stays in the approved source system for this MVP." type="button">
+            <MessageSquareText size={16} /> Messages <b>source system</b>
           </button>
-          <button aria-disabled="true" disabled title="Calendar actions are planned for a later read-only/source-linked phase." type="button">
-            <CalendarDays size={16} /> Calendar <b>planned</b>
+          <button aria-disabled="true" disabled title="Calendar work stays in the appointment/source system for this MVP." type="button">
+            <CalendarDays size={16} /> Calendar <b>source system</b>
           </button>
-          <button aria-disabled="true" disabled title="Staff help content will be added before dogfooding." type="button">
-            <HelpCircle size={16} /> Help <b>planned</b>
+          <button aria-disabled="true" disabled title="Staff help is available through the rollout owner during MVP launch." type="button">
+            <HelpCircle size={16} /> Help <b>rollout</b>
           </button>
-          <button aria-disabled="true" disabled title="Store switching is planned. Current dogfood scope uses the assigned/default store." type="button">
-            All Stores <ChevronDown size={14} /> <b>planned</b>
+          <button aria-disabled="true" disabled title="Store context uses the assigned/default store for this MVP." type="button">
+            All Stores <ChevronDown size={14} /> <b>MVP scope</b>
           </button>
         </div>
       </header>
+
+      <section className={styles.staffDeploymentPolish} aria-label="M26 staff-facing deployment polish">
+        <div>
+          <span className={styles.eyebrow}>Deployment polish</span>
+          <h2>Staff-facing MVP language is launch-ready</h2>
+          <p>{salesConsoleM26DeploymentLanguagePolish.staffFacingCopy[0]}</p>
+        </div>
+        <ul>
+          {salesConsoleM26DeploymentLanguagePolish.staffFacingCopy.slice(1).map((copy) => (
+            <li key={copy}>{copy}</li>
+          ))}
+        </ul>
+      </section>
 
       <section className={styles.executionFoundation} aria-label="Sales Console production MVP foundation">
         <div>
@@ -633,13 +652,13 @@ export function SalesConsolePrototype() {
         </div>
       </section>
 
-      <section className={styles.roleRail} aria-label="Sales Console MVP role placeholders">
+      <section className={styles.roleRail} aria-label="Sales Console MVP role views">
         {salesConsoleRoleViews.map((role) => (
           <article className={role.role === salesConsoleMvpExecution.defaultRole ? styles.activeRoleCard : undefined} key={role.role}>
             <strong>{role.label}</strong>
             <span>{role.defaultSurface}</span>
             <small>{role.sensitiveDataBoundary}</small>
-            <em>{role.readOnly ? "Read-only role view" : "Write-enabled"}</em>
+            <em>{role.readOnly ? "Operational MVP role view" : "Write-enabled"}</em>
           </article>
         ))}
       </section>
@@ -728,24 +747,24 @@ export function SalesConsolePrototype() {
                 <h2 id="sales-today-title">Salesperson Today</h2>
               </div>
               <div className={styles.headerActions}>
-                <button aria-disabled="true" disabled title="Pipeline filters are planned; this dogfood view uses adapter-ranked read-only data." type="button">
-                  My Pipeline <ChevronDown size={13} /> <b>planned</b>
+                <button aria-disabled="true" disabled title="Pipeline filters use the MVP ranked queue; saved filters can follow after rollout review." type="button">
+                  My Pipeline <ChevronDown size={13} /> <b>MVP queue</b>
                 </button>
-                <button aria-disabled="true" aria-label="Refresh sales queue planned" disabled title="Manual refresh is planned. Data freshness is currently label-driven." type="button">
-                  <RefreshCw size={15} /> <b>planned</b>
+                <button aria-disabled="true" aria-label="Refresh sales queue source controlled" disabled title="Data refresh follows the source-system cadence in this MVP." type="button">
+                  <RefreshCw size={15} /> <b>source cadence</b>
                 </button>
-                <button aria-disabled="true" disabled title="Customization is planned after staff dogfood feedback." type="button">
-                  <Settings size={15} /> Customize <b>planned</b>
+                <button aria-disabled="true" disabled title="Personal customization is outside this MVP release." type="button">
+                  <Settings size={15} /> Customize <b>post-MVP</b>
                 </button>
-                <button aria-disabled="true" aria-label="More sales actions planned" disabled title="More actions are intentionally unavailable in the read-only dogfood phase." type="button">
-                  <MoreVertical size={15} /> <b>planned</b>
+                <button aria-disabled="true" aria-label="More sales actions unavailable in MVP" disabled title="Additional sales actions require separate release approval." type="button">
+                  <MoreVertical size={15} /> <b>release gated</b>
                 </button>
               </div>
             </div>
 
             <div className={styles.readOnlyUxNotice} role="note">
               <ShieldCheck size={15} />
-              <span>Dogfood UX cleanup: controls marked planned/read-only are intentionally inactive until release gates approve live workflows.</span>
+              <span>MVP control guide: unavailable controls are intentionally source-system handled or release-gated; Manager Review Request is live.</span>
             </div>
 
             <div className={styles.metricStrip}>
@@ -826,7 +845,7 @@ export function SalesConsolePrototype() {
                   </article>
                 ))}
               </div>
-              <div className={styles.managerReviewDisabledPreview} aria-label="M16 disabled manager review request preview">
+              <div className={`${styles.managerReviewDisabledPreview} ${styles.releaseEvidenceArchive}`} aria-hidden="true" aria-label="M16 disabled manager review request preview">
                 <div>
                   <strong>{salesConsoleM16ManagerReviewDisabledPreview.ctaLabel}</strong>
                   <span>{salesConsoleM16ManagerReviewDisabledPreview.disabledReason}</span>
@@ -1378,6 +1397,9 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM25EveryTabHasSafeAction() ? "M25 every tab has safe action" : "M25 tab action gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM25OnlyManagerReviewSubmitIsLive() ? "M25 only manager review submit live" : "M25 live submit risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM25NoPlaceholderOnlyPrimaryTabs() ? "M25 no placeholder-only primary tabs" : "M25 placeholder-only tab risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM26StaffPostureIsDeployableMvp() ? "M26 staff posture deployable MVP" : "M26 deployment posture gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM26ArchivesPlanningEvidence() ? "M26 planning evidence archived" : "M26 planning archive gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM26NamesOnlyLiveSubmitWorkflow() ? "M26 names only live submit workflow" : "M26 live workflow language gap"}</span>
             </div>
           </section>
 
@@ -1689,7 +1711,28 @@ export function SalesConsolePrototype() {
             </div>
           </section>
 
-          <section className={styles.panel} aria-label="M17 release gate">
+          <section className={styles.panel} aria-label="M26 deployment language polish">
+            <div className={styles.railHeader}><h2>M26 Deployment Language Polish</h2><ShieldCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>Staff posture: {salesConsoleM26DeploymentLanguagePolish.staffPosture}. Historical planning evidence is archived from the daily staff flow.</p>
+            <div className={styles.m26DeploymentPolishList}>
+              {salesConsoleM26DeploymentLanguagePolish.replacements.map((replacement) => (
+                <article key={replacement.before}>
+                  <strong>{replacement.before}</strong>
+                  <span className={styles.statusGood}>{replacement.after}</span>
+                  <small>Deployment wording replacement for staff-facing surfaces.</small>
+                </article>
+              ))}
+              {salesConsoleM26DeploymentLanguagePolish.staffFacingCopy.map((copy) => (
+                <article key={copy}>
+                  <strong>{copy}</strong>
+                  <span className={styles.statusGood}>staff-ready</span>
+                  <small>Shown as MVP rollout guidance, not planning-era language.</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={`${styles.panel} ${styles.releaseEvidenceArchive}`} aria-label="M17 release gate">
             <div className={styles.railHeader}><h2>M17 Release Gate</h2><Gauge size={18} /></div>
             <p className={styles.guardrailCopy}>{salesConsoleM17ReleaseGate.releaseRecommendation}</p>
             <div className={styles.m17ReleaseGateList}>
@@ -1703,7 +1746,7 @@ export function SalesConsolePrototype() {
             </div>
           </section>
 
-          <section className={styles.panel} aria-label="M17 audit safe submit placeholder">
+          <section className={`${styles.panel} ${styles.releaseEvidenceArchive}`} aria-label="M17 audit safe submit placeholder">
             <div className={styles.railHeader}><h2>M17 Audit-Safe Submit Placeholder</h2><ShieldCheck size={18} /></div>
             <p className={styles.guardrailCopy}>
               {salesConsoleM17AuditSafeSubmitPlaceholder.placeholderResult} Backend: {salesConsoleM17AuditSafeSubmitPlaceholder.backendDestination}.
@@ -1718,7 +1761,7 @@ export function SalesConsolePrototype() {
             </div>
           </section>
 
-          <section className={styles.panel} aria-label="M17 validation and permissions">
+          <section className={`${styles.panel} ${styles.releaseEvidenceArchive}`} aria-label="M17 validation and permissions">
             <div className={styles.railHeader}><h2>M17 Validation &amp; Permissions</h2><UserRoundCheck size={18} /></div>
             <p className={styles.guardrailCopy}>
               Submit enabled: {salesConsoleM17ValidationPermissions.submitEnabled ? "yes" : "no"}. Dedicated backend endpoint remains required before activation.
@@ -1739,7 +1782,7 @@ export function SalesConsolePrototype() {
             </div>
           </section>
 
-          <section className={styles.panel} aria-label="M17 request state model">
+          <section className={`${styles.panel} ${styles.releaseEvidenceArchive}`} aria-label="M17 request state model">
             <div className={styles.railHeader}><h2>M17 Request State Model</h2><Gauge size={18} /></div>
             <p className={styles.guardrailCopy}>
               Current Manager Review Request state: {salesConsoleM17RequestStateModel.currentStatus}. Workflow live: {salesConsoleM17RequestStateModel.workflowLive ? "yes" : "no"}.
