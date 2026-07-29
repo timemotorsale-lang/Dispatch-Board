@@ -127,6 +127,55 @@
   text-decoration: none;
 }
 
+.roleFirstNavigation {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.roleFirstNavigation article {
+  background: linear-gradient(180deg, var(--surface), var(--surface-soft));
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--brand);
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+}
+
+.roleFirstNavigation strong,
+.roleFirstNavigation span,
+.roleFirstNavigation small,
+.roleFirstNavigation em {
+  display: block;
+}
+
+.roleFirstNavigation strong {
+  color: var(--ink);
+  font-size: 0.78rem;
+}
+
+.roleFirstNavigation span {
+  color: var(--brand-strong);
+  font-size: 0.7rem;
+  font-weight: 900;
+}
+
+.roleFirstNavigation small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.roleFirstNavigation em {
+  color: var(--success);
+  font-size: 0.66rem;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
 .roleStartCardStrip {
   display: grid;
   gap: 8px;

@@ -32,6 +32,7 @@ import { salesConsoleM14LeadOperationsDepth } from "@/features/sales/sales-conso
 import { salesConsoleM14OperationalTabAudit } from "@/features/sales/sales-console-m14-operational-tab-audit";
 import { salesConsoleM14PlaceholderDemotion } from "@/features/sales/sales-console-m14-placeholder-demotion";
 import { salesConsoleM14SalespersonTodayDepth } from "@/features/sales/sales-console-m14-salesperson-today-depth";
+import { salesConsoleM15RoleFirstNavigation } from "@/features/sales/sales-console-m15-role-first-navigation";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
@@ -465,6 +466,18 @@ describe("Sales Console", () => {
     for (const item of salesConsoleM14PlaceholderDemotion.items) {
       expect(markup).toContain(item.surface);
       expect(markup).toContain(item.handling);
+    }
+  });
+
+  it("renders M15 role-first daily navigation", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M15 role-first navigation covers core roles");
+    expect(markup).toContain("M15 navigation uses internal sections");
+    expect(markup).toContain("M15 role navigation remains read-only");
+    for (const item of salesConsoleM15RoleFirstNavigation.items) {
+      expect(markup).toContain(item.staffCue);
+      expect(markup).toContain(item.guardrail);
     }
   });
 

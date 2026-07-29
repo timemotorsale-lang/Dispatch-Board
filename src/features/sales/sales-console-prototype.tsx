@@ -185,6 +185,12 @@ import {
   salesConsoleM14PlaceholderDemotionKeepsWritesDisabled,
   salesConsoleM14PlaceholderDemotionReducesStaffNoise
 } from "./sales-console-m14-placeholder-demotion";
+import {
+  salesConsoleM15RoleFirstNavigation,
+  salesConsoleM15RoleNavigationCoversCoreRoles,
+  salesConsoleM15RoleNavigationRemainsReadOnly,
+  salesConsoleM15RoleNavigationUsesInternalSections
+} from "./sales-console-m15-role-first-navigation";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -462,6 +468,17 @@ export function SalesConsolePrototype() {
         <a href={salesConsoleM12DefaultRoleLandingHeader.sectionHref}>
           Go to default section <ChevronRight size={14} />
         </a>
+      </section>
+
+      <section className={styles.roleFirstNavigation} aria-label="M15 role-first daily navigation">
+        {salesConsoleM15RoleFirstNavigation.items.map((item) => (
+          <article key={item.role}>
+            <strong>{item.staffCue}</strong>
+            <span>{item.role}</span>
+            <small>Start: {item.primarySection} · Next: {item.nextSection}</small>
+            <em>{item.guardrail}</em>
+          </article>
+        ))}
       </section>
 
       <section className={styles.roleStartCardStrip} aria-label="Role start cards">
@@ -1007,6 +1024,9 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM14DealDeskHasOperatingRows() ? "Deal Desk has operating rows" : "Deal Desk depth gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM14InventoryHasReadinessRows() ? "Inventory has readiness rows" : "Inventory depth gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM14DealInventoryRemainReadOnly() ? "Deal and inventory remain read-only" : "Deal/inventory write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15RoleNavigationCoversCoreRoles() ? "M15 role-first navigation covers core roles" : "M15 role navigation gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15RoleNavigationUsesInternalSections() ? "M15 navigation uses internal sections" : "M15 navigation link risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15RoleNavigationRemainsReadOnly() ? "M15 role navigation remains read-only" : "M15 navigation write risk"}</span>
             </div>
           </section>
 
