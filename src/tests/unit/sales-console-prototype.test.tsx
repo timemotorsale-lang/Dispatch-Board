@@ -61,6 +61,7 @@ import { salesConsoleM21ManagerReviewResolutionPlanning } from "@/features/sales
 import { salesConsoleM22PilotProductionHardening } from "@/features/sales/sales-console-m22-pilot-production-hardening";
 import { salesConsoleM23StaffDeploymentReadiness } from "@/features/sales/sales-console-m23-staff-deployment-readiness";
 import { salesConsoleM24OfficialReleaseGate } from "@/features/sales/sales-console-m24-official-release-gate";
+import { salesConsoleM25ResponsiveOperatingViews } from "@/features/sales/sales-console-m25-responsive-operating-views";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
@@ -906,6 +907,24 @@ describe("Sales Console", () => {
     for (const item of salesConsoleM24OfficialReleaseGate.goNoGoCriteria) {
       expect(markup).toContain(item.criterion);
       expect(markup).toContain(item.status);
+    }
+  });
+
+  it("renders M25 responsive operating views for every primary tab", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M25 Responsive Operating Views");
+    expect(markup).toContain("Every primary tab is responsive and usable");
+    expect(markup).toContain("M25 every primary tab operating");
+    expect(markup).toContain("M25 every tab has safe action");
+    expect(markup).toContain("M25 only manager review submit live");
+    expect(markup).toContain("M25 no placeholder-only primary tabs");
+    expect(markup).toContain(salesConsoleM25ResponsiveOperatingViews.operatingPosture);
+    for (const tab of salesConsoleM25ResponsiveOperatingViews.tabs) {
+      expect(markup).toContain(tab.tab);
+      expect(markup).toContain(tab.primaryAction);
+      expect(markup).toContain(tab.safeAction);
+      expect(markup).toContain(tab.blockedAction);
     }
   });
 

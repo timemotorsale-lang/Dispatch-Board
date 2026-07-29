@@ -365,6 +365,13 @@ import {
   salesConsoleM24OfficialReleaseGate,
   salesConsoleM24ReleaseIsConditional
 } from "./sales-console-m24-official-release-gate";
+import {
+  salesConsoleM25EveryPrimaryTabIsOperating,
+  salesConsoleM25EveryTabHasSafeAction,
+  salesConsoleM25NoPlaceholderOnlyPrimaryTabs,
+  salesConsoleM25OnlyManagerReviewSubmitIsLive,
+  salesConsoleM25ResponsiveOperatingViews
+} from "./sales-console-m25-responsive-operating-views";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -671,6 +678,23 @@ export function SalesConsolePrototype() {
             <a href={card.href}>Open start section <ChevronRight size={13} /></a>
           </article>
         ))}
+      </section>
+
+      <section className={styles.operatingTabDock} aria-label="M25 responsive operating tab dock">
+        <div>
+          <span className={styles.eyebrow}>Operating tabs</span>
+          <h2>Every primary tab is responsive and usable</h2>
+          <p>{salesConsoleM25ResponsiveOperatingViews.operatingPosture}</p>
+        </div>
+        <nav aria-label="Sales Console operating views">
+          {salesConsoleM25ResponsiveOperatingViews.tabs.map((tab) => (
+            <a href={tab.href} key={tab.tab}>
+              <strong>{tab.tab}</strong>
+              <span>{tab.primaryAction}</span>
+              <small>{tab.state}</small>
+            </a>
+          ))}
+        </nav>
       </section>
 
       <section className={styles.operatingPolishMap} aria-label="M15 operating section polish">
@@ -1350,6 +1374,10 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM24ReleaseIsConditional() ? "M24 release decision conditional" : "M24 release decision gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM24KeepsOnlyManagerReviewLive() ? "M24 only manager review live" : "M24 live workflow scope risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM24HasRollbackSupportAndMonitoring() ? "M24 rollback support monitoring ready" : "M24 release operations gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM25EveryPrimaryTabIsOperating() ? "M25 every primary tab operating" : "M25 primary tab gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM25EveryTabHasSafeAction() ? "M25 every tab has safe action" : "M25 tab action gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM25OnlyManagerReviewSubmitIsLive() ? "M25 only manager review submit live" : "M25 live submit risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM25NoPlaceholderOnlyPrimaryTabs() ? "M25 no placeholder-only primary tabs" : "M25 placeholder-only tab risk"}</span>
             </div>
           </section>
 
@@ -1634,6 +1662,28 @@ export function SalesConsolePrototype() {
                   <strong>{step}</strong>
                   <span className={styles.statusDanger}>rollback plan</span>
                   <small>Support/monitoring/training are defined for controlled deployment.</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M25 responsive operating views">
+            <div className={styles.railHeader}><h2>M25 Responsive Operating Views</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM25ResponsiveOperatingViews.operatingPosture}</p>
+            <div className={styles.m25ResponsiveOperatingList}>
+              {salesConsoleM25ResponsiveOperatingViews.tabs.map((tab) => (
+                <article key={tab.tab}>
+                  <strong>{tab.tab}</strong>
+                  <span className={styles.statusGood}>{tab.state}</span>
+                  <small>{tab.safeAction} {tab.blockedAction}</small>
+                  <a href={tab.href}>{tab.primaryAction} <ChevronRight size={13} /></a>
+                </article>
+              ))}
+              {salesConsoleM25ResponsiveOperatingViews.universalStates.map((state) => (
+                <article key={state}>
+                  <strong>{state}</strong>
+                  <span className={styles.statusWarning}>handled</span>
+                  <small>Primary operating tabs expose this state through labels, fallback copy, route checks, or Manager Review responses.</small>
                 </article>
               ))}
             </div>
