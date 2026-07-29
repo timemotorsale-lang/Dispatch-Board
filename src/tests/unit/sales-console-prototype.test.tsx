@@ -42,6 +42,7 @@ import { salesConsoleM16AuditGuardrails } from "@/features/sales/sales-console-m
 import { salesConsoleM16ManagerReviewContract } from "@/features/sales/sales-console-m16-manager-review-contract";
 import { salesConsoleM16ManagerReviewDisabledPreview } from "@/features/sales/sales-console-m16-manager-review-disabled-preview";
 import { salesConsoleM16WorkflowSelection } from "@/features/sales/sales-console-m16-workflow-selection";
+import { salesConsoleM17RequestStateModel } from "@/features/sales/sales-console-m17-request-state-model";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
@@ -607,6 +608,19 @@ describe("Sales Console", () => {
     for (const gate of salesConsoleM16ActivationDecisionGate.gates) {
       expect(markup).toContain(gate.gate);
       expect(markup).toContain(gate.evidence);
+    }
+  });
+
+  it("renders M17 request state model", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M17 Request State Model");
+    expect(markup).toContain("M17 request state model defines statuses");
+    expect(markup).toContain("M17 submit blocks without backend");
+    expect(markup).toContain("M17 state model stays internal");
+    expect(markup).toContain(salesConsoleM17RequestStateModel.currentStatus);
+    for (const transition of salesConsoleM17RequestStateModel.allowedTransitions) {
+      expect(markup).toContain(transition.reason);
     }
   });
 

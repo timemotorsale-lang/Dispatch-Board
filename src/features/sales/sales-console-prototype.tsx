@@ -246,6 +246,12 @@ import {
   salesConsoleM16ActivationGateKeepsWorkflowDisabled,
   salesConsoleM16ActivationGateReadyForM17Planning
 } from "./sales-console-m16-activation-decision-gate";
+import {
+  salesConsoleM17RequestStateModel,
+  salesConsoleM17StateModelBlocksSubmitWithoutBackend,
+  salesConsoleM17StateModelDefinesStatuses,
+  salesConsoleM17StateModelKeepsWorkflowInternal
+} from "./sales-console-m17-request-state-model";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1146,6 +1152,24 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM16ActivationGateCoversCoreConcerns() ? "M16 activation gate covers core concerns" : "M16 activation gate coverage gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM16ActivationGateReadyForM17Planning() ? "M16 ready for M17 planning" : "M16 M17 planning risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM16ActivationGateKeepsWorkflowDisabled() ? "M16 keeps workflow disabled" : "M16 live workflow risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17StateModelDefinesStatuses() ? "M17 request state model defines statuses" : "M17 state model gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17StateModelBlocksSubmitWithoutBackend() ? "M17 submit blocks without backend" : "M17 submit safety gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM17StateModelKeepsWorkflowInternal() ? "M17 state model stays internal" : "M17 workflow boundary risk"}</span>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M17 request state model">
+            <div className={styles.railHeader}><h2>M17 Request State Model</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Current Manager Review Request state: {salesConsoleM17RequestStateModel.currentStatus}. Workflow live: {salesConsoleM17RequestStateModel.workflowLive ? "yes" : "no"}.
+            </p>
+            <div className={styles.m17StateModelList}>
+              {salesConsoleM17RequestStateModel.allowedTransitions.map((transition) => (
+                <article key={`${transition.from}-${transition.to}`}>
+                  <strong>{transition.from} → {transition.to}</strong>
+                  <span>{transition.reason}</span>
+                </article>
+              ))}
             </div>
           </section>
 
