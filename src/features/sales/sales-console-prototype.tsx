@@ -385,6 +385,13 @@ import {
   salesConsoleM27SourceStatesAreStaffReadable,
   salesConsoleM27StaffDeploymentUxFinalization
 } from "./sales-console-m27-staff-deployment-ux-finalization";
+import {
+  salesConsoleM28CoversCriticalRegressionAreas,
+  salesConsoleM28DefinesReleaseGoNoGo,
+  salesConsoleM28FlagsProtectedRouteAsEnvironmentSmoke,
+  salesConsoleM28KeepsOnlyManagerReviewSubmitLive,
+  salesConsoleM28ReleaseValidationRegression
+} from "./sales-console-m28-release-validation-regression";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1422,6 +1429,10 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM27EveryRoleHasFirstThirtySecondGuidance() ? "M27 first 30 seconds clear" : "M27 daily guidance gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM27KeepsRiskyWorkflowsBlocked() ? "M27 risky workflows blocked" : "M27 workflow scope risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM27SourceStatesAreStaffReadable() ? "M27 source states readable" : "M27 source-state label gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM28CoversCriticalRegressionAreas() ? "M28 regression areas covered" : "M28 regression coverage gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM28KeepsOnlyManagerReviewSubmitLive() ? "M28 only Manager Review submits" : "M28 submit scope risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM28DefinesReleaseGoNoGo() ? "M28 go/no-go defined" : "M28 release gate gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM28FlagsProtectedRouteAsEnvironmentSmoke() ? "M28 protected route smoke flagged" : "M28 auth smoke gap"}</span>
             </div>
           </section>
 
@@ -1770,6 +1781,27 @@ export function SalesConsolePrototype() {
                   <strong>{workflow}</strong>
                   <span className={styles.statusDanger}>source-system only</span>
                   <small>Not activated in the Sales Console MVP.</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M28 release validation regression pass">
+            <div className={styles.railHeader}><h2>M28 Release Validation & Regression Pass</h2><ClipboardCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>{salesConsoleM28ReleaseValidationRegression.adminSummary}</p>
+            <div className={styles.m26DeploymentPolishList}>
+              {salesConsoleM28ReleaseValidationRegression.checks.map((check) => (
+                <article key={check.area}>
+                  <strong>{check.area}</strong>
+                  <span className={check.releaseRisk === "low" ? styles.statusGood : styles.statusWarning}>{check.status}</span>
+                  <small>{check.evidence}</small>
+                </article>
+              ))}
+              {salesConsoleM28ReleaseValidationRegression.goNoGo.noGo.map((item) => (
+                <article key={item}>
+                  <strong>{item}</strong>
+                  <span className={styles.statusDanger}>no-go</span>
+                  <small>Blocks official internal MVP deployment until corrected.</small>
                 </article>
               ))}
             </div>
