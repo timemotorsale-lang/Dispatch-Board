@@ -58,6 +58,7 @@ import { salesConsoleM19ReleaseGate } from "@/features/sales/sales-console-m19-r
 import { salesConsoleM19ServiceActivation } from "@/features/sales/sales-console-m19-service-activation";
 import { salesConsoleM20ManagerReviewWorkbenchUi } from "@/features/sales/sales-console-m20-manager-review-workbench-ui";
 import { salesConsoleM21ManagerReviewResolutionPlanning } from "@/features/sales/sales-console-m21-manager-review-resolution-planning";
+import { salesConsoleM22PilotProductionHardening } from "@/features/sales/sales-console-m22-pilot-production-hardening";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
 import { salesConsoleEnterpriseIntegrationReadModel } from "@/features/sales/sales-console-m9-crm-dms-integration-contracts";
@@ -860,6 +861,20 @@ describe("Sales Console", () => {
     for (const control of salesConsoleM21ManagerReviewResolutionPlanning.plannedControls) {
       expect(markup).toContain(control.control);
       expect(markup).toContain(control.risk);
+    }
+  });
+
+  it("renders M22 pilot production hardening", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M22 Pilot Production Hardening");
+    expect(markup).toContain("M22 pilot states covered");
+    expect(markup).toContain("M22 health indicators ready");
+    expect(markup).toContain("M22 uses internal pilot language");
+    expect(markup).toContain(salesConsoleM22PilotProductionHardening.deploymentLanguage);
+    for (const indicator of salesConsoleM22PilotProductionHardening.healthIndicators) {
+      expect(markup).toContain(indicator.indicator);
+      expect(markup).toContain(indicator.status);
     }
   });
 

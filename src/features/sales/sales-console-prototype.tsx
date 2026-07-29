@@ -347,6 +347,12 @@ import {
   salesConsoleM21ManagerReviewResolutionPlanning,
   salesConsoleM21ResolutionControlsRemainDisabled
 } from "./sales-console-m21-manager-review-resolution-planning";
+import {
+  salesConsoleM22CoversPilotStates,
+  salesConsoleM22HealthIndicatorsReady,
+  salesConsoleM22PilotProductionHardening,
+  salesConsoleM22UsesInternalPilotLanguage
+} from "./sales-console-m22-pilot-production-hardening";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1323,6 +1329,9 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM21DefinesResolutionStates() ? "M21 resolution states defined" : "M21 resolution state gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM21ResolutionControlsRemainDisabled() ? "M21 resolution controls disabled" : "M21 resolution control risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM21KeepsRiskyApprovalsBlocked() ? "M21 risky approvals remain blocked" : "M21 approval risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM22CoversPilotStates() ? "M22 pilot states covered" : "M22 pilot state gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM22HealthIndicatorsReady() ? "M22 health indicators ready" : "M22 health indicator risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM22UsesInternalPilotLanguage() ? "M22 uses internal pilot language" : "M22 deployment language risk"}</span>
             </div>
           </section>
 
@@ -1533,6 +1542,29 @@ export function SalesConsolePrototype() {
                   <strong>{control.control}</strong>
                   <span className={styles.statusDanger}>disabled/planned</span>
                   <small>{control.risk}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M22 pilot production hardening">
+            <div className={styles.railHeader}><h2>M22 Pilot Production Hardening</h2><ShieldCheck size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Deployment language: {salesConsoleM22PilotProductionHardening.deploymentLanguage}. This is not official public release language.
+            </p>
+            <div className={styles.m22PilotHardeningList}>
+              {salesConsoleM22PilotProductionHardening.firstThirtySecondsGuidance.map((guidance) => (
+                <article key={guidance}>
+                  <strong>{guidance}</strong>
+                  <span className={styles.statusGood}>30-second guidance</span>
+                  <small>Designed for limited staff pilot use.</small>
+                </article>
+              ))}
+              {salesConsoleM22PilotProductionHardening.healthIndicators.map((indicator) => (
+                <article key={indicator.indicator}>
+                  <strong>{indicator.indicator}</strong>
+                  <span className={styles.statusGood}>{indicator.status}</span>
+                  <small>State coverage: {salesConsoleM22PilotProductionHardening.stateCoverage.join(", ")}.</small>
                 </article>
               ))}
             </div>
