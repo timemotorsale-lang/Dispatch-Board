@@ -38,6 +38,7 @@ import { salesConsoleM15OperatingSectionPolish } from "@/features/sales/sales-co
 import { salesConsoleM15RoleFirstNavigation } from "@/features/sales/sales-console-m15-role-first-navigation";
 import { salesConsoleM15StaffReviewReadiness } from "@/features/sales/sales-console-m15-staff-review-readiness";
 import { salesConsoleM16ManagerReviewContract } from "@/features/sales/sales-console-m16-manager-review-contract";
+import { salesConsoleM16ManagerReviewDisabledPreview } from "@/features/sales/sales-console-m16-manager-review-disabled-preview";
 import { salesConsoleM16WorkflowSelection } from "@/features/sales/sales-console-m16-workflow-selection";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
@@ -567,6 +568,17 @@ describe("Sales Console", () => {
       expect(markup).toContain(field.field);
       expect(markup).toContain(field.source);
     }
+  });
+
+  it("renders M16 disabled Manager Review Request preview", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M16 manager review preview is disabled");
+    expect(markup).toContain("M16 manager review shows unavailable states");
+    expect(markup).toContain("M16 manager review preview lives in Deal Desk");
+    expect(markup).toContain(salesConsoleM16ManagerReviewDisabledPreview.ctaLabel);
+    expect(markup).toContain(salesConsoleM16ManagerReviewDisabledPreview.disabledReason);
+    expect(markup).toContain("disabled");
   });
 
   it("renders real auth access mapping with blocked and mapped route states", () => {

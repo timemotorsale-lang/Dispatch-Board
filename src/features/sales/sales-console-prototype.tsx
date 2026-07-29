@@ -228,6 +228,12 @@ import {
   salesConsoleM16ManagerReviewContractHasRequiredFields,
   salesConsoleM16ManagerReviewContractRemainsDisabled
 } from "./sales-console-m16-manager-review-contract";
+import {
+  salesConsoleM16ManagerReviewDisabledPreview,
+  salesConsoleM16ManagerReviewPreviewIsDisabled,
+  salesConsoleM16ManagerReviewPreviewLivesInDealDesk,
+  salesConsoleM16ManagerReviewPreviewShowsUnavailableStates
+} from "./sales-console-m16-manager-review-disabled-preview";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -664,6 +670,14 @@ export function SalesConsolePrototype() {
                     <em>{deal.readOnlyAction}</em>
                   </article>
                 ))}
+              </div>
+              <div className={styles.managerReviewDisabledPreview} aria-label="M16 disabled manager review request preview">
+                <div>
+                  <strong>{salesConsoleM16ManagerReviewDisabledPreview.ctaLabel}</strong>
+                  <span>{salesConsoleM16ManagerReviewDisabledPreview.disabledReason}</span>
+                  <small>{salesConsoleM16ManagerReviewDisabledPreview.sourcePrompt}</small>
+                </div>
+                <button aria-disabled="true" disabled type="button">{salesConsoleM16ManagerReviewDisabledPreview.ctaLabel} <b>disabled</b></button>
               </div>
               <table className={styles.compactTable}>
                 <thead>
@@ -1111,6 +1125,9 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM16ManagerReviewContractHasPermissions() ? "M16 manager review permissions defined" : "M16 manager review permission gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM16ManagerReviewContractHasAuditShape() ? "M16 manager review audit shape defined" : "M16 manager review audit gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM16ManagerReviewContractRemainsDisabled() ? "M16 manager review remains disabled" : "M16 manager review activation risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ManagerReviewPreviewIsDisabled() ? "M16 manager review preview is disabled" : "M16 preview activation risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ManagerReviewPreviewShowsUnavailableStates() ? "M16 manager review shows unavailable states" : "M16 unavailable-state gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM16ManagerReviewPreviewLivesInDealDesk() ? "M16 manager review preview lives in Deal Desk" : "M16 preview placement gap"}</span>
             </div>
           </section>
 
