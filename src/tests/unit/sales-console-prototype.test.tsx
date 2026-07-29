@@ -54,6 +54,7 @@ import { salesConsoleM18ReleaseGate } from "@/features/sales/sales-console-m18-r
 import { salesConsoleM18ServerValidation } from "@/features/sales/sales-console-m18-server-validation";
 import { salesConsoleM19PersistenceContract } from "@/features/sales/sales-console-m19-persistence-contract";
 import { salesConsoleM19RepositoryTransaction } from "@/features/sales/sales-console-m19-repository-transaction";
+import { salesConsoleM19ApiActivation } from "@/features/sales/sales-console-m19-api-activation";
 import { salesConsoleM19ServiceActivation } from "@/features/sales/sales-console-m19-service-activation";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
@@ -797,6 +798,20 @@ describe("Sales Console", () => {
     expect(markup).toContain(salesConsoleM19ServiceActivation.serviceState);
     for (const guardrail of salesConsoleM19ServiceActivation.guardrails) {
       expect(markup).toContain(guardrail);
+    }
+  });
+
+  it("renders M19 API activation", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M19 API Activation");
+    expect(markup).toContain("M19 API returns created");
+    expect(markup).toContain("M19 API returns duplicate");
+    expect(markup).toContain("M19 API blocks idempotency conflict");
+    expect(markup).toContain(salesConsoleM19ApiActivation.guardrail);
+    for (const response of salesConsoleM19ApiActivation.successResponses) {
+      expect(markup).toContain(String(response.status));
+      expect(markup).toContain(response.meaning);
     }
   });
 
