@@ -288,6 +288,12 @@ import {
   salesConsoleM18ServerValidationKeepsSubmitBlocked,
   salesConsoleM18ServerValidationRequiresSourceSnapshot
 } from "./sales-console-m18-server-validation";
+import {
+  salesConsoleM18ApiRouteBlocksLiveWorkflow,
+  salesConsoleM18ApiRouteGuarded,
+  salesConsoleM18ApiRouteKeepsExcludedWorkflowsBlocked,
+  salesConsoleM18ApiRouteRequiresAuthentication
+} from "./sales-console-m18-api-route-guarded";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1222,6 +1228,9 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM18ServerValidationCoversRequiredPayload() ? "M18 server validation covers payload" : "M18 validation payload gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM18ServerValidationRequiresSourceSnapshot() ? "M18 server validation requires source snapshot" : "M18 source snapshot validation gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM18ServerValidationKeepsSubmitBlocked() ? "M18 server validation keeps submit blocked" : "M18 validation submit risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18ApiRouteRequiresAuthentication() ? "M18 guarded route requires auth" : "M18 route auth gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18ApiRouteBlocksLiveWorkflow() ? "M18 guarded route blocks live workflow" : "M18 route live-workflow risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM18ApiRouteKeepsExcludedWorkflowsBlocked() ? "M18 guarded route blocks excluded workflows" : "M18 route excluded-workflow risk"}</span>
             </div>
           </section>
 
@@ -1252,6 +1261,22 @@ export function SalesConsolePrototype() {
                   <strong>{rule.rule}</strong>
                   <span className={styles.statusWarning}>server guard</span>
                   <small>{rule.evidence}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M18 guarded API route">
+            <div className={styles.railHeader}><h2>M18 Guarded API Route</h2><FileCheck2 size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              {salesConsoleM18ApiRouteGuarded.method} {salesConsoleM18ApiRouteGuarded.endpoint} returns {salesConsoleM18ApiRouteGuarded.responseStatus} while workflow live is {salesConsoleM18ApiRouteGuarded.workflowLive ? "yes" : "no"}.
+            </p>
+            <div className={styles.m18ApiRouteList}>
+              {salesConsoleM18ApiRouteGuarded.proof.map((proof) => (
+                <article key={proof}>
+                  <strong>{proof}</strong>
+                  <span className={styles.statusDanger}>{salesConsoleM18ApiRouteGuarded.routeStatus}</span>
+                  <small>Safe backend doorway is present, but persistence remains intentionally inactive.</small>
                 </article>
               ))}
             </div>

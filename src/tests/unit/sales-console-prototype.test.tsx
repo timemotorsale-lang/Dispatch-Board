@@ -47,6 +47,7 @@ import { salesConsoleM17ReleaseGate } from "@/features/sales/sales-console-m17-r
 import { salesConsoleM17RequestFormShell } from "@/features/sales/sales-console-m17-request-form-shell";
 import { salesConsoleM17RequestStateModel } from "@/features/sales/sales-console-m17-request-state-model";
 import { salesConsoleM17ValidationPermissions } from "@/features/sales/sales-console-m17-validation-permissions";
+import { salesConsoleM18ApiRouteGuarded } from "@/features/sales/sales-console-m18-api-route-guarded";
 import { salesConsoleM18BackendContract } from "@/features/sales/sales-console-m18-backend-contract";
 import { salesConsoleM18ServerValidation } from "@/features/sales/sales-console-m18-server-validation";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
@@ -709,6 +710,19 @@ describe("Sales Console", () => {
     for (const rule of salesConsoleM18ServerValidation.validationRules) {
       expect(markup).toContain(rule.rule);
       expect(markup).toContain(rule.evidence);
+    }
+  });
+
+  it("renders M18 guarded API route", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M18 Guarded API Route");
+    expect(markup).toContain("M18 guarded route requires auth");
+    expect(markup).toContain("M18 guarded route blocks live workflow");
+    expect(markup).toContain("M18 guarded route blocks excluded workflows");
+    expect(markup).toContain(salesConsoleM18ApiRouteGuarded.endpoint);
+    for (const proof of salesConsoleM18ApiRouteGuarded.proof) {
+      expect(markup).toContain(proof);
     }
   });
 
