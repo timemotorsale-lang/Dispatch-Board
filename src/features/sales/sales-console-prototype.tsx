@@ -191,6 +191,12 @@ import {
   salesConsoleM15RoleNavigationRemainsReadOnly,
   salesConsoleM15RoleNavigationUsesInternalSections
 } from "./sales-console-m15-role-first-navigation";
+import {
+  salesConsoleM15OperatingPolishCoversDailySections,
+  salesConsoleM15OperatingPolishExplainsStaffUse,
+  salesConsoleM15OperatingPolishRemainsReadOnly,
+  salesConsoleM15OperatingSectionPolish
+} from "./sales-console-m15-operating-section-polish";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -489,6 +495,17 @@ export function SalesConsolePrototype() {
             <small>{card.primaryCheck}</small>
             <em>{card.caution}</em>
             <a href={card.href}>Open start section <ChevronRight size={13} /></a>
+          </article>
+        ))}
+      </section>
+
+      <section className={styles.operatingPolishMap} aria-label="M15 operating section polish">
+        {salesConsoleM15OperatingSectionPolish.items.map((item) => (
+          <article key={item.section}>
+            <strong>{item.section}</strong>
+            <span>{item.dailyUse}</span>
+            <small>Scan: {item.scanTarget}</small>
+            <em>{item.verificationRule}</em>
           </article>
         ))}
       </section>
@@ -1027,6 +1044,9 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM15RoleNavigationCoversCoreRoles() ? "M15 role-first navigation covers core roles" : "M15 role navigation gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM15RoleNavigationUsesInternalSections() ? "M15 navigation uses internal sections" : "M15 navigation link risk"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM15RoleNavigationRemainsReadOnly() ? "M15 role navigation remains read-only" : "M15 navigation write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15OperatingPolishCoversDailySections() ? "M15 operating polish covers daily sections" : "M15 operating section gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15OperatingPolishExplainsStaffUse() ? "M15 operating polish explains staff use" : "M15 staff-use explanation gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15OperatingPolishRemainsReadOnly() ? "M15 operating polish remains read-only" : "M15 operating polish write risk"}</span>
             </div>
           </section>
 

@@ -220,6 +220,55 @@
   text-decoration: none;
 }
 
+.operatingPolishMap {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.operatingPolishMap article {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+}
+
+.operatingPolishMap strong,
+.operatingPolishMap span,
+.operatingPolishMap small,
+.operatingPolishMap em {
+  display: block;
+}
+
+.operatingPolishMap strong {
+  color: var(--ink);
+  font-size: 0.75rem;
+}
+
+.operatingPolishMap span {
+  color: var(--brand-strong);
+  font-size: 0.7rem;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.operatingPolishMap small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.operatingPolishMap em {
+  color: var(--success);
+  font-size: 0.66rem;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
 .roleRail article {
   background: var(--surface);
   border: 1px solid var(--line);

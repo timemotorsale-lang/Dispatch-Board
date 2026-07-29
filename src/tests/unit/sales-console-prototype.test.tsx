@@ -32,6 +32,7 @@ import { salesConsoleM14LeadOperationsDepth } from "@/features/sales/sales-conso
 import { salesConsoleM14OperationalTabAudit } from "@/features/sales/sales-console-m14-operational-tab-audit";
 import { salesConsoleM14PlaceholderDemotion } from "@/features/sales/sales-console-m14-placeholder-demotion";
 import { salesConsoleM14SalespersonTodayDepth } from "@/features/sales/sales-console-m14-salesperson-today-depth";
+import { salesConsoleM15OperatingSectionPolish } from "@/features/sales/sales-console-m15-operating-section-polish";
 import { salesConsoleM15RoleFirstNavigation } from "@/features/sales/sales-console-m15-role-first-navigation";
 import { salesConsoleAuditReadModel } from "@/features/sales/sales-console-m9-audit-trails";
 import { salesConsoleAiNextBestActionReadModel } from "@/features/sales/sales-console-m9-ai-next-best-action";
@@ -478,6 +479,19 @@ describe("Sales Console", () => {
     for (const item of salesConsoleM15RoleFirstNavigation.items) {
       expect(markup).toContain(item.staffCue);
       expect(markup).toContain(item.guardrail);
+    }
+  });
+
+  it("renders M15 operating section polish", () => {
+    const markup = renderToStaticMarkup(<SalesConsolePrototype />);
+
+    expect(markup).toContain("M15 operating polish covers daily sections");
+    expect(markup).toContain("M15 operating polish explains staff use");
+    expect(markup).toContain("M15 operating polish remains read-only");
+    for (const item of salesConsoleM15OperatingSectionPolish.items) {
+      expect(markup).toContain(item.dailyUse);
+      expect(markup).toContain(item.scanTarget);
+      expect(markup).toContain(item.verificationRule);
     }
   });
 
