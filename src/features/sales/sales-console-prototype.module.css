@@ -868,6 +868,57 @@
   font-size: 1.2rem;
 }
 
+.managerCommandBriefList {
+  display: grid;
+  gap: 8px;
+}
+
+.managerCommandBriefList article {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 9px;
+}
+
+.managerCommandBriefList strong,
+.managerCommandBriefList span,
+.managerCommandBriefList small,
+.managerCommandBriefList em {
+  display: block;
+}
+
+.managerCommandBriefList strong {
+  color: var(--ink);
+  font-size: 0.74rem;
+}
+
+.managerCommandBriefList span {
+  color: var(--brand-strong);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.managerCommandBriefList small,
+.managerCommandBriefList em {
+  grid-column: 1 / -1;
+  line-height: 1.35;
+}
+
+.managerCommandBriefList small {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.managerCommandBriefList em {
+  color: var(--warning);
+  font-size: 0.66rem;
+  font-style: normal;
+  font-weight: 900;
+}
+
 .railList,
 .forecastList,
 .opportunityList {

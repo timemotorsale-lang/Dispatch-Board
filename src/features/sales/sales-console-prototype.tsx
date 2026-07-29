@@ -203,6 +203,12 @@ import {
   salesConsoleM15EmptyStatesExplainFallbacks,
   salesConsoleM15EmptyStatesRemainReadOnly
 } from "./sales-console-m15-empty-state-clarity";
+import {
+  salesConsoleM15ManagerCommandExplainsManagerAction,
+  salesConsoleM15ManagerCommandHasDailyPriorities,
+  salesConsoleM15ManagerCommandPolish,
+  salesConsoleM15ManagerCommandRemainsReadOnly
+} from "./sales-console-m15-manager-command-polish";
 import { salesConsoleAuditReadModel, sensitiveActionsHaveAuditCoverage } from "./sales-console-m9-audit-trails";
 import {
   aiActionsRequireFutureAuditAndPermissionCoverage,
@@ -1073,6 +1079,9 @@ export function SalesConsolePrototype() {
               <span><ShieldCheck size={13} /> {salesConsoleM15EmptyStatesCoverOperatingSections() ? "M15 empty states cover operating sections" : "M15 empty state coverage gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM15EmptyStatesExplainFallbacks() ? "M15 fallback labels explain next verification" : "M15 fallback explanation gap"}</span>
               <span><ShieldCheck size={13} /> {salesConsoleM15EmptyStatesRemainReadOnly() ? "M15 empty states remain read-only" : "M15 empty state write risk"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15ManagerCommandHasDailyPriorities() ? "M15 manager command has daily priorities" : "M15 manager command gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15ManagerCommandExplainsManagerAction() ? "M15 manager command explains action" : "M15 manager action gap"}</span>
+              <span><ShieldCheck size={13} /> {salesConsoleM15ManagerCommandRemainsReadOnly() ? "M15 manager command remains read-only" : "M15 manager command write risk"}</span>
             </div>
           </section>
 
@@ -1818,6 +1827,23 @@ export function SalesConsolePrototype() {
             <div className={styles.glanceGrid}>
               {glanceMetrics.map((metric) => (
                 <div key={metric.label}><span>{metric.label}</span><strong>{metric.value}</strong><small>{metric.delta}</small></div>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="M15 manager daily command brief">
+            <div className={styles.railHeader}><h2>M15 Manager Daily Command</h2><Gauge size={18} /></div>
+            <p className={styles.guardrailCopy}>
+              Manager view now highlights today&apos;s read-only priorities before approvals, discounts, holds, or finance actions are considered in source workflows.
+            </p>
+            <div className={styles.managerCommandBriefList}>
+              {salesConsoleM15ManagerCommandPolish.priorities.map((priority) => (
+                <article key={priority.priority}>
+                  <strong>{priority.priority}</strong>
+                  <span>{priority.count}</span>
+                  <small>{priority.managerMeaning}</small>
+                  <em>{priority.readOnlyBoundary}</em>
+                </article>
               ))}
             </div>
           </section>
