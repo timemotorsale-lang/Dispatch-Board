@@ -14,6 +14,7 @@ import {
 } from "./sales-console-cross-console-integration";
 import { buildSalesConsoleSourceBackedTabStates } from "./sales-console-source-backed-ui";
 import { getRevenueLaneContract } from "./sales-console-operational-domain";
+import { salesConsoleMvpRolloutGateItems, salesConsoleMvpRolloutGatePassCount } from "./sales-console-mvp-rollout-gate";
 import { salesConsoleRolloutHardeningChecks, salesConsoleRolloutHardeningPassCount } from "./sales-console-rollout-hardening";
 import {
   salesConsoleDeliveryReadiness,
@@ -448,7 +449,8 @@ export function SalesConsoleEliteOperatingConsole() {
                     <h2>MVP Release Readiness</h2>
                     <p>
                       Admin-only connected MVP gate: {salesConsoleM64ReadyCount()} of {salesConsoleM64ConnectedMvpGate.length} areas
-                      are ready, guarded, or source-controlled; {salesConsoleRolloutHardeningPassCount()} rollout checks pass.
+                      are ready, guarded, or source-controlled; {salesConsoleRolloutHardeningPassCount()} rollout checks pass;
+                      final MVP gate {salesConsoleMvpRolloutGatePassCount()} of {salesConsoleMvpRolloutGateItems.length}.
                     </p>
                   </div>
                   <div className={styles.releaseGrid}>
@@ -485,6 +487,13 @@ export function SalesConsoleEliteOperatingConsole() {
                         <strong>{check.label}</strong>
                         <span>{check.status}</span>
                         <em>{check.evidence}</em>
+                      </article>
+                    ))}
+                    {salesConsoleMvpRolloutGateItems.map((item) => (
+                      <article key={item.id}>
+                        <strong>{item.label}</strong>
+                        <span>{item.passed ? "pass" : "blocked"}</span>
+                        <em>{item.evidence}</em>
                       </article>
                     ))}
                   </div>
