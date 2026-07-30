@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 import { salesConsoleLeadRecords } from "./sales-console-lead-operations";
 import { salesConsoleInventoryAlternatives, salesConsoleInventoryMatches } from "./sales-console-inventory-match";
+import { salesConsoleManagerQueues } from "./sales-console-manager-command";
 import { salesConsoleAppointments, salesConsoleDeliveryReadiness, salesConsoleTasksAndPromises } from "./sales-console-operational-support";
 import { getRevenueLaneContract } from "./sales-console-operational-domain";
 import { searchSalesConsoleRecords, type SalesConsoleSearchResult } from "./sales-console-operational-search";
@@ -263,14 +264,6 @@ const revenueLanes: RevenueLane[] = [
   { name: "Financing Products", stage: "Offer", owner: "Alyssa W.", nextAction: "Present GAP and VSC options", status: "Future / Governed" }
 ];
 
-const managerSignals = [
-  { title: "Review Queue", count: "17", items: ["Deals Awaiting Review 8", "Price Exceptions 5", "Customer Trade Approvals 4"] },
-  { title: "Stalled Revenue", count: "$68,430", items: ["Deals Stalled > 24h 10", "Deals Stalled > 72h 4"] },
-  { title: "SLA Risk", count: "12", items: ["No Response > 30m 6", "Appts. At Risk 4", "Tasks Overdue 2"] },
-  { title: "Approval Backlog", count: "9", items: ["Finance Approvals 5", "LTO Program Approvals 2", "Warranty Authorizations 2"] },
-  { title: "Coaching Opportunities", count: "6", items: ["Low Show Rate 3", "Low Gross Per Unit 2", "Overdue Follow Ups 1"] }
-];
-
 const revenueLaneContractNames: Record<string, Parameters<typeof getRevenueLaneContract>[0]> = {
   "Cash Sale": "Inventory Cash Sale",
   "BHPH": "Inventory BHPH Sale",
@@ -297,6 +290,7 @@ export function SalesConsoleEliteOperatingConsole() {
   const [selectedLane, setSelectedLane] = useState(revenueLanes[0]);
   const [selectedLead, setSelectedLead] = useState(salesConsoleLeadRecords[0]);
   const [selectedInventory, setSelectedInventory] = useState(salesConsoleInventoryMatches[0]);
+  const [selectedManagerQueue, setSelectedManagerQueue] = useState<(typeof salesConsoleManagerQueues)[number]>(salesConsoleManagerQueues[0]);
   const activeWorkspace = workspaceSummaries[activeNav];
   const selectedLaneContract = getRevenueLaneContract(revenueLaneContractNames[selectedLane.name]);
 
@@ -685,22 +679,30 @@ export function SalesConsoleEliteOperatingConsole() {
 
           <aside className={styles.managerRail} aria-label="Manager Command Center">
             <h2>Manager Command Center</h2>
-            {managerSignals.map((signal) => (
-              <article key={signal.title} className={styles.signal}>
+            {salesConsoleManagerQueues.map((signal) => (
+              <button
+                key={signal.title}
+                type="button"
+                className={`${styles.signal} ${selectedManagerQueue.title === signal.title ? styles.selectedSignal : ""}`}
+                onClick={() => {
+                  setSelectedManagerQueue(signal);
+                  setActiveNav("Manager Command");
+                }}
+              >
                 <header>
                   <strong>{signal.title}</strong>
                   <span>{signal.count}</span>
                 </header>
-                {signal.items.map((item) => (
+                {signal.drilldowns.slice(0, 3).map((item) => (
                   <p key={item}>{item}</p>
                 ))}
-              </article>
+              </button>
             ))}
 
             <section className={styles.forecast}>
-              <h3>Forecast Confidence</h3>
-              <strong>72%</strong>
-              <p>Best Case $512K · Commit $436K · Gap $76K</p>
+              <h3>Selected Drilldown</h3>
+              <strong>{selectedManagerQueue.count}</strong>
+              <p>{selectedManagerQueue.drilldowns.join(" · ")}</p>
             </section>
           </aside>
         </div>

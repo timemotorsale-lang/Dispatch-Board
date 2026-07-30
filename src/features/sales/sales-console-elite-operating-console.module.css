@@ -797,6 +797,22 @@ button.vehicleCard:focus-visible,
   background: #fff;
 }
 
+button.signal {
+  width: 100%;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+button.signal:hover,
+button.signal:focus-visible,
+.selectedSignal {
+  border-color: #3157d5 !important;
+  background: #eef4ff !important;
+  outline: none;
+}
+
 .signal header {
   display: flex;
   justify-content: space-between;
