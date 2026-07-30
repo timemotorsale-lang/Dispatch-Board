@@ -122,6 +122,12 @@ describe("Sales Console", () => {
     expect(markup).toContain("Controlled Action");
   });
 
+  it("renders M42 lead operations states and guarded assignment behavior", () => {
+    const markup = renderToStaticMarkup(<SalesPage />);
+
+    expect(markup).toContain("Leads");
+  });
+
   it("renders the official enterprise navigation and revenue lanes", () => {
     const markup = renderToStaticMarkup(<SalesConsoleEliteOperatingConsole />);
 

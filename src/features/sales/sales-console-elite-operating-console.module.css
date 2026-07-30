@@ -390,6 +390,55 @@
   color: #0f172a;
 }
 
+.leadOperations {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.leadGrid {
+  display: grid;
+  gap: 6px;
+}
+
+.leadGrid button,
+.leadDetail {
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px 9px;
+  color: #0f172a;
+}
+
+.leadGrid button {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.leadGrid button:hover,
+.leadGrid button:focus-visible,
+.selectedLead {
+  border-color: #3157d5 !important;
+  background: #eef4ff !important;
+  outline: none;
+}
+
+.leadGrid span,
+.leadDetail span {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.leadDetail {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+
 .filters select,
 .filters button {
   background: #f8fafc;
@@ -656,6 +705,10 @@
   }
 
   .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .leadOperations {
     grid-template-columns: 1fr;
   }
 

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 
+import { salesConsoleLeadRecords } from "./sales-console-lead-operations";
 import { searchSalesConsoleRecords, type SalesConsoleSearchResult } from "./sales-console-operational-search";
 import styles from "./sales-console-elite-operating-console.module.css";
 
@@ -286,6 +287,7 @@ export function SalesConsoleEliteOperatingConsole() {
   const [laneFilter, setLaneFilter] = useState("All Lanes");
   const [selectedCustomer, setSelectedCustomer] = useState(workItems[0]);
   const [selectedLane, setSelectedLane] = useState(revenueLanes[0]);
+  const [selectedLead, setSelectedLead] = useState(salesConsoleLeadRecords[0]);
   const activeWorkspace = workspaceSummaries[activeNav];
 
   const filteredWork = useMemo(() => {
@@ -451,6 +453,31 @@ export function SalesConsoleEliteOperatingConsole() {
                   <button type="button" onClick={() => setQuery("")}>Reset</button>
                 </div>
               </div>
+              {activeNav === "Leads" ? (
+                <section className={styles.leadOperations} aria-label="Lead Operations workspace">
+                  <div className={styles.leadGrid}>
+                    {salesConsoleLeadRecords.map((lead) => (
+                      <button
+                        key={lead.id}
+                        type="button"
+                        className={selectedLead.id === lead.id ? styles.selectedLead : undefined}
+                        onClick={() => setSelectedLead(lead)}
+                      >
+                        <strong>{lead.customer}</strong>
+                        <span>{lead.state} · {lead.source} · SLA {lead.sla}</span>
+                        <span>Owner: {lead.owner} · Channel: {lead.preferredChannel}</span>
+                        <span>{lead.vehicleInterest} · {lead.financingIntent}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <aside className={styles.leadDetail}>
+                    <strong>{selectedLead.id}: {selectedLead.customer}</strong>
+                    <span>Duplicate risk: {selectedLead.duplicateRisk}</span>
+                    <span>Next action: {selectedLead.nextAction}</span>
+                    <span>Assignment: controlled until backend command approval</span>
+                  </aside>
+                </section>
+              ) : null}
               <div className={styles.workspaceContract} aria-label="Active workspace operating contract">
                 <span><strong>{activeRole}</strong> role context</span>
                 <span><strong>{activeWorkspace.primaryMetric}</strong></span>
