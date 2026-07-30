@@ -1,3 +1,5 @@
+import type { SalesConsoleRevenueLaneName } from "./sales-console-operational-domain";
+
 export type SalesInventoryMatchInput = {
   stockNumber: string;
   label: string;
@@ -12,6 +14,12 @@ export type SalesInventoryMatchInput = {
   financeFit: "poor" | "okay" | "strong";
   customerPreference: "unknown" | "acceptable" | "preferred";
   blockerCount: number;
+  bhphEligible?: boolean;
+  leaseToOwnEligible?: boolean;
+  rentalEligible?: boolean;
+  warrantyEligible?: boolean;
+  serviceOpportunity?: boolean;
+  financeProductFit?: "poor" | "okay" | "strong";
 };
 
 export type SalesInventoryMatchResult = {
@@ -19,7 +27,54 @@ export type SalesInventoryMatchResult = {
   score: number;
   sellability: "primary" | "alternative" | "verify-first" | "blocked";
   blockerExplanation: string[];
+  recommendedRevenueLanes: SalesConsoleRevenueLaneName[];
+  laneRoutingExplanation: string[];
 };
+
+function routeInventoryRevenueLanes(vehicle: SalesInventoryMatchInput): Pick<SalesInventoryMatchResult, "recommendedRevenueLanes" | "laneRoutingExplanation"> {
+  const recommendedRevenueLanes: SalesConsoleRevenueLaneName[] = [];
+  const laneRoutingExplanation: string[] = [];
+
+  if (vehicle.availability === "available" && vehicle.readiness === "ready") {
+    recommendedRevenueLanes.push("Inventory Cash Sale");
+    laneRoutingExplanation.push("cash sale eligible because vehicle is available and ready");
+  }
+
+  if (vehicle.bhphEligible && vehicle.financeFit !== "poor") {
+    recommendedRevenueLanes.push("Inventory BHPH Sale");
+    laneRoutingExplanation.push("BHPH signal present with acceptable finance fit");
+  }
+
+  if (vehicle.leaseToOwnEligible && vehicle.financeFit === "strong") {
+    recommendedRevenueLanes.push("Inventory Lease-to-Own");
+    laneRoutingExplanation.push("lease-to-own signal present with strong finance fit");
+  }
+
+  if (vehicle.serviceOpportunity) {
+    recommendedRevenueLanes.push("Public Auto Repair");
+    laneRoutingExplanation.push("service/repair opportunity connected to customer or vehicle need");
+  }
+
+  if (vehicle.rentalEligible && vehicle.availability !== "unavailable") {
+    recommendedRevenueLanes.push("Daily Rental");
+    laneRoutingExplanation.push("rental availability signal present");
+  }
+
+  if (vehicle.warrantyEligible) {
+    recommendedRevenueLanes.push("Warranty Product");
+    laneRoutingExplanation.push("warranty product eligibility signal present");
+  }
+
+  if (vehicle.financeProductFit === "strong" || vehicle.financeFit === "strong") {
+    recommendedRevenueLanes.push("Financing Product");
+    laneRoutingExplanation.push("finance product fit can support finance handoff context");
+  }
+
+  return {
+    recommendedRevenueLanes: [...new Set(recommendedRevenueLanes)],
+    laneRoutingExplanation
+  };
+}
 
 export function scoreSalesInventoryMatch(vehicle: SalesInventoryMatchInput): SalesInventoryMatchResult {
   const explanations: string[] = [];
@@ -60,7 +115,9 @@ export function scoreSalesInventoryMatch(vehicle: SalesInventoryMatchInput): Sal
           ? "primary"
           : "alternative";
 
-  return { stockNumber: vehicle.stockNumber, score, sellability, blockerExplanation: explanations };
+  const laneRouting = routeInventoryRevenueLanes(vehicle);
+
+  return { stockNumber: vehicle.stockNumber, score, sellability, blockerExplanation: explanations, ...laneRouting };
 }
 
 export function recommendSalesInventoryMatches(vehicles: SalesInventoryMatchInput[]) {

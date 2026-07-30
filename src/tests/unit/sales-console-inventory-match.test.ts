@@ -12,6 +12,9 @@ describe("Sales Console M45 inventory match and availability", () => {
     expect(salesConsoleInventoryShowsReadinessAndBlockers()).toBe(true);
     expect(salesConsoleInventoryMatches.some((match) => match.availability === "service-blocked")).toBe(true);
     expect(salesConsoleInventoryMatches.some((match) => match.availability === "pricing review")).toBe(true);
+    expect(salesConsoleInventoryMatches.flatMap((match) => match.revenueLaneSignals)).toEqual(
+      expect.arrayContaining(["Inventory Cash Sale", "Inventory BHPH Sale", "Daily Rental", "Warranty Product"])
+    );
   });
 
   it("provides alternatives while keeping holds governed", () => {

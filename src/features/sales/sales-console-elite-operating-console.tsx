@@ -657,6 +657,8 @@ export function SalesConsoleEliteOperatingConsole() {
                     <p>Availability: {vehicle.availability} · Blocker: {vehicle.blocker}</p>
                     <p>{vehicle.fitReason}</p>
                     <p>Match score {vehicle.matchScore} · Sellability {vehicle.sellability}</p>
+                    <p>Revenue lanes: {vehicle.revenueLaneSignals.join(", ")}</p>
+                    <p>{vehicle.laneRoutingExplanation.join("; ") || vehicle.revenueRoute}</p>
                     <p>{vehicle.blockerExplanation.join("; ") || "No algorithm blocker"}</p>
                     <button type="button" onClick={() => setSelectedInventory(vehicle)}>Select vehicle match</button>
                     <a href={getSalesConsoleVehicle360Href(vehicle.stock)}>Open Vehicle 360 source</a>

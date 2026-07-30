@@ -93,6 +93,7 @@ export type SalesConsoleLiveInventoryMatch = SalesConsoleInventoryMatch & {
   matchScore: number;
   sellability: ReturnType<typeof recommendSalesInventoryMatches>[number]["sellability"];
   blockerExplanation: string[];
+  laneRoutingExplanation: string[];
   sourceVehicleLink: string;
 };
 
@@ -339,7 +340,13 @@ const inventoryAlgorithmInputs: SalesInventoryMatchInput[] = salesConsoleInvento
   grossPotential: Number(vehicle.gross.replace(/[$,]/g, "")) > 2500 ? "high" : "medium",
   financeFit: vehicle.stock === "TMS20022" ? "okay" : "strong",
   customerPreference: vehicle.stock === "TMS22145" ? "preferred" : "acceptable",
-  blockerCount: vehicle.blocker === "Clear" ? 0 : 1
+  blockerCount: vehicle.blocker === "Clear" ? 0 : 1,
+  bhphEligible: vehicle.revenueLaneSignals.includes("Inventory BHPH Sale"),
+  leaseToOwnEligible: vehicle.revenueLaneSignals.includes("Inventory Lease-to-Own"),
+  rentalEligible: vehicle.revenueLaneSignals.includes("Daily Rental"),
+  warrantyEligible: vehicle.revenueLaneSignals.includes("Warranty Product"),
+  serviceOpportunity: vehicle.revenueLaneSignals.includes("Public Auto Repair"),
+  financeProductFit: vehicle.revenueLaneSignals.includes("Financing Product") ? "strong" : "okay"
 }));
 
 const inventoryScores = recommendSalesInventoryMatches(inventoryAlgorithmInputs);
@@ -366,6 +373,8 @@ export const salesConsoleLiveInventoryMatches: SalesConsoleLiveInventoryMatch[] 
     matchScore: score?.score ?? 0,
     sellability,
     blockerExplanation: score?.blockerExplanation ?? [],
+    revenueLaneSignals: score?.recommendedRevenueLanes ?? vehicle.revenueLaneSignals,
+    laneRoutingExplanation: score?.laneRoutingExplanation ?? [],
     sourceVehicleLink: sourceVehicle.sourceVehicleLink
   };
 }).sort((first, second) => second.matchScore - first.matchScore);

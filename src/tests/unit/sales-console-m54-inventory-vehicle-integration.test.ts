@@ -28,6 +28,7 @@ describe("Sales Console M54 inventory vehicle integration", () => {
     expect(vehicle.stockNumber).toBe("TMS22145");
     expect(vehicle.sellability).toBe("sellable");
     expect(vehicle.freshness).toBe("current");
+    expect(vehicle.sourceVehicleLink).toBe("/inventory/VEH-1?returnTo=%2Fsales");
   });
 
   it("explains blockers and keeps holds/reservations disabled", () => {

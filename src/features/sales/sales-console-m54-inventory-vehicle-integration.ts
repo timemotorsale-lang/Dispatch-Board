@@ -1,4 +1,5 @@
 import type { SalesConsoleBlocker, SalesConsoleFreshness } from "./sales-console-operational-domain";
+import { withSalesConsoleReturnTo } from "./sales-console-cross-console-integration";
 
 export type SalesInventorySourceRecord = {
   vehicleId: string;
@@ -61,7 +62,7 @@ export function mapSalesInventoryVehicle(source: SalesInventorySourceRecord, now
     ageLabel: `${source.ageDays} days`,
     pricingSourceLabel: source.pricingPosture,
     blockers: source.blockers,
-    sourceVehicleLink: source.sourceRoute,
+    sourceVehicleLink: withSalesConsoleReturnTo(source.sourceRoute),
     freshness,
     sellability,
     vehicleHoldEnabled: false,
