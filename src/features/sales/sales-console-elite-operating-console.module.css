@@ -422,6 +422,38 @@
   margin-bottom: 8px;
 }
 
+.sourceBackedState {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  padding: 7px 9px;
+  background: #f8fafc;
+}
+
+.sourceBackedState strong {
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  padding: 3px 7px;
+  text-transform: uppercase;
+}
+
+.sourceBackedState span,
+.sourceBackedState a {
+  color: #475569;
+  font-size: 11px;
+}
+
+.sourceBackedState a {
+  color: #1d4ed8;
+  font-weight: 900;
+  text-decoration: none;
+}
+
 .workspaceContract span {
   border: 1px solid #dbe3ef;
   border-radius: 8px;

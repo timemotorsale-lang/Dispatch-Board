@@ -12,6 +12,7 @@ import {
   getSalesConsoleVehicle360Href,
   salesConsoleCrossConsoleNavigationTargets
 } from "./sales-console-cross-console-integration";
+import { buildSalesConsoleSourceBackedTabStates } from "./sales-console-source-backed-ui";
 import { getRevenueLaneContract } from "./sales-console-operational-domain";
 import {
   salesConsoleDeliveryReadiness,
@@ -186,6 +187,8 @@ export function SalesConsoleEliteOperatingConsole() {
   const activeWorkspace = workspaceSummaries[activeNav];
   const selectedLaneContract = getRevenueLaneContract(selectedLane.contractLane);
   const selectedLaneLinks = getSalesConsoleCrossConsoleLinksForLane(selectedLane.contractLane, activeRole);
+  const sourceBackedTabStates = useMemo(() => buildSalesConsoleSourceBackedTabStates(), []);
+  const activeSourceBackedState = sourceBackedTabStates.find((state) => state.tab === activeNav);
 
   const filteredWork = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -485,6 +488,16 @@ export function SalesConsoleEliteOperatingConsole() {
                 <span>{activeWorkspace.allowed}</span>
                 <span>{activeWorkspace.governed}</span>
               </div>
+              {activeSourceBackedState ? (
+                <div className={styles.sourceBackedState} aria-label="Active source-backed state">
+                  <strong>{activeSourceBackedState.status}</strong>
+                  <span>{activeSourceBackedState.recordCount} source-backed record{activeSourceBackedState.recordCount === 1 ? "" : "s"}</span>
+                  <span>{activeSourceBackedState.staffMessage}</span>
+                  {activeSourceBackedState.sourceLinks.slice(0, 3).map((link) => (
+                    <a key={link} href={link}>Open source</a>
+                  ))}
+                </div>
+              ) : null}
 
               <div className={styles.table} role="table" aria-label="Ranked sales work queue">
                 <div className={styles.tableHead} role="row">
