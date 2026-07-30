@@ -49,6 +49,7 @@ import {
   buildSalesBookLedger,
   salesConsoleSampleSalesBookRecords
 } from "./sales-console-m70-sales-book-ledger-view";
+import { salesConsoleSampleReconciliationQueue } from "./sales-console-m71-source-reconciliation-foundation";
 import type { SalesFederatedSearchResult } from "./sales-console-m57-federated-search";
 import styles from "./sales-console-elite-operating-console.module.css";
 
@@ -563,6 +564,13 @@ export function SalesConsoleEliteOperatingConsole() {
                         <strong>{record.customerName}</strong>
                         <span>{record.revenueLane} · ${(record.grossEstimateCents / 100).toLocaleString()}</span>
                         <em>{record.reconciliationStatus} · {record.evidenceIds.length} evidence file{record.evidenceIds.length === 1 ? "" : "s"}</em>
+                      </article>
+                    ))}
+                    {salesConsoleSampleReconciliationQueue.map((record) => (
+                      <article key={record.id}>
+                        <strong>Reconcile {record.completedSaleRecordId}</strong>
+                        <span>{record.status} · {record.sourceOwners.join(", ")}</span>
+                        <em>{record.routingLabel} · source correction writes disabled</em>
                       </article>
                     ))}
                   </div>
