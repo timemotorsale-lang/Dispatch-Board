@@ -416,6 +416,8 @@ export function SalesConsoleEliteOperatingConsole() {
                       <span>{record.lane} · {record.stage} · {record.age}</span>
                       <span>Owner: {record.owner} · Freshness: {record.freshness} · Blocker: {record.blocker}</span>
                       <span>Forecast: {record.forecastBand} · Source: {record.source}</span>
+                      <span>Lead score: {record.leadScore} · Funnel: {record.funnelSignal}</span>
+                      <span>Next-best customer action: {record.nextBestCustomerAction}</span>
                       <button
                         type="button"
                         onClick={() => {
