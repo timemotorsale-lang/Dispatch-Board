@@ -2,44 +2,45 @@
 
 import { useMemo, useState } from "react";
 
-import { salesConsoleLeadRecords } from "./sales-console-lead-operations";
-import { salesConsoleInventoryAlternatives, salesConsoleInventoryMatches } from "./sales-console-inventory-match";
-import { salesConsoleManagerQueues } from "./sales-console-manager-command";
-import { salesConsoleAppointments, salesConsoleDeliveryReadiness, salesConsoleTasksAndPromises } from "./sales-console-operational-support";
 import { salesConsoleMvpAcceptanceChecklist, salesConsoleSourceHealthSummary } from "./sales-console-mvp-release-hardening";
 import { salesConsoleM64ConnectedMvpGate, salesConsoleM64ReadyCount } from "./sales-console-m64-connected-mvp-deployment-gate";
+import {
+  getSalesConsoleAppointmentHref,
+  getSalesConsoleCrossConsoleLinksForLane,
+  getSalesConsoleCustomer360Href,
+  getSalesConsoleTaskHref,
+  getSalesConsoleVehicle360Href,
+  salesConsoleCrossConsoleNavigationTargets
+} from "./sales-console-cross-console-integration";
+import { buildSalesConsoleSourceBackedTabStates } from "./sales-console-source-backed-ui";
 import { getRevenueLaneContract } from "./sales-console-operational-domain";
-import { searchSalesConsoleRecords, type SalesConsoleSearchResult } from "./sales-console-operational-search";
+import { salesConsoleMvpRolloutGateItems, salesConsoleMvpRolloutGatePassCount } from "./sales-console-mvp-rollout-gate";
+import { salesConsoleRolloutHardeningChecks, salesConsoleRolloutHardeningPassCount } from "./sales-console-rollout-hardening";
+import {
+  salesConsoleDeliveryReadiness,
+  salesConsoleInventoryAlternatives,
+  salesConsoleLiveActivityDecision,
+  salesConsoleLiveAppointments,
+  salesConsoleLiveCustomer360,
+  salesConsoleLiveEvidenceRecord,
+  salesConsoleLiveEvidenceValidation,
+  salesConsoleLiveInventoryMatches,
+  salesConsoleLiveLeadRecords,
+  salesConsoleLiveManagerQueues,
+  salesConsoleLiveOutcomeDecision,
+  salesConsoleLiveRevenueLanes,
+  salesConsoleLiveTasksAndPromises,
+  salesConsoleLiveWorkItems,
+  searchSalesConsoleLiveExperience,
+  type SalesConsoleLiveActionState,
+  type SalesConsoleLiveWorkItem
+} from "./sales-console-live-workflow-engine";
 import { salesConsolePipelineRecords } from "./sales-console-pipeline-customer360";
+import type { SalesFederatedSearchResult } from "./sales-console-m57-federated-search";
 import styles from "./sales-console-elite-operating-console.module.css";
 
-type ActionState = "Live Action" | "Controlled Action" | "Source-System Action" | "Future / Governed";
-
-type WorkItem = {
-  rank: number;
-  group: "Must Do Now" | "Today" | "Waiting" | "Watch";
-  customer: string;
-  contact: string;
-  vehicle: string;
-  stock: string;
-  lane: string;
-  stage: string;
-  freshness: string;
-  source: string;
-  blockers: string[];
-  nextAction: string;
-  reason: string;
-  action: string;
-  actionState: ActionState;
-};
-
-type RevenueLane = {
-  name: string;
-  stage: string;
-  owner: string;
-  nextAction: string;
-  status: ActionState;
-};
+type ActionState = SalesConsoleLiveActionState;
+type WorkItem = SalesConsoleLiveWorkItem;
 
 type StaffRole = "Salesperson" | "BDC / Lead Coordinator" | "Sales Manager" | "Admin / Owner";
 
@@ -168,114 +169,6 @@ const workspaceSummaries: Record<string, WorkspaceSummary> = {
   }
 };
 
-const workItems: WorkItem[] = [
-  {
-    rank: 1,
-    group: "Must Do Now",
-    customer: "John Smith",
-    contact: "(555) 123-4567",
-    vehicle: "2022 Toyota RAV4 XLE",
-    stock: "TMS22145",
-    lane: "Cash Sale",
-    stage: "Proposal",
-    freshness: "15m",
-    source: "Website",
-    blockers: ["IDV", "Trade App"],
-    nextAction: "Confirm trade value and present final numbers",
-    reason: "High-intent cash sale, active proposal, vehicle ready, manager attention needed.",
-    action: "Open Revenue Desk",
-    actionState: "Live Action"
-  },
-  {
-    rank: 2,
-    group: "Must Do Now",
-    customer: "Maria Garcia",
-    contact: "(555) 987-6543",
-    vehicle: "2019 Honda CR-V EX",
-    stock: "TMS19087",
-    lane: "Financing Products",
-    stage: "Credit App",
-    freshness: "45m",
-    source: "Phone Up",
-    blockers: ["Credit Bureau"],
-    nextAction: "Complete credit app and add co-applicant",
-    reason: "Financing product has aging credit app and source-system blocker.",
-    action: "Continue App",
-    actionState: "Controlled Action"
-  },
-  {
-    rank: 3,
-    group: "Today",
-    customer: "Alex Johnson",
-    contact: "(555) 246-8101",
-    vehicle: "2021 Ford F-150 XLT",
-    stock: "TMS21022",
-    lane: "Lease-to-Own",
-    stage: "Structure",
-    freshness: "2h",
-    source: "Walk-in",
-    blockers: ["LTO Program"],
-    nextAction: "Review LTO options and terms",
-    reason: "Lease-to-own structure is ready for manager-controlled review.",
-    action: "Present Options",
-    actionState: "Controlled Action"
-  },
-  {
-    rank: 4,
-    group: "Waiting",
-    customer: "Samantha Lee",
-    contact: "(555) 369-8520",
-    vehicle: "2020 Chevy Malibu LT",
-    stock: "TMS20011",
-    lane: "BHPH",
-    stage: "Compliance",
-    freshness: "3h",
-    source: "Referral",
-    blockers: ["Pay Stub"],
-    nextAction: "Collect proof of income",
-    reason: "BHPH compliance is blocked by customer document evidence.",
-    action: "Request Docs",
-    actionState: "Controlled Action"
-  },
-  {
-    rank: 5,
-    group: "Watch",
-    customer: "David Brown",
-    contact: "(555) 741-9630",
-    vehicle: "2018 Nissan Altima S",
-    stock: "TMS18055",
-    lane: "Public Repair",
-    stage: "Estimate",
-    freshness: "4h",
-    source: "Drive-In",
-    blockers: [],
-    nextAction: "Review estimate and approval",
-    reason: "Public repair lane is clear but needs follow-up before estimate ages.",
-    action: "Open Repair Lane",
-    actionState: "Live Action"
-  }
-];
-
-const revenueLanes: RevenueLane[] = [
-  { name: "Cash Sale", stage: "Proposal", owner: "James K.", nextAction: "Confirm trade and final numbers", status: "Live Action" },
-  { name: "BHPH", stage: "Compliance", owner: "Tasha M.", nextAction: "Collect pay stub and verify", status: "Controlled Action" },
-  { name: "Lease-to-Own", stage: "Structure", owner: "Marcus D.", nextAction: "Review terms and payments", status: "Controlled Action" },
-  { name: "Public Repair", stage: "Estimate", owner: "Luis R.", nextAction: "Review estimate with customer", status: "Live Action" },
-  { name: "Daily Rental", stage: "Ready", owner: "Nina P.", nextAction: "Vehicle ready for checkout", status: "Source-System Action" },
-  { name: "Warranty", stage: "Authorization", owner: "Chris S.", nextAction: "Submit additional docs", status: "Controlled Action" },
-  { name: "Financing Products", stage: "Offer", owner: "Alyssa W.", nextAction: "Present GAP and VSC options", status: "Future / Governed" }
-];
-
-const revenueLaneContractNames: Record<string, Parameters<typeof getRevenueLaneContract>[0]> = {
-  "Cash Sale": "Inventory Cash Sale",
-  "BHPH": "Inventory BHPH Sale",
-  "Lease-to-Own": "Inventory Lease-to-Own",
-  "Public Repair": "Public Auto Repair",
-  "Daily Rental": "Daily Rental",
-  "Warranty": "Warranty Product",
-  "Financing Products": "Financing Product"
-};
-
 const actionTone: Record<ActionState, string> = {
   "Live Action": styles.live,
   "Controlled Action": styles.controlled,
@@ -288,17 +181,20 @@ export function SalesConsoleEliteOperatingConsole() {
   const [activeRole, setActiveRole] = useState<StaffRole>("Sales Manager");
   const [query, setQuery] = useState("");
   const [laneFilter, setLaneFilter] = useState("All Lanes");
-  const [selectedCustomer, setSelectedCustomer] = useState(workItems[0]);
-  const [selectedLane, setSelectedLane] = useState(revenueLanes[0]);
-  const [selectedLead, setSelectedLead] = useState(salesConsoleLeadRecords[0]);
-  const [selectedInventory, setSelectedInventory] = useState(salesConsoleInventoryMatches[0]);
-  const [selectedManagerQueue, setSelectedManagerQueue] = useState<(typeof salesConsoleManagerQueues)[number]>(salesConsoleManagerQueues[0]);
+  const [selectedCustomer, setSelectedCustomer] = useState(salesConsoleLiveWorkItems[0]);
+  const [selectedLane, setSelectedLane] = useState(salesConsoleLiveRevenueLanes[0]);
+  const [selectedLead, setSelectedLead] = useState(salesConsoleLiveLeadRecords[0]);
+  const [selectedInventory, setSelectedInventory] = useState(salesConsoleLiveInventoryMatches[0]);
+  const [selectedManagerQueue, setSelectedManagerQueue] = useState<(typeof salesConsoleLiveManagerQueues)[number]>(salesConsoleLiveManagerQueues[0]);
   const activeWorkspace = workspaceSummaries[activeNav];
-  const selectedLaneContract = getRevenueLaneContract(revenueLaneContractNames[selectedLane.name]);
+  const selectedLaneContract = getRevenueLaneContract(selectedLane.contractLane);
+  const selectedLaneLinks = getSalesConsoleCrossConsoleLinksForLane(selectedLane.contractLane, activeRole);
+  const sourceBackedTabStates = useMemo(() => buildSalesConsoleSourceBackedTabStates(), []);
+  const activeSourceBackedState = sourceBackedTabStates.find((state) => state.tab === activeNav);
 
   const filteredWork = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    return workItems.filter((item) => {
+    return salesConsoleLiveWorkItems.filter((item) => {
       const matchesLane = laneFilter === "All Lanes" || item.lane === laneFilter;
       const matchesSearch =
         !normalized ||
@@ -311,7 +207,8 @@ export function SalesConsoleEliteOperatingConsole() {
     });
   }, [laneFilter, query]);
 
-  const searchResults = useMemo(() => searchSalesConsoleRecords(query), [query]);
+  const searchExperience = useMemo(() => searchSalesConsoleLiveExperience(query, activeRole), [activeRole, query]);
+  const searchResults = searchExperience.results;
   const groupedWork = useMemo(() => {
     const groups: WorkItem["group"][] = ["Must Do Now", "Today", "Waiting", "Watch"];
 
@@ -321,10 +218,17 @@ export function SalesConsoleEliteOperatingConsole() {
     }));
   }, [filteredWork]);
 
-  function openSearchResult(result: SalesConsoleSearchResult) {
-    setActiveNav(result.workspace);
-    const matchedWork = workItems.find((item) => item.customer === result.customerName || item.lane === result.lane);
-    const matchedLane = revenueLanes.find((lane) => lane.name === result.lane || result.lane.includes(lane.name));
+  function openSearchResult(result: SalesFederatedSearchResult) {
+    if (result.category === "appointment") setActiveNav("Appointments");
+    else if (result.category === "task-promise") setActiveNav("Tasks & Promises");
+    else if (result.category === "stock-vin") setActiveNav("Inventory Intelligence");
+    else if (result.category === "manager-review") setActiveNav("Manager Command");
+    else if (result.category === "evidence") setActiveNav("Admin / Source Health");
+    else if (result.category === "customer" || result.category === "phone-email") setActiveNav("Customers");
+    else setActiveNav("Revenue Desk");
+
+    const matchedWork = salesConsoleLiveWorkItems.find((item) => result.tokens.some((token) => token.includes(item.customer) || token.includes(item.stock)));
+    const matchedLane = salesConsoleLiveRevenueLanes.find((lane) => result.tokens.some((token) => token.includes(lane.name) || token.includes(lane.contractLane)));
 
     if (matchedWork) setSelectedCustomer(matchedWork);
     if (matchedLane) setSelectedLane(matchedLane);
@@ -402,6 +306,17 @@ export function SalesConsoleEliteOperatingConsole() {
             Source Health 98%
           </button>
         </header>
+        <section className={styles.integrationStrip} aria-label="Dispatch Board source links">
+          {salesConsoleCrossConsoleNavigationTargets
+            .filter((target) => target.visibleToRoles.includes(activeRole))
+            .slice(0, 5)
+            .map((target) => (
+              <a key={target.destination} href={target.href}>
+                {target.label}
+                <span>{target.writeAuthority}</span>
+              </a>
+            ))}
+        </section>
         {query.trim() ? (
           <section className={styles.searchTray} aria-label="Sales Console search results">
             <header>
@@ -412,10 +327,10 @@ export function SalesConsoleEliteOperatingConsole() {
               searchResults.map((result) => (
                 <button key={result.id} type="button" onClick={() => openSearchResult(result)}>
                   <span>
-                    <strong>{result.label}</strong>
+                    <strong>{result.title}</strong>
                     <em>{result.detail}</em>
                   </span>
-                  <small>{result.workspace} · Source: {result.source}</small>
+                  <small>{result.category} · Source: {result.sourceOwner} · Score {result.matchScore}</small>
                 </button>
               ))
             ) : (
@@ -452,7 +367,7 @@ export function SalesConsoleEliteOperatingConsole() {
                 <div className={styles.filters}>
                   <select value={laneFilter} onChange={(event) => setLaneFilter(event.target.value)} aria-label="Lane filter">
                     <option>All Lanes</option>
-                    {revenueLanes.map((lane) => (
+                    {salesConsoleLiveRevenueLanes.map((lane) => (
                       <option key={lane.name}>{lane.name}</option>
                     ))}
                   </select>
@@ -462,7 +377,7 @@ export function SalesConsoleEliteOperatingConsole() {
               {activeNav === "Leads" ? (
                 <section className={styles.leadOperations} aria-label="Lead Operations workspace">
                   <div className={styles.leadGrid}>
-                    {salesConsoleLeadRecords.map((lead) => (
+                    {salesConsoleLiveLeadRecords.map((lead) => (
                       <button
                         key={lead.id}
                         type="button"
@@ -473,43 +388,57 @@ export function SalesConsoleEliteOperatingConsole() {
                         <span>{lead.state} · {lead.source} · SLA {lead.sla}</span>
                         <span>Owner: {lead.owner} · Channel: {lead.preferredChannel}</span>
                         <span>{lead.vehicleInterest} · {lead.financingIntent}</span>
+                        <span>Algorithm: {lead.workflowDecision.slaRisk} SLA · {lead.workflowDecision.routingRecommendation}</span>
                       </button>
                     ))}
                   </div>
                   <aside className={styles.leadDetail}>
                     <strong>{selectedLead.id}: {selectedLead.customer}</strong>
                     <span>Duplicate risk: {selectedLead.duplicateRisk}</span>
+                    <span>Workflow dedupe: {selectedLead.workflowDecision.dedupeRisk}</span>
+                    <span>Routing recommendation: {selectedLead.workflowDecision.routingRecommendation}</span>
                     <span>Next action: {selectedLead.nextAction}</span>
-                    <span>Assignment: controlled until backend command approval</span>
+                    <span>Escalation: {selectedLead.workflowDecision.escalationTriggers.join(", ") || "none"}</span>
+                    <span>Assignment: {selectedLead.workflowDecision.assignmentRecommendation}; controlled until backend command approval</span>
+                    <a href={getSalesConsoleCustomer360Href(selectedLead.customer)}>Open linked Customer 360</a>
+                    <a href="/appointments">Open related appointments</a>
                   </aside>
                 </section>
               ) : null}
               {activeNav === "Pipeline" || activeNav === "Customers" ? (
                 <section className={styles.pipelinePanel} aria-label="Pipeline and Customer 360 workspace">
                   {salesConsolePipelineRecords.map((record) => (
-                    <button
+                    <article
                       key={record.id}
-                      type="button"
-                      onClick={() => {
-                        const matched = workItems.find((item) => item.customer === record.customer);
-                        if (matched) setSelectedCustomer(matched);
-                      }}
                     >
                       <strong>{record.customer}</strong>
                       <span>{record.lane} · {record.stage} · {record.age}</span>
                       <span>Owner: {record.owner} · Freshness: {record.freshness} · Blocker: {record.blocker}</span>
                       <span>Forecast: {record.forecastBand} · Source: {record.source}</span>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const matched = salesConsoleLiveWorkItems.find((item) => item.customer === record.customer);
+                          if (matched) setSelectedCustomer(matched);
+                        }}
+                      >
+                        Select sales context
+                      </button>
+                      <a href={getSalesConsoleCustomer360Href(record.customer)}>Open Customer 360 source</a>
+                    </article>
                   ))}
                 </section>
               ) : null}
               {["Appointments", "Tasks & Promises", "Delivery Readiness"].includes(activeNav) ? (
                 <section className={styles.supportPanel} aria-label={`${activeNav} operating support`}>
-                  {(activeNav === "Appointments" ? salesConsoleAppointments : activeNav === "Tasks & Promises" ? salesConsoleTasksAndPromises : salesConsoleDeliveryReadiness).map((record) => (
+                  {(activeNav === "Appointments" ? salesConsoleLiveAppointments : activeNav === "Tasks & Promises" ? salesConsoleLiveTasksAndPromises : salesConsoleDeliveryReadiness).map((record) => (
                     <article key={"id" in record ? record.id : record.deal}>
-                      <strong>{"customer" in record ? record.customer : record.deal}</strong>
+                      <strong>{"label" in record ? record.label : "title" in record ? record.title : record.deal}</strong>
                       <span>{Object.entries(record).map(([key, value]) => `${key}: ${value}`).join(" · ")}</span>
                       <em>Write behavior: controlled or source-system owned</em>
+                      {"sourceLink" in record ? <a href={getSalesConsoleAppointmentHref(record.id)}>Open appointment source</a> : null}
+                      {"sourceTaskLink" in record ? <a href={getSalesConsoleTaskHref(record.id)}>Open task source</a> : null}
+                      {"deal" in record ? <a href="/sales?workspace=delivery-readiness">Open delivery context</a> : null}
                     </article>
                   ))}
                 </section>
@@ -520,7 +449,8 @@ export function SalesConsoleEliteOperatingConsole() {
                     <h2>MVP Release Readiness</h2>
                     <p>
                       Admin-only connected MVP gate: {salesConsoleM64ReadyCount()} of {salesConsoleM64ConnectedMvpGate.length} areas
-                      are ready, guarded, or source-controlled; source-system writes remain controlled.
+                      are ready, guarded, or source-controlled; {salesConsoleRolloutHardeningPassCount()} rollout checks pass;
+                      final MVP gate {salesConsoleMvpRolloutGatePassCount()} of {salesConsoleMvpRolloutGateItems.length}.
                     </p>
                   </div>
                   <div className={styles.releaseGrid}>
@@ -543,6 +473,29 @@ export function SalesConsoleEliteOperatingConsole() {
                         <em>{source.owner}</em>
                       </article>
                     ))}
+                    {salesConsoleCrossConsoleNavigationTargets.map((target) => (
+                      <article key={target.destination}>
+                        <strong>{target.destination}</strong>
+                        <span>{target.behavior}</span>
+                        <em>
+                          <a href={target.href}>{target.label}</a> · {target.writeAuthority}
+                        </em>
+                      </article>
+                    ))}
+                    {salesConsoleRolloutHardeningChecks.map((check) => (
+                      <article key={check.id}>
+                        <strong>{check.label}</strong>
+                        <span>{check.status}</span>
+                        <em>{check.evidence}</em>
+                      </article>
+                    ))}
+                    {salesConsoleMvpRolloutGateItems.map((item) => (
+                      <article key={item.id}>
+                        <strong>{item.label}</strong>
+                        <span>{item.passed ? "pass" : "blocked"}</span>
+                        <em>{item.evidence}</em>
+                      </article>
+                    ))}
                   </div>
                 </section>
               ) : null}
@@ -552,6 +505,16 @@ export function SalesConsoleEliteOperatingConsole() {
                 <span>{activeWorkspace.allowed}</span>
                 <span>{activeWorkspace.governed}</span>
               </div>
+              {activeSourceBackedState ? (
+                <div className={styles.sourceBackedState} aria-label="Active source-backed state">
+                  <strong>{activeSourceBackedState.status}</strong>
+                  <span>{activeSourceBackedState.recordCount} source-backed record{activeSourceBackedState.recordCount === 1 ? "" : "s"}</span>
+                  <span>{activeSourceBackedState.staffMessage}</span>
+                  {activeSourceBackedState.sourceLinks.slice(0, 3).map((link) => (
+                    <a key={link} href={link}>Open source</a>
+                  ))}
+                </div>
+              ) : null}
 
               <div className={styles.table} role="table" aria-label="Ranked sales work queue">
                 <div className={styles.tableHead} role="row">
@@ -568,25 +531,30 @@ export function SalesConsoleEliteOperatingConsole() {
                   <div key={group} className={styles.workGroup} role="rowgroup" aria-label={`${group} work`}>
                     <div className={styles.workGroupHeader}>{group} · {items.length} item{items.length === 1 ? "" : "s"}</div>
                     {items.length ? items.map((item) => (
-                      <button
+                      <article
                         key={`${item.customer}-${item.stock}`}
-                        type="button"
                         className={`${styles.tableRow} ${selectedCustomer.customer === item.customer ? styles.selectedRow : ""}`}
-                        onClick={() => setSelectedCustomer(item)}
                       >
                         <span>{item.rank}</span>
                         <span>
                           <strong>{item.customer}</strong>
                           <em>{item.vehicle} · Stock #{item.stock}</em>
                           <em>{item.reason}</em>
+                          <em>Algorithm score {item.algorithmScore}: {item.algorithmReasons.join(", ")}</em>
+                          <em>
+                            <a href={getSalesConsoleCustomer360Href(item.customer)}>Customer 360</a> ·{" "}
+                            <a href={getSalesConsoleVehicle360Href(item.stock)}>Vehicle 360</a>
+                          </em>
                         </span>
                         <span className={styles.laneChip}>{item.lane}</span>
                         <span>{item.stage}</span>
                         <span className={styles.freshness}>{item.freshness}</span>
                         <span>{item.blockers.length ? item.blockers.join(", ") : "Clear"}</span>
                         <span>{item.nextAction}</span>
-                        <span className={actionTone[item.actionState]}>{item.action}</span>
-                      </button>
+                        <span>
+                          <button type="button" className={actionTone[item.actionState]} onClick={() => setSelectedCustomer(item)}>{item.action}</button>
+                        </span>
+                      </article>
                     )) : (
                       <p className={styles.emptyGroup}>No {group.toLowerCase()} records match the current search or lane filter.</p>
                     )}
@@ -603,19 +571,19 @@ export function SalesConsoleEliteOperatingConsole() {
                 </div>
               </div>
               <div className={styles.laneGrid}>
-                {revenueLanes.map((lane) => (
-                  <button
+                {salesConsoleLiveRevenueLanes.map((lane) => (
+                  <article
                     key={lane.name}
-                    type="button"
                     className={`${styles.laneCard} ${selectedLane.name === lane.name ? styles.selectedLane : ""}`}
-                    onClick={() => setSelectedLane(lane)}
                   >
                     <strong>{lane.name}</strong>
                     <span>Stage: {lane.stage}</span>
                     <span>Owner: {lane.owner}</span>
-                    <span>Next: {lane.nextAction}</span>
-                    <em className={actionTone[lane.status]}>{lane.status}</em>
-                  </button>
+                    <span>Next: {lane.workflowDecision.nextAction}</span>
+                    <span>Manager review: {lane.workflowDecision.managerReviewRequired ? "required" : "not required"}</span>
+                    <span>Sources: {getSalesConsoleCrossConsoleLinksForLane(lane.contractLane, activeRole).map((link) => link.destination).join(", ")}</span>
+                    <button type="button" className={actionTone[lane.status]} onClick={() => setSelectedLane(lane)}>{lane.status}</button>
+                  </article>
                 ))}
               </div>
               {selectedLaneContract ? (
@@ -623,8 +591,17 @@ export function SalesConsoleEliteOperatingConsole() {
                   <div>
                     <h3>{selectedLaneContract.lane}</h3>
                     <p>{selectedLane.stage} · Owner {selectedLane.owner} · Next: {selectedLane.nextAction}</p>
+                    <p>Workflow engine: {selectedLane.workflowDecision.nextAction}</p>
                   </div>
                   <dl>
+                    <div>
+                      <dt>Dispatch Board links</dt>
+                      <dd>
+                        {selectedLaneLinks.map((link) => (
+                          <a key={link.destination} href={link.href}>{link.label}</a>
+                        ))}
+                      </dd>
+                    </div>
                     <div>
                       <dt>Required fields</dt>
                       <dd>{selectedLaneContract.requiredFields.join(", ")}</dd>
@@ -636,6 +613,14 @@ export function SalesConsoleEliteOperatingConsole() {
                     <div>
                       <dt>Allowed MVP actions</dt>
                       <dd>{selectedLaneContract.allowedMvpActions.join(", ")}</dd>
+                    </div>
+                    <div>
+                      <dt>Workflow decision</dt>
+                      <dd>
+                        Missing: {selectedLane.workflowDecision.missingFields.join(", ") || "none"} ·
+                        Review: {selectedLane.workflowDecision.managerReviewRequired ? "required" : "not required"} ·
+                        Advance inside console: {selectedLane.workflowDecision.canAdvanceInsideSalesConsole ? "yes" : "no"}
+                      </dd>
                     </div>
                     <div>
                       <dt>Governed actions</dt>
@@ -654,12 +639,10 @@ export function SalesConsoleEliteOperatingConsole() {
                 </div>
               </div>
               <div className={styles.inventoryGrid}>
-                {salesConsoleInventoryMatches.map((vehicle) => (
-                  <button
+                {salesConsoleLiveInventoryMatches.map((vehicle) => (
+                  <article
                     key={vehicle.stock}
-                    type="button"
                     className={`${styles.vehicleCard} ${selectedInventory.stock === vehicle.stock ? styles.selectedInventory : ""}`}
-                    onClick={() => setSelectedInventory(vehicle)}
                   >
                     <div className={styles.vehicleImage}>Vehicle</div>
                     <strong>{vehicle.vehicle}</strong>
@@ -668,7 +651,11 @@ export function SalesConsoleEliteOperatingConsole() {
                     <p>Age: {vehicle.age} · Retail {vehicle.retail} · Gross {vehicle.gross}</p>
                     <p>Availability: {vehicle.availability} · Blocker: {vehicle.blocker}</p>
                     <p>{vehicle.fitReason}</p>
-                  </button>
+                    <p>Match score {vehicle.matchScore} · Sellability {vehicle.sellability}</p>
+                    <p>{vehicle.blockerExplanation.join("; ") || "No algorithm blocker"}</p>
+                    <button type="button" onClick={() => setSelectedInventory(vehicle)}>Select vehicle match</button>
+                    <a href={getSalesConsoleVehicle360Href(vehicle.stock)}>Open Vehicle 360 source</a>
+                  </article>
                 ))}
               </div>
               <div className={styles.alternatives} aria-label="Alternative inventory recommendations">
@@ -684,18 +671,20 @@ export function SalesConsoleEliteOperatingConsole() {
               <div>
                 <h2>Customer 360</h2>
                 <strong>{selectedCustomer.customer}</strong>
-                <p>{selectedCustomer.contact} · Active · Consent: Text opt-in, Email opt-in, Calls opt-in</p>
+                <p>{selectedCustomer.contact} · {salesConsoleLiveCustomer360.consentLabel} · Source: {salesConsoleLiveCustomer360.sourceLink}</p>
               </div>
               <div className={styles.customerCards}>
                 <article>
                   <strong>Active Opportunity</strong>
                   <span>{selectedCustomer.vehicle}</span>
                   <em>{selectedCustomer.lane} · {selectedCustomer.stage}</em>
+                  <a href={getSalesConsoleVehicle360Href(selectedCustomer.stock)}>Open Vehicle 360</a>
                 </article>
                 <article>
                   <strong>Selected Revenue Lane</strong>
                   <span>{selectedLane.name}</span>
                   <em>{selectedLane.status}</em>
+                  <a href={getSalesConsoleCrossConsoleLinksForLane(selectedLane.contractLane, activeRole)[0]?.href ?? "/sales"}>Open primary source</a>
                 </article>
                 <article>
                   <strong>Next Promise</strong>
@@ -704,8 +693,24 @@ export function SalesConsoleEliteOperatingConsole() {
                 </article>
                 <article>
                   <strong>Documents</strong>
-                  <span>Buyer order, trade appraisal, credit app</span>
-                  <em>Source labeled</em>
+                  <span>{salesConsoleLiveCustomer360.documentsAndPromises.join(", ")}</span>
+                  <em>Source labeled · Freshness {salesConsoleLiveCustomer360.freshness}</em>
+                  <a href={getSalesConsoleCustomer360Href(selectedCustomer.customer)}>Open Customer 360</a>
+                </article>
+                <article>
+                  <strong>Activity Workflow</strong>
+                  <span>{salesConsoleLiveActivityDecision.commandName ?? "blocked"}</span>
+                  <em>{salesConsoleLiveActivityDecision.allowed ? "Audit-ready internal record" : salesConsoleLiveActivityDecision.reasons.join(", ")}</em>
+                </article>
+                <article>
+                  <strong>Evidence Intake</strong>
+                  <span>{salesConsoleLiveEvidenceRecord?.fileName ?? "No evidence record"}</span>
+                  <em>{salesConsoleLiveEvidenceValidation.allowed ? "Guarded upload ready" : salesConsoleLiveEvidenceValidation.reasons.join(", ")}</em>
+                </article>
+                <article>
+                  <strong>Outcome Recording</strong>
+                  <span>{salesConsoleLiveOutcomeDecision.terminal ? "Terminal outcome" : "Next-action outcome"}</span>
+                  <em>{salesConsoleLiveOutcomeDecision.allowed ? "Controlled Sales Console record" : salesConsoleLiveOutcomeDecision.reasons.join(", ")}</em>
                 </article>
               </div>
             </section>
@@ -713,15 +718,10 @@ export function SalesConsoleEliteOperatingConsole() {
 
           <aside className={styles.managerRail} aria-label="Manager Command Center">
             <h2>Manager Command Center</h2>
-            {salesConsoleManagerQueues.map((signal) => (
-              <button
+            {salesConsoleLiveManagerQueues.map((signal) => (
+              <article
                 key={signal.title}
-                type="button"
                 className={`${styles.signal} ${selectedManagerQueue.title === signal.title ? styles.selectedSignal : ""}`}
-                onClick={() => {
-                  setSelectedManagerQueue(signal);
-                  setActiveNav("Manager Command");
-                }}
               >
                 <header>
                   <strong>{signal.title}</strong>
@@ -730,7 +730,18 @@ export function SalesConsoleEliteOperatingConsole() {
                 {signal.drilldowns.slice(0, 3).map((item) => (
                   <p key={item}>{item}</p>
                 ))}
-              </button>
+                <em>{signal.algorithmSource}</em>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedManagerQueue(signal);
+                    setActiveNav("Manager Command");
+                  }}
+                >
+                  Open manager queue
+                </button>
+                <a href="/sales?workspace=manager-command">Open manager source context</a>
+              </article>
             ))}
 
             <section className={styles.forecast}>
