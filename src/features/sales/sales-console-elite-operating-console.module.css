@@ -422,6 +422,26 @@
   letter-spacing: 0.04em;
 }
 
+.workGroupHeader {
+  border-top: 1px solid #dbe3ef;
+  background: #eef4ff;
+  color: #1d4ed8;
+  padding: 6px 9px;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.emptyGroup {
+  margin: 0;
+  border-top: 1px solid #e2e8f0;
+  padding: 8px 9px;
+  color: #64748b;
+  background: #fff;
+  font-size: 12px;
+}
+
 .tableRow {
   width: 100%;
   border: 0;

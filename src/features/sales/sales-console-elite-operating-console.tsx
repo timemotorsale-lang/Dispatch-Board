@@ -9,6 +9,7 @@ type ActionState = "Live Action" | "Controlled Action" | "Source-System Action" 
 
 type WorkItem = {
   rank: number;
+  group: "Must Do Now" | "Today" | "Waiting" | "Watch";
   customer: string;
   contact: string;
   vehicle: string;
@@ -19,6 +20,7 @@ type WorkItem = {
   source: string;
   blockers: string[];
   nextAction: string;
+  reason: string;
   action: string;
   actionState: ActionState;
 };
@@ -161,6 +163,7 @@ const workspaceSummaries: Record<string, WorkspaceSummary> = {
 const workItems: WorkItem[] = [
   {
     rank: 1,
+    group: "Must Do Now",
     customer: "John Smith",
     contact: "(555) 123-4567",
     vehicle: "2022 Toyota RAV4 XLE",
@@ -171,11 +174,13 @@ const workItems: WorkItem[] = [
     source: "Website",
     blockers: ["IDV", "Trade App"],
     nextAction: "Confirm trade value and present final numbers",
+    reason: "High-intent cash sale, active proposal, vehicle ready, manager attention needed.",
     action: "Open Revenue Desk",
     actionState: "Live Action"
   },
   {
     rank: 2,
+    group: "Must Do Now",
     customer: "Maria Garcia",
     contact: "(555) 987-6543",
     vehicle: "2019 Honda CR-V EX",
@@ -186,11 +191,13 @@ const workItems: WorkItem[] = [
     source: "Phone Up",
     blockers: ["Credit Bureau"],
     nextAction: "Complete credit app and add co-applicant",
+    reason: "Financing product has aging credit app and source-system blocker.",
     action: "Continue App",
     actionState: "Controlled Action"
   },
   {
     rank: 3,
+    group: "Today",
     customer: "Alex Johnson",
     contact: "(555) 246-8101",
     vehicle: "2021 Ford F-150 XLT",
@@ -201,11 +208,13 @@ const workItems: WorkItem[] = [
     source: "Walk-in",
     blockers: ["LTO Program"],
     nextAction: "Review LTO options and terms",
+    reason: "Lease-to-own structure is ready for manager-controlled review.",
     action: "Present Options",
     actionState: "Controlled Action"
   },
   {
     rank: 4,
+    group: "Waiting",
     customer: "Samantha Lee",
     contact: "(555) 369-8520",
     vehicle: "2020 Chevy Malibu LT",
@@ -216,11 +225,13 @@ const workItems: WorkItem[] = [
     source: "Referral",
     blockers: ["Pay Stub"],
     nextAction: "Collect proof of income",
+    reason: "BHPH compliance is blocked by customer document evidence.",
     action: "Request Docs",
     actionState: "Controlled Action"
   },
   {
     rank: 5,
+    group: "Watch",
     customer: "David Brown",
     contact: "(555) 741-9630",
     vehicle: "2018 Nissan Altima S",
@@ -231,6 +242,7 @@ const workItems: WorkItem[] = [
     source: "Drive-In",
     blockers: [],
     nextAction: "Review estimate and approval",
+    reason: "Public repair lane is clear but needs follow-up before estimate ages.",
     action: "Open Repair Lane",
     actionState: "Live Action"
   }
@@ -292,6 +304,14 @@ export function SalesConsoleEliteOperatingConsole() {
   }, [laneFilter, query]);
 
   const searchResults = useMemo(() => searchSalesConsoleRecords(query), [query]);
+  const groupedWork = useMemo(() => {
+    const groups: WorkItem["group"][] = ["Must Do Now", "Today", "Waiting", "Watch"];
+
+    return groups.map((group) => ({
+      group,
+      items: filteredWork.filter((item) => item.group === group)
+    }));
+  }, [filteredWork]);
 
   function openSearchResult(result: SalesConsoleSearchResult) {
     setActiveNav(result.workspace);
@@ -449,25 +469,33 @@ export function SalesConsoleEliteOperatingConsole() {
                   <span>Next Best Action</span>
                   <span>Action</span>
                 </div>
-                {filteredWork.map((item) => (
-                  <button
-                    key={`${item.customer}-${item.stock}`}
-                    type="button"
-                    className={`${styles.tableRow} ${selectedCustomer.customer === item.customer ? styles.selectedRow : ""}`}
-                    onClick={() => setSelectedCustomer(item)}
-                  >
-                    <span>{item.rank}</span>
-                    <span>
-                      <strong>{item.customer}</strong>
-                      <em>{item.vehicle} · Stock #{item.stock}</em>
-                    </span>
-                    <span className={styles.laneChip}>{item.lane}</span>
-                    <span>{item.stage}</span>
-                    <span className={styles.freshness}>{item.freshness}</span>
-                    <span>{item.blockers.length ? item.blockers.join(", ") : "Clear"}</span>
-                    <span>{item.nextAction}</span>
-                    <span className={actionTone[item.actionState]}>{item.action}</span>
-                  </button>
+                {groupedWork.map(({ group, items }) => (
+                  <div key={group} className={styles.workGroup} role="rowgroup" aria-label={`${group} work`}>
+                    <div className={styles.workGroupHeader}>{group} · {items.length} item{items.length === 1 ? "" : "s"}</div>
+                    {items.length ? items.map((item) => (
+                      <button
+                        key={`${item.customer}-${item.stock}`}
+                        type="button"
+                        className={`${styles.tableRow} ${selectedCustomer.customer === item.customer ? styles.selectedRow : ""}`}
+                        onClick={() => setSelectedCustomer(item)}
+                      >
+                        <span>{item.rank}</span>
+                        <span>
+                          <strong>{item.customer}</strong>
+                          <em>{item.vehicle} · Stock #{item.stock}</em>
+                          <em>{item.reason}</em>
+                        </span>
+                        <span className={styles.laneChip}>{item.lane}</span>
+                        <span>{item.stage}</span>
+                        <span className={styles.freshness}>{item.freshness}</span>
+                        <span>{item.blockers.length ? item.blockers.join(", ") : "Clear"}</span>
+                        <span>{item.nextAction}</span>
+                        <span className={actionTone[item.actionState]}>{item.action}</span>
+                      </button>
+                    )) : (
+                      <p className={styles.emptyGroup}>No {group.toLowerCase()} records match the current search or lane filter.</p>
+                    )}
+                  </div>
                 ))}
               </div>
             </section>

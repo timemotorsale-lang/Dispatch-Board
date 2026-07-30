@@ -109,6 +109,19 @@ describe("Sales Console", () => {
     expect(markup).not.toContain("Prototype");
   });
 
+  it("renders M41 salesperson today as grouped operating work", () => {
+    const markup = renderToStaticMarkup(<SalesPage />);
+
+    expect(markup).toContain("Must Do Now");
+    expect(markup).toContain("Today");
+    expect(markup).toContain("Waiting");
+    expect(markup).toContain("Watch");
+    expect(markup).toContain("High-intent cash sale");
+    expect(markup).toContain("BHPH compliance is blocked");
+    expect(markup).toContain("Open Revenue Desk");
+    expect(markup).toContain("Controlled Action");
+  });
+
   it("renders the official enterprise navigation and revenue lanes", () => {
     const markup = renderToStaticMarkup(<SalesConsoleEliteOperatingConsole />);
 
