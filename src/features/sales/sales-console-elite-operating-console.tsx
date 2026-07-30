@@ -41,6 +41,10 @@ import {
   buildSalesRecordWorkflowState,
   salesConsoleSampleRecordSaleDraft
 } from "./sales-console-m68-record-sale-ui-workflow";
+import {
+  buildPostSaleExecutionWorkflow,
+  salesConsoleSampleCompletedSaleRecord
+} from "./sales-console-m69-post-sale-execution-workflow";
 import type { SalesFederatedSearchResult } from "./sales-console-m57-federated-search";
 import styles from "./sales-console-elite-operating-console.module.css";
 
@@ -206,6 +210,17 @@ export function SalesConsoleEliteOperatingConsole() {
       sourceRecordLinks: [getSalesConsoleCustomer360Href(selectedCustomer.customer), getSalesConsoleVehicle360Href(selectedCustomer.stock)]
     }, activeRole),
     [activeRole, selectedCustomer, selectedLane]
+  );
+  const postSaleExecutionWorkflow = useMemo(
+    () => buildPostSaleExecutionWorkflow({
+      ...salesConsoleSampleCompletedSaleRecord,
+      customerName: selectedCustomer.customer,
+      revenueLane: selectedLane.contractLane,
+      productLabel: selectedCustomer.vehicle,
+      vehicleStockNumber: selectedCustomer.stock,
+      sourceRecordLinks: [getSalesConsoleCustomer360Href(selectedCustomer.customer), getSalesConsoleVehicle360Href(selectedCustomer.stock)]
+    }),
+    [selectedCustomer, selectedLane]
   );
 
   const filteredWork = useMemo(() => {
@@ -744,6 +759,14 @@ export function SalesConsoleEliteOperatingConsole() {
                     Missing: {recordSaleWorkflowState.missingLabels.join(", ") || "none"} ·
                     Source verify: {recordSaleWorkflowState.sourceVerificationRequired ? "required" : "ready"} ·
                     Manager review: {recordSaleWorkflowState.managerReviewRequired ? "required" : "not required"}
+                  </small>
+                </article>
+                <article>
+                  <strong>After Sale Execution</strong>
+                  <span>{postSaleExecutionWorkflow.nextBestStep}</span>
+                  <em>{postSaleExecutionWorkflow.steps.length} lane-aware steps · source systems stay owners</em>
+                  <small>
+                    {postSaleExecutionWorkflow.steps.slice(0, 3).map((step) => `${step.label} (${step.status})`).join(" · ")}
                   </small>
                 </article>
               </div>
