@@ -279,7 +279,7 @@ export const salesConsoleLiveWorkItems: SalesConsoleLiveWorkItem[] = rankSalesWo
     source: source.source,
     blockers: source.blockers,
     nextAction: ranking.nextBestAction,
-    reason: `${source.businessReason} Algorithm: ${ranking.rankingReasons.join("; ")}`,
+    reason: source.businessReason,
     action: source.action,
     actionState: source.actionState,
     algorithmScore: ranking.score,
