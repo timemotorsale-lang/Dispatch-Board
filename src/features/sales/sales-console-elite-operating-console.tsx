@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 
 import { salesConsoleMvpAcceptanceChecklist, salesConsoleSourceHealthSummary } from "./sales-console-mvp-release-hardening";
 import { salesConsoleM64ConnectedMvpGate, salesConsoleM64ReadyCount } from "./sales-console-m64-connected-mvp-deployment-gate";
@@ -200,6 +200,8 @@ export function SalesConsoleEliteOperatingConsole() {
   const [selectedLead, setSelectedLead] = useState(salesConsoleLiveLeadRecords[0]);
   const [selectedInventory, setSelectedInventory] = useState(salesConsoleLiveInventoryMatches[0]);
   const [selectedManagerQueue, setSelectedManagerQueue] = useState<(typeof salesConsoleLiveManagerQueues)[number]>(salesConsoleLiveManagerQueues[0]);
+  const [recordSaleStatus, setRecordSaleStatus] = useState<string | null>(null);
+  const [isRecordSalePending, startRecordSaleTransition] = useTransition();
   const activeWorkspace = workspaceSummaries[activeNav];
   const selectedLaneContract = getRevenueLaneContract(selectedLane.contractLane);
   const selectedLaneLinks = getSalesConsoleCrossConsoleLinksForLane(selectedLane.contractLane, activeRole);
@@ -212,6 +214,8 @@ export function SalesConsoleEliteOperatingConsole() {
       revenueLane: selectedLane.contractLane,
       productLabel: selectedCustomer.vehicle,
       vehicleStockNumber: selectedCustomer.stock,
+      satisfied: [...salesConsoleSampleRecordSaleDraft.satisfied, "evidence-attached"],
+      evidenceIds: salesConsoleLiveEvidenceRecord ? [salesConsoleLiveEvidenceRecord.id] : [],
       sourceRecordLinks: [getSalesConsoleCustomer360Href(selectedCustomer.customer), getSalesConsoleVehicle360Href(selectedCustomer.stock)]
     }, activeRole),
     [activeRole, selectedCustomer, selectedLane]
@@ -272,6 +276,42 @@ export function SalesConsoleEliteOperatingConsole() {
 
     if (matchedWork) setSelectedCustomer(matchedWork);
     if (matchedLane) setSelectedLane(matchedLane);
+  }
+
+  function submitSelectedSaleRecord() {
+    setRecordSaleStatus(null);
+    startRecordSaleTransition(async () => {
+      const response = await fetch("/api/sales/completed-sale-records", {
+        body: JSON.stringify({
+          ...salesConsoleSampleRecordSaleDraft,
+          customerId: `CUSTOMER-${selectedCustomer.customer.replaceAll(" ", "-").toUpperCase()}`,
+          customerName: selectedCustomer.customer,
+          evidenceIds: salesConsoleLiveEvidenceRecord ? [salesConsoleLiveEvidenceRecord.id] : [],
+          grossEstimateCents: 285000,
+          idempotencyKey: `sales-record-${selectedCustomer.stock}-${selectedLane.contractLane}`,
+          managerId: "MGR-1",
+          productLabel: selectedCustomer.vehicle,
+          reason: `Record completed sale packet for ${selectedCustomer.customer}.`,
+          revenueLane: selectedLane.contractLane,
+          revenueOpportunityId: `REV-${selectedCustomer.stock}`,
+          saleDate: new Date().toISOString().slice(0, 10),
+          salesOpportunityId: `SO-${selectedCustomer.stock}`,
+          salespersonId: "USER-1",
+          satisfied: [...salesConsoleSampleRecordSaleDraft.satisfied, "evidence-attached"],
+          sourceRecordLinks: [getSalesConsoleCustomer360Href(selectedCustomer.customer), getSalesConsoleVehicle360Href(selectedCustomer.stock)],
+          vehicleStockNumber: selectedCustomer.stock
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST"
+      });
+      const result = await response.json().catch(() => null) as { error?: string; saleRecord?: { id: string }; status?: string } | null;
+      if (!response.ok || !result?.saleRecord) {
+        setRecordSaleStatus(result?.error ?? "Unable to initiate the internal sale record.");
+        return;
+      }
+
+      setRecordSaleStatus(`${result.status === "duplicate" ? "Already recorded" : "Recorded"} internally as ${result.saleRecord.id}. Source systems were not changed.`);
+    });
   }
 
   return (
@@ -804,6 +844,15 @@ export function SalesConsoleEliteOperatingConsole() {
                     Source verify: {recordSaleWorkflowState.sourceVerificationRequired ? "required" : "ready"} ·
                     Manager review: {recordSaleWorkflowState.managerReviewRequired ? "required" : "not required"}
                   </small>
+                  <button
+                    type="button"
+                    className={actionTone[recordSaleWorkflowState.submitEnabled ? "Controlled Action" : "Future / Governed"]}
+                    disabled={!recordSaleWorkflowState.submitEnabled || isRecordSalePending}
+                    onClick={submitSelectedSaleRecord}
+                  >
+                    {isRecordSalePending ? "Recording..." : "Initiate internal sale record"}
+                  </button>
+                  {recordSaleStatus ? <small>{recordSaleStatus}</small> : null}
                 </article>
                 <article>
                   <strong>After Sale Execution</strong>
