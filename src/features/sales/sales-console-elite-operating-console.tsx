@@ -6,6 +6,7 @@ import { salesConsoleLeadRecords } from "./sales-console-lead-operations";
 import { salesConsoleInventoryAlternatives, salesConsoleInventoryMatches } from "./sales-console-inventory-match";
 import { salesConsoleManagerQueues } from "./sales-console-manager-command";
 import { salesConsoleAppointments, salesConsoleDeliveryReadiness, salesConsoleTasksAndPromises } from "./sales-console-operational-support";
+import { salesConsoleMvpAcceptanceChecklist, salesConsoleSourceHealthSummary } from "./sales-console-mvp-release-hardening";
 import { getRevenueLaneContract } from "./sales-console-operational-domain";
 import { searchSalesConsoleRecords, type SalesConsoleSearchResult } from "./sales-console-operational-search";
 import { salesConsolePipelineRecords } from "./sales-console-pipeline-customer360";
@@ -510,6 +511,28 @@ export function SalesConsoleEliteOperatingConsole() {
                       <em>Write behavior: controlled or source-system owned</em>
                     </article>
                   ))}
+                </section>
+              ) : null}
+              {activeNav === "Admin / Source Health" ? (
+                <section className={styles.releasePanel} aria-label="MVP release readiness">
+                  <div>
+                    <h2>MVP Release Readiness</h2>
+                    <p>Admin-only gate for controlled internal Sales Console deployment.</p>
+                  </div>
+                  <div className={styles.releaseGrid}>
+                    {salesConsoleMvpAcceptanceChecklist.map((item) => (
+                      <span key={item}>✓ {item}</span>
+                    ))}
+                  </div>
+                  <div className={styles.sourceGrid}>
+                    {salesConsoleSourceHealthSummary.map((source) => (
+                      <article key={source.source}>
+                        <strong>{source.source}</strong>
+                        <span>{source.status}</span>
+                        <em>{source.owner}</em>
+                      </article>
+                    ))}
+                  </div>
                 </section>
               ) : null}
               <div className={styles.workspaceContract} aria-label="Active workspace operating contract">

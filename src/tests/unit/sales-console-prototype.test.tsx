@@ -169,6 +169,7 @@ describe("Sales Console", () => {
     expect(markup).toContain("Selected Revenue Desk lane detail");
     expect(markup).toContain("Required fields");
     expect(markup).toContain("Governed actions");
+    expect(markup).toContain("Admin / Source Health");
   });
 
   it("renders the first sales console slice with the required operating surfaces", () => {
