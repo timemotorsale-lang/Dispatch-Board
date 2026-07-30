@@ -14,6 +14,7 @@ import {
 } from "./sales-console-cross-console-integration";
 import { buildSalesConsoleSourceBackedTabStates } from "./sales-console-source-backed-ui";
 import { getRevenueLaneContract } from "./sales-console-operational-domain";
+import { salesConsoleRolloutHardeningChecks, salesConsoleRolloutHardeningPassCount } from "./sales-console-rollout-hardening";
 import {
   salesConsoleDeliveryReadiness,
   salesConsoleInventoryAlternatives,
@@ -447,7 +448,7 @@ export function SalesConsoleEliteOperatingConsole() {
                     <h2>MVP Release Readiness</h2>
                     <p>
                       Admin-only connected MVP gate: {salesConsoleM64ReadyCount()} of {salesConsoleM64ConnectedMvpGate.length} areas
-                      are ready, guarded, or source-controlled; source-system writes remain controlled.
+                      are ready, guarded, or source-controlled; {salesConsoleRolloutHardeningPassCount()} rollout checks pass.
                     </p>
                   </div>
                   <div className={styles.releaseGrid}>
@@ -477,6 +478,13 @@ export function SalesConsoleEliteOperatingConsole() {
                         <em>
                           <a href={target.href}>{target.label}</a> · {target.writeAuthority}
                         </em>
+                      </article>
+                    ))}
+                    {salesConsoleRolloutHardeningChecks.map((check) => (
+                      <article key={check.id}>
+                        <strong>{check.label}</strong>
+                        <span>{check.status}</span>
+                        <em>{check.evidence}</em>
                       </article>
                     ))}
                   </div>
