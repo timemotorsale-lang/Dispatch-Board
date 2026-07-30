@@ -1,7 +1,37 @@
 export const salesConsoleAppointments = [
-  { id: "APT-101", customer: "John Smith", state: "confirmation", time: "Today 1:00 PM", owner: "James K.", nextAction: "Confirm arrival and RAV4 availability" },
-  { id: "APT-102", customer: "Robert King", state: "arrival", time: "Today 2:30 PM", owner: "Nina P.", nextAction: "Showroom handoff" },
-  { id: "APT-103", customer: "Maya Patel", state: "no-show", time: "Yesterday 5:00 PM", owner: "BDC Queue", nextAction: "No-show recovery call" }
+  {
+    id: "APT-101",
+    customer: "John Smith",
+    state: "confirmation",
+    time: "Today 1:00 PM",
+    owner: "James K.",
+    nextAction: "Confirm arrival and RAV4 availability",
+    readiness: "ready with vehicle/customer context",
+    showRisk: "low",
+    workflowTrigger: "pre-appointment prep"
+  },
+  {
+    id: "APT-102",
+    customer: "Robert King",
+    state: "arrival",
+    time: "Today 2:30 PM",
+    owner: "Nina P.",
+    nextAction: "Showroom handoff",
+    readiness: "needs Customer 360 context check",
+    showRisk: "medium",
+    workflowTrigger: "arrival handoff"
+  },
+  {
+    id: "APT-103",
+    customer: "Maya Patel",
+    state: "no-show",
+    time: "Yesterday 5:00 PM",
+    owner: "BDC Queue",
+    nextAction: "No-show recovery call",
+    readiness: "recovery workflow required",
+    showRisk: "high",
+    workflowTrigger: "post-appointment no-show follow-up"
+  }
 ] as const;
 
 export const salesConsoleTasksAndPromises = [
@@ -21,4 +51,10 @@ export function salesConsoleSupportViewsHaveActionableRecords() {
 
 export function salesConsoleSupportWritesRemainControlled() {
   return true;
+}
+
+export function salesConsoleAppointmentsExposeExecutionSignals() {
+  return salesConsoleAppointments.every(
+    (appointment) => appointment.readiness.length > 0 && appointment.showRisk.length > 0 && appointment.workflowTrigger.length > 0
+  );
 }
