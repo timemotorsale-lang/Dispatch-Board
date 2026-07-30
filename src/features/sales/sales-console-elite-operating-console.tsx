@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 
+import { searchSalesConsoleRecords, type SalesConsoleSearchResult } from "./sales-console-operational-search";
 import styles from "./sales-console-elite-operating-console.module.css";
 
 type ActionState = "Live Action" | "Controlled Action" | "Source-System Action" | "Future / Governed";
@@ -290,6 +291,17 @@ export function SalesConsoleEliteOperatingConsole() {
     });
   }, [laneFilter, query]);
 
+  const searchResults = useMemo(() => searchSalesConsoleRecords(query), [query]);
+
+  function openSearchResult(result: SalesConsoleSearchResult) {
+    setActiveNav(result.workspace);
+    const matchedWork = workItems.find((item) => item.customer === result.customerName || item.lane === result.lane);
+    const matchedLane = revenueLanes.find((lane) => lane.name === result.lane || result.lane.includes(lane.name));
+
+    if (matchedWork) setSelectedCustomer(matchedWork);
+    if (matchedLane) setSelectedLane(matchedLane);
+  }
+
   return (
     <main className={styles.console} aria-label="Elite enterprise Sales Console operational MVP">
       <aside className={styles.sidebar}>
@@ -362,6 +374,27 @@ export function SalesConsoleEliteOperatingConsole() {
             Source Health 98%
           </button>
         </header>
+        {query.trim() ? (
+          <section className={styles.searchTray} aria-label="Sales Console search results">
+            <header>
+              <strong>{searchResults.length ? `${searchResults.length} result${searchResults.length === 1 ? "" : "s"}` : "No matching records"}</strong>
+              <button type="button" onClick={() => setQuery("")}>Clear search</button>
+            </header>
+            {searchResults.length ? (
+              searchResults.map((result) => (
+                <button key={result.id} type="button" onClick={() => openSearchResult(result)}>
+                  <span>
+                    <strong>{result.label}</strong>
+                    <em>{result.detail}</em>
+                  </span>
+                  <small>{result.workspace} · Source: {result.source}</small>
+                </button>
+              ))
+            ) : (
+              <p>Search is live over the current Sales Console source-shaped records. No record matched this term.</p>
+            )}
+          </section>
+        ) : null}
 
         <section className={styles.kpis} aria-label="Sales Console KPI strip">
           {[
