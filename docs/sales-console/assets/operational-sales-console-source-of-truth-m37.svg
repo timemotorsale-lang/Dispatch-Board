@@ -1,0 +1,178 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc">
+  <title id="title">Sales Console M37 Operational UI Source of Truth</title>
+  <desc id="desc">Enterprise sales console mockup showing role-based navigation, operational search, salesperson today queue, revenue desk lanes, customer context, manager command center, and controlled action states.</desc>
+  <defs>
+    <linearGradient id="nav" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#071225"/>
+      <stop offset="1" stop-color="#111b37"/>
+    </linearGradient>
+    <linearGradient id="hero" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#172554"/>
+      <stop offset="1" stop-color="#4338ca"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#0f172a" flood-opacity="0.16"/>
+    </filter>
+    <style>
+      .bg { fill: #f4f7fb; }
+      .nav { fill: url(#nav); }
+      .top { fill: #0b1428; }
+      .panel { fill: #ffffff; stroke: #dbe3ef; stroke-width: 1; filter: url(#shadow); }
+      .soft { fill: #eef4ff; stroke: #cfddff; }
+      .blue { fill: #3157d5; }
+      .dark { fill: #0f172a; }
+      .muted { fill: #64748b; }
+      .tiny { font: 600 12px Inter, Arial, sans-serif; letter-spacing: .08em; }
+      .label { font: 700 16px Inter, Arial, sans-serif; }
+      .body { font: 500 14px Inter, Arial, sans-serif; }
+      .h1 { font: 800 30px Inter, Arial, sans-serif; }
+      .h2 { font: 800 21px Inter, Arial, sans-serif; }
+      .chip { fill: #e0ecff; stroke: #b7ccff; }
+      .ok { fill: #dcfce7; stroke: #86efac; }
+      .warn { fill: #fef3c7; stroke: #facc15; }
+      .risk { fill: #fee2e2; stroke: #fca5a5; }
+      .planned { fill: #f1f5f9; stroke: #cbd5e1; }
+      .line { stroke: #dbe3ef; stroke-width: 1; }
+      .white { fill: #fff; }
+      .greenText { fill: #166534; }
+      .redText { fill: #991b1b; }
+      .amberText { fill: #92400e; }
+      .blueText { fill: #1d4ed8; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1600" height="1000"/>
+
+  <!-- Left navigation -->
+  <rect class="nav" x="0" y="0" width="250" height="1000"/>
+  <rect x="22" y="28" width="52" height="52" rx="14" fill="#ffffff"/>
+  <text x="88" y="48" class="label white">Sales Console</text>
+  <text x="88" y="69" class="body" fill="#b6c3d7">Operational MVP</text>
+  <line x1="20" y1="110" x2="230" y2="110" stroke="#26344e"/>
+  <rect x="18" y="132" width="214" height="42" rx="10" fill="#152641" stroke="#31527a"/>
+  <circle cx="40" cy="153" r="6" fill="#22c55e"/>
+  <text x="58" y="158" class="tiny white">ENTERPRISE SALES</text>
+  <text x="188" y="158" class="tiny" fill="#86efac">LIVE</text>
+
+  <rect x="0" y="198" width="250" height="52" fill="#3157d5"/>
+  <text x="52" y="230" class="label white">Today</text>
+  <text x="52" y="282" class="body" fill="#dbeafe">Leads</text>
+  <text x="52" y="334" class="body" fill="#dbeafe">Pipeline</text>
+  <text x="52" y="386" class="body" fill="#dbeafe">Revenue Desk</text>
+  <text x="52" y="438" class="body" fill="#dbeafe">Inventory Match</text>
+  <text x="52" y="490" class="body" fill="#dbeafe">Appointments</text>
+  <text x="52" y="542" class="body" fill="#dbeafe">Manager Command</text>
+  <text x="52" y="594" class="body" fill="#dbeafe">Admin Review</text>
+
+  <rect x="18" y="808" width="214" height="120" rx="12" fill="#111d34" stroke="#2f405f"/>
+  <circle cx="48" cy="842" r="25" fill="#8b5e3c" stroke="#fff" stroke-width="2"/>
+  <text x="38" y="848" class="label white">EM</text>
+  <text x="84" y="836" class="label white">Eli Manager</text>
+  <text x="84" y="858" class="body" fill="#b6c3d7">Sales Manager</text>
+  <text x="34" y="902" class="body" fill="#b6c3d7">Store: TMS-001</text>
+
+  <!-- Top bar -->
+  <rect class="top" x="250" y="0" width="1350" height="72"/>
+  <text x="282" y="45" class="label white">TIME MOTOR SALES</text>
+  <rect x="506" y="16" width="110" height="40" rx="10" fill="#10213b" stroke="#2f4770"/>
+  <text x="530" y="42" class="body white">CCC Home</text>
+  <text x="650" y="42" class="body" fill="#c9d7ec">Command Center / Sales</text>
+  <rect x="918" y="14" width="132" height="44" rx="8" fill="#12351f" stroke="#2f6a3a"/>
+  <circle cx="942" cy="36" r="6" fill="#86efac"/>
+  <text x="960" y="32" class="tiny" fill="#d9f99d">DISPATCH</text>
+  <text x="960" y="48" class="tiny" fill="#d9f99d">ONLINE</text>
+  <rect x="1082" y="14" width="300" height="44" rx="10" fill="#111d34" stroke="#344667"/>
+  <text x="1118" y="42" class="body" fill="#b6c3d7">Search customer, stock #, VIN, phone...</text>
+  <rect x="1400" y="14" width="112" height="44" rx="10" fill="#111d34" stroke="#344667"/>
+  <text x="1425" y="42" class="body white">TMS-001</text>
+  <circle cx="1550" cy="36" r="22" fill="#152641" stroke="#3e557d"/>
+  <text x="1538" y="42" class="label white">EM</text>
+
+  <!-- Page header -->
+  <rect x="272" y="96" width="1306" height="112" rx="14" class="panel"/>
+  <text x="298" y="136" class="tiny muted">TIME MOTOR SALES</text>
+  <text x="298" y="174" class="h1 dark">Sales Console</text>
+  <rect x="526" y="118" width="350" height="56" rx="13" fill="#f8fafc" stroke="#d8e2f0"/>
+  <text x="560" y="152" font-family="Inter, Arial, sans-serif" font-size="21" fill="#64748b">Search opens result tray</text>
+  <rect x="902" y="118" width="118" height="56" rx="13" class="ok"/>
+  <text x="927" y="152" class="label greenText">Working</text>
+  <rect x="1088" y="118" width="150" height="56" rx="13" class="soft"/>
+  <text x="1118" y="152" class="label blueText">Alerts 12</text>
+  <rect x="1250" y="118" width="150" height="56" rx="13" class="soft"/>
+  <text x="1276" y="152" class="label blueText">Messages</text>
+  <rect x="1412" y="118" width="138" height="56" rx="13" class="soft"/>
+  <text x="1435" y="152" class="label blueText">Calendar</text>
+
+  <!-- Hero -->
+  <rect x="272" y="232" width="1306" height="112" rx="28" fill="url(#hero)"/>
+  <text x="302" y="278" class="tiny" fill="#cbd5e1">OPERATIONAL MVP</text>
+  <text x="302" y="314" class="h2 white">Start the day from real work: owner, stage, next action, blocker, source, evidence.</text>
+  <text x="938" y="278" class="body white">• Manager Review Request is the first controlled submit workflow.</text>
+  <text x="938" y="308" class="body white">• Quote, finance, hold, discount, and messaging actions remain governed.</text>
+
+  <!-- Main workspace -->
+  <rect x="272" y="370" width="840" height="584" rx="16" class="panel"/>
+  <text x="302" y="406" class="tiny muted">SALESPERSON TODAY</text>
+  <text x="302" y="438" class="h2 dark">Ranked operating queue</text>
+  <text x="302" y="464" class="body muted">Each row must be searchable, openable, filterable, source-labeled, and action-aware.</text>
+
+  <rect x="302" y="492" width="780" height="72" rx="12" fill="#f8fafc" stroke="#dbe3ef"/>
+  <rect x="322" y="514" width="94" height="28" rx="14" class="risk"/>
+  <text x="344" y="533" class="body redText">Now</text>
+  <text x="438" y="522" class="label dark">Marcus Lee — 2021 Camry SE</text>
+  <text x="438" y="545" class="body muted">Stage: Vehicle confirmed · Next: request manager review · Source: CRM + Inventory</text>
+  <rect x="878" y="510" width="176" height="36" rx="10" class="blue"/>
+  <text x="909" y="533" class="body white">Open revenue desk</text>
+
+  <rect x="302" y="578" width="780" height="72" rx="12" fill="#ffffff" stroke="#dbe3ef"/>
+  <rect x="322" y="600" width="94" height="28" rx="14" class="warn"/>
+  <text x="340" y="619" class="body amberText">Today</text>
+  <text x="438" y="608" class="label dark">Angela Smith — BHPH inquiry</text>
+  <text x="438" y="631" class="body muted">Stage: Qualified · Next: verify down payment and docs · Source: Lead inbox</text>
+  <rect x="878" y="596" width="176" height="36" rx="10" class="chip"/>
+  <text x="919" y="619" class="body blueText">Open customer</text>
+
+  <rect x="302" y="664" width="780" height="72" rx="12" fill="#ffffff" stroke="#dbe3ef"/>
+  <rect x="322" y="686" width="94" height="28" rx="14" class="ok"/>
+  <text x="334" y="705" class="body greenText">Fresh</text>
+  <text x="438" y="694" class="label dark">Jordan Reed — public repair estimate</text>
+  <text x="438" y="717" class="body muted">Stage: Intake · Next: confirm repair lane owner · Source: Service</text>
+  <rect x="878" y="682" width="176" height="36" rx="10" class="chip"/>
+  <text x="920" y="705" class="body blueText">Open repair lane</text>
+
+  <rect x="302" y="760" width="780" height="164" rx="14" fill="#f8fafc" stroke="#dbe3ef"/>
+  <text x="326" y="794" class="tiny muted">REVENUE DESK LANES</text>
+  <text x="326" y="824" class="body dark">Cash Sale</text>
+  <text x="470" y="824" class="body dark">BHPH</text>
+  <text x="594" y="824" class="body dark">Lease-to-Own</text>
+  <text x="770" y="824" class="body dark">Repair</text>
+  <text x="326" y="872" class="body dark">Daily Rental</text>
+  <text x="470" y="872" class="body dark">Warranty</text>
+  <text x="594" y="872" class="body dark">Financing Products</text>
+  <rect x="842" y="806" width="190" height="42" rx="10" class="blue"/>
+  <text x="880" y="832" class="body white">Request manager review</text>
+  <rect x="842" y="864" width="190" height="42" rx="10" class="planned"/>
+  <text x="880" y="890" class="body muted">Quote submit: governed</text>
+
+  <!-- Right rail -->
+  <rect x="1134" y="370" width="444" height="584" rx="16" class="panel"/>
+  <text x="1164" y="406" class="tiny muted">MANAGER COMMAND CENTER</text>
+  <text x="1164" y="438" class="h2 dark">Risk, review, and intervention</text>
+
+  <rect x="1164" y="470" width="384" height="86" rx="12" fill="#fff7ed" stroke="#fed7aa"/>
+  <text x="1188" y="502" class="label dark">Manager review queue</text>
+  <text x="1188" y="528" class="body muted">5 open · 2 stale · 1 duplicate protected by idempotency</text>
+
+  <rect x="1164" y="572" width="384" height="86" rx="12" fill="#fef2f2" stroke="#fecaca"/>
+  <text x="1188" y="604" class="label dark">Stalled revenue</text>
+  <text x="1188" y="630" class="body muted">BHPH docs, vehicle readiness, repair estimate follow-up</text>
+
+  <rect x="1164" y="674" width="384" height="106" rx="12" fill="#eff6ff" stroke="#bfdbfe"/>
+  <text x="1188" y="706" class="label dark">Customer 360 side panel</text>
+  <text x="1188" y="732" class="body muted">Identity, consent, history, source links, open promises, active revenue lanes.</text>
+
+  <rect x="1164" y="798" width="384" height="126" rx="12" fill="#f8fafc" stroke="#dbe3ef"/>
+  <text x="1188" y="830" class="label dark">Action contract</text>
+  <text x="1188" y="858" class="body muted">Live: search, open records, filter, request manager review.</text>
+  <text x="1188" y="886" class="body muted">Controlled: quote, finance, holds, discounts, messaging.</text>
+</svg>
