@@ -683,6 +683,22 @@
   background: #fff;
 }
 
+button.vehicleCard {
+  width: 100%;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+button.vehicleCard:hover,
+button.vehicleCard:focus-visible,
+.selectedInventory {
+  border-color: #3157d5 !important;
+  background: #eef4ff !important;
+  outline: none;
+}
+
 .vehicleImage {
   height: 38px;
   border-radius: 8px;
@@ -705,6 +721,21 @@
 
 .vehicleCard p {
   margin: 4px 0 0;
+  font-size: 11px;
+}
+
+.alternatives {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  padding: 8px 9px;
+  background: #f8fafc;
+}
+
+.alternatives span {
+  color: #64748b;
   font-size: 11px;
 }
 

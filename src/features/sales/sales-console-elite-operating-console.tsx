@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { salesConsoleLeadRecords } from "./sales-console-lead-operations";
+import { salesConsoleInventoryAlternatives, salesConsoleInventoryMatches } from "./sales-console-inventory-match";
 import { getRevenueLaneContract } from "./sales-console-operational-domain";
 import { searchSalesConsoleRecords, type SalesConsoleSearchResult } from "./sales-console-operational-search";
 import { salesConsolePipelineRecords } from "./sales-console-pipeline-customer360";
@@ -261,12 +262,6 @@ const revenueLanes: RevenueLane[] = [
   { name: "Financing Products", stage: "Offer", owner: "Alyssa W.", nextAction: "Present GAP and VSC options", status: "Future / Governed" }
 ];
 
-const inventoryMatches = [
-  { vehicle: "2022 Toyota RAV4 XLE", stock: "TMS22145", readiness: "Ready", pressure: "Medium", age: "35 days", retail: "$26,450", gross: "$2,850" },
-  { vehicle: "2021 Honda CR-V EX", stock: "TMS21087", readiness: "Ready", pressure: "High", age: "48 days", retail: "$22,900", gross: "$2,150" },
-  { vehicle: "2020 Ford F-150 XLT", stock: "TMS20022", readiness: "Aging", pressure: "High", age: "62 days", retail: "$26,900", gross: "$2,600" }
-];
-
 const managerSignals = [
   { title: "Review Queue", count: "17", items: ["Deals Awaiting Review 8", "Price Exceptions 5", "Customer Trade Approvals 4"] },
   { title: "Stalled Revenue", count: "$68,430", items: ["Deals Stalled > 24h 10", "Deals Stalled > 72h 4"] },
@@ -300,6 +295,7 @@ export function SalesConsoleEliteOperatingConsole() {
   const [selectedCustomer, setSelectedCustomer] = useState(workItems[0]);
   const [selectedLane, setSelectedLane] = useState(revenueLanes[0]);
   const [selectedLead, setSelectedLead] = useState(salesConsoleLeadRecords[0]);
+  const [selectedInventory, setSelectedInventory] = useState(salesConsoleInventoryMatches[0]);
   const activeWorkspace = workspaceSummaries[activeNav];
   const selectedLaneContract = getRevenueLaneContract(revenueLaneContractNames[selectedLane.name]);
 
@@ -618,14 +614,28 @@ export function SalesConsoleEliteOperatingConsole() {
                 </div>
               </div>
               <div className={styles.inventoryGrid}>
-                {inventoryMatches.map((vehicle) => (
-                  <article key={vehicle.stock} className={styles.vehicleCard}>
+                {salesConsoleInventoryMatches.map((vehicle) => (
+                  <button
+                    key={vehicle.stock}
+                    type="button"
+                    className={`${styles.vehicleCard} ${selectedInventory.stock === vehicle.stock ? styles.selectedInventory : ""}`}
+                    onClick={() => setSelectedInventory(vehicle)}
+                  >
                     <div className={styles.vehicleImage}>Vehicle</div>
                     <strong>{vehicle.vehicle}</strong>
                     <span>Stock #{vehicle.stock}</span>
-                    <p>Readiness: {vehicle.readiness} · Market: {vehicle.pressure}</p>
+                    <p>Readiness: {vehicle.readiness} · Market: {vehicle.marketPressure}</p>
                     <p>Age: {vehicle.age} · Retail {vehicle.retail} · Gross {vehicle.gross}</p>
-                  </article>
+                    <p>Availability: {vehicle.availability} · Blocker: {vehicle.blocker}</p>
+                    <p>{vehicle.fitReason}</p>
+                  </button>
+                ))}
+              </div>
+              <div className={styles.alternatives} aria-label="Alternative inventory recommendations">
+                <strong>Alternative Recommendations</strong>
+                <span>Selected: {selectedInventory.vehicle} · Holds/reservations governed</span>
+                {salesConsoleInventoryAlternatives.map((alternative) => (
+                  <span key={alternative}>{alternative}</span>
                 ))}
               </div>
             </section>
