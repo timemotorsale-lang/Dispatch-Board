@@ -81,14 +81,57 @@ import { salesConsoleProductionReadiness } from "@/features/sales/sales-console-
 import { salesConsoleReadAdapterPreview } from "@/features/sales/sales-console-mvp-read-adapters";
 import { salesConsoleMvpRealDataWiring } from "@/features/sales/sales-console-mvp-real-data-wiring";
 import { salesConsoleRoleViews } from "@/features/sales/sales-console-mvp-role-views";
+import { SalesConsoleEliteOperatingConsole } from "@/features/sales/sales-console-elite-operating-console";
 import { SalesConsolePrototype } from "@/features/sales/sales-console-prototype";
 
 describe("Sales Console", () => {
-  it("renders the /sales route shell for the MVP execution foundation", () => {
+  it("renders the /sales route shell from the elite enterprise source of truth", () => {
     const markup = renderToStaticMarkup(<SalesPage />);
 
-    expect(markup).toContain("Enterprise Sales Console");
-    expect(markup).toContain("Read-only production MVP shell");
+    expect(markup).toContain("Elite enterprise Sales Console source of truth");
+    expect(markup).toContain("My Team’s Work Queue");
+    expect(markup).toContain("Revenue Desk");
+    expect(markup).toContain("Manager Command Center");
+  });
+
+  it("renders the official enterprise navigation and revenue lanes", () => {
+    const markup = renderToStaticMarkup(<SalesConsoleEliteOperatingConsole />);
+
+    for (const label of [
+      "Today",
+      "Leads",
+      "Pipeline",
+      "Customers",
+      "Revenue Desk",
+      "Inventory Intelligence",
+      "Appointments",
+      "Tasks &amp; Promises",
+      "Finance Handoff",
+      "Delivery Readiness",
+      "Manager Command",
+      "Reports &amp; Forecast",
+      "Admin / Source Health"
+    ]) {
+      expect(markup).toContain(label);
+    }
+
+    for (const lane of [
+      "Cash Sale",
+      "BHPH",
+      "Lease-to-Own",
+      "Public Repair",
+      "Daily Rental",
+      "Warranty",
+      "Financing Products"
+    ]) {
+      expect(markup).toContain(lane);
+    }
+
+    expect(markup).toContain("Search customer, stock #, VIN, phone, deal...");
+    expect(markup).toContain("Live Action");
+    expect(markup).toContain("Controlled Action");
+    expect(markup).toContain("Source-System Action");
+    expect(markup).toContain("Future / Governed");
   });
 
   it("renders the first sales console slice with the required operating surfaces", () => {

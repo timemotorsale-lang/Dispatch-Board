@@ -38,6 +38,7 @@ Build-ready additions for the next implementation pass:
 Visual approval reference:
 
 - [assets/enterprise-sales-console-review-mockup-v1.png](assets/enterprise-sales-console-review-mockup-v1.png) - enterprise Sales Console mockup used as the visual source of truth for the `/sales` prototype.
+- [assets/elite-enterprise-sales-console-source-of-truth-m37.png](assets/elite-enterprise-sales-console-source-of-truth-m37.png) - official elite enterprise Sales Console source-of-truth mockup for the operational rebuild.
 
 ## Product boundaries
 

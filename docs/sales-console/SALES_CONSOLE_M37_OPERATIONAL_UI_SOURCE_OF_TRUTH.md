@@ -3,7 +3,8 @@
 **Status:** Build-ready UI contract; no app code activation
 **Branch:** `codex/sales-console-m37-operational-ui-source-of-truth`
 **Date:** 2026-07-29
-**Primary asset:** `assets/operational-sales-console-source-of-truth-m37.svg`
+**Primary asset:** `assets/elite-enterprise-sales-console-source-of-truth-m37.png`
+**Implementation contract asset:** `assets/operational-sales-console-source-of-truth-m37.svg`
 
 ## 1. Purpose
 
@@ -13,9 +14,11 @@ The new source of truth says: the Sales Console must be a daily operating worksp
 
 ## 2. Source-of-truth mockup
 
-![Sales Console M37 Operational UI Source of Truth](assets/operational-sales-console-source-of-truth-m37.svg)
+![Elite Enterprise Sales Console Source of Truth](assets/elite-enterprise-sales-console-source-of-truth-m37.png)
 
-The mockup is intentionally deterministic SVG so labels, lanes, and control states remain exact. It should guide future implementation more reliably than a generated screenshot with uncertain text.
+This image is the official visual source of truth adopted for the Sales Console rebuild. Future UI work should match its organization, density, navigation, operating surfaces, revenue lanes, Manager Command Center rail, Customer 360 panel, and action-state language as closely as practical.
+
+The companion SVG remains as an implementation contract reference for exact labels and testable UI states.
 
 ## 3. Required staff-facing experience
 
