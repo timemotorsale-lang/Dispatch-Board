@@ -2,12 +2,21 @@
 
 import { useMemo, useState } from "react";
 
+import { salesConsoleLeadRecords } from "./sales-console-lead-operations";
+import { salesConsoleInventoryAlternatives, salesConsoleInventoryMatches } from "./sales-console-inventory-match";
+import { salesConsoleManagerQueues } from "./sales-console-manager-command";
+import { salesConsoleAppointments, salesConsoleDeliveryReadiness, salesConsoleTasksAndPromises } from "./sales-console-operational-support";
+import { salesConsoleMvpAcceptanceChecklist, salesConsoleSourceHealthSummary } from "./sales-console-mvp-release-hardening";
+import { getRevenueLaneContract } from "./sales-console-operational-domain";
+import { searchSalesConsoleRecords, type SalesConsoleSearchResult } from "./sales-console-operational-search";
+import { salesConsolePipelineRecords } from "./sales-console-pipeline-customer360";
 import styles from "./sales-console-elite-operating-console.module.css";
 
 type ActionState = "Live Action" | "Controlled Action" | "Source-System Action" | "Future / Governed";
 
 type WorkItem = {
   rank: number;
+  group: "Must Do Now" | "Today" | "Waiting" | "Watch";
   customer: string;
   contact: string;
   vehicle: string;
@@ -18,6 +27,7 @@ type WorkItem = {
   source: string;
   blockers: string[];
   nextAction: string;
+  reason: string;
   action: string;
   actionState: ActionState;
 };
@@ -28,6 +38,16 @@ type RevenueLane = {
   owner: string;
   nextAction: string;
   status: ActionState;
+};
+
+type StaffRole = "Salesperson" | "BDC / Lead Coordinator" | "Sales Manager" | "Admin / Owner";
+
+type WorkspaceSummary = {
+  title: string;
+  description: string;
+  primaryMetric: string;
+  allowed: string;
+  governed: string;
 };
 
 const navigation = [
@@ -46,9 +66,111 @@ const navigation = [
   "Admin / Source Health"
 ];
 
+const roleLanding: Record<StaffRole, string> = {
+  "Salesperson": "Today",
+  "BDC / Lead Coordinator": "Leads",
+  "Sales Manager": "Manager Command",
+  "Admin / Owner": "Admin / Source Health"
+};
+
+const workspaceSummaries: Record<string, WorkspaceSummary> = {
+  "Today": {
+    title: "My Team's Work Queue",
+    description: "Ranked by next best action, freshness, source, blockers, and revenue lane.",
+    primaryMetric: "36 active work items",
+    allowed: "Open records, filter work, open Revenue Desk, request manager review.",
+    governed: "Customer messages and quote submission stay controlled."
+  },
+  "Leads": {
+    title: "Lead Operations",
+    description: "Lead intake, SLA risk, dedupe review, assignment visibility, and appointment conversion.",
+    primaryMetric: "12 leads at SLA risk",
+    allowed: "Open lead, review duplicate risk, filter by source, inspect owner and next action.",
+    governed: "Lead reassignment writes wait for approved backend workflow."
+  },
+  "Pipeline": {
+    title: "Pipeline",
+    description: "Opportunity stage movement, aging, closeability, lane mix, and freshness health.",
+    primaryMetric: "$436K commit pipeline",
+    allowed: "Open opportunity, filter by stage, inspect blockers, update visible context.",
+    governed: "Stage transitions require future command workflow."
+  },
+  "Customers": {
+    title: "Customer 360",
+    description: "Relationship context, consent, active opportunities, documents, promises, and timeline.",
+    primaryMetric: "1 selected customer",
+    allowed: "Open selected customer context and source-labeled sales history.",
+    governed: "CRM remains the customer system of record."
+  },
+  "Revenue Desk": {
+    title: "Revenue Desk",
+    description: "Lane-aware commercial workspace across cash, BHPH, lease-to-own, repair, rental, warranty, and finance products.",
+    primaryMetric: "7 revenue lanes",
+    allowed: "Switch lanes, inspect required fields, open manager review.",
+    governed: "Quotes, discounts, finance decisions, and holds remain governed."
+  },
+  "Inventory Intelligence": {
+    title: "Inventory Intelligence",
+    description: "Vehicle match, readiness, market pressure, aging, availability, and alternatives.",
+    primaryMetric: "3 top matches",
+    allowed: "Inspect vehicle fit and readiness blockers.",
+    governed: "Vehicle holds and reservations stay unavailable."
+  },
+  "Appointments": {
+    title: "Appointments",
+    description: "Confirmation, arrival, no-show, and showroom sales lens.",
+    primaryMetric: "8 appointments today",
+    allowed: "Inspect appointment risk and related opportunity context.",
+    governed: "Scheduling writes remain source-system controlled."
+  },
+  "Tasks & Promises": {
+    title: "Tasks & Promises",
+    description: "Owned commitments, due dates, blockers, evidence status, and follow-through.",
+    primaryMetric: "9 promises open",
+    allowed: "Inspect promise owners, due state, and evidence.",
+    governed: "Promise completion writes require future command workflow."
+  },
+  "Finance Handoff": {
+    title: "Finance Handoff",
+    description: "Readiness, missing fields, documentation blockers, and return reasons.",
+    primaryMetric: "5 handoffs need review",
+    allowed: "Inspect finance readiness and blockers.",
+    governed: "Finance decisions remain outside Sales Console authority."
+  },
+  "Delivery Readiness": {
+    title: "Delivery Readiness",
+    description: "Finance cleared, documents ready, vehicle ready, customer confirmed, delivery scheduled.",
+    primaryMetric: "4 deliveries at risk",
+    allowed: "Inspect checklist and blocker owner.",
+    governed: "Delivery completion writes require source workflow."
+  },
+  "Manager Command": {
+    title: "Manager Command Center",
+    description: "Review queue, stalled revenue, SLA risk, approval backlog, coaching, and forecast confidence.",
+    primaryMetric: "17 reviews queued",
+    allowed: "Open manager risk cards and drill into related records.",
+    governed: "Approvals, discounts, and finance decisions remain governed."
+  },
+  "Reports & Forecast": {
+    title: "Reports & Forecast",
+    description: "Forecast confidence, revenue mix, close risk, gross trend, and leaderboard health.",
+    primaryMetric: "72% forecast confidence",
+    allowed: "Inspect forecast bands and source-labeled metrics.",
+    governed: "Manager forecast overrides require future audit workflow."
+  },
+  "Admin / Source Health": {
+    title: "Admin / Source Health",
+    description: "Source health, readiness gates, policy review, and implementation evidence for authorized users.",
+    primaryMetric: "98% source health",
+    allowed: "Review source health and rollout gates.",
+    governed: "Admin policy changes require explicit future workflow."
+  }
+};
+
 const workItems: WorkItem[] = [
   {
     rank: 1,
+    group: "Must Do Now",
     customer: "John Smith",
     contact: "(555) 123-4567",
     vehicle: "2022 Toyota RAV4 XLE",
@@ -59,11 +181,13 @@ const workItems: WorkItem[] = [
     source: "Website",
     blockers: ["IDV", "Trade App"],
     nextAction: "Confirm trade value and present final numbers",
+    reason: "High-intent cash sale, active proposal, vehicle ready, manager attention needed.",
     action: "Open Revenue Desk",
     actionState: "Live Action"
   },
   {
     rank: 2,
+    group: "Must Do Now",
     customer: "Maria Garcia",
     contact: "(555) 987-6543",
     vehicle: "2019 Honda CR-V EX",
@@ -74,11 +198,13 @@ const workItems: WorkItem[] = [
     source: "Phone Up",
     blockers: ["Credit Bureau"],
     nextAction: "Complete credit app and add co-applicant",
+    reason: "Financing product has aging credit app and source-system blocker.",
     action: "Continue App",
     actionState: "Controlled Action"
   },
   {
     rank: 3,
+    group: "Today",
     customer: "Alex Johnson",
     contact: "(555) 246-8101",
     vehicle: "2021 Ford F-150 XLT",
@@ -89,11 +215,13 @@ const workItems: WorkItem[] = [
     source: "Walk-in",
     blockers: ["LTO Program"],
     nextAction: "Review LTO options and terms",
+    reason: "Lease-to-own structure is ready for manager-controlled review.",
     action: "Present Options",
     actionState: "Controlled Action"
   },
   {
     rank: 4,
+    group: "Waiting",
     customer: "Samantha Lee",
     contact: "(555) 369-8520",
     vehicle: "2020 Chevy Malibu LT",
@@ -104,11 +232,13 @@ const workItems: WorkItem[] = [
     source: "Referral",
     blockers: ["Pay Stub"],
     nextAction: "Collect proof of income",
+    reason: "BHPH compliance is blocked by customer document evidence.",
     action: "Request Docs",
     actionState: "Controlled Action"
   },
   {
     rank: 5,
+    group: "Watch",
     customer: "David Brown",
     contact: "(555) 741-9630",
     vehicle: "2018 Nissan Altima S",
@@ -119,6 +249,7 @@ const workItems: WorkItem[] = [
     source: "Drive-In",
     blockers: [],
     nextAction: "Review estimate and approval",
+    reason: "Public repair lane is clear but needs follow-up before estimate ages.",
     action: "Open Repair Lane",
     actionState: "Live Action"
   }
@@ -134,19 +265,15 @@ const revenueLanes: RevenueLane[] = [
   { name: "Financing Products", stage: "Offer", owner: "Alyssa W.", nextAction: "Present GAP and VSC options", status: "Future / Governed" }
 ];
 
-const inventoryMatches = [
-  { vehicle: "2022 Toyota RAV4 XLE", stock: "TMS22145", readiness: "Ready", pressure: "Medium", age: "35 days", retail: "$26,450", gross: "$2,850" },
-  { vehicle: "2021 Honda CR-V EX", stock: "TMS21087", readiness: "Ready", pressure: "High", age: "48 days", retail: "$22,900", gross: "$2,150" },
-  { vehicle: "2020 Ford F-150 XLT", stock: "TMS20022", readiness: "Aging", pressure: "High", age: "62 days", retail: "$26,900", gross: "$2,600" }
-];
-
-const managerSignals = [
-  { title: "Review Queue", count: "17", items: ["Deals Awaiting Review 8", "Price Exceptions 5", "Customer Trade Approvals 4"] },
-  { title: "Stalled Revenue", count: "$68,430", items: ["Deals Stalled > 24h 10", "Deals Stalled > 72h 4"] },
-  { title: "SLA Risk", count: "12", items: ["No Response > 30m 6", "Appts. At Risk 4", "Tasks Overdue 2"] },
-  { title: "Approval Backlog", count: "9", items: ["Finance Approvals 5", "LTO Program Approvals 2", "Warranty Authorizations 2"] },
-  { title: "Coaching Opportunities", count: "6", items: ["Low Show Rate 3", "Low Gross Per Unit 2", "Overdue Follow Ups 1"] }
-];
+const revenueLaneContractNames: Record<string, Parameters<typeof getRevenueLaneContract>[0]> = {
+  "Cash Sale": "Inventory Cash Sale",
+  "BHPH": "Inventory BHPH Sale",
+  "Lease-to-Own": "Inventory Lease-to-Own",
+  "Public Repair": "Public Auto Repair",
+  "Daily Rental": "Daily Rental",
+  "Warranty": "Warranty Product",
+  "Financing Products": "Financing Product"
+};
 
 const actionTone: Record<ActionState, string> = {
   "Live Action": styles.live,
@@ -157,10 +284,16 @@ const actionTone: Record<ActionState, string> = {
 
 export function SalesConsoleEliteOperatingConsole() {
   const [activeNav, setActiveNav] = useState("Today");
+  const [activeRole, setActiveRole] = useState<StaffRole>("Sales Manager");
   const [query, setQuery] = useState("");
   const [laneFilter, setLaneFilter] = useState("All Lanes");
   const [selectedCustomer, setSelectedCustomer] = useState(workItems[0]);
   const [selectedLane, setSelectedLane] = useState(revenueLanes[0]);
+  const [selectedLead, setSelectedLead] = useState(salesConsoleLeadRecords[0]);
+  const [selectedInventory, setSelectedInventory] = useState(salesConsoleInventoryMatches[0]);
+  const [selectedManagerQueue, setSelectedManagerQueue] = useState<(typeof salesConsoleManagerQueues)[number]>(salesConsoleManagerQueues[0]);
+  const activeWorkspace = workspaceSummaries[activeNav];
+  const selectedLaneContract = getRevenueLaneContract(revenueLaneContractNames[selectedLane.name]);
 
   const filteredWork = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -177,8 +310,27 @@ export function SalesConsoleEliteOperatingConsole() {
     });
   }, [laneFilter, query]);
 
+  const searchResults = useMemo(() => searchSalesConsoleRecords(query), [query]);
+  const groupedWork = useMemo(() => {
+    const groups: WorkItem["group"][] = ["Must Do Now", "Today", "Waiting", "Watch"];
+
+    return groups.map((group) => ({
+      group,
+      items: filteredWork.filter((item) => item.group === group)
+    }));
+  }, [filteredWork]);
+
+  function openSearchResult(result: SalesConsoleSearchResult) {
+    setActiveNav(result.workspace);
+    const matchedWork = workItems.find((item) => item.customer === result.customerName || item.lane === result.lane);
+    const matchedLane = revenueLanes.find((lane) => lane.name === result.lane || result.lane.includes(lane.name));
+
+    if (matchedWork) setSelectedCustomer(matchedWork);
+    if (matchedLane) setSelectedLane(matchedLane);
+  }
+
   return (
-    <main className={styles.console} aria-label="Elite enterprise Sales Console source of truth">
+    <main className={styles.console} aria-label="Elite enterprise Sales Console operational MVP">
       <aside className={styles.sidebar}>
         <div className={styles.brand}>
           <div className={styles.brandMark}>TMS</div>
@@ -191,7 +343,7 @@ export function SalesConsoleEliteOperatingConsole() {
         <div className={styles.salesMode}>
           <span />
           <strong>Enterprise Sales</strong>
-          <em>Source of Truth</em>
+          <em>Operational MVP</em>
         </div>
 
         <nav className={styles.nav} aria-label="Sales Console navigation">
@@ -231,11 +383,45 @@ export function SalesConsoleEliteOperatingConsole() {
             />
           </label>
           <button type="button">TMS-001</button>
-          <button type="button">Sales Manager</button>
+          <select
+            aria-label="Role context"
+            className={styles.roleSelect}
+            value={activeRole}
+            onChange={(event) => {
+              const nextRole = event.target.value as StaffRole;
+              setActiveRole(nextRole);
+              setActiveNav(roleLanding[nextRole]);
+            }}
+          >
+            {Object.keys(roleLanding).map((role) => (
+              <option key={role}>{role}</option>
+            ))}
+          </select>
           <button type="button" onClick={() => setActiveNav("Admin / Source Health")}>
             Source Health 98%
           </button>
         </header>
+        {query.trim() ? (
+          <section className={styles.searchTray} aria-label="Sales Console search results">
+            <header>
+              <strong>{searchResults.length ? `${searchResults.length} result${searchResults.length === 1 ? "" : "s"}` : "No matching records"}</strong>
+              <button type="button" onClick={() => setQuery("")}>Clear search</button>
+            </header>
+            {searchResults.length ? (
+              searchResults.map((result) => (
+                <button key={result.id} type="button" onClick={() => openSearchResult(result)}>
+                  <span>
+                    <strong>{result.label}</strong>
+                    <em>{result.detail}</em>
+                  </span>
+                  <small>{result.workspace} · Source: {result.source}</small>
+                </button>
+              ))
+            ) : (
+              <p>Search is live over the current Sales Console source-shaped records. No record matched this term.</p>
+            )}
+          </section>
+        ) : null}
 
         <section className={styles.kpis} aria-label="Sales Console KPI strip">
           {[
@@ -259,10 +445,8 @@ export function SalesConsoleEliteOperatingConsole() {
             <section className={styles.workQueue}>
               <div className={styles.sectionHeader}>
                 <div>
-                  <h1>{activeNav === "Today" ? "My Team’s Work Queue" : activeNav}</h1>
-                  <p>
-                    {query ? `Filtered by “${query}”` : "Ranked by next best action, freshness, source, blockers, and lane."}
-                  </p>
+                  <h1>{activeWorkspace.title}</h1>
+                  <p>{query ? `Filtered by "${query}"` : activeWorkspace.description}</p>
                 </div>
                 <div className={styles.filters}>
                   <select value={laneFilter} onChange={(event) => setLaneFilter(event.target.value)} aria-label="Lane filter">
@@ -273,6 +457,89 @@ export function SalesConsoleEliteOperatingConsole() {
                   </select>
                   <button type="button" onClick={() => setQuery("")}>Reset</button>
                 </div>
+              </div>
+              {activeNav === "Leads" ? (
+                <section className={styles.leadOperations} aria-label="Lead Operations workspace">
+                  <div className={styles.leadGrid}>
+                    {salesConsoleLeadRecords.map((lead) => (
+                      <button
+                        key={lead.id}
+                        type="button"
+                        className={selectedLead.id === lead.id ? styles.selectedLead : undefined}
+                        onClick={() => setSelectedLead(lead)}
+                      >
+                        <strong>{lead.customer}</strong>
+                        <span>{lead.state} · {lead.source} · SLA {lead.sla}</span>
+                        <span>Owner: {lead.owner} · Channel: {lead.preferredChannel}</span>
+                        <span>{lead.vehicleInterest} · {lead.financingIntent}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <aside className={styles.leadDetail}>
+                    <strong>{selectedLead.id}: {selectedLead.customer}</strong>
+                    <span>Duplicate risk: {selectedLead.duplicateRisk}</span>
+                    <span>Next action: {selectedLead.nextAction}</span>
+                    <span>Assignment: controlled until backend command approval</span>
+                  </aside>
+                </section>
+              ) : null}
+              {activeNav === "Pipeline" || activeNav === "Customers" ? (
+                <section className={styles.pipelinePanel} aria-label="Pipeline and Customer 360 workspace">
+                  {salesConsolePipelineRecords.map((record) => (
+                    <button
+                      key={record.id}
+                      type="button"
+                      onClick={() => {
+                        const matched = workItems.find((item) => item.customer === record.customer);
+                        if (matched) setSelectedCustomer(matched);
+                      }}
+                    >
+                      <strong>{record.customer}</strong>
+                      <span>{record.lane} · {record.stage} · {record.age}</span>
+                      <span>Owner: {record.owner} · Freshness: {record.freshness} · Blocker: {record.blocker}</span>
+                      <span>Forecast: {record.forecastBand} · Source: {record.source}</span>
+                    </button>
+                  ))}
+                </section>
+              ) : null}
+              {["Appointments", "Tasks & Promises", "Delivery Readiness"].includes(activeNav) ? (
+                <section className={styles.supportPanel} aria-label={`${activeNav} operating support`}>
+                  {(activeNav === "Appointments" ? salesConsoleAppointments : activeNav === "Tasks & Promises" ? salesConsoleTasksAndPromises : salesConsoleDeliveryReadiness).map((record) => (
+                    <article key={"id" in record ? record.id : record.deal}>
+                      <strong>{"customer" in record ? record.customer : record.deal}</strong>
+                      <span>{Object.entries(record).map(([key, value]) => `${key}: ${value}`).join(" · ")}</span>
+                      <em>Write behavior: controlled or source-system owned</em>
+                    </article>
+                  ))}
+                </section>
+              ) : null}
+              {activeNav === "Admin / Source Health" ? (
+                <section className={styles.releasePanel} aria-label="MVP release readiness">
+                  <div>
+                    <h2>MVP Release Readiness</h2>
+                    <p>Admin-only gate for controlled internal Sales Console deployment.</p>
+                  </div>
+                  <div className={styles.releaseGrid}>
+                    {salesConsoleMvpAcceptanceChecklist.map((item) => (
+                      <span key={item}>✓ {item}</span>
+                    ))}
+                  </div>
+                  <div className={styles.sourceGrid}>
+                    {salesConsoleSourceHealthSummary.map((source) => (
+                      <article key={source.source}>
+                        <strong>{source.source}</strong>
+                        <span>{source.status}</span>
+                        <em>{source.owner}</em>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+              <div className={styles.workspaceContract} aria-label="Active workspace operating contract">
+                <span><strong>{activeRole}</strong> role context</span>
+                <span><strong>{activeWorkspace.primaryMetric}</strong></span>
+                <span>{activeWorkspace.allowed}</span>
+                <span>{activeWorkspace.governed}</span>
               </div>
 
               <div className={styles.table} role="table" aria-label="Ranked sales work queue">
@@ -286,25 +553,33 @@ export function SalesConsoleEliteOperatingConsole() {
                   <span>Next Best Action</span>
                   <span>Action</span>
                 </div>
-                {filteredWork.map((item) => (
-                  <button
-                    key={`${item.customer}-${item.stock}`}
-                    type="button"
-                    className={`${styles.tableRow} ${selectedCustomer.customer === item.customer ? styles.selectedRow : ""}`}
-                    onClick={() => setSelectedCustomer(item)}
-                  >
-                    <span>{item.rank}</span>
-                    <span>
-                      <strong>{item.customer}</strong>
-                      <em>{item.vehicle} · Stock #{item.stock}</em>
-                    </span>
-                    <span className={styles.laneChip}>{item.lane}</span>
-                    <span>{item.stage}</span>
-                    <span className={styles.freshness}>{item.freshness}</span>
-                    <span>{item.blockers.length ? item.blockers.join(", ") : "Clear"}</span>
-                    <span>{item.nextAction}</span>
-                    <span className={actionTone[item.actionState]}>{item.action}</span>
-                  </button>
+                {groupedWork.map(({ group, items }) => (
+                  <div key={group} className={styles.workGroup} role="rowgroup" aria-label={`${group} work`}>
+                    <div className={styles.workGroupHeader}>{group} · {items.length} item{items.length === 1 ? "" : "s"}</div>
+                    {items.length ? items.map((item) => (
+                      <button
+                        key={`${item.customer}-${item.stock}`}
+                        type="button"
+                        className={`${styles.tableRow} ${selectedCustomer.customer === item.customer ? styles.selectedRow : ""}`}
+                        onClick={() => setSelectedCustomer(item)}
+                      >
+                        <span>{item.rank}</span>
+                        <span>
+                          <strong>{item.customer}</strong>
+                          <em>{item.vehicle} · Stock #{item.stock}</em>
+                          <em>{item.reason}</em>
+                        </span>
+                        <span className={styles.laneChip}>{item.lane}</span>
+                        <span>{item.stage}</span>
+                        <span className={styles.freshness}>{item.freshness}</span>
+                        <span>{item.blockers.length ? item.blockers.join(", ") : "Clear"}</span>
+                        <span>{item.nextAction}</span>
+                        <span className={actionTone[item.actionState]}>{item.action}</span>
+                      </button>
+                    )) : (
+                      <p className={styles.emptyGroup}>No {group.toLowerCase()} records match the current search or lane filter.</p>
+                    )}
+                  </div>
                 ))}
               </div>
             </section>
@@ -332,6 +607,32 @@ export function SalesConsoleEliteOperatingConsole() {
                   </button>
                 ))}
               </div>
+              {selectedLaneContract ? (
+                <section className={styles.revenueLaneDetail} aria-label="Selected Revenue Desk lane detail">
+                  <div>
+                    <h3>{selectedLaneContract.lane}</h3>
+                    <p>{selectedLane.stage} · Owner {selectedLane.owner} · Next: {selectedLane.nextAction}</p>
+                  </div>
+                  <dl>
+                    <div>
+                      <dt>Required fields</dt>
+                      <dd>{selectedLaneContract.requiredFields.join(", ")}</dd>
+                    </div>
+                    <div>
+                      <dt>Source systems</dt>
+                      <dd>{selectedLaneContract.sourceOwners.join(", ")}</dd>
+                    </div>
+                    <div>
+                      <dt>Allowed MVP actions</dt>
+                      <dd>{selectedLaneContract.allowedMvpActions.join(", ")}</dd>
+                    </div>
+                    <div>
+                      <dt>Governed actions</dt>
+                      <dd>{selectedLaneContract.governedActions.join(", ")}</dd>
+                    </div>
+                  </dl>
+                </section>
+              ) : null}
             </section>
 
             <section className={styles.inventory} aria-label="Inventory Intelligence">
@@ -342,14 +643,28 @@ export function SalesConsoleEliteOperatingConsole() {
                 </div>
               </div>
               <div className={styles.inventoryGrid}>
-                {inventoryMatches.map((vehicle) => (
-                  <article key={vehicle.stock} className={styles.vehicleCard}>
+                {salesConsoleInventoryMatches.map((vehicle) => (
+                  <button
+                    key={vehicle.stock}
+                    type="button"
+                    className={`${styles.vehicleCard} ${selectedInventory.stock === vehicle.stock ? styles.selectedInventory : ""}`}
+                    onClick={() => setSelectedInventory(vehicle)}
+                  >
                     <div className={styles.vehicleImage}>Vehicle</div>
                     <strong>{vehicle.vehicle}</strong>
                     <span>Stock #{vehicle.stock}</span>
-                    <p>Readiness: {vehicle.readiness} · Market: {vehicle.pressure}</p>
+                    <p>Readiness: {vehicle.readiness} · Market: {vehicle.marketPressure}</p>
                     <p>Age: {vehicle.age} · Retail {vehicle.retail} · Gross {vehicle.gross}</p>
-                  </article>
+                    <p>Availability: {vehicle.availability} · Blocker: {vehicle.blocker}</p>
+                    <p>{vehicle.fitReason}</p>
+                  </button>
+                ))}
+              </div>
+              <div className={styles.alternatives} aria-label="Alternative inventory recommendations">
+                <strong>Alternative Recommendations</strong>
+                <span>Selected: {selectedInventory.vehicle} · Holds/reservations governed</span>
+                {salesConsoleInventoryAlternatives.map((alternative) => (
+                  <span key={alternative}>{alternative}</span>
                 ))}
               </div>
             </section>
@@ -387,22 +702,30 @@ export function SalesConsoleEliteOperatingConsole() {
 
           <aside className={styles.managerRail} aria-label="Manager Command Center">
             <h2>Manager Command Center</h2>
-            {managerSignals.map((signal) => (
-              <article key={signal.title} className={styles.signal}>
+            {salesConsoleManagerQueues.map((signal) => (
+              <button
+                key={signal.title}
+                type="button"
+                className={`${styles.signal} ${selectedManagerQueue.title === signal.title ? styles.selectedSignal : ""}`}
+                onClick={() => {
+                  setSelectedManagerQueue(signal);
+                  setActiveNav("Manager Command");
+                }}
+              >
                 <header>
                   <strong>{signal.title}</strong>
                   <span>{signal.count}</span>
                 </header>
-                {signal.items.map((item) => (
+                {signal.drilldowns.slice(0, 3).map((item) => (
                   <p key={item}>{item}</p>
                 ))}
-              </article>
+              </button>
             ))}
 
             <section className={styles.forecast}>
-              <h3>Forecast Confidence</h3>
-              <strong>72%</strong>
-              <p>Best Case $512K · Commit $436K · Gap $76K</p>
+              <h3>Selected Drilldown</h3>
+              <strong>{selectedManagerQueue.count}</strong>
+              <p>{selectedManagerQueue.drilldowns.join(" · ")}</p>
             </section>
           </aside>
         </div>

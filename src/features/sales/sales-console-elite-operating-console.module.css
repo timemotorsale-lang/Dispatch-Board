@@ -148,6 +148,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .topbar {
@@ -161,6 +162,7 @@
 }
 
 .topbar button,
+.roleSelect,
 .filters button,
 .filters select {
   border: 1px solid #344667;
@@ -170,6 +172,10 @@
   padding: 8px 11px;
   font-weight: 800;
   font-size: 12px;
+}
+
+.roleSelect {
+  min-height: 36px;
 }
 
 .search {
@@ -198,6 +204,62 @@
   color: #f8fafc;
   background: transparent;
   font-size: 13px;
+}
+
+.searchTray {
+  display: grid;
+  gap: 6px;
+  margin: 8px 10px 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 8px;
+  background: #fff;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.1);
+}
+
+.searchTray header,
+.searchTray button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.searchTray header button,
+.searchTray > button {
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #0f172a;
+  padding: 7px 9px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.searchTray > button {
+  width: 100%;
+  text-align: left;
+}
+
+.searchTray > button:hover,
+.searchTray > button:focus-visible {
+  border-color: #3157d5;
+  background: #eef4ff;
+  outline: none;
+}
+
+.searchTray span,
+.searchTray strong,
+.searchTray em {
+  display: block;
+}
+
+.searchTray em,
+.searchTray small,
+.searchTray p {
+  color: #64748b;
+  font-size: 11px;
+  font-style: normal;
 }
 
 .kpis {
@@ -245,15 +307,18 @@
 .workspace {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 258px;
+  grid-template-columns: minmax(0, calc(100% - 268px)) 258px;
   gap: 10px;
   padding: 10px;
+  align-items: start;
+  overflow: hidden;
 }
 
 .operatingArea {
   min-width: 0;
   display: grid;
   gap: 10px;
+  overflow: hidden;
 }
 
 .workQueue,
@@ -271,7 +336,9 @@
 .revenueDesk,
 .inventory,
 .customer360 {
+  min-width: 0;
   padding: 12px;
+  overflow: hidden;
 }
 
 .sectionHeader {
@@ -309,6 +376,184 @@
   gap: 6px;
 }
 
+.workspaceContract {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.workspaceContract span {
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  padding: 7px 9px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 11px;
+}
+
+.workspaceContract strong {
+  color: #0f172a;
+}
+
+.leadOperations {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.leadGrid {
+  display: grid;
+  gap: 6px;
+}
+
+.leadGrid button,
+.leadDetail {
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px 9px;
+  color: #0f172a;
+}
+
+.leadGrid button {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.leadGrid button:hover,
+.leadGrid button:focus-visible,
+.selectedLead {
+  border-color: #3157d5 !important;
+  background: #eef4ff !important;
+  outline: none;
+}
+
+.leadGrid span,
+.leadDetail span {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.leadDetail {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+
+.pipelinePanel {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.pipelinePanel button {
+  display: grid;
+  gap: 4px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  padding: 8px 9px;
+  background: #fff;
+  color: #0f172a;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.pipelinePanel button:hover,
+.pipelinePanel button:focus-visible {
+  border-color: #3157d5;
+  background: #eef4ff;
+  outline: none;
+}
+
+.pipelinePanel span {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.supportPanel {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.supportPanel article {
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  padding: 8px 9px;
+  background: #fff;
+}
+
+.supportPanel strong,
+.supportPanel span,
+.supportPanel em {
+  display: block;
+}
+
+.supportPanel span,
+.supportPanel em {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 11px;
+  font-style: normal;
+}
+
+.releasePanel {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  padding: 10px;
+  background: #f8fafc;
+}
+
+.releasePanel h2,
+.releasePanel p {
+  margin: 0;
+}
+
+.releasePanel p {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.releaseGrid,
+.sourceGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.releaseGrid span,
+.sourceGrid article {
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  padding: 7px 9px;
+  background: #fff;
+  font-size: 11px;
+}
+
+.sourceGrid strong,
+.sourceGrid span,
+.sourceGrid em {
+  display: block;
+}
+
+.sourceGrid span,
+.sourceGrid em {
+  margin-top: 3px;
+  color: #64748b;
+  font-style: normal;
+}
+
 .filters select,
 .filters button {
   background: #f8fafc;
@@ -320,15 +565,19 @@
 .table {
   border: 1px solid #dbe3ef;
   border-radius: 8px;
-  overflow: hidden;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
 }
 
 .tableHead,
 .tableRow {
   display: grid;
-  grid-template-columns: 34px 1.55fr 0.76fr 0.72fr 0.56fr 0.84fr 1.42fr 0.92fr;
+  grid-template-columns: 34px minmax(190px, 1.45fr) minmax(92px, 0.72fr) minmax(86px, 0.68fr) minmax(70px, 0.5fr) minmax(92px, 0.72fr) minmax(190px, 1.25fr) minmax(120px, 0.78fr);
   align-items: center;
   gap: 7px;
+  min-width: 920px;
 }
 
 .tableHead {
@@ -341,8 +590,28 @@
   letter-spacing: 0.04em;
 }
 
+.workGroupHeader {
+  border-top: 1px solid #dbe3ef;
+  background: #eef4ff;
+  color: #1d4ed8;
+  padding: 6px 9px;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.emptyGroup {
+  margin: 0;
+  border-top: 1px solid #e2e8f0;
+  padding: 8px 9px;
+  color: #64748b;
+  background: #fff;
+  font-size: 12px;
+}
+
 .tableRow {
-  width: 100%;
+  width: max(100%, 920px);
   border: 0;
   border-top: 1px solid #e2e8f0;
   background: #fff;
@@ -359,6 +628,7 @@
 .tableRow strong,
 .tableRow em {
   display: block;
+  overflow-wrap: anywhere;
 }
 
 .tableRow em {
@@ -373,11 +643,13 @@
 .source,
 .future {
   display: inline-flex;
+  max-width: 100%;
   width: fit-content;
   border-radius: 999px;
   padding: 3px 7px;
   font-size: 11px;
   font-weight: 900;
+  white-space: normal;
 }
 
 .laneChip {
@@ -440,6 +712,52 @@
   box-shadow: inset 0 0 0 1px #3157d5;
 }
 
+.revenueLaneDetail {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 10px;
+  margin-top: 9px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  padding: 10px;
+  background: #f8fafc;
+}
+
+.revenueLaneDetail h3,
+.revenueLaneDetail p {
+  margin: 0;
+}
+
+.revenueLaneDetail p {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.revenueLaneDetail dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin: 0;
+}
+
+.revenueLaneDetail div {
+  min-width: 0;
+}
+
+.revenueLaneDetail dt {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.revenueLaneDetail dd {
+  margin: 2px 0 0;
+  color: #0f172a;
+  font-size: 11px;
+}
+
 .inventoryGrid,
 .customerCards {
   display: grid;
@@ -453,6 +771,22 @@
   border-radius: 8px;
   padding: 9px;
   background: #fff;
+}
+
+button.vehicleCard {
+  width: 100%;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+button.vehicleCard:hover,
+button.vehicleCard:focus-visible,
+.selectedInventory {
+  border-color: #3157d5 !important;
+  background: #eef4ff !important;
+  outline: none;
 }
 
 .vehicleImage {
@@ -480,6 +814,21 @@
   font-size: 11px;
 }
 
+.alternatives {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  padding: 8px 9px;
+  background: #f8fafc;
+}
+
+.alternatives span {
+  color: #64748b;
+  font-size: 11px;
+}
+
 .customerCards {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   margin-top: 9px;
@@ -496,6 +845,10 @@
 }
 
 .managerRail {
+  position: sticky;
+  top: 10px;
+  z-index: 2;
+  min-width: 0;
   padding: 10px;
   display: grid;
   align-content: start;
@@ -508,6 +861,22 @@
   border-radius: 8px;
   padding: 9px;
   background: #fff;
+}
+
+button.signal {
+  width: 100%;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+button.signal:hover,
+button.signal:focus-visible,
+.selectedSignal {
+  border-color: #3157d5 !important;
+  background: #eef4ff !important;
+  outline: none;
 }
 
 .signal header {
@@ -548,12 +917,35 @@
   }
 
   .nav,
+  .workspaceContract,
   .laneGrid,
   .kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .leadOperations {
+    grid-template-columns: 1fr;
+  }
+
+  .pipelinePanel {
+    grid-template-columns: 1fr;
+  }
+
+  .supportPanel {
+    grid-template-columns: 1fr;
+  }
+
+  .releaseGrid,
+  .sourceGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .revenueLaneDetail,
+  .revenueLaneDetail dl {
     grid-template-columns: 1fr;
   }
 
@@ -578,6 +970,7 @@
   }
 
   .kpis,
+  .workspaceContract,
   .laneGrid,
   .inventoryGrid,
   .customerCards {
