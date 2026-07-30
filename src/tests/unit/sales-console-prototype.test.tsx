@@ -88,10 +88,25 @@ describe("Sales Console", () => {
   it("renders the /sales route shell from the elite enterprise source of truth", () => {
     const markup = renderToStaticMarkup(<SalesPage />);
 
-    expect(markup).toContain("Elite enterprise Sales Console source of truth");
-    expect(markup).toContain("My Team’s Work Queue");
+    expect(markup).toContain("Elite enterprise Sales Console operational MVP");
+    expect(markup).toContain("My Team&#x27;s Work Queue");
     expect(markup).toContain("Revenue Desk");
     expect(markup).toContain("Manager Command Center");
+  });
+
+  it("keeps the M38 staff shell lean, role-aware, and free of prototype review language", () => {
+    const markup = renderToStaticMarkup(<SalesPage />);
+
+    expect(markup).toContain("Operational MVP");
+    expect(markup).toContain("Role context");
+    expect(markup).toContain("Salesperson");
+    expect(markup).toContain("BDC / Lead Coordinator");
+    expect(markup).toContain("Admin / Owner");
+    expect(markup).toContain("Active workspace operating contract");
+    expect(markup).toContain("Customer messages and quote submission stay controlled.");
+    expect(markup).not.toContain("dogfood");
+    expect(markup).not.toContain("release gate");
+    expect(markup).not.toContain("Prototype");
   });
 
   it("renders the official enterprise navigation and revenue lanes", () => {

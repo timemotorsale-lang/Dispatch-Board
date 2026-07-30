@@ -30,6 +30,16 @@ type RevenueLane = {
   status: ActionState;
 };
 
+type StaffRole = "Salesperson" | "BDC / Lead Coordinator" | "Sales Manager" | "Admin / Owner";
+
+type WorkspaceSummary = {
+  title: string;
+  description: string;
+  primaryMetric: string;
+  allowed: string;
+  governed: string;
+};
+
 const navigation = [
   "Today",
   "Leads",
@@ -45,6 +55,107 @@ const navigation = [
   "Reports & Forecast",
   "Admin / Source Health"
 ];
+
+const roleLanding: Record<StaffRole, string> = {
+  "Salesperson": "Today",
+  "BDC / Lead Coordinator": "Leads",
+  "Sales Manager": "Manager Command",
+  "Admin / Owner": "Admin / Source Health"
+};
+
+const workspaceSummaries: Record<string, WorkspaceSummary> = {
+  "Today": {
+    title: "My Team's Work Queue",
+    description: "Ranked by next best action, freshness, source, blockers, and revenue lane.",
+    primaryMetric: "36 active work items",
+    allowed: "Open records, filter work, open Revenue Desk, request manager review.",
+    governed: "Customer messages and quote submission stay controlled."
+  },
+  "Leads": {
+    title: "Lead Operations",
+    description: "Lead intake, SLA risk, dedupe review, assignment visibility, and appointment conversion.",
+    primaryMetric: "12 leads at SLA risk",
+    allowed: "Open lead, review duplicate risk, filter by source, inspect owner and next action.",
+    governed: "Lead reassignment writes wait for approved backend workflow."
+  },
+  "Pipeline": {
+    title: "Pipeline",
+    description: "Opportunity stage movement, aging, closeability, lane mix, and freshness health.",
+    primaryMetric: "$436K commit pipeline",
+    allowed: "Open opportunity, filter by stage, inspect blockers, update visible context.",
+    governed: "Stage transitions require future command workflow."
+  },
+  "Customers": {
+    title: "Customer 360",
+    description: "Relationship context, consent, active opportunities, documents, promises, and timeline.",
+    primaryMetric: "1 selected customer",
+    allowed: "Open selected customer context and source-labeled sales history.",
+    governed: "CRM remains the customer system of record."
+  },
+  "Revenue Desk": {
+    title: "Revenue Desk",
+    description: "Lane-aware commercial workspace across cash, BHPH, lease-to-own, repair, rental, warranty, and finance products.",
+    primaryMetric: "7 revenue lanes",
+    allowed: "Switch lanes, inspect required fields, open manager review.",
+    governed: "Quotes, discounts, finance decisions, and holds remain governed."
+  },
+  "Inventory Intelligence": {
+    title: "Inventory Intelligence",
+    description: "Vehicle match, readiness, market pressure, aging, availability, and alternatives.",
+    primaryMetric: "3 top matches",
+    allowed: "Inspect vehicle fit and readiness blockers.",
+    governed: "Vehicle holds and reservations stay unavailable."
+  },
+  "Appointments": {
+    title: "Appointments",
+    description: "Confirmation, arrival, no-show, and showroom sales lens.",
+    primaryMetric: "8 appointments today",
+    allowed: "Inspect appointment risk and related opportunity context.",
+    governed: "Scheduling writes remain source-system controlled."
+  },
+  "Tasks & Promises": {
+    title: "Tasks & Promises",
+    description: "Owned commitments, due dates, blockers, evidence status, and follow-through.",
+    primaryMetric: "9 promises open",
+    allowed: "Inspect promise owners, due state, and evidence.",
+    governed: "Promise completion writes require future command workflow."
+  },
+  "Finance Handoff": {
+    title: "Finance Handoff",
+    description: "Readiness, missing fields, documentation blockers, and return reasons.",
+    primaryMetric: "5 handoffs need review",
+    allowed: "Inspect finance readiness and blockers.",
+    governed: "Finance decisions remain outside Sales Console authority."
+  },
+  "Delivery Readiness": {
+    title: "Delivery Readiness",
+    description: "Finance cleared, documents ready, vehicle ready, customer confirmed, delivery scheduled.",
+    primaryMetric: "4 deliveries at risk",
+    allowed: "Inspect checklist and blocker owner.",
+    governed: "Delivery completion writes require source workflow."
+  },
+  "Manager Command": {
+    title: "Manager Command Center",
+    description: "Review queue, stalled revenue, SLA risk, approval backlog, coaching, and forecast confidence.",
+    primaryMetric: "17 reviews queued",
+    allowed: "Open manager risk cards and drill into related records.",
+    governed: "Approvals, discounts, and finance decisions remain governed."
+  },
+  "Reports & Forecast": {
+    title: "Reports & Forecast",
+    description: "Forecast confidence, revenue mix, close risk, gross trend, and leaderboard health.",
+    primaryMetric: "72% forecast confidence",
+    allowed: "Inspect forecast bands and source-labeled metrics.",
+    governed: "Manager forecast overrides require future audit workflow."
+  },
+  "Admin / Source Health": {
+    title: "Admin / Source Health",
+    description: "Source health, readiness gates, policy review, and implementation evidence for authorized users.",
+    primaryMetric: "98% source health",
+    allowed: "Review source health and rollout gates.",
+    governed: "Admin policy changes require explicit future workflow."
+  }
+};
 
 const workItems: WorkItem[] = [
   {
@@ -157,10 +268,12 @@ const actionTone: Record<ActionState, string> = {
 
 export function SalesConsoleEliteOperatingConsole() {
   const [activeNav, setActiveNav] = useState("Today");
+  const [activeRole, setActiveRole] = useState<StaffRole>("Sales Manager");
   const [query, setQuery] = useState("");
   const [laneFilter, setLaneFilter] = useState("All Lanes");
   const [selectedCustomer, setSelectedCustomer] = useState(workItems[0]);
   const [selectedLane, setSelectedLane] = useState(revenueLanes[0]);
+  const activeWorkspace = workspaceSummaries[activeNav];
 
   const filteredWork = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -178,7 +291,7 @@ export function SalesConsoleEliteOperatingConsole() {
   }, [laneFilter, query]);
 
   return (
-    <main className={styles.console} aria-label="Elite enterprise Sales Console source of truth">
+    <main className={styles.console} aria-label="Elite enterprise Sales Console operational MVP">
       <aside className={styles.sidebar}>
         <div className={styles.brand}>
           <div className={styles.brandMark}>TMS</div>
@@ -191,7 +304,7 @@ export function SalesConsoleEliteOperatingConsole() {
         <div className={styles.salesMode}>
           <span />
           <strong>Enterprise Sales</strong>
-          <em>Source of Truth</em>
+          <em>Operational MVP</em>
         </div>
 
         <nav className={styles.nav} aria-label="Sales Console navigation">
@@ -231,7 +344,20 @@ export function SalesConsoleEliteOperatingConsole() {
             />
           </label>
           <button type="button">TMS-001</button>
-          <button type="button">Sales Manager</button>
+          <select
+            aria-label="Role context"
+            className={styles.roleSelect}
+            value={activeRole}
+            onChange={(event) => {
+              const nextRole = event.target.value as StaffRole;
+              setActiveRole(nextRole);
+              setActiveNav(roleLanding[nextRole]);
+            }}
+          >
+            {Object.keys(roleLanding).map((role) => (
+              <option key={role}>{role}</option>
+            ))}
+          </select>
           <button type="button" onClick={() => setActiveNav("Admin / Source Health")}>
             Source Health 98%
           </button>
@@ -259,10 +385,8 @@ export function SalesConsoleEliteOperatingConsole() {
             <section className={styles.workQueue}>
               <div className={styles.sectionHeader}>
                 <div>
-                  <h1>{activeNav === "Today" ? "My Team’s Work Queue" : activeNav}</h1>
-                  <p>
-                    {query ? `Filtered by “${query}”` : "Ranked by next best action, freshness, source, blockers, and lane."}
-                  </p>
+                  <h1>{activeWorkspace.title}</h1>
+                  <p>{query ? `Filtered by "${query}"` : activeWorkspace.description}</p>
                 </div>
                 <div className={styles.filters}>
                   <select value={laneFilter} onChange={(event) => setLaneFilter(event.target.value)} aria-label="Lane filter">
@@ -273,6 +397,12 @@ export function SalesConsoleEliteOperatingConsole() {
                   </select>
                   <button type="button" onClick={() => setQuery("")}>Reset</button>
                 </div>
+              </div>
+              <div className={styles.workspaceContract} aria-label="Active workspace operating contract">
+                <span><strong>{activeRole}</strong> role context</span>
+                <span><strong>{activeWorkspace.primaryMetric}</strong></span>
+                <span>{activeWorkspace.allowed}</span>
+                <span>{activeWorkspace.governed}</span>
               </div>
 
               <div className={styles.table} role="table" aria-label="Ranked sales work queue">
