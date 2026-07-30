@@ -37,6 +37,10 @@ import {
   type SalesConsoleLiveWorkItem
 } from "./sales-console-live-workflow-engine";
 import { salesConsolePipelineRecords } from "./sales-console-pipeline-customer360";
+import {
+  buildSalesRecordWorkflowState,
+  salesConsoleSampleRecordSaleDraft
+} from "./sales-console-m68-record-sale-ui-workflow";
 import type { SalesFederatedSearchResult } from "./sales-console-m57-federated-search";
 import styles from "./sales-console-elite-operating-console.module.css";
 
@@ -192,6 +196,17 @@ export function SalesConsoleEliteOperatingConsole() {
   const selectedLaneLinks = getSalesConsoleCrossConsoleLinksForLane(selectedLane.contractLane, activeRole);
   const sourceBackedTabStates = useMemo(() => buildSalesConsoleSourceBackedTabStates(), []);
   const activeSourceBackedState = sourceBackedTabStates.find((state) => state.tab === activeNav);
+  const recordSaleWorkflowState = useMemo(
+    () => buildSalesRecordWorkflowState({
+      ...salesConsoleSampleRecordSaleDraft,
+      customerName: selectedCustomer.customer,
+      revenueLane: selectedLane.contractLane,
+      productLabel: selectedCustomer.vehicle,
+      vehicleStockNumber: selectedCustomer.stock,
+      sourceRecordLinks: [getSalesConsoleCustomer360Href(selectedCustomer.customer), getSalesConsoleVehicle360Href(selectedCustomer.stock)]
+    }, activeRole),
+    [activeRole, selectedCustomer, selectedLane]
+  );
 
   const filteredWork = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -720,6 +735,16 @@ export function SalesConsoleEliteOperatingConsole() {
                   <strong>Outcome Recording</strong>
                   <span>{salesConsoleLiveOutcomeDecision.terminal ? "Terminal outcome" : "Next-action outcome"}</span>
                   <em>{salesConsoleLiveOutcomeDecision.allowed ? "Controlled Sales Console record" : salesConsoleLiveOutcomeDecision.reasons.join(", ")}</em>
+                </article>
+                <article>
+                  <strong>Record Completed Sale</strong>
+                  <span>{recordSaleWorkflowState.readinessScore}% ready · {recordSaleWorkflowState.submitLabel}</span>
+                  <em>{recordSaleWorkflowState.reason}</em>
+                  <small>
+                    Missing: {recordSaleWorkflowState.missingLabels.join(", ") || "none"} ·
+                    Source verify: {recordSaleWorkflowState.sourceVerificationRequired ? "required" : "ready"} ·
+                    Manager review: {recordSaleWorkflowState.managerReviewRequired ? "required" : "not required"}
+                  </small>
                 </article>
               </div>
             </section>
