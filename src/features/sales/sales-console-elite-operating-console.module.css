@@ -1,32 +1,34 @@
 .console {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 250px minmax(0, 1fr);
+  grid-template-columns: 218px minmax(0, 1fr);
   background: #f4f7fb;
   color: #0f172a;
+  font-size: 13px;
+  line-height: 1.25;
 }
 
 .sidebar {
   background: linear-gradient(160deg, #071225, #111b37);
   color: #f8fafc;
-  padding: 18px 10px;
+  padding: 10px 7px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 10px;
 }
 
 .brand {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
-  padding: 8px 8px 22px;
+  padding: 6px 7px 13px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.22);
 }
 
 .brandMark {
-  width: 54px;
-  height: 54px;
-  border-radius: 14px;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
   display: grid;
   place-items: center;
   background: #fff;
@@ -41,39 +43,39 @@
 }
 
 .brand strong {
-  font-size: 17px;
+  font-size: 15px;
 }
 
 .brand span {
   color: #b6c3d7;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .salesMode,
 .actionKey {
   border: 1px solid rgba(148, 163, 184, 0.28);
   background: rgba(21, 38, 65, 0.82);
-  border-radius: 12px;
-  padding: 12px;
+  border-radius: 10px;
+  padding: 9px;
 }
 
 .salesMode {
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .salesMode span {
-  width: 11px;
-  height: 11px;
+  width: 9px;
+  height: 9px;
   border-radius: 999px;
   background: #22c55e;
 }
 
 .salesMode strong {
   text-transform: uppercase;
-  font-size: 12px;
+  font-size: 10px;
   letter-spacing: 0.08em;
 }
 
@@ -85,7 +87,7 @@
 
 .nav {
   display: grid;
-  gap: 4px;
+  gap: 2px;
 }
 
 .nav button,
@@ -103,8 +105,9 @@
   background: transparent;
   color: #dbeafe;
   text-align: left;
-  padding: 13px 14px;
+  padding: 10px 12px;
   font-weight: 700;
+  font-size: 13px;
 }
 
 .nav button:hover,
@@ -120,8 +123,8 @@
 }
 
 .actionKey h2 {
-  margin: 0 0 12px;
-  font-size: 12px;
+  margin: 0 0 8px;
+  font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #cbd5e1;
@@ -130,14 +133,14 @@
 .actionKey p {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 8px 0;
-  font-size: 12px;
+  gap: 7px;
+  margin: 6px 0;
+  font-size: 11px;
 }
 
 .actionKey p span {
-  width: 11px;
-  height: 11px;
+  width: 9px;
+  height: 9px;
   border-radius: 999px;
 }
 
@@ -148,12 +151,12 @@
 }
 
 .topbar {
-  height: 72px;
+  height: 58px;
   background: #0b1428;
   display: flex;
-  gap: 14px;
+  gap: 10px;
   align-items: center;
-  padding: 0 22px;
+  padding: 0 14px;
   color: #fff;
 }
 
@@ -164,20 +167,21 @@
   border-radius: 10px;
   background: #111d34;
   color: #f8fafc;
-  padding: 10px 14px;
+  padding: 8px 11px;
   font-weight: 800;
+  font-size: 12px;
 }
 
 .search {
   flex: 1;
-  max-width: 620px;
+  max-width: 560px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   border: 1px solid #344667;
   border-radius: 10px;
   background: #111d34;
-  padding: 0 14px;
+  padding: 0 11px;
 }
 
 .search span {
@@ -188,28 +192,28 @@
 .search input {
   flex: 1;
   min-width: 0;
-  height: 44px;
+  height: 38px;
   border: 0;
   outline: 0;
   color: #f8fafc;
   background: transparent;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .kpis {
   display: grid;
-  grid-template-columns: repeat(6, minmax(120px, 1fr));
+  grid-template-columns: repeat(6, minmax(108px, 1fr));
   gap: 1px;
-  margin: 18px 18px 0;
+  margin: 10px 10px 0;
   border: 1px solid #dbe3ef;
-  border-radius: 14px;
+  border-radius: 10px;
   overflow: hidden;
   background: #dbe3ef;
 }
 
 .kpi {
   background: #fff;
-  padding: 14px 18px;
+  padding: 10px 13px;
 }
 
 .kpi span,
@@ -228,28 +232,28 @@
 .kpi span,
 .kpi em {
   display: block;
-  font-size: 12px;
+  font-size: 11px;
   font-style: normal;
 }
 
 .kpi strong {
   display: block;
-  margin: 4px 0;
-  font-size: 22px;
+  margin: 2px 0;
+  font-size: 19px;
 }
 
 .workspace {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 278px;
-  gap: 14px;
-  padding: 14px 18px 18px;
+  grid-template-columns: minmax(0, 1fr) 258px;
+  gap: 10px;
+  padding: 10px;
 }
 
 .operatingArea {
   min-width: 0;
   display: grid;
-  gap: 14px;
+  gap: 10px;
 }
 
 .workQueue,
@@ -259,23 +263,23 @@
 .managerRail {
   background: #fff;
   border: 1px solid #dbe3ef;
-  border-radius: 14px;
-  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.08);
+  border-radius: 10px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.07);
 }
 
 .workQueue,
 .revenueDesk,
 .inventory,
 .customer360 {
-  padding: 16px;
+  padding: 12px;
 }
 
 .sectionHeader {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 9px;
+  margin-bottom: 9px;
 }
 
 .sectionHeader h1,
@@ -286,23 +290,23 @@
 }
 
 .sectionHeader h1 {
-  font-size: 22px;
+  font-size: 18px;
 }
 
 .sectionHeader h2,
 .managerRail h2,
 .customer360 h2 {
-  font-size: 18px;
+  font-size: 16px;
 }
 
 .sectionHeader p {
   margin: 4px 0 0;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .filters {
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
 
 .filters select,
@@ -310,28 +314,28 @@
   background: #f8fafc;
   color: #334155;
   border-color: #cbd5e1;
-  padding: 8px 10px;
+  padding: 6px 8px;
 }
 
 .table {
   border: 1px solid #dbe3ef;
-  border-radius: 10px;
+  border-radius: 8px;
   overflow: hidden;
 }
 
 .tableHead,
 .tableRow {
   display: grid;
-  grid-template-columns: 44px 1.55fr 0.8fr 0.8fr 0.65fr 0.95fr 1.5fr 1fr;
+  grid-template-columns: 34px 1.55fr 0.76fr 0.72fr 0.56fr 0.84fr 1.42fr 0.92fr;
   align-items: center;
-  gap: 10px;
+  gap: 7px;
 }
 
 .tableHead {
   background: #f8fafc;
   color: #475569;
-  padding: 10px 12px;
-  font-size: 11px;
+  padding: 7px 9px;
+  font-size: 10px;
   font-weight: 900;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -343,7 +347,8 @@
   border-top: 1px solid #e2e8f0;
   background: #fff;
   text-align: left;
-  padding: 11px 12px;
+  padding: 8px 9px;
+  min-height: 47px;
 }
 
 .tableRow:hover,
@@ -357,7 +362,7 @@
 }
 
 .tableRow em {
-  font-size: 12px;
+  font-size: 11px;
   font-style: normal;
 }
 
@@ -370,8 +375,8 @@
   display: inline-flex;
   width: fit-content;
   border-radius: 999px;
-  padding: 4px 8px;
-  font-size: 12px;
+  padding: 3px 7px;
+  font-size: 11px;
   font-weight: 900;
 }
 
@@ -407,18 +412,18 @@
 
 .laneGrid {
   display: grid;
-  grid-template-columns: repeat(7, minmax(120px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(7, minmax(105px, 1fr));
+  gap: 8px;
 }
 
 .laneCard {
   border: 1px solid #dbe3ef;
-  border-radius: 10px;
+  border-radius: 8px;
   background: #fff;
   text-align: left;
-  padding: 12px;
+  padding: 9px;
   display: grid;
-  gap: 8px;
+  gap: 5px;
 }
 
 .laneCard strong {
@@ -427,7 +432,7 @@
 
 .laneCard span {
   color: #334155;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .selectedLane {
@@ -439,23 +444,23 @@
 .customerCards {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
 }
 
 .vehicleCard,
 .customerCards article {
   border: 1px solid #dbe3ef;
-  border-radius: 10px;
-  padding: 12px;
+  border-radius: 8px;
+  padding: 9px;
   background: #fff;
 }
 
 .vehicleImage {
-  height: 54px;
-  border-radius: 10px;
+  height: 38px;
+  border-radius: 8px;
   display: grid;
   place-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 7px;
   background: linear-gradient(135deg, #dbeafe, #f8fafc);
   color: #475569;
   font-weight: 900;
@@ -471,37 +476,37 @@
 }
 
 .vehicleCard p {
-  margin: 6px 0 0;
-  font-size: 12px;
+  margin: 4px 0 0;
+  font-size: 11px;
 }
 
 .customerCards {
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin-top: 12px;
+  margin-top: 9px;
 }
 
 .customerCards span {
-  margin: 8px 0;
-  font-size: 13px;
+  margin: 5px 0;
+  font-size: 12px;
 }
 
 .customerCards em {
-  font-size: 12px;
+  font-size: 11px;
   font-style: normal;
 }
 
 .managerRail {
-  padding: 14px;
+  padding: 10px;
   display: grid;
   align-content: start;
-  gap: 10px;
+  gap: 8px;
 }
 
 .signal,
 .forecast {
   border: 1px solid #dbe3ef;
-  border-radius: 10px;
-  padding: 12px;
+  border-radius: 8px;
+  padding: 9px;
   background: #fff;
 }
 
@@ -509,27 +514,27 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .signal header span {
   border-radius: 999px;
-  padding: 4px 8px;
+  padding: 3px 7px;
   background: #ef4444;
   color: #fff;
   font-weight: 900;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .signal p {
-  margin: 8px 0 0;
-  font-size: 13px;
+  margin: 5px 0 0;
+  font-size: 12px;
 }
 
 .forecast strong {
   display: block;
-  margin: 8px 0;
-  font-size: 34px;
+  margin: 5px 0;
+  font-size: 28px;
   color: #16a34a;
 }
 
