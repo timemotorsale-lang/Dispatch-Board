@@ -12,13 +12,26 @@ export type SalesWorkQueueInput = {
   nextActionStaleMinutes: number;
   managerPriority: boolean;
   sourceFreshness: SalesConsoleFreshness;
+  taskSlaRisk?: "none" | "watch" | "breach";
+  revenueAmount?: number;
 };
 
-export type SalesWorkQueueGroup = "Must Do Now" | "Today" | "Waiting" | "Watch";
+export type SalesWorkQueueGroup = "Must Do Now" | "Today" | "Waiting" | "Manager Review" | "Blocked" | "Watch";
 
 export type SalesWorkQueueRanking = {
   id: string;
   score: number;
+  componentScores: {
+    revenueOpportunity: number;
+    urgency: number;
+    customerIntent: number;
+    inventoryReadiness: number;
+    appointmentTiming: number;
+    taskSlaRisk: number;
+    managerReviewPriority: number;
+    sourceFreshnessPenalty: number;
+    blockerSeverity: number;
+  };
   group: SalesWorkQueueGroup;
   rankingReasons: string[];
   nextBestAction: string;
@@ -36,75 +49,131 @@ const laneWeight: Record<SalesConsoleRevenueLaneName, number> = {
 
 export function rankSalesWorkQueueItem(input: SalesWorkQueueInput): SalesWorkQueueRanking {
   const reasons: string[] = [];
-  let score = laneWeight[input.revenueLane];
+  const revenueOpportunity = laneWeight[input.revenueLane] + (input.revenueAmount ? Math.min(12, Math.floor(input.revenueAmount / 5000)) : 0);
+  let urgency = 0;
+  let customerIntent = 0;
+  let inventoryReadiness = 0;
+  let appointmentTiming = 0;
+  let taskSlaRisk = 0;
+  let managerReviewPriority = 0;
+  let sourceFreshnessPenalty = 0;
+  let blockerSeverity = 0;
 
   if (input.leadAgeMinutes <= 15) {
-    score += 18;
+    urgency += 18;
     reasons.push("new lead needs fast response");
   } else if (input.leadAgeMinutes > 240) {
-    score += 8;
+    urgency += 8;
     reasons.push("aging lead needs recovery");
   }
 
   if (input.firstResponseMinutes !== undefined && input.firstResponseMinutes > 30) {
-    score += 18;
+    urgency += 18;
     reasons.push("first response SLA at risk");
   }
 
   if (input.appointmentStartsInMinutes !== undefined && input.appointmentStartsInMinutes >= 0 && input.appointmentStartsInMinutes <= 120) {
-    score += 16;
+    appointmentTiming += 16;
     reasons.push("appointment window is near");
   }
 
   if (input.customerIntent === "high") {
-    score += 15;
+    customerIntent += 15;
     reasons.push("high customer intent");
   } else if (input.customerIntent === "medium") {
-    score += 8;
+    customerIntent += 8;
   }
 
   if (input.vehicleAvailability === "available") {
-    score += 8;
+    inventoryReadiness += 8;
     reasons.push("vehicle is available");
   } else if (input.vehicleAvailability === "blocked" || input.vehicleAvailability === "unavailable") {
-    score -= 15;
+    inventoryReadiness -= 15;
     reasons.push("vehicle availability blocker");
   }
 
   if (input.blockerSeverity === "blocked") {
-    score += 20;
+    blockerSeverity += 20;
     reasons.push("blocked work needs unblock owner");
   } else if (input.blockerSeverity === "risk") {
-    score += 12;
+    blockerSeverity += 12;
     reasons.push("risk blocker needs attention");
   }
 
   if (input.nextActionStaleMinutes > 60) {
-    score += 12;
+    urgency += 12;
     reasons.push("next action is stale");
   }
 
+  if (input.taskSlaRisk === "breach") {
+    taskSlaRisk += 18;
+    reasons.push("task or promise SLA breach");
+  } else if (input.taskSlaRisk === "watch") {
+    taskSlaRisk += 9;
+    reasons.push("task or promise SLA watch");
+  }
+
   if (input.managerPriority) {
-    score += 20;
+    managerReviewPriority += 20;
     reasons.push("manager priority");
   }
 
   if (input.sourceFreshness === "stale" || input.sourceFreshness === "unavailable") {
-    score -= 10;
+    sourceFreshnessPenalty -= 10;
     reasons.push("verify source freshness first");
   }
 
-  const group = input.blockerSeverity === "blocked" ? "Waiting" : score >= 70 ? "Must Do Now" : score >= 45 ? "Today" : "Watch";
+  const score =
+    revenueOpportunity +
+    urgency +
+    customerIntent +
+    inventoryReadiness +
+    appointmentTiming +
+    taskSlaRisk +
+    managerReviewPriority +
+    sourceFreshnessPenalty +
+    blockerSeverity;
+  const group =
+    input.blockerSeverity === "blocked"
+      ? "Blocked"
+      : input.sourceFreshness === "stale" || input.sourceFreshness === "unavailable" || input.vehicleAvailability === "verify-first"
+        ? "Waiting"
+        : score >= 75
+          ? "Must Do Now"
+          : input.managerPriority
+            ? "Manager Review"
+            : score >= 45
+              ? "Today"
+              : "Watch";
   const nextBestAction =
     input.blockerSeverity === "blocked"
       ? "Find blocker owner and request missing evidence"
+      : group === "Manager Review"
+        ? "Open Manager Command and review decision context"
       : input.firstResponseMinutes && input.firstResponseMinutes > 30
         ? "Respond now and log outcome"
         : input.appointmentStartsInMinutes !== undefined && input.appointmentStartsInMinutes <= 120
           ? "Confirm appointment and prepare vehicle/customer context"
           : "Open Revenue Desk and complete next action";
 
-  return { id: input.id, score, group, rankingReasons: reasons, nextBestAction };
+  return {
+    id: input.id,
+    score,
+    componentScores: {
+      revenueOpportunity,
+      urgency,
+      customerIntent,
+      inventoryReadiness,
+      appointmentTiming,
+      taskSlaRisk,
+      managerReviewPriority,
+      sourceFreshnessPenalty,
+      blockerSeverity
+    },
+    group,
+    rankingReasons: reasons,
+    nextBestAction
+  };
 }
 
 export function rankSalesWorkQueue(items: SalesWorkQueueInput[]) {

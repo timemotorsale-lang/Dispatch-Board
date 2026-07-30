@@ -211,7 +211,7 @@ export function SalesConsoleEliteOperatingConsole() {
   const searchExperience = useMemo(() => searchSalesConsoleLiveExperience(query, activeRole), [activeRole, query]);
   const searchResults = searchExperience.results;
   const groupedWork = useMemo(() => {
-    const groups: WorkItem["group"][] = ["Must Do Now", "Today", "Waiting", "Watch"];
+    const groups: WorkItem["group"][] = ["Must Do Now", "Today", "Waiting", "Manager Review", "Blocked", "Watch"];
 
     return groups.map((group) => ({
       group,
@@ -543,7 +543,9 @@ export function SalesConsoleEliteOperatingConsole() {
                           <strong>{item.customer}</strong>
                           <em>{item.vehicle} · Stock #{item.stock}</em>
                           <em>{item.reason}</em>
-                          <em title={item.algorithmReasons.join(", ")}>Score {item.algorithmScore} · {item.algorithmReasons.length} ranking signals</em>
+                          <em title={item.algorithmReasons.join(", ")}>
+                            Score {item.algorithmScore} · {item.algorithmReasons.length} signals · Revenue {item.componentScores.revenueOpportunity} · SLA {item.componentScores.taskSlaRisk}
+                          </em>
                           <em className={styles.sourceLinkRow}>
                             <a href={getSalesConsoleCustomer360Href(item.customer)}>Customer 360</a>
                             <a href={getSalesConsoleVehicle360Href(item.stock)}>Vehicle 360</a>
