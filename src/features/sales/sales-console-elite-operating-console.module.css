@@ -439,6 +439,38 @@
   gap: 6px;
 }
 
+.pipelinePanel {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.pipelinePanel button {
+  display: grid;
+  gap: 4px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  padding: 8px 9px;
+  background: #fff;
+  color: #0f172a;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.pipelinePanel button:hover,
+.pipelinePanel button:focus-visible {
+  border-color: #3157d5;
+  background: #eef4ff;
+  outline: none;
+}
+
+.pipelinePanel span {
+  color: #64748b;
+  font-size: 11px;
+}
+
 .filters select,
 .filters button {
   background: #f8fafc;
@@ -709,6 +741,10 @@
   }
 
   .leadOperations {
+    grid-template-columns: 1fr;
+  }
+
+  .pipelinePanel {
     grid-template-columns: 1fr;
   }
 

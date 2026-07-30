@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 import { salesConsoleLeadRecords } from "./sales-console-lead-operations";
 import { searchSalesConsoleRecords, type SalesConsoleSearchResult } from "./sales-console-operational-search";
+import { salesConsolePipelineRecords } from "./sales-console-pipeline-customer360";
 import styles from "./sales-console-elite-operating-console.module.css";
 
 type ActionState = "Live Action" | "Controlled Action" | "Source-System Action" | "Future / Governed";
@@ -476,6 +477,25 @@ export function SalesConsoleEliteOperatingConsole() {
                     <span>Next action: {selectedLead.nextAction}</span>
                     <span>Assignment: controlled until backend command approval</span>
                   </aside>
+                </section>
+              ) : null}
+              {activeNav === "Pipeline" || activeNav === "Customers" ? (
+                <section className={styles.pipelinePanel} aria-label="Pipeline and Customer 360 workspace">
+                  {salesConsolePipelineRecords.map((record) => (
+                    <button
+                      key={record.id}
+                      type="button"
+                      onClick={() => {
+                        const matched = workItems.find((item) => item.customer === record.customer);
+                        if (matched) setSelectedCustomer(matched);
+                      }}
+                    >
+                      <strong>{record.customer}</strong>
+                      <span>{record.lane} · {record.stage} · {record.age}</span>
+                      <span>Owner: {record.owner} · Freshness: {record.freshness} · Blocker: {record.blocker}</span>
+                      <span>Forecast: {record.forecastBand} · Source: {record.source}</span>
+                    </button>
+                  ))}
                 </section>
               ) : null}
               <div className={styles.workspaceContract} aria-label="Active workspace operating contract">
