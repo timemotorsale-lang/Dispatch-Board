@@ -7,6 +7,7 @@ import { salesConsoleInventoryAlternatives, salesConsoleInventoryMatches } from 
 import { salesConsoleManagerQueues } from "./sales-console-manager-command";
 import { salesConsoleAppointments, salesConsoleDeliveryReadiness, salesConsoleTasksAndPromises } from "./sales-console-operational-support";
 import { salesConsoleMvpAcceptanceChecklist, salesConsoleSourceHealthSummary } from "./sales-console-mvp-release-hardening";
+import { salesConsoleM64ConnectedMvpGate, salesConsoleM64ReadyCount } from "./sales-console-m64-connected-mvp-deployment-gate";
 import { getRevenueLaneContract } from "./sales-console-operational-domain";
 import { searchSalesConsoleRecords, type SalesConsoleSearchResult } from "./sales-console-operational-search";
 import { salesConsolePipelineRecords } from "./sales-console-pipeline-customer360";
@@ -517,7 +518,10 @@ export function SalesConsoleEliteOperatingConsole() {
                 <section className={styles.releasePanel} aria-label="MVP release readiness">
                   <div>
                     <h2>MVP Release Readiness</h2>
-                    <p>Admin-only gate for controlled internal Sales Console deployment.</p>
+                    <p>
+                      Admin-only connected MVP gate: {salesConsoleM64ReadyCount()} of {salesConsoleM64ConnectedMvpGate.length} areas
+                      are ready, guarded, or source-controlled; source-system writes remain controlled.
+                    </p>
                   </div>
                   <div className={styles.releaseGrid}>
                     {salesConsoleMvpAcceptanceChecklist.map((item) => (
@@ -525,6 +529,13 @@ export function SalesConsoleEliteOperatingConsole() {
                     ))}
                   </div>
                   <div className={styles.sourceGrid}>
+                    {salesConsoleM64ConnectedMvpGate.map((item) => (
+                      <article key={item.area}>
+                        <strong>{item.area}</strong>
+                        <span>{item.status}</span>
+                        <em>{item.owner}: {item.evidence}</em>
+                      </article>
+                    ))}
                     {salesConsoleSourceHealthSummary.map((source) => (
                       <article key={source.source}>
                         <strong>{source.source}</strong>
