@@ -4,6 +4,7 @@ import {
   salesConsoleCustomer360PreservesCrmSource,
   salesConsoleCustomer360Views,
   salesConsolePipelineHasSelectableCustomerContext,
+  salesConsolePipelineUsesCustomer360Intelligence,
   salesConsolePipelineRecords
 } from "@/features/sales/sales-console-pipeline-customer360";
 
@@ -17,6 +18,8 @@ describe("Sales Console M43 pipeline and customer 360", () => {
       expect(record.blocker).toBeTruthy();
       expect(record.forecastBand).toBeTruthy();
       expect(record.source).toBeTruthy();
+      expect(record.leadScore).toBeGreaterThanOrEqual(0);
+      expect(record.nextBestCustomerAction).toBeTruthy();
     }
   });
 
@@ -24,5 +27,12 @@ describe("Sales Console M43 pipeline and customer 360", () => {
     expect(salesConsolePipelineHasSelectableCustomerContext()).toBe(true);
     expect(salesConsoleCustomer360PreservesCrmSource()).toBe(true);
     expect(salesConsoleCustomer360Views[0]?.documents).toContain("Buyer order");
+  });
+
+  it("adds explicit Customer 360 intelligence to pipeline operations", () => {
+    expect(salesConsolePipelineUsesCustomer360Intelligence()).toBe(true);
+    expect(salesConsolePipelineRecords.map((record) => record.funnelSignal)).toEqual(
+      expect.arrayContaining(["proposal", "blocked", "qualified"])
+    );
   });
 });

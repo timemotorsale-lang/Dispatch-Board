@@ -211,7 +211,7 @@ export function SalesConsoleEliteOperatingConsole() {
   const searchExperience = useMemo(() => searchSalesConsoleLiveExperience(query, activeRole), [activeRole, query]);
   const searchResults = searchExperience.results;
   const groupedWork = useMemo(() => {
-    const groups: WorkItem["group"][] = ["Must Do Now", "Today", "Waiting", "Watch"];
+    const groups: WorkItem["group"][] = ["Must Do Now", "Today", "Waiting", "Manager Review", "Blocked", "Watch"];
 
     return groups.map((group) => ({
       group,
@@ -416,6 +416,8 @@ export function SalesConsoleEliteOperatingConsole() {
                       <span>{record.lane} · {record.stage} · {record.age}</span>
                       <span>Owner: {record.owner} · Freshness: {record.freshness} · Blocker: {record.blocker}</span>
                       <span>Forecast: {record.forecastBand} · Source: {record.source}</span>
+                      <span>Lead score: {record.leadScore} · Funnel: {record.funnelSignal}</span>
+                      <span>Next-best customer action: {record.nextBestCustomerAction}</span>
                       <button
                         type="button"
                         onClick={() => {
@@ -541,7 +543,9 @@ export function SalesConsoleEliteOperatingConsole() {
                           <strong>{item.customer}</strong>
                           <em>{item.vehicle} · Stock #{item.stock}</em>
                           <em>{item.reason}</em>
-                          <em title={item.algorithmReasons.join(", ")}>Score {item.algorithmScore} · {item.algorithmReasons.length} ranking signals</em>
+                          <em title={item.algorithmReasons.join(", ")}>
+                            Score {item.algorithmScore} · {item.algorithmReasons.length} signals · Revenue {item.componentScores.revenueOpportunity} · SLA {item.componentScores.taskSlaRisk}
+                          </em>
                           <em className={styles.sourceLinkRow}>
                             <a href={getSalesConsoleCustomer360Href(item.customer)}>Customer 360</a>
                             <a href={getSalesConsoleVehicle360Href(item.stock)}>Vehicle 360</a>
@@ -655,6 +659,8 @@ export function SalesConsoleEliteOperatingConsole() {
                     <p>Availability: {vehicle.availability} · Blocker: {vehicle.blocker}</p>
                     <p>{vehicle.fitReason}</p>
                     <p>Match score {vehicle.matchScore} · Sellability {vehicle.sellability}</p>
+                    <p>Revenue lanes: {vehicle.revenueLaneSignals.join(", ")}</p>
+                    <p>{vehicle.laneRoutingExplanation.join("; ") || vehicle.revenueRoute}</p>
                     <p>{vehicle.blockerExplanation.join("; ") || "No algorithm blocker"}</p>
                     <button type="button" onClick={() => setSelectedInventory(vehicle)}>Select vehicle match</button>
                     <a href={getSalesConsoleVehicle360Href(vehicle.stock)}>Open Vehicle 360 source</a>

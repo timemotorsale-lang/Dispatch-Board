@@ -18,17 +18,21 @@ describe("Sales Console M58 work queue algorithm", () => {
       blockerSeverity: "risk",
       nextActionStaleMinutes: 90,
       managerPriority: true,
-      sourceFreshness: "current"
+      sourceFreshness: "current",
+      taskSlaRisk: "watch",
+      revenueAmount: 26500
     });
 
     expect(item.group).toBe("Must Do Now");
+    expect(item.componentScores.revenueOpportunity).toBeGreaterThan(18);
+    expect(item.componentScores.taskSlaRisk).toBeGreaterThan(0);
     expect(item.rankingReasons).toEqual(
       expect.arrayContaining(["new lead needs fast response", "first response SLA at risk", "manager priority"])
     );
     expect(item.nextBestAction).toBe("Respond now and log outcome");
   });
 
-  it("places blocked work in Waiting even when important", () => {
+  it("places blocked work in Blocked even when important", () => {
     const item = rankSalesWorkQueueItem({
       id: "REV-2",
       leadAgeMinutes: 60,
@@ -41,8 +45,37 @@ describe("Sales Console M58 work queue algorithm", () => {
       sourceFreshness: "current"
     });
 
-    expect(item.group).toBe("Waiting");
+    expect(item.group).toBe("Blocked");
     expect(item.nextBestAction).toBe("Find blocker owner and request missing evidence");
+  });
+
+  it("separates source-stale work into Waiting and manager-led work into Manager Review", () => {
+    const waiting = rankSalesWorkQueueItem({
+      id: "REV-WAIT",
+      leadAgeMinutes: 80,
+      customerIntent: "medium",
+      revenueLane: "Daily Rental",
+      vehicleAvailability: "verify-first",
+      blockerSeverity: "watch",
+      nextActionStaleMinutes: 20,
+      managerPriority: false,
+      sourceFreshness: "stale"
+    });
+    const managerReview = rankSalesWorkQueueItem({
+      id: "REV-MGR",
+      leadAgeMinutes: 80,
+      customerIntent: "medium",
+      revenueLane: "Warranty Product",
+      vehicleAvailability: "available",
+      blockerSeverity: "watch",
+      nextActionStaleMinutes: 20,
+      managerPriority: true,
+      sourceFreshness: "current"
+    });
+
+    expect(waiting.group).toBe("Waiting");
+    expect(managerReview.group).toBe("Manager Review");
+    expect(managerReview.nextBestAction).toContain("Manager Command");
   });
 
   it("sorts queue records by deterministic score", () => {

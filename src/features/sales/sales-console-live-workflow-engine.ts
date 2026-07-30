@@ -73,6 +73,7 @@ export type SalesConsoleLiveWorkItem = {
   actionState: SalesConsoleLiveActionState;
   algorithmScore: number;
   algorithmReasons: string[];
+  componentScores: ReturnType<typeof rankSalesWorkQueue>[number]["componentScores"];
 };
 
 export type SalesConsoleLiveRevenueLane = {
@@ -93,6 +94,7 @@ export type SalesConsoleLiveInventoryMatch = SalesConsoleInventoryMatch & {
   matchScore: number;
   sellability: ReturnType<typeof recommendSalesInventoryMatches>[number]["sellability"];
   blockerExplanation: string[];
+  laneRoutingExplanation: string[];
   sourceVehicleLink: string;
 };
 
@@ -141,7 +143,9 @@ const baseWorkItems = [
       blockerSeverity: "risk",
       nextActionStaleMinutes: 15,
       managerPriority: true,
-      sourceFreshness: "current"
+      sourceFreshness: "current",
+      taskSlaRisk: "watch",
+      revenueAmount: 26500
     } satisfies SalesWorkQueueInput
   },
   {
@@ -169,7 +173,9 @@ const baseWorkItems = [
       blockerSeverity: "risk",
       nextActionStaleMinutes: 90,
       managerPriority: false,
-      sourceFreshness: "current"
+      sourceFreshness: "current",
+      taskSlaRisk: "watch",
+      revenueAmount: 19000
     } satisfies SalesWorkQueueInput
   },
   {
@@ -197,7 +203,9 @@ const baseWorkItems = [
       blockerSeverity: "watch",
       nextActionStaleMinutes: 30,
       managerPriority: true,
-      sourceFreshness: "current"
+      sourceFreshness: "current",
+      taskSlaRisk: "none",
+      revenueAmount: 26900
     } satisfies SalesWorkQueueInput
   },
   {
@@ -224,7 +232,9 @@ const baseWorkItems = [
       blockerSeverity: "blocked",
       nextActionStaleMinutes: 180,
       managerPriority: false,
-      sourceFreshness: "current"
+      sourceFreshness: "current",
+      taskSlaRisk: "breach",
+      revenueAmount: 18000
     } satisfies SalesWorkQueueInput
   },
   {
@@ -251,7 +261,9 @@ const baseWorkItems = [
       blockerSeverity: "none",
       nextActionStaleMinutes: 70,
       managerPriority: false,
-      sourceFreshness: "stale"
+      sourceFreshness: "stale",
+      taskSlaRisk: "watch",
+      revenueAmount: 1800
     } satisfies SalesWorkQueueInput
   }
 ];
@@ -283,9 +295,44 @@ export const salesConsoleLiveWorkItems: SalesConsoleLiveWorkItem[] = rankSalesWo
     action: source.action,
     actionState: source.actionState,
     algorithmScore: ranking.score,
-    algorithmReasons: ranking.rankingReasons
+    algorithmReasons: ranking.rankingReasons,
+    componentScores: ranking.componentScores
   };
 });
+
+export const salesConsoleUnifiedRevenueCommandQueueHealth = {
+  sourceDomains: [
+    "Customer 360",
+    "Lead Pipeline",
+    "Inventory",
+    "Appointments",
+    "Tasks / My Tasks",
+    "Rental",
+    "Service",
+    "Finance",
+    "Warranty",
+    "Sales Console"
+  ],
+  groups: [...new Set(salesConsoleLiveWorkItems.map((item) => item.group))],
+  guardedActions: [
+    "customer messaging",
+    "quote submission",
+    "vehicle holds/reservations",
+    "finance decisions",
+    "discount approvals"
+  ],
+  managerReviewOnlySubmitWorkflow: true
+} as const;
+
+export function salesConsoleUnifiedQueueCoversOperatingBrain() {
+  return (
+    salesConsoleUnifiedRevenueCommandQueueHealth.sourceDomains.length >= 9 &&
+    salesConsoleLiveWorkItems.every((item) => item.algorithmScore >= 0 && item.algorithmReasons.length > 0) &&
+    salesConsoleLiveWorkItems.some((item) => item.group === "Must Do Now") &&
+    salesConsoleLiveWorkItems.some((item) => item.group === "Blocked" || item.group === "Waiting") &&
+    salesConsoleUnifiedRevenueCommandQueueHealth.managerReviewOnlySubmitWorkflow
+  );
+}
 
 const salesConsoleLiveRevenueLaneSeeds: Array<Omit<SalesConsoleLiveRevenueLane, "workflowDecision">> = [
   { name: "Cash Sale", contractLane: "Inventory Cash Sale", stage: "Proposal", owner: "James K.", nextAction: "Confirm trade and final numbers", status: "Live Action" },
@@ -339,7 +386,13 @@ const inventoryAlgorithmInputs: SalesInventoryMatchInput[] = salesConsoleInvento
   grossPotential: Number(vehicle.gross.replace(/[$,]/g, "")) > 2500 ? "high" : "medium",
   financeFit: vehicle.stock === "TMS20022" ? "okay" : "strong",
   customerPreference: vehicle.stock === "TMS22145" ? "preferred" : "acceptable",
-  blockerCount: vehicle.blocker === "Clear" ? 0 : 1
+  blockerCount: vehicle.blocker === "Clear" ? 0 : 1,
+  bhphEligible: vehicle.revenueLaneSignals.includes("Inventory BHPH Sale"),
+  leaseToOwnEligible: vehicle.revenueLaneSignals.includes("Inventory Lease-to-Own"),
+  rentalEligible: vehicle.revenueLaneSignals.includes("Daily Rental"),
+  warrantyEligible: vehicle.revenueLaneSignals.includes("Warranty Product"),
+  serviceOpportunity: vehicle.revenueLaneSignals.includes("Public Auto Repair"),
+  financeProductFit: vehicle.revenueLaneSignals.includes("Financing Product") ? "strong" : "okay"
 }));
 
 const inventoryScores = recommendSalesInventoryMatches(inventoryAlgorithmInputs);
@@ -366,6 +419,8 @@ export const salesConsoleLiveInventoryMatches: SalesConsoleLiveInventoryMatch[] 
     matchScore: score?.score ?? 0,
     sellability,
     blockerExplanation: score?.blockerExplanation ?? [],
+    revenueLaneSignals: score?.recommendedRevenueLanes ?? vehicle.revenueLaneSignals,
+    laneRoutingExplanation: score?.laneRoutingExplanation ?? [],
     sourceVehicleLink: sourceVehicle.sourceVehicleLink
   };
 }).sort((first, second) => second.matchScore - first.matchScore);

@@ -10,6 +10,8 @@ import {
   salesConsoleLiveOutcomeDecision,
   salesConsoleLiveRevenueLanes,
   salesConsoleLiveWorkItems,
+  salesConsoleUnifiedQueueCoversOperatingBrain,
+  salesConsoleUnifiedRevenueCommandQueueHealth,
   searchSalesConsoleLiveExperience
 } from "@/features/sales/sales-console-live-workflow-engine";
 
@@ -17,9 +19,19 @@ describe("Sales Console live workflow engine", () => {
   it("drives the work queue from deterministic ranking output", () => {
     expect(salesConsoleLiveWorkItems[0].algorithmScore).toBeGreaterThanOrEqual(salesConsoleLiveWorkItems[1].algorithmScore);
     expect(salesConsoleLiveWorkItems[0].algorithmReasons.length).toBeGreaterThan(0);
+    expect(salesConsoleLiveWorkItems[0].componentScores.revenueOpportunity).toBeGreaterThan(0);
     expect(new Set(salesConsoleLiveWorkItems.map((item) => item.group))).toEqual(
       expect.any(Set)
     );
+  });
+
+  it("unifies source domains into the revenue command queue while preserving guardrails", () => {
+    expect(salesConsoleUnifiedQueueCoversOperatingBrain()).toBe(true);
+    expect(salesConsoleUnifiedRevenueCommandQueueHealth.sourceDomains).toEqual(
+      expect.arrayContaining(["Customer 360", "Inventory", "Appointments", "Tasks / My Tasks", "Rental", "Service", "Finance", "Warranty"])
+    );
+    expect(salesConsoleUnifiedRevenueCommandQueueHealth.guardedActions).toContain("vehicle holds/reservations");
+    expect(salesConsoleUnifiedRevenueCommandQueueHealth.managerReviewOnlySubmitWorkflow).toBe(true);
   });
 
   it("adds live workflow decisions to leads and revenue lanes", () => {

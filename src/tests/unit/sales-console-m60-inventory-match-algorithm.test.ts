@@ -20,11 +20,28 @@ describe("Sales Console M60 inventory match algorithm", () => {
       grossPotential: "high",
       financeFit: "strong",
       customerPreference: "preferred",
-      blockerCount: 0
+      blockerCount: 0,
+      bhphEligible: true,
+      leaseToOwnEligible: true,
+      rentalEligible: true,
+      warrantyEligible: true,
+      serviceOpportunity: true,
+      financeProductFit: "strong"
     });
 
     expect(result.sellability).toBe("primary");
     expect(result.blockerExplanation).toContain("fits stated budget");
+    expect(result.recommendedRevenueLanes).toEqual(
+      expect.arrayContaining([
+        "Inventory Cash Sale",
+        "Inventory BHPH Sale",
+        "Inventory Lease-to-Own",
+        "Public Auto Repair",
+        "Daily Rental",
+        "Warranty Product",
+        "Financing Product"
+      ])
+    );
   });
 
   it("marks blocked or unavailable vehicles as blocked", () => {
