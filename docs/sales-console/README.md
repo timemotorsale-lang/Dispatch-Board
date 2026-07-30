@@ -32,6 +32,7 @@ Build-ready additions for the next implementation pass:
 - [SALES_UI_IMPLEMENTATION_PLAN.md](SALES_UI_IMPLEMENTATION_PLAN.md) - navigation, dashboard views, deal desk, inventory intelligence, manager command center, components, and first UI tickets.
 - [SALES_CONSOLE_M36_ARCHITECTURE_AUDIT.md](SALES_CONSOLE_M36_ARCHITECTURE_AUDIT.md) - corrective audit comparing the current build to the original enterprise goal, including the multi-lane revenue model and reset roadmap.
 - [SALES_CONSOLE_M37_OPERATIONAL_UI_SOURCE_OF_TRUTH.md](SALES_CONSOLE_M37_OPERATIONAL_UI_SOURCE_OF_TRUTH.md) - corrected operational mockup and UI contract for rebuilding the staff-facing Sales Console.
+- [SALES_CONSOLE_ENTERPRISE_GAP_CLOSURE_PLAN.md](SALES_CONSOLE_ENTERPRISE_GAP_CLOSURE_PLAN.md) - official pause-and-resume reference showing current state, enterprise gaps, Customer 360/CRM dependency, and roadmap to close gaps toward vAuto/Salesforce/ServiceNow/Microsoft-level capability.
 - [SALES_CONSOLE_IMPLEMENTATION_PLANNING_MILESTONES.md](SALES_CONSOLE_IMPLEMENTATION_PLANNING_MILESTONES.md) - no-code implementation waves, milestone gates, release candidate scope, and pilot acceptance planning.
 - [SALES_CONSOLE_MVP_MILESTONES_FOR_REVIEW.md](SALES_CONSOLE_MVP_MILESTONES_FOR_REVIEW.md) - MVP-only milestones for review before implementation begins.
 
