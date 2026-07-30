@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import SalesConsoleError from "@/app/(app)/sales/error";
 import SalesConsoleLoading from "@/app/(app)/sales/loading";
-import SalesPage from "@/app/(sales-console)/sales/page";
+import SalesPage from "@/app/(app)/sales/page";
 import { salesConsoleMvpDefinition } from "@/features/sales/sales-console-mvp-definition";
 import { salesConsoleMvpExecution } from "@/features/sales/sales-console-mvp-execution";
 import { salesConsoleMvpLiveDataContract } from "@/features/sales/sales-console-mvp-live-data-contract";

@@ -28,9 +28,10 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
   const pathname = usePathname();
   const { mode } = useWorkspaceMode();
   const commandCenterHome = pathname === "/command-center";
+  const salesConsole = isSalesConsolePath(pathname);
   const operationsCoordinatorConsole = isOperationsCoordinatorConsolePath(pathname);
   const dispatchConsole = isDispatchConsolePath(pathname) && !isInventoryConsolePath(pathname) && !isAppointmentConsolePath(pathname) && !isSalesConsolePath(pathname);
-  const consoleNavigation = getConsoleNavigation(pathname, user, preferredWorkspace);
+  const consoleNavigation = salesConsole ? null : getConsoleNavigation(pathname, user, preferredWorkspace);
   const hasSidebar = commandCenterHome || Boolean(consoleNavigation);
   const tasksWorkspace = pathname.startsWith("/tasks");
   const sidebarCompact = commandCenterHome && tasksWorkspace && mode !== "standard";
@@ -41,6 +42,7 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
         "app-frame",
         !commandCenterHome ? "app-frame-console" : "",
         consoleNavigation ? "app-frame-console-sidebar" : "",
+        salesConsole ? "app-frame-sales-standalone" : "",
         operationsCoordinatorConsole ? "app-frame-operations-coordinator" : "",
         sidebarCompact ? "app-frame-sidebar-compact" : "",
         tasksWorkspace ? `app-frame-workspace-${mode}` : ""
@@ -53,7 +55,9 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
         <button className="sidebar-scrim" aria-label="Close navigation" onClick={() => setNavigationOpen(false)} />
       ) : null}
       <div className="app-workspace">
-        <AppTopbar commandCenterHome={commandCenterHome} onMenuOpen={() => setNavigationOpen(true)} preferredWorkspace={preferredWorkspace} showNavigationMenu={hasSidebar} user={user} />
+        {salesConsole ? null : (
+          <AppTopbar commandCenterHome={commandCenterHome} onMenuOpen={() => setNavigationOpen(true)} preferredWorkspace={preferredWorkspace} showNavigationMenu={hasSidebar} user={user} />
+        )}
         {dispatchConsole ? <DispatchConsoleHeader preferredWorkspace={preferredWorkspace} user={user} /> : null}
         <main className="app-content">{children}</main>
       </div>

@@ -6173,6 +6173,9 @@ code {
 .app-frame { grid-template-columns: 228px minmax(0, 1fr); background: #f3f6fa; }
 .app-frame-console { grid-template-columns: minmax(0, 1fr); }
 .app-frame-console-sidebar { grid-template-columns: 228px minmax(0, 1fr); }
+.app-frame-sales-standalone .app-content {
+  padding: 0;
+}
 .app-sidebar { padding: 16px 8px 12px; background: linear-gradient(180deg, #061426 0%, #071a30 55%, #06172a 100%); }
 .sidebar-brand-row { min-height: 72px; padding: 0 10px 17px; }
 .sidebar-brand { gap: 10px; }
