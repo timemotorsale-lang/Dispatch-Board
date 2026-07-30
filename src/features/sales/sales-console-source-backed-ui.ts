@@ -4,6 +4,7 @@ import {
   type SalesConsoleRealReadSnapshot,
   type SalesConsoleSourceBackedRecord
 } from "./sales-console-real-read-services";
+import { withSalesConsoleReturnTo } from "./sales-console-cross-console-integration";
 
 export const salesConsoleSourceBackedTabs = [
   "Today",
@@ -69,7 +70,7 @@ export function buildSalesConsoleSourceBackedTabStates(
       tab,
       status: records.length === 0 ? "empty" : hasFallback ? "fallback" : "ready",
       recordCount: records.length,
-      sourceLinks: [...new Set(records.map((record) => record.sourceHref))],
+      sourceLinks: [...new Set(records.map((record) => withSalesConsoleReturnTo(record.sourceHref)))],
       staffMessage:
         records.length === 0
           ? "No source records are available for this workspace yet."

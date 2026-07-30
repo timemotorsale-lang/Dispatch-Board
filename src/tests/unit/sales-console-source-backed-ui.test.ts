@@ -22,6 +22,6 @@ describe("Sales Console source-backed UI", () => {
     expect(finance?.status).toBe("fallback");
     expect(finance?.staffMessage).toContain("fallback");
     expect(inventory?.status).toBe("ready");
-    expect(inventory?.sourceLinks[0]).toBe("/vehicles/360/TMS22145");
+    expect(inventory?.sourceLinks[0]).toBe("/vehicles/360/TMS22145?returnTo=%2Fsales");
   });
 });

@@ -8,7 +8,8 @@ import {
   getSalesConsoleVehicle360Href,
   salesConsoleCrossConsoleNavigationTargets,
   salesConsoleCrossConsoleTargetsRemainSafe,
-  salesConsoleCrossConsoleWiringCoversCoreDestinations
+  salesConsoleCrossConsoleWiringCoversCoreDestinations,
+  withSalesConsoleReturnTo
 } from "@/features/sales/sales-console-cross-console-integration";
 
 describe("Sales Console cross-console integration wiring", () => {
@@ -16,10 +17,10 @@ describe("Sales Console cross-console integration wiring", () => {
     expect(salesConsoleCrossConsoleWiringCoversCoreDestinations()).toBe(true);
     expect(salesConsoleCrossConsoleNavigationTargets).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ destination: "Customer 360", href: "/customers/customer-360" }),
-        expect.objectContaining({ destination: "Appointments", href: "/appointments" }),
-        expect.objectContaining({ destination: "Tasks", href: "/tasks" }),
-        expect.objectContaining({ destination: "Inventory / Vehicle 360", href: "/vehicles/360" })
+        expect.objectContaining({ destination: "Customer 360", href: "/customers/customer-360?returnTo=%2Fsales" }),
+        expect.objectContaining({ destination: "Appointments", href: "/appointments?returnTo=%2Fsales" }),
+        expect.objectContaining({ destination: "Tasks", href: "/tasks?returnTo=%2Fsales" }),
+        expect.objectContaining({ destination: "Inventory / Vehicle 360", href: "/vehicles/360?returnTo=%2Fsales" })
       ])
     );
   });
@@ -35,10 +36,15 @@ describe("Sales Console cross-console integration wiring", () => {
   });
 
   it("builds concrete deep links for source records", () => {
-    expect(getSalesConsoleVehicle360Href("TMS22145")).toBe("/vehicles/360/TMS22145");
-    expect(getSalesConsoleTaskHref("TASK-1")).toBe("/tasks/TASK-1");
-    expect(getSalesConsoleAppointmentHref("APT-1")).toBe("/appointments?appointmentId=APT-1");
-    expect(getSalesConsoleCustomer360Href("John Smith")).toBe("/customers/customer-360?customer=John%20Smith");
+    expect(getSalesConsoleVehicle360Href("TMS22145")).toBe("/vehicles/360/TMS22145?returnTo=%2Fsales");
+    expect(getSalesConsoleTaskHref("TASK-1")).toBe("/tasks/TASK-1?returnTo=%2Fsales");
+    expect(getSalesConsoleAppointmentHref("APT-1")).toBe("/appointments?appointmentId=APT-1&returnTo=%2Fsales");
+    expect(getSalesConsoleCustomer360Href("John Smith")).toBe("/customers/customer-360?customer=John+Smith&returnTo=%2Fsales");
+  });
+
+  it("keeps Sales Console internal links inside the console without an extra return marker", () => {
+    expect(withSalesConsoleReturnTo("/sales")).toBe("/sales");
+    expect(withSalesConsoleReturnTo("/sales?workspace=finance-handoff")).toBe("/sales?workspace=finance-handoff");
   });
 
   it("keeps cross-console targets out of risky command routes", () => {

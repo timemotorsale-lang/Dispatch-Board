@@ -10,7 +10,8 @@ import {
   getSalesConsoleCustomer360Href,
   getSalesConsoleTaskHref,
   getSalesConsoleVehicle360Href,
-  salesConsoleCrossConsoleNavigationTargets
+  salesConsoleCrossConsoleNavigationTargets,
+  withSalesConsoleReturnTo
 } from "./sales-console-cross-console-integration";
 import { buildSalesConsoleSourceBackedTabStates } from "./sales-console-source-backed-ui";
 import { getRevenueLaneContract } from "./sales-console-operational-domain";
@@ -401,7 +402,7 @@ export function SalesConsoleEliteOperatingConsole() {
                     <span>Escalation: {selectedLead.workflowDecision.escalationTriggers.join(", ") || "none"}</span>
                     <span>Assignment: {selectedLead.workflowDecision.assignmentRecommendation}; controlled until backend command approval</span>
                     <a href={getSalesConsoleCustomer360Href(selectedLead.customer)}>Open linked Customer 360</a>
-                    <a href="/appointments">Open related appointments</a>
+                    <a href={withSalesConsoleReturnTo("/appointments")}>Open related appointments</a>
                   </aside>
                 </section>
               ) : null}
