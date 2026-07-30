@@ -540,7 +540,7 @@ export function SalesConsoleEliteOperatingConsole() {
                           <strong>{item.customer}</strong>
                           <em>{item.vehicle} · Stock #{item.stock}</em>
                           <em>{item.reason}</em>
-                          <em>Algorithm score {item.algorithmScore}: {item.algorithmReasons.join(", ")}</em>
+                          <em title={item.algorithmReasons.join(", ")}>Score {item.algorithmScore} · {item.algorithmReasons.length} ranking signals</em>
                           <em className={styles.sourceLinkRow}>
                             <a href={getSalesConsoleCustomer360Href(item.customer)}>Customer 360</a>
                             <a href={getSalesConsoleVehicle360Href(item.stock)}>Vehicle 360</a>

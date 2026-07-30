@@ -360,8 +360,8 @@
 .workspace {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(242px, 258px);
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) 270px;
+  gap: 12px;
   padding: 10px;
   align-items: start;
   overflow: hidden;
@@ -715,10 +715,10 @@
 .tableHead,
 .tableRow {
   display: grid;
-  grid-template-columns: 34px minmax(190px, 1.45fr) minmax(92px, 0.72fr) minmax(86px, 0.68fr) minmax(70px, 0.5fr) minmax(92px, 0.72fr) minmax(190px, 1.25fr) minmax(120px, 0.78fr);
+  grid-template-columns: 38px minmax(220px, 1.45fr) minmax(88px, 0.58fr) minmax(84px, 0.52fr) minmax(72px, 0.42fr) minmax(118px, 0.72fr) minmax(190px, 1.08fr) minmax(118px, 0.62fr);
   align-items: center;
   gap: 7px;
-  min-width: 920px;
+  min-width: 0;
 }
 
 .tableHead {
@@ -752,7 +752,7 @@
 }
 
 .tableRow {
-  width: max(100%, 920px);
+  width: 100%;
   border: 0;
   border-top: 1px solid #e2e8f0;
   background: #fff;
@@ -787,6 +787,13 @@
 .tableRow em {
   font-size: 11px;
   font-style: normal;
+}
+
+.tableRow em:not(.sourceLinkRow) {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .laneChip,
@@ -1018,7 +1025,7 @@
   top: 10px;
   z-index: 2;
   min-width: 0;
-  max-width: 258px;
+  max-width: 270px;
   padding: 10px;
   display: grid;
   align-content: start;
