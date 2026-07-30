@@ -45,6 +45,10 @@ import {
   buildPostSaleExecutionWorkflow,
   salesConsoleSampleCompletedSaleRecord
 } from "./sales-console-m69-post-sale-execution-workflow";
+import {
+  buildSalesBookLedger,
+  salesConsoleSampleSalesBookRecords
+} from "./sales-console-m70-sales-book-ledger-view";
 import type { SalesFederatedSearchResult } from "./sales-console-m57-federated-search";
 import styles from "./sales-console-elite-operating-console.module.css";
 
@@ -221,6 +225,10 @@ export function SalesConsoleEliteOperatingConsole() {
       sourceRecordLinks: [getSalesConsoleCustomer360Href(selectedCustomer.customer), getSalesConsoleVehicle360Href(selectedCustomer.stock)]
     }),
     [selectedCustomer, selectedLane]
+  );
+  const salesBookLedger = useMemo(
+    () => buildSalesBookLedger(salesConsoleSampleSalesBookRecords, activeRole, activeRole === "Salesperson" ? "USER-1" : "MGR-1"),
+    [activeRole]
   );
 
   const filteredWork = useMemo(() => {
@@ -527,6 +535,34 @@ export function SalesConsoleEliteOperatingConsole() {
                         <strong>{item.label}</strong>
                         <span>{item.passed ? "pass" : "blocked"}</span>
                         <em>{item.evidence}</em>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+              {activeNav === "Reports & Forecast" || activeNav === "Admin / Source Health" ? (
+                <section className={styles.releasePanel} aria-label="Sales Book ledger">
+                  <div>
+                    <h2>Sales Book Ledger</h2>
+                    <p>
+                      {salesBookLedger.units} completed sale record{salesBookLedger.units === 1 ? "" : "s"} visible for {salesBookLedger.role};
+                      estimated gross ${(salesBookLedger.grossEstimateCents / 100).toLocaleString()}.
+                    </p>
+                  </div>
+                  <div className={styles.releaseGrid}>
+                    <span>Today: {salesBookLedger.todayUnits} units</span>
+                    <span>MTD: {salesBookLedger.monthToDateUnits} units</span>
+                    <span>Pending reconciliation: {salesBookLedger.pendingReconciliation}</span>
+                    <span>Missing evidence: {salesBookLedger.missingEvidence}</span>
+                    <span>Source mismatch: {salesBookLedger.sourceMismatch}</span>
+                    <span>Corrections needed: {salesBookLedger.voidOrCorrectionNeeded}</span>
+                  </div>
+                  <div className={styles.sourceGrid}>
+                    {salesBookLedger.visibleRecords.map((record) => (
+                      <article key={record.id}>
+                        <strong>{record.customerName}</strong>
+                        <span>{record.revenueLane} · ${(record.grossEstimateCents / 100).toLocaleString()}</span>
+                        <em>{record.reconciliationStatus} · {record.evidenceIds.length} evidence file{record.evidenceIds.length === 1 ? "" : "s"}</em>
                       </article>
                     ))}
                   </div>
