@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { salesConsoleLeadRecords } from "./sales-console-lead-operations";
+import { getRevenueLaneContract } from "./sales-console-operational-domain";
 import { searchSalesConsoleRecords, type SalesConsoleSearchResult } from "./sales-console-operational-search";
 import { salesConsolePipelineRecords } from "./sales-console-pipeline-customer360";
 import styles from "./sales-console-elite-operating-console.module.css";
@@ -274,6 +275,16 @@ const managerSignals = [
   { title: "Coaching Opportunities", count: "6", items: ["Low Show Rate 3", "Low Gross Per Unit 2", "Overdue Follow Ups 1"] }
 ];
 
+const revenueLaneContractNames: Record<string, Parameters<typeof getRevenueLaneContract>[0]> = {
+  "Cash Sale": "Inventory Cash Sale",
+  "BHPH": "Inventory BHPH Sale",
+  "Lease-to-Own": "Inventory Lease-to-Own",
+  "Public Repair": "Public Auto Repair",
+  "Daily Rental": "Daily Rental",
+  "Warranty": "Warranty Product",
+  "Financing Products": "Financing Product"
+};
+
 const actionTone: Record<ActionState, string> = {
   "Live Action": styles.live,
   "Controlled Action": styles.controlled,
@@ -290,6 +301,7 @@ export function SalesConsoleEliteOperatingConsole() {
   const [selectedLane, setSelectedLane] = useState(revenueLanes[0]);
   const [selectedLead, setSelectedLead] = useState(salesConsoleLeadRecords[0]);
   const activeWorkspace = workspaceSummaries[activeNav];
+  const selectedLaneContract = getRevenueLaneContract(revenueLaneContractNames[selectedLane.name]);
 
   const filteredWork = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -570,6 +582,32 @@ export function SalesConsoleEliteOperatingConsole() {
                   </button>
                 ))}
               </div>
+              {selectedLaneContract ? (
+                <section className={styles.revenueLaneDetail} aria-label="Selected Revenue Desk lane detail">
+                  <div>
+                    <h3>{selectedLaneContract.lane}</h3>
+                    <p>{selectedLane.stage} · Owner {selectedLane.owner} · Next: {selectedLane.nextAction}</p>
+                  </div>
+                  <dl>
+                    <div>
+                      <dt>Required fields</dt>
+                      <dd>{selectedLaneContract.requiredFields.join(", ")}</dd>
+                    </div>
+                    <div>
+                      <dt>Source systems</dt>
+                      <dd>{selectedLaneContract.sourceOwners.join(", ")}</dd>
+                    </div>
+                    <div>
+                      <dt>Allowed MVP actions</dt>
+                      <dd>{selectedLaneContract.allowedMvpActions.join(", ")}</dd>
+                    </div>
+                    <div>
+                      <dt>Governed actions</dt>
+                      <dd>{selectedLaneContract.governedActions.join(", ")}</dd>
+                    </div>
+                  </dl>
+                </section>
+              ) : null}
             </section>
 
             <section className={styles.inventory} aria-label="Inventory Intelligence">

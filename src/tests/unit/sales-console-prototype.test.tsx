@@ -166,6 +166,9 @@ describe("Sales Console", () => {
     expect(markup).toContain("Controlled Action");
     expect(markup).toContain("Source-System Action");
     expect(markup).toContain("Future / Governed");
+    expect(markup).toContain("Selected Revenue Desk lane detail");
+    expect(markup).toContain("Required fields");
+    expect(markup).toContain("Governed actions");
   });
 
   it("renders the first sales console slice with the required operating surfaces", () => {

@@ -622,6 +622,52 @@
   box-shadow: inset 0 0 0 1px #3157d5;
 }
 
+.revenueLaneDetail {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 10px;
+  margin-top: 9px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  padding: 10px;
+  background: #f8fafc;
+}
+
+.revenueLaneDetail h3,
+.revenueLaneDetail p {
+  margin: 0;
+}
+
+.revenueLaneDetail p {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.revenueLaneDetail dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin: 0;
+}
+
+.revenueLaneDetail div {
+  min-width: 0;
+}
+
+.revenueLaneDetail dt {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.revenueLaneDetail dd {
+  margin: 2px 0 0;
+  color: #0f172a;
+  font-size: 11px;
+}
+
 .inventoryGrid,
 .customerCards {
   display: grid;
@@ -745,6 +791,11 @@
   }
 
   .pipelinePanel {
+    grid-template-columns: 1fr;
+  }
+
+  .revenueLaneDetail,
+  .revenueLaneDetail dl {
     grid-template-columns: 1fr;
   }
 
