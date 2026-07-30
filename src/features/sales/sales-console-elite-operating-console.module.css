@@ -148,6 +148,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .topbar {
@@ -306,15 +307,18 @@
 .workspace {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 258px;
+  grid-template-columns: minmax(0, calc(100% - 268px)) 258px;
   gap: 10px;
   padding: 10px;
+  align-items: start;
+  overflow: hidden;
 }
 
 .operatingArea {
   min-width: 0;
   display: grid;
   gap: 10px;
+  overflow: hidden;
 }
 
 .workQueue,
@@ -332,7 +336,9 @@
 .revenueDesk,
 .inventory,
 .customer360 {
+  min-width: 0;
   padding: 12px;
+  overflow: hidden;
 }
 
 .sectionHeader {
@@ -559,15 +565,19 @@
 .table {
   border: 1px solid #dbe3ef;
   border-radius: 8px;
-  overflow: hidden;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
 }
 
 .tableHead,
 .tableRow {
   display: grid;
-  grid-template-columns: 34px 1.55fr 0.76fr 0.72fr 0.56fr 0.84fr 1.42fr 0.92fr;
+  grid-template-columns: 34px minmax(190px, 1.45fr) minmax(92px, 0.72fr) minmax(86px, 0.68fr) minmax(70px, 0.5fr) minmax(92px, 0.72fr) minmax(190px, 1.25fr) minmax(120px, 0.78fr);
   align-items: center;
   gap: 7px;
+  min-width: 920px;
 }
 
 .tableHead {
@@ -601,7 +611,7 @@
 }
 
 .tableRow {
-  width: 100%;
+  width: max(100%, 920px);
   border: 0;
   border-top: 1px solid #e2e8f0;
   background: #fff;
@@ -618,6 +628,7 @@
 .tableRow strong,
 .tableRow em {
   display: block;
+  overflow-wrap: anywhere;
 }
 
 .tableRow em {
@@ -632,11 +643,13 @@
 .source,
 .future {
   display: inline-flex;
+  max-width: 100%;
   width: fit-content;
   border-radius: 999px;
   padding: 3px 7px;
   font-size: 11px;
   font-weight: 900;
+  white-space: normal;
 }
 
 .laneChip {
@@ -832,6 +845,10 @@ button.vehicleCard:focus-visible,
 }
 
 .managerRail {
+  position: sticky;
+  top: 10px;
+  z-index: 2;
+  min-width: 0;
   padding: 10px;
   display: grid;
   align-content: start;
