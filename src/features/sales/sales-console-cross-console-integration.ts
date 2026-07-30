@@ -24,11 +24,25 @@ export type SalesConsoleCrossConsoleLink = {
   visibleToRoles: SalesConsoleStaffRole[];
 };
 
+export const salesConsoleReturnHref = "/sales";
+
+export function withSalesConsoleReturnTo(href: string) {
+  if (href === salesConsoleReturnHref || href.startsWith(`${salesConsoleReturnHref}?`)) {
+    return href;
+  }
+
+  const [path, query = ""] = href.split("?");
+  const params = new URLSearchParams(query);
+  params.set("returnTo", salesConsoleReturnHref);
+
+  return `${path}?${params.toString()}`;
+}
+
 export const salesConsoleCrossConsoleNavigationTargets: SalesConsoleCrossConsoleLink[] = [
   {
     destination: "Customer 360",
     label: "Open Customer 360",
-    href: "/customers/customer-360",
+    href: withSalesConsoleReturnTo("/customers/customer-360"),
     behavior: "open-source-console",
     writeAuthority: "Source System",
     visibleToRoles: ["Salesperson", "BDC / Lead Coordinator", "Sales Manager", "Admin / Owner"]
@@ -36,7 +50,7 @@ export const salesConsoleCrossConsoleNavigationTargets: SalesConsoleCrossConsole
   {
     destination: "Appointments",
     label: "Open Appointment Board",
-    href: "/appointments",
+    href: withSalesConsoleReturnTo("/appointments"),
     behavior: "open-source-console",
     writeAuthority: "Source System",
     visibleToRoles: ["Salesperson", "BDC / Lead Coordinator", "Sales Manager", "Admin / Owner"]
@@ -44,7 +58,7 @@ export const salesConsoleCrossConsoleNavigationTargets: SalesConsoleCrossConsole
   {
     destination: "Tasks",
     label: "Open Task Console",
-    href: "/tasks",
+    href: withSalesConsoleReturnTo("/tasks"),
     behavior: "open-source-console",
     writeAuthority: "Source System",
     visibleToRoles: ["Salesperson", "BDC / Lead Coordinator", "Sales Manager", "Admin / Owner"]
@@ -52,7 +66,7 @@ export const salesConsoleCrossConsoleNavigationTargets: SalesConsoleCrossConsole
   {
     destination: "Inventory / Vehicle 360",
     label: "Open Vehicle 360",
-    href: "/vehicles/360",
+    href: withSalesConsoleReturnTo("/vehicles/360"),
     behavior: "open-source-console",
     writeAuthority: "Source System",
     visibleToRoles: ["Salesperson", "Sales Manager", "Admin / Owner"]
@@ -60,7 +74,7 @@ export const salesConsoleCrossConsoleNavigationTargets: SalesConsoleCrossConsole
   {
     destination: "Inventory Control Tower",
     label: "Open Inventory Control Tower",
-    href: "/vehicles/control-tower",
+    href: withSalesConsoleReturnTo("/vehicles/control-tower"),
     behavior: "open-source-console",
     writeAuthority: "Source System",
     visibleToRoles: ["Sales Manager", "Admin / Owner"]
@@ -76,7 +90,7 @@ export const salesConsoleCrossConsoleNavigationTargets: SalesConsoleCrossConsole
   {
     destination: "Service / Repair Orders",
     label: "Open Repair Orders",
-    href: "/vehicles/repair-orders",
+    href: withSalesConsoleReturnTo("/vehicles/repair-orders"),
     behavior: "open-source-console",
     writeAuthority: "Source System",
     visibleToRoles: ["Salesperson", "BDC / Lead Coordinator", "Sales Manager", "Admin / Owner"]
@@ -128,19 +142,19 @@ export function getSalesConsoleCrossConsoleLinksForLane(lane: SalesConsoleRevenu
 }
 
 export function getSalesConsoleVehicle360Href(stockNumber: string) {
-  return `/vehicles/360/${encodeURIComponent(stockNumber)}`;
+  return withSalesConsoleReturnTo(`/vehicles/360/${encodeURIComponent(stockNumber)}`);
 }
 
 export function getSalesConsoleTaskHref(taskId: string) {
-  return `/tasks/${encodeURIComponent(taskId)}`;
+  return withSalesConsoleReturnTo(`/tasks/${encodeURIComponent(taskId)}`);
 }
 
 export function getSalesConsoleAppointmentHref(appointmentId: string) {
-  return `/appointments?appointmentId=${encodeURIComponent(appointmentId)}`;
+  return withSalesConsoleReturnTo(`/appointments?appointmentId=${encodeURIComponent(appointmentId)}`);
 }
 
 export function getSalesConsoleCustomer360Href(customerNameOrId: string) {
-  return `/customers/customer-360?customer=${encodeURIComponent(customerNameOrId)}`;
+  return withSalesConsoleReturnTo(`/customers/customer-360?customer=${encodeURIComponent(customerNameOrId)}`);
 }
 
 export function salesConsoleCrossConsoleWiringCoversCoreDestinations() {

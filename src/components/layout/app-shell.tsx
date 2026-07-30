@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import type { WorkspaceKey } from "@/server/auth/navigation";
@@ -26,6 +26,7 @@ type AppShellProps = {
 function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) {
   const [navigationOpen, setNavigationOpen] = useState(false);
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { mode } = useWorkspaceMode();
   const commandCenterHome = pathname === "/command-center";
   const salesConsole = isSalesConsolePath(pathname);
@@ -35,6 +36,11 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
   const hasSidebar = commandCenterHome || Boolean(consoleNavigation);
   const tasksWorkspace = pathname.startsWith("/tasks");
   const sidebarCompact = commandCenterHome && tasksWorkspace && mode !== "standard";
+  const salesConsoleReturnTo = searchParams.get("returnTo");
+  const showSalesConsoleReturn =
+    Boolean(salesConsoleReturnTo?.startsWith("/sales")) &&
+    !salesConsoleReturnTo?.startsWith("//") &&
+    !salesConsole;
 
   return (
     <div
@@ -59,6 +65,12 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
           <AppTopbar commandCenterHome={commandCenterHome} onMenuOpen={() => setNavigationOpen(true)} preferredWorkspace={preferredWorkspace} showNavigationMenu={hasSidebar} user={user} />
         )}
         {dispatchConsole ? <DispatchConsoleHeader preferredWorkspace={preferredWorkspace} user={user} /> : null}
+        {showSalesConsoleReturn ? (
+          <nav className="app-return-banner" aria-label="Return navigation">
+            <a href={salesConsoleReturnTo ?? "/sales"}>← Return to Sales Console</a>
+            <span>Opened from Sales Console</span>
+          </nav>
+        ) : null}
         <main className="app-content">{children}</main>
       </div>
     </div>

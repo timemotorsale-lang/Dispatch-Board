@@ -6168,6 +6168,30 @@ code {
 .topbar-profile strong { font-size: 10px; }
 .topbar-profile span { color: #65748b; font-size: 9px; }
 .app-content { min-width: 0; padding: 18px 20px 28px; }
+.app-return-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 12px 0;
+  border: 1px solid #bfd2eb;
+  border-radius: 10px;
+  padding: 8px 10px;
+  color: #203b5f;
+  background: #eef6ff;
+  font-size: 12px;
+  box-shadow: 0 7px 18px rgb(26 52 84 / 5%);
+}
+.app-return-banner a {
+  color: #075ed8;
+  font-weight: 900;
+  text-decoration: none;
+}
+.app-return-banner span {
+  color: #65748b;
+}
+.app-frame-sales-standalone .app-return-banner {
+  display: none;
+}
 
 /* Command Control Center shell */
 .app-frame { grid-template-columns: 228px minmax(0, 1fr); background: #f3f6fa; }
