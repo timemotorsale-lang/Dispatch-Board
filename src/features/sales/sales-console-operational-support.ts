@@ -35,9 +35,42 @@ export const salesConsoleAppointments = [
 ] as const;
 
 export const salesConsoleTasksAndPromises = [
-  { id: "PROM-201", customer: "John Smith", type: "customer promise", owner: "James K.", due: "Today", blocker: "Trade value", evidence: "pending" },
-  { id: "TASK-202", customer: "Samantha Lee", type: "document follow-up", owner: "Tasha M.", due: "Today", blocker: "Pay stub", evidence: "needed" },
-  { id: "PROM-203", customer: "David Brown", type: "estimate follow-up", owner: "Luis R.", due: "Tomorrow", blocker: "Clear", evidence: "on track" }
+  {
+    id: "PROM-201",
+    customer: "John Smith",
+    type: "customer promise",
+    owner: "James K.",
+    due: "Today",
+    blocker: "Trade value",
+    evidence: "pending",
+    slaRisk: "watch",
+    workflowScore: 72,
+    nextBestTaskAction: "Verify trade value promise before appointment"
+  },
+  {
+    id: "TASK-202",
+    customer: "Samantha Lee",
+    type: "document follow-up",
+    owner: "Tasha M.",
+    due: "Today",
+    blocker: "Pay stub",
+    evidence: "needed",
+    slaRisk: "breach",
+    workflowScore: 88,
+    nextBestTaskAction: "Collect proof of income and reopen manager review context"
+  },
+  {
+    id: "PROM-203",
+    customer: "David Brown",
+    type: "estimate follow-up",
+    owner: "Luis R.",
+    due: "Tomorrow",
+    blocker: "Clear",
+    evidence: "on track",
+    slaRisk: "none",
+    workflowScore: 46,
+    nextBestTaskAction: "Confirm estimate response tomorrow"
+  }
 ] as const;
 
 export const salesConsoleDeliveryReadiness = [
@@ -56,5 +89,11 @@ export function salesConsoleSupportWritesRemainControlled() {
 export function salesConsoleAppointmentsExposeExecutionSignals() {
   return salesConsoleAppointments.every(
     (appointment) => appointment.readiness.length > 0 && appointment.showRisk.length > 0 && appointment.workflowTrigger.length > 0
+  );
+}
+
+export function salesConsoleTasksExposeWorkflowSignals() {
+  return salesConsoleTasksAndPromises.every(
+    (task) => task.workflowScore >= 0 && task.workflowScore <= 100 && task.slaRisk.length > 0 && task.nextBestTaskAction.length > 0
   );
 }
