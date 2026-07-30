@@ -2,6 +2,52 @@ import type { SalesConsoleRevenueLaneName, SalesConsoleStaffRole } from "./sales
 
 export type SalesConsoleRecordStatus = "draft" | "open" | "blocked" | "resolved" | "closed" | "voided";
 
+export const salesConsoleRecordTypes = [
+  "SalesOpportunity",
+  "RevenueOpportunity",
+  "CompletedSaleRecord",
+  "SalesActivity",
+  "SalesNote",
+  "SalesPromise",
+  "SalesEvidence",
+  "SalesOutcome",
+  "RevenueLaneChecklist",
+  "SourceReconciliationRecord"
+] as const;
+
+export type SalesConsoleRecordType = (typeof salesConsoleRecordTypes)[number];
+
+export const salesConsoleLifecycleStates = [
+  "opportunity-open",
+  "active-deal",
+  "manager-review",
+  "ready-to-close",
+  "sale-recorded",
+  "source-reconciliation-pending",
+  "source-verified",
+  "completed",
+  "lost",
+  "duplicate",
+  "delayed",
+  "voided",
+  "correction-needed"
+] as const;
+
+export type SalesConsoleLifecycleState = (typeof salesConsoleLifecycleStates)[number];
+
+export const salesConsoleRecordOwners = [
+  "Sales Console Internal",
+  "CRM / Customers",
+  "Inventory / Vehicles",
+  "DMS",
+  "Finance",
+  "Rental",
+  "Service / Repair",
+  "Warranty"
+] as const;
+
+export type SalesConsoleRecordOwner = (typeof salesConsoleRecordOwners)[number];
+
 export type SalesConsoleAuditMetadata = {
   actorId: string;
   actorRole: SalesConsoleStaffRole;
@@ -118,6 +164,48 @@ export type SalesOutcome = {
   audit: SalesConsoleAuditMetadata;
 };
 
+export type CompletedSaleRecord = {
+  id: string;
+  salesOpportunityId: string;
+  revenueOpportunityId: string;
+  customerId: string;
+  customerName: string;
+  revenueLane: SalesConsoleRevenueLaneName;
+  saleDate: string;
+  salespersonId: string;
+  managerId?: string;
+  productLabel: string;
+  vehicleStockNumber?: string;
+  grossEstimateCents: number;
+  paymentPath: "cash" | "bhph" | "lease-to-own" | "finance" | "rental" | "repair" | "warranty" | "unknown";
+  lifecycleState: SalesConsoleLifecycleState;
+  sourceRecordLinks: string[];
+  evidenceIds: string[];
+  reconciliationStatus: SourceReconciliationStatus;
+  audit: SalesConsoleAuditMetadata;
+};
+
+export type SourceReconciliationStatus =
+  | "pending"
+  | "source-verified"
+  | "source-mismatch"
+  | "needs-manager-review"
+  | "needs-source-owner-correction"
+  | "completed"
+  | "voided";
+
+export type SourceReconciliationRecord = {
+  id: string;
+  completedSaleRecordId: string;
+  status: SourceReconciliationStatus;
+  sourceOwners: SalesConsoleRecordOwner[];
+  sourceRecordLinks: string[];
+  mismatchCodes: string[];
+  routingLabel: string;
+  sourceCorrectionWriteEnabled: false;
+  audit: SalesConsoleAuditMetadata;
+};
+
 export type SalesConsoleCommandName =
   | "CreateSalesOpportunity"
   | "CreateRevenueOpportunity"
@@ -127,7 +215,9 @@ export type SalesConsoleCommandName =
   | "AddSalesPromise"
   | "AttachSalesEvidence"
   | "RequestManagerReview"
-  | "RecordSalesOutcome";
+  | "RecordSalesOutcome"
+  | "RecordCompletedSale"
+  | "CreateSourceReconciliationRecord";
 
 export type SalesConsoleCommandContract<TPayload> = {
   name: SalesConsoleCommandName;
@@ -150,6 +240,8 @@ export type AddSalesPromise = SalesConsoleCommandContract<Omit<SalesPromise, "id
 export type AttachSalesEvidence = SalesConsoleCommandContract<Omit<SalesEvidence, "id" | "audit">>;
 export type RequestManagerReview = SalesConsoleCommandContract<{ opportunityId: string; reason: string; requestedManagerId?: string }>;
 export type RecordSalesOutcome = SalesConsoleCommandContract<Omit<SalesOutcome, "id" | "audit">>;
+export type RecordCompletedSale = SalesConsoleCommandContract<Omit<CompletedSaleRecord, "id" | "audit">>;
+export type CreateSourceReconciliationRecord = SalesConsoleCommandContract<Omit<SourceReconciliationRecord, "id" | "audit">>;
 
 export const salesConsoleCommandNames: SalesConsoleCommandName[] = [
   "CreateSalesOpportunity",
@@ -160,7 +252,9 @@ export const salesConsoleCommandNames: SalesConsoleCommandName[] = [
   "AddSalesPromise",
   "AttachSalesEvidence",
   "RequestManagerReview",
-  "RecordSalesOutcome"
+  "RecordSalesOutcome",
+  "RecordCompletedSale",
+  "CreateSourceReconciliationRecord"
 ];
 
 export const prohibitedSalesConsoleCommandNames = [
@@ -192,4 +286,45 @@ export function isApprovedSalesConsoleCommand(commandName: string): commandName 
 
 export function commandMutatesOnlySalesConsoleInternal<TPayload>(command: SalesConsoleCommandContract<TPayload>) {
   return command.writesTo === "Sales Console Internal" && command.mutatesSourceSystem === false;
+}
+
+export function salesConsoleRecordDomainCoversEnterpriseRecords() {
+  const required: SalesConsoleRecordType[] = [
+    "SalesOpportunity",
+    "RevenueOpportunity",
+    "CompletedSaleRecord",
+    "SalesActivity",
+    "SalesNote",
+    "SalesPromise",
+    "SalesEvidence",
+    "SalesOutcome",
+    "RevenueLaneChecklist",
+    "SourceReconciliationRecord"
+  ];
+
+  return required.every((recordType) => salesConsoleRecordTypes.includes(recordType));
+}
+
+export function salesConsoleLifecycleCoversRecordExecution() {
+  const required: SalesConsoleLifecycleState[] = [
+    "opportunity-open",
+    "active-deal",
+    "manager-review",
+    "ready-to-close",
+    "sale-recorded",
+    "source-reconciliation-pending",
+    "source-verified",
+    "completed",
+    "lost",
+    "duplicate",
+    "delayed",
+    "voided",
+    "correction-needed"
+  ];
+
+  return required.every((state) => salesConsoleLifecycleStates.includes(state));
+}
+
+export function salesConsoleSourceSystemsRemainOwners() {
+  return salesConsoleRecordOwners.includes("Sales Console Internal") && salesConsoleRecordOwners.length > 1;
 }
