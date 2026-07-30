@@ -4,6 +4,14 @@ import { useMemo, useState } from "react";
 
 import { salesConsoleMvpAcceptanceChecklist, salesConsoleSourceHealthSummary } from "./sales-console-mvp-release-hardening";
 import { salesConsoleM64ConnectedMvpGate, salesConsoleM64ReadyCount } from "./sales-console-m64-connected-mvp-deployment-gate";
+import {
+  getSalesConsoleAppointmentHref,
+  getSalesConsoleCrossConsoleLinksForLane,
+  getSalesConsoleCustomer360Href,
+  getSalesConsoleTaskHref,
+  getSalesConsoleVehicle360Href,
+  salesConsoleCrossConsoleNavigationTargets
+} from "./sales-console-cross-console-integration";
 import { getRevenueLaneContract } from "./sales-console-operational-domain";
 import {
   salesConsoleDeliveryReadiness,
@@ -177,6 +185,7 @@ export function SalesConsoleEliteOperatingConsole() {
   const [selectedManagerQueue, setSelectedManagerQueue] = useState<(typeof salesConsoleLiveManagerQueues)[number]>(salesConsoleLiveManagerQueues[0]);
   const activeWorkspace = workspaceSummaries[activeNav];
   const selectedLaneContract = getRevenueLaneContract(selectedLane.contractLane);
+  const selectedLaneLinks = getSalesConsoleCrossConsoleLinksForLane(selectedLane.contractLane, activeRole);
 
   const filteredWork = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -292,6 +301,17 @@ export function SalesConsoleEliteOperatingConsole() {
             Source Health 98%
           </button>
         </header>
+        <section className={styles.integrationStrip} aria-label="Dispatch Board source links">
+          {salesConsoleCrossConsoleNavigationTargets
+            .filter((target) => target.visibleToRoles.includes(activeRole))
+            .slice(0, 5)
+            .map((target) => (
+              <a key={target.destination} href={target.href}>
+                {target.label}
+                <span>{target.writeAuthority}</span>
+              </a>
+            ))}
+        </section>
         {query.trim() ? (
           <section className={styles.searchTray} aria-label="Sales Console search results">
             <header>
@@ -375,25 +395,32 @@ export function SalesConsoleEliteOperatingConsole() {
                     <span>Next action: {selectedLead.nextAction}</span>
                     <span>Escalation: {selectedLead.workflowDecision.escalationTriggers.join(", ") || "none"}</span>
                     <span>Assignment: {selectedLead.workflowDecision.assignmentRecommendation}; controlled until backend command approval</span>
+                    <a href={getSalesConsoleCustomer360Href(selectedLead.customer)}>Open linked Customer 360</a>
+                    <a href="/appointments">Open related appointments</a>
                   </aside>
                 </section>
               ) : null}
               {activeNav === "Pipeline" || activeNav === "Customers" ? (
                 <section className={styles.pipelinePanel} aria-label="Pipeline and Customer 360 workspace">
                   {salesConsolePipelineRecords.map((record) => (
-                    <button
+                    <article
                       key={record.id}
-                      type="button"
-                      onClick={() => {
-                        const matched = salesConsoleLiveWorkItems.find((item) => item.customer === record.customer);
-                        if (matched) setSelectedCustomer(matched);
-                      }}
                     >
                       <strong>{record.customer}</strong>
                       <span>{record.lane} · {record.stage} · {record.age}</span>
                       <span>Owner: {record.owner} · Freshness: {record.freshness} · Blocker: {record.blocker}</span>
                       <span>Forecast: {record.forecastBand} · Source: {record.source}</span>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const matched = salesConsoleLiveWorkItems.find((item) => item.customer === record.customer);
+                          if (matched) setSelectedCustomer(matched);
+                        }}
+                      >
+                        Select sales context
+                      </button>
+                      <a href={getSalesConsoleCustomer360Href(record.customer)}>Open Customer 360 source</a>
+                    </article>
                   ))}
                 </section>
               ) : null}
@@ -404,6 +431,9 @@ export function SalesConsoleEliteOperatingConsole() {
                       <strong>{"label" in record ? record.label : "title" in record ? record.title : record.deal}</strong>
                       <span>{Object.entries(record).map(([key, value]) => `${key}: ${value}`).join(" · ")}</span>
                       <em>Write behavior: controlled or source-system owned</em>
+                      {"sourceLink" in record ? <a href={getSalesConsoleAppointmentHref(record.id)}>Open appointment source</a> : null}
+                      {"sourceTaskLink" in record ? <a href={getSalesConsoleTaskHref(record.id)}>Open task source</a> : null}
+                      {"deal" in record ? <a href="/sales?workspace=delivery-readiness">Open delivery context</a> : null}
                     </article>
                   ))}
                 </section>
@@ -437,6 +467,15 @@ export function SalesConsoleEliteOperatingConsole() {
                         <em>{source.owner}</em>
                       </article>
                     ))}
+                    {salesConsoleCrossConsoleNavigationTargets.map((target) => (
+                      <article key={target.destination}>
+                        <strong>{target.destination}</strong>
+                        <span>{target.behavior}</span>
+                        <em>
+                          <a href={target.href}>{target.label}</a> · {target.writeAuthority}
+                        </em>
+                      </article>
+                    ))}
                   </div>
                 </section>
               ) : null}
@@ -462,11 +501,9 @@ export function SalesConsoleEliteOperatingConsole() {
                   <div key={group} className={styles.workGroup} role="rowgroup" aria-label={`${group} work`}>
                     <div className={styles.workGroupHeader}>{group} · {items.length} item{items.length === 1 ? "" : "s"}</div>
                     {items.length ? items.map((item) => (
-                      <button
+                      <article
                         key={`${item.customer}-${item.stock}`}
-                        type="button"
                         className={`${styles.tableRow} ${selectedCustomer.customer === item.customer ? styles.selectedRow : ""}`}
-                        onClick={() => setSelectedCustomer(item)}
                       >
                         <span>{item.rank}</span>
                         <span>
@@ -474,14 +511,20 @@ export function SalesConsoleEliteOperatingConsole() {
                           <em>{item.vehicle} · Stock #{item.stock}</em>
                           <em>{item.reason}</em>
                           <em>Algorithm score {item.algorithmScore}: {item.algorithmReasons.join(", ")}</em>
+                          <em>
+                            <a href={getSalesConsoleCustomer360Href(item.customer)}>Customer 360</a> ·{" "}
+                            <a href={getSalesConsoleVehicle360Href(item.stock)}>Vehicle 360</a>
+                          </em>
                         </span>
                         <span className={styles.laneChip}>{item.lane}</span>
                         <span>{item.stage}</span>
                         <span className={styles.freshness}>{item.freshness}</span>
                         <span>{item.blockers.length ? item.blockers.join(", ") : "Clear"}</span>
                         <span>{item.nextAction}</span>
-                        <span className={actionTone[item.actionState]}>{item.action}</span>
-                      </button>
+                        <span>
+                          <button type="button" className={actionTone[item.actionState]} onClick={() => setSelectedCustomer(item)}>{item.action}</button>
+                        </span>
+                      </article>
                     )) : (
                       <p className={styles.emptyGroup}>No {group.toLowerCase()} records match the current search or lane filter.</p>
                     )}
@@ -499,19 +542,18 @@ export function SalesConsoleEliteOperatingConsole() {
               </div>
               <div className={styles.laneGrid}>
                 {salesConsoleLiveRevenueLanes.map((lane) => (
-                  <button
+                  <article
                     key={lane.name}
-                    type="button"
                     className={`${styles.laneCard} ${selectedLane.name === lane.name ? styles.selectedLane : ""}`}
-                    onClick={() => setSelectedLane(lane)}
                   >
                     <strong>{lane.name}</strong>
                     <span>Stage: {lane.stage}</span>
                     <span>Owner: {lane.owner}</span>
                     <span>Next: {lane.workflowDecision.nextAction}</span>
                     <span>Manager review: {lane.workflowDecision.managerReviewRequired ? "required" : "not required"}</span>
-                    <em className={actionTone[lane.status]}>{lane.status}</em>
-                  </button>
+                    <span>Sources: {getSalesConsoleCrossConsoleLinksForLane(lane.contractLane, activeRole).map((link) => link.destination).join(", ")}</span>
+                    <button type="button" className={actionTone[lane.status]} onClick={() => setSelectedLane(lane)}>{lane.status}</button>
+                  </article>
                 ))}
               </div>
               {selectedLaneContract ? (
@@ -522,6 +564,14 @@ export function SalesConsoleEliteOperatingConsole() {
                     <p>Workflow engine: {selectedLane.workflowDecision.nextAction}</p>
                   </div>
                   <dl>
+                    <div>
+                      <dt>Dispatch Board links</dt>
+                      <dd>
+                        {selectedLaneLinks.map((link) => (
+                          <a key={link.destination} href={link.href}>{link.label}</a>
+                        ))}
+                      </dd>
+                    </div>
                     <div>
                       <dt>Required fields</dt>
                       <dd>{selectedLaneContract.requiredFields.join(", ")}</dd>
@@ -560,11 +610,9 @@ export function SalesConsoleEliteOperatingConsole() {
               </div>
               <div className={styles.inventoryGrid}>
                 {salesConsoleLiveInventoryMatches.map((vehicle) => (
-                  <button
+                  <article
                     key={vehicle.stock}
-                    type="button"
                     className={`${styles.vehicleCard} ${selectedInventory.stock === vehicle.stock ? styles.selectedInventory : ""}`}
-                    onClick={() => setSelectedInventory(vehicle)}
                   >
                     <div className={styles.vehicleImage}>Vehicle</div>
                     <strong>{vehicle.vehicle}</strong>
@@ -575,7 +623,9 @@ export function SalesConsoleEliteOperatingConsole() {
                     <p>{vehicle.fitReason}</p>
                     <p>Match score {vehicle.matchScore} · Sellability {vehicle.sellability}</p>
                     <p>{vehicle.blockerExplanation.join("; ") || "No algorithm blocker"}</p>
-                  </button>
+                    <button type="button" onClick={() => setSelectedInventory(vehicle)}>Select vehicle match</button>
+                    <a href={getSalesConsoleVehicle360Href(vehicle.stock)}>Open Vehicle 360 source</a>
+                  </article>
                 ))}
               </div>
               <div className={styles.alternatives} aria-label="Alternative inventory recommendations">
@@ -598,11 +648,13 @@ export function SalesConsoleEliteOperatingConsole() {
                   <strong>Active Opportunity</strong>
                   <span>{selectedCustomer.vehicle}</span>
                   <em>{selectedCustomer.lane} · {selectedCustomer.stage}</em>
+                  <a href={getSalesConsoleVehicle360Href(selectedCustomer.stock)}>Open Vehicle 360</a>
                 </article>
                 <article>
                   <strong>Selected Revenue Lane</strong>
                   <span>{selectedLane.name}</span>
                   <em>{selectedLane.status}</em>
+                  <a href={getSalesConsoleCrossConsoleLinksForLane(selectedLane.contractLane, activeRole)[0]?.href ?? "/sales"}>Open primary source</a>
                 </article>
                 <article>
                   <strong>Next Promise</strong>
@@ -613,6 +665,7 @@ export function SalesConsoleEliteOperatingConsole() {
                   <strong>Documents</strong>
                   <span>{salesConsoleLiveCustomer360.documentsAndPromises.join(", ")}</span>
                   <em>Source labeled · Freshness {salesConsoleLiveCustomer360.freshness}</em>
+                  <a href={getSalesConsoleCustomer360Href(selectedCustomer.customer)}>Open Customer 360</a>
                 </article>
                 <article>
                   <strong>Activity Workflow</strong>
@@ -636,14 +689,9 @@ export function SalesConsoleEliteOperatingConsole() {
           <aside className={styles.managerRail} aria-label="Manager Command Center">
             <h2>Manager Command Center</h2>
             {salesConsoleLiveManagerQueues.map((signal) => (
-              <button
+              <article
                 key={signal.title}
-                type="button"
                 className={`${styles.signal} ${selectedManagerQueue.title === signal.title ? styles.selectedSignal : ""}`}
-                onClick={() => {
-                  setSelectedManagerQueue(signal);
-                  setActiveNav("Manager Command");
-                }}
               >
                 <header>
                   <strong>{signal.title}</strong>
@@ -653,7 +701,17 @@ export function SalesConsoleEliteOperatingConsole() {
                   <p key={item}>{item}</p>
                 ))}
                 <em>{signal.algorithmSource}</em>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedManagerQueue(signal);
+                    setActiveNav("Manager Command");
+                  }}
+                >
+                  Open manager queue
+                </button>
+                <a href="/sales?workspace=manager-command">Open manager source context</a>
+              </article>
             ))}
 
             <section className={styles.forecast}>
