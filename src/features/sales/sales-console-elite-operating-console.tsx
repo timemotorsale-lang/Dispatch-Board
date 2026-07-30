@@ -312,7 +312,7 @@ export function SalesConsoleEliteOperatingConsole() {
             .slice(0, 5)
             .map((target) => (
               <a key={target.destination} href={target.href}>
-                {target.label}
+                <strong>{target.label}</strong>
                 <span>{target.writeAuthority}</span>
               </a>
             ))}
@@ -541,8 +541,8 @@ export function SalesConsoleEliteOperatingConsole() {
                           <em>{item.vehicle} · Stock #{item.stock}</em>
                           <em>{item.reason}</em>
                           <em>Algorithm score {item.algorithmScore}: {item.algorithmReasons.join(", ")}</em>
-                          <em>
-                            <a href={getSalesConsoleCustomer360Href(item.customer)}>Customer 360</a> ·{" "}
+                          <em className={styles.sourceLinkRow}>
+                            <a href={getSalesConsoleCustomer360Href(item.customer)}>Customer 360</a>
                             <a href={getSalesConsoleVehicle360Href(item.stock)}>Vehicle 360</a>
                           </em>
                         </span>
@@ -597,9 +597,11 @@ export function SalesConsoleEliteOperatingConsole() {
                     <div>
                       <dt>Dispatch Board links</dt>
                       <dd>
-                        {selectedLaneLinks.map((link) => (
-                          <a key={link.destination} href={link.href}>{link.label}</a>
-                        ))}
+                        <span className={styles.sourceLinkRow}>
+                          {selectedLaneLinks.map((link) => (
+                            <a key={link.destination} href={link.href}>{link.label}</a>
+                          ))}
+                        </span>
                       </dd>
                     </div>
                     <div>
@@ -731,16 +733,18 @@ export function SalesConsoleEliteOperatingConsole() {
                   <p key={item}>{item}</p>
                 ))}
                 <em>{signal.algorithmSource}</em>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedManagerQueue(signal);
-                    setActiveNav("Manager Command");
-                  }}
-                >
-                  Open manager queue
-                </button>
-                <a href="/sales?workspace=manager-command">Open manager source context</a>
+                <div className={styles.railActionRow}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedManagerQueue(signal);
+                      setActiveNav("Manager Command");
+                    }}
+                  >
+                    Open queue
+                  </button>
+                  <a href="/sales?workspace=manager-command">Source context</a>
+                </div>
               </article>
             ))}
 
