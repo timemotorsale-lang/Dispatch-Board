@@ -471,6 +471,34 @@
   font-size: 11px;
 }
 
+.supportPanel {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.supportPanel article {
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  padding: 8px 9px;
+  background: #fff;
+}
+
+.supportPanel strong,
+.supportPanel span,
+.supportPanel em {
+  display: block;
+}
+
+.supportPanel span,
+.supportPanel em {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 11px;
+  font-style: normal;
+}
+
 .filters select,
 .filters button {
   background: #f8fafc;
@@ -822,6 +850,10 @@ button.vehicleCard:focus-visible,
   }
 
   .pipelinePanel {
+    grid-template-columns: 1fr;
+  }
+
+  .supportPanel {
     grid-template-columns: 1fr;
   }
 

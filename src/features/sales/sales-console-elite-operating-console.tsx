@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 import { salesConsoleLeadRecords } from "./sales-console-lead-operations";
 import { salesConsoleInventoryAlternatives, salesConsoleInventoryMatches } from "./sales-console-inventory-match";
+import { salesConsoleAppointments, salesConsoleDeliveryReadiness, salesConsoleTasksAndPromises } from "./sales-console-operational-support";
 import { getRevenueLaneContract } from "./sales-console-operational-domain";
 import { searchSalesConsoleRecords, type SalesConsoleSearchResult } from "./sales-console-operational-search";
 import { salesConsolePipelineRecords } from "./sales-console-pipeline-customer360";
@@ -503,6 +504,17 @@ export function SalesConsoleEliteOperatingConsole() {
                       <span>Owner: {record.owner} · Freshness: {record.freshness} · Blocker: {record.blocker}</span>
                       <span>Forecast: {record.forecastBand} · Source: {record.source}</span>
                     </button>
+                  ))}
+                </section>
+              ) : null}
+              {["Appointments", "Tasks & Promises", "Delivery Readiness"].includes(activeNav) ? (
+                <section className={styles.supportPanel} aria-label={`${activeNav} operating support`}>
+                  {(activeNav === "Appointments" ? salesConsoleAppointments : activeNav === "Tasks & Promises" ? salesConsoleTasksAndPromises : salesConsoleDeliveryReadiness).map((record) => (
+                    <article key={"id" in record ? record.id : record.deal}>
+                      <strong>{"customer" in record ? record.customer : record.deal}</strong>
+                      <span>{Object.entries(record).map(([key, value]) => `${key}: ${value}`).join(" · ")}</span>
+                      <em>Write behavior: controlled or source-system owned</em>
+                    </article>
                   ))}
                 </section>
               ) : null}
