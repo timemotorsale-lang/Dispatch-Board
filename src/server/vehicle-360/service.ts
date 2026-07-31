@@ -11,6 +11,24 @@ import { createVehicle360Repository, type Vehicle360Repository } from "./reposit
 type Dependencies = { now?: () => Date; organizationId?: string; repository?: Vehicle360Repository; foundationRepository?: EnterpriseCommandRepository; enforceRollout?: boolean };
 function deps(input: Dependencies) { return { now: input.now ?? (() => new Date()), organizationId: input.organizationId ?? INITIAL_ORGANIZATION.id, repository: input.repository ?? createVehicle360Repository(), foundationRepository: input.foundationRepository ?? createEnterpriseCommandRepository(), enforceRollout: input.enforceRollout ?? true }; }
 function required(value: unknown, label: string, max = 500) { const result = typeof value === "string" ? value.trim() : ""; if (!result) throw new Error(`${label} is required.`); if (result.length > max) throw new Error(`${label} must be ${max} characters or fewer.`); return result; }
+function record(value: unknown): Record<string, unknown> { return value != null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
+
+export function projectVehicleSpecifications(vehicle: { canonicalOrigins?: unknown; color?: string | null; licensePlate?: string | null; licensePlateState?: string | null; make?: string | null; model?: string | null; specificationSnapshot?: unknown; vin?: string | null; year?: number | null }) {
+  const snapshot = record(vehicle.specificationSnapshot), specifications = record(snapshot.specifications), fieldOrigins = record(snapshot.fieldOrigins), canonicalOrigins = record(vehicle.canonicalOrigins);
+  const warnings = Array.isArray(snapshot.warnings) ? snapshot.warnings.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
+  return {
+    available: Object.values(specifications).some((value) => value != null && value !== ""),
+    addMode: typeof snapshot.addMode === "string" ? snapshot.addMode : null,
+    canonical: { color: vehicle.color ?? null, licensePlate: vehicle.licensePlate ?? null, licensePlateState: vehicle.licensePlateState ?? null, make: vehicle.make ?? null, model: vehicle.model ?? null, vin: vehicle.vin ?? null, year: vehicle.year ?? null },
+    canonicalOrigins,
+    decodedAt: typeof snapshot.decodedAt === "string" ? snapshot.decodedAt : null,
+    fieldOrigins,
+    mappingVersion: typeof snapshot.mappingVersion === "number" ? snapshot.mappingVersion : null,
+    provider: typeof snapshot.provider === "string" ? snapshot.provider : null,
+    specifications,
+    warnings
+  };
+}
 
 async function auth(actor: AuthenticatedUser | null, capability: VehicleCapability, context: ReturnType<typeof deps>, mutation = false) {
   const user = assertAuthenticatedUser(actor), grants = await context.foundationRepository.listCapabilityGrants(user.id, context.organizationId);
@@ -70,6 +88,7 @@ export async function getVehicle360(actor: AuthenticatedUser | null, vehicleId: 
     tabAccess: access,
     tabs: {
       overview: { vehicle: projection.data.vehicle },
+      specifications: projectVehicleSpecifications(projection.data.vehicle),
       inventory: { allowed: access.inventory, items: access.inventory ? projection.data.inventory : [] },
       service: { allowed: access.service, repairOrders: access.service ? projection.data.repairOrders : [] },
       parts: { allowed: access.parts, ...parts },
