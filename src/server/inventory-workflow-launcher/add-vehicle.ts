@@ -1,7 +1,7 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { ADD_VEHICLE_ALLOWED_REASONS, ADD_VEHICLE_REASONS, ADD_VEHICLE_RELATIONSHIPS, recommendAddVehicleWorkflow, type AddVehicleReason, type AddVehicleRelationship } from "@/lib/add-vehicle-workflow";
 import { decodeVinWithNhtsa, type NhtsaDecodeResult } from "@/server/vehicle-identification/nhtsa";
-import { createRegistryVehicle, findVehicleRegistryByPlate, previewVehicleRegistryImport } from "@/server/vehicle-registry/service";
+import { createRegistryVehicle, findVehicleRegistryByPlate, listVehicleRegistry, previewVehicleRegistryImport } from "@/server/vehicle-registry/service";
 
 type Input = {
   addMode: "QUICK" | "DETAILED";
@@ -27,6 +27,8 @@ type Input = {
   locationId: string;
   make: string;
   model: string;
+  nonVinAttested: boolean;
+  nonVinExceptionCode?: "NO_VIN_ASSIGNED";
   nonVinReason?: string;
   odometer?: number;
   odometerUnit: "MILES" | "KILOMETERS";
@@ -83,8 +85,12 @@ export function normalizeAddVehicleWorkflowInput(value: unknown): Input {
   const year = Number(raw.year);
   if (!Number.isInteger(year) || year < 1886 || year > new Date().getFullYear() + 2) throw new Error("Vehicle year is outside the supported range.");
   const vin = optional(raw.vin, 40);
-  const nonVinReason = optional(raw.nonVinReason, 500);
-  if (!vin && !nonVinReason) throw new Error("VIN is required unless the documented non-VIN exception path is used.");
+  const nonVinExplanation = optional(raw.nonVinReason, 500);
+  const nonVinExceptionCode = raw.nonVinExceptionCode === "NO_VIN_ASSIGNED" ? "NO_VIN_ASSIGNED" as const : undefined;
+  const nonVinAttested = raw.nonVinAttested === true;
+  if (!vin && (!nonVinExceptionCode || !nonVinAttested || nonVinExplanation.length < 10)) throw new Error("VIN is required unless staff attest that no VIN was assigned and provide an explanation of at least 10 characters.");
+  if (!vin && /unknown|unavailable|not found|could not (?:find|locate|be found|be located)|hidden|damaged|unreadable/i.test(nonVinExplanation)) throw new Error("An unknown, unavailable, hidden, damaged, or unreadable VIN does not qualify for the no-VIN-assigned exception.");
+  const nonVinReason = vin ? "" : `${nonVinExceptionCode}: ${nonVinExplanation}`;
   const odometer = optionalInteger(raw.odometer, "Odometer reading", 9_999_999);
   if (ODOMETER_REQUIRED_REASONS.has(reasonCode) && odometer == null) throw new Error("Odometer reading is required for this operational reason.");
   const licensePlate = optional(raw.licensePlate);
@@ -94,7 +100,7 @@ export function normalizeAddVehicleWorkflowInput(value: unknown): Input {
     addMode, arrivalMethod: optional(raw.arrivalMethod), bodyClass: optional(raw.bodyClass), cabType: optional(raw.cabType), color: optional(raw.color), description, detailedNotes: optional(raw.detailedNotes, 1000),
     displacementLiters: optional(raw.displacementLiters), doors: optional(raw.doors), driveType: optional(raw.driveType), drivableStatus: optional(raw.drivableStatus), engineConfiguration: optional(raw.engineConfiguration), engineCylinders: optional(raw.engineCylinders), existingDamage: optional(raw.existingDamage, 1000), fuelTypePrimary: optional(raw.fuelTypePrimary), gvwr: optional(raw.gvwr), idempotencyKey: required(raw.idempotencyKey, "Idempotency key", 200), keyCount: optionalInteger(raw.keyCount, "Key count", 20),
     licensePlate, licensePlateState, locationId: required(raw.locationId, "Current location", 100),
-    make: required(raw.make, "Make", 100), model: required(raw.model, "Model", 100), nonVinReason,
+    make: required(raw.make, "Make", 100), model: required(raw.model, "Model", 100), nonVinAttested, nonVinExceptionCode, nonVinReason,
     odometer, odometerUnit: enumValue(raw.odometerUnit ?? "MILES", "Odometer unit", ["MILES", "KILOMETERS"] as const), reasonCode, relationship, runningStatus: optional(raw.runningStatus), series: optional(raw.series), transmissionStyle: optional(raw.transmissionStyle), trim: optional(raw.trim), vin, warningLights: optional(raw.warningLights, 1000), year
   };
 }
@@ -109,6 +115,12 @@ function nextHref(code: string, vehicleId: string, description: string) {
 
 export async function previewAddVehicleIdentity(actor: AuthenticatedUser | null, value: unknown) {
   const raw = record(value);
+  if (raw.lookupType === "DETAILS") {
+    const year = Number(raw.year); const make = required(raw.make, "Make", 100); const model = optional(raw.model, 100);
+    if (!Number.isInteger(year) || year < 1886 || year > new Date().getFullYear() + 2) throw new Error("Vehicle year is outside the supported range.");
+    const result = await listVehicleRegistry(actor, { page: 1, pageSize: 25, query: [year, make, model].filter(Boolean).join(" ") });
+    return { identity: null, lookupType: "DETAILS", matches: result.items, plateMatch: false, potentialDuplicate: null };
+  }
   if (raw.lookupType === "PLATE") {
     const vehicle = await findVehicleRegistryByPlate(actor, raw);
     return { identity: vehicle?.vin ? { validationSource: "EXISTING_CANONICAL_RECORD", vin: vehicle.vin, vinState: "VALID" } : null, lookupType: "PLATE", plateMatch: Boolean(vehicle), potentialDuplicate: vehicle ?? null };
@@ -124,8 +136,7 @@ export async function previewAddVehicleIdentity(actor: AuthenticatedUser | null,
 
 export async function startAddVehicleWorkflow(actor: AuthenticatedUser | null, value: unknown) {
   const input = normalizeAddVehicleWorkflowInput(value); const recommendation = recommendAddVehicleWorkflow(input);
-  let decode: NhtsaDecodeResult | null = null;
-  if (input.vin) { try { decode = await decodeVinWithNhtsa(input.vin); } catch { decode = null; } }
+  const decode: NhtsaDecodeResult | null = input.vin ? await decodeVinWithNhtsa(input.vin) : null;
   const year = decode?.decoded.modelYear ?? Number(input.year); const make = decode?.decoded.make ?? input.make; const model = decode?.decoded.model ?? input.model;
   const decodedOrigin = decode ? { authority: "MANUFACTURER_SUBMITTED_VIN_DATA", confirmedAt: new Date().toISOString(), source: decode.provider, sourceReference: decode.vin } : { authority: "STAFF_CONFIRMATION", confirmedAt: new Date().toISOString(), source: "STAFF_CONFIRMED" };
   const staffOrigin = { authority: "STAFF_OBSERVATION", confirmedAt: new Date().toISOString(), source: "STAFF_OBSERVED" };
@@ -140,11 +151,11 @@ export async function startAddVehicleWorkflow(actor: AuthenticatedUser | null, v
     locationId: input.locationId, make, model, nonVinReason: input.nonVinReason || null,
     reason: `Add vehicle for ${input.reasonCode.toLowerCase().replaceAll("_", " ")}: ${input.description}`,
     vin: input.vin || null, year,
-    workflowContext: { addMode: input.addMode, description: input.description, recommendedWorkflowCode: recommendation.code, relationship: input.relationship, reasonCode: input.reasonCode }
+    workflowContext: { addMode: input.addMode, description: input.description, nonVinExceptionCode: input.nonVinExceptionCode ?? null, recommendedWorkflowCode: recommendation.code, relationship: input.relationship, reasonCode: input.reasonCode }
   }, {}, {
     canonicalOrigins: { color: input.color ? staffOrigin : null, licensePlate: input.licensePlate ? staffOrigin : null, licensePlateState: input.licensePlateState ? staffOrigin : null, make: decodedOrigin, model: decodedOrigin, vin: input.vin ? decodedOrigin : { ...staffOrigin, source: "DOCUMENTED_NON_VIN_EXCEPTION" }, year: decodedOrigin },
     initialOdometer: input.odometer == null ? null : { observedAt: new Date(), reading: input.odometer, sourceCode: "ADD_VEHICLE_STAFF_OBSERVATION", unit: input.odometerUnit },
-    specificationSnapshot: { addMode: input.addMode, decodedAt: decode?.retrievedAt ?? null, fieldOrigins, mappingVersion: decode?.mappingVersion ?? 1, provider: decode?.provider ?? "STAFF_CONFIRMED", specifications, vin: input.vin || null, warnings: decode?.warnings ?? ["NHTSA decoding was unavailable during canonical creation; year, make, and model were staff-confirmed."] }
+    specificationSnapshot: { addMode: input.addMode, decodedAt: decode?.retrievedAt ?? null, fieldOrigins, mappingVersion: decode?.mappingVersion ?? 1, provider: decode?.provider ?? "STAFF_CONFIRMED", specifications, vin: input.vin || null, warnings: decode?.warnings ?? ["No VIN was assigned; vehicle details were staff-confirmed under the controlled exception."] }
   });
   const created = result.result as { duplicateReviewId?: string | null; id: string; vehicleNumber: string };
   return { ...result, nextWorkflow: { ...recommendation, href: nextHref(recommendation.code, created.id, input.description) } };
