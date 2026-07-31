@@ -14,6 +14,7 @@ const base = {
   locationId: "loc-1",
   make: "Toyota",
   model: "Camry",
+  odometer: 42000,
   reasonCode: "SERVICE_REPAIR" as const,
   relationship: "CUSTOMER_VEHICLE" as const,
   vin: "4T1B11HK6KU123456",
@@ -47,10 +48,19 @@ describe("Add Vehicle workflow", () => {
     expect(result.nonVinReason).toContain("Pre-1981");
   });
 
+  it("requires an odometer before starting physical vehicle work", () => {
+    expect(() => normalizeAddVehicleWorkflowInput({ ...base, odometer: "" })).toThrow("Odometer reading is required");
+    expect(normalizeAddVehicleWorkflowInput({ ...base, reasonCode: "CUSTOMER_APPOINTMENT", odometer: "" }).odometer).toBeUndefined();
+  });
+
   it("can be launched from another console with a safe return path", () => {
     const html = renderToStaticMarkup(createElement(AddVehicleWorkflow, { options: { locations: [{ code: "MPLS", id: "loc-1", name: "Minneapolis" }] }, returnTo: "/diagnostics/labor-guide" }));
 
     expect(html).toContain("Source Console");
     expect(html).toContain("href=\"/diagnostics/labor-guide\"");
+    expect(html).toContain("Quick Add");
+    expect(html).toContain("Detailed Add");
+    expect(html).toContain("License plate");
+    expect(html).toContain("NHTSA");
   });
 });

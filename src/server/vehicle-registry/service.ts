@@ -6,8 +6,8 @@ import { createEnterpriseCommandRepository, type EnterpriseCommandRepository } f
 import { evaluateVehicleOperationsFeature } from "@/server/enterprise-command/service";
 import { assertVehicleCapability, type VehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
 import { assertAuthenticatedUser } from "@/server/policies/access";
-import { normalizeVehicleIdentity, odometerDisposition, previewVehicleImportRows } from "./domain";
-import { createVehicleRegistryRepository, type VehicleRegistryRepository } from "./repository";
+import { normalizeLicensePlate, normalizeVehicleIdentity, odometerDisposition, previewVehicleImportRows } from "./domain";
+import { createVehicleRegistryRepository, type RegistryCreationDetails, type VehicleRegistryRepository } from "./repository";
 
 type Dependencies = { now?: () => Date; organizationId?: string; repository?: VehicleRegistryRepository; foundationRepository?: EnterpriseCommandRepository; enforceRollout?: boolean };
 function deps(input: Dependencies) { return { now: input.now ?? (() => new Date()), organizationId: input.organizationId ?? INITIAL_ORGANIZATION.id, repository: input.repository ?? createVehicleRegistryRepository(), foundationRepository: input.foundationRepository ?? createEnterpriseCommandRepository(), enforceRollout: input.enforceRollout ?? true }; }
@@ -52,14 +52,22 @@ export async function getVehicleRegistryDetail(actor: AuthenticatedUser | null, 
   return vehicle;
 }
 
-export async function createRegistryVehicle(actor: AuthenticatedUser | null, value: unknown, input: Dependencies = {}) {
+export async function createRegistryVehicle(actor: AuthenticatedUser | null, value: unknown, input: Dependencies = {}, trustedCreation: RegistryCreationDetails = {}) {
   const context = deps(input); const raw = record(value, "Vehicle create request"); const id = randomUUID();
   const normalized = normalizeVehicleIdentity({ ...raw, vehicleNumber: typeof raw.vehicleNumber === "string" && raw.vehicleNumber.trim() ? raw.vehicleNumber : `VEH-${id.slice(0, 8).toUpperCase()}` });
   const { idempotencyKey, locationId, reason, ...identity } = normalized;
   const user = await authorize(actor, "VEHICLE_IDENTITY_CREATE", locationId, context, true);
   const workflowContext = raw.workflowContext && typeof raw.workflowContext === "object" && !Array.isArray(raw.workflowContext) ? raw.workflowContext as Record<string, unknown> : null;
   const payload = workflowContext ? { ...identity, workflowContext } : identity;
-  return context.repository.createVehicle(command({ actorUserId: user.id, commandType: "CREATE_VEHICLE", expectedVersion: 0, idempotencyKey, locationId, organizationId: context.organizationId, payload, reason, subjectId: id }), identity);
+  const createCommand = command({ actorUserId: user.id, commandType: "CREATE_VEHICLE", expectedVersion: 0, idempotencyKey, locationId, organizationId: context.organizationId, payload: { ...payload, canonicalOrigins: trustedCreation.canonicalOrigins ?? {}, specificationSource: trustedCreation.specificationSnapshot ? "NHTSA_VPIC" : null, initialOdometer: trustedCreation.initialOdometer ? { reading: trustedCreation.initialOdometer.reading, unit: trustedCreation.initialOdometer.unit } : null }, reason, subjectId: id });
+  return trustedCreation.canonicalOrigins || trustedCreation.specificationSnapshot || trustedCreation.initialOdometer ? context.repository.createVehicle(createCommand, identity, trustedCreation) : context.repository.createVehicle(createCommand, identity);
+}
+
+export async function findVehicleRegistryByPlate(actor: AuthenticatedUser | null, value: unknown, input: Dependencies = {}) {
+  const context = deps(input); await authorize(actor, "VEHICLE_OPERATIONS_VIEW", null, context);
+  const raw = record(value, "Plate lookup request"); const plate = normalizeLicensePlate(raw.licensePlate, raw.licensePlateState);
+  if (!plate.raw || !plate.normalized || !plate.state) throw new Error("License plate and issuing state are required.");
+  return context.repository.findByPlate(context.organizationId, plate.state, plate.normalized, plate.raw);
 }
 
 export async function correctRegistryVehicle(actor: AuthenticatedUser | null, vehicleId: string, value: unknown, input: Dependencies = {}) {

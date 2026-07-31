@@ -27,7 +27,7 @@ describe("prisma schema constraints", () => {
   it("declares the VEH-M2 canonical vehicle registry and no-loss migration safeguards", async () => {
     const schema = await readFile(schemaPath, "utf8");
     for (const model of ["VehicleRelationship", "VehicleExternalIdentity", "VehicleOdometerObservation", "VehicleCustodyEvent", "VehicleDuplicateCase"]) expect(schema).toContain(`model ${model} {`);
-    const vehicle = getModelBlock(schema, "Vehicle"); expect(vehicle).toMatch(/vinRaw\s+String\?/); expect(vehicle).toMatch(/vinState\s+VehicleVinState/); expect(vehicle).toMatch(/vinValidationSource\s+String\?/); expect(vehicle).toMatch(/version\s+Int\s+@default\(0\)/); expect(vehicle).toMatch(/mergedIntoVehicleId\s+String\?/);
+    const vehicle = getModelBlock(schema, "Vehicle"); expect(vehicle).toMatch(/vinRaw\s+String\?/); expect(vehicle).toMatch(/vinState\s+VehicleVinState/); expect(vehicle).toMatch(/vinValidationSource\s+String\?/); expect(vehicle).toMatch(/licensePlateState\s+String\?/); expect(vehicle).toMatch(/canonicalOrigins\s+Json/); expect(vehicle).toMatch(/specificationSnapshot\s+Json\?/); expect(vehicle).toMatch(/version\s+Int\s+@default\(0\)/); expect(vehicle).toMatch(/mergedIntoVehicleId\s+String\?/);
     expect(getModelBlock(schema, "Task")).toMatch(/vehicleId\s+String\?/);
     const migrationEntries = await readdir(migrationsPath, { withFileTypes: true });
     const sql = (await Promise.all(migrationEntries.filter((entry) => entry.isDirectory()).map((entry) => readFile(path.join(migrationsPath, entry.name, "migration.sql"), "utf8")))).join("\n");

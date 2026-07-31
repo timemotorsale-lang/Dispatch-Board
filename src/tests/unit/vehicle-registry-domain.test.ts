@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { deriveStockNumberFromVin, isValidVin, normalizeCanonicalVin, normalizeStockNumber, normalizeVehicleIdentity, odometerDisposition, previewVehicleImportRows } from "@/server/vehicle-registry/domain";
+import { deriveStockNumberFromVin, isValidVin, normalizeCanonicalVin, normalizeLicensePlate, normalizeStockNumber, normalizeVehicleIdentity, odometerDisposition, previewVehicleImportRows } from "@/server/vehicle-registry/domain";
 
 describe("canonical vehicle registry domain", () => {
+  it("normalizes a plate together with its issuing jurisdiction", () => {
+    expect(normalizeLicensePlate("abc-123", "mn")).toEqual({ raw: "ABC-123", normalized: "ABC123", state: "MN" });
+  });
   it("normalizes and validates ISO VIN check digits", () => {
     expect(isValidVin("1HGCM82633A004352")).toBe(true);
     expect(normalizeCanonicalVin({ vin: "1hg-cm82633a004352" })).toMatchObject({ normalized: "1HGCM82633A004352", state: "VALID" });

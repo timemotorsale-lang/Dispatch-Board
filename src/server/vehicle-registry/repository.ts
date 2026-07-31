@@ -40,7 +40,13 @@ async function executeRegistryMutation(database: PrismaClient, input: Enterprise
 
 export type RegistryIdentity = {
   vehicleNumber: string; vin: string | null; vinRaw: string | null; vinState: "VALID" | "NON_VIN_EXCEPTION"; vinValidationSource: string; nonVinReason: string | null;
-  stockNumber: string | null; stockNumberNormalized: string | null; year: number | null; make: string | null; model: string | null; color: string | null; licensePlate: string | null;
+  stockNumber: string | null; stockNumberNormalized: string | null; year: number | null; make: string | null; model: string | null; color: string | null; licensePlate: string | null; licensePlateNormalized: string | null; licensePlateState: string | null;
+};
+
+export type RegistryCreationDetails = {
+  canonicalOrigins?: Record<string, unknown>;
+  specificationSnapshot?: Record<string, unknown> | null;
+  initialOdometer?: { reading: number; unit: "MILES" | "KILOMETERS"; observedAt: Date; sourceCode: string } | null;
 };
 
 const detailInclude = {
@@ -84,14 +90,18 @@ export function createVehicleRegistryRepository(database: PrismaClient = prisma)
       if (!matches.length) return Promise.resolve(null);
       return database.vehicle.findFirst({ where: { organizationId, id: excludeId ? { not: excludeId } : undefined, OR: matches }, select: { id: true, vehicleNumber: true, vin: true, vinRaw: true, stockNumber: true } });
     },
-    createVehicle(command: EnterpriseCommandCommitInput, identity: RegistryIdentity) {
+    findByPlate(organizationId: string, plateState: string, licensePlateNormalized: string, licensePlateRaw: string) {
+      return database.vehicle.findFirst({ where: { organizationId, mergedIntoVehicleId: null, OR: [{ licensePlateState: plateState, licensePlateNormalized }, { licensePlateState: null, licensePlate: { equals: licensePlateRaw, mode: "insensitive" } }] }, select: { id: true, vehicleNumber: true, vin: true, vinRaw: true, stockNumber: true, year: true, make: true, model: true, color: true, licensePlate: true, licensePlateState: true } });
+    },
+    createVehicle(command: EnterpriseCommandCommitInput, identity: RegistryIdentity, creation: RegistryCreationDetails = {}) {
       return executeRegistryMutation(database, command, async (tx, version) => {
         const matches: Prisma.VehicleWhereInput[] = [];
         if (identity.vin) matches.push({ vin: identity.vin });
         if (identity.stockNumberNormalized) matches.push({ stockNumberNormalized: identity.stockNumberNormalized });
         const potential = matches.length ? await tx.vehicle.findFirst({ where: { organizationId: command.organizationId, OR: matches }, select: { id: true, vin: true, stockNumberNormalized: true } }) : null;
         const duplicate = Boolean(potential);
-        const vehicle = await tx.vehicle.create({ data: { id: command.subjectId, organizationId: command.organizationId, ...identity, vin: duplicate ? null : identity.vin, vinState: duplicate ? "LEGACY_UNVERIFIED" : identity.vinState, stockNumberNormalized: duplicate ? null : identity.stockNumberNormalized, duplicateKey: duplicate ? identity.vin ? `VIN:${identity.vin}` : `STOCK:${identity.stockNumberNormalized}` : null, version } });
+        const vehicle = await tx.vehicle.create({ data: { id: command.subjectId, organizationId: command.organizationId, ...identity, vin: duplicate ? null : identity.vin, vinState: duplicate ? "LEGACY_UNVERIFIED" : identity.vinState, stockNumberNormalized: duplicate ? null : identity.stockNumberNormalized, duplicateKey: duplicate ? identity.vin ? `VIN:${identity.vin}` : `STOCK:${identity.stockNumberNormalized}` : null, canonicalOrigins: json(creation.canonicalOrigins ?? {}), specificationSnapshot: creation.specificationSnapshot ? json(creation.specificationSnapshot) : undefined, version } });
+        if (creation.initialOdometer) await tx.vehicleOdometerObservation.create({ data: { organizationId: command.organizationId, vehicleId: vehicle.id, reading: creation.initialOdometer.reading, unit: creation.initialOdometer.unit, observedAt: creation.initialOdometer.observedAt, sourceCode: creation.initialOdometer.sourceCode, status: "ACCEPTED", recordedByUserId: command.actorUserId } });
         let duplicateCase = null;
         if (potential) duplicateCase = await tx.vehicleDuplicateCase.create({ data: { organizationId: command.organizationId, primaryVehicleId: potential.id, candidateVehicleId: vehicle.id, confidence: potential.vin === identity.vin ? 100 : 90, matchReasons: identity.vin && potential.vin === identity.vin ? ["EXACT_NORMALIZED_VIN"] : ["EXACT_NORMALIZED_STOCK"] } });
         return { result: { duplicateReviewId: duplicateCase?.id ?? null, id: vehicle.id, version, vehicleNumber: vehicle.vehicleNumber } };

@@ -43,6 +43,16 @@ export function normalizeStockNumber(value: unknown) {
   return { raw: raw || null, normalized: normalized || null };
 }
 
+export function normalizeLicensePlate(value: unknown, stateValue?: unknown) {
+  const raw = typeof value === "string" ? value.trim().toUpperCase() : "";
+  const normalized = raw.replace(/[^A-Z0-9]/g, "");
+  const state = typeof stateValue === "string" ? stateValue.trim().toUpperCase() : "";
+  if (raw && (normalized.length < 2 || normalized.length > 12)) throw new Error("License plate must contain 2 to 12 letters or numbers.");
+  if (state && !/^[A-Z]{2}$/.test(state)) throw new Error("License plate state must be a two-letter code.");
+  if (state && !raw) throw new Error("License plate is required when a plate state is provided.");
+  return { raw: raw || null, normalized: normalized || null, state: state || null };
+}
+
 export function deriveStockNumberFromVin(vin: string | null) {
   return vin && VIN_PATTERN.test(vin) ? vin.slice(-6) : null;
 }
@@ -53,6 +63,7 @@ export function normalizeVehicleIdentity(value: unknown) {
   const vin = normalizeCanonicalVin(raw);
   const derivedStockNumber = deriveStockNumberFromVin(vin.normalized);
   const stock = normalizeStockNumber(raw.stockNumber ?? derivedStockNumber);
+  const plate = normalizeLicensePlate(raw.licensePlate, raw.licensePlateState);
   const year = raw.year == null || raw.year === "" ? null : Number(raw.year);
   if (year !== null && (!Number.isInteger(year) || year < 1886 || year > new Date().getFullYear() + 2)) throw new Error("Vehicle year is outside the supported range.");
   return {
@@ -62,7 +73,7 @@ export function normalizeVehicleIdentity(value: unknown) {
     make: typeof raw.make === "string" && raw.make.trim() ? raw.make.trim() : null,
     model: typeof raw.model === "string" && raw.model.trim() ? raw.model.trim() : null,
     color: typeof raw.color === "string" && raw.color.trim() ? raw.color.trim() : null,
-    licensePlate: typeof raw.licensePlate === "string" && raw.licensePlate.trim() ? raw.licensePlate.trim().toUpperCase() : null,
+    licensePlate: plate.raw, licensePlateNormalized: plate.normalized, licensePlateState: plate.state,
     reason: text(raw.reason, "Business reason", 500),
     idempotencyKey: text(raw.idempotencyKey, "Idempotency key", 200),
     locationId: typeof raw.locationId === "string" && raw.locationId.trim() ? raw.locationId.trim() : null

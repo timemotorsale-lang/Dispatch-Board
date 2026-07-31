@@ -2579,6 +2579,10 @@ model Vehicle {
   model                           String?
   color                           String?
   licensePlate                    String?
+  licensePlateState               String?
+  licensePlateNormalized          String?
+  canonicalOrigins                Json                             @default("{}")
+  specificationSnapshot           Json?
   status                          VehicleStatus                    @default(ACTIVE)
   externalReference               String?
   duplicateKey                    String?
@@ -2618,6 +2622,7 @@ model Vehicle {
   @@index([organizationId, year, make, model])
   @@index([organizationId, duplicateKey])
   @@index([organizationId, licensePlate])
+  @@index([organizationId, licensePlateState, licensePlateNormalized])
   @@index([mergedIntoVehicleId])
 }
 
