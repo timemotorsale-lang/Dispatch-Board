@@ -52,4 +52,11 @@ describe("Add Vehicle canonical identification service", () => {
     await startAddVehicleWorkflow(null, { addMode: "DETAILED", description: "Customer reports a brake warning light.", idempotencyKey: "add-1", locationId: "loc-1", make: "manual make", model: "manual model", odometer: 42183, odometerUnit: "MILES", reasonCode: "SERVICE_REPAIR", relationship: "CUSTOMER_VEHICLE", vin, year: 2000 });
     expect(mocks.createRegistryVehicle).toHaveBeenCalledWith(null, expect.objectContaining({ make: "HONDA", model: "Accord", year: 2003 }), {}, expect.objectContaining({ canonicalOrigins: expect.objectContaining({ make: expect.objectContaining({ source: "NHTSA_VPIC" }) }), initialOdometer: expect.objectContaining({ reading: 42183, unit: "MILES" }), specificationSnapshot: expect.objectContaining({ provider: "NHTSA_VPIC", specifications: expect.objectContaining({ trim: "EX" }) }) }));
   });
+
+  it("opens the new canonical vehicle in Inventory Control", async () => {
+    mocks.createRegistryVehicle.mockResolvedValue({ result: { id: "vehicle-1", vehicleNumber: "VEH-1" }, version: 1 });
+    const result = await startAddVehicleWorkflow(null, { acquisitionSource: "AUCTION", addMode: "QUICK", description: "Visible front damage; vehicle remains drivable.", externalLocation: "Copart — Des Moines, IA", idempotencyKey: "add-inventory-1", locationId: "loc-1", make: "manual make", model: "manual model", odometer: 42183, reasonCode: "INVENTORY_RECON", relationship: "DEALERSHIP_INVENTORY", vin, whereabouts: "AUCTION_FACILITY", year: 2000 });
+    expect(result.nextWorkflow.href).toBe("/vehicles/vehicle-1/workbench");
+    expect(mocks.createRegistryVehicle).toHaveBeenCalledWith(null, expect.anything(), {}, expect.objectContaining({ specificationSnapshot: expect.objectContaining({ specifications: expect.objectContaining({ externalLocation: "Copart — Des Moines, IA", whereabouts: "AUCTION_FACILITY" }) }) }));
+  });
 });

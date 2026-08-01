@@ -1,9 +1,10 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
-import { ADD_VEHICLE_ALLOWED_REASONS, ADD_VEHICLE_REASONS, ADD_VEHICLE_RELATIONSHIPS, recommendAddVehicleWorkflow, type AddVehicleReason, type AddVehicleRelationship } from "@/lib/add-vehicle-workflow";
+import { ADD_VEHICLE_ACQUISITION_SOURCES, ADD_VEHICLE_ALLOWED_REASONS, ADD_VEHICLE_REASONS, ADD_VEHICLE_RELATIONSHIPS, ADD_VEHICLE_WHEREABOUTS, recommendAddVehicleWorkflow, type AddVehicleAcquisitionSource, type AddVehicleReason, type AddVehicleRelationship, type AddVehicleWhereabouts } from "@/lib/add-vehicle-workflow";
 import { decodeVinWithNhtsa, type NhtsaDecodeResult } from "@/server/vehicle-identification/nhtsa";
 import { createRegistryVehicle, findVehicleRegistryByPlate, listVehicleRegistry, previewVehicleRegistryImport } from "@/server/vehicle-registry/service";
 
 type Input = {
+  acquisitionSource?: AddVehicleAcquisitionSource;
   addMode: "QUICK" | "DETAILED";
   arrivalMethod?: string;
   bodyClass?: string;
@@ -18,6 +19,7 @@ type Input = {
   engineConfiguration?: string;
   engineCylinders?: string;
   existingDamage?: string;
+  externalLocation?: string;
   fuelTypePrimary?: string;
   gvwr?: string;
   idempotencyKey: string;
@@ -40,6 +42,7 @@ type Input = {
   trim?: string;
   vin?: string;
   warningLights?: string;
+  whereabouts: AddVehicleWhereabouts;
   year: number | string;
 };
 
@@ -80,6 +83,11 @@ export function normalizeAddVehicleWorkflowInput(value: unknown): Input {
   const relationship = enumValue(raw.relationship, "Vehicle relationship", ADD_VEHICLE_RELATIONSHIPS);
   const reasonCode = enumValue(raw.reasonCode, "Operational reason", ADD_VEHICLE_REASONS);
   if (!ADD_VEHICLE_ALLOWED_REASONS[relationship].includes(reasonCode)) throw new Error("Operational reason is not valid for the selected vehicle relationship.");
+  const acquisitionSource = raw.acquisitionSource ? enumValue(raw.acquisitionSource, "Acquisition source", ADD_VEHICLE_ACQUISITION_SOURCES) : undefined;
+  if (relationship === "DEALERSHIP_INVENTORY" && !acquisitionSource) throw new Error("Acquisition source is required for dealership inventory.");
+  const whereabouts = enumValue(raw.whereabouts ?? "AT_DEALERSHIP", "Vehicle whereabouts", ADD_VEHICLE_WHEREABOUTS);
+  const externalLocation = optional(raw.externalLocation, 240);
+  if (whereabouts !== "AT_DEALERSHIP" && externalLocation.length < 3) throw new Error("Off-site facility or location detail is required.");
   const description = required(raw.description, "Brief description", 240);
   if (description.length < 10) throw new Error("Brief description must be at least 10 characters.");
   const year = Number(raw.year);
@@ -97,11 +105,11 @@ export function normalizeAddVehicleWorkflowInput(value: unknown): Input {
   const licensePlateState = licensePlate ? required(raw.licensePlateState, "License plate state", 2).toUpperCase() : "";
   if (licensePlateState && !/^[A-Z]{2}$/.test(licensePlateState)) throw new Error("License plate state must be a two-letter code.");
   return {
-    addMode, arrivalMethod: optional(raw.arrivalMethod), bodyClass: optional(raw.bodyClass), cabType: optional(raw.cabType), color: optional(raw.color), description, detailedNotes: optional(raw.detailedNotes, 1000),
-    displacementLiters: optional(raw.displacementLiters), doors: optional(raw.doors), driveType: optional(raw.driveType), drivableStatus: optional(raw.drivableStatus), engineConfiguration: optional(raw.engineConfiguration), engineCylinders: optional(raw.engineCylinders), existingDamage: optional(raw.existingDamage, 1000), fuelTypePrimary: optional(raw.fuelTypePrimary), gvwr: optional(raw.gvwr), idempotencyKey: required(raw.idempotencyKey, "Idempotency key", 200), keyCount: optionalInteger(raw.keyCount, "Key count", 20),
+    acquisitionSource, addMode, arrivalMethod: optional(raw.arrivalMethod), bodyClass: optional(raw.bodyClass), cabType: optional(raw.cabType), color: optional(raw.color), description, detailedNotes: optional(raw.detailedNotes, 1000),
+    displacementLiters: optional(raw.displacementLiters), doors: optional(raw.doors), driveType: optional(raw.driveType), drivableStatus: optional(raw.drivableStatus), engineConfiguration: optional(raw.engineConfiguration), engineCylinders: optional(raw.engineCylinders), existingDamage: optional(raw.existingDamage, 1000), externalLocation, fuelTypePrimary: optional(raw.fuelTypePrimary), gvwr: optional(raw.gvwr), idempotencyKey: required(raw.idempotencyKey, "Idempotency key", 200), keyCount: optionalInteger(raw.keyCount, "Key count", 20),
     licensePlate, licensePlateState, locationId: required(raw.locationId, "Current location", 100),
     make: required(raw.make, "Make", 100), model: required(raw.model, "Model", 100), nonVinAttested, nonVinExceptionCode, nonVinReason,
-    odometer, odometerUnit: enumValue(raw.odometerUnit ?? "MILES", "Odometer unit", ["MILES", "KILOMETERS"] as const), reasonCode, relationship, runningStatus: optional(raw.runningStatus), series: optional(raw.series), transmissionStyle: optional(raw.transmissionStyle), trim: optional(raw.trim), vin, warningLights: optional(raw.warningLights, 1000), year
+    odometer, odometerUnit: enumValue(raw.odometerUnit ?? "MILES", "Odometer unit", ["MILES", "KILOMETERS"] as const), reasonCode, relationship, runningStatus: optional(raw.runningStatus), series: optional(raw.series), transmissionStyle: optional(raw.transmissionStyle), trim: optional(raw.trim), vin, warningLights: optional(raw.warningLights, 1000), whereabouts, year
   };
 }
 
@@ -109,7 +117,7 @@ function nextHref(code: string, vehicleId: string, description: string) {
   if (code === "CREATE_SERVICE_INTAKE") return `/vehicles/repair-orders?${new URLSearchParams({ concernSummary: description, intakeSource: "WALK_IN", vehicleId }).toString()}`;
   if (code === "SCHEDULE_APPOINTMENT") return `/appointments?${new URLSearchParams({ vehicleId }).toString()}`;
   if (code === "START_ACQUISITION_APPRAISAL") return `/vehicles/acquisition-appraisal?${new URLSearchParams({ vehicleId }).toString()}`;
-  if (code === "REVIEW_INVENTORY_CONTROL") return `/vehicles/inventory/units?${new URLSearchParams({ vehicleId }).toString()}`;
+  if (code === "REVIEW_INVENTORY_CONTROL") return `/vehicles/${encodeURIComponent(vehicleId)}/workbench`;
   return `/vehicles/360/${vehicleId}`;
 }
 
@@ -140,9 +148,9 @@ export async function startAddVehicleWorkflow(actor: AuthenticatedUser | null, v
   const year = decode?.decoded.modelYear ?? Number(input.year); const make = decode?.decoded.make ?? input.make; const model = decode?.decoded.model ?? input.model;
   const decodedOrigin = decode ? { authority: "MANUFACTURER_SUBMITTED_VIN_DATA", confirmedAt: new Date().toISOString(), source: decode.provider, sourceReference: decode.vin } : { authority: "STAFF_CONFIRMATION", confirmedAt: new Date().toISOString(), source: "STAFF_CONFIRMED" };
   const staffOrigin = { authority: "STAFF_OBSERVATION", confirmedAt: new Date().toISOString(), source: "STAFF_OBSERVED" };
-  const specifications = { ...(decode?.decoded ?? {}), arrivalMethod: input.arrivalMethod || null, bodyClass: input.bodyClass || decode?.decoded.bodyClass || null, cabType: input.cabType || decode?.decoded.cabType || null, detailedNotes: input.detailedNotes || null, displacementLiters: input.displacementLiters || decode?.decoded.displacementLiters || null, doors: input.doors || decode?.decoded.doors || null, driveType: input.driveType || decode?.decoded.driveType || null, drivableStatus: input.drivableStatus || null, engineConfiguration: input.engineConfiguration || decode?.decoded.engineConfiguration || null, engineCylinders: input.engineCylinders || decode?.decoded.engineCylinders || null, existingDamage: input.existingDamage || null, fuelTypePrimary: input.fuelTypePrimary || decode?.decoded.fuelTypePrimary || null, gvwr: input.gvwr || decode?.decoded.gvwr || null, keyCount: input.keyCount ?? null, runningStatus: input.runningStatus || null, series: input.series || decode?.decoded.series || null, transmissionStyle: input.transmissionStyle || decode?.decoded.transmissionStyle || null, trim: input.trim || decode?.decoded.trim || null, warningLights: input.warningLights || null };
+  const specifications = { ...(decode?.decoded ?? {}), acquisitionSource: input.acquisitionSource || null, arrivalMethod: input.arrivalMethod || null, bodyClass: input.bodyClass || decode?.decoded.bodyClass || null, cabType: input.cabType || decode?.decoded.cabType || null, detailedNotes: input.detailedNotes || null, displacementLiters: input.displacementLiters || decode?.decoded.displacementLiters || null, doors: input.doors || decode?.decoded.doors || null, driveType: input.driveType || decode?.decoded.driveType || null, drivableStatus: input.drivableStatus || null, engineConfiguration: input.engineConfiguration || decode?.decoded.engineConfiguration || null, engineCylinders: input.engineCylinders || decode?.decoded.engineCylinders || null, existingDamage: input.existingDamage || null, externalLocation: input.externalLocation || null, fuelTypePrimary: input.fuelTypePrimary || decode?.decoded.fuelTypePrimary || null, gvwr: input.gvwr || decode?.decoded.gvwr || null, keyCount: input.keyCount ?? null, runningStatus: input.runningStatus || null, series: input.series || decode?.decoded.series || null, transmissionStyle: input.transmissionStyle || decode?.decoded.transmissionStyle || null, trim: input.trim || decode?.decoded.trim || null, warningLights: input.warningLights || null, whereabouts: input.whereabouts };
   const fieldOrigins = Object.fromEntries(Object.entries(specifications).filter(([, value]) => value != null && value !== "").map(([field]) => {
-    const staffFields = new Set(["arrivalMethod", "detailedNotes", "drivableStatus", "existingDamage", "keyCount", "runningStatus", "warningLights"]);
+    const staffFields = new Set(["acquisitionSource", "arrivalMethod", "detailedNotes", "drivableStatus", "existingDamage", "externalLocation", "keyCount", "runningStatus", "warningLights", "whereabouts"]);
     const explicitOverrides = new Set(["bodyClass", "cabType", "displacementLiters", "doors", "driveType", "engineConfiguration", "engineCylinders", "fuelTypePrimary", "gvwr", "series", "transmissionStyle", "trim"].filter(key => Boolean(input[key as keyof Input])));
     return [field, staffFields.has(field) || explicitOverrides.has(field) ? staffOrigin : decodedOrigin];
   }));
@@ -151,7 +159,7 @@ export async function startAddVehicleWorkflow(actor: AuthenticatedUser | null, v
     locationId: input.locationId, make, model, nonVinReason: input.nonVinReason || null,
     reason: `Add vehicle for ${input.reasonCode.toLowerCase().replaceAll("_", " ")}: ${input.description}`,
     vin: input.vin || null, year,
-    workflowContext: { addMode: input.addMode, description: input.description, nonVinExceptionCode: input.nonVinExceptionCode ?? null, recommendedWorkflowCode: recommendation.code, relationship: input.relationship, reasonCode: input.reasonCode }
+    workflowContext: { acquisitionSource: input.acquisitionSource ?? null, addMode: input.addMode, conditionSummary: input.description, description: input.description, externalLocation: input.externalLocation || null, nonVinExceptionCode: input.nonVinExceptionCode ?? null, recommendedWorkflowCode: recommendation.code, relationship: input.relationship, reasonCode: input.reasonCode, whereabouts: input.whereabouts }
   }, {}, {
     canonicalOrigins: { color: input.color ? staffOrigin : null, licensePlate: input.licensePlate ? staffOrigin : null, licensePlateState: input.licensePlateState ? staffOrigin : null, make: decodedOrigin, model: decodedOrigin, vin: input.vin ? decodedOrigin : { ...staffOrigin, source: "DOCUMENTED_NON_VIN_EXCEPTION" }, year: decodedOrigin },
     initialOdometer: input.odometer == null ? null : { observedAt: new Date(), reading: input.odometer, sourceCode: "ADD_VEHICLE_STAFF_OBSERVATION", unit: input.odometerUnit },

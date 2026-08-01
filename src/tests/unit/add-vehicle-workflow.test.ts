@@ -42,10 +42,28 @@ describe("Add Vehicle workflow", () => {
     expect(() => normalizeAddVehicleWorkflowInput({ ...base, description: "Brake" })).toThrow("at least 10 characters");
   });
 
+  it("routes dealership recon directly to the vehicle workbench", () => {
+    const result = recommendAddVehicleWorkflow({ description: "Prepare acquired vehicle for recon.", reasonCode: "INVENTORY_RECON", relationship: "DEALERSHIP_INVENTORY" });
+    expect(result.title).toBe("Open Vehicle Workbench");
+    expect(result.commandLabel).toBe("Add Vehicle & Open Workbench");
+  });
+
+  it("requires and normalizes an acquisition source for dealership inventory", () => {
+    const inventory = { ...base, acquisitionSource: "AUCTION", reasonCode: "INVENTORY_RECON" as const, relationship: "DEALERSHIP_INVENTORY" as const };
+    expect(() => normalizeAddVehicleWorkflowInput({ ...inventory, acquisitionSource: "" })).toThrow("Acquisition source is required");
+    expect(normalizeAddVehicleWorkflowInput(inventory).acquisitionSource).toBe("AUCTION");
+  });
+
+  it("requires a named location when the vehicle is off site", () => {
+    const offSite = { ...base, whereabouts: "AUCTION_FACILITY" as const };
+    expect(() => normalizeAddVehicleWorkflowInput(offSite)).toThrow("Off-site facility or location detail is required");
+    expect(normalizeAddVehicleWorkflowInput({ ...offSite, externalLocation: "Copart — Des Moines, IA" })).toMatchObject({ externalLocation: "Copart — Des Moines, IA", whereabouts: "AUCTION_FACILITY" });
+  });
+
   it("supports a documented non-VIN exception", () => {
-    const result = normalizeAddVehicleWorkflowInput({ ...base, vin: "", nonVinReason: "Pre-1981 vehicle without a standard 17-character VIN." });
+    const result = normalizeAddVehicleWorkflowInput({ ...base, vin: "", nonVinAttested: true, nonVinExceptionCode: "NO_VIN_ASSIGNED", nonVinReason: "Manufacturer records confirm this vehicle was produced without an assigned VIN." });
     expect(result.vin).toBe("");
-    expect(result.nonVinReason).toContain("Pre-1981");
+    expect(result.nonVinReason).toContain("NO_VIN_ASSIGNED");
   });
 
   it("requires an odometer before starting physical vehicle work", () => {
@@ -62,5 +80,10 @@ describe("Add Vehicle workflow", () => {
     expect(html).toContain("Detailed Add");
     expect(html).toContain("License plate");
     expect(html).toContain("NHTSA");
+    expect(html).toContain("Customer-reported concern");
+    expect(html).toContain("Vehicle whereabouts");
+    expect(html).toContain("At our dealership");
+    expect(html).toContain('data-ready="false"');
+    expect(html).not.toContain('disabled="" type="submit"');
   });
 });
