@@ -8,7 +8,7 @@ async function execute(database: PrismaClient, input: EnterpriseCommandCommitInp
 
 export type RepairOrderCreateRecord = { actorUserId: string; appointmentId: string | null; arrivedAt: Date; consentReference: string | null; consentStatus: "DOCUMENTED"|"NOT_REQUIRED"|"PENDING"; consentedAt: Date | null; concernSummary: string; customerId: string | null; intakeNotes: string | null; intakeSource: "APPOINTMENT"|"WALK_IN"|"INVENTORY_RECON"; inventoryUnitId: string | null; keyTag: string | null; keysReceivedCount: number; locationId: string; nextAction: string; operatingState: "ACTIVE"|"WAITING"|"BLOCKED"; ownerUserId: string; promisedAt: Date | null; promiseNotes: string | null; readinessSnapshotId: string | null; repairOrderNumber: string; stateReason: string | null; targetAt: Date; transportMode: "CUSTOMER_WAITING"|"DROP_OFF"|"LOANER"|"SHUTTLE"|"TOW"|"INTERNAL_TRANSPORT"|"OTHER"; vehicleId: string | null };
 export type RepairOrderControlRecord = Pick<RepairOrderCreateRecord,"actorUserId"|"locationId"|"nextAction"|"operatingState"|"ownerUserId"|"stateReason"|"targetAt">;
-const vehicleSelect = { id: true, vehicleNumber: true, vin: true, stockNumber: true, year: true, make: true, model: true, color: true, licensePlate: true };
+const vehicleSelect = { id: true, vehicleNumber: true, vin: true, stockNumber: true, year: true, make: true, model: true, color: true, licensePlate: true, specificationSnapshot: true, version: true, registryRelationships: { where: { effectiveTo: null }, select: { relationshipType: true } } };
 const detailInclude = { vehicle: { select: vehicleSelect }, customer: { select: { id: true, customerNumber: true, displayName: true, phoneNumber: true, email: true } }, inventoryUnit: { select: { id: true, inventoryNumber: true } }, ownerUser: { select: { id: true, name: true, email: true } }, location: { select: { id: true, code: true, name: true } }, serviceVisit: { include: { appointment: { select: { id: true, appointmentNumber: true, title: true, startsAt: true } }, createdByUser: { select: { id: true, name: true } } } }, stateEvents: { orderBy: { version: "desc" as const }, take: 100, include: { actorUser: { select: { id: true, name: true } }, ownerUser: { select: { id: true, name: true } }, location: { select: { id: true, code: true, name: true } } } } };
 
 export function createRepairOrderRepository(database: PrismaClient = prisma) { return {
@@ -28,10 +28,10 @@ export function createRepairOrderRepository(database: PrismaClient = prisma) { r
       database.location.findMany({ where: { organizationId }, orderBy: { name: "asc" }, select: { id: true, code: true, name: true } }),
       database.user.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true, email: true } }),
       database.repairOrder.findMany({
-        where: { organizationId, closedAt: null },
+        where: { organizationId },
         orderBy: { updatedAt: "desc" },
-        take: 100,
-        select: { id: true, operatingState: true, repairOrderNumber: true, stage: true, customer: { select: { displayName: true } }, vehicle: { select: vehicleSelect } },
+        take: 200,
+        select: { closedAt: true, id: true, openedAt: true, operatingState: true, repairOrderNumber: true, stage: true, customer: { select: { displayName: true } }, vehicle: { select: vehicleSelect } },
       })
     ]);
     return { appointments, vehicles, customers, inventoryUnits, locations, users, repairOrders };

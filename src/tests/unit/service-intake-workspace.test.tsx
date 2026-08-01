@@ -1,11 +1,13 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { ServiceIntakeWorkspace } from "@/features/inventory/service-intake-workspace";
+import { buildServiceIntakeVehicleCommand, ServiceIntakeWorkspace } from "@/features/inventory/service-intake-workspace";
+import { normalizeAddVehicleWorkflowInput } from "@/server/inventory-workflow-launcher/add-vehicle";
 
 const options = {
   appointments: [],
   customers: [{ customerNumber: "CUS-100", displayName: "Jordan Customer", id: "customer-1" }],
+  inventoryUnits: [],
   locations: [{ code: "MPLS", id: "location-1", name: "Minneapolis" }],
   repairOrders: [],
   users: [{ email: "advisor@example.test", id: "advisor-1", name: "Alex Advisor" }],
@@ -36,8 +38,10 @@ describe("enterprise service intake workspace", () => {
 
     expect(html).toContain("Find Customer, Vehicle, or Appointment");
     expect(html).toContain("Search name, phone, email, VIN, plate, appointment, or RO...");
+    expect(html).toContain(">Search</button>");
     expect(html).toContain("Add New Customer");
     expect(html).toContain("Add New Vehicle");
+    expect(html).not.toContain("/vehicles/workflows/add-vehicle?");
     expect(html).toContain("Select customer");
     expect(html).toContain("Select vehicle");
     expect(html).toContain("Minneapolis");
@@ -49,5 +53,33 @@ describe("enterprise service intake workspace", () => {
 
     expect(html).toContain("Back to Labor Guide");
     expect(html).toContain("href=\"/diagnostics/labor-guide\"");
+  });
+
+  it("restores a selected canonical vehicle into the persistent intake form", () => {
+    const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialConcernSummary="Customer reports brake vibration." initialVehicleId="vehicle-1" options={options} />);
+
+    expect(html).toContain("2024 Ford F-150");
+    expect(html).toContain("Customer reports brake vibration.");
+    expect(html).toContain("Decoded vehicle information");
+    expect(html).toContain("Vehicle 360");
+    expect(html).toContain("Next: Add / Select Customer");
+  });
+
+  it("uses dealership inventory context without requiring a customer", () => {
+    const inventoryOptions = { ...options, inventoryUnits: [{ id: "inventory-1", inventoryNumber: "INV-100", locationId: "location-1", vehicle: options.vehicles[0] }] };
+    const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialConcernSummary="Complete inventory safety inspection and recon estimate." initialVehicleId="vehicle-1" initialVehicleRelationship="DEALERSHIP_INVENTORY" options={inventoryOptions} />);
+
+    expect(html).toContain("Dealership inventory");
+    expect(html).toContain("Customer not required");
+    expect(html).toContain("Inventory unit INV-100 linked");
+    expect(html).toContain("Internal recon readiness");
+    expect(html).toContain("Inventory concern &amp; recon request");
+    expect(html).not.toContain("Next: Add / Select Customer");
+  });
+
+  it("builds a governed canonical-vehicle command for an unmatched decoded VIN", () => {
+    const command = buildServiceIntakeVehicleCommand({ description: "Customer reports an airbag warning light.", idempotencyKey: "service-intake-vin-1", locationId: "location-1", make: "HONDA", model: "Accord", odometer: "125000", odometerUnit: "MILES", vin: "1HGCM82633A004352", year: "2003" });
+
+    expect(normalizeAddVehicleWorkflowInput(command)).toMatchObject({ addMode: "QUICK", description: "Customer reports an airbag warning light.", odometer: 125000, reasonCode: "SERVICE_REPAIR", relationship: "CUSTOMER_VEHICLE", vin: "1HGCM82633A004352" });
   });
 });
