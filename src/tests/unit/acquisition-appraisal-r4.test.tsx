@@ -74,6 +74,10 @@ describe("R4 Acquisition & Appraisal workspace", () => {
     const item = { acquisitionType: "PURCHASE", appraisalSnapshot: { confidence: "HIGH" }, authorizationSnapshot: { proposedAmountCents: 900_000 }, commitmentSnapshot: {}, evidenceSnapshot: {}, events: [], expiresAt: "2026-07-25T15:00:00.000Z", id: "case-1", intendedUse: "RETAIL", inventoryUnit: null, location: { id: "loc-1", name: "North" }, offerSnapshot: {}, ownerUser: { id: "owner", name: "Avery" }, recommendationSnapshot: { recommendedMaximumBidCents: 1_000_000 }, source: "AUCTION", sourceReference: "A-100", status: "PROPOSAL_READY", vehicle: { id: "vehicle-1", make: "Toyota", model: "Camry", vehicleNumber: "V-1", vin: "VIN1", year: 2021 }, version: 4 };
     const markup = renderToStaticMarkup(<AcquisitionAppraisalWorkspace initial={{ contractVersion: "r4.1", freshness: "COMPLETE", generatedAt: now.toISOString(), items: [item], totals: { active: 1, authorizationPending: 0, evidenceRequired: 0, readyForAppraisal: 0 } }} options={{ locations: [{ id: "loc-1", name: "North" }], users: [{ id: "owner", name: "Avery" }], vehicles: [{ id: "vehicle-1", vehicleNumber: "V-1" }] }} />);
     expect(markup).toContain("Decide before inventory begins.");
+    expect(markup).toContain("Acquisition &amp; Appraisal Command Center");
+    expect(markup).toContain("Governed acquisition stages");
+    expect(markup).toContain("Decision readiness");
+    expect(markup).toContain("Control boundary");
     expect(markup).toContain("does not create inventory, ownership, a bid, or a commitment");
     expect(markup).toContain("Request exact-version authorization");
     expect(markup).toContain("External bidding, payment, accounting, and transport adapters are disabled.");
