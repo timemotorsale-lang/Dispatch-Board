@@ -3784,6 +3784,93 @@
   font-size: .62rem;
 }
 
+.fqcChecklistIntro {
+  display: grid;
+  gap: 3px;
+  padding: 10px 11px 0;
+}
+
+.fqcChecklistIntro strong {
+  color: #203449;
+  font-size: .72rem;
+}
+
+.fqcChecklistIntro small {
+  color: #6b7d90;
+  font-size: .6rem;
+  line-height: 1.4;
+}
+
+.fqcChecklistGrid {
+  display: grid;
+  gap: 8px;
+  padding: 10px 11px;
+}
+
+.fqcChecklistItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid #dbe4ed;
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+
+.fqcChecklistCopy {
+  display: grid;
+  gap: 3px;
+}
+
+.fqcChecklistCopy strong {
+  color: #1f3650;
+  font-size: .67rem;
+}
+
+.fqcChecklistCopy small {
+  color: #6a7b8f;
+  font-size: .58rem;
+  line-height: 1.35;
+}
+
+.fqcChecklistChoices {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.fqcChecklistChoices button {
+  min-width: 58px;
+  padding: 7px 10px;
+  border: 1px solid #d5dfeb;
+  border-radius: 999px;
+  color: #35516e;
+  background: #fff;
+  font-size: .58rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.fqcChecklistChoiceActive {
+  border-color: #1a66c5 !important;
+  color: #fff !important;
+  background: #1a66c5 !important;
+}
+
+.fqcChecklistSummary {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 0 11px 10px;
+  color: #61758a;
+  font-size: .59rem;
+}
+
+.fqcChecklistSummary b {
+  color: #1e446a;
+}
+
 .iqiNotice svg {
   width: 13px;
   height: 13px;
@@ -4074,6 +4161,10 @@
   .wopApproval {
     grid-template-columns: 1fr;
   }
+
+  .fqcChecklistItem {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 520px) {
@@ -4134,6 +4225,14 @@
   .wopDrivers,
   .wopApproval {
     grid-template-columns: 1fr;
+  }
+
+  .fqcChecklistItem {
+    grid-template-columns: 1fr;
+  }
+
+  .fqcChecklistChoices {
+    width: 100%;
   }
 
   .taiHeader,
