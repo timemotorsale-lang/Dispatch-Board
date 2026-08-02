@@ -1342,6 +1342,97 @@
   color: #fff !important;
 }
 
+.assignmentCard {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 12px;
+  border: 1px solid #d8e1eb;
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.assignmentCard header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.assignmentCard header div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.assignmentCard h3,
+.assignmentCard p {
+  margin: 0;
+}
+
+.assignmentCard h3 {
+  color: #07142b;
+  font-size: 14px;
+}
+
+.assignmentCard p {
+  color: #607086;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.assignmentCard header svg {
+  width: 17px;
+  color: #075fd4;
+  flex: 0 0 auto;
+}
+
+.assignmentCard dl {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.assignmentCard dl > div {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.assignmentCard dt {
+  color: #607086;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+.assignmentCard dd {
+  margin: 0;
+  color: #172033;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.assignTechnicianLink {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #075fd4;
+  border-radius: 5px;
+  background: #ffffff;
+  color: #075fd4 !important;
+  font-weight: 800;
+  text-decoration: none;
+}
+
 .partsOrderingCard {
   display: grid;
   gap: 10px;

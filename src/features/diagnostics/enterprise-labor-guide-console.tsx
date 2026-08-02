@@ -265,6 +265,16 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   const total = subtotal + taxAndSupplies;
   const activeRoHref = selectedRepairOrder ? `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}` : "/vehicles/repair-workbench?view=all";
   const laborGuideReturnTo = selectedRepairOrder ? `/diagnostics/labor-guide?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}` : "/diagnostics/labor-guide";
+  const assignTechnicianHref = selectedRepairOrder
+    ? `/vehicles/repair-workbench?${new URLSearchParams({
+      repairOrderId: selectedRepairOrder.id,
+      returnTo: laborGuideReturnTo,
+      vehicleId: selectedRepairOrder.vehicle.id ?? "",
+    }).toString()}`
+    : `/vehicles/repair-workbench?${new URLSearchParams({
+      returnTo: laborGuideReturnTo,
+      view: "all",
+    }).toString()}`;
   const partsWorkspaceHref = `/diagnostics/parts-ordering?${new URLSearchParams({
     parts: encodePartsOrderingPayload(estimateParts),
     ...(selectedRepairOrder ? { repairOrderId: selectedRepairOrder.id, repairOrderNumber: selectedRepairOrder.repairOrderNumber, vehicle: selectedRepairOrder.vehicle.label } : {}),
@@ -908,6 +918,20 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
                 <div><dt>Gross profit</dt><dd className={styles.good}>31.8%</dd></div>
               </dl>
               <button className={styles.createRo} disabled={busy} onClick={() => void presentEstimate()} type="button">{busy ? "Creating estimate..." : "Create Estimate"}</button>
+              <section className={styles.assignmentCard} aria-label="Technician assignment handoff">
+                <header>
+                  <div>
+                    <h3>Technician delegation</h3>
+                    <p>Route this repair order to the responsible technician and continue in the repair workbench assignment controls.</p>
+                  </div>
+                  <UserRound />
+                </header>
+                <dl>
+                  <div><dt>Repair order</dt><dd>{selectedRepairOrder?.repairOrderNumber ?? "Select RO first"}</dd></div>
+                  <div><dt>Vehicle</dt><dd>{selectedRepairOrder?.vehicle.label ?? "Vehicle pending"}</dd></div>
+                </dl>
+                <Link className={styles.assignTechnicianLink} href={assignTechnicianHref}>Assign Technician</Link>
+              </section>
               <section className={styles.partsOrderingCard} aria-label="Parts ordering workflow">
                 <header>
                   <div>

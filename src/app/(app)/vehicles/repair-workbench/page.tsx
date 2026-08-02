@@ -3,8 +3,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { AdvisorRepairOrderStatusView } from "@/features/advisor/advisor-repair-order-status-view";
-import { RepairOrderEnterpriseWorkbench } from "@/features/inventory/repair-order-enterprise-workbench";
 import { BackToServiceAdvisorWorkspace } from "@/features/advisor/advisor-return-link";
+import { RepairOrderEnterpriseWorkbench } from "@/features/inventory/repair-order-enterprise-workbench";
 import { BackToVehicleOperationsWorkspace } from "@/features/inventory/workspace-return-link";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { getPermittedWorkspaces, getWorkspaceKey } from "@/server/auth/navigation";
@@ -69,7 +69,7 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
     listRepairOrders(user, { page: 1, pageSize: 50, query, vehicleId: params.vehicleId }),
     params.vehicleId ? getRepairOrderCreateOptions(user) : Promise.resolve(null)
   ]);
-  const contextVehicle = contextOptions?.vehicles.find(vehicle => vehicle.id === params.vehicleId) ?? null;
+  const contextVehicle = contextOptions?.vehicles.find((vehicle) => vehicle.id === params.vehicleId) ?? null;
 
   if (params.vehicleId && params.view !== "all" && orders.items.length === 1) {
     const exact = new URLSearchParams({ repairOrderId: orders.items[0].id, vehicleId: params.vehicleId });
@@ -78,16 +78,18 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
   }
 
   const contextName = contextVehicle ? [contextVehicle.year, contextVehicle.make, contextVehicle.model].filter(Boolean).join(" ") || contextVehicle.vehicleNumber : "the selected vehicle";
-  const intakeHref = params.vehicleId ? `/vehicles/repair-orders?${new URLSearchParams({ intakeSource: "INVENTORY_RECON", vehicleId: params.vehicleId, ...(returnTo ? { returnTo } : {}) })}` : "/vehicles/repair-orders?intakeSource=WALK_IN";
+  const intakeHref = params.vehicleId
+    ? `/vehicles/repair-orders?${new URLSearchParams({ intakeSource: "INVENTORY_RECON", vehicleId: params.vehicleId, ...(returnTo ? { returnTo } : {}) })}`
+    : "/vehicles/repair-orders?intakeSource=WALK_IN";
 
   return (
     <section className={`page-stack ${styles.directory}`}>
-      <header className="page-copy">
+      <header className={`page-copy ${styles.hero}`}>
         {showAdvisorReturn ? <BackToServiceAdvisorWorkspace /> : showWorkspaceReturn ? <BackToVehicleOperationsWorkspace /> : null}
         <span className="eyebrow">Shop &amp; Recon</span>
         <h1>{params.vehicleId ? `Repair Workbench · ${contextName}` : "Repair Workbench"}</h1>
         <p>{params.vehicleId ? `Only repair orders linked to ${contextName} are shown. The console will not substitute another vehicle.` : "Find an open repair order, then enter its enterprise workbench for concern, diagnosis, estimate, jobs, quality, and timeline context."}</p>
-        <div className="form-actions">
+        <div className={styles.heroActions}>
           <Link className="pill pill-secondary" href="/vehicles/shop-recon">← Shop &amp; Recon</Link>
           <Link className="pill pill-primary" href={intakeHref}>{params.vehicleId ? `Create repair order for ${contextName}` : "Check In Vehicle"}</Link>
           <Link className="pill pill-secondary" href="/vehicles/repair-orders">Repair Order Administration</Link>
@@ -96,43 +98,57 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
 
       {params.contextError === "REPAIR_ORDER_VEHICLE_MISMATCH" ? <div className="notice notice-warning"><p>The requested repair order belongs to a different vehicle and was not opened. Select or create a repair order for {contextName}.</p></div> : null}
 
-      <section className="panel-card">
-        <form className="form-actions" method="get">
+      <section className={`panel-card ${styles.searchCard}`}>
+        <div className={styles.searchCardHeader}>
+          <div>
+            <span className={styles.sectionEyebrow}>Queue search</span>
+            <h2>Open repair-order queue</h2>
+          </div>
+          <b>{orders.total} open repair {orders.total === 1 ? "order" : "orders"}{query ? ` matching “${query}”` : ""}</b>
+        </div>
+        <form className={`form-actions ${styles.searchForm}`} method="get">
           <input name="view" type="hidden" value="all" />
           {params.vehicleId ? <input name="vehicleId" type="hidden" value={params.vehicleId} /> : null}
           {returnTo ? <input name="returnTo" type="hidden" value={returnTo} /> : null}
-          <label className="form-field">
+          <label className={`form-field ${styles.searchField}`}>
             <span>Search repair order, customer, vehicle, VIN, inventory number, owner, or next action</span>
-            <input defaultValue={query} name="query" placeholder="Search open repair orders…" />
+            <input defaultValue={query} name="query" placeholder="Search open repair orders..." />
           </label>
           <button className="button button-primary" type="submit"><Search size={15} /> Search</button>
           {query ? <Link className="button button-secondary" href={params.vehicleId ? `/vehicles/repair-workbench?${new URLSearchParams({ vehicleId: params.vehicleId, view: "all", ...(returnTo ? { returnTo } : {}) })}` : "/vehicles/repair-workbench?view=all"}>Clear</Link> : null}
         </form>
-        <p>{orders.total} open repair {orders.total === 1 ? "order" : "orders"}{query ? ` matching “${query}”` : ""}</p>
       </section>
 
-      <section className="panel-card page-stack">
-        <div className="page-copy">
-          <span className="eyebrow">Open work</span>
+      <section className={`panel-card page-stack ${styles.queueCard}`}>
+        <div className={styles.queueHeader}>
+          <span className={styles.sectionEyebrow}>Open work</span>
           <h2>Select a repair order</h2>
           <p>The selected repair order opens with its authoritative customer concern and current governed stage.</p>
         </div>
         {orders.items.length ? (
           <div className={styles.orderList}>
             {orders.items.map((order) => (
-              <Link className={`settings-callout-card ${styles.order}`} href={`/vehicles/repair-workbench?${new URLSearchParams({ repairOrderId: order.id, vehicleId: order.vehicle.id, ...(returnTo ? { returnTo } : {}) })}`} key={order.id}>
-                <ClipboardList aria-hidden="true" size={20} />
-                <span>
+              <article className={`settings-callout-card ${styles.order}`} key={order.id}>
+                <ClipboardList aria-hidden="true" size={19} />
+                <span className={styles.orderIdentity}>
                   <strong>{order.repairOrderNumber} · {vehicleLabel(order)}</strong>
                   <small>{order.customer?.displayName ?? order.inventoryUnit?.inventoryNumber ?? "Internal vehicle"} · {order.location.name}</small>
                   <small>{order.serviceVisit.concernSummary}</small>
                 </span>
-                <span>
+                <span className={styles.orderMeta}>
                   <b>{order.stage.replaceAll("_", " ")}</b>
-                  <small>{order.ownerUser.name} · {order.age.overdue ? "Overdue" : order.nextAction}</small>
+                  <small>{order.ownerUser.name}</small>
+                  <small>{order.age.overdue ? "Overdue" : order.nextAction}</small>
                 </span>
-                <em><Wrench aria-hidden="true" size={15} /> Open Workbench</em>
-              </Link>
+                <div className={styles.orderActions}>
+                  <Link href={`/vehicles/repair-workbench?${new URLSearchParams({ repairOrderId: order.id, vehicleId: order.vehicle.id, ...(returnTo ? { returnTo } : {}) })}`}>
+                    <Wrench aria-hidden="true" size={15} /> Open Workbench
+                  </Link>
+                  <Link href={`/vehicles/repair-workbench?${new URLSearchParams({ repairOrderId: order.id, vehicleId: order.vehicle.id, ...(returnTo ? { returnTo } : {}) }).toString()}#assignment`}>
+                    Assign Technician
+                  </Link>
+                </div>
+              </article>
             ))}
           </div>
         ) : (

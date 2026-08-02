@@ -79,6 +79,11 @@ export function WopPartsOrderingTool({
   onProgressChange: (progress: WopPartsWorkflowProgress) => void;
 }) {
   const [input, setInput] = useState<WopPartsOrderingInput>({ ...initialInput, revisedWorkOrderTotalDollars: approvedBudgetDollars });
+  const [introResponses, setIntroResponses] = useState({
+    autobodyGuideReviewed: false,
+    mechanicalGuideReviewed: false,
+    partsWorkspaceOpened: false,
+  });
   const [completedSteps, setCompletedSteps] = useState<Record<StepKey, boolean>>({
     approval: false,
     demand: false,
@@ -134,6 +139,11 @@ export function WopPartsOrderingTool({
     invalidate(step, "Parts facts changed. Reconfirm sourcing, approval, and receiving controls.");
   }
 
+  function updateIntroResponse(field: keyof typeof introResponses, value: boolean) {
+    setIntroResponses((current) => ({ ...current, [field]: value }));
+    setNotice("Parts access path was updated. Continue documenting the exact demand, source, approval, and receiving chain below.");
+  }
+
   function completeDemand() {
     if (!result.demandComplete) return;
     setCompletedSteps((current) => ({ ...current, demand: true }));
@@ -176,6 +186,11 @@ export function WopPartsOrderingTool({
           <Link className={styles.wopHelperLink} href={laborGuideHref}>Mechanical labor guide</Link>
           <Link className={styles.wopHelperLink} href={autobodyLaborGuideHref}>Autobody labor guide</Link>
           <Link className={styles.wopHelperLink} href={partsWorkspaceHref}>Open parts workspace</Link>
+        </div>
+        <div className={styles.wopIntroResponses}>
+          <label><input checked={introResponses.mechanicalGuideReviewed} onChange={(event) => updateIntroResponse("mechanicalGuideReviewed", event.target.checked)} type="checkbox" /><span>Mechanical labor guide reviewed where needed</span></label>
+          <label><input checked={introResponses.autobodyGuideReviewed} onChange={(event) => updateIntroResponse("autobodyGuideReviewed", event.target.checked)} type="checkbox" /><span>Autobody labor guide reviewed where needed</span></label>
+          <label><input checked={introResponses.partsWorkspaceOpened} onChange={(event) => updateIntroResponse("partsWorkspaceOpened", event.target.checked)} type="checkbox" /><span>Parts workspace opened or sourcing path confirmed</span></label>
         </div>
       </div>
       <div className={styles.wopVersion}>

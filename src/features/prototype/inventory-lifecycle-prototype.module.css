@@ -3338,7 +3338,7 @@
 
 .wopBody {
   display: grid;
-  grid-template-columns: minmax(0, 1.38fr) minmax(290px, .72fr);
+  grid-template-columns: 1fr;
   gap: 12px;
   padding: 12px;
 }
@@ -3509,6 +3509,31 @@
   margin-top: 4px;
 }
 
+.wopIntroResponses {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 12px;
+  margin-top: 8px;
+}
+
+.wopIntroResponses label {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 6px;
+  align-items: start;
+}
+
+.wopIntroResponses input {
+  margin-top: 2px;
+}
+
+.wopIntroResponses span {
+  color: #586d82;
+  font-size: .62rem;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
 .wopHelperLink {
   display: inline-flex;
   min-height: 30px;
@@ -3526,7 +3551,7 @@
 
 .wopSubworkspaceGrid {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(250px, .85fr);
+  grid-template-columns: 1fr;
   gap: 10px;
   padding: 0 10px 10px;
 }
@@ -3556,6 +3581,11 @@
 .wopDecision {
   display: grid;
   gap: 0;
+  align-self: start;
+  overflow: hidden;
+  border: 1px solid #d7e1eb;
+  border-radius: 8px;
+  background: #fff;
 }
 
 .wopDecision > header {
@@ -3563,7 +3593,7 @@
   grid-template-columns: auto 1fr auto;
   gap: 10px;
   align-items: center;
-  padding: 12px;
+  padding: 10px 12px;
   border-bottom: 1px solid #e3e8ef;
   background: #fffaf0;
 }
@@ -3582,24 +3612,24 @@
 .wopDecision > header strong {
   display: block;
   color: #203449;
-  font-size: .96rem;
+  font-size: .84rem;
 }
 
 .wopDecision dl {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   border-bottom: 1px solid #e6ecf2;
 }
 
 .wopDecision dl > div {
   display: grid;
   gap: 3px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   border-right: 1px solid #edf1f5;
   border-bottom: 1px solid #edf1f5;
 }
 
-.wopDecision dl > div:nth-child(2n) {
+.wopDecision dl > div:nth-child(3n) {
   border-right: 0;
 }
 
@@ -3617,7 +3647,7 @@
 
 .wopExplanation {
   margin: 0;
-  padding: 10px 12px;
+  padding: 8px 10px;
   color: #4c5c6f;
   font-size: .64rem;
   line-height: 1.45;
@@ -3680,6 +3710,8 @@
   list-style: none;
   margin: 0;
   padding: 0;
+  max-height: 220px;
+  overflow: auto;
 }
 
 .wopTrail li {
@@ -4037,6 +4069,7 @@
   .iqiDrivers,
   .iqiApproval,
   .wopChecks,
+  .wopIntroResponses,
   .wopDrivers,
   .wopApproval {
     grid-template-columns: 1fr;
@@ -4097,6 +4130,7 @@
   .iqiApproval,
   .wopFieldGrid,
   .wopChecks,
+  .wopIntroResponses,
   .wopDrivers,
   .wopApproval {
     grid-template-columns: 1fr;
