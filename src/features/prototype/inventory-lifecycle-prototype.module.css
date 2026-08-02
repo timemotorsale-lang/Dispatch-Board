@@ -3320,6 +3320,11 @@
   text-decoration: none;
 }
 
+.wopHeaderButton {
+  border: 0;
+  cursor: pointer;
+}
+
 .wopVersion {
   display: grid;
   gap: 2px;
