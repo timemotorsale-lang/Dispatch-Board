@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { InventoryPlanningReview } from "@/features/inventory/inventory-planning-review";
+import { InventoryPlanningReview, VehicleLocationEditor } from "@/features/inventory/inventory-planning-review";
 import type { VehicleExecutionWorkbenchProjection } from "@/server/inventory-execution/workbench-service";
 
 const projection = {
@@ -29,8 +29,13 @@ function workflow(stage: string) {
 }
 
 describe("Inventory Planning review surface", () => {
+  it("offers dealership and external custody locations", () => {
+    const html = renderToStaticMarkup(<VehicleLocationEditor busy={false} current={null} locations={[{ id: "loc-1", code: "MSP", name: "Time Motor Sales — Minneapolis" }]} onCancel={() => undefined} onSave={async () => undefined} />);
+    for (const text of ["Where is the vehicle?", "At one of our dealerships", "At an auction", "At an outside repair facility", "In transport", "At another external location", "Repair facility name", "Diego Auto Body", "Verification source", "Save verified location"]) expect(html).toContain(text);
+  });
+
   it("opens with detailed receiving facts, mandatory initial QC, and a governed lifecycle start", () => {
-    const html = renderToStaticMarkup(<InventoryPlanningReview eligibleUnit={{ id: "unit-1", inventoryNumber: "INV-1", locationId: "loc-1", vehicle: { id: "vehicle-1", vehicleNumber: "VEH-1001", year: 2023, make: "Toyota", model: "RAV4" } }} initial={projection} users={[{ id: "manager-1", name: "Inventory Manager" }]} />);
+    const html = renderToStaticMarkup(<InventoryPlanningReview eligibleUnit={{ id: "unit-1", inventoryNumber: "INV-1", locationId: "loc-1", vehicle: { id: "vehicle-1", vehicleNumber: "VEH-1001", year: 2023, make: "Toyota", model: "RAV4" } }} initial={projection} locations={[{ id: "loc-1", code: "MSP", name: "Minneapolis" }]} users={[{ id: "manager-1", name: "Inventory Manager" }]} />);
 
     for (const text of [
       "Receiving &amp; Initial Quality Inspection",
@@ -50,6 +55,8 @@ describe("Inventory Planning review surface", () => {
       "Start governed lifecycle",
       "No workflow mutation yet"
     ]) expect(html).toContain(text);
+    expect(html).toContain("Edit current vehicle location");
+    expect(html).toContain("Edit / verify");
     expect(html).toContain("2T3W1RFV4PW278629");
     expect(html).toContain("2023 Toyota RAV4");
     expect(html).toContain("/vehicles/vehicle-1/workbench");
@@ -58,6 +65,9 @@ describe("Inventory Planning review surface", () => {
     expect(html).toContain('href="/vehicles/360/vehicle-1?section=intelligence&amp;intent=recalls&amp;returnTo=%2Fvehicles%2Fvehicle-1%2Finventory-planning"');
     const acquisitionHtml = renderToStaticMarkup(<InventoryPlanningReview initial={projection} users={[{ id: "manager-1", name: "Inventory Manager" }]} />);
     expect(acquisitionHtml).toContain("returnTo=%2Fvehicles%2Fvehicle-1%2Finventory-planning");
+    expect(acquisitionHtml).toContain("InventoryUnit required—complete acquisition before starting the lifecycle");
+    expect(acquisitionHtml).toContain("Establish acquisition first");
+    expect(acquisitionHtml).not.toContain("Start governed lifecycle");
   });
 
   it.each([

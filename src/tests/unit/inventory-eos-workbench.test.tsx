@@ -37,6 +37,7 @@ describe("official Vehicle Execution Workbench", () => {
     const html = renderToStaticMarkup(<VehicleExecutionWorkbench initial={projection()} />);
     for (const value of ["Vehicle Workbench", "View as:", "Neutral vehicle home", "Do This Now", "Replace brake pads", "Current situation", "Lifecycle Planning", "Repair &amp; Shop", "Parts Readiness", "Evidence, files &amp; comments", "Inventory Manager", "Technician", "Return rule"]) expect(html).toContain(value);
     expect(html).toContain("/vehicles/vehicle-1/inventory-planning");
+    expect(html).toContain("repairOrderId=ro-1&amp;vehicleId=vehicle-1");
     expect(html).toContain("returnTo=%2Fvehicles%2Fvehicle-1%2Fworkbench");
   });
 

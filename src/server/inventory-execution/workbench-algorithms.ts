@@ -110,7 +110,7 @@ export function buildVehicleWorkbenchOverview(input: {
       evidence: withVehicleWorkbenchReturn(input.links.evidence, vehicleId),
       lifecycle: withVehicleWorkbenchReturn(`/vehicles/${encodeURIComponent(vehicleId)}/inventory-planning`, vehicleId),
       parts: withVehicleWorkbenchReturn(input.links.parts, vehicleId),
-      repair: withVehicleWorkbenchReturn(input.workOrders.items[0]?.id ? `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(text(input.workOrders.items[0].id))}` : "/vehicles/repair-workbench", vehicleId),
+      repair: withVehicleWorkbenchReturn(input.workOrders.items[0]?.id ? `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(text(input.workOrders.items[0].id))}&vehicleId=${encodeURIComponent(vehicleId)}` : `/vehicles/repair-workbench?vehicleId=${encodeURIComponent(vehicleId)}`, vehicleId),
       sales: withVehicleWorkbenchReturn(`/vehicles/inventory-to-frontline?vehicleId=${encodeURIComponent(vehicleId)}`, vehicleId),
       vehicle360: withVehicleWorkbenchReturn(input.links.vehicle360, vehicleId)
     },

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, ArrowRight, Camera, CarFront, Check, CheckCircle2, FileText, LockKeyhole, RotateCcw, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Camera, CarFront, Check, CheckCircle2, FileText, LockKeyhole, MapPin, Pencil, RotateCcw, ShieldCheck, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
@@ -8,9 +8,11 @@ import type { FormEvent, ReactNode } from "react";
 import type { VehicleExecutionWorkbenchProjection } from "@/server/inventory-execution/workbench-service";
 
 import baseStyles from "./inventory-planning-review.module.css";
+import locationStyles from "./inventory-location-editor.module.css";
 
 const styles: Record<string, string> = {
   ...(baseStyles as Record<string, string>),
+  ...(locationStyles as Record<string, string>),
   checkbox: "inventory-planning-checkbox",
   checkDetails: "inventory-planning-check-details",
   dangerButton: "inventory-planning-danger-button",
@@ -38,6 +40,7 @@ type FrontlineWorkflow = {
   receiptSnapshot?: unknown; inspectionSnapshot?: unknown; reconSnapshot?: unknown; executionSnapshot?: unknown; qualitySnapshot?: unknown; titleSnapshot?: unknown; merchandisingSnapshot?: unknown; releaseSnapshot?: unknown; postReleaseSnapshot?: unknown; exceptionSnapshot?: unknown;
 };
 type FrontlineUser = { id: string; name: string };
+type RegistryLocation = { id: string; code: string; name: string };
 type EligibleUnit = { id: string; inventoryNumber: string; locationId: string; vehicle: { id: string; vehicleNumber: string; year: number | null; make: string | null; model: string | null } };
 
 const initialChecklist: CheckGroup[] = [
@@ -92,9 +95,10 @@ function taskOperationalStatus(item: CheckItem, evidenceIds: string[]) {
   return "Ready for result";
 }
 
-export function InventoryPlanningReview({ eligibleUnit = null, initial, initialRepairOrderId = "", initialWorkflow = null, users = [] }: { eligibleUnit?: EligibleUnit | null; initial: VehicleExecutionWorkbenchProjection; initialRepairOrderId?: string; initialWorkflow?: FrontlineWorkflow | null; users?: FrontlineUser[] }) {
+export function InventoryPlanningReview({ eligibleUnit = null, initial, initialRepairOrderId = "", initialWorkflow = null, locations = [], users = [] }: { eligibleUnit?: EligibleUnit | null; initial: VehicleExecutionWorkbenchProjection; initialRepairOrderId?: string; initialWorkflow?: FrontlineWorkflow | null; locations?: RegistryLocation[]; users?: FrontlineUser[] }) {
   const identity = object(initial.identity), operation = object(initial.operation), location = object(operation.location), latestOdometer = object(operation.latestOdometer);
   const vehicleId = text(identity.id, text(identity.vehicleNumber, "vehicle"));
+  const acquisitionHref = `/vehicles/acquisition-appraisal?vehicleId=${encodeURIComponent(vehicleId)}&returnTo=${encodeURIComponent(`/vehicles/${vehicleId}/inventory-planning`)}`;
   const draftKey = `inventory-receiving-review:${vehicleId}`;
   const [workflow, setWorkflow] = useState<FrontlineWorkflow | null>(initialWorkflow);
   const [view, setView] = useState<View>(() => initialWorkflow && !["RECEIPT_AND_CUSTODY", "INSPECTION_AND_TRIAGE"].includes(initialWorkflow.stage) ? "LIFECYCLE" : "RECEIVING");
@@ -107,6 +111,7 @@ export function InventoryPlanningReview({ eligibleUnit = null, initial, initialR
   const [mileage, setMileage] = useState(() => String(typeof latestOdometer.reading === "number" ? latestOdometer.reading : ""));
   const [damageSummary, setDamageSummary] = useState("");
   const [activeCheckId, setActiveCheckId] = useState<string | null>(null);
+  const [canonicalLocation, setCanonicalLocation] = useState<RegistryLocation | null>(() => typeof location.id === "string" && typeof location.name === "string" ? { id: location.id, code: text(location.code, ""), name: location.name } : null);
   const items = useMemo(() => groups.flatMap(group => group.items), [groups]);
   const completed = items.filter(item => item.state !== "PENDING").length;
   const concerns = items.filter(item => item.state === "CONCERN").length;
@@ -162,6 +167,42 @@ export function InventoryPlanningReview({ eligibleUnit = null, initial, initialR
     const next = model.items.find(item => item.inventoryUnit.vehicle.id === vehicleId) ?? null;
     setWorkflow(next);
     return next;
+  }
+
+  async function recordCurrentLocation(input: { custodianType: string; displayName: string; locationId: string | null; positionLabel: string; reason: string; sourceCode: string }) {
+    const selected = input.locationId ? locations.find(candidate => candidate.id === input.locationId) : null;
+    if (input.locationId && !selected) throw new Error("Select a valid dealership location.");
+    const displayName = selected?.name ?? input.displayName.trim();
+    if (!displayName) throw new Error("Enter the auction, repair facility, transport, or external location name.");
+    setBusy(true); setNotice("");
+    try {
+      const current = await request(`/api/vehicles/${encodeURIComponent(vehicleId)}`) as { version?: number };
+      await request(`/api/vehicles/${encodeURIComponent(vehicleId)}/commands`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "RECORD_CUSTODY",
+          custodianType: input.custodianType,
+          eventType: canonicalLocation ? "CORRECTION" : "CHECK_IN",
+          expectedVersion: Number(current.version ?? identity.version ?? 0),
+          idempotencyKey: crypto.randomUUID(),
+          locationId: selected?.id ?? null,
+          occurredAt: new Date().toISOString(),
+          positionLabel: selected ? input.positionLabel || null : [displayName, input.positionLabel].filter(Boolean).join(" · "),
+          reason: input.reason,
+          sourceCode: input.sourceCode,
+          sourceReference: "Inventory planning canonical facts"
+        })
+      });
+      const recordedLocation = selected ?? { id: "", code: input.custodianType, name: displayName };
+      setCanonicalLocation(recordedLocation);
+      setNotice(workflow && workflow.location.id !== recordedLocation.id ? `Current custody verified at ${displayName}. The active lifecycle remains operationally assigned to ${workflow.location.name}; reassign that workflow separately if needed.` : `Current location verified as ${displayName}. The source and correction reason were added to the canonical custody history.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Current location could not be updated.");
+      throw error;
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function startWorkflow() {
@@ -238,17 +279,18 @@ export function InventoryPlanningReview({ eligibleUnit = null, initial, initialR
 
     <div className={styles.notice} role="status"><ShieldCheck size={17} /><span>{notice}</span></div>
 
-    {view === "RECEIVING" ? <ReceivingReview activeCheckId={activeCheckId} busy={busy} damageSummary={damageSummary} eligibleUnit={eligibleUnit} evidenceIds={evidenceIds} identity={identity} keyCount={keyCount} location={location} mileage={mileage} notes={notes} operation={operation} ownerUserId={ownerUserId} setActiveCheckId={setActiveCheckId} setDamageSummary={setDamageSummary} setKeyCount={setKeyCount} setMileage={setMileage} setNotes={setNotes} setOwnerUserId={setOwnerUserId} groups={groups} updateCheck={updateCheck} updateCheckDetails={updateCheckDetails} readiness={readiness} completed={completed} concerns={concerns} initial={initial} users={users} workflow={workflow} /> : <LifecycleReview act={act} busy={busy} completed={completed} concerns={concerns} evidenceIds={evidenceIds} identity={identity} initial={initial} initialRepairOrderId={initialRepairOrderId} users={users} workflow={workflow} />}
+    {view === "RECEIVING" ? <ReceivingReview activeCheckId={activeCheckId} busy={busy} canonicalLocation={canonicalLocation} damageSummary={damageSummary} eligibleUnit={eligibleUnit} evidenceIds={evidenceIds} identity={identity} keyCount={keyCount} locations={locations} mileage={mileage} notes={notes} onRecordLocation={recordCurrentLocation} operation={operation} ownerUserId={ownerUserId} setActiveCheckId={setActiveCheckId} setDamageSummary={setDamageSummary} setKeyCount={setKeyCount} setMileage={setMileage} setNotes={setNotes} setOwnerUserId={setOwnerUserId} groups={groups} updateCheck={updateCheck} updateCheckDetails={updateCheckDetails} readiness={readiness} completed={completed} concerns={concerns} initial={initial} users={users} workflow={workflow} /> : <LifecycleReview act={act} busy={busy} completed={completed} concerns={concerns} evidenceIds={evidenceIds} identity={identity} initial={initial} initialRepairOrderId={initialRepairOrderId} users={users} workflow={workflow} />}
 
     <footer className={styles.footer}>
       <button className={styles.textButton} onClick={resetDraft} type="button"><RotateCcw size={14} /> Reset review</button>
-      <span>{view === "RECEIVING" ? `${completed}/${items.length} checklist decisions recorded` : "Receiving details remain available from every later stage"}</span>
-      {view === "RECEIVING" ? <div><button className={styles.secondaryButton} onClick={saveDraft} type="button">Save local draft</button><button className={styles.secondaryButton} onClick={previewLifecycle} type="button">Open lifecycle</button><button className={styles.primaryButton} disabled={busy || (!workflow && !eligibleUnit)} onClick={advanceReceiving} type="button">{receivingActionLabel(workflow)} <ArrowRight size={16} /></button></div> : <button className={styles.primaryButton} onClick={() => setView("RECEIVING")} type="button">Review receiving details</button>}
+      <span>{view === "RECEIVING" ? !workflow && !eligibleUnit ? "InventoryUnit required—complete acquisition before starting the lifecycle" : `${completed}/${items.length} checklist decisions recorded` : "Receiving details remain available from every later stage"}</span>
+      {view === "RECEIVING" ? <div><button className={styles.secondaryButton} onClick={saveDraft} type="button">Save local draft</button><button className={styles.secondaryButton} onClick={previewLifecycle} type="button">Open lifecycle</button>{!workflow && !eligibleUnit ? <Link className={styles.primaryButton} href={acquisitionHref}>Establish acquisition first <ArrowRight size={16} /></Link> : <button className={styles.primaryButton} disabled={busy} onClick={advanceReceiving} type="button">{receivingActionLabel(workflow)} <ArrowRight size={16} /></button>}</div> : <button className={styles.primaryButton} onClick={() => setView("RECEIVING")} type="button">Review receiving details</button>}
     </footer>
   </section>;
 }
 
-function ReceivingReview({ activeCheckId, busy, completed, concerns, damageSummary, eligibleUnit, evidenceIds, groups, identity, initial, keyCount, location, mileage, notes, operation, ownerUserId, readiness, setActiveCheckId, setDamageSummary, setKeyCount, setMileage, setNotes, setOwnerUserId, updateCheck, updateCheckDetails, users, workflow }: { activeCheckId: string | null; busy: boolean; completed: number; concerns: number; damageSummary: string; eligibleUnit: EligibleUnit | null; evidenceIds: string[]; groups: CheckGroup[]; identity: Record<string, unknown>; initial: VehicleExecutionWorkbenchProjection; keyCount: string; location: Record<string, unknown>; mileage: string; notes: string; operation: Record<string, unknown>; ownerUserId: string; readiness: number; setActiveCheckId: (value: string | null) => void; setDamageSummary: (value: string) => void; setKeyCount: (value: string) => void; setMileage: (value: string) => void; setNotes: (value: string) => void; setOwnerUserId: (value: string) => void; updateCheck: (id: string, state: CheckState) => void; updateCheckDetails: (id: string, values: Partial<Pick<CheckItem, "notes" | "evidenceObjectIds">>) => void; users: FrontlineUser[]; workflow: FrontlineWorkflow | null }) {
+function ReceivingReview({ activeCheckId, busy, canonicalLocation, completed, concerns, damageSummary, eligibleUnit, evidenceIds, groups, identity, initial, keyCount, locations, mileage, notes, onRecordLocation, operation, ownerUserId, readiness, setActiveCheckId, setDamageSummary, setKeyCount, setMileage, setNotes, setOwnerUserId, updateCheck, updateCheckDetails, users, workflow }: { activeCheckId: string | null; busy: boolean; canonicalLocation: RegistryLocation | null; completed: number; concerns: number; damageSummary: string; eligibleUnit: EligibleUnit | null; evidenceIds: string[]; groups: CheckGroup[]; identity: Record<string, unknown>; initial: VehicleExecutionWorkbenchProjection; keyCount: string; locations: RegistryLocation[]; mileage: string; notes: string; onRecordLocation: (input: { custodianType: string; displayName: string; locationId: string | null; positionLabel: string; reason: string; sourceCode: string }) => Promise<void>; operation: Record<string, unknown>; ownerUserId: string; readiness: number; setActiveCheckId: (value: string | null) => void; setDamageSummary: (value: string) => void; setKeyCount: (value: string) => void; setMileage: (value: string) => void; setNotes: (value: string) => void; setOwnerUserId: (value: string) => void; updateCheck: (id: string, state: CheckState) => void; updateCheckDetails: (id: string, values: Partial<Pick<CheckItem, "notes" | "evidenceObjectIds">>) => void; users: FrontlineUser[]; workflow: FrontlineWorkflow | null }) {
+  const [locationEditorOpen, setLocationEditorOpen] = useState(false);
   const orderedTasks = groups.flatMap(group => group.items), currentTask = orderedTasks.find(item => item.state === "PENDING") ?? orderedTasks[orderedTasks.length - 1];
   return <main className={styles.reviewBody}>
     <div className={styles.mainColumn}>
@@ -256,8 +298,9 @@ function ReceivingReview({ activeCheckId, busy, completed, concerns, damageSumma
         <div className={styles.cardHeader}><div><small>Carried forward automatically</small><h2>Detailed intake & canonical vehicle facts</h2><p>No repeated entry. These facts remain connected to their canonical origins.</p></div><span className={styles.locked}><LockKeyhole size={14} /> Baseline facts</span></div>
         <div className={styles.factGrid}>
           <Fact term="Canonical vehicle" value={text(identity.vehicleNumber)} /><Fact term="VIN" value={text(identity.vin, label(identity.vinState))} /><Fact term="Year / Make / Model" value={[identity.year, identity.make, identity.model].map(identityPart).filter(Boolean).join(" ")} /><Fact term="Color" value={text(identity.color)} />
-          <Fact term="License plate" value={text(identity.licensePlate)} /><Fact term="Stock number" value={text(identity.stockNumber)} /><Fact term="Current location" value={text(location.name)} /><Fact term="Custody / state" value={label(operation.operatingState)} />
+          <Fact term="License plate" value={text(identity.licensePlate)} /><Fact term="Stock number" value={text(identity.stockNumber)} /><EditableLocationFact location={canonicalLocation} onEdit={() => setLocationEditorOpen(true)} /><Fact term="Custody / state" value={label(operation.operatingState)} />
         </div>
+        {locationEditorOpen ? <VehicleLocationEditor busy={busy} current={canonicalLocation} locations={locations} onCancel={() => setLocationEditorOpen(false)} onSave={async values => { await onRecordLocation(values); setLocationEditorOpen(false); }} /> : null}
         <div className={styles.sourceRow}><FileText size={16} /><div><strong>Canonical origins preserved</strong><span>VIN identity, decoded specifications, arrival observations, evidence, and later corrections remain attributable in Vehicle 360.</span></div><Link href={withQuery(initial.links.vehicle360, { returnTo: `/vehicles/${text(identity.id, "")}/inventory-planning` })}>View full details</Link></div>
       </section>
 
@@ -322,7 +365,7 @@ function GovernedStageAction({ act, busy, evidenceIds, initial, initialRepairOrd
   if (workflow.stage === "IN_TRANSIT") return <form className={styles.stageForm} onSubmit={event => submit(event, "RECORD_DELIVERY", { delivered: true, deliveryEvidenceReference: form.deliveryEvidence, observedAt: new Date().toISOString() }, "Observed delivery recorded.")}><h3>Confirm observed delivery</h3><Field label="Delivery evidence reference"><input onChange={event => set("deliveryEvidence", event.target.value)} required value={String(form.deliveryEvidence)} /></Field><StageSubmit busy={busy}>Record delivery</StageSubmit></form>;
   if (["RECEIPT_AND_CUSTODY", "INSPECTION_AND_TRIAGE"].includes(workflow.stage)) return <div className={styles.emptyAction}><p>Complete the current receiving gate in the detailed Receiving &amp; Initial QC form.</p></div>;
   if (workflow.stage === "RECON_PLAN_AND_APPROVAL") return <form className={styles.stageForm} onSubmit={event => submit(event, "APPROVE_RECON_PLAN", { approved: true, approvedAmountCents: Number(form.amount), evidenceObjectIds: evidence, planVersion: Number(object(workflow.reconSnapshot).planVersion ?? 0) + 1, repairOrderId: form.repairOrderId }, "Exact recon scope and amount approved.")}><h3>Approve the exact recon plan</h3><p>Create or select the authoritative inventory-recon Repair Order before approval. The amount is rechecked against the actor&apos;s authority.</p><div className={styles.stageFields}><Field label="Inventory-recon Repair Order ID"><input onChange={event => set("repairOrderId", event.target.value)} required value={String(form.repairOrderId)} /></Field><Field label="Approved amount (cents)"><input min="0" onChange={event => set("amount", event.target.value)} required type="number" value={String(form.amount)} /></Field></div><div className={styles.inlineActions}><Link className={styles.secondaryButton} href={`/vehicles/repair-orders?intakeSource=INVENTORY_RECON&vehicleId=${encodeURIComponent(workflow.inventoryUnit.vehicle.id)}&returnTo=${encodeURIComponent(`/vehicles/${workflow.inventoryUnit.vehicle.id}/inventory-planning`)}`}>Open Repair Order intake</Link><StageSubmit busy={busy}>Approve and release to Shop &amp; Parts</StageSubmit></div></form>;
-  if (workflow.stage === "PARTS_AND_REPAIR_EXECUTION") { const returnTo = `/vehicles/${workflow.inventoryUnit.vehicle.id}/inventory-planning`; return <div className={styles.stageForm}><h3>Shop &amp; Parts execution</h3><p>The system will advance only when the linked Repair Order contains repair jobs and every job and Parts dependency is authoritatively complete.</p><div className={styles.inlineActions}><Link className={styles.secondaryButton} href={workflow.repairOrder ? `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(workflow.repairOrder.id)}&returnTo=${encodeURIComponent(returnTo)}` : `/vehicles/repair-workbench?returnTo=${encodeURIComponent(returnTo)}`}>Open Repair Workbench</Link><Link className={styles.secondaryButton} href={`/vehicles/parts-operations?vehicleId=${encodeURIComponent(workflow.inventoryUnit.vehicle.id)}${workflow.repairOrder ? `&repairOrderId=${encodeURIComponent(workflow.repairOrder.id)}` : ""}&returnTo=${encodeURIComponent(returnTo)}`}>Open Parts</Link><button className={styles.primaryButton} disabled={busy} onClick={() => void act("VERIFY_EXECUTION", {}, "Shop and Parts completion verified.")} type="button">Verify authoritative completion</button></div></div>; }
+  if (workflow.stage === "PARTS_AND_REPAIR_EXECUTION") { const returnTo = `/vehicles/${workflow.inventoryUnit.vehicle.id}/inventory-planning`; return <div className={styles.stageForm}><h3>Shop &amp; Parts execution</h3><p>The system will advance only when the linked Repair Order contains repair jobs and every job and Parts dependency is authoritatively complete.</p><div className={styles.inlineActions}><Link className={styles.secondaryButton} href={workflow.repairOrder ? `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(workflow.repairOrder.id)}&vehicleId=${encodeURIComponent(workflow.inventoryUnit.vehicle.id)}&returnTo=${encodeURIComponent(returnTo)}` : `/vehicles/repair-workbench?vehicleId=${encodeURIComponent(workflow.inventoryUnit.vehicle.id)}&returnTo=${encodeURIComponent(returnTo)}`}>Open Repair Workbench</Link><Link className={styles.secondaryButton} href={`/vehicles/parts-operations?vehicleId=${encodeURIComponent(workflow.inventoryUnit.vehicle.id)}${workflow.repairOrder ? `&repairOrderId=${encodeURIComponent(workflow.repairOrder.id)}` : ""}&returnTo=${encodeURIComponent(returnTo)}`}>Open Parts</Link><button className={styles.primaryButton} disabled={busy} onClick={() => void act("VERIFY_EXECUTION", {}, "Shop and Parts completion verified.")} type="button">Verify authoritative completion</button></div></div>; }
   if (workflow.stage === "QUALITY_AND_SAFETY_VERIFICATION") return <form className={styles.stageForm} onSubmit={event => submit(event, "VERIFY_QUALITY", { evidenceObjectIds: evidence, legalPass: true, qcPass: true, reviewerUserId: form.reviewerUserId, roadTestApplicable: true, roadTestPass: true, safetyPass: true }, "Independent Final Recon QC passed.")}><h3>Independent Final Recon QC</h3><p>The workflow owner cannot perform this verification. Every applicable critical check must pass; failures cannot be averaged away.</p><Reviewer users={users} value={String(form.reviewerUserId)} workflow={workflow} set={value => set("reviewerUserId", value)} /><div className={styles.inlineActions}><Link className={styles.secondaryButton} href={`/vehicles/quality-control?${new URLSearchParams({ repairOrderId: workflow.repairOrder?.id ?? "", returnTo: `/vehicles/${workflow.inventoryUnit.vehicle.id}/inventory-planning` })}`}>Open QC workspace</Link><StageSubmit busy={busy}>Pass all critical gates</StageSubmit><button className={styles.dangerButton} disabled={busy || !evidence.length} onClick={() => void act("RECORD_QUALITY_FAILURE", { evidenceObjectIds: evidence, failedChecks: String(form.failedChecks).split(",").map(value => value.trim()).filter(Boolean), reviewerUserId: form.reviewerUserId }, "QC failure recorded and rework required.")} type="button">Record failed QC</button></div></form>;
   if (workflow.stage === "TITLE_DOCUMENT_READINESS") return <div className={styles.stageForm}><form onSubmit={event => submit(event, "RECORD_TITLE_READY", { allRequirementsAccepted: true, evidenceObjectIds: evidence, externalDependencyClear: true, requirementPolicyVersion: form.policyVersion, reviewerUserId: form.reviewerUserId }, "Title and document readiness recorded.")}><h3>Title &amp; document readiness</h3><Reviewer users={users} value={String(form.reviewerUserId)} workflow={workflow} set={value => set("reviewerUserId", value)} /><Field label="Requirement policy"><input onChange={event => set("policyVersion", event.target.value)} required value={String(form.policyVersion)} /></Field><StageSubmit busy={busy} disabled={!evidence.length}>Record title ready</StageSubmit></form><section><h3>Cannot clear title requirements?</h3><div className={styles.stageFields}><Field label="Blockers (comma separated)"><input onChange={event => set("blockers", event.target.value)} value={String(form.blockers)} /></Field><Field label="External dependency"><input onChange={event => set("externalDependency", event.target.value)} value={String(form.externalDependency)} /></Field><Field label="Resolution due"><input onChange={event => set("titleDueAt", event.target.value)} type="datetime-local" value={String(form.titleDueAt)} /></Field></div><button className={styles.dangerButton} disabled={busy || !String(form.blockers).trim()} onClick={() => void act("RECORD_TITLE_HOLD", { blockers: String(form.blockers).split(",").map(value => value.trim()).filter(Boolean), dueAt: new Date(String(form.titleDueAt)).toISOString(), externalDependency: form.externalDependency || null, ownerUserId: workflow.ownerUser.id }, "Title/document hold recorded.")} type="button">Place governed title hold</button></section></div>;
   if (workflow.stage === "MERCHANDISING_AND_PRICING") return <div className={styles.stageForm}><form onSubmit={event => submit(event, "VERIFY_MERCHANDISING", { channelReconciled: form.channelReconciled, contentApproved: true, description: form.description, factsVerified: true, listingChannels: String(form.listingChannels).split(",").map(value => value.trim()).filter(Boolean), mediaApproved: true, photoReferences: String(form.photoReferences).split(",").map(value => value.trim()).filter(Boolean), priceApproved: true, priceApprovedByUserId: form.reviewerUserId, priceCents: Number(form.price) }, "Merchandising, pricing, and publication state verified.")}><h3>Merchandising &amp; pricing</h3><div className={styles.stageFields}><Field label="Approved description"><input onChange={event => set("description", event.target.value)} required value={String(form.description)} /></Field><Field label="Approved price (cents)"><input min="1" onChange={event => set("price", event.target.value)} required type="number" value={String(form.price)} /></Field><Field label="Five or more photo references"><input onChange={event => set("photoReferences", event.target.value)} placeholder="photo-1, photo-2, photo-3, photo-4, photo-5" required value={String(form.photoReferences)} /></Field><Field label="Listing channels"><input onChange={event => set("listingChannels", event.target.value)} value={String(form.listingChannels)} /></Field></div><label className={styles.checkbox}><input checked={Boolean(form.channelReconciled)} onChange={event => set("channelReconciled", event.target.checked)} type="checkbox" /> Desired and observed publication states are reconciled</label><Reviewer users={users} value={String(form.reviewerUserId)} workflow={workflow} set={value => set("reviewerUserId", value)} /><StageSubmit busy={busy}>Verify merchandising package</StageSubmit></form><section><h3>Publication did not reconcile?</h3><div className={styles.stageFields}><Field label="Channel"><input onChange={event => set("channel", event.target.value)} value={String(form.channel)} /></Field><Field label="Error code"><input onChange={event => set("errorCode", event.target.value)} value={String(form.errorCode)} /></Field><Field label="Observed state"><input onChange={event => set("observedState", event.target.value)} value={String(form.observedState)} /></Field><Field label="Retry at"><input onChange={event => set("retryAt", event.target.value)} type="datetime-local" value={String(form.retryAt)} /></Field></div><button className={styles.dangerButton} disabled={busy || !String(form.errorCode).trim()} onClick={() => void act("RECORD_PUBLICATION_EXCEPTION", { channel: form.channel, desiredState: form.desiredState, errorCode: form.errorCode, observedAt: new Date().toISOString(), observedState: form.observedState, retryAt: new Date(String(form.retryAt)).toISOString() }, "Publication exception recorded.")} type="button">Record publication exception</button></section></div>;
@@ -346,5 +389,44 @@ function Reviewer({ set, users, value, workflow }: { set: (value: string) => voi
 function StageSubmit({ busy, children, disabled = false }: { busy: boolean; children: ReactNode; disabled?: boolean }) { return <button className={styles.primaryButton} disabled={busy || disabled} type="submit">{busy ? "Recording…" : children}</button>; }
 function localFuture(days: number) { const date = new Date(Date.now() + days * 86_400_000); return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16); }
 function receivingActionLabel(workflow: FrontlineWorkflow | null) { if (!workflow) return "Start governed lifecycle"; if (workflow.stage === "TRANSPORT_PLANNING") return "Confirm no transport & open receipt"; if (workflow.stage === "RECEIPT_AND_CUSTODY") return "Record receipt & custody"; if (workflow.stage === "INSPECTION_AND_TRIAGE") return "Complete inspection & lock baseline"; if (workflow.stage === "HOLD") return "Reopen responsible gate"; return "Continue guided lifecycle"; }
+
+function EditableLocationFact({ location, onEdit }: { location: RegistryLocation | null; onEdit: () => void }) {
+  return <div className={styles.editableFact}>
+    <dt>Current location</dt>
+    <dd>{location?.name ?? "Not recorded"}</dd>
+    <button aria-label="Edit current vehicle location" onClick={onEdit} type="button"><Pencil size={12} /> {location ? "Edit / verify" : "Choose location"}</button>
+  </div>;
+}
+
+export function VehicleLocationEditor({ busy, current, locations, onCancel, onSave }: { busy: boolean; current: RegistryLocation | null; locations: RegistryLocation[]; onCancel: () => void; onSave: (values: { custodianType: string; displayName: string; locationId: string | null; positionLabel: string; reason: string; sourceCode: string }) => Promise<void> }) {
+  const [locationKind, setLocationKind] = useState(current?.id ? "DEALERSHIP" : "EXTERNAL_REPAIR_FACILITY");
+  const [locationId, setLocationId] = useState(current?.id ?? locations[0]?.id ?? "");
+  const [externalName, setExternalName] = useState(current && !current.id ? current.name : "");
+  const [positionLabel, setPositionLabel] = useState("");
+  const [sourceCode, setSourceCode] = useState("PHYSICAL_VERIFICATION");
+  const [reason, setReason] = useState(current ? "Verify or correct the vehicle's current physical location." : "Record the vehicle's current physical location during inventory receiving.");
+  const [error, setError] = useState("");
+
+  async function submit(event: FormEvent) {
+    event.preventDefault(); setError("");
+    try { await onSave({ custodianType: locationKind, displayName: locationKind === "DEALERSHIP" ? locations.find(location => location.id === locationId)?.name ?? "" : externalName, locationId: locationKind === "DEALERSHIP" ? locationId : null, positionLabel: positionLabel.trim(), reason: reason.trim(), sourceCode }); }
+    catch (caught) { setError(caught instanceof Error ? caught.message : "Location could not be saved."); }
+  }
+
+  return <form aria-label="Edit current vehicle location" className={styles.locationEditor} onSubmit={submit}>
+    <header><div><span><MapPin size={16} /></span><div><strong>Verify the vehicle&apos;s physical location</strong><small>This creates an attributable canonical custody event; it does not overwrite history.</small></div></div><button aria-label="Close location editor" disabled={busy} onClick={onCancel} type="button"><X size={16} /></button></header>
+    <div className={styles.locationFields}>
+      <label><span>Where is the vehicle?</span><select autoFocus onChange={event => setLocationKind(event.target.value)} value={locationKind}><option value="DEALERSHIP">At one of our dealerships</option><option value="AUCTION">At an auction</option><option value="EXTERNAL_REPAIR_FACILITY">At an outside repair facility</option><option value="IN_TRANSPORT">In transport</option><option value="OTHER_EXTERNAL">At another external location</option></select></label>
+      {locationKind === "DEALERSHIP" ? <label><span>Dealership location</span><select onChange={event => setLocationId(event.target.value)} required value={locationId}><option value="">Choose a location</option>{locations.map(location => <option key={location.id} value={location.id}>{location.name}{location.code ? ` · ${location.code}` : ""}</option>)}</select></label> : <label><span>{locationKind === "EXTERNAL_REPAIR_FACILITY" ? "Repair facility name" : locationKind === "AUCTION" ? "Auction or site name" : locationKind === "IN_TRANSPORT" ? "Carrier / current route" : "External location name"}</span><input maxLength={200} onChange={event => setExternalName(event.target.value)} placeholder={locationKind === "EXTERNAL_REPAIR_FACILITY" ? "Example: Diego Auto Body" : "Enter the current site or custodian"} required value={externalName} /></label>}
+      <label><span>Address, lot, row, bay, or contact <small>Optional</small></span><input maxLength={200} onChange={event => setPositionLabel(event.target.value)} placeholder="Example: 123 Main St · Bay 4 · contact Diego" value={positionLabel} /></label>
+      <label><span>Verification source</span><select onChange={event => setSourceCode(event.target.value)} value={sourceCode}><option value="PHYSICAL_VERIFICATION">Staff physically verified vehicle</option><option value="DEALERSHIP_INVENTORY_RECORD">Dealership inventory record</option><option value="RECEIVING_DOCUMENT">Receiving or transport document</option><option value="MANAGER_CORRECTION">Manager correction</option></select></label>
+      <label><span>Reason / reconciliation note</span><input maxLength={500} minLength={10} onChange={event => setReason(event.target.value)} required value={reason} /></label>
+    </div>
+    {locationKind === "DEALERSHIP" && !locations.length ? <p className={styles.locationError}>No dealership locations are configured. Choose an external location or add a dealership location in Administration.</p> : null}
+    {current ? <p className={styles.locationContext}><b>Current canonical location:</b> {current.name}. Saving another location records a correction with its source and timestamp.</p> : <p className={styles.locationContext}>No canonical custody location is recorded yet. Choose where the vehicle is physically present now.</p>}
+    {error ? <p aria-live="polite" className={styles.locationError}>{error}</p> : null}
+    <footer><button disabled={busy} onClick={onCancel} type="button">Cancel</button><button disabled={busy || (locationKind === "DEALERSHIP" ? !locationId || !locations.length : !externalName.trim()) || reason.trim().length < 10} type="submit">{busy ? "Recording location…" : "Save verified location"}</button></footer>
+  </form>;
+}
 
 function Fact({ term, value }: { term: string; value: string }) { return <div><dt>{term}</dt><dd>{value || "Not recorded"}</dd></div>; }
