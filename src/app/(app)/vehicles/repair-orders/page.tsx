@@ -23,7 +23,7 @@ export default async function RepairOrderCorePage({ searchParams }: { searchPara
   const showAdvisorReturn = getWorkspaceKey(user) === "ADVISOR";
   const serializedOptions = JSON.parse(JSON.stringify(options));
   const requestedIntakeSource = params.intakeSource ?? params.source;
-  if (requestedIntakeSource === "WALK_IN" || requestedIntakeSource === "INVENTORY_RECON") return <ServiceIntakeWorkspace initialConcernSummary={params.concernSummary?.slice(0, 500)} initialVehicleId={params.vehicleId} initialVehicleRelationship={requestedIntakeSource === "INVENTORY_RECON" ? "DEALERSHIP_INVENTORY" : "CUSTOMER_VEHICLE"} options={serializedOptions} returnTo={safeReturnTo(params.returnTo)} showAdvisorReturn={showAdvisorReturn} />;
+  if (requestedIntakeSource === "WALK_IN" || requestedIntakeSource === "INVENTORY_RECON") return <ServiceIntakeWorkspace initialConcernSummary={params.concernSummary?.slice(0, 500)} initialTimestamp={new Date().toISOString()} initialVehicleId={params.vehicleId} initialVehicleRelationship={requestedIntakeSource === "INVENTORY_RECON" ? "DEALERSHIP_INVENTORY" : "CUSTOMER_VEHICLE"} options={serializedOptions} returnTo={safeReturnTo(params.returnTo)} showAdvisorReturn={showAdvisorReturn} />;
   const intakeSource = requestedIntakeSource === "WALK_IN" || requestedIntakeSource === "INVENTORY_RECON" ? requestedIntakeSource : "";
   return <RepairOrderCoreWorkspace initial={JSON.parse(JSON.stringify(initial))} initialDraft={{ concernSummary: params.concernSummary?.slice(0, 500) ?? "", intakeSource, vehicleId: params.vehicleId ?? "" }} options={serializedOptions} />;
 }

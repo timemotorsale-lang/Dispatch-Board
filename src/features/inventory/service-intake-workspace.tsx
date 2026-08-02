@@ -114,8 +114,8 @@ const vehicleLabel = (vehicle: ServiceIntakeOptions["vehicles"][number]) =>
 
 const serviceIntakeDraftKey = "service-intake-active-draft-v1";
 
-function buildInitial(options: ServiceIntakeOptions, initialConcernSummary = "", initialVehicleId = "", initialVehicleRelationship: VehicleRelationshipIntent = "CUSTOMER_VEHICLE"): IntakeState {
-  const now = new Date();
+function buildInitial(options: ServiceIntakeOptions, initialTimestamp: string, initialConcernSummary = "", initialVehicleId = "", initialVehicleRelationship: VehicleRelationshipIntent = "CUSTOMER_VEHICLE"): IntakeState {
+  const now = new Date(initialTimestamp);
   return {
     arrivedAt: local(now),
     concernSummary: initialConcernSummary,
@@ -185,10 +185,11 @@ function mergeById<T extends { id: string }>(current: T[], saved: T[] = []) {
   return [...current, ...saved.filter((item) => !current.some((record) => record.id === item.id))];
 }
 
-export function ServiceIntakeWorkspace({ initialConcernSummary = "", initialVehicleId = "", initialVehicleRelationship = "CUSTOMER_VEHICLE", options, returnTo, showAdvisorReturn = false }: { initialConcernSummary?: string; initialVehicleId?: string; initialVehicleRelationship?: VehicleRelationshipIntent; options: ServiceIntakeOptions; returnTo?: string; showAdvisorReturn?: boolean }) {
+export function ServiceIntakeWorkspace({ initialConcernSummary = "", initialTimestamp, initialVehicleId = "", initialVehicleRelationship = "CUSTOMER_VEHICLE", options, returnTo, showAdvisorReturn = false }: { initialConcernSummary?: string; initialTimestamp: string; initialVehicleId?: string; initialVehicleRelationship?: VehicleRelationshipIntent; options: ServiceIntakeOptions; returnTo?: string; showAdvisorReturn?: boolean }) {
   const concernRef = useRef<HTMLTextAreaElement>(null);
   const arrivalSearchRef = useRef<HTMLInputElement>(null);
-  const [form, setForm] = useState<IntakeState>(() => buildInitial(options, initialConcernSummary, initialVehicleId, initialVehicleRelationship));
+  const inventoryUnitSectionRef = useRef<HTMLElement>(null);
+  const [form, setForm] = useState<IntakeState>(() => buildInitial(options, initialTimestamp, initialConcernSummary, initialVehicleId, initialVehicleRelationship));
   const [arrivalQuery, setArrivalQuery] = useState("");
   const [arrivalMode, setArrivalMode] = useState<"recent" | "search" | "today">("search");
   const [customerRecords, setCustomerRecords] = useState(options.customers);
@@ -216,7 +217,10 @@ export function ServiceIntakeWorkspace({ initialConcernSummary = "", initialVehi
   const [safetyIntelligenceLoading, setSafetyIntelligenceLoading] = useState(false);
   const [inventoryUnitRecords, setInventoryUnitRecords] = useState(options.inventoryUnits);
   const [inventoryUnitBusy, setInventoryUnitBusy] = useState(false);
-  const [inventoryUnitDraft, setInventoryUnitDraft] = useState(() => ({ acquisitionSource: "OTHER" as "AUCTION" | "CONSIGNMENT" | "DEALER_TRANSFER" | "DIRECT_PURCHASE" | "OTHER" | "TRADE", financialAcquiredAt: local(new Date()), inventoryNumber: "", nextAction: "Complete inventory receipt and begin recon inspection", targetAt: local(new Date(Date.now() + 24 * 60 * 60_000)) }));
+  const [inventoryUnitDraft, setInventoryUnitDraft] = useState(() => {
+    const initialDate = new Date(initialTimestamp);
+    return { acquisitionSource: "OTHER" as "AUCTION" | "CONSIGNMENT" | "DEALER_TRANSFER" | "DIRECT_PURCHASE" | "OTHER" | "TRADE", financialAcquiredAt: local(initialDate), inventoryNumber: "", nextAction: "Complete inventory receipt and begin recon inspection", targetAt: local(new Date(initialDate.getTime() + 24 * 60 * 60_000)) };
+  });
 
   const normalizedArrivalVin = arrivalQuery.toUpperCase().replace(/[^A-Z0-9]/g, "");
   const arrivalQueryIsVin = /^[A-HJ-NPR-Z0-9]{17}$/.test(normalizedArrivalVin);
@@ -325,15 +329,24 @@ export function ServiceIntakeWorkspace({ initialConcernSummary = "", initialVehi
         if (draft.vehicleRecords) setVehicleRecords((records) => mergeById(records, draft.vehicleRecords));
         if (draft.inventoryUnitRecords) setInventoryUnitRecords((records) => mergeById(records, draft.inventoryUnitRecords));
         if (draftForm) {
-          setForm((current) => ({
-            ...current,
-            ...draftForm,
-            concernSummary: initialConcernSummary || draftForm.concernSummary || current.concernSummary,
-            locationId: options.locations.some((location) => location.id === draftForm.locationId) ? draftForm.locationId : current.locationId,
-            ownerUserId: options.users.some((user) => user.id === draftForm.ownerUserId) ? draftForm.ownerUserId : current.ownerUserId,
-            vehicleId: initialVehicleId && options.vehicles.some((vehicle) => vehicle.id === initialVehicleId) ? initialVehicleId : draftForm.vehicleId || current.vehicleId,
-            vehicleRelationship: initialVehicleRelationship === "DEALERSHIP_INVENTORY" ? "DEALERSHIP_INVENTORY" : draftForm.vehicleRelationship || current.vehicleRelationship,
-          }));
+          setForm((current) => {
+            const vehicleId = initialVehicleId && options.vehicles.some((vehicle) => vehicle.id === initialVehicleId) ? initialVehicleId : draftForm.vehicleId || current.vehicleId;
+            const vehicleRelationship = initialVehicleRelationship === "DEALERSHIP_INVENTORY" ? "DEALERSHIP_INVENTORY" : draftForm.vehicleRelationship || current.vehicleRelationship;
+            const availableInventoryUnits = mergeById(options.inventoryUnits, draft.inventoryUnitRecords);
+            const inventoryUnitId = vehicleRelationship === "DEALERSHIP_INVENTORY"
+              ? availableInventoryUnits.find((unit) => unit.vehicle.id === vehicleId)?.id ?? ""
+              : draftForm.inventoryUnitId || current.inventoryUnitId;
+            return {
+              ...current,
+              ...draftForm,
+              concernSummary: initialConcernSummary || draftForm.concernSummary || current.concernSummary,
+              inventoryUnitId,
+              locationId: options.locations.some((location) => location.id === draftForm.locationId) ? draftForm.locationId : current.locationId,
+              ownerUserId: options.users.some((user) => user.id === draftForm.ownerUserId) ? draftForm.ownerUserId : current.ownerUserId,
+              vehicleId,
+              vehicleRelationship,
+            };
+          });
         }
         setNotice("Saved service-intake draft restored. Continue from the next required step.");
       } catch {
@@ -341,7 +354,15 @@ export function ServiceIntakeWorkspace({ initialConcernSummary = "", initialVehi
       }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [initialConcernSummary, initialVehicleId, initialVehicleRelationship, options.locations, options.users, options.vehicles]);
+  }, [initialConcernSummary, initialVehicleId, initialVehicleRelationship, options.inventoryUnits, options.locations, options.users, options.vehicles]);
+
+  useEffect(() => {
+    if (form.vehicleRelationship !== "DEALERSHIP_INVENTORY" || !form.vehicleId || form.inventoryUnitId) return;
+    const existingUnit = inventoryUnitRecords.find((unit) => unit.vehicle.id === form.vehicleId);
+    if (!existingUnit) return;
+    const timer = window.setTimeout(() => setForm((current) => ({ ...current, inventoryUnitId: existingUnit.id, locationId: existingUnit.locationId })), 0);
+    return () => window.clearTimeout(timer);
+  }, [form.inventoryUnitId, form.vehicleId, form.vehicleRelationship, inventoryUnitRecords]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -517,7 +538,18 @@ export function ServiceIntakeWorkspace({ initialConcernSummary = "", initialVehi
       return;
     }
     if (isDealershipInventory && !form.inventoryUnitId) {
-      setNotice("Create or link the governed inventory unit before opening internal recon work.");
+      setInventoryUnitDraft((current) => current.inventoryNumber.trim() || !selectedVehicle?.stockNumber
+        ? current
+        : { ...current, inventoryNumber: selectedVehicle.stockNumber.toUpperCase() });
+      setNotice("Complete the highlighted inventory-unit details below, then create and link the governed unit for this vehicle.");
+      window.requestAnimationFrame(() => {
+        inventoryUnitSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+        window.requestAnimationFrame(() => {
+          const inventoryNumberInput = inventoryUnitSectionRef.current?.querySelector<HTMLInputElement>('input[placeholder="Unique inventory number"]');
+          inventoryNumberInput?.focus();
+          inventoryNumberInput?.select();
+        });
+      });
       return;
     }
     if (form.concernSummary.trim().length < 10) {
@@ -632,6 +664,12 @@ export function ServiceIntakeWorkspace({ initialConcernSummary = "", initialVehi
   }
 
   async function createInventoryUnitForSelectedVehicle() {
+    const existingUnit = selectedVehicle ? inventoryUnitRecords.find((unit) => unit.vehicle.id === selectedVehicle.id) : undefined;
+    if (existingUnit) {
+      setForm((current) => ({ ...current, inventoryUnitId: existingUnit.id, locationId: existingUnit.locationId }));
+      setNotice(`Existing inventory unit ${existingUnit.inventoryNumber} linked. No duplicate unit was created.`);
+      return;
+    }
     if (!selectedVehicle || !inventoryUnitDraft.inventoryNumber.trim() || !inventoryUnitDraft.financialAcquiredAt || !inventoryUnitDraft.targetAt) {
       setNotice("Select the dealership vehicle and complete the inventory number, acquisition time, and stage target.");
       return;
@@ -813,7 +851,7 @@ export function ServiceIntakeWorkspace({ initialConcernSummary = "", initialVehi
             <header><div><small>Decoded vehicle information</small><strong>{[selectedVehicle.year, selectedVehicle.make, selectedVehicle.model, selectedVehicleDetails?.decoded.trim].filter(Boolean).join(" ") || selectedVehicle.vehicleNumber}</strong><span>{selectedVehicleDetails ? `${selectedVehicleDetails.provider} · ${selectedVehicleDetails.source === "STORED_SNAPSHOT" ? "saved canonical snapshot" : "refreshed for this intake"}${selectedVehicleDetails.retrievedAt ? ` · ${new Date(selectedVehicleDetails.retrievedAt).toLocaleDateString()}` : ""}` : "Checking available canonical specifications…"}</span></div><Link href={`/vehicles/360/${selectedVehicle.id}`}>Vehicle 360</Link></header>
             {selectedVehicleDetails ? <div className="sic-selected-vehicle-facts"><span><b>Series / trim</b>{[selectedVehicleDetails.decoded.series, selectedVehicleDetails.decoded.trim].filter(Boolean).join(" · ") || "Not reported"}</span><span><b>Body</b>{[selectedVehicleDetails.decoded.bodyClass, selectedVehicleDetails.decoded.cabType].filter(Boolean).join(" · ") || "Not reported"}</span><span><b>Engine</b>{[selectedVehicleDetails.decoded.engineCylinders && `${selectedVehicleDetails.decoded.engineCylinders} cylinder`, selectedVehicleDetails.decoded.displacementLiters && `${selectedVehicleDetails.decoded.displacementLiters} L`, selectedVehicleDetails.decoded.engineConfiguration].filter(Boolean).join(" · ") || "Not reported"}</span><span><b>Transmission</b>{selectedVehicleDetails.decoded.transmissionStyle || "Not reported"}</span><span><b>Drivetrain</b>{selectedVehicleDetails.decoded.driveType || "Not reported"}</span><span><b>Fuel</b>{selectedVehicleDetails.decoded.fuelTypePrimary || "Not reported"}</span></div> : <div className={selectedVehicleDetailsError ? "sic-vehicle-profile-status error" : "sic-vehicle-profile-status"}>{selectedVehicleDetailsLoading ? "Retrieving decoded vehicle information…" : selectedVehicleDetailsError || "No decoded specification snapshot is available for this vehicle."}</div>}
           </section> : null}
-          {isDealershipInventory && selectedVehicle ? <section className="sic-inventory-link" aria-label="Dealership inventory unit">
+          {isDealershipInventory && selectedVehicle ? <section className="sic-inventory-link" aria-label="Dealership inventory unit" ref={inventoryUnitSectionRef}>
             <header><ClipboardCheck /><div><small>Dealership inventory control</small><strong>{selectedInventoryUnit ? `Inventory unit ${selectedInventoryUnit.inventoryNumber} linked` : "Create or link the inventory unit"}</strong><span>Inventory ownership, lifecycle, and recon remain separate from the canonical vehicle identity.</span></div>{selectedInventoryUnit ? <Link href={`/vehicles/control-tower?inventoryUnitId=${selectedInventoryUnit.id}`}>Open inventory unit</Link> : null}</header>
             {selectedInventoryUnit ? <div className="sic-inventory-linked"><CheckCircle2 /><div><strong>Ready for internal recon intake</strong><span>No customer record is required. Work will be attributed to {selectedInventoryUnit.inventoryNumber} and this canonical vehicle.</span></div><button onClick={() => update("inventoryUnitId", "")} type="button">Change link</button></div> : <div className="sic-inventory-create"><label><span>Acquisition source <b>Required</b></span><select onChange={(event) => setInventoryUnitDraft((current) => ({ ...current, acquisitionSource: event.target.value as typeof current.acquisitionSource }))} value={inventoryUnitDraft.acquisitionSource}><option value="AUCTION">Auction</option><option value="TRADE">Trade</option><option value="DIRECT_PURCHASE">Direct purchase</option><option value="DEALER_TRANSFER">Dealer transfer</option><option value="CONSIGNMENT">Consignment</option><option value="OTHER">Other</option></select></label><label><span>Inventory number <b>Required</b></span><input onChange={(event) => setInventoryUnitDraft((current) => ({ ...current, inventoryNumber: event.target.value.toUpperCase() }))} placeholder="Unique inventory number" value={inventoryUnitDraft.inventoryNumber} /></label><label><span>Financial acquisition <b>Required</b></span><input onChange={(event) => setInventoryUnitDraft((current) => ({ ...current, financialAcquiredAt: event.target.value }))} type="datetime-local" value={inventoryUnitDraft.financialAcquiredAt} /></label><label><span>Stage target <b>Required</b></span><input onChange={(event) => setInventoryUnitDraft((current) => ({ ...current, targetAt: event.target.value }))} type="datetime-local" value={inventoryUnitDraft.targetAt} /></label><label className="wide"><span>Next inventory action</span><input onChange={(event) => setInventoryUnitDraft((current) => ({ ...current, nextAction: event.target.value }))} value={inventoryUnitDraft.nextAction} /></label><footer><span>Authorized inventory staff only. The server rechecks ownership, location, authority, and duplicates.</span><button disabled={inventoryUnitBusy || !inventoryUnitDraft.inventoryNumber.trim()} onClick={() => void createInventoryUnitForSelectedVehicle()} type="button">{inventoryUnitBusy ? "Creating inventory unit…" : "Create & Link Inventory Unit"}</button></footer></div>}
           </section> : null}
