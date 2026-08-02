@@ -25,6 +25,7 @@ import { RbiReceivingTool, type RbiWorkflowProgress } from "./rbi-receiving-tool
 import { RnrReconTool, type RnrWorkflowProgress } from "./rnr-recon-tool";
 import { TaiAcquisitionTool, type TaiWorkflowProgress } from "./tai-acquisition-tool";
 import { TciTransportTool, type TciWorkflowProgress } from "./tci-transport-tool";
+import { TlrTitleReadinessTool, type TlrWorkflowProgress } from "./tlr-title-readiness-tool";
 import { WopWorkOrderTool, type WopWorkflowProgress } from "./wop-work-order-tool";
 
 type StageAction = {
@@ -363,6 +364,7 @@ export function InventoryLifecyclePrototype() {
   const [fqcProgress, setFqcProgress] = useState<FqcWorkflowProgress>({ blockerCount: 0, decisionComplete: false, diagnosisScanComplete: false, jobsVerifiedComplete: false, leaksAndWorkmanshipComplete: false, recommendation: "Verify jobs", roadTestComplete: false, safetyComplete: false, trailCount: 0 });
   const [dtgProgress, setDtgProgress] = useState<DtgWorkflowProgress>({ blockerCount: 0, exteriorComplete: false, interiorComplete: false, qcComplete: false, recommendation: "Confirm detail scope", scopeComplete: false, specialtyComplete: false, stageComplete: false, trailCount: 0 });
   const [pmmProgress, setPmmProgress] = useState<PmmWorkflowProgress>({ blockerCount: 0, complianceComplete: false, listingComplete: false, mediaComplete: false, pricingComplete: false, publicationComplete: false, recommendation: "Capture media", specsComplete: false, trailCount: 0 });
+  const [tlrProgress, setTlrProgress] = useState<TlrWorkflowProgress>({ blockerCount: 0, brandLienComplete: false, custodyComplete: false, decisionComplete: false, identityComplete: false, odometerComplete: false, ownershipComplete: false, recommendation: "Match title identity", trailCount: 0 });
   const [notice, setNotice] = useState("This workspace is isolated. Prototype actions do not update operational records.");
   const stage = lifecycleStages[selectedStage];
   const completedCount = useMemo(
@@ -595,8 +597,29 @@ export function InventoryLifecyclePrototype() {
     });
   }, []);
 
+  const syncTlrProgress = useCallback((progress: TlrWorkflowProgress) => {
+    setTlrProgress(progress);
+    const titleProgress = [
+      progress.identityComplete,
+      progress.ownershipComplete,
+      progress.brandLienComplete,
+      progress.odometerComplete,
+      progress.custodyComplete,
+      progress.decisionComplete,
+    ];
+    setCompleted((current) => {
+      const next = new Set(current);
+      titleProgress.forEach((isComplete, index) => {
+        const key = completionKey(11, index);
+        if (isComplete) next.add(key);
+        else next.delete(key);
+      });
+      return next;
+    });
+  }, []);
+
   function toggleAction(actionIndex: number) {
-    if (selectedStage === 0 || selectedStage === 1 || selectedStage === 2 || selectedStage === 3 || selectedStage === 4 || selectedStage === 5 || selectedStage === 6 || selectedStage === 7 || selectedStage === 8 || selectedStage === 9 || selectedStage === 10) {
+    if (selectedStage === 0 || selectedStage === 1 || selectedStage === 2 || selectedStage === 3 || selectedStage === 4 || selectedStage === 5 || selectedStage === 6 || selectedStage === 7 || selectedStage === 8 || selectedStage === 9 || selectedStage === 10 || selectedStage === 11) {
       setNotice(selectedStage === 0
         ? "Acquisition actions are controlled by TAI evidence, evaluation, approval, and purchase recording."
         : selectedStage === 1
@@ -617,7 +640,9 @@ export function InventoryLifecyclePrototype() {
                         ? "Final QC actions are controlled by the FQC workspace, including independent verification, final scan, road test, workmanship, safety release, and final decision evidence."
                         : selectedStage === 9
                           ? "Detailing actions are controlled by the DTG workspace, including detail scope, exterior/interior preparation, specialty work, detail QC, and media staging."
-                          : "Photos & Marketing actions are controlled by the PMM workspace, including media capture, specs, listing copy, pricing, compliance review, and publication proof.");
+                          : selectedStage === 10
+                            ? "Photos & Marketing actions are controlled by the PMM workspace, including media capture, specs, listing copy, pricing, compliance review, and publication proof."
+                            : "Title Readiness actions are controlled by the TLR workspace, including identity match, ownership chain, lien/brand, odometer, custody control, and legal-readiness decision.");
       return;
     }
     const key = completionKey(selectedStage, actionIndex);
@@ -656,6 +681,7 @@ export function InventoryLifecyclePrototype() {
     setFqcProgress({ blockerCount: 0, decisionComplete: false, diagnosisScanComplete: false, jobsVerifiedComplete: false, leaksAndWorkmanshipComplete: false, recommendation: "Verify jobs", roadTestComplete: false, safetyComplete: false, trailCount: 0 });
     setDtgProgress({ blockerCount: 0, exteriorComplete: false, interiorComplete: false, qcComplete: false, recommendation: "Confirm detail scope", scopeComplete: false, specialtyComplete: false, stageComplete: false, trailCount: 0 });
     setPmmProgress({ blockerCount: 0, complianceComplete: false, listingComplete: false, mediaComplete: false, pricingComplete: false, publicationComplete: false, recommendation: "Capture media", specsComplete: false, trailCount: 0 });
+    setTlrProgress({ blockerCount: 0, brandLienComplete: false, custodyComplete: false, decisionComplete: false, identityComplete: false, odometerComplete: false, ownershipComplete: false, recommendation: "Match title identity", trailCount: 0 });
     setNotice("Prototype reset to Acquisition. Operational records remain unchanged.");
   }
 
@@ -722,6 +748,7 @@ export function InventoryLifecyclePrototype() {
             <div><span>Stage {selectedStage + 1} of {lifecycleStages.length}</span><h2>{stage.title}</h2><p>{stage.purpose}</p></div>
             <strong>{stage.gate}</strong>
           </header>
+          {selectedStage === 11 ? <TlrTitleReadinessTool key={`tlr-${prototypeVersion}`} onProgressChange={syncTlrProgress} /> : null}
           {selectedStage === 10 ? <PmmPhotosMarketingTool key={`pmm-${prototypeVersion}`} onProgressChange={syncPmmProgress} /> : null}
           {selectedStage === 9 ? <DtgDetailingTool key={`dtg-${prototypeVersion}`} onProgressChange={syncDtgProgress} /> : null}
           {selectedStage === 8 ? <FqcFinalQcTool key={`fqc-${prototypeVersion}`} onProgressChange={syncFqcProgress} /> : null}
@@ -742,7 +769,7 @@ export function InventoryLifecyclePrototype() {
             {stage.tasks.map((item, index) => {
               const checked = completed.has(completionKey(selectedStage, index));
               return <li className={checked ? styles.completedAction : ""} key={item.title}>
-                <label><input checked={checked} disabled={selectedStage === 0 || selectedStage === 1 || selectedStage === 2 || selectedStage === 3 || selectedStage === 4 || selectedStage === 5 || selectedStage === 6 || selectedStage === 7 || selectedStage === 8 || selectedStage === 9 || selectedStage === 10} onChange={() => toggleAction(index)} type="checkbox" /><span className="sr-only">Complete {item.title}</span></label>
+                <label><input checked={checked} disabled={selectedStage === 0 || selectedStage === 1 || selectedStage === 2 || selectedStage === 3 || selectedStage === 4 || selectedStage === 5 || selectedStage === 6 || selectedStage === 7 || selectedStage === 8 || selectedStage === 9 || selectedStage === 10 || selectedStage === 11} onChange={() => toggleAction(index)} type="checkbox" /><span className="sr-only">Complete {item.title}</span></label>
                 <div><strong>{item.title}</strong><p>{item.completion}</p></div>
                 <span>{item.owner}</span>
                 <em>{checked ? <><Check size={13} />Complete</> : item.evidence}</em>
@@ -770,6 +797,7 @@ export function InventoryLifecyclePrototype() {
           {selectedStage === 8 ? <div className={styles.taiGateSummary}><span>FQC release gate</span><strong>{fqcProgress.decisionComplete ? "Ready for detailing" : `${fqcProgress.recommendation} / ${fqcProgress.trailCount} trail entries`}</strong><small>Checklist evidence is driven by the Final QC workspace.</small></div> : null}
           {selectedStage === 9 ? <div className={styles.taiGateSummary}><span>DTG presentation gate</span><strong>{dtgProgress.stageComplete ? "Ready for Photos & Marketing" : `${dtgProgress.recommendation} / ${dtgProgress.trailCount} trail entries`}</strong><small>Checklist evidence is driven by the detailing workspace.</small></div> : null}
           {selectedStage === 10 ? <div className={styles.taiGateSummary}><span>PMM merchandising gate</span><strong>{pmmProgress.publicationComplete ? "Ready for Title Readiness" : `${pmmProgress.recommendation} / ${pmmProgress.trailCount} trail entries`}</strong><small>Checklist evidence is driven by the Photos &amp; Marketing workspace.</small></div> : null}
+          {selectedStage === 11 ? <div className={styles.taiGateSummary}><span>TLR legal gate</span><strong>{tlrProgress.decisionComplete ? "Ready for Selling" : `${tlrProgress.recommendation} / ${tlrProgress.trailCount} trail entries`}</strong><small>Checklist evidence is driven by the Title Readiness workspace.</small></div> : null}
           {selectedStage === 3 ? <div className={styles.stageQuickLinkWrap}><Link className={styles.stageQuickLink} href="/vehicles/workflows/add-vehicle?returnTo=%2Fvehicles%2Finventory%2Fprototype">Open Vehicle Intake form</Link></div> : null}
           {selectedStage === 4 ? <div className={styles.stageQuickLinkWrap}><button className={styles.stageQuickActionButton} onClick={() => { setSelectedStage(5); setNotice("Previewing Initial QC. Prototype progress is stored only in this screen."); }} type="button">Open Initial QC form</button></div> : null}
           {selectedStage === 5 ? <div className={styles.stageQuickLinkWrap}><Link className={styles.stageQuickLink} href="/vehicles/quality-control?returnTo=%2Fvehicles%2Finventory%2Fprototype">Open live QC workspace</Link></div> : null}
@@ -778,10 +806,11 @@ export function InventoryLifecyclePrototype() {
           {selectedStage === 8 ? <div className={styles.stageQuickLinkWrap}><Link className={styles.stageQuickLink} href="/vehicles/quality-control?returnTo=%2Fvehicles%2Finventory%2Fprototype">Open live Final QC workspace</Link></div> : null}
           {selectedStage === 9 ? <div className={styles.stageQuickLinkWrap}><button className={styles.stageQuickActionButton} onClick={() => { setSelectedStage(10); setNotice("Previewing Photos & Marketing. Prototype progress is stored only in this screen."); }} type="button">Preview Photos &amp; Marketing handoff</button></div> : null}
           {selectedStage === 10 ? <div className={styles.stageQuickLinkWrap}><button className={styles.stageQuickActionButton} onClick={() => { setSelectedStage(11); setNotice("Previewing Title Readiness. Prototype progress is stored only in this screen."); }} type="button">Preview Title Readiness handoff</button></div> : null}
+          {selectedStage === 11 ? <div className={styles.stageQuickLinkWrap}><button className={styles.stageQuickActionButton} onClick={() => { setSelectedStage(12); setNotice("Previewing Selling. Prototype progress is stored only in this screen."); }} type="button">Preview Selling handoff</button></div> : null}
           <ul>
             <li><span>Mandatory actions</span><strong>{completedCount}/{stage.tasks.length}</strong></li>
             <li><span>Evidence attached</span><strong>{ready ? "Complete" : "Pending"}</strong></li>
-            <li><span>Open blockers</span><strong>{selectedStage === 1 ? tciProgress.blockerCount : selectedStage === 2 ? rbiProgress.blockerCount : selectedStage === 3 ? iiiProgress.blockerCount : selectedStage === 4 ? igiProgress.blockerCount : selectedStage === 5 ? iqiProgress.blockerCount : selectedStage === 6 ? wopProgress.blockerCount : selectedStage === 7 ? rnrProgress.blockerCount : selectedStage === 8 ? fqcProgress.blockerCount : selectedStage === 9 ? dtgProgress.blockerCount : selectedStage === 10 ? pmmProgress.blockerCount : 0}</strong></li>
+            <li><span>Open blockers</span><strong>{selectedStage === 1 ? tciProgress.blockerCount : selectedStage === 2 ? rbiProgress.blockerCount : selectedStage === 3 ? iiiProgress.blockerCount : selectedStage === 4 ? igiProgress.blockerCount : selectedStage === 5 ? iqiProgress.blockerCount : selectedStage === 6 ? wopProgress.blockerCount : selectedStage === 7 ? rnrProgress.blockerCount : selectedStage === 8 ? fqcProgress.blockerCount : selectedStage === 9 ? dtgProgress.blockerCount : selectedStage === 10 ? pmmProgress.blockerCount : selectedStage === 11 ? tlrProgress.blockerCount : 0}</strong></li>
             <li><span>Ready for next stage</span><strong>{ready ? "Yes" : "No"}</strong></li>
           </ul>
           <button disabled={!ready} onClick={simulateHandoff} type="button">{stage.actionLabel}<ArrowRight /></button>
