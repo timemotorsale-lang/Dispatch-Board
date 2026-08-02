@@ -1,0 +1,507 @@
+"use client";
+
+import {
+  ArrowRight,
+  CarFront,
+  Check,
+  CircleAlert,
+  ClipboardCheck,
+  LockKeyhole,
+  MapPin,
+  RotateCcw,
+  ShieldCheck,
+} from "lucide-react";
+import Link from "next/link";
+import { useCallback, useMemo, useState } from "react";
+
+import styles from "./inventory-lifecycle-prototype.module.css";
+import { TaiAcquisitionTool, type TaiWorkflowProgress } from "./tai-acquisition-tool";
+
+type StageAction = {
+  completion: string;
+  evidence: string;
+  owner: string;
+  title: string;
+};
+
+type LifecycleStage = {
+  actionLabel: string;
+  blockerPolicy: string;
+  deadline: string;
+  gate: string;
+  label: string;
+  owner: string;
+  purpose: string;
+  tasks: StageAction[];
+  title: string;
+};
+
+const action = (title: string, completion: string, owner: string, evidence: string): StageAction => ({
+  completion,
+  evidence,
+  owner,
+  title,
+});
+
+const lifecycleStages: LifecycleStage[] = [
+  {
+    label: "Acquisition",
+    title: "Authorize the acquisition and establish ownership",
+    purpose: "Make the commercial decision, preserve its exact evidence, and create one governed inventory unit.",
+    gate: "Authority required",
+    owner: "Acquisition manager",
+    deadline: "Before any transport release",
+    blockerPolicy: "Missing identity, title, economics, or authority keeps the vehicle outside inventory.",
+    actionLabel: "Simulate acquisition handoff",
+    tasks: [
+      action("Validate vehicle and seller identity", "VIN, seller authority, source listing, disclosures, and duplicate review agree.", "Buyer", "Identity proof"),
+      action("Complete condition and market appraisal", "Condition, market comparables, expected retail, and days-to-sell are documented.", "Appraiser", "Appraisal"),
+      action("Model total acquisition exposure", "Purchase, fees, transport, title risk, recon, and margin meet policy.", "Appraiser", "Economics"),
+      action("Review title and ownership risk", "Title status, lien, brand, odometer, and reassignment risks are classified.", "Title clerk", "Title review"),
+      action("Obtain purchase authority", "The authorized approver accepts this appraisal version and purchase ceiling.", "Manager", "Approval"),
+      action("Record commitment and create the unit", "Terms, funding, owner, stock record, and exactly one InventoryUnit are established.", "Buyer", "Commitment"),
+    ],
+  },
+  {
+    label: "Transportation",
+    title: "Move the vehicle into accountable custody",
+    purpose: "Control drivability, pickup, movement, location, condition, exceptions, and delivery from source to receiving.",
+    gate: "Custody proof required",
+    owner: "Logistics coordinator",
+    deadline: "Delivery target plus escalation SLA",
+    blockerPolicy: "Release, tow, carrier, delay, damage, or routing exceptions remain assigned until resolved.",
+    actionLabel: "Simulate transportation handoff",
+    tasks: [
+      action("Determine whether the vehicle is safely drivable", "Drivable, tow required, carrier required, or assessment required is recorded.", "Logistics", "Mobility decision"),
+      action("Confirm source release", "Pickup contact, release code, hours, documents, keys, and access are verified.", "Logistics", "Release"),
+      action("Approve the transport plan", "Driver or provider, method, cost, insurance, route, destination, and ETA are approved.", "Manager", "Dispatch"),
+      action("Capture pickup custody", "Pickup time, person, keys, odometer, condition photos, and signatures are recorded.", "Driver", "Pickup proof"),
+      action("Track location and exceptions", "Current location, outside facility, delays, damage, and reroutes remain current.", "Logistics", "Tracking"),
+      action("Prove delivery and receiving acceptance", "Arrival, condition, keys, location, and custody transfer are accepted.", "Receiver", "Delivery proof"),
+    ],
+  },
+  {
+    label: "Receiving",
+    title: "Receive the vehicle and establish its physical baseline",
+    purpose: "Record exactly what arrived before inspection, repair, cleaning, or movement changes the vehicle.",
+    gate: "Baseline evidence required",
+    owner: "Receiving coordinator",
+    deadline: "Within 30 minutes of arrival",
+    blockerPolicy: "Identity mismatch or disputed custody creates a receiving hold.",
+    actionLabel: "Simulate receiving handoff",
+    tasks: [
+      action("Scan and match the VIN", "The physical VIN matches acquisition, transport, and canonical records.", "Receiver", "VIN scan"),
+      action("Record arrival facts", "Time, odometer, exact location, fuel or charge, keys, documents, and releasing party are complete.", "Receiver", "Arrival record"),
+      action("Capture the baseline photo set", "VIN, dash, four corners, interior, engine, cargo, wheels, and damage are visible.", "Receiver", "Photo set"),
+      action("Compare pickup and arrival condition", "New damage, missing equipment, and mileage variances are identified.", "Receiver", "Condition comparison"),
+      action("Accept accountable custody", "Custodian, location history, keys, documents, and physical control are acknowledged.", "Receiver", "Custody acceptance"),
+      action("Resolve or assign exceptions", "Every discrepancy has an owner, severity, due date, and next action.", "Receiving lead", "Exception case"),
+    ],
+  },
+  {
+    label: "Intake",
+    title: "Complete the canonical inventory intake",
+    purpose: "Carry existing facts forward, add operational context once, and release a clean record to inspection.",
+    gate: "Canonical identity required",
+    owner: "Inventory coordinator",
+    deadline: "Same shift as receiving",
+    blockerPolicy: "Duplicates, missing InventoryUnit, ownership, or identity issues are resolved in place.",
+    actionLabel: "Simulate intake handoff",
+    tasks: [
+      action("Confirm canonical vehicle linkage", "Vehicle 360, VIN, InventoryUnit, stock number, and source record are linked.", "Coordinator", "Canonical link"),
+      action("Validate decoded vehicle facts", "Year, make, model, trim, body, drivetrain, engine, and factory facts are reviewed.", "Coordinator", "Decode snapshot"),
+      action("Review safety intelligence", "Recall campaigns, VIN verification, warnings, and guidance are classified.", "Advisor", "Safety review"),
+      action("Record the inventory objective", "Retail path, priority, target frontline date, and requested evaluation are clear.", "Coordinator", "Intake scope"),
+      action("Confirm location, custody, and ownership", "Current site or outside facility, custodian, keys, and owner are current.", "Coordinator", "Custody facts"),
+      action("Run the intake readiness gate", "Every minimum field and exception needed for inspection is complete.", "Inventory lead", "Readiness check"),
+    ],
+  },
+  {
+    label: "Inspection",
+    title: "Perform the complete evidence-backed inspection",
+    purpose: "Turn the vehicle baseline into structured safety, mechanical, cosmetic, and merchandising findings.",
+    gate: "Inspection completeness",
+    owner: "Certified inspector",
+    deadline: "Within the assigned inspection slot",
+    blockerPolicy: "Unsafe-to-move findings immediately stop movement and create a safety hold.",
+    actionLabel: "Simulate inspection handoff",
+    tasks: [
+      action("Perform identity and safety pre-check", "VIN, warnings, recalls, restraints, tires, brakes, steering, and mobility risks are checked.", "Inspector", "Safety check"),
+      action("Complete mechanical inspection", "Powertrain, fluids, cooling, charging, suspension, exhaust, HVAC, and leaks are evaluated.", "Inspector", "Mechanical checklist"),
+      action("Complete diagnostic scan", "Modules, codes, monitors, freeze frames, and warning lights are preserved.", "Technician", "Scan report"),
+      action("Perform a qualified road test", "Noise, vibration, braking, steering, drivability, and ADAS behavior are documented when safe.", "Inspector", "Road test"),
+      action("Inspect cosmetic and equipment condition", "Body, glass, wheels, cabin, options, keys, and merchandising readiness are graded.", "Inspector", "Condition report"),
+      action("Publish structured findings", "Each finding has severity, evidence, recommendation, labor, parts, vendor, and disclosure path.", "Inspector", "Finding set"),
+    ],
+  },
+  {
+    label: "Initial QC",
+    title: "Independently approve the baseline and recon scope",
+    purpose: "Verify inspection quality and decide the governed disposition of every finding.",
+    gate: "Independent QC approval",
+    owner: "QC reviewer",
+    deadline: "Before any work order is released",
+    blockerPolicy: "Failed evidence returns only the affected item to inspection with a correction request.",
+    actionLabel: "Simulate initial QC handoff",
+    tasks: [
+      action("Audit inspection completeness", "Every applicable system and required evidence item is present.", "QC reviewer", "Completeness audit"),
+      action("Validate safety classification", "Mobility, recall, restraint, brake, tire, and warning findings use the correct severity.", "QC reviewer", "Safety decision"),
+      action("Validate measurements and evidence", "Photos, scans, readings, road test, and notes support each finding.", "QC reviewer", "Evidence review"),
+      action("Disposition every finding", "Repair, diagnose, vendor, detail, disclose, defer, or N/A is selected with rationale.", "QC reviewer", "Disposition set"),
+      action("Approve the initial recon scope", "Accepted work aligns with retail standard, policy, economics, and target date.", "QC lead", "Scope approval"),
+      action("Release the controlled handoff", "The inspection version is locked and approved findings move to planning.", "QC lead", "QC release"),
+    ],
+  },
+  {
+    label: "Work Order",
+    title: "Build the authorized recon execution plan",
+    purpose: "Convert accepted findings into sequenced, costed, assigned, and readiness-gated jobs.",
+    gate: "Plan and budget approval",
+    owner: "Recon planner",
+    deadline: "Before technician or vendor dispatch",
+    blockerPolicy: "Over-limit cost or missing authority routes to the exact approver without losing the plan.",
+    actionLabel: "Simulate work-order handoff",
+    tasks: [
+      action("Create jobs from accepted findings", "Every approved finding belongs to a controlled diagnostic, repair, vendor, or detail job.", "Planner", "Job map"),
+      action("Estimate labor and parts", "Labor, rates, parts, fees, tax, sublet, and contingency are versioned.", "Estimator", "Estimate"),
+      action("Sequence dependencies", "Diagnosis, teardown, parts, vendor, calibration, detail, and QC order is explicit.", "Planner", "Dependency plan"),
+      action("Assign work and targets", "Technician, bay, vendor, priority, completion target, and escalation owner are assigned.", "Dispatcher", "Assignments"),
+      action("Secure parts and outside capacity", "Availability, ETA, reservations, transport, and outside custody are confirmed.", "Parts lead", "Readiness proof"),
+      action("Authorize the exact plan version", "The budget holder approves the exact scope, total, and exceptions.", "Manager", "Authorization"),
+    ],
+  },
+  {
+    label: "Recon & Repair",
+    title: "Execute approved recon work in readiness order",
+    purpose: "Keep staff focused on executable work while preserving all diagnosis, cost, parts, vendor, and evidence history.",
+    gate: "Job completion evidence",
+    owner: "Recon team lead",
+    deadline: "Per job target and frontline date",
+    blockerPolicy: "Approval, part, bay, vendor, diagnosis, or rework blockers remain visible with one owner.",
+    actionLabel: "Simulate recon handoff",
+    tasks: [
+      action("Acknowledge the next ready job", "The technician or vendor accepts scope, vehicle, bay, and target.", "Technician", "Job acceptance"),
+      action("Complete required diagnosis", "Tests, root cause, safety relevance, and revised recommendation are documented.", "Technician", "Diagnosis"),
+      action("Obtain change authorization", "Added work or cost is versioned and approved before execution.", "Advisor", "Change approval"),
+      action("Perform repair or recon work", "Approved procedure, parts, labor, outside service, and calibration are complete.", "Technician", "Work record"),
+      action("Prove job completion", "Before/after evidence, measurements, scan, test, and sign-off are attached.", "Technician", "Completion proof"),
+      action("Reconcile execution dependencies", "Parts, returns, sublet custody, labor, costs, and concerns are reconciled.", "Team lead", "Reconciliation"),
+    ],
+  },
+  {
+    label: "Final QC",
+    title: "Independently validate repair, safety, and readiness",
+    purpose: "Prove that completed work corrected the accepted scope before presentation preparation.",
+    gate: "Independent final approval",
+    owner: "Final QC inspector",
+    deadline: "Before detailing release",
+    blockerPolicy: "A failed item returns to its exact job through a controlled rework loop.",
+    actionLabel: "Simulate final QC handoff",
+    tasks: [
+      action("Verify every completed job", "Scope, parts, workmanship, torque, fluid, fit, and evidence match authorization.", "QC inspector", "Job verification"),
+      action("Complete the final diagnostic scan", "Codes, monitors, warning indicators, resets, and calibrations are verified.", "QC inspector", "Final scan"),
+      action("Perform the final road test", "Safety, drivability, noise, braking, steering, ADAS, and repair outcomes pass.", "QC inspector", "Road test"),
+      action("Inspect leaks and workmanship", "Fluids, fasteners, routing, cleanliness, damage, and comeback risks are checked.", "QC inspector", "Workmanship check"),
+      action("Resolve safety and recall controls", "No open safety hold remains; verification or disclosure is recorded.", "QC lead", "Safety release"),
+      action("Issue the independent QC decision", "Pass, rework, disclose, or hold is recorded against the exact work version.", "QC lead", "Final approval"),
+    ],
+  },
+  {
+    label: "Detailing",
+    title: "Prepare the vehicle to the retail presentation standard",
+    purpose: "Create a consistent, photo-ready vehicle while preserving disclosed condition.",
+    gate: "Presentation standard",
+    owner: "Detail team lead",
+    deadline: "Before the media appointment",
+    blockerPolicy: "Damage beyond detail scope returns to an approved repair or disclosure decision.",
+    actionLabel: "Simulate detailing handoff",
+    tasks: [
+      action("Confirm detail scope and condition", "Approved services, disclosures, materials, keys, and location are verified.", "Detail lead", "Detail scope"),
+      action("Complete exterior preparation", "Wash, decontamination, finish, glass, wheels, tires, trim, and jambs meet standard.", "Detailer", "Exterior checklist"),
+      action("Complete interior preparation", "Vacuum, extraction, surfaces, glass, vents, cargo, odor, and equipment meet standard.", "Detailer", "Interior checklist"),
+      action("Complete specialty work", "Approved engine bay, pet hair, stain, odor, decal, or specialty work is finished.", "Detailer", "Specialty record"),
+      action("Perform detail quality check", "No residue, missed area, new damage, wet surface, odor, or presentation defect remains.", "Detail lead", "Detail QC"),
+      action("Stage for photography", "Fuel or charge, keys, location, and media appointment are ready.", "Detail lead", "Media handoff"),
+    ],
+  },
+  {
+    label: "Photos & Marketing",
+    title: "Create and approve the retail merchandising package",
+    purpose: "Publish an accurate visual and written representation sourced from verified vehicle facts.",
+    gate: "Media and compliance approval",
+    owner: "Merchandising manager",
+    deadline: "Same day as detail completion",
+    blockerPolicy: "Missing media, title hold, safety issue, disclosure, or price prevents publication.",
+    actionLabel: "Simulate media handoff",
+    tasks: [
+      action("Capture the required media set", "Exterior, interior, feature, VIN, dash, cargo, wheels, defects, and disclosure photos pass.", "Photographer", "Photo set"),
+      action("Verify canonical specifications", "Decoded facts and observed equipment are reconciled without duplicate entry.", "Merchandiser", "Spec review"),
+      action("Write accurate listing content", "Condition, features, value story, warranty, and disclosures are supportable.", "Merchandiser", "Listing copy"),
+      action("Set governed pricing inputs", "Market data, cost, recon, strategy, floor, and approval are versioned.", "Manager", "Pricing approval"),
+      action("Complete compliance review", "Claims, photos, disclosures, privacy, and channel requirements are approved.", "Compliance", "Media review"),
+      action("Publish and verify channels", "Website, marketplace, DMS, and internal status show the correct package.", "Merchandiser", "Publication proof"),
+    ],
+  },
+  {
+    label: "Title Readiness",
+    title: "Establish legal readiness to offer and transfer",
+    purpose: "Confirm the dealership can lawfully sell and later transfer this specific vehicle.",
+    gate: "Title control",
+    owner: "Inventory title specialist",
+    deadline: "Before sale finalization",
+    blockerPolicy: "A title hold blocks sale completion and names the exact missing correction.",
+    actionLabel: "Simulate title-readiness handoff",
+    tasks: [
+      action("Match title identity", "VIN, owner, seller, year, make, odometer, and jurisdiction match source records.", "Title specialist", "Identity match"),
+      action("Verify ownership chain", "Assignments, powers of attorney, bills of sale, and reassignments are complete.", "Title specialist", "Chain review"),
+      action("Clear lien and brand status", "Lien release, electronic title, brand, duplicate, salvage, and correction needs are resolved.", "Title specialist", "Lien and brand proof"),
+      action("Verify odometer compliance", "Mileage status and required disclosure are accurate.", "Title specialist", "Odometer record"),
+      action("Confirm title location and control", "Title location, custodian, received date, and exception owner are current.", "Title specialist", "Custody record"),
+      action("Issue the sale-readiness decision", "Title ready, conditional disclosure, or governed hold is approved.", "Title manager", "Readiness release"),
+    ],
+  },
+  {
+    label: "Selling",
+    title: "Manage the governed retail sale process",
+    purpose: "Move a frontline-ready vehicle through presentation, negotiation, and accepted terms.",
+    gate: "Commercial authority",
+    owner: "Sales manager",
+    deadline: "Through accepted buyer agreement",
+    blockerPolicy: "Availability, pricing, finance, title, or disclosure conflict pauses contracting.",
+    actionLabel: "Simulate selling handoff",
+    tasks: [
+      action("Confirm frontline availability", "Vehicle, keys, location, price, disclosures, media, and test-drive readiness are current.", "Sales coordinator", "Availability"),
+      action("Manage customer engagement", "Inquiry, appointment, demonstration, and follow-up are linked to this vehicle.", "Sales advisor", "Activity log"),
+      action("Control test-drive custody", "Identity, insurance, route, time out, condition, and return are documented.", "Sales advisor", "Test-drive record"),
+      action("Version the offer", "Price, trade, taxes, fees, finance, products, and conditions are preserved.", "Sales advisor", "Offer version"),
+      action("Complete disclosures and approvals", "Required vehicle, condition, warranty, recall, and manager approvals are acknowledged.", "Sales manager", "Sale approval"),
+      action("Accept and reserve the vehicle", "Buyer, exact terms, deposit, expiration, and contracting handoff are recorded.", "Sales manager", "Accepted terms"),
+    ],
+  },
+  {
+    label: "Sale Titling",
+    title: "Complete buyer titling and ownership transfer",
+    purpose: "Turn accepted terms into an accurate, compliant, and submitted transfer package.",
+    gate: "Exact-document review",
+    owner: "Customer title specialist",
+    deadline: "Jurisdiction filing deadline",
+    blockerPolicy: "Field, signature, payment, identity, or document defects prevent submission.",
+    actionLabel: "Simulate transfer handoff",
+    tasks: [
+      action("Verify buyer and jurisdiction", "Legal names, address, identity, insurance, entity, and jurisdiction are confirmed.", "Title specialist", "Buyer verification"),
+      action("Prepare transfer documents", "Assignment, registration, tax, odometer, lienholder, plates, and disclosures are generated.", "Title specialist", "Transfer packet"),
+      action("Reconcile financial figures", "Price, trade, payoff, tax, fees, funding, and title amounts match the contract.", "Deal clerk", "Figure audit"),
+      action("Obtain required signatures", "Buyer, co-buyer, dealer, lienholder, notary, and POA execution is complete.", "Title specialist", "Signed packet"),
+      action("Perform exact-document QC", "VIN, names, dates, amounts, brands, mileage, and attachments pass review.", "Title reviewer", "Document QC"),
+      action("Submit and record accountability", "Method, confirmation, expected completion, owner, and follow-up are recorded.", "Title specialist", "Submission proof"),
+    ],
+  },
+  {
+    label: "Filing",
+    title: "Complete the authoritative deal and compliance file",
+    purpose: "Create a reconciled, indexed, retained, and audit-ready record of the full vehicle journey.",
+    gate: "File completeness",
+    owner: "Deal file coordinator",
+    deadline: "Policy retention and close deadline",
+    blockerPolicy: "The file stays open with an exact missing-document owner and due date.",
+    actionLabel: "Simulate filing handoff",
+    tasks: [
+      action("Assemble the complete record", "Acquisition, transport, inventory, recon, title, sale, payment, and transfer records are present.", "File coordinator", "Document index"),
+      action("Reconcile authoritative versions", "Final appraisal, work order, estimate, contract, title, and disclosure versions agree.", "Auditor", "Version audit"),
+      action("Verify signatures and approvals", "Every required signature, authority, acknowledgement, and exception is valid.", "Auditor", "Approval audit"),
+      action("Reconcile money and inventory", "Purchase, recon, sale, funding, payoff, receipts, and disposition balance.", "Accounting", "Financial reconcile"),
+      action("Classify and retain records", "Privacy, title, tax, safety, repair, and deal records receive correct controls.", "File coordinator", "Retention record"),
+      action("Lock the completed file", "Completeness passes while correction and audit procedures remain governed.", "Compliance", "File closure"),
+    ],
+  },
+  {
+    label: "Post-Sale",
+    title: "Verify delivery and close every post-sale obligation",
+    purpose: "Finish customer, title, financial, warranty, delivery, and operational commitments.",
+    gate: "Outcome verification",
+    owner: "Post-sale coordinator",
+    deadline: "Until all obligations are closed",
+    blockerPolicy: "Only unresolved obligations remain open, each with owner, due date, and escalation.",
+    actionLabel: "Simulate lifecycle closure",
+    tasks: [
+      action("Confirm delivery completion", "Vehicle, keys, documents, condition, orientation, and acceptance are recorded.", "Delivery specialist", "Delivery proof"),
+      action("Close promises and due bills", "Accessories, repairs, we-owe items, appointments, and commitments are complete.", "Coordinator", "Promise closure"),
+      action("Verify funding and payoff", "Funding, stipulations, trade payoff, refunds, reserves, and exceptions are reconciled.", "Finance", "Funding proof"),
+      action("Track title and registration", "Submission, lien perfection, plates, registration, corrections, and updates reach completion.", "Title specialist", "Title completion"),
+      action("Manage warranty and concerns", "Comeback, warranty, complaint, satisfaction, and recovery work remain linked.", "Customer care", "Case record"),
+      action("Verify the lifecycle outcome", "Every obligation is closed or governed by an active case; final status is recorded.", "Operations manager", "Closure approval"),
+    ],
+  },
+];
+
+function completionKey(stageIndex: number, actionIndex: number) {
+  return `${stageIndex}:${actionIndex}`;
+}
+
+export function InventoryLifecyclePrototype() {
+  const [selectedStage, setSelectedStage] = useState(0);
+  const [completed, setCompleted] = useState<Set<string>>(() => new Set());
+  const [prototypeVersion, setPrototypeVersion] = useState(0);
+  const [taiProgress, setTaiProgress] = useState<TaiWorkflowProgress>({ appraisalComplete: false, authorityComplete: false, commitmentComplete: false, economicsComplete: false, identityComplete: false, titleComplete: false });
+  const [notice, setNotice] = useState("This workspace is isolated. Prototype actions do not update operational records.");
+  const stage = lifecycleStages[selectedStage];
+  const completedCount = useMemo(
+    () => stage.tasks.filter((_, index) => completed.has(completionKey(selectedStage, index))).length,
+    [completed, selectedStage, stage.tasks],
+  );
+  const ready = completedCount === stage.tasks.length;
+
+  const syncTaiProgress = useCallback((progress: TaiWorkflowProgress) => {
+    setTaiProgress(progress);
+    const acquisitionProgress = [progress.identityComplete, progress.appraisalComplete, progress.economicsComplete, progress.titleComplete, progress.authorityComplete, progress.commitmentComplete];
+    setCompleted((current) => {
+      const next = new Set(current);
+      acquisitionProgress.forEach((isComplete, index) => {
+        const key = completionKey(0, index);
+        if (isComplete) next.add(key);
+        else next.delete(key);
+      });
+      return next;
+    });
+  }, []);
+
+  function toggleAction(actionIndex: number) {
+    if (selectedStage === 0) {
+      setNotice("Acquisition actions are controlled by TAI evidence, evaluation, approval, and purchase recording.");
+      return;
+    }
+    const key = completionKey(selectedStage, actionIndex);
+    setCompleted((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+    setNotice("Prototype progress updated locally. No operational record was changed.");
+  }
+
+  function simulateHandoff() {
+    if (!ready) return;
+    if (selectedStage === lifecycleStages.length - 1) {
+      setNotice("Prototype lifecycle completed. No production vehicle or workflow was changed.");
+      return;
+    }
+    const nextStage = selectedStage + 1;
+    setSelectedStage(nextStage);
+    setNotice(`Prototype handoff passed. Previewing ${lifecycleStages[nextStage].label}; no operational record was changed.`);
+  }
+
+  function resetPrototype() {
+    setCompleted(new Set());
+    setSelectedStage(0);
+    setPrototypeVersion((current) => current + 1);
+    setTaiProgress({ appraisalComplete: false, authorityComplete: false, commitmentComplete: false, economicsComplete: false, identityComplete: false, titleComplete: false });
+    setNotice("Prototype reset to Acquisition. Operational records remain unchanged.");
+  }
+
+  return (
+    <section className={styles.prototype} aria-label="Inventory Lifecycle prototype workspace">
+      <header className={styles.prototypeBanner}>
+        <div>
+          <span><ShieldCheck size={16} />Official prototype workspace</span>
+          <strong>Safe review environment</strong>
+          <p>No production lifecycle, InventoryUnit, repair order, vehicle location, or evidence record is changed here.</p>
+        </div>
+        <div className={styles.bannerActions}>
+          <Link href="/vehicles/inventory">Return to real Inventory Lifecycle</Link>
+          <button type="button" onClick={resetPrototype}><RotateCcw size={15} />Reset prototype</button>
+        </div>
+      </header>
+
+      <section className={styles.vehicleHeader}>
+        <div className={styles.vehicleIdentity}>
+          <span className={styles.vehicleIcon}><CarFront /></span>
+          <div>
+            <small>Inventory unit 333586 | Canonical VEH-436ED525</small>
+            <h1>2024 Toyota RAV4 XLE</h1>
+            <p>VIN 2T3W1RFVXRW333586 | Silver | 53,421 miles</p>
+          </div>
+        </div>
+        <div className={styles.authoritativeState}>
+          <span>Prototype lifecycle state</span>
+          <strong><i />{stage.label} | Active</strong>
+          <small>One sample vehicle, one simulated journey</small>
+        </div>
+      </section>
+
+      <dl className={styles.vehicleFacts}>
+        <div><dt>Accountable owner</dt><dd>Alex Carter</dd></div>
+        <div><dt>Current location</dt><dd><MapPin size={14} />Minneapolis recon staging</dd></div>
+        <div><dt>Custody</dt><dd>Accepted | 2 keys</dd></div>
+        <div><dt>Target frontline</dt><dd>August 5, 2026</dd></div>
+        <div><dt>Safety</dt><dd>VIN verification pending</dd></div>
+        <div><dt>Title</dt><dd>Source documents received</dd></div>
+      </dl>
+
+      <section className={styles.lifecycleRailSection}>
+        <header><div><h2>Complete inventory lifecycle</h2><p>Select a stage to review its mandatory workflow.</p></div><strong>16 governed stages</strong></header>
+        <nav className={styles.lifecycleRail} aria-label="Prototype lifecycle stages">
+          {lifecycleStages.map((item, index) => (
+            <button
+              aria-pressed={selectedStage === index}
+              className={selectedStage === index ? styles.activeStage : ""}
+              key={item.label}
+              onClick={() => { setSelectedStage(index); setNotice(`Previewing ${item.label}. Prototype progress is stored only in this screen.`); }}
+              type="button"
+            >
+              <small>{String(index + 1).padStart(2, "0")}</small>
+              <strong>{item.label}</strong>
+            </button>
+          ))}
+        </nav>
+      </section>
+
+      <div className={styles.workspaceGrid}>
+        <section className={styles.workflowPanel}>
+          <header className={styles.workflowHeader}>
+            <div><span>Stage {selectedStage + 1} of {lifecycleStages.length}</span><h2>{stage.title}</h2><p>{stage.purpose}</p></div>
+            <strong>{stage.gate}</strong>
+          </header>
+          {selectedStage === 0 ? <TaiAcquisitionTool key={prototypeVersion} onProgressChange={syncTaiProgress} /> : null}
+          <div className={styles.progressRow}>
+            <strong>{completedCount} of {stage.tasks.length} required actions complete</strong>
+            <div className={styles.progressTrack} aria-label={`${completedCount} of ${stage.tasks.length} actions complete`} role="progressbar" aria-valuemin={0} aria-valuemax={stage.tasks.length} aria-valuenow={completedCount}><i style={{ width: `${completedCount / stage.tasks.length * 100}%` }} /></div>
+          </div>
+          <div className={styles.actionHead}><span /><span>Required action and completion test</span><span>Owner</span><span>Evidence</span></div>
+          <ol className={styles.actionList}>
+            {stage.tasks.map((item, index) => {
+              const checked = completed.has(completionKey(selectedStage, index));
+              return <li className={checked ? styles.completedAction : ""} key={item.title}>
+                <label><input checked={checked} disabled={selectedStage === 0} onChange={() => toggleAction(index)} type="checkbox" /><span className="sr-only">Complete {item.title}</span></label>
+                <div><strong>{item.title}</strong><p>{item.completion}</p></div>
+                <span>{item.owner}</span>
+                <em>{checked ? <><Check size={13} />Complete</> : item.evidence}</em>
+              </li>;
+            })}
+          </ol>
+        </section>
+
+        <aside className={styles.stageCommand}>
+          <header><ClipboardCheck /><h2>Stage command</h2></header>
+          <dl>
+            <div><dt>Stage owner</dt><dd>{stage.owner}</dd></div>
+            <div><dt>Stage deadline</dt><dd>{stage.deadline}</dd></div>
+            <div><dt>Blocker policy</dt><dd>{stage.blockerPolicy}</dd></div>
+          </dl>
+          <header><LockKeyhole /><h2>Handoff control</h2></header>
+          {selectedStage === 0 ? <div className={styles.taiGateSummary}><span>TAI acquisition gate</span><strong>{taiProgress.commitmentComplete ? "Purchase recorded" : taiProgress.authorityComplete ? "Approved · awaiting purchase" : taiProgress.economicsComplete ? "Evaluated · approval required" : "Evaluation required"}</strong><small>Checklist evidence is driven by the buyer workspace.</small></div> : null}
+          <ul>
+            <li><span>Mandatory actions</span><strong>{completedCount}/{stage.tasks.length}</strong></li>
+            <li><span>Evidence attached</span><strong>{ready ? "Complete" : "Pending"}</strong></li>
+            <li><span>Open blockers</span><strong>0</strong></li>
+            <li><span>Ready for next stage</span><strong>{ready ? "Yes" : "No"}</strong></li>
+          </ul>
+          <button disabled={!ready} onClick={simulateHandoff} type="button">{stage.actionLabel}<ArrowRight /></button>
+          <p className={ready ? styles.readyNote : ""}>{ready ? "All prototype controls passed. You may simulate the handoff." : "Complete every required action before handoff becomes available."}</p>
+        </aside>
+      </div>
+
+      <footer className={styles.prototypeNotice} aria-live="polite"><CircleAlert />{notice}</footer>
+    </section>
+  );
+}
