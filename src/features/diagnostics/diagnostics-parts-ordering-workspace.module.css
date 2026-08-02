@@ -1,0 +1,538 @@
+.workspace {
+  min-height: 100%;
+  display: grid;
+  gap: 8px;
+  padding: 6px 12px 14px;
+  color: #162033;
+  background:
+    radial-gradient(circle at top, rgba(52, 82, 196, 0.08), transparent 34%),
+    linear-gradient(180deg, #f4f7fc 0%, #eef3fa 100%);
+}
+
+.workspace a {
+  text-decoration: none;
+}
+
+.hero,
+.kpis article,
+.stepCard,
+.ledgerCard,
+.summaryCard,
+.summaryMetrics article {
+  border: 1px solid #dbe3f0;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 12px 28px rgba(18, 38, 79, 0.08);
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 10px 14px;
+  padding: 12px 18px;
+  align-items: center;
+}
+
+.heroMain {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.heroTopline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.returnLink {
+  display: inline-flex;
+  width: max-content;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid #d5deee;
+  background: #f9fbff;
+  color: #26477f;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.heroTopline span,
+.stepCard span,
+.ledgerHeader span,
+.summaryCard header span,
+.summaryMetrics span,
+.heroBreadcrumb {
+  color: #5d7196;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.heroBreadcrumb {
+  white-space: nowrap;
+  font-size: 0.76rem;
+}
+
+.hero h1,
+.hero p {
+  margin: 0;
+}
+
+.hero h1 {
+  color: #0d1b38;
+  font-size: 1.34rem;
+  line-height: 1.1;
+  max-width: none;
+}
+
+.hero p {
+  color: #5f7398;
+  font-size: 0.82rem;
+  line-height: 1.28;
+  max-width: 72ch;
+}
+
+.contextCard {
+  display: grid;
+  gap: 3px;
+  padding: 9px 11px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #f7faff 0%, #edf3fc 100%);
+  border: 1px solid #dbe3f0;
+  margin-top: 0;
+  max-width: 220px;
+  min-width: 0;
+  justify-self: end;
+}
+
+.contextCard strong {
+  color: #12264f;
+  font-size: 0.72rem;
+  line-height: 1.1;
+}
+
+.contextCard small {
+  color: #607396;
+  font-size: 0.7rem;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.kpis article {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+}
+
+.kpis svg {
+  width: 18px;
+  color: #3452c4;
+}
+
+.kpis span {
+  display: grid;
+  gap: 2px;
+}
+
+.kpis strong {
+  color: #0f1a2f;
+  font-size: 1.28rem;
+}
+
+.kpis small {
+  color: #607086;
+  font-size: 0.75rem;
+}
+
+.summaryStrip {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.72fr) minmax(260px, 0.7fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.summaryCard {
+  overflow: hidden;
+}
+
+.summaryCard header {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 14px;
+  border-bottom: 1px solid #e5ebf4;
+  background: linear-gradient(180deg, #fbfdff 0%, #f2f7ff 100%);
+}
+
+.summaryCard header svg {
+  color: #3452c4;
+}
+
+.summaryCard header strong {
+  display: block;
+  color: #0e1d3d;
+  font-size: 0.94rem;
+}
+
+.partsList {
+  display: grid;
+  gap: 6px;
+  padding: 10px 14px;
+}
+
+.partsList article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid #e3e9f3;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.partsList span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.partsList strong,
+.partsList small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.partsList strong {
+  color: #172033;
+}
+
+.partsList small,
+.partsList p {
+  color: #607086;
+  font-size: 0.74rem;
+}
+
+.partsList em {
+  color: #2952a3;
+  font-size: 0.76rem;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.summaryMetrics {
+  display: grid;
+  gap: 8px;
+}
+
+.summaryMetrics article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.summaryMetrics strong {
+  color: #10244a;
+  font-size: 0.92rem;
+}
+
+.commandRail {
+  display: grid;
+  gap: 6px;
+}
+
+.commandRail a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 40px;
+  border: 1px solid #c8d4ee;
+  border-radius: 12px;
+  background: #fff;
+  color: #204b91;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.commandRail a:first-child {
+  border-color: #3452c4;
+  background: #3452c4;
+  color: #fff;
+}
+
+.workflow {
+  display: grid;
+  gap: 8px;
+}
+
+.stepCard,
+.ledgerCard {
+  padding: 12px 14px;
+}
+
+.stepCard header,
+.ledgerHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.ledgerActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stepCard h2,
+.stepCard p,
+.stepCard ul,
+.ledgerHeader h2,
+.ledgerHeader p {
+  margin: 0;
+}
+
+.stepCard h2,
+.ledgerHeader h2 {
+  color: #07142b;
+  font-size: 1rem;
+}
+
+.stepCard p,
+.stepCard li,
+.ledgerHeader p,
+.emptyReturnState {
+  color: #607086;
+  font-size: 0.84rem;
+  line-height: 1.38;
+}
+
+.stepCard ul {
+  padding-left: 18px;
+  margin-top: 6px;
+}
+
+.stepCard li + li {
+  margin-top: 5px;
+}
+
+.addRowButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid #c8d4ee;
+  background: #ffffff;
+  color: #244a8a;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.addVendorCard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid #dbe3f0;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fbfdff 0%, #f6f9ff 100%);
+  align-items: center;
+}
+
+.addVendorCard strong {
+  display: block;
+  color: #0e1d3d;
+  font-size: 0.92rem;
+}
+
+.addVendorCard small {
+  display: block;
+  margin-top: 3px;
+  color: #607396;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.addVendorControls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.quickVendorBar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid #dbe3f0;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 12px 28px rgba(18, 38, 79, 0.08);
+}
+
+.quickVendorText strong {
+  display: block;
+  color: #0e1d3d;
+  font-size: 0.92rem;
+}
+
+.quickVendorText small {
+  display: block;
+  margin-top: 3px;
+  color: #607396;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.addVendorCard::before {
+  content: "ADD VENDOR";
+  color: #5d7196;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.ledgerTable,
+.returnTable {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.ledgerHead,
+.ledgerRow {
+  display: grid;
+  grid-template-columns: minmax(320px, 2.1fr) minmax(230px, 1.1fr) 150px 120px;
+  gap: 6px;
+  align-items: start;
+}
+
+.returnHead,
+.returnRow {
+  display: grid;
+  grid-template-columns: minmax(320px, 2fr) 90px minmax(220px, 1.2fr) 150px;
+  gap: 6px;
+  align-items: start;
+}
+
+.gridHead {
+  color: #5d7196;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.sourceFieldStack {
+  display: grid;
+  gap: 4px;
+}
+
+.field {
+  min-height: 38px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid #d1dbec;
+  background: #ffffff;
+  color: #152847;
+  font: inherit;
+  font-size: 0.88rem;
+}
+
+.emptyReturnState {
+  padding: 10px 12px;
+  border: 1px dashed #d1dbec;
+  border-radius: 12px;
+  background: #fbfdff;
+}
+
+@media (max-width: 1280px) {
+  .summaryStrip {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1100px) {
+  .hero {
+    grid-template-columns: 1fr;
+  }
+
+  .hero h1 {
+    white-space: normal;
+    font-size: 1.7rem;
+  }
+
+  .contextCard {
+    margin-top: 0;
+    max-width: none;
+    justify-self: stretch;
+  }
+
+  .heroTopline {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 980px) {
+  .kpis {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .quickVendorBar,
+  .addVendorCard,
+  .addVendorControls {
+    grid-template-columns: 1fr;
+  }
+
+  .ledgerHead,
+  .ledgerRow,
+  .returnHead,
+  .returnRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .workspace {
+    padding: 10px;
+  }
+
+  .kpis {
+    grid-template-columns: 1fr;
+  }
+
+  .hero h1 {
+    font-size: 1.7rem;
+    max-width: none;
+    white-space: normal;
+  }
+}

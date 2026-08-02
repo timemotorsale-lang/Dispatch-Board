@@ -1,23 +1,116 @@
 .directory {
-  max-width: 1500px;
+  max-width: 1380px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 16px 18px 24px;
 }
 
-.directory > :global(.page-copy) {
-  padding: 4px 2px;
+.hero {
+  display: grid;
+  gap: 10px;
+  padding: 2px 2px 4px;
 }
 
-.directory > :global(.panel-card) {
-  border-radius: 12px;
+.hero h1 {
+  margin: 0;
+  color: #172033;
+  font-size: clamp(2.2rem, 4.2vw, 4rem);
+  line-height: 0.98;
+  letter-spacing: -0.04em;
 }
 
-.directory form:global(.form-actions) {
+.hero p {
+  max-width: 1080px;
+  margin: 0;
+  color: #5f7398;
+  font-size: 0.98rem;
+  line-height: 1.5;
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.searchCard,
+.queueCard {
+  border-radius: 16px !important;
+}
+
+.searchCard {
+  padding: 14px 16px !important;
+}
+
+.searchCardHeader,
+.queueHeader {
+  display: grid;
+  gap: 4px;
+}
+
+.searchCardHeader {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.searchCardHeader h2,
+.queueHeader h2 {
+  margin: 0;
+  color: #172033;
+  font-size: 1.08rem;
+  line-height: 1.15;
+}
+
+.searchCardHeader b {
+  color: #294d8e;
+  font-size: 0.82rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.sectionEyebrow {
+  display: inline-flex;
+  width: max-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #eef3ff;
+  color: #3658c7;
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.searchForm {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
   align-items: end;
 }
 
-.directory form :global(.form-field) {
-  flex: 1 1 520px;
+.searchField span {
+  font-size: 0.79rem !important;
+  color: #617494;
+}
+
+.searchField input {
+  min-height: 42px;
+}
+
+.queueCard {
+  padding: 14px 16px 16px !important;
+}
+
+.queueHeader {
+  margin-bottom: 6px;
+}
+
+.queueHeader p {
+  margin: 0;
+  color: #667a9d;
+  font-size: 0.88rem;
+  line-height: 1.45;
 }
 
 .orderList {
@@ -27,46 +120,112 @@
 
 .order {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1.5fr) minmax(220px, 0.75fr) auto;
+  grid-template-columns: 24px minmax(0, 1.6fr) minmax(170px, 0.65fr) minmax(188px, auto);
   align-items: center;
-  gap: 14px;
-  color: inherit;
-  text-decoration: none;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid #dbe4f2;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  box-shadow: 0 10px 24px rgba(22, 34, 51, 0.05);
 }
 
-.order > span {
+.order > svg {
+  color: #607397;
+}
+
+.orderIdentity,
+.orderMeta {
   display: grid;
   gap: 3px;
+  min-width: 0;
 }
 
-.order small {
-  color: #64748b;
-}
-
-.order > em {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  border-radius: 7px;
-  padding: 8px 10px;
-  color: #fff;
-  background: #0966d8;
-  font-style: normal;
-  font-weight: 800;
+.orderIdentity strong,
+.orderIdentity small,
+.orderMeta b,
+.orderMeta small {
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-@media (max-width: 850px) {
-  .directory {
-    padding: 16px;
-  }
+.orderIdentity strong {
+  color: #234ec9;
+  font-size: 0.98rem;
+  line-height: 1.2;
+}
 
+.orderIdentity small,
+.orderMeta small {
+  color: #64748b;
+  font-size: 0.8rem;
+  line-height: 1.3;
+}
+
+.orderMeta b {
+  color: #172033;
+  font-size: 0.95rem;
+  line-height: 1.2;
+}
+
+.orderActions {
+  display: grid;
+  gap: 8px;
+  min-width: 188px;
+}
+
+.orderActions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid #c9d7ef;
+  color: #1f3d74;
+  background: #fff;
+  font-size: 0.86rem;
+  font-style: normal;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.orderActions a:first-child {
+  color: #fff;
+  background: #0966d8;
+  border-color: #0966d8;
+}
+
+@media (max-width: 1080px) {
+  .searchCardHeader,
+  .searchForm,
   .order {
-    grid-template-columns: 24px minmax(0, 1fr);
+    grid-template-columns: 1fr;
   }
 
-  .order > span:nth-of-type(2),
-  .order > em {
-    grid-column: 2;
+  .searchCardHeader b {
+    white-space: normal;
+  }
+
+  .order > svg {
+    display: none;
+  }
+
+  .orderActions {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .directory {
+    padding: 12px;
+  }
+
+  .heroActions {
+    display: grid;
+    grid-template-columns: 1fr;
   }
 }
