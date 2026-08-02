@@ -4,6 +4,7 @@ import { BadgeCheck, Calculator, Check, CircleAlert, Gauge, LockKeyhole, ShieldC
 import { useEffect, useMemo, useState } from "react";
 
 import styles from "./inventory-lifecycle-prototype.module.css";
+import { PrototypeVinScanCard, type PrototypeVinScanEvidence } from "./prototype-vin-scan-card";
 import { evaluateTaiAcquisition, type TaiAcquisitionInput } from "./tai-acquisition-rules";
 
 export type TaiWorkflowProgress = {
@@ -38,6 +39,7 @@ const initialInput: TaiAcquisitionInput = {
 
 const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
 const ratingLabels = ["", "Weak", "Limited", "Balanced", "Strong", "Excellent"];
+const expectedVin = "2T3W1RFVXRW333586";
 
 export function TaiAcquisitionTool({ onProgressChange }: { onProgressChange: (progress: TaiWorkflowProgress) => void }) {
   const [input, setInput] = useState(initialInput);
@@ -45,6 +47,7 @@ export function TaiAcquisitionTool({ onProgressChange }: { onProgressChange: (pr
   const [approval, setApproval] = useState<"DRAFT" | "REQUESTED" | "APPROVED">("DRAFT");
   const [finalPrice, setFinalPrice] = useState(24300);
   const [committed, setCommitted] = useState(false);
+  const [vinEvidence, setVinEvidence] = useState<PrototypeVinScanEvidence | null>(null);
   const [notice, setNotice] = useState("Review the sample opportunity and run the first TAI evaluation.");
   const result = useMemo(() => evaluateTaiAcquisition(input), [input]);
   const evaluated = evaluationVersion > 0;
@@ -76,6 +79,19 @@ export function TaiAcquisitionTool({ onProgressChange }: { onProgressChange: (pr
     setApproval("DRAFT");
     setCommitted(false);
     setNotice("Evidence changed. Run a new TAI evaluation before requesting authority.");
+  }
+
+  function applyVinEvidence(evidence: PrototypeVinScanEvidence) {
+    setVinEvidence(evidence);
+    setInput((current) => ({ ...current, identityVerified: evidence.vinCaptured && evidence.vinMatched }));
+    setEvaluationVersion(0);
+    setApproval("DRAFT");
+    setCommitted(false);
+    setNotice(
+      evidence.vinCaptured
+        ? `${evidence.mode} processed. ${evidence.vinMatched ? "VIN matched the acquisition unit" : "Review the scanned VIN before approval."}${evidence.auctionLocation ? ` Source recognized: ${evidence.auctionLocation}.` : ""}`
+        : "No VIN was captured from the provided scan text.",
+    );
   }
 
   function runEvaluation() {
@@ -128,6 +144,14 @@ export function TaiAcquisitionTool({ onProgressChange }: { onProgressChange: (pr
 
         <section>
           <header><h4>Fit, market, and evidence</h4><span>Buyer-reviewed inputs</span></header>
+          <div className={styles.taiEvidenceBlock}>
+            <PrototypeVinScanCard
+              expectedVin={expectedVin}
+              helperText="Use direct VIN scan text or paste Manheim / ADESA windshield details so acquisition identity evidence is captured before approval."
+              onEvidenceChange={applyVinEvidence}
+              stageLabel="Acquisition"
+            />
+          </div>
           <div className={styles.taiRatings}>
             {([
               ["demandStrength", "Demand strength"],
@@ -138,7 +162,7 @@ export function TaiAcquisitionTool({ onProgressChange }: { onProgressChange: (pr
           </div>
           <div className={styles.taiEvidence}>
             {([
-              ["identityVerified", "VIN and identity verified"],
+              ["identityVerified", vinEvidence?.auctionLocation ? `VIN and identity verified (${vinEvidence.auctionLocation})` : "VIN and identity verified"],
               ["sellerAuthorityVerified", "Seller authority verified"],
               ["titleReviewed", "Title and ownership reviewed"],
               ["conditionInspected", "Condition inspection complete"],

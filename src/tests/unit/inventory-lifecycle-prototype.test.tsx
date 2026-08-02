@@ -31,4 +31,10 @@ describe("InventoryLifecyclePrototype", () => {
     expect(markup).toContain("Complete every required action before handoff becomes available.");
     expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>Simulate acquisition handoff/);
   });
+
+  it("renders the intake-stage workspace link when the intake tool is shown", () => {
+    const markup = renderToStaticMarkup(<InventoryLifecyclePrototype />);
+
+    expect(markup).toContain("Open Vehicle Intake form");
+  });
 });

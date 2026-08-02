@@ -15,6 +15,7 @@ import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 
 import styles from "./inventory-lifecycle-prototype.module.css";
+import { IiiIntakeTool, type IiiWorkflowProgress } from "./iii-intake-tool";
 import { RbiReceivingTool, type RbiWorkflowProgress } from "./rbi-receiving-tool";
 import { TaiAcquisitionTool, type TaiWorkflowProgress } from "./tai-acquisition-tool";
 import { TciTransportTool, type TciWorkflowProgress } from "./tci-transport-tool";
@@ -344,6 +345,7 @@ export function InventoryLifecyclePrototype() {
   const [selectedStage, setSelectedStage] = useState(0);
   const [completed, setCompleted] = useState<Set<string>>(() => new Set());
   const [prototypeVersion, setPrototypeVersion] = useState(0);
+  const [iiiProgress, setIiiProgress] = useState<IiiWorkflowProgress>({ blockerCount: 0, canonicalComplete: false, custodyComplete: false, decodedComplete: false, objectiveComplete: false, readinessGateComplete: false, recommendation: "Hold", safetyComplete: false, trailCount: 0 });
   const [rbiProgress, setRbiProgress] = useState<RbiWorkflowProgress>({ arrivalFactsComplete: false, baselinePhotosComplete: false, blockerCount: 0, custodyAccepted: false, recommendation: "Hold", trailCount: 0, varianceControlled: false, vinComplete: false });
   const [taiProgress, setTaiProgress] = useState<TaiWorkflowProgress>({ appraisalComplete: false, authorityComplete: false, commitmentComplete: false, economicsComplete: false, identityComplete: false, titleComplete: false });
   const [tciProgress, setTciProgress] = useState<TciWorkflowProgress>({ blockerCount: 0, deliveryComplete: false, movementComplete: false, pickupComplete: false, planComplete: false, recommendation: "Hold", releaseComplete: false, sourceComplete: false, trackingComplete: false, trailCount: 0 });
@@ -411,13 +413,36 @@ export function InventoryLifecyclePrototype() {
     });
   }, []);
 
+  const syncIiiProgress = useCallback((progress: IiiWorkflowProgress) => {
+    setIiiProgress(progress);
+    const intakeProgress = [
+      progress.canonicalComplete,
+      progress.decodedComplete,
+      progress.safetyComplete,
+      progress.objectiveComplete,
+      progress.custodyComplete,
+      progress.readinessGateComplete,
+    ];
+    setCompleted((current) => {
+      const next = new Set(current);
+      intakeProgress.forEach((isComplete, index) => {
+        const key = completionKey(3, index);
+        if (isComplete) next.add(key);
+        else next.delete(key);
+      });
+      return next;
+    });
+  }, []);
+
   function toggleAction(actionIndex: number) {
-    if (selectedStage === 0 || selectedStage === 1 || selectedStage === 2) {
+    if (selectedStage === 0 || selectedStage === 1 || selectedStage === 2 || selectedStage === 3) {
       setNotice(selectedStage === 0
         ? "Acquisition actions are controlled by TAI evidence, evaluation, approval, and purchase recording."
         : selectedStage === 1
           ? "Transportation actions are controlled by TCI release, dispatch, custody, tracking, and receiving evidence."
-          : "Receiving actions are controlled by RBI identity, arrival, baseline photo, variance, and custody evidence.");
+          : selectedStage === 2
+            ? "Receiving actions are controlled by RBI identity, arrival, baseline photo, variance, and custody evidence."
+            : "Intake actions are controlled by III canonical linkage, safety, objective, custody, and readiness evidence.");
       return;
     }
     const key = completionKey(selectedStage, actionIndex);
@@ -445,6 +470,7 @@ export function InventoryLifecyclePrototype() {
     setCompleted(new Set());
     setSelectedStage(0);
     setPrototypeVersion((current) => current + 1);
+    setIiiProgress({ blockerCount: 0, canonicalComplete: false, custodyComplete: false, decodedComplete: false, objectiveComplete: false, readinessGateComplete: false, recommendation: "Hold", safetyComplete: false, trailCount: 0 });
     setRbiProgress({ arrivalFactsComplete: false, baselinePhotosComplete: false, blockerCount: 0, custodyAccepted: false, recommendation: "Hold", trailCount: 0, varianceControlled: false, vinComplete: false });
     setTaiProgress({ appraisalComplete: false, authorityComplete: false, commitmentComplete: false, economicsComplete: false, identityComplete: false, titleComplete: false });
     setTciProgress({ blockerCount: 0, deliveryComplete: false, movementComplete: false, pickupComplete: false, planComplete: false, recommendation: "Hold", releaseComplete: false, sourceComplete: false, trackingComplete: false, trailCount: 0 });
@@ -514,6 +540,7 @@ export function InventoryLifecyclePrototype() {
             <div><span>Stage {selectedStage + 1} of {lifecycleStages.length}</span><h2>{stage.title}</h2><p>{stage.purpose}</p></div>
             <strong>{stage.gate}</strong>
           </header>
+          {selectedStage === 3 ? <IiiIntakeTool key={`iii-${prototypeVersion}`} onProgressChange={syncIiiProgress} /> : null}
           {selectedStage === 2 ? <RbiReceivingTool key={`rbi-${prototypeVersion}`} onProgressChange={syncRbiProgress} /> : null}
           {selectedStage === 0 ? <TaiAcquisitionTool key={`tai-${prototypeVersion}`} onProgressChange={syncTaiProgress} /> : null}
           {selectedStage === 1 ? <TciTransportTool key={`tci-${prototypeVersion}`} onProgressChange={syncTciProgress} /> : null}
@@ -526,7 +553,7 @@ export function InventoryLifecyclePrototype() {
             {stage.tasks.map((item, index) => {
               const checked = completed.has(completionKey(selectedStage, index));
               return <li className={checked ? styles.completedAction : ""} key={item.title}>
-                <label><input checked={checked} disabled={selectedStage === 0 || selectedStage === 1 || selectedStage === 2} onChange={() => toggleAction(index)} type="checkbox" /><span className="sr-only">Complete {item.title}</span></label>
+                <label><input checked={checked} disabled={selectedStage === 0 || selectedStage === 1 || selectedStage === 2 || selectedStage === 3} onChange={() => toggleAction(index)} type="checkbox" /><span className="sr-only">Complete {item.title}</span></label>
                 <div><strong>{item.title}</strong><p>{item.completion}</p></div>
                 <span>{item.owner}</span>
                 <em>{checked ? <><Check size={13} />Complete</> : item.evidence}</em>
@@ -546,10 +573,12 @@ export function InventoryLifecyclePrototype() {
           {selectedStage === 0 ? <div className={styles.taiGateSummary}><span>TAI acquisition gate</span><strong>{taiProgress.commitmentComplete ? "Purchase recorded" : taiProgress.authorityComplete ? "Approved / awaiting purchase" : taiProgress.economicsComplete ? "Evaluated / approval required" : "Evaluation required"}</strong><small>Checklist evidence is driven by the buyer workspace.</small></div> : null}
           {selectedStage === 1 ? <div className={styles.taiGateSummary}><span>TCI custody gate</span><strong>{tciProgress.deliveryComplete ? "Receiving accepted" : `${tciProgress.recommendation} / ${tciProgress.trailCount} trail entries`}</strong><small>Checklist evidence is driven by the transportation workspace.</small></div> : null}
           {selectedStage === 2 ? <div className={styles.taiGateSummary}><span>RBI receiving gate</span><strong>{rbiProgress.custodyAccepted ? "Ready for intake" : `${rbiProgress.recommendation} / ${rbiProgress.trailCount} trail entries`}</strong><small>Checklist evidence is driven by the receiving workspace.</small></div> : null}
+          {selectedStage === 3 ? <div className={styles.taiGateSummary}><span>III intake gate</span><strong>{iiiProgress.readinessGateComplete ? "Ready for inspection" : `${iiiProgress.recommendation} / ${iiiProgress.trailCount} trail entries`}</strong><small>Checklist evidence is driven by the intake workspace.</small></div> : null}
+          {selectedStage === 3 ? <div className={styles.stageQuickLinkWrap}><Link className={styles.stageQuickLink} href="/vehicles/workflows/add-vehicle?returnTo=%2Fvehicles%2Finventory%2Fprototype">Open Vehicle Intake form</Link></div> : null}
           <ul>
             <li><span>Mandatory actions</span><strong>{completedCount}/{stage.tasks.length}</strong></li>
             <li><span>Evidence attached</span><strong>{ready ? "Complete" : "Pending"}</strong></li>
-            <li><span>Open blockers</span><strong>{selectedStage === 1 ? tciProgress.blockerCount : selectedStage === 2 ? rbiProgress.blockerCount : 0}</strong></li>
+            <li><span>Open blockers</span><strong>{selectedStage === 1 ? tciProgress.blockerCount : selectedStage === 2 ? rbiProgress.blockerCount : selectedStage === 3 ? iiiProgress.blockerCount : 0}</strong></li>
             <li><span>Ready for next stage</span><strong>{ready ? "Yes" : "No"}</strong></li>
           </ul>
           <button disabled={!ready} onClick={simulateHandoff} type="button">{stage.actionLabel}<ArrowRight /></button>

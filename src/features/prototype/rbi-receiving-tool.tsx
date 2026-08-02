@@ -14,6 +14,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 
 import styles from "./inventory-lifecycle-prototype.module.css";
+import { PrototypeVinScanCard, type PrototypeVinScanEvidence } from "./prototype-vin-scan-card";
 import {
   evaluateRbiReceiving,
   type RbiChargeState,
@@ -105,6 +106,7 @@ export function RbiReceivingTool({ onProgressChange }: { onProgressChange: (prog
     exceptions: false,
   });
   const [trail, setTrail] = useState<TrailEntry[]>([]);
+  const [vinEvidence, setVinEvidence] = useState<PrototypeVinScanEvidence | null>(null);
   const [notice, setNotice] = useState("Start Receiving by matching the physical VIN and documenting the arrival facts before anything changes the unit.");
   const result = useMemo(() => evaluateRbiReceiving(input), [input]);
 
@@ -156,10 +158,30 @@ export function RbiReceivingTool({ onProgressChange }: { onProgressChange: (prog
     invalidateFrom(step, "Receiving details changed. Reconfirm this step and any downstream baseline actions.");
   }
 
+  function applyVinEvidence(evidence: PrototypeVinScanEvidence) {
+    setVinEvidence(evidence);
+    setInput((current) => ({
+      ...current,
+      vinMatched: evidence.vinMatched,
+      vinScanned: evidence.vinCaptured,
+    }));
+    invalidateFrom(
+      "vin",
+      evidence.vinCaptured
+        ? `${evidence.mode} processed for receiving. ${evidence.vinMatched ? "VIN matched the expected unit." : "Review the captured VIN before custody is accepted."}`
+        : "The captured text did not produce a VIN. Re-scan the windshield or barcode before moving on.",
+    );
+  }
+
   function completeVin() {
     if (!result.vinComplete) return;
     setCompletedSteps((current) => ({ ...current, vin: true }));
-    appendTrail("vin", "Receiver", "Physical VIN was scanned and matched to the transportation and acquisition records.", "VIN match");
+    appendTrail(
+      "vin",
+      "Receiver",
+      `Physical VIN was scanned and matched to the transportation and acquisition records.${vinEvidence?.auctionLocation ? ` Auction evidence recognized ${vinEvidence.auctionLocation.toLowerCase()}.` : ""}`,
+      vinEvidence?.auctionDetected ? "VIN match and auction capture" : "VIN match",
+    );
     setNotice("VIN identity is locked. Record the arrival facts next.");
   }
 
@@ -221,6 +243,14 @@ export function RbiReceivingTool({ onProgressChange }: { onProgressChange: (prog
             <div><span>Step 1</span><h4>Scan and match the VIN</h4></div>
             <em className={completedSteps.vin ? styles.rbiComplete : ""}>{completedSteps.vin ? "Locked" : "Required"}</em>
           </header>
+          <div className={styles.rbiEvidenceBlock}>
+            <PrototypeVinScanCard
+              expectedVin="2T3W1RFVXRW333586"
+              helperText="Use normal VIN scans or paste Manheim / ADESA windshield details so receiving can match the physical unit without manual retyping."
+              onEvidenceChange={applyVinEvidence}
+              stageLabel="Receiving"
+            />
+          </div>
           <div className={styles.rbiChecks}>
             <label><input checked={input.vinScanned} onChange={(event) => updateBoolean("vinScanned", event.target.checked as RbiReceivingInput["vinScanned"], "vin")} type="checkbox" /><span>Physical VIN scanned</span></label>
             <label><input checked={input.vinMatched} onChange={(event) => updateBoolean("vinMatched", event.target.checked as RbiReceivingInput["vinMatched"], "vin")} type="checkbox" /><span>VIN matches transport and acquisition record</span></label>

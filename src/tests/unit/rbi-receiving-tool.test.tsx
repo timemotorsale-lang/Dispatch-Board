@@ -13,6 +13,7 @@ describe("RbiReceivingTool", () => {
     expect(markup).toContain("Record arrival facts");
     expect(markup).toContain("Capture the receiving baseline photo set");
     expect(markup).toContain("Operational work trail");
+    expect(markup).toContain("Open Vehicle Intake form");
     expect(markup).toContain("No receiving action has been recorded yet.");
   });
 });

@@ -511,6 +511,26 @@
   color: #237349;
 }
 
+.stageQuickLinkWrap {
+  padding: 10px 16px 0;
+}
+
+.stageQuickLink,
+.iiiHeaderLink {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #c8d7e5;
+  border-radius: 6px;
+  padding: 0 12px;
+  color: #244d76;
+  background: #fff;
+  font-size: .68rem;
+  font-weight: 850;
+  text-decoration: none;
+}
+
 .taiWorkspace {
   display: grid;
   gap: 0;
@@ -702,6 +722,12 @@
   gap: 6px;
   padding: 8px 10px 10px;
   border-top: 1px solid #edf1f5;
+}
+
+.taiEvidenceBlock,
+.rbiEvidenceBlock {
+  padding: 10px;
+  border-bottom: 1px solid #edf1f5;
 }
 
 .taiEvidence label {
@@ -1876,6 +1902,606 @@
   flex: 0 0 auto;
 }
 
+.iiiWorkspace {
+  display: grid;
+  gap: 0;
+  border-bottom: 1px solid #d7e1ea;
+  background: #fbfcfb;
+}
+
+.iiiHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid #d7e2eb;
+  color: #fff;
+  background: linear-gradient(115deg, #244153, #2f6d72);
+}
+
+.iiiHeader > div:first-child > span,
+.iiiApproval > div > span,
+.iiiStepCard header span {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.iiiHeader > div:first-child > span {
+  color: #bfe8dd;
+  font-size: .65rem;
+}
+
+.iiiHeader h3,
+.iiiHeader p {
+  margin: 0;
+}
+
+.iiiHeader h3 {
+  margin-top: 3px;
+  font-size: 1rem;
+}
+
+.iiiHeader p {
+  margin-top: 2px;
+  color: #d6ebe7;
+  font-size: .7rem;
+}
+
+.iiiHeaderActions {
+  margin-top: 10px;
+}
+
+.iiiVersion {
+  display: grid;
+  gap: 2px;
+  min-width: 150px;
+  text-align: right;
+}
+
+.iiiVersion small {
+  color: #d8ece7;
+  font-size: .62rem;
+}
+
+.iiiVersion strong {
+  font-size: .72rem;
+}
+
+.iiiBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1.38fr) minmax(290px, .72fr);
+  gap: 12px;
+  padding: 12px;
+}
+
+.iiiSteps {
+  display: grid;
+  gap: 10px;
+}
+
+.iiiStepCard,
+.iiiDecision,
+.iiiApproval > div {
+  overflow: hidden;
+  border: 1px solid #d7e1eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.iiiStepCard header,
+.iiiTrail header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 11px;
+  border-bottom: 1px solid #e4eaf0;
+  background: #f6fbfb;
+}
+
+.iiiStepCard header span {
+  color: #597b7c;
+  font-size: .57rem;
+}
+
+.iiiStepCard header h4,
+.iiiTrail h4 {
+  margin: 2px 0 0;
+  color: #203449;
+  font-size: .74rem;
+}
+
+.iiiStepCard header em,
+.iiiDecision > header em {
+  border-radius: 999px;
+  padding: 5px 7px;
+  color: #8b4d1f;
+  background: #fff1d4;
+  font-size: .64rem;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.iiiComplete {
+  color: #1f6d45 !important;
+  background: #dff3e8 !important;
+}
+
+.iiiHold {
+  color: #923d35 !important;
+  background: #f9e3e0 !important;
+}
+
+.iiiFieldGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px;
+}
+
+.iiiFieldGrid label,
+.iiiChecks label {
+  display: grid;
+  gap: 4px;
+}
+
+.iiiFieldGrid label > span,
+.iiiChecks span {
+  color: #586d82;
+  font-size: .62rem;
+  font-weight: 750;
+}
+
+.iiiFieldGrid input,
+.iiiFieldGrid select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #ccd8e4;
+  border-radius: 6px;
+  padding: 7px 8px;
+  color: #18304a;
+  outline: 0;
+  background: #fff;
+  font-size: .72rem;
+  font-weight: 800;
+}
+
+.iiiChecks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 0 10px 10px;
+}
+
+.iiiChecks label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.iiiChecks input {
+  width: 15px;
+  height: 15px;
+  accent-color: #2f6d72;
+}
+
+.iiiAction {
+  display: flex;
+  width: calc(100% - 20px);
+  min-height: 35px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0 10px 10px;
+  border: 0;
+  border-radius: 6px;
+  color: #fff;
+  background: #2f6d72;
+  font-size: .67rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.iiiAction:disabled {
+  cursor: not-allowed;
+  opacity: .42;
+}
+
+.iiiDecision {
+  align-self: start;
+}
+
+.iiiDecision > header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 11px;
+  border-bottom: 1px solid #dce5ed;
+  background: #eef7f7;
+}
+
+.iiiDecision > header > svg,
+.iiiTrail header svg {
+  color: #2f6d72;
+}
+
+.iiiDecision > header span,
+.iiiDecision > header strong {
+  display: block;
+}
+
+.iiiDecision > header span {
+  color: #6a7c90;
+  font-size: .59rem;
+}
+
+.iiiDecision > header strong {
+  margin-top: 1px;
+  color: #174449;
+  font-size: .9rem;
+}
+
+.iiiDecision dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.iiiDecision dl > div {
+  padding: 8px 10px;
+  border-right: 1px solid #e4eaf0;
+  border-bottom: 1px solid #e4eaf0;
+}
+
+.iiiDecision dl > div:nth-child(even) {
+  border-right: 0;
+}
+
+.iiiDecision dt {
+  color: #728397;
+  font-size: .57rem;
+}
+
+.iiiDecision dd {
+  margin: 2px 0 0;
+  color: #172f49;
+  font-size: .7rem;
+  font-weight: 850;
+}
+
+.iiiExplanation {
+  margin: 0;
+  padding: 9px 10px;
+  color: #425a72;
+  background: #fbfcfe;
+  font-size: .64rem;
+  line-height: 1.45;
+}
+
+.iiiDrivers {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0 10px 10px;
+}
+
+.iiiDrivers > div {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+}
+
+.iiiDrivers strong {
+  color: #304962;
+  font-size: .6rem;
+}
+
+.iiiDrivers span {
+  display: flex;
+  gap: 4px;
+  align-items: flex-start;
+  color: #64778b;
+  font-size: .57rem;
+  line-height: 1.3;
+}
+
+.iiiDrivers svg {
+  width: 11px;
+  height: 11px;
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.iiiTrail {
+  border-top: 1px solid #e4eaf0;
+}
+
+.iiiTrail header {
+  border-bottom: 1px solid #e4eaf0;
+}
+
+.iiiTrail ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.iiiTrail li {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border-bottom: 1px solid #edf2f6;
+}
+
+.iiiTrail li:last-child {
+  border-bottom: 0;
+}
+
+.iiiTrail li > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+
+.iiiTrail strong {
+  color: #203b54;
+  font-size: .62rem;
+}
+
+.iiiTrail span,
+.iiiTrail p {
+  color: #5f7388;
+  font-size: .61rem;
+}
+
+.iiiTrail p {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.iiiTrail em {
+  width: max-content;
+  border-radius: 999px;
+  padding: 4px 7px;
+  color: #22575b;
+  background: #deeff0;
+  font-size: .58rem;
+  font-style: normal;
+}
+
+.iiiTrail > p {
+  margin: 0;
+  padding: 12px 10px;
+  color: #6b7d90;
+  font-size: .62rem;
+}
+
+.iiiApproval {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+
+.iiiApproval > div {
+  display: grid;
+  gap: 5px;
+  padding: 9px;
+}
+
+.iiiApproval > div > span {
+  color: #2f6d72;
+  font-size: .57rem;
+}
+
+.iiiApproval > div > span svg {
+  width: 12px;
+  height: 12px;
+}
+
+.iiiApproval strong {
+  color: #203a54;
+  font-size: .68rem;
+}
+
+.iiiApproval small {
+  color: #718196;
+  font-size: .58rem;
+  line-height: 1.35;
+}
+
+.iiiNotice {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 9px 12px;
+  border-top: 1px solid #d8e2ec;
+  color: #536a81;
+  background: #eef5fc;
+  font-size: .62rem;
+}
+
+.iiiNotice svg {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+}
+
+.vinScanCard {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #d7e1eb;
+  border-radius: 8px;
+  padding: 10px;
+  background: #f8fbfd;
+}
+
+.vinScanCard header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.vinScanCard header div,
+.vinScanSummary article {
+  display: grid;
+  gap: 2px;
+}
+
+.vinScanCard header span {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: #55748f;
+  font-size: .58rem;
+  font-weight: 850;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.vinScanCard header strong {
+  color: #213d58;
+  font-size: .74rem;
+}
+
+.vinScanCard header em {
+  border-radius: 999px;
+  padding: 5px 7px;
+  color: #75541d;
+  background: #fff1d4;
+  font-size: .63rem;
+  font-style: normal;
+  font-weight: 850;
+}
+
+.vinScanSuccess {
+  color: #1f6d45 !important;
+  background: #dff3e8 !important;
+}
+
+.vinScanCard > p {
+  margin: 0;
+  color: #60748b;
+  font-size: .64rem;
+  line-height: 1.4;
+}
+
+.vinScanInput textarea {
+  width: 100%;
+  min-height: 84px;
+  border: 1px solid #ccd8e4;
+  border-radius: 7px;
+  padding: 8px 9px;
+  color: #17314b;
+  outline: 0;
+  resize: vertical;
+  background: #fff;
+  font: inherit;
+  font-size: .7rem;
+}
+
+.vinScanInput textarea:focus {
+  border-color: #3278c6;
+  box-shadow: 0 0 0 2px #dcecff;
+}
+
+.vinScanSummary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.vinScanSummary article {
+  min-width: 0;
+  border: 1px solid #d9e3ec;
+  border-radius: 7px;
+  padding: 8px;
+  background: #fff;
+}
+
+.vinScanSummary span {
+  color: #6d7f93;
+  font-size: .56rem;
+}
+
+.vinScanSummary strong {
+  overflow: hidden;
+  color: #20384f;
+  font-size: .67rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vinScanNotes {
+  display: grid;
+  gap: 5px;
+}
+
+.vinScanNotes span {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  color: #52697f;
+  font-size: .61rem;
+  line-height: 1.35;
+}
+
+.vinScanNotes svg {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.vinScanAction {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 6px;
+  color: #fff;
+  background: #1768c7;
+  font-size: .66rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.vinScanAction:disabled {
+  cursor: not-allowed;
+  opacity: .42;
+}
+
+.vinScanActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.vinScanLink {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #c8d7e5;
+  border-radius: 6px;
+  padding: 0 12px;
+  color: #244d76;
+  background: #fff;
+  font-size: .66rem;
+  font-weight: 850;
+  text-decoration: none;
+}
+
 .prototypeNotice {
   display: flex;
   gap: 8px;
@@ -1903,12 +2529,14 @@
 
   .taiDecision,
   .tciDecision,
-  .rbiDecision {
+  .rbiDecision,
+  .iiiDecision {
     align-self: stretch;
   }
 
   .tciBody,
-  .rbiBody {
+  .rbiBody,
+  .iiiBody {
     grid-template-columns: 1fr;
   }
 }
@@ -1945,8 +2573,10 @@
 
   .taiApproval,
   .taiFieldGrid,
+  .vinScanSummary,
   .tciFieldGrid,
-  .rbiFieldGrid {
+  .rbiFieldGrid,
+  .iiiFieldGrid {
     grid-template-columns: 1fr 1fr;
   }
 
@@ -1955,7 +2585,10 @@
   .tciApproval,
   .rbiChecks,
   .rbiDrivers,
-  .rbiApproval {
+  .rbiApproval,
+  .iiiChecks,
+  .iiiDrivers,
+  .iiiApproval {
     grid-template-columns: 1fr;
   }
 }
@@ -1982,6 +2615,8 @@
   .taiHeader,
   .tciHeader,
   .rbiHeader,
+  .iiiHeader,
+  .vinScanSummary,
   .taiApproval,
   .taiFieldGrid,
   .taiRatings,
@@ -1993,25 +2628,32 @@
   .rbiFieldGrid,
   .rbiChecks,
   .rbiDrivers,
-  .rbiApproval {
+  .rbiApproval,
+  .iiiFieldGrid,
+  .iiiChecks,
+  .iiiDrivers,
+  .iiiApproval {
     grid-template-columns: 1fr;
   }
 
   .taiHeader,
   .tciHeader,
-  .rbiHeader {
+  .rbiHeader,
+  .iiiHeader {
     align-items: flex-start;
     flex-direction: column;
   }
 
   .taiVersion,
   .tciVersion,
-  .rbiVersion {
+  .rbiVersion,
+  .iiiVersion {
     text-align: left;
   }
 
   .tciTrail li > div,
-  .rbiTrail li > div {
+  .rbiTrail li > div,
+  .iiiTrail li > div {
     align-items: flex-start;
     flex-direction: column;
   }
