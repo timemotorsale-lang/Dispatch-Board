@@ -15,6 +15,8 @@ import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 
 import styles from "./inventory-lifecycle-prototype.module.css";
+import { DtgDetailingTool, type DtgWorkflowProgress } from "./dtg-detailing-tool";
+import { FqcFinalQcTool, type FqcWorkflowProgress } from "./fqc-final-qc-tool";
 import { IgiInspectionTool, type IgiWorkflowProgress } from "./igi-inspection-tool";
 import { IiiIntakeTool, type IiiWorkflowProgress } from "./iii-intake-tool";
 import { IqiQualityTool, type IqiWorkflowProgress } from "./iqi-quality-tool";
@@ -357,6 +359,8 @@ export function InventoryLifecyclePrototype() {
   const [tciProgress, setTciProgress] = useState<TciWorkflowProgress>({ blockerCount: 0, deliveryComplete: false, movementComplete: false, pickupComplete: false, planComplete: false, recommendation: "Hold", releaseComplete: false, sourceComplete: false, trackingComplete: false, trailCount: 0 });
   const [wopProgress, setWopProgress] = useState<WopWorkflowProgress>({ assignmentComplete: false, authorizationComplete: false, blockerCount: 0, estimateComplete: false, jobsComplete: false, readinessComplete: false, recommendation: "Hold", sequencingComplete: false, trailCount: 0 });
   const [rnrProgress, setRnrProgress] = useState<RnrWorkflowProgress>({ acceptanceComplete: false, blockerCount: 0, changeApprovalComplete: false, completionProofComplete: false, diagnosisComplete: false, executionComplete: false, reconciliationComplete: false, recommendation: "Acknowledge job", trailCount: 0 });
+  const [fqcProgress, setFqcProgress] = useState<FqcWorkflowProgress>({ blockerCount: 0, decisionComplete: false, diagnosisScanComplete: false, jobsVerifiedComplete: false, leaksAndWorkmanshipComplete: false, recommendation: "Verify jobs", roadTestComplete: false, safetyComplete: false, trailCount: 0 });
+  const [dtgProgress, setDtgProgress] = useState<DtgWorkflowProgress>({ blockerCount: 0, exteriorComplete: false, interiorComplete: false, qcComplete: false, recommendation: "Confirm detail scope", scopeComplete: false, specialtyComplete: false, stageComplete: false, trailCount: 0 });
   const [notice, setNotice] = useState("This workspace is isolated. Prototype actions do not update operational records.");
   const stage = lifecycleStages[selectedStage];
   const completedCount = useMemo(
@@ -526,8 +530,50 @@ export function InventoryLifecyclePrototype() {
     });
   }, []);
 
+  const syncFqcProgress = useCallback((progress: FqcWorkflowProgress) => {
+    setFqcProgress(progress);
+    const finalQcProgress = [
+      progress.jobsVerifiedComplete,
+      progress.diagnosisScanComplete,
+      progress.roadTestComplete,
+      progress.leaksAndWorkmanshipComplete,
+      progress.safetyComplete,
+      progress.decisionComplete,
+    ];
+    setCompleted((current) => {
+      const next = new Set(current);
+      finalQcProgress.forEach((isComplete, index) => {
+        const key = completionKey(8, index);
+        if (isComplete) next.add(key);
+        else next.delete(key);
+      });
+      return next;
+    });
+  }, []);
+
+  const syncDtgProgress = useCallback((progress: DtgWorkflowProgress) => {
+    setDtgProgress(progress);
+    const detailingProgress = [
+      progress.scopeComplete,
+      progress.exteriorComplete,
+      progress.interiorComplete,
+      progress.specialtyComplete,
+      progress.qcComplete,
+      progress.stageComplete,
+    ];
+    setCompleted((current) => {
+      const next = new Set(current);
+      detailingProgress.forEach((isComplete, index) => {
+        const key = completionKey(9, index);
+        if (isComplete) next.add(key);
+        else next.delete(key);
+      });
+      return next;
+    });
+  }, []);
+
   function toggleAction(actionIndex: number) {
-    if (selectedStage === 0 || selectedStage === 1 || selectedStage === 2 || selectedStage === 3 || selectedStage === 4 || selectedStage === 5 || selectedStage === 6 || selectedStage === 7) {
+    if (selectedStage === 0 || selectedStage === 1 || selectedStage === 2 || selectedStage === 3 || selectedStage === 4 || selectedStage === 5 || selectedStage === 6 || selectedStage === 7 || selectedStage === 8 || selectedStage === 9) {
       setNotice(selectedStage === 0
         ? "Acquisition actions are controlled by TAI evidence, evaluation, approval, and purchase recording."
         : selectedStage === 1
@@ -542,7 +588,11 @@ export function InventoryLifecyclePrototype() {
                   ? "Initial QC actions are controlled by IQI package receipt, completeness review, evidence review, disposition, and release evidence."
                   : selectedStage === 6
                     ? "Work Order actions are controlled by WOP job mapping, estimate versioning, sequencing, assignment, readiness, and authorization evidence."
-                    : "Recon & Repair actions are controlled by the RNR execution workspace, including job acceptance, diagnosis, change approval, proof, and reconciliation.");
+                    : selectedStage === 7
+                      ? "Recon & Repair actions are controlled by the RNR execution workspace, including job acceptance, diagnosis, change approval, proof, and reconciliation."
+                      : selectedStage === 8
+                        ? "Final QC actions are controlled by the FQC workspace, including independent verification, final scan, road test, workmanship, safety release, and final decision evidence."
+                        : "Detailing actions are controlled by the DTG workspace, including detail scope, exterior/interior preparation, specialty work, detail QC, and media staging.");
       return;
     }
     const key = completionKey(selectedStage, actionIndex);
@@ -578,6 +628,8 @@ export function InventoryLifecyclePrototype() {
     setTciProgress({ blockerCount: 0, deliveryComplete: false, movementComplete: false, pickupComplete: false, planComplete: false, recommendation: "Hold", releaseComplete: false, sourceComplete: false, trackingComplete: false, trailCount: 0 });
     setWopProgress({ assignmentComplete: false, authorizationComplete: false, blockerCount: 0, estimateComplete: false, jobsComplete: false, readinessComplete: false, recommendation: "Hold", sequencingComplete: false, trailCount: 0 });
     setRnrProgress({ acceptanceComplete: false, blockerCount: 0, changeApprovalComplete: false, completionProofComplete: false, diagnosisComplete: false, executionComplete: false, reconciliationComplete: false, recommendation: "Acknowledge job", trailCount: 0 });
+    setFqcProgress({ blockerCount: 0, decisionComplete: false, diagnosisScanComplete: false, jobsVerifiedComplete: false, leaksAndWorkmanshipComplete: false, recommendation: "Verify jobs", roadTestComplete: false, safetyComplete: false, trailCount: 0 });
+    setDtgProgress({ blockerCount: 0, exteriorComplete: false, interiorComplete: false, qcComplete: false, recommendation: "Confirm detail scope", scopeComplete: false, specialtyComplete: false, stageComplete: false, trailCount: 0 });
     setNotice("Prototype reset to Acquisition. Operational records remain unchanged.");
   }
 
@@ -644,6 +696,8 @@ export function InventoryLifecyclePrototype() {
             <div><span>Stage {selectedStage + 1} of {lifecycleStages.length}</span><h2>{stage.title}</h2><p>{stage.purpose}</p></div>
             <strong>{stage.gate}</strong>
           </header>
+          {selectedStage === 9 ? <DtgDetailingTool key={`dtg-${prototypeVersion}`} onProgressChange={syncDtgProgress} /> : null}
+          {selectedStage === 8 ? <FqcFinalQcTool key={`fqc-${prototypeVersion}`} onProgressChange={syncFqcProgress} /> : null}
           {selectedStage === 7 ? <RnrReconTool key={`rnr-${prototypeVersion}`} onProgressChange={syncRnrProgress} /> : null}
           {selectedStage === 6 ? <WopWorkOrderTool key={`wop-${prototypeVersion}`} onProgressChange={syncWopProgress} /> : null}
           {selectedStage === 5 ? <IqiQualityTool key={`iqi-${prototypeVersion}`} onProgressChange={syncIqiProgress} /> : null}
@@ -661,7 +715,7 @@ export function InventoryLifecyclePrototype() {
             {stage.tasks.map((item, index) => {
               const checked = completed.has(completionKey(selectedStage, index));
               return <li className={checked ? styles.completedAction : ""} key={item.title}>
-                <label><input checked={checked} disabled={selectedStage === 0 || selectedStage === 1 || selectedStage === 2 || selectedStage === 3 || selectedStage === 4 || selectedStage === 5 || selectedStage === 6 || selectedStage === 7} onChange={() => toggleAction(index)} type="checkbox" /><span className="sr-only">Complete {item.title}</span></label>
+                <label><input checked={checked} disabled={selectedStage === 0 || selectedStage === 1 || selectedStage === 2 || selectedStage === 3 || selectedStage === 4 || selectedStage === 5 || selectedStage === 6 || selectedStage === 7 || selectedStage === 8 || selectedStage === 9} onChange={() => toggleAction(index)} type="checkbox" /><span className="sr-only">Complete {item.title}</span></label>
                 <div><strong>{item.title}</strong><p>{item.completion}</p></div>
                 <span>{item.owner}</span>
                 <em>{checked ? <><Check size={13} />Complete</> : item.evidence}</em>
@@ -686,15 +740,19 @@ export function InventoryLifecyclePrototype() {
           {selectedStage === 5 ? <div className={styles.taiGateSummary}><span>IQI initial QC gate</span><strong>{iqiProgress.readinessGateComplete ? "Ready for recon planning" : `${iqiProgress.recommendation} / ${iqiProgress.trailCount} trail entries`}</strong><small>Checklist evidence is driven by the Initial QC workspace.</small></div> : null}
           {selectedStage === 6 ? <div className={styles.taiGateSummary}><span>WOP work-order gate</span><strong>{wopProgress.authorizationComplete ? "Ready for recon dispatch" : `${wopProgress.recommendation} / ${wopProgress.trailCount} trail entries`}</strong><small>Checklist evidence is driven by the work-order planning workspace.</small></div> : null}
           {selectedStage === 7 ? <div className={styles.taiGateSummary}><span>RNR execution gate</span><strong>{rnrProgress.reconciliationComplete ? "Ready for Final QC" : `${rnrProgress.recommendation} / ${rnrProgress.trailCount} trail entries`}</strong><small>Checklist evidence is driven by the Recon &amp; Repair execution workspace.</small></div> : null}
+          {selectedStage === 8 ? <div className={styles.taiGateSummary}><span>FQC release gate</span><strong>{fqcProgress.decisionComplete ? "Ready for detailing" : `${fqcProgress.recommendation} / ${fqcProgress.trailCount} trail entries`}</strong><small>Checklist evidence is driven by the Final QC workspace.</small></div> : null}
+          {selectedStage === 9 ? <div className={styles.taiGateSummary}><span>DTG presentation gate</span><strong>{dtgProgress.stageComplete ? "Ready for Photos & Marketing" : `${dtgProgress.recommendation} / ${dtgProgress.trailCount} trail entries`}</strong><small>Checklist evidence is driven by the detailing workspace.</small></div> : null}
           {selectedStage === 3 ? <div className={styles.stageQuickLinkWrap}><Link className={styles.stageQuickLink} href="/vehicles/workflows/add-vehicle?returnTo=%2Fvehicles%2Finventory%2Fprototype">Open Vehicle Intake form</Link></div> : null}
           {selectedStage === 4 ? <div className={styles.stageQuickLinkWrap}><button className={styles.stageQuickActionButton} onClick={() => { setSelectedStage(5); setNotice("Previewing Initial QC. Prototype progress is stored only in this screen."); }} type="button">Open Initial QC form</button></div> : null}
           {selectedStage === 5 ? <div className={styles.stageQuickLinkWrap}><Link className={styles.stageQuickLink} href="/vehicles/quality-control?returnTo=%2Fvehicles%2Finventory%2Fprototype">Open live QC workspace</Link></div> : null}
           {selectedStage === 6 ? <div className={styles.stageQuickLinkWrap}><Link className={styles.stageQuickLink} href="/vehicles/repair-workbench?view=all">Open Repair Workbench</Link></div> : null}
           {selectedStage === 7 ? <div className={styles.stageQuickLinkWrap}><Link className={styles.stageQuickLink} href="/vehicles/shop-recon?returnTo=%2Fvehicles%2Finventory%2Fprototype">Open live Shop &amp; Recon workspace</Link></div> : null}
+          {selectedStage === 8 ? <div className={styles.stageQuickLinkWrap}><Link className={styles.stageQuickLink} href="/vehicles/quality-control?returnTo=%2Fvehicles%2Finventory%2Fprototype">Open live Final QC workspace</Link></div> : null}
+          {selectedStage === 9 ? <div className={styles.stageQuickLinkWrap}><button className={styles.stageQuickActionButton} onClick={() => { setSelectedStage(10); setNotice("Previewing Photos & Marketing. Prototype progress is stored only in this screen."); }} type="button">Preview Photos &amp; Marketing handoff</button></div> : null}
           <ul>
             <li><span>Mandatory actions</span><strong>{completedCount}/{stage.tasks.length}</strong></li>
             <li><span>Evidence attached</span><strong>{ready ? "Complete" : "Pending"}</strong></li>
-            <li><span>Open blockers</span><strong>{selectedStage === 1 ? tciProgress.blockerCount : selectedStage === 2 ? rbiProgress.blockerCount : selectedStage === 3 ? iiiProgress.blockerCount : selectedStage === 4 ? igiProgress.blockerCount : selectedStage === 5 ? iqiProgress.blockerCount : selectedStage === 6 ? wopProgress.blockerCount : selectedStage === 7 ? rnrProgress.blockerCount : 0}</strong></li>
+            <li><span>Open blockers</span><strong>{selectedStage === 1 ? tciProgress.blockerCount : selectedStage === 2 ? rbiProgress.blockerCount : selectedStage === 3 ? iiiProgress.blockerCount : selectedStage === 4 ? igiProgress.blockerCount : selectedStage === 5 ? iqiProgress.blockerCount : selectedStage === 6 ? wopProgress.blockerCount : selectedStage === 7 ? rnrProgress.blockerCount : selectedStage === 8 ? fqcProgress.blockerCount : selectedStage === 9 ? dtgProgress.blockerCount : 0}</strong></li>
             <li><span>Ready for next stage</span><strong>{ready ? "Yes" : "No"}</strong></li>
           </ul>
           <button disabled={!ready} onClick={simulateHandoff} type="button">{stage.actionLabel}<ArrowRight /></button>
