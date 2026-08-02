@@ -58,7 +58,7 @@ export function DispatchConsoleHeader({ preferredWorkspace, user }: DispatchCons
   const boardDate = searchParams.get("date");
   const department = searchParams.get("department");
 
-  return <DispatchConsoleHeaderView boardDate={boardDate} department={department} live={live} pathname={pathname} preferredWorkspace={preferredWorkspace} user={user} />;
+  return <DispatchConsoleHeaderView boardDate={boardDate} department={department} live={live} pathname={pathname} preferredWorkspace={preferredWorkspace} returnTo={searchParams.get("returnTo")} user={user} />;
 }
 
 export function DispatchConsoleHeaderView({
@@ -67,12 +67,14 @@ export function DispatchConsoleHeaderView({
   live,
   pathname,
   preferredWorkspace,
+  returnTo = null,
   user
 }: DispatchConsoleHeaderProps & {
   boardDate: string | null;
   department?: string | null;
   live: boolean;
   pathname: string;
+  returnTo?: string | null;
 }) {
   const dateQuery = boardDate ? `date=${encodeURIComponent(boardDate)}` : "";
   const items = getNavigationItemsForPath(user, pathname, preferredWorkspace);
@@ -98,6 +100,8 @@ export function DispatchConsoleHeaderView({
         : activeItem
           ? { title: activeItem.title, description: activeItem.description }
           : { title: workspaceDefinition.label, description: workspaceDefinition.description };
+  const isDiagnosticsPartsOrdering = pathname === "/diagnostics/parts-ordering";
+  const diagnosticsReturnHref = returnTo ?? "/diagnostics/labor-guide";
 
   const getWorkspaceHref = (href: string) => {
     if (href.startsWith("/board?view=live")) return `/board?${["view=live", dateQuery].filter(Boolean).join("&")}`;
@@ -120,25 +124,35 @@ export function DispatchConsoleHeaderView({
           </Link>
         </nav>
       ) : (
-        <nav aria-label="Dispatch console" className="dispatch-console-tabs">
-          <Link href="/command-center">CCC Home</Link>
-          <span aria-hidden="true" className="dispatch-console-tab-separator">/</span>
-          <Link
-            aria-current={!workspaceItem ? "page" : undefined}
-            className={!workspaceItem ? "active dispatch-console-root" : "dispatch-console-root"}
-            href={dispatchHref}
-          >
-            Dispatch Board <small>Live</small>
-          </Link>
-          {workspaceItem ? (
-            <>
-              <span aria-hidden="true" className="dispatch-console-tab-separator">/</span>
-              <Link aria-current="page" className="active" href={getWorkspaceHref(workspaceItem.href)}>
-                {workspaceItem.title}
-              </Link>
-            </>
-          ) : null}
-        </nav>
+        isDiagnosticsPartsOrdering ? (
+          <nav aria-label="Diagnostics parts ordering navigation" className="dispatch-console-tabs">
+            <Link className="dispatch-console-return-link" href={diagnosticsReturnHref}>Return to labor guide</Link>
+            <span aria-hidden="true" className="dispatch-console-tab-separator">/</span>
+            <Link href="/diagnostics">Diagnostics</Link>
+            <span aria-hidden="true" className="dispatch-console-tab-separator">/</span>
+            <Link aria-current="page" className="active" href={pathname}>Parts ordering</Link>
+          </nav>
+        ) : (
+          <nav aria-label="Dispatch console" className="dispatch-console-tabs">
+            <Link href="/command-center">CCC Home</Link>
+            <span aria-hidden="true" className="dispatch-console-tab-separator">/</span>
+            <Link
+              aria-current={!workspaceItem ? "page" : undefined}
+              className={!workspaceItem ? "active dispatch-console-root" : "dispatch-console-root"}
+              href={dispatchHref}
+            >
+              Dispatch Board <small>Live</small>
+            </Link>
+            {workspaceItem ? (
+              <>
+                <span aria-hidden="true" className="dispatch-console-tab-separator">/</span>
+                <Link aria-current="page" className="active" href={getWorkspaceHref(workspaceItem.href)}>
+                  {workspaceItem.title}
+                </Link>
+              </>
+            ) : null}
+          </nav>
+        )
       )}
     </header>
   );

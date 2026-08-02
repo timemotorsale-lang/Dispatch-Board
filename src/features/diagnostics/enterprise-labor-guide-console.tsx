@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Brain, CarFront, Check, ChevronLeft, ClipboardList, Edit3, Grid2X2, History, List, Plus, Search, Trash2, UserRound, X } from "lucide-react";
+import { BookOpen, Brain, CarFront, Check, ChevronLeft, ClipboardList, Edit3, Grid2X2, History, List, Package, Plus, ScanBarcode, Search, ShoppingCart, Trash2, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import type { KeyboardEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -81,6 +81,54 @@ const defaultParts: SelectedPart[] = [
 const money = (value: number) => `$${value.toLocaleString("en-US", { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`;
 const displayLabel = (value: string) => value.replaceAll("_", " ").toLocaleLowerCase().replace(/^./, (letter) => letter.toLocaleUpperCase());
 const partsMarkup = 1.35;
+
+function normalizePartsSyncMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : "Unable to sync parts demand.";
+  if (/Parts Operations mutations are not enabled/i.test(message)) {
+    return "Live parts-demand sync is still held in rollout. Your labor lines and parts plan remain available here; use the Parts Ordering Workspace to continue the governed workflow.";
+  }
+  return message;
+}
+
+function partSourceLabel(part: SelectedPart) {
+  if (part.source === "POLICY_REQUIRED") return part.pricingStatus === "PRICE_PENDING" ? "Required - price pending" : "Required by repair policy";
+  if (part.source === "AUTO_CATALOG") return "Auto from parts catalog";
+  return "Manual";
+}
+
+function encodePartsOrderingPayload(parts: SelectedPart[]) {
+  return JSON.stringify(parts.map((part) => ({
+    id: part.id,
+    name: part.name,
+    number: part.number,
+    quantity: part.quantity,
+    sourceLabel: partSourceLabel(part),
+    totalLabel: part.pricingStatus === "PRICE_PENDING" ? "Quote needed" : money(part.quantity * part.unitPrice),
+  })));
+}
+
+function encodeOfficialEstimateLines(labor: SelectedLabor[], parts: SelectedPart[]) {
+  return JSON.stringify([
+    ...labor.map((item) => ({
+      amountLabel: money(item.hours * laborRate),
+      detail: `${item.included.slice(0, 3).join(" · ")}${item.source === "POLICY_REQUIRED" ? " · Required by repair policy" : ""}`,
+      kind: "Labor" as const,
+      quantityLabel: `${item.hours.toFixed(1)} hrs`,
+      title: item.title,
+    })),
+    ...parts.map((part) => ({
+      amountLabel: part.pricingStatus === "PRICE_PENDING" ? "Quote needed" : money(part.quantity * part.unitPrice),
+      detail: `${part.number} · ${partSourceLabel(part)}`,
+      kind: "Part" as const,
+      quantityLabel: `Qty ${part.quantity}`,
+      title: part.name,
+    })),
+  ]);
+}
+
+function encodeOfficialEstimateSummary(summary: Array<{ label: string; value: string }>) {
+  return JSON.stringify(summary);
+}
 
 function requiredPartToSelectedPart(part: EstimateRequiredPart): SelectedPart {
   return {
@@ -216,6 +264,31 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   const taxAndSupplies = estimatePolicy.tax.taxCents / 100;
   const total = subtotal + taxAndSupplies;
   const activeRoHref = selectedRepairOrder ? `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}` : "/vehicles/repair-workbench?view=all";
+  const laborGuideReturnTo = selectedRepairOrder ? `/diagnostics/labor-guide?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}` : "/diagnostics/labor-guide";
+  const partsWorkspaceHref = `/diagnostics/parts-ordering?${new URLSearchParams({
+    parts: encodePartsOrderingPayload(estimateParts),
+    ...(selectedRepairOrder ? { repairOrderId: selectedRepairOrder.id, repairOrderNumber: selectedRepairOrder.repairOrderNumber, vehicle: selectedRepairOrder.vehicle.label } : {}),
+    returnTo: laborGuideReturnTo,
+  }).toString()}`;
+  const officialEstimateHref = `/repair-estimate?${new URLSearchParams({
+    concern: selectedRepairOrder?.concern ?? "Repair estimate review",
+    createdAt: selectedRepairOrder?.openedAt ?? "Pending estimate date",
+    customer: selectedRepairOrder?.customer ?? "Internal vehicle",
+    estimateNumber: selectedRepairOrder ? `EST-${selectedRepairOrder.repairOrderNumber.replace(/^RO-?/i, "")}` : "EST-DRAFT",
+    lines: encodeOfficialEstimateLines(estimateLabor, estimateParts),
+    ...(selectedRepairOrder ? { repairOrderId: selectedRepairOrder.id, repairOrderNumber: selectedRepairOrder.repairOrderNumber, vehicle: selectedRepairOrder.vehicle.label } : { repairOrderNumber: "RO-DRAFT", vehicle: "Vehicle pending" }),
+    returnTo: laborGuideReturnTo,
+    summary: encodeOfficialEstimateSummary([
+      { label: "Labor", value: `${totalHours.toFixed(1)} hrs · ${money(laborTotal)}` },
+      { label: "Parts", value: money(partsTotal) },
+      { label: "MN taxable parts", value: money(estimatePolicy.tax.taxablePartsCents / 100) },
+      { label: "Tax", value: money(taxAndSupplies) },
+      { label: "Total", value: money(total) },
+    ]),
+  }).toString()}`;
+  const partsNeedCount = estimateParts.reduce((sum, item) => sum + item.quantity, 0);
+  const pendingPricingCount = estimateParts.filter((item) => item.pricingStatus === "PRICE_PENDING" || item.unitPrice === 0).length;
+  const policyRequiredCount = estimateParts.filter((item) => item.source === "POLICY_REQUIRED").length;
   const suggestedAddOns = useMemo(() => {
     return commonSuggestedAddOns.filter((item, index, items) => items.findIndex((candidate) => candidate.id === item.id) === index && !acceptedAddOnIds.includes(item.id) && !estimatePolicy.requiredAddOnIds.includes(item.id)).slice(0, 4);
   }, [acceptedAddOnIds, estimatePolicy.requiredAddOnIds]);
@@ -568,16 +641,10 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
       }
       setNotice("Parts demand synced to the repair order.");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Unable to sync parts demand.");
+      setNotice(normalizePartsSyncMessage(error));
     } finally {
       setBusy(false);
     }
-  }
-
-  function partSourceLabel(part: SelectedPart) {
-    if (part.source === "POLICY_REQUIRED") return part.pricingStatus === "PRICE_PENDING" ? "Required - price pending" : "Required by repair policy";
-    if (part.source === "AUTO_CATALOG") return "Auto from parts catalog";
-    return "Manual";
   }
 
   return (
@@ -840,8 +907,34 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
                 <div className={styles.total}><dt>Total</dt><dd>{money(total)}</dd></div>
                 <div><dt>Gross profit</dt><dd className={styles.good}>31.8%</dd></div>
               </dl>
-              <button className={styles.createRo} disabled={busy} onClick={() => void presentEstimate()} type="button">{busy ? "Saving..." : "Present Estimate"}</button>
-              <button className={styles.secondaryReview} disabled={busy || !selectedRepairOrder} onClick={() => void syncPartDemands()} type="button">Sync parts demand</button>
+              <button className={styles.createRo} disabled={busy} onClick={() => void presentEstimate()} type="button">{busy ? "Creating estimate..." : "Create Estimate"}</button>
+              <section className={styles.partsOrderingCard} aria-label="Parts ordering workflow">
+                <header>
+                  <div>
+                    <h3>Parts needed for this repair</h3>
+                    <p>Open the Parts Ordering Workspace to order and document the actual vendor, source, and cost.</p>
+                  </div>
+                  <span>{partsNeedCount} item{partsNeedCount === 1 ? "" : "s"}</span>
+                </header>
+                <div className={styles.partsOrderingStats}>
+                  <article><Package /><span><strong>{estimateParts.length}</strong><small>part lines</small></span></article>
+                  <article><ShoppingCart /><span><strong>{policyRequiredCount}</strong><small>policy-required</small></span></article>
+                  <article><ScanBarcode /><span><strong>{pendingPricingCount}</strong><small>pricing / sourcing pending</small></span></article>
+                </div>
+                <div className={styles.partsNeededList}>
+                  {estimateParts.length ? estimateParts.slice(0, 5).map((part) => <article key={`review-${part.id}`}><span><strong>{part.name}</strong><small>{part.number} · Qty {part.quantity} · {partSourceLabel(part)}</small></span><em>{part.pricingStatus === "PRICE_PENDING" ? "Quote needed" : money(part.quantity * part.unitPrice)}</em></article>) : <p>No parts have been added yet. Select labor or add manual parts to create demand.</p>}
+                </div>
+                <div className={styles.partsOrderingActions}>
+                  <Link className={styles.primaryPartsLink} href={partsWorkspaceHref}>Open Parts Ordering Workflow</Link>
+                  <button className={styles.secondaryReview} disabled={busy || !selectedRepairOrder} onClick={() => void syncPartDemands()} type="button">Sync parts demand to RO</button>
+                </div>
+                <ul className={styles.partsOrderingTrail}>
+                  <li>Open Parts Ordering Workflow is where staff actually log what part was ordered, from where, and at what cost.</li>
+                  <li>Sync parts demand to RO preserves the repair-order demand record.</li>
+                  <li>Receiving match confirms the right part before repair begins.</li>
+                </ul>
+              </section>
+              <Link className={styles.secondaryReview} href={officialEstimateHref}>Open Official Estimate</Link>
               <Link className={styles.secondaryReview} href={`/diagnostics/advisor-review${selectedRepairOrder ? `?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}` : ""}`}>Advisor review</Link>
               <section className={styles.historyCard}>
                 <h3>Customer / Vehicle Context</h3>

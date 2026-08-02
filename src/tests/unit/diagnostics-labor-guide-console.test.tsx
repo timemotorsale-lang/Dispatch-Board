@@ -50,8 +50,17 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("#3411");
     expect(markup).toContain("Repair history");
     expect(markup).toContain("/vehicles/repair-workbench?repairOrderId=ro-id-3411");
-    expect(markup).toContain("Present Estimate");
-    expect(markup).toContain("Sync parts demand");
+    expect(markup).toContain("Create Estimate");
+    expect(markup).toContain("Parts needed for this repair");
+    expect(markup).toContain("Open Parts Ordering Workflow");
+    expect(markup).toContain("Sync parts demand to RO");
+    expect(markup).toContain("Open Official Estimate");
+    expect(markup).toContain("part lines");
+    expect(markup).toContain("/diagnostics/parts-ordering?");
+    expect(markup).toContain("/repair-estimate?");
+    expect(markup).toContain("repairOrderId=ro-id-3411");
+    expect(markup).toContain("repairOrderNumber=RO-3411");
+    expect(markup).toContain("returnTo=%2Fdiagnostics%2Flabor-guide%3FrepairOrderId%3Dro-id-3411");
     expect(markup).toContain("Advisor review");
     expect(markup).toContain("Previous RO");
   });
@@ -64,9 +73,14 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("/vehicles/repair-orders?intakeSource=WALK_IN&amp;returnTo=%2Fdiagnostics%2Flabor-guide");
     expect(markup).toContain("Check in vehicle");
     expect(markup).not.toContain("/vehicles/workflows/add-vehicle");
-    expect(markup).toContain("Present Estimate");
+    expect(markup).toContain("Create Estimate");
     expect(markup).toContain("Selected Work");
     expect(markup).toContain("Parts");
+    expect(markup).toContain("Open Parts Ordering Workflow");
+    expect(markup).toContain("Open Official Estimate");
+    expect(markup).toContain("/diagnostics/parts-ordering?");
+    expect(markup).toContain("/repair-estimate?");
+    expect(markup).toContain("returnTo=%2Fdiagnostics%2Flabor-guide");
   });
 
   it("renders a working labor intelligence description input", () => {
