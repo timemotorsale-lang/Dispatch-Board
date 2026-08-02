@@ -16,6 +16,7 @@ import { useCallback, useMemo, useState } from "react";
 
 import styles from "./inventory-lifecycle-prototype.module.css";
 import { TaiAcquisitionTool, type TaiWorkflowProgress } from "./tai-acquisition-tool";
+import { TciTransportTool, type TciWorkflowProgress } from "./tci-transport-tool";
 
 type StageAction = {
   completion: string;
@@ -72,12 +73,12 @@ const lifecycleStages: LifecycleStage[] = [
     blockerPolicy: "Release, tow, carrier, delay, damage, or routing exceptions remain assigned until resolved.",
     actionLabel: "Simulate transportation handoff",
     tasks: [
-      action("Determine whether the vehicle is safely drivable", "Drivable, tow required, carrier required, or assessment required is recorded.", "Logistics", "Mobility decision"),
-      action("Confirm source release", "Pickup contact, release code, hours, documents, keys, and access are verified.", "Logistics", "Release"),
-      action("Approve the transport plan", "Driver or provider, method, cost, insurance, route, destination, and ETA are approved.", "Manager", "Dispatch"),
-      action("Capture pickup custody", "Pickup time, person, keys, odometer, condition photos, and signatures are recorded.", "Driver", "Pickup proof"),
-      action("Track location and exceptions", "Current location, outside facility, delays, damage, and reroutes remain current.", "Logistics", "Tracking"),
-      action("Prove delivery and receiving acceptance", "Arrival, condition, keys, location, and custody transfer are accepted.", "Receiver", "Delivery proof"),
+      action("Establish where the vehicle is currently", "Auction source and exact current location are confirmed before dispatch begins.", "Transportation", "Source confirmation"),
+      action("Confirm gate pass and auction release", "Gate pass, release desk coordination, paperwork, and auction-held keys are ready.", "Transportation", "Release readiness"),
+      action("Coordinate driver movement to the auction", "Driver, Uber support, tow, or carrier plan, destination, cost, and ETA are approved.", "Transportation", "Driver coordination"),
+      action("Decide whether to drive or tow and complete pre-trip checks", "Drive or tow decision, oil, coolant, plate reminder, and jumper reminder are complete.", "Driver", "Movement readiness"),
+      action("Capture pickup custody and departure", "Pickup contact, odometer, signatures, and departure proof are recorded; auction photos are recommended when TMS staff drive.", "Driver", "Pickup proof"),
+      action("Prove delivery and receiving acceptance", "Arrival, keys, location, and custody transfer are accepted so receiving can create the photo baseline.", "Receiver", "Delivery proof"),
     ],
   },
   {
@@ -343,6 +344,7 @@ export function InventoryLifecyclePrototype() {
   const [completed, setCompleted] = useState<Set<string>>(() => new Set());
   const [prototypeVersion, setPrototypeVersion] = useState(0);
   const [taiProgress, setTaiProgress] = useState<TaiWorkflowProgress>({ appraisalComplete: false, authorityComplete: false, commitmentComplete: false, economicsComplete: false, identityComplete: false, titleComplete: false });
+  const [tciProgress, setTciProgress] = useState<TciWorkflowProgress>({ blockerCount: 0, deliveryComplete: false, movementComplete: false, pickupComplete: false, planComplete: false, recommendation: "Hold", releaseComplete: false, sourceComplete: false, trackingComplete: false, trailCount: 0 });
   const [notice, setNotice] = useState("This workspace is isolated. Prototype actions do not update operational records.");
   const stage = lifecycleStages[selectedStage];
   const completedCount = useMemo(
@@ -365,9 +367,32 @@ export function InventoryLifecyclePrototype() {
     });
   }, []);
 
+  const syncTciProgress = useCallback((progress: TciWorkflowProgress) => {
+    setTciProgress(progress);
+    const transportationProgress = [
+      progress.sourceComplete,
+      progress.releaseComplete,
+      progress.planComplete,
+      progress.movementComplete,
+      progress.pickupComplete,
+      progress.deliveryComplete,
+    ];
+    setCompleted((current) => {
+      const next = new Set(current);
+      transportationProgress.forEach((isComplete, index) => {
+        const key = completionKey(1, index);
+        if (isComplete) next.add(key);
+        else next.delete(key);
+      });
+      return next;
+    });
+  }, []);
+
   function toggleAction(actionIndex: number) {
-    if (selectedStage === 0) {
-      setNotice("Acquisition actions are controlled by TAI evidence, evaluation, approval, and purchase recording.");
+    if (selectedStage === 0 || selectedStage === 1) {
+      setNotice(selectedStage === 0
+        ? "Acquisition actions are controlled by TAI evidence, evaluation, approval, and purchase recording."
+        : "Transportation actions are controlled by TCI release, dispatch, custody, tracking, and receiving evidence.");
       return;
     }
     const key = completionKey(selectedStage, actionIndex);
@@ -396,6 +421,7 @@ export function InventoryLifecyclePrototype() {
     setSelectedStage(0);
     setPrototypeVersion((current) => current + 1);
     setTaiProgress({ appraisalComplete: false, authorityComplete: false, commitmentComplete: false, economicsComplete: false, identityComplete: false, titleComplete: false });
+    setTciProgress({ blockerCount: 0, deliveryComplete: false, movementComplete: false, pickupComplete: false, planComplete: false, recommendation: "Hold", releaseComplete: false, sourceComplete: false, trackingComplete: false, trailCount: 0 });
     setNotice("Prototype reset to Acquisition. Operational records remain unchanged.");
   }
 
@@ -462,7 +488,8 @@ export function InventoryLifecyclePrototype() {
             <div><span>Stage {selectedStage + 1} of {lifecycleStages.length}</span><h2>{stage.title}</h2><p>{stage.purpose}</p></div>
             <strong>{stage.gate}</strong>
           </header>
-          {selectedStage === 0 ? <TaiAcquisitionTool key={prototypeVersion} onProgressChange={syncTaiProgress} /> : null}
+          {selectedStage === 0 ? <TaiAcquisitionTool key={`tai-${prototypeVersion}`} onProgressChange={syncTaiProgress} /> : null}
+          {selectedStage === 1 ? <TciTransportTool key={`tci-${prototypeVersion}`} onProgressChange={syncTciProgress} /> : null}
           <div className={styles.progressRow}>
             <strong>{completedCount} of {stage.tasks.length} required actions complete</strong>
             <div className={styles.progressTrack} aria-label={`${completedCount} of ${stage.tasks.length} actions complete`} role="progressbar" aria-valuemin={0} aria-valuemax={stage.tasks.length} aria-valuenow={completedCount}><i style={{ width: `${completedCount / stage.tasks.length * 100}%` }} /></div>
@@ -472,7 +499,7 @@ export function InventoryLifecyclePrototype() {
             {stage.tasks.map((item, index) => {
               const checked = completed.has(completionKey(selectedStage, index));
               return <li className={checked ? styles.completedAction : ""} key={item.title}>
-                <label><input checked={checked} disabled={selectedStage === 0} onChange={() => toggleAction(index)} type="checkbox" /><span className="sr-only">Complete {item.title}</span></label>
+                <label><input checked={checked} disabled={selectedStage === 0 || selectedStage === 1} onChange={() => toggleAction(index)} type="checkbox" /><span className="sr-only">Complete {item.title}</span></label>
                 <div><strong>{item.title}</strong><p>{item.completion}</p></div>
                 <span>{item.owner}</span>
                 <em>{checked ? <><Check size={13} />Complete</> : item.evidence}</em>
@@ -489,11 +516,12 @@ export function InventoryLifecyclePrototype() {
             <div><dt>Blocker policy</dt><dd>{stage.blockerPolicy}</dd></div>
           </dl>
           <header><LockKeyhole /><h2>Handoff control</h2></header>
-          {selectedStage === 0 ? <div className={styles.taiGateSummary}><span>TAI acquisition gate</span><strong>{taiProgress.commitmentComplete ? "Purchase recorded" : taiProgress.authorityComplete ? "Approved · awaiting purchase" : taiProgress.economicsComplete ? "Evaluated · approval required" : "Evaluation required"}</strong><small>Checklist evidence is driven by the buyer workspace.</small></div> : null}
+          {selectedStage === 0 ? <div className={styles.taiGateSummary}><span>TAI acquisition gate</span><strong>{taiProgress.commitmentComplete ? "Purchase recorded" : taiProgress.authorityComplete ? "Approved / awaiting purchase" : taiProgress.economicsComplete ? "Evaluated / approval required" : "Evaluation required"}</strong><small>Checklist evidence is driven by the buyer workspace.</small></div> : null}
+          {selectedStage === 1 ? <div className={styles.taiGateSummary}><span>TCI custody gate</span><strong>{tciProgress.deliveryComplete ? "Receiving accepted" : `${tciProgress.recommendation} / ${tciProgress.trailCount} trail entries`}</strong><small>Checklist evidence is driven by the transportation workspace.</small></div> : null}
           <ul>
             <li><span>Mandatory actions</span><strong>{completedCount}/{stage.tasks.length}</strong></li>
             <li><span>Evidence attached</span><strong>{ready ? "Complete" : "Pending"}</strong></li>
-            <li><span>Open blockers</span><strong>0</strong></li>
+            <li><span>Open blockers</span><strong>{selectedStage === 1 ? tciProgress.blockerCount : 0}</strong></li>
             <li><span>Ready for next stage</span><strong>{ready ? "Yes" : "No"}</strong></li>
           </ul>
           <button disabled={!ready} onClick={simulateHandoff} type="button">{stage.actionLabel}<ArrowRight /></button>
