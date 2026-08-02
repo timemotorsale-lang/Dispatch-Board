@@ -1420,6 +1420,462 @@
   flex: 0 0 auto;
 }
 
+.rbiWorkspace {
+  display: grid;
+  gap: 0;
+  border-bottom: 1px solid #d7e1ea;
+  background: #fbfbfd;
+}
+
+.rbiHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid #d7e2eb;
+  color: #fff;
+  background: linear-gradient(115deg, #3d3656, #6a4c3b);
+}
+
+.rbiHeader > div:first-child > span,
+.rbiApproval > div > span,
+.rbiStepCard header span {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.rbiHeader > div:first-child > span {
+  color: #f0d8bf;
+  font-size: .65rem;
+}
+
+.rbiHeader h3,
+.rbiHeader p {
+  margin: 0;
+}
+
+.rbiHeader h3 {
+  margin-top: 3px;
+  font-size: 1rem;
+}
+
+.rbiHeader p {
+  margin-top: 2px;
+  color: #e6d8cf;
+  font-size: .7rem;
+}
+
+.rbiVersion {
+  display: grid;
+  gap: 2px;
+  min-width: 150px;
+  text-align: right;
+}
+
+.rbiVersion small {
+  color: #ecdccd;
+  font-size: .62rem;
+}
+
+.rbiVersion strong {
+  font-size: .72rem;
+}
+
+.rbiBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1.38fr) minmax(290px, .72fr);
+  gap: 12px;
+  padding: 12px;
+}
+
+.rbiSteps {
+  display: grid;
+  gap: 10px;
+}
+
+.rbiStepCard,
+.rbiDecision,
+.rbiApproval > div {
+  overflow: hidden;
+  border: 1px solid #d7e1eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.rbiStepCard header,
+.rbiTrail header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 11px;
+  border-bottom: 1px solid #e4eaf0;
+  background: #faf8f6;
+}
+
+.rbiStepCard header span {
+  color: #7d6358;
+  font-size: .57rem;
+}
+
+.rbiStepCard header h4,
+.rbiTrail h4 {
+  margin: 2px 0 0;
+  color: #203449;
+  font-size: .74rem;
+}
+
+.rbiStepCard header em,
+.rbiDecision > header em {
+  border-radius: 999px;
+  padding: 5px 7px;
+  color: #8b4d1f;
+  background: #fff1d4;
+  font-size: .64rem;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.rbiComplete {
+  color: #1f6d45 !important;
+  background: #dff3e8 !important;
+}
+
+.rbiHold {
+  color: #923d35 !important;
+  background: #f9e3e0 !important;
+}
+
+.rbiFieldGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px;
+}
+
+.rbiFieldGrid label,
+.rbiChecks label {
+  display: grid;
+  gap: 4px;
+}
+
+.rbiFieldGrid label > span,
+.rbiChecks span {
+  color: #586d82;
+  font-size: .62rem;
+  font-weight: 750;
+}
+
+.rbiFieldGrid input,
+.rbiFieldGrid select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #ccd8e4;
+  border-radius: 6px;
+  padding: 7px 8px;
+  color: #18304a;
+  outline: 0;
+  background: #fff;
+  font-size: .72rem;
+  font-weight: 800;
+}
+
+.rbiInputWrap {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid #ccd8e4;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.rbiInputWrap b {
+  padding-left: 8px;
+  color: #718297;
+  font-size: .68rem;
+}
+
+.rbiInputWrap input {
+  border: 0;
+  padding-left: 4px;
+}
+
+.rbiFieldGrid input:focus,
+.rbiFieldGrid select:focus,
+.rbiInputWrap:focus-within {
+  border-color: #3278c6;
+  box-shadow: 0 0 0 2px #dcecff;
+}
+
+.rbiChecks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 0 10px 10px;
+}
+
+.rbiChecks label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.rbiChecks input {
+  width: 15px;
+  height: 15px;
+  accent-color: #8a5a2b;
+}
+
+.rbiAction {
+  display: flex;
+  width: calc(100% - 20px);
+  min-height: 35px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0 10px 10px;
+  border: 0;
+  border-radius: 6px;
+  color: #fff;
+  background: #8a5a2b;
+  font-size: .67rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.rbiAction:disabled {
+  cursor: not-allowed;
+  opacity: .42;
+}
+
+.rbiDecision {
+  align-self: start;
+}
+
+.rbiDecision > header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 11px;
+  border-bottom: 1px solid #dce5ed;
+  background: #f8f0ea;
+}
+
+.rbiDecision > header > svg,
+.rbiTrail header svg {
+  color: #8a5a2b;
+}
+
+.rbiDecision > header span,
+.rbiDecision > header strong {
+  display: block;
+}
+
+.rbiDecision > header span {
+  color: #6a7c90;
+  font-size: .59rem;
+}
+
+.rbiDecision > header strong {
+  margin-top: 1px;
+  color: #4e321f;
+  font-size: .9rem;
+}
+
+.rbiDecision dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.rbiDecision dl > div {
+  padding: 8px 10px;
+  border-right: 1px solid #e4eaf0;
+  border-bottom: 1px solid #e4eaf0;
+}
+
+.rbiDecision dl > div:nth-child(even) {
+  border-right: 0;
+}
+
+.rbiDecision dt {
+  color: #728397;
+  font-size: .57rem;
+}
+
+.rbiDecision dd {
+  margin: 2px 0 0;
+  color: #172f49;
+  font-size: .7rem;
+  font-weight: 850;
+}
+
+.rbiExplanation {
+  margin: 0;
+  padding: 9px 10px;
+  color: #425a72;
+  background: #fbfcfe;
+  font-size: .64rem;
+  line-height: 1.45;
+}
+
+.rbiDrivers {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0 10px 10px;
+}
+
+.rbiDrivers > div {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+}
+
+.rbiDrivers strong {
+  color: #304962;
+  font-size: .6rem;
+}
+
+.rbiDrivers span {
+  display: flex;
+  gap: 4px;
+  align-items: flex-start;
+  color: #64778b;
+  font-size: .57rem;
+  line-height: 1.3;
+}
+
+.rbiDrivers svg {
+  width: 11px;
+  height: 11px;
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.rbiTrail {
+  border-top: 1px solid #e4eaf0;
+}
+
+.rbiTrail header {
+  border-bottom: 1px solid #e4eaf0;
+}
+
+.rbiTrail ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rbiTrail li {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border-bottom: 1px solid #edf2f6;
+}
+
+.rbiTrail li:last-child {
+  border-bottom: 0;
+}
+
+.rbiTrail li > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+
+.rbiTrail strong {
+  color: #203b54;
+  font-size: .62rem;
+}
+
+.rbiTrail span,
+.rbiTrail p {
+  color: #5f7388;
+  font-size: .61rem;
+}
+
+.rbiTrail p {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.rbiTrail em {
+  width: max-content;
+  border-radius: 999px;
+  padding: 4px 7px;
+  color: #6a451e;
+  background: #f4e9dc;
+  font-size: .58rem;
+  font-style: normal;
+}
+
+.rbiTrail > p {
+  margin: 0;
+  padding: 12px 10px;
+  color: #6b7d90;
+  font-size: .62rem;
+}
+
+.rbiApproval {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+
+.rbiApproval > div {
+  display: grid;
+  gap: 5px;
+  padding: 9px;
+}
+
+.rbiApproval > div > span {
+  color: #8a5a2b;
+  font-size: .57rem;
+}
+
+.rbiApproval > div > span svg {
+  width: 12px;
+  height: 12px;
+}
+
+.rbiApproval strong {
+  color: #203a54;
+  font-size: .68rem;
+}
+
+.rbiApproval small {
+  color: #718196;
+  font-size: .58rem;
+  line-height: 1.35;
+}
+
+.rbiNotice {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 9px 12px;
+  border-top: 1px solid #d8e2ec;
+  color: #536a81;
+  background: #eef5fc;
+  font-size: .62rem;
+}
+
+.rbiNotice svg {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+}
+
 .prototypeNotice {
   display: flex;
   gap: 8px;
@@ -1446,11 +1902,13 @@
   }
 
   .taiDecision,
-  .tciDecision {
+  .tciDecision,
+  .rbiDecision {
     align-self: stretch;
   }
 
-  .tciBody {
+  .tciBody,
+  .rbiBody {
     grid-template-columns: 1fr;
   }
 }
@@ -1487,13 +1945,17 @@
 
   .taiApproval,
   .taiFieldGrid,
-  .tciFieldGrid {
+  .tciFieldGrid,
+  .rbiFieldGrid {
     grid-template-columns: 1fr 1fr;
   }
 
   .tciChecks,
   .tciDrivers,
-  .tciApproval {
+  .tciApproval,
+  .rbiChecks,
+  .rbiDrivers,
+  .rbiApproval {
     grid-template-columns: 1fr;
   }
 }
@@ -1519,6 +1981,7 @@
 
   .taiHeader,
   .tciHeader,
+  .rbiHeader,
   .taiApproval,
   .taiFieldGrid,
   .taiRatings,
@@ -1526,22 +1989,29 @@
   .tciFieldGrid,
   .tciChecks,
   .tciDrivers,
-  .tciApproval {
+  .tciApproval,
+  .rbiFieldGrid,
+  .rbiChecks,
+  .rbiDrivers,
+  .rbiApproval {
     grid-template-columns: 1fr;
   }
 
   .taiHeader,
-  .tciHeader {
+  .tciHeader,
+  .rbiHeader {
     align-items: flex-start;
     flex-direction: column;
   }
 
   .taiVersion,
-  .tciVersion {
+  .tciVersion,
+  .rbiVersion {
     text-align: left;
   }
 
-  .tciTrail li > div {
+  .tciTrail li > div,
+  .rbiTrail li > div {
     align-items: flex-start;
     flex-direction: column;
   }
