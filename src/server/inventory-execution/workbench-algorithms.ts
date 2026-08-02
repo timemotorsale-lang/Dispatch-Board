@@ -108,7 +108,7 @@ export function buildVehicleWorkbenchOverview(input: {
       approvals: withVehicleWorkbenchReturn("/manager-review?scope=inventory&view=approvals", vehicleId),
       audit: withVehicleWorkbenchReturn(input.links.vehicle360, vehicleId),
       evidence: withVehicleWorkbenchReturn(input.links.evidence, vehicleId),
-      lifecycle: withVehicleWorkbenchReturn(`/vehicles/control-tower?vehicleId=${encodeURIComponent(vehicleId)}`, vehicleId),
+      lifecycle: withVehicleWorkbenchReturn(`/vehicles/${encodeURIComponent(vehicleId)}/inventory-planning`, vehicleId),
       parts: withVehicleWorkbenchReturn(input.links.parts, vehicleId),
       repair: withVehicleWorkbenchReturn(input.workOrders.items[0]?.id ? `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(text(input.workOrders.items[0].id))}` : "/vehicles/repair-workbench", vehicleId),
       sales: withVehicleWorkbenchReturn(`/vehicles/inventory-to-frontline?vehicleId=${encodeURIComponent(vehicleId)}`, vehicleId),

@@ -14,7 +14,7 @@ import { getShopPlanningDetail } from "@/server/shop-planning/service";
 import styles from "./repair-workbench.module.css";
 
 type PageProps = {
-  searchParams?: Promise<{ query?: string; repairOrderId?: string; view?: string }>;
+  searchParams?: Promise<{ query?: string; repairOrderId?: string; returnTo?: string; view?: string }>;
 };
 
 function vehicleLabel(order: Awaited<ReturnType<typeof listRepairOrders>>["items"][number]) {
@@ -29,6 +29,7 @@ async function diagnosticsBridge(user: Awaited<ReturnType<typeof requireCurrentU
 export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
   const user = await requireCurrentUser();
   const params = searchParams ? await searchParams : {};
+  const returnTo = params.returnTo?.startsWith("/") && !params.returnTo.startsWith("//") ? params.returnTo : undefined;
   const showWorkspaceReturn = getPermittedWorkspaces(user).some((workspace) => workspace.key === "VEHICLE_OPERATIONS_LEAD");
   const showAdvisorReturn = getWorkspaceKey(user) === "ADVISOR";
 
@@ -48,6 +49,7 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
         diagnostics={JSON.parse(JSON.stringify(diagnostics))}
         options={{ users: JSON.parse(JSON.stringify(options.users)) }}
         order={JSON.parse(JSON.stringify(order))}
+        returnTo={returnTo}
         showAdvisorReturn={showAdvisorReturn}
         showWorkspaceReturn={showWorkspaceReturn}
       />
@@ -73,6 +75,7 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
         diagnostics={JSON.parse(JSON.stringify(diagnostics))}
         options={{ users: JSON.parse(JSON.stringify(options.users)) }}
         order={JSON.parse(JSON.stringify(order))}
+        returnTo={returnTo}
         showAdvisorReturn={showAdvisorReturn}
         showWorkspaceReturn={showWorkspaceReturn}
       />
