@@ -1,0 +1,24 @@
+.editableFact{position:relative;background:linear-gradient(135deg,#fff 0%,#f7faff 100%)}
+.editableFact button{display:inline-flex;gap:4px;align-items:center;margin-top:5px;border:0;padding:0;color:#245dc1;background:transparent;font-size:.55rem;font-weight:850;cursor:pointer}
+.editableFact button:hover{text-decoration:underline}
+.locationEditor{margin:12px 14px 14px;border:1px solid #9cb8e8;border-radius:9px;background:#f7faff;box-shadow:0 8px 22px rgba(31,73,135,.09);overflow:hidden}
+.locationEditor>header{display:flex;align-items:flex-start;justify-content:space-between;border-bottom:1px solid #d6e2f3;padding:12px 14px;background:#eef4ff}
+.locationEditor>header>div{display:flex;gap:9px;align-items:flex-start}
+.locationEditor>header>div>span{display:grid;width:30px;height:30px;place-items:center;border-radius:7px;color:#fff;background:#3261d6}
+.locationEditor>header strong,.locationEditor>header small{display:block}
+.locationEditor>header strong{font-size:.7rem}
+.locationEditor>header small{margin-top:3px;color:#60748d;font-size:.56rem}
+.locationEditor>header>button{border:0;color:#536b86;background:transparent;cursor:pointer}
+.locationFields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;padding:13px 14px}
+.locationFields label{display:grid;gap:5px;color:#314b69;font-size:.58rem;font-weight:850}
+.locationFields label>span{display:flex;justify-content:space-between}
+.locationFields label small{color:#71839a;font-size:.51rem;font-weight:700}
+.locationFields input,.locationFields select{width:100%;min-height:36px;border:1px solid #bac9dc;border-radius:6px;padding:7px 9px;color:#172942;background:#fff}
+.locationContext,.locationError{margin:0 14px 12px;border-radius:6px;padding:8px 10px;font-size:.57rem;line-height:1.45}
+.locationContext{color:#36546f;background:#edf3f9}
+.locationError{color:#8a2f2f;background:#fff0f0}
+.locationEditor>footer{display:flex;justify-content:flex-end;gap:8px;border-top:1px solid #d6e2f3;padding:10px 14px;background:#fff}
+.locationEditor>footer button{min-height:34px;border:1px solid #b8c7da;border-radius:6px;padding:7px 11px;color:#28445f;background:#fff;font-weight:850;cursor:pointer}
+.locationEditor>footer button[type=submit]{border-color:#3261d6;color:#fff;background:#3261d6}
+.locationEditor button:disabled{cursor:not-allowed;opacity:.55}
+@media(max-width:700px){.locationFields{grid-template-columns:1fr}.locationEditor>footer{display:grid}.locationEditor>footer button{width:100%}}

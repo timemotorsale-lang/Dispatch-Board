@@ -16,6 +16,7 @@ import { DispatchConsoleHeader } from "./dispatch-console-header";
 import { isDispatchConsolePath } from "./navigation";
 import { useWorkspaceMode, WorkspaceModeProvider } from "./workspace-mode";
 import { AppearanceProvider } from "./appearance";
+import { InventoryConsoleRouteTabs } from "./inventory-console-route-tabs";
 
 type AppShellProps = {
   children: ReactNode;
@@ -41,6 +42,8 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
     Boolean(salesConsoleReturnTo?.startsWith("/sales")) &&
     !salesConsoleReturnTo?.startsWith("//") &&
     !salesConsole;
+  const showInventoryRouteTabs = isInventoryConsolePath(pathname);
+  const showFullInventoryNavigation = consoleNavigation?.title === "Inventory Console";
 
   return (
     <div
@@ -71,6 +74,7 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
             <span>Opened from Sales Console</span>
           </nav>
         ) : null}
+        {showInventoryRouteTabs ? <InventoryConsoleRouteTabs allowedHrefs={consoleNavigation?.items.map(item => item.href) ?? []} pathname={pathname} searchParams={new URLSearchParams(searchParams.toString())} showFullNavigation={showFullInventoryNavigation} showReturn={!showSalesConsoleReturn} /> : null}
         <main className="app-content">{children}</main>
       </div>
     </div>

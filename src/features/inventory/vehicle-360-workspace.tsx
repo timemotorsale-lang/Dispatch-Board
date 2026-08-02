@@ -1,8 +1,32 @@
 "use client";
 
+import {
+  AlertTriangle,
+  ArrowRight,
+  BadgeCheck,
+  CalendarClock,
+  Camera,
+  CarFront,
+  CheckCircle2,
+  ClipboardCheck,
+  FileSearch,
+  FileText,
+  Gauge,
+  History,
+  Link2,
+  RefreshCw,
+  ShieldAlert,
+  ShieldCheck,
+  Wrench,
+} from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { FormEvent, useMemo, useState } from "react";
+import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+
+import type { VehicleDecode } from "@/server/vehicle-identification/nhtsa";
+import type { NhtsaSafetyIntelligence } from "@/server/vehicle-identification/nhtsa-safety";
+
+import styles from "./vehicle-360-workspace.module.css";
 
 type RecordItem = Record<string, unknown>;
 type TimelineItem = { id: string; occurredAt: string; source: string; type: string; title: string; detail: string | null; subjectType: string; subjectId: string };
@@ -10,7 +34,7 @@ type GraphNode = { id: string; type: string; label: string; href: string | null;
 type GraphEdge = { id: string; from: string; to: string; type: string; label: string };
 type EvidenceItem = { id: string; category: string; relationship: string; subjectType: string; subjectId: string; createdAt: string; evidenceObjectId: string; downloadUrl: string | null; evidenceObject: { id: string; fileName: string; contentType: string; byteSize: number; checksumSha256: string; malwareStatus: string; accessLevel: string; retentionUntil: string; legalHold: boolean; status: string; version: number; createdAt: string; uploadedByUser: { id: string; name: string } } };
 type SpecificationView = { available: boolean; addMode: string | null; canonical: RecordItem; canonicalOrigins: RecordItem; decodedAt: string | null; fieldOrigins: RecordItem; mappingVersion: number | null; provider: string | null; specifications: RecordItem; warnings: string[] };
-type Vehicle360View = {
+export type Vehicle360View = {
   summary: { vehicle: { id: string; vehicleNumber: string; vin: string | null; vinState: string; stockNumber: string | null; year: number | null; make: string | null; model: string | null; color: string | null; licensePlate: string | null; licensePlateState: string | null; status: string; version: number }; owner: RecordItem | null; location: { id: string; name: string } | null; stage: string; operatingState: string; nextAction: string | null; targetAt: string | null; latestOdometer: RecordItem | null; risks: string[] };
   timeline: TimelineItem[];
   tabAccess: Record<string, boolean>;
@@ -18,96 +42,213 @@ type Vehicle360View = {
   graph: { nodes: GraphNode[]; edges: GraphEdge[] };
 };
 
-const tabs = ["overview", "specifications", "inventory", "service", "parts", "appointments", "documents", "warranty", "communications", "costs", "decisions", "audit", "relationships"] as const;
-type Tab = (typeof tabs)[number];
-const money = (value: unknown) => typeof value === "number" ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value / 100) : "—";
-const dateTime = (value: unknown) => typeof value === "string" && value ? new Date(value).toLocaleString() : "—";
-const label = (entry: unknown) => String(entry ?? "—").replaceAll("_", " ");
-function nested(item: RecordItem, key: string) { const result = item[key]; return result && typeof result === "object" && !Array.isArray(result) ? result as RecordItem : {}; }
-function present(value: unknown) { return value != null && value !== "" && (!Array.isArray(value) || value.length > 0); }
-function sourceLabel(value: unknown) { const origin = nested({ origin: value }, "origin"); const source = String(origin.source ?? ""); if (source === "NHTSA_VPIC") return "NHTSA vPIC (manufacturer-submitted VIN data)"; if (source === "STAFF_OBSERVED") return "Staff observation"; if (source === "STAFF_CONFIRMED") return "Staff confirmation"; if (source === "DOCUMENTED_NON_VIN_EXCEPTION") return "Documented non-VIN exception"; return source ? label(source) : "Source not recorded"; }
+const sections = ["overview", "identity", "work", "safety", "evidence"] as const;
+type Section = (typeof sections)[number];
 
 const specificationGroups = [
   { title: "Identity and configuration", fields: ["trim", "series", "bodyClass", "vehicleType", "doors", "cabType"] },
   { title: "Powertrain and energy", fields: ["engineConfiguration", "engineCylinders", "displacementLiters", "transmissionStyle", "driveType", "fuelTypePrimary", "fuelTypeSecondary"] },
   { title: "Capacity and manufacturing", fields: ["gvwr", "manufacturer", "plantCountry"] },
-  { title: "Intake observations", fields: ["runningStatus", "drivableStatus", "arrivalMethod", "keyCount", "warningLights", "existingDamage", "detailedNotes"] }
+  { title: "Intake observations", fields: ["runningStatus", "drivableStatus", "arrivalMethod", "keyCount", "warningLights", "existingDamage", "detailedNotes"] },
 ] as const;
 
-function SpecificationFacts({ fields, view }: { fields: readonly string[]; view: SpecificationView }) {
-  const visible = fields.filter((field) => present(view.specifications[field]));
-  if (!visible.length) return <p>No information was recorded in this group.</p>;
-  return <dl className="etw-facts compact">{visible.map((field) => <div key={field}><dt>{label(field)}</dt><dd>{label(view.specifications[field])}</dd><dd><small>{sourceLabel(view.fieldOrigins[field])}</small></dd></div>)}</dl>;
-}
-
-function VehicleSpecifications({ view }: { view: SpecificationView }) {
-  const canonicalFields = ["vin", "year", "make", "model", "color", "licensePlate", "licensePlateState"].filter((field) => present(view.canonical[field]));
-  return <section className="page-stack">
-    <article className="panel-card page-stack"><div className="page-copy"><span className="eyebrow">Canonical vehicle data</span><h2>Specifications and source history</h2><p>These values come directly from the canonical vehicle record. They are not a second registration or duplicate copy.</p></div><div className="form-actions"><span className="pill pill-secondary">{view.provider ? sourceLabel({ source: view.provider }) : "Legacy or staff-entered record"}</span>{view.addMode ? <span className="pill pill-secondary">{label(view.addMode)} add</span> : null}{view.decodedAt ? <span className="pill pill-secondary">Decoded {dateTime(view.decodedAt)}</span> : null}</div>{view.warnings.map((warning) => <div className="notice notice-warning" key={warning}><p>{warning}</p></div>)}</article>
-    <div className="settings-overview-grid">{specificationGroups.map((group) => <article className="panel-card page-stack" key={group.title}><span className="eyebrow">Vehicle detail</span><h3>{group.title}</h3><SpecificationFacts fields={group.fields} view={view} /></article>)}</div>
-    <article className="panel-card page-stack"><div className="page-copy"><span className="eyebrow">Canonical origins</span><h2>Identity field provenance</h2><p>Each identity value keeps the authority and time used when it became canonical.</p></div><dl className="etw-facts compact">{canonicalFields.map((field) => { const origin = nested({ origin: view.canonicalOrigins[field] }, "origin"); return <div key={field}><dt>{label(field)}</dt><dd>{label(view.canonical[field])}</dd><dd><small>{sourceLabel(origin)}{origin.confirmedAt ? ` · ${dateTime(origin.confirmedAt)}` : ""}</small></dd></div>; })}</dl></article>
-    {!view.available ? <div className="notice notice-warning"><p>This legacy vehicle does not yet have a detailed specification snapshot. Its canonical identity remains available above.</p></div> : null}
-  </section>;
-}
+const dash = "—";
+const money = (value: unknown) => typeof value === "number" ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value / 100) : dash;
+const dateTime = (value: unknown) => typeof value === "string" && value ? new Date(value).toLocaleString() : dash;
+const sentence = (entry: unknown) => String(entry ?? dash).replaceAll("_", " ").toLowerCase().replace(/\b\w/g, letter => letter.toUpperCase());
+const rawLabel = (entry: unknown) => String(entry ?? dash).replaceAll("_", " ");
+function nested(item: RecordItem, key: string) { const result = item[key]; return result && typeof result === "object" && !Array.isArray(result) ? result as RecordItem : {}; }
+function present(value: unknown) { return value != null && value !== "" && (!Array.isArray(value) || value.length > 0); }
+function sourceLabel(value: unknown) { const origin = nested({ origin: value }, "origin"); const source = String(origin.source ?? ""); if (source === "NHTSA_VPIC") return "NHTSA vPIC · manufacturer-submitted VIN data"; if (source === "STAFF_OBSERVED") return "Staff observation"; if (source === "STAFF_CONFIRMED") return "Staff confirmation"; if (source === "DOCUMENTED_NON_VIN_EXCEPTION") return "Documented non-VIN exception"; return source ? sentence(source) : "Source not recorded"; }
+function recordTitle(item: RecordItem) { return sentence(item.repairOrderNumber ?? item.inventoryNumber ?? item.title ?? item.type ?? item.eventType ?? item.id); }
+function ownerName(owner: RecordItem | null) { return owner ? String(owner.name ?? owner.displayName ?? owner.customerNumber ?? owner.id ?? "Assigned") : "Not assigned"; }
+function withReturn(path: string, returnTo: string) { const url = new URL(path, "http://vehicle360.local"); if (returnTo) url.searchParams.set("returnTo", returnTo); return `${url.pathname}${url.search}`; }
+function validReturnTo(value: string | null) { return value?.startsWith("/") && !value.startsWith("//") ? value : ""; }
+function relationship(view: Vehicle360View) { if (view.tabs.inventory.items.length) return "Dealership inventory"; if (view.summary.owner && (view.summary.owner.displayName || view.summary.owner.customerNumber)) return "Customer vehicle"; return "Ownership unconfirmed"; }
+function sourceIcon(source: string) { if (source === "SERVICE") return Wrench; if (source === "EVIDENCE") return FileText; if (source === "APPOINTMENT") return CalendarClock; if (source === "INVENTORY") return ClipboardCheck; return History; }
 
 function AccessEmpty({ allowed, labelText }: { allowed: boolean; labelText: string }) {
-  return <div className="notice notice-warning"><p>{allowed ? `No ${labelText.toLowerCase()} records are linked to this vehicle.` : `Your role does not include access to ${labelText.toLowerCase()}.`}</p></div>;
+  return <div className={styles.empty}><AlertTriangle /><div><strong>{allowed ? `No ${labelText.toLowerCase()} records` : `${labelText} restricted`}</strong><p>{allowed ? "Nothing is connected to this canonical vehicle yet." : `Your current role does not include access to ${labelText.toLowerCase()}.`}</p></div></div>;
+}
+
+function OperationalBadge({ children, tone = "neutral" }: { children: ReactNode; tone?: "attention" | "good" | "neutral" }) {
+  return <span className={`${styles.badge} ${styles[tone]}`}>{children}</span>;
+}
+
+function SpecificationFacts({ fields, view }: { fields: readonly string[]; view: SpecificationView }) {
+  const visible = fields.filter(field => present(view.specifications[field]));
+  if (!visible.length) return <AccessEmpty allowed labelText="Specification details" />;
+  return <dl className={styles.factList}>{visible.map(field => <div key={field}><dt>{sentence(field)}</dt><dd>{rawLabel(view.specifications[field])}</dd><small>{sourceLabel(view.fieldOrigins[field])}</small></div>)}</dl>;
 }
 
 function GenericCards({ items, kind }: { items: RecordItem[]; kind: string }) {
   if (!items.length) return <AccessEmpty allowed labelText={kind} />;
-  return <div className="settings-overview-grid">{items.map((item, index) => <article className="panel-card page-stack" key={String(item.id ?? index)}><span className="eyebrow">{kind}</span><h3>{label(item.repairOrderNumber ?? item.inventoryNumber ?? item.title ?? item.type ?? item.eventType ?? item.id)}</h3><dl className="etw-facts compact">{Object.entries(item).filter(([key, entry]) => !["id", "organizationId", "content", "metadata", "priorValue", "newValue"].includes(key) && ["string", "number", "boolean"].includes(typeof entry)).slice(0, 8).map(([key, entry]) => <div key={key}><dt>{label(key)}</dt><dd>{key.toLowerCase().includes("at") && typeof entry === "string" ? dateTime(entry) : label(entry)}</dd></div>)}</dl></article>)}</div>;
+  return <div className={styles.recordGrid}>{items.map((item, index) => <article className={styles.recordCard} key={String(item.id ?? index)}><small>{kind}</small><h3>{recordTitle(item)}</h3><dl>{Object.entries(item).filter(([key, entry]) => !["id", "organizationId", "content", "metadata", "priorValue", "newValue"].includes(key) && ["string", "number", "boolean"].includes(typeof entry)).slice(0, 6).map(([key, entry]) => <div key={key}><dt>{sentence(key)}</dt><dd>{key.toLowerCase().includes("at") && typeof entry === "string" ? dateTime(entry) : rawLabel(entry)}</dd></div>)}</dl></article>)}</div>;
 }
 
-function VehicleDiagnosticIntelligence({ onOpenService, view }: { onOpenService: () => void; view: Vehicle360View }) {
-  const vehicle = view.summary.vehicle;
-  const serviceOrders = view.tabs.service.allowed ? view.tabs.service.repairOrders : [];
+function SectionHeading({ eyebrow, title, detail, action }: { eyebrow: string; title: string; detail?: string; action?: ReactNode }) {
+  return <header className={styles.sectionHeading}><div><small>{eyebrow}</small><h2>{title}</h2>{detail ? <p>{detail}</p> : null}</div>{action}</header>;
+}
+
+function VehicleSpecifications({ view }: { view: SpecificationView }) {
+  const canonicalFields = ["vin", "year", "make", "model", "color", "licensePlate", "licensePlateState"].filter(field => present(view.canonical[field]));
+  return <div className={styles.sectionStack}>
+    <section className={styles.panel}><SectionHeading eyebrow="Canonical vehicle data" title="Specifications and source history" detail="Canonical identity and decoded specifications remain attributable to their original source." action={<div className={styles.badgeRow}>{view.provider ? <OperationalBadge tone="good">{sourceLabel({ source: view.provider })}</OperationalBadge> : null}{view.decodedAt ? <OperationalBadge>Decoded {dateTime(view.decodedAt)}</OperationalBadge> : null}</div>} />{view.warnings.map(warning => <div className={styles.warning} key={warning}><AlertTriangle /><p>{warning}</p></div>)}<div className={styles.specificationGrid}>{specificationGroups.map(group => <article key={group.title}><h3>{group.title}</h3><SpecificationFacts fields={group.fields} view={view} /></article>)}</div></section>
+    <section className={styles.panel}><SectionHeading eyebrow="Canonical origins" title="Identity provenance" detail="Every identity value shows the authority and time used when it became canonical." /><dl className={styles.originGrid}>{canonicalFields.map(field => { const origin = nested({ origin: view.canonicalOrigins[field] }, "origin"); return <div key={field}><dt>{sentence(field)}</dt><dd>{rawLabel(view.canonical[field])}</dd><small>{sourceLabel(origin)}{origin.confirmedAt ? ` · ${dateTime(origin.confirmedAt)}` : ""}</small></div>; })}</dl>{!view.available ? <div className={styles.warning}><AlertTriangle /><p>This legacy vehicle does not yet have a detailed specification snapshot. Its canonical identity remains available.</p></div> : null}</section>
+  </div>;
+}
+
+function SafetyIntelligence({ intelligence, loading, error, onRefresh, vehicle }: { intelligence: NhtsaSafetyIntelligence | null; loading: boolean; error: string; onRefresh: () => void; vehicle: Vehicle360View["summary"]["vehicle"] }) {
   const discovery = (intent: string) => `/vehicles/discovery?intent=${intent}&vehicleId=${encodeURIComponent(vehicle.id)}`;
-  return <section className="panel-card page-stack" id="diagnostic-intelligence">
-    <div className="page-copy"><span className="eyebrow">Diagnostic intelligence landing</span><h2>{[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || vehicle.vehicleNumber} source checks</h2><p>Review recall, bulletin, known-problem, repair-history, and comeback signals before choosing the next diagnostic step.</p></div>
-    <div className="settings-overview-grid">
-      <article className="settings-callout-card" id="recalls"><div><span className="eyebrow">Safety recall / campaign</span><h3>Recall check required</h3><p>Connect an OEM/NHTSA recall source before treating recall status as authoritative.</p></div><Link href={discovery("recalls")}>Open source review</Link></article>
-      <article className="settings-callout-card" id="service-bulletins"><div><span className="eyebrow">TSB / service bulletin</span><h3>Bulletin check required</h3><p>Use licensed OEM or approved bulletin sources for symptom, VIN, production-date, and procedure applicability.</p></div><Link href={discovery("service-bulletins")}>Open bulletin search</Link></article>
-      <article className="settings-callout-card" id="known-issues"><div><span className="eyebrow">Known issue library</span><h3>Vehicle-known problem matches</h3><p>Seed common-cause libraries guide questions and tests; evidence is still required before cause ranking.</p></div><Link href={discovery("known-issues")}>Open known issues</Link></article>
-      <article className="settings-callout-card" id="repair-history"><div><span className="eyebrow">Prior RO history</span><h3>{serviceOrders.length} linked repair order{serviceOrders.length === 1 ? "" : "s"}</h3><p>{view.tabs.service.allowed ? "Review prior complaints, corrections, parts, and repeat symptoms for this vehicle." : "Your role does not include service-history access."}</p></div><button onClick={onOpenService} type="button">Open service tab</button></article>
-      <article className="settings-callout-card" id="comeback-history"><div><span className="eyebrow">Comeback history</span><h3>Repeat concern screen</h3><p>Compare the current concern against previous repairs, dates, mileage, technician notes, and verification.</p></div><button onClick={onOpenService} type="button">Review service events</button></article>
-    </div>
-  </section>;
+  return <div className={styles.sectionStack}>
+    <section className={styles.panel}><SectionHeading eyebrow="Safety intelligence" title="Recall campaigns and safety signals" detail="Model-level results guide review. They never become open VIN-specific recalls without verification." action={<button className={styles.secondaryButton} disabled={loading} onClick={onRefresh} type="button"><RefreshCw />{loading ? "Checking NHTSA…" : "Refresh source"}</button>} />
+      <div className={styles.safetyBoundary}><ShieldCheck /><div><strong>VIN-specific verification remains required</strong><p>Campaigns below are potentially applicable model-level results—not confirmation of an unrepaired recall for this VIN.</p></div><a href="https://www.nhtsa.gov/recalls" rel="noreferrer" target="_blank">Verify VIN with NHTSA</a></div>
+      {error ? <div className={styles.warning}><AlertTriangle /><p>{error}</p></div> : null}
+      {!intelligence && !error ? <div className={styles.loading}><RefreshCw /><p>{loading ? "Retrieving NHTSA model-level campaigns and complaint background…" : "Safety intelligence is ready to be checked."}</p></div> : null}
+      {intelligence ? <div className={styles.safetyGrid}>
+        <div><h3>Model-level recall campaigns</h3>{intelligence.recalls.length ? intelligence.recalls.map(recall => <article className={styles.recallCard} key={recall.campaignNumber}><header><OperationalBadge tone="attention">{recall.verificationLabel}</OperationalBadge><small>Campaign {recall.campaignNumber}</small></header><h4>{recall.component}</h4><p>{recall.summary}</p>{recall.parkIt || recall.parkOutside ? <strong className={styles.parkWarning}>{recall.parkIt ? "Park-it guidance reported" : "Park-outside guidance reported"}</strong> : null}<details><summary>Consequence and remedy</summary><p>{recall.consequence ?? "Consequence not reported."}</p><p>{recall.remedy ?? "Remedy not reported."}</p></details></article>) : <AccessEmpty allowed labelText="Model-level campaigns" />}</div>
+        <aside><h3>Diagnostic context</h3><div className={styles.intelligenceNote}><FileSearch /><div><strong>{intelligence.manufacturerCommunications.label}</strong><p>{intelligence.manufacturerCommunications.message}</p><Link href={discovery("service-bulletins")}>Open bulletin review</Link></div></div><div className={styles.intelligenceNote}><History /><div><strong>Complaint patterns</strong><p>{intelligence.sourcePolicy.complaints}</p><span>{intelligence.complaints.length} background pattern{intelligence.complaints.length === 1 ? "" : "s"}</span></div></div>{intelligence.warnings.map(warning => <div className={styles.warning} key={warning}><AlertTriangle /><p>{warning}</p></div>)}</aside>
+      </div> : null}
+    </section>
+  </div>;
 }
 
 export function Vehicle360Workspace({ initial }: { initial: Vehicle360View }) {
   const searchParams = useSearchParams();
-  const [view, setView] = useState(initial), [active, setActive] = useState<Tab>("overview"), [notice, setNotice] = useState(""), [busy, setBusy] = useState(false), [file, setFile] = useState<File | null>(null), [category, setCategory] = useState("PHOTO"), [accessLevel, setAccessLevel] = useState("INTERNAL"), [retention, setRetention] = useState(() => { const next = new Date(); next.setUTCFullYear(next.getUTCFullYear() + 3); return next.toISOString().slice(0, 10); });
-  const vehicle = view.summary.vehicle, specifications = view.tabs.specifications.specifications, nodes = useMemo(() => new Map(view.graph.nodes.map((node) => [node.id, node])), [view.graph.nodes]);
+  const requestedSection = searchParams.get("section");
+  const returnTo = validReturnTo(searchParams.get("returnTo"));
+  const initialSection: Section = requestedSection === "documents" ? "evidence" : requestedSection === "intelligence" ? "safety" : sections.includes(requestedSection as Section) ? requestedSection as Section : "overview";
+  const [view, setView] = useState(initial);
+  const [active, setActive] = useState<Section>(initialSection);
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [category, setCategory] = useState(() => searchParams.get("category") || "PHOTO");
+  const [accessLevel, setAccessLevel] = useState("INTERNAL");
+  const [retention, setRetention] = useState(() => { const next = new Date(); next.setUTCFullYear(next.getUTCFullYear() + 3); return next.toISOString().slice(0, 10); });
+  const [safety, setSafety] = useState<NhtsaSafetyIntelligence | null>(null);
+  const [safetyLoading, setSafetyLoading] = useState(false);
+  const [safetyError, setSafetyError] = useState("");
+  const [liveDecode, setLiveDecode] = useState<VehicleDecode | null>(null);
+  const [liveDecodeAt, setLiveDecodeAt] = useState<string | null>(null);
+  const [decodeLoading, setDecodeLoading] = useState(false);
+  const [decodeError, setDecodeError] = useState("");
+  const vehicle = view.summary.vehicle;
+  const specifications = liveDecode ?? view.tabs.specifications.specifications;
+  const specificationView = useMemo<SpecificationView>(() => liveDecode ? {
+    ...view.tabs.specifications,
+    available: true,
+    decodedAt: liveDecodeAt,
+    provider: "NHTSA_VPIC",
+    specifications: liveDecode as unknown as RecordItem,
+    fieldOrigins: Object.fromEntries(Object.keys(liveDecode).map(key => [key, { source: "NHTSA_VPIC" }])),
+    warnings: ["Displayed from a live NHTSA VIN refresh. The canonical specification snapshot has not yet been reconciled."],
+  } : view.tabs.specifications, [liveDecode, liveDecodeAt, view.tabs.specifications]);
+  const nodes = useMemo(() => new Map(view.graph.nodes.map(node => [node.id, node])), [view.graph.nodes]);
+  const identityName = [specifications.modelYear ?? vehicle.year, specifications.make ?? vehicle.make, specifications.model ?? vehicle.model, specifications.trim].filter(Boolean).join(" ") || vehicle.vehicleNumber;
+  const mileage = view.summary.latestOdometer ? view.summary.latestOdometer.reading : null;
+  const missingCanonical = [["Plate", vehicle.licensePlate], ["Color", vehicle.color], ["Year", vehicle.year], ["Make", vehicle.make], ["Model", vehicle.model]].filter(([, value]) => !present(value));
+  const primaryHref = returnTo || (view.tabs.inventory.items.length ? `/vehicles/${vehicle.id}/inventory-planning` : `/vehicles/${vehicle.id}/workbench`);
+  const vehicle360Return = withReturn(`/vehicles/360/${vehicle.id}`, returnTo);
+  const primaryLabel = returnTo ? "Return to current workflow" : view.summary.nextAction ? "Continue current work" : "Open vehicle workbench";
+
   async function request(url: string, init?: RequestInit) { const response = await fetch(url, init); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error ?? "Vehicle 360 request failed."); return body; }
   async function refresh() { setView(await request(`/api/vehicles/${vehicle.id}/360`) as Vehicle360View); }
   function base64(selected: File) { return new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onerror = () => reject(new Error("Unable to read the selected file.")); reader.onload = () => { const result = String(reader.result ?? ""), comma = result.indexOf(","); resolve(comma >= 0 ? result.slice(comma + 1) : result); }; reader.readAsDataURL(selected); }); }
-  async function upload(event: FormEvent) {
-    event.preventDefault(); if (!file) return; setBusy(true); setNotice("");
-    try { const result = await request("/api/vehicle-evidence", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ vehicleId: vehicle.id, fileName: file.name, contentType: file.type || "application/octet-stream", contentBase64: await base64(file), category, accessLevel, retentionUntil: new Date(`${retention}T23:59:59.999Z`).toISOString(), subjectType: "VEHICLE", subjectId: vehicle.id, relationship: "SUPPORTS", idempotencyKey: crypto.randomUUID(), reason: "Attach governed operational evidence to Vehicle 360." }) }); setNotice(result.evidence?.status === "QUARANTINED" ? "The file was stored in quarantine and is not available for download." : "Evidence uploaded, verified, and linked to Vehicle 360."); setFile(null); await refresh(); }
-    catch (error) { setNotice(error instanceof Error ? error.message : "Evidence upload failed."); } finally { setBusy(false); }
-  }
+  async function upload(event: FormEvent) { event.preventDefault(); if (!file) return; setBusy(true); setNotice(""); try { const result = await request("/api/vehicle-evidence", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ vehicleId: vehicle.id, fileName: file.name, contentType: file.type || "application/octet-stream", contentBase64: await base64(file), category, accessLevel, retentionUntil: new Date(`${retention}T23:59:59.999Z`).toISOString(), subjectType: "VEHICLE", subjectId: vehicle.id, relationship: "SUPPORTS", idempotencyKey: crypto.randomUUID(), reason: "Attach governed operational evidence to Vehicle 360." }) }); setNotice(result.evidence?.status === "QUARANTINED" ? "The file was stored in quarantine and is not available for download." : "Evidence uploaded, verified, and linked to Vehicle 360."); setFile(null); await refresh(); } catch (error) { setNotice(error instanceof Error ? error.message : "Evidence upload failed."); } finally { setBusy(false); } }
   async function govern(item: EvidenceItem, changes: Record<string, unknown>, reason: string) { setBusy(true); try { await request(`/api/vehicle-evidence/${item.evidenceObjectId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ expectedVersion: item.evidenceObject.version, idempotencyKey: crypto.randomUUID(), reason, ...changes }) }); setNotice("Evidence governance updated with an audit record."); await refresh(); } catch (error) { setNotice(error instanceof Error ? error.message : "Evidence governance update failed."); } finally { setBusy(false); } }
-  const tabAllowed = (tab: Tab) => tab === "inventory" ? view.tabs.inventory.allowed : tab === "service" ? view.tabs.service.allowed : tab === "parts" ? view.tabs.parts.allowed : tab === "documents" ? view.tabs.documents.allowed : tab === "warranty" ? view.tabs.warranty.allowed : tab === "communications" ? view.tabs.communications.allowed : tab === "costs" ? view.tabs.costs.allowed : tab === "decisions" ? view.tabs.decisions.allowed : tab === "audit" ? view.tabs.audit.allowed : true;
-  return <section className="page-stack">
-    {searchParams.get("section") === "intelligence" ? <VehicleDiagnosticIntelligence onOpenService={() => setActive("service")} view={view} /> : null}
-    <header className="page-copy"><span className="eyebrow">Vehicle Operations · Vehicle 360</span><h1>{[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || vehicle.vehicleNumber}</h1><p>A permission-aware operational record built from canonical inventory, service, parts, appointment, evidence, customer, task, decision, and audit sources.</p><div className="form-actions"><Link className="pill pill-secondary" href="/vehicles/registry">Canonical registry</Link><Link className="pill pill-secondary" href="/vehicles">Control Tower</Link></div></header>
-    <div className="form-actions"><Link className="button button-secondary" href="/vehicles/discovery">Enterprise discovery, knowledge &amp; output</Link></div>
-    {notice ? <div className={notice.toLowerCase().includes("failed") || notice.toLowerCase().includes("quarantine") || notice.toLowerCase().includes("required") ? "notice notice-warning" : "notice notice-success"}><p>{notice}</p></div> : null}
-    <section className="settings-overview-grid"><article className="panel-card page-stack"><span className="eyebrow">Canonical identity</span><h2>{vehicle.vehicleNumber}</h2><dl className="etw-facts compact"><div><dt>VIN</dt><dd>{vehicle.vin ?? vehicle.vinState}</dd></div><div><dt>Stock</dt><dd>{vehicle.stockNumber ?? "—"}</dd></div><div><dt>Plate</dt><dd>{vehicle.licensePlate ? `${vehicle.licensePlate}${vehicle.licensePlateState ? ` · ${vehicle.licensePlateState}` : ""}` : "—"}</dd></div><div><dt>Status</dt><dd>{label(vehicle.status)}</dd></div></dl></article><article className="panel-card page-stack"><span className="eyebrow">Technical profile</span><h2>{view.tabs.specifications.available ? label(specifications.trim ?? specifications.series ?? specifications.bodyClass ?? "Decoded details") : "Specifications not decoded"}</h2><dl className="etw-facts compact"><div><dt>Engine</dt><dd>{[specifications.displacementLiters ? `${specifications.displacementLiters}L` : null, specifications.engineCylinders ? `${specifications.engineCylinders} cylinder` : null, specifications.engineConfiguration].filter(Boolean).join(" · ") || "—"}</dd></div><div><dt>Transmission</dt><dd>{label(specifications.transmissionStyle)}</dd></div><div><dt>Drive</dt><dd>{label(specifications.driveType)}</dd></div><div><dt>Fuel</dt><dd>{label(specifications.fuelTypePrimary)}</dd></div></dl><button className="pill pill-secondary" onClick={() => setActive("specifications")} type="button">View all specifications</button></article><article className="panel-card page-stack"><span className="eyebrow">Current operation</span><h2>{label(view.summary.stage)}</h2><dl className="etw-facts compact"><div><dt>State</dt><dd>{label(view.summary.operatingState)}</dd></div><div><dt>Location</dt><dd>{view.summary.location?.name ?? "No active location"}</dd></div><div><dt>Target</dt><dd>{dateTime(view.summary.targetAt)}</dd></div><div><dt>Next action</dt><dd>{view.summary.nextAction ?? "No active action"}</dd></div></dl></article><article className="panel-card page-stack"><span className="eyebrow">Risk and evidence</span><h2>{view.summary.risks.length ? `${view.summary.risks.length} active signal${view.summary.risks.length === 1 ? "" : "s"}` : "No active risk signals"}</h2>{view.summary.risks.map((risk) => <span className="pill pill-secondary" key={risk}>{label(risk)}</span>)}<p>{view.tabs.documents.items.length} governed evidence object{view.tabs.documents.items.length === 1 ? "" : "s"}</p></article></section>
-    <nav aria-label="Vehicle 360 sections" className="ict-module-nav">{tabs.map((tab) => <button aria-current={active === tab ? "page" : undefined} className={active === tab ? "active" : ""} key={tab} onClick={() => setActive(tab)} type="button">{label(tab)}{tabAllowed(tab) ? "" : " · Restricted"}</button>)}</nav>
-    {active === "overview" ? <section className="panel-card page-stack"><div className="page-copy"><h2>Correlated operational timeline</h2><p>Milestones are ordered from durable source events; audit-only entries remain permission-gated.</p></div>{view.timeline.length ? view.timeline.map((item) => <article className="settings-callout-card" key={item.id}><div><span className="eyebrow">{item.source} · {label(item.type)}</span><h3>{item.title}</h3><p>{item.detail ?? `${item.subjectType} ${item.subjectId}`}</p></div><time>{dateTime(item.occurredAt)}</time></article>) : <AccessEmpty allowed labelText="timeline" />}</section> : null}
-    {active === "specifications" ? <VehicleSpecifications view={view.tabs.specifications} /> : null}
-    {active === "inventory" ? view.tabs.inventory.allowed ? <GenericCards items={view.tabs.inventory.items} kind="Inventory unit" /> : <AccessEmpty allowed={false} labelText="Inventory" /> : null}
-    {active === "service" ? view.tabs.service.allowed ? <GenericCards items={view.tabs.service.repairOrders} kind="Repair order" /> : <AccessEmpty allowed={false} labelText="Service" /> : null}
-    {active === "parts" ? view.tabs.parts.allowed ? <><GenericCards items={view.tabs.parts.demands} kind="Part demand" /><GenericCards items={view.tabs.parts.custody} kind="Part custody" /></> : <AccessEmpty allowed={false} labelText="Parts" /> : null}
-    {active === "appointments" ? <GenericCards items={view.tabs.appointments.items.map((item) => nested(item, "appointment"))} kind="Appointment" /> : null}
-    {active === "documents" ? <section className="page-stack"><form className="panel-card page-stack" onSubmit={upload}><div className="page-copy"><h2>Upload governed evidence</h2><p>PDF, JPEG, PNG, WebP, or plain text up to 10 MB. Content is checked before it becomes downloadable.</p></div><div className="settings-overview-grid"><label className="form-field"><span>File</span><input accept="application/pdf,image/jpeg,image/png,image/webp,text/plain" disabled={busy || !view.tabs.documents.allowed} onChange={(event) => setFile(event.target.files?.[0] ?? null)} required type="file" /></label><label className="form-field"><span>Category</span><select onChange={(event) => setCategory(event.target.value)} value={category}>{["PHOTO", "INSPECTION", "REPAIR", "TITLE", "WARRANTY", "CUSTOMER_APPROVAL", "DELIVERY", "OTHER"].map((item) => <option key={item}>{item}</option>)}</select></label><label className="form-field"><span>Access</span><select onChange={(event) => setAccessLevel(event.target.value)} value={accessLevel}><option>INTERNAL</option><option>RESTRICTED</option></select></label><label className="form-field"><span>Retain through</span><input onChange={(event) => setRetention(event.target.value)} required type="date" value={retention} /></label></div><button className="button button-primary" disabled={busy || !file || !view.tabs.documents.allowed} type="submit">Verify and store evidence</button></form>{view.tabs.documents.allowed ? view.tabs.documents.items.length ? <div className="settings-overview-grid">{view.tabs.documents.items.map((item) => <article className="panel-card page-stack" key={item.id}><span className="eyebrow">{label(item.category)} · {label(item.evidenceObject.status)}</span><h3>{item.evidenceObject.fileName}</h3><dl className="etw-facts compact"><div><dt>Integrity</dt><dd>{item.evidenceObject.checksumSha256.slice(0, 16)}…</dd></div><div><dt>Malware result</dt><dd>{label(item.evidenceObject.malwareStatus)}</dd></div><div><dt>Access</dt><dd>{label(item.evidenceObject.accessLevel)}</dd></div><div><dt>Retention</dt><dd>{dateTime(item.evidenceObject.retentionUntil)}</dd></div><div><dt>Legal hold</dt><dd>{item.evidenceObject.legalHold ? "Active" : "Not active"}</dd></div><div><dt>Uploaded by</dt><dd>{item.evidenceObject.uploadedByUser.name}</dd></div></dl><div className="form-actions">{item.downloadUrl ? <a className="button button-secondary" href={item.downloadUrl}>Download</a> : null}<button className="button button-secondary" disabled={busy} onClick={() => govern(item, { legalHold: !item.evidenceObject.legalHold }, `${item.evidenceObject.legalHold ? "Release" : "Apply"} evidence legal hold after governance review.`)} type="button">{item.evidenceObject.legalHold ? "Release hold" : "Apply legal hold"}</button><button className="button button-secondary" disabled={busy} onClick={() => govern(item, { accessLevel: item.evidenceObject.accessLevel === "INTERNAL" ? "RESTRICTED" : "INTERNAL" }, "Change evidence access classification after governance review.")} type="button">Set {item.evidenceObject.accessLevel === "INTERNAL" ? "restricted" : "internal"}</button></div></article>)}</div> : <AccessEmpty allowed labelText="Documents" /> : <AccessEmpty allowed={false} labelText="Documents" />}</section> : null}
-    {active === "warranty" ? view.tabs.warranty.allowed ? view.tabs.warranty.items.length ? <GenericCards items={view.tabs.warranty.items} kind="Warranty coverage or claim" /> : <AccessEmpty allowed labelText="Warranty claims" /> : <AccessEmpty allowed={false} labelText="Warranty" /> : null}
-    {active === "communications" ? view.tabs.communications.allowed ? <GenericCards items={view.tabs.communications.items} kind="Communication" /> : <AccessEmpty allowed={false} labelText="Communications" /> : null}
-    {active === "costs" ? view.tabs.costs.allowed ? <div className="settings-overview-grid">{view.tabs.costs.items.map((item, index) => <article className="panel-card page-stack" key={String(item.repairOrderId ?? index)}><span className="eyebrow">Service cost</span><h3>{label(item.repairOrderNumber)}</h3>{Array.isArray(item.estimates) ? (item.estimates as RecordItem[]).map((estimate) => <p key={String(estimate.id)}>Estimate v{label(estimate.version)} · {money(estimate.totalCents)} · {label(estimate.status)}</p>) : null}</article>)}</div> : <AccessEmpty allowed={false} labelText="Costs" /> : null}
-    {active === "decisions" ? view.tabs.decisions.allowed ? <GenericCards items={view.tabs.decisions.items} kind="Authorization decision" /> : <AccessEmpty allowed={false} labelText="Decisions" /> : null}
-    {active === "audit" ? view.tabs.audit.allowed ? <GenericCards items={view.tabs.audit.items} kind="Audit event" /> : <AccessEmpty allowed={false} labelText="Audit" /> : null}
-    {active === "relationships" ? <section className="panel-card page-stack"><div className="page-copy"><h2>Relationship graph</h2><p>Every edge is derived from a durable source link and filtered to your current permissions.</p></div><div className="settings-overview-grid">{view.graph.edges.map((edge) => <article className="settings-callout-card" key={edge.id}><span className="eyebrow">{label(edge.type)}</span><h3>{nodes.get(edge.from)?.label ?? edge.from} → {nodes.get(edge.to)?.label ?? edge.to}</h3><p>{label(edge.label)}</p>{nodes.get(edge.to)?.href ? <Link href={nodes.get(edge.to)?.href ?? "#"}>Open linked record</Link> : null}</article>)}</div></section> : null}
+  const safetyYear = Number(specifications.modelYear ?? vehicle.year);
+  const safetyMake = String(specifications.make ?? vehicle.make ?? "").trim();
+  const safetyModel = String(specifications.model ?? vehicle.model ?? "").trim();
+  const loadSafety = useCallback(async () => { if (!safetyYear || !safetyMake || !safetyModel) { setSafety(null); setSafetyError("Year, make, and model are required before NHTSA safety intelligence can be checked."); return; } setSafetyLoading(true); setSafetyError(""); try { const response = await fetch("/api/service-intake/safety-intelligence", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ concern: "", make: safetyMake, model: safetyModel, year: safetyYear }) }); const body = await response.json().catch(() => ({})) as { error?: string; safetyIntelligence?: NhtsaSafetyIntelligence }; if (!response.ok || !body.safetyIntelligence) throw new Error(body.error ?? "Vehicle safety intelligence is unavailable."); setSafety(body.safetyIntelligence); } catch (error) { setSafety(null); setSafetyError(error instanceof Error ? error.message : "Vehicle safety intelligence is unavailable."); } finally { setSafetyLoading(false); } }, [safetyMake, safetyModel, safetyYear]);
+
+  useEffect(() => {
+    if (view.tabs.specifications.available || !vehicle.vin) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setDecodeLoading(true);
+      setDecodeError("");
+      try {
+        const response = await fetch("/api/inventory-console/workflows/add-vehicle/preview", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ lookupType: "VIN", vin: vehicle.vin }), signal: controller.signal });
+        const body = await response.json().catch(() => ({})) as { error?: string; decode?: { decoded?: VehicleDecode; provider?: string; retrievedAt?: string } };
+        if (!response.ok || !body.decode?.decoded) throw new Error(body.error ?? "Decoded vehicle information is unavailable.");
+        setLiveDecode(body.decode.decoded);
+        setLiveDecodeAt(body.decode.retrievedAt ?? new Date().toISOString());
+      } catch (error) {
+        if (!controller.signal.aborted) setDecodeError(error instanceof Error ? error.message : "Decoded vehicle information is unavailable.");
+      } finally {
+        if (!controller.signal.aborted) setDecodeLoading(false);
+      }
+    }, 0);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [vehicle.vin, view.tabs.specifications.available]);
+
+  useEffect(() => { const timer = window.setTimeout(() => void loadSafety(), 0); return () => window.clearTimeout(timer); }, [loadSafety]);
+
+  return <section className={styles.workspace} aria-label={`Vehicle 360 for ${identityName}`}>
+    <header className={styles.hero}>
+      <div className={styles.breadcrumb}><Link href="/vehicles/registry">Vehicle registry</Link><span>/</span><span>Vehicle 360</span><span>/</span><strong>{vehicle.vehicleNumber}</strong></div>
+      <div className={styles.identityRow}>
+        <div className={styles.vehicleIcon}><CarFront /></div>
+        <div className={styles.identityCopy}><small>Canonical vehicle command center</small><h1>{identityName}</h1><p>VIN {vehicle.vin ?? vehicle.vinState} · Stock {vehicle.stockNumber ?? "not recorded"} · Plate {vehicle.licensePlate ?? "not recorded"} · {typeof mileage === "number" ? `${mileage.toLocaleString()} mi` : "Mileage not recorded"}</p><div className={styles.badgeRow}><OperationalBadge tone={vehicle.vinState === "VERIFIED" ? "good" : "attention"}><BadgeCheck />VIN {sentence(vehicle.vinState)}</OperationalBadge><OperationalBadge>{relationship(view)}</OperationalBadge>{view.summary.risks.length ? <OperationalBadge tone="attention"><AlertTriangle />{view.summary.risks.length} operational signal{view.summary.risks.length === 1 ? "" : "s"}</OperationalBadge> : <OperationalBadge tone="good"><CheckCircle2 />No active operating risks</OperationalBadge>}</div></div>
+        <div className={styles.heroActions}><button className={styles.secondaryButton} onClick={() => setActive("evidence")} type="button"><Camera />Add evidence</button><Link className={styles.secondaryButton} href={withReturn(`/vehicles/repair-workbench?vehicleId=${encodeURIComponent(vehicle.id)}`, vehicle360Return)}><Wrench />Start repair order</Link><Link className={styles.primaryButton} href={primaryHref}>{primaryLabel}<ArrowRight /></Link></div>
+      </div>
+      <nav className={styles.tabs} aria-label="Vehicle 360 sections">{sections.map(section => <button aria-current={active === section ? "page" : undefined} className={active === section ? styles.activeTab : ""} key={section} onClick={() => setActive(section)} type="button">{section === "identity" ? "Identity & specifications" : section === "work" ? "Work & service history" : section === "safety" ? "Safety intelligence" : section === "evidence" ? "Evidence & documents" : "Overview"}</button>)}</nav>
+    </header>
+
+    {notice ? <div className={notice.toLowerCase().includes("failed") || notice.toLowerCase().includes("quarantine") || notice.toLowerCase().includes("required") ? styles.warning : styles.success}><ShieldCheck /><p>{notice}</p></div> : null}
+
+    {decodeError ? <div className={styles.warning}><AlertTriangle /><p>{decodeError}</p></div> : null}
+    {active === "overview" ? <Overview view={view} specifications={specifications} specificationAvailable={specificationView.available} specificationStatus={decodeLoading ? "Retrieving live NHTSA decode" : liveDecode ? "Live NHTSA refresh" : view.tabs.specifications.available ? "Canonical snapshot" : "Missing"} safety={safety} safetyError={safetyError} safetyLoading={safetyLoading} nodes={nodes} missingCanonical={missingCanonical.map(([name]) => String(name))} onOpenEvidence={() => setActive("evidence")} onOpenIdentity={() => setActive("identity")} onOpenSafety={() => setActive("safety")} primaryHref={primaryHref} /> : null}
+    {active === "identity" ? <VehicleSpecifications view={specificationView} /> : null}
+    {active === "work" ? <WorkHistory view={view} /> : null}
+    {active === "safety" ? <SafetyIntelligence intelligence={safety} loading={safetyLoading} error={safetyError} onRefresh={() => void loadSafety()} vehicle={vehicle} /> : null}
+    {active === "evidence" ? <EvidenceWorkspace accessLevel={accessLevel} busy={busy} category={category} file={file} items={view.tabs.documents.items} allowed={view.tabs.documents.allowed} retention={retention} onAccessLevel={setAccessLevel} onCategory={setCategory} onFile={setFile} onGovern={govern} onRetention={setRetention} onUpload={upload} /> : null}
   </section>;
+}
+
+function Overview({ view, specifications, specificationAvailable, specificationStatus, safety, safetyError, safetyLoading, nodes, missingCanonical, onOpenEvidence, onOpenIdentity, onOpenSafety, primaryHref }: { view: Vehicle360View; specifications: RecordItem; specificationAvailable: boolean; specificationStatus: string; safety: NhtsaSafetyIntelligence | null; safetyError: string; safetyLoading: boolean; nodes: Map<string, GraphNode>; missingCanonical: string[]; onOpenEvidence: () => void; onOpenIdentity: () => void; onOpenSafety: () => void; primaryHref: string }) {
+  const vehicle = view.summary.vehicle;
+  const recallCount = safety?.recalls.length ?? 0;
+  const nextAction = view.summary.nextAction ?? (view.tabs.inventory.items.length ? "Continue receiving and inventory planning" : "Review vehicle record and establish the next workflow");
+  return <main className={styles.overviewLayout}>
+    <div className={styles.sectionStack}>
+      <section className={styles.panel}><SectionHeading eyebrow="Current operational state" title={sentence(view.summary.stage)} detail={`${sentence(view.summary.operatingState)} · ${view.summary.location?.name ?? "No active location"}${view.summary.targetAt ? ` · target ${dateTime(view.summary.targetAt)}` : ""}`} action={<Link className={styles.secondaryButton} href={primaryHref}>Continue work<ArrowRight /></Link>} /><div className={styles.nextAction}><Gauge /><div><small>Do this next</small><strong>{nextAction}</strong><p>The command center preserves context while the authoritative work remains in its governed workflow.</p></div></div></section>
+      <section className={styles.panel}><SectionHeading eyebrow="Safety intelligence" title={safetyLoading ? "Checking NHTSA sources" : safetyError ? "Safety source needs attention" : recallCount ? `${recallCount} model-level campaign${recallCount === 1 ? "" : "s"} found` : safety ? "No model-level campaigns returned" : "Safety intelligence pending"} detail="Potential campaigns require VIN-specific verification before they can be treated as an open recall." action={<button className={styles.textButton} onClick={onOpenSafety} type="button">Open safety review<ArrowRight /></button>} />{safetyError ? <div className={styles.warning}><AlertTriangle /><p>{safetyError}</p></div> : recallCount ? <div className={styles.safetyPreview}><ShieldAlert /><div><OperationalBadge tone="attention">Potentially applicable—verify by VIN</OperationalBadge><strong>{safety?.recalls[0]?.component}</strong><p>{safety?.recalls[0]?.summary}</p></div></div> : <div className={styles.safetyPreview}><ShieldCheck /><div><strong>{safetyLoading ? "Retrieving current model-level results" : safety ? "No model-level campaign returned" : "VIN verification policy remains active"}</strong><p>A model-level search does not replace the NHTSA or manufacturer VIN-specific lookup.</p></div></div>}</section>
+      <section className={styles.panel}><SectionHeading eyebrow="Vehicle facts" title="Canonical identity and decoded specifications" detail={`The most useful identity and technical facts are visible here. Decode status: ${specificationStatus}.`} action={<button className={styles.textButton} onClick={onOpenIdentity} type="button">View all specifications<ArrowRight /></button>} /><dl className={styles.factGrid}><div><dt>Year / make / model</dt><dd>{[specifications.modelYear ?? vehicle.year, specifications.make ?? vehicle.make, specifications.model ?? vehicle.model].filter(Boolean).join(" ") || dash}</dd></div><div><dt>Trim / series</dt><dd>{rawLabel(specifications.trim ?? specifications.series)}</dd></div><div><dt>Engine</dt><dd>{[specifications.displacementLiters ? `${specifications.displacementLiters}L` : null, specifications.engineCylinders ? `${specifications.engineCylinders} cylinder` : null, specifications.engineConfiguration].filter(Boolean).join(" · ") || dash}</dd></div><div><dt>Drive / transmission</dt><dd>{[specifications.driveType, specifications.transmissionStyle].filter(Boolean).map(rawLabel).join(" · ") || dash}</dd></div><div><dt>Body / doors</dt><dd>{[specifications.bodyClass, specifications.doors ? `${specifications.doors} door` : null].filter(Boolean).map(rawLabel).join(" · ") || dash}</dd></div><div><dt>Manufactured</dt><dd>{[specifications.manufacturer, specifications.plantCountry].filter(Boolean).map(rawLabel).join(" · ") || dash}</dd></div></dl></section>
+      <section className={styles.panel}><SectionHeading eyebrow="Connected activity" title="Work, service, and evidence timeline" detail="Events from durable source records are presented in one vehicle history." /><div className={styles.timeline}>{view.timeline.length ? view.timeline.slice(0, 8).map(item => { const Icon = sourceIcon(item.source); return <article key={item.id}><Icon /><div><small>{sentence(item.source)} · {sentence(item.type)}</small><strong>{item.title}</strong><p>{item.detail ?? `${item.subjectType} ${item.subjectId}`}</p></div><time>{dateTime(item.occurredAt)}</time></article>; }) : <AccessEmpty allowed labelText="Timeline" />}</div></section>
+    </div>
+    <aside className={styles.sideRail}>
+      <section className={`${styles.panel} ${styles.nextPanel}`}><small>Next best action</small><h2>{nextAction}</h2><p>Resume the authoritative workflow without losing this vehicle context.</p><Link className={styles.primaryButton} href={primaryHref}>Continue current task<ArrowRight /></Link></section>
+      <section className={styles.panel}><SectionHeading eyebrow="Custody & assignment" title="Current responsibility" /><dl className={styles.sideFacts}><div><dt>Relationship</dt><dd>{relationship(view)}</dd></div><div><dt>Location</dt><dd>{view.summary.location?.name ?? "Not recorded"}</dd></div><div><dt>Accountable owner</dt><dd>{ownerName(view.summary.owner)}</dd></div><div><dt>Operating state</dt><dd>{sentence(view.summary.operatingState)}</dd></div></dl></section>
+      <section className={styles.panel}><SectionHeading eyebrow="Canonical data health" title={missingCanonical.length ? `${missingCanonical.length} field${missingCanonical.length === 1 ? "" : "s"} need attention` : "Core identity complete"} /><dl className={styles.sourceList}><div><dt>VIN identity</dt><dd className={vehicle.vinState === "VERIFIED" ? styles.positive : ""}>{sentence(vehicle.vinState)}</dd></div><div><dt>NHTSA decode</dt><dd className={specificationAvailable ? styles.positive : ""}>{specificationStatus}</dd></div>{missingCanonical.map(field => <div key={field}><dt>{field}</dt><dd>Missing in canonical record</dd></div>)}</dl><button className={styles.textButton} onClick={onOpenIdentity} type="button">Review origins and details<ArrowRight /></button></section>
+      <section className={styles.panel}><SectionHeading eyebrow="Connected records" title="Authoritative links" /><dl className={styles.sourceList}><div><dt>Evidence</dt><dd>{view.tabs.documents.allowed ? view.tabs.documents.items.length : "Restricted"}</dd></div><div><dt>Repair orders</dt><dd>{view.tabs.service.allowed ? view.tabs.service.repairOrders.length : "Restricted"}</dd></div><div><dt>Inventory units</dt><dd>{view.tabs.inventory.allowed ? view.tabs.inventory.items.length : "Restricted"}</dd></div><div><dt>Parts demands</dt><dd>{view.tabs.parts.allowed ? view.tabs.parts.demands.length : "Restricted"}</dd></div></dl><button className={styles.textButton} onClick={onOpenEvidence} type="button">Open evidence records<ArrowRight /></button></section>
+      <section className={styles.panel}><SectionHeading eyebrow="Relationships" title={`${view.graph.edges.length} durable connection${view.graph.edges.length === 1 ? "" : "s"}`} /><div className={styles.relationships}>{view.graph.edges.slice(0, 5).map(edge => <div key={edge.id}><Link2 /><span>{nodes.get(edge.to)?.label ?? edge.to}</span><small>{sentence(edge.type)}</small></div>)}</div></section>
+    </aside>
+  </main>;
+}
+
+function WorkHistory({ view }: { view: Vehicle360View }) {
+  return <div className={styles.sectionStack}>
+    <section className={styles.panel}><SectionHeading eyebrow="Work & service history" title="One vehicle record across intake, recon, repair, and release" detail="Operational records stay grouped by their source while remaining connected to this canonical vehicle." /></section>
+    <RecordSection title="Inventory lifecycle" allowed={view.tabs.inventory.allowed} items={view.tabs.inventory.items} kind="Inventory unit" />
+    <RecordSection title="Repair orders" allowed={view.tabs.service.allowed} items={view.tabs.service.repairOrders} kind="Repair order" />
+    <RecordSection title="Parts demand and custody" allowed={view.tabs.parts.allowed} items={[...view.tabs.parts.demands, ...view.tabs.parts.custody]} kind="Parts record" />
+    <RecordSection title="Appointments" allowed items={view.tabs.appointments.items.map(item => nested(item, "appointment"))} kind="Appointment" />
+    <RecordSection title="Warranty" allowed={view.tabs.warranty.allowed} items={view.tabs.warranty.items} kind="Warranty coverage or claim" />
+    <RecordSection title="Customer communications" allowed={view.tabs.communications.allowed} items={view.tabs.communications.items} kind="Communication" />
+    <RecordSection title="Authorization decisions" allowed={view.tabs.decisions.allowed} items={view.tabs.decisions.items} kind="Authorization decision" />
+    <section className={styles.panel}><SectionHeading eyebrow="Costs" title="Service estimates and invoice packages" />{view.tabs.costs.allowed ? view.tabs.costs.items.length ? <div className={styles.recordGrid}>{view.tabs.costs.items.map((item, index) => <article className={styles.recordCard} key={String(item.repairOrderId ?? index)}><small>Service cost</small><h3>{sentence(item.repairOrderNumber)}</h3>{Array.isArray(item.estimates) ? (item.estimates as RecordItem[]).map(estimate => <p key={String(estimate.id)}>Estimate v{rawLabel(estimate.version)} · {money(estimate.totalCents)} · {sentence(estimate.status)}</p>) : null}</article>)}</div> : <AccessEmpty allowed labelText="Costs" /> : <AccessEmpty allowed={false} labelText="Costs" />}</section>
+    <RecordSection title="Audit history" allowed={view.tabs.audit.allowed} items={view.tabs.audit.items} kind="Audit event" />
+  </div>;
+}
+
+function RecordSection({ title, allowed, items, kind }: { title: string; allowed: boolean; items: RecordItem[]; kind: string }) {
+  return <section className={styles.panel}><SectionHeading eyebrow="Connected source records" title={title} action={<OperationalBadge>{allowed ? `${items.length} record${items.length === 1 ? "" : "s"}` : "Restricted"}</OperationalBadge>} />{allowed ? <GenericCards items={items} kind={kind} /> : <AccessEmpty allowed={false} labelText={title} />}</section>;
+}
+
+function EvidenceWorkspace({ accessLevel, allowed, busy, category, file, items, retention, onAccessLevel, onCategory, onFile, onGovern, onRetention, onUpload }: { accessLevel: string; allowed: boolean; busy: boolean; category: string; file: File | null; items: EvidenceItem[]; retention: string; onAccessLevel: (value: string) => void; onCategory: (value: string) => void; onFile: (value: File | null) => void; onGovern: (item: EvidenceItem, changes: Record<string, unknown>, reason: string) => Promise<void>; onRetention: (value: string) => void; onUpload: (event: FormEvent) => Promise<void> }) {
+  return <div className={styles.sectionStack}><form className={styles.panel} onSubmit={onUpload}><SectionHeading eyebrow="Evidence & documents" title="Upload governed evidence" detail="Attach evidence once, preserve its origin, and reuse it across receiving, recon, repair, QC, and future diagnosis." /><div className={styles.uploadGrid}><label><span>File</span><input accept="application/pdf,image/jpeg,image/png,image/webp,text/plain" disabled={busy || !allowed} onChange={event => onFile(event.target.files?.[0] ?? null)} required type="file" /></label><label><span>Category</span><select onChange={event => onCategory(event.target.value)} value={category}>{["PHOTO", "INSPECTION", "REPAIR", "TITLE", "WARRANTY", "CUSTOMER_APPROVAL", "DELIVERY", "OTHER"].map(item => <option key={item}>{item}</option>)}</select></label><label><span>Access</span><select onChange={event => onAccessLevel(event.target.value)} value={accessLevel}><option>INTERNAL</option><option>RESTRICTED</option></select></label><label><span>Retain through</span><input onChange={event => onRetention(event.target.value)} required type="date" value={retention} /></label></div><button className={styles.primaryButton} disabled={busy || !file || !allowed} type="submit">Verify and store evidence<ArrowRight /></button></form>
+    <section className={styles.panel}><SectionHeading eyebrow="Connected evidence" title={`${items.length} governed object${items.length === 1 ? "" : "s"}`} detail="Integrity, access classification, retention, legal hold, and uploader attribution remain visible." />{allowed ? items.length ? <div className={styles.evidenceGrid}>{items.map(item => <article className={styles.evidenceCard} key={item.id}><header><FileText /><div><small>{sentence(item.category)} · {sentence(item.evidenceObject.status)}</small><h3>{item.evidenceObject.fileName}</h3></div></header><dl><div><dt>Integrity</dt><dd>{item.evidenceObject.checksumSha256.slice(0, 16)}…</dd></div><div><dt>Malware result</dt><dd>{sentence(item.evidenceObject.malwareStatus)}</dd></div><div><dt>Access</dt><dd>{sentence(item.evidenceObject.accessLevel)}</dd></div><div><dt>Retention</dt><dd>{dateTime(item.evidenceObject.retentionUntil)}</dd></div><div><dt>Legal hold</dt><dd>{item.evidenceObject.legalHold ? "Active" : "Not active"}</dd></div><div><dt>Uploaded by</dt><dd>{item.evidenceObject.uploadedByUser.name}</dd></div></dl><div className={styles.cardActions}>{item.downloadUrl ? <a className={styles.secondaryButton} href={item.downloadUrl}>Download</a> : null}<button className={styles.secondaryButton} disabled={busy} onClick={() => void onGovern(item, { legalHold: !item.evidenceObject.legalHold }, `${item.evidenceObject.legalHold ? "Release" : "Apply"} evidence legal hold after governance review.`)} type="button">{item.evidenceObject.legalHold ? "Release hold" : "Apply legal hold"}</button><button className={styles.secondaryButton} disabled={busy} onClick={() => void onGovern(item, { accessLevel: item.evidenceObject.accessLevel === "INTERNAL" ? "RESTRICTED" : "INTERNAL" }, "Change evidence access classification after governance review.")} type="button">Set {item.evidenceObject.accessLevel === "INTERNAL" ? "restricted" : "internal"}</button></div></article>)}</div> : <AccessEmpty allowed labelText="Evidence" /> : <AccessEmpty allowed={false} labelText="Evidence" />}</section>
+  </div>;
 }

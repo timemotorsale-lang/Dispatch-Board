@@ -66,4 +66,20 @@ describe("application shell Sales Console return navigation", () => {
 
     expect(markup).not.toContain("Return to Sales Console");
   });
+
+  it("wires shared page tabs into the Inventory Console shell", () => {
+    currentPathname = "/vehicles/360/vehicle-1";
+    currentSearchParams = new URLSearchParams("returnTo=%2Fvehicles%2Fvehicle-1%2Finventory-planning");
+
+    const markup = renderToStaticMarkup(
+      <AppShell user={testUser}>
+        <section>Vehicle 360</section>
+      </AppShell>
+    );
+
+    expect(markup).toContain('aria-label="Inventory Console page navigation"');
+    expect(markup).toContain("Inventory Lifecycle");
+    expect(markup).toContain("Vehicle 360");
+    expect(markup).toContain("Inventory Planning");
+  });
 });

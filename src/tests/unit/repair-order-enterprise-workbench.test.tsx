@@ -21,6 +21,7 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("Measure friction material");
     expect(html).toContain("It does not assume the cause or authorize repair work");
     expect(html).toContain("Release to Diagnosis");
+    expect(html).toContain("returnTo=%2Fvehicles%2Frepair-workbench%3FrepairOrderId%3Dro-1");
     expect(html).toContain("Customer authorization is required before any repair work is performed");
     expect(html).toContain('href="#diagnosis"');
     expect(html).toContain('id="diagnosis"');

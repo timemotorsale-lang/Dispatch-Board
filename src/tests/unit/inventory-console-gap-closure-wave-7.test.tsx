@@ -27,7 +27,7 @@ describe("Inventory Console gap closure Wave 7", () => {
   });
 
   it("creates explicit inspection, recon, QC, title, and publication recovery contracts", () => {
-    expect(normalizeInspection({ ...command, diagnosticRequired: true, evidenceObjectIds: ["e"], identityConflict: false, safetyCriticalFail: false, templateCode: "I", templateComplete: true, templateVersion: 1, titleConcern: true }).blockers).toEqual(expect.arrayContaining(["TITLE_CONCERN", "DIAGNOSTIC_REQUIRED"]));
+    expect(normalizeInspection({ ...command, checklistResults: [{ code: "GENERAL", label: "General inspection", status: "CONCERN" }], diagnosticRequired: true, evidenceObjectIds: ["e"], identityConflict: false, safetyCriticalFail: false, templateCode: "I", templateComplete: true, templateVersion: 1, titleConcern: true }).blockers).toEqual(expect.arrayContaining(["TITLE_CONCERN", "DIAGNOSTIC_REQUIRED"]));
     expect(normalizeReconScopeChange({ ...command, changedAt: now, changeSummary: "Transmission scope added after diagnosis.", priorPlanVersion: 2, proposedAmountCents: 300000 }).snapshot).toMatchObject({ requiresReapproval: true, priorPlanVersion: 2 });
     expect(normalizeQualityFailure({ ...command, evidenceObjectIds: ["qc-evidence"], failedChecks: ["BRAKES"], reviewerUserId: "reviewer" }, now).snapshot).toMatchObject({ reworkRequired: true, failedChecks: ["BRAKES"] });
     expect(normalizeTitleHold({ ...command, blockers: ["LIEN_RELEASE"], dueAt: "2026-07-20T12:00:00Z", externalDependency: "LENDER", ownerUserId: "title-owner" }, now).snapshot).toMatchObject({ recoveryStage: "TITLE_DOCUMENT_READINESS", ownerUserId: "title-owner" });

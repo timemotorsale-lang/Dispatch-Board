@@ -33,8 +33,13 @@ describe("R5 Inventory-to-Frontline domain", () => {
   });
 
   it("holds inspection on critical safety or identity failures", () => {
-    const result = normalizeInspection({ ...command, evidenceObjectIds: ["e-1"], identityConflict: true, safetyCriticalFail: true, templateCode: "INSPECT", templateComplete: true, templateVersion: 1 });
+    const result = normalizeInspection({ ...command, checklistResults: [{ code: "SAFETY", label: "Safety inspection", status: "CONCERN" }], evidenceObjectIds: ["e-1"], identityConflict: true, safetyCriticalFail: true, templateCode: "INSPECT", templateComplete: true, templateVersion: 1 });
     expect(result.blockers).toEqual(expect.arrayContaining(["SAFETY_CRITICAL_FAIL", "IDENTITY_CONFLICT"]));
+  });
+
+  it("persists the complete receiving checklist and rejects pending results", () => {
+    expect(normalizeInspection({ ...command, checklistResults: [{ code: "VIN", evidenceObjectIds: ["e-1"], label: "VIN identity", notes: "VIN label matched", status: "PASS" }], evidenceObjectIds: ["e-1"], templateCode: "TMS-RECEIVING-IQI", templateComplete: true, templateVersion: 1 }).snapshot.checklistResults).toEqual([{ code: "VIN", evidenceObjectIds: ["e-1"], label: "VIN identity", notes: "VIN label matched", status: "PASS" }]);
+    expect(() => normalizeInspection({ ...command, checklistResults: [{ code: "VIN", label: "VIN identity", status: "PENDING" }], evidenceObjectIds: ["e-1"], templateCode: "TMS-RECEIVING-IQI", templateComplete: true, templateVersion: 1 })).toThrow("Pass, Concern, or Not Applicable");
   });
 
   it("never averages away a failed critical quality gate", () => {

@@ -200,7 +200,7 @@ function partsHref(view: PartsView, repairOrderId?: string) {
   return query ? `/vehicles/parts-operations?${query}` : "/vehicles/parts-operations";
 }
 
-export function PartsOperationsWorkspace({ initial, initialRepairOrderId, initialView, showAdvisorReturn = false, showPartsReturn = false, showWorkspaceReturn = false }: { initial: Model; initialRepairOrderId?: string; initialView?: string; showAdvisorReturn?: boolean; showPartsReturn?: boolean; showWorkspaceReturn?: boolean }) {
+export function PartsOperationsWorkspace({ initial, initialRepairOrderId, initialView, returnTo, showAdvisorReturn = false, showPartsReturn = false, showWorkspaceReturn = false }: { initial: Model; initialRepairOrderId?: string; initialView?: string; returnTo?: string; showAdvisorReturn?: boolean; showPartsReturn?: boolean; showWorkspaceReturn?: boolean }) {
   const currentView: PartsView = validViews.has(initialView as PartsView) ? initialView as PartsView : "overview";
   const [renderedAt] = useState(() => Date.now());
   const [locationId, setLocationId] = useState("ALL");
@@ -405,7 +405,7 @@ export function PartsOperationsWorkspace({ initial, initialRepairOrderId, initia
     <section aria-label={`Parts Operations; Vendor adapters: ${initial.capability.vendorAdapters}; barcode: ${initial.capability.barcodeHardware}; recommendations: ${initial.capability.recommendations}`} className="parts-operations-page">
       <header className="parts-operations-header">
         <div>
-          {showAdvisorReturn ? <BackToServiceAdvisorWorkspace /> : showPartsReturn ? <BackToPartsWorkspace /> : showWorkspaceReturn ? <BackToVehicleOperationsWorkspace /> : null}
+          {returnTo ? <Link href={returnTo}>← Return to inventory lifecycle</Link> : showAdvisorReturn ? <BackToServiceAdvisorWorkspace /> : showPartsReturn ? <BackToPartsWorkspace /> : showWorkspaceReturn ? <BackToVehicleOperationsWorkspace /> : null}
           <p><Link href="/vehicles/shop-recon">Shop &amp; Recon</Link><span>/</span>Parts Operations</p>
           <h1>Parts Operations</h1>
           <small>Demand, sourcing, custody, availability, and recovery control</small>

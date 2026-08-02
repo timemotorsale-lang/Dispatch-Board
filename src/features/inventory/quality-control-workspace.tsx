@@ -158,7 +158,7 @@ function scorecardRows(jobs: Array<{ order: Order; job: Job }>) {
   return [...byTech.entries()].map(([name, row]) => ({ name, ...row }));
 }
 
-export function QualityControlWorkspace({ initial, initialRepairOrderId }: { initial: Model; initialRepairOrderId?: string }) {
+export function QualityControlWorkspace({ initial, initialRepairOrderId, returnTo }: { initial: Model; initialRepairOrderId?: string; returnTo?: string }) {
   const initialOrder = initial.repairOrders.find((order) => order.id === initialRepairOrderId) ?? initial.repairOrders[0];
   const [model, setModel] = useState(initial);
   const [orderId, setOrderId] = useState(initialOrder?.id ?? "");
@@ -228,12 +228,6 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId }: { ini
     }
   }
 
-  function chooseOrder(id: string) {
-    setOrderId(id);
-    const next = model.repairOrders.find((item) => item.id === id);
-    setJobId(next?.repairJobs.find((item) => item.status === "READY_FOR_QC")?.id ?? next?.repairJobs[0]?.id ?? "");
-  }
-
   function chooseJob(nextOrder: Order, nextJob: Job) {
     setOrderId(nextOrder.id);
     setJobId(nextJob.id);
@@ -247,6 +241,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId }: { ini
     <section className="qc-workspace-home">
       <header className="qc-hero">
         <div>
+          {returnTo ? <Link href={returnTo}>← Return to inventory lifecycle</Link> : null}
           <p>Quality Control Workspace</p>
           <h1>Verify completed repairs before they leave the shop.</h1>
           <span>One inspector queue for ready work, failed rechecks, evidence gaps, release decisions, and repair-order context.</span>
